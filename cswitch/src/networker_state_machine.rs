@@ -14,11 +14,29 @@ impl NetworkerStateMachine {
     }
 
     // Interface with Database:
-    // -----------------------
+    // ------------------------
     
-    // - database_request_signature
+    // - add_neighbor
+    // - remove_neighbor
+    // - request_get_neighbors_list
     
-    fn database_response_signature() {
+    fn database_response_get_neighbors_list() {
+    }
+
+    fn database_update_token_channel_info() {
+    }
+
+    // - request_token_channel_state
+    
+    fn database_response_token_channel_info() {
+    }
+
+    // Interface with Security Module:
+    // ------------------------------
+    
+    // - security_module_request_signature
+    
+    fn security_module_response_signature() {
     }
 
     // Interface with Plugin Manager:
@@ -116,8 +134,21 @@ impl NetworkerStateMachine {
     }
 
     // - message_received
-    
     // - fund_received
+    
+
+    // Interface with remote Networker
+    // -------------------------------
+    fn request_token() {
+    }
+
+    fn move_token() {
+    }
+
+    // Output messages:
+    // - invalid_move_token
+    // - request_token
+    // - move_token
 }
 
 
