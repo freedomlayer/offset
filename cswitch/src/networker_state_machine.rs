@@ -2,8 +2,14 @@
 
 struct NetworkerStateMachine {
 
-    // - Sqlite connection?
-    // - outgoing messages queue
+    // - Token channels state.
+    // - Known neighbors
+    // - Outgoing message queues to:
+    //      - Channeler
+    //      - Plugin Manager
+    //      - Indexer client
+    //      - Pather
+    //      - Funder
 
 }
 
