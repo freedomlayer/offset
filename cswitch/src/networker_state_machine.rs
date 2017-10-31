@@ -66,7 +66,11 @@ impl NetworkerStateMachine {
     fn plugin_manager_indexer_announce_self() {
     }
 
-    // - message_received
+
+    fn plugin_manager_send_message_response() {
+    }
+
+    // - request_message_received
     // - neighbors_update
     // - invalid_neighbor_move_token
     
@@ -112,6 +116,9 @@ impl NetworkerStateMachine {
 
     // - indexer_announce
     // - message_received
+    //
+    fn indexer_client_send_message_response() {
+    }
     
     fn indexer_client_request_send_message() {
     }
@@ -140,6 +147,10 @@ impl NetworkerStateMachine {
     }
 
     // - message_received
+    
+    fn funder_send_message_response() {
+    }
+
     // - fund_received
     
 
