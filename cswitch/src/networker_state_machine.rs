@@ -116,9 +116,6 @@ impl NetworkerStateMachine {
 
     // - indexer_announce
     // - message_received
-    //
-    fn indexer_client_send_message_response() {
-    }
     
     fn indexer_client_request_send_message() {
     }
@@ -147,10 +144,6 @@ impl NetworkerStateMachine {
     }
 
     // - message_received
-    
-    fn funder_send_message_response() {
-    }
-
     // - fund_received
     
 
