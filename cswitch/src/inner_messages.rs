@@ -1,3 +1,6 @@
+extern crate num_bigint;
+
+use self::num_bigint::BigInt;
 
 // TODO: Find a good crypto library to use for short signatures.
 
@@ -10,7 +13,7 @@ struct Uid([u8; UID_LEN]);
 // Helper structs
 // --------------
 
-struct NodePublicKey([u8; PUBLIC_KEY_LEN]);
+struct PublicKey([u8; PUBLIC_KEY_LEN]);
 struct Signature([u8; SIGNATURE_LEN]);
 
 struct ChannelerAddress {
@@ -18,7 +21,7 @@ struct ChannelerAddress {
 }
 
 struct NeighborInfo {
-    neighbor_public_key: NodePublicKey,
+    neighbor_public_key: PublicKey,
     neighbor_address: ChannelerAddress,
     max_channels: u32,  // Maximum amount of token channels
     token_channel_capacity: u64,    // Capacity per token channel
@@ -45,6 +48,8 @@ struct NeighborsRoute {
 
 struct FriendsRoute {
     route: Vec<u32>,
+    // How much credit can we push through this route?
+    capacity: u64,
 }
 
 
@@ -54,7 +59,7 @@ struct FriendsRoute {
 
 struct ChannelOpened {
     channel_uid: Uid,
-    remote_public_key: NodePublicKey, // Public key of remote side
+    remote_public_key: PublicKey, // Public key of remote side
     locally_initialized: bool, // Was this channel initiated by this end.
 }
 
@@ -95,10 +100,10 @@ enum NetworkerToChanneler {
         neighbor_info: NeighborInfo,
     },
     RemoveNeighborRelation {
-        neighbor_public_key: NodePublicKey,
+        neighbor_public_key: PublicKey,
     },
     SetMaxChannels {
-        neighbor_public_key: NodePublicKey,
+        neighbor_public_key: PublicKey,
         max_channels: u32,
     },
     RequestNeighborsRelationList,
@@ -112,10 +117,11 @@ enum IndexerClientToNetworker {
     RequestSendMessage {
         request_id: Uid,
         request_content: Vec<u8>,
-        nodes_route: NeighborsRoute,
+        neighbors_route: NeighborsRoute,
         max_response_length: u64,
         processing_fee: u64,
         delivery_fee: u64,
+        dest_node_public_key: PublicKey,
     },
     IndexerAnnounce {
         content: Vec<u8>,
@@ -130,9 +136,9 @@ enum ResponseSendMessageContent {
     Failure,
 }
 
-enum NotifyStructureChange {
-    NeighborAdded(NodePublicKey),
-    NeighborRemoved(NodePublicKey),
+enum NotifyStructureChangeNeighbors {
+    NeighborAdded(PublicKey),
+    NeighborRemoved(PublicKey),
 }
 
 enum NetworkerToIndexerClient {
@@ -140,8 +146,9 @@ enum NetworkerToIndexerClient {
         request_id: Uid,
         content: ResponseSendMessageContent,
     },
-    NotifyStructureChange(NotifyStructureChange),
+    NotifyStructureChange(NotifyStructureChangeNeighbors),
     MessageReceived {
+        source_node_public_key: PublicKey,
         message_content: Vec<u8>,
     },
 }
@@ -154,6 +161,7 @@ enum NetworkerToIndexerClient {
 enum NetworkerToPluginManager {
     SendMessageRequestReceived {
         request_id: Uid,
+        source_node_public_key: PublicKey,
         request_content: Vec<u8>,
         max_response_length: u64,
         processing_fee: u64,
@@ -193,12 +201,12 @@ enum PluginManagerToNetworker {
         neighbor_info: NeighborInfo,
     },
     RemoveNeighbor {
-        neighbor_public_key: NodePublicKey,
+        neighbor_public_key: PublicKey,
     },
     RequestNeighborsList,
     IndexerAnnounceSelf {
         current_time: u64,      // Current perceived time
-        owner_public_key: NodePublicKey, // Public key of the signing owner.
+        owner_public_key: PublicKey, // Public key of the signing owner.
         owner_sign_time: u64,   // The time in which the owner has signed
         owner_signature: Signature, // The signature of the owner over (owner_sign_time || indexer_public_key)
     },
@@ -221,7 +229,7 @@ enum PatherToNetworker {
     RequestSendMessage {
         request_id: Uid,
         request_content: Vec<u8>,
-        nodes_route: NeighborsRoute,
+        neighbors_route: NeighborsRoute,
         max_response_length: u64,
         processing_fee: u64,
         delivery_fee: u64,
@@ -242,8 +250,8 @@ enum IndexerClientToPather {
 
 enum PatherToIndexerClient {
     RequestNeighborsRoute {
-        source_node_public_key: NodePublicKey,
-        dest_node_public_key: NodePublicKey,
+        source_node_public_key: PublicKey,
+        dest_node_public_key: PublicKey,
     }
 }
 
@@ -267,7 +275,7 @@ enum PatherToPluginManager {
 enum PluginManagerToPather {
     RequestOpenPath {
         request_id: Uid,
-        dest_node_public_key: NodePublicKey,
+        dest_node_public_key: PublicKey,
     },
     ClosePath {
         path_id: Uid,
@@ -301,7 +309,7 @@ enum PatherToFunder {
 enum FunderToPather {
     RequestOpenPath {
         request_id: Uid,
-        dest_node_public_key: NodePublicKey,
+        dest_node_public_key: PublicKey,
     },
     ClosePath {
         path_id: Uid,
@@ -314,3 +322,93 @@ enum FunderToPather {
         processing_fee: u64,
     }
 }
+
+// Funder to Networker
+// -------------------
+
+enum ResponseSendFundStatus {
+    Success,
+    Failure,
+}
+
+enum FunderToNetworker {
+    FundReceived {
+        source_node_public_key: PublicKey,
+        amount: u64,
+        message_content: Vec<u8>,
+    },
+    ResponseSendFund {
+        request_id: Uid,
+        status: ResponseSendFundStatus,
+    }
+}
+
+
+// Networker to Funder
+// -------------------
+
+enum NetworkerToFunder {
+    MessageReceived {
+        source_node_public_key: PublicKey,
+        message_content: Vec<u8>,
+    },
+    RequestSendFund {
+        request_id: Uid,
+        amount: u64,
+        message_content: Vec<u8>,
+        dest_node_public_key: PublicKey,
+    },
+}
+
+
+// Funder to Indexer Client
+// ------------------------
+
+struct FriendCapacity {
+    friend_public_key: PublicKey,
+    mutual_credit: BigInt,
+    max_mutual_credit: BigInt,
+    min_mutual_credit: BigInt,
+}
+
+enum NotifyStructureChangeFriends {
+    FriendAdded(PublicKey),
+    FriendRemoved(PublicKey),
+    FriendCapacity(FriendCapacity),
+}
+
+enum RequestFriendsRoute {
+    Direct {
+        source_node_public_key: PublicKey,
+        dest_node_public_key: PublicKey,
+    },
+    LoopFromFriend {
+        // A loop from myself through given friend, back to myself.
+        // This is used for money rebalance when we owe the friend money.
+        friend_public_key: PublicKey,
+    },
+    LoopToFriend {
+        // A loop from myself back to myself through given friend.
+        // This is used for money rebalance when the friend owe us money.
+        friend_public_key: PublicKey,
+    },
+
+}
+
+enum FunderToIndexerClient {
+    RequestFriendsRoute(RequestFriendsRoute),
+    NotifyStructureChange(NotifyStructureChangeFriends),
+}
+
+
+// Indexer Client to Funder
+// ------------------------
+
+enum IndexerClientToFunder {
+    ResponseFriendsRoute {
+        routes: Vec<FriendsRoute>,
+    },
+}
+
+
+
