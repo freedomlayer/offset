@@ -3,6 +3,7 @@
 
 const UID_LEN: usize = 16;
 const PUBLIC_KEY_LEN: usize = 32;
+const SIGNATURE_LEN: usize = 32;
 
 struct Uid([u8; UID_LEN]);
 
@@ -10,6 +11,7 @@ struct Uid([u8; UID_LEN]);
 // --------------
 
 struct NodePublicKey([u8; PUBLIC_KEY_LEN]);
+struct Signature([u8; SIGNATURE_LEN]);
 
 struct ChannelerAddress {
     // TODO: Ipv4 or Ipv6 address
@@ -20,6 +22,21 @@ struct NeighborInfo {
     neighbor_address: ChannelerAddress,
     max_channels: u32,  // Maximum amount of token channels
     token_channel_capacity: u64,    // Capacity per token channel
+}
+
+struct NeighborTokenChannel {
+    mutual_credit: i64, // TODO: Is this the right type? 
+    // Possibly change to bignum?
+    
+    // TODO:
+    // - A type for last token
+    // - Keep last operation?
+
+}
+
+struct NeighborTokenChannelInfo {
+    neighbor_info: NeighborInfo,
+    neighbor_token_channels: Vec<NeighborTokenChannel>,
 }
 
 struct NodesRoute {
@@ -62,56 +79,43 @@ enum ChannelerToNetworker {
 // Networker to Channeler
 // ----------------------
 
-struct SendChannelMessage {
-    channel_uid: Uid,
-    message_content: Vec<u8>,
-}
-
-struct CloseChannel {
-    channel_uid: Uid,
-}
-
-struct AddNeighborRelation {
-    neighbor_info: NeighborInfo,
-}
-
-
-struct RemoveNeighborRelation {
-    neighbor_public_key: NodePublicKey,
-}
-
-struct SetMaxChannels {
-    neighbor_public_key: NodePublicKey,
-    max_channels: u32,
-}
-
-struct RequestNeighborsRelationList {
-}
-
 enum NetworkerToChanneler {
-    SendChannelMessage(SendChannelMessage),
-    CloseChannel(CloseChannel),
-    AddNeighborRelation(AddNeighborRelation),
-    RemoveNeighborRelation(RemoveNeighborRelation),
-    SetMaxChannels(SetMaxChannels),
-    RequestNeighborsRelationList(RequestNeighborsRelationList),
+    SendChannelMessage {
+        channel_uid: Uid,
+        message_content: Vec<u8>,
+    },
+    CloseChannel {
+        channel_uid: Uid,
+    },
+    AddNeighborRelation {
+        neighbor_info: NeighborInfo,
+    },
+    RemoveNeighborRelation {
+        neighbor_public_key: NodePublicKey,
+    },
+    SetMaxChannels {
+        neighbor_public_key: NodePublicKey,
+        max_channels: u32,
+    },
+    RequestNeighborsRelationList,
 }
 
 // Indexer client to Networker
 // ---------------------------
 
 
-struct RequestSendMessage {
-    request_id: Uid,
-    message_content: Vec<u8>,
-    nodes_route: NodesRoute,
-    max_response_length: u64,
-    processing_fee: u64,
-    delivery_fee: u64,
-}
-
-struct IndexerAnnounce {
-    // TODO
+enum IndexerClientToNetworker {
+    RequestSendMessge {
+        request_id: Uid,
+        request_content: Vec<u8>,
+        nodes_route: NodesRoute,
+        max_response_length: u64,
+        processing_fee: u64,
+        delivery_fee: u64,
+    },
+    IndexerAnnounce {
+        content: Vec<u8>,
+    },
 }
 
 // Networker to Indexer client
@@ -122,18 +126,79 @@ enum ResponseSendMessageContent {
     Failure,
 }
 
-struct ResponseSendMessage {
-    request_id: Uid,
-    content: ResponseSendMessageContent,
-}
-
 enum NotifyStructureChange {
     NeighborAdded(NodePublicKey),
     NeighborRemoved(NodePublicKey),
 }
 
-struct MessageReceived {
-    message_content: Vec<u8>,
+enum NetworkerToIndexerClient {
+    ResponseSendMessageContent(ResponseSendMessageContent),
+    ResponseSendMessage {
+        request_id: Uid,
+        content: ResponseSendMessageContent,
+    },
+    NotifyStructureChange(NotifyStructureChange),
+    MessageReceived {
+        message_content: Vec<u8>,
+    },
 }
 
 
+// Networker to Plugin Manager
+// ---------------------------
+
+
+enum NetworkerToPluginManager {
+    SendMessageRequestReceived {
+        request_id: Uid,
+        request_content: Vec<u8>,
+        max_response_length: u64,
+        processing_fee: u64,
+    },
+    InvalidNeighborMoveToken {
+        // TODO
+    },
+    ResponseNeighborsList {
+        neighbors_list: Vec<NeighborTokenChannelInfo>,
+    },
+
+    NeighborUpdates {
+        // TODO: Add some summary of information about neighbors and their token channels.
+        // Possibly some counters?
+    },
+}
+
+// Plugin Manager to Networker
+// ---------------------------
+
+
+enum PluginManagerToNetworker { 
+    RespondSendMessageRequest {
+        request_id: Uid,
+        response_content: Vec<u8>,
+    },
+    DiscardSendMessageRequest {
+        request_id: Uid,
+    },
+    SetNeighborChannelCapacity {
+        token_channel_capacity: u64,    // Capacity per token channel
+    },
+    SetNeighborMaxChannels {
+        max_channels: u32,
+    },
+    AddNeighbor {
+        neighbor_info: NeighborInfo,
+    },
+    RemoveNeighbor {
+        neighbor_public_key: NodePublicKey,
+    },
+    RequestNeighborsList,
+    IndexerAnnounceSelf {
+        current_time: u64,      // Current perceived time
+        owner_public_key: NodePublicKey, // Public key of the signing owner.
+        owner_sign_time: u64,   // The time in which the owner has signed
+        owner_signature: Signature, // The signature of the owner over (owner_sign_time || indexer_public_key)
+    },
+}
+
+// TODO: Add Pather related messages.
