@@ -4,3 +4,5 @@ version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 
 [dependencies]
+
+num-bigint = "0.1.40"
