@@ -39,7 +39,11 @@ struct NeighborTokenChannelInfo {
     neighbor_token_channels: Vec<NeighborTokenChannel>,
 }
 
-struct NodesRoute {
+struct NeighborsRoute {
+    route: Vec<u32>,
+}
+
+struct FriendsRoute {
     route: Vec<u32>,
 }
 
@@ -105,10 +109,10 @@ enum NetworkerToChanneler {
 
 
 enum IndexerClientToNetworker {
-    RequestSendMessge {
+    RequestSendMessage {
         request_id: Uid,
         request_content: Vec<u8>,
-        nodes_route: NodesRoute,
+        nodes_route: NeighborsRoute,
         max_response_length: u64,
         processing_fee: u64,
         delivery_fee: u64,
@@ -132,7 +136,6 @@ enum NotifyStructureChange {
 }
 
 enum NetworkerToIndexerClient {
-    ResponseSendMessageContent(ResponseSendMessageContent),
     ResponseSendMessage {
         request_id: Uid,
         content: ResponseSendMessageContent,
@@ -201,4 +204,113 @@ enum PluginManagerToNetworker {
     },
 }
 
-// TODO: Add Pather related messages.
+// Networker to Pather
+// -------------------
+
+enum NetworkerToPather {
+    ResponseSendMessage {
+        request_id: Uid,
+        content: ResponseSendMessageContent,
+    },
+}
+
+// Pather to Networker
+// -------------------
+
+enum PatherToNetworker {
+    RequestSendMessage {
+        request_id: Uid,
+        request_content: Vec<u8>,
+        nodes_route: NeighborsRoute,
+        max_response_length: u64,
+        processing_fee: u64,
+        delivery_fee: u64,
+    },
+}
+
+// Indexer Client to Pather
+// ------------------------
+
+enum IndexerClientToPather {
+    ResponseNeighborsRoute {
+        routes: Vec<NeighborsRoute>
+    }
+}
+
+// Pather to Indexer client
+// ------------------------
+
+enum PatherToIndexerClient {
+    RequestNeighborsRoute {
+        source_node_public_key: NodePublicKey,
+        dest_node_public_key: NodePublicKey,
+    }
+}
+
+// Pather to Plugin Manager
+// ------------------------
+
+enum PatherToPluginManager {
+    ResponseOpenPath {
+        request_id: Uid,
+        path_id: Uid,
+    },
+    ResponsePathSendMessage {
+        request_id: Uid,
+        content: ResponseSendMessageContent,
+    },
+}
+
+// Plugin Manager to Pather
+// ------------------------
+
+enum PluginManagerToPather {
+    RequestOpenPath {
+        request_id: Uid,
+        dest_node_public_key: NodePublicKey,
+    },
+    ClosePath {
+        path_id: Uid,
+    },
+    RequestPathSendMessage {
+        request_id: Uid,
+        path_id: Uid,
+        request_content: Vec<u8>,
+        max_response_length: u64,
+        processing_fee: u64,
+    }
+}
+
+// Pather to Funder
+// ----------------
+
+enum PatherToFunder {
+    ResponseOpenPath {
+        request_id: Uid,
+        path_id: Uid,
+    },
+    ResponsePathSendMessage {
+        request_id: Uid,
+        content: ResponseSendMessageContent,
+    },
+}
+
+// Funder to Pather
+// ----------------
+
+enum FunderToPather {
+    RequestOpenPath {
+        request_id: Uid,
+        dest_node_public_key: NodePublicKey,
+    },
+    ClosePath {
+        path_id: Uid,
+    },
+    RequestPathSendMessage {
+        request_id: Uid,
+        path_id: Uid,
+        request_content: Vec<u8>,
+        max_response_length: u64,
+        processing_fee: u64,
+    }
+}
