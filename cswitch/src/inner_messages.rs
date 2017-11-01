@@ -326,20 +326,20 @@ enum FunderToPather {
 // Funder to Networker
 // -------------------
 
-enum ResponseSendFundStatus {
+enum ResponseSendFundsStatus {
     Success,
     Failure,
 }
 
 enum FunderToNetworker {
-    FundReceived {
+    FundsReceived {
         source_node_public_key: PublicKey,
         amount: u64,
         message_content: Vec<u8>,
     },
-    ResponseSendFund {
+    ResponseSendFunds {
         request_id: Uid,
-        status: ResponseSendFundStatus,
+        status: ResponseSendFundsStatus,
     }
 }
 
@@ -352,7 +352,7 @@ enum NetworkerToFunder {
         source_node_public_key: PublicKey,
         message_content: Vec<u8>,
     },
-    RequestSendFund {
+    RequestSendFunds {
         request_id: Uid,
         amount: u64,
         message_content: Vec<u8>,
@@ -411,4 +411,35 @@ enum IndexerClientToFunder {
 }
 
 
+// Funder to Plugin Manager
+// ------------------------
 
+// TODO: Not done here:
+
+enum FunderToPluginManager {
+    FundsReceived {
+        source_node_public_key: PublicKey,
+        amount: u64,
+        message_content: Vec<u8>,
+    },
+    InvalidFriendMoveToken {
+        // TODO
+    },
+    ResponseSendFunds {
+        request_id: Uid,
+        status: ResponseSendFundsStatus,
+    }
+}
+
+
+// Plugin Manager to Funder
+// ------------------------
+
+enum PluginManagerToFunder {
+    RequestSendFunds {
+        request_id: Uid,
+        amount: u64,
+        message_content: Vec<u8>,
+        dest_node_public_key: PublicKey,
+    },
+}
