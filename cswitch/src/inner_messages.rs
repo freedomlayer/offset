@@ -88,6 +88,11 @@ enum ChannelerToNetworker {
 // Networker to Channeler
 // ----------------------
 
+enum ServerType {
+    PublicServer,
+    PrivateServer
+}
+
 enum NetworkerToChanneler {
     SendChannelMessage {
         channel_uid: Uid,
@@ -107,6 +112,7 @@ enum NetworkerToChanneler {
         max_channels: u32,
     },
     RequestNeighborsRelationList,
+    SetServerType(ServerType),
 }
 
 // Indexer client to Networker
@@ -210,6 +216,7 @@ enum PluginManagerToNetworker {
         owner_sign_time: u64,   // The time in which the owner has signed
         owner_signature: Signature, // The signature of the owner over (owner_sign_time || indexer_public_key)
     },
+    SetServerType(ServerType),
 }
 
 // Networker to Pather
