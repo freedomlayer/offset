@@ -175,11 +175,11 @@ enum NetworkerToPluginManager {
     InvalidNeighborMoveToken {
         // TODO
     },
-    ResponseNeighborsList {
-        neighbors_list: Vec<NeighborTokenChannelInfo>,
-    },
+    NeighborsState {
+        // TODO: Current state of neighbors.
 
-    NeighborUpdates {
+    },
+    NeighborsUpdates {
         // TODO: Add some summary of information about neighbors and their token channels.
         // Possibly some counters?
     },
@@ -209,7 +209,6 @@ enum PluginManagerToNetworker {
     RemoveNeighbor {
         neighbor_public_key: PublicKey,
     },
-    RequestNeighborsList,
     IndexerAnnounceSelf {
         current_time: u64,      // Current perceived time
         owner_public_key: PublicKey, // Public key of the signing owner.
@@ -423,6 +422,36 @@ enum IndexerClientToFunder {
 
 // TODO: Not done here:
 
+enum ResponseAddFriendStatus {
+    Success,
+    FailureFriendAlreadyExist,
+
+}
+
+enum ResponseRemoveFriendStatus {
+    Success,
+    FailureFriendNonexistent,
+    FailureMutualCreditNonzero,
+}
+
+enum ResponseSetFriendCapacityStatus {
+    Success,
+    FailureFriendNonexistent,
+    FailureProposedCapacityTooSmall,
+}
+
+enum ResponseOpenFriendStatus {
+    Success,
+    FailureFriendNonexistent,
+    FailureFriendAlreadyOpen,
+}
+
+enum ResponseCloseFriendStatus {
+    Success,
+    FailureFriendNonexistent,
+    FailureFriendAlreadyClosed,
+}
+
 enum FunderToPluginManager {
     FundsReceived {
         source_node_public_key: PublicKey,
@@ -435,7 +464,35 @@ enum FunderToPluginManager {
     ResponseSendFunds {
         request_id: Uid,
         status: ResponseSendFundsStatus,
-    }
+    },
+    ResponseAddFriend {
+        request_id: Uid,
+        status: ResponseAddFriendStatus,
+    },
+    ResponseRemoveFriend {
+        request_id: Uid,
+        status: ResponseRemoveFriendStatus,
+    },
+    ResponseSetFriendCapacity {
+        request_id: Uid,
+        status: ResponseSetFriendCapacityStatus,
+    },
+    ResponseOpenFriend {
+        request_id: Uid,
+        status: ResponseOpenFriendStatus,
+    },
+    ResponseCloseFriend {
+        request_id: Uid,
+        status: ResponseCloseFriendStatus,
+    },
+    FriendsState {
+        // TODO: Current state of friends.
+
+    },
+    FriendsUpdates {
+        // TODO: Add some summary of information about friends and their token channels.
+        // Possibly some counters?
+    },
 }
 
 
@@ -449,4 +506,30 @@ enum PluginManagerToFunder {
         message_content: Vec<u8>,
         dest_node_public_key: PublicKey,
     },
+    RequestAddFriend {
+        request_id: Uid,
+        friend_public_key: PublicKey,
+        capacity: BigInt, // Max debt possible
+    },
+    RequestRemoveFriend {
+        request_id: Uid,
+        friend_public_key: PublicKey,
+    },
+    RequestSetFriendCapacity {
+        request_id: Uid,
+        friend_public_key: PublicKey,
+        new_capacity: BigInt,
+    },
+    RequestOpenFriend {
+        request_id: Uid,
+        friend_public_key: PublicKey,
+    },
+    RequestCloseFriend {
+        request_id: Uid,
+        friend_public_key: PublicKey,
+    }
 }
+
+
+// TODO: Should pather report about closed path?
+// How to do this reliably?
