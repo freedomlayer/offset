@@ -574,13 +574,13 @@ struct ResponsePublicKey {
     public_key: PublicKey,
 }
 
-enum FromSecurityModule {
+pub enum FromSecurityModule {
     ResponseSign(ResponseSign),
     ResponseVerify(ResponseVerify),
     ResponsePublicKey(ResponsePublicKey),
 }
 
-enum ToSecurityModule {
+pub enum ToSecurityModule {
     RequestSign(RequestSign),
     RequestVerify(RequestVerify),
     RequestPublicKey(RequestPublicKey),
