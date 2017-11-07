@@ -1,20 +1,18 @@
 extern crate num_bigint;
 
 use self::num_bigint::BigInt;
+use ::identity::{PublicKey, Signature};
+
 
 // TODO: Find a good crypto library to use for short signatures.
 
 const UID_LEN: usize = 16;
-const PUBLIC_KEY_LEN: usize = 32;
-const SIGNATURE_LEN: usize = 32;
 
 struct Uid([u8; UID_LEN]);
 
 // Helper structs
 // --------------
 
-struct PublicKey([u8; PUBLIC_KEY_LEN]);
-struct Signature([u8; SIGNATURE_LEN]);
 
 struct ChannelerAddress {
     // TODO: Ipv4 or Ipv6 address
