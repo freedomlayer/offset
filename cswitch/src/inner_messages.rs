@@ -273,6 +273,9 @@ enum PatherToPluginManager {
         request_id: Uid,
         content: ResponseSendMessageContent,
     },
+    PathClosed {
+        path_id: Uid,
+    },
 }
 
 // Plugin Manager to Pather
@@ -306,6 +309,9 @@ enum PatherToFunder {
     ResponsePathSendMessage {
         request_id: Uid,
         content: ResponseSendMessageContent,
+    },
+    PathClosed {
+        path_id: Uid,
     },
 }
 
