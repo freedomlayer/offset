@@ -1,5 +1,7 @@
 extern crate num_bigint;
 
+use std::time::SystemTime;
+
 use self::num_bigint::BigInt;
 use ::identity::{PublicKey, Signature};
 
@@ -537,3 +539,56 @@ enum PluginManagerToFunder {
 
 // TODO: Should pather report about closed path?
 // How to do this reliably?
+
+// Security Module
+// ---------------
+
+struct RequestSign {
+    request_id: Uid,
+    message: Vec<u8>,
+}
+
+struct ResponseSign {
+    request_id: Uid,
+    signature: Signature,
+}
+
+struct RequestVerify {
+    request_id: Uid,
+    message: Vec<u8>,
+    public_key: PublicKey,
+    signature: Signature,
+}
+
+struct ResponseVerify {
+    request_id: Uid,
+    result: bool,
+}
+
+struct RequestPublicKey {
+    request_id: Uid,
+}
+
+struct ResponsePublicKey {
+    request_id: Uid,
+    public_key: PublicKey,
+}
+
+enum FromSecurityModule {
+    ResponseSign(ResponseSign),
+    ResponseVerify(ResponseVerify),
+    ResponsePublicKey(ResponsePublicKey),
+}
+
+enum ToSecurityModule {
+    RequestSign(RequestSign),
+    RequestVerify(RequestVerify),
+    RequestPublicKey(RequestPublicKey),
+}
+
+// Timer
+// -----
+
+enum FromTimer {
+    TimeTick(SystemTime)
+}
