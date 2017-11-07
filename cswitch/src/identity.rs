@@ -2,6 +2,8 @@ extern crate crypto;
 
 use self::crypto::ed25519::{signature, verify, keypair};
 
+// TODO: Possibly hard code the size of the public key and signature, as those are used inside
+// the network protocol.
 
 // const PUBLIC_KEY_LEN: usize = 32;
 // const SIGNATURE_LEN: usize = 32;
