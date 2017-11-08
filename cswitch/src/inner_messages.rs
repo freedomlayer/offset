@@ -10,7 +10,7 @@ use ::identity::{PublicKey, Signature};
 
 const UID_LEN: usize = 16;
 
-struct Uid([u8; UID_LEN]);
+pub struct Uid([u8; UID_LEN]);
 
 // Helper structs
 // --------------
