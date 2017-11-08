@@ -177,9 +177,11 @@ impl<I: Identity> Future for SecurityModule<I> {
                     }
                 },
                 SecurityModuleState::RemoveClient(i) => {
-                    let &mut (ref mut sender, _) = &mut self.client_endpoints[i];
-
-                    match sender.close() {
+                    let close_result = { 
+                        let &mut (ref mut sender, _) = &mut self.client_endpoints[i];
+                        sender.close()
+                    };
+                    match close_result {
                         Ok(Async::Ready(())) => {
                             self.client_endpoints.remove(i);
                             if self.client_endpoints.len() == 0 {
@@ -216,8 +218,11 @@ impl<I: Identity> Future for SecurityModule<I> {
                     }
 
                     for i in j .. self.client_endpoints.len() {
-                        let &mut (_, ref mut receiver) = &mut self.client_endpoints[i];
-                        match receiver.poll() {
+                        let receiver_poll_res = {
+                            let &mut (_, ref mut receiver) = &mut self.client_endpoints[i];
+                            receiver.poll()
+                        };
+                        match receiver_poll_res {
                             Ok(Async::Ready(Some(request))) => {
                                 let response = self.process_request(request);
                                 self.state = SecurityModuleState::PendingSend {
