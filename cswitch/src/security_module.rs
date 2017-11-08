@@ -2,7 +2,7 @@ extern crate futures;
 
 use std::mem;
 
-use self::futures::{Future, Poll, Async, AsyncSink};
+use self::futures::{Future, Stream, Poll, Async, AsyncSink};
 use self::futures::sink::Sink;
 use self::futures::sync::mpsc;
 use self::futures::sync::oneshot;
@@ -30,13 +30,14 @@ struct PendingSend {
 }
 
 enum SecurityModuleState {
-    Empty,
     Reading(usize),
     PendingSend {
         dest_index: usize,
         value: FromSecurityModule,
     },
+    RemoveClient(usize),
     Closing,
+    Closed,
 }
 
 
@@ -83,6 +84,20 @@ impl<I: Identity> SecurityModule<I> {
 
     }
 
+    /// Process a request, and produce a response.
+    fn process_request(&self, request: ToSecurityModule) -> FromSecurityModule {
+        /*
+        match request {
+            FromSecurityModule::RequestSign(request_sign) => {
+            }
+
+
+        }
+        */
+
+        // TODO
+    }
+
     /// Try to close all the senders
     fn attempt_close(&mut self) -> Poll<(), SecurityModuleError> {
         // If we are in closing state, work on closing all client endpoints
@@ -118,6 +133,7 @@ enum SecurityModuleError {
     SenderError(mpsc::SendError<FromSecurityModule>),
     CloseReceiverCanceled,
     ErrorClosingSender,
+    ErrorReceivingRequest,
 }
 
 impl<I: Identity> Future for SecurityModule<I> {
@@ -130,13 +146,43 @@ impl<I: Identity> Future for SecurityModule<I> {
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {
             // If there is something waiting to be sent, try to send it first:
-            match mem::replace(&mut self.state, SecurityModuleState::Empty) {
-                SecurityModuleState::Empty => {
+            match mem::replace(&mut self.state, SecurityModuleState::Closed) {
+                SecurityModuleState::Closed => {
                     panic!("Invalid state");
                 }
                 SecurityModuleState::Closing => {
-                    self.state = SecurityModuleState::Closing;
-                    return self.attempt_close()
+                    match self.attempt_close()? {
+                        Async::Ready(()) => {
+                            self.state = SecurityModuleState::Closed;
+                            return Ok(Async::Ready(()));
+                        },
+                        Async::NotReady => {
+                            self.state = SecurityModuleState::Closing;
+                            return Ok(Async::NotReady);
+                        },
+                    }
+                },
+                SecurityModuleState::RemoveClient(i) => {
+                    let &mut (ref mut sender, _) = &mut self.client_endpoints[i];
+
+                    match sender.close() {
+                        Ok(Async::Ready(())) => {
+                            self.client_endpoints.remove(i);
+                            if self.client_endpoints.len() == 0 {
+                                self.state = SecurityModuleState::Closed;
+                                return Ok(Async::Ready(()));
+                            } else {
+                                self.state = SecurityModuleState::Reading(
+                                    i % self.client_endpoints.len());
+                                continue;
+                            }
+                        },
+                        Ok(Async::NotReady) => {
+                            self.state = SecurityModuleState::RemoveClient(i);
+                            return Ok(Async::NotReady);
+                        },
+                        Err(_e) => return Err(SecurityModuleError::ErrorClosingSender),
+                    }
                 },
                 SecurityModuleState::PendingSend { dest_index, value } => {
                     let &mut (ref mut sender, _) = &mut self.client_endpoints[dest_index];
@@ -146,7 +192,7 @@ impl<I: Identity> Future for SecurityModule<I> {
                             self.state = SecurityModuleState::PendingSend {dest_index, value};
                             return Ok(Async::NotReady)
                         }
-                        Err(e) => {return Err(SecurityModuleError::SenderError(e))},
+                        Err(e) => return Err(SecurityModuleError::SenderError(e)),
                     }
                 }
                 SecurityModuleState::Reading(j) => {
@@ -155,33 +201,33 @@ impl<I: Identity> Future for SecurityModule<I> {
                         continue
                     }
 
-
-                    // TODO: Try to read from remaining receivers in this round:
                     for i in j .. self.client_endpoints.len() {
                         let &mut (_, ref mut receiver) = &mut self.client_endpoints[i];
-                        // TODO: receiver.poll
+                        match receiver.poll() {
+                            Ok(Async::Ready(Some(request))) => {
+                                let response = self.process_request(request);
+                                self.state = SecurityModuleState::PendingSend {
+                                    dest_index: i,
+                                    value: response,
+                                };
+                            },
+                            Ok(Async::Ready(None)) => {
+                                // Remote side has closed the channel. We remove it.
+                                self.state = SecurityModuleState::RemoveClient(i);
+                                continue;
+                            },
+                            Ok(Async::NotReady) => {
+                                self.state = SecurityModuleState::Reading(i);
+                                return Ok(Async::NotReady)
+                            },
+                            Err(()) => return Err(SecurityModuleError::ErrorReceivingRequest),
+                        }
                     }
-
+                    // We are done with the reading round. We go back to the beginning.
+                    self.state = SecurityModuleState::Reading(0);
+                    continue;
                 }
             }
         }
-        // We get here if there is nothing more to be sent and we are not in a closing state.
-
-        // Check if we need to close:
-    
-
-        // Wait on all the receivers, to see if there is a message in any of them.
-        // In addition, check if close receiver has a message.
-        
-
-
-
-        
-        // - Calculate responses for each of the requests.
-        
-        // - Send back the responses to the correct requesters.
-
-        Ok(Async::Ready(()))
     }
-
 }
