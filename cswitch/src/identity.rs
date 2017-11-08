@@ -1,19 +1,36 @@
 extern crate crypto;
 
+use std::fmt;
+
 use self::crypto::ed25519::{signature, verify, keypair};
 
-// TODO: Possibly hard code the size of the public key and signature, as those are used inside
-// the network protocol.
+const PUBLIC_KEY_LEN: usize = 32;
+const SIGNATURE_LEN: usize = 64;
 
-// const PUBLIC_KEY_LEN: usize = 32;
-// const SIGNATURE_LEN: usize = 32;
+#[derive(Debug, PartialEq)]
+pub struct PublicKey([u8; PUBLIC_KEY_LEN]);
 
+// We had to implement Debug and PartialEq ourselves here,
+// because PartialEq and Debug traits are not automatically implemented
+// for size larger than 32.
+pub struct Signature([u8; SIGNATURE_LEN]);
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct PublicKey(Vec<u8>);
+impl fmt::Debug for Signature {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(&&self.0[..], f)
+    }
+}
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct Signature(Vec<u8>);
+impl PartialEq for Signature {
+    fn eq(&self, other: &Signature) -> bool {
+        for i in 0 .. SIGNATURE_LEN {
+            if self.0[i] != other.0[i] {
+                return false;
+            }
+        }
+        true
+    }
+}
 
 
 /// A generic interface for signing and verifying messages.
@@ -57,12 +74,12 @@ impl Identity for SoftwareEd25519Identity {
     }
 
     fn sign_message(&self, message: &[u8]) -> Signature {
-        Signature(signature(message, &self.private_key).to_vec())
+        Signature(signature(message, &self.private_key))
 
     }
 
     fn get_public_key(&self) -> PublicKey {
-        PublicKey(self.public_key.to_vec())
+        PublicKey(self.public_key)
     }
 
 }
