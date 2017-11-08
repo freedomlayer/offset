@@ -543,47 +543,36 @@ enum PluginManagerToFunder {
 // Security Module
 // ---------------
 
-struct RequestSign {
-    request_id: Uid,
-    message: Vec<u8>,
-}
-
-struct ResponseSign {
-    request_id: Uid,
-    signature: Signature,
-}
-
-struct RequestVerify {
-    request_id: Uid,
-    message: Vec<u8>,
-    public_key: PublicKey,
-    signature: Signature,
-}
-
-struct ResponseVerify {
-    request_id: Uid,
-    result: bool,
-}
-
-struct RequestPublicKey {
-    request_id: Uid,
-}
-
-struct ResponsePublicKey {
-    request_id: Uid,
-    public_key: PublicKey,
-}
 
 pub enum FromSecurityModule {
-    ResponseSign(ResponseSign),
-    ResponseVerify(ResponseVerify),
-    ResponsePublicKey(ResponsePublicKey),
+    ResponseSign {
+        request_id: Uid,
+        signature: Signature,
+    },
+    ResponseVerify {
+        request_id: Uid,
+        result: bool,
+    }, 
+    ResponsePublicKey {
+        request_id: Uid,
+        public_key: PublicKey,
+    },
 }
 
 pub enum ToSecurityModule {
-    RequestSign(RequestSign),
-    RequestVerify(RequestVerify),
-    RequestPublicKey(RequestPublicKey),
+    RequestSign {
+        request_id: Uid,
+        message: Vec<u8>,
+    },
+    RequestVerify {
+        request_id: Uid,
+        message: Vec<u8>,
+        public_key: PublicKey,
+        signature: Signature,
+    },
+    RequestPublicKey {
+        request_id: Uid,
+    },
 }
 
 // Timer
