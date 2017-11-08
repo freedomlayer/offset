@@ -11,6 +11,10 @@ use self::futures::sync::oneshot;
 use ::inner_messages::{ToSecurityModule, FromSecurityModule};
 use ::identity::{Identity};
 
+// TODO: Possibly Make this structure of service future more generic.  
+// Separate process_request from the rest of the code, 
+// so that we could construct more such services.
+
 struct SecurityModuleHandle {
     close_sender: oneshot::Sender<()>,
 }
