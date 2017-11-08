@@ -96,6 +96,9 @@ impl<I: Identity> Future for SecurityModule<I> {
                 }
             }
         };
+        
+        // TODO: Need to exit in case of something waiting to be sent.
+        //
 
         // Wait on all the receivers, to see if there is a message in any of them.
         // In addition, check if close receiver has a message.
