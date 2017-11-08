@@ -86,16 +86,30 @@ impl<I: Identity> SecurityModule<I> {
 
     /// Process a request, and produce a response.
     fn process_request(&self, request: ToSecurityModule) -> FromSecurityModule {
-        /*
         match request {
-            FromSecurityModule::RequestSign(request_sign) => {
+            ToSecurityModule::RequestSign {request_id, message} => {
+                FromSecurityModule::ResponseSign {
+                    request_id,
+                    signature: self.identity.sign_message(&message),
+                }
+            },
+            ToSecurityModule::RequestVerify {request_id, 
+                                            message, 
+                                            public_key, 
+                                            signature} => {
+                FromSecurityModule::ResponseVerify {
+                    request_id,
+                    result: self.identity.verify_signature(
+                        &message, &public_key, &signature),
+                }
+            },
+            ToSecurityModule::RequestPublicKey { request_id } => {
+                FromSecurityModule::ResponsePublicKey {
+                    request_id,
+                    public_key: self.identity.get_public_key(),
+                }
             }
-
-
         }
-        */
-
-        // TODO
     }
 
     /// Try to close all the senders
