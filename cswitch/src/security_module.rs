@@ -254,3 +254,28 @@ impl<I: Identity> Future for SecurityModule<I> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    /*
+    extern crate tokio_core;
+
+    use self::tokio_core::reactor::Core;
+
+    #[test]
+    fn test_security_module_create() {
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+
+        let (sm_handle, sm) = SecurityModule::create();
+
+        handle.spawn(sm.then(|_| Ok(())));
+
+        core.run(collector).unwrap();
+
+
+    }
+    */
+
+}
