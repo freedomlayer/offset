@@ -16,16 +16,23 @@ use ::identity::{Identity};
 // so that we could construct more such services.
 
 struct SecurityModuleHandle {
-    close_sender: oneshot::Sender<()>,
+    handle_close_sender: oneshot::Sender<()>,       // Signal to close
+    handle_close_receiver: oneshot::Receiver<()>,   // Closing is complete
 }
+
 
 /// This handle is used to send a closing notification to SecurityModuleHandle,
 /// even after it was consumed.
 impl SecurityModuleHandle {
     /// Send a close message to SecurityModuleHandle
-    fn close(self) {
-        self.close_sender.send(());
+    /// Returns a future that resolves when the closing is complete.
+    fn close(self) -> Result<oneshot::Receiver<()>,()> {
+        match self.handle_close_sender.send(()) {
+            Ok(()) => Ok(self.handle_close_receiver),
+            Err(_) => Err(())
+        }
     }
+
 }
 
 struct PendingSend {
@@ -48,6 +55,7 @@ enum SecurityModuleState {
 struct SecurityModule<I> {
     identity: I,
     close_receiver: oneshot::Receiver<()>,
+    close_sender: Option<oneshot::Sender<()>>,
     client_endpoints: Vec<(mpsc::Sender<FromSecurityModule>, mpsc::Receiver<ToSecurityModule>)>,
     state: SecurityModuleState,
 }
@@ -59,16 +67,19 @@ impl<I: Identity> SecurityModule<I> {
     fn create(identity: I) -> (SecurityModuleHandle, Self) {
 
         // Create a oneshot channel between the handle and the security module:
-        let (sender, receiver) = oneshot::channel();
+        let (handle_sender, sm_receiver) = oneshot::channel();
+        let (sm_sender, handle_receiver) = oneshot::channel();
 
         let sm_handle = SecurityModuleHandle {
-            close_sender: sender,
+            handle_close_sender: handle_sender,
+            handle_close_receiver: handle_receiver,
         };
 
         let sm = SecurityModule {
             identity,
+            close_sender: Some(sm_sender),
+            close_receiver: sm_receiver,
             client_endpoints: Vec::new(),
-            close_receiver: receiver,
             state: SecurityModuleState::Reading(0),
         };
 
@@ -145,6 +156,19 @@ impl<I: Identity> SecurityModule<I> {
         }
     }
 
+    /// Tell the handle that we are done closing.
+    fn send_close_notification(&mut self) -> Result<(), SecurityModuleError> {
+        let close_sender = match self.close_sender.take() {
+            None => panic!("Close notification already sent!"),
+            Some(close_sender) => close_sender,
+        };
+
+        match close_sender.send(()) {
+            Ok(()) => Ok(()),
+            Err(_) => Err(SecurityModuleError::SendCloseNotificationFailed),
+        }
+    }
+
 }
 
 enum SecurityModuleError {
@@ -152,6 +176,7 @@ enum SecurityModuleError {
     CloseReceiverCanceled,
     ErrorClosingSender,
     ErrorReceivingRequest,
+    SendCloseNotificationFailed,
 }
 
 impl<I: Identity> Future for SecurityModule<I> {
@@ -172,6 +197,7 @@ impl<I: Identity> Future for SecurityModule<I> {
                     match self.attempt_close()? {
                         Async::Ready(()) => {
                             self.state = SecurityModuleState::Closed;
+                            self.send_close_notification()?;
                             return Ok(Async::Ready(()));
                         },
                         Async::NotReady => {
@@ -190,6 +216,7 @@ impl<I: Identity> Future for SecurityModule<I> {
                             self.client_endpoints.remove(i);
                             if self.client_endpoints.len() == 0 {
                                 self.state = SecurityModuleState::Closed;
+                                self.send_close_notification();
                                 return Ok(Async::Ready(()));
                             } else {
                                 self.state = SecurityModuleState::Reading(
