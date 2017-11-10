@@ -184,6 +184,7 @@ impl<I: Identity> Future for SecurityModule<I> {
     type Item = ();
     type Error = SecurityModuleError;
 
+    // TODO: Possibly implement poll() using loop_fn():
 
     /// The main loop for SecurityModule operation.
     /// Receives requests from clients and returns responses.
