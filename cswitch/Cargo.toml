@@ -5,6 +5,7 @@ authors = ["real <real@freedomlayer.org>"]
 
 [dependencies]
 
+rand = "0.3.18"
 num-bigint = "0.1.40"
 rust-crypto = "0.2.36"
 futures = "0.1.17"

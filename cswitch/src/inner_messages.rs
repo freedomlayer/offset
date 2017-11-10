@@ -4,13 +4,9 @@ use std::time::SystemTime;
 
 use self::num_bigint::BigInt;
 use ::identity::{PublicKey, Signature};
+use ::uid::Uid;
 
 
-// TODO: Find a good crypto library to use for short signatures.
-
-const UID_LEN: usize = 16;
-
-pub struct Uid([u8; UID_LEN]);
 
 // Helper structs
 // --------------

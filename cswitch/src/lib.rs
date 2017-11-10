@@ -1,4 +1,5 @@
 
+mod uid;
 mod identity;
 mod channeler;
 mod inner_messages;
