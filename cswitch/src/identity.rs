@@ -145,8 +145,8 @@ mod tests {
 
         let signature = id.sign_message(message);
         let public_key = id.get_public_key();
-        println!("public_key = {:?}", public_key);
-        println!("signature = {:?}", signature);
+        // println!("public_key = {:?}", public_key);
+        // println!("signature = {:?}", signature);
 
         assert!(id.verify_signature(message, &public_key, &signature));
 
