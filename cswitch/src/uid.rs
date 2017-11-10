@@ -7,19 +7,19 @@ const UID_LEN: usize = 16;
 pub struct Uid([u8; UID_LEN]);
 
 
-struct UidGenerator<R> {
+pub struct UidGenerator<R> {
     rng: R,
 }
 
 impl<R:Rng> UidGenerator<R> {
-    fn new(rng: R) -> Self {
+    pub fn new(rng: R) -> Self {
         UidGenerator {
             rng,
         }
     }
 
     /// Generate a random Uid.
-    fn gen_uid(&mut self) -> Uid {
+    pub fn gen_uid(&mut self) -> Uid {
         let mut uid = Uid([0; UID_LEN]);
         self.rng.fill_bytes(&mut uid.0);
         uid
