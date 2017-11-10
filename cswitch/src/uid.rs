@@ -3,7 +3,7 @@ use self::rand::Rng;
 
 const UID_LEN: usize = 16;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Uid([u8; UID_LEN]);
 
 
