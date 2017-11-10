@@ -54,7 +54,7 @@ pub struct SoftwareEd25519Identity {
 impl SoftwareEd25519Identity {
     /// Create a new software powered module.
     /// Generate an identity using the given seed.
-    fn new(seed: &[u8]) -> SoftwareEd25519Identity {
+    pub fn new(seed: &[u8]) -> SoftwareEd25519Identity {
         // Strange things happen if the seed length is not 32:
         assert_eq!(seed.len(), 32);
         let (private_key, public_key) = keypair(seed);
