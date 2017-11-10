@@ -331,6 +331,7 @@ mod tests {
         handle.spawn(sm.then(|_| Ok(())));
         let (client_sender, client_receiver, public_key) = 
             core.run(fut_public_key).unwrap();
-
     }
+
+    // TODO: Add tests that check "concurrency": Multiple clients that send requests.
 }
