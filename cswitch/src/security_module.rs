@@ -284,7 +284,7 @@ mod tests {
 
 
     #[test]
-    fn test_security_module_create() {
+    fn test_security_module_request_public_key() {
 
         let rng_seed: &[_] = &[1,2,3,4,5];
         let mut rng: StdRng = rand::SeedableRng::from_seed(rng_seed);
