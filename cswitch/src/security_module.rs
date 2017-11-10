@@ -3,6 +3,7 @@ extern crate futures;
 use std::mem;
 
 use self::futures::{Future, Stream, Poll, Async, AsyncSink};
+use self::futures::future::{ok, loop_fn};
 use self::futures::sink::Sink;
 use self::futures::sync::mpsc;
 use self::futures::sync::oneshot;
@@ -46,7 +47,6 @@ enum SecurityModuleState {
         dest_index: usize,
         value: FromSecurityModule,
     },
-    RemoveClient(usize),
     Closing,
     Closed,
 }
@@ -91,11 +91,12 @@ impl<I: Identity> SecurityModule<I> {
     /// Remote side is given a sender side of a channel, and a receiver side of a channel.
     fn new_client(&mut self) -> (mpsc::Sender<ToSecurityModule>, 
                                  mpsc::Receiver<FromSecurityModule>) {
-       let (sm_sender, client_receiver) = mpsc::channel(0);
-       let (client_sender, sm_receiver) = mpsc::channel(0);
+    
+        let (sm_sender, client_receiver) = mpsc::channel(0);
+        let (client_sender, sm_receiver) = mpsc::channel(0);
 
-       self.client_endpoints.push((sm_sender, sm_receiver));
-       (client_sender, client_receiver)
+        self.client_endpoints.push((sm_sender, sm_receiver));
+        (client_sender, client_receiver)
 
     }
 
@@ -168,7 +169,6 @@ impl<I: Identity> SecurityModule<I> {
             Err(_) => Err(SecurityModuleError::SendCloseNotificationFailed),
         }
     }
-
 }
 
 enum SecurityModuleError {
@@ -177,6 +177,7 @@ enum SecurityModuleError {
     ErrorClosingSender,
     ErrorReceivingRequest,
     SendCloseNotificationFailed,
+    RemoteClientClosed,
 }
 
 impl<I: Identity> Future for SecurityModule<I> {
@@ -187,6 +188,7 @@ impl<I: Identity> Future for SecurityModule<I> {
     /// The main loop for SecurityModule operation.
     /// Receives requests from clients and returns responses.
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        let mut first_unready_index: Option<usize> = None;
         loop {
             // If there is something waiting to be sent, try to send it first:
             match mem::replace(&mut self.state, SecurityModuleState::Closed) {
@@ -206,35 +208,16 @@ impl<I: Identity> Future for SecurityModule<I> {
                         },
                     }
                 },
-                SecurityModuleState::RemoveClient(i) => {
-                    let close_result = { 
-                        let &mut (ref mut sender, _) = &mut self.client_endpoints[i];
-                        sender.close()
-                    };
-                    match close_result {
-                        Ok(Async::Ready(())) => {
-                            self.client_endpoints.remove(i);
-                            if self.client_endpoints.len() == 0 {
-                                self.state = SecurityModuleState::Closed;
-                                self.send_close_notification();
-                                return Ok(Async::Ready(()));
-                            } else {
-                                self.state = SecurityModuleState::Reading(
-                                    i % self.client_endpoints.len());
-                                continue;
-                            }
-                        },
-                        Ok(Async::NotReady) => {
-                            self.state = SecurityModuleState::RemoveClient(i);
-                            return Ok(Async::NotReady);
-                        },
-                        Err(_e) => return Err(SecurityModuleError::ErrorClosingSender),
-                    }
-                },
                 SecurityModuleState::PendingSend { dest_index, value } => {
-                    let &mut (ref mut sender, _) = &mut self.client_endpoints[dest_index];
-                    match sender.start_send(value) {
-                        Ok(AsyncSink::Ready) => {},
+                    let start_send_res = {
+                        let &mut (ref mut sender, _) = &mut self.client_endpoints[dest_index];
+                        sender.start_send(value)
+                    };
+                    match start_send_res {
+                        Ok(AsyncSink::Ready) => {
+                            let next_index = (dest_index + 1) % self.client_endpoints.len();
+                            self.state = SecurityModuleState::Reading(next_index);
+                        },
                         Ok(AsyncSink::NotReady(value)) => {
                             self.state = SecurityModuleState::PendingSend {dest_index, value};
                             return Ok(Async::NotReady)
@@ -243,39 +226,44 @@ impl<I: Identity> Future for SecurityModule<I> {
                     }
                 }
                 SecurityModuleState::Reading(j) => {
+                    if first_unready_index == Some(j) {
+                        // We made a full cycle but no receiver was ready.
+                        return Ok(Async::NotReady);
+                    }
+
                     if self.check_should_close()? {
                         self.state = SecurityModuleState::Closing;
                         continue
                     }
 
-                    for i in j .. self.client_endpoints.len() {
-                        let receiver_poll_res = {
-                            let &mut (_, ref mut receiver) = &mut self.client_endpoints[i];
-                            receiver.poll()
-                        };
-                        match receiver_poll_res {
-                            Ok(Async::Ready(Some(request))) => {
-                                let response = self.process_request(request);
-                                self.state = SecurityModuleState::PendingSend {
-                                    dest_index: i,
-                                    value: response,
-                                };
-                            },
-                            Ok(Async::Ready(None)) => {
-                                // Remote side has closed the channel. We remove it.
-                                self.state = SecurityModuleState::RemoveClient(i);
-                                continue;
-                            },
-                            Ok(Async::NotReady) => {
-                                self.state = SecurityModuleState::Reading(i);
-                                return Ok(Async::NotReady)
-                            },
-                            Err(()) => return Err(SecurityModuleError::ErrorReceivingRequest),
-                        }
+                    let receiver_poll_res = {
+                        let &mut (_, ref mut receiver) = &mut self.client_endpoints[j];
+                        receiver.poll()
+                    };
+
+                    match receiver_poll_res {
+                        Ok(Async::Ready(Some(request))) => {
+                            self.state = SecurityModuleState::PendingSend {
+                                dest_index: j,
+                                value: self.process_request(request),
+                            };
+                            continue;
+                        },
+                        Ok(Async::Ready(None)) => {
+                            return Err(SecurityModuleError::RemoteClientClosed);
+                        },
+                        Ok(Async::NotReady) => {
+                            // Track the first unready index:
+                            match first_unready_index.take() {
+                                None => first_unready_index = Some(j),
+                                _ => {},
+                            };
+                            let next_j = (j + 1) % self.client_endpoints.len();
+                            self.state = SecurityModuleState::Reading(next_j);
+                            continue;
+                        },
+                        Err(()) => return Err(SecurityModuleError::ErrorReceivingRequest),
                     }
-                    // We are done with the reading round. We go back to the beginning.
-                    self.state = SecurityModuleState::Reading(0);
-                    continue;
                 }
             }
         }
@@ -284,25 +272,65 @@ impl<I: Identity> Future for SecurityModule<I> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    /*
     extern crate tokio_core;
+    extern crate rand;
 
+    use super::*;
+    use ::uid::UidGenerator;
+    use ::identity::SoftwareEd25519Identity;
+
+    use self::rand::{Rng, StdRng};
     use self::tokio_core::reactor::Core;
+
 
     #[test]
     fn test_security_module_create() {
+
+        let rng_seed: &[_] = &[1,2,3,4,5];
+        let mut rng: StdRng = rand::SeedableRng::from_seed(rng_seed);
+
+        let mut identity_seed = [0; 32];
+        rng.fill_bytes(&mut identity_seed);
+        let identity = SoftwareEd25519Identity::new(&identity_seed);
+
+        let (sm_handle, mut sm) = SecurityModule::create(identity);
+        let (client_sender, client_receiver) = sm.new_client();
+
+
+        let mut uid_gen = UidGenerator::new(rng);
+
+        let request_id0 = uid_gen.gen_uid();
+        let request_id1 = uid_gen.gen_uid();
+
+
+        let fut_public_key = client_sender
+            .send(ToSecurityModule::RequestPublicKey { request_id: request_id0.clone() })
+            .map_err(|_| panic!("Send error!"))
+            .and_then(|client_sender| {
+                client_receiver
+                .into_future()
+                .and_then(|(opt, client_receiver)| {
+                    let public_key = match opt {
+                        None => panic!("Receiver was closed!"),
+                        Some(FromSecurityModule::ResponsePublicKey 
+                             { request_id, public_key }) => {
+                            assert_eq!(request_id, request_id0);
+                            public_key
+                        },
+                        Some(_) => panic!("Invalid response was received!"),
+                    };
+                    Ok((client_sender, client_receiver, public_key))
+                })
+                .map_err(|(_e, _client_sender)| panic!("Reading error!"))
+            });
+
+
         let mut core = Core::new().unwrap();
         let handle = core.handle();
 
-        let (sm_handle, sm) = SecurityModule::create();
-
         handle.spawn(sm.then(|_| Ok(())));
-
-        core.run(collector).unwrap();
-
+        let (client_sender, client_receiver, public_key) = 
+            core.run(fut_public_key).unwrap();
 
     }
-    */
-
 }
