@@ -16,7 +16,13 @@ pub struct ChannelerAddress {
     // TODO: Ipv4 or Ipv6 address
 }
 
-struct NeighborInfo {
+pub struct ChannelerNeighborInfo {
+    neighbor_public_key: PublicKey,
+    neighbor_address: ChannelerAddress,
+    max_channels: u32,  // Maximum amount of token channels
+}
+
+pub struct NeighborInfo {
     neighbor_public_key: PublicKey,
     neighbor_address: ChannelerAddress,
     max_channels: u32,  // Maximum amount of token channels
@@ -98,7 +104,7 @@ pub enum NetworkerToChanneler {
         channel_uid: Uid,
     },
     AddNeighborRelation {
-        neighbor_info: NeighborInfo,
+        neighbor_info: ChannelerNeighborInfo,
     },
     RemoveNeighborRelation {
         neighbor_public_key: PublicKey,
