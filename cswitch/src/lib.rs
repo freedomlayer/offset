@@ -2,8 +2,10 @@
 
 mod uid;
 mod identity;
-mod channeler;
 mod inner_messages;
 mod networker_state_machine;
+
+mod close_handle;
 mod security_module;
+mod channeler;
 

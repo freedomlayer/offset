@@ -11,30 +11,11 @@ use self::futures::sync::oneshot;
 
 use ::inner_messages::{ToSecurityModule, FromSecurityModule};
 use ::identity::{Identity};
+use ::close_handle::{CloseHandle, create_close_handle};
 
 // TODO: Possibly Make this structure of service future more generic.  
 // Separate process_request from the rest of the code, 
 // so that we could construct more such services.
-
-struct SecurityModuleHandle {
-    handle_close_sender: oneshot::Sender<()>,       // Signal to close
-    handle_close_receiver: oneshot::Receiver<()>,   // Closing is complete
-}
-
-
-/// This handle is used to send a closing notification to SecurityModuleHandle,
-/// even after it was consumed.
-impl SecurityModuleHandle {
-    /// Send a close message to SecurityModuleHandle
-    /// Returns a future that resolves when the closing is complete.
-    fn close(self) -> Result<oneshot::Receiver<()>,()> {
-        match self.handle_close_sender.send(()) {
-            Ok(()) => Ok(self.handle_close_receiver),
-            Err(_) => Err(())
-        }
-    }
-
-}
 
 struct PendingSend {
     dest_index: usize,
@@ -55,35 +36,30 @@ enum SecurityModuleState {
 struct SecurityModule<I> {
     identity: I,
     close_receiver: oneshot::Receiver<()>,
-    close_sender: Option<oneshot::Sender<()>>,
+    close_sender_opt: Option<oneshot::Sender<()>>,
     client_endpoints: Vec<(mpsc::Sender<FromSecurityModule>, mpsc::Receiver<ToSecurityModule>)>,
     state: SecurityModuleState,
 }
 
+/// Create a new security module, together with a close handle to be used after the security module
+/// future instance was consumed.
+fn create_security_module<I: Identity>(identity: I) -> (CloseHandle, SecurityModule<I>) {
+    let (close_handle, (close_sender, close_receiver)) = create_close_handle();
+    let security_module = SecurityModule::new(identity, close_sender, close_receiver);
+    (close_handle, security_module)
+}
 
 impl<I: Identity> SecurityModule<I> {
     /// Create a security module together with a security module handle.
     /// The handle can be used to notify the security module to close, remotely.
-    fn create(identity: I) -> (SecurityModuleHandle, Self) {
-
-        // Create a oneshot channel between the handle and the security module:
-        let (handle_sender, sm_receiver) = oneshot::channel();
-        let (sm_sender, handle_receiver) = oneshot::channel();
-
-        let sm_handle = SecurityModuleHandle {
-            handle_close_sender: handle_sender,
-            handle_close_receiver: handle_receiver,
-        };
-
-        let sm = SecurityModule {
+    fn new(identity: I, close_sender: oneshot::Sender<()>, close_receiver: oneshot::Receiver<()>) -> Self {
+        SecurityModule {
             identity,
-            close_sender: Some(sm_sender),
-            close_receiver: sm_receiver,
+            close_sender_opt: Some(close_sender),
+            close_receiver,
             client_endpoints: Vec::new(),
             state: SecurityModuleState::Reading(0),
-        };
-
-        (sm_handle, sm)
+        }
     }
 
 
@@ -159,7 +135,7 @@ impl<I: Identity> SecurityModule<I> {
 
     /// Tell the handle that we are done closing.
     fn send_close_notification(&mut self) -> Result<(), SecurityModuleError> {
-        let close_sender = match self.close_sender.take() {
+        let close_sender = match self.close_sender_opt.take() {
             None => panic!("Close notification already sent!"),
             Some(close_sender) => close_sender,
         };
@@ -294,7 +270,9 @@ mod tests {
         rng.fill_bytes(&mut identity_seed);
         let identity = SoftwareEd25519Identity::new(&identity_seed);
 
-        let (sm_handle, mut sm) = SecurityModule::create(identity);
+        
+        let (sm_handle, mut sm) = create_security_module(identity);
+            
         let (client_sender, client_receiver) = sm.new_client();
 
 
