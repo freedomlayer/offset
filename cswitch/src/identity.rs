@@ -7,7 +7,7 @@ use self::crypto::ed25519::{signature, verify, keypair};
 const PUBLIC_KEY_LEN: usize = 32;
 const SIGNATURE_LEN: usize = 64;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct PublicKey([u8; PUBLIC_KEY_LEN]);
 
 // We had to implement Debug and PartialEq ourselves here,
