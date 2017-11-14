@@ -1,3 +1,4 @@
+#![feature(conservative_impl_trait)]
 
 mod uid;
 mod identity;
