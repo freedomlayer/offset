@@ -12,7 +12,7 @@ use ::uid::Uid;
 // --------------
 
 
-struct ChannelerAddress {
+pub struct ChannelerAddress {
     // TODO: Ipv4 or Ipv6 address
 }
 
@@ -73,7 +73,7 @@ struct ResponseNeighborsRelationList {
     neighbors_relation_list: Vec<NeighborInfo>,
 }
 
-enum ChannelerToNetworker {
+pub enum ChannelerToNetworker {
     ChannelOpened(ChannelOpened),
     ChannelClosed(ChannelClosed),
     ChannelMessageReceived(ChannelMessageReceived),
@@ -89,7 +89,7 @@ enum ServerType {
     PrivateServer
 }
 
-enum NetworkerToChanneler {
+pub enum NetworkerToChanneler {
     SendChannelMessage {
         channel_uid: Uid,
         message_content: Vec<u8>,
@@ -574,6 +574,6 @@ pub enum ToSecurityModule {
 // Timer
 // -----
 
-enum FromTimer {
+pub enum FromTimer {
     TimeTick(SystemTime)
 }
