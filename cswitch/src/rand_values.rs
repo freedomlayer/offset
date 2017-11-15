@@ -76,3 +76,32 @@ impl<R: Rng> RandValuesStore<R> {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use self::rand::{StdRng};
+
+    #[test]
+    fn test_rand_values_store() {
+        let rng_seed: &[_] = &[1,2,3,4,5];
+        let mut rng: StdRng = rand::SeedableRng::from_seed(rng_seed);
+
+        // Generate some unrelated rand value:
+        let rand_value0 = RandValue::new(&mut rng);
+
+        let mut rand_values_store = RandValuesStore::new(rng, 50, 5);
+        let rand_value = rand_values_store.last_rand_value();
+
+        for _ in 0 .. (5 * 50) {
+            assert!(rand_values_store.check_rand_value(&rand_value));
+            assert!(!rand_values_store.check_rand_value(&rand_value0));
+            rand_values_store.time_tick();
+        }
+
+        assert!(!rand_values_store.check_rand_value(&rand_value));
+        assert!(!rand_values_store.check_rand_value(&rand_value0));
+
+    }
+}
