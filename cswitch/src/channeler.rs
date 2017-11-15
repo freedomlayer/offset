@@ -19,13 +19,14 @@ use ::inner_messages::{FromTimer, ChannelerToNetworker,
     NetworkerToChanneler, ToSecurityModule, FromSecurityModule,
     ChannelerNeighborInfo, ServerType};
 use ::close_handle::{CloseHandle, create_close_handle};
-use ::rand_values::RandValuesStore;
+use ::rand_values::{RandValuesStore, RandValue};
 
 const NUM_RAND_VALUES: usize = 16;
 const RAND_VALUE_TICKS: usize = 20;
 
 
-const KEEP_ALIVE_TICKS: u64 = 15;
+const KEEP_ALIVE_TICKS: usize = 15;
+const CONN_ATTEMPT_TICKS: usize = 120;
 
 
 
@@ -38,15 +39,29 @@ enum ChannelerError {
     TimerPollError,
 }
 
-/// A future that resolves when a TCP connection is established.
-struct PendingConnection {
+
+struct Channel {
+    ticks_to_receive_keep_alive: usize,
+    ticks_to_send_keep_alive: usize,
+    // TODO:
+    // - Sender
+    // - Receiver
 }
 
-struct ChannelerConnection {
-    // Should contain inner state:
-    
-    ticks_to_keep_alive: u64,
-    // - Last random value?
+struct PendingChannel {
+    // TODO:
+    // - Sender
+    // - Receiver
+}
+
+struct ChannelerNeighbor {
+    info: ChannelerNeighborInfo,
+
+    last_remote_rand_value: Option<RandValue>,
+    channels: Vec<Channel>,
+    pending_channels: Vec<PendingChannel>,
+    pending_out_conn: Option<()>,
+    ticks_to_next_conn_attempt: usize,
 }
 
 
@@ -60,6 +75,7 @@ enum ChannelerState {
     PollPendingConnection,
     ReadConnectionMessage(usize),
     HandleConnectionMessage(usize),
+    // ReadListenSocket,
     Closed,
 }
 
@@ -70,16 +86,12 @@ struct Channeler<R> {
     security_module_sender: mpsc::Sender<ToSecurityModule>,
     security_module_receiver: mpsc::Receiver<FromSecurityModule>,
 
-
     close_sender_opt: Option<oneshot::Sender<()>>,
     close_receiver: oneshot::Receiver<()>,
 
     rand_values_store: RandValuesStore<R>,
 
-    pending_connections: Vec<PendingConnection>,
-    unverified_connections: Vec<ChannelerConnection>,
-    active_connections: HashMap<PublicKey, Vec<ChannelerConnection>>,
-    neighbor_relations: HashMap<PublicKey, ChannelerNeighborInfo>,
+    neighbors: HashMap<PublicKey, ChannelerNeighbor>,
     server_type: ServerType,
 
     state: ChannelerState,
@@ -106,10 +118,7 @@ impl<R:Rng> Channeler<R> {
             close_receiver,
             rand_values_store: RandValuesStore::new(
                 crypt_rng, RAND_VALUE_TICKS, NUM_RAND_VALUES),
-            pending_connections: Vec::new(),
-            unverified_connections: Vec::new(),
-            active_connections: HashMap::new(),
-            neighbor_relations: HashMap::new(),
+            neighbors: HashMap::new(),
             server_type: ServerType::PrivateServer,
             state: ChannelerState::ReadTimer,
         }
@@ -152,15 +161,22 @@ impl<R:Rng> Channeler<R> {
             },
             NetworkerToChanneler::AddNeighborRelation { neighbor_info } => {
                 let neighbor_public_key = neighbor_info.neighbor_public_key.clone();
-                if self.neighbor_relations.contains_key(&neighbor_public_key) {
+                if self.neighbors.contains_key(&neighbor_public_key) {
                     warn!("Neighbor with public key {:?} already exists", 
                           neighbor_public_key);
                 }
-                self.neighbor_relations.insert(neighbor_public_key, neighbor_info);
+                self.neighbors.insert(neighbor_public_key, ChannelerNeighbor {
+                    info: neighbor_info,
+                    last_remote_rand_value: None,
+                    channels: Vec::new(),
+                    pending_channels: Vec::new(),
+                    pending_out_conn: None,
+                    ticks_to_next_conn_attempt: CONN_ATTEMPT_TICKS,
+                });
                 Ok(AsyncSink::Ready)
             },
             NetworkerToChanneler::RemoveNeighborRelation { neighbor_public_key } => {
-                match self.neighbor_relations.remove(&neighbor_public_key) {
+                match self.neighbors.remove(&neighbor_public_key) {
                     None => warn!("Attempt to remove a nonexistent neighbor \
                         relation with public key {:?}", neighbor_public_key),
                     _ => {},
@@ -171,12 +187,12 @@ impl<R:Rng> Channeler<R> {
             },
             NetworkerToChanneler::SetMaxChannels 
                 { neighbor_public_key, max_channels } => {
-                match self.neighbor_relations.get_mut(&neighbor_public_key) {
+                match self.neighbors.get_mut(&neighbor_public_key) {
                     None => warn!("Attempt to change max_channels for a \
                         nonexistent neighbor relation with public key {:?}",
                         neighbor_public_key),
-                    Some(neighbor_relation) => {
-                        neighbor_relation.max_channels = max_channels;
+                    Some(neighbor) => {
+                        neighbor.info.max_channels = max_channels;
                     },
                 };
                 Ok(AsyncSink::Ready)
@@ -191,14 +207,18 @@ impl<R:Rng> Channeler<R> {
     /// Handle the passage of time.
     /// We measure time by time ticks.
     fn handle_time_tick(&mut self) -> Result<(), ChannelerError> {
-        // TODO: 
-        // - Possibly generate a new random value:
         self.rand_values_store.time_tick();
 
-        // - Send connection keepalives?
+        // TODO: 
 
         // - If enough time has passed, open a new connection in cases where the
         //  amount of connections is too small or 0.
+        // Use TcpStream::connect to create a new connection.
+
+
+
+
+        // - Send connection keepalives?
 
         // - Close connections that didn't send a keepalive?
         Ok(())
