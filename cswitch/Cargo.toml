@@ -12,4 +12,5 @@ rust-crypto = "0.2.36"
 futures = "0.1.17"
 tokio-core = "0.1.10"
 
+log = "0.3.8"
 
