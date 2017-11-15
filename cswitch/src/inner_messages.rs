@@ -17,9 +17,9 @@ pub struct ChannelerAddress {
 }
 
 pub struct ChannelerNeighborInfo {
-    neighbor_public_key: PublicKey,
-    neighbor_address: ChannelerAddress,
-    max_channels: u32,  // Maximum amount of token channels
+    pub neighbor_public_key: PublicKey,
+    pub neighbor_address: ChannelerAddress,
+    pub max_channels: u32,  // Maximum amount of token channels
 }
 
 pub struct NeighborInfo {
