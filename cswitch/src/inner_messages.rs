@@ -90,7 +90,7 @@ pub enum ChannelerToNetworker {
 // Networker to Channeler
 // ----------------------
 
-enum ServerType {
+pub enum ServerType {
     PublicServer,
     PrivateServer
 }
