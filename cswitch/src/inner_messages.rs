@@ -584,5 +584,5 @@ pub enum ToSecurityModule {
 // -----
 
 pub enum FromTimer {
-    TimeTick(SystemTime)
+    TimeTick,
 }

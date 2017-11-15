@@ -32,8 +32,10 @@ const KEEP_ALIVE_TICKS: u64 = 15;
 enum ChannelerError {
     CloseReceiverCanceled,
     SendCloseNotificationFailed,
-    NetworkerClosed,
+    NetworkerClosed, // TODO: We should probably start closing too.
     NetworkerPollError,
+    TimerClosed, // TODO: We should probably start closing too.
+    TimerPollError,
 }
 
 /// A future that resolves when a TCP connection is established.
@@ -184,7 +186,22 @@ impl<R:Rng> Channeler<R> {
                 Ok(AsyncSink::Ready)
             },
         }
+    }
 
+    /// Handle the passage of time.
+    /// We measure time by time ticks.
+    fn handle_time_tick(&mut self) -> Result<(), ChannelerError> {
+        // TODO: 
+        // - Possibly generate a new random value:
+        self.rand_values_store.time_tick();
+
+        // - Send connection keepalives?
+
+        // - If enough time has passed, open a new connection in cases where the
+        //  amount of connections is too small or 0.
+
+        // - Close connections that didn't send a keepalive?
+        Ok(())
     }
 }
 
@@ -217,16 +234,19 @@ impl<R:Rng> Future for Channeler<R> {
 
                 },
                 ChannelerState::ReadTimer => {
-                    // TODO: 
-                    // - If enough time has passed, open a new connection in cases where the
-                    //  amount of connections is too small or 0.
-                    // - Generate a new random value
-                    // - Send connection keepalives?
-                    // - Close connections that didn't send a keepalive?
+                    match self.timer_receiver.poll() {
+                        Ok(Async::Ready(Some(FromTimer::TimeTick))) => {
+                            self.handle_time_tick()?;
+                        },
+                        Ok(Async::Ready(None)) => return Err(ChannelerError::TimerClosed),
+                        Ok(Async::NotReady) => {},
+                        Err(()) => return Err(ChannelerError::TimerPollError),
+                    };
+
+                    self.state = ChannelerState::ReadNetworker;
+                    continue;
                 },
-
                 ChannelerState::ReadNetworker => {
-
                     match self.networker_receiver.poll() {
                         Ok(Async::Ready(Some(msg))) => {
                             self.state = ChannelerState::HandleNetworker(msg);
@@ -236,8 +256,7 @@ impl<R:Rng> Future for Channeler<R> {
                             return Err(ChannelerError::NetworkerClosed);
                         },
                         Ok(Async::NotReady) => {},
-                        // TODO: What kind of error is e?
-                        Err(e) => return Err(ChannelerError::NetworkerPollError),
+                        Err(()) => return Err(ChannelerError::NetworkerPollError),
                     };
 
                     self.state = ChannelerState::ReadSecurityModule;
