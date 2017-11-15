@@ -75,15 +75,17 @@ struct ChannelMessageReceived {
     message_content: Vec<u8>,
 }
 
+/*
 struct ResponseNeighborsRelationList {
     neighbors_relation_list: Vec<NeighborInfo>,
 }
+*/
 
 pub enum ChannelerToNetworker {
     ChannelOpened(ChannelOpened),
     ChannelClosed(ChannelClosed),
     ChannelMessageReceived(ChannelMessageReceived),
-    ResponseNeighborsRelationList(ResponseNeighborsRelationList),
+    // ResponseNeighborsRelationList(ResponseNeighborsRelationList),
 }
 
 
@@ -100,9 +102,11 @@ pub enum NetworkerToChanneler {
         channel_uid: Uid,
         message_content: Vec<u8>,
     },
+    /*
     CloseChannel {
-        channel_uid: Uid,
+        neighbor_public_key: PublicKey,
     },
+    */
     AddNeighborRelation {
         neighbor_info: ChannelerNeighborInfo,
     },
@@ -113,7 +117,7 @@ pub enum NetworkerToChanneler {
         neighbor_public_key: PublicKey,
         max_channels: u32,
     },
-    RequestNeighborsRelationList,
+    // RequestNeighborsRelationList,
     SetServerType(ServerType),
 }
 
