@@ -1,5 +1,8 @@
 #![feature(conservative_impl_trait)]
 
+#[macro_use]
+extern crate log;
+
 mod uid;
 mod identity;
 mod inner_messages;
