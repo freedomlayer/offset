@@ -1,6 +1,7 @@
 extern crate num_bigint;
 
 use std::time::SystemTime;
+use std::net::SocketAddr;
 
 use self::num_bigint::BigInt;
 use ::identity::{PublicKey, Signature};
@@ -13,7 +14,8 @@ use ::uid::Uid;
 
 
 pub struct ChannelerAddress {
-    // TODO: Ipv4 or Ipv6 address
+    pub socket_addr: Option<SocketAddr>,
+    pub neighbor_public_key: PublicKey,
 }
 
 pub struct ChannelerNeighborInfo {
