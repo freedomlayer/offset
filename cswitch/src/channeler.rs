@@ -1,5 +1,6 @@
 extern crate futures;
 extern crate rand;
+extern crate tokio_core;
 
 
 use std::collections::{HashMap};
@@ -11,7 +12,8 @@ use self::futures::{Stream, Poll, Async, AsyncSink, StartSend};
 use self::futures::future::{Future};
 use self::futures::sync::mpsc;
 use self::futures::sync::oneshot;
-
+use self::tokio_core::net::TcpStream;
+use self::tokio_core::reactor::Handle;
 
 
 use ::identity::PublicKey;
@@ -80,6 +82,7 @@ enum ChannelerState {
 }
 
 struct Channeler<R> {
+    handle: Handle,
     timer_receiver: mpsc::Receiver<FromTimer>, 
     networker_sender: mpsc::Sender<ChannelerToNetworker>,
     networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
@@ -99,7 +102,8 @@ struct Channeler<R> {
 
 
 impl<R:Rng> Channeler<R> {
-    fn create(timer_receiver: mpsc::Receiver<FromTimer>, 
+    fn new(handle: &Handle, 
+            timer_receiver: mpsc::Receiver<FromTimer>, 
             networker_sender: mpsc::Sender<ChannelerToNetworker>,
             networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
             security_module_sender: mpsc::Sender<ToSecurityModule>,
@@ -109,6 +113,7 @@ impl<R:Rng> Channeler<R> {
             close_receiver: oneshot::Receiver<()>) -> Self {
 
         Channeler {
+            handle: handle.clone(),
             timer_receiver,
             networker_sender,
             networker_receiver,
@@ -210,6 +215,38 @@ impl<R:Rng> Channeler<R> {
         self.rand_values_store.time_tick();
 
         // TODO: 
+        
+        for (_, mut neighbor) in &mut self.neighbors {
+            let socket_addr = match neighbor.info.neighbor_address.socket_addr {
+                None => continue,
+                Some(socket_addr) => socket_addr,
+            };
+            // If there are already some attempts to add connections, 
+            // we don't try to add a new connection ourselves.
+            if neighbor.pending_out_conn.is_some() {
+                continue;
+            }
+            if neighbor.pending_channels.len() > 0 {
+                continue;
+            }
+            if neighbor.channels.len() == 0 {
+                // This is an inactive neighbor.
+                neighbor.ticks_to_next_conn_attempt -= 1;
+                if neighbor.ticks_to_next_conn_attempt == 0 {
+                    neighbor.ticks_to_next_conn_attempt = CONN_ATTEMPT_TICKS;
+                } else {
+                    continue;
+                }
+            }
+            // Attempt a connection:
+            TcpStream::connect(&socket_addr, &self.handle)
+                .and_then(|stream| {
+                    // TODO: Framing.
+                });
+
+            // neighbor.pending_out_conn = Some();
+        }
+        
 
         // - If enough time has passed, open a new connection in cases where the
         //  amount of connections is too small or 0.
