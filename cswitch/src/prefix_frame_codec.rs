@@ -29,7 +29,7 @@ enum PrefixFrameCodecState {
 }
 
 
-struct PrefixFrameCodec {
+pub struct PrefixFrameCodec {
     state: PrefixFrameCodecState,
 }
 
@@ -43,7 +43,7 @@ enum PrefixFrameCodecError {
 }
 
 impl PrefixFrameCodec {
-    fn new() -> Self {
+    pub fn new() -> Self {
         PrefixFrameCodec {
             state: PrefixFrameCodecState::CollectingLength {
                 accum_length: Vec::new(),
