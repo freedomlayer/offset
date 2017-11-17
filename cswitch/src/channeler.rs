@@ -1,6 +1,7 @@
 extern crate futures;
 extern crate rand;
 extern crate tokio_core;
+extern crate tokio_io;
 
 
 use std::collections::{HashMap};
@@ -14,6 +15,7 @@ use self::futures::sync::mpsc;
 use self::futures::sync::oneshot;
 use self::tokio_core::net::TcpStream;
 use self::tokio_core::reactor::Handle;
+use self::tokio_io::AsyncRead;
 
 
 use ::identity::PublicKey;
@@ -22,6 +24,7 @@ use ::inner_messages::{FromTimer, ChannelerToNetworker,
     ChannelerNeighborInfo, ServerType};
 use ::close_handle::{CloseHandle, create_close_handle};
 use ::rand_values::{RandValuesStore, RandValue};
+use ::prefix_frame_codec::PrefixFrameCodec;
 
 const NUM_RAND_VALUES: usize = 16;
 const RAND_VALUE_TICKS: usize = 20;
@@ -238,13 +241,17 @@ impl<R:Rng> Channeler<R> {
                     continue;
                 }
             }
-            /*
             // Attempt a connection:
             TcpStream::connect(&socket_addr, &self.handle)
                 .and_then(|stream| {
-                    // TODO: Framing.
+                    let (sink, stream) = stream.framed(PrefixFrameCodec::new()).split();
+
+                    // TODO: Binary deserializtion of Channeler to Channeler messages.
+                    // - Write adapters to sink and stream.
+                    // - Store connection future at pending_out_conn. It will later resolve to a
+                    //      sink and a stream.
+                    
                 });
-            */
 
             // neighbor.pending_out_conn = Some();
         }
