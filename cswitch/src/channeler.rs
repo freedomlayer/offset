@@ -238,11 +238,13 @@ impl<R:Rng> Channeler<R> {
                     continue;
                 }
             }
+            /*
             // Attempt a connection:
             TcpStream::connect(&socket_addr, &self.handle)
                 .and_then(|stream| {
                     // TODO: Framing.
                 });
+            */
 
             // neighbor.pending_out_conn = Some();
         }
