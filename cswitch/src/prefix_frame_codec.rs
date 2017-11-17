@@ -6,12 +6,12 @@ extern crate byteorder;
 use std::io;
 use std::mem;
 use std::cmp;
-use self::bytes::{BytesMut};
+use self::bytes::{BytesMut, BufMut};
 use self::tokio_io::codec::{Encoder, Decoder};
 use self::byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 
-const MAX_FRAME_LEN: usize = 2_u32.pow(20) as usize; // 1 MB
+const MAX_FRAME_LEN: usize = 1 << 20;
 
 /// Break a stream of bytes into chunks, using prefix length frames.
 /// Every frame begins with a 32 bit length prefix, after which the data follows.
@@ -36,8 +36,18 @@ struct PrefixFrameCodec {
 enum PrefixFrameCodecError {
     SerializeLengthError(io::Error),
     DeserializeLengthError(io::Error),
+    IoError(io::Error),
+    ReceivedFrameLenTooLarge,
 }
 
+/// Conversion of io::Error into PrefixFrameCodecError.
+/// This is required for usage of PrefixFrameCodecError as the error type of PrefixFrameCodec
+/// Encoder and Decoder.
+impl From<io::Error> for PrefixFrameCodecError {
+    fn from(e: io::Error) -> Self {
+        PrefixFrameCodecError::IoError(e)
+    }
+}
 
 impl Decoder for PrefixFrameCodec {
     type Item = Vec<u8>;
@@ -48,7 +58,7 @@ impl Decoder for PrefixFrameCodec {
             // Should we add here a check if buf.len() == 0?
             match mem::replace(&mut self.state, PrefixFrameCodecState::Empty) {
                 PrefixFrameCodecState::Empty => unreachable!(),
-                PrefixFrameCodecState::CollectingLength { accum_length } => {
+                PrefixFrameCodecState::CollectingLength { mut accum_length } => {
                     // Try to add as many as possible bytes to accum_length:
                     let missing_length_bytes = 4 - accum_length.len();
                     let bytes_to_read = cmp::min(missing_length_bytes, buf.len());
@@ -56,18 +66,18 @@ impl Decoder for PrefixFrameCodec {
 
                     if accum_length.len() == 4 {
                         // Done reading length.
-                        let rdr = io::Cursor::new(accum_length);
+                        let mut rdr = io::Cursor::new(accum_length);
                         let frame_length = match rdr.read_u32::<BigEndian>() {
                             Ok(frame_length) => frame_length,
                             Err(e) => return Err(PrefixFrameCodecError::DeserializeLengthError(e)),
-                        };
+                        } as usize;
 
-                        // TODO: Check if frame_length is too big.
-                        // If so, return an error.
-                        assert!(false);
+                        if frame_length > MAX_FRAME_LEN {
+                            return Err(PrefixFrameCodecError::ReceivedFrameLenTooLarge);
+                        }
                         
                         self.state = PrefixFrameCodecState::CollectingFrame {
-                            length: frame_length as usize,
+                            length: frame_length,
                             accum_frame: Vec::new(),
                         };
                         // May continue from here to CollectingFrame state in the next iteration of
@@ -79,7 +89,7 @@ impl Decoder for PrefixFrameCodec {
                         return Ok(None);
                     }
                 },
-                PrefixFrameCodecState::CollectingFrame { length, accum_frame } => {
+                PrefixFrameCodecState::CollectingFrame { length, mut accum_frame } => {
                     let missing_frame_bytes = length - accum_frame.len();
                     let bytes_to_read = cmp::min(missing_frame_bytes, buf.len());
                     accum_frame.extend(buf.split_to(bytes_to_read));
@@ -111,17 +121,22 @@ impl Encoder for PrefixFrameCodec {
     type Error = PrefixFrameCodecError;
 
     fn encode(&mut self, data: Vec<u8>, buf: &mut BytesMut) -> Result<(), Self::Error> {
+        if buf.len() > MAX_FRAME_LEN {
+            return Err(PrefixFrameCodecError::ReceivedFrameLenTooLarge);
+        }
 
-        // TODO: Make sure that data length is not too large.
-        let wtr = vec![];
+        // Encode length prefix as bytes:
+        let mut wtr = vec![];
         match wtr.write_u32::<BigEndian>(data.len() as u32) {
             Ok(()) => {},
             Err(e) => return Err(PrefixFrameCodecError::SerializeLengthError(e)),
         };
 
-
-        // buf.put(&my_vec[..]);
-        // TODO
+        // Write length prefix:
+        buf.put(&wtr[..]);
+        // Write actual data:
+        buf.put(&data[..]);
+        Ok(())
     }
 }
 
