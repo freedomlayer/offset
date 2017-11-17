@@ -2,7 +2,6 @@ extern crate tokio_io;
 extern crate bytes;
 extern crate byteorder;
 
-
 use std::io;
 use std::mem;
 use std::cmp;
@@ -29,15 +28,28 @@ enum PrefixFrameCodecState {
     }
 }
 
+
 struct PrefixFrameCodec {
     state: PrefixFrameCodecState,
 }
+
 
 enum PrefixFrameCodecError {
     SerializeLengthError(io::Error),
     DeserializeLengthError(io::Error),
     IoError(io::Error),
     ReceivedFrameLenTooLarge,
+    SentFrameLenTooLarge,
+}
+
+impl PrefixFrameCodec {
+    fn new() -> Self {
+        PrefixFrameCodec {
+            state: PrefixFrameCodecState::CollectingLength {
+                accum_length: Vec::new(),
+            },
+        }
+    }
 }
 
 /// Conversion of io::Error into PrefixFrameCodecError.
@@ -121,8 +133,8 @@ impl Encoder for PrefixFrameCodec {
     type Error = PrefixFrameCodecError;
 
     fn encode(&mut self, data: Vec<u8>, buf: &mut BytesMut) -> Result<(), Self::Error> {
-        if buf.len() > MAX_FRAME_LEN {
-            return Err(PrefixFrameCodecError::ReceivedFrameLenTooLarge);
+        if data.len() > MAX_FRAME_LEN {
+            return Err(PrefixFrameCodecError::SentFrameLenTooLarge);
         }
 
         // Encode length prefix as bytes:
@@ -133,11 +145,107 @@ impl Encoder for PrefixFrameCodec {
         };
 
         // Write length prefix:
-        buf.put(&wtr[..]);
+        buf.extend(&wtr[..]);
         // Write actual data:
-        buf.put(&data[..]);
+        buf.extend(&data[..]);
         Ok(())
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
 
+    #[test]
+    fn test_prefix_frame_encoder_basic() {
+        let mut prefix_frame_codec = PrefixFrameCodec::new();
+        let mut buf = BytesMut::new();
+        match prefix_frame_codec.encode(vec![1,2,3,4,5], &mut buf) {
+            Ok(()) => {},
+            Err(_) => panic!("Error encoding data!"),
+        };
+        assert_eq!(buf, vec![0,0,0,5,1,2,3,4,5]);
+    }
+
+
+    #[test]
+    fn test_prefix_frame_encoder_empty_data() {
+        let mut prefix_frame_codec = PrefixFrameCodec::new();
+        let mut buf = BytesMut::new();
+        match prefix_frame_codec.encode(vec![], &mut buf) {
+            Ok(()) => {},
+            _ => panic!("Error encoding data!"),
+        };
+        assert_eq!(buf, vec![0,0,0,0]);
+    }
+
+    #[test]
+    fn test_prefix_frame_encoder_large_data() {
+        let mut prefix_frame_codec = PrefixFrameCodec::new();
+        let mut buf = BytesMut::new();
+        match prefix_frame_codec.encode(vec![0; MAX_FRAME_LEN], &mut buf) {
+            Ok(()) => {},
+            _ => panic!("Error encoding data!"),
+        };
+        assert_eq!(buf.len(), 4 + MAX_FRAME_LEN);
+    }
+
+    #[test]
+    fn test_prefix_frame_encoder_too_large_data() {
+        let mut prefix_frame_codec = PrefixFrameCodec::new();
+        let mut buf = BytesMut::new();
+        match prefix_frame_codec.encode(vec![0; MAX_FRAME_LEN + 1], &mut buf) {
+            Err(PrefixFrameCodecError::SentFrameLenTooLarge) => {},
+            _ => panic!("Test failed"),
+        };
+    }
+
+    #[test]
+    fn test_prefix_frame_decoder() {
+        let mut prefix_frame_codec = PrefixFrameCodec::new();
+        let mut buf = BytesMut::new();
+        buf.extend(vec![0,0]);
+        match prefix_frame_codec.decode(&mut buf) {
+            Ok(None) => {},
+            _ => panic!("Test failed1!"),
+        };
+        buf.extend(vec![0]);
+        match prefix_frame_codec.decode(&mut buf) {
+            Ok(None) => {},
+            _ => panic!("Test failed2!"),
+        };
+        buf.extend(vec![5]);
+        match prefix_frame_codec.decode(&mut buf) {
+            Ok(None) => {},
+            _ => panic!("Test failed3!"),
+        };
+        buf.extend(vec![1,2,3,4]);
+        match prefix_frame_codec.decode(&mut buf) {
+            Ok(None) => {},
+            _ => panic!("Test failed4!"),
+        };
+        buf.extend(vec![5,6,7,8]);
+        match prefix_frame_codec.decode(&mut buf) {
+            Ok(Some(v)) => assert_eq!(v,vec![1,2,3,4,5]),
+            _ => panic!("Test failed5!"),
+        };
+
+        // Make sure that we still have the remainder:
+        assert_eq!(buf, vec![6,7,8]);
+    }
+
+    #[test]
+    fn test_prefix_frame_decoder_len_too_large() {
+        let mut prefix_frame_codec = PrefixFrameCodec::new();
+        let mut buf = BytesMut::new();
+
+        // Encode length prefix as bytes:
+        let mut wtr = vec![];
+        wtr.write_u32::<BigEndian>((MAX_FRAME_LEN + 1) as u32).unwrap();
+        buf.extend(wtr);
+        match prefix_frame_codec.decode(&mut buf) {
+            Err(PrefixFrameCodecError::ReceivedFrameLenTooLarge) => {},
+            _ => panic!("Test failed1!"),
+        };
+    }
+}
