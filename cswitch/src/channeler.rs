@@ -241,6 +241,7 @@ impl<R:Rng> Channeler<R> {
                     continue;
                 }
             }
+            /*
             // Attempt a connection:
             TcpStream::connect(&socket_addr, &self.handle)
                 .and_then(|stream| {
@@ -254,6 +255,7 @@ impl<R:Rng> Channeler<R> {
                 });
 
             // neighbor.pending_out_conn = Some();
+            */
         }
         
 
