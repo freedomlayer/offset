@@ -1,0 +1,26 @@
+# Channeler
+
+- Serializer, deserializer for messages between Channelers.
+
+
+# Cryptography
+
+- How to perform symmetric encryption in Rust?
+    - nacl?
+    - rust crypto?
+
+- How to perform key derivation for the symmetric encryption from the shared
+    secret?
+    - Simple hash?
+    - MAC, HMAC?
+
+
+
+# capn proto schemas
+
+- Document how to install capn proto compiler:
+
+```bash
+sudo apt install capnproto
+cargo install capnpc
+```
