@@ -1,8 +1,12 @@
-extern crate crypto;
+extern crate ring;
+extern crate untrusted;
+// extern crate crypto;
 
 use std::fmt;
 
-use self::crypto::ed25519::{signature, verify, keypair, exchange};
+// use self::crypto::ed25519::{signature, verify, keypair, exchange};
+use self::ring::{signature, agreement};
+use ::static_dh_hack::key_pair_to_ephemeral_private_key;
 
 const PUBLIC_KEY_LEN: usize = 32;
 const SIGNATURE_LEN: usize = 64;
@@ -15,7 +19,6 @@ pub struct PublicKey([u8; PUBLIC_KEY_LEN]);
 // because PartialEq and Debug traits are not automatically implemented
 // for size larger than 32.
 pub struct Signature([u8; SIGNATURE_LEN]);
-
 
 impl fmt::Debug for Signature {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -52,6 +55,78 @@ pub trait Identity {
     fn gen_shared_secret(&self, public_key: &PublicKey) -> SharedSecret;
 }
 
+
+pub struct SoftwareEd25519Identity {
+    key_pair: signature::Ed25519KeyPair,
+}
+
+impl SoftwareEd25519Identity {
+    pub fn from_pkcs8(pkcs8_bytes: &[u8]) -> Result<Self,()> {
+        let key_pair = match signature::Ed25519KeyPair::from_pkcs8(
+            untrusted::Input::from(&pkcs8_bytes)) {
+            Ok(key_pair) => key_pair,
+            Err(ring::error::Unspecified) => return Err(())
+        };
+
+        Ok(SoftwareEd25519Identity {
+            key_pair,
+        })
+    }
+}
+
+
+impl Identity for SoftwareEd25519Identity {
+    fn verify_signature(&self, message: &[u8], 
+                        public_key: &PublicKey, signature: &Signature) -> bool {
+
+        let public_key = untrusted::Input::from(&public_key.0);
+        let message = untrusted::Input::from(message);
+        let signature = untrusted::Input::from(&signature.0);
+        match signature::verify(&signature::ED25519, public_key, message, signature) {
+            Ok(()) => true,
+            Err(ring::error::Unspecified) => false,
+        }
+    }
+
+    fn sign_message(&self, message: &[u8]) -> Signature {
+        let mut sig_array = [0; SIGNATURE_LEN];
+        let sig = self.key_pair.sign(message);
+        let sig_ref = sig.as_ref();
+        assert_eq!(sig_ref.len(), SIGNATURE_LEN);
+        sig_array.clone_from_slice(sig_ref);
+        Signature(sig_array)
+    }
+
+    fn get_public_key(&self) -> PublicKey {
+        let mut public_key_array = [0; PUBLIC_KEY_LEN];
+        let public_key_ref = self.key_pair.public_key_bytes();
+        assert_eq!(public_key_ref.len(), PUBLIC_KEY_LEN);
+        public_key_array.clone_from_slice(public_key_ref);
+        PublicKey(public_key_array)
+    }
+
+    fn gen_shared_secret(&self, public_key: &PublicKey) -> SharedSecret {
+        // This is an (unsafe) hack, because of current limitations of the ring crate:
+        let private_key = key_pair_to_ephemeral_private_key(&self.key_pair);
+
+        let public_key = untrusted::Input::from(&public_key.0);
+        let key_material_res = agreement::agree_ephemeral(private_key, 
+                    &agreement::X25519, public_key, 
+                    ring::error::Unspecified ,|key_material| {
+                        assert_eq!(key_material.len(), SHARED_SECRET_LEN);
+                        let mut shared_secret_array = [0; SHARED_SECRET_LEN];
+                        shared_secret_array.clone_from_slice(key_material);
+                        Ok(SharedSecret(shared_secret_array))
+                    });
+
+        match key_material_res {
+            Ok(key_material) => key_material,
+            _ => unreachable!(),
+        }
+    }
+}
+
+/*
 
 /// A software powered module for signing and verifying messages.
 pub struct SoftwareEd25519Identity {
@@ -95,18 +170,25 @@ impl Identity for SoftwareEd25519Identity {
     }
 
 }
+*/
 
 
 #[cfg(test)]
 mod tests {
+    extern crate rand;
     use super::*;
+    use ::test_utils::DummyRandom;
+
 
     #[test]
     fn test_get_public_key_sanity() {
-        let seed: &[u8] = &[0x26, 0x27, 0xf6, 0x85, 0x97, 0x15, 0xad, 0x1d, 0xd2, 0x94, 0xdd, 0xc4,
-            0x76, 0x19, 0x39, 0x31, 0xf1, 0xad, 0xb5, 0x58, 0xf0, 0x93, 0x97, 0x32, 0x19, 0x2b, 0xd1,
-            0xc0, 0xfd, 0x16, 0x8e, 0x4e];
-        let id = SoftwareEd25519Identity::new(&seed);
+
+        // let rng_seed: &[_] = &[1,2,3,4,5];
+        // let mut rng: StdRng = rand::SeedableRng::from_seed(rng_seed);
+
+        let secure_rand = DummyRandom::new(&[1,2,3,4,5]);
+        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
+        let id = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
         let public_key1 = id.get_public_key();
         let public_key2 = id.get_public_key();
@@ -129,7 +211,6 @@ mod tests {
         assert!(verify(message, &public_key, &sig));
 
     }
-    */
 
     #[test]
     fn test_rust_crypto_keypair_long_seed() {
@@ -143,15 +224,14 @@ mod tests {
         assert!(verify(message, &public_key, &sig));
 
     }
+    */
 
     #[test]
     fn test_sign_verify_self() {
         // let seed: &[u8] = &[1,2,3,4,5];
-        let seed: &[u8] = &[0x26, 0x27, 0xf6, 0x85, 0x97, 0x15, 0xad, 0x1d, 0xd2, 0x94, 0xdd, 0xc4,
-            0x76, 0x19, 0x39, 0x31, 0xf1, 0xad, 0xb5, 0x58, 0xf0, 0x93, 0x97, 0x32, 0x19, 0x2b, 0xd1,
-            0xc0, 0xfd, 0x16, 0x8e, 0x4e];
-
-        let id = SoftwareEd25519Identity::new(&seed);
+        let secure_rand = DummyRandom::new(&[1,2,3,4,5]);
+        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
+        let id = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
         let message = b"This is a message";
 
@@ -166,14 +246,13 @@ mod tests {
 
     #[test]
     fn test_sign_verify_other() {
-        let seed1: &[u8] = &[0x26, 0x27, 0xf6, 0x85, 0x97, 0x15, 0xad, 0x1d, 0xd2, 0x94, 0xdd, 0xc4,
-            0x76, 0x19, 0x39, 0x31, 0xf1, 0xad, 0xb5, 0x58, 0xf0, 0x93, 0x97, 0x32, 0x19, 0x2b, 0xd1,
-            0xc0, 0xfd, 0x16, 0x8e, 0x4e];
-        let seed2: &[u8] = &[0x28, 0x27, 0xf6, 0x85, 0x97, 0x15, 0xad, 0x1d, 0xd2, 0x94, 0xdd, 0xc4,
-            0x76, 0x19, 0x39, 0x31, 0xf1, 0xad, 0xb5, 0x58, 0xf0, 0x93, 0x97, 0x32, 0x19, 0x2b, 0xd1,
-            0xc0, 0xfd, 0x16, 0x8e, 0x4e];
-        let id1 = SoftwareEd25519Identity::new(&seed1);
-        let id2 = SoftwareEd25519Identity::new(&seed2);
+        let secure_rand = DummyRandom::new(&[1,2,3,4,5]);
+        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
+        let id1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+
+        let secure_rand = DummyRandom::new(&[1,2,3,4,5,6]);
+        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
+        let id2 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
         let message = b"This is a message";
         let signature1 = id1.sign_message(message);
@@ -185,14 +264,14 @@ mod tests {
 
     #[test]
     fn test_gen_shared_secret() {
-        let seed1: &[u8] = &[0x26, 0x27, 0xf6, 0x85, 0x97, 0x15, 0xad, 0x1d, 0xd2, 0x94, 0xdd, 0xc4,
-            0x76, 0x19, 0x39, 0x31, 0xf1, 0xad, 0xb5, 0x58, 0xf0, 0x93, 0x97, 0x32, 0x19, 0x2b, 0xd1,
-            0xc0, 0xfd, 0x16, 0x8e, 0x4e];
-        let seed2: &[u8] = &[0x28, 0x27, 0xf6, 0x85, 0x97, 0x15, 0xad, 0x1d, 0xd2, 0x94, 0xdd, 0xc4,
-            0x76, 0x19, 0x39, 0x31, 0xf1, 0xad, 0xb5, 0x58, 0xf0, 0x93, 0x97, 0x32, 0x19, 0x2b, 0xd1,
-            0xc0, 0xfd, 0x16, 0x8e, 0x4e];
-        let id1 = SoftwareEd25519Identity::new(&seed1);
-        let id2 = SoftwareEd25519Identity::new(&seed2);
+
+        let secure_rand = DummyRandom::new(&[1,2,3,4,5]);
+        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
+        let id1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+
+        let secure_rand = DummyRandom::new(&[1,2,3,4,5,6]);
+        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
+        let id2 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
         let ss12 = id1.gen_shared_secret(&id2.get_public_key());
         let ss21 = id2.gen_shared_secret(&id1.get_public_key());
