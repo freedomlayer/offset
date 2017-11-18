@@ -2,10 +2,11 @@ extern crate crypto;
 
 use std::fmt;
 
-use self::crypto::ed25519::{signature, verify, keypair};
+use self::crypto::ed25519::{signature, verify, keypair, exchange};
 
 const PUBLIC_KEY_LEN: usize = 32;
 const SIGNATURE_LEN: usize = 64;
+const SHARED_SECRET_LEN: usize = 32;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct PublicKey([u8; PUBLIC_KEY_LEN]);
@@ -14,6 +15,7 @@ pub struct PublicKey([u8; PUBLIC_KEY_LEN]);
 // because PartialEq and Debug traits are not automatically implemented
 // for size larger than 32.
 pub struct Signature([u8; SIGNATURE_LEN]);
+
 
 impl fmt::Debug for Signature {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -32,6 +34,9 @@ impl PartialEq for Signature {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub struct SharedSecret([u8; SHARED_SECRET_LEN]);
+
 
 /// A generic interface for signing and verifying messages.
 pub trait Identity {
@@ -42,6 +47,9 @@ pub trait Identity {
     fn sign_message(&self, message: &[u8]) -> Signature;
     /// Get our public identity
     fn get_public_key(&self) -> PublicKey;
+    /// Create a shared secret from our identity and the 
+    /// public key of a remote user.
+    fn gen_shared_secret(&self, public_key: &PublicKey) -> SharedSecret;
 }
 
 
@@ -80,6 +88,10 @@ impl Identity for SoftwareEd25519Identity {
 
     fn get_public_key(&self) -> PublicKey {
         PublicKey(self.public_key)
+    }
+
+    fn gen_shared_secret(&self, public_key: &PublicKey) -> SharedSecret {
+        SharedSecret(exchange(&public_key.0, &self.private_key))
     }
 
 }
@@ -169,6 +181,28 @@ mod tests {
         let public_key1 = id1.get_public_key();
         assert!(id2.verify_signature(message, &public_key1, &signature1));
 
+    }
+
+    #[test]
+    fn test_gen_shared_secret() {
+        let seed1: &[u8] = &[0x26, 0x27, 0xf6, 0x85, 0x97, 0x15, 0xad, 0x1d, 0xd2, 0x94, 0xdd, 0xc4,
+            0x76, 0x19, 0x39, 0x31, 0xf1, 0xad, 0xb5, 0x58, 0xf0, 0x93, 0x97, 0x32, 0x19, 0x2b, 0xd1,
+            0xc0, 0xfd, 0x16, 0x8e, 0x4e];
+        let seed2: &[u8] = &[0x28, 0x27, 0xf6, 0x85, 0x97, 0x15, 0xad, 0x1d, 0xd2, 0x94, 0xdd, 0xc4,
+            0x76, 0x19, 0x39, 0x31, 0xf1, 0xad, 0xb5, 0x58, 0xf0, 0x93, 0x97, 0x32, 0x19, 0x2b, 0xd1,
+            0xc0, 0xfd, 0x16, 0x8e, 0x4e];
+        let id1 = SoftwareEd25519Identity::new(&seed1);
+        let id2 = SoftwareEd25519Identity::new(&seed2);
+
+        let ss12 = id1.gen_shared_secret(&id2.get_public_key());
+        let ss21 = id2.gen_shared_secret(&id1.get_public_key());
+
+        // Check that both sides get the exact same shared secret:
+        assert_eq!(ss12, ss21);
+
+        // Check determinism:
+        let ss12_again = id1.gen_shared_secret(&id2.get_public_key());
+        assert_eq!(ss12, ss12_again);
     }
 }
 
