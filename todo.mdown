@@ -5,15 +5,16 @@
 
 # Cryptography
 
+- Fix test_gen_shared_secret() test.
+
 - How to perform symmetric encryption in Rust?
-    - nacl?
-    - rust crypto?
+    - ring
 
 - How to perform key derivation for the symmetric encryption from the shared
     secret?
     - Simple hash?
     - MAC, HMAC?
-
+    - hkdf should be good for this task.
 
 
 # capn proto schemas
