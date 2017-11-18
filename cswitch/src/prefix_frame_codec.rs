@@ -34,7 +34,7 @@ pub struct PrefixFrameCodec {
 }
 
 
-enum PrefixFrameCodecError {
+pub enum PrefixFrameCodecError {
     SerializeLengthError(io::Error),
     DeserializeLengthError(io::Error),
     IoError(io::Error),
