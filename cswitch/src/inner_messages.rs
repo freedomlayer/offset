@@ -4,7 +4,7 @@ use std::time::SystemTime;
 use std::net::SocketAddr;
 
 use self::num_bigint::BigInt;
-use ::identity::{PublicKey, Signature};
+use ::identity::{PublicKey, Signature, Salt, SharedSecret};
 use ::uid::Uid;
 
 
@@ -564,6 +564,10 @@ pub enum FromSecurityModule {
         request_id: Uid,
         public_key: PublicKey,
     },
+    ResponseSharedSecret {
+        request_id: Uid,
+        shared_secret: SharedSecret,
+    },
 }
 
 pub enum ToSecurityModule {
@@ -579,6 +583,11 @@ pub enum ToSecurityModule {
     },
     RequestPublicKey {
         request_id: Uid,
+    },
+    RequestSharedSecret {
+        request_id: Uid,
+        public_key: PublicKey,
+        salt: Salt,
     },
 }
 

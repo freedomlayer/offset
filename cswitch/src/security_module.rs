@@ -100,7 +100,17 @@ impl<I: Identity> SecurityModule<I> {
                     request_id,
                     public_key: self.identity.get_public_key(),
                 }
-            }
+            },
+            ToSecurityModule::RequestSharedSecret { request_id,
+                                                    public_key,
+                                                    salt} => {
+                FromSecurityModule::ResponseSharedSecret {
+                    request_id,
+                    shared_secret: self.identity.gen_shared_secret(
+                        &public_key, &salt),
+                }
+            },
+
         }
     }
 
