@@ -1,19 +1,26 @@
-// extern crate ring;
+extern crate ring;
 extern crate untrusted;
 extern crate crypto;
 
 use std::fmt;
 
 use self::crypto::ed25519::{signature, verify, keypair, exchange};
+use self::ring::hkdf::extract_and_expand;
+use self::ring::hmac::SigningKey;
+
 // use self::ring::{signature, agreement};
 // use ::static_dh_hack::key_pair_to_ephemeral_private_key;
 
 const PUBLIC_KEY_LEN: usize = 32;
 const SIGNATURE_LEN: usize = 64;
 const SHARED_SECRET_LEN: usize = 32;
+const SALT_LEN: usize = 32;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct PublicKey([u8; PUBLIC_KEY_LEN]);
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub struct Salt([u8; SALT_LEN]);
 
 // We had to implement Debug and PartialEq ourselves here,
 // because PartialEq and Debug traits are not automatically implemented
@@ -50,9 +57,9 @@ pub trait Identity {
     fn sign_message(&self, message: &[u8]) -> Signature;
     /// Get our public identity
     fn get_public_key(&self) -> PublicKey;
-    /// Create a shared secret from our identity and the 
-    /// public key of a remote user.
-    fn gen_shared_secret(&self, public_key: &PublicKey) -> SharedSecret;
+    /// Create a shared secret from our identity,
+    /// the public key of a remote user and a salt.
+    fn gen_shared_secret(&self, public_key: &PublicKey, salt: &Salt) -> SharedSecret;
 }
 
 /*
@@ -175,8 +182,15 @@ impl Identity for SoftwareEd25519Identity {
         PublicKey(self.public_key)
     }
 
-    fn gen_shared_secret(&self, public_key: &PublicKey) -> SharedSecret {
-        SharedSecret(exchange(&public_key.0, &self.private_key))
+    fn gen_shared_secret(&self, public_key: &PublicKey, salt: &Salt) -> SharedSecret {
+        // Obtain raw secret from static diffie hellman:
+        let raw_secret = exchange(&public_key.0, &self.private_key);
+        // Add the salt to the raw_secret using hkdf:
+        let skey_salt = SigningKey::new(&ring::digest::SHA512_256, &salt.0);
+        let info: [u8; 0] = [];
+        let mut out = [0_u8; SHARED_SECRET_LEN];
+        extract_and_expand(&skey_salt, &raw_secret, &info, &mut out);
+        SharedSecret(out)
     }
 
 }
@@ -318,15 +332,23 @@ mod tests {
         rng.fill_bytes(&mut identity_seed);
         let id2 = SoftwareEd25519Identity::new(&identity_seed);
 
-        let ss12 = id1.gen_shared_secret(&id2.get_public_key());
-        let ss21 = id2.gen_shared_secret(&id1.get_public_key());
+        let salt = Salt([1_u8; 32]);
+
+        let ss12 = id1.gen_shared_secret(&id2.get_public_key(), &salt);
+        let ss21 = id2.gen_shared_secret(&id1.get_public_key(), &salt);
 
         // Check that both sides get the exact same shared secret:
         assert_eq!(ss12, ss21);
 
         // Check determinism:
-        let ss12_again = id1.gen_shared_secret(&id2.get_public_key());
+        let ss12_again = id1.gen_shared_secret(&id2.get_public_key(), &salt);
         assert_eq!(ss12, ss12_again);
+
+        // Different salt should yield different results:
+        let other_salt = Salt([2_u8; 32]);
+        let ss12_other_salt = id1.gen_shared_secret(&id2.get_public_key(), &other_salt);
+
+        assert_ne!(ss12, ss12_other_salt);
     }
 }
 
