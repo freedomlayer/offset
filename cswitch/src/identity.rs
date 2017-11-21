@@ -45,7 +45,7 @@ impl PartialEq for Signature {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct SymmetricKey([u8; SYMMETRIC_KEY_LEN]);
+pub struct SymmetricKey(pub [u8; SYMMETRIC_KEY_LEN]);
 
 
 /// A generic interface for signing and verifying messages.
