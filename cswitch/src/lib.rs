@@ -14,6 +14,8 @@ mod close_handle;
 mod security_module;
 mod channeler;
 
+mod symmetric_enc;
+
 // mod static_dh_hack;
 // mod test_utils;
 
