@@ -7,6 +7,13 @@ struct CustomUInt128 {
         x1 @1: UInt64;
 }
 
+struct CustomUInt256 {
+        x0 @0: UInt64;
+        x1 @1: UInt64;
+        x2 @2: UInt64;
+        x3 @3: UInt64;
+}
+
 struct InitChannel {
         randValue @0: CustomUInt128;
 }
@@ -19,6 +26,6 @@ struct PlainContent {
 }
 
 struct EncMessage {
-        keyDerivationNonce @0: CustomUInt128;
+        keySalt @0: CustomUInt256;
         encryptedContent @1: Data;
 }
