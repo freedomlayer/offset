@@ -13,7 +13,7 @@ use self::ring::hmac::SigningKey;
 
 const PUBLIC_KEY_LEN: usize = 32;
 const SIGNATURE_LEN: usize = 64;
-const SHARED_SECRET_LEN: usize = 32;
+const SYMMETRIC_KEY_LEN: usize = 32;
 const SALT_LEN: usize = 32;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -45,7 +45,7 @@ impl PartialEq for Signature {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct SharedSecret([u8; SHARED_SECRET_LEN]);
+pub struct SymmetricKey([u8; SYMMETRIC_KEY_LEN]);
 
 
 /// A generic interface for signing and verifying messages.
@@ -59,7 +59,7 @@ pub trait Identity {
     fn get_public_key(&self) -> PublicKey;
     /// Create a shared secret from our identity,
     /// the public key of a remote user and a salt.
-    fn gen_shared_secret(&self, public_key: &PublicKey, salt: &Salt) -> SharedSecret;
+    fn gen_symmetric_key(&self, public_key: &PublicKey, salt: &Salt) -> SymmetricKey;
 }
 
 /*
@@ -182,15 +182,15 @@ impl Identity for SoftwareEd25519Identity {
         PublicKey(self.public_key)
     }
 
-    fn gen_shared_secret(&self, public_key: &PublicKey, salt: &Salt) -> SharedSecret {
+    fn gen_symmetric_key(&self, public_key: &PublicKey, salt: &Salt) -> SymmetricKey {
         // Obtain raw secret from static diffie hellman:
         let raw_secret = exchange(&public_key.0, &self.private_key);
         // Add the salt to the raw_secret using hkdf:
         let skey_salt = SigningKey::new(&ring::digest::SHA512_256, &salt.0);
         let info: [u8; 0] = [];
-        let mut out = [0_u8; SHARED_SECRET_LEN];
+        let mut out = [0_u8; SYMMETRIC_KEY_LEN];
         extract_and_expand(&skey_salt, &raw_secret, &info, &mut out);
-        SharedSecret(out)
+        SymmetricKey(out)
     }
 
 }
@@ -310,7 +310,7 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_shared_secret() {
+    fn test_gen_symmetric_key() {
         /*
 
         // Implementation with ring:
@@ -334,19 +334,19 @@ mod tests {
 
         let salt = Salt([1_u8; 32]);
 
-        let ss12 = id1.gen_shared_secret(&id2.get_public_key(), &salt);
-        let ss21 = id2.gen_shared_secret(&id1.get_public_key(), &salt);
+        let ss12 = id1.gen_symmetric_key(&id2.get_public_key(), &salt);
+        let ss21 = id2.gen_symmetric_key(&id1.get_public_key(), &salt);
 
         // Check that both sides get the exact same shared secret:
         assert_eq!(ss12, ss21);
 
         // Check determinism:
-        let ss12_again = id1.gen_shared_secret(&id2.get_public_key(), &salt);
+        let ss12_again = id1.gen_symmetric_key(&id2.get_public_key(), &salt);
         assert_eq!(ss12, ss12_again);
 
         // Different salt should yield different results:
         let other_salt = Salt([2_u8; 32]);
-        let ss12_other_salt = id1.gen_shared_secret(&id2.get_public_key(), &other_salt);
+        let ss12_other_salt = id1.gen_symmetric_key(&id2.get_public_key(), &other_salt);
 
         assert_ne!(ss12, ss12_other_salt);
     }

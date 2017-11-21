@@ -101,12 +101,12 @@ impl<I: Identity> SecurityModule<I> {
                     public_key: self.identity.get_public_key(),
                 }
             },
-            ToSecurityModule::RequestSharedSecret { request_id,
+            ToSecurityModule::RequestSymmetricKey { request_id,
                                                     public_key,
                                                     salt} => {
-                FromSecurityModule::ResponseSharedSecret {
+                FromSecurityModule::ResponseSymmetricKey {
                     request_id,
-                    shared_secret: self.identity.gen_shared_secret(
+                    symmetric_key: self.identity.gen_symmetric_key(
                         &public_key, &salt),
                 }
             },
