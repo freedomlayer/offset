@@ -1,3 +1,4 @@
+/*
 extern crate rand;
 extern crate ring;
 
@@ -23,3 +24,4 @@ impl<'a> ring::rand::SecureRandom for DummyRandom<'a> {
         Ok(())
     }
 }
+*/
