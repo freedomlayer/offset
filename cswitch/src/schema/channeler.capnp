@@ -15,7 +15,27 @@ struct CustomUInt256 {
 }
 
 struct InitChannel {
-        randValue @0: CustomUInt128;
+        channelRandValue @0: CustomUInt128;
+}
+
+struct Exchange {
+        commPublicKey @0: CustomUInt256;
+        # Communication public key (Generated for the new channel)
+        # Using diffie-hellman we will use the communication keys to generate a
+        # symmetric encryption key for this channel.
+        keySalt @1: CustomUInt256;
+        # A salt for the generation of a shared symmetric encryption key.
+        senderRandValue @2: CustomUInt128;
+        # This is the first senderRandValue. It will be used by the remote
+        # party to send messages to us on this channel.
+        signature @3: CustomUInt256; 
+        # Signature over (channelRandValue || commPublicKey || keySalt || senderRandValue)
+}
+
+# Contents for a keepalive message:
+struct KeepaliveContent {
+        recentRecipientRandValue @0: CustomUInt128;
+        senderRandValue @1: CustomUInt128;
 }
 
 # This is the structure of the encrypted_content of EncMessage:
@@ -26,6 +46,18 @@ struct PlainContent {
 }
 
 struct EncMessage {
-        keySalt @0: CustomUInt256;
-        encryptedContent @1: Data;
+        encryptedContent @0: Data;
+}
+
+# Message container:
+enum MessageType {
+        initChannel @0;
+        exchange @1;
+        keepaliveMessage @2;
+        encMessage @3;
+}
+
+struct Message {
+        messageType @0: MessageType;
+        message @1: Data;
 }
