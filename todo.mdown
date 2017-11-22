@@ -5,21 +5,13 @@
 
 # Cryptography
 
-- Fix test_gen_shared_secret() test.
-
-- How to perform symmetric encryption in Rust?
-    - ring
-
 - How to perform key derivation for the symmetric encryption from the shared
     secret?
-    - Simple hash?
-    - MAC, HMAC?
     - hkdf should be good for this task.
 
-# Do later
 
-- Move to use a maintained crypto lib, instead of rust-crypto, for the
-    implementation of Identity (One key for signing and diffie-hellman).
+- Implement ephemeral diffie hellman.
+
 
 
 # capn proto schemas
