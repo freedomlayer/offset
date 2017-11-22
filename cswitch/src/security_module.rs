@@ -256,7 +256,7 @@ mod tests {
     extern crate ring;
 
     use super::*;
-    use ::uid::UidGenerator;
+    use ::uid::gen_uid;
     use ::identity::SoftwareEd25519Identity;
 
     use self::rand::{Rng, StdRng};
@@ -274,11 +274,8 @@ mod tests {
         let (sm_handle, mut sm) = create_security_module(identity);
         let (client_sender, client_receiver) = sm.new_client();
 
-        let uid_rng = FixedByteRandom { byte: 0x4 };
-        let mut uid_gen = UidGenerator::new(uid_rng);
-
-        let request_id0 = uid_gen.gen_uid();
-        let request_id1 = uid_gen.gen_uid();
+        let request_id0 = gen_uid(&secure_rand);
+        let request_id1 = gen_uid(&secure_rand);
 
 
         let fut_public_key = client_sender
