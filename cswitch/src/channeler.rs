@@ -1,13 +1,14 @@
 extern crate futures;
-extern crate rand;
+// extern crate rand;
 extern crate tokio_core;
 extern crate tokio_io;
+extern crate ring;
 
 
 use std::collections::{HashMap};
 use std::mem;
 
-use self::rand::Rng;
+// use self::rand::Rng;
 
 use self::futures::{Stream, Poll, Async, AsyncSink, StartSend};
 use self::futures::future::{Future};
@@ -16,6 +17,7 @@ use self::futures::sync::oneshot;
 use self::tokio_core::net::TcpStream;
 use self::tokio_core::reactor::Handle;
 use self::tokio_io::AsyncRead;
+use self::ring::rand::SecureRandom;
 
 
 use ::identity::PublicKey;
@@ -104,7 +106,7 @@ struct Channeler<R> {
 }
 
 
-impl<R:Rng> Channeler<R> {
+impl<R:SecureRandom> Channeler<R> {
     fn new(handle: &Handle, 
             timer_receiver: mpsc::Receiver<FromTimer>, 
             networker_sender: mpsc::Sender<ChannelerToNetworker>,
@@ -273,7 +275,7 @@ impl<R:Rng> Channeler<R> {
     }
 }
 
-impl<R:Rng> Future for Channeler<R> {
+impl<R:SecureRandom> Future for Channeler<R> {
     type Item = ();
     type Error = ChannelerError;
 
