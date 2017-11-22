@@ -13,7 +13,7 @@ use self::ring::hmac::SigningKey;
 
 const PUBLIC_KEY_LEN: usize = 32;
 const SIGNATURE_LEN: usize = 64;
-const SYMMETRIC_KEY_LEN: usize = 32;
+pub const SYMMETRIC_KEY_LEN: usize = 32;
 const SALT_LEN: usize = 32;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
