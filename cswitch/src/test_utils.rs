@@ -1,27 +1,30 @@
-/*
 extern crate rand;
 extern crate ring;
 
+use std::cell::UnsafeCell;
 use self::rand::{StdRng, Rng};
 
-pub struct DummyRandom<'a> {
-    seed: &'a [usize],
+pub struct DummyRandom<R> {
+    rng: UnsafeCell<R>,
 }
 
-impl<'a> DummyRandom<'a> {
-    pub fn new(seed: &'a [usize]) -> Self {
+impl DummyRandom<StdRng> {
+    pub fn new(seed: &[usize]) -> Self {
+        let rng_seed: &[_] = seed;
+        let rng: StdRng = rand::SeedableRng::from_seed(rng_seed);
+
+        // Note: We use UnsafeCell here, because of the signature of the function fill.
+        // It takes &self, it means that we can not change internal state with safe rust.
         DummyRandom {
-            seed,
+            rng: UnsafeCell::new(rng), 
         }
     }
 }
 
-impl<'a> ring::rand::SecureRandom for DummyRandom<'a> {
+impl<R: Rng> ring::rand::SecureRandom for DummyRandom<R> {
     fn fill(&self, dest: &mut [u8]) -> Result<(), ring::error::Unspecified> {
-        let rng_seed: &[_] = self.seed;
-        let mut rng: StdRng = rand::SeedableRng::from_seed(rng_seed);
-        rng.fill_bytes(dest);
+        let rng = self.rng.get();
+        unsafe {(*rng).fill_bytes(dest) };
         Ok(())
     }
 }
-*/
