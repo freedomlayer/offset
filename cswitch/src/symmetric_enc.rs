@@ -2,7 +2,7 @@ extern crate ring;
 
 use std::iter;
 use self::ring::aead::{seal_in_place, open_in_place, SealingKey, OpeningKey, CHACHA20_POLY1305};
-use ::identity::SymmetricKey;
+use ::identity::{SymmetricKey, SYMMETRIC_KEY_LEN};
 
 // Length of nonce for CHACHA20_POLY1305
 const NONCE_LEN: usize = 12;
@@ -12,8 +12,10 @@ const TAG_LEN: usize = 16;
 struct EncNonce(pub [u8; NONCE_LEN]);
 
 
+#[derive(Debug)]
 enum SymmetricEncError {
     EncryptionError,
+    DecryptionError,
 }
 
 
@@ -56,12 +58,15 @@ impl Decryptor {
         }
     }
 
-    pub fn decrypt(cipher_msg: &[u8]) -> Result<Vec<u8>, SymmetricEncError> {
-        // TODO: 
-        // - Extract nonce from the beginning of the message.
-        // - invoke open_in_place. Possibly take advantage of in_prefix_len.
-        // - Return decrypted message, if no errors have occured.
-        Ok(Vec::new())
+    pub fn decrypt(&self, cipher_msg: &[u8]) -> Result<Vec<u8>, SymmetricEncError> {
+        let nonce = &cipher_msg[.. NONCE_LEN];
+        let mut msg_buffer = cipher_msg[NONCE_LEN .. ].to_vec();
+        let ad: [u8; 0] = [];
+
+        match open_in_place(&self.opening_key, nonce, &ad, 0, &mut msg_buffer) {
+            Ok(slice) => Ok(slice.to_vec()),
+            Err(ring::error::Unspecified) => Err(SymmetricEncError::DecryptionError),
+        }
     }
 }
 
