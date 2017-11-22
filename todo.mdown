@@ -5,13 +5,8 @@
 
 # Cryptography
 
-- How to perform key derivation for the symmetric encryption from the shared
-    secret?
-    - hkdf should be good for this task.
-
-
-- Implement ephemeral diffie hellman.
-
+- Add some basic test to edh.rs.
+- Possibly arrange modules into directories?
 
 
 # capn proto schemas
