@@ -279,15 +279,6 @@ mod tests {
         let secure_rand = DummyRandom::new(&[1,2,3,4,5]);
         let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
-
-        /*
-        let rng_seed: &[_] = &[1,2,3,4,5,6];
-        let mut rng: StdRng = rand::SeedableRng::from_seed(rng_seed);
-        let mut identity_seed = [0; 32];
-        rng.fill_bytes(&mut identity_seed);
-        let identity = SoftwareEd25519Identity::new(&identity_seed);
-        */
-
         
         let (sm_handle, mut sm) = create_security_module(identity);
         let (client_sender, client_receiver) = sm.new_client();
