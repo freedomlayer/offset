@@ -7,14 +7,10 @@ use self::ring::{signature};
 
 const PUBLIC_KEY_LEN: usize = 32;
 const SIGNATURE_LEN: usize = 64;
-pub const SYMMETRIC_KEY_LEN: usize = 32;
-const SALT_LEN: usize = 32;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct PublicKey([u8; PUBLIC_KEY_LEN]);
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct Salt([u8; SALT_LEN]);
 
 // We had to implement Debug and PartialEq ourselves here,
 // because PartialEq and Debug traits are not automatically implemented
@@ -38,8 +34,6 @@ impl PartialEq for Signature {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub struct SymmetricKey(pub [u8; SYMMETRIC_KEY_LEN]);
 
 
 /// A generic interface for signing and verifying messages.
