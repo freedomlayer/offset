@@ -1,7 +1,8 @@
-extern crate rand;
+// extern crate rand;
+extern crate ring;
 
 use std::collections::VecDeque;
-use self::rand::Rng;
+use self::ring::rand::SecureRandom;
 
 const RAND_VALUE_LEN: usize = 16;
 
@@ -9,9 +10,9 @@ const RAND_VALUE_LEN: usize = 16;
 pub struct RandValue([u8; RAND_VALUE_LEN]);
 
 impl RandValue {
-    fn new<R: Rng>(crypt_rng: &mut R) -> Self {
+    fn new<R: SecureRandom>(crypt_rng: &mut R) -> Self {
         let mut rand_value = RandValue([0; RAND_VALUE_LEN]);
-        crypt_rng.fill_bytes(&mut rand_value.0);
+        crypt_rng.fill(&mut rand_value.0);
         rand_value
     }
 }
@@ -28,7 +29,7 @@ pub struct RandValuesStore<R> {
 }
 
 
-impl<R: Rng> RandValuesStore<R> {
+impl<R: SecureRandom> RandValuesStore<R> {
     pub fn new(mut crypt_rng: R, rand_value_ticks: usize, num_rand_values: usize) -> Self {
         let rand_values = (0 .. num_rand_values).map(|_| RandValue::new(&mut crypt_rng))
             .collect::<VecDeque<RandValue>>();
@@ -81,12 +82,15 @@ impl<R: Rng> RandValuesStore<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use self::rand::{StdRng};
+    // use self::rand::{StdRng};
+    // use self::ring::test::rand::FixedByteRandom;
+    use ::test_utils::DummyRandom;
 
     #[test]
     fn test_rand_values_store() {
-        let rng_seed: &[_] = &[1,2,3,4,5];
-        let mut rng: StdRng = rand::SeedableRng::from_seed(rng_seed);
+        // let rng_seed: &[_] = &[1,2,3,4,5];
+        // let mut rng: StdRng = rand::SeedableRng::from_seed(rng_seed);
+        let mut rng = DummyRandom::new(&[1,2,3,4,5]);
 
         // Generate some unrelated rand value:
         let rand_value0 = RandValue::new(&mut rng);
