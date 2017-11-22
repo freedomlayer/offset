@@ -556,10 +556,12 @@ pub enum FromSecurityModule {
         request_id: Uid,
         signature: Signature,
     },
+    /*
     ResponseVerify {
         request_id: Uid,
         result: bool,
     }, 
+    */
     ResponsePublicKey {
         request_id: Uid,
         public_key: PublicKey,
@@ -577,12 +579,14 @@ pub enum ToSecurityModule {
         request_id: Uid,
         message: Vec<u8>,
     },
+    /*
     RequestVerify {
         request_id: Uid,
         message: Vec<u8>,
         public_key: PublicKey,
         signature: Signature,
     },
+    */
     RequestPublicKey {
         request_id: Uid,
     },

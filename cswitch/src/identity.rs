@@ -45,8 +45,8 @@ pub struct SymmetricKey(pub [u8; SYMMETRIC_KEY_LEN]);
 /// A generic interface for signing and verifying messages.
 pub trait Identity {
     /// Verify a signature of a given message
-    fn verify_signature(&self, message: &[u8], 
-                        public_key: &PublicKey, signature: &Signature) -> bool;
+    // fn verify_signature(&self, message: &[u8], 
+    //                     public_key: &PublicKey, signature: &Signature) -> bool;
     /// Create a signature for a given message using private key.
     fn sign_message(&self, message: &[u8]) -> Signature;
     /// Get our public identity
@@ -72,20 +72,20 @@ impl SoftwareEd25519Identity {
     }
 }
 
+pub fn verify_signature(message: &[u8], 
+                    public_key: &PublicKey, signature: &Signature) -> bool {
+
+    let public_key = untrusted::Input::from(&public_key.0);
+    let message = untrusted::Input::from(message);
+    let signature = untrusted::Input::from(&signature.0);
+    match signature::verify(&signature::ED25519, public_key, message, signature) {
+        Ok(()) => true,
+        Err(ring::error::Unspecified) => false,
+    }
+}
 
 
 impl Identity for SoftwareEd25519Identity {
-    fn verify_signature(&self, message: &[u8], 
-                        public_key: &PublicKey, signature: &Signature) -> bool {
-
-        let public_key = untrusted::Input::from(&public_key.0);
-        let message = untrusted::Input::from(message);
-        let signature = untrusted::Input::from(&signature.0);
-        match signature::verify(&signature::ED25519, public_key, message, signature) {
-            Ok(()) => true,
-            Err(ring::error::Unspecified) => false,
-        }
-    }
 
     fn sign_message(&self, message: &[u8]) -> Signature {
         let mut sig_array = [0; SIGNATURE_LEN];
@@ -143,7 +143,7 @@ mod tests {
         // println!("public_key = {:?}", public_key);
         // println!("signature = {:?}", signature);
 
-        assert!(id.verify_signature(message, &public_key, &signature));
+        assert!(verify_signature(message, &public_key, &signature));
 
     }
 
@@ -161,7 +161,7 @@ mod tests {
         let signature1 = id1.sign_message(message);
 
         let public_key1 = id1.get_public_key();
-        assert!(id2.verify_signature(message, &public_key1, &signature1));
+        assert!(verify_signature(message, &public_key1, &signature1));
 
     }
 }

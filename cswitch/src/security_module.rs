@@ -85,6 +85,7 @@ impl<I: Identity> SecurityModule<I> {
                     signature: self.identity.sign_message(&message),
                 }
             },
+            /*
             ToSecurityModule::RequestVerify {request_id, 
                                             message, 
                                             public_key, 
@@ -95,6 +96,7 @@ impl<I: Identity> SecurityModule<I> {
                         &message, &public_key, &signature),
                 }
             },
+            */
             ToSecurityModule::RequestPublicKey { request_id } => {
                 FromSecurityModule::ResponsePublicKey {
                     request_id,
