@@ -4,7 +4,9 @@ use std::time::SystemTime;
 use std::net::SocketAddr;
 
 use self::num_bigint::BigInt;
-use ::identity::{PublicKey, Signature, Salt, SymmetricKey};
+use ::identity::{PublicKey, Signature};
+use ::dh::Salt;
+use ::symmetric_enc::SymmetricKey;
 use ::uid::Uid;
 
 
