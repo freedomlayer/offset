@@ -57,9 +57,11 @@ pub trait Identity {
     fn sign_message(&self, message: &[u8]) -> Signature;
     /// Get our public identity
     fn get_public_key(&self) -> PublicKey;
+    /*
     /// Create a shared secret from our identity,
     /// the public key of a remote user and a salt.
     fn gen_symmetric_key(&self, public_key: &PublicKey, salt: &Salt) -> SymmetricKey;
+    */
 }
 
 /*
@@ -182,6 +184,7 @@ impl Identity for SoftwareEd25519Identity {
         PublicKey(self.public_key)
     }
 
+    /*
     fn gen_symmetric_key(&self, public_key: &PublicKey, salt: &Salt) -> SymmetricKey {
         // Obtain raw secret from static diffie hellman:
         let raw_secret = exchange(&public_key.0, &self.private_key);
@@ -192,6 +195,7 @@ impl Identity for SoftwareEd25519Identity {
         extract_and_expand(&skey_salt, &raw_secret, &info, &mut out);
         SymmetricKey(out)
     }
+    */
 
 }
 
@@ -309,6 +313,7 @@ mod tests {
 
     }
 
+    /*
     #[test]
     fn test_gen_symmetric_key() {
         /*
@@ -350,5 +355,6 @@ mod tests {
 
         assert_ne!(ss12, ss12_other_salt);
     }
+    */
 }
 
