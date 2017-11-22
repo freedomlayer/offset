@@ -564,10 +564,12 @@ pub enum FromSecurityModule {
         request_id: Uid,
         public_key: PublicKey,
     },
+    /*
     ResponseSymmetricKey {
         request_id: Uid,
         symmetric_key: SymmetricKey,
     },
+    */
 }
 
 pub enum ToSecurityModule {
@@ -584,11 +586,13 @@ pub enum ToSecurityModule {
     RequestPublicKey {
         request_id: Uid,
     },
+    /*
     RequestSymmetricKey {
         request_id: Uid,
         public_key: PublicKey,
         salt: Salt,
     },
+    */
 }
 
 // Timer

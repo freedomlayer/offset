@@ -101,6 +101,7 @@ impl<I: Identity> SecurityModule<I> {
                     public_key: self.identity.get_public_key(),
                 }
             },
+            /*
             ToSecurityModule::RequestSymmetricKey { request_id,
                                                     public_key,
                                                     salt} => {
@@ -110,7 +111,7 @@ impl<I: Identity> SecurityModule<I> {
                         &public_key, &salt),
                 }
             },
-
+            */
         }
     }
 
