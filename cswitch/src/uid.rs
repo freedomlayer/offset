@@ -10,7 +10,7 @@ pub struct Uid([u8; UID_LEN]);
 
 pub fn gen_uid<R: SecureRandom>(rng: &R) -> Uid {
     let mut uid = Uid([0; UID_LEN]);
-    rng.fill(&mut uid.0);
+    rng.fill(&mut uid.0).unwrap();
     uid
 }
 
