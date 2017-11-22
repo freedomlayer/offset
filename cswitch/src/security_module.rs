@@ -258,16 +258,16 @@ mod tests {
     use super::*;
     use ::uid::UidGenerator;
     use ::identity::SoftwareEd25519Identity;
-    use ::test_utils::DummyRandom;
 
     use self::rand::{Rng, StdRng};
     use self::tokio_core::reactor::Core;
+    use self::ring::test::rand::FixedByteRandom;
 
 
     #[test]
     fn test_security_module_request_public_key() {
 
-        let secure_rand = DummyRandom::new(&[1,2,3,4,5]);
+        let secure_rand = FixedByteRandom { byte: 0x3 };
         let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
         

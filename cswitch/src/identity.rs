@@ -109,17 +109,14 @@ impl Identity for SoftwareEd25519Identity {
 
 #[cfg(test)]
 mod tests {
-    extern crate rand;
     use super::*;
-    use ::test_utils::DummyRandom;
-
-    use self::rand::{Rng, StdRng};
-
+    use self::ring::test::rand::FixedByteRandom;
 
     #[test]
     fn test_get_public_key_sanity() {
 
-        let secure_rand = DummyRandom::new(&[1,2,3,4,5]);
+        // let secure_rand = DummyRandom::new(&[1,2,3,4,5]);
+        let secure_rand = FixedByteRandom { byte: 0x1 };
         let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
         let id = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
@@ -132,7 +129,7 @@ mod tests {
 
     #[test]
     fn test_sign_verify_self() {
-        let secure_rand = DummyRandom::new(&[1,2,3,4,5]);
+        let secure_rand = FixedByteRandom { byte: 0x1 };
         let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
         let id = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
@@ -149,11 +146,11 @@ mod tests {
 
     #[test]
     fn test_sign_verify_other() {
-        let secure_rand = DummyRandom::new(&[1,2,3,4,5]);
+        let secure_rand = FixedByteRandom { byte: 0x2 };
         let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
         let id1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
-        let secure_rand = DummyRandom::new(&[1,2,3,4,5,6]);
+        let secure_rand = FixedByteRandom { byte: 0x3 };
         let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
         let id2 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
