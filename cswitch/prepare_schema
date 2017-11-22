@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+set -e
+
+capnp compile -o rust src/schema/channeler.capnp
