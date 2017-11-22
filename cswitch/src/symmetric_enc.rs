@@ -57,6 +57,8 @@ enum SymmetricEncError {
 }
 
 
+/// A structure used for encrypting messages with a given symmetric key.
+/// Maintains internal state of an increasing nonce counter.
 struct Encryptor {
     sealing_key: SealingKey,
     enc_nonce_counter: EncNonceCounter,
@@ -87,6 +89,7 @@ impl Encryptor {
     }
 }
 
+/// A structure used for decrypting messages with a given symmetric key.
 struct Decryptor {
     opening_key: OpeningKey,
 }
@@ -99,6 +102,7 @@ impl Decryptor {
         }
     }
 
+    /// Decrypt and authenticate a message.
     pub fn decrypt(&self, cipher_msg: &[u8]) -> Result<Vec<u8>, SymmetricEncError> {
         let enc_nonce = &cipher_msg[.. ENC_NONCE_LEN];
         let mut msg_buffer = cipher_msg[ENC_NONCE_LEN .. ].to_vec();
@@ -154,7 +158,6 @@ mod tests {
 
         assert_eq!(plain_msg, &decrypted_msg[..]);
     }
-
 }
 
 
