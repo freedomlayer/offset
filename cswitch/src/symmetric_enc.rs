@@ -39,7 +39,7 @@ impl Encryptor {
         let ad: [u8; 0] = [];
         match seal_in_place(&self.sealing_key, &nonce.0, &ad, &mut msg_buffer[NONCE_LEN .. ], TAG_LEN) {
             Err(ring::error::Unspecified) => Err(SymmetricEncError::EncryptionError),
-            Ok(length) => Ok(msg_buffer[.. length].to_vec())
+            Ok(length) => Ok(msg_buffer[.. NONCE_LEN + length] .to_vec())
         }
     }
 }
