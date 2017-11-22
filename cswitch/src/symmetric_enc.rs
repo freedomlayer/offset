@@ -70,6 +70,24 @@ impl Decryptor {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-// TODO: Write basic tests.
+    #[test]
+    fn test_encryptor_decryptor() {
+        let symmetric_key = SymmetricKey([1; SYMMETRIC_KEY_LEN]);
+        let encryptor = Encryptor::new(&symmetric_key);
+        let decryptor = Decryptor::new(&symmetric_key);
+
+        let my_nonce = EncNonce([5; NONCE_LEN]);
+
+        let plain_msg = b"Hello world!";
+        let cipher_msg = encryptor.encrypt(plain_msg, &my_nonce).unwrap();
+        let decrypted_msg = decryptor.decrypt(&cipher_msg).unwrap();
+
+        assert_eq!(plain_msg, &decrypted_msg[..]);
+    }
+}
+
 
