@@ -3,8 +3,11 @@ extern crate ring;
 use std::iter;
 use self::ring::aead::{seal_in_place, open_in_place, SealingKey, OpeningKey, CHACHA20_POLY1305};
 use self::ring::rand::SecureRandom;
-use ::identity::{SymmetricKey, SYMMETRIC_KEY_LEN};
 
+pub const SYMMETRIC_KEY_LEN: usize = 32;
+
+#[derive(Debug, PartialEq)]
+pub struct SymmetricKey(pub [u8; SYMMETRIC_KEY_LEN]);
 
 
 // Length of nonce for CHACHA20_POLY1305
