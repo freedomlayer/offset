@@ -1,10 +1,10 @@
 extern crate ring;
-extern crate rand;
 
 use std::iter;
-use self::rand::{Rng};
 use self::ring::aead::{seal_in_place, open_in_place, SealingKey, OpeningKey, CHACHA20_POLY1305};
+use self::ring::rand::SecureRandom;
 use ::identity::{SymmetricKey, SYMMETRIC_KEY_LEN};
+
 
 
 // Length of nonce for CHACHA20_POLY1305
@@ -33,10 +33,10 @@ struct EncNonceCounter {
 }
 
 impl EncNonceCounter {
-    pub fn new<R: Rng>(crypt_rng: &mut R) -> Self {
+    pub fn new<R: SecureRandom>(crypt_rng: &mut R) -> Self {
         let mut enc_nonce = EncNonce([0_u8; ENC_NONCE_LEN]);
         // Generate a random initial EncNonce:
-        crypt_rng.fill_bytes(&mut enc_nonce.0);
+        crypt_rng.fill(&mut enc_nonce.0);
         EncNonceCounter {
             enc_nonce,
         }
@@ -119,7 +119,8 @@ impl Decryptor {
 mod tests {
     extern crate rand;
     use super::*;
-    use self::rand::{StdRng};
+    // use self::rand::{StdRng};
+    use self::ring::test::rand::FixedByteRandom;
     
     #[test]
     fn test_inc_array_num_basic() {
@@ -144,8 +145,9 @@ mod tests {
     fn test_encryptor_decryptor() {
         let symmetric_key = SymmetricKey([1; SYMMETRIC_KEY_LEN]);
 
-        let rng_seed: &[_] = &[1,2,3,4,5,6];
-        let mut rng: StdRng = rand::SeedableRng::from_seed(rng_seed);
+        // let rng_seed: &[_] = &[1,2,3,4,5,6];
+        // let mut rng: StdRng = rand::SeedableRng::from_seed(rng_seed);
+        let mut rng = FixedByteRandom { byte: 0x10 };
         let enc_nonce_counter = EncNonceCounter::new(&mut rng);
         let mut encryptor = Encryptor::new(&symmetric_key, enc_nonce_counter);
 

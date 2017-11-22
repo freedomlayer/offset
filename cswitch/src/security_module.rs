@@ -274,9 +274,8 @@ mod tests {
         let (sm_handle, mut sm) = create_security_module(identity);
         let (client_sender, client_receiver) = sm.new_client();
 
-        let rng_seed: &[_] = &[1,2,3,4,5];
-        let rng: StdRng = rand::SeedableRng::from_seed(rng_seed);
-        let mut uid_gen = UidGenerator::new(rng);
+        let uid_rng = FixedByteRandom { byte: 0x4 };
+        let mut uid_gen = UidGenerator::new(uid_rng);
 
         let request_id0 = uid_gen.gen_uid();
         let request_id1 = uid_gen.gen_uid();
