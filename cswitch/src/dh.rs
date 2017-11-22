@@ -49,7 +49,7 @@ impl DhPrivateKey {
     }
 
     /// Derive a symmetric key from our private key and remote's public key.
-    fn derive_symmetric_key(&self, public_key: &DhPublicKey, salt: &Salt) -> SymmetricKey {
+    pub fn derive_symmetric_key(&self, public_key: &DhPublicKey, salt: &Salt) -> SymmetricKey {
         let u_public_key = untrusted::Input::from(&public_key.0);
 
         // Force a copy of our private key, so that we can use it more than once.
