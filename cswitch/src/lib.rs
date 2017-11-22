@@ -17,6 +17,6 @@ mod channeler;
 mod symmetric_enc;
 
 // mod static_dh_hack;
-// mod test_utils;
+mod test_utils;
 
 
