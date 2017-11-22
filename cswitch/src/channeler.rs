@@ -86,18 +86,19 @@ enum ChannelerState {
     Closed,
 }
 
-struct Channeler<R> {
+struct Channeler<'a,R:'a> {
     handle: Handle,
     timer_receiver: mpsc::Receiver<FromTimer>, 
     networker_sender: mpsc::Sender<ChannelerToNetworker>,
     networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
     security_module_sender: mpsc::Sender<ToSecurityModule>,
     security_module_receiver: mpsc::Receiver<FromSecurityModule>,
+    crypt_rng: &'a R,
 
     close_sender_opt: Option<oneshot::Sender<()>>,
     close_receiver: oneshot::Receiver<()>,
 
-    rand_values_store: RandValuesStore<R>,
+    rand_values_store: RandValuesStore,
 
     neighbors: HashMap<PublicKey, ChannelerNeighbor>,
     server_type: ServerType,
@@ -106,16 +107,19 @@ struct Channeler<R> {
 }
 
 
-impl<R:SecureRandom> Channeler<R> {
+impl<'a,R:SecureRandom> Channeler<'a,R> {
     fn new(handle: &Handle, 
             timer_receiver: mpsc::Receiver<FromTimer>, 
             networker_sender: mpsc::Sender<ChannelerToNetworker>,
             networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
             security_module_sender: mpsc::Sender<ToSecurityModule>,
             security_module_receiver: mpsc::Receiver<FromSecurityModule>,
-            crypt_rng: R,
+            crypt_rng: &'a R,
             close_sender: oneshot::Sender<()>,
             close_receiver: oneshot::Receiver<()>) -> Self {
+
+        let rand_values_store = RandValuesStore::new(
+            crypt_rng, RAND_VALUE_TICKS, NUM_RAND_VALUES);
 
         Channeler {
             handle: handle.clone(),
@@ -124,10 +128,10 @@ impl<R:SecureRandom> Channeler<R> {
             networker_receiver,
             security_module_sender,
             security_module_receiver,
+            crypt_rng,
             close_sender_opt: Some(close_sender),
             close_receiver,
-            rand_values_store: RandValuesStore::new(
-                crypt_rng, RAND_VALUE_TICKS, NUM_RAND_VALUES),
+            rand_values_store,
             neighbors: HashMap::new(),
             server_type: ServerType::PrivateServer,
             state: ChannelerState::ReadTimer,
@@ -217,7 +221,7 @@ impl<R:SecureRandom> Channeler<R> {
     /// Handle the passage of time.
     /// We measure time by time ticks.
     fn handle_time_tick(&mut self) -> Result<(), ChannelerError> {
-        self.rand_values_store.time_tick();
+        self.rand_values_store.time_tick(self.crypt_rng);
 
         // TODO: 
         
@@ -275,7 +279,7 @@ impl<R:SecureRandom> Channeler<R> {
     }
 }
 
-impl<R:SecureRandom> Future for Channeler<R> {
+impl<'a, R:SecureRandom + 'a> Future for Channeler<'a, R> {
     type Item = ();
     type Error = ChannelerError;
 

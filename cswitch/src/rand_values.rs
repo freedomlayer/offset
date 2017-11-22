@@ -10,7 +10,7 @@ const RAND_VALUE_LEN: usize = 16;
 pub struct RandValue([u8; RAND_VALUE_LEN]);
 
 impl RandValue {
-    fn new<R: SecureRandom>(crypt_rng: &mut R) -> Self {
+    fn new<R: SecureRandom>(crypt_rng: &R) -> Self {
         let mut rand_value = RandValue([0; RAND_VALUE_LEN]);
         crypt_rng.fill(&mut rand_value.0);
         rand_value
@@ -21,17 +21,16 @@ impl RandValue {
 /// are used for cryptographic time. A new random value is generated every rand_value_ticks time
 /// ticks. There is only room for num_rand_values random values, so the creation of new random
 /// values causes the deletion of old random values.
-pub struct RandValuesStore<R> {
-    crypt_rng: R,
+pub struct RandValuesStore {
     rand_values: VecDeque<RandValue>,
     ticks_left_to_next_rand_value: usize,
     rand_value_ticks: usize,
 }
 
 
-impl<R: SecureRandom> RandValuesStore<R> {
-    pub fn new(mut crypt_rng: R, rand_value_ticks: usize, num_rand_values: usize) -> Self {
-        let rand_values = (0 .. num_rand_values).map(|_| RandValue::new(&mut crypt_rng))
+impl RandValuesStore {
+    pub fn new<R: SecureRandom>(crypt_rng: &R, rand_value_ticks: usize, num_rand_values: usize) -> Self {
+        let rand_values = (0 .. num_rand_values).map(|_| RandValue::new(crypt_rng))
             .collect::<VecDeque<RandValue>>();
 
         if num_rand_values == 0 {
@@ -39,7 +38,6 @@ impl<R: SecureRandom> RandValuesStore<R> {
         }
 
         RandValuesStore {
-            crypt_rng,
             rand_values,
             ticks_left_to_next_rand_value: rand_value_ticks,
             rand_value_ticks,
@@ -57,7 +55,7 @@ impl<R: SecureRandom> RandValuesStore<R> {
 
     /// Apply a time tick over the store.
     /// If enough time ticks have occured, a new rand value will be generated.
-    pub fn time_tick(&mut self) {
+    pub fn time_tick<R: SecureRandom>(&mut self, crypt_rng: &R) {
         self.ticks_left_to_next_rand_value -= 1;
         if self.ticks_left_to_next_rand_value == 0 {
             self.ticks_left_to_next_rand_value = self.rand_value_ticks;
@@ -65,7 +63,7 @@ impl<R: SecureRandom> RandValuesStore<R> {
             // Remove the oldest rand value:
             self.rand_values.pop_front();
             // Insert a new rand value:
-            self.rand_values.push_back(RandValue::new(&mut self.crypt_rng));
+            self.rand_values.push_back(RandValue::new(crypt_rng));
         }
     }
 
@@ -95,13 +93,13 @@ mod tests {
         // Generate some unrelated rand value:
         let rand_value0 = RandValue::new(&mut rng);
 
-        let mut rand_values_store = RandValuesStore::new(rng, 50, 5);
+        let mut rand_values_store = RandValuesStore::new(&rng, 50, 5);
         let rand_value = rand_values_store.last_rand_value();
 
         for _ in 0 .. (5 * 50) {
             assert!(rand_values_store.check_rand_value(&rand_value));
             assert!(!rand_values_store.check_rand_value(&rand_value0));
-            rand_values_store.time_tick();
+            rand_values_store.time_tick(&rng);
         }
 
         assert!(!rand_values_store.check_rand_value(&rand_value));
