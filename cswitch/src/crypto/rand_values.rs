@@ -80,14 +80,10 @@ impl RandValuesStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // use self::rand::{StdRng};
-    // use self::ring::test::rand::FixedByteRandom;
     use super::super::test_utils::DummyRandom;
 
     #[test]
     fn test_rand_values_store() {
-        // let rng_seed: &[_] = &[1,2,3,4,5];
-        // let mut rng: StdRng = rand::SeedableRng::from_seed(rng_seed);
         let rng = DummyRandom::new(&[1,2,3,4,5]);
 
         // Generate some unrelated rand value:
