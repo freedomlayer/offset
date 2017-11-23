@@ -88,10 +88,10 @@ mod tests {
     fn test_rand_values_store() {
         // let rng_seed: &[_] = &[1,2,3,4,5];
         // let mut rng: StdRng = rand::SeedableRng::from_seed(rng_seed);
-        let mut rng = DummyRandom::new(&[1,2,3,4,5]);
+        let rng = DummyRandom::new(&[1,2,3,4,5]);
 
         // Generate some unrelated rand value:
-        let rand_value0 = RandValue::new(&mut rng);
+        let rand_value0 = RandValue::new(&rng);
 
         let mut rand_values_store = RandValuesStore::new(&rng, 50, 5);
         let rand_value = rand_values_store.last_rand_value();
