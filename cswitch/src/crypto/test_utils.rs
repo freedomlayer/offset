@@ -1,11 +1,11 @@
 extern crate rand;
 extern crate ring;
 
-use std::cell::UnsafeCell;
+use std::cell::RefCell;
 use self::rand::{StdRng, Rng};
 
 pub struct DummyRandom<R> {
-    rng: UnsafeCell<R>,
+    rng: RefCell<R>,
 }
 
 impl DummyRandom<StdRng> {
@@ -16,15 +16,16 @@ impl DummyRandom<StdRng> {
         // Note: We use UnsafeCell here, because of the signature of the function fill.
         // It takes &self, it means that we can not change internal state with safe rust.
         DummyRandom {
-            rng: UnsafeCell::new(rng), 
+            rng: RefCell::new(rng), 
         }
     }
 }
 
 impl<R: Rng> ring::rand::SecureRandom for DummyRandom<R> {
     fn fill(&self, dest: &mut [u8]) -> Result<(), ring::error::Unspecified> {
-        let rng = self.rng.get();
-        unsafe {(*rng).fill_bytes(dest) };
+        // let rng = self.rng.get();
+        self.rng.borrow_mut().fill_bytes(dest);
+        // unsafe {(*rng).fill_bytes(dest) };
         Ok(())
     }
 }
