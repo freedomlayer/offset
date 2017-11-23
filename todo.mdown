@@ -1,12 +1,9 @@
 # Channeler
 
 - Serializer, deserializer for messages between Channelers.
-
-
-# Cryptography
-
-- Add some basic test to edh.rs.
-- Possibly arrange modules into directories?
+- Write code for initiation of a connection.
+- Possibly separate Channeler channel state machine into a separate module.
+    Maybe later.
 
 
 # capn proto schemas
