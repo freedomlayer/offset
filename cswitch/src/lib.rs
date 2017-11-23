@@ -1,4 +1,4 @@
-#![feature(conservative_impl_trait)]
+// #![feature(conservative_impl_trait)]
 
 #[macro_use]
 extern crate log;
