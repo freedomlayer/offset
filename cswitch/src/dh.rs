@@ -20,9 +20,19 @@ pub struct Salt([u8; SALT_LEN]);
 
 struct DhPublicKey([u8; DH_PUBLIC_KEY_LEN]);
 
+impl Salt {
+    pub fn new<R: SecureRandom>(crypt_rng: &R) -> Self {
+        let mut inner_salt = [0_u8; SALT_LEN];
+        crypt_rng.fill(&mut inner_salt);
+        Salt(inner_salt)
+    }
+}
+
+
 struct DhPrivateKey {
     dh_private_key: EphemeralPrivateKey,
 }
+
 
 impl DhPrivateKey {
     /// Create a new ephemeral private key
@@ -82,4 +92,41 @@ impl DhPrivateKey {
 }
 
 
-// TODO: Add a basic test here.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ::test_utils::DummyRandom;
+
+    #[test]
+    fn test_new_salt() {
+        let rng = DummyRandom::new(&[1,2,3,4,6]);
+        let salt1 = Salt::new(&rng);
+        let salt2 = Salt::new(&rng);
+
+        assert_ne!(salt1, salt2);
+    }
+
+    #[test]
+    fn test_derive_symmetric_key() {
+        let rng = DummyRandom::new(&[1,2,3,4,5]);
+        let dh_private_key1 = DhPrivateKey::new(&rng);
+        let dh_private_key2 = DhPrivateKey::new(&rng);
+
+        let public_key1 = dh_private_key1.compute_public_key();
+        let public_key2 = dh_private_key2.compute_public_key();
+
+        // Same salt for both sides:
+        let salt = Salt::new(&rng);
+
+        // Each side derives the symmetric key from the remote's public key 
+        // and the salt:
+        let symmetric_key1 = dh_private_key1.derive_symmetric_key(
+            &public_key2, &salt);
+        let symmetric_key2 = dh_private_key2.derive_symmetric_key(
+            &public_key1, &salt);
+
+        // Both sides should get the same derived symmetric key:
+        assert_eq!(symmetric_key1, symmetric_key2);
+    }
+}
+
