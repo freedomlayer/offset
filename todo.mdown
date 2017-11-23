@@ -5,6 +5,8 @@
 - Possibly separate Channeler channel state machine into a separate module.
     Maybe later.
 
+- Use RefCell to be able to share state between different running futures.
+    Refactor the Channeler code to use RefCell over main Channeler state.
 
 # capn proto schemas
 
