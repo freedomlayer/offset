@@ -4,10 +4,10 @@ use std::time::SystemTime;
 use std::net::SocketAddr;
 
 use self::num_bigint::BigInt;
-use ::identity::{PublicKey, Signature};
-use ::dh::Salt;
-use ::symmetric_enc::SymmetricKey;
-use ::uid::Uid;
+use ::crypto::identity::{PublicKey, Signature};
+use ::crypto::dh::Salt;
+use ::crypto::symmetric_enc::SymmetricKey;
+use ::crypto::uid::Uid;
 
 
 

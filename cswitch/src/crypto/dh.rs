@@ -9,7 +9,7 @@ use self::ring::rand::SecureRandom;
 use self::ring::error::Unspecified;
 use self::ring::hkdf::extract_and_expand;
 use self::ring::hmac::SigningKey;
-use ::symmetric_enc::{SymmetricKey, SYMMETRIC_KEY_LEN};
+use super::symmetric_enc::{SymmetricKey, SYMMETRIC_KEY_LEN};
 
 const SALT_LEN: usize = 32;
 const DH_PUBLIC_KEY_LEN: usize = 32;
@@ -95,7 +95,7 @@ impl DhPrivateKey {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ::test_utils::DummyRandom;
+    use super::super::test_utils::DummyRandom;
 
     #[test]
     fn test_new_salt() {

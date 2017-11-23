@@ -10,7 +10,7 @@ use self::futures::sync::oneshot;
 
 
 use ::inner_messages::{ToSecurityModule, FromSecurityModule};
-use ::identity::{Identity};
+use ::crypto::identity::{Identity};
 use ::close_handle::{CloseHandle, create_close_handle};
 
 // TODO: Possibly Make this structure of service future more generic.  
@@ -256,8 +256,8 @@ mod tests {
     extern crate ring;
 
     use super::*;
-    use ::uid::gen_uid;
-    use ::identity::SoftwareEd25519Identity;
+    use ::crypto::uid::gen_uid;
+    use ::crypto::identity::SoftwareEd25519Identity;
 
     use self::rand::{Rng, StdRng};
     use self::tokio_core::reactor::Core;

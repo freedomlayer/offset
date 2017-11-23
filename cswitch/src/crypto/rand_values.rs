@@ -82,7 +82,7 @@ mod tests {
     use super::*;
     // use self::rand::{StdRng};
     // use self::ring::test::rand::FixedByteRandom;
-    use ::test_utils::DummyRandom;
+    use super::super::test_utils::DummyRandom;
 
     #[test]
     fn test_rand_values_store() {

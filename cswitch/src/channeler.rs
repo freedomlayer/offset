@@ -20,12 +20,12 @@ use self::tokio_io::AsyncRead;
 use self::ring::rand::SecureRandom;
 
 
-use ::identity::PublicKey;
+use ::crypto::identity::PublicKey;
 use ::inner_messages::{FromTimer, ChannelerToNetworker,
     NetworkerToChanneler, ToSecurityModule, FromSecurityModule,
     ChannelerNeighborInfo, ServerType};
 use ::close_handle::{CloseHandle, create_close_handle};
-use ::rand_values::{RandValuesStore, RandValue};
+use ::crypto::rand_values::{RandValuesStore, RandValue};
 use ::prefix_frame_codec::PrefixFrameCodec;
 
 const NUM_RAND_VALUES: usize = 16;
