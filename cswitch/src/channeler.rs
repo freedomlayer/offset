@@ -7,11 +7,12 @@ extern crate ring;
 
 use std::collections::{HashMap};
 use std::mem;
+use std::cell::RefCell;
 
 // use self::rand::Rng;
 
 use self::futures::{Stream, Poll, Async, AsyncSink, StartSend};
-use self::futures::future::{Future};
+use self::futures::future::{Future, loop_fn, Loop, LoopFn};
 use self::futures::sync::mpsc;
 use self::futures::sync::oneshot;
 use self::tokio_core::net::TcpStream;
@@ -55,23 +56,16 @@ struct Channel {
     // - Receiver
 }
 
-struct PendingChannel {
-    // TODO:
-    // - Sender
-    // - Receiver
-}
-
 struct ChannelerNeighbor {
     info: ChannelerNeighborInfo,
-
     last_remote_rand_value: Option<RandValue>,
     channels: Vec<Channel>,
-    pending_channels: Vec<PendingChannel>,
-    pending_out_conn: Option<()>,
     ticks_to_next_conn_attempt: usize,
+    num_pending_out_conn: usize,
 }
 
 
+/*
 enum ChannelerState {
     ReadClose,
     HandleClose,
@@ -85,8 +79,9 @@ enum ChannelerState {
     // ReadListenSocket,
     Closed,
 }
+*/
 
-struct Channeler<'a,R:'a> {
+struct InnerChanneler<'a,R:'a> {
     handle: Handle,
     timer_receiver: mpsc::Receiver<FromTimer>, 
     networker_sender: mpsc::Sender<ChannelerToNetworker>,
@@ -96,17 +91,113 @@ struct Channeler<'a,R:'a> {
     crypt_rng: &'a R,
 
     close_sender_opt: Option<oneshot::Sender<()>>,
-    close_receiver: oneshot::Receiver<()>,
+    close_receiver: Option<oneshot::Receiver<()>>,
 
     rand_values_store: RandValuesStore,
 
     neighbors: HashMap<PublicKey, ChannelerNeighbor>,
     server_type: ServerType,
 
-    state: ChannelerState,
+    // state: ChannelerState,
 }
 
 
+struct Channeler<'a, R:'a> {
+    inner_channeler: RefCell<InnerChanneler<'a,R>>,
+}
+
+
+fn create_channeler_future<'a,R: SecureRandom>(handle: &Handle, 
+            timer_receiver: mpsc::Receiver<FromTimer>, 
+            networker_sender: mpsc::Sender<ChannelerToNetworker>,
+            networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
+            security_module_sender: mpsc::Sender<ToSecurityModule>,
+            security_module_receiver: mpsc::Receiver<FromSecurityModule>,
+            crypt_rng: &'a R,
+            close_sender: oneshot::Sender<()>,
+            close_receiver: oneshot::Receiver<()>) -> 
+                impl Future<Item=(), Error=ChannelerError> + 'a {
+
+    let rand_values_store = RandValuesStore::new(
+        crypt_rng, RAND_VALUE_TICKS, NUM_RAND_VALUES);
+
+    let inner_channeler = RefCell::new(InnerChanneler {
+        handle: handle.clone(),
+        timer_receiver,
+        networker_sender,
+        networker_receiver,
+        security_module_sender,
+        security_module_receiver,
+        crypt_rng,
+        close_sender_opt: Some(close_sender),
+        close_receiver: Some(close_receiver),
+        rand_values_store,
+        neighbors: HashMap::new(),
+        server_type: ServerType::PrivateServer,
+    });
+
+    loop_fn(inner_channeler, |inner_channeler| {
+        // TODO: Start all the tasks here:
+        //
+        
+        // Wait for closing:
+        inner_channeler.borrow_mut().close_receiver.take().unwrap()
+            .map_err(|oneshot::Canceled| {
+                warn!("Remote closing handle was canceled!");
+                ChannelerError::CloseReceiverCanceled
+            })
+            .and_then(|()| {
+                // TODO: Send close requests to all tasks here?
+                Ok(Loop::Break(()))
+            })
+    })
+}
+
+struct NetworkerReader;
+struct TimerReader;
+struct SecurityModuleClient;
+
+
+fn create_timer_reader_future<'a,R>(inner_channeler: RefCell<InnerChanneler<'a,R>>) 
+    -> impl Future<Item=(), Error=ChannelerError> + 'a {
+
+    loop_fn(TimerReader, move |timer_reader| {
+        let mut b_inner_channeler = inner_channeler.borrow_mut();
+
+        for (_, mut neighbor) in &mut b_inner_channeler.neighbors {
+            let socket_addr = match neighbor.info.neighbor_address.socket_addr {
+                None => continue,
+                Some(socket_addr) => socket_addr,
+            };
+            // If there are already some attempts to add connections, 
+            // we don't try to add a new connection ourselves.
+            if neighbor.num_pending_out_conn > 0 {
+                continue;
+            }
+            if neighbor.channels.len() == 0 {
+                // This is an inactive neighbor.
+                neighbor.ticks_to_next_conn_attempt -= 1;
+                if neighbor.ticks_to_next_conn_attempt == 0 {
+                    neighbor.ticks_to_next_conn_attempt = CONN_ATTEMPT_TICKS;
+                } else {
+                    continue;
+                }
+            }
+            /*
+            // Attempt a connection:
+            TcpStream::connect(&socket_addr, &self.handle)
+                .and_then(|stream| {
+                    let (sink, stream) = stream.framed(PrefixFrameCodec::new()).split();
+
+                    // TODO: Binary deserializtion of Channeler to Channeler messages.
+            */
+        }
+        Ok(Loop::Break(()))
+    })
+}
+
+
+/*
 impl<'a,R:SecureRandom> Channeler<'a,R> {
     fn new(handle: &Handle, 
             timer_receiver: mpsc::Receiver<FromTimer>, 
@@ -118,26 +209,16 @@ impl<'a,R:SecureRandom> Channeler<'a,R> {
             close_sender: oneshot::Sender<()>,
             close_receiver: oneshot::Receiver<()>) -> Self {
 
-        let rand_values_store = RandValuesStore::new(
-            crypt_rng, RAND_VALUE_TICKS, NUM_RAND_VALUES);
+
+
+        let inner_future = loop_fn(inner_channeler, channeler_loop);
 
         Channeler {
-            handle: handle.clone(),
-            timer_receiver,
-            networker_sender,
-            networker_receiver,
-            security_module_sender,
-            security_module_receiver,
-            crypt_rng,
-            close_sender_opt: Some(close_sender),
-            close_receiver,
-            rand_values_store,
-            neighbors: HashMap::new(),
-            server_type: ServerType::PrivateServer,
-            state: ChannelerState::ReadTimer,
+            inner_future,
+            inner_channeler,
         }
     }
-
+}
 
     fn check_should_close(&mut self) -> Result<bool, ChannelerError> {
         match self.close_receiver.poll() {
@@ -278,12 +359,15 @@ impl<'a,R:SecureRandom> Channeler<'a,R> {
         Ok(())
     }
 }
+*/
 
+/*
 impl<'a, R:SecureRandom + 'a> Future for Channeler<'a, R> {
     type Item = ();
     type Error = ChannelerError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        self.inner_future.poll()
         let mut visited_read_close = false;
         loop {
             match mem::replace(&mut self.state, ChannelerState::Closed) {
@@ -363,4 +447,5 @@ impl<'a, R:SecureRandom + 'a> Future for Channeler<'a, R> {
         }
     }
 }
+*/
 
