@@ -1,3 +1,5 @@
+mod security_module_client;
+
 extern crate futures;
 
 use std::mem;
@@ -17,6 +19,8 @@ use ::close_handle::{CloseHandle, create_close_handle};
 // Separate process_request from the rest of the code, 
 // so that we could construct more such services.
 
+
+
 struct PendingSend {
     dest_index: usize,
     value: FromSecurityModule,
@@ -31,6 +35,7 @@ enum SecurityModuleState {
     Closing,
     Closed,
 }
+
 
 
 struct SecurityModule<I> {
@@ -61,7 +66,6 @@ impl<I: Identity> SecurityModule<I> {
             state: SecurityModuleState::Reading(0),
         }
     }
-
 
     /// Create a new client for the security module.
     /// Remote side is given a sender side of a channel, and a receiver side of a channel.
