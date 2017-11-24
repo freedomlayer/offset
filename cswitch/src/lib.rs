@@ -7,7 +7,7 @@ mod crypto;
 
 mod inner_messages;
 mod networker_state_machine;
-mod prefix_frame_codec;
+// mod prefix_frame_codec;
 
 mod close_handle;
 mod security_module;

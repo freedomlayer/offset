@@ -1,3 +1,5 @@
+mod prefix_frame_codec;
+
 extern crate futures;
 // extern crate rand;
 extern crate tokio_core;
@@ -27,7 +29,7 @@ use ::inner_messages::{FromTimer, ChannelerToNetworker,
     ChannelerNeighborInfo, ServerType};
 use ::close_handle::{CloseHandle, create_close_handle};
 use ::crypto::rand_values::{RandValuesStore, RandValue};
-use ::prefix_frame_codec::PrefixFrameCodec;
+use self::prefix_frame_codec::PrefixFrameCodec;
 
 const NUM_RAND_VALUES: usize = 16;
 const RAND_VALUE_TICKS: usize = 20;
