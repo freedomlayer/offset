@@ -92,9 +92,6 @@ struct InnerChanneler<'a,R:'a> {
     security_module_receiver: mpsc::Receiver<FromSecurityModule>,
     crypt_rng: &'a R,
 
-    close_sender_opt: Option<oneshot::Sender<()>>,
-    close_receiver: Option<oneshot::Receiver<()>>,
-
     rand_values_store: RandValuesStore,
 
     neighbors: HashMap<PublicKey, ChannelerNeighbor>,
@@ -131,45 +128,33 @@ fn create_channeler_future<'a,R: SecureRandom>(handle: &Handle,
         security_module_sender,
         security_module_receiver,
         crypt_rng,
-        close_sender_opt: Some(close_sender),
-        close_receiver: Some(close_receiver),
         rand_values_store,
         neighbors: HashMap::new(),
         server_type: ServerType::PrivateServer,
     });
 
-    loop_fn(inner_channeler, |inner_channeler| {
-        // TODO: Start all the tasks here:
-        // - Start timer reader
-        // - start networker reader
-        // - start security module client.
-        
-        // Wait for closing:
-        let close_receiver = {
-            let mut b_inner_channeler = inner_channeler.borrow_mut();
-            b_inner_channeler.close_receiver.take().unwrap()
-        };
-        close_receiver
-            .map_err(|oneshot::Canceled| {
-                warn!("Remote closing handle was canceled!");
-                ChannelerError::CloseReceiverCanceled
-            })
-            .and_then(move |()| {
-                // TODO: Send close requests to all tasks here?
-                
-                // Notify close hande that we finished closing:
-                let mut b_inner_channeler = inner_channeler.borrow_mut();
-                let close_sender = match b_inner_channeler.close_sender_opt.take() {
-                    None => panic!("Close notification already sent!"),
-                    Some(close_sender) => close_sender,
-                };
+    // TODO: Start all the tasks here:
+    // - Start timer reader
+    // - start networker reader
+    // - start security module client.
 
-                match close_sender.send(()) {
-                    Ok(()) => Ok(Loop::Break(())),
-                    Err(_) => Err(ChannelerError::SendCloseNotificationFailed),
-                }
-            })
-    })
+    close_receiver
+        .map_err(|oneshot::Canceled| {
+            warn!("Remote closing handle was canceled!");
+            ChannelerError::CloseReceiverCanceled
+        })
+        .and_then(move |()| {
+            // TODO: 
+            // - Send close requests to all tasks here?
+            // - Wait for everyone to close.
+            
+            // - Notify close hande that we finished closing:
+
+            match close_sender.send(()) {
+                Ok(()) => Ok(()),
+                Err(_) => Err(ChannelerError::SendCloseNotificationFailed),
+            }
+        })
 }
 
 struct SecurityModuleClient;
