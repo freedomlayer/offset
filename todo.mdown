@@ -8,6 +8,11 @@
 - Use RefCell to be able to share state between different running futures.
     Refactor the Channeler code to use RefCell over main Channeler state.
 
+
+- Security module client
+    - Move security module into a dir?
+    - Add a file that contains client functionality.
+
 # capn proto schemas
 
 - Document how to install capn proto compiler:
