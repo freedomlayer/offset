@@ -13,4 +13,6 @@ mod close_handle;
 mod security_module;
 mod channeler;
 
+mod async_mutex;
+
 
