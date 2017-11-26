@@ -2,6 +2,7 @@ extern crate futures;
 extern crate futures_mutex;
 
 use std::ops::DerefMut;
+use std::mem;
 
 use self::futures::sync::mpsc;
 use self::futures::sync::oneshot;
@@ -27,7 +28,7 @@ struct ServiceClient<S,R> {
 }
 
 fn request_future<S,R>(request: S, inner_service: InnerService<S,R>) -> 
-    impl Future<Item=R, Error=ServiceClientError> {
+    impl Future<Item=(R, InnerService<S,R>), Error=ServiceClientError> {
 
     let InnerService { sender, receiver } = inner_service;
     sender.send(request)
@@ -38,7 +39,7 @@ fn request_future<S,R>(request: S, inner_service: InnerService<S,R>) ->
                 .and_then(|(opt_item, receiver)| {
                     match opt_item {
                         Some(response) => {
-                            Ok(response)
+                            Ok((response, InnerService {sender, receiver}))
                         },
                         None => Err(ServiceClientError::NoResponseReceived),
                     }
@@ -46,27 +47,35 @@ fn request_future<S,R>(request: S, inner_service: InnerService<S,R>) ->
         })
 }
 
+/*
 impl<S,R> ServiceClient<S,R> {
     fn request(&mut self, request: S) -> impl Future<Item=R, Error=ServiceClientError> {
-        match self.state_lock_opt.take() {
+        let state_lock = match mem::replace(&mut self.state_lock_opt, None) {
             None => unreachable!(),
-            Some(state_lock) => {
-                state_lock.lock()
-                .map_err(|()| unreachable!())
-                .and_then(|mut acquired| {
-                    // TODO: Fix ownership problem here somehow:
-                    let inner_service = acquired.deref_mut().unwrap();
-                    request_future(request, inner_service)
-                })
-            },
-        }
+            Some(state_lock) => state_lock,
+        };
+        state_lock.lock()
+            .map_err(|()| unreachable!())
+            .and_then(|acquired| {
+                let inner_service = match mem::replace(acquired.deref_mut(), None) {
+                    None => unreachable!(),
+                    Some(inner_service) => inner_service,
+                };
+
+                let new_inner_service = request_future(request, inner_service);
+                mem::swap(acquired.deref_mut(), &mut new_inner_service);
+
+                // TODO: Fix ownership problem here somehow:
+                let inner_service = acquired.deref_mut().unwrap();
+                request_future(request, inner_service)
+            })
+    }
         /*
         self.sender.send(s)
             .map_err(|e: mpsc::SendError| ServiceClientError::SendFailed)
             .and_then(|sender| 
         */
 
-    }
 }
 
-
+*/
