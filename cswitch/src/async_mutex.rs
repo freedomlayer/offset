@@ -27,6 +27,7 @@ enum AcquireFutureState<T,F,G> {
 }
 
 struct AcquireFuture<'a,T:'a,F,G> {
+    // TODO: Possibly use ref count here (RC), so that AsyncMutexState will live forever.
     state_ref: &'a RefCell<AsyncMutexState<T>>,
     acquire_future_state: AcquireFutureState<T,F,G>,
 }
