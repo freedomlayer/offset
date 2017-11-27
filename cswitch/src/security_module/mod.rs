@@ -209,6 +209,7 @@ impl<I: Identity> Future for SecurityModule<I> {
                 SecurityModuleState::Reading(j) => {
                     if first_unready_index == Some(j) {
                         // We made a full cycle but no receiver was ready.
+                        self.state = SecurityModuleState::Reading(j);
                         return Ok(Async::NotReady);
                     }
 
