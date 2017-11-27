@@ -1,5 +1,4 @@
 extern crate futures;
-// extern crate futures_mutex;
 
 use std::ops::DerefMut;
 use std::mem;
