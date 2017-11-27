@@ -138,7 +138,7 @@ mod tests {
     }
 
     #[test]
-    fn test_inc_array_num_wraparoundj() {
+    fn test_inc_array_num_wraparound() {
         let mut array_num = [0xff,0xff,0xff,0xff];
         inc_array_num(&mut array_num);
         assert_eq!(array_num, [0,0,0,0]);
