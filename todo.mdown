@@ -1,16 +1,12 @@
 # Channeler
 
+- Use SecurityModuleClient inside Channeler.
+
 - Serializer, deserializer for messages between Channelers.
 - Write code for initiation of a connection.
+
 - Possibly separate Channeler channel state machine into a separate module.
     Maybe later.
-
-- Use RefCell to be able to share state between different running futures.
-    Refactor the Channeler code to use RefCell over main Channeler state.
-
-
-- Security module client
-    - Add a file that contains client functionality.
 
 # capn proto schemas
 
