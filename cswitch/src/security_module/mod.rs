@@ -10,15 +10,15 @@ use self::futures::sink::Sink;
 use self::futures::sync::mpsc;
 use self::futures::sync::oneshot;
 
+use self::security_module_client::SecurityModuleClient;
 
 use ::inner_messages::{ToSecurityModule, FromSecurityModule};
-use ::crypto::identity::{Identity};
+use ::crypto::identity::{Identity, verify_signature};
 use ::close_handle::{CloseHandle, create_close_handle};
 
 // TODO: Possibly Make this structure of service future more generic.  
 // Separate process_request from the rest of the code, 
 // so that we could construct more such services.
-
 
 
 struct PendingSend {
@@ -35,7 +35,6 @@ enum SecurityModuleState {
     Closing,
     Closed,
 }
-
 
 
 struct SecurityModule<I> {
@@ -68,16 +67,13 @@ impl<I: Identity> SecurityModule<I> {
     }
 
     /// Create a new client for the security module.
-    /// Remote side is given a sender side of a channel, and a receiver side of a channel.
-    fn new_client(&mut self) -> (mpsc::Sender<ToSecurityModule>, 
-                                 mpsc::Receiver<FromSecurityModule>) {
-    
+    /// A client may be used by multiple futures in the same thread.
+    fn new_client(&mut self) -> SecurityModuleClient {
         let (sm_sender, client_receiver) = mpsc::channel(0);
         let (client_sender, sm_receiver) = mpsc::channel(0);
 
         self.client_endpoints.push((sm_sender, sm_receiver));
-        (client_sender, client_receiver)
-
+        SecurityModuleClient::new(client_sender, client_receiver)
     }
 
     /// Process a request, and produce a response.
@@ -88,18 +84,6 @@ impl<I: Identity> SecurityModule<I> {
                     signature: self.identity.sign_message(&message),
                 }
             },
-            /*
-            ToSecurityModule::RequestVerify {request_id, 
-                                            message, 
-                                            public_key, 
-                                            signature} => {
-                FromSecurityModule::ResponseVerify {
-                    request_id,
-                    result: self.identity.verify_signature(
-                        &message, &public_key, &signature),
-                }
-            },
-            */
             ToSecurityModule::RequestPublicKey {} => {
                 FromSecurityModule::ResponsePublicKey {
                     public_key: self.identity.get_public_key(),
@@ -266,48 +250,45 @@ mod tests {
     use self::tokio_core::reactor::Core;
     use self::ring::test::rand::FixedByteRandom;
 
-
     #[test]
-    fn test_security_module_request_public_key() {
-
+    fn test_security_module_consistent_public_key() {
         let secure_rand = FixedByteRandom { byte: 0x3 };
         let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
         
         let (sm_handle, mut sm) = create_security_module(identity);
-        let (client_sender, client_receiver) = sm.new_client();
+        let sm_client = sm.new_client();
 
-        // let request_id0 = gen_uid(&secure_rand);
-        // let request_id1 = gen_uid(&secure_rand);
-
-
-        let fut_public_key = client_sender
-            .send(ToSecurityModule::RequestPublicKey {})
-            .map_err(|_| panic!("Send error!"))
-            .and_then(|client_sender| {
-                client_receiver
-                .into_future()
-                .and_then(|(opt, client_receiver)| {
-                    let public_key = match opt {
-                        None => panic!("Receiver was closed!"),
-                        Some(FromSecurityModule::ResponsePublicKey 
-                             { public_key }) => {
-                            public_key
-                        },
-                        Some(_) => panic!("Invalid response was received!"),
-                    };
-                    Ok((client_sender, client_receiver, public_key))
-                })
-                .map_err(|(_e, _client_sender)| panic!("Reading error!"))
-            });
-
-
+        // Start the SecurityModule service:
         let mut core = Core::new().unwrap();
         let handle = core.handle();
-
         handle.spawn(sm.then(|_| Ok(())));
-        let (client_sender, client_receiver, public_key) = 
-            core.run(fut_public_key).unwrap();
+
+        let public_key1 = core.run(sm_client.request_public_key()).unwrap();
+        let public_key2 = core.run(sm_client.request_public_key()).unwrap();
+        assert_eq!(public_key1, public_key2);
+    }
+
+    #[test]
+    fn test_security_module_request_sign() {
+        let secure_rand = FixedByteRandom { byte: 0x3 };
+        let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
+        let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        
+        let (sm_handle, mut sm) = create_security_module(identity);
+        let sm_client = sm.new_client();
+
+        let my_message = b"This is my message!";
+
+        // Start the SecurityModule service:
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+        handle.spawn(sm.then(|_| Ok(())));
+
+        let public_key = core.run(sm_client.request_public_key()).unwrap();
+        let signature = core.run(sm_client.request_sign(my_message.to_vec())).unwrap();
+
+        assert!(verify_signature(&my_message[..], &public_key, &signature));
     }
 
     // TODO: Add tests that check "concurrency": Multiple clients that send requests.
