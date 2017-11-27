@@ -7,6 +7,7 @@ use ::service_client::{ServiceClient, ServiceClientError};
 use ::inner_messages::{ToSecurityModule, FromSecurityModule};
 use ::crypto::identity::{PublicKey, Signature};
 
+#[derive(Debug)]
 pub enum SecurityModuleClientError {
     RequestError(ServiceClientError),
     InvalidResponse,
