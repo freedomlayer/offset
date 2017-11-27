@@ -24,6 +24,8 @@ pub struct ServiceClient<S,R> {
     inner: AsyncMutex<ServiceClientInner<S,R>>,
 }
 
+/// A service client.
+/// Allows multiple futures on the same thread to send requests to a remote service.
 impl<S,R> ServiceClient<S,R> {
     pub fn new(sender: mpsc::Sender<S>, receiver: mpsc::Receiver<R>) -> Self {
         ServiceClient {
@@ -34,6 +36,8 @@ impl<S,R> ServiceClient<S,R> {
         }
     }
 
+    /// Send a request of type S to service.
+    /// Returns a future that resolves to a response of type R from the service.
     pub fn request(&self, request: S) -> impl Future<Item=R, Error=ServiceClientError> {
         self.inner.acquire(|inner| {
             let ServiceClientInner { sender, receiver } = inner;
@@ -78,14 +82,15 @@ mod tests {
         let (sender1,receiver1) = mpsc::channel::<usize>(0);
         let (sender2,receiver2) = mpsc::channel::<usize>(0);
 
+        // This is a service that receives a number and increases it by 1:
         let receiver2_inc = receiver2
             .map(|x| {
                 x + 1
             });
-
         let fut_inc = sender1
             .sink_map_err(|e| ())
             .send_all(receiver2_inc); 
+
 
         let mut core = Core::new().unwrap();
         let handle = core.handle();
@@ -105,11 +110,11 @@ mod tests {
         let (sender1,receiver1) = mpsc::channel::<usize>(0);
         let (sender2,receiver2) = mpsc::channel::<usize>(0);
 
+        // This is a service that receives a number and increases it by 1:
         let receiver2_inc = receiver2
             .map(|x| {
                 x + 1
             });
-
         let fut_inc = sender1
             .sink_map_err(|e| ())
             .send_all(receiver2_inc); 
