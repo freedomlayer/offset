@@ -1,10 +1,6 @@
 extern crate futures;
 
-use std::ops::DerefMut;
-use std::mem;
-
 use self::futures::sync::mpsc;
-use self::futures::sync::oneshot;
 use self::futures::Future;
 use self::futures::stream::Stream;
 use self::futures::sink::Sink;
