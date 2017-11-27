@@ -10,7 +10,6 @@
 
 
 - Security module client
-    - Move security module into a dir?
     - Add a file that contains client functionality.
 
 # capn proto schemas
