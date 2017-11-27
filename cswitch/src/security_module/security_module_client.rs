@@ -13,6 +13,8 @@ pub enum SecurityModuleClientError {
     InvalidResponse,
 }
 
+/// A client to the SecurityModule. Allows multiple futures in the same thread to
+/// access SecurityModule.
 pub struct SecurityModuleClient {
     service_client: ServiceClient<ToSecurityModule, FromSecurityModule>,
 }
@@ -24,6 +26,8 @@ impl SecurityModuleClient {
         }
     }
 
+    /// Request the public key of our identity.
+    /// Returns a future that resolves to the public key of our identity.
     pub fn request_public_key(&self) -> impl Future<Item=PublicKey,Error=SecurityModuleClientError> {
         self.service_client.request(ToSecurityModule::RequestPublicKey {})
             .map_err(|e| SecurityModuleClientError::RequestError(e))
@@ -36,6 +40,8 @@ impl SecurityModuleClient {
             })
     }
 
+    /// Request a signature over a provided message.
+    /// Returns a future that resolves to a signature over the provided message.
     pub fn request_sign(&self, message: Vec<u8>) -> impl Future<Item=Signature, Error=SecurityModuleClientError> {
         self.service_client.request(ToSecurityModule::RequestSign {message})
             .map_err(|e| SecurityModuleClientError::RequestError(e))
