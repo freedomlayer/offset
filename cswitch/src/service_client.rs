@@ -39,11 +39,17 @@ impl<S,R> ServiceClient<S,R> {
             println!("Acquired!");
             let ServiceClientInner { sender, receiver } = inner;
             sender.send(request)
-                .map_err(|_e: mpsc::SendError<S>| ServiceClientError::SendFailed)
+                .map_err(|_e: mpsc::SendError<S>| {
+                    println!("Send failed!");
+                    ServiceClientError::SendFailed
+                })
                 .and_then(|sender| {
                     println!("Sent!");
                     receiver.into_future()
-                        .map_err(|(e, receiver): ((), _)| ServiceClientError::ReceiveFailed)
+                        .map_err(|(_e, _receiver): ((), _)| {
+                            println!("receiver into_future error occured!");
+                            ServiceClientError::ReceiveFailed
+                        })
                         .map(|(opt_item, receiver)| (opt_item, receiver, sender))
                 }).and_then(|(opt_item, receiver, sender)| {
                     println!("Received!");
@@ -54,6 +60,7 @@ impl<S,R> ServiceClient<S,R> {
                     Ok((ServiceClientInner { sender, receiver }, item))
                 })
         }).map_err(|e| {
+            println!("Some error has occured!");
             match e {
                 AsyncMutexError::FuncError(client_response_error) => client_response_error,
                 _ => ServiceClientError::AcquireFailed,
@@ -62,6 +69,7 @@ impl<S,R> ServiceClient<S,R> {
     }
 }
 
+/*
 
 #[cfg(test)]
 mod tests {
@@ -74,17 +82,19 @@ mod tests {
         let (sender1,receiver1) = mpsc::channel::<usize>(0);
         let (sender2,receiver2) = mpsc::channel::<usize>(0);
 
-        let fut_inc = receiver2
+        let receiver2_inc = receiver2
             .map(|x| {
                 println!("Increasing by 1!");
+                println!("x = {}",x);
                 x + 1
-            })
-            .forward(sender1.sink_map_err(|e| {
+            });
+
+        let fut_inc = sender1.sink_map_err(|e| {
                 println!("e = {:?}",e);
                 // TODO: Find the problem here:
                 println!("Sink error occured!");
                 ()
-            }));
+            }).send_all(receiver2_inc); 
 
         let mut core = Core::new().unwrap();
         let handle = core.handle();
@@ -100,3 +110,4 @@ mod tests {
         
     }
 }
+*/
