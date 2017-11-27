@@ -78,7 +78,12 @@ where
                 AcquireFutureState::WaitFunc(mut fut_result) => {
                     debug!("AcquireFuture::poll() WaitFunc");
                     match fut_result.poll() {
-                        Ok(Async::NotReady) => return Ok(Async::NotReady),
+                        Ok(Async::NotReady) => {
+                            debug!("AcquireFuture::poll() WaitFunc Async::NotReady");
+                            self.acquire_future_state = 
+                                AcquireFutureState::WaitFunc(fut_result);
+                            return Ok(Async::NotReady)
+                        },
                         Ok(Async::Ready((t, output))) => {
                             debug!("AcquireFuture::poll() WaitFunc Async::Ready");
                             // We need to put the item back, and notify the next waiter on the
