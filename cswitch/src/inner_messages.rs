@@ -555,7 +555,6 @@ enum PluginManagerToFunder {
 
 pub enum FromSecurityModule {
     ResponseSign {
-        request_id: Uid,
         signature: Signature,
     },
     /*
@@ -565,7 +564,6 @@ pub enum FromSecurityModule {
     }, 
     */
     ResponsePublicKey {
-        request_id: Uid,
         public_key: PublicKey,
     },
     /*
@@ -578,7 +576,6 @@ pub enum FromSecurityModule {
 
 pub enum ToSecurityModule {
     RequestSign {
-        request_id: Uid,
         message: Vec<u8>,
     },
     /*
@@ -590,7 +587,6 @@ pub enum ToSecurityModule {
     },
     */
     RequestPublicKey {
-        request_id: Uid,
     },
     /*
     RequestSymmetricKey {

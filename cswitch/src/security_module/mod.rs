@@ -82,9 +82,8 @@ impl<I: Identity> SecurityModule<I> {
     /// Process a request, and produce a response.
     fn process_request(&self, request: ToSecurityModule) -> FromSecurityModule {
         match request {
-            ToSecurityModule::RequestSign {request_id, message} => {
+            ToSecurityModule::RequestSign {message} => {
                 FromSecurityModule::ResponseSign {
-                    request_id,
                     signature: self.identity.sign_message(&message),
                 }
             },
@@ -100,9 +99,8 @@ impl<I: Identity> SecurityModule<I> {
                 }
             },
             */
-            ToSecurityModule::RequestPublicKey { request_id } => {
+            ToSecurityModule::RequestPublicKey {} => {
                 FromSecurityModule::ResponsePublicKey {
-                    request_id,
                     public_key: self.identity.get_public_key(),
                 }
             },
@@ -277,12 +275,12 @@ mod tests {
         let (sm_handle, mut sm) = create_security_module(identity);
         let (client_sender, client_receiver) = sm.new_client();
 
-        let request_id0 = gen_uid(&secure_rand);
-        let request_id1 = gen_uid(&secure_rand);
+        // let request_id0 = gen_uid(&secure_rand);
+        // let request_id1 = gen_uid(&secure_rand);
 
 
         let fut_public_key = client_sender
-            .send(ToSecurityModule::RequestPublicKey { request_id: request_id0.clone() })
+            .send(ToSecurityModule::RequestPublicKey {})
             .map_err(|_| panic!("Send error!"))
             .and_then(|client_sender| {
                 client_receiver
@@ -291,8 +289,7 @@ mod tests {
                     let public_key = match opt {
                         None => panic!("Receiver was closed!"),
                         Some(FromSecurityModule::ResponsePublicKey 
-                             { request_id, public_key }) => {
-                            assert_eq!(request_id, request_id0);
+                             { public_key }) => {
                             public_key
                         },
                         Some(_) => panic!("Invalid response was received!"),
