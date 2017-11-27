@@ -70,7 +70,7 @@ mod tests {
     use self::tokio_core::reactor::Core;
 
     #[test]
-    fn test_service_client() {
+    fn test_service_client_sequential() {
         let (sender1,receiver1) = mpsc::channel::<usize>(0);
         let (sender2,receiver2) = mpsc::channel::<usize>(0);
 
@@ -91,9 +91,7 @@ mod tests {
 
         let service_client = ServiceClient::new(sender2, receiver1);
         assert_eq!(core.run(service_client.request(0)).unwrap(),1);
-        // assert_eq!(core.run(service_client.request(6)).unwrap(),7);
-        // assert_eq!(core.run(service_client.request(8)).unwrap(),9);
-
-        
+        assert_eq!(core.run(service_client.request(6)).unwrap(),7);
+        assert_eq!(core.run(service_client.request(8)).unwrap(),9);
     }
 }
