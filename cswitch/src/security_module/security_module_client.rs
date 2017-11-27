@@ -33,7 +33,7 @@ impl<S,R> ServiceClient<S,R> {
         }
     }
 
-    fn request(&self, request: S) -> impl Future<Item=R, Error=ServiceClientError> {
+    pub fn request(&self, request: S) -> impl Future<Item=R, Error=ServiceClientError> {
         self.inner.acquire(|inner| {
             let ServiceClientInner { sender, receiver } = inner;
             sender.send(request)
