@@ -1,5 +1,5 @@
 extern crate futures;
-extern crate futures_mutex;
+// extern crate futures_mutex;
 
 use std::ops::DerefMut;
 use std::mem;
@@ -10,72 +10,56 @@ use self::futures::Future;
 use self::futures::stream::Stream;
 use self::futures::sink::Sink;
 
-use self::futures_mutex::FutMutex;
+use ::async_mutex::{AsyncMutex, AsyncMutexError};
 
-enum ServiceClientError {
+pub enum ServiceClientError {
     SendFailed,
     ReceiveFailed,
     NoResponseReceived,
+    AcquireFailed,
 }
 
-struct InnerService<S,R> {
+struct ServiceClientInner<S,R> {
     sender: mpsc::Sender<S>, 
     receiver: mpsc::Receiver<R>,
 }
 
-struct ServiceClient<S,R> {
-    state_lock_opt: Option<FutMutex<Option<InnerService<S,R>>>>,
+pub struct ServiceClient<S,R> {
+    inner: AsyncMutex<ServiceClientInner<S,R>>,
 }
 
-fn request_future<S,R>(request: S, inner_service: InnerService<S,R>) -> 
-    impl Future<Item=(R, InnerService<S,R>), Error=ServiceClientError> {
-
-    let InnerService { sender, receiver } = inner_service;
-    sender.send(request)
-        .map_err(|_e: mpsc::SendError<S>| ServiceClientError::SendFailed)
-        .and_then(|sender| {
-            receiver.into_future()
-                .map_err(|(e, receiver): ((), _)| ServiceClientError::ReceiveFailed)
-                .and_then(|(opt_item, receiver)| {
-                    match opt_item {
-                        Some(response) => {
-                            Ok((response, InnerService {sender, receiver}))
-                        },
-                        None => Err(ServiceClientError::NoResponseReceived),
-                    }
-                })
-        })
-}
-
-/*
 impl<S,R> ServiceClient<S,R> {
-    fn request(&mut self, request: S) -> impl Future<Item=R, Error=ServiceClientError> {
-        let state_lock = match mem::replace(&mut self.state_lock_opt, None) {
-            None => unreachable!(),
-            Some(state_lock) => state_lock,
-        };
-        state_lock.lock()
-            .map_err(|()| unreachable!())
-            .and_then(|acquired| {
-                let inner_service = match mem::replace(acquired.deref_mut(), None) {
-                    None => unreachable!(),
-                    Some(inner_service) => inner_service,
-                };
-
-                let new_inner_service = request_future(request, inner_service);
-                mem::swap(acquired.deref_mut(), &mut new_inner_service);
-
-                // TODO: Fix ownership problem here somehow:
-                let inner_service = acquired.deref_mut().unwrap();
-                request_future(request, inner_service)
-            })
+    pub fn new(sender: mpsc::Sender<S>, receiver: mpsc::Receiver<R>) -> Self {
+        ServiceClient {
+            inner: AsyncMutex::new(ServiceClientInner {
+                sender,
+                receiver,
+            }),
+        }
     }
-        /*
-        self.sender.send(s)
-            .map_err(|e: mpsc::SendError| ServiceClientError::SendFailed)
-            .and_then(|sender| 
-        */
 
+    fn request(&self, request: S) -> impl Future<Item=R, Error=ServiceClientError> {
+        self.inner.acquire(|inner| {
+            let ServiceClientInner { sender, receiver } = inner;
+            sender.send(request)
+                .map_err(|_e: mpsc::SendError<S>| ServiceClientError::SendFailed)
+                .and_then(|sender| {
+                    receiver.into_future()
+                        .map_err(|(e, receiver): ((), _)| ServiceClientError::ReceiveFailed)
+                        .map(|(opt_item, receiver)| (opt_item, receiver, sender))
+                }).and_then(|(opt_item, receiver, sender)| {
+                    let item = match opt_item {
+                        Some(item) => item,
+                        None => return Err(ServiceClientError::NoResponseReceived),
+                    };
+                    Ok((ServiceClientInner { sender, receiver }, item))
+                })
+        }).map_err(|e| {
+            match e {
+                AsyncMutexError::FuncError(client_response_error) => client_response_error,
+                _ => ServiceClientError::AcquireFailed,
+            }
+        })
+    }
 }
 
-*/
