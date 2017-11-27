@@ -20,3 +20,13 @@
 sudo apt install capnproto
 cargo install capnpc
 ```
+
+# Later
+
+- Add tests to AsyncMutex.
+- How to avoid the 
+            match mem::replace(&mut self.acquire_future_state, AcquireFutureState::Empty) {
+                AcquireFutureState::Empty => unreachable!(),
+  style of code?
+  If the unreachable is called inside a future that was spawned, we won't be
+  able to see it.
