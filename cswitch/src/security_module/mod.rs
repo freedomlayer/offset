@@ -1,3 +1,4 @@
+mod security_module_client;
 
 extern crate futures;
 
