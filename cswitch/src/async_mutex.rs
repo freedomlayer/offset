@@ -16,7 +16,7 @@ enum AsyncMutexState<T> {
     Empty,
 }
 
-struct AsyncMutex<T> {
+pub struct AsyncMutex<T> {
     async_mutex_state: Rc<RefCell<AsyncMutexState<T>>>,
 }
 
@@ -33,9 +33,14 @@ pub struct AcquireFuture<T,F,G> {
 }
 
 #[derive(Debug)]
-pub enum AcquireMutexError<E> {
+enum IoError {
     ReceiverCanceled,
     SendFailed,
+}
+
+#[derive(Debug)]
+pub enum AsyncMutexError<E> {
+    IoError(IoError),
     FuncError(E),
 }
 
@@ -46,7 +51,7 @@ where
     B: IntoFuture<Item=(T,O), Error=E, Future=G>
 {
     type Item = O;
-    type Error = AcquireMutexError<E>;
+    type Error = AsyncMutexError<E>;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {
@@ -64,7 +69,7 @@ where
                             return Ok(Async::NotReady);
                         },
                         Err(oneshot::Canceled) => {
-                            return Err(AcquireMutexError::ReceiverCanceled);
+                            return Err(AsyncMutexError::IoError(IoError::ReceiverCanceled));
                         },
                     }
                 },
@@ -84,7 +89,7 @@ where
                                     if let Some(sender) = pending.pop_front() {
                                         match sender.send(t) {
                                             Ok(()) => *b_state_ref = AsyncMutexState::Busy(pending),
-                                            Err(_t) => return Err(AcquireMutexError::SendFailed),
+                                            Err(_t) => return Err(AsyncMutexError::IoError(IoError::SendFailed)),
                                         };
                                     
                                     } else {
@@ -95,7 +100,7 @@ where
                             }
                             return Ok(Async::Ready(output));
                         },
-                        Err(e) => return Err(AcquireMutexError::FuncError(e)),
+                        Err(e) => return Err(AsyncMutexError::FuncError(e)),
                     }
                 },
             }
