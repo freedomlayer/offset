@@ -55,9 +55,11 @@ where
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {
+            debug!("AcquireFuture::poll() loop");
             match mem::replace(&mut self.acquire_future_state, AcquireFutureState::Empty) {
                 AcquireFutureState::Empty => unreachable!(),
                 AcquireFutureState::WaitItem((mut receiver, fut_func)) => {
+                    debug!("AcquireFuture::poll() WaitItem");
                     match receiver.poll() {
                         Ok(Async::Ready(t)) => {
                             self.acquire_future_state = 
@@ -74,9 +76,11 @@ where
                     }
                 },
                 AcquireFutureState::WaitFunc(mut fut_result) => {
+                    debug!("AcquireFuture::poll() WaitFunc");
                     match fut_result.poll() {
                         Ok(Async::NotReady) => return Ok(Async::NotReady),
                         Ok(Async::Ready((t, output))) => {
+                            debug!("AcquireFuture::poll() WaitFunc Async::Ready");
                             // We need to put the item back, and notify the next waiter on the
                             // queue that it is ready
                             let ref mut b_state_ref = *self.async_mutex_state.borrow_mut();
@@ -86,6 +90,7 @@ where
                                 AsyncMutexState::Empty => unreachable!(),
                                 AsyncMutexState::Ready(_) => unreachable!(),
                                 AsyncMutexState::Busy(mut pending) => {
+                                    debug!("AcquireFuture::poll() before sending item");
                                     if let Some(sender) = pending.pop_front() {
                                         match sender.send(t) {
                                             Ok(()) => *b_state_ref = AsyncMutexState::Busy(pending),
@@ -100,7 +105,10 @@ where
                             }
                             return Ok(Async::Ready(output));
                         },
-                        Err(e) => return Err(AsyncMutexError::FuncError(e)),
+                        Err(e) => {
+                            debug!("AcquireFuture::poll() -- AsyncMutexError::FuncError(e)");
+                            return Err(AsyncMutexError::FuncError(e));
+                        },
                     }
                 },
             }
@@ -129,10 +137,12 @@ impl<T> AsyncMutex<T> {
         G: Future<Item=(T,O), Error=E>,
         B: IntoFuture<Item=G::Item, Error=G::Error, Future=G>,
     {
+        debug!("acquire: Entering");
         let ref mut b_state = *self.async_mutex_state.borrow_mut();
         match mem::replace(b_state, AsyncMutexState::Empty) {
             AsyncMutexState::Empty => unreachable!(),
             AsyncMutexState::Ready(t) => {
+                debug!("acquire: Ready(t)");
                 *b_state = AsyncMutexState::Busy(VecDeque::new());
                 AcquireFuture {
                     async_mutex_state: Rc::clone(&self.async_mutex_state),
@@ -141,6 +151,7 @@ impl<T> AsyncMutex<T> {
                 }
             },
             AsyncMutexState::Busy(mut pending) => {
+                debug!("acquire: Busy");
                 let (sender, receiver) = oneshot::channel::<T>();
                 pending.push_back(sender);
                 *b_state = AsyncMutexState::Busy(pending);
