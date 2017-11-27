@@ -81,6 +81,7 @@ mod tests {
             })
             .forward(sender1.sink_map_err(|e| {
                 println!("e = {:?}",e);
+                // TODO: Find the problem here:
                 println!("Sink error occured!");
                 ()
             }));
