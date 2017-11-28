@@ -15,6 +15,7 @@ pub enum SecurityModuleClientError {
 
 /// A client to the SecurityModule. Allows multiple futures in the same thread to
 /// access SecurityModule.
+#[derive(Clone)]
 pub struct SecurityModuleClient {
     service_client: ServiceClient<ToSecurityModule, FromSecurityModule>,
 }

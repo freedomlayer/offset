@@ -264,7 +264,7 @@ mod tests {
         let handle = core.handle();
         handle.spawn(sm.then(|_| Ok(())));
 
-        let public_key1 = core.run(sm_client.request_public_key()).unwrap();
+        let public_key1 = core.run(sm_client.clone().request_public_key()).unwrap();
         let public_key2 = core.run(sm_client.request_public_key()).unwrap();
         assert_eq!(public_key1, public_key2);
     }
@@ -286,7 +286,7 @@ mod tests {
         handle.spawn(sm.then(|_| Ok(())));
 
         let public_key = core.run(sm_client.request_public_key()).unwrap();
-        let signature = core.run(sm_client.request_sign(my_message.to_vec())).unwrap();
+        let signature = core.run(sm_client.clone().request_sign(my_message.to_vec())).unwrap();
 
         assert!(verify_signature(&my_message[..], &public_key, &signature));
     }

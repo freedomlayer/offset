@@ -24,6 +24,16 @@ pub struct ServiceClient<S,R> {
     inner: AsyncMutex<ServiceClientInner<S,R>>,
 }
 
+// TODO: Why can't we #[derive(Clone)] here?
+// Causes problems with cloning at SecurityModuleClient.
+impl<S,R> Clone for ServiceClient<S,R> {
+    fn clone(&self) -> Self {
+        ServiceClient {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
 /// A service client.
 /// Allows multiple futures on the same thread to send requests to a remote service.
 impl<S,R> ServiceClient<S,R> {
@@ -100,7 +110,7 @@ mod tests {
 
         let service_client = ServiceClient::new(sender2, receiver1);
         assert_eq!(core.run(service_client.request(0)).unwrap(),1);
-        assert_eq!(core.run(service_client.request(6)).unwrap(),7);
+        assert_eq!(core.run(service_client.clone().request(6)).unwrap(),7);
         assert_eq!(core.run(service_client.request(8)).unwrap(),9);
     }
 

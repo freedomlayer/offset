@@ -20,6 +20,14 @@ pub struct AsyncMutex<T> {
     async_mutex_state: Rc<RefCell<AsyncMutexState<T>>>,
 }
 
+impl<T> Clone for AsyncMutex<T> {
+    fn clone(&self) -> Self {
+        AsyncMutex {
+            async_mutex_state: Rc::clone(&self.async_mutex_state),
+        }
+    }
+}
+
 
 enum AcquireFutureState<T,F,G> {
     WaitItem((oneshot::Receiver<T>, F)),
@@ -184,7 +192,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mutex_basic() {
+    fn test_async_mutex_basic() {
         let mut core = Core::new().unwrap();
         let async_mutex = AsyncMutex::new(MyStruct { num: 0 });
         let fut1 = async_mutex.acquire(|mut my_struct| -> Result<_,()> {
@@ -196,7 +204,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mutex_multiple_acquires() {
+    fn test_async_mutex_multiple_acquires() {
         let mut core = Core::new().unwrap();
         let handle = core.handle();
 
@@ -229,6 +237,42 @@ mod tests {
 
         assert_eq!(core.run(fut4).unwrap(), 4);
 
+    }
+
+    #[test]
+    fn test_async_mutex_clone() {
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+
+        let async_mutex = AsyncMutex::new(MyStruct { num: 0 });
+
+        let fut1 = async_mutex.acquire(|mut my_struct| -> Result<_,()> {
+            my_struct.num += 1;
+            Ok((my_struct, ()))
+        });
+
+        // Note that clone here:
+        let fut2 = async_mutex.clone().acquire(|mut my_struct| -> Result<_,()> {
+            my_struct.num += 1;
+            Ok((my_struct, ()))
+        });
+
+        let fut3 = async_mutex.acquire(|mut my_struct| -> Result<_,()> {
+            my_struct.num += 1;
+            Ok((my_struct, ()))
+        });
+
+        handle.spawn(fut2.map_err(|_| ()));
+        handle.spawn(fut1.map_err(|_| ()));
+        handle.spawn(fut3.map_err(|_| ()));
+
+        let fut4 = async_mutex.acquire(|mut my_struct| -> Result<_,()> {
+            my_struct.num += 1;
+            let num = my_struct.num;
+            Ok((my_struct, num))
+        });
+
+        assert_eq!(core.run(fut4).unwrap(), 4);
     }
 }
 
