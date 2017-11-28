@@ -5,12 +5,10 @@ use std::collections::HashMap;
 
 use self::futures::{Future, Stream};
 use self::futures::sync::mpsc;
-use self::futures::future::{loop_fn, Loop};
 use self::tokio_core::reactor::Handle;
 
 use std::cell::RefCell;
 use std::rc::Rc;
-use super::{InnerChanneler, ChannelerError};
 
 use ::async_mutex::AsyncMutex;
 use ::inner_messages::{FromTimer, ChannelerToNetworker};
@@ -18,6 +16,8 @@ use ::security_module::security_module_client::SecurityModuleClient;
 use ::crypto::rand_values::RandValuesStore; 
 use ::crypto::identity::{PublicKey};
 use super::ChannelerNeighbor;
+use super::channel::create_channel;
+
 
 const CONN_ATTEMPT_TICKS: usize = 120;
 
@@ -42,17 +42,17 @@ pub fn timer_reader_future<R>(handle: Handle,
         // - Report all connections that time has passed (Sending through a one directional
         //      mpsc::channel?)
         
-        for (_, mut neighbor) in &mut *neighbors.borrow_mut() {
-            let socket_addr = match neighbor.info.neighbor_address.socket_addr {
-                None => continue,
-                Some(socket_addr) => socket_addr,
-            };
+        let ref mut neighbors = *(*neighbors).borrow_mut();
+        for (_, mut neighbor) in neighbors {
+            if let None = neighbor.info.neighbor_address.socket_addr {
+                continue;
+            }
             // If there are already some attempts to add connections, 
             // we don't try to add a new connection ourselves.
             if neighbor.num_pending_out_conn > 0 {
                 continue;
             }
-            if neighbor.channels.len() == 0 {
+            if neighbor.channel_senders.len() == 0 {
                 // This is an inactive neighbor.
                 neighbor.ticks_to_next_conn_attempt -= 1;
                 if neighbor.ticks_to_next_conn_attempt == 0 {
@@ -61,6 +61,12 @@ pub fn timer_reader_future<R>(handle: Handle,
                     continue;
                 }
             }
+
+            let (channel_sender, channel) = create_channel(neighbor.info.neighbor_address.clone());
+            neighbor.channel_senders.push(channel_sender);
+
+            handle.spawn(channel.map_err(|_| ()));
+
 
             // TODO: Start a new file that does this work:
             // Should be able to deal with initial key exchange, keepalive messages and reporting

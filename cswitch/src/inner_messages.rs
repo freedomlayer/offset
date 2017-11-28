@@ -15,6 +15,7 @@ use ::crypto::uid::Uid;
 // --------------
 
 
+#[derive(Clone)]
 pub struct ChannelerAddress {
     pub socket_addr: Option<SocketAddr>,
     pub neighbor_public_key: PublicKey,

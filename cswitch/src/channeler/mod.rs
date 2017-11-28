@@ -1,5 +1,6 @@
 mod prefix_frame_codec;
 mod timer_reader;
+mod channel;
 
 extern crate futures;
 // extern crate rand;
@@ -40,7 +41,6 @@ use ::async_mutex::AsyncMutex;
 const NUM_RAND_VALUES: usize = 16;
 const RAND_VALUE_TICKS: usize = 20;
 
-
 const KEEP_ALIVE_TICKS: usize = 15;
 
 
@@ -55,18 +55,15 @@ enum ChannelerError {
 }
 
 
-struct Channel {
-    ticks_to_receive_keep_alive: usize,
-    ticks_to_send_keep_alive: usize,
-    // TODO:
-    // - Sender
-    // - Receiver
+pub enum ToChannel {
+    TimeTick,
+    SendMessage(Vec<u8>),
 }
 
 pub struct ChannelerNeighbor {
     info: ChannelerNeighborInfo,
     last_remote_rand_value: Option<RandValue>,
-    channels: Vec<Channel>,
+    channel_senders: Vec<mpsc::Sender<ToChannel>>,
     ticks_to_next_conn_attempt: usize,
     num_pending_out_conn: usize,
 }
@@ -88,6 +85,7 @@ enum ChannelerState {
 }
 */
 
+/*
 struct InnerChanneler<R> {
     handle: Handle,
     am_networker_sender: AsyncMutex<mpsc::Sender<ChannelerToNetworker>>,
@@ -102,10 +100,10 @@ struct InnerChanneler<R> {
     // state: ChannelerState,
 }
 
-
 struct Channeler<R> {
     inner_channeler: RefCell<InnerChanneler<R>>,
 }
+*/
 
 
 fn create_channeler_future<R: SecureRandom + 'static>(handle: &Handle, 
