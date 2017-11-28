@@ -25,7 +25,6 @@ use self::tokio_core::reactor::Handle;
 use self::tokio_io::AsyncRead;
 use self::ring::rand::SecureRandom;
 
-use self::prefix_frame_codec::PrefixFrameCodec;
 use self::timer_reader::timer_reader_future;
 
 use ::crypto::identity::PublicKey;
@@ -62,7 +61,7 @@ pub enum ToChannel {
 pub struct ChannelerNeighbor {
     info: ChannelerNeighborInfo,
     last_remote_rand_value: Option<RandValue>,
-    channel_senders: Vec<mpsc::Sender<ToChannel>>,
+    channel_senders: Vec<AsyncMutex<mpsc::Sender<ToChannel>>>,
     ticks_to_next_conn_attempt: usize,
     num_pending_out_conn: usize,
 }

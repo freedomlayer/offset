@@ -21,10 +21,13 @@ pub enum ChannelError {
 }
 
 pub fn create_channel(handle: &Handle, socket_addr: SocketAddr ,neighbor_public_key: &PublicKey) 
-        -> (mpsc::Sender<ToChannel>, impl Future<Item=(), Error=ChannelError>) {
+        -> impl Future<Item=(), Error=ChannelError> {
 
+    // TODO:
     // Create an mpsc channel that will be used to signal this channel future.
-    let (channel_sender, channel_receiver) = mpsc::channel(0);
+    // This line should be added to only after 
+    // let (channel_sender, channel_receiver) = mpsc::channel(0);
+    // neighbor.channel_senders.push(AsyncMutex::new(channel_sender));
 
     // Attempt a connection:
     TcpStream::connect(&socket_addr, handle)
@@ -35,6 +38,5 @@ pub fn create_channel(handle: &Handle, socket_addr: SocketAddr ,neighbor_public_
 
         // TODO: Binary deserializtion of Channeler to Channeler messages.
 
-    (channel_sender, Ok(()).into_future())
-
+    Ok(()).into_future()
 }
