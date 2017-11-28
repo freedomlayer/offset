@@ -61,7 +61,7 @@ pub enum ToChannel {
 pub struct ChannelerNeighbor {
     info: ChannelerNeighborInfo,
     last_remote_rand_value: Option<RandValue>,
-    channel_senders: Vec<AsyncMutex<mpsc::Sender<ToChannel>>>,
+    channel_senders: Vec<mpsc::Sender<ToChannel>>,
     ticks_to_next_conn_attempt: usize,
     num_pending_out_conn: usize,
 }
@@ -119,14 +119,14 @@ fn create_channeler_future<R: SecureRandom + 'static>(handle: &Handle,
             RandValuesStore::new::<R>(rc_crypt_rng.borrow(), RAND_VALUE_TICKS, NUM_RAND_VALUES)
     ));
 
-    let am_networker_sender =  AsyncMutex::new(networker_sender);
+    let networker_sender =  networker_sender;
     let neighbors = Rc::new(RefCell::new(HashMap::<PublicKey, ChannelerNeighbor>::new()));
     let server_type = ServerType::PrivateServer;
 
     // TODO: Start all the tasks here:
     handle.spawn(timer_reader_future(handle.clone(), 
                                timer_receiver,
-                               am_networker_sender, 
+                               networker_sender, 
                                security_module_client, 
                                Rc::clone(&rc_crypt_rng), 
                                Rc::clone(&rand_values_store), 

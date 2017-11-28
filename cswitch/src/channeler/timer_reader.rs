@@ -11,7 +11,6 @@ use self::tokio_core::reactor::Handle;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use ::async_mutex::AsyncMutex;
 use ::inner_messages::{FromTimer, ChannelerToNetworker};
 use ::security_module::security_module_client::SecurityModuleClient;
 use ::crypto::rand_values::RandValuesStore; 
@@ -29,7 +28,7 @@ pub enum TimerReaderError {
 // TODO: Possibly change Handle to &Handle? Will it compile?
 pub fn timer_reader_future<R>(handle: Handle,
                            timer_receiver: mpsc::Receiver<FromTimer>,
-                           am_networker_sender: AsyncMutex<mpsc::Sender<ChannelerToNetworker>>, 
+                           networker_sender: mpsc::Sender<ChannelerToNetworker>, 
                            security_module_client: SecurityModuleClient,
                            crypt_rng: Rc<R>,
                            rand_values_store: Rc<RefCell<RandValuesStore>>,
@@ -81,14 +80,11 @@ pub fn timer_reader_future<R>(handle: Handle,
         // Report to all current connections that TimeTick has occured:
         let mut send_futures = Vec::new();
         for (_, neighbor) in &*neighbors {
-            for am_channel_sender in &neighbor.channel_senders {
-                let send_timetick = am_channel_sender
-                    .acquire(|channel_sender| {
-                        channel_sender
-                            .send(ToChannel::TimeTick)
-                            .map_err(|_e: mpsc::SendError<ToChannel>| ())
-                            .and_then(|channel_sender| Ok((channel_sender, ())))
-                    });
+            for channel_sender in &neighbor.channel_senders {
+                let send_timetick = channel_sender
+                    .clone()
+                    .send(ToChannel::TimeTick)
+                    .map_err(|_e: mpsc::SendError<ToChannel>| ());
                 send_futures.push(send_timetick);
             }
         }
