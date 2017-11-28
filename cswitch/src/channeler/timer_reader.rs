@@ -37,6 +37,11 @@ pub fn timer_reader_future<R>(handle: Handle,
     timer_receiver
     .map_err(|()| TimerReaderError::TimerReceiveFailed)
     .for_each(move |FromTimer::TimeTick| {
+        // TODO:
+        // - Attempt new connections whenever needed.
+        // - Report all connections that time has passed (Sending through a one directional
+        //      mpsc::channel?)
+        
         for (_, mut neighbor) in &mut *neighbors.borrow_mut() {
             let socket_addr = match neighbor.info.neighbor_address.socket_addr {
                 None => continue,
@@ -56,6 +61,12 @@ pub fn timer_reader_future<R>(handle: Handle,
                     continue;
                 }
             }
+
+            // TODO: Start a new file that does this work:
+            // Should be able to deal with initial key exchange, keepalive messages and reporting
+            // back about received messages.
+            // Gets as input time ticks and messages to be sent.
+
             /*
             // Attempt a connection:
             TcpStream::connect(&socket_addr, &self.handle)
