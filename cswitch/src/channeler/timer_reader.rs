@@ -1,22 +1,43 @@
 extern crate futures;
+extern crate tokio_core;
 
-use self::futures::Future;
+use std::collections::HashMap;
+
+use self::futures::{Future, Stream};
+use self::futures::sync::mpsc;
 use self::futures::future::{loop_fn, Loop};
+use self::tokio_core::reactor::Handle;
 
 use std::cell::RefCell;
+use std::rc::Rc;
 use super::{InnerChanneler, ChannelerError};
+
+use ::async_mutex::AsyncMutex;
+use ::inner_messages::{FromTimer, ChannelerToNetworker};
+use ::security_module::security_module_client::SecurityModuleClient;
+use ::crypto::rand_values::RandValuesStore; 
+use ::crypto::identity::{PublicKey};
+use super::ChannelerNeighbor;
 
 const CONN_ATTEMPT_TICKS: usize = 120;
 
-struct TimerReader;
+pub enum TimerReaderError {
+    TimerReceiveFailed,
+}
 
-fn create_timer_reader_future<'a,R>(inner_channeler: RefCell<InnerChanneler<'a,R>>) 
-    -> impl Future<Item=(), Error=ChannelerError> + 'a {
+pub fn timer_reader_future<R>(handle: Handle,
+                           timer_receiver: mpsc::Receiver<FromTimer>,
+                           am_networker_sender: AsyncMutex<mpsc::Sender<ChannelerToNetworker>>, 
+                           security_module_client: SecurityModuleClient,
+                           crypt_rng: Rc<R>,
+                           rand_values_store: Rc<RefCell<RandValuesStore>>,
+                           neighbors: Rc<RefCell<HashMap<PublicKey, ChannelerNeighbor>>>)
+                -> impl Future<Item=(), Error=TimerReaderError> {
 
-    loop_fn(TimerReader, move |timer_reader| {
-        let mut b_inner_channeler = inner_channeler.borrow_mut();
-
-        for (_, mut neighbor) in &mut b_inner_channeler.neighbors {
+    timer_receiver
+    .map_err(|()| TimerReaderError::TimerReceiveFailed)
+    .for_each(move |FromTimer::TimeTick| {
+        for (_, mut neighbor) in &mut *neighbors.borrow_mut() {
             let socket_addr = match neighbor.info.neighbor_address.socket_addr {
                 None => continue,
                 Some(socket_addr) => socket_addr,
@@ -44,6 +65,6 @@ fn create_timer_reader_future<'a,R>(inner_channeler: RefCell<InnerChanneler<'a,R
                     // TODO: Binary deserializtion of Channeler to Channeler messages.
             */
         }
-        Ok(Loop::Break(()))
+        Ok(())
     })
 }

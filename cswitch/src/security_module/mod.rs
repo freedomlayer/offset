@@ -1,4 +1,4 @@
-mod security_module_client;
+pub mod security_module_client;
 
 extern crate futures;
 

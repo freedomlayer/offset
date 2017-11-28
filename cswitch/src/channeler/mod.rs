@@ -8,9 +8,11 @@ extern crate tokio_io;
 extern crate ring;
 
 
+use std::borrow::Borrow;
 use std::collections::{HashMap};
 use std::mem;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 // use self::rand::Rng;
 
@@ -23,14 +25,17 @@ use self::tokio_core::reactor::Handle;
 use self::tokio_io::AsyncRead;
 use self::ring::rand::SecureRandom;
 
+use self::prefix_frame_codec::PrefixFrameCodec;
+use self::timer_reader::timer_reader_future;
 
 use ::crypto::identity::PublicKey;
 use ::inner_messages::{FromTimer, ChannelerToNetworker,
     NetworkerToChanneler, ToSecurityModule, FromSecurityModule,
     ChannelerNeighborInfo, ServerType};
+use ::security_module::security_module_client::SecurityModuleClient;
 use ::close_handle::{CloseHandle, create_close_handle};
 use ::crypto::rand_values::{RandValuesStore, RandValue};
-use self::prefix_frame_codec::PrefixFrameCodec;
+use ::async_mutex::AsyncMutex;
 
 const NUM_RAND_VALUES: usize = 16;
 const RAND_VALUE_TICKS: usize = 20;
@@ -58,7 +63,7 @@ struct Channel {
     // - Receiver
 }
 
-struct ChannelerNeighbor {
+pub struct ChannelerNeighbor {
     info: ChannelerNeighborInfo,
     last_remote_rand_value: Option<RandValue>,
     channels: Vec<Channel>,
@@ -83,14 +88,11 @@ enum ChannelerState {
 }
 */
 
-struct InnerChanneler<'a,R:'a> {
+struct InnerChanneler<R> {
     handle: Handle,
-    timer_receiver: mpsc::Receiver<FromTimer>, 
-    networker_sender: mpsc::Sender<ChannelerToNetworker>,
-    networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
-    security_module_sender: mpsc::Sender<ToSecurityModule>,
-    security_module_receiver: mpsc::Receiver<FromSecurityModule>,
-    crypt_rng: &'a R,
+    am_networker_sender: AsyncMutex<mpsc::Sender<ChannelerToNetworker>>,
+    security_module_client: SecurityModuleClient,
+    crypt_rng: Rc<R>,
 
     rand_values_store: RandValuesStore,
 
@@ -101,42 +103,50 @@ struct InnerChanneler<'a,R:'a> {
 }
 
 
-struct Channeler<'a, R:'a> {
-    inner_channeler: RefCell<InnerChanneler<'a,R>>,
+struct Channeler<R> {
+    inner_channeler: RefCell<InnerChanneler<R>>,
 }
 
 
-fn create_channeler_future<'a,R: SecureRandom>(handle: &Handle, 
+fn create_channeler_future<R: SecureRandom + 'static>(handle: &Handle, 
             timer_receiver: mpsc::Receiver<FromTimer>, 
             networker_sender: mpsc::Sender<ChannelerToNetworker>,
             networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
-            security_module_sender: mpsc::Sender<ToSecurityModule>,
-            security_module_receiver: mpsc::Receiver<FromSecurityModule>,
-            crypt_rng: &'a R,
+            security_module_client: SecurityModuleClient,
+            rc_crypt_rng: Rc<R>,
             close_sender: oneshot::Sender<()>,
             close_receiver: oneshot::Receiver<()>) -> 
-                impl Future<Item=(), Error=ChannelerError> + 'a {
+                impl Future<Item=(), Error=ChannelerError> {
 
-    let rand_values_store = RandValuesStore::new(
-        crypt_rng, RAND_VALUE_TICKS, NUM_RAND_VALUES);
+    // Prepare structures to be shared between spawned futures:
+    let rand_values_store = Rc::new(RefCell::new(
+            RandValuesStore::new::<R>(rc_crypt_rng.borrow(), RAND_VALUE_TICKS, NUM_RAND_VALUES)
+    ));
 
-    let inner_channeler = RefCell::new(InnerChanneler {
-        handle: handle.clone(),
-        timer_receiver,
-        networker_sender,
-        networker_receiver,
-        security_module_sender,
-        security_module_receiver,
-        crypt_rng,
-        rand_values_store,
-        neighbors: HashMap::new(),
-        server_type: ServerType::PrivateServer,
-    });
+    let am_networker_sender =  AsyncMutex::new(networker_sender);
+    let neighbors = Rc::new(RefCell::new(HashMap::<PublicKey, ChannelerNeighbor>::new()));
+    let server_type = ServerType::PrivateServer;
 
     // TODO: Start all the tasks here:
-    // - Start timer reader
-    // - start networker reader
-    // - start security module client.
+    handle.spawn(timer_reader_future(handle.clone(), 
+                               timer_receiver,
+                               am_networker_sender, 
+                               security_module_client, 
+                               Rc::clone(&rc_crypt_rng), 
+                               Rc::clone(&rand_values_store), 
+                               Rc::clone(&neighbors))
+                 .map_err(|_| ()));
+
+    /*
+    handle.spawn(networker_reader_future(handle, 
+                               networker_receiver,
+                               am_networker_sender, 
+                               security_module_client, 
+                               Rc::clone(&rc_crypt_rng), 
+                               Rc::clone(&rand_values_store), 
+                               Rc::clone(&neighbors))
+                 .map_err(|_| ()));
+     */
 
     close_receiver
         .map_err(|oneshot::Canceled| {
@@ -157,5 +167,4 @@ fn create_channeler_future<'a,R: SecureRandom>(handle: &Handle,
         })
 }
 
-struct SecurityModuleClient;
 
