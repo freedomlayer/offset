@@ -25,6 +25,7 @@ pub enum TimerReaderError {
     TimerReceiveFailed,
 }
 
+// TODO: Possibly change Handle to &Handle? Will it compile?
 pub fn timer_reader_future<R>(handle: Handle,
                            timer_receiver: mpsc::Receiver<FromTimer>,
                            am_networker_sender: AsyncMutex<mpsc::Sender<ChannelerToNetworker>>, 
@@ -44,9 +45,10 @@ pub fn timer_reader_future<R>(handle: Handle,
         
         let ref mut neighbors = *(*neighbors).borrow_mut();
         for (_, mut neighbor) in neighbors {
-            if let None = neighbor.info.neighbor_address.socket_addr {
-                continue;
-            }
+            let socket_addr = match neighbor.info.neighbor_address.socket_addr {
+                None => continue,
+                Some(socket_addr) => socket_addr,
+            };
             // If there are already some attempts to add connections, 
             // we don't try to add a new connection ourselves.
             if neighbor.num_pending_out_conn > 0 {
@@ -62,25 +64,12 @@ pub fn timer_reader_future<R>(handle: Handle,
                 }
             }
 
-            let (channel_sender, channel) = create_channel(neighbor.info.neighbor_address.clone());
+            // create_channel(handle: &Handle, socket_addr: SocketAddr ,neighbor_public_key: &PublicKey) 
+
+            let (channel_sender, channel) = create_channel(&handle, socket_addr, &neighbor.info.neighbor_address.neighbor_public_key);
             neighbor.channel_senders.push(channel_sender);
 
             handle.spawn(channel.map_err(|_| ()));
-
-
-            // TODO: Start a new file that does this work:
-            // Should be able to deal with initial key exchange, keepalive messages and reporting
-            // back about received messages.
-            // Gets as input time ticks and messages to be sent.
-
-            /*
-            // Attempt a connection:
-            TcpStream::connect(&socket_addr, &self.handle)
-                .and_then(|stream| {
-                    let (sink, stream) = stream.framed(PrefixFrameCodec::new()).split();
-
-                    // TODO: Binary deserializtion of Channeler to Channeler messages.
-            */
         }
         Ok(())
     })

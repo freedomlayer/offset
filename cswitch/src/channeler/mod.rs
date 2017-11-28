@@ -21,7 +21,6 @@ use self::futures::{Stream, Poll, Async, AsyncSink, StartSend};
 use self::futures::future::{Future, loop_fn, Loop, LoopFn};
 use self::futures::sync::mpsc;
 use self::futures::sync::oneshot;
-use self::tokio_core::net::TcpStream;
 use self::tokio_core::reactor::Handle;
 use self::tokio_io::AsyncRead;
 use self::ring::rand::SecureRandom;
