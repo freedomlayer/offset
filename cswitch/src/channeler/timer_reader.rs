@@ -78,6 +78,7 @@ pub fn timer_reader_future<R>(handle: Handle,
         }
 
         // Report to all current connections that TimeTick has occured:
+        // TODO: Should this be done on the same task, or spawned to a new task?
         let mut send_futures = Vec::new();
         for (_, neighbor) in &*neighbors {
             for channel_sender in &neighbor.channel_senders {
