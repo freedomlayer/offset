@@ -1,9 +1,7 @@
-extern crate futures;
-
-use self::futures::sync::mpsc;
-use self::futures::Future;
-use self::futures::stream::Stream;
-use self::futures::sink::Sink;
+use futures::sync::mpsc;
+use futures::Future;
+use futures::stream::Stream;
+use futures::sink::Sink;
 
 use ::async_mutex::{AsyncMutex, AsyncMutexError};
 
