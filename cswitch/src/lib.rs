@@ -20,4 +20,4 @@ mod channeler;
 mod async_mutex;
 mod service_client;
 mod schema;
-mod timer;
+pub mod timer;

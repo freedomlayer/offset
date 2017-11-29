@@ -1,3 +1,45 @@
+//! The time tick broadcast service.
+//!
+//! ## Introduction
+//!
+//! The timer based on broadcast model. It send time tick to all registered
+//! model periodically.
+//!
+//! ## The Timer Message Format
+//!
+//! The message from timer module was shown bellow:
+//!
+//! ```rust,ignore
+//! enum FromTimer {
+//!    TimeTick
+//! }
+//! ```
+//!
+//! ## Details
+//!
+//! Currently, timer module backend by [`futures-timer`][futures-timer],
+//! which is designed for working with timers, timeouts, and intervals with the
+//! [`futures`][futures] crate.
+//!
+//! Timer module support following operations:
+//!
+//! - `new(duration: time::Duration) -> TimerModule;`
+//! - `register(&self, tx: futures::sync::mpsc::Sender<FromTimer>);`
+//!
+//! After registering a `Sender<FromTimer>` and spawn the instance of
+//! `TimerModule`, the mapping `Receiver<FromTimer>` would receive the timer
+//! tick periodically, which can be used to run scheduled task and so on.
+//!
+//! ## Unsolved problem
+//!
+//! - Sometime, send something between two sides would occur error, currently,
+//!  we assume this situation would never happen(use `unwrap`)
+//! - Any efficient data structure can replace `Mutex<Vec<Sender<T>>>`?
+//! - Should we support `unregister` operation?
+//!
+//! [futures]: https://github.com/alexcrichton/futures
+//! [futures-timer]: https://github.com/alexcrichton/futures-timer
+
 extern crate futures_timer;
 
 use std::time;
