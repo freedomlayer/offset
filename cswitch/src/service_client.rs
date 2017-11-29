@@ -16,7 +16,7 @@ pub enum ServiceClientError {
 }
 
 struct ServiceClientInner<S,R> {
-    sender: mpsc::Sender<S>, 
+    sender: mpsc::Sender<S>,
     receiver: mpsc::Receiver<R>,
 }
 
@@ -99,7 +99,7 @@ mod tests {
             });
         let fut_inc = sender1
             .sink_map_err(|e| ())
-            .send_all(receiver2_inc); 
+            .send_all(receiver2_inc);
 
 
         let mut core = Core::new().unwrap();
@@ -127,7 +127,7 @@ mod tests {
             });
         let fut_inc = sender1
             .sink_map_err(|e| ())
-            .send_all(receiver2_inc); 
+            .send_all(receiver2_inc);
 
 
         let mut core = Core::new().unwrap();
