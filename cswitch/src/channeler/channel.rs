@@ -13,7 +13,7 @@ use self::tokio_io::AsyncRead;
 
 use ::inner_messages::ChannelerAddress;
 use ::crypto::identity::PublicKey;
-// use ::schema::channeler_capnp::{init_channel};
+use ::schema::channeler_capnp::{init_channel};
 
 use super::ToChannel;
 use super::prefix_frame_codec::PrefixFrameCodec;
