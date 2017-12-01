@@ -15,7 +15,11 @@ struct CustomUInt256 {
 }
 
 struct InitChannel {
-        channelRandValue @0: CustomUInt128;
+        neighborPublicKey @0: CustomUInt256;
+        # The identity public key of the sender of this message.
+        channelRandValue @1: CustomUInt128;
+        # An initial random value. This will be later used for the key exchange as a nonce.
+        # A nonce is required to avoid replay of the signature.
 }
 
 struct Exchange {
@@ -30,6 +34,7 @@ struct Exchange {
         # party to send messages to us on this channel.
         signature @3: CustomUInt256; 
         # Signature over (channelRandValue || commPublicKey || keySalt || senderRandValue)
+        # Signed using NeighborPublicKey.
 }
 
 # Contents for a keepalive message:
