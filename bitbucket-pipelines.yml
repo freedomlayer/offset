@@ -3,11 +3,11 @@
 # Only use spaces to indent your .yml configuration.
 # -----
 # You can specify a custom docker image from Docker Hub as your build environment.
-image: rustlang/rust
+image: rustlang/rust:nightly
 
 pipelines:
   default:
     - step:
         script: # Modify the commands below to build your repository.
-          - cargo build -v
-          - cargo test -v
+          - cd cswitch && cargo build -v
+          - cd cswitch && cargo test -v
