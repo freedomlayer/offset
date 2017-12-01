@@ -11,5 +11,6 @@ pipelines:
         script: # Modify the commands below to build your repository.
           - apt-get update && apt-get -y install capnproto
           - cargo install capnpc
-          - cd cswitch && cargo build -v
-          - cd cswitch && cargo test -v
+          - cd cswitch
+          - cargo build -v
+          - cargo test -v
