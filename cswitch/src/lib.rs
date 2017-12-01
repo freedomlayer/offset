@@ -5,6 +5,7 @@
 
 #[macro_use]
 extern crate log;
+extern crate capnp;
 extern crate futures;
 
 mod crypto;
@@ -19,5 +20,7 @@ mod channeler;
 
 mod async_mutex;
 mod service_client;
-mod schema;
 pub mod timer;
+
+mod schema;
+use schema::channeler_capnp;
