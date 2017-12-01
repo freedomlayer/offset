@@ -1,9 +1,7 @@
-extern crate futures;
-
-use self::futures::sync::mpsc;
-use self::futures::Future;
-use self::futures::stream::Stream;
-use self::futures::sink::Sink;
+use futures::sync::mpsc;
+use futures::Future;
+use futures::stream::Stream;
+use futures::sink::Sink;
 
 use ::async_mutex::{AsyncMutex, AsyncMutexError};
 
@@ -16,7 +14,7 @@ pub enum ServiceClientError {
 }
 
 struct ServiceClientInner<S,R> {
-    sender: mpsc::Sender<S>, 
+    sender: mpsc::Sender<S>,
     receiver: mpsc::Receiver<R>,
 }
 
@@ -99,7 +97,7 @@ mod tests {
             });
         let fut_inc = sender1
             .sink_map_err(|e| ())
-            .send_all(receiver2_inc); 
+            .send_all(receiver2_inc);
 
 
         let mut core = Core::new().unwrap();
@@ -127,7 +125,7 @@ mod tests {
             });
         let fut_inc = sender1
             .sink_map_err(|e| ())
-            .send_all(receiver2_inc); 
+            .send_all(receiver2_inc);
 
 
         let mut core = Core::new().unwrap();

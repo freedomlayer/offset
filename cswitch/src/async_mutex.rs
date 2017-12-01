@@ -1,13 +1,11 @@
-extern crate futures;
-
 use std::mem;
 use std::collections::VecDeque;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use self::futures::sync::oneshot;
-use self::futures::future::IntoFuture;
-use self::futures::{Future, Poll, Async};
+use futures::sync::oneshot;
+use futures::future::IntoFuture;
+use futures::{Future, Poll, Async};
 
 
 enum AsyncMutexState<T> {
@@ -52,7 +50,7 @@ pub enum AsyncMutexError<E> {
     FuncError(E),
 }
 
-impl<T,F,B,G,E,O> Future for AcquireFuture<T,F,G> 
+impl<T,F,B,G,E,O> Future for AcquireFuture<T,F,G>
 where
     F: FnOnce(T) -> B,
     G: Future<Item=(T,O), Error=E>,
@@ -70,11 +68,11 @@ where
                     debug!("AcquireFuture::poll() WaitItem");
                     match receiver.poll() {
                         Ok(Async::Ready(t)) => {
-                            self.acquire_future_state = 
+                            self.acquire_future_state =
                                 AcquireFutureState::WaitFunc(fut_func(t).into_future());
                         },
                         Ok(Async::NotReady) => {
-                            self.acquire_future_state = 
+                            self.acquire_future_state =
                                 AcquireFutureState::WaitItem((receiver, fut_func));
                             return Ok(Async::NotReady);
                         },
@@ -88,7 +86,7 @@ where
                     match fut_result.poll() {
                         Ok(Async::NotReady) => {
                             debug!("AcquireFuture::poll() WaitFunc Async::NotReady");
-                            self.acquire_future_state = 
+                            self.acquire_future_state =
                                 AcquireFutureState::WaitFunc(fut_result);
                             return Ok(Async::NotReady)
                         },
@@ -97,7 +95,7 @@ where
                             // We need to put the item back, and notify the next waiter on the
                             // queue that it is ready
                             let ref mut b_state_ref = *self.async_mutex_state.borrow_mut();
-                            match mem::replace(b_state_ref, 
+                            match mem::replace(b_state_ref,
                                                AsyncMutexState::Empty) {
 
                                 AsyncMutexState::Empty => unreachable!(),
@@ -109,7 +107,7 @@ where
                                             Ok(()) => *b_state_ref = AsyncMutexState::Busy(pending),
                                             Err(_t) => return Err(AsyncMutexError::IoError(IoError::SendFailed)),
                                         };
-                                    
+
                                     } else {
                                         *b_state_ref = AsyncMutexState::Ready(t);
                                     }
@@ -140,9 +138,9 @@ impl<T> AsyncMutex<T> {
     }
 
     /// Acquire a shared item (In the same thread) and invoke the function fut_func over it.
-    /// fut_func must return an IntoFuture that resolves to a tuple of the form (t, output), 
+    /// fut_func must return an IntoFuture that resolves to a tuple of the form (t, output),
     /// where t is the original item, and output is custom output.
-    /// 
+    ///
     /// This function returns a future that resolves to the value given at output.
     pub fn acquire<F,B,E,G,O>(&self, fut_func: F) -> AcquireFuture<T,F,G>
     where
@@ -159,7 +157,7 @@ impl<T> AsyncMutex<T> {
                 *b_state = AsyncMutexState::Busy(VecDeque::new());
                 AcquireFuture {
                     async_mutex_state: Rc::clone(&self.async_mutex_state),
-                    acquire_future_state: 
+                    acquire_future_state:
                         AcquireFutureState::WaitFunc(fut_func(t).into_future()),
                 }
             },

@@ -1,5 +1,4 @@
-extern crate futures;
-use self::futures::sync::oneshot;
+use futures::sync::oneshot;
 
 pub struct CloseHandle {
     handle_close_sender: oneshot::Sender<()>,       // Signal to close

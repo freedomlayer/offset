@@ -35,9 +35,9 @@ pub struct NeighborInfo {
 }
 
 struct NeighborTokenChannel {
-    mutual_credit: i64, // TODO: Is this the right type? 
+    mutual_credit: i64, // TODO: Is this the right type?
     // Possibly change to bignum?
-    
+
     // TODO:
     // - A type for last token
     // - Keep last operation?
@@ -199,7 +199,7 @@ enum NetworkerToPluginManager {
 // ---------------------------
 
 
-enum PluginManagerToNetworker { 
+enum PluginManagerToNetworker {
     RespondSendMessageRequest {
         request_id: Uid,
         response_content: Vec<u8>,
@@ -562,7 +562,7 @@ pub enum FromSecurityModule {
     ResponseVerify {
         request_id: Uid,
         result: bool,
-    }, 
+    },
     */
     ResponsePublicKey {
         public_key: PublicKey,
