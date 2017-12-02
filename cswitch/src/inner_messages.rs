@@ -63,17 +63,16 @@ struct FriendsRoute {
 // Channeler to Networker
 // ----------------------
 
-struct ChannelOpened {
+pub struct ChannelOpened {
     remote_public_key: PublicKey, // Public key of remote side
     locally_initialized: bool, // Was this channel initiated by this end.
 }
 
-struct ChannelClosed {
+pub struct ChannelClosed {
     remote_public_key: PublicKey,
 }
 
-
-struct ChannelMessageReceived {
+pub struct ChannelMessageReceived {
     remote_public_key: PublicKey,
     message_content: Vec<u8>,
 }

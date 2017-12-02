@@ -39,7 +39,7 @@ pub struct AcquireFuture<T,F,G> {
 }
 
 #[derive(Debug)]
-enum IoError {
+pub enum IoError {
     ReceiverCanceled,
     SendFailed,
 }
