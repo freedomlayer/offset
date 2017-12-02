@@ -2,8 +2,8 @@
 //!
 //! ## Introduction
 //!
-//! The timer based on broadcast model. It send time tick to all registered
-//! model periodically.
+//! The timer based on broadcast model. It send time tick to all clients
+//! periodically.
 //!
 //! ## The Timer Message Format
 //!
@@ -24,70 +24,85 @@
 //! Timer module support following operations:
 //!
 //! - `new(duration: time::Duration) -> TimerModule;`
-//! - `register(&self, tx: futures::sync::mpsc::Sender<FromTimer>);`
+//! - `create_client(&mut self) -> mpsc::Sender<FromTimer>;`
 //!
-//! After registering a `Sender<FromTimer>` and spawn the instance of
-//! `TimerModule`, the mapping `Receiver<FromTimer>` would receive the timer
-//! tick periodically, which can be used to run scheduled task and so on.
+//! After running the instance of `TimerModule`, paired `Receiver<FromTimer>`
+//! returned by [`create_client()`](#method.create_clinet.html) would receive
+//! the timer tick periodically, which could be used to run scheduled task and so on.
 //!
 //! ## Unsolved problem
 //!
-//! - Sometime, send something between two sides would occur error, currently,
-//!  we assume this situation would never happen(use `unwrap`)
-//! - Any efficient data structure can replace `Mutex<Vec<Sender<T>>>`?
-//! - Should we support `unregister` operation?
+//! - Graceful shutdown
 //!
 //! [futures]: https://github.com/alexcrichton/futures
 //! [futures-timer]: https://github.com/alexcrichton/futures-timer
 
 extern crate futures_timer;
 
-use std::time;
-use std::sync::Mutex;
+use std::{time, io, mem};
 use futures::{Future, Stream, Poll, Async};
 use self::futures_timer::Interval;
 use futures::sync::mpsc;
 
 use super::inner_messages::FromTimer;
 
+#[derive(Debug)]
+pub enum TimerError {
+    IntervalError(io::Error),
+}
+
 /// The timer module.
 pub struct TimerModule {
     inner: Interval,
-    subscriber: Mutex<Vec<mpsc::Sender<FromTimer>>>,
+    clients: Vec<TimerClient<mpsc::Sender<FromTimer>>>,
+}
+
+enum TimerClient<T> {
+    Occupied(T),
+    Dropped,
 }
 
 impl TimerModule {
     pub fn new(duration: time::Duration) -> TimerModule {
         TimerModule {
-            inner: Interval::new(duration),
-            subscriber: Mutex::new(Vec::new()),
+            inner:   Interval::new(duration),
+            clients: Vec::new(),
         }
     }
 
-    pub fn register(&mut self, tx: mpsc::Sender<FromTimer>) {
-        let mut subscriber = self.subscriber.lock().unwrap();
-        subscriber.push(tx);
+    pub fn create_client(&mut self) -> mpsc::Receiver<FromTimer> {
+        let (sender, receiver) = mpsc::channel(0);
+        self.clients.push(TimerClient::Occupied(sender));
+        receiver
     }
-
-    // TODO: Graceful shutdown
 }
 
 impl Future for TimerModule {
     type Item = ();
-    type Error = ();
+    type Error = TimerError;
 
-    fn poll(&mut self) -> Poll<(), ()> {
-        let poll = self.inner.poll()
-            .map_err(|_| {
-                error!("internal error");
-            })?;
+    fn poll(&mut self) -> Poll<(), TimerError> {
+        let poll = self.inner.poll().map_err(|e| {
+            TimerError::IntervalError(e)
+        })?;
 
         if poll.is_ready() {
-            let mut subscriber = self.subscriber.lock().unwrap();
-            subscriber.iter_mut().for_each(|mut tx| {
-                // TODO: Error handle
-                let _ = tx.try_send(FromTimer::TimeTick).unwrap();
-            });
+            for ref_client in self.clients.iter_mut() {
+                match mem::replace(ref_client, TimerClient::Dropped) {
+                    TimerClient::Dropped => (),
+                    TimerClient::Occupied(mut sender) => {
+                        match sender.try_send(FromTimer::TimeTick) {
+                            Err(e) => if e.is_disconnected() {
+                                error!("timer client dropped")
+                            },
+                            _ => {
+                                mem::replace(ref_client,
+                                             TimerClient::Occupied(sender));
+                            },
+                        }
+                    }
+                }
+            }
         }
 
         Ok(Async::NotReady)
@@ -112,16 +127,14 @@ mod tests {
         let mut core = Core::new().unwrap();
         let handle = core.handle();
 
-        let (tx, rx) = channel::<FromTimer>(1024usize);
-        timer_module.register(tx);
+        let now = time::Instant::now();
+        let client_fut = timer_module.create_client()
+            .and_then(move |FromTimer::TimeTick| {
+                assert!(now.elapsed() > time::Duration::from_millis(10));
+                Ok(())
+            }).into_future();
 
-        handle.spawn(timer_module);
-        thread::sleep(time::Duration::from_millis(10));
-
-        assert!(core.run(rx.and_then(|_| {
-            Ok(())
-        }).into_future()).is_ok());
+        assert!(core.run(timer_module.map_err(|_| ())
+            .select2(client_fut)).is_ok());
     }
 }
-
-// TODO: Add more test
