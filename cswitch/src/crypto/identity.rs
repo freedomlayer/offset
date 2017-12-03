@@ -3,19 +3,34 @@ extern crate untrusted;
 
 use std::fmt;
 
-use self::ring::{signature};
+use self::ring::signature;
 
 const PUBLIC_KEY_LEN: usize = 32;
-const SIGNATURE_LEN: usize = 64;
+const SIGNATURE_LEN:  usize = 64;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct PublicKey([u8; PUBLIC_KEY_LEN]);
 
+impl AsRef<[u8]> for PublicKey {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
 
 // We had to implement Debug and PartialEq ourselves here,
 // because PartialEq and Debug traits are not automatically implemented
 // for size larger than 32.
 pub struct Signature([u8; SIGNATURE_LEN]);
+
+impl AsRef<[u8]> for Signature {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+// ========== Debug / PartialEq ==========
 
 impl fmt::Debug for Signature {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -24,6 +39,7 @@ impl fmt::Debug for Signature {
 }
 
 impl PartialEq for Signature {
+    #[inline]
     fn eq(&self, other: &Signature) -> bool {
         for i in 0 .. SIGNATURE_LEN {
             if self.0[i] != other.0[i] {
@@ -33,8 +49,6 @@ impl PartialEq for Signature {
         true
     }
 }
-
-
 
 /// A generic interface for signing and verifying messages.
 pub trait Identity {
@@ -66,12 +80,12 @@ impl SoftwareEd25519Identity {
     }
 }
 
-pub fn verify_signature(message: &[u8], 
-                    public_key: &PublicKey, signature: &Signature) -> bool {
+pub fn verify_signature(message: &[u8],
+                        public_key: &PublicKey, signature: &Signature) -> bool {
 
     let public_key = untrusted::Input::from(&public_key.0);
-    let message = untrusted::Input::from(message);
-    let signature = untrusted::Input::from(&signature.0);
+    let message    = untrusted::Input::from(message);
+    let signature  = untrusted::Input::from(&signature.0);
     match signature::verify(&signature::ED25519, public_key, message, signature) {
         Ok(()) => true,
         Err(ring::error::Unspecified) => false,

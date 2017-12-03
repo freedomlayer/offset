@@ -10,10 +10,17 @@ const RAND_VALUE_LEN: usize = 16;
 pub struct RandValue([u8; RAND_VALUE_LEN]);
 
 impl RandValue {
-    fn new<R: SecureRandom>(crypt_rng: &R) -> Self {
+    pub fn new<R: SecureRandom>(crypt_rng: &R) -> Self {
         let mut rand_value = RandValue([0; RAND_VALUE_LEN]);
         crypt_rng.fill(&mut rand_value.0);
         rand_value
+    }
+}
+
+impl AsRef<[u8]> for RandValue {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
     }
 }
 
@@ -45,16 +52,13 @@ impl RandValuesStore {
     }
 
     /// Check if we have a given rand_value.
-    pub fn check_rand_value(&self, rand_value: &RandValue) -> bool {
-        match self.rand_values.iter().find(
-                |&iter_rand_value| iter_rand_value == rand_value) {
-            Some(_) => true,
-            None => false,
-        }
+    pub fn contains(&self, x: &RandValue) -> bool {
+        self.rand_values.contains(x)
     }
 
     /// Apply a time tick over the store.
     /// If enough time ticks have occured, a new rand value will be generated.
+    #[inline]
     pub fn time_tick<R: SecureRandom>(&mut self, crypt_rng: &R) {
         self.ticks_left_to_next_rand_value -= 1;
         if self.ticks_left_to_next_rand_value == 0 {
@@ -93,13 +97,12 @@ mod tests {
         let rand_value = rand_values_store.last_rand_value();
 
         for _ in 0 .. (5 * 50) {
-            assert!(rand_values_store.check_rand_value(&rand_value));
-            assert!(!rand_values_store.check_rand_value(&rand_value0));
+            assert!(rand_values_store.contains(&rand_value));
+            assert!(!rand_values_store.contains(&rand_value0));
             rand_values_store.time_tick(&rng);
         }
 
-        assert!(!rand_values_store.check_rand_value(&rand_value));
-        assert!(!rand_values_store.check_rand_value(&rand_value0));
-
+        assert!(!rand_values_store.contains(&rand_value));
+        assert!(!rand_values_store.contains(&rand_value0));
     }
 }
