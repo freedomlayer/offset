@@ -17,6 +17,17 @@ impl RandValue {
     }
 
     #[inline]
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ()> {
+        if bytes.len() != RAND_VALUE_LEN {
+            Err(())
+        } else {
+            let mut rand_value_bytes = [0; RAND_VALUE_LEN];
+            rand_value_bytes.clone_from_slice(&bytes[..RAND_VALUE_LEN]);
+            Ok(RandValue(rand_value_bytes))
+        }
+    }
+
+    #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         self.as_ref()
     }

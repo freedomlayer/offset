@@ -41,6 +41,13 @@ impl AsRef<[u8]> for PublicKey {
 // for size larger than 32.
 pub struct Signature([u8; SIGNATURE_LEN]);
 
+impl Signature {
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        self.as_ref()
+    }
+}
+
 impl AsRef<[u8]> for Signature {
     #[inline]
     fn as_ref(&self) -> &[u8] {
@@ -71,7 +78,7 @@ impl PartialEq for Signature {
 /// A generic interface for signing and verifying messages.
 pub trait Identity {
     /// Verify a signature of a given message
-    // fn verify_signature(&self, message: &[u8], 
+    // fn verify_signature(&self, message: &[u8],
     //                     public_key: &PublicKey, signature: &Signature) -> bool;
     /// Create a signature for a given message using private key.
     fn sign_message(&self, message: &[u8]) -> Signature;

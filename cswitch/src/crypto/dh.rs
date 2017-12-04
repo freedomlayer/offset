@@ -18,21 +18,45 @@ const SHARED_SECRET_LEN: usize = 32;
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Salt([u8; SALT_LEN]);
 
-struct DhPublicKey([u8; DH_PUBLIC_KEY_LEN]);
-
 impl Salt {
     pub fn new<R: SecureRandom>(crypt_rng: &R) -> Self {
         let mut inner_salt = [0_u8; SALT_LEN];
         crypt_rng.fill(&mut inner_salt);
         Salt(inner_salt)
     }
+
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        self.as_ref()
+    }
 }
 
+impl AsRef<[u8]> for Salt {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
 
-struct DhPrivateKey {
+pub struct DhPublicKey([u8; DH_PUBLIC_KEY_LEN]);
+
+impl DhPublicKey {
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        self.as_ref()
+    }
+}
+
+impl AsRef<[u8]> for DhPublicKey {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+pub struct DhPrivateKey {
     dh_private_key: EphemeralPrivateKey,
 }
-
 
 impl DhPrivateKey {
     /// Create a new ephemeral private key
@@ -64,12 +88,12 @@ impl DhPrivateKey {
 
         // Force a copy of our private key, so that we can use it more than once.
         // This is a hack due to current limitation of the *ring* crypto library.
-        let dh_private_key: EphemeralPrivateKey = 
+        let dh_private_key: EphemeralPrivateKey =
             unsafe { mem::transmute_copy(&self.dh_private_key) };
 
         // Perform diffie hellman:
-        let key_material_res = agreement::agree_ephemeral(dh_private_key, 
-                    &agreement::X25519, u_public_key, 
+        let key_material_res = agreement::agree_ephemeral(dh_private_key,
+                    &agreement::X25519, u_public_key,
                     ring::error::Unspecified ,|key_material| {
                         assert_eq!(key_material.len(), SHARED_SECRET_LEN);
                         let mut shared_secret_array = [0; SHARED_SECRET_LEN];
@@ -81,7 +105,7 @@ impl DhPrivateKey {
             Ok(key_material) => key_material,
             _ => unreachable!(),
         };
-        
+
         // Add the salt to the raw_secret using hkdf:
         let skey_salt = SigningKey::new(&ring::digest::SHA512_256, &salt.0);
         let info: [u8; 0] = [];
@@ -90,7 +114,6 @@ impl DhPrivateKey {
         SymmetricKey(out)
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -118,7 +141,7 @@ mod tests {
         // Same salt for both sides:
         let salt = Salt::new(&rng);
 
-        // Each side derives the symmetric key from the remote's public key 
+        // Each side derives the symmetric key from the remote's public key
         // and the salt:
         let symmetric_key1 = dh_private_key1.derive_symmetric_key(
             &public_key2, &salt);
