@@ -15,6 +15,11 @@ impl RandValue {
         crypt_rng.fill(&mut rand_value.0);
         rand_value
     }
+
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        self.as_ref()
+    }
 }
 
 impl AsRef<[u8]> for RandValue {
@@ -34,7 +39,6 @@ pub struct RandValuesStore {
     rand_value_ticks: usize,
 }
 
-
 impl RandValuesStore {
     pub fn new<R: SecureRandom>(crypt_rng: &R, rand_value_ticks: usize, num_rand_values: usize) -> Self {
         let rand_values = (0 .. num_rand_values).map(|_| RandValue::new(crypt_rng))
@@ -52,6 +56,7 @@ impl RandValuesStore {
     }
 
     /// Check if we have a given rand_value.
+    #[inline]
     pub fn contains(&self, x: &RandValue) -> bool {
         self.rand_values.contains(x)
     }
@@ -72,6 +77,7 @@ impl RandValuesStore {
     }
 
     /// Get the last random value that was generated.
+    #[inline]
     pub fn last_rand_value(&self) -> RandValue {
         match self.rand_values.back() {
             None => unreachable!(),
@@ -79,7 +85,6 @@ impl RandValuesStore {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {

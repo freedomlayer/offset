@@ -11,6 +11,24 @@ const SIGNATURE_LEN:  usize = 64;
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct PublicKey([u8; PUBLIC_KEY_LEN]);
 
+impl PublicKey {
+    // TODO: Migrate to try_from as soon as it stable
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ()> {
+        if bytes.len() != PUBLIC_KEY_LEN {
+            Err(())
+        } else {
+            let mut public_key_bytes = [0; PUBLIC_KEY_LEN];
+            public_key_bytes.clone_from_slice(bytes);
+            Ok(PublicKey(public_key_bytes))
+        }
+    }
+
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        self.as_ref()
+    }
+}
+
 impl AsRef<[u8]> for PublicKey {
     #[inline]
     fn as_ref(&self) -> &[u8] {
