@@ -5,8 +5,10 @@
 
 #[macro_use]
 extern crate log;
+extern crate bytes;
 extern crate capnp;
 extern crate futures;
+extern crate byteorder;
 
 mod crypto;
 
