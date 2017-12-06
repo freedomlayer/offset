@@ -42,6 +42,16 @@ impl AsRef<[u8]> for PublicKey {
 pub struct Signature([u8; SIGNATURE_LEN]);
 
 impl Signature {
+    // TODO: Migrate to try_from as soon as it stable
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ()> {
+        if bytes.len() != SIGNATURE_LEN {
+            Err(())
+        } else {
+            let mut salt_bytes = [0; SIGNATURE_LEN];
+            salt_bytes.clone_from_slice(bytes);
+            Ok(Signature(salt_bytes))
+        }
+    }
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         self.as_ref()

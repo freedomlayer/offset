@@ -25,6 +25,17 @@ impl Salt {
         Salt(inner_salt)
     }
 
+    // TODO: Migrate to try_from as soon as it stable
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ()> {
+        if bytes.len() != SALT_LEN {
+            Err(())
+        } else {
+            let mut salt_bytes = [0; SALT_LEN];
+            salt_bytes.clone_from_slice(bytes);
+            Ok(Salt(salt_bytes))
+        }
+    }
+
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         self.as_ref()
@@ -41,6 +52,17 @@ impl AsRef<[u8]> for Salt {
 pub struct DhPublicKey([u8; DH_PUBLIC_KEY_LEN]);
 
 impl DhPublicKey {
+    // TODO: Migrate to try_from as soon as it stable
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ()> {
+        if bytes.len() != DH_PUBLIC_KEY_LEN {
+            Err(())
+        } else {
+            let mut dh_public_key_bytes = [0; DH_PUBLIC_KEY_LEN];
+            dh_public_key_bytes.clone_from_slice(bytes);
+            Ok(DhPublicKey(dh_public_key_bytes))
+        }
+    }
+
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         self.as_ref()
