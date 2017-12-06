@@ -1,34 +1,26 @@
-#![deny(warnings)]
-
 extern crate tokio_core;
 extern crate tokio_io;
 extern crate rand;
-extern crate byteorder;
 
 use std::io;
 use std::mem;
 use std::net::SocketAddr;
 
-use std::io::BufRead;
-
 use capnp::serialize_packed;
-use futures::sync::mpsc;
 use futures::stream::{SplitSink, SplitStream};
 use futures::{Async, Future, Poll, IntoFuture, Stream, Sink, AsyncSink};
 
-use self::byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 use self::tokio_core::net::{TcpStream, TcpStreamNew};
 use self::tokio_core::reactor::Handle;
 use self::tokio_io::codec::Framed;
 use self::tokio_io::AsyncRead;
 
-use ::inner_messages::ChannelerAddress;
+// use ::inner_messages::ChannelerAddress;
 use ::crypto::rand_values::RandValue;
 use ::crypto::identity::{PublicKey, Signature};
 use ::crypto::symmetric_enc::SymmetricKey;
 use ::crypto::dh::{DhPrivateKey, DhPublicKey, Salt};
-use ::crypto::identity::{SoftwareEd25519Identity, Identity};
-use ::schema::channeler_capnp::{init_channel, custom_u_int256, exchange};
+use ::schema::channeler_capnp::{init_channel, exchange};
 use ::security_module::security_module_client::{SecurityModuleClient,
                                                 SecurityModuleClientError};
 
@@ -39,7 +31,7 @@ use bytes::{Bytes, BytesMut};
 use schema::{read_custom_u_int128, write_custom_u_int128,
              read_custom_u_int256, write_custom_u_int256};
 
-use super::ToChannel;
+//use super::ToChannel;
 use super::prefix_frame_codec::{PrefixFrameCodec, PrefixFrameCodecError};
 
 pub enum ChannelError {
@@ -89,10 +81,6 @@ pub struct Channel {
 pub struct ChannelNew {
     state: ChannelNewState,
 
-    /// The parts we sent
-    neighbor_public_key: PublicKey,
-    channel_rand_value: Option<RandValue>,
-
     // The parts we received
     received_public_key:   Option<PublicKey>,
     received_rand_value:   Option<RandValue>,
@@ -111,31 +99,39 @@ pub struct ChannelNew {
 }
 
 enum ChannelNewState {
-    Initializing(TcpStreamNew),
+    // Connecting to the given address
+    Connecting(TcpStreamNew),
 
+    // Waiting public key from SecurityModuleClient
+    WaitingPublicKey(Box<Future<Item=PublicKey, Error=SecurityModuleClientError>>),
+
+    // Trying to send serialized InitChannel message
     SendingInit(Option<Vec<u8>>),
+
+    // Waiting the InitChannel message from neighbor
     WaitingInit,
 
+    // Waiting signature from SecurityModuleClient
     WaitingSignature(Box<Future<Item=Signature, Error=SecurityModuleClientError>>),
 
+    // Trying to send serialized Exchange message
     SendingExchange(Option<Vec<u8>>),
+
+    // Waiting the Exchange message from neighbor
     WaitingExchange,
 
+    // The handshake finished, we need this state for the limitation of lifetime module
     Finished(SymmetricKey),
-
-    Error(io::Error),
     Empty,
 }
 
 impl Channel {
     /// Create a new channel connected to the specified neighbor.
-    pub fn connect(handle: &Handle, addr: &SocketAddr, public_key:
-    &PublicKey, security_module_client: &SecurityModuleClient) -> ChannelNew {
+    pub fn connect(handle: &Handle, addr: &SocketAddr, security_module_client: &SecurityModuleClient) -> ChannelNew {
         ChannelNew {
-            state: ChannelNewState::Initializing(TcpStream::connect(addr, handle)),
-            neighbor_public_key: public_key.clone(),
+            state: ChannelNewState::Connecting(TcpStream::connect(addr, handle)),
             security_module_client: security_module_client.clone(),
-            rng: DummyRandom::new(&[1, 2, 3, 4, 5, 6]),
+            rng: DummyRandom::new(&[1, 2, 3, 4, 5, 6]), // FIXME:
             sender:   None,
             receiver: None,
             received_public_key:   None,
@@ -143,17 +139,29 @@ impl Channel {
             ephemeral_private_key: None,
             key_salt:   None,
             public_key: None,
-            channel_rand_value: None,
         }
     }
 
     // Create a new channel from a incoming socket.
-//    pub fn from_socket(handle: &Handle, addr: &SocketAddr) -> ChannelNew {
-//
-//    }
-}
+    pub fn from_socket(handle: &Handle, socket: TcpStream, security_module_client: &SecurityModuleClient) -> ChannelNew {
+        let (sender, receiver) = socket.framed(PrefixFrameCodec::new()).split();
 
-impl ChannelNew {}
+        let public_key_fut = security_module_client.request_public_key();
+
+        ChannelNew {
+            state: ChannelNewState::WaitingPublicKey(Box::new(public_key_fut)),
+            security_module_client: security_module_client.clone(),
+            rng: DummyRandom::new(&[1, 2, 3, 4, 5, 6]), // FIXME:
+            sender:   Some(sender),
+            receiver: Some(receiver),
+            received_public_key:   None,
+            received_rand_value:   None,
+            ephemeral_private_key: None,
+            key_salt:   None,
+            public_key: None,
+        }
+    }
+}
 
 impl Future for ChannelNew {
     type Item = Channel;
@@ -161,29 +169,43 @@ impl Future for ChannelNew {
 
     fn poll(&mut self) -> Poll<Channel, ChannelError> {
         match mem::replace(&mut self.state, ChannelNewState::Empty) {
-            ChannelNewState::Initializing(mut stream_new) => {
+            ChannelNewState::Connecting(mut stream_new) => {
                 match stream_new.poll()? {
                     Async::Ready(tcp_stream) => {
-                        // Generate sender and receiver from TcpStream
                         let (sender, receiver) = tcp_stream.framed(PrefixFrameCodec::new()).split();
                         self.sender   = Some(sender);
                         self.receiver = Some(receiver);
 
+                        let public_key_fut = self.security_module_client.request_public_key();
+
+                        mem::replace(&mut self.state, ChannelNewState::WaitingPublicKey(Box::new(public_key_fut)));
+                    }
+                    Async::NotReady => {
+                        mem::replace(&mut self.state, ChannelNewState::Connecting(stream_new));
+                    }
+                }
+                Ok(Async::NotReady)
+            }
+            ChannelNewState::WaitingPublicKey(mut boxed_public_key_fut) => {
+                match boxed_public_key_fut.poll()? {
+                    Async::Ready(public_key) => {
                         let mut message = ::capnp::message::Builder::new_default();
                         // Create InitChannel message
                         {
                             let mut init_channel = message.init_root::<init_channel::Builder>();
                             // Set neighborPublicKey
                             {
-                                let mut pub_key   = init_channel.borrow().init_neighbor_public_key();
-                                let pub_key_bytes = Bytes::from(self.neighbor_public_key.as_bytes());
+                                let mut neighbor_public_key =
+                                    init_channel.borrow().init_neighbor_public_key();
+                                let public_key_bytes = Bytes::from(public_key.as_bytes());
 
-                                write_custom_u_int256(&mut pub_key, &pub_key_bytes)?;
+                                write_custom_u_int256(&mut neighbor_public_key, &public_key_bytes)?;
                             }
                             // Set channelRandValue
                             {
-                                let mut channel_rand_value = init_channel.borrow().init_channel_rand_value();
-                                let rand_value       = RandValue::new(&self.rng);
+                                let mut channel_rand_value =
+                                    init_channel.borrow().init_channel_rand_value();
+                                let rand_value = RandValue::new(&self.rng);
                                 let rand_value_bytes = Bytes::from(rand_value.as_bytes());
 
                                 write_custom_u_int128(&mut channel_rand_value, &rand_value_bytes)?;
@@ -198,7 +220,7 @@ impl Future for ChannelNew {
                         mem::replace(&mut self.state, ChannelNewState::SendingInit(Some(serialized_msg)));
                     }
                     Async::NotReady => {
-                        mem::replace(&mut self.state, ChannelNewState::Initializing(stream_new));
+                        mem::replace(&mut self.state, ChannelNewState::WaitingPublicKey(boxed_public_key_fut));
                     }
                 }
                 Ok(Async::NotReady)
@@ -348,23 +370,19 @@ impl Future for ChannelNew {
                         if let Some(msg) = serialize_msg {
                             match sender.start_send(msg)? {
                                 AsyncSink::Ready => {
-                                    mem::replace(&mut self.state,
-                                                 ChannelNewState::SendingExchange(None));
+                                    mem::replace(&mut self.state, ChannelNewState::SendingExchange(None));
                                 }
                                 AsyncSink::NotReady(msg) => {
-                                    mem::replace(&mut self.state,
-                                                 ChannelNewState::SendingExchange(Some(msg)));
+                                    mem::replace(&mut self.state, ChannelNewState::SendingExchange(Some(msg)));
                                 }
                             }
                         } else {
                             match sender.poll_complete()? {
                                 Async::NotReady => {
-                                    mem::replace(&mut self.state,
-                                                 ChannelNewState::SendingExchange(None));
+                                    mem::replace(&mut self.state, ChannelNewState::SendingExchange(None));
                                 }
                                 Async::Ready(_) => {
-                                    mem::replace(&mut self.state,
-                                                 ChannelNewState::WaitingExchange);
+                                    mem::replace(&mut self.state, ChannelNewState::WaitingExchange);
                                 }
                             }
                         }
@@ -442,12 +460,12 @@ impl Future for ChannelNew {
                     receiver: mem::replace(&mut self.receiver, None).unwrap(),
                 }))
             }
-            ChannelNewState::Error(e) => Err(e.into()),
             ChannelNewState::Empty => unreachable!("can't poll twice"),
         }
     }
 }
 
+#[allow(unused)]
 pub fn create_channel(handle: &Handle, socket_addr: SocketAddr, neighbor_public_key: &PublicKey)
                       -> impl Future<Item=(), Error=ChannelError> {
 //
@@ -484,4 +502,12 @@ pub fn create_channel(handle: &Handle, socket_addr: SocketAddr, neighbor_public_
 //        // TODO: Binary deserializtion of Channeler to Channeler messages.
 //
     Ok(()).into_future()
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_channel_connect() {
+        // TODO
+    }
 }
