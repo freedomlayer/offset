@@ -10,15 +10,15 @@ extern crate capnp;
 extern crate futures;
 extern crate byteorder;
 
-mod crypto;
+pub mod crypto;
 
 mod inner_messages;
 mod networker_state_machine;
 // mod prefix_frame_codec;
 
 mod close_handle;
-mod security_module;
-mod channeler;
+pub mod security_module;
+pub mod channeler;
 
 mod async_mutex;
 mod service_client;

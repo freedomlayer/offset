@@ -1,6 +1,6 @@
 mod prefix_frame_codec;
 mod timer_reader;
-mod channel;
+pub mod channel;
 
 // extern crate rand;
 extern crate tokio_core;

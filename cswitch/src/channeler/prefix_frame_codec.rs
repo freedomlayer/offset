@@ -33,7 +33,7 @@ pub struct PrefixFrameCodec {
     state: PrefixFrameCodecState,
 }
 
-
+#[derive(Debug)]
 pub enum PrefixFrameCodecError {
     SerializeLengthError(io::Error),
     DeserializeLengthError(io::Error),

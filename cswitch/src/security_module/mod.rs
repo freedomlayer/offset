@@ -1,20 +1,15 @@
-pub mod security_module_client;
-
-extern crate futures;
-
 use std::mem;
 
-use self::futures::{Future, Stream, Poll, Async, AsyncSink};
-use self::futures::future::{ok, loop_fn};
-use self::futures::sink::Sink;
-use self::futures::sync::mpsc;
-use self::futures::sync::oneshot;
+use futures::sink::Sink;
+use futures::sync::{mpsc, oneshot};
+use futures::{Future, Stream, Poll, Async, AsyncSink};
 
+use crypto::identity::{Identity, verify_signature};
+use close_handle::{CloseHandle, create_close_handle};
+use inner_messages::{ToSecurityModule, FromSecurityModule};
+
+pub mod security_module_client;
 use self::security_module_client::SecurityModuleClient;
-
-use ::inner_messages::{ToSecurityModule, FromSecurityModule};
-use ::crypto::identity::{Identity, verify_signature};
-use ::close_handle::{CloseHandle, create_close_handle};
 
 // TODO: Possibly Make this structure of service future more generic.  
 // Separate process_request from the rest of the code, 
@@ -36,8 +31,7 @@ enum SecurityModuleState {
     Closed,
 }
 
-
-struct SecurityModule<I> {
+pub struct SecurityModule<I> {
     identity: I,
     close_receiver: oneshot::Receiver<()>,
     close_sender_opt: Option<oneshot::Sender<()>>,
@@ -47,7 +41,7 @@ struct SecurityModule<I> {
 
 /// Create a new security module, together with a close handle to be used after the security module
 /// future instance was consumed.
-fn create_security_module<I: Identity>(identity: I) -> (CloseHandle, SecurityModule<I>) {
+pub fn create_security_module<I: Identity>(identity: I) -> (CloseHandle, SecurityModule<I>) {
     let (close_handle, (close_sender, close_receiver)) = create_close_handle();
     let security_module = SecurityModule::new(identity, close_sender, close_receiver);
     (close_handle, security_module)
@@ -68,7 +62,7 @@ impl<I: Identity> SecurityModule<I> {
 
     /// Create a new client for the security module.
     /// A client may be used by multiple futures in the same thread.
-    fn new_client(&mut self) -> SecurityModuleClient {
+    pub fn new_client(&mut self) -> SecurityModuleClient {
         let (sm_sender, client_receiver) = mpsc::channel(0);
         let (client_sender, sm_receiver) = mpsc::channel(0);
 
@@ -135,7 +129,7 @@ impl<I: Identity> SecurityModule<I> {
     }
 }
 
-enum SecurityModuleError {
+pub enum SecurityModuleError {
     SenderError(mpsc::SendError<FromSecurityModule>),
     CloseReceiverCanceled,
     ErrorClosingSender,
