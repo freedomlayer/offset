@@ -1,11 +1,10 @@
-extern crate futures;
 extern crate tokio_core;
 
 use std::collections::HashMap;
 
-use self::futures::{Future, Stream, Sink};
-use self::futures::sync::mpsc;
-use self::futures::future::join_all;
+use futures::{Future, Stream, Sink};
+use futures::sync::mpsc;
+use futures::future::join_all;
 use self::tokio_core::reactor::Handle;
 
 use std::cell::RefCell;

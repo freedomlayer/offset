@@ -2,12 +2,10 @@ mod prefix_frame_codec;
 mod timer_reader;
 mod channel;
 
-extern crate futures;
 // extern crate rand;
 extern crate tokio_core;
 extern crate tokio_io;
 extern crate ring;
-
 
 use std::borrow::Borrow;
 use std::collections::{HashMap};
@@ -17,10 +15,10 @@ use std::rc::Rc;
 
 // use self::rand::Rng;
 
-use self::futures::{Stream, Poll, Async, AsyncSink, StartSend};
-use self::futures::future::{Future, loop_fn, Loop, LoopFn};
-use self::futures::sync::mpsc;
-use self::futures::sync::oneshot;
+use futures::{Stream, Poll, Async, AsyncSink, StartSend};
+use futures::future::{Future, loop_fn, Loop, LoopFn};
+use futures::sync::{mpsc, oneshot};
+
 use self::tokio_core::reactor::Handle;
 use self::tokio_io::AsyncRead;
 use self::ring::rand::SecureRandom;
@@ -153,8 +151,8 @@ fn create_channeler_future<R: SecureRandom + 'static>(handle: &Handle,
             // TODO: 
             // - Send close requests to all tasks here?
             // - Wait for everyone to close.
-            
-            // - Notify close hande that we finished closing:
+
+            // - Notify close handle that we finished closing:
 
             match close_sender.send(()) {
                 Ok(()) => Ok(()),

@@ -29,25 +29,25 @@ struct Exchange {
         # symmetric encryption key for this channel.
         keySalt @1: CustomUInt256;
         # A salt for the generation of a shared symmetric encryption key.
-        senderRandValue @2: CustomUInt128;
+        # senderRandValue @2: CustomUInt128;
         # This is the first senderRandValue. It will be used by the remote
         # party to send messages to us on this channel.
-        signature @3: CustomUInt256; 
+        signature @2: CustomUInt256;
         # Signature over (channelRandValue || commPublicKey || keySalt || senderRandValue)
         # Signed using NeighborPublicKey.
 }
 
 # Contents for a keepalive message:
 struct KeepaliveContent {
-        recentRecipientRandValue @0: CustomUInt128;
-        senderRandValue @1: CustomUInt128;
+        # serialNumber @0: Uint64;
+        # recentRecipientRandValue @0: CustomUInt128;
+        # senderRandValue @1: CustomUInt128;
 }
 
 # This is the structure of the encrypted_content of EncMessage:
 struct PlainContent {
-        recentRecipientRandValue @0: CustomUInt128;
-        senderRandValue @1: CustomUInt128;
-        messageContent @2: Data;
+        serialNumber @0: UInt64;
+        messageContent @1: Data;
 }
 
 struct EncMessage {
