@@ -47,9 +47,9 @@ impl Signature {
         if bytes.len() != SIGNATURE_LEN {
             Err(())
         } else {
-            let mut salt_bytes = [0; SIGNATURE_LEN];
-            salt_bytes.clone_from_slice(bytes);
-            Ok(Signature(salt_bytes))
+            let mut signature_bytes = [0; SIGNATURE_LEN];
+            signature_bytes.clone_from_slice(bytes);
+            Ok(Signature(signature_bytes))
         }
     }
     #[inline]
