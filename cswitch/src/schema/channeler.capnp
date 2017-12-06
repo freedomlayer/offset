@@ -14,6 +14,17 @@ struct CustomUInt256 {
         x3 @3: UInt64;
 }
 
+struct CustomUInt512 {
+        x0 @0: UInt64;
+        x1 @1: UInt64;
+        x2 @2: UInt64;
+        x3 @3: UInt64;
+        x4 @4: UInt64;
+        x5 @5: UInt64;
+        x6 @6: UInt64;
+        x7 @7: UInt64;
+}
+
 struct InitChannel {
         neighborPublicKey @0: CustomUInt256;
         # The identity public key of the sender of this message.
@@ -32,7 +43,7 @@ struct Exchange {
         # senderRandValue @2: CustomUInt128;
         # This is the first senderRandValue. It will be used by the remote
         # party to send messages to us on this channel.
-        signature @2: CustomUInt256;
+        signature @2: CustomUInt512;
         # Signature over (channelRandValue || commPublicKey || keySalt || senderRandValue)
         # Signed using NeighborPublicKey.
 }
