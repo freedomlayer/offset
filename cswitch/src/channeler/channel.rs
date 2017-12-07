@@ -42,6 +42,7 @@ pub enum ChannelError {
     SecurityModule(SecurityModuleClientError),
     PublicKeyNotMatch,
     InvalidSignature,
+    Closed,
 }
 
 impl From<io::Error> for ChannelError {
@@ -455,69 +456,77 @@ impl Future for ChannelNew {
                 let need_poll = match self.receiver {
                     None => unreachable!(),
                     Some(ref mut receiver) => {
-                        if let Async::Ready(Some(buf)) = receiver.poll()? {
-                            trace!("ChannelNewState::WaitingExchange [Ready]");
-                            // Read Exchange message
-                            let mut public_key_bytes = BytesMut::with_capacity(32);
-                            let mut key_salt_bytes   = BytesMut::with_capacity(32);
-                            let mut signature_bytes  = BytesMut::with_capacity(64);
+                        match receiver.poll()? {
+                            Async::Ready(buf) => {
+                                if let Some(buf) = buf {
+                                    trace!("ChannelNewState::WaitingExchange [Ready]");
+                                    // Read Exchange message
+                                    let mut public_key_bytes = BytesMut::with_capacity(32);
+                                    let mut key_salt_bytes   = BytesMut::with_capacity(32);
+                                    let mut signature_bytes  = BytesMut::with_capacity(64);
 
-                            {
-                                let mut buffer = io::Cursor::new(buf);
-                                let message_rdr = serialize_packed::read_message(&mut buffer,::capnp::message::ReaderOptions::new())?;
+                                    {
+                                        let mut buffer = io::Cursor::new(buf);
+                                        let message_rdr = serialize_packed::read_message(&mut buffer,::capnp::message::ReaderOptions::new())?;
 
-                                let ex = message_rdr.get_root::<exchange::Reader>()?;
-                                // Read commPublicKey
-                                {
-                                    let public_key = ex.get_comm_public_key()?;
-                                    read_custom_u_int256(&mut public_key_bytes, &public_key)?;
-                                }
-                                // Read keySalt
-                                {
-                                    let key_salt = ex.get_key_salt()?;
-                                    read_custom_u_int256(&mut key_salt_bytes, &key_salt)?;
-                                }
-                                // Read signature
-                                {
-                                    let signature = ex.get_signature()?;
-                                    read_custom_u_int512(&mut signature_bytes, &signature)?;
+                                        let ex = message_rdr.get_root::<exchange::Reader>()?;
+                                        // Read commPublicKey
+                                        {
+                                            let public_key = ex.get_comm_public_key()?;
+                                            read_custom_u_int256(&mut public_key_bytes, &public_key)?;
+                                        }
+                                        // Read keySalt
+                                        {
+                                            let key_salt = ex.get_key_salt()?;
+                                            read_custom_u_int256(&mut key_salt_bytes, &key_salt)?;
+                                        }
+                                        // Read signature
+                                        {
+                                            let signature = ex.get_signature()?;
+                                            read_custom_u_int512(&mut signature_bytes, &signature)?;
+                                        }
+                                    }
+
+                                    let public_key = DhPublicKey::from_bytes(public_key_bytes.as_ref()).unwrap();
+                                    let key_salt   = Salt::from_bytes(key_salt_bytes.as_ref()).unwrap();
+                                    let signature  = Signature::from_bytes(signature_bytes.as_ref()).unwrap();
+
+                                    let channel_rand_value = match self.sent_rand_value {
+                                        None => unreachable!(),
+                                        Some(ref rand_value) => rand_value,
+                                    };
+
+                                    let mut message = Vec::new();
+                                    message.extend_from_slice(channel_rand_value.as_bytes());
+                                    message.extend_from_slice(public_key.as_bytes());
+                                    message.extend_from_slice(key_salt.as_bytes());
+
+                                    // Verify this message was signed by the neighbor with its private key
+                                    let neighbor_public_key = match self.neighbor_public_key {
+                                        None => unreachable!(),
+                                        Some(ref key) => key,
+                                    };
+
+                                    if ::crypto::identity::verify_signature(&message, neighbor_public_key, &signature) {
+                                        let ephemeral_private_key = mem::replace(&mut self.dh_private_key, None).unwrap();
+                                        let symmetric_key = ephemeral_private_key.derive_symmetric_key(&public_key, &key_salt);
+
+                                        mem::replace(&mut self.state, ChannelNewState::Finished(symmetric_key));
+                                        true // need poll
+                                    } else {
+                                        error!("invalid signature");
+                                        return Err(ChannelError::InvalidSignature)
+                                    }
+                                } else {
+                                    trace!("remote drop connection");
+                                    return Err(ChannelError::Closed)
                                 }
                             }
-
-                            let public_key = DhPublicKey::from_bytes(public_key_bytes.as_ref()).unwrap();
-                            let key_salt   = Salt::from_bytes(key_salt_bytes.as_ref()).unwrap();
-                            let signature  = Signature::from_bytes(signature_bytes.as_ref()).unwrap();
-
-                            let channel_rand_value = match self.sent_rand_value {
-                                None => unreachable!(),
-                                Some(ref rand_value) => rand_value,
-                            };
-
-                            let mut message = Vec::new();
-                            message.extend_from_slice(channel_rand_value.as_bytes());
-                            message.extend_from_slice(public_key.as_bytes());
-                            message.extend_from_slice(key_salt.as_bytes());
-
-                            // Verify this message was signed by the neighbor with its private key
-                            let neighbor_public_key = match self.neighbor_public_key {
-                                None => unreachable!(),
-                                Some(ref key) => key,
-                            };
-
-                            if ::crypto::identity::verify_signature(&message, neighbor_public_key, &signature) {
-                                let ephemeral_private_key = mem::replace(&mut self.dh_private_key, None).unwrap();
-                                let symmetric_key = ephemeral_private_key.derive_symmetric_key(&public_key, &key_salt);
-
-                                mem::replace(&mut self.state, ChannelNewState::Finished(symmetric_key));
-                                true // need poll
-                            } else {
-                                error!("invalid signature");
-                                return Err(ChannelError::InvalidSignature)
+                            Async::NotReady => {
+                                trace!("ChannelNewState::WaitingExchange [NotReady]");
+                                mem::replace(&mut self.state, ChannelNewState::WaitingExchange);
+                                false
                             }
-                        } else {
-                            trace!("ChannelNewState::WaitingExchange [NotReady]");
-                            mem::replace(&mut self.state, ChannelNewState::WaitingExchange);
-                            false
                         }
                     }
                 };
