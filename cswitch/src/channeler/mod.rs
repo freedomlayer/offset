@@ -1,45 +1,37 @@
+//! The Channeler Module.
+
+use std::rc::Rc;
+use std::cell::RefCell;
+use std::borrow::Borrow;
+use std::collections::HashMap;
+
+use futures::sync::{mpsc, oneshot};
+use futures::future::{Future, loop_fn, Loop, LoopFn};
+use futures::{Stream, Poll, Async, AsyncSink, StartSend};
+
+use tokio_core::reactor::Handle;
+
+use ring::rand::SecureRandom;
+
+use crypto::identity::PublicKey;
+use inner_messages::{FromTimer, ChannelerToNetworker, NetworkerToChanneler,
+                     ToSecurityModule, FromSecurityModule,
+                     ChannelerNeighborInfo, ServerType};
+use security_module::security_module_client::SecurityModuleClient;
+use close_handle::{CloseHandle, create_close_handle};
+use crypto::rand_values::{RandValuesStore, RandValue};
+use async_mutex::AsyncMutex;
+
 mod prefix_frame_codec;
 mod timer_reader;
 pub mod channel;
 
-// extern crate rand;
-extern crate tokio_core;
-extern crate tokio_io;
-extern crate ring;
-
-use std::borrow::Borrow;
-use std::collections::{HashMap};
-use std::mem;
-use std::cell::RefCell;
-use std::rc::Rc;
-
-// use self::rand::Rng;
-
-use futures::{Stream, Poll, Async, AsyncSink, StartSend};
-use futures::future::{Future, loop_fn, Loop, LoopFn};
-use futures::sync::{mpsc, oneshot};
-
-use self::tokio_core::reactor::Handle;
-use self::tokio_io::AsyncRead;
-use self::ring::rand::SecureRandom;
-
 use self::timer_reader::timer_reader_future;
 
-use ::crypto::identity::PublicKey;
-use ::inner_messages::{FromTimer, ChannelerToNetworker,
-    NetworkerToChanneler, ToSecurityModule, FromSecurityModule,
-    ChannelerNeighborInfo, ServerType};
-use ::security_module::security_module_client::SecurityModuleClient;
-use ::close_handle::{CloseHandle, create_close_handle};
-use ::crypto::rand_values::{RandValuesStore, RandValue};
-use ::async_mutex::AsyncMutex;
 
-const NUM_RAND_VALUES: usize = 16;
+const NUM_RAND_VALUES: usize  = 16;
 const RAND_VALUE_TICKS: usize = 20;
-
 const KEEP_ALIVE_TICKS: usize = 15;
-
-
 
 enum ChannelerError {
     CloseReceiverCanceled,
@@ -49,7 +41,6 @@ enum ChannelerError {
     TimerClosed, // TODO: We should probably start closing too.
     TimerPollError,
 }
-
 
 pub enum ToChannel {
     TimeTick,

@@ -5,10 +5,12 @@
 
 #[macro_use]
 extern crate log;
+extern crate ring;
 extern crate bytes;
 extern crate capnp;
 extern crate futures;
 extern crate byteorder;
+extern crate tokio_core;
 
 pub mod crypto;
 
