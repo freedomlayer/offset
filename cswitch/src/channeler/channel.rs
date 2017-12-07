@@ -1,5 +1,4 @@
 extern crate tokio_io;
-extern crate rand;
 
 use std::io;
 use std::mem;
@@ -14,6 +13,8 @@ use tokio_core::net::{TcpStream, TcpStreamNew};
 use self::tokio_io::codec::Framed;
 use self::tokio_io::AsyncRead;
 
+use ring::rand::SystemRandom;
+
 // use ::inner_messages::ChannelerAddress;
 use crypto::rand_values::RandValue;
 use crypto::identity::{PublicKey, Signature};
@@ -23,7 +24,6 @@ use schema::channeler_capnp::{init_channel, exchange};
 use security_module::security_module_client::{SecurityModuleClient,
                                               SecurityModuleClientError};
 
-use self::rand::StdRng;
 use ::crypto::test_utils::DummyRandom;
 
 use bytes::{Bytes, BytesMut};
@@ -85,7 +85,7 @@ pub struct ChannelNew {
     state: ChannelNewState,
 
     // Utils used in performing exchange
-    rng:       DummyRandom<StdRng>,
+    rng:       SystemRandom,
     sm_client: SecurityModuleClient,
 
     // The public key of neighbor
@@ -137,7 +137,7 @@ impl Channel {
                    sm_client: &SecurityModuleClient) -> ChannelNew {
         ChannelNew {
             state:     ChannelNewState::Connecting(TcpStream::connect(addr, handle)),
-            rng:       DummyRandom::new(&[1, 2, 3, 4, 5, 6]), // FIXME:
+            rng:       SystemRandom::new(),
             sm_client: sm_client.clone(),
 
             neighbor_public_key: Some(neighbor_public_key.clone()),
@@ -159,7 +159,7 @@ impl Channel {
 
         ChannelNew {
             state:     ChannelNewState::WaitingPublicKey(Box::new(public_key_fut)),
-            rng:       DummyRandom::new(&[1, 2, 3, 4, 5, 6]), // FIXME:
+            rng:       SystemRandom::new(),
             sm_client: sm_client.clone(),
 
             neighbor_public_key: None,
@@ -496,6 +496,7 @@ impl Future for ChannelNew {
                                         Some(ref rand_value) => rand_value,
                                     };
 
+                                    // message = (channelRandValue + commPublicKey + keySalt)
                                     let mut message = Vec::new();
                                     message.extend_from_slice(channel_rand_value.as_bytes());
                                     message.extend_from_slice(public_key.as_bytes());
@@ -507,9 +508,21 @@ impl Future for ChannelNew {
                                         Some(ref key) => key,
                                     };
 
+                                    // Calculate the actually salt
+                                    let key_salt = match self.dh_key_salt {
+                                        None => unreachable!(),
+                                        Some(ref salt) => {
+                                            let a = salt.as_bytes().iter()
+                                                .enumerate().map(|(idx, x)| {
+                                                    x ^ key_salt.as_bytes()[idx]
+                                                }).collect::<Vec<_>>();
+                                            Salt::from_bytes(&a).unwrap()
+                                        }
+                                    };
+
                                     if ::crypto::identity::verify_signature(&message, neighbor_public_key, &signature) {
-                                        let ephemeral_private_key = mem::replace(&mut self.dh_private_key, None).unwrap();
-                                        let symmetric_key = ephemeral_private_key.derive_symmetric_key(&public_key, &key_salt);
+                                        let dh_private_key = mem::replace(&mut self.dh_private_key, None).unwrap();
+                                        let symmetric_key = dh_private_key.derive_symmetric_key(&public_key, &key_salt);
 
                                         mem::replace(&mut self.state, ChannelNewState::Finished(symmetric_key));
                                         true // need poll
