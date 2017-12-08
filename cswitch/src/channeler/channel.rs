@@ -78,7 +78,8 @@ pub struct Channel {
     pub sender:   SplitSink<Framed<TcpStream, PrefixFrameCodec>>,
     pub receiver: SplitStream<Framed<TcpStream, PrefixFrameCodec>>,
 
-    pub symmetric_key: SymmetricKey,
+    pub key_recv: SymmetricKey,
+    pub key_send: SymmetricKey,
 }
 
 pub struct ChannelNew {
@@ -126,7 +127,7 @@ enum ChannelNewState {
     WaitingExchange,
 
     // The handshake finished, we need this state for the limitation of lifetime module
-    Finished(SymmetricKey),
+    Finished((SymmetricKey, SymmetricKey)),
     Empty,
 }
 
@@ -488,7 +489,7 @@ impl Future for ChannelNew {
                                     }
 
                                     let public_key = DhPublicKey::from_bytes(public_key_bytes.as_ref()).unwrap();
-                                    let key_salt   = Salt::from_bytes(key_salt_bytes.as_ref()).unwrap();
+                                    let recv_key_salt   = Salt::from_bytes(key_salt_bytes.as_ref()).unwrap();
                                     let signature  = Signature::from_bytes(signature_bytes.as_ref()).unwrap();
 
                                     let channel_rand_value = match self.sent_rand_value {
@@ -500,7 +501,7 @@ impl Future for ChannelNew {
                                     let mut message = Vec::new();
                                     message.extend_from_slice(channel_rand_value.as_bytes());
                                     message.extend_from_slice(public_key.as_bytes());
-                                    message.extend_from_slice(key_salt.as_bytes());
+                                    message.extend_from_slice(recv_key_salt.as_bytes());
 
                                     // Verify this message was signed by the neighbor with its private key
                                     let neighbor_public_key = match self.neighbor_public_key {
@@ -508,23 +509,19 @@ impl Future for ChannelNew {
                                         Some(ref key) => key,
                                     };
 
-                                    // Calculate the actually salt
-                                    let key_salt = match self.dh_key_salt {
+                                    let sent_key_salt = match self.dh_key_salt {
                                         None => unreachable!(),
-                                        Some(ref salt) => {
-                                            let a = salt.as_bytes().iter()
-                                                .enumerate().map(|(idx, x)| {
-                                                    x ^ key_salt.as_bytes()[idx]
-                                                }).collect::<Vec<_>>();
-                                            Salt::from_bytes(&a).unwrap()
-                                        }
+                                        Some(ref salt) => salt,
                                     };
 
                                     if ::crypto::identity::verify_signature(&message, neighbor_public_key, &signature) {
                                         let dh_private_key = mem::replace(&mut self.dh_private_key, None).unwrap();
-                                        let symmetric_key = dh_private_key.derive_symmetric_key(&public_key, &key_salt);
+                                        // received public key + sent key salt -> symmetric key for sending data
+                                        let key_send = dh_private_key.derive_symmetric_key(&public_key, &sent_key_salt);
+                                        // received public key + received key salt -> symmetric key for receiving data
+                                        let key_recv = dh_private_key.derive_symmetric_key(&public_key, &recv_key_salt);
 
-                                        mem::replace(&mut self.state, ChannelNewState::Finished(symmetric_key));
+                                        mem::replace(&mut self.state, ChannelNewState::Finished((key_send, key_recv)));
                                         true // need poll
                                     } else {
                                         error!("invalid signature");
@@ -550,10 +547,11 @@ impl Future for ChannelNew {
                     Ok(Async::NotReady)
                 }
             }
-            ChannelNewState::Finished(key) => {
+            ChannelNewState::Finished((key_send, key_recv)) => {
                 trace!("ChannelNewState::Finished");
                 Ok(Async::Ready(Channel {
-                    symmetric_key: key,
+                    key_send: key_send,
+                    key_recv: key_recv,
                     sender: mem::replace(&mut self.sender, None).unwrap(),
                     receiver: mem::replace(&mut self.receiver, None).unwrap(),
                 }))
