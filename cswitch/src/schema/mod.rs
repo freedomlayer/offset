@@ -14,12 +14,12 @@ use channeler_capnp::{custom_u_int128, custom_u_int256, custom_u_int512};
 ///
 /// This function panics if there is not enough remaining data in `src`.
 #[inline]
-pub fn write_custom_u_int128(dest: &mut custom_u_int128::Builder, src: &Bytes)
+pub fn write_custom_u_int128(dst: &mut custom_u_int128::Builder, src: &Bytes)
     -> Result<(), io::Error> {
     let mut rdr = io::Cursor::new(src);
 
-    dest.set_x0(rdr.get_u64::<BigEndian>());
-    dest.set_x1(rdr.get_u64::<BigEndian>());
+    dst.set_x0(rdr.get_u64::<BigEndian>());
+    dst.set_x1(rdr.get_u64::<BigEndian>());
 
     Ok(())
 }
@@ -28,13 +28,13 @@ pub fn write_custom_u_int128(dest: &mut custom_u_int128::Builder, src: &Bytes)
 ///
 /// # Panics
 ///
-/// This function panics if there is not enough remaining capacity in `dest`.
+/// This function panics if there is not enough remaining capacity in `dst`.
 #[inline]
-pub fn read_custom_u_int128(dest: &mut BytesMut, src: &custom_u_int128::Reader)
+pub fn read_custom_u_int128(dst: &mut BytesMut, src: &custom_u_int128::Reader)
     -> Result<(), io::Error> {
 
-    dest.put_u64::<BigEndian>(src.get_x0());
-    dest.put_u64::<BigEndian>(src.get_x1());
+    dst.put_u64::<BigEndian>(src.get_x0());
+    dst.put_u64::<BigEndian>(src.get_x1());
 
     Ok(())
 }
@@ -45,14 +45,14 @@ pub fn read_custom_u_int128(dest: &mut BytesMut, src: &custom_u_int128::Reader)
 ///
 /// This function panics if there is not enough remaining data in `src`.
 #[inline]
-pub fn write_custom_u_int256(dest: &mut custom_u_int256::Builder, src: &Bytes)
+pub fn write_custom_u_int256(dst: &mut custom_u_int256::Builder, src: &Bytes)
     -> Result<(), io::Error> {
     let mut rdr = io::Cursor::new(src);
 
-    dest.set_x0(rdr.get_u64::<BigEndian>());
-    dest.set_x1(rdr.get_u64::<BigEndian>());
-    dest.set_x2(rdr.get_u64::<BigEndian>());
-    dest.set_x3(rdr.get_u64::<BigEndian>());
+    dst.set_x0(rdr.get_u64::<BigEndian>());
+    dst.set_x1(rdr.get_u64::<BigEndian>());
+    dst.set_x2(rdr.get_u64::<BigEndian>());
+    dst.set_x3(rdr.get_u64::<BigEndian>());
 
     Ok(())
 }
@@ -61,15 +61,15 @@ pub fn write_custom_u_int256(dest: &mut custom_u_int256::Builder, src: &Bytes)
 ///
 /// # Panics
 ///
-/// This function panics if there is not enough remaining capacity in `dest`.
+/// This function panics if there is not enough remaining capacity in `dst`.
 #[inline]
-pub fn read_custom_u_int256(dest: &mut BytesMut, src: &custom_u_int256::Reader)
+pub fn read_custom_u_int256(dst: &mut BytesMut, src: &custom_u_int256::Reader)
     -> Result<(), io::Error> {
 
-    dest.put_u64::<BigEndian>(src.get_x0());
-    dest.put_u64::<BigEndian>(src.get_x1());
-    dest.put_u64::<BigEndian>(src.get_x2());
-    dest.put_u64::<BigEndian>(src.get_x3());
+    dst.put_u64::<BigEndian>(src.get_x0());
+    dst.put_u64::<BigEndian>(src.get_x1());
+    dst.put_u64::<BigEndian>(src.get_x2());
+    dst.put_u64::<BigEndian>(src.get_x3());
 
     Ok(())
 }
@@ -80,18 +80,18 @@ pub fn read_custom_u_int256(dest: &mut BytesMut, src: &custom_u_int256::Reader)
 ///
 /// This function panics if there is not enough remaining data in `src`.
 #[inline]
-pub fn write_custom_u_int512(dest: &mut custom_u_int512::Builder, src: &Bytes)
+pub fn write_custom_u_int512(dst: &mut custom_u_int512::Builder, src: &Bytes)
                              -> Result<(), io::Error> {
     let mut rdr = io::Cursor::new(src);
 
-    dest.set_x0(rdr.get_u64::<BigEndian>());
-    dest.set_x1(rdr.get_u64::<BigEndian>());
-    dest.set_x2(rdr.get_u64::<BigEndian>());
-    dest.set_x3(rdr.get_u64::<BigEndian>());
-    dest.set_x4(rdr.get_u64::<BigEndian>());
-    dest.set_x5(rdr.get_u64::<BigEndian>());
-    dest.set_x6(rdr.get_u64::<BigEndian>());
-    dest.set_x7(rdr.get_u64::<BigEndian>());
+    dst.set_x0(rdr.get_u64::<BigEndian>());
+    dst.set_x1(rdr.get_u64::<BigEndian>());
+    dst.set_x2(rdr.get_u64::<BigEndian>());
+    dst.set_x3(rdr.get_u64::<BigEndian>());
+    dst.set_x4(rdr.get_u64::<BigEndian>());
+    dst.set_x5(rdr.get_u64::<BigEndian>());
+    dst.set_x6(rdr.get_u64::<BigEndian>());
+    dst.set_x7(rdr.get_u64::<BigEndian>());
 
     Ok(())
 }
@@ -100,19 +100,19 @@ pub fn write_custom_u_int512(dest: &mut custom_u_int512::Builder, src: &Bytes)
 ///
 /// # Panics
 ///
-/// This function panics if there is not enough remaining capacity in `dest`.
+/// This function panics if there is not enough remaining capacity in `dst`.
 #[inline]
-pub fn read_custom_u_int512(dest: &mut BytesMut, src: &custom_u_int512::Reader)
+pub fn read_custom_u_int512(dst: &mut BytesMut, src: &custom_u_int512::Reader)
     -> Result<(), io::Error> {
 
-    dest.put_u64::<BigEndian>(src.get_x0());
-    dest.put_u64::<BigEndian>(src.get_x1());
-    dest.put_u64::<BigEndian>(src.get_x2());
-    dest.put_u64::<BigEndian>(src.get_x3());
-    dest.put_u64::<BigEndian>(src.get_x4());
-    dest.put_u64::<BigEndian>(src.get_x5());
-    dest.put_u64::<BigEndian>(src.get_x6());
-    dest.put_u64::<BigEndian>(src.get_x7());
+    dst.put_u64::<BigEndian>(src.get_x0());
+    dst.put_u64::<BigEndian>(src.get_x1());
+    dst.put_u64::<BigEndian>(src.get_x2());
+    dst.put_u64::<BigEndian>(src.get_x3());
+    dst.put_u64::<BigEndian>(src.get_x4());
+    dst.put_u64::<BigEndian>(src.get_x5());
+    dst.put_u64::<BigEndian>(src.get_x6());
+    dst.put_u64::<BigEndian>(src.get_x7());
 
     Ok(())
 }
@@ -137,10 +137,10 @@ mod tests {
         let mut num_u128 = message.init_root::<custom_u_int128::Builder>();
         write_custom_u_int128(&mut num_u128, &buf_src).unwrap();
 
-        let mut buf_dest = BytesMut::with_capacity(16usize);
-        read_custom_u_int128(&mut buf_dest, &num_u128.borrow_as_reader()).unwrap();
+        let mut buf_dst = BytesMut::with_capacity(16usize);
+        read_custom_u_int128(&mut buf_dst, &num_u128.borrow_as_reader()).unwrap();
 
-        assert_eq!(&buf_src, &buf_dest);
+        assert_eq!(&buf_src, &buf_dst);
     }
 
     #[test]
@@ -157,10 +157,10 @@ mod tests {
         let mut num_u256 = message.init_root::<custom_u_int256::Builder>();
         write_custom_u_int256(&mut num_u256, &buf_src).unwrap();
 
-        let mut buf_dest = BytesMut::with_capacity(32usize);
-        read_custom_u_int256(&mut buf_dest, &num_u256.borrow_as_reader()).unwrap();
+        let mut buf_dst = BytesMut::with_capacity(32usize);
+        read_custom_u_int256(&mut buf_dst, &num_u256.borrow_as_reader()).unwrap();
 
-        assert_eq!(&buf_src, &buf_dest);
+        assert_eq!(&buf_src, &buf_dst);
     }
 
     #[test]
@@ -181,10 +181,10 @@ mod tests {
         let mut num_u512 = message.init_root::<custom_u_int512::Builder>();
         write_custom_u_int512(&mut num_u512, &buf_src).unwrap();
 
-        let mut buf_dest = BytesMut::with_capacity(64usize);
-        read_custom_u_int512(&mut buf_dest, &num_u512.borrow_as_reader()).unwrap();
+        let mut buf_dst = BytesMut::with_capacity(64usize);
+        read_custom_u_int512(&mut buf_dst, &num_u512.borrow_as_reader()).unwrap();
 
-        assert_eq!(&buf_src, &buf_dest);
+        assert_eq!(&buf_src, &buf_dst);
     }
 }
 
