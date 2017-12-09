@@ -1,5 +1,7 @@
 use std::io;
 
+use rand::{Rng, OsRng};
+use capnp::serialize_packed;
 use bytes::{BigEndian, Bytes, BytesMut, Buf, BufMut};
 
 #[allow(unused)]
@@ -7,7 +9,102 @@ pub mod channeler_capnp {
     include!(concat!(env!("OUT_DIR"), "/schema/channeler_capnp.rs"));
 }
 
-use channeler_capnp::{custom_u_int128, custom_u_int256, custom_u_int512};
+use channeler_capnp::{custom_u_int128, custom_u_int256, custom_u_int512,
+                      encrypt_message, MessageType};
+
+#[derive(Debug)]
+pub enum SchemaError {
+    Io(io::Error),
+    Capnp(::capnp::Error),
+    NotInSchema,
+}
+
+impl From<io::Error> for SchemaError {
+    #[inline]
+    fn from(e: io::Error) -> SchemaError {
+        SchemaError::Io(e)
+    }
+}
+
+impl From<::capnp::Error> for SchemaError {
+    #[inline]
+    fn from(e: ::capnp::Error) -> SchemaError {
+        SchemaError::Capnp(e)
+    }
+}
+
+impl From<::capnp::NotInSchema> for SchemaError {
+    #[inline]
+    fn from(_: ::capnp::NotInSchema) -> SchemaError {
+        SchemaError::NotInSchema
+    }
+}
+
+/// Create and serialize a Message with given `counter` and `data`(optional).
+///
+/// # Details
+///
+/// If data is `None`, the message type would be set to `KeepAlive`,
+/// whereas, message would be set to `User`.
+#[inline]
+pub fn serialize_message(counter: u64, data: Option<Bytes>) -> Result<Bytes, SchemaError> {
+    let mut message = ::capnp::message::Builder::new_default();
+
+    {
+        let mut enc_message = message.init_root::<encrypt_message::Builder>();
+
+        enc_message.set_inc_counter(counter);
+
+        if data.is_some() {
+            enc_message.set_message_type(MessageType::User);
+        } else {
+            enc_message.set_message_type(MessageType::KeepAlive);
+        }
+
+        {
+            let mut system_rng = OsRng::new()?;
+            let padding_length = system_rng.next_u32() % 33;
+            let rand_padding = enc_message.borrow().init_rand_padding(padding_length);
+            system_rng.fill_bytes(&mut rand_padding[..padding_length as usize]);
+        }
+
+        if let Some(data) = data {
+            let content = enc_message.borrow().init_content(data.len() as u32);
+            // Optimize: Can we avoid copy here?
+            content.copy_from_slice(data.as_ref());
+        }
+    }
+
+    let mut serialized_msg = Vec::new();
+    serialize_packed::write_message(&mut serialized_msg, &message)?;
+
+    Ok(Bytes::from(serialized_msg))
+}
+
+/// Read a decrypted message from the given buffer, return `incCounter`, `messageType` and
+/// `content`(if exist).
+#[inline]
+pub fn read_decrypted_message(buffer: Bytes) -> Result<(u64, MessageType, Option<Bytes>), SchemaError> {
+    let mut buffer = io::Cursor::new(buffer);
+    let message_rdr = serialize_packed::read_message(&mut buffer, ::capnp::message::ReaderOptions::new())?;
+
+    let enc_message = message_rdr.get_root::<encrypt_message::Reader>()?;
+
+    // Read the incCounter
+    let inc_counter = enc_message.get_inc_counter();
+
+    // Read the messageType
+    let message_type = enc_message.get_message_type()?;
+
+    let content = match message_type {
+        MessageType::KeepAlive => None,
+        MessageType::User => {
+            Some(Bytes::from(enc_message.get_content()?))
+        }
+    };
+
+    Ok((inc_counter, message_type, content))
+}
 
 /// Fill the components of `CustomUInt128` from given bytes.
 ///
@@ -16,7 +113,7 @@ use channeler_capnp::{custom_u_int128, custom_u_int256, custom_u_int512};
 /// This function panics if there is not enough remaining data in `src`.
 #[inline]
 pub fn write_custom_u_int128(dst: &mut custom_u_int128::Builder, src: &Bytes)
-    -> Result<(), io::Error> {
+    -> Result<(), SchemaError> {
     let mut rdr = io::Cursor::new(src);
 
     dst.set_x0(rdr.get_u64::<BigEndian>());
@@ -32,7 +129,7 @@ pub fn write_custom_u_int128(dst: &mut custom_u_int128::Builder, src: &Bytes)
 /// This function panics if there is not enough remaining capacity in `dst`.
 #[inline]
 pub fn read_custom_u_int128(dst: &mut BytesMut, src: &custom_u_int128::Reader)
-    -> Result<(), io::Error> {
+    -> Result<(), SchemaError> {
 
     dst.put_u64::<BigEndian>(src.get_x0());
     dst.put_u64::<BigEndian>(src.get_x1());
@@ -47,7 +144,7 @@ pub fn read_custom_u_int128(dst: &mut BytesMut, src: &custom_u_int128::Reader)
 /// This function panics if there is not enough remaining data in `src`.
 #[inline]
 pub fn write_custom_u_int256(dst: &mut custom_u_int256::Builder, src: &Bytes)
-    -> Result<(), io::Error> {
+    -> Result<(), SchemaError> {
     let mut rdr = io::Cursor::new(src);
 
     dst.set_x0(rdr.get_u64::<BigEndian>());
@@ -65,7 +162,7 @@ pub fn write_custom_u_int256(dst: &mut custom_u_int256::Builder, src: &Bytes)
 /// This function panics if there is not enough remaining capacity in `dst`.
 #[inline]
 pub fn read_custom_u_int256(dst: &mut BytesMut, src: &custom_u_int256::Reader)
-    -> Result<(), io::Error> {
+    -> Result<(), SchemaError> {
 
     dst.put_u64::<BigEndian>(src.get_x0());
     dst.put_u64::<BigEndian>(src.get_x1());
@@ -82,7 +179,7 @@ pub fn read_custom_u_int256(dst: &mut BytesMut, src: &custom_u_int256::Reader)
 /// This function panics if there is not enough remaining data in `src`.
 #[inline]
 pub fn write_custom_u_int512(dst: &mut custom_u_int512::Builder, src: &Bytes)
-                             -> Result<(), io::Error> {
+    -> Result<(), SchemaError> {
     let mut rdr = io::Cursor::new(src);
 
     dst.set_x0(rdr.get_u64::<BigEndian>());
@@ -104,7 +201,7 @@ pub fn write_custom_u_int512(dst: &mut custom_u_int512::Builder, src: &Bytes)
 /// This function panics if there is not enough remaining capacity in `dst`.
 #[inline]
 pub fn read_custom_u_int512(dst: &mut BytesMut, src: &custom_u_int512::Reader)
-    -> Result<(), io::Error> {
+    -> Result<(), SchemaError> {
 
     dst.put_u64::<BigEndian>(src.get_x0());
     dst.put_u64::<BigEndian>(src.get_x1());

@@ -49,7 +49,7 @@ struct Exchange {
 
 enum MessageType {
         user @0;
-        keepalive @1;
+        keepAlive @1;
 }
 
 struct EncryptMessage {
