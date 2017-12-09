@@ -2,6 +2,7 @@ use std::io;
 
 use bytes::{BigEndian, Bytes, BytesMut, Buf, BufMut};
 
+#[allow(unused)]
 pub mod channeler_capnp {
     include!(concat!(env!("OUT_DIR"), "/schema/channeler_capnp.rs"));
 }
