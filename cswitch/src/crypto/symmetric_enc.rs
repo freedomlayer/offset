@@ -16,7 +16,7 @@ const ENC_NONCE_LEN: usize = 12;
 const TAG_LEN: usize = 16;
 
 #[derive(Clone)]
-struct EncNonce(pub [u8; ENC_NONCE_LEN]);
+pub struct EncNonce(pub [u8; ENC_NONCE_LEN]);
 
 /// increase an array represented number by 1.
 fn inc_array_num(array_num: &mut [u8]) {
@@ -31,7 +31,7 @@ fn inc_array_num(array_num: &mut [u8]) {
     }
 }
 
-struct EncNonceCounter {
+pub struct EncNonceCounter {
     enc_nonce: EncNonce,
 }
 
@@ -54,7 +54,7 @@ impl EncNonceCounter {
 }
 
 #[derive(Debug)]
-enum SymmetricEncError {
+pub enum SymmetricEncError {
     EncryptionError,
     DecryptionError,
 }
@@ -62,7 +62,7 @@ enum SymmetricEncError {
 
 /// A structure used for encrypting messages with a given symmetric key.
 /// Maintains internal state of an increasing nonce counter.
-struct Encryptor {
+pub struct Encryptor {
     sealing_key: SealingKey,
     enc_nonce_counter: EncNonceCounter,
 }
@@ -93,7 +93,7 @@ impl Encryptor {
 }
 
 /// A structure used for decrypting messages with a given symmetric key.
-struct Decryptor {
+pub struct Decryptor {
     opening_key: OpeningKey,
 }
 

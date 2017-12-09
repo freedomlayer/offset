@@ -1,7 +1,5 @@
-extern crate tokio_io;
-
 use std::{cmp, io, mem};
-use self::tokio_io::codec::{Encoder, Decoder};
+use tokio_io::codec::{Encoder, Decoder};
 use bytes::{Bytes, BytesMut, Buf, BufMut, BigEndian};
 
 const MAX_FRAME_LEN: usize = 1 << 20;

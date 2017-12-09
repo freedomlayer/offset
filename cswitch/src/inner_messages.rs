@@ -1,3 +1,4 @@
+#![allow(dead_code, unused)]
 extern crate num_bigint;
 
 use std::time::SystemTime;
@@ -21,6 +22,7 @@ pub struct ChannelerAddress {
     pub neighbor_public_key: PublicKey,
 }
 
+#[derive(Clone)]
 pub struct ChannelerNeighborInfo {
     pub neighbor_address: ChannelerAddress,
     pub max_channels: u32,  // Maximum amount of token channels

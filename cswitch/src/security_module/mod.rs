@@ -4,7 +4,7 @@ use futures::sink::Sink;
 use futures::sync::{mpsc, oneshot};
 use futures::{Future, Stream, Poll, Async, AsyncSink};
 
-use crypto::identity::{Identity, verify_signature};
+use crypto::identity::Identity;
 use close_handle::{CloseHandle, create_close_handle};
 use inner_messages::{ToSecurityModule, FromSecurityModule};
 

@@ -1,20 +1,20 @@
 #![feature(conservative_impl_trait)]
-// TODO: Most of the current warnings cause by the following reason, will be
-// removed as soon as whole project ready to work and fix those warnings.
-#![allow(dead_code, unused)]
+//#![deny(warnings)]
 
 #[macro_use]
 extern crate log;
 extern crate ring;
+extern crate rand;
 extern crate bytes;
 extern crate capnp;
 extern crate futures;
 extern crate byteorder;
 extern crate tokio_core;
+extern crate tokio_io;
 
 pub mod crypto;
 
-mod inner_messages;
+pub mod inner_messages;
 mod networker_state_machine;
 // mod prefix_frame_codec;
 

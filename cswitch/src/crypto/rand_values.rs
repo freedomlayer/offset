@@ -1,8 +1,6 @@
-// extern crate rand;
-extern crate ring;
-
 use std::collections::VecDeque;
-use self::ring::rand::SecureRandom;
+
+use ring::rand::SecureRandom;
 
 const RAND_VALUE_LEN: usize = 16;
 
