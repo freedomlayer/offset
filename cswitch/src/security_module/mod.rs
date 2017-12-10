@@ -232,17 +232,14 @@ impl<I: Identity> Future for SecurityModule<I> {
 
 #[cfg(test)]
 mod tests {
-    extern crate tokio_core;
-    extern crate rand;
-    extern crate ring;
-
     use super::*;
-    use ::crypto::uid::gen_uid;
-    use ::crypto::identity::SoftwareEd25519Identity;
+    use crypto::uid::gen_uid;
+    use crypto::identity::{SoftwareEd25519Identity, verify_signature};
 
-    use self::rand::{Rng, StdRng};
-    use self::tokio_core::reactor::Core;
-    use self::ring::test::rand::FixedByteRandom;
+    use ring;
+    use rand::{Rng, StdRng};
+    use tokio_core::reactor::Core;
+    use ring::test::rand::FixedByteRandom;
 
     #[test]
     fn test_security_module_consistent_public_key() {
