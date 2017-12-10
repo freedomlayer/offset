@@ -39,6 +39,7 @@ impl AsRef<[u8]> for PublicKey {
 // We had to implement Debug and PartialEq ourselves here,
 // because PartialEq and Debug traits are not automatically implemented
 // for size larger than 32.
+#[derive(Clone)]
 pub struct Signature([u8; SIGNATURE_LEN]);
 
 impl Signature {

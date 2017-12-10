@@ -4,7 +4,7 @@ use ring::rand::SecureRandom;
 
 const RAND_VALUE_LEN: usize = 16;
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct RandValue([u8; RAND_VALUE_LEN]);
 
 impl RandValue {

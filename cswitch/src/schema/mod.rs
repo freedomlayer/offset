@@ -13,7 +13,7 @@ pub mod channeler_capnp {
     include!(concat!(env!("OUT_DIR"), "/schema/channeler_capnp.rs"));
 }
 
-use channeler_capnp::{custom_u_int128, custom_u_int256, custom_u_int512,
+use channeler_capnp::{custom_u_int128, custom_u_int256, custom_u_int512, /*message*/
                       init_channel, exchange, encrypt_message, MessageType};
 
 #[derive(Debug)]
@@ -44,14 +44,46 @@ impl From<::capnp::NotInSchema> for SchemaError {
     }
 }
 
-/// Create and serialize a Message with given `counter` and `data`(optional).
+/// Create and serialize a Message from given `content`, return the serialized message on success.
+#[inline]
+pub fn serialize_message(content: Bytes) -> Result<Bytes, SchemaError> {
+    let mut message = ::capnp::message::Builder::new_default();
+
+    {
+        let mut raw_message = message.init_root::<channeler_capnp::message::Builder>();
+        let msg_content = raw_message.borrow().init_content(content.len() as u32);
+        // Optimize: Can we avoid copy here?
+        msg_content.copy_from_slice(content.as_ref());
+    }
+
+    let mut serialized_msg = Vec::new();
+    serialize_packed::write_message(&mut serialized_msg, &message)?;
+
+    Ok(Bytes::from(serialized_msg))
+}
+
+/// Deserialize EncryptMessage from `buffer`, return the `content` of this message on success.
+#[inline]
+pub fn deserialize_message(buffer: Bytes) -> Result<Bytes, SchemaError> {
+    let mut buffer = io::Cursor::new(buffer);
+    let message_rdr = serialize_packed::read_message(&mut buffer, ::capnp::message::ReaderOptions::new())?;
+
+    let raw_message = message_rdr.get_root::<channeler_capnp::message::Reader>()?;
+
+    let content = Bytes::from(raw_message.get_content()?);
+
+    Ok(content)
+}
+
+/// Create and serialize a EncryptMessage with given `counter` and `content`(optional), return the
+/// serialized message on success.
 ///
 /// # Details
 ///
-/// If data is `None`, the message type would be set to `KeepAlive`,
-/// whereas, message would be set to `User`.
+/// If content is `None`, the message type will be set to `KeepAlive`, whereas, message type will
+/// be set to `User`.
 #[inline]
-pub fn serialize_message(counter: u64, data: Option<Bytes>) -> Result<Bytes, SchemaError> {
+pub fn serialize_enc_message(counter: u64, content: Option<Bytes>) -> Result<Bytes, SchemaError> {
     let mut message = ::capnp::message::Builder::new_default();
 
     {
@@ -59,7 +91,7 @@ pub fn serialize_message(counter: u64, data: Option<Bytes>) -> Result<Bytes, Sch
 
         enc_message.set_inc_counter(counter);
 
-        if data.is_some() {
+        if content.is_some() {
             enc_message.set_message_type(MessageType::User);
         } else {
             enc_message.set_message_type(MessageType::KeepAlive);
@@ -72,7 +104,7 @@ pub fn serialize_message(counter: u64, data: Option<Bytes>) -> Result<Bytes, Sch
             system_rng.fill_bytes(&mut rand_padding[..padding_length as usize]);
         }
 
-        if let Some(data) = data {
+        if let Some(data) = content {
             let content = enc_message.borrow().init_content(data.len() as u32);
             // Optimize: Can we avoid copy here?
             content.copy_from_slice(data.as_ref());
@@ -85,9 +117,33 @@ pub fn serialize_message(counter: u64, data: Option<Bytes>) -> Result<Bytes, Sch
     Ok(Bytes::from(serialized_msg))
 }
 
-/// Create and serialize a InitChannel message with given `rand_value` and `public_key`.
-///
-/// Create and serialize a InitChannel message, return the serialized message if succeed.
+/// Deserialize EncryptMessage from `buffer`, return the `incCounter`, `messageType` and
+/// `content`(if not a KA message) on success.
+#[inline]
+pub fn deserialize_enc_message(buffer: Bytes) -> Result<(u64, MessageType, Option<Bytes>), SchemaError> {
+    let mut buffer = io::Cursor::new(buffer);
+    let message_rdr = serialize_packed::read_message(&mut buffer, ::capnp::message::ReaderOptions::new())?;
+
+    let enc_message = message_rdr.get_root::<encrypt_message::Reader>()?;
+
+    // Read the incCounter
+    let inc_counter = enc_message.get_inc_counter();
+
+    // Read the messageType
+    let message_type = enc_message.get_message_type()?;
+
+    let content = match message_type {
+        MessageType::KeepAlive => None,
+        MessageType::User => {
+            Some(Bytes::from(enc_message.get_content()?))
+        }
+    };
+
+    Ok((inc_counter, message_type, content))
+}
+
+/// Create and serialize a InitChannel message from given `rand_value` and `public_key`, return
+/// the serialized message on success.
 #[inline]
 pub fn serialize_init_channel_message(rand_value: RandValue, public_key: PublicKey)
     -> Result<Bytes, SchemaError> {
@@ -120,10 +176,8 @@ pub fn serialize_init_channel_message(rand_value: RandValue, public_key: PublicK
     Ok(Bytes::from(serialized_msg))
 }
 
-/// Deserialize InitChannel message from Bytes.
-///
-/// Deserialize InitChannel message from Bytes, return the `neighborPublicKey` and
-/// `channelRandValue` if succeed.
+/// Deserialize InitChannel message from `buffer`, return the `neighborPublicKey` and
+/// `channelRandValue` on success.
 #[inline]
 pub fn deserialize_init_channel_message(buffer: Bytes)
     -> Result<(PublicKey, RandValue), SchemaError> {
@@ -149,10 +203,8 @@ pub fn deserialize_init_channel_message(buffer: Bytes)
     Ok((public_key, rand_value))
 }
 
-/// Create and serialize a Exchange message with given `dh_public_key`, `key_salt` and
-/// `signature`.
-///
-/// Create and serialize a new Exchange message, return the serialized message if succeed.
+/// Create and serialize a Exchange message from given `dh_public_key`, `key_salt` and
+/// `signature`, return the serialized message on success.
 #[inline]
 pub fn serialize_exchange_message(dh_public_key: DhPublicKey, key_salt: Salt, signature: Signature)
     -> Result<Bytes, SchemaError> {
@@ -190,10 +242,8 @@ pub fn serialize_exchange_message(dh_public_key: DhPublicKey, key_salt: Salt, si
     Ok(Bytes::from(serialized_msg))
 }
 
-/// Read Exchange message from Bytes.
-///
-/// Read Exchange message from Bytes, return the `commPublicKey`, `keySalt` and
-/// `signature` if succeed.
+/// Deserialize Exchange message from `buffer`, return the `commPublicKey`, `keySalt` and
+/// `signature` on success.
 #[inline]
 pub fn deserialize_exchange_message(buffer: Bytes)
     -> Result<(DhPublicKey, Salt, Signature), SchemaError> {
@@ -223,31 +273,6 @@ pub fn deserialize_exchange_message(buffer: Bytes)
     let signature  = Signature::from_bytes(&signature_bytes).unwrap();
 
     Ok((public_key, key_salt, signature))
-}
-
-/// Read a decrypted message from the given buffer, return `incCounter`, `messageType` and
-/// `content`(if exist).
-#[inline]
-pub fn read_decrypted_message(buffer: Bytes) -> Result<(u64, MessageType, Option<Bytes>), SchemaError> {
-    let mut buffer = io::Cursor::new(buffer);
-    let message_rdr = serialize_packed::read_message(&mut buffer, ::capnp::message::ReaderOptions::new())?;
-
-    let enc_message = message_rdr.get_root::<encrypt_message::Reader>()?;
-
-    // Read the incCounter
-    let inc_counter = enc_message.get_inc_counter();
-
-    // Read the messageType
-    let message_type = enc_message.get_message_type()?;
-
-    let content = match message_type {
-        MessageType::KeepAlive => None,
-        MessageType::User => {
-            Some(Bytes::from(enc_message.get_content()?))
-        }
-    };
-
-    Ok((inc_counter, message_type, content))
 }
 
 /// Fill the components of `CustomUInt128` from given bytes.
@@ -361,11 +386,8 @@ pub fn read_custom_u_int512(dst: &mut BytesMut, src: &custom_u_int512::Reader)
 
 #[cfg(test)]
 mod tests {
-    use super::{Bytes, BytesMut};
-    use super::{custom_u_int128, custom_u_int256, custom_u_int512};
-    use super::{read_custom_u_int128, write_custom_u_int128,
-                read_custom_u_int256, write_custom_u_int256,
-                read_custom_u_int512, write_custom_u_int512};
+    use super::*;
+
     #[test]
     fn test_custom_u_int128() {
         let mut message = ::capnp::message::Builder::new_default();
@@ -428,5 +450,67 @@ mod tests {
 
         assert_eq!(&buf_src, &buf_dst);
     }
-}
 
+    #[test]
+    fn test_init_channel() {
+        let in_public_key = PublicKey::from_bytes(&[0x03; 32]).unwrap();
+        let in_rand_value = RandValue::from_bytes(&[0x06; 16]).unwrap();
+
+        let serialized_init_channel =
+            serialize_init_channel_message(in_rand_value.clone(), in_public_key.clone()).unwrap();
+
+        let (out_public_key, out_rand_value) =
+            deserialize_init_channel_message(serialized_init_channel).unwrap();
+
+        assert_eq!(in_public_key, out_public_key);
+        assert_eq!(in_rand_value, out_rand_value);
+    }
+
+    #[test]
+    fn test_exchange() {
+        let in_comm_public_key = DhPublicKey::from_bytes(&[0x13; 32]).unwrap();
+        let in_key_salt = Salt::from_bytes(&[0x16; 32]).unwrap();
+        let in_signature = Signature::from_bytes(&[0x19; 64]).unwrap();
+
+        let serialized_exchange =
+            serialize_exchange_message(in_comm_public_key.clone(),
+                                       in_key_salt.clone(), in_signature.clone()).unwrap();
+
+        let (out_comm_public_key, out_key_salt, out_signature) =
+            deserialize_exchange_message(serialized_exchange).unwrap();
+
+        assert_eq!(in_comm_public_key, out_comm_public_key);
+        assert_eq!(in_key_salt, out_key_salt);
+        assert_eq!(in_signature, out_signature);
+    }
+
+    #[test]
+    fn test_enc_message() {
+        let in_counter: u64 = 1 << 50;
+        let in_content = Some(Bytes::from_static(&[0x11; 12345]));
+
+        let serialized_enc_message =
+            serialize_enc_message(in_counter, in_content.clone()).unwrap();
+
+        let (out_counter, out_message_type, out_content) =
+            deserialize_enc_message(serialized_enc_message).unwrap();
+
+        assert_eq!(in_counter, out_counter);
+        assert_eq!(in_content, out_content);
+
+        // capnpc not impl Debug for this
+        assert!(MessageType::User == out_message_type);
+    }
+
+    #[test]
+    fn test_message() {
+        let in_content = Bytes::from_static(&[0x12; 3456]);
+
+        let serialized_message =
+            serialize_message(in_content.clone()).unwrap();
+
+        let out_content = deserialize_message(serialized_message).unwrap();
+
+        assert_eq!(in_content, out_content);
+    }
+}

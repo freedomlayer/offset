@@ -49,7 +49,7 @@ impl AsRef<[u8]> for Salt {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct DhPublicKey([u8; DH_PUBLIC_KEY_LEN]);
 
 impl DhPublicKey {
