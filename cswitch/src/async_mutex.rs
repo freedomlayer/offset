@@ -50,6 +50,12 @@ pub enum AsyncMutexError<E> {
     FuncError(E),
 }
 
+impl<E> From<E> for AsyncMutexError<E> {
+    fn from(e: E) -> AsyncMutexError<E> {
+        AsyncMutexError::FuncError(e)
+    }
+}
+
 impl<T,F,B,G,E,O> Future for AcquireFuture<T,F,G>
 where
     F: FnOnce(T) -> B,
