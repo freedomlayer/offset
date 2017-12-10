@@ -1,3 +1,4 @@
+#![deny(warnings)]
 use std::{io, mem};
 use std::net::SocketAddr;
 use std::collections::HashMap;
@@ -20,20 +21,22 @@ use ring::rand::SystemRandom;
 
 use async_mutex::{AsyncMutex, AsyncMutexError, IoError};
 use crypto::rand_values::RandValue;
-use crypto::symmetric_enc::{SymmetricKey, Encryptor, Decryptor, EncNonceCounter, SymmetricEncError};
 use crypto::identity::{PublicKey, Signature};
 use crypto::dh::{DhPrivateKey, DhPublicKey, Salt};
-use inner_messages::{ChannelerToNetworker, ChannelOpened, ChannelClosed};
 use security_module::security_module_client::{SecurityModuleClient, SecurityModuleClientError};
+use inner_messages::{ChannelerToNetworker, ChannelOpened, ChannelClosed, ChannelMessageReceived};
+use crypto::symmetric_enc::{SymmetricKey, Encryptor, Decryptor, EncNonceCounter, SymmetricEncError};
 
 use schema::SchemaError;
-use schema::channeler_capnp::{self, init_channel, exchange};
-use schema::{serialize_init_channel_message, deserialize_init_channel_message,
-             serialize_exchange_message, deserialize_exchange_message};
-//use schema::{read_custom_u_int128, write_custom_u_int128,
-//             read_custom_u_int256, write_custom_u_int256,
-//             read_custom_u_int512, write_custom_u_int512,
-//             serialize_message,   read_decrypted_message};
+use schema::channeler_capnp::{self, init_channel, exchange, MessageType};
+use schema::{serialize_init_channel_message,
+             deserialize_init_channel_message,
+             serialize_exchange_message,
+             deserialize_exchange_message,
+             serialize_enc_message,
+             deserialize_enc_message,
+             serialize_message,
+             deserialize_message};
 
 use super::{ToChannel, ChannelerNeighbor};
 use super::codec::{PrefixFrameCodec, PrefixFrameCodecError};
@@ -101,82 +104,196 @@ impl From<AsyncMutexError<ChannelError>> for ChannelError {
     }
 }
 
+enum ChannelState {
+    Alive,
+    Closing(Box<Future<Item=(), Error=AsyncMutexError<ChannelError>>>),
+    Empty,
+}
+
 /// The channel used to communicate to neighbors.
 pub struct Channel {
-    receiver: mpsc::Receiver<ToChannel>,
+    state: ChannelState,
 
-    tcp_sender:   SplitSink<Framed<TcpStream, PrefixFrameCodec>>,
-    tcp_receiver: SplitStream<Framed<TcpStream, PrefixFrameCodec>>,
+    remote_public_key: PublicKey,
+    neighbors: AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
 
-    send_counter: u64,
-    recv_counter: u64,
+    // The inner sender and receiver used to communicate with internal services
+    inner_sender:     mpsc::Sender<ChannelerToNetworker>,
+    inner_receiver:   mpsc::Receiver<ToChannel>,
+    inner_send_queue: VecDeque<ChannelerToNetworker>,
 
+    // The outer sender and receiver used to communicate with neighbors
+    outer_sender:     SplitSink<Framed<TcpStream, PrefixFrameCodec>>,
+    outer_receiver:   SplitStream<Framed<TcpStream, PrefixFrameCodec>>,
+    outer_send_queue: VecDeque<Bytes>,
+
+    send_counter:   u64,
+    recv_counter:   u64,
     send_encryptor: Encryptor,
     recv_decryptor: Decryptor,
 
-    transmit_queue: VecDeque<Bytes>,
+    remaining_tick_to_send_ka: u32,
+    remaining_tick_to_recv_ka: u32,
 }
 
-//impl Future for Channel {
-//    type Item = ();
-//    type Error = ChannelError;
-//
-//    fn poll(&mut self) -> Poll<(), Self::Error> {
-//        // Check message from others modules
-//        match self.receiver.poll().unwrap() {
-//            Async::NotReady => (),
-//            Async::Ready(message) => {
-//                if let Some(message) = message {
-//                    match message {
-//                        ToChannel::TimeTick => {
-//                            // TODO: Try to receive message
-//                            // TODO: Send Received notification to Networker
-//                        }
-//                        ToChannel::SendMessage(msg) => {
-//                            // TODO: Schedule a new sending task
-//                            // TODO: Report the send result?
-//                            let serialized_msg =
-//                                serialize_message(self.send_counter, Some(Bytes::from(msg)))?;
-//                            let enc_msg = self.send_encryptor.encrypt(&serialized_msg)?;
-//
-//                            let mut message = ::capnp::message::Builder::new_default();
-//
-//                            {
-//                                let mut msg = message.init_root::<channeler_capnp::message::Builder>();
-//
-//                                let mut content = msg.init_content(enc_msg.len() as u32);
-//                                content.copy_from_slice(&enc_msg[..]);
-//                            }
-//
-//                            let mut final_msg = Vec::new();
-//                            serialize_packed::write_message(&mut final_msg, &message);
-//                            self.transmit_queue.push_back(Bytes::from(final_msg));
-//
-//                            self.send_counter += 1;
-//                        }
-//                    }
-//                } else {
-//                    // TODO: Update the neighbor table
-//                    // TODO: Send notification to Networker?
-//                    return Err(ChannelError::Closed("connection lost"));
-//                }
-//            }
-//        };
-//
-//        match self.transmit_queue.pop_front() {
-//            None => (),
-//            Some(msg) => {
-//                match self.tcp_sender.start_send(msg)? {
-//                    AsyncSink::Ready => {
-//                    }
-//                    AsyncSink::NotReady(msg) => {
-//                        self.transmit_queue.push_front(msg);
-//                    }
-//                }
-//            }
-//        };
-//    }
-//}
+const KEEPALIVE_TICKS: u32 = 20;
+
+impl Future for Channel {
+    type Item = ();
+    type Error = ChannelError;
+
+    fn poll(&mut self) -> Poll<(), Self::Error> {
+        debug!("poll - {:?}", ::std::time::Instant::now());
+
+        match mem::replace(&mut self.state, ChannelState::Empty) {
+            ChannelState::Empty => unreachable!(),
+            ChannelState::Alive => {
+                self.state = ChannelState::Alive;
+            }
+            ChannelState::Closing(mut closing_fut) => {
+                match closing_fut.poll()? {
+                    Async::NotReady => {
+                        self.state = ChannelState::Closing(closing_fut);
+                        return Ok(Async::NotReady);
+                    }
+                    Async::Ready(_) => {
+                        return Ok(Async::Ready(()));
+                    }
+                }
+            }
+        }
+
+        // Try to send the inner pending message
+        let inner_start_send = match self.inner_send_queue.pop_front() {
+            None => Ok(AsyncSink::Ready),
+            Some(msg) => self.inner_sender.start_send(msg)
+        };
+        match inner_start_send {
+            Err(_) => {
+                debug!("[send failed]: inner channel closed, closing");
+                return Ok(Async::Ready(()));
+            }
+            Ok(AsyncSink::Ready) => {
+                self.inner_sender.poll_complete()
+                    .map_err(|_| ChannelError::SendToNetworkerFailed)?;
+            },
+            Ok(AsyncSink::NotReady(msg)) => {
+                self.inner_send_queue.push_front(msg);
+                return Ok(Async::NotReady);
+            }
+        }
+
+        // Try to send the outer pending message
+        let outer_start_send = match self.outer_send_queue.pop_front() {
+            None => Ok(AsyncSink::Ready),
+            Some(msg) => self.outer_sender.start_send(msg)
+        };
+        match outer_start_send {
+            Err(_) => {
+                debug!("[send failed]: outer tcp connection closed, closing");
+                return Ok(Async::Ready(()));
+            }
+            Ok(AsyncSink::Ready) => {
+                self.outer_sender.poll_complete()?;
+            },
+            Ok(AsyncSink::NotReady(msg)) => {
+                self.outer_send_queue.push_front(msg);
+                return Ok(Async::NotReady);
+            }
+        }
+
+        // Handle inner message
+        match self.inner_receiver.poll() {
+            Err(_) => {
+                debug!("inner channel closed, closing");
+                return Ok(Async::Ready(()));
+            }
+            Ok(item) => {
+                match item {
+                    Async::NotReady => (),
+                    Async::Ready(Some(msg)) => {
+                        match msg {
+                            ToChannel::TimeTick => {
+                                // TODO: Any thing needed to do here?
+                                self.remaining_tick_to_send_ka -= 1;
+                                self.remaining_tick_to_recv_ka -= 1;
+                                if self.remaining_tick_to_recv_ka == 0 {
+                                    error!("keep alive timeout, closing");
+                                    return Ok(Async::Ready(()));
+                                } else if self.remaining_tick_to_send_ka == 0 {
+                                    let plain_msg = serialize_enc_message(self.send_counter, None)?;
+                                    let enc_msg = self.send_encryptor.encrypt(&plain_msg)?;
+                                    let outer_msg = serialize_message(Bytes::from(enc_msg))?;
+
+                                    self.outer_send_queue.push_back(outer_msg);
+                                    self.send_counter += 1;
+                                    self.remaining_tick_to_send_ka = KEEPALIVE_TICKS;
+                                    return self.poll();
+                                }
+                            }
+                            ToChannel::SendMessage(raw_msg) => {
+                                debug!("requested to send a channel message");
+                                let plain_msg = serialize_enc_message(self.send_counter, Some(Bytes::from(raw_msg)))?;
+                                let enc_msg = self.send_encryptor.encrypt(&plain_msg)?;
+                                let outer_msg = serialize_message(Bytes::from(enc_msg))?;
+
+                                self.outer_send_queue.push_back(outer_msg);
+                                self.send_counter += 1;
+                                return self.poll();
+                            }
+                        }
+                    }
+                    Async::Ready(None) => {
+                        debug!("inner channel closed, closing");
+                        return Ok(Async::Ready(()));
+                    }
+                }
+            }
+        }
+
+        // Handle outer message
+        match self.outer_receiver.poll()? {
+            Async::NotReady => (),
+            Async::Ready(None) => {
+                debug!("outer tcp connection closed, closing");
+                return Ok(Async::Ready(()));
+            }
+            Async::Ready(Some(msg)) => {
+                debug!("received a channel message");
+                let dec_content = Bytes::from(self.recv_decryptor.decrypt(&deserialize_message(msg)?)?);
+                let (msg_counter, msg_type, msg_content) = deserialize_enc_message(dec_content).unwrap();
+                if msg_counter != self.recv_counter {
+                    error!("unexpected incremental counter, closing");
+                    return Ok(Async::Ready(()));
+                } else {
+                    self.recv_counter += 1;
+                }
+
+                match msg_type {
+                    MessageType::User => {
+                        let msg_content = msg_content.unwrap();
+                        let inner_msg = ChannelerToNetworker::ChannelMessageReceived(
+                            ChannelMessageReceived {
+                                remote_public_key: self.remote_public_key.clone(),
+                                message_content: msg_content.to_vec(),
+                            }
+                        );
+
+                        self.inner_send_queue.push_back(inner_msg);
+                    }
+                    MessageType::KeepAlive => {
+                        // TODO: Any thing needed to do here?
+                        self.remaining_tick_to_recv_ka = 2 * KEEPALIVE_TICKS;
+                    }
+                }
+                return self.poll();
+            }
+        }
+
+        debug!("poll - touch the end");
+        Ok(Async::NotReady)
+    }
+}
 
 pub struct ChannelNew {
     role: Role,
@@ -681,15 +798,21 @@ impl Future for ChannelNew {
                     Async::NotReady => Ok(Async::NotReady),
                     Async::Ready((key_send, key_recv, channel_receiver)) => {
                         Ok(Async::Ready(Channel {
-                            receiver: channel_receiver,
-                            send_encryptor: Encryptor::new(&key_send, EncNonceCounter::new(&mut self.rng)),
-                            recv_decryptor: Decryptor::new(&key_recv),
+                            state: ChannelState::Alive,
+                            remote_public_key: mem::replace(&mut self.neighbor_public_key, None).unwrap(),
+                            neighbors: self.neighbors.clone(),
+                            inner_receiver: channel_receiver,
+                            inner_sender: self.networker_sender.clone(),
+                            inner_send_queue: VecDeque::new(),
+                            outer_sender: mem::replace(&mut self.sender, None).unwrap(),
+                            outer_receiver: mem::replace(&mut self.receiver, None).unwrap(),
+                            outer_send_queue: VecDeque::new(),
                             send_counter: 0,
                             recv_counter: 0,
-                            tcp_sender: mem::replace(&mut self.sender, None).unwrap(),
-                            tcp_receiver: mem::replace(&mut self.receiver, None).unwrap(),
-                            transmit_queue: VecDeque::new(),
-
+                            send_encryptor: Encryptor::new(&key_send, EncNonceCounter::new(&mut self.rng)),
+                            recv_decryptor: Decryptor::new(&key_recv),
+                            remaining_tick_to_send_ka: KEEPALIVE_TICKS,
+                            remaining_tick_to_recv_ka: 2 * KEEPALIVE_TICKS, // FIXME: suitable val?
                         }))
                     }
                 }
@@ -698,71 +821,3 @@ impl Future for ChannelNew {
         }
     }
 }
-
-//pub fn create_channel(handle: &Handle,
-//                      addr: &SocketAddr,
-//                      neighbor_public_key: &PublicKey,
-//                      sm_client: &SecurityModuleClient)
-//    -> impl Future<Item=(), Error=ChannelError> {
-//    Channel::connect(handle, addr, neighbor_public_key, sm_client)
-//        .and_then(|channel| {
-//            let (tx, rx) = mpsc::channel::<ToChannel>();
-//
-//            rx.for_each(|msg| {
-//                match msg {
-//                    ToChannel::TimeTick => {
-//                        match channel.tcp_receiver.poll()? {
-//                            Async::Ready(None) => {
-//                                // Send notification to networker
-//                            }
-//                            Async::Ready(buf) => {
-//                                // Parse message
-//                            }
-//                            Async::NotReady => {
-//
-//                            }
-//                        }
-//                    },
-//                    ToChannel::SendMessage(_) => {
-//                        Ok(())
-//                    }
-//                }
-//
-//
-//            })
-//        })
-//
-//    // TODO:
-//    // Create an mpsc channel that will be used to signal this channel future.
-//    // This line should be added to only after
-//
-//    // Attempt a connection:
-//    TcpStream::connect(&socket_addr, handle)
-//        .and_then(|stream| {
-//            let (sink, stream) = stream.framed(PrefixFrameCodec::new()).split();
-//
-//            let mut msg_builder = ::capnp::message::Builder::new_default();
-//            let init_message    = msg_builder.init_root::<init_channel::Builder>();
-//
-//
-//
-//            // TODO: Create Init Channeler message:
-//
-//            // let mut message = ::capnp::message::Builder::new_default();
-//            // let init_channel = message.init_root::<init_channel::Builder>();
-//
-//
-//            Ok(())
-//        });
-//
-//
-//
-//        // After exchange happened:
-//        // neighbor.num_pending_out_conn -= 1;
-//        // let (channel_sender, channel_receiver) = mpsc::channel(0);
-//        // neighbor.channel_senders.push(AsyncMutex::new(channel_sender));
-//
-//        // TODO: Binary deserializtion of Channeler to Channeler messages.
-//
-//    Ok(()).into_future()
-//}

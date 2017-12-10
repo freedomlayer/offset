@@ -75,8 +75,8 @@ pub struct ChannelClosed {
 }
 
 pub struct ChannelMessageReceived {
-    remote_public_key: PublicKey,
-    message_content: Vec<u8>,
+    pub remote_public_key: PublicKey,
+    pub message_content: Vec<u8>,
 }
 
 /*
