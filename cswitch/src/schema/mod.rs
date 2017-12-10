@@ -4,13 +4,17 @@ use rand::{Rng, OsRng};
 use capnp::serialize_packed;
 use bytes::{BigEndian, Bytes, BytesMut, Buf, BufMut};
 
+use crypto::rand_values::RandValue;
+use crypto::dh::{Salt, DhPublicKey};
+use crypto::identity::{PublicKey, Signature};
+
 #[allow(unused)]
 pub mod channeler_capnp {
     include!(concat!(env!("OUT_DIR"), "/schema/channeler_capnp.rs"));
 }
 
 use channeler_capnp::{custom_u_int128, custom_u_int256, custom_u_int512,
-                      encrypt_message, MessageType};
+                      init_channel, exchange, encrypt_message, MessageType};
 
 #[derive(Debug)]
 pub enum SchemaError {
@@ -79,6 +83,146 @@ pub fn serialize_message(counter: u64, data: Option<Bytes>) -> Result<Bytes, Sch
     serialize_packed::write_message(&mut serialized_msg, &message)?;
 
     Ok(Bytes::from(serialized_msg))
+}
+
+/// Create and serialize a InitChannel message with given `rand_value` and `public_key`.
+///
+/// Create and serialize a InitChannel message, return the serialized message if succeed.
+#[inline]
+pub fn serialize_init_channel_message(rand_value: RandValue, public_key: PublicKey)
+    -> Result<Bytes, SchemaError> {
+    let mut message = ::capnp::message::Builder::new_default();
+
+    {
+        let mut init_channel_msg = message.init_root::<init_channel::Builder>();
+
+        // Set neighborPublicKey
+        {
+            let mut neighbor_public_key =
+                init_channel_msg.borrow().init_neighbor_public_key();
+            let public_key_bytes = Bytes::from(public_key.as_bytes());
+
+            write_custom_u_int256(&mut neighbor_public_key, &public_key_bytes)?;
+        }
+        // Set channelRandValue
+        {
+            let mut channel_rand_value =
+                init_channel_msg.borrow().init_channel_rand_value();
+            let rand_value_bytes = Bytes::from(rand_value.as_bytes());
+
+            write_custom_u_int128(&mut channel_rand_value, &rand_value_bytes)?;
+        }
+    }
+
+    let mut serialized_msg = Vec::new();
+    serialize_packed::write_message(&mut serialized_msg, &message)?;
+
+    Ok(Bytes::from(serialized_msg))
+}
+
+/// Deserialize InitChannel message from Bytes.
+///
+/// Deserialize InitChannel message from Bytes, return the `neighborPublicKey` and
+/// `channelRandValue` if succeed.
+#[inline]
+pub fn deserialize_init_channel_message(buffer: Bytes)
+    -> Result<(PublicKey, RandValue), SchemaError> {
+    let mut buffer = io::Cursor::new(buffer);
+    let message_rdr = serialize_packed::read_message(&mut buffer, ::capnp::message::ReaderOptions::new())?;
+
+    let init_channel_msg = message_rdr.get_root::<init_channel::Reader>()?;
+
+    // Read the neighborPublicKey
+    let neighbor_public_key = init_channel_msg.get_neighbor_public_key()?;
+    let mut public_key_bytes = BytesMut::with_capacity(32);
+    read_custom_u_int256(&mut public_key_bytes, &neighbor_public_key)?;
+
+    // Read the channelRandValue
+    let channel_rand_value = init_channel_msg.get_channel_rand_value()?;
+    let mut rand_value_bytes = BytesMut::with_capacity(16);
+    read_custom_u_int128(&mut rand_value_bytes, &channel_rand_value)?;
+
+    // FIXME: Remove unwrap usage
+    let public_key = PublicKey::from_bytes(&public_key_bytes).unwrap();
+    let rand_value = RandValue::from_bytes(&rand_value_bytes).unwrap();
+
+    Ok((public_key, rand_value))
+}
+
+/// Create and serialize a Exchange message with given `dh_public_key`, `key_salt` and
+/// `signature`.
+///
+/// Create and serialize a new Exchange message, return the serialized message if succeed.
+#[inline]
+pub fn serialize_exchange_message(dh_public_key: DhPublicKey, key_salt: Salt, signature: Signature)
+    -> Result<Bytes, SchemaError> {
+    let mut message = ::capnp::message::Builder::new_default();
+
+    {
+        let mut exchange_msg = message.init_root::<exchange::Builder>();
+
+        // Set the commPublicKey
+        {
+            let mut ex_public_key = exchange_msg.borrow().init_comm_public_key();
+            let ex_public_key_bytes = Bytes::from(dh_public_key.as_bytes());
+
+            write_custom_u_int256(&mut ex_public_key, &ex_public_key_bytes)?;
+        }
+        // Set the keySalt
+        {
+            let mut ex_key_salt = exchange_msg.borrow().init_key_salt();
+            let key_salt_bytes = Bytes::from(key_salt.as_bytes());
+
+            write_custom_u_int256(&mut ex_key_salt, &key_salt_bytes)?;
+        }
+        // Set the signature
+        {
+            let mut ex_signature = exchange_msg.borrow().init_signature();
+            let signature_bytes = Bytes::from(signature.as_bytes());
+
+            write_custom_u_int512(&mut ex_signature, &signature_bytes)?;
+        }
+    }
+
+    let mut serialized_msg = Vec::new();
+    serialize_packed::write_message(&mut serialized_msg, &message)?;
+
+    Ok(Bytes::from(serialized_msg))
+}
+
+/// Read Exchange message from Bytes.
+///
+/// Read Exchange message from Bytes, return the `commPublicKey`, `keySalt` and
+/// `signature` if succeed.
+#[inline]
+pub fn deserialize_exchange_message(buffer: Bytes)
+    -> Result<(DhPublicKey, Salt, Signature), SchemaError> {
+    let mut buffer = io::Cursor::new(buffer);
+    let message_rdr = serialize_packed::read_message(&mut buffer, ::capnp::message::ReaderOptions::new())?;
+
+    let exchange_msg = message_rdr.get_root::<exchange::Reader>()?;
+
+    // Read the commPublicKey
+    let comm_public_key = exchange_msg.get_comm_public_key()?;
+    let mut comm_public_key_bytes = BytesMut::with_capacity(32);
+    read_custom_u_int256(&mut comm_public_key_bytes, &comm_public_key)?;
+
+    // Read the keySalt
+    let key_salt = exchange_msg.get_key_salt()?;
+    let mut key_salt_bytes = BytesMut::with_capacity(32);
+    read_custom_u_int256(&mut key_salt_bytes, &key_salt)?;
+
+    // Read the signature
+    let signature = exchange_msg.get_signature()?;
+    let mut signature_bytes = BytesMut::with_capacity(64);
+    read_custom_u_int512(&mut signature_bytes, &signature)?;
+
+    // FIXME: Remove unwrap usage
+    let public_key = DhPublicKey::from_bytes(&comm_public_key_bytes).unwrap();
+    let key_salt   = Salt::from_bytes(&key_salt_bytes).unwrap();
+    let signature  = Signature::from_bytes(&signature_bytes).unwrap();
+
+    Ok((public_key, key_salt, signature))
 }
 
 /// Read a decrypted message from the given buffer, return `incCounter`, `messageType` and
