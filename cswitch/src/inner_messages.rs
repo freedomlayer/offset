@@ -66,8 +66,8 @@ struct FriendsRoute {
 // ----------------------
 
 pub struct ChannelOpened {
-    remote_public_key: PublicKey, // Public key of remote side
-    locally_initialized: bool, // Was this channel initiated by this end.
+    pub remote_public_key: PublicKey, // Public key of remote side
+    pub locally_initialized: bool, // Was this channel initiated by this end.
 }
 
 pub struct ChannelClosed {
@@ -103,18 +103,19 @@ pub enum ServerType {
 
 pub enum NetworkerToChanneler {
     SendChannelMessage {
+        token: u32,
         neighbor_public_key: PublicKey,
-        message_content: Vec<u8>,
+        content: Vec<u8>,
     },
     /*
     CloseChannel {
         neighbor_public_key: PublicKey,
     },
     */
-    AddNeighborRelation {
+    AddNeighbor {
         neighbor_info: ChannelerNeighborInfo,
     },
-    RemoveNeighborRelation {
+    RemoveNeighbor {
         neighbor_public_key: PublicKey,
     },
     SetMaxChannels {
@@ -122,7 +123,7 @@ pub enum NetworkerToChanneler {
         max_channels: u32,
     },
     // RequestNeighborsRelationList,
-    SetServerType(ServerType),
+    // SetServerType(ServerType),
 }
 
 // Indexer client to Networker

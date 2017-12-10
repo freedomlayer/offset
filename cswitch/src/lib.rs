@@ -1,5 +1,5 @@
 #![feature(conservative_impl_trait)]
-//#![deny(warnings)]
+#![allow(unused)]
 
 #[macro_use]
 extern crate log;
@@ -22,7 +22,7 @@ mod close_handle;
 pub mod security_module;
 pub mod channeler;
 
-mod async_mutex;
+pub mod async_mutex;
 mod service_client;
 pub mod timer;
 

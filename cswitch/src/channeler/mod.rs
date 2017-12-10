@@ -18,7 +18,8 @@ use security_module::security_module_client::SecurityModuleClient;
 //use crypto::rand_values::RandValue;
 //use async_mutex::AsyncMutex;
 
-mod prefix_frame_codec;
+mod codec;
+// mod watcher;
 //mod timer_reader;
 //mod networker_reader;
 pub mod channel;
