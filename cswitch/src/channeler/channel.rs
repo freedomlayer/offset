@@ -1,4 +1,4 @@
-#![deny(warnings)]
+//#![deny(warnings)]
 use std::{io, mem};
 use std::net::SocketAddr;
 use std::collections::HashMap;
@@ -20,6 +20,7 @@ use bytes::{Bytes, BytesMut};
 use ring::rand::SystemRandom;
 
 use async_mutex::{AsyncMutex, AsyncMutexError, IoError};
+use crypto::uid::{Uid, gen_uid};
 use crypto::rand_values::RandValue;
 use crypto::identity::{PublicKey, Signature};
 use crypto::dh::{DhPrivateKey, DhPublicKey, Salt};
@@ -180,7 +181,11 @@ impl Future for Channel {
                         error!("unexpected incremental counter, closing");
                         return Ok(Async::Ready(()));
                     } else {
-                        self.recv_counter += 1;
+                        if self.recv_counter == u64::max_value() {
+                            self.recv_counter = 0;
+                        } else {
+                            self.recv_counter += 1;
+                        }
                     }
 
                     match msg_type {
@@ -231,7 +236,11 @@ impl Future for Channel {
                                         let outer_msg = serialize_message(Bytes::from(enc_msg))?;
 
                                         self.outer_send_queue.push_back(outer_msg);
-                                        self.send_counter += 1;
+                                        if self.send_counter == u64::max_value() {
+                                            self.send_counter = 0;
+                                        } else {
+                                            self.send_counter += 1;
+                                        }
                                         self.remaining_tick_to_send_ka = KEEPALIVE_TICKS;
                                     }
                                 }
@@ -242,7 +251,11 @@ impl Future for Channel {
                                     let outer_msg = serialize_message(Bytes::from(enc_msg))?;
 
                                     self.outer_send_queue.push_back(outer_msg);
-                                    self.send_counter += 1;
+                                    if self.send_counter == u64::max_value() {
+                                        self.send_counter = 0;
+                                    } else {
+                                        self.send_counter += 1;
+                                    }
                                 }
                             }
                         }
@@ -729,10 +742,11 @@ impl Future for ChannelNew {
                                     let key_recv = dh_private_key.derive_symmetric_key(&public_key, &recv_key_salt);
 
                                     let role = self.role.clone();
+                                    let channel_uid = gen_uid(&self.rng);
                                     let mut networker_sender = self.networker_sender.clone();
 
                                     let final_stage_fut = self.neighbors.acquire(move |mut neighbors| {
-                                        let (tx, rx) = mpsc::channel::<ToChannel>(0);
+                                        let (channel_sender, channel_receiver) = mpsc::channel::<ToChannel>(0);
 
                                         match neighbors.get_mut(&neighbor_public_key) {
                                             None => return Err(ChannelError::Closed("unknown neighbor")),
@@ -753,11 +767,11 @@ impl Future for ChannelNew {
                                                         return Err(ChannelError::SendToNetworkerFailed);
                                                     }
                                                 }
-                                                neighbor.channels.push(tx);
+                                                neighbor.channels.push((channel_uid, channel_sender));
                                             }
                                         }
 
-                                        Ok((neighbors, (key_send, key_recv, rx)))
+                                        Ok((neighbors, (key_send, key_recv, channel_receiver)))
                                     });
 
                                     self.state = ChannelNewState::FinalStage(Box::new(final_stage_fut));

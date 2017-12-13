@@ -1,4 +1,5 @@
 #![feature(conservative_impl_trait)]
+#![feature(drain_filter, iterator_step_by)]
 #![allow(unused)]
 
 #[macro_use]

@@ -44,7 +44,7 @@ impl From<::capnp::NotInSchema> for SchemaError {
     }
 }
 
-/// Create and serialize a Message from given `content`, return the serialized message on success.
+/// Create and serialize a `Message` from given `content`, return the serialized message on success.
 #[inline]
 pub fn serialize_message(content: Bytes) -> Result<Bytes, SchemaError> {
     let mut message = ::capnp::message::Builder::new_default();
@@ -62,7 +62,7 @@ pub fn serialize_message(content: Bytes) -> Result<Bytes, SchemaError> {
     Ok(Bytes::from(serialized_msg))
 }
 
-/// Deserialize EncryptMessage from `buffer`, return the `content` of this message on success.
+/// Deserialize `Message` from `buffer`, return the `content` of this message on success.
 #[inline]
 pub fn deserialize_message(buffer: Bytes) -> Result<Bytes, SchemaError> {
     let mut buffer = io::Cursor::new(buffer);
@@ -75,7 +75,7 @@ pub fn deserialize_message(buffer: Bytes) -> Result<Bytes, SchemaError> {
     Ok(content)
 }
 
-/// Create and serialize a EncryptMessage with given `counter` and `content`(optional), return the
+/// Create and serialize a `EncryptMessage` with given `counter` and `content`(optional), return the
 /// serialized message on success.
 ///
 /// # Details
@@ -117,7 +117,7 @@ pub fn serialize_enc_message(counter: u64, content: Option<Bytes>) -> Result<Byt
     Ok(Bytes::from(serialized_msg))
 }
 
-/// Deserialize EncryptMessage from `buffer`, return the `incCounter`, `messageType` and
+/// Deserialize `EncryptMessage` from `buffer`, return the `incCounter`, `messageType` and
 /// `content`(if not a KA message) on success.
 #[inline]
 pub fn deserialize_enc_message(buffer: Bytes) -> Result<(u64, MessageType, Option<Bytes>), SchemaError> {
@@ -142,7 +142,7 @@ pub fn deserialize_enc_message(buffer: Bytes) -> Result<(u64, MessageType, Optio
     Ok((inc_counter, message_type, content))
 }
 
-/// Create and serialize a InitChannel message from given `rand_value` and `public_key`, return
+/// Create and serialize a `InitChannel` message from given `rand_value` and `public_key`, return
 /// the serialized message on success.
 #[inline]
 pub fn serialize_init_channel_message(rand_value: RandValue, public_key: PublicKey)
@@ -176,7 +176,7 @@ pub fn serialize_init_channel_message(rand_value: RandValue, public_key: PublicK
     Ok(Bytes::from(serialized_msg))
 }
 
-/// Deserialize InitChannel message from `buffer`, return the `neighborPublicKey` and
+/// Deserialize `InitChannel` message from `buffer`, return the `neighborPublicKey` and
 /// `channelRandValue` on success.
 #[inline]
 pub fn deserialize_init_channel_message(buffer: Bytes)
@@ -203,7 +203,7 @@ pub fn deserialize_init_channel_message(buffer: Bytes)
     Ok((public_key, rand_value))
 }
 
-/// Create and serialize a Exchange message from given `dh_public_key`, `key_salt` and
+/// Create and serialize a `Exchange` message from given `dh_public_key`, `key_salt` and
 /// `signature`, return the serialized message on success.
 #[inline]
 pub fn serialize_exchange_message(dh_public_key: DhPublicKey, key_salt: Salt, signature: Signature)
@@ -242,7 +242,7 @@ pub fn serialize_exchange_message(dh_public_key: DhPublicKey, key_salt: Salt, si
     Ok(Bytes::from(serialized_msg))
 }
 
-/// Deserialize Exchange message from `buffer`, return the `commPublicKey`, `keySalt` and
+/// Deserialize `Exchange` message from `buffer`, return the `commPublicKey`, `keySalt` and
 /// `signature` on success.
 #[inline]
 pub fn deserialize_exchange_message(buffer: Bytes)

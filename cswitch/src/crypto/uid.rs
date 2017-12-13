@@ -3,7 +3,7 @@ use self::ring::rand::SecureRandom;
 
 const UID_LEN: usize = 16;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Uid([u8; UID_LEN]);
 
 
