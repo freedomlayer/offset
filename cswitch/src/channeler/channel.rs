@@ -1,5 +1,5 @@
 //#![deny(warnings)]
-use std::{io, mem};
+use std::{io, mem, time};
 use std::net::SocketAddr;
 use std::collections::HashMap;
 use std::collections::VecDeque;
@@ -11,7 +11,7 @@ use futures::stream::{SplitSink, SplitStream};
 use futures::{Async, Future, Poll, Stream, Sink, AsyncSink};
 
 use tokio_core::net::TcpStream;
-use tokio_core::reactor::Handle;
+use tokio_core::reactor::{Handle, Timeout};
 
 use tokio_io::AsyncRead;
 use tokio_io::codec::Framed;
@@ -315,6 +315,7 @@ impl Future for Channel {
 pub struct ChannelNew {
     role: Role,
     state: ChannelNewState,
+    timeout: Timeout,
 
     // Utils used in performing exchange
     rng:       SystemRandom,
@@ -419,6 +420,7 @@ impl Channel {
         ChannelNew {
             state:     ChannelNewState::PrepareTcp(Box::new(prepare_fut)),
             role:      Role::Initiator,
+            timeout:   Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
             rng:       SystemRandom::new(),
             sm_client: sm_client.clone(),
             neighbors: neighbors.clone(),
@@ -436,7 +438,7 @@ impl Channel {
     }
 
     // Create a new channel from a incoming socket.
-    pub fn from_socket(socket: TcpStream, _handle: &Handle,
+    pub fn from_socket(socket: TcpStream, handle: &Handle,
                        neighbors: &AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
                        networker_sender: &mpsc::Sender<ChannelerToNetworker>,
                        sm_client: &SecurityModuleClient) -> ChannelNew {
@@ -456,6 +458,7 @@ impl Channel {
         ChannelNew {
             state:     ChannelNewState::PrepareInit(Box::new(prepare_init_fut)),
             role:      Role::Responder,
+            timeout:   Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
             rng:       rng,
             sm_client: sm_client.clone(),
             neighbors: neighbors.clone(),
@@ -479,6 +482,14 @@ impl Future for ChannelNew {
 
     fn poll(&mut self) -> Poll<Channel, ChannelError> {
         trace!("ChannelNew::poll - {:?}", ::std::time::Instant::now());
+
+        // TODO: Should we need to reset timeout when the handshake make progress?
+        match self.timeout.poll()? {
+            Async::Ready(_) => {
+                error!("ChannelNew::timeout fired");
+            }
+            Async::NotReady => (),
+        }
 
         loop {
             match mem::replace(&mut self.state, ChannelNewState::Empty) {

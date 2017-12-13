@@ -19,12 +19,12 @@ use security_module::security_module_client::SecurityModuleClient;
 //use crypto::rand_values::RandValue;
 
 mod codec;
-//mod watcher;
-pub mod timer_reader;
-//mod networker_reader;
 pub mod channel;
+pub mod timer_reader;
+pub mod networker_reader;
 
-use self::timer_reader::create_timer_reader;
+use self::timer_reader::create_timer_reader_future;
+use self::networker_reader::create_networker_reader_future;
 
 const NUM_RAND_VALUES: usize = 16;
 const RAND_VALUE_TICKS: usize = 20;
@@ -53,44 +53,6 @@ pub struct ChannelerNeighbor {
     pub num_pending_out_conn: usize,
 }
 
-
-/*
-enum ChannelerState {
-    ReadClose,
-    HandleClose,
-    ReadTimer,
-    ReadNetworker,
-    HandleNetworker(NetworkerToChanneler),
-    ReadSecurityModule,
-    PollPendingConnection,
-    ReadConnectionMessage(usize),
-    HandleConnectionMessage(usize),
-    // ReadListenSocket,
-    Closed,
-}
-*/
-
-/*
-struct InnerChanneler<R> {
-    handle: Handle,
-    am_networker_sender: AsyncMutex<mpsc::Sender<ChannelerToNetworker>>,
-    security_module_client: SecurityModuleClient,
-    crypt_rng: Rc<R>,
-
-    rand_values_store: RandValuesStore,
-
-    neighbors: HashMap<PublicKey, ChannelerNeighbor>,
-    server_type: ServerType,
-
-    // state: ChannelerState,
-}
-
-struct Channeler<R> {
-    inner_channeler: RefCell<InnerChanneler<R>>,
-}
-*/
-
-
 fn create_channeler_future(handle: &Handle,
                            timer_receiver: mpsc::Receiver<FromTimer>,
                            networker_sender: mpsc::Sender<ChannelerToNetworker>,
@@ -104,22 +66,18 @@ fn create_channeler_future(handle: &Handle,
     let neighbors = AsyncMutex::new(HashMap::<PublicKey, ChannelerNeighbor>::new());
 
     // Start timer reader
-    handle.spawn(create_timer_reader(handle.clone(),
-                                     timer_receiver,
-                                     networker_sender,
-                                     security_module_client,
-                                     neighbors.clone()).map_err(|_| ()));
+    handle.spawn(create_timer_reader_future(handle.clone(),
+                                            timer_receiver,
+                                            networker_sender,
+                                            security_module_client.clone(),
+                                            neighbors.clone()).map_err(|_| ()));
 
     // Start networker reader
-    // handle.spawn(networker_reader_future(handle,
-    //                                      networker_receiver,
-    //                                      am_networker_sender,
-    //                                      security_module_client,
-    //                                      Rc::clone(&rc_crypt_rng),
-    //                                      Rc::clone(&rand_values_store),
-    //                                      Rc::clone(&neighbors))
-    //     .map_err(|_| ()));
-//
+    handle.spawn(create_networker_reader_future(handle.clone(),
+                                                networker_receiver,
+                                                security_module_client.clone(),
+                                                neighbors.clone()).map_err(|_| ()));
+
 //    close_receiver
 //        .map_err(|oneshot::Canceled| {
 //            warn!("Remote closing handle was canceled!");
@@ -129,7 +87,6 @@ fn create_channeler_future(handle: &Handle,
 //            // TODO:
 //            // - Send close requests to all tasks here?
 //            // - Wait for everyone to close.
-//
 //            // - Notify close handle that we finished closing:
 //
 //            match close_sender.send(()) {

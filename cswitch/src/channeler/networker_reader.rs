@@ -4,104 +4,91 @@ use futures::{Future, Stream};
 use futures::sync::mpsc;
 use tokio_core::reactor::Handle;
 
-use std::cell::RefCell;
-use std::rc::Rc;
-
+use async_mutex::{AsyncMutex, AsyncMutexError};
 use inner_messages::{NetworkerToChanneler};
 use security_module::security_module_client::SecurityModuleClient;
 use crypto::rand_values::RandValuesStore;
-use crypto::identity::{PublicKey};
-use super::ChannelerNeighbor;
+use crypto::identity::PublicKey;
+use super::{ChannelerNeighbor, ToChannel};
 
 pub enum NetworkerReaderError {
     MessageReceiveFailed,
 }
 
-pub fn networker_reader_future<R>(handle: Handle,
-                                  networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
-                                  security_module_client: SecurityModuleClient,
-                                  crypt_rng: Rc<R>,
-                                  rand_values_store: Rc<RefCell<RandValuesStore>>,
-                                  neighbors: Rc<RefCell<HashMap<PublicKey, ChannelerNeighbor>>>)
-                                  -> impl Future<Item=(), Error=NetworkerReaderError> {
+pub fn create_networker_reader_future(handle: Handle,
+                                      networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
+                                      security_module_client: SecurityModuleClient,
+                                      neighbors: AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>)
+    -> impl Future<Item=(), Error=NetworkerReaderError> {
     networker_receiver
         .map_err(|_| NetworkerReaderError::MessageReceiveFailed)
-        .for_each(|message| {
+        .for_each(move |message| {
             match message {
-                NetworkerToChanneler::AddNeighborRelation { neighbor_info } => {
+                NetworkerToChanneler::AddNeighbor { neighbor_info } => {
+                    let add_neighbor_task = neighbors.acquire(move |mut neighbors| {
+                        neighbors.insert(neighbor_info.neighbor_address.neighbor_public_key.clone(),
+                                         ChannelerNeighbor {
+                                             info: neighbor_info,
+                                             num_pending_out_conn: 0,
+                                             ticks_to_next_conn_attempt: 0,
+                                             channels: Vec::new(),
+                                         });
+                        Ok((neighbors, ()))
+                    }).map_err(|_: AsyncMutexError<()>| ());
 
+                    handle.spawn(add_neighbor_task);
                 }
-                NetworkerToChanneler::RemoveNeighborRelation { neighbor_public_key } => {
+                NetworkerToChanneler::RemoveNeighbor { neighbor_public_key } => {
+                    let del_neighbor_task = neighbors.acquire(move |mut neighbors| {
+                        if neighbors.remove(&neighbor_public_key).is_some() {
+                            trace!("finished to remove neighbor");
+                        } else {
+                            warn!("attempt to remove a nonexistent neighbor: {:?}", neighbor_public_key);
+                        }
+                        Ok((neighbors, ()))
+                    }).map_err(|_: AsyncMutexError<()>| ());
 
+                    handle.spawn(del_neighbor_task);
                 }
-                NetworkerToChanneler::SendChannelMessage { neighbor_public_key, message_content } => {
+                NetworkerToChanneler::SendChannelMessage { token, neighbor_public_key, content } => {
+                    neighbors.acquire(move |mut neighbors| {
+                        match neighbors.get_mut(&neighbor_public_key) {
+                            None => warn!("attempt to send message to a nonexistent neighbor"),
+                            Some(neighbors) => {
+                                let channel_idx = (token as usize) % neighbors.channels.len();
 
+                                let channel_sender = &mut neighbors.channels[channel_idx].1;
+                                let msg_to_channel = ToChannel::SendMessage(content);
+
+                                // TODO: Use backpressure strategy here?
+                                match channel_sender.try_send(msg_to_channel) {
+                                    Ok(_) => (),
+                                    Err(_) => {
+                                        error!("failed to send message to channel");
+                                    }
+                                }
+                            }
+                        }
+
+                        Ok((neighbors, ()))
+                    }).map_err(|_: AsyncMutexError<()>| ());
                 }
                 NetworkerToChanneler::SetMaxChannels { neighbor_public_key, max_channels } => {
+                    let set_max_channel_task = neighbors.acquire(move |mut neighbors| {
+                        match neighbors.get_mut(&neighbor_public_key) {
+                            None => warn!("attempt to change max_channels for a nonexistent neighbor"),
+                            Some(neighbors) => {
+                                neighbors.info.max_channels = max_channels;
+                            }
+                        }
 
-                }
-                NetworkerToChanneler::SetServerType(_) => {
-                    unimplemented!()
+                        Ok((neighbors, ()))
+                    }).map_err(|_: AsyncMutexError<()>| ());
+
+                    handle.spawn(set_max_channel_task);
                 }
             }
 
             Ok(())
         })
 }
-
-//fn handle_networker_message(&mut self, message: NetworkerToChanneler) ->
-//    StartSend<NetworkerToChanneler, ChannelerError> {
-//
-//    match message {
-//        NetworkerToChanneler::SendChannelMessage {
-//            neighbor_public_key, message_content } => {
-//            // TODO: Attempt to send a message to some TCP connections leading to
-//            // the requested neighbor. The chosen Sink could be not ready.
-//            Ok(AsyncSink::Ready)
-//        },
-//        NetworkerToChanneler::AddNeighborRelation { neighbor_info } => {
-//            let neighbor_public_key = neighbor_info.neighbor_public_key.clone();
-//            if self.neighbors.contains_key(&neighbor_public_key) {
-//                warn!("Neighbor with public key {:?} already exists",
-//                      neighbor_public_key);
-//            }
-//            self.neighbors.insert(neighbor_public_key, ChannelerNeighbor {
-//                info: neighbor_info,
-//                last_remote_rand_value: None,
-//                channels: Vec::new(),
-//                pending_channels: Vec::new(),
-//                pending_out_conn: None,
-//                ticks_to_next_conn_attempt: CONN_ATTEMPT_TICKS,
-//            });
-//            Ok(AsyncSink::Ready)
-//        },
-//        NetworkerToChanneler::RemoveNeighborRelation { neighbor_public_key } => {
-//            match self.neighbors.remove(&neighbor_public_key) {
-//                None => warn!("Attempt to remove a nonexistent neighbor \
-//                    relation with public key {:?}", neighbor_public_key),
-//                _ => {},
-//            };
-//            // TODO: Possibly close all connections here.
-//
-//            Ok(AsyncSink::Ready)
-//        },
-//        NetworkerToChanneler::SetMaxChannels
-//            { neighbor_public_key, max_channels } => {
-//            match self.neighbors.get_mut(&neighbor_public_key) {
-//                None => warn!("Attempt to change max_channels for a \
-//                    nonexistent neighbor relation with public key {:?}",
-//                    neighbor_public_key),
-//                Some(neighbor) => {
-//                    neighbor.info.max_channels = max_channels;
-//                },
-//            };
-//            Ok(AsyncSink::Ready)
-//        },
-//        NetworkerToChanneler::SetServerType(server_type) => {
-//            self.server_type = server_type;
-//            Ok(AsyncSink::Ready)
-//        },
-//    }
-//}
-
-

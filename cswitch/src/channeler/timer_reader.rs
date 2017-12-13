@@ -22,11 +22,11 @@ pub enum TimerReaderError {
     AsyncMutexError,
 }
 
-pub fn create_timer_reader(handle: Handle,
-                           timer_receiver: mpsc::Receiver<FromTimer>,
-                           networker_sender: mpsc::Sender<ChannelerToNetworker>,
-                           security_module_client: SecurityModuleClient,
-                           neighbors: AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>)
+pub fn create_timer_reader_future(handle: Handle,
+                                  timer_receiver: mpsc::Receiver<FromTimer>,
+                                  networker_sender: mpsc::Sender<ChannelerToNetworker>,
+                                  security_module_client: SecurityModuleClient,
+                                  neighbors: AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>)
     -> impl Future<Item=(), Error=TimerReaderError> {
     timer_receiver.map_err(|()| TimerReaderError::TimerReceiveFailed)
         .map(move |FromTimer::TimeTick| {
@@ -77,9 +77,10 @@ pub fn create_timer_reader(handle: Handle,
                 }
 
                 // Notify all channels that time tick occurred
-                let mut notify_tasks = Vec::new();
+                // let mut notify_tasks = Vec::new();
 
                 for (neighbor_public_key, mut neighbor) in &mut tbl_neighbors {
+                    let channels_len = neighbor.channels.len();
                     for &(ref channel_uid, ref channel_sender) in &neighbor.channels {
                         let channel_uid = channel_uid.clone();
                         let neighbor_public_key = neighbor_public_key.clone();
@@ -88,7 +89,7 @@ pub fn create_timer_reader(handle: Handle,
                             .send(ToChannel::TimeTick)
                             .map_err(move |_e: mpsc::SendError<ToChannel>| {
                                 // TODO： Remove this channel_sender
-                                error!("channel dead, removing {:?}", channel_uid);
+                                error!("channel dead, removing [{}] {:?}", channels_len, channel_uid);
 //                                neighbors.acquire(move |mut tbl_neighbors_b| {
 //                                    match tbl_neighbors_b.get_mut(&neighbor_public_key) {
 //                                        None => error!("no such neighbor"),
@@ -100,11 +101,12 @@ pub fn create_timer_reader(handle: Handle,
 //                                    Ok((tbl_neighbors_b, ()))
 //                                }).map_err(|_: AsyncMutexError<()>| ())
                             });
-                        notify_tasks.push(task);
+                        // notify_tasks.push(task);
+                        handle.spawn(task.then(|_| Ok(())));
                     }
                 }
 
-                handle.spawn(join_all(notify_tasks).then(|_| Ok(())));
+                // handle.spawn(join_all(notify_tasks).then(|_| Ok(())));
 
                 trace!("timer reader: before return item");
                 Ok((tbl_neighbors, ()))
