@@ -16,13 +16,13 @@ use ::crypto::uid::Uid;
 // --------------
 
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ChannelerAddress {
     pub socket_addr: Option<SocketAddr>,
     pub neighbor_public_key: PublicKey,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ChannelerNeighborInfo {
     pub neighbor_address: ChannelerAddress,
     pub max_channels: u32,  // Maximum amount of token channels

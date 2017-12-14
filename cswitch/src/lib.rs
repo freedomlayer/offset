@@ -12,12 +12,12 @@ extern crate futures;
 extern crate byteorder;
 extern crate tokio_core;
 extern crate tokio_io;
+extern crate futures_mutex;
 
 pub mod crypto;
 
 pub mod inner_messages;
 mod networker_state_machine;
-// mod prefix_frame_codec;
 
 mod close_handle;
 pub mod security_module;

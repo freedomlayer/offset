@@ -9,6 +9,7 @@ use capnp::serialize_packed;
 use futures::sync::mpsc;
 use futures::stream::{SplitSink, SplitStream};
 use futures::{Async, Future, Poll, Stream, Sink, AsyncSink};
+use futures_mutex::FutMutex;
 
 use tokio_core::net::TcpStream;
 use tokio_core::reactor::{Handle, Timeout};
@@ -45,7 +46,7 @@ use super::codec::{PrefixFrameCodec, PrefixFrameCodecError};
 #[derive(Debug)]
 pub enum ChannelError {
     Io(io::Error),
-    AsyncMutexIo(IoError),
+    FutMutex,
     Schema(SchemaError),
     Capnp(::capnp::Error),
     Codec(PrefixFrameCodecError),
@@ -97,19 +98,9 @@ impl From<SymmetricEncError> for ChannelError {
     }
 }
 
-impl From<AsyncMutexError<ChannelError>> for ChannelError {
-    #[inline]
-    fn from(e: AsyncMutexError<ChannelError>) -> ChannelError {
-        match e {
-            AsyncMutexError::IoError(io_e) => ChannelError::AsyncMutexIo(io_e),
-            AsyncMutexError::FuncError(func_e) => func_e,
-        }
-    }
-}
-
 enum ChannelState {
     Alive,
-    Closing(Box<Future<Item=(), Error=AsyncMutexError<ChannelError>>>),
+    Closing(Box<Future<Item=(), Error=ChannelError>>),
     Empty,
 }
 
@@ -118,7 +109,7 @@ pub struct Channel {
     state: ChannelState,
 
     remote_public_key: PublicKey,
-    neighbors: AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
+    neighbors: FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
 
     // The inner sender and receiver used to communicate with internal services
     inner_sender:     mpsc::Sender<ChannelerToNetworker>,
@@ -322,7 +313,7 @@ pub struct ChannelNew {
     sm_client: SecurityModuleClient,
 
     networker_sender: mpsc::Sender<ChannelerToNetworker>,
-    neighbors: AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
+    neighbors: FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
 
     // The public key of neighbor
     neighbor_public_key: Option<PublicKey>,
@@ -350,7 +341,7 @@ enum ChannelNewState {
     //
     // 1. Establish a TCP connection to the remote
     // 2. Increase the `num_pending_out_conn` for the given neighbor
-    PrepareTcp(Box<Future<Item=TcpStream, Error=AsyncMutexError<ChannelError>>>),
+    PrepareTcp(Box<Future<Item=TcpStream, Error=ChannelError>>),
 
     // Prepare a serialized InitChannel message, at this stage, we should finish:
     //
@@ -367,7 +358,7 @@ enum ChannelNewState {
     VerifyNeighbor {
         public_key: PublicKey,
         recv_rand_value: RandValue,
-        verify_neighbor_fut: Box<Future<Item=(), Error=AsyncMutexError<ChannelError>>>
+        verify_neighbor_fut: Box<Future<Item=(), Error=ChannelError>>
     },
 
     // Prepare a serialized Exchange message, at this stage, we should finish:
@@ -387,8 +378,7 @@ enum ChannelNewState {
     // 1. Decrease the `num_pending_out_conn` for the given neighbor
     // 2. Send a `ChannelOpened` notification to Networker if needed
     // 3. Add a new mpsc::Sender<ToChannel> to the `channel_senders`
-    FinalStage(Box<Future<Item=(SymmetricKey,SymmetricKey, mpsc::Receiver<ToChannel>),
-        Error=AsyncMutexError<ChannelError>>>),
+    FinalStage(Box<Future<Item=(SymmetricKey, SymmetricKey, mpsc::Receiver<ToChannel>), Error=ChannelError>>),
 
     Empty,
 }
@@ -397,49 +387,50 @@ impl Channel {
     /// Create a new channel connected to the specified neighbor.
     pub fn connect(addr: &SocketAddr, handle: &Handle,
                    neighbor_public_key: &PublicKey,
-                   neighbors: &AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
+                   neighbors: &FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
                    networker_sender: &mpsc::Sender<ChannelerToNetworker>,
                    sm_client: &SecurityModuleClient) -> ChannelNew {
         let neighbors_copy = neighbors.clone();
         let neighbors_public_key_copy = neighbor_public_key.clone();
+
         let prepare_fut = TcpStream::connect(addr, handle)
             .map_err(|e| ChannelError::Io(e).into())
             .and_then(move |tcp_stream| {
-                neighbors_copy.acquire(move |mut neighbors| {
-                    match neighbors.get_mut(&neighbors_public_key_copy) {
-                        None => {
-                            return Err(ChannelError::Closed("unknown neighbor"));
-                        },
-                        Some(neighbor) => {
-                            neighbor.num_pending_out_conn += 1;
+                neighbors_copy.lock()
+                    .map_err(|_: ()| ChannelError::FutMutex)
+                    .and_then(move |mut neighbors| {
+                        match neighbors.get_mut(&neighbors_public_key_copy) {
+                            None => Err(ChannelError::Closed("unknown neighbor")),
+                            Some(neighbor) => {
+                                neighbor.num_pending_out_conn += 1;
+                                Ok(tcp_stream)
+                            }
                         }
-                    }
-                    Ok((neighbors, tcp_stream))
-                })
+                    })
             });
         ChannelNew {
-            state:     ChannelNewState::PrepareTcp(Box::new(prepare_fut)),
-            role:      Role::Initiator,
-            timeout:   Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
-            rng:       SystemRandom::new(),
+            state: ChannelNewState::PrepareTcp(Box::new(prepare_fut)),
+            role: Role::Initiator,
+            timeout: Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
+            rng: SystemRandom::new(),
             sm_client: sm_client.clone(),
             neighbors: neighbors.clone(),
             networker_sender: networker_sender.clone(),
 
             neighbor_public_key: Some(neighbor_public_key.clone()),
-            sent_rand_value:     None,
-            recv_rand_value:     None,
-            dh_private_key:      None,
-            dh_public_key:       None,
-            dh_key_salt:         None,
-            sender:              None,
-            receiver:            None,
+            sent_rand_value: None,
+            recv_rand_value: None,
+            dh_private_key: None,
+            dh_public_key: None,
+            dh_key_salt: None,
+            sender: None,
+            receiver: None,
         }
     }
 
     // Create a new channel from a incoming socket.
     pub fn from_socket(socket: TcpStream, handle: &Handle,
-                       neighbors: &AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
+                       neighbors: &FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
                        networker_sender: &mpsc::Sender<ChannelerToNetworker>,
                        sm_client: &SecurityModuleClient) -> ChannelNew {
         let (tx, rx) = socket.framed(PrefixFrameCodec::new()).split();
@@ -456,22 +447,22 @@ impl Channel {
             });
 
         ChannelNew {
-            state:     ChannelNewState::PrepareInit(Box::new(prepare_init_fut)),
-            role:      Role::Responder,
-            timeout:   Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
-            rng:       rng,
+            state: ChannelNewState::PrepareInit(Box::new(prepare_init_fut)),
+            role: Role::Responder,
+            timeout: Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
+            rng: rng,
             sm_client: sm_client.clone(),
             neighbors: neighbors.clone(),
             networker_sender: networker_sender.clone(),
 
             neighbor_public_key: None,
-            sent_rand_value:     Some(sent_rand_value),
-            recv_rand_value:     None,
-            dh_private_key:      None,
-            dh_public_key:       None,
-            dh_key_salt:         None,
-            sender:              Some(tx),
-            receiver:            Some(rx),
+            sent_rand_value: Some(sent_rand_value),
+            recv_rand_value: None,
+            dh_private_key: None,
+            dh_public_key: None,
+            dh_key_salt: None,
+            sender: Some(tx),
+            receiver: Some(rx),
         }
     }
 }
@@ -499,11 +490,11 @@ impl Future for ChannelNew {
                         Async::Ready(tcp_stream) => {
                             trace!("ChannelNewState::PrepareTcp\t\t[Ready]");
 
-                            let (tx, rx)  = tcp_stream.framed(PrefixFrameCodec::new()).split();
-                            self.sender   = Some(tx);
+                            let (tx, rx) = tcp_stream.framed(PrefixFrameCodec::new()).split();
+                            self.sender = Some(tx);
                             self.receiver = Some(rx);
 
-                            let rand_value       = RandValue::new(&self.rng);
+                            let rand_value = RandValue::new(&self.rng);
                             self.sent_rand_value = Some(rand_value.clone());
 
                             let prepare_init_fut = self.sm_client.request_public_key()
@@ -581,26 +572,30 @@ impl Future for ChannelNew {
                             let public_key_to_verify = public_key.clone();
                             let expected_public_key  = self.neighbor_public_key.clone();
 
-                            let verify_neighbor_fut = self.neighbors.acquire(move |neighbors| {
-                                if let Some(key) = expected_public_key {
-                                    if key.as_ref() != public_key_to_verify.as_ref() {
-                                        return Err(ChannelError::Closed("neighbor public key not match"));
-                                    }
-                                } else {
-                                    match neighbors.get(&public_key_to_verify) {
-                                        None => {
-                                            return Err(ChannelError::Closed("unknown neighbor"));
-                                        },
-                                        Some(neighbor) => {
-                                            if neighbor.info.neighbor_address.socket_addr.is_some() {
-                                                return Err(ChannelError::Closed("not allowed"));
+                            let verify_neighbor_fut = self.neighbors.clone().lock()
+                                .map_err(|_: ()| ChannelError::FutMutex)
+                                .and_then(move |neighbors| {
+                                    if let Some(key) = expected_public_key {
+                                        if key.as_ref() != public_key_to_verify.as_ref() {
+                                            return Err(ChannelError::Closed("neighbor public key not match"));
+                                        } else {
+                                            return Ok(());
+                                        }
+                                    } else {
+                                        match neighbors.get(&public_key_to_verify) {
+                                            None => {
+                                                return Err(ChannelError::Closed("unknown neighbor"));
+                                            },
+                                            Some(neighbor) => {
+                                                if neighbor.info.neighbor_address.socket_addr.is_some() {
+                                                    return Err(ChannelError::Closed("not allowed"));
+                                                } else {
+                                                    return Ok(());
+                                                }
                                             }
                                         }
                                     }
-                                }
-
-                                Ok((neighbors, ()))
-                            });
+                                });
 
                             self.state = ChannelNewState::VerifyNeighbor {
                                 public_key,
@@ -756,34 +751,36 @@ impl Future for ChannelNew {
                                     let channel_uid = gen_uid(&self.rng);
                                     let mut networker_sender = self.networker_sender.clone();
 
-                                    let final_stage_fut = self.neighbors.acquire(move |mut neighbors| {
-                                        let (channel_sender, channel_receiver) = mpsc::channel::<ToChannel>(0);
+                                    let final_stage_fut = self.neighbors.clone().lock()
+                                        .map_err(|_: ()| ChannelError::FutMutex)
+                                        .and_then(move |mut neighbors| {
+                                            let (channel_sender, channel_receiver) = mpsc::channel::<ToChannel>(0);
 
-                                        match neighbors.get_mut(&neighbor_public_key) {
-                                            None => return Err(ChannelError::Closed("unknown neighbor")),
-                                            Some(neighbor) => {
-                                                if role == Role::Initiator {
-                                                    neighbor.num_pending_out_conn -= 1;
-                                                }
-
-                                                if neighbor.channels.is_empty() {
-                                                    let msg = ChannelerToNetworker::ChannelOpened(
-                                                        ChannelOpened {
-                                                            remote_public_key: neighbor_public_key,
-                                                            locally_initialized: role == Role::Initiator,
-                                                        });
-
-                                                    if networker_sender.try_send(msg).is_err() {
-                                                        error!("failed to notify the networker");
-                                                        return Err(ChannelError::SendToNetworkerFailed);
+                                            match neighbors.get_mut(&neighbor_public_key) {
+                                                None => return Err(ChannelError::Closed("unknown neighbor")),
+                                                Some(neighbor) => {
+                                                    if role == Role::Initiator {
+                                                        neighbor.num_pending_out_conn -= 1;
                                                     }
-                                                }
-                                                neighbor.channels.push((channel_uid, channel_sender));
-                                            }
-                                        }
 
-                                        Ok((neighbors, (key_send, key_recv, channel_receiver)))
-                                    });
+                                                    if neighbor.channels.is_empty() {
+                                                        let msg = ChannelerToNetworker::ChannelOpened(
+                                                            ChannelOpened {
+                                                                remote_public_key: neighbor_public_key,
+                                                                locally_initialized: role == Role::Initiator,
+                                                            });
+
+                                                        if networker_sender.try_send(msg).is_err() {
+                                                            error!("failed to notify the networker");
+                                                            return Err(ChannelError::SendToNetworkerFailed);
+                                                        }
+                                                    }
+                                                    neighbor.channels.push((channel_uid, channel_sender));
+                                                }
+                                            }
+
+                                            Ok((key_send, key_recv, channel_receiver))
+                                        });
 
                                     self.state = ChannelNewState::FinalStage(Box::new(final_stage_fut));
                                 } else {

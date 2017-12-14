@@ -30,3 +30,5 @@ capnp = "0.8.12"
 pretty_env_logger = "0.1"
 
 futures-timer = { git="https://github.com/alexcrichton/futures-timer", version = "0.1" }
+
+futures-mutex = "0.2"

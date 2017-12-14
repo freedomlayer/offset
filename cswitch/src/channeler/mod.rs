@@ -7,21 +7,19 @@ use std::collections::HashMap;
 
 use futures::sync::{mpsc, oneshot};
 use futures::future::{Future, IntoFuture};
+use futures_mutex::FutMutex;
 
 use tokio_core::reactor::Handle;
 
-use async_mutex::AsyncMutex;
 use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 use inner_messages::{FromTimer, ChannelerToNetworker, NetworkerToChanneler, ChannelerNeighborInfo};
 use security_module::security_module_client::SecurityModuleClient;
-//use close_handle::{CloseHandle, create_close_handle};
-//use crypto::rand_values::RandValue;
 
 mod codec;
 pub mod channel;
-pub mod timer_reader;
-pub mod networker_reader;
+ pub mod timer_reader;
+ pub mod networker_reader;
 
 use self::timer_reader::create_timer_reader_future;
 use self::networker_reader::create_networker_reader_future;
@@ -41,11 +39,13 @@ enum ChannelerError {
     TimerPollError,
 }
 
+#[derive(Debug)]
 pub enum ToChannel {
     TimeTick,
     SendMessage(Vec<u8>),
 }
 
+#[derive(Debug)]
 pub struct ChannelerNeighbor {
     pub info: ChannelerNeighborInfo,
     pub channels: Vec<(Uid, mpsc::Sender<ToChannel>)>,
@@ -53,48 +53,48 @@ pub struct ChannelerNeighbor {
     pub num_pending_out_conn: usize,
 }
 
-fn create_channeler_future(handle: &Handle,
-                           timer_receiver: mpsc::Receiver<FromTimer>,
-                           networker_sender: mpsc::Sender<ChannelerToNetworker>,
-                           networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
-                           security_module_client: SecurityModuleClient,
-                           close_sender: oneshot::Sender<()>,
-                           close_receiver: oneshot::Receiver<()>)
-    -> impl Future<Item=(), Error=ChannelerError> {
-
-    // Create the shared neighbors table
-    let neighbors = AsyncMutex::new(HashMap::<PublicKey, ChannelerNeighbor>::new());
-
-    // Start timer reader
-    handle.spawn(create_timer_reader_future(handle.clone(),
-                                            timer_receiver,
-                                            networker_sender,
-                                            security_module_client.clone(),
-                                            neighbors.clone()).map_err(|_| ()));
-
-    // Start networker reader
-    handle.spawn(create_networker_reader_future(handle.clone(),
-                                                networker_receiver,
-                                                security_module_client.clone(),
-                                                neighbors.clone()).map_err(|_| ()));
-
-//    close_receiver
-//        .map_err(|oneshot::Canceled| {
-//            warn!("Remote closing handle was canceled!");
-//            ChannelerError::CloseReceiverCanceled
-//        })
-//        .and_then(move |()| {
-//            // TODO:
-//            // - Send close requests to all tasks here?
-//            // - Wait for everyone to close.
-//            // - Notify close handle that we finished closing:
+//fn create_channeler_future(handle: &Handle,
+//                           timer_receiver: mpsc::Receiver<FromTimer>,
+//                           networker_sender: mpsc::Sender<ChannelerToNetworker>,
+//                           networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
+//                           security_module_client: SecurityModuleClient,
+//                           close_sender: oneshot::Sender<()>,
+//                           close_receiver: oneshot::Receiver<()>)
+//    -> impl Future<Item=(), Error=ChannelerError> {
 //
-//            match close_sender.send(()) {
-//                Ok(()) => Ok(()),
-//                Err(_) => Err(ChannelerError::SendCloseNotificationFailed),
-//            }
-//        })
-    Ok(()).into_future()
-}
+//    // Create the shared neighbors table
+//    let neighbors = AsyncMutex::new(HashMap::<PublicKey, ChannelerNeighbor>::new());
+//
+//    // Start timer reader
+//    handle.spawn(create_timer_reader_future(handle.clone(),
+//                                            timer_receiver,
+//                                            networker_sender,
+//                                            security_module_client.clone(),
+//                                            neighbors.clone()).map_err(|_| ()));
+//
+//    // Start networker reader
+//    handle.spawn(create_networker_reader_future(handle.clone(),
+//                                                networker_receiver,
+//                                                security_module_client.clone(),
+//                                                neighbors.clone()).map_err(|_| ()));
+//
+////    close_receiver
+////        .map_err(|oneshot::Canceled| {
+////            warn!("Remote closing handle was canceled!");
+////            ChannelerError::CloseReceiverCanceled
+////        })
+////        .and_then(move |()| {
+////            // TODO:
+////            // - Send close requests to all tasks here?
+////            // - Wait for everyone to close.
+////            // - Notify close handle that we finished closing:
+////
+////            match close_sender.send(()) {
+////                Ok(()) => Ok(()),
+////                Err(_) => Err(ChannelerError::SendCloseNotificationFailed),
+////            }
+////        })
+//    Ok(()).into_future()
+//}
 
 
