@@ -17,7 +17,7 @@ extern crate futures_mutex;
 pub mod crypto;
 
 pub mod inner_messages;
-mod networker_state_machine;
+// mod networker_state_machine;
 
 pub mod close_handle;
 pub mod security_module;

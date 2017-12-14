@@ -103,6 +103,7 @@ enum ChannelState {
 }
 
 /// The channel used to communicate to neighbors.
+#[must_use = "futures do nothing unless polled"]
 pub struct Channel {
     state: ChannelState,
 
@@ -299,6 +300,7 @@ impl Future for Channel {
     }
 }
 
+#[must_use = "futures do nothing unless polled"]
 pub struct ChannelNew {
     role: Role,
     state: ChannelNewState,
@@ -381,11 +383,14 @@ enum ChannelNewState {
 
 impl Channel {
     /// Create a new channel connected to the specified neighbor.
-    pub fn connect(addr: &SocketAddr, handle: &Handle,
-                   neighbor_public_key: &PublicKey,
-                   neighbors: &FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
-                   networker_sender: &mpsc::Sender<ChannelerToNetworker>,
-                   sm_client: &SecurityModuleClient) -> ChannelNew {
+    pub fn connect(
+       addr:                &SocketAddr,
+       handle:              &Handle,
+       neighbor_public_key: &PublicKey,
+       neighbors:           &FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
+       networker_sender:    &mpsc::Sender<ChannelerToNetworker>,
+       sm_client:           &SecurityModuleClient
+    ) -> ChannelNew {
         let neighbors_copy = neighbors.clone();
         let neighbors_public_key_copy = neighbor_public_key.clone();
 
@@ -404,35 +409,39 @@ impl Channel {
                         }
                     })
             });
+
         ChannelNew {
-            state: ChannelNewState::PrepareTcp(Box::new(prepare_fut)),
-            role: Role::Initiator,
-            timeout: Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
-            rng: SystemRandom::new(),
-            sm_client: sm_client.clone(),
-            neighbors: neighbors.clone(),
+            state:            ChannelNewState::PrepareTcp(Box::new(prepare_fut)),
+            role:             Role::Initiator,
+            timeout:          Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
+            rng:              SystemRandom::new(),
+            sm_client:        sm_client.clone(),
+            neighbors:        neighbors.clone(),
             networker_sender: networker_sender.clone(),
 
             neighbor_public_key: Some(neighbor_public_key.clone()),
-            sent_rand_value: None,
-            recv_rand_value: None,
-            dh_private_key: None,
-            dh_public_key: None,
-            dh_key_salt: None,
-            sender: None,
-            receiver: None,
+            sent_rand_value:     None,
+            recv_rand_value:     None,
+            dh_private_key:      None,
+            dh_public_key:       None,
+            dh_key_salt:         None,
+            sender:              None,
+            receiver:            None,
         }
     }
 
     // Create a new channel from a incoming socket.
-    pub fn from_socket(socket: TcpStream, handle: &Handle,
-                       neighbors: &FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
-                       networker_sender: &mpsc::Sender<ChannelerToNetworker>,
-                       sm_client: &SecurityModuleClient) -> ChannelNew {
+    pub fn from_socket(
+        socket:           TcpStream,
+        handle:           &Handle,
+        neighbors:        &FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
+        networker_sender: &mpsc::Sender<ChannelerToNetworker>,
+        sm_client:        &SecurityModuleClient
+    ) -> ChannelNew {
         let (tx, rx) = socket.framed(PrefixFrameCodec::new()).split();
 
-        let rng = SystemRandom::new();
-        let rand_value = RandValue::new(&rng);
+        let rng             = SystemRandom::new();
+        let rand_value      = RandValue::new(&rng);
         let sent_rand_value = rand_value.clone();
 
         let prepare_init_fut = sm_client.request_public_key()
@@ -443,22 +452,22 @@ impl Channel {
             });
 
         ChannelNew {
-            state: ChannelNewState::PrepareInit(Box::new(prepare_init_fut)),
-            role: Role::Responder,
-            timeout: Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
-            rng: rng,
-            sm_client: sm_client.clone(),
-            neighbors: neighbors.clone(),
+            state:            ChannelNewState::PrepareInit(Box::new(prepare_init_fut)),
+            role:             Role::Responder,
+            timeout:          Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
+            rng:              rng,
+            sm_client:        sm_client.clone(),
+            neighbors:        neighbors.clone(),
             networker_sender: networker_sender.clone(),
 
             neighbor_public_key: None,
-            sent_rand_value: Some(sent_rand_value),
-            recv_rand_value: None,
-            dh_private_key: None,
-            dh_public_key: None,
-            dh_key_salt: None,
-            sender: Some(tx),
-            receiver: Some(rx),
+            sent_rand_value:     Some(sent_rand_value),
+            recv_rand_value:     None,
+            dh_private_key:      None,
+            dh_public_key:       None,
+            dh_key_salt:         None,
+            sender:              Some(tx),
+            receiver:            Some(rx),
         }
     }
 }
@@ -470,7 +479,6 @@ impl Future for ChannelNew {
     fn poll(&mut self) -> Poll<Channel, ChannelError> {
         trace!("ChannelNew::poll - {:?}", ::std::time::Instant::now());
 
-        // TODO: Should we need to reset timeout when the handshake make progress?
         match self.timeout.poll()? {
             Async::Ready(_) => {
                 error!("ChannelNew::timeout fired");
@@ -736,12 +744,19 @@ impl Future for ChannelNew {
                                 };
 
                                 // Verify this message was signed by the neighbor with its private key
-                                if ::crypto::identity::verify_signature(&message, &neighbor_public_key, &signature) {
-                                    let dh_private_key = mem::replace(&mut self.dh_private_key, None).unwrap();
+                                if ::crypto::identity::verify_signature(
+                                    &message,
+                                    &neighbor_public_key,
+                                    &signature
+                                ) {
+                                    let dh_private_key =
+                                        mem::replace(&mut self.dh_private_key, None).unwrap();
                                     // received public key + sent_key_salt -> symmetric key for sending data
-                                    let key_send = dh_private_key.derive_symmetric_key(&public_key, &sent_key_salt);
+                                    let key_send =
+                                        dh_private_key.derive_symmetric_key(&public_key, &sent_key_salt);
                                     // received public key + recv_key_salt -> symmetric key for receiving data
-                                    let key_recv = dh_private_key.derive_symmetric_key(&public_key, &recv_key_salt);
+                                    let key_recv =
+                                        dh_private_key.derive_symmetric_key(&public_key, &recv_key_salt);
 
                                     let role = self.role.clone();
                                     let channel_uid = gen_uid(&self.rng);
@@ -750,7 +765,8 @@ impl Future for ChannelNew {
                                     let final_stage_fut = self.neighbors.clone().lock()
                                         .map_err(|_: ()| ChannelError::FutMutex)
                                         .and_then(move |mut neighbors| {
-                                            let (channel_sender, channel_receiver) = mpsc::channel::<ToChannel>(0);
+                                            let (channel_sender, channel_receiver) =
+                                                mpsc::channel::<ToChannel>(0);
 
                                             match neighbors.get_mut(&neighbor_public_key) {
                                                 None => return Err(ChannelError::Closed("unknown neighbor")),

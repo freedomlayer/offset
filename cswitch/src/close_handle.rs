@@ -11,7 +11,7 @@ pub struct CloseHandle {
 impl CloseHandle {
     /// Send a close message to remote Future
     /// Returns a future that resolves when the closing is complete.
-    fn close(self) -> Result<oneshot::Receiver<()>,()> {
+    pub fn close(self) -> Result<oneshot::Receiver<()>,()> {
         match self.handle_close_sender.send(()) {
             Ok(()) => Ok(self.handle_close_receiver),
             Err(_) => Err(())
