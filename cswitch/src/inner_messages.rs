@@ -71,7 +71,7 @@ pub struct ChannelOpened {
 }
 
 pub struct ChannelClosed {
-    remote_public_key: PublicKey,
+    pub remote_public_key: PublicKey,
 }
 
 pub struct ChannelMessageReceived {

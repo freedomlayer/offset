@@ -1,6 +1,6 @@
 #![feature(conservative_impl_trait)]
 #![feature(drain_filter, iterator_step_by)]
-#![allow(unused)]
+//#![allow(unused)]
 
 #[macro_use]
 extern crate log;
@@ -19,7 +19,7 @@ pub mod crypto;
 pub mod inner_messages;
 mod networker_state_machine;
 
-mod close_handle;
+pub mod close_handle;
 pub mod security_module;
 pub mod channeler;
 

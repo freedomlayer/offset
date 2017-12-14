@@ -4,8 +4,6 @@ use std::net::SocketAddr;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
-use capnp::serialize_packed;
-
 use futures::sync::mpsc;
 use futures::stream::{SplitSink, SplitStream};
 use futures::{Async, Future, Poll, Stream, Sink, AsyncSink};
@@ -17,20 +15,19 @@ use tokio_core::reactor::{Handle, Timeout};
 use tokio_io::AsyncRead;
 use tokio_io::codec::Framed;
 
-use bytes::{Bytes, BytesMut};
+use bytes::Bytes;
 use ring::rand::SystemRandom;
 
-use async_mutex::{AsyncMutex, AsyncMutexError, IoError};
-use crypto::uid::{Uid, gen_uid};
+use crypto::uid::gen_uid;
 use crypto::rand_values::RandValue;
-use crypto::identity::{PublicKey, Signature};
+use crypto::identity::PublicKey;
 use crypto::dh::{DhPrivateKey, DhPublicKey, Salt};
 use security_module::security_module_client::{SecurityModuleClient, SecurityModuleClientError};
-use inner_messages::{ChannelerToNetworker, ChannelOpened, ChannelClosed, ChannelMessageReceived};
+use inner_messages::{ChannelerToNetworker, ChannelOpened, ChannelMessageReceived};
 use crypto::symmetric_enc::{SymmetricKey, Encryptor, Decryptor, EncNonceCounter, SymmetricEncError};
 
 use schema::SchemaError;
-use schema::channeler_capnp::{self, init_channel, exchange, MessageType};
+use schema::channeler_capnp::MessageType;
 use schema::{serialize_init_channel_message,
              deserialize_init_channel_message,
              serialize_exchange_message,
@@ -40,7 +37,7 @@ use schema::{serialize_init_channel_message,
              serialize_message,
              deserialize_message};
 
-use super::{ToChannel, ChannelerNeighbor};
+use super::{ToChannel, ChannelerNeighbor, KEEP_ALIVE_TICKS};
 use super::codec::{PrefixFrameCodec, PrefixFrameCodecError};
 
 #[derive(Debug)]
@@ -98,6 +95,7 @@ impl From<SymmetricEncError> for ChannelError {
     }
 }
 
+#[allow(unused)]
 enum ChannelState {
     Alive,
     Closing(Box<Future<Item=(), Error=ChannelError>>),
@@ -109,7 +107,7 @@ pub struct Channel {
     state: ChannelState,
 
     remote_public_key: PublicKey,
-    neighbors: FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
+    _neighbors: FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
 
     // The inner sender and receiver used to communicate with internal services
     inner_sender:     mpsc::Sender<ChannelerToNetworker>,
@@ -126,11 +124,9 @@ pub struct Channel {
     send_encryptor: Encryptor,
     recv_decryptor: Decryptor,
 
-    remaining_tick_to_send_ka: u32,
-    remaining_tick_to_recv_ka: u32,
+    remaining_tick_to_send_ka: usize,
+    remaining_tick_to_recv_ka: usize,
 }
-
-const KEEPALIVE_TICKS: u32 = 100;
 
 impl Future for Channel {
     type Item = ();
@@ -194,7 +190,7 @@ impl Future for Channel {
                         MessageType::KeepAlive => {
                             debug!("received a keepalive message");
                             // TODO: Any thing needed to do here?
-                            self.remaining_tick_to_recv_ka = 2 * KEEPALIVE_TICKS;
+                            self.remaining_tick_to_recv_ka = 2 * KEEP_ALIVE_TICKS;
                         }
                     }
                 }
@@ -232,7 +228,7 @@ impl Future for Channel {
                                         } else {
                                             self.send_counter += 1;
                                         }
-                                        self.remaining_tick_to_send_ka = KEEPALIVE_TICKS;
+                                        self.remaining_tick_to_send_ka = KEEP_ALIVE_TICKS;
                                     }
                                 }
                                 ToChannel::SendMessage(raw_msg) => {
@@ -810,7 +806,7 @@ impl Future for ChannelNew {
                             return Ok(Async::Ready(Channel {
                                 state: ChannelState::Alive,
                                 remote_public_key: mem::replace(&mut self.neighbor_public_key, None).unwrap(),
-                                neighbors:        self.neighbors.clone(),
+                                _neighbors:        self.neighbors.clone(),
                                 inner_sender:     self.networker_sender.clone(),
                                 inner_receiver:   channel_receiver,
                                 inner_send_queue: VecDeque::new(),
@@ -821,8 +817,8 @@ impl Future for ChannelNew {
                                 recv_counter: 0,
                                 send_encryptor: Encryptor::new(&key_send, EncNonceCounter::new(&mut self.rng)),
                                 recv_decryptor: Decryptor::new(&key_recv),
-                                remaining_tick_to_send_ka: KEEPALIVE_TICKS,
-                                remaining_tick_to_recv_ka: 2 * KEEPALIVE_TICKS, // FIXME: suitable value?
+                                remaining_tick_to_send_ka: KEEP_ALIVE_TICKS,
+                                remaining_tick_to_recv_ka: 2 * KEEP_ALIVE_TICKS, // FIXME: suitable value?
                             }));
                         }
                     }
