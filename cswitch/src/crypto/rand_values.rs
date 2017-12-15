@@ -10,7 +10,7 @@ pub struct RandValue([u8; RAND_VALUE_LEN]);
 impl RandValue {
     pub fn new<R: SecureRandom>(crypt_rng: &R) -> Self {
         let mut rand_value = RandValue([0; RAND_VALUE_LEN]);
-        crypt_rng.fill(&mut rand_value.0);
+        crypt_rng.fill(&mut rand_value.0).unwrap();
         rand_value
     }
 

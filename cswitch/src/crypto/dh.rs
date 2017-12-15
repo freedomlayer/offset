@@ -21,7 +21,7 @@ pub struct Salt([u8; SALT_LEN]);
 impl Salt {
     pub fn new<R: SecureRandom>(crypt_rng: &R) -> Self {
         let mut inner_salt = [0_u8; SALT_LEN];
-        crypt_rng.fill(&mut inner_salt);
+        crypt_rng.fill(&mut inner_salt).unwrap();
         Salt(inner_salt)
     }
 

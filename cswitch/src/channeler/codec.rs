@@ -1,12 +1,22 @@
+//! The prefix length framed codec.
+//!
+//! # Frame Format
+//!
+//! ```ignore
+//! +-------------------+-----------------------+
+//! |  length(4 bytes)  |  data (length bytes)  |
+//! +-------------------+-----------------------+
+//! ```
+//!
+//! - `length` (unsigned 4 bytes integer, big endian): the length (in bytes) of the remaining data
+//! - `data` (bytes, with length of `length`): the actually data
+
 use std::{cmp, io, mem};
 use tokio_io::codec::{Encoder, Decoder};
 use bytes::{Bytes, BytesMut, Buf, BufMut, BigEndian};
 
 const MAX_FRAME_LEN: usize = 1 << 20;
 
-/// Break a stream of bytes into chunks, using prefix length frames.
-/// Every frame begins with a 32 bit length prefix, after which the data follows.
-/// A magic 32 bit value is the beginning of every frame. (TODO: Is the magic a good idea?)
 enum PrefixFrameCodecState {
     Empty,
     CollectingLength,
@@ -37,10 +47,9 @@ impl PrefixFrameCodec {
     }
 }
 
-/// Conversion of io::Error into PrefixFrameCodecError.
-/// This is required for usage of PrefixFrameCodecError as the error type of PrefixFrameCodec
-/// Encoder and Decoder.
+/// Conversion of `io::Error` into `PrefixFrameCodecError`.
 impl From<io::Error> for PrefixFrameCodecError {
+    #[inline]
     fn from(e: io::Error) -> Self {
         PrefixFrameCodecError::IoError(e)
     }
@@ -60,7 +69,7 @@ impl Decoder for PrefixFrameCodec {
                         self.state = PrefixFrameCodecState::CollectingLength;
                         return Ok(None);
                     } else {
-                        // Consume the first 4 byte in the buf
+                        // Consume the first 4 bytes in the buf
                         let length_bytes = buf.split_to(4usize).freeze();
                         let length = io::Cursor::new(length_bytes).get_u32::<BigEndian>() as usize;
 

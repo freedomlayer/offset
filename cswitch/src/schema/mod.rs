@@ -8,7 +8,8 @@ use crypto::rand_values::RandValue;
 use crypto::dh::{Salt, DhPublicKey};
 use crypto::identity::{PublicKey, Signature};
 
-#[allow(unused)]
+// Ignore the generated files' lint
+#[allow(unused, needless_lifetimes, wrong_self_convention, unreadable_literal)]
 pub mod channeler_capnp {
     include!(concat!(env!("OUT_DIR"), "/schema/channeler_capnp.rs"));
 }

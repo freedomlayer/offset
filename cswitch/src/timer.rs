@@ -104,7 +104,7 @@ impl Future for TimerModule {
                     TimerClient::Dropped => unreachable!("encounter a dropped client"),
                     TimerClient::Active(mut sender) => {
                         match sender.start_send(FromTimer::TimeTick) {
-                            Err(e) => error!("timer client dropped"),
+                            Err(_e) => error!("timer client dropped"),
                             Ok(start_send) => {
                                 match start_send {
                                     AsyncSink::Ready => {

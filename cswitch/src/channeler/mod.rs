@@ -15,9 +15,14 @@ use tokio_core::net::{TcpListener, Incoming};
 
 use crypto::uid::Uid;
 use crypto::identity::PublicKey;
-use inner_messages::{FromTimer, ChannelerToNetworker, NetworkerToChanneler, ChannelerNeighborInfo};
 use close_handle::{CloseHandle, create_close_handle};
 use security_module::security_module_client::SecurityModuleClient;
+use inner_messages::{
+    FromTimer,
+    ChannelerToNetworker,
+    NetworkerToChanneler,
+    ChannelerNeighborInfo
+};
 
 mod codec;
 pub mod channel;
@@ -98,16 +103,16 @@ impl Channeler {
     fn close(&mut self) -> Box<Future<Item=((), ()), Error=ChannelerError>> {
         let timer_reader_close_handle =
             match mem::replace(&mut self.timer_reader_close_handle, None) {
-            None => {
-                panic!("call close after timer reader close handle consumed, something go wrong");
-            }
-            Some(timer_reader_close_handle) => timer_reader_close_handle,
-        };
+                None => {
+                    panic!("call close after close handler consumed, something go wrong")
+                }
+                Some(timer_reader_close_handle) => timer_reader_close_handle,
+            };
 
         let networker_reader_close_handle =
             match mem::replace(&mut self.networker_reader_close_handle, None) {
                 None => {
-                    panic!("call close after networker reader close handle consumed, something go wrong");
+                    panic!("call close after close handler consumed, something go wrong")
                 }
                 Some(networker_reader_close_handle) => networker_reader_close_handle,
             };
@@ -208,12 +213,12 @@ impl Future for Channeler {
 
 impl Channeler {
     pub fn new(
-        addr: &SocketAddr,
-        handle: &Handle,
-        timer_receiver: mpsc::Receiver<FromTimer>,
-        networker_sender: mpsc::Sender<ChannelerToNetworker>,
+        addr:               &SocketAddr,
+        handle:             &Handle,
+        timer_receiver:     mpsc::Receiver<FromTimer>,
+        networker_sender:   mpsc::Sender<ChannelerToNetworker>,
         networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
-        sm_client: SecurityModuleClient,
+        sm_client:          SecurityModuleClient,
     ) -> (CloseHandle, Channeler) {
         let neighbors = FutMutex::new(HashMap::<PublicKey, ChannelerNeighbor>::new());
 

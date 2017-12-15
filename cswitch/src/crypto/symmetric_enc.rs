@@ -39,7 +39,7 @@ impl EncNonceCounter {
     pub fn new<R: SecureRandom>(crypt_rng: &mut R) -> Self {
         let mut enc_nonce = EncNonce([0_u8; ENC_NONCE_LEN]);
         // Generate a random initial EncNonce:
-        crypt_rng.fill(&mut enc_nonce.0);
+        crypt_rng.fill(&mut enc_nonce.0).unwrap();
         EncNonceCounter {
             enc_nonce,
         }

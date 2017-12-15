@@ -137,6 +137,7 @@ impl TimerReader {
 
     #[inline]
     fn broadcast_tick(&self) {
+        // FIXME: Can we reduce clone here?
         let handle_for_task = self.handle.clone();
         let neighbors_for_task = self.neighbors.clone();
         let networker_sender_for_task = self.inner_sender.clone();
@@ -237,7 +238,7 @@ impl Future for TimerReader {
         loop {
             match self.inner_receiver.poll() {
                 Err(_) => {
-                    debug!("inner receiver error, closing");
+                    error!("inner receiver error, closing");
 
                     self.close();
 
@@ -249,7 +250,7 @@ impl Future for TimerReader {
                             return Ok(Async::NotReady);
                         },
                         Async::Ready(None) => {
-                            debug!("inner receiver closed, closing");
+                            error!("inner receiver closed, closing");
 
                             self.close();
 

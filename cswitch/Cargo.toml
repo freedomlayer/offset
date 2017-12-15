@@ -4,12 +4,15 @@ version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 build = "build.rs"
 
-[build-dependencies]
+[features]
+default = []
+dev = ["clippy"]
 
-capnpc = "0.8.7"
+[[bin]]
+name = "mock_networker"
+path = "test_utils/mock_networker.rs"
 
 [dependencies]
-
 rand = "0.3.18"
 bytes = "0.4.5"
 num-bigint = "0.1.40"
@@ -25,6 +28,8 @@ byteorder = "1.1.0"
 log = "0.3.8"
 env_logger = "0.4.3"
 
+clippy = {version = "*", optional = true}
+
 capnp = "0.8.12"
 
 pretty_env_logger = "0.1"
@@ -32,3 +37,6 @@ pretty_env_logger = "0.1"
 futures-timer = { git="https://github.com/alexcrichton/futures-timer", version = "0.1" }
 
 futures-mutex = "0.2"
+
+[build-dependencies]
+capnpc = "0.8.7"
