@@ -139,24 +139,7 @@ impl Channel {
         networker_sender:    &mpsc::Sender<ChannelerToNetworker>,
         sm_client:           &SecurityModuleClient
     ) -> ChannelNew {
-        let neighbors_copy = neighbors.clone();
-        let neighbors_public_key_copy = neighbor_public_key.clone();
-
-        let prepare_tcp_fut = TcpStream::connect(addr, handle)
-            .map_err(|e| e.into())
-            .and_then(move |tcp_stream| {
-                neighbors_copy.lock()
-                    .map_err(|_: ()| ChannelError::FutMutex)
-                    .and_then(move |mut neighbors| {
-                        match neighbors.get_mut(&neighbors_public_key_copy) {
-                            None => Err(ChannelError::Closed("unknown neighbor")),
-                            Some(neighbor) => {
-                                neighbor.num_pending_out_conn += 1;
-                                Ok(tcp_stream)
-                            }
-                        }
-                    })
-            });
+        let prepare_tcp_fut = TcpStream::connect(addr, handle).map_err(|e| e.into());
 
         ChannelNew {
             state: RefCell::new(ChannelNewState::PrepareTcp(Box::new(prepare_tcp_fut))),
@@ -529,8 +512,9 @@ impl Future for ChannelNew {
                     }
                 }
                 ChannelNewState::PrepareTcp(mut prepare_tcp_fut) => {
-                    match prepare_tcp_fut.poll()? {
-                        Async::Ready(tcp_stream) => {
+                    match prepare_tcp_fut.poll() {
+                        Err(e) => self.on_error(e),
+                        Ok(Async::Ready(tcp_stream)) => {
                             trace!("ChannelNewState::PrepareTcp\t\t[Ready]");
 
                             let (tx, rx) = tcp_stream.framed(PrefixFrameCodec::new()).split();
@@ -551,7 +535,7 @@ impl Future for ChannelNew {
                                 ChannelNewState::PrepareInit(Box::new(prepare_init_fut))
                             );
                         }
-                        Async::NotReady => {
+                        Ok(Async::NotReady) => {
                             trace!("ChannelNewState::PrepareTcp\t\t[NotReady]");
 
                             self.state.replace(ChannelNewState::PrepareTcp(prepare_tcp_fut));

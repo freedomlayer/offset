@@ -108,6 +108,7 @@ impl TimerReader {
                         }
                     }
 
+                    neighbor.num_pending_out_conn += 1;
                     retry_conn_tasks.push((addr, neighbor_public_key.clone()));
                 }
 
