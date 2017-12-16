@@ -278,6 +278,30 @@ mod tests {
 
         assert_eq!(core.run(fut4).unwrap(), 4);
     }
+
+    #[test]
+    fn test_async_mutex_nested() {
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+        let handle_inner = handle.clone();
+
+        let async_mutex = AsyncMutex::new(MyStruct { num: 0 });
+        let async_mutex_inner = async_mutex.clone();
+
+        let fut1 = async_mutex.acquire(|mut my_struct| -> Result<_,()> {
+            my_struct.num += 1;
+
+            let inner_fut1 = async_mutex_inner.acquire(|mut my_struct| {
+                my_struct.num += 1;
+                Ok((my_struct, ()))
+            });
+            handle.spawn(inner_fut1.map_err(|_:AsyncMutexError<()>| ()));
+            let num = my_struct.num;
+            Ok((my_struct, num))
+        });
+        assert_eq!(core.run(fut1).unwrap(), 2);
+    }
+
 }
 
 
