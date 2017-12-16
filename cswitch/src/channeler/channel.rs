@@ -1,4 +1,5 @@
 use std::{io, mem, time};
+use std::cell::RefCell;
 use std::net::SocketAddr;
 use std::collections::HashMap;
 use std::collections::VecDeque;
@@ -126,6 +127,97 @@ pub struct Channel {
 
     remaining_tick_to_send_ka: usize,
     remaining_tick_to_recv_ka: usize,
+}
+
+impl Channel {
+    /// Create a new channel connected to the specified neighbor.
+    pub fn connect(
+        addr:                &SocketAddr,
+        handle:              &Handle,
+        neighbor_public_key: &PublicKey,
+        neighbors:           &FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
+        networker_sender:    &mpsc::Sender<ChannelerToNetworker>,
+        sm_client:           &SecurityModuleClient
+    ) -> ChannelNew {
+        let neighbors_copy = neighbors.clone();
+        let neighbors_public_key_copy = neighbor_public_key.clone();
+
+        let prepare_tcp_fut = TcpStream::connect(addr, handle)
+            .map_err(|e| e.into())
+            .and_then(move |tcp_stream| {
+                neighbors_copy.lock()
+                    .map_err(|_: ()| ChannelError::FutMutex)
+                    .and_then(move |mut neighbors| {
+                        match neighbors.get_mut(&neighbors_public_key_copy) {
+                            None => Err(ChannelError::Closed("unknown neighbor")),
+                            Some(neighbor) => {
+                                neighbor.num_pending_out_conn += 1;
+                                Ok(tcp_stream)
+                            }
+                        }
+                    })
+            });
+
+        ChannelNew {
+            state: RefCell::new(ChannelNewState::PrepareTcp(Box::new(prepare_tcp_fut))),
+            role:             Role::Initiator,
+            timeout:          Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
+            rng:              SystemRandom::new(),
+            sm_client:        sm_client.clone(),
+            neighbors:        neighbors.clone(),
+            networker_sender: networker_sender.clone(),
+
+            neighbor_public_key: Some(neighbor_public_key.clone()),
+            sent_rand_value:     None,
+            recv_rand_value:     None,
+            dh_private_key:      None,
+            dh_public_key:       None,
+            dh_key_salt:         None,
+            sender:              None,
+            receiver:            None,
+        }
+    }
+
+    // Create a new channel from a incoming socket.
+    pub fn from_socket(
+        socket:           TcpStream,
+        handle:           &Handle,
+        neighbors:        &FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
+        networker_sender: &mpsc::Sender<ChannelerToNetworker>,
+        sm_client:        &SecurityModuleClient
+    ) -> ChannelNew {
+        let (tx, rx) = socket.framed(PrefixFrameCodec::new()).split();
+
+        let rng             = SystemRandom::new();
+        let rand_value      = RandValue::new(&rng);
+        let sent_rand_value = rand_value.clone();
+
+        let prepare_init_fut = sm_client.request_public_key()
+            .map_err(|e| e.into())
+            .and_then(move |public_key| {
+                serialize_init_channel_message(rand_value, public_key)
+                    .map_err(|e| e.into())
+            });
+
+        ChannelNew {
+            state: RefCell::new(ChannelNewState::PrepareInit(Box::new(prepare_init_fut))),
+            role:             Role::Responder,
+            timeout:          Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
+            rng:              rng,
+            sm_client:        sm_client.clone(),
+            neighbors:        neighbors.clone(),
+            networker_sender: networker_sender.clone(),
+
+            neighbor_public_key: None,
+            sent_rand_value:     Some(sent_rand_value),
+            recv_rand_value:     None,
+            dh_private_key:      None,
+            dh_public_key:       None,
+            dh_key_salt:         None,
+            sender:              Some(RefCell::new(tx)),
+            receiver:            Some(RefCell::new(rx)),
+        }
+    }
 }
 
 impl Future for Channel {
@@ -280,34 +372,6 @@ impl Future for Channel {
     }
 }
 
-#[must_use = "futures do nothing unless polled"]
-pub struct ChannelNew {
-    role: Role,
-    state: ChannelNewState,
-    timeout: Timeout,
-
-    // Utils used in performing exchange
-    rng:       SystemRandom,
-    sm_client: SecurityModuleClient,
-
-    networker_sender: mpsc::Sender<ChannelerToNetworker>,
-    neighbors: FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
-
-    // The public key of neighbor
-    neighbor_public_key: Option<PublicKey>,
-
-    sent_rand_value: Option<RandValue>,
-    recv_rand_value: Option<RandValue>,
-
-    // The parts used to perform DH exchange
-    dh_key_salt:    Option<Salt>,
-    dh_public_key:  Option<DhPublicKey>,
-    dh_private_key: Option<DhPrivateKey>,
-
-    sender:   Option<SplitSink<Framed<TcpStream, PrefixFrameCodec>>>,
-    receiver: Option<SplitStream<Framed<TcpStream, PrefixFrameCodec>>>,
-}
-
 #[derive(Clone, PartialEq, Eq)]
 enum Role {
     Initiator,
@@ -358,97 +422,72 @@ enum ChannelNewState {
     // 3. Add a new mpsc::Sender<ToChannel> to the `channel_senders`
     FinalStage(Box<Future<Item=(SymmetricKey, SymmetricKey, mpsc::Receiver<ToChannel>), Error=ChannelError>>),
 
+    // An error occurred in creating the channel, we need to do some cleanup:
+    //
+    // 1. Decrease the `num_pending_out_conn` for the given neighbor
+    //
+    // We should return the actual error after cleanup.
+    Error(Box<Future<Item=ChannelError, Error=Option<PublicKey>>>),
+
     Empty,
 }
 
-impl Channel {
-    /// Create a new channel connected to the specified neighbor.
-    pub fn connect(
-       addr:                &SocketAddr,
-       handle:              &Handle,
-       neighbor_public_key: &PublicKey,
-       neighbors:           &FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
-       networker_sender:    &mpsc::Sender<ChannelerToNetworker>,
-       sm_client:           &SecurityModuleClient
-    ) -> ChannelNew {
-        let neighbors_copy = neighbors.clone();
-        let neighbors_public_key_copy = neighbor_public_key.clone();
+#[must_use = "futures do nothing unless polled"]
+pub struct ChannelNew {
+    role: Role,
+    state: RefCell<ChannelNewState>,
+    timeout: Timeout,
 
-        let prepare_fut = TcpStream::connect(addr, handle)
-            .map_err(|e| e.into())
-            .and_then(move |tcp_stream| {
-                neighbors_copy.lock()
-                    .map_err(|_: ()| ChannelError::FutMutex)
-                    .and_then(move |mut neighbors| {
-                        match neighbors.get_mut(&neighbors_public_key_copy) {
-                            None => Err(ChannelError::Closed("unknown neighbor")),
-                            Some(neighbor) => {
-                                neighbor.num_pending_out_conn += 1;
-                                Ok(tcp_stream)
+    // Utils used in performing exchange
+    rng:       SystemRandom,
+    sm_client: SecurityModuleClient,
+
+    networker_sender: mpsc::Sender<ChannelerToNetworker>,
+    neighbors: FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
+
+    // The public key of neighbor
+    neighbor_public_key: Option<PublicKey>,
+
+    sent_rand_value: Option<RandValue>,
+    recv_rand_value: Option<RandValue>,
+
+    // The parts used to perform DH exchange
+    dh_key_salt:    Option<Salt>,
+    dh_public_key:  Option<DhPublicKey>,
+    dh_private_key: Option<DhPrivateKey>,
+
+    sender:   Option<RefCell<SplitSink<Framed<TcpStream, PrefixFrameCodec>>>>,
+    receiver: Option<RefCell<SplitStream<Framed<TcpStream, PrefixFrameCodec>>>>,
+}
+
+impl ChannelNew {
+    #[inline]
+    fn on_error<E: Into<ChannelError>>(&self, e: E) {
+        let role = self.role.clone();
+        let neighbor_public_key = self.neighbor_public_key.clone();
+        let neighbor_public_key_copy = neighbor_public_key.clone();
+
+        let original_error = e.into();
+
+        let cleanup_fut = self.neighbors.clone().lock()
+            .map_err(|_: ()| neighbor_public_key)
+            .and_then(move |mut neighbors| {
+                if let Some(public_key) = neighbor_public_key_copy {
+                    match neighbors.get_mut(&public_key) {
+                        None => {
+                            error!("nonexistent neighbor");
+                        },
+                        Some(neighbor) => {
+                            if role == Role::Initiator {
+                                neighbor.num_pending_out_conn -= 1;
                             }
                         }
-                    })
+                    }
+                }
+                Ok(original_error)
             });
 
-        ChannelNew {
-            state:            ChannelNewState::PrepareTcp(Box::new(prepare_fut)),
-            role:             Role::Initiator,
-            timeout:          Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
-            rng:              SystemRandom::new(),
-            sm_client:        sm_client.clone(),
-            neighbors:        neighbors.clone(),
-            networker_sender: networker_sender.clone(),
-
-            neighbor_public_key: Some(neighbor_public_key.clone()),
-            sent_rand_value:     None,
-            recv_rand_value:     None,
-            dh_private_key:      None,
-            dh_public_key:       None,
-            dh_key_salt:         None,
-            sender:              None,
-            receiver:            None,
-        }
-    }
-
-    // Create a new channel from a incoming socket.
-    pub fn from_socket(
-        socket:           TcpStream,
-        handle:           &Handle,
-        neighbors:        &FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
-        networker_sender: &mpsc::Sender<ChannelerToNetworker>,
-        sm_client:        &SecurityModuleClient
-    ) -> ChannelNew {
-        let (tx, rx) = socket.framed(PrefixFrameCodec::new()).split();
-
-        let rng             = SystemRandom::new();
-        let rand_value      = RandValue::new(&rng);
-        let sent_rand_value = rand_value.clone();
-
-        let prepare_init_fut = sm_client.request_public_key()
-            .map_err(|e| e.into())
-            .and_then(move |public_key| {
-                serialize_init_channel_message(rand_value, public_key)
-                    .map_err(|e| e.into())
-            });
-
-        ChannelNew {
-            state:            ChannelNewState::PrepareInit(Box::new(prepare_init_fut)),
-            role:             Role::Responder,
-            timeout:          Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
-            rng:              rng,
-            sm_client:        sm_client.clone(),
-            neighbors:        neighbors.clone(),
-            networker_sender: networker_sender.clone(),
-
-            neighbor_public_key: None,
-            sent_rand_value:     Some(sent_rand_value),
-            recv_rand_value:     None,
-            dh_private_key:      None,
-            dh_public_key:       None,
-            dh_key_salt:         None,
-            sender:              Some(tx),
-            receiver:            Some(rx),
-        }
+        self.state.replace(ChannelNewState::Error(Box::new(cleanup_fut)));
     }
 }
 
@@ -459,25 +498,44 @@ impl Future for ChannelNew {
     fn poll(&mut self) -> Poll<Channel, ChannelError> {
         trace!("ChannelNew::poll - {:?}", ::std::time::Instant::now());
 
-        match self.timeout.poll()? {
-            Async::Ready(_) => {
+        match self.timeout.poll() {
+            Err(e) => self.on_error(e),
+            Ok(Async::Ready(_)) => {
                 error!("ChannelNew::timeout fired");
                 return Err(ChannelError::Timeout);
             }
-            Async::NotReady => (),
+            Ok(Async::NotReady) => (),
         }
 
         loop {
-            match mem::replace(&mut self.state, ChannelNewState::Empty) {
+            match self.state.replace(ChannelNewState::Empty) {
                 ChannelNewState::Empty => unreachable!("can't poll twice"),
+                ChannelNewState::Error(mut cleanup_fut) => {
+                    match cleanup_fut.poll() {
+                        Err(_public_key) => {
+                            error!("an error occurred in decreasing the num_pending_out_conn");
+                            // TODO: Should we retry here?
+                            return Err(
+                                ChannelError::Closed("failed to decrease the num_pending_out_conn")
+                            );
+                        }
+                        Ok(Async::NotReady) => {
+                            self.state.replace(ChannelNewState::Error(cleanup_fut));
+                            return Ok(Async::NotReady);
+                        }
+                        Ok(Async::Ready(e)) => {
+                            return Err(e);
+                        }
+                    }
+                }
                 ChannelNewState::PrepareTcp(mut prepare_tcp_fut) => {
                     match prepare_tcp_fut.poll()? {
                         Async::Ready(tcp_stream) => {
                             trace!("ChannelNewState::PrepareTcp\t\t[Ready]");
 
                             let (tx, rx) = tcp_stream.framed(PrefixFrameCodec::new()).split();
-                            self.sender = Some(tx);
-                            self.receiver = Some(rx);
+                            self.sender   = Some(RefCell::new(tx));
+                            self.receiver = Some(RefCell::new(rx));
 
                             let rand_value = RandValue::new(&self.rng);
                             self.sent_rand_value = Some(rand_value.clone());
@@ -489,121 +547,149 @@ impl Future for ChannelNew {
                                         .map_err(|e| e.into())
                                 });
 
-                            self.state = ChannelNewState::PrepareInit(Box::new(prepare_init_fut));
+                            self.state.replace(
+                                ChannelNewState::PrepareInit(Box::new(prepare_init_fut))
+                            );
                         }
                         Async::NotReady => {
                             trace!("ChannelNewState::PrepareTcp\t\t[NotReady]");
 
-                            self.state = ChannelNewState::PrepareTcp(prepare_tcp_fut);
+                            self.state.replace(ChannelNewState::PrepareTcp(prepare_tcp_fut));
                             return Ok(Async::NotReady);
                         }
                     }
                 }
                 ChannelNewState::PrepareInit(mut prepare_init_fut) => {
-                    match prepare_init_fut.poll()? {
-                        Async::Ready(serialized_msg) => {
+                    match prepare_init_fut.poll() {
+                        Err(e) => self.on_error(e),
+                        Ok(Async::Ready(serialized_msg)) => {
                             trace!("ChannelNewState::PrepareInit\t\t[Ready]");
 
-                            self.state = ChannelNewState::SendInit(Some(serialized_msg));
+                            self.state.replace(ChannelNewState::SendInit(Some(serialized_msg)));
                         }
-                        Async::NotReady => {
+                        Ok(Async::NotReady) => {
                             trace!("ChannelNewState::PrepareInit\t\t[NotReady]");
 
-                            self.state = ChannelNewState::PrepareInit(prepare_init_fut);
+                            self.state.replace(ChannelNewState::PrepareInit(prepare_init_fut));
                             return Ok(Async::NotReady);
                         }
                     }
                 }
                 ChannelNewState::SendInit(init_channel_msg) => {
-                    let sender = self.sender.as_mut().expect("sender is None");
+                    let mut sender =
+                        self.sender.as_ref().expect("sender is None").borrow_mut();
 
                     if let Some(msg) = init_channel_msg {
-                        match sender.start_send(msg)? {
-                            AsyncSink::Ready => {
-                                self.state = ChannelNewState::SendInit(None);
+                        match sender.start_send(msg) {
+                            Err(e) => self.on_error(e),
+                            Ok(AsyncSink::Ready) => {
+                                self.state.replace(ChannelNewState::SendInit(None));
                             }
-                            AsyncSink::NotReady(msg) => {
-                                self.state = ChannelNewState::SendInit(Some(msg));
+                            Ok(AsyncSink::NotReady(msg)) => {
+                                self.state.replace(ChannelNewState::SendInit(Some(msg)));
                                 return Ok(Async::NotReady);
                             }
                         }
                     } else {
-                        match sender.poll_complete()? {
-                            Async::NotReady => {
+                        match sender.poll_complete() {
+                            Err(e) => self.on_error(e),
+                            Ok(Async::NotReady) => {
                                 trace!("ChannelNewState::SendingInit\t\t[NotReady]");
 
-                                self.state = ChannelNewState::SendInit(None);
+                                self.state.replace(ChannelNewState::SendInit(None));
                                 return Ok(Async::NotReady)
                             }
-                            Async::Ready(_) => {
+                            Ok(Async::Ready(_)) => {
                                 trace!("ChannelNewState::SendingInit\t\t[Ready]");
 
-                                self.state = ChannelNewState::WaitInit;
+                                self.state.replace(ChannelNewState::WaitInit);
                             }
                         }
                     }
                 }
                 ChannelNewState::WaitInit => {
-                    let receiver = self.receiver.as_mut().expect("receiver is None");
+                    let mut receiver =
+                        self.receiver.as_ref().expect("receiver is None").borrow_mut();
 
-                    if let Async::Ready(Some(buf)) = receiver.poll()? {
-                        trace!("ChannelNewState::WaitInit\t\t[Ready]");
+                    match receiver.poll() {
+                        Err(e) => self.on_error(e),
+                        Ok(Async::Ready(None)) => {
+                            error!("connection lost");
+                            self.on_error(ChannelError::Closed("connection lost"));
+                            return Err(ChannelError::Closed("connection lost"));
+                        }
+                        Ok(Async::Ready(Some(buffer))) => {
+                            trace!("ChannelNewState::WaitInit\t\t[Ready]");
 
-                        let (public_key, recv_rand_value) = deserialize_init_channel_message(buf)?;
+                            let (public_key, recv_rand_value) =
+                                match deserialize_init_channel_message(buffer) {
+                                    Err(e) => {
+                                        self.on_error(e);
+                                        continue;
+                                    },
+                                    Ok(res) => res,
+                                };
 
-                        let public_key_to_verify = public_key.clone();
-                        let expected_public_key = self.neighbor_public_key.clone();
+                            let public_key_to_verify = public_key.clone();
+                            let expected_public_key = self.neighbor_public_key.clone();
 
-                        let verify_neighbor_fut = self.neighbors.clone().lock()
-                            .map_err(|_: ()| ChannelError::FutMutex)
-                            .and_then(move |neighbors| {
-                                if let Some(key) = expected_public_key {
-                                    if key.as_ref() != public_key_to_verify.as_ref() {
-                                        return Err(ChannelError::Closed("neighbor public key not match"));
+                            let verify_neighbor_fut = self.neighbors.clone().lock()
+                                .map_err(|_: ()| ChannelError::FutMutex)
+                                .and_then(move |neighbors| {
+                                    if let Some(key) = expected_public_key {
+                                        if key.as_ref() != public_key_to_verify.as_ref() {
+                                            return Err(ChannelError::Closed("neighbor public key not match"));
+                                        } else {
+                                            return Ok(());
+                                        }
                                     } else {
-                                        return Ok(());
-                                    }
-                                } else {
-                                    match neighbors.get(&public_key_to_verify) {
-                                        None => {
-                                            return Err(ChannelError::Closed("unknown neighbor"));
-                                        },
-                                        Some(neighbor) => {
-                                            if neighbor.info.neighbor_address.socket_addr.is_some() {
-                                                return Err(ChannelError::Closed("not allowed"));
-                                            } else {
-                                                return Ok(());
+                                        match neighbors.get(&public_key_to_verify) {
+                                            None => {
+                                                return Err(ChannelError::Closed("unknown neighbor"));
+                                            },
+                                            Some(neighbor) => {
+                                                if neighbor.info.neighbor_address.socket_addr.is_some() {
+                                                    return Err(ChannelError::Closed("not allowed"));
+                                                } else {
+                                                    return Ok(());
+                                                }
                                             }
                                         }
                                     }
+                                });
+
+                            self.state.replace(
+                                ChannelNewState::VerifyNeighbor {
+                                    public_key,
+                                    recv_rand_value,
+                                    verify_neighbor_fut: Box::new(verify_neighbor_fut),
                                 }
-                            });
+                            );
+                        }
+                        Ok(Async::NotReady) => {
+                            trace!("ChannelNewState::WaitInit\t\t[Not Ready]");
 
-                        self.state = ChannelNewState::VerifyNeighbor {
-                            public_key,
-                            recv_rand_value,
-                            verify_neighbor_fut: Box::new(verify_neighbor_fut),
-                        };
-                    } else {
-                        trace!("ChannelNewState::WaitInit\t\t[Not Ready]");
-
-                        self.state = ChannelNewState::WaitInit;
-                        return Ok(Async::NotReady);
+                            self.state.replace(ChannelNewState::WaitInit);
+                            return Ok(Async::NotReady);
+                        }
                     }
                 }
                 ChannelNewState::VerifyNeighbor { public_key, recv_rand_value, mut verify_neighbor_fut } => {
-                    match verify_neighbor_fut.poll()? {
-                        Async::NotReady => {
+                    match verify_neighbor_fut.poll() {
+                        Err(e) => self.on_error(e),
+                        Ok(Async::NotReady) => {
                             trace!("ChannelNewState::VerifyNeighbor\t[Not Ready]");
 
-                            self.state = ChannelNewState::VerifyNeighbor {
-                                public_key,
-                                recv_rand_value,
-                                verify_neighbor_fut: Box::new(verify_neighbor_fut),
-                            };
+                            self.state.replace(
+                                ChannelNewState::VerifyNeighbor {
+                                    public_key,
+                                    recv_rand_value,
+                                    verify_neighbor_fut: Box::new(verify_neighbor_fut),
+                                }
+                            );
                             return Ok(Async::NotReady)
                         },
-                        Async::Ready(_) => {
+                        Ok(Async::Ready(_)) => {
                             trace!("ChannelNewState::VerifyNeighbor\t[Ready]");
                             self.neighbor_public_key = Some(public_key);
 
@@ -631,70 +717,83 @@ impl Future for ChannelNew {
                                         .map_err(|e| e.into())
                                 });
 
-                            self.state = ChannelNewState::PrepareExchange(Box::new(prepare_exchange_fut));
+                            self.state.replace(
+                                ChannelNewState::PrepareExchange(Box::new(prepare_exchange_fut))
+                            );
                         }
                     }
                 }
                 ChannelNewState::PrepareExchange(mut prepare_exchange_fut) => {
-                    match prepare_exchange_fut.poll()? {
-                        Async::Ready(serialized_msg) => {
+                    match prepare_exchange_fut.poll() {
+                        Err(e) => self.on_error(e),
+                        Ok(Async::Ready(serialized_msg)) => {
                             trace!("ChannelNewState::PrepareExchange\t[Ready]");
 
-                            self.state = ChannelNewState::SendExchange(Some(serialized_msg));
+                            self.state.replace(ChannelNewState::SendExchange(Some(serialized_msg)));
                         }
-                        Async::NotReady => {
+                        Ok(Async::NotReady) => {
                             trace!("ChannelNewState::PrepareExchange\t[Not Ready]");
 
-                            self.state = ChannelNewState::PrepareExchange(prepare_exchange_fut);
+                            self.state.replace(
+                                ChannelNewState::PrepareExchange(prepare_exchange_fut)
+                            );
                             return Ok(Async::NotReady);
                         }
                     }
                 }
                 ChannelNewState::SendExchange(exchange_msg) => {
-                    let sender = self.sender.as_mut().expect("sender is None");
+                    let mut sender =
+                        self.sender.as_ref().expect("sender is None").borrow_mut();
 
                     if let Some(msg) = exchange_msg {
-                        match sender.start_send(msg)? {
-                            AsyncSink::Ready => {
-                                self.state = ChannelNewState::SendExchange(None);
+                        match sender.start_send(msg) {
+                            Err(e) => self.on_error(e),
+                            Ok(AsyncSink::Ready) => {
+                                self.state.replace(ChannelNewState::SendExchange(None));
                             }
-                            AsyncSink::NotReady(msg) => {
-                                self.state = ChannelNewState::SendExchange(Some(msg));
+                            Ok(AsyncSink::NotReady(msg)) => {
+                                self.state.replace(ChannelNewState::SendExchange(Some(msg)));
                                 return Ok(Async::NotReady);
                             }
                         }
                     } else {
-                        match sender.poll_complete()? {
-                            Async::NotReady => {
+                        match sender.poll_complete() {
+                            Err(e) => self.on_error(e),
+                            Ok(Async::NotReady) => {
                                 trace!("ChannelNewState::SendExchange\t[NotReady]");
 
-                                self.state = ChannelNewState::SendExchange(None);
+                                self.state.replace(ChannelNewState::SendExchange(None));
                                 return Ok(Async::NotReady);
                             }
-                            Async::Ready(_) => {
+                            Ok(Async::Ready(_)) => {
                                 trace!("ChannelNewState::SendExchange\t[Ready]");
 
-                                self.state = ChannelNewState::WaitExchange;
+                                self.state.replace(ChannelNewState::WaitExchange);
                             }
                         }
                     }
                 }
                 ChannelNewState::WaitExchange => {
-                    let receiver = self.receiver.as_mut().expect("receiver is None");
+                    let mut receiver =
+                        self.receiver.as_ref().expect("receiver is None").borrow_mut();
 
-                    match receiver.poll()? {
-                        Async::Ready(buffer) => {
+                    match receiver.poll() {
+                        Err(e) => self.on_error(e),
+                        Ok(Async::Ready(None)) => {
+                            error!("connection lost");
+                            self.on_error(ChannelError::Closed("connection lost"));
+                        }
+                        Ok(Async::Ready(Some(buffer))) => {
                             trace!("ChannelNewState::WaitExchange\t[Ready]");
 
-                            if buffer.is_none() {
-                                error!("connection lost");
-                                return Err(ChannelError::Closed("connection lost"));
-                            }
-
-                            let buffer = buffer.unwrap();
-
                             let (public_key, recv_key_salt, signature) =
-                                deserialize_exchange_message(buffer)?;
+                                match deserialize_exchange_message(buffer) {
+                                    Err(e) => {
+                                        self.on_error(e);
+                                        continue;
+                                    }
+                                    Ok(res) => res,
+                                };
 
                             let channel_rand_value = match self.sent_rand_value {
                                 None => unreachable!(),
@@ -768,39 +867,42 @@ impl Future for ChannelNew {
                                         Ok((key_send, key_recv, channel_receiver))
                                     });
 
-                                self.state = ChannelNewState::FinalStage(Box::new(final_stage_fut));
+                                self.state.replace(
+                                    ChannelNewState::FinalStage(Box::new(final_stage_fut))
+                                );
                             } else {
                                 error!("invalid signature");
                                 return Err(ChannelError::Closed("invalid signature"));
                             }
                         }
-                        Async::NotReady => {
+                        Ok(Async::NotReady) => {
                             trace!("ChannelNewState::WaitExchange\t[NotReady]");
 
-                            self.state = ChannelNewState::WaitExchange;
+                            self.state.replace(ChannelNewState::WaitExchange);
                             return Ok(Async::NotReady);
                         }
                     }
                 }
                 ChannelNewState::FinalStage(mut final_stage_fut) => {
-                    match final_stage_fut.poll()? {
-                        Async::NotReady => {
+                    match final_stage_fut.poll() {
+                        Err(e) => self.on_error(e),
+                        Ok(Async::NotReady) => {
                             trace!("ChannelNewState::FinalStage\t\t[Not Ready]");
 
-                            self.state = ChannelNewState::FinalStage(final_stage_fut);
+                            self.state.replace(ChannelNewState::FinalStage(final_stage_fut));
                             return Ok(Async::NotReady);
                         },
-                        Async::Ready((key_send, key_recv, channel_receiver)) => {
+                        Ok(Async::Ready((key_send, key_recv, channel_receiver))) => {
                             trace!("ChannelNewState::FinalStage\t\t[Ready]");
                             return Ok(Async::Ready(Channel {
                                 state: ChannelState::Alive,
-                                remote_public_key: mem::replace(&mut self.neighbor_public_key, None).unwrap(),
+                                remote_public_key: self.neighbor_public_key.take().unwrap(),
                                 _neighbors:        self.neighbors.clone(),
                                 inner_sender:     self.networker_sender.clone(),
                                 inner_receiver:   channel_receiver,
                                 inner_send_queue: VecDeque::new(),
-                                outer_sender:     mem::replace(&mut self.sender, None).unwrap(),
-                                outer_receiver:   mem::replace(&mut self.receiver, None).unwrap(),
+                                outer_sender:     self.sender.take().unwrap().into_inner(),
+                                outer_receiver:   self.receiver.take().unwrap().into_inner(),
                                 outer_send_queue: VecDeque::new(),
                                 send_counter: 0,
                                 recv_counter: 0,

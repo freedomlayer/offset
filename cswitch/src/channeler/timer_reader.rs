@@ -88,6 +88,11 @@ impl TimerReader {
                         None => continue,
                         Some(addr) => addr,
                     };
+
+                    if neighbor.num_pending_out_conn > 0 {
+                        continue;
+                    }
+
                     match neighbor.channels.len().cmp(&(neighbor.info.max_channels as usize)) {
                         Ordering::Greater => unreachable!("number of channel exceeded the maximum"),
                         Ordering::Equal => continue,
