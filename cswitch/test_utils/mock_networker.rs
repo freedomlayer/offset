@@ -195,7 +195,7 @@ fn main() {
 
                         let token = items[2].parse::<u32>().unwrap();
 
-                        let content = Vec::from(items[3..].join("").as_bytes());
+                        let content = Vec::from(items[3..].join(" ").as_bytes());
 
                         let message = NetworkerToChanneler::SendChannelMessage {
                             token,

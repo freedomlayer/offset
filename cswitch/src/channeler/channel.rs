@@ -844,10 +844,6 @@ impl Future for ChannelNew {
                                         match neighbors.get_mut(&neighbor_public_key) {
                                             None => return Err(ChannelError::Closed("unknown neighbor")),
                                             Some(neighbor) => {
-                                                if role == Role::Initiator {
-                                                    neighbor.num_pending_out_conn -= 1;
-                                                }
-
                                                 if neighbor.channels.is_empty() {
                                                     let msg = ChannelerToNetworker::ChannelOpened(
                                                         ChannelOpened {
@@ -861,6 +857,10 @@ impl Future for ChannelNew {
                                                     }
                                                 }
                                                 neighbor.channels.push((channel_uid, channel_sender));
+
+                                                if role == Role::Initiator {
+                                                    neighbor.num_pending_out_conn -= 1;
+                                                }
                                             }
                                         }
 
