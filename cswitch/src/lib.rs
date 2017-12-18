@@ -13,6 +13,7 @@ extern crate ring;
 extern crate rand;
 extern crate bytes;
 extern crate capnp;
+extern crate crossbeam;
 extern crate futures;
 extern crate byteorder;
 extern crate tokio_core;
