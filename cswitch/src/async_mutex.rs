@@ -10,7 +10,7 @@ use crossbeam::sync::MsQueue;
 #[derive(Debug)]
 pub struct Inner<T> {
     waiters: MsQueue<oneshot::Sender<T>>,
-    resource: RefCell<Option<T>>,
+    bucket: RefCell<Option<T>>,
 }
 
 #[derive(Debug)]
@@ -44,6 +44,7 @@ enum AcquireFutureState<T, F, G> {
 }
 
 #[derive(Debug)]
+#[must_use = "futures do nothing unless polled"]
 pub struct AcquireFuture<T, F, G> {
     inner: Rc<Inner<T>>,
     state: AcquireFutureState<T, F, G>,
@@ -54,7 +55,7 @@ impl<T> AsyncMutex<T> {
     pub fn new(t: T) -> AsyncMutex<T> {
         let inner = Rc::new(Inner {
             waiters: MsQueue::new(),
-            resource: RefCell::new(Some(t)),
+            bucket: RefCell::new(Some(t)),
         });
 
         AsyncMutex { inner }
@@ -72,7 +73,7 @@ impl<T> AsyncMutex<T> {
             G: Future<Item=(T, O), Error=E>,
             B: IntoFuture<Item=G::Item, Error=G::Error, Future=G>,
     {
-        match self.inner.resource.replace(None) {
+        match self.inner.bucket.replace(None) {
             None => {
                 // If the resource is `None`, there will be two cases:
                 //
@@ -114,10 +115,12 @@ impl<T, F, B, G, E, O> Future for AcquireFuture<T, F, G>
                     match receiver.poll() {
                         Ok(Async::Ready(t)) => {
                             debug!("AcquireFutureState::WaitResource -- Ready");
+
                             self.state = AcquireFutureState::WaitFunction(f(t).into_future());
                         },
                         Ok(Async::NotReady) => {
                             debug!("AcquireFutureState::WaitResource -- NotReady");
+
                             self.state = AcquireFutureState::WaitResource((receiver, f));
                             return Ok(Async::NotReady);
                         },
@@ -130,21 +133,32 @@ impl<T, F, B, G, E, O> Future for AcquireFuture<T, F, G>
                     match f.poll() {
                         Ok(Async::NotReady) => {
                             debug!("AcquireFutureState::WaitFunction -- NotReady");
+
                             self.state = AcquireFutureState::WaitFunction(f);
                             return Ok(Async::NotReady)
                         },
                         Ok(Async::Ready((resource, output))) => {
                             debug!("AcquireFutureState::WaitFunction -- Ready");
-                            // There are some waiters, we send the `resource` to the first waiter.
-                            if let Some(waiter) = self.inner.waiters.try_pop() {
-                                if let Err(resource) = waiter.send(resource) {
-                                    self.inner.resource.replace(Some(resource));
-                                    return Err(AsyncMutexError::IoError(IoError::SendFailed));
+
+                            let mut bucket = Some(resource);
+
+                            // There are some waiters, we send the `resource`
+                            // to the first _alive_ waiter.
+                            if !self.inner.waiters.is_empty() {
+                                while let Some(waiter) = self.inner.waiters.try_pop() {
+                                    assert!(bucket.is_some(), "unexpected status");
+
+                                    let resource = mem::replace(&mut bucket, None).unwrap();
+                                    if let Err(resource) = waiter.send(resource) {
+                                        bucket = Some(resource);
+                                        continue;
+                                    }
+
+                                    break;
                                 }
-                            } else {
-                                // There are NO other waiters, we put the `resource` back.
-                                self.inner.resource.replace(Some(resource));
                             }
+
+                            self.inner.bucket.replace(bucket);
                             return Ok(Async::Ready(output));
                         },
                         Err(e) => {
@@ -221,6 +235,50 @@ mod tests {
         });
 
         assert_eq!(core.run(fut4).unwrap(), 4);
+    }
+
+    #[test]
+    fn test_async_mutex_drop() {
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+
+        let async_mutex = AsyncMutex::new(MyStruct { num: 0 });
+
+        let fut1 = async_mutex.acquire(|mut my_struct| -> Result<_, ()> {
+            my_struct.num += 1;
+            Ok((my_struct, ()))
+        });
+
+        handle.spawn(fut1.map_err(|_| ()));
+
+        {
+            let _fut2 = async_mutex.acquire(|mut my_struct| -> Result<_, ()> {
+                my_struct.num += 1;
+                Ok((my_struct, ()))
+            });
+
+            let _fut3 = async_mutex.acquire(|mut my_struct| -> Result<_, ()> {
+                my_struct.num += 1;
+                Ok((my_struct, ()))
+            });
+        }
+
+        // TODO: Fix the bug and uncomment
+        // let _fut4 = async_mutex.acquire(|mut my_struct| -> Result<_, ()> {
+        //     my_struct.num += 1;
+        //
+        //     let num = my_struct.num;
+        //     Ok((my_struct, num))
+        // });
+
+        let fut5 = async_mutex.acquire(|mut my_struct| -> Result<_, ()> {
+            my_struct.num += 1;
+
+            let num = my_struct.num;
+            Ok((my_struct, num))
+        });
+
+        assert_eq!(core.run(fut5).unwrap(), 2);
     }
 
     #[test]
