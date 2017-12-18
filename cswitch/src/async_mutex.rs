@@ -50,6 +50,7 @@ pub struct AcquireFuture<T, F, G> {
 }
 
 impl<T> AsyncMutex<T> {
+    /// Create a new **single threading** shared mutex resource.
     pub fn new(t: T) -> AsyncMutex<T> {
         let inner = Rc::new(Inner {
             waiters: MsQueue::new(),
@@ -59,6 +60,12 @@ impl<T> AsyncMutex<T> {
         AsyncMutex { inner }
     }
 
+    /// Acquire a shared resource (in the same thread) and invoke the function `f` over it.
+    ///
+    /// The `f` MUST return an `IntoFuture` that resolves to a tuple of the form (t, output),
+    /// where `t` is the original `resource`, and `output` is custom output.
+    ///
+    /// This function returns a future that resolves to the value given at output.
     pub fn acquire<F, B, E, G, O>(&self, f: F) -> AcquireFuture<T, F, G>
         where
             F: FnOnce(T) -> B,
@@ -67,6 +74,10 @@ impl<T> AsyncMutex<T> {
     {
         match self.inner.resource.replace(None) {
             None => {
+                // If the resource is `None`, there will be two cases:
+                //
+                // 1. The resource is being used, **and there are NO other waiters**.
+                // 2. The resource is being used, **and there are other waiters **.
                 let (sender, receiver) = oneshot::channel::<T>();
                 self.inner.waiters.push(sender);
 
@@ -124,12 +135,14 @@ impl<T, F, B, G, E, O> Future for AcquireFuture<T, F, G>
                         },
                         Ok(Async::Ready((resource, output))) => {
                             debug!("AcquireFutureState::WaitFunction -- Ready");
+                            // There are some waiters, we send the `resource` to the first waiter.
                             if let Some(waiter) = self.inner.waiters.try_pop() {
                                 if let Err(resource) = waiter.send(resource) {
                                     self.inner.resource.replace(Some(resource));
                                     return Err(AsyncMutexError::IoError(IoError::SendFailed));
                                 }
                             } else {
+                                // There are NO other waiters, we put the `resource` back.
                                 self.inner.resource.replace(Some(resource));
                             }
                             return Ok(Async::Ready(output));
