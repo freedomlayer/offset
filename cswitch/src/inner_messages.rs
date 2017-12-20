@@ -164,8 +164,8 @@ enum ResponseSendMessageContent {
 }
 
 enum NotifyStructureChangeNeighbors {
-    NeighborAdd(PublicKey),
-    NeighborRemove(PublicKey),
+    NeighborAdded(PublicKey),
+    NeighborRemoved(PublicKey),
 }
 
 enum NetworkerToIndexerClient {
@@ -411,11 +411,11 @@ struct FriendCapacity {
 enum NotifyStructureChangeFriends {
     // This message is used both to add a new friend and to update the capacity information of a
     // current friend.
-    FriendUpdate {
+    FriendUpdated {
         public_key: PublicKey,
         capacity: FriendCapacity
     },
-    FriendRemove(PublicKey),
+    FriendRemoved(PublicKey),
 }
 
 enum RequestFriendsRoute {
