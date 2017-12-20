@@ -169,15 +169,19 @@ enum NotifyStructureChangeNeighbors {
 }
 
 enum NetworkerToIndexerClient {
+    /*
     ResponseSendMessage {
         request_id: Uid,
         content: ResponseSendMessageContent,
     },
+    */
     NotifyStructureChange(NotifyStructureChangeNeighbors),
+    /*
     MessageReceived {
         source_node_public_key: PublicKey,
         message_content: Vec<u8>,
     },
+    */
 }
 
 
