@@ -400,16 +400,18 @@ enum NetworkerToFunder {
 // ------------------------
 
 struct FriendCapacity {
-    friend_public_key: PublicKey,
-    mutual_credit: BigInt,
-    max_mutual_credit: BigInt,
-    min_mutual_credit: BigInt,
+    send: u64,
+    recv: u64,
 }
 
 enum NotifyStructureChangeFriends {
-    FriendAdded(PublicKey),
-    FriendRemoved(PublicKey),
-    FriendCapacity(FriendCapacity),
+    // This message is used both to add a new friend and to update the capacity information of a
+    // current friend.
+    FriendUpdate {
+        public_key: PublicKey,
+        capacity: FriendCapacity
+    },
+    FriendRemove(PublicKey),
 }
 
 enum RequestFriendsRoute {
