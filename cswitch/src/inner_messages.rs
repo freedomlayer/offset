@@ -164,8 +164,8 @@ enum ResponseSendMessageContent {
 }
 
 enum NotifyStructureChangeNeighbors {
-    NeighborAdded(PublicKey),
-    NeighborRemoved(PublicKey),
+    NeighborAdd(PublicKey),
+    NeighborRemove(PublicKey),
 }
 
 enum NetworkerToIndexerClient {
