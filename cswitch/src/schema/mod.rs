@@ -8,14 +8,27 @@ use crypto::rand_values::RandValue;
 use crypto::dh::{Salt, DhPublicKey};
 use crypto::identity::{PublicKey, Signature};
 
-// Ignore the generated files' lint
-#[allow(unused, needless_lifetimes, wrong_self_convention, unreadable_literal)]
-pub mod channeler_capnp {
-    include!(concat!(env!("OUT_DIR"), "/schema/channeler_capnp.rs"));
+/// Include the auto-generated schema files.
+macro_rules! include_schema {
+    ($($name:ident, $path:expr);*) => {
+        $(
+            // Ignore the generated files' lint
+            #[allow(unused, needless_lifetimes, wrong_self_convention, unreadable_literal)]
+            pub mod $name {
+                include!(concat!(env!("OUT_DIR"), "/schema/", $path, ".rs"));
+            }
+        )*
+    };
 }
 
-use channeler_capnp::{custom_u_int128, custom_u_int256, custom_u_int512, /*message*/
-                      init_channel, exchange, encrypt_message, MessageType};
+include_schema!{
+    common_capnp, "common_capnp";
+    indexer_capnp, "indexer_capnp";
+    channeler_capnp, "channeler_capnp"
+}
+
+use common_capnp::{custom_u_int128, custom_u_int256, custom_u_int512};
+use channeler_capnp::{init_channel, exchange, encrypt_message, MessageType, /*message*/};
 
 #[derive(Debug)]
 pub enum SchemaError {
