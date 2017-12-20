@@ -4,7 +4,7 @@ using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomUInt256;
 using import "common.capnp".CustomUInt512;
 
-struct Route {
+struct NeighborsRoute {
         publicKeys @0: List(CustomUInt256);
 }
 
@@ -32,7 +32,7 @@ struct ResponseUpdateState {
 
 # Indexer -> Node
 struct RoutesToIndexer {
-        routes @0: List(Route);
+        routes @0: List(NeighborsRoute);
 }
 
 
@@ -70,22 +70,49 @@ struct RequestNeighborsRoute {
 
 # Indexer -> Node
 struct ResponseNeighborsRoute { 
-        routes @0: List(Route);
+        routes @0: List(NeighborsRoute);
         destinationCommPublicKey @1: CustomUInt256;
         destinationRecentTimestamp @2: CustomUInt128;
 }
 
+# Request a direct route of friends from the source node to the destination
+# node.
+struct DirectRoute {
+        sourceNodePublicKey @0: CustomUInt256;
+        destinationNodePublicKey @1: CustomUInt256;
+}
+
+# A loop from myself through given friend, back to myself.
+# This is used for money rebalance when we owe the friend money.
+struct LoopFromFriendRoute {
+        friendPublicKey @0: CustomUInt256;
+}
+
+# A loop from myself back to myself through given friend.
+# This is used for money rebalance when the friend owe us money.
+struct LoopToFriendRoute {
+        friendPublicKey @0: CustomUInt256;
+}
+
 # Node -> Indexer
 struct RequestFriendsRoute { 
-        sourceNodePublicKey @0: CustomUInt256;
-        secondNodePublicKey @1: CustomUInt256;
-        beforeLastNodePublicKey @2: CustomUInt256;
-        destinationNodePublicKey @3: CustomUInt256;
+        routeType :union {
+                direct @0: DirectRoute;
+                loopFromFriend @1: LoopFromFriendRoute;
+                loopToFriend @2: LoopToFriendRoute;
+        }
 }
+
+struct FriendsRoute {
+        publicKeys @0: List(CustomUInt256);
+        capacity @1: UInt64;
+        # Maximum amount of credit we can push through this route
+}
+
 
 # Indexer -> Node
 struct ResponseFriendsRoute {
-        routes @0: List(Route);
+        routes @0: List(FriendsRoute);
         destinationCommPublicKey @1: CustomUInt256;
         destinationRecentTimestamp @2: CustomUInt128;
 }
