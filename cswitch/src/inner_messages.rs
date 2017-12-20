@@ -9,11 +9,21 @@ use ::crypto::identity::{PublicKey, Signature};
 use ::crypto::dh::Salt;
 use ::crypto::symmetric_enc::SymmetricKey;
 use ::crypto::uid::Uid;
-
+use ::crypto::rand_values::RandValue;
 
 
 // Helper structs
 // --------------
+
+const INDEXING_PROVIDER_STATE_HASH_LEN: usize = 32;
+const INDEXING_PROVIDER_NAME_LEN: usize = 16;
+
+// A hash of a full link in an indexing provider chain
+struct IndexingProviderStateHash([u8; INDEXING_PROVIDER_STATE_HASH_LEN]);
+
+// The name of an indexing provider.
+// TODO: Should we use a string instead here? Is a fixed sized blob preferable?
+struct IndexingProviderName([u8; INDEXING_PROVIDER_NAME_LEN]);
 
 
 #[derive(Clone, Debug)]
@@ -431,6 +441,26 @@ enum IndexerClientToFunder {
     ResponseFriendsRoute {
         routes: Vec<FriendsRoute>,
     },
+}
+
+struct IndexingProviderInfo {
+    name: IndexingProviderName,
+    previous_state_hash: IndexingProviderStateHash,
+    new_owners_public_keys: Vec<PublicKey>,
+    new_indexers_public_keys: Vec<PublicKey>,
+    signatures_by_old_owners: Vec<Signature>,
+}
+
+enum PluginManagerToIndexerClient {
+    AddIndexingProvider(IndexingProviderInfo),
+    RemoveIndexingProvider {
+        name: IndexingProviderName,
+    },
+}
+
+
+enum IndexerClientToPluginManager {
+    IndexingProviderUpdated(IndexingProviderInfo),
 }
 
 
