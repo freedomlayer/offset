@@ -166,6 +166,8 @@ enum ResponseSendMessageContent {
 enum NotifyStructureChangeNeighbors {
     NeighborAdded(PublicKey),
     NeighborRemoved(PublicKey),
+    TimestampUpdated(RandValue),
+    CommPublicKeyUpdated(PublicKey),
 }
 
 enum NetworkerToIndexerClient {
@@ -416,6 +418,8 @@ enum NotifyStructureChangeFriends {
         capacity: FriendCapacity
     },
     FriendRemoved(PublicKey),
+    TimestampUpdated(RandValue),
+    CommPublicKeyUpdated(PublicKey),
 }
 
 enum RequestFriendsRoute {
