@@ -58,21 +58,6 @@ struct ResponseIndexerInfo {
 ######################################
 
 # Node -> Indexer
-struct RequestInvertNodeHash {
-        nodeHash @0: Data;
-        # The first <n> bytes of a sha512/256 hash of a node's public key
-}
-
-# Indexer -> Node
-struct ResponseInvertNodeHash {
-        nodeHash @0: Data;
-        nodePublicKeys @1: List(CustomUInt256);
-        # A list of public keys that satisfy:
-        # Sha512/256(nodePublicKey)[0:nodeHash.len()] == nodeHash
-        # The list might be empty
-}
-
-# Node -> Indexer
 struct RequestNeighborsRoute {
         sourceNodePublicKey @0: CustomUInt256;
         destinationNodePublicKey @1: CustomUInt256;
