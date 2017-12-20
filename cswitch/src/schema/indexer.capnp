@@ -4,6 +4,10 @@ using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomUInt256;
 using import "common.capnp".CustomUInt512;
 
+struct Route {
+        publicKeys @0: List(CustomUInt256);
+}
+
 # Updating states chain
 #######################
 
@@ -27,8 +31,8 @@ struct ResponseUpdateState {
 }
 
 # Indexer -> Node
-struct RouteToIndexer {
-        nodesPublicKeys @0: List(CustomUInt256);
+struct RoutesToIndexer {
+        routes @0: List(Route);
 }
 
 
@@ -63,9 +67,6 @@ struct RequestNeighborsRoute {
         destinationNodePublicKey @1: CustomUInt256;
 }
 
-struct Route {
-        publicKeys @0: List(CustomUInt256);
-}
 
 # Indexer -> Node
 struct ResponseNeighborsRoute { 
