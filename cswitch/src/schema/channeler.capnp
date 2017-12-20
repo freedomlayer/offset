@@ -1,5 +1,12 @@
 @0xa235992fe59d8f83;
 
+# TODO: Use this instead:
+# I tried to do this but had some compilation problems that need to be solved.
+
+# using import "common.capnp".CustomUInt128;
+# using import "common.capnp".CustomUInt256;
+# using import "common.capnp".CustomUInt512;
+
 # A custom made 128 bit data structure.
 struct CustomUInt128 {
         x0 @0: UInt64;
