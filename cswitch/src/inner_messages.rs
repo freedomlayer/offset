@@ -442,6 +442,8 @@ enum FunderToIndexerClient {
 enum IndexerClientToFunder {
     ResponseFriendsRoute {
         routes: Vec<FriendsRoute>,
+        destination_comm_public_key: PublicKey,
+        destination_recent_timestamp: RandValue,
     },
 }
 
