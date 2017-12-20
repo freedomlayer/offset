@@ -269,8 +269,8 @@ enum PatherToNetworker {
 enum IndexerClientToPather {
     ResponseNeighborsRoute {
         routes: Vec<NeighborsRoute>,
-        destination_comm_public_key: PublicKey,
-        destination_recent_timestamp: RandValue,
+        dest_comm_public_key: PublicKey,
+        dest_recent_timestamp: RandValue,
     }
 }
 
@@ -442,8 +442,8 @@ enum FunderToIndexerClient {
 enum IndexerClientToFunder {
     ResponseFriendsRoute {
         routes: Vec<FriendsRoute>,
-        destination_comm_public_key: PublicKey,
-        destination_recent_timestamp: RandValue,
+        dest_comm_public_key: PublicKey,
+        dest_recent_timestamp: RandValue,
     },
 }
 
