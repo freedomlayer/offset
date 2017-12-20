@@ -33,4 +33,6 @@ mod service_client;
 pub mod timer;
 
 mod schema;
+use schema::common_capnp;
+use schema::indexer_capnp;
 use schema::channeler_capnp;
