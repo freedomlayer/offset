@@ -6,7 +6,7 @@ use ::crypto::identity::PublicKey;
 // ---------------------
 
 /// A response returned from NetworkerSenderClientTrait.send_request() 
-enum NetworkerResponse {
+pub enum NetworkerResponse {
     Success(Vec<u8>),
     Failure,
 }
@@ -14,7 +14,7 @@ enum NetworkerResponse {
 
 /// The sending part of a Networker client.
 /// Allows to send messages to remote nodes.
-trait NetworkerSenderClientTrait {
+pub trait NetworkerSenderClientTrait {
     /// Send a request message to a remote node's Networker along a route of nodes.
     /// max_response_len allocated maximum length for the response.
     /// 
@@ -41,7 +41,7 @@ trait NetworkerSenderClientTrait {
 
 /// An incoming networker request. This request is received from the Networker. It originates from
 /// some remote node. 
-struct NetworkerIncomingRequest {
+pub struct NetworkerIncomingRequest {
     // route: NeighborsRoute,
     sender_public_key: PublicKey,
     request_content: Vec<u8>,
@@ -55,7 +55,7 @@ struct NetworkerIncomingRequest {
 /// TODO: How to make sure one of the methods respond or discard are called? How to have this
 /// checked by the compiler? What happens if the object is dropped before one of the methods is
 /// called.
-trait NetworkerRequestResponderTrait {
+pub trait NetworkerRequestResponderTrait {
     /// Respond to the supplied request. Note that the following must be satisfied:
     /// response_content.len() <= max_response_len
     fn respond(self, response_content: Vec<u8>);
@@ -67,7 +67,7 @@ trait NetworkerRequestResponderTrait {
 
 /// A receiver client of the Networker receives respondable requests: These are requests that must
 /// be responded: Either by providing a Vec<u8> response, or by discarding them.
-struct NetworkerRespondableRequest<R: NetworkerRequestResponderTrait> {
+pub struct NetworkerRespondableRequest<R> {
     request: NetworkerIncomingRequest,
     responder: R,
 }
