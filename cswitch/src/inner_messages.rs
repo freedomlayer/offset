@@ -60,7 +60,7 @@ struct NeighborTokenChannelInfo {
     neighbor_token_channels: Vec<NeighborTokenChannel>,
 }
 
-struct NeighborsRoute {
+pub struct NeighborsRoute {
     route: Vec<u32>,
 }
 
