@@ -10,10 +10,10 @@ use crypto::identity::{PublicKey, Signature};
 
 /// Include the auto-generated schema files.
 macro_rules! include_schema {
-    ($($name:ident, $path:expr);*) => {
+    ($( $name:ident, $path:expr );*) => {
         $(
-            // Ignore the generated files' lint
-            #[allow(unused, needless_lifetimes, wrong_self_convention, unreadable_literal)]
+            // Allow clippy's `Warn` lint group
+            #[allow(unused, clippy)]
             pub mod $name {
                 include!(concat!(env!("OUT_DIR"), "/schema/", $path, ".rs"));
             }
@@ -21,19 +21,21 @@ macro_rules! include_schema {
     };
 }
 
-include_schema!{
-    common_capnp, "common_capnp";
-    indexer_capnp, "indexer_capnp";
+include_schema! {
+    common_capnp,    "common_capnp";
+    indexer_capnp,   "indexer_capnp";
     channeler_capnp, "channeler_capnp"
 }
 
 use common_capnp::{custom_u_int128, custom_u_int256, custom_u_int512};
+use indexer_capnp::{neighbors_route};
 use channeler_capnp::{init_channel, exchange, encrypt_message, MessageType, /*message*/};
 
 #[derive(Debug)]
 pub enum SchemaError {
     Io(io::Error),
     Capnp(::capnp::Error),
+    Invalid,
     NotInSchema,
 }
 
@@ -61,47 +63,49 @@ impl From<::capnp::NotInSchema> for SchemaError {
 /// Create and serialize a `Message` from given `content`, return the serialized message on success.
 #[inline]
 pub fn serialize_message(content: Bytes) -> Result<Bytes, SchemaError> {
-    let mut message = ::capnp::message::Builder::new_default();
+    let mut builder = ::capnp::message::Builder::new_default();
 
     {
-        let mut raw_message = message.init_root::<channeler_capnp::message::Builder>();
-        let msg_content = raw_message.borrow().init_content(content.len() as u32);
+        let mut message = builder.init_root::<channeler_capnp::message::Builder>();
+        let msg_content = message.borrow().init_content(content.len() as u32);
         // Optimize: Can we avoid copy here?
         msg_content.copy_from_slice(content.as_ref());
     }
 
     let mut serialized_msg = Vec::new();
-    serialize_packed::write_message(&mut serialized_msg, &message)?;
+    serialize_packed::write_message(&mut serialized_msg, &builder)?;
 
     Ok(Bytes::from(serialized_msg))
 }
 
-/// Deserialize `Message` from `buffer`, return the `content` of this message on success.
+/// Deserialize `Message` from `buffer`, return the `content` on success.
 #[inline]
 pub fn deserialize_message(buffer: Bytes) -> Result<Bytes, SchemaError> {
     let mut buffer = io::Cursor::new(buffer);
-    let message_rdr = serialize_packed::read_message(&mut buffer, ::capnp::message::ReaderOptions::new())?;
 
-    let raw_message = message_rdr.get_root::<channeler_capnp::message::Reader>()?;
+    let reader = serialize_packed::read_message(
+        &mut buffer,
+        ::capnp::message::ReaderOptions::new()
+    )?;
 
-    let content = Bytes::from(raw_message.get_content()?);
+    let message = reader.get_root::<channeler_capnp::message::Reader>()?;
+    let content = Bytes::from(message.get_content()?);
 
     Ok(content)
 }
 
-/// Create and serialize a `EncryptMessage` with given `counter` and `content`(optional), return the
-/// serialized message on success.
+/// Create and serialize a `EncryptMessage` with given `counter` and `content`(optional),
+/// return the serialized message on success.
 ///
 /// # Details
 ///
-/// If content is `None`, the message type will be set to `KeepAlive`, whereas, message type will
-/// be set to `User`.
+/// If content is `None`, the message type will be set to `KeepAlive`, whereas, it would be `User`.
 #[inline]
 pub fn serialize_enc_message(counter: u64, content: Option<Bytes>) -> Result<Bytes, SchemaError> {
-    let mut message = ::capnp::message::Builder::new_default();
+    let mut builder = ::capnp::message::Builder::new_default();
 
     {
-        let mut enc_message = message.init_root::<encrypt_message::Builder>();
+        let mut enc_message = builder.init_root::<encrypt_message::Builder>();
 
         enc_message.set_inc_counter(counter);
 
@@ -126,19 +130,24 @@ pub fn serialize_enc_message(counter: u64, content: Option<Bytes>) -> Result<Byt
     }
 
     let mut serialized_msg = Vec::new();
-    serialize_packed::write_message(&mut serialized_msg, &message)?;
+    serialize_packed::write_message(&mut serialized_msg, &builder)?;
 
     Ok(Bytes::from(serialized_msg))
 }
 
 /// Deserialize `EncryptMessage` from `buffer`, return the `incCounter`, `messageType` and
-/// `content`(if not a KA message) on success.
+/// `content`(if not a keep alive message) on success.
 #[inline]
-pub fn deserialize_enc_message(buffer: Bytes) -> Result<(u64, MessageType, Option<Bytes>), SchemaError> {
+pub fn deserialize_enc_message(buffer: Bytes)
+    -> Result<(u64, MessageType, Option<Bytes>), SchemaError> {
     let mut buffer = io::Cursor::new(buffer);
-    let message_rdr = serialize_packed::read_message(&mut buffer, ::capnp::message::ReaderOptions::new())?;
 
-    let enc_message = message_rdr.get_root::<encrypt_message::Reader>()?;
+    let reader = serialize_packed::read_message(
+        &mut buffer,
+        ::capnp::message::ReaderOptions::new()
+    )?;
+
+    let enc_message = reader.get_root::<encrypt_message::Reader>()?;
 
     // Read the incCounter
     let inc_counter = enc_message.get_inc_counter();
@@ -148,36 +157,34 @@ pub fn deserialize_enc_message(buffer: Bytes) -> Result<(u64, MessageType, Optio
 
     let content = match message_type {
         MessageType::KeepAlive => None,
-        MessageType::User => {
-            Some(Bytes::from(enc_message.get_content()?))
-        }
+        MessageType::User => Some(Bytes::from(enc_message.get_content()?))
     };
 
     Ok((inc_counter, message_type, content))
 }
 
-/// Create and serialize a `InitChannel` message from given `rand_value` and `public_key`, return
-/// the serialized message on success.
+/// Create and serialize a `InitChannel` message from given `rand_value` and `public_key`,
+/// return the serialized message on success.
 #[inline]
-pub fn serialize_init_channel_message(rand_value: RandValue, public_key: PublicKey)
-    -> Result<Bytes, SchemaError> {
-    let mut message = ::capnp::message::Builder::new_default();
+pub fn serialize_init_channel_message(
+    rand_value: RandValue,
+    public_key: PublicKey
+) -> Result<Bytes, SchemaError> {
+    let mut builder = ::capnp::message::Builder::new_default();
 
     {
-        let mut init_channel_msg = message.init_root::<init_channel::Builder>();
+        let mut init_channel_msg = builder.init_root::<init_channel::Builder>();
 
         // Set neighborPublicKey
         {
-            let mut neighbor_public_key =
-                init_channel_msg.borrow().init_neighbor_public_key();
+            let mut neighbor_public_key = init_channel_msg.borrow().init_neighbor_public_key();
             let public_key_bytes = Bytes::from(public_key.as_bytes());
 
             write_custom_u_int256(&mut neighbor_public_key, &public_key_bytes)?;
         }
         // Set channelRandValue
         {
-            let mut channel_rand_value =
-                init_channel_msg.borrow().init_channel_rand_value();
+            let mut channel_rand_value = init_channel_msg.borrow().init_channel_rand_value();
             let rand_value_bytes = Bytes::from(rand_value.as_bytes());
 
             write_custom_u_int128(&mut channel_rand_value, &rand_value_bytes)?;
@@ -185,7 +192,7 @@ pub fn serialize_init_channel_message(rand_value: RandValue, public_key: PublicK
     }
 
     let mut serialized_msg = Vec::new();
-    serialize_packed::write_message(&mut serialized_msg, &message)?;
+    serialize_packed::write_message(&mut serialized_msg, &builder)?;
 
     Ok(Bytes::from(serialized_msg))
 }
@@ -196,9 +203,13 @@ pub fn serialize_init_channel_message(rand_value: RandValue, public_key: PublicK
 pub fn deserialize_init_channel_message(buffer: Bytes)
     -> Result<(PublicKey, RandValue), SchemaError> {
     let mut buffer = io::Cursor::new(buffer);
-    let message_rdr = serialize_packed::read_message(&mut buffer, ::capnp::message::ReaderOptions::new())?;
 
-    let init_channel_msg = message_rdr.get_root::<init_channel::Reader>()?;
+    let reader = serialize_packed::read_message(
+        &mut buffer,
+        ::capnp::message::ReaderOptions::new()
+    )?;
+
+    let init_channel_msg = reader.get_root::<init_channel::Reader>()?;
 
     // Read the neighborPublicKey
     let neighbor_public_key = init_channel_msg.get_neighbor_public_key()?;
@@ -210,9 +221,11 @@ pub fn deserialize_init_channel_message(buffer: Bytes)
     let mut rand_value_bytes = BytesMut::with_capacity(16);
     read_custom_u_int128(&mut rand_value_bytes, &channel_rand_value)?;
 
-    // FIXME: Remove unwrap usage
-    let public_key = PublicKey::from_bytes(&public_key_bytes).unwrap();
-    let rand_value = RandValue::from_bytes(&rand_value_bytes).unwrap();
+    let public_key = PublicKey::from_bytes(&public_key_bytes)
+        .map_err(|_| SchemaError::Invalid)?;
+
+    let rand_value = RandValue::from_bytes(&rand_value_bytes)
+        .map_err(|_| SchemaError::Invalid)?;
 
     Ok((public_key, rand_value))
 }
@@ -220,12 +233,15 @@ pub fn deserialize_init_channel_message(buffer: Bytes)
 /// Create and serialize a `Exchange` message from given `dh_public_key`, `key_salt` and
 /// `signature`, return the serialized message on success.
 #[inline]
-pub fn serialize_exchange_message(dh_public_key: DhPublicKey, key_salt: Salt, signature: Signature)
-    -> Result<Bytes, SchemaError> {
-    let mut message = ::capnp::message::Builder::new_default();
+pub fn serialize_exchange_message(
+    dh_public_key: DhPublicKey,
+    key_salt: Salt,
+    signature: Signature
+) -> Result<Bytes, SchemaError> {
+    let mut builder = ::capnp::message::Builder::new_default();
 
     {
-        let mut exchange_msg = message.init_root::<exchange::Builder>();
+        let mut exchange_msg = builder.init_root::<exchange::Builder>();
 
         // Set the commPublicKey
         {
@@ -251,7 +267,7 @@ pub fn serialize_exchange_message(dh_public_key: DhPublicKey, key_salt: Salt, si
     }
 
     let mut serialized_msg = Vec::new();
-    serialize_packed::write_message(&mut serialized_msg, &message)?;
+    serialize_packed::write_message(&mut serialized_msg, &builder)?;
 
     Ok(Bytes::from(serialized_msg))
 }
@@ -262,9 +278,13 @@ pub fn serialize_exchange_message(dh_public_key: DhPublicKey, key_salt: Salt, si
 pub fn deserialize_exchange_message(buffer: Bytes)
     -> Result<(DhPublicKey, Salt, Signature), SchemaError> {
     let mut buffer = io::Cursor::new(buffer);
-    let message_rdr = serialize_packed::read_message(&mut buffer, ::capnp::message::ReaderOptions::new())?;
 
-    let exchange_msg = message_rdr.get_root::<exchange::Reader>()?;
+    let reader = serialize_packed::read_message(
+        &mut buffer,
+        ::capnp::message::ReaderOptions::new()
+    )?;
+
+    let exchange_msg = reader.get_root::<exchange::Reader>()?;
 
     // Read the commPublicKey
     let comm_public_key = exchange_msg.get_comm_public_key()?;
@@ -281,12 +301,70 @@ pub fn deserialize_exchange_message(buffer: Bytes)
     let mut signature_bytes = BytesMut::with_capacity(64);
     read_custom_u_int512(&mut signature_bytes, &signature)?;
 
-    // FIXME: Remove unwrap usage
-    let public_key = DhPublicKey::from_bytes(&comm_public_key_bytes).unwrap();
-    let key_salt   = Salt::from_bytes(&key_salt_bytes).unwrap();
-    let signature  = Signature::from_bytes(&signature_bytes).unwrap();
+    let public_key = DhPublicKey::from_bytes(&comm_public_key_bytes)
+        .map_err(|_| SchemaError::Invalid)?;
+
+    let key_salt   = Salt::from_bytes(&key_salt_bytes)
+        .map_err(|_| SchemaError::Invalid)?;
+
+    let signature  = Signature::from_bytes(&signature_bytes)
+        .map_err(|_| SchemaError::Invalid)?;
 
     Ok((public_key, key_salt, signature))
+}
+
+/// Create and serialize a `NeighborsRoute` message from given `public_keys`, return the serialized
+/// message on success.
+#[inline]
+pub fn serialize_neighbors_route(public_keys: Vec<PublicKey>) -> Result<Bytes, SchemaError> {
+    let mut builder = ::capnp::message::Builder::new_default();
+
+    {
+        let neighbors_route_msg = builder.init_root::<neighbors_route::Builder>();
+
+        let mut route_public_keys = neighbors_route_msg.init_public_keys(public_keys.len() as u32);
+
+        for (idx, public_key) in public_keys.iter().enumerate() {
+            let mut target_cell = route_public_keys.borrow().get(idx as u32);
+            let public_key_bytes = Bytes::from(public_key.as_bytes());
+            write_custom_u_int256(&mut target_cell, &public_key_bytes)?;
+        }
+    }
+
+    let mut serialized_msg = Vec::new();
+    serialize_packed::write_message(&mut serialized_msg, &builder)?;
+
+    Ok(Bytes::from(serialized_msg))
+}
+
+/// Deserialize `NeighborsRoute` message from `buffer`, return the `publicKeys` on success.
+#[inline]
+pub fn deserialize_neighbors_route(buffer: Bytes) -> Result<Vec<PublicKey>, SchemaError> {
+    let mut buffer = io::Cursor::new(buffer);
+
+    let reader = serialize_packed::read_message(
+        &mut buffer,
+        ::capnp::message::ReaderOptions::new()
+    )?;
+
+    let neighbors_route_msg = reader.get_root::<neighbors_route::Reader>()?;
+
+    let neighbors_public_keys = neighbors_route_msg.get_public_keys()?;
+
+    let mut public_keys = Vec::with_capacity(neighbors_public_keys.len() as usize);
+
+    for reader in neighbors_public_keys.iter() {
+        let mut public_key_bytes = BytesMut::with_capacity(32);
+
+        read_custom_u_int256(&mut public_key_bytes, &reader)?;
+
+        public_keys.push(
+            PublicKey::from_bytes(&public_key_bytes)
+                .map_err(|_| SchemaError::Invalid)?
+        );
+    }
+
+    Ok(public_keys)
 }
 
 /// Fill the components of `CustomUInt128` from given bytes.
@@ -295,8 +373,10 @@ pub fn deserialize_exchange_message(buffer: Bytes)
 ///
 /// This function panics if there is not enough remaining data in `src`.
 #[inline]
-pub fn write_custom_u_int128(dst: &mut custom_u_int128::Builder, src: &Bytes)
-    -> Result<(), SchemaError> {
+pub fn write_custom_u_int128(
+    dst: &mut custom_u_int128::Builder,
+    src: &Bytes
+) -> Result<(), SchemaError> {
     let mut rdr = io::Cursor::new(src);
 
     dst.set_x0(rdr.get_u64::<BigEndian>());
@@ -311,9 +391,10 @@ pub fn write_custom_u_int128(dst: &mut custom_u_int128::Builder, src: &Bytes)
 ///
 /// This function panics if there is not enough remaining capacity in `dst`.
 #[inline]
-pub fn read_custom_u_int128(dst: &mut BytesMut, src: &custom_u_int128::Reader)
-    -> Result<(), SchemaError> {
-
+pub fn read_custom_u_int128(
+    dst: &mut BytesMut,
+    src: &custom_u_int128::Reader
+) -> Result<(), SchemaError> {
     dst.put_u64::<BigEndian>(src.get_x0());
     dst.put_u64::<BigEndian>(src.get_x1());
 
@@ -326,14 +407,16 @@ pub fn read_custom_u_int128(dst: &mut BytesMut, src: &custom_u_int128::Reader)
 ///
 /// This function panics if there is not enough remaining data in `src`.
 #[inline]
-pub fn write_custom_u_int256(dst: &mut custom_u_int256::Builder, src: &Bytes)
-    -> Result<(), SchemaError> {
-    let mut rdr = io::Cursor::new(src);
+pub fn write_custom_u_int256(
+    dst: &mut custom_u_int256::Builder,
+    src: &Bytes
+) -> Result<(), SchemaError> {
+    let mut reader = io::Cursor::new(src);
 
-    dst.set_x0(rdr.get_u64::<BigEndian>());
-    dst.set_x1(rdr.get_u64::<BigEndian>());
-    dst.set_x2(rdr.get_u64::<BigEndian>());
-    dst.set_x3(rdr.get_u64::<BigEndian>());
+    dst.set_x0(reader.get_u64::<BigEndian>());
+    dst.set_x1(reader.get_u64::<BigEndian>());
+    dst.set_x2(reader.get_u64::<BigEndian>());
+    dst.set_x3(reader.get_u64::<BigEndian>());
 
     Ok(())
 }
@@ -344,9 +427,10 @@ pub fn write_custom_u_int256(dst: &mut custom_u_int256::Builder, src: &Bytes)
 ///
 /// This function panics if there is not enough remaining capacity in `dst`.
 #[inline]
-pub fn read_custom_u_int256(dst: &mut BytesMut, src: &custom_u_int256::Reader)
-    -> Result<(), SchemaError> {
-
+pub fn read_custom_u_int256(
+    dst: &mut BytesMut,
+    src: &custom_u_int256::Reader
+) -> Result<(), SchemaError> {
     dst.put_u64::<BigEndian>(src.get_x0());
     dst.put_u64::<BigEndian>(src.get_x1());
     dst.put_u64::<BigEndian>(src.get_x2());
@@ -361,18 +445,20 @@ pub fn read_custom_u_int256(dst: &mut BytesMut, src: &custom_u_int256::Reader)
 ///
 /// This function panics if there is not enough remaining data in `src`.
 #[inline]
-pub fn write_custom_u_int512(dst: &mut custom_u_int512::Builder, src: &Bytes)
-    -> Result<(), SchemaError> {
-    let mut rdr = io::Cursor::new(src);
+pub fn write_custom_u_int512(
+    dst: &mut custom_u_int512::Builder,
+    src: &Bytes
+) -> Result<(), SchemaError> {
+    let mut reader = io::Cursor::new(src);
 
-    dst.set_x0(rdr.get_u64::<BigEndian>());
-    dst.set_x1(rdr.get_u64::<BigEndian>());
-    dst.set_x2(rdr.get_u64::<BigEndian>());
-    dst.set_x3(rdr.get_u64::<BigEndian>());
-    dst.set_x4(rdr.get_u64::<BigEndian>());
-    dst.set_x5(rdr.get_u64::<BigEndian>());
-    dst.set_x6(rdr.get_u64::<BigEndian>());
-    dst.set_x7(rdr.get_u64::<BigEndian>());
+    dst.set_x0(reader.get_u64::<BigEndian>());
+    dst.set_x1(reader.get_u64::<BigEndian>());
+    dst.set_x2(reader.get_u64::<BigEndian>());
+    dst.set_x3(reader.get_u64::<BigEndian>());
+    dst.set_x4(reader.get_u64::<BigEndian>());
+    dst.set_x5(reader.get_u64::<BigEndian>());
+    dst.set_x6(reader.get_u64::<BigEndian>());
+    dst.set_x7(reader.get_u64::<BigEndian>());
 
     Ok(())
 }
@@ -383,9 +469,10 @@ pub fn write_custom_u_int512(dst: &mut custom_u_int512::Builder, src: &Bytes)
 ///
 /// This function panics if there is not enough remaining capacity in `dst`.
 #[inline]
-pub fn read_custom_u_int512(dst: &mut BytesMut, src: &custom_u_int512::Reader)
-    -> Result<(), SchemaError> {
-
+pub fn read_custom_u_int512(
+    dst: &mut BytesMut,
+    src: &custom_u_int512::Reader
+) -> Result<(), SchemaError> {
     dst.put_u64::<BigEndian>(src.get_x0());
     dst.put_u64::<BigEndian>(src.get_x1());
     dst.put_u64::<BigEndian>(src.get_x2());
@@ -406,7 +493,7 @@ mod tests {
     fn test_custom_u_int128() {
         let mut message = ::capnp::message::Builder::new_default();
 
-        let mut buf_src = Bytes::from_static(
+        let buf_src = Bytes::from_static(
             &[0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
               0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]);
 
@@ -425,7 +512,7 @@ mod tests {
     fn test_custom_u_int256() {
         let mut message = ::capnp::message::Builder::new_default();
 
-        let mut buf_src = Bytes::from_static(
+        let buf_src = Bytes::from_static(
             &[0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
               0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
               0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
@@ -445,7 +532,7 @@ mod tests {
     fn test_custom_u_int512() {
         let mut message = ::capnp::message::Builder::new_default();
 
-        let mut buf_src = Bytes::from_static(
+        let buf_src = Bytes::from_static(
             &[0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
               0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
               0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
@@ -470,8 +557,10 @@ mod tests {
         let in_public_key = PublicKey::from_bytes(&[0x03; 32]).unwrap();
         let in_rand_value = RandValue::from_bytes(&[0x06; 16]).unwrap();
 
-        let serialized_init_channel =
-            serialize_init_channel_message(in_rand_value.clone(), in_public_key.clone()).unwrap();
+        let serialized_init_channel = serialize_init_channel_message(
+            in_rand_value.clone(),
+            in_public_key.clone()
+        ).unwrap();
 
         let (out_public_key, out_rand_value) =
             deserialize_init_channel_message(serialized_init_channel).unwrap();
@@ -486,9 +575,11 @@ mod tests {
         let in_key_salt = Salt::from_bytes(&[0x16; 32]).unwrap();
         let in_signature = Signature::from_bytes(&[0x19; 64]).unwrap();
 
-        let serialized_exchange =
-            serialize_exchange_message(in_comm_public_key.clone(),
-                                       in_key_salt.clone(), in_signature.clone()).unwrap();
+        let serialized_exchange = serialize_exchange_message(
+            in_comm_public_key.clone(),
+            in_key_salt.clone(),
+            in_signature.clone()
+        ).unwrap();
 
         let (out_comm_public_key, out_key_salt, out_signature) =
             deserialize_exchange_message(serialized_exchange).unwrap();
@@ -503,8 +594,10 @@ mod tests {
         let in_counter: u64 = 1 << 50;
         let in_content = Some(Bytes::from_static(&[0x11; 12345]));
 
-        let serialized_enc_message =
-            serialize_enc_message(in_counter, in_content.clone()).unwrap();
+        let serialized_enc_message = serialize_enc_message(
+            in_counter,
+            in_content.clone()
+        ).unwrap();
 
         let (out_counter, out_message_type, out_content) =
             deserialize_enc_message(serialized_enc_message).unwrap();
@@ -520,11 +613,23 @@ mod tests {
     fn test_message() {
         let in_content = Bytes::from_static(&[0x12; 3456]);
 
-        let serialized_message =
-            serialize_message(in_content.clone()).unwrap();
+        let serialized_message = serialize_message(in_content.clone()).unwrap();
 
         let out_content = deserialize_message(serialized_message).unwrap();
 
         assert_eq!(in_content, out_content);
+    }
+
+    #[test]
+    fn test_neighbors_route() {
+        let in_public_keys = (0..255u8).map(|byte| {
+            PublicKey::from_bytes(&[byte; 32]).unwrap()
+        }).collect::<Vec<_>>();
+
+        let serialize_message = serialize_neighbors_route(in_public_keys.clone()).unwrap();
+
+        let out_public_keys = deserialize_neighbors_route(serialize_message).unwrap();
+
+        assert_eq!(in_public_keys, out_public_keys);
     }
 }
