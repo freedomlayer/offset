@@ -68,7 +68,7 @@ trait NetworkerRequestResponderTrait {
 /// A receiver client of the Networker receives respondable requests: These are requests that must
 /// be responded: Either by providing a Vec<u8> response, or by discarding them.
 struct NetworkerRespondableRequest<R: NetworkerRequestResponderTrait> {
-    incoming_request: NetworkerIncomingRequest,
+    request: NetworkerIncomingRequest,
     responder: R,
 }
 
