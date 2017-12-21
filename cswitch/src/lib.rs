@@ -28,6 +28,8 @@ pub mod close_handle;
 pub mod security_module;
 pub mod channeler;
 
+mod networker;
+
 pub mod async_mutex;
 mod service_client;
 pub mod timer;
