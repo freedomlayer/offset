@@ -155,6 +155,11 @@ enum IndexerClientToNetworker {
     IndexerAnnounce {
         content: Vec<u8>,
     },
+    ResponseFriendsRoute {
+        routes: Vec<FriendsRoute>,
+        dest_comm_public_key: PublicKey,
+        dest_recent_timestamp: RandValue,
+    },
 }
 
 // Networker to Indexer client
@@ -181,6 +186,7 @@ enum NetworkerToIndexerClient<R> {
     */
     NotifyStructureChange(NotifyStructureChangeNeighbors),
     RequestReceived(NetworkerRespondableRequest<R>),
+    RequestFriendsRoute(RequestFriendsRoute),
 
     /*
     MessageReceived {
