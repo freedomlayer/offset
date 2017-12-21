@@ -3,6 +3,7 @@ fn create_indexer_client<S: NetworkerSenderClientTrait>(
     handle: &Handle,
     networker_sender_client: S,
     networker_receiver: mpsc::Receiver<NetworkerToIndexerClient>,
+    timer_receiver: mpsc::Receiver<FromTimer>,
     plugin_manager_receiver: mpsc::Receiver<PluginManagerToIndexerClient>,
     plugin_manager_sender: mpsc::Sender<IndexerClientToPluginManager>,
     pather_receiver: mpsc::Receiver<PatherToIndexerClient>,
