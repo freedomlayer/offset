@@ -451,7 +451,10 @@ enum RequestFriendsRoute {
 }
 
 enum FunderToIndexerClient {
-    RequestFriendsRoute(RequestFriendsRoute),
+    RequestNeighborsRoute {
+        source_node_public_key: PublicKey,
+        dest_node_public_key: PublicKey,
+    },
     NotifyStructureChange(NotifyStructureChangeFriends),
 }
 
@@ -460,11 +463,11 @@ enum FunderToIndexerClient {
 // ------------------------
 
 enum IndexerClientToFunder {
-    ResponseFriendsRoute {
-        routes: Vec<FriendsRoute>,
+    ResponseNeighborsRoute {
+        routes: Vec<NeighborsRoute>,
         dest_comm_public_key: PublicKey,
         dest_recent_timestamp: RandValue,
-    },
+    }
 }
 
 struct IndexingProviderInfo {
