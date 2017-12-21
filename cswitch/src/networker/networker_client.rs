@@ -5,14 +5,10 @@ use ::crypto::identity::PublicKey;
 // NetworkerSenderClient
 // ---------------------
 
-enum NetworkerResponseResult {
+/// A response returned from NetworkerSenderClientTrait.send_request() 
+enum NetworkerResponse {
     Success(Vec<u8>),
     Failure,
-}
-
-/// A response returned from NetworkerSenderClientTrait.send_request() 
-struct NetworkerResponse {
-    result: NetworkerResponseResult,
 }
 
 
