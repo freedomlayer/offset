@@ -31,8 +31,7 @@ pub trait NetworkerSenderClientTrait {
                             max_response_len: u32,
                             processing_fee_proposal: u64,
                             half_credits_per_byte_proposal: u32) -> F
-    where
-        F: Future<Item=NetworkerResponse, Error=()>;
+        where F: Future<Item=NetworkerResponse, Error=()>;
 
 }
 
@@ -58,11 +57,13 @@ pub struct NetworkerIncomingRequest {
 pub trait NetworkerRequestResponderTrait {
     /// Respond to the supplied request. Note that the following must be satisfied:
     /// response_content.len() <= max_response_len
-    fn respond(self, response_content: Vec<u8>);
+    fn respond<F>(self, response_content: Vec<u8>) -> F
+        where F: Future<Item=(), Error=()>;
     /// Discard the incoming request. This could happen for example if the processing_fee_proposal
     /// was too small, or the max_response_len is too small to send a reply. Discard the request
     /// will propagate an error back to the sender.
-    fn discard(self);
+    fn discard<F>(self) -> F
+        where F: Future<Item=(), Error=()>;
 }
 
 /// A receiver client of the Networker receives respondable requests: These are requests that must
