@@ -11,6 +11,8 @@ use ::crypto::symmetric_enc::SymmetricKey;
 use ::crypto::uid::Uid;
 use ::crypto::rand_values::RandValue;
 
+use ::networker::networker_client::NetworkerRespondableRequest;
+
 
 // Helper structs
 // --------------
@@ -170,7 +172,7 @@ enum NotifyStructureChangeNeighbors {
     CommPublicKeyUpdated(PublicKey),
 }
 
-enum NetworkerToIndexerClient {
+enum NetworkerToIndexerClient<R> {
     /*
     ResponseSendMessage {
         request_id: Uid,
@@ -178,6 +180,8 @@ enum NetworkerToIndexerClient {
     },
     */
     NotifyStructureChange(NotifyStructureChangeNeighbors),
+    RequestReceived(NetworkerRespondableRequest<R>),
+
     /*
     MessageReceived {
         source_node_public_key: PublicKey,
