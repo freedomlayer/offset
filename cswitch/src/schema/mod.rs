@@ -27,8 +27,39 @@ include_schema! {
     channeler_capnp, "channeler_capnp"
 }
 
+macro_rules! inject_default_en_de_impl {
+    () => {
+        fn encode(&self) -> Result<Bytes, SchemaError> {
+            let mut builder = ::capnp::message::Builder::new_default();
+
+            match self.write(&mut builder.init_root())? {
+                () => {
+                    let mut serialized_msg = Vec::new();
+                    serialize_packed::write_message(&mut serialized_msg, &builder)?;
+
+                    Ok(Bytes::from(serialized_msg))
+                }
+            }
+        }
+
+        fn decode(buffer: Bytes) -> Result<Self, SchemaError> {
+            let mut buffer = io::Cursor::new(buffer);
+
+            let reader = serialize_packed::read_message(
+                &mut buffer,
+                ::capnp::message::ReaderOptions::new()
+            )?;
+
+            Self::read(&reader.get_root()?)
+        }
+    };
+}
+
 pub trait Schema<'a, 'b>: Sized {
-    // TODO: Use genetic_associated_types here and provides default encode/decode implementation.
+    // FIXME:
+    // Use genetic_associated_types here and provides default encode/decode implementation,
+    // we use macro to inject the default implementation now, any other way can do this trick?
+
     // type Reader<'a>: ::capnp::traits::FromPointerReader<'a>;
     // type Writer<'b>: ::capnp::traits::FromPointerBuilder<'b>;
 

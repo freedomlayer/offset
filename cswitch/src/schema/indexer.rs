@@ -33,29 +33,7 @@ impl<'a, 'b> Schema<'a, 'b> for NeighborsRoute {
     type Reader = neighbors_route::Reader<'a>;
     type Writer = neighbors_route::Builder<'b>;
 
-    fn encode(&self) -> Result<Bytes, SchemaError> {
-        let mut builder = ::capnp::message::Builder::new_default();
-
-        match self.write(&mut builder.init_root())? {
-            () => {
-                let mut serialized_msg = Vec::new();
-                serialize_packed::write_message(&mut serialized_msg, &builder)?;
-
-                Ok(Bytes::from(serialized_msg))
-            }
-        }
-    }
-
-    fn decode(buffer: Bytes) -> Result<Self, SchemaError> {
-        let mut buffer = io::Cursor::new(buffer);
-
-        let reader = serialize_packed::read_message(
-            &mut buffer,
-            ::capnp::message::ReaderOptions::new()
-        )?;
-
-        Self::read(&reader.get_root()?)
-    }
+    inject_default_en_de_impl!();
 
     fn write(&self, to: &'a mut Self::Writer) -> Result<(), SchemaError> {
         let mut public_keys = to.borrow().init_public_keys(self.public_keys.len() as u32);
@@ -98,29 +76,7 @@ impl<'a, 'b> Schema<'a, 'b> for ChainLink {
     type Reader = chain_link::Reader<'a>;
     type Writer = chain_link::Builder<'b>;
 
-    fn encode(&self) -> Result<Bytes, SchemaError> {
-        let mut builder = ::capnp::message::Builder::new_default();
-
-        match self.write(&mut builder.init_root())? {
-            () => {
-                let mut serialized_msg = Vec::new();
-                serialize_packed::write_message(&mut serialized_msg, &builder)?;
-
-                Ok(Bytes::from(serialized_msg))
-            }
-        }
-    }
-
-    fn decode(buffer: Bytes) -> Result<Self, SchemaError> {
-        let mut buffer = io::Cursor::new(buffer);
-
-        let reader = serialize_packed::read_message(
-            &mut buffer,
-            ::capnp::message::ReaderOptions::new()
-        )?;
-
-        Self::read(&reader.get_root()?)
-    }
+    inject_default_en_de_impl!();
 
     fn write(&self, to: &'a mut Self::Writer) -> Result<(), SchemaError> {
         // Write the previousStateHash
@@ -240,29 +196,7 @@ impl<'a, 'b> Schema<'a, 'b> for RequestUpdateState {
     type Reader = request_update_state::Reader<'a>;
     type Writer = request_update_state::Builder<'b>;
 
-    fn encode(&self) -> Result<Bytes, SchemaError> {
-        let mut builder = ::capnp::message::Builder::new_default();
-
-        match self.write(&mut builder.init_root())? {
-            () => {
-                let mut serialized_msg = Vec::new();
-                serialize_packed::write_message(&mut serialized_msg, &builder)?;
-
-                Ok(Bytes::from(serialized_msg))
-            }
-        }
-    }
-
-    fn decode(buffer: Bytes) -> Result<Self, SchemaError> {
-        let mut buffer = io::Cursor::new(buffer);
-
-        let reader = serialize_packed::read_message(
-            &mut buffer,
-            ::capnp::message::ReaderOptions::new()
-        )?;
-
-        Self::read(&reader.get_root()?)
-    }
+    inject_default_en_de_impl!();
 
     fn write(&self, to: &'a mut Self::Writer) -> Result<(), SchemaError> {
         // Write the indexingProviderID
@@ -322,29 +256,7 @@ impl<'a, 'b> Schema<'a, 'b> for ResponseUpdateState {
     type Reader = response_update_state::Reader<'a>;
     type Writer = response_update_state::Builder<'b>;
 
-    fn encode(&self) -> Result<Bytes, SchemaError> {
-        let mut builder = ::capnp::message::Builder::new_default();
-
-        match self.write(&mut builder.init_root())? {
-            () => {
-                let mut serialized_msg = Vec::new();
-                serialize_packed::write_message(&mut serialized_msg, &builder)?;
-
-                Ok(Bytes::from(serialized_msg))
-            }
-        }
-    }
-
-    fn decode(buffer: Bytes) -> Result<Self, SchemaError> {
-        let mut buffer = io::Cursor::new(buffer);
-
-        let reader = serialize_packed::read_message(
-            &mut buffer,
-            ::capnp::message::ReaderOptions::new()
-        )?;
-
-        Self::read(&reader.get_root()?)
-    }
+    inject_default_en_de_impl!();
 
     fn write(&self, to: &'a mut Self::Writer) -> Result<(), SchemaError> {
         let mut state_hash = to.borrow().init_state_hash();
@@ -374,29 +286,7 @@ impl <'a, 'b> Schema<'a, 'b> for RoutesToIndexer {
     type Reader = routes_to_indexer::Reader<'a>;
     type Writer = routes_to_indexer::Builder<'b>;
 
-    fn encode(&self) -> Result<Bytes, SchemaError> {
-        let mut builder = ::capnp::message::Builder::new_default();
-
-        match self.write(&mut builder.init_root())? {
-            () => {
-                let mut serialized_msg = Vec::new();
-                serialize_packed::write_message(&mut serialized_msg, &builder)?;
-
-                Ok(Bytes::from(serialized_msg))
-            }
-        }
-    }
-
-    fn decode(buffer: Bytes) -> Result<Self, SchemaError> {
-        let mut buffer = io::Cursor::new(buffer);
-
-        let reader = serialize_packed::read_message(
-            &mut buffer,
-            ::capnp::message::ReaderOptions::new()
-        )?;
-
-        Self::read(&reader.get_root()?)
-    }
+    inject_default_en_de_impl!();
 
     fn write(&self, to: &'a mut Self::Writer) -> Result<(), SchemaError> {
         // Write the routes
