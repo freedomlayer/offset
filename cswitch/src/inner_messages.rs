@@ -21,7 +21,36 @@ const INDEXING_PROVIDER_STATE_HASH_LEN: usize = 32;
 const INDEXING_PROVIDER_NAME_LEN: usize = 16;
 
 // A hash of a full link in an indexing provider chain
-struct IndexingProviderStateHash([u8; INDEXING_PROVIDER_STATE_HASH_LEN]);
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct IndexingProviderStateHash([u8; INDEXING_PROVIDER_STATE_HASH_LEN]);
+
+impl IndexingProviderStateHash {
+    pub fn from_bytes<T>(t: &T) -> Result<Self, ()>
+        where T: AsRef<[u8]>
+    {
+        let in_bytes = t.as_ref();
+
+        if in_bytes.len() != INDEXING_PROVIDER_STATE_HASH_LEN {
+            Err(())
+        } else {
+            let mut state_hash_bytes = [0; INDEXING_PROVIDER_STATE_HASH_LEN];
+            state_hash_bytes.clone_from_slice(in_bytes);
+            Ok(IndexingProviderStateHash(state_hash_bytes))
+        }
+    }
+
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        self.as_ref()
+    }
+}
+
+impl AsRef<[u8]> for IndexingProviderStateHash {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
 
 // The name of an indexing provider.
 // TODO: Should we use a string instead here? Is a fixed sized blob preferable?

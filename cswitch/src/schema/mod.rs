@@ -27,9 +27,24 @@ include_schema! {
     channeler_capnp, "channeler_capnp"
 }
 
+pub trait Schema<'a, 'b>: Sized {
+    // TODO: Use genetic_associated_types here and provides default encode/decode implementation.
+    // type Reader<'a>: ::capnp::traits::FromPointerReader<'a>;
+    // type Writer<'b>: ::capnp::traits::FromPointerBuilder<'b>;
+
+    type Reader: 'a;
+    type Writer: 'b;
+
+    fn encode(&self) -> Result<Bytes, SchemaError>;
+    fn decode(buffer: Bytes) -> Result<Self, SchemaError>;
+    fn write(&self, to: &'a mut Self::Writer) -> Result<(), SchemaError>;
+    fn read(from: &'b Self::Reader) -> Result<Self, SchemaError>;
+}
+
 use common_capnp::{custom_u_int128, custom_u_int256, custom_u_int512};
-use indexer_capnp::{neighbors_route};
 use channeler_capnp::{init_channel, exchange, encrypt_message, MessageType, /*message*/};
+
+pub mod indexer;
 
 #[derive(Debug)]
 pub enum SchemaError {
@@ -313,60 +328,6 @@ pub fn deserialize_exchange_message(buffer: Bytes)
     Ok((public_key, key_salt, signature))
 }
 
-/// Create and serialize a `NeighborsRoute` message from given `public_keys`, return the serialized
-/// message on success.
-#[inline]
-pub fn serialize_neighbors_route(public_keys: Vec<PublicKey>) -> Result<Bytes, SchemaError> {
-    let mut builder = ::capnp::message::Builder::new_default();
-
-    {
-        let neighbors_route_msg = builder.init_root::<neighbors_route::Builder>();
-
-        let mut route_public_keys = neighbors_route_msg.init_public_keys(public_keys.len() as u32);
-
-        for (idx, public_key) in public_keys.iter().enumerate() {
-            let mut target_cell = route_public_keys.borrow().get(idx as u32);
-            let public_key_bytes = Bytes::from(public_key.as_bytes());
-            write_custom_u_int256(&mut target_cell, &public_key_bytes)?;
-        }
-    }
-
-    let mut serialized_msg = Vec::new();
-    serialize_packed::write_message(&mut serialized_msg, &builder)?;
-
-    Ok(Bytes::from(serialized_msg))
-}
-
-/// Deserialize `NeighborsRoute` message from `buffer`, return the `publicKeys` on success.
-#[inline]
-pub fn deserialize_neighbors_route(buffer: Bytes) -> Result<Vec<PublicKey>, SchemaError> {
-    let mut buffer = io::Cursor::new(buffer);
-
-    let reader = serialize_packed::read_message(
-        &mut buffer,
-        ::capnp::message::ReaderOptions::new()
-    )?;
-
-    let neighbors_route_msg = reader.get_root::<neighbors_route::Reader>()?;
-
-    let neighbors_public_keys = neighbors_route_msg.get_public_keys()?;
-
-    let mut public_keys = Vec::with_capacity(neighbors_public_keys.len() as usize);
-
-    for reader in neighbors_public_keys.iter() {
-        let mut public_key_bytes = BytesMut::with_capacity(32);
-
-        read_custom_u_int256(&mut public_key_bytes, &reader)?;
-
-        public_keys.push(
-            PublicKey::from_bytes(&public_key_bytes)
-                .map_err(|_| SchemaError::Invalid)?
-        );
-    }
-
-    Ok(public_keys)
-}
-
 /// Fill the components of `CustomUInt128` from given bytes.
 ///
 /// # Panics
@@ -618,18 +579,5 @@ mod tests {
         let out_content = deserialize_message(serialized_message).unwrap();
 
         assert_eq!(in_content, out_content);
-    }
-
-    #[test]
-    fn test_neighbors_route() {
-        let in_public_keys = (0..255u8).map(|byte| {
-            PublicKey::from_bytes(&[byte; 32]).unwrap()
-        }).collect::<Vec<_>>();
-
-        let serialize_message = serialize_neighbors_route(in_public_keys.clone()).unwrap();
-
-        let out_public_keys = deserialize_neighbors_route(serialize_message).unwrap();
-
-        assert_eq!(in_public_keys, out_public_keys);
     }
 }

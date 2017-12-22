@@ -86,6 +86,8 @@ impl PartialEq for Signature {
     }
 }
 
+impl Eq for Signature {}
+
 /// A generic interface for signing and verifying messages.
 pub trait Identity {
     /// Verify a signature of a given message
