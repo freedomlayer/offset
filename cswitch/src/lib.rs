@@ -29,6 +29,7 @@ pub mod security_module;
 pub mod channeler;
 
 mod networker;
+mod indexer_client;
 
 pub mod async_mutex;
 mod service_client;

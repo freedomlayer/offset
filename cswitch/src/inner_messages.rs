@@ -25,7 +25,7 @@ struct IndexingProviderStateHash([u8; INDEXING_PROVIDER_STATE_HASH_LEN]);
 
 // The name of an indexing provider.
 // TODO: Should we use a string instead here? Is a fixed sized blob preferable?
-struct IndexingProviderName([u8; INDEXING_PROVIDER_NAME_LEN]);
+pub struct IndexingProviderName([u8; INDEXING_PROVIDER_NAME_LEN]);
 
 
 #[derive(Clone, Debug)]
@@ -170,14 +170,14 @@ enum ResponseSendMessageContent {
     Failure,
 }
 
-enum NotifyStructureChangeNeighbors {
+pub enum NotifyStructureChangeNeighbors {
     NeighborAdded(PublicKey),
     NeighborRemoved(PublicKey),
     TimestampUpdated(RandValue),
     CommPublicKeyUpdated(PublicKey),
 }
 
-enum NetworkerToIndexerClient<R> {
+pub enum NetworkerToIndexerClient<R> {
     /*
     ResponseSendMessage {
         request_id: Uid,
@@ -297,12 +297,12 @@ enum NetworkerToFunder {
 // Funder to Indexer Client
 // ------------------------
 
-struct FriendCapacity {
+pub struct FriendCapacity {
     send: u64,
     recv: u64,
 }
 
-enum NotifyStructureChangeFriends {
+pub enum NotifyStructureChangeFriends {
     // This message is used both to add a new friend and to update the capacity information of a
     // current friend.
     FriendUpdated {
@@ -314,7 +314,7 @@ enum NotifyStructureChangeFriends {
     CommPublicKeyUpdated(PublicKey),
 }
 
-enum RequestFriendsRoute {
+pub enum RequestFriendsRoute {
     Direct {
         source_node_public_key: PublicKey,
         dest_node_public_key: PublicKey,
@@ -332,7 +332,7 @@ enum RequestFriendsRoute {
 
 }
 
-enum FunderToIndexerClient {
+pub enum FunderToIndexerClient {
     RequestNeighborsRoute {
         source_node_public_key: PublicKey,
         dest_node_public_key: PublicKey,
@@ -344,7 +344,7 @@ enum FunderToIndexerClient {
 // Indexer Client to Funder
 // ------------------------
 
-enum IndexerClientToFunder {
+pub enum IndexerClientToFunder {
     ResponseNeighborsRoute {
         routes: Vec<NeighborsRoute>,
         dest_comm_public_key: PublicKey,
@@ -352,7 +352,7 @@ enum IndexerClientToFunder {
     }
 }
 
-struct IndexingProviderInfo {
+pub struct IndexingProviderInfo {
     name: IndexingProviderName,
     previous_state_hash: IndexingProviderStateHash,
     new_owners_public_keys: Vec<PublicKey>,
@@ -360,7 +360,7 @@ struct IndexingProviderInfo {
     signatures_by_old_owners: Vec<Signature>,
 }
 
-enum PluginManagerToIndexerClient {
+pub enum PluginManagerToIndexerClient {
     AddIndexingProvider(IndexingProviderInfo),
     RemoveIndexingProvider {
         name: IndexingProviderName,
@@ -368,7 +368,7 @@ enum PluginManagerToIndexerClient {
 }
 
 
-enum IndexerClientToPluginManager {
+pub enum IndexerClientToPluginManager {
     IndexingProviderUpdated(IndexingProviderInfo),
 }
 
