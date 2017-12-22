@@ -17,8 +17,8 @@ use ::networker::networker_client::NetworkerRespondableRequest;
 // Helper structs
 // --------------
 
-const INDEXING_PROVIDER_STATE_HASH_LEN: usize = 32;
-const INDEXING_PROVIDER_NAME_LEN: usize = 16;
+pub const INDEXING_PROVIDER_STATE_HASH_LEN: usize = 32;
+pub const INDEXING_PROVIDER_ID_LEN: usize = 16;
 
 // A hash of a full link in an indexing provider chain
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -53,8 +53,36 @@ impl AsRef<[u8]> for IndexingProviderStateHash {
 }
 
 // The name of an indexing provider.
-// TODO: Should we use a string instead here? Is a fixed sized blob preferable?
-pub struct IndexingProviderName([u8; INDEXING_PROVIDER_NAME_LEN]);
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct IndexingProviderID([u8; INDEXING_PROVIDER_ID_LEN]);
+
+impl IndexingProviderID {
+    pub fn from_bytes<T>(t: &T) -> Result<Self, ()>
+        where T: AsRef<[u8]>
+    {
+        let in_bytes = t.as_ref();
+
+        if in_bytes.len() != INDEXING_PROVIDER_ID_LEN {
+            Err(())
+        } else {
+            let mut provider_id_bytes = [0; INDEXING_PROVIDER_ID_LEN];
+            provider_id_bytes.clone_from_slice(in_bytes);
+            Ok(IndexingProviderID(provider_id_bytes))
+        }
+    }
+
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        self.as_ref()
+    }
+}
+
+impl AsRef<[u8]> for IndexingProviderID {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
 
 
 #[derive(Clone, Debug)]
@@ -382,7 +410,7 @@ pub enum IndexerClientToFunder {
 }
 
 pub struct IndexingProviderInfo {
-    name: IndexingProviderName,
+    name: IndexingProviderID,
     previous_state_hash: IndexingProviderStateHash,
     new_owners_public_keys: Vec<PublicKey>,
     new_indexers_public_keys: Vec<PublicKey>,
@@ -392,7 +420,7 @@ pub struct IndexingProviderInfo {
 pub enum PluginManagerToIndexerClient {
     AddIndexingProvider(IndexingProviderInfo),
     RemoveIndexingProvider {
-        name: IndexingProviderName,
+        name: IndexingProviderID,
     },
 }
 

@@ -1,11 +1,17 @@
 use std::io;
 
-use indexer_capnp::{neighbors_route, chain_link};
-use crypto::identity::{PublicKey, Signature};
-use inner_messages::IndexingProviderStateHash;
+use indexer_capnp::*;
+use crypto::identity::{
+    PublicKey, PUBLIC_KEY_LEN,
+    Signature, SIGNATURE_LEN,
+};
+use inner_messages::{
+    IndexingProviderID, INDEXING_PROVIDER_ID_LEN,
+    IndexingProviderStateHash, INDEXING_PROVIDER_STATE_HASH_LEN,
+};
 
 use capnp::serialize_packed;
-use bytes::{BigEndian, Bytes, BytesMut, Buf, BufMut};
+use bytes::{Bytes, BytesMut};
 
 use super::{
     Schema,
@@ -18,7 +24,7 @@ use super::{
     write_custom_u_int512
 };
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct NeighborsRoute {
     public_keys: Vec<PublicKey>,
 }
@@ -30,14 +36,13 @@ impl<'a, 'b> Schema<'a, 'b> for NeighborsRoute {
     fn encode(&self) -> Result<Bytes, SchemaError> {
         let mut builder = ::capnp::message::Builder::new_default();
 
-        match self.write(&mut builder.init_root()) {
-            Ok(()) => {
+        match self.write(&mut builder.init_root())? {
+            () => {
                 let mut serialized_msg = Vec::new();
                 serialize_packed::write_message(&mut serialized_msg, &builder)?;
 
                 Ok(Bytes::from(serialized_msg))
             }
-            Err(e) => Err(e)
         }
     }
 
@@ -55,10 +60,9 @@ impl<'a, 'b> Schema<'a, 'b> for NeighborsRoute {
     fn write(&self, to: &'a mut Self::Writer) -> Result<(), SchemaError> {
         let mut public_keys = to.borrow().init_public_keys(self.public_keys.len() as u32);
 
-        for (idx, public_key) in self.public_keys.iter().enumerate() {
+        for (idx, ref_public_key) in self.public_keys.iter().enumerate() {
             let mut target_cell = public_keys.borrow().get(idx as u32);
-            let public_key_bytes = Bytes::from(public_key.as_bytes());
-            write_custom_u_int256(&mut target_cell, &public_key_bytes)?;
+            write_custom_u_int256(&mut target_cell, ref_public_key)?;
         }
 
         Ok(())
@@ -70,7 +74,7 @@ impl<'a, 'b> Schema<'a, 'b> for NeighborsRoute {
         let mut public_keys = Vec::with_capacity(public_keys_reader.len() as usize);
 
         for public_key_reader in public_keys_reader.iter() {
-            let mut public_key_bytes = BytesMut::with_capacity(32);
+            let mut public_key_bytes = BytesMut::with_capacity(PUBLIC_KEY_LEN);
             read_custom_u_int256(&mut public_key_bytes, &public_key_reader)?;
 
             public_keys.push(
@@ -97,14 +101,13 @@ impl<'a, 'b> Schema<'a, 'b> for ChainLink {
     fn encode(&self) -> Result<Bytes, SchemaError> {
         let mut builder = ::capnp::message::Builder::new_default();
 
-        match self.write(&mut builder.init_root()) {
-            Ok(()) => {
+        match self.write(&mut builder.init_root())? {
+            () => {
                 let mut serialized_msg = Vec::new();
                 serialize_packed::write_message(&mut serialized_msg, &builder)?;
 
                 Ok(Bytes::from(serialized_msg))
             }
-            Err(e) => Err(e)
         }
     }
 
@@ -123,10 +126,7 @@ impl<'a, 'b> Schema<'a, 'b> for ChainLink {
         // Write the previousStateHash
         {
             let mut previous_state_hash = to.borrow().init_previous_state_hash();
-
-            let state_hash_bytes = Bytes::from(self.previous_state_hash.as_bytes());
-
-            write_custom_u_int256(&mut previous_state_hash, &state_hash_bytes)?;
+            write_custom_u_int256(&mut previous_state_hash, &self.previous_state_hash)?;
         }
         // Write the newOwnersPublicKeys
         {
@@ -134,10 +134,9 @@ impl<'a, 'b> Schema<'a, 'b> for ChainLink {
                 self.new_owners_public_keys.len() as u32
             );
 
-            for (idx, public_key) in self.new_owners_public_keys.iter().enumerate() {
+            for (idx, ref_public_key) in self.new_owners_public_keys.iter().enumerate() {
                 let mut target_cell = link_new_owners_public_public_keys.borrow().get(idx as u32);
-                let public_key_bytes = Bytes::from(public_key.as_bytes());
-                write_custom_u_int256(&mut target_cell, &public_key_bytes)?;
+                write_custom_u_int256(&mut target_cell, ref_public_key)?;
             }
         }
         // Write the newIndexersPublicKeys
@@ -146,10 +145,9 @@ impl<'a, 'b> Schema<'a, 'b> for ChainLink {
                 self.new_indexers_public_keys.len() as u32
             );
 
-            for (idx, public_key) in self.new_indexers_public_keys.iter().enumerate() {
+            for (idx, ref_public_key) in self.new_indexers_public_keys.iter().enumerate() {
                 let mut target_cell = new_indexers_public_keys.borrow().get(idx as u32);
-                let public_key_bytes = Bytes::from(public_key.as_bytes());
-                write_custom_u_int256(&mut target_cell, &public_key_bytes)?;
+                write_custom_u_int256(&mut target_cell, ref_public_key)?;
             }
         }
         // Write the signaturesByOldOwners
@@ -158,10 +156,9 @@ impl<'a, 'b> Schema<'a, 'b> for ChainLink {
                 self.signatures_by_old_owners.len() as u32
             );
 
-            for (idx, signature) in self.signatures_by_old_owners.iter().enumerate() {
+            for (idx, ref_signature) in self.signatures_by_old_owners.iter().enumerate() {
                 let mut target_cell = signatures_by_old_owners.borrow().get(idx as u32);
-                let signature_bytes = Bytes::from(signature.as_bytes());
-                write_custom_u_int512(&mut target_cell, &signature_bytes)?;
+                write_custom_u_int512(&mut target_cell, ref_signature)?;
             }
         }
 
@@ -171,7 +168,7 @@ impl<'a, 'b> Schema<'a, 'b> for ChainLink {
     fn read(from: &'b Self::Reader) -> Result<Self, SchemaError> {
         // Read the previousStateHash
         let previous_state_hash_reader = from.get_previous_state_hash()?;
-        let mut state_hash_bytes = BytesMut::with_capacity(32);
+        let mut state_hash_bytes = BytesMut::with_capacity(INDEXING_PROVIDER_STATE_HASH_LEN);
         read_custom_u_int256(&mut state_hash_bytes, &previous_state_hash_reader)?;
         let previous_state_hash = IndexingProviderStateHash::from_bytes(&state_hash_bytes)
             .map_err(|_| SchemaError::Invalid)?;
@@ -184,7 +181,7 @@ impl<'a, 'b> Schema<'a, 'b> for ChainLink {
         );
 
         for public_key_reader in new_owners_public_keys_reader.iter() {
-            let mut public_key_bytes = BytesMut::with_capacity(32);
+            let mut public_key_bytes = BytesMut::with_capacity(PUBLIC_KEY_LEN);
             read_custom_u_int256(&mut public_key_bytes, &public_key_reader)?;
 
             new_owners_public_keys.push(
@@ -200,7 +197,7 @@ impl<'a, 'b> Schema<'a, 'b> for ChainLink {
         );
 
         for public_key_reader in new_indexers_public_keys_reader.iter() {
-            let mut public_key_bytes = BytesMut::with_capacity(32);
+            let mut public_key_bytes = BytesMut::with_capacity(PUBLIC_KEY_LEN);
             read_custom_u_int256(&mut public_key_bytes, &public_key_reader)?;
 
             new_indexers_public_keys.push(
@@ -216,7 +213,7 @@ impl<'a, 'b> Schema<'a, 'b> for ChainLink {
         );
 
         for signature_reader in signatures_by_old_owners_reader.iter() {
-            let mut signature_bytes = BytesMut::with_capacity(64);
+            let mut signature_bytes = BytesMut::with_capacity(SIGNATURE_LEN);
             read_custom_u_int512(&mut signature_bytes, &signature_reader)?;
 
             signatures_by_old_owners.push(
@@ -233,6 +230,141 @@ impl<'a, 'b> Schema<'a, 'b> for ChainLink {
     }
 }
 
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct RequestUpdateState {
+    indexing_provider_id: IndexingProviderID,
+    indexing_provider_states_chain: Vec<ChainLink>,
+}
+
+impl<'a, 'b> Schema<'a, 'b> for RequestUpdateState {
+    type Reader = request_update_state::Reader<'a>;
+    type Writer = request_update_state::Builder<'b>;
+
+    fn encode(&self) -> Result<Bytes, SchemaError> {
+        let mut builder = ::capnp::message::Builder::new_default();
+
+        match self.write(&mut builder.init_root())? {
+            () => {
+                let mut serialized_msg = Vec::new();
+                serialize_packed::write_message(&mut serialized_msg, &builder)?;
+
+                Ok(Bytes::from(serialized_msg))
+            }
+        }
+    }
+
+    fn decode(buffer: Bytes) -> Result<Self, SchemaError> {
+        let mut buffer = io::Cursor::new(buffer);
+
+        let reader = serialize_packed::read_message(
+            &mut buffer,
+            ::capnp::message::ReaderOptions::new()
+        )?;
+
+        Self::read(&reader.get_root()?)
+    }
+
+    fn write(&self, to: &'a mut Self::Writer) -> Result<(), SchemaError> {
+        // Write the indexingProviderID
+        {
+            let mut indexing_provider_id = to.borrow().init_indexing_provider_id();
+
+            write_custom_u_int128(&mut indexing_provider_id, &self.indexing_provider_id)?;
+        }
+
+        // Writer the indexingProviderStatesChain
+        {
+            let mut indexing_provider_states_chain = to.borrow().init_indexing_provider_states_chain(
+                self.indexing_provider_states_chain.len() as u32
+            );
+
+            for (idx, ref_chain_link) in self.indexing_provider_states_chain.iter().enumerate() {
+                let mut target_cell = indexing_provider_states_chain.borrow().get(idx as u32);
+                ref_chain_link.write(&mut target_cell)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn read(from: &'b Self::Reader) -> Result<Self, SchemaError> {
+        // Read the indexingProviderID
+        let indexing_provider_id_reader = from.get_indexing_provider_id()?;
+        let mut indexing_provider_id_bytes = BytesMut::with_capacity(INDEXING_PROVIDER_ID_LEN);
+        read_custom_u_int128(&mut indexing_provider_id_bytes, &indexing_provider_id_reader)?;
+        let indexing_provider_id = IndexingProviderID::from_bytes(&indexing_provider_id_bytes)
+            .map_err(|_| SchemaError::Invalid)?;
+
+        // Writer the indexingProviderStatesChain
+        let indexing_provider_states_chain_reader = from.get_indexing_provider_states_chain()?;
+
+        let mut indexing_provider_states_chain = Vec::with_capacity(
+            indexing_provider_states_chain_reader.len() as usize
+        );
+
+        for chain_link_reader in indexing_provider_states_chain_reader.iter() {
+            indexing_provider_states_chain.push(ChainLink::read(&chain_link_reader)?);
+        }
+
+        Ok(RequestUpdateState {
+            indexing_provider_id,
+            indexing_provider_states_chain
+        })
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct ResponseUpdateState {
+    state_hash: IndexingProviderStateHash
+}
+
+impl<'a, 'b> Schema<'a, 'b> for ResponseUpdateState {
+    type Reader = response_update_state::Reader<'a>;
+    type Writer = response_update_state::Builder<'b>;
+
+    fn encode(&self) -> Result<Bytes, SchemaError> {
+        let mut builder = ::capnp::message::Builder::new_default();
+
+        match self.write(&mut builder.init_root())? {
+            () => {
+                let mut serialized_msg = Vec::new();
+                serialize_packed::write_message(&mut serialized_msg, &builder)?;
+
+                Ok(Bytes::from(serialized_msg))
+            }
+        }
+    }
+
+    fn decode(buffer: Bytes) -> Result<Self, SchemaError> {
+        let mut buffer = io::Cursor::new(buffer);
+
+        let reader = serialize_packed::read_message(
+            &mut buffer,
+            ::capnp::message::ReaderOptions::new()
+        )?;
+
+        Self::read(&reader.get_root()?)
+    }
+
+    fn write(&self, to: &'a mut Self::Writer) -> Result<(), SchemaError> {
+        let mut state_hash = to.borrow().init_state_hash();
+
+        write_custom_u_int256(&mut state_hash, &self.state_hash)?;
+
+        Ok(())
+    }
+
+    fn read(from: &'b Self::Reader) -> Result<Self, SchemaError> {
+        let state_hash_reader = from.get_state_hash()?;
+        let mut state_hash_bytes = BytesMut::with_capacity(INDEXING_PROVIDER_STATE_HASH_LEN);
+        read_custom_u_int256(&mut state_hash_bytes, &state_hash_reader)?;
+        let state_hash = IndexingProviderStateHash::from_bytes(&state_hash_bytes)
+            .map_err(|_| SchemaError::Invalid)?;
+
+        Ok(ResponseUpdateState { state_hash })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -240,7 +372,7 @@ mod tests {
     #[test]
     fn test_neighbors_route() {
         let public_keys = (0..255u8).map(|byte| {
-            PublicKey::from_bytes(&[byte; 32]).unwrap()
+            PublicKey::from_bytes(&[byte; PUBLIC_KEY_LEN]).unwrap()
         }).collect::<Vec<_>>();
 
         let in_neighbors_route = NeighborsRoute { public_keys };
@@ -254,18 +386,19 @@ mod tests {
 
     #[test]
     fn test_chain_link() {
-        let previous_state_hash = IndexingProviderStateHash::from_bytes(&[0u8; 32]).unwrap();
+        let previous_state_hash =
+            IndexingProviderStateHash::from_bytes(&[0u8; INDEXING_PROVIDER_STATE_HASH_LEN]).unwrap();
 
         let new_owners_public_keys = (0..255u8).map(|byte| {
-            PublicKey::from_bytes(&[byte; 32]).unwrap()
+            PublicKey::from_bytes(&[byte; PUBLIC_KEY_LEN]).unwrap()
         }).collect::<Vec<_>>();
 
         let new_indexers_public_keys = (0..254u8).map(|byte| {
-            PublicKey::from_bytes(&[byte; 32]).unwrap()
+            PublicKey::from_bytes(&[byte; PUBLIC_KEY_LEN]).unwrap()
         }).collect::<Vec<_>>();
 
         let signatures_by_old_owners = (0..255u8).map(|byte| {
-            Signature::from_bytes(&[byte; 64]).unwrap()
+            Signature::from_bytes(&[byte; SIGNATURE_LEN]).unwrap()
         }).collect::<Vec<_>>();
 
         let in_chain_link = ChainLink {
@@ -280,5 +413,64 @@ mod tests {
         let out_chain_link = ChainLink::decode(serialize_message).unwrap();
 
         assert_eq!(in_chain_link, out_chain_link);
+    }
+
+    #[test]
+    fn test_request_update_state() {
+        let indexing_provider_id =
+            IndexingProviderID::from_bytes(&[11u8; INDEXING_PROVIDER_ID_LEN]).unwrap();
+
+        let mut indexing_provider_states_chain = Vec::new();
+
+        let previous_state_hash =
+            IndexingProviderStateHash::from_bytes(&[0u8; INDEXING_PROVIDER_STATE_HASH_LEN]).unwrap();
+
+        let new_owners_public_keys = (0..255u8).map(|byte| {
+            PublicKey::from_bytes(&[byte; PUBLIC_KEY_LEN]).unwrap()
+        }).collect::<Vec<_>>();
+
+        let new_indexers_public_keys = (0..254u8).map(|byte| {
+            PublicKey::from_bytes(&[byte; PUBLIC_KEY_LEN]).unwrap()
+        }).collect::<Vec<_>>();
+
+        let signatures_by_old_owners = (0..255u8).map(|byte| {
+            Signature::from_bytes(&[byte; SIGNATURE_LEN]).unwrap()
+        }).collect::<Vec<_>>();
+
+        let chain_link = ChainLink {
+            previous_state_hash,
+            new_owners_public_keys,
+            new_indexers_public_keys,
+            signatures_by_old_owners,
+        };
+
+        for _ in 0..128 {
+            indexing_provider_states_chain.push(chain_link);
+        }
+
+        let in_request_update_state = RequestUpdateState {
+            indexing_provider_id,
+            indexing_provider_states_chain,
+        };
+
+        let serialize_message = in_request_update_state.encode().unwrap();
+
+        let out_request_update_state = RequestUpdateState::decode(serialize_message).unwrap();
+
+        assert_eq!(in_request_update_state, out_request_update_state);
+    }
+
+    #[test]
+    fn test_response_update_state() {
+        let state_hash =
+            IndexingProviderStateHash::from_bytes(&[0u8; INDEXING_PROVIDER_STATE_HASH_LEN]).unwrap();
+
+        let in_response_update_state = ResponseUpdateState { state_hash };
+
+        let serialize_message = in_response_update_state.encode().unwrap();
+
+        let out_response_update_state = ResponseUpdateState::decode(serialize_message).unwrap();
+
+        assert_eq!(in_response_update_state, out_response_update_state);
     }
 }

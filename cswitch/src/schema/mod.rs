@@ -334,14 +334,14 @@ pub fn deserialize_exchange_message(buffer: Bytes)
 ///
 /// This function panics if there is not enough remaining data in `src`.
 #[inline]
-pub fn write_custom_u_int128(
+pub fn write_custom_u_int128<T: AsRef<[u8]>>(
     dst: &mut custom_u_int128::Builder,
-    src: &Bytes
+    src: &T
 ) -> Result<(), SchemaError> {
-    let mut rdr = io::Cursor::new(src);
+    let mut reader = io::Cursor::new(src.as_ref());
 
-    dst.set_x0(rdr.get_u64::<BigEndian>());
-    dst.set_x1(rdr.get_u64::<BigEndian>());
+    dst.set_x0(reader.get_u64::<BigEndian>());
+    dst.set_x1(reader.get_u64::<BigEndian>());
 
     Ok(())
 }
@@ -368,11 +368,11 @@ pub fn read_custom_u_int128(
 ///
 /// This function panics if there is not enough remaining data in `src`.
 #[inline]
-pub fn write_custom_u_int256(
+pub fn write_custom_u_int256<T: AsRef<[u8]>>(
     dst: &mut custom_u_int256::Builder,
-    src: &Bytes
+    src: &T
 ) -> Result<(), SchemaError> {
-    let mut reader = io::Cursor::new(src);
+    let mut reader = io::Cursor::new(src.as_ref());
 
     dst.set_x0(reader.get_u64::<BigEndian>());
     dst.set_x1(reader.get_u64::<BigEndian>());
@@ -406,11 +406,11 @@ pub fn read_custom_u_int256(
 ///
 /// This function panics if there is not enough remaining data in `src`.
 #[inline]
-pub fn write_custom_u_int512(
+pub fn write_custom_u_int512<T: AsRef<[u8]>>(
     dst: &mut custom_u_int512::Builder,
-    src: &Bytes
+    src: &T
 ) -> Result<(), SchemaError> {
-    let mut reader = io::Cursor::new(src);
+    let mut reader = io::Cursor::new(src.as_ref());
 
     dst.set_x0(reader.get_u64::<BigEndian>());
     dst.set_x1(reader.get_u64::<BigEndian>());

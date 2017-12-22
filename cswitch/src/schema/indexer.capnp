@@ -21,7 +21,7 @@ struct ChainLink {
 
 # Indexer -> Node
 struct RequestUpdateState {
-        indexingProviderName @0: CustomUInt128;
+        indexingProviderId @0: CustomUInt128;
         indexingProviderStatesChain @1: List(ChainLink);
 }
 

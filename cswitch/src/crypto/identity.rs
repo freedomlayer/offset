@@ -5,8 +5,8 @@ use std::fmt;
 
 use self::ring::signature;
 
-const PUBLIC_KEY_LEN: usize = 32;
-const SIGNATURE_LEN:  usize = 64;
+pub const PUBLIC_KEY_LEN: usize = 32;
+pub const SIGNATURE_LEN:  usize = 64;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct PublicKey([u8; PUBLIC_KEY_LEN]);
