@@ -295,7 +295,7 @@ impl<'a, 'b> Schema<'a, 'b> for RequestUpdateState {
         let indexing_provider_id = IndexingProviderID::from_bytes(&indexing_provider_id_bytes)
             .map_err(|_| SchemaError::Invalid)?;
 
-        // Writer the indexingProviderStatesChain
+        // Read the indexingProviderStatesChain
         let indexing_provider_states_chain_reader = from.get_indexing_provider_states_chain()?;
 
         let mut indexing_provider_states_chain = Vec::with_capacity(
@@ -364,6 +364,66 @@ impl<'a, 'b> Schema<'a, 'b> for ResponseUpdateState {
         Ok(ResponseUpdateState { state_hash })
     }
 }
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct RoutesToIndexer {
+    routes: Vec<NeighborsRoute>,
+}
+
+impl <'a, 'b> Schema<'a, 'b> for RoutesToIndexer {
+    type Reader = routes_to_indexer::Reader<'a>;
+    type Writer = routes_to_indexer::Builder<'b>;
+
+    fn encode(&self) -> Result<Bytes, SchemaError> {
+        let mut builder = ::capnp::message::Builder::new_default();
+
+        match self.write(&mut builder.init_root())? {
+            () => {
+                let mut serialized_msg = Vec::new();
+                serialize_packed::write_message(&mut serialized_msg, &builder)?;
+
+                Ok(Bytes::from(serialized_msg))
+            }
+        }
+    }
+
+    fn decode(buffer: Bytes) -> Result<Self, SchemaError> {
+        let mut buffer = io::Cursor::new(buffer);
+
+        let reader = serialize_packed::read_message(
+            &mut buffer,
+            ::capnp::message::ReaderOptions::new()
+        )?;
+
+        Self::read(&reader.get_root()?)
+    }
+
+    fn write(&self, to: &'a mut Self::Writer) -> Result<(), SchemaError> {
+        // Write the routes
+        let mut routes = to.borrow().init_routes(self.routes.len() as u32);
+
+        for (idx, ref_neighbors_route) in self.routes.iter().enumerate() {
+            let mut target_cell = routes.borrow().get(idx as u32);
+            ref_neighbors_route.write(&mut target_cell)?;
+        }
+
+        Ok(())
+    }
+
+    fn read(from: &'b Self::Reader) -> Result<Self, SchemaError> {
+        // Read the routes
+        let routes_reader = from.get_routes()?;
+
+        let mut routes = Vec::with_capacity(routes_reader.len() as usize);
+
+        for neighbors_route_reader in routes_reader.iter() {
+            routes.push(NeighborsRoute::read(&neighbors_route_reader)?);
+        }
+
+        Ok(RoutesToIndexer { routes })
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -445,7 +505,7 @@ mod tests {
         };
 
         for _ in 0..128 {
-            indexing_provider_states_chain.push(chain_link);
+            indexing_provider_states_chain.push(chain_link.clone());
         }
 
         let in_request_update_state = RequestUpdateState {
@@ -472,5 +532,28 @@ mod tests {
         let out_response_update_state = ResponseUpdateState::decode(serialize_message).unwrap();
 
         assert_eq!(in_response_update_state, out_response_update_state);
+    }
+
+    #[test]
+    fn test_routes_to_indexer() {
+        let public_keys = (0..255u8).map(|byte| {
+            PublicKey::from_bytes(&[byte; PUBLIC_KEY_LEN]).unwrap()
+        }).collect::<Vec<_>>();
+
+        let neighbors_route = NeighborsRoute { public_keys };
+
+        let mut routes = Vec::new();
+
+        for _ in 0..500 {
+            routes.push(neighbors_route.clone());
+        }
+
+        let in_routes_to_indexer = RoutesToIndexer { routes };
+
+        let serialize_message = in_routes_to_indexer.encode().unwrap();
+
+        let out_routes_to_indexer = RoutesToIndexer::decode(serialize_message).unwrap();
+
+        assert_eq!(in_routes_to_indexer, out_routes_to_indexer);
     }
 }
