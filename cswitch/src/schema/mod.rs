@@ -36,6 +36,8 @@
 use std::io;
 
 use bytes::{BigEndian, Bytes, BytesMut, Buf, BufMut};
+use capnp::serialize_packed;
+use capnp::message::{Allocator, Builder};
 
 use crypto::rand_values::RandValue;
 use crypto::dh::{Salt, DhPublicKey};
@@ -67,49 +69,40 @@ include_schema! {
 
 use common_capnp::{custom_u_int128, custom_u_int256, custom_u_int512};
 
-pub trait Schema<'a, 'b>: Sized {
-    // FIXME:
-    // Use genetic_associated_types here and provides default encode/decode implementation,
-    // we use macro to inject the default implementation now, any other way can do this trick?
-
-    // type Reader<'a>: ::capnp::traits::FromPointerReader<'a>;
-    // type Writer<'b>: ::capnp::traits::FromPointerBuilder<'b>;
-
+pub trait Schema<'a>: Sized {
     type Reader: 'a;
-    type Writer: 'b;
+    type Writer: 'a;
 
-    fn encode(&self) -> Result<Bytes, SchemaError>;
-    fn decode(buffer: Bytes) -> Result<Self, SchemaError>;
-    fn write(&self, to: &'a mut Self::Writer) -> Result<(), SchemaError>;
-    fn read(from: &'b Self::Reader) -> Result<Self, SchemaError>;
-}
+    fn decode(buffer: Bytes) -> Result<Self, SchemaError>
+        where for<'b> Self::Reader: ::capnp::traits::FromPointerReader<'b>
+    {
+        let mut buffer = io::Cursor::new(buffer);
 
-macro_rules! inject_default_en_de_impl {
-    () => {
-        fn encode(&self) -> Result<Bytes, SchemaError> {
-            let mut builder = ::capnp::message::Builder::new_default();
+        let reader = serialize_packed::read_message(
+            &mut buffer,
+            ::capnp::message::ReaderOptions::new()
+        )?;
 
-            match self.write(&mut builder.init_root())? {
-                () => {
-                    let mut serialized_msg = Vec::new();
-                    serialize_packed::write_message(&mut serialized_msg, &builder)?;
+        Self::read(&reader.get_root()?)
+    }
 
-                    Ok(Bytes::from(serialized_msg))
-                }
+    fn encode(&self) -> Result<Bytes, SchemaError>
+        where for<'b> Self::Writer: ::capnp::traits::FromPointerBuilder<'b>
+    {
+        let mut builder = ::capnp::message::Builder::new_default();
+
+        match self.write(&mut builder.init_root())? {
+            () => {
+                let mut serialized_msg = Vec::new();
+                serialize_packed::write_message(&mut serialized_msg, &builder)?;
+
+                Ok(Bytes::from(serialized_msg))
             }
         }
+    }
 
-        fn decode(buffer: Bytes) -> Result<Self, SchemaError> {
-            let mut buffer = io::Cursor::new(buffer);
-
-            let reader = serialize_packed::read_message(
-                &mut buffer,
-                ::capnp::message::ReaderOptions::new()
-            )?;
-
-            Self::read(&reader.get_root()?)
-        }
-    };
+    fn read<'b>(from: &'b Self::Reader) -> Result<Self, SchemaError>;
+    fn write<'b>(&self, to: &'b mut Self::Writer) -> Result<(), SchemaError>;
 }
 
 pub mod channeler;
