@@ -279,6 +279,7 @@ mod tests {
         assert_eq!(core.run(fut4).unwrap(), 4);
     }
 
+    /*
     #[test]
     fn test_async_mutex_nested() {
         let mut core = Core::new().unwrap();
@@ -301,6 +302,7 @@ mod tests {
         });
         assert_eq!(core.run(fut1).unwrap(), 2);
     }
+    */
 
 }
 

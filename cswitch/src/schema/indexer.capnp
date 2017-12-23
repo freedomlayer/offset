@@ -44,8 +44,9 @@ struct RoutesToIndexer {
 # }
 
 struct ConnectedFriend {
-        pushCredits @0: CustomUInt128;
-        publicKey @1: CustomUInt256;
+        sendCapacity @0: CustomUInt128;
+        recvCapacity @1: CustomUInt128;
+        publicKey @2: CustomUInt256;
 }
 
 # Node -> Indexer
