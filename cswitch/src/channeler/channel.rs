@@ -27,13 +27,17 @@ use inner_messages::{ChannelerToNetworker, ChannelOpened, ChannelMessageReceived
 use security_module::security_module_client::{SecurityModuleClient, SecurityModuleClientError};
 use crypto::symmetric_enc::{SymmetricKey, Encryptor, Decryptor, EncNonceCounter, SymmetricEncError};
 
+use schema::SchemaError;
 use schema::channeler_capnp::MessageType;
-use schema::{
-    SchemaError,
-    serialize_message,              deserialize_message,
-    serialize_enc_message,          deserialize_enc_message,
-    serialize_exchange_message,     deserialize_exchange_message,
-    serialize_init_channel_message, deserialize_init_channel_message
+use schema::channeler::{
+    serialize_message,
+    deserialize_message,
+    serialize_enc_message,
+    deserialize_enc_message,
+    serialize_exchange_message,
+    deserialize_exchange_message,
+    serialize_init_channel_message,
+    deserialize_init_channel_message
 };
 
 use super::{ToChannel, ChannelerNeighbor, KEEP_ALIVE_TICKS};

@@ -11,8 +11,8 @@ use self::ring::hkdf::extract_and_expand;
 use self::ring::hmac::SigningKey;
 use super::symmetric_enc::{SymmetricKey, SYMMETRIC_KEY_LEN};
 
-const SALT_LEN: usize = 32;
-const DH_PUBLIC_KEY_LEN: usize = 32;
+pub const SALT_LEN: usize = 32;
+pub const DH_PUBLIC_KEY_LEN: usize = 32;
 const SHARED_SECRET_LEN: usize = 32;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
