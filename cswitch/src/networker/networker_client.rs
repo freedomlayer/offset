@@ -41,12 +41,12 @@ pub trait NetworkerSenderClientTrait {
 /// An incoming networker request. This request is received from the Networker. It originates from
 /// some remote node. 
 pub struct NetworkerIncomingRequest {
-    // route: NeighborsRoute,
-    sender_public_key: PublicKey,
+    route: NeighborsRoute, // sender_public_key is the first public key on the NeighborsRoute
+    // sender_public_key: PublicKey,
     request_content: Vec<u8>,
     max_response_len: u32,
     processing_fee_proposal: u64,
-    // half_credits_per_byte_proposal: u32,
+    half_credits_per_byte_proposal: u32,
 }
 
 /// An trait for a Responder: An object used to either respond or discard a received Networker
