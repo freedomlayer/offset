@@ -36,7 +36,7 @@
 use std::io;
 
 use bytes::{BigEndian, Bytes, BytesMut, Buf, BufMut};
-use capnp::serialize_packed;
+use capnp::struct_list;
 
 use crypto::rand_values::RandValue;
 use crypto::dh::{Salt, DhPublicKey};
@@ -311,6 +311,33 @@ pub fn write_signature(
     to: &mut custom_u_int512::Builder
 ) -> Result<(), SchemaError> {
     write_custom_u_int512(from, to)
+}
+
+#[inline]
+pub fn read_public_key_list<'a>(from: &struct_list::Reader<'a, custom_u_int256::Owned>)
+    -> Result<Vec<PublicKey>, SchemaError> {
+    let mut public_keys = Vec::with_capacity(from.len() as usize);
+
+    for public_key_reader in from.iter() {
+        public_keys.push(read_public_key(&public_key_reader)?);
+    }
+
+    Ok(public_keys)
+}
+
+#[inline]
+pub fn write_public_key_list<'a>(
+    from: &Vec<PublicKey>,
+    to: &mut struct_list::Builder<'a,custom_u_int256::Owned>
+) -> Result<(), SchemaError> {
+    debug_assert_eq!(from.len(), to.len() as usize);
+
+    for (idx, ref_public_key) in from.iter().enumerate() {
+        let mut public_key_writer = to.borrow().get(idx as u32);
+        write_public_key(ref_public_key, &mut public_key_writer)?;
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

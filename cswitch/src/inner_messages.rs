@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 
 use self::num_bigint::BigInt;
 use ::crypto::identity::{PublicKey, Signature};
-use ::crypto::dh::Salt;
+use ::crypto::dh::{Salt, DhPublicKey};
 use ::crypto::symmetric_enc::SymmetricKey;
 use ::crypto::uid::Uid;
 use ::crypto::rand_values::RandValue;
@@ -203,7 +203,7 @@ pub enum NetworkerToChanneler {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct ResponseFriendsRoute {
     pub routes: Vec<FriendsRoute>,
-    pub destination_comm_public_key: PublicKey,
+    pub destination_comm_public_key: DhPublicKey,
     pub destination_recent_timestamp: RandValue,
 }
 
@@ -412,7 +412,7 @@ pub enum FunderToIndexerClient {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct ResponseNeighborsRoute {
     pub routes: Vec<NeighborsRoute>,
-    pub destination_comm_public_key: PublicKey,
+    pub destination_comm_public_key: DhPublicKey,
     pub destination_recent_timestamp: RandValue,
 }
 

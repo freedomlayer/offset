@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use ring::rand::SecureRandom;
 
-const RAND_VALUE_LEN: usize = 16;
+pub const RAND_VALUE_LEN: usize = 16;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct RandValue([u8; RAND_VALUE_LEN]);

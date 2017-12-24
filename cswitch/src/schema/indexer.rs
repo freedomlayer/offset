@@ -28,7 +28,7 @@ use inner_messages::{
 
 use indexer_capnp::*;
 
-use bytes::Bytes;
+use bytes::{BigEndian, ByteOrder, Bytes};
 use capnp::serialize_packed;
 
 use super::{
@@ -40,10 +40,15 @@ use super::{
     write_custom_u_int256,
     read_public_key,
     write_public_key,
-    read_signature,
-    write_signature,
     read_rand_value,
     write_rand_value,
+    read_signature,
+    write_signature,
+    read_dh_public_key,
+    write_dh_public_key,
+    read_public_key_list,
+    write_public_key_list,
+    CUSTOM_UINT128_LEN,
 };
 
 impl<'a> Schema<'a> for NeighborsRoute {
@@ -53,25 +58,16 @@ impl<'a> Schema<'a> for NeighborsRoute {
     inject_default_impl!();
 
     fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
-        let public_keys_reader = from.get_public_keys()?;
-
-        let mut public_keys = Vec::with_capacity(public_keys_reader.len() as usize);
-
-        for public_key_reader in public_keys_reader.iter() {
-            public_keys.push(read_public_key(&public_key_reader)?);
-        }
+        let public_keys = read_public_key_list(&from.get_public_keys()?)?;
 
         Ok(NeighborsRoute { public_keys })
     }
 
-    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError>
-    {
-        let mut public_keys_writer = to.borrow().init_public_keys(self.public_keys.len() as u32);
-
-        for (idx, ref_public_key) in self.public_keys.iter().enumerate() {
-            let mut public_key_writer = public_keys_writer.borrow().get(idx as u32);
-            write_public_key(ref_public_key, &mut public_key_writer)?;
-        }
+    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+        write_public_key_list(
+            &self.public_keys,
+            &mut to.borrow().init_public_keys(self.public_keys.len() as u32)
+        )?;
 
         Ok(())
     }
@@ -84,13 +80,7 @@ impl<'a> Schema<'a> for FriendsRoute {
     inject_default_impl!();
 
     fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
-        let public_keys_reader = from.get_public_keys()?;
-
-        let mut public_keys = Vec::with_capacity(public_keys_reader.len() as usize);
-
-        for public_key_reader in public_keys_reader.iter() {
-            public_keys.push(read_public_key(&public_key_reader)?);
-        }
+        let public_keys = read_public_key_list(&from.get_public_keys()?)?;
 
         let capacity = from.get_capacity();
 
@@ -101,14 +91,10 @@ impl<'a> Schema<'a> for FriendsRoute {
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
-        {
-            let mut public_keys_writer = to.borrow().init_public_keys(self.public_keys.len() as u32);
-
-            for (idx, ref_public_key) in self.public_keys.iter().enumerate() {
-                let mut public_key_writer = public_keys_writer.borrow().get(idx as u32);
-                write_public_key(ref_public_key, &mut public_key_writer)?;
-            }
-        }
+        write_public_key_list(
+            &self.public_keys,
+            &mut to.borrow().init_public_keys(self.public_keys.len() as u32)
+        )?;
 
         to.set_capacity(self.capacity);
 
@@ -123,7 +109,9 @@ impl<'a> Schema<'a> for RequestNeighborsRoute {
     inject_default_impl!();
 
     fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
-        let source_node_public_key = read_public_key(&from.get_source_node_public_key()?)?;
+        let source_node_public_key = read_public_key(
+            &from.get_source_node_public_key()?
+        )?;
 
         let destination_node_public_key = read_public_key(
             &from.get_destination_node_public_key()?
@@ -131,23 +119,20 @@ impl<'a> Schema<'a> for RequestNeighborsRoute {
 
         Ok(RequestNeighborsRoute {
             source_node_public_key,
-            destination_node_public_key
+            destination_node_public_key,
         })
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
-        {
-            let mut source_node_public_key = to.borrow().init_source_node_public_key();
-            write_public_key(&self.source_node_public_key, &mut source_node_public_key, )?;
-        }
+        write_public_key(
+            &self.source_node_public_key,
+            &mut to.borrow().init_source_node_public_key(),
+        )?;
 
-        {
-            let mut destination_node_public_key = to.borrow().init_destination_node_public_key();
-            write_public_key(
-                &self.destination_node_public_key,
-                &mut destination_node_public_key
-            )?;
-        }
+        write_public_key(
+            &self.destination_node_public_key,
+            &mut to.borrow().init_destination_node_public_key(),
+        )?;
 
         Ok(())
     }
@@ -170,7 +155,7 @@ impl<'a> Schema<'a> for ResponseNeighborsRoute {
         }
 
         // Read the destinationCommPublicKey
-        let destination_comm_public_key = read_public_key(
+        let destination_comm_public_key = read_dh_public_key(
             &from.get_destination_comm_public_key()?
         )?;
 
@@ -182,7 +167,7 @@ impl<'a> Schema<'a> for ResponseNeighborsRoute {
         Ok(ResponseNeighborsRoute {
             routes,
             destination_comm_public_key,
-            destination_recent_timestamp
+            destination_recent_timestamp,
         })
     }
 
@@ -196,26 +181,18 @@ impl<'a> Schema<'a> for ResponseNeighborsRoute {
                 ref_neighbors_route.write(&mut neighbors_route_writer)?;
             }
         }
+
         // Write the destinationCommPublicKey
-        {
-            let mut destination_comm_public_key_writer =
-                to.borrow().init_destination_comm_public_key();
+        write_dh_public_key(
+            &self.destination_comm_public_key,
+            &mut to.borrow().init_destination_comm_public_key(),
+        )?;
 
-            write_public_key(
-                &self.destination_comm_public_key,
-                &mut destination_comm_public_key_writer
-            )?;
-        }
         // Write the destinationRecentTimesStamp
-        {
-            let mut destination_recent_timestamp_writer =
-                to.borrow().init_destination_recent_timestamp();
-
-            write_rand_value(
-                &self.destination_recent_timestamp,
-                &mut destination_recent_timestamp_writer,
-            )?;
-        }
+        write_rand_value(
+            &self.destination_recent_timestamp,
+            &mut to.borrow().init_destination_recent_timestamp(),
+        )?;
 
         Ok(())
     }
@@ -242,7 +219,7 @@ impl<'a> Schema<'a> for RequestFriendsRoute {
                     read_public_key(&direct_reader.get_destination_node_public_key()?)?;
                 Ok(RequestFriendsRoute::Direct {
                     source_node_public_key,
-                    destination_node_public_key
+                    destination_node_public_key,
                 })
             }
             LoopFromFriend(wrapped_loop_from_friend_reader) => {
@@ -277,23 +254,16 @@ impl<'a> Schema<'a> for RequestFriendsRoute {
                 let mut direct_writer = route_type_writer.borrow().init_direct();
 
                 // Write the sourceNodePublicKey
-                {
-                    let mut source_node_public_key_writer
-                    = direct_writer.borrow().init_source_node_public_key();
-                    write_public_key(
-                        source_node_public_key,
-                        &mut source_node_public_key_writer
-                    )?;
-                }
+                write_public_key(
+                    source_node_public_key,
+                    &mut direct_writer.borrow().init_source_node_public_key(),
+                )?;
+
                 // Write the destinationNodePublicKey
-                {
-                    let mut destination_node_public_key_writer
-                    = direct_writer.borrow().init_destination_node_public_key();
-                    write_public_key(
-                        destination_node_public_key,
-                        &mut destination_node_public_key_writer
-                    )?;
-                }
+                write_public_key(
+                    destination_node_public_key,
+                    &mut direct_writer.borrow().init_destination_node_public_key(),
+                )?;
             }
             RequestFriendsRoute::LoopFromFriend {
                 ref friend_public_key
@@ -340,7 +310,7 @@ impl<'a> Schema<'a> for ResponseFriendsRoute {
         }
 
         // Read the destinationCommPublicKey
-        let destination_comm_public_key = read_public_key(
+        let destination_comm_public_key = read_dh_public_key(
             &from.get_destination_comm_public_key()?
         )?;
 
@@ -352,7 +322,7 @@ impl<'a> Schema<'a> for ResponseFriendsRoute {
         Ok(ResponseFriendsRoute {
             routes,
             destination_comm_public_key,
-            destination_recent_timestamp
+            destination_recent_timestamp,
         })
     }
 
@@ -367,25 +337,16 @@ impl<'a> Schema<'a> for ResponseFriendsRoute {
             }
         }
         // Write the destinationCommPublicKey
-        {
-            let mut destination_comm_public_key_writer =
-                to.borrow().init_destination_comm_public_key();
+        write_dh_public_key(
+            &self.destination_comm_public_key,
+            &mut to.borrow().init_destination_comm_public_key(),
+        )?;
 
-            write_public_key(
-                &self.destination_comm_public_key,
-                &mut destination_comm_public_key_writer
-            )?;
-        }
         // Write the destinationRecentTimesStamp
-        {
-            let mut destination_recent_timestamp_writer =
-                to.borrow().init_destination_recent_timestamp();
-
-            write_rand_value(
-                &self.destination_recent_timestamp,
-                &mut destination_recent_timestamp_writer,
-            )?;
-        }
+        write_rand_value(
+            &self.destination_recent_timestamp,
+            &mut to.borrow().init_destination_recent_timestamp(),
+        )?;
 
         Ok(())
     }
@@ -423,23 +384,23 @@ impl<'a> Schema<'a> for RequestUpdateState {
 
         Ok(RequestUpdateState {
             indexing_provider_id,
-            indexing_provider_states_chain
+            indexing_provider_states_chain,
         })
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
         // Write the indexingProviderID
-        {
-            let mut indexing_provider_id_writer = to.borrow().init_indexing_provider_id();
-
-            write_custom_u_int128(&self.indexing_provider_id, &mut indexing_provider_id_writer)?;
-        }
+        write_custom_u_int128(
+            &self.indexing_provider_id,
+            &mut to.borrow().init_indexing_provider_id(),
+        )?;
 
         // Writer the indexingProviderStatesChain
         {
-            let mut indexing_provider_states_chain = to.borrow().init_indexing_provider_states_chain(
-                self.indexing_provider_states_chain.len() as u32
-            );
+            let mut indexing_provider_states_chain =
+                to.borrow().init_indexing_provider_states_chain(
+                    self.indexing_provider_states_chain.len() as u32
+                );
 
             for (idx, ref_chain_link) in self.indexing_provider_states_chain.iter().enumerate() {
                 let mut chain_link_writer = indexing_provider_states_chain.borrow().get(idx as u32);
@@ -473,9 +434,10 @@ impl<'a> Schema<'a> for ResponseUpdateState {
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
-        let mut state_hash_writer = to.borrow().init_state_hash();
-
-        write_custom_u_int256(&self.state_hash, &mut state_hash_writer)?;
+        write_custom_u_int256(
+            &self.state_hash,
+            &mut to.borrow().init_state_hash(),
+        )?;
 
         Ok(())
     }
@@ -510,8 +472,7 @@ impl<'a> Schema<'a> for RoutesToIndexer {
         let mut routes = to.borrow().init_routes(self.routes.len() as u32);
 
         for (idx, ref_neighbors_route) in self.routes.iter().enumerate() {
-            let mut neighbors_route_writer = routes.borrow().get(idx as u32);
-            ref_neighbors_route.write(&mut neighbors_route_writer)?;
+            ref_neighbors_route.write(&mut routes.borrow().get(idx as u32))?;
         }
 
         Ok(())
@@ -523,7 +484,7 @@ pub struct ChainLink {
     previous_state_hash: IndexingProviderStateHash,
     new_owners_public_keys: Vec<PublicKey>,
     new_indexers_public_keys: Vec<PublicKey>,
-    signatures_by_old_owners: Vec<Signature>
+    signatures_by_old_owners: Vec<Signature>,
 }
 
 impl<'a> Schema<'a> for ChainLink {
@@ -540,26 +501,12 @@ impl<'a> Schema<'a> for ChainLink {
         ).map_err(|_| SchemaError::Invalid)?;
 
         // Read the newOwnersPublicKeys
-        let new_owners_public_keys_reader = from.get_new_owners_public_keys()?;
-
-        let mut new_owners_public_keys = Vec::with_capacity(
-            new_owners_public_keys_reader.len() as usize
-        );
-
-        for public_key_reader in new_owners_public_keys_reader.iter() {
-            new_owners_public_keys.push(read_public_key(&public_key_reader)?);
-        }
+        let new_owners_public_keys =
+            read_public_key_list(&from.get_new_owners_public_keys()?)?;
 
         // Read the newOwnersPublicKeys
-        let new_indexers_public_keys_reader = from.get_new_indexers_public_keys()?;
-
-        let mut new_indexers_public_keys = Vec::with_capacity(
-            new_indexers_public_keys_reader.len() as usize
-        );
-
-        for public_key_reader in new_indexers_public_keys_reader.iter() {
-            new_indexers_public_keys.push(read_public_key(&public_key_reader)?);
-        }
+        let new_indexers_public_keys =
+            read_public_key_list(&from.get_new_indexers_public_keys()?)?;
 
         // Read the signaturesByOldOwners
         let signatures_by_old_owners_reader = from.get_signatures_by_old_owners()?;
@@ -576,7 +523,7 @@ impl<'a> Schema<'a> for ChainLink {
             previous_state_hash,
             new_owners_public_keys,
             new_indexers_public_keys,
-            signatures_by_old_owners
+            signatures_by_old_owners,
         })
     }
 
@@ -588,25 +535,27 @@ impl<'a> Schema<'a> for ChainLink {
         }
         // Write the newOwnersPublicKeys
         {
-            let mut link_new_owners_public_public_keys_writer = to.borrow().init_new_owners_public_keys(
-                self.new_owners_public_keys.len() as u32
-            );
+            let mut new_owners_public_keys_writer =
+                to.borrow().init_new_owners_public_keys(
+                    self.new_owners_public_keys.len() as u32
+                );
 
-            for (idx, ref_public_key) in self.new_owners_public_keys.iter().enumerate() {
-                let mut public_key_writer = link_new_owners_public_public_keys_writer.borrow().get(idx as u32);
-                write_public_key(ref_public_key, &mut public_key_writer)?;
-            }
+            write_public_key_list(
+                &self.new_owners_public_keys,
+                &mut new_owners_public_keys_writer,
+            )?;
         }
         // Write the newIndexersPublicKeys
         {
-            let mut new_indexers_public_keys = to.borrow().init_new_indexers_public_keys(
-                self.new_indexers_public_keys.len() as u32
-            );
+            let mut new_indexers_public_keys_writer =
+                to.borrow().init_new_indexers_public_keys(
+                    self.new_indexers_public_keys.len() as u32
+                );
 
-            for (idx, ref_public_key) in self.new_indexers_public_keys.iter().enumerate() {
-                let mut public_key_writer = new_indexers_public_keys.borrow().get(idx as u32);
-                write_public_key(ref_public_key, &mut public_key_writer)?;
-            }
+            write_public_key_list(
+                &self.new_indexers_public_keys,
+                &mut new_indexers_public_keys_writer,
+            )?;
         }
         // Write the signaturesByOldOwners
         {
@@ -615,8 +564,10 @@ impl<'a> Schema<'a> for ChainLink {
             );
 
             for (idx, ref_signature) in self.signatures_by_old_owners.iter().enumerate() {
-                let mut signature_writer = signatures_by_old_owners.borrow().get(idx as u32);
-                write_signature(ref_signature, &mut signature_writer)?;
+                write_signature(
+                    ref_signature,
+                    &mut signatures_by_old_owners.borrow().get(idx as u32)
+                )?;
             }
         }
 
@@ -631,7 +582,6 @@ pub struct ConnectedFriend {
     public_key: PublicKey,
 }
 
-// XXX: Don't forget to add test
 impl<'a> Schema<'a> for ConnectedFriend {
     type Reader = connected_friend::Reader<'a>;
     type Writer = connected_friend::Builder<'a>;
@@ -639,11 +589,49 @@ impl<'a> Schema<'a> for ConnectedFriend {
     inject_default_impl!();
 
     fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
-        unimplemented!()
+        // Read the sendCapacity
+        let send_capacity_bytes = read_custom_u_int128(
+            &from.get_send_capacity()?
+        )?;
+        let send_capacity = BigEndian::read_u128(&send_capacity_bytes);
+
+        // Read the recvCapacity
+        let recv_capacity_bytes = read_custom_u_int128(
+            &from.get_recv_capacity()?
+        )?;
+        let recv_capacity = BigEndian::read_u128(&recv_capacity_bytes);
+
+        // Read the publicKey
+        let public_key = read_public_key(&from.get_public_key()?)?;
+
+        Ok(ConnectedFriend {
+            send_capacity,
+            recv_capacity,
+            public_key,
+        })
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
-        unimplemented!()
+        let mut capacity_bytes = [0u8; CUSTOM_UINT128_LEN];
+
+        // Write the sendCapacity
+        BigEndian::write_u128(&mut capacity_bytes[..], self.send_capacity);
+        write_custom_u_int128(
+            &capacity_bytes,
+            &mut to.borrow().init_send_capacity(),
+        )?;
+
+        // Write the recvCapacity
+        BigEndian::write_u128(&mut capacity_bytes[..], self.recv_capacity);
+        write_custom_u_int128(
+            &capacity_bytes,
+            &mut to.borrow().init_recv_capacity(),
+        )?;
+
+        // Write the public key
+        write_public_key(&self.public_key, &mut to.borrow().init_public_key())?;
+
+        Ok(())
     }
 }
 
@@ -652,6 +640,7 @@ pub struct ResponseIndexerInfo {
     connected_neighbors_list: Vec<PublicKey>,
     neighbors_comm_public_key: DhPublicKey,
     neighbors_recent_timestamp: RandValue,
+    connected_friends_list: Vec<ConnectedFriend>,
     friends_comm_public_key: DhPublicKey,
     friends_recent_timestamp: RandValue,
 }
@@ -664,11 +653,79 @@ impl<'a> Schema<'a> for ResponseIndexerInfo {
     inject_default_impl!();
 
     fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
-        unimplemented!()
+        let connected_neighbors_list =
+            read_public_key_list(&from.get_connected_neighbors_list()?)?;
+        let neighbors_comm_public_key =
+            read_dh_public_key(&from.get_neighbors_comm_public_key()?)?;
+        let neighbors_recent_timestamp =
+            read_rand_value(&from.get_neighbors_recent_timestamp()?)?;
+
+        let connected_friends_reader = from.get_connected_friends_list()?;
+        let mut connected_friends_list = Vec::with_capacity(
+            connected_friends_reader.len() as usize
+        );
+        for connected_friend_reader in connected_friends_reader.iter() {
+            connected_friends_list.push(ConnectedFriend::read(&connected_friend_reader)?);
+        }
+
+        let friends_comm_public_key =
+            read_dh_public_key(&from.get_friends_comm_public_key()?)?;
+        let friends_recent_timestamp =
+            read_rand_value(&from.get_friends_recent_timestamp()?)?;
+
+        Ok(ResponseIndexerInfo {
+            connected_neighbors_list,
+            neighbors_comm_public_key,
+            neighbors_recent_timestamp,
+            connected_friends_list,
+            friends_comm_public_key,
+            friends_recent_timestamp,
+        })
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
-        unimplemented!()
+        {
+            let mut connected_neighbors_list_writer =
+                to.borrow().init_connected_neighbors_list(
+                    self.connected_neighbors_list.len() as u32
+                );
+
+            write_public_key_list(
+                &self.connected_neighbors_list,
+                &mut connected_neighbors_list_writer,
+            )?;
+        }
+        write_dh_public_key(
+            &self.neighbors_comm_public_key,
+            &mut to.borrow().init_neighbors_comm_public_key(),
+        )?;
+        write_rand_value(
+            &self.neighbors_recent_timestamp,
+            &mut to.borrow().init_neighbors_recent_timestamp(),
+        )?;
+
+        {
+            let mut connected_friends_list_writer =
+                to.borrow().init_connected_friends_list(
+                    self.connected_friends_list.len() as u32
+                );
+
+            for (idx, ref_connected_friend) in self.connected_friends_list.iter().enumerate() {
+                ref_connected_friend.write(
+                    &mut connected_friends_list_writer.borrow().get(idx as u32)
+                )?;
+            }
+        }
+        write_dh_public_key(
+            &self.friends_comm_public_key,
+            &mut to.borrow().init_friends_comm_public_key(),
+        )?;
+        write_rand_value(
+            &self.friends_recent_timestamp,
+            &mut to.borrow().init_friends_recent_timestamp(),
+        )?;
+
+        Ok(())
     }
 }
 
@@ -676,6 +733,8 @@ impl<'a> Schema<'a> for ResponseIndexerInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crypto::dh::DH_PUBLIC_KEY_LEN;
+    use crypto::rand_values::RAND_VALUE_LEN;
     use crypto::identity::{PUBLIC_KEY_LEN, SIGNATURE_LEN};
     use inner_messages::{INDEXING_PROVIDER_STATE_HASH_LEN, INDEXING_PROVIDER_ID_LEN};
 
@@ -683,48 +742,66 @@ mod tests {
 
     const MAX_NUM: usize = 512;
 
-    #[inline]
+    macro_rules! test_encode_decode {
+        ($type: ident, $in: ident) => {
+            let msg = $in.encode().unwrap();
+            let out = $type::decode(msg).unwrap();
+            assert_eq!($in, out);
+        };
+    }
+
+    fn create_dummy_rand_value() -> RandValue {
+        let fixed_byte = random::<u8>();
+        RandValue::from_bytes(&[fixed_byte; RAND_VALUE_LEN]).unwrap()
+    }
+
     fn create_dummy_public_key() -> PublicKey {
         let fixed_byte = random::<u8>();
         PublicKey::from_bytes(&[fixed_byte; PUBLIC_KEY_LEN]).unwrap()
     }
 
-    #[inline]
-    fn create_dummy_public_keys() -> Vec<PublicKey> {
+    fn create_dummy_public_keys_list() -> Vec<PublicKey> {
         let num_keys = random::<usize>() % MAX_NUM + 1;
 
-        (0..num_keys).map(|_| create_dummy_public_key()).collect::<Vec<_>>()
+        (0..num_keys).map(|_| create_dummy_public_key()).collect()
     }
 
-    #[inline]
-    fn create_dummy_signatures() -> Vec<Signature> {
+    fn create_dummy_dh_public_key() -> DhPublicKey {
+        let fixed_byte = random::<u8>();
+        DhPublicKey::from_bytes(&[fixed_byte; DH_PUBLIC_KEY_LEN]).unwrap()
+    }
+
+    fn create_dummy_signatures_list() -> Vec<Signature> {
         let num_signatures = random::<usize>() % MAX_NUM + 1;
 
-        let mut signatures = (0..num_signatures).map(|_| {
+        (0..num_signatures).map(|_| {
             let fixed_byte = random::<u8>();
             Signature::from_bytes(&[fixed_byte; SIGNATURE_LEN]).unwrap()
-        }).collect::<Vec<_>>();
-
-        signatures
+        }).collect()
     }
 
-    #[inline]
     fn create_dummy_neighbors_route() -> NeighborsRoute {
         NeighborsRoute {
-            public_keys: create_dummy_public_keys()
+            public_keys: create_dummy_public_keys_list()
         }
     }
 
-    #[inline]
+    fn create_dummy_friends_route() -> FriendsRoute {
+        FriendsRoute {
+            public_keys: create_dummy_public_keys_list(),
+            capacity: random::<u64>(),
+        }
+    }
+
     fn create_dummy_chain_link() -> ChainLink {
         let fixed_byte = random::<u8>();
         let previous_state_hash = IndexingProviderStateHash::from_bytes(
             &[fixed_byte; INDEXING_PROVIDER_STATE_HASH_LEN]
         ).unwrap();
 
-        let new_owners_public_keys = create_dummy_public_keys();
-        let new_indexers_public_keys = create_dummy_public_keys();
-        let signatures_by_old_owners = create_dummy_signatures();
+        let new_owners_public_keys = create_dummy_public_keys_list();
+        let new_indexers_public_keys = create_dummy_public_keys_list();
+        let signatures_by_old_owners = create_dummy_signatures_list();
 
         ChainLink {
             previous_state_hash,
@@ -734,26 +811,41 @@ mod tests {
         }
     }
 
+    fn create_dummy_connected_friend() -> ConnectedFriend {
+        ConnectedFriend {
+            send_capacity: 0x0123_4567_89ab_cdef,
+            recv_capacity: 0xfedc_ba98_7654_3210,
+            public_key: create_dummy_public_key(),
+        }
+    }
+
+    fn create_dummy_connected_friends_list() -> Vec<ConnectedFriend> {
+        let num_connected_friends = random::<usize>() % MAX_NUM + 1;
+
+        (0..num_connected_friends).map(|_| {
+            create_dummy_connected_friend()
+        }).collect()
+    }
+
     #[test]
     fn test_neighbors_route() {
         let in_neighbors_route = create_dummy_neighbors_route();
 
-        let serialize_message = in_neighbors_route.encode().unwrap();
+        test_encode_decode!(NeighborsRoute, in_neighbors_route);
+    }
 
-        let out_neighbors_route = NeighborsRoute::decode(serialize_message).unwrap();
+    #[test]
+    fn test_friends_route() {
+        let in_friends_route = create_dummy_friends_route();
 
-        assert_eq!(in_neighbors_route, out_neighbors_route);
+        test_encode_decode!(FriendsRoute, in_friends_route);
     }
 
     #[test]
     fn test_chain_link() {
         let in_chain_link = create_dummy_chain_link();
 
-        let serialize_message = in_chain_link.encode().unwrap();
-
-        let out_chain_link = ChainLink::decode(serialize_message).unwrap();
-
-        assert_eq!(in_chain_link, out_chain_link);
+        test_encode_decode!(ChainLink, in_chain_link);
     }
 
     #[test]
@@ -773,11 +865,7 @@ mod tests {
             indexing_provider_states_chain,
         };
 
-        let serialize_message = in_request_update_state.encode().unwrap();
-
-        let out_request_update_state = RequestUpdateState::decode(serialize_message).unwrap();
-
-        assert_eq!(in_request_update_state, out_request_update_state);
+        test_encode_decode!(RequestUpdateState, in_request_update_state);
     }
 
     #[test]
@@ -789,11 +877,7 @@ mod tests {
 
         let in_response_update_state = ResponseUpdateState { state_hash };
 
-        let serialize_message = in_response_update_state.encode().unwrap();
-
-        let out_response_update_state = ResponseUpdateState::decode(serialize_message).unwrap();
-
-        assert_eq!(in_response_update_state, out_response_update_state);
+        test_encode_decode!(ResponseUpdateState, in_response_update_state);
     }
 
     #[test]
@@ -805,11 +889,7 @@ mod tests {
 
         let in_routes_to_indexer = RoutesToIndexer { routes };
 
-        let serialize_message = in_routes_to_indexer.encode().unwrap();
-
-        let out_routes_to_indexer = RoutesToIndexer::decode(serialize_message).unwrap();
-
-        assert_eq!(in_routes_to_indexer, out_routes_to_indexer);
+        test_encode_decode!(RoutesToIndexer, in_routes_to_indexer);
     }
 
     #[test]
@@ -819,14 +899,21 @@ mod tests {
 
         let in_request_neighbors_route = RequestNeighborsRoute {
             source_node_public_key,
-            destination_node_public_key
+            destination_node_public_key,
         };
 
-        let serialize_message = in_request_neighbors_route.encode().unwrap();
+        test_encode_decode!(RequestNeighborsRoute, in_request_neighbors_route);
+    }
 
-        let out_request_neighbors_route = RequestNeighborsRoute::decode(serialize_message).unwrap();
+    #[test]
+    fn test_response_neighbors_route() {
+        let in_response_neighbors_route = ResponseNeighborsRoute {
+            routes: (0..MAX_NUM).map(|_| create_dummy_neighbors_route()).collect(),
+            destination_comm_public_key: create_dummy_dh_public_key(),
+            destination_recent_timestamp: create_dummy_rand_value(),
+        };
 
-        assert_eq!(in_request_neighbors_route, out_request_neighbors_route);
+        test_encode_decode!(ResponseNeighborsRoute, in_response_neighbors_route);
     }
 
     #[test]
@@ -870,5 +957,37 @@ mod tests {
             in_request_friends_route_loop_to_friend,
             out_request_friends_route_loop_to_friend
         );
+    }
+
+    #[test]
+    fn test_response_friends_route() {
+        let in_response_friends_route = ResponseFriendsRoute {
+            routes: (0..MAX_NUM).map(|_| create_dummy_friends_route()).collect(),
+            destination_comm_public_key: create_dummy_dh_public_key(),
+            destination_recent_timestamp: create_dummy_rand_value(),
+        };
+
+        test_encode_decode!(ResponseFriendsRoute, in_response_friends_route);
+    }
+
+    #[test]
+    fn test_connected_friend() {
+        let in_connected_friend = create_dummy_connected_friend();
+
+        test_encode_decode!(ConnectedFriend, in_connected_friend);
+    }
+
+    #[test]
+    fn test_response_indexer_info() {
+        let in_response_indexer_info = ResponseIndexerInfo {
+            connected_neighbors_list: create_dummy_public_keys_list(),
+            neighbors_comm_public_key: create_dummy_dh_public_key(),
+            neighbors_recent_timestamp: create_dummy_rand_value(),
+            connected_friends_list: create_dummy_connected_friends_list(),
+            friends_comm_public_key: create_dummy_dh_public_key(),
+            friends_recent_timestamp: create_dummy_rand_value(),
+        };
+
+        test_encode_decode!(ResponseIndexerInfo, in_response_indexer_info);
     }
 }

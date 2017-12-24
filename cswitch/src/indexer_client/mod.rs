@@ -1,3 +1,4 @@
+#![allow(unused)]
 use futures::{Future, Poll, Async};
 use futures::sync::mpsc;
 

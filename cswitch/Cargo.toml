@@ -23,7 +23,7 @@ futures = "0.1.17"
 tokio-core = "0.1.10"
 tokio-io = "0.1.4"
 
-byteorder = "1.1.0"
+byteorder = { version="1.1.0", features=["i128"] }
 
 log = "0.3.8"
 env_logger = "0.4.3"
