@@ -119,14 +119,16 @@ struct NeighborTokenChannelInfo {
     neighbor_token_channels: Vec<NeighborTokenChannel>,
 }
 
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct NeighborsRoute {
-    route: Vec<u32>,
+    pub public_keys: Vec<PublicKey>,
 }
 
-struct FriendsRoute {
-    route: Vec<u32>,
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct FriendsRoute {
+    pub public_keys: Vec<PublicKey>,
     // How much credit can we push through this route?
-    capacity: u64,
+    pub capacity: u64,
 }
 
 
@@ -198,6 +200,12 @@ pub enum NetworkerToChanneler {
 // Indexer client to Networker
 // ---------------------------
 
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct ResponseFriendsRoute {
+    pub routes: Vec<FriendsRoute>,
+    pub destination_comm_public_key: PublicKey,
+    pub destination_recent_timestamp: RandValue,
+}
 
 enum IndexerClientToNetworker {
     RequestSendMessage {
@@ -212,11 +220,7 @@ enum IndexerClientToNetworker {
     IndexerAnnounce {
         content: Vec<u8>,
     },
-    ResponseFriendsRoute {
-        routes: Vec<FriendsRoute>,
-        dest_comm_public_key: PublicKey,
-        dest_recent_timestamp: RandValue,
-    },
+    ResponseFriendsRoute(ResponseFriendsRoute)
 }
 
 // Networker to Indexer client
@@ -371,10 +375,11 @@ pub enum NotifyStructureChangeFriends {
     CommPublicKeyUpdated(PublicKey),
 }
 
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum RequestFriendsRoute {
     Direct {
         source_node_public_key: PublicKey,
-        dest_node_public_key: PublicKey,
+        destination_node_public_key: PublicKey,
     },
     LoopFromFriend {
         // A loop from myself through given friend, back to myself.
@@ -389,11 +394,14 @@ pub enum RequestFriendsRoute {
 
 }
 
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct RequestNeighborsRoute {
+    pub source_node_public_key: PublicKey,
+    pub destination_node_public_key: PublicKey,
+}
+
 pub enum FunderToIndexerClient {
-    RequestNeighborsRoute {
-        source_node_public_key: PublicKey,
-        dest_node_public_key: PublicKey,
-    },
+    RequestNeighborsRoute(RequestNeighborsRoute),
     NotifyStructureChange(NotifyStructureChangeFriends),
 }
 
@@ -401,12 +409,15 @@ pub enum FunderToIndexerClient {
 // Indexer Client to Funder
 // ------------------------
 
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct ResponseNeighborsRoute {
+    pub routes: Vec<NeighborsRoute>,
+    pub destination_comm_public_key: PublicKey,
+    pub destination_recent_timestamp: RandValue,
+}
+
 pub enum IndexerClientToFunder {
-    ResponseNeighborsRoute {
-        routes: Vec<NeighborsRoute>,
-        dest_comm_public_key: PublicKey,
-        dest_recent_timestamp: RandValue,
-    }
+    ResponseNeighborsRoute(ResponseNeighborsRoute)
 }
 
 pub struct IndexingProviderInfo {

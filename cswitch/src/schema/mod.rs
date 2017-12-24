@@ -37,7 +37,6 @@ use std::io;
 
 use bytes::{BigEndian, Bytes, BytesMut, Buf, BufMut};
 use capnp::serialize_packed;
-use capnp::message::{Allocator, Builder};
 
 use crypto::rand_values::RandValue;
 use crypto::dh::{Salt, DhPublicKey};
@@ -73,36 +72,40 @@ pub trait Schema<'a>: Sized {
     type Reader: 'a;
     type Writer: 'a;
 
-    fn decode(buffer: Bytes) -> Result<Self, SchemaError>
-        where for<'b> Self::Reader: ::capnp::traits::FromPointerReader<'b>
-    {
-        let mut buffer = io::Cursor::new(buffer);
+    fn decode(buffer: Bytes) -> Result<Self, SchemaError>;
+    fn encode(&self) -> Result<Bytes, SchemaError>;
+    fn read(from: &Self::Reader) -> Result<Self, SchemaError>;
+    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError>;
+}
 
-        let reader = serialize_packed::read_message(
-            &mut buffer,
-            ::capnp::message::ReaderOptions::new()
-        )?;
+macro_rules! inject_default_impl {
+    () => {
+        fn decode(buffer: Bytes) -> Result<Self, SchemaError>
+        {
+            let mut buffer = io::Cursor::new(buffer);
 
-        Self::read(&reader.get_root()?)
-    }
+            let reader = serialize_packed::read_message(
+                &mut buffer,
+                ::capnp::message::ReaderOptions::new()
+            )?;
 
-    fn encode(&self) -> Result<Bytes, SchemaError>
-        where for<'b> Self::Writer: ::capnp::traits::FromPointerBuilder<'b>
-    {
-        let mut builder = ::capnp::message::Builder::new_default();
+            Self::read(&reader.get_root()?)
+        }
 
-        match self.write(&mut builder.init_root())? {
-            () => {
-                let mut serialized_msg = Vec::new();
-                serialize_packed::write_message(&mut serialized_msg, &builder)?;
+        fn encode(&self) -> Result<Bytes, SchemaError>
+        {
+            let mut builder = ::capnp::message::Builder::new_default();
 
-                Ok(Bytes::from(serialized_msg))
+            match self.write(&mut builder.init_root())? {
+                () => {
+                    let mut serialized_msg = Vec::new();
+                    serialize_packed::write_message(&mut serialized_msg, &builder)?;
+
+                    Ok(Bytes::from(serialized_msg))
+                }
             }
         }
-    }
-
-    fn read<'b>(from: &'b Self::Reader) -> Result<Self, SchemaError>;
-    fn write<'b>(&self, to: &'b mut Self::Writer) -> Result<(), SchemaError>;
+    };
 }
 
 pub mod channeler;

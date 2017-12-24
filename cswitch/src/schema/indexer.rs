@@ -3,10 +3,11 @@
 //! The following types are defined in `inner_messages`:
 //!
 //! - `NeighborsRoute`
-//! - `RequestNeighborsRoute`
-//! - `RequestFriendsRoute`
 //! - `FriendsRoute`
-// TODO: More types there?
+//! - `RequestNeighborsRoute`
+//! - `ResponseNeighborsRoute`
+//! - `RequestFriendsRoute`
+//! - `ResponseFriendsRoute`
 
 use std::io;
 
@@ -49,7 +50,9 @@ impl<'a> Schema<'a> for NeighborsRoute {
     type Reader = neighbors_route::Reader<'a>;
     type Writer = neighbors_route::Builder<'a>;
 
-    fn read<'b>(from: &'b Self::Reader) -> Result<Self, SchemaError> {
+    inject_default_impl!();
+
+    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
         let public_keys_reader = from.get_public_keys()?;
 
         let mut public_keys = Vec::with_capacity(public_keys_reader.len() as usize);
@@ -61,7 +64,7 @@ impl<'a> Schema<'a> for NeighborsRoute {
         Ok(NeighborsRoute { public_keys })
     }
 
-    fn write<'b>(&self, to: &'b mut Self::Writer) -> Result<(), SchemaError>
+    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError>
     {
         let mut public_keys_writer = to.borrow().init_public_keys(self.public_keys.len() as u32);
 
@@ -78,7 +81,9 @@ impl<'a> Schema<'a> for FriendsRoute {
     type Reader = friends_route::Reader<'a>;
     type Writer = friends_route::Builder<'a>;
 
-    fn read<'b>(from: &'b Self::Reader) -> Result<Self, SchemaError> {
+    inject_default_impl!();
+
+    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
         let public_keys_reader = from.get_public_keys()?;
 
         let mut public_keys = Vec::with_capacity(public_keys_reader.len() as usize);
@@ -95,7 +100,7 @@ impl<'a> Schema<'a> for FriendsRoute {
         })
     }
 
-    fn write<'b>(&self, to: &'b mut Self::Writer) -> Result<(), SchemaError> {
+    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
         {
             let mut public_keys_writer = to.borrow().init_public_keys(self.public_keys.len() as u32);
 
@@ -110,251 +115,14 @@ impl<'a> Schema<'a> for FriendsRoute {
         Ok(())
     }
 }
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct ChainLink {
-    previous_state_hash: IndexingProviderStateHash,
-    new_owners_public_keys: Vec<PublicKey>,
-    new_indexers_public_keys: Vec<PublicKey>,
-    signatures_by_old_owners: Vec<Signature>,
-}
-
-impl<'a> Schema<'a> for ChainLink {
-    type Reader = chain_link::Reader<'a>;
-    type Writer = chain_link::Builder<'a>;
-
-    fn read<'b>(from: &'b Self::Reader) -> Result<Self, SchemaError> {
-        // Read the previousStateHash
-        let previous_state_hash_reader = from.get_previous_state_hash()?;
-        let previous_state_hash = IndexingProviderStateHash::from_bytes(
-            &read_custom_u_int256(&previous_state_hash_reader)?
-        ).map_err(|_| SchemaError::Invalid)?;
-
-        // Read the newOwnersPublicKeys
-        let new_owners_public_keys_reader = from.get_new_owners_public_keys()?;
-
-        let mut new_owners_public_keys = Vec::with_capacity(
-            new_owners_public_keys_reader.len() as usize
-        );
-
-        for public_key_reader in new_owners_public_keys_reader.iter() {
-            new_owners_public_keys.push(read_public_key(&public_key_reader)?);
-        }
-
-        // Read the newOwnersPublicKeys
-        let new_indexers_public_keys_reader = from.get_new_indexers_public_keys()?;
-
-        let mut new_indexers_public_keys = Vec::with_capacity(
-            new_indexers_public_keys_reader.len() as usize
-        );
-
-        for public_key_reader in new_indexers_public_keys_reader.iter() {
-            new_indexers_public_keys.push(read_public_key(&public_key_reader)?);
-        }
-
-        // Read the signaturesByOldOwners
-        let signatures_by_old_owners_reader = from.get_signatures_by_old_owners()?;
-
-        let mut signatures_by_old_owners = Vec::with_capacity(
-            signatures_by_old_owners_reader.len() as usize
-        );
-
-        for signature_reader in signatures_by_old_owners_reader.iter() {
-            signatures_by_old_owners.push(read_signature(&signature_reader)?);
-        }
-
-        Ok(ChainLink {
-            previous_state_hash,
-            new_owners_public_keys,
-            new_indexers_public_keys,
-            signatures_by_old_owners
-        })
-    }
-
-    fn write<'b>(&self, to: &'b mut Self::Writer) -> Result<(), SchemaError> {
-        // Write the previousStateHash
-        {
-            let mut previous_state_hash = to.borrow().init_previous_state_hash();
-            write_custom_u_int256(&self.previous_state_hash, &mut previous_state_hash)?;
-        }
-        // Write the newOwnersPublicKeys
-        {
-            let mut link_new_owners_public_public_keys_writer = to.borrow().init_new_owners_public_keys(
-                self.new_owners_public_keys.len() as u32
-            );
-
-            for (idx, ref_public_key) in self.new_owners_public_keys.iter().enumerate() {
-                let mut public_key_writer = link_new_owners_public_public_keys_writer.borrow().get(idx as u32);
-                write_public_key(ref_public_key, &mut public_key_writer)?;
-            }
-        }
-        // Write the newIndexersPublicKeys
-        {
-            let mut new_indexers_public_keys = to.borrow().init_new_indexers_public_keys(
-                self.new_indexers_public_keys.len() as u32
-            );
-
-            for (idx, ref_public_key) in self.new_indexers_public_keys.iter().enumerate() {
-                let mut public_key_writer = new_indexers_public_keys.borrow().get(idx as u32);
-                write_public_key(ref_public_key, &mut public_key_writer)?;
-            }
-        }
-        // Write the signaturesByOldOwners
-        {
-            let mut signatures_by_old_owners = to.borrow().init_signatures_by_old_owners(
-                self.signatures_by_old_owners.len() as u32
-            );
-
-            for (idx, ref_signature) in self.signatures_by_old_owners.iter().enumerate() {
-                let mut signature_writer = signatures_by_old_owners.borrow().get(idx as u32);
-                write_signature(ref_signature, &mut signature_writer)?;
-            }
-        }
-
-        Ok(())
-    }
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct RequestUpdateState {
-    indexing_provider_id: IndexingProviderID,
-    indexing_provider_states_chain: Vec<ChainLink>,
-}
-
-impl<'a> Schema<'a> for RequestUpdateState {
-    type Reader = request_update_state::Reader<'a>;
-    type Writer = request_update_state::Builder<'a>;
-
-    fn read<'b>(from: &'b Self::Reader) -> Result<Self, SchemaError> {
-        // Read the indexingProviderID
-        let indexing_provider_id_reader = from.get_indexing_provider_id()?;
-        let indexing_provider_id = IndexingProviderID::from_bytes(
-            &read_custom_u_int128(&indexing_provider_id_reader)?
-        ).map_err(|_| SchemaError::Invalid)?;
-
-        // Read the indexingProviderStatesChain
-        let indexing_provider_states_chain_reader = from.get_indexing_provider_states_chain()?;
-
-        let mut indexing_provider_states_chain = Vec::with_capacity(
-            indexing_provider_states_chain_reader.len() as usize
-        );
-
-        for chain_link_reader in indexing_provider_states_chain_reader.iter() {
-            indexing_provider_states_chain.push(ChainLink::read(&chain_link_reader)?);
-        }
-
-        Ok(RequestUpdateState {
-            indexing_provider_id,
-            indexing_provider_states_chain
-        })
-    }
-
-    fn write<'b>(&self, to: &'b mut Self::Writer) -> Result<(), SchemaError> {
-        // Write the indexingProviderID
-        {
-            let mut indexing_provider_id_writer = to.borrow().init_indexing_provider_id();
-
-            write_custom_u_int128(&self.indexing_provider_id, &mut indexing_provider_id_writer)?;
-        }
-
-        // Writer the indexingProviderStatesChain
-        {
-            let mut indexing_provider_states_chain = to.borrow().init_indexing_provider_states_chain(
-                self.indexing_provider_states_chain.len() as u32
-            );
-
-            for (idx, ref_chain_link) in self.indexing_provider_states_chain.iter().enumerate() {
-                let mut chain_link_writer = indexing_provider_states_chain.borrow().get(idx as u32);
-                ref_chain_link.write(&mut chain_link_writer)?;
-            }
-        }
-
-        Ok(())
-    }
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct ResponseUpdateState {
-    state_hash: IndexingProviderStateHash
-}
-
-impl<'a> Schema<'a> for ResponseUpdateState {
-    type Reader = response_update_state::Reader<'a>;
-    type Writer = response_update_state::Builder<'a>;
-
-    fn read<'b>(from: &'b Self::Reader) -> Result<Self, SchemaError> {
-        let state_hash_reader = from.get_state_hash()?;
-
-        let state_hash = IndexingProviderStateHash::from_bytes(
-            &read_custom_u_int256(&state_hash_reader)?
-        ).map_err(|_| SchemaError::Invalid)?;
-
-        Ok(ResponseUpdateState { state_hash })
-    }
-
-    fn write<'b>(&self, to: &'b mut Self::Writer) -> Result<(), SchemaError> {
-        let mut state_hash_writer = to.borrow().init_state_hash();
-
-        write_custom_u_int256(&self.state_hash, &mut state_hash_writer)?;
-
-        Ok(())
-    }
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct RoutesToIndexer {
-    routes: Vec<NeighborsRoute>,
-}
-
-impl<'a> Schema<'a> for RoutesToIndexer {
-    type Reader = routes_to_indexer::Reader<'a>;
-    type Writer = routes_to_indexer::Builder<'a>;
-
-    fn read<'b>(from: &'b Self::Reader) -> Result<Self, SchemaError> {
-        // Read the routes
-        let routes_reader = from.get_routes()?;
-
-        let mut routes = Vec::with_capacity(routes_reader.len() as usize);
-
-        for neighbors_route_reader in routes_reader.iter() {
-            routes.push(NeighborsRoute::read(&neighbors_route_reader)?);
-        }
-
-        Ok(RoutesToIndexer { routes })
-    }
-
-    fn write<'b>(&self, to: &'b mut Self::Writer) -> Result<(), SchemaError> {
-        // Write the routes
-        let mut routes = to.borrow().init_routes(self.routes.len() as u32);
-
-        for (idx, ref_neighbors_route) in self.routes.iter().enumerate() {
-            let mut neighbors_route_writer = routes.borrow().get(idx as u32);
-            ref_neighbors_route.write(&mut neighbors_route_writer)?;
-        }
-
-        Ok(())
-    }
-}
-
-//#[derive(Debug, Eq, PartialEq, Clone)]
-//pub struct ConnectedFriend {
-//    push_credits: u128,
-//    public_key: PublicKey,
-//}
-
-//#[derive(Debug, Eq, PartialEq, Clone)]
-//pub struct ResponseIndexerInfo {
-//    connected_neighbors_list: Vec<PublicKey>,
-//    neighbors_comm_public_key: DhPublicKey,
-//    neighbors_recent_timestamp: ,
-//    friends_comm_public_key: DhPublicKey,
-//    friends_recent_timestamp:
-//}
 
 impl<'a> Schema<'a> for RequestNeighborsRoute {
     type Reader = request_neighbors_route::Reader<'a>;
     type Writer = request_neighbors_route::Builder<'a>;
 
-    fn read<'b>(from: &'b Self::Reader) -> Result<Self, SchemaError> {
+    inject_default_impl!();
+
+    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
         let source_node_public_key = read_public_key(&from.get_source_node_public_key()?)?;
 
         let destination_node_public_key = read_public_key(
@@ -367,7 +135,7 @@ impl<'a> Schema<'a> for RequestNeighborsRoute {
         })
     }
 
-    fn write<'b>(&self, to: &'b mut Self::Writer) -> Result<(), SchemaError> {
+    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
         {
             let mut source_node_public_key = to.borrow().init_source_node_public_key();
             write_public_key(&self.source_node_public_key, &mut source_node_public_key, )?;
@@ -389,7 +157,9 @@ impl<'a> Schema<'a> for ResponseNeighborsRoute {
     type Reader = response_neighbors_route::Reader<'a>;
     type Writer = response_neighbors_route::Builder<'a>;
 
-    fn read<'b>(from: &'b Self::Reader) -> Result<Self, SchemaError> {
+    inject_default_impl!();
+
+    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
         // Read the routes
         let routes_reader = from.get_routes()?;
 
@@ -416,7 +186,7 @@ impl<'a> Schema<'a> for ResponseNeighborsRoute {
         })
     }
 
-    fn write<'b>(&self, to: &'b mut Self::Writer) -> Result<(), SchemaError> {
+    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
         // Write the routes
         {
             let mut routes_writer = to.borrow().init_routes(self.routes.len() as u32);
@@ -451,11 +221,13 @@ impl<'a> Schema<'a> for ResponseNeighborsRoute {
     }
 }
 
-impl <'a> Schema<'a> for RequestFriendsRoute {
+impl<'a> Schema<'a> for RequestFriendsRoute {
     type Reader = request_friends_route::Reader<'a>;
     type Writer = request_friends_route::Builder<'a>;
 
-    fn read<'b>(from: &'b Self::Reader) -> Result<Self, SchemaError> {
+    inject_default_impl!();
+
+    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
         use self::request_friends_route::route_type::Which::*;
 
         let route_type_reader = from.borrow().get_route_type();
@@ -494,7 +266,7 @@ impl <'a> Schema<'a> for RequestFriendsRoute {
         }
     }
 
-    fn write<'b>(&self, to: &'b mut Self::Writer) -> Result<(), SchemaError> {
+    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
         let mut route_type_writer = to.borrow().init_route_type();
 
         match *self {
@@ -551,11 +323,13 @@ impl <'a> Schema<'a> for RequestFriendsRoute {
     }
 }
 
-impl <'a> Schema<'a> for ResponseFriendsRoute {
+impl<'a> Schema<'a> for ResponseFriendsRoute {
     type Reader = response_friends_route::Reader<'a>;
     type Writer = response_friends_route::Builder<'a>;
 
-    fn read<'b>(from: &'b Self::Reader) -> Result<Self, SchemaError> {
+    inject_default_impl!();
+
+    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
         // Read the routes
         let routes_reader = from.get_routes()?;
 
@@ -582,7 +356,7 @@ impl <'a> Schema<'a> for ResponseFriendsRoute {
         })
     }
 
-    fn write<'b>(&self, to: &'b mut Self::Writer) -> Result<(), SchemaError> {
+    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
         // Write the routes
         {
             let mut routes_writer = to.borrow().init_routes(self.routes.len() as u32);
@@ -614,6 +388,287 @@ impl <'a> Schema<'a> for ResponseFriendsRoute {
         }
 
         Ok(())
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct RequestUpdateState {
+    indexing_provider_id: IndexingProviderID,
+    indexing_provider_states_chain: Vec<ChainLink>,
+}
+
+impl<'a> Schema<'a> for RequestUpdateState {
+    type Reader = request_update_state::Reader<'a>;
+    type Writer = request_update_state::Builder<'a>;
+
+    inject_default_impl!();
+
+    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+        // Read the indexingProviderID
+        let indexing_provider_id_reader = from.get_indexing_provider_id()?;
+        let indexing_provider_id = IndexingProviderID::from_bytes(
+            &read_custom_u_int128(&indexing_provider_id_reader)?
+        ).map_err(|_| SchemaError::Invalid)?;
+
+        // Read the indexingProviderStatesChain
+        let indexing_provider_states_chain_reader = from.get_indexing_provider_states_chain()?;
+
+        let mut indexing_provider_states_chain = Vec::with_capacity(
+            indexing_provider_states_chain_reader.len() as usize
+        );
+
+        for chain_link_reader in indexing_provider_states_chain_reader.iter() {
+            indexing_provider_states_chain.push(ChainLink::read(&chain_link_reader)?);
+        }
+
+        Ok(RequestUpdateState {
+            indexing_provider_id,
+            indexing_provider_states_chain
+        })
+    }
+
+    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+        // Write the indexingProviderID
+        {
+            let mut indexing_provider_id_writer = to.borrow().init_indexing_provider_id();
+
+            write_custom_u_int128(&self.indexing_provider_id, &mut indexing_provider_id_writer)?;
+        }
+
+        // Writer the indexingProviderStatesChain
+        {
+            let mut indexing_provider_states_chain = to.borrow().init_indexing_provider_states_chain(
+                self.indexing_provider_states_chain.len() as u32
+            );
+
+            for (idx, ref_chain_link) in self.indexing_provider_states_chain.iter().enumerate() {
+                let mut chain_link_writer = indexing_provider_states_chain.borrow().get(idx as u32);
+                ref_chain_link.write(&mut chain_link_writer)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct ResponseUpdateState {
+    state_hash: IndexingProviderStateHash
+}
+
+impl<'a> Schema<'a> for ResponseUpdateState {
+    type Reader = response_update_state::Reader<'a>;
+    type Writer = response_update_state::Builder<'a>;
+
+    inject_default_impl!();
+
+    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+        let state_hash_reader = from.get_state_hash()?;
+
+        let state_hash = IndexingProviderStateHash::from_bytes(
+            &read_custom_u_int256(&state_hash_reader)?
+        ).map_err(|_| SchemaError::Invalid)?;
+
+        Ok(ResponseUpdateState { state_hash })
+    }
+
+    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+        let mut state_hash_writer = to.borrow().init_state_hash();
+
+        write_custom_u_int256(&self.state_hash, &mut state_hash_writer)?;
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct RoutesToIndexer {
+    routes: Vec<NeighborsRoute>,
+}
+
+impl<'a> Schema<'a> for RoutesToIndexer {
+    type Reader = routes_to_indexer::Reader<'a>;
+    type Writer = routes_to_indexer::Builder<'a>;
+
+    inject_default_impl!();
+
+    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+        // Read the routes
+        let routes_reader = from.get_routes()?;
+
+        let mut routes = Vec::with_capacity(routes_reader.len() as usize);
+
+        for neighbors_route_reader in routes_reader.iter() {
+            routes.push(NeighborsRoute::read(&neighbors_route_reader)?);
+        }
+
+        Ok(RoutesToIndexer { routes })
+    }
+
+    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+        // Write the routes
+        let mut routes = to.borrow().init_routes(self.routes.len() as u32);
+
+        for (idx, ref_neighbors_route) in self.routes.iter().enumerate() {
+            let mut neighbors_route_writer = routes.borrow().get(idx as u32);
+            ref_neighbors_route.write(&mut neighbors_route_writer)?;
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct ChainLink {
+    previous_state_hash: IndexingProviderStateHash,
+    new_owners_public_keys: Vec<PublicKey>,
+    new_indexers_public_keys: Vec<PublicKey>,
+    signatures_by_old_owners: Vec<Signature>
+}
+
+impl<'a> Schema<'a> for ChainLink {
+    type Reader = chain_link::Reader<'a>;
+    type Writer = chain_link::Builder<'a>;
+
+    inject_default_impl!();
+
+    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+        // Read the previousStateHash
+        let previous_state_hash_reader = from.get_previous_state_hash()?;
+        let previous_state_hash = IndexingProviderStateHash::from_bytes(
+            &read_custom_u_int256(&previous_state_hash_reader)?
+        ).map_err(|_| SchemaError::Invalid)?;
+
+        // Read the newOwnersPublicKeys
+        let new_owners_public_keys_reader = from.get_new_owners_public_keys()?;
+
+        let mut new_owners_public_keys = Vec::with_capacity(
+            new_owners_public_keys_reader.len() as usize
+        );
+
+        for public_key_reader in new_owners_public_keys_reader.iter() {
+            new_owners_public_keys.push(read_public_key(&public_key_reader)?);
+        }
+
+        // Read the newOwnersPublicKeys
+        let new_indexers_public_keys_reader = from.get_new_indexers_public_keys()?;
+
+        let mut new_indexers_public_keys = Vec::with_capacity(
+            new_indexers_public_keys_reader.len() as usize
+        );
+
+        for public_key_reader in new_indexers_public_keys_reader.iter() {
+            new_indexers_public_keys.push(read_public_key(&public_key_reader)?);
+        }
+
+        // Read the signaturesByOldOwners
+        let signatures_by_old_owners_reader = from.get_signatures_by_old_owners()?;
+
+        let mut signatures_by_old_owners = Vec::with_capacity(
+            signatures_by_old_owners_reader.len() as usize
+        );
+
+        for signature_reader in signatures_by_old_owners_reader.iter() {
+            signatures_by_old_owners.push(read_signature(&signature_reader)?);
+        }
+
+        Ok(ChainLink {
+            previous_state_hash,
+            new_owners_public_keys,
+            new_indexers_public_keys,
+            signatures_by_old_owners
+        })
+    }
+
+    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+        // Write the previousStateHash
+        {
+            let mut previous_state_hash = to.borrow().init_previous_state_hash();
+            write_custom_u_int256(&self.previous_state_hash, &mut previous_state_hash)?;
+        }
+        // Write the newOwnersPublicKeys
+        {
+            let mut link_new_owners_public_public_keys_writer = to.borrow().init_new_owners_public_keys(
+                self.new_owners_public_keys.len() as u32
+            );
+
+            for (idx, ref_public_key) in self.new_owners_public_keys.iter().enumerate() {
+                let mut public_key_writer = link_new_owners_public_public_keys_writer.borrow().get(idx as u32);
+                write_public_key(ref_public_key, &mut public_key_writer)?;
+            }
+        }
+        // Write the newIndexersPublicKeys
+        {
+            let mut new_indexers_public_keys = to.borrow().init_new_indexers_public_keys(
+                self.new_indexers_public_keys.len() as u32
+            );
+
+            for (idx, ref_public_key) in self.new_indexers_public_keys.iter().enumerate() {
+                let mut public_key_writer = new_indexers_public_keys.borrow().get(idx as u32);
+                write_public_key(ref_public_key, &mut public_key_writer)?;
+            }
+        }
+        // Write the signaturesByOldOwners
+        {
+            let mut signatures_by_old_owners = to.borrow().init_signatures_by_old_owners(
+                self.signatures_by_old_owners.len() as u32
+            );
+
+            for (idx, ref_signature) in self.signatures_by_old_owners.iter().enumerate() {
+                let mut signature_writer = signatures_by_old_owners.borrow().get(idx as u32);
+                write_signature(ref_signature, &mut signature_writer)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct ConnectedFriend {
+    send_capacity: u128,
+    recv_capacity: u128,
+    public_key: PublicKey,
+}
+
+// XXX: Don't forget to add test
+impl<'a> Schema<'a> for ConnectedFriend {
+    type Reader = connected_friend::Reader<'a>;
+    type Writer = connected_friend::Builder<'a>;
+
+    inject_default_impl!();
+
+    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+        unimplemented!()
+    }
+
+    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct ResponseIndexerInfo {
+    connected_neighbors_list: Vec<PublicKey>,
+    neighbors_comm_public_key: DhPublicKey,
+    neighbors_recent_timestamp: RandValue,
+    friends_comm_public_key: DhPublicKey,
+    friends_recent_timestamp: RandValue,
+}
+
+// XXX: Don't forget to add test
+impl<'a> Schema<'a> for ResponseIndexerInfo {
+    type Reader = response_indexer_info::Reader<'a>;
+    type Writer = response_indexer_info::Builder<'a>;
+
+    inject_default_impl!();
+
+    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+        unimplemented!()
+    }
+
+    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+        unimplemented!()
     }
 }
 

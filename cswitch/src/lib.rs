@@ -1,4 +1,5 @@
 #![crate_type = "lib"]
+#![feature(i128_type)]
 #![feature(refcell_replace_swap)]
 #![feature(conservative_impl_trait)]
 #![feature(drain_filter, iterator_step_by)]
