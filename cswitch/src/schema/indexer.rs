@@ -529,10 +529,10 @@ impl<'a> Schema<'a> for ChainLink {
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
         // Write the previousStateHash
-        {
-            let mut previous_state_hash = to.borrow().init_previous_state_hash();
-            write_custom_u_int256(&self.previous_state_hash, &mut previous_state_hash)?;
-        }
+        write_custom_u_int256(
+            &self.previous_state_hash,
+            &mut to.borrow().init_previous_state_hash(),
+        )?;
         // Write the newOwnersPublicKeys
         {
             let mut new_owners_public_keys_writer =
@@ -645,7 +645,6 @@ pub struct ResponseIndexerInfo {
     friends_recent_timestamp: RandValue,
 }
 
-// XXX: Don't forget to add test
 impl<'a> Schema<'a> for ResponseIndexerInfo {
     type Reader = response_indexer_info::Reader<'a>;
     type Writer = response_indexer_info::Builder<'a>;
