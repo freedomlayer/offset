@@ -114,6 +114,4 @@ struct FriendsRoute {
 # Indexer -> Node
 struct ResponseFriendsRoute {
         routes @0: List(FriendsRoute);
-        destinationCommPublicKey @1: CustomUInt256;
-        destinationRecentTimestamp @2: CustomUInt128;
 }
