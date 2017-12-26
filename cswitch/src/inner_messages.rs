@@ -154,9 +154,6 @@ enum IndexerClientToNetworker {
         delivery_fee: u64,
         dest_node_public_key: PublicKey,
     },
-    IndexerAnnounce {
-        content: Vec<u8>,
-    },
     ResponseFriendsRoute {
         routes: Vec<FriendsRoute>,
     },
@@ -245,12 +242,6 @@ enum PluginManagerToNetworker {
     },
     RemoveNeighbor {
         neighbor_public_key: PublicKey,
-    },
-    IndexerAnnounceSelf {
-        current_time: u64,      // Current perceived time
-        owner_public_key: PublicKey, // Public key of the signing owner.
-        owner_sign_time: u64,   // The time in which the owner has signed
-        owner_signature: Signature, // The signature of the owner over (owner_sign_time || indexer_public_key)
     },
     SetServerType(ServerType),
 }
