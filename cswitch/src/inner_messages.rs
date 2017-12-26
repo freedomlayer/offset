@@ -12,7 +12,7 @@ use ::crypto::symmetric_enc::SymmetricKey;
 use ::crypto::uid::Uid;
 use ::crypto::rand_values::RandValue;
 
-use ::networker::networker_client::NetworkerRespondableRequest;
+use ::networker::networker_client::{NetworkerRespondableRequest, DestPort};
 
 
 // Helper structs
@@ -148,6 +148,7 @@ enum IndexerClientToNetworker {
         request_id: Uid,
         request_content: Vec<u8>,
         neighbors_route: NeighborsRoute,
+        dest_port: DestPort,
         max_response_length: u64,
         processing_fee: u64,
         delivery_fee: u64,
