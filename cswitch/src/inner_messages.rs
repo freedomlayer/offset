@@ -6,6 +6,7 @@ use std::net::SocketAddr;
 
 use self::num_bigint::BigInt;
 use ::crypto::identity::{PublicKey, Signature};
+use ::crypto::dh::DhPublicKey;
 use ::crypto::dh::Salt;
 use ::crypto::symmetric_enc::SymmetricKey;
 use ::crypto::uid::Uid;
@@ -345,7 +346,7 @@ enum FunderToIndexerClient {
 enum IndexerClientToFunder {
     ResponseNeighborsRoute {
         routes: Vec<NeighborsRoute>,
-        dest_comm_public_key: PublicKey,
+        dest_comm_public_key: DhPublicKey,
         dest_recent_timestamp: RandValue,
     }
 }
