@@ -14,7 +14,7 @@ pub enum NetworkerResponse {
 /// Destination port for the packet.
 /// The destination port is used by the destination Networker to know where to forward the received
 /// message.
-enum DestPort {
+pub enum DestPort {
     Funder,
     IndexerClient,
     PluginManager(u32),
