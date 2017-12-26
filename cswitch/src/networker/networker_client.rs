@@ -11,6 +11,15 @@ pub enum NetworkerResponse {
     Failure,
 }
 
+/// Destination port for the packet.
+/// The destination port is used by the destination Networker to know where to forward the received
+/// message.
+enum DestPort {
+    Funder,
+    IndexerClient,
+    PluginManager(u32),
+}
+
 
 /// The sending part of a Networker client.
 /// Allows to send messages to remote nodes.
@@ -27,6 +36,7 @@ pub trait NetworkerSenderClientTrait {
     /// Note: It is possible that the request will never resolve. Always use some kind of a timeout
     /// when using this API
     fn send_request<F>(&self, route: NeighborsRoute,
+                            dest_port: DestPort,
                             request_content: Vec<u8>,
                             max_response_len: u32,
                             processing_fee_proposal: u64,
