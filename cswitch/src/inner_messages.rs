@@ -157,8 +157,6 @@ enum IndexerClientToNetworker {
     },
     ResponseFriendsRoute {
         routes: Vec<FriendsRoute>,
-        dest_comm_public_key: PublicKey,
-        dest_recent_timestamp: RandValue,
     },
 }
 
