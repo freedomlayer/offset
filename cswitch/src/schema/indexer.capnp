@@ -8,6 +8,11 @@ struct NeighborsRoute {
         publicKeys @0: List(CustomUInt256);
 }
 
+struct IndexerRoute {
+        neighborsRoute @0: NeighborsRoute;
+        appPort @1: UInt32;
+}
+
 # Updating states chain
 #######################
 
@@ -32,7 +37,7 @@ struct ResponseUpdateState {
 
 # Indexer -> Node
 struct RoutesToIndexer {
-        routes @0: List(NeighborsRoute);
+        routes @0: List(IndexerRoute);
         requestPrice @1: UInt64;
 }
 
