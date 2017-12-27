@@ -45,25 +45,8 @@ struct RoutesToIndexer {
 # Information collection by indexers
 ####################################
 
-# (Indexer -> Node) [Empty message]
-# struct RequestIndexerInfo {
-# }
+# Done by direct requests at funder.capnp and networker.capnp
 
-#       struct ConnectedFriend {
-#               sendCapacity @0: CustomUInt128;
-#               recvCapacity @1: CustomUInt128;
-#               publicKey @2: CustomUInt256;
-#       }
-
-#       # Node -> Indexer
-#       struct ResponseIndexerInfo {
-#               connectedNeighborsList @0: List(CustomUInt256);
-#               neighborsCommPublicKey @1: CustomUInt256;
-#               neighborsRecentTimestamp @2: CustomUInt128;
-#               connectedFriendsList @3: List(ConnectedFriend);
-#               friendsCommPublicKey @4: CustomUInt256;
-#               friendsRecentTimestamp @5: CustomUInt128;
-#       }
 
 # Requesting information from indexers
 ######################################
