@@ -26,7 +26,7 @@ struct IndexingProviderStateHash([u8; INDEXING_PROVIDER_STATE_HASH_LEN]);
 
 // The name of an indexing provider.
 // TODO: Should we use a string instead here? Is a fixed sized blob preferable?
-struct IndexingProviderName([u8; INDEXING_PROVIDER_NAME_LEN]);
+struct IndexingProviderId([u8; INDEXING_PROVIDER_NAME_LEN]);
 
 
 #[derive(Clone, Debug)]
@@ -348,7 +348,7 @@ enum IndexerClientToFunder {
 }
 
 struct IndexingProviderInfo {
-    name: IndexingProviderName,
+    name: IndexingProviderId,
     previous_state_hash: IndexingProviderStateHash,
     new_owners_public_keys: Vec<PublicKey>,
     new_indexers_public_keys: Vec<PublicKey>,
@@ -358,7 +358,7 @@ struct IndexingProviderInfo {
 enum PluginManagerToIndexerClient {
     AddIndexingProvider(IndexingProviderInfo),
     RemoveIndexingProvider {
-        name: IndexingProviderName,
+        name: IndexingProviderId,
     },
 }
 
