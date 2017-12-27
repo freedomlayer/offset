@@ -342,8 +342,6 @@ enum FunderToIndexerClient {
 enum IndexerClientToFunder {
     ResponseNeighborsRoute {
         routes: Vec<NeighborsRoute>,
-        dest_comm_public_key: DhPublicKey,
-        dest_recent_timestamp: RandValue,
     }
 }
 
