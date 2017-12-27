@@ -167,12 +167,14 @@ enum ResponseSendMessageContent {
     Failure,
 }
 
+/*
 enum NotifyStructureChangeNeighbors {
     NeighborAdded(PublicKey),
     NeighborRemoved(PublicKey),
     TimestampUpdated(RandValue),
     CommPublicKeyUpdated(PublicKey),
 }
+*/
 
 enum NetworkerToIndexerClient<R> {
     /*
@@ -181,7 +183,7 @@ enum NetworkerToIndexerClient<R> {
         content: ResponseSendMessageContent,
     },
     */
-    NotifyStructureChange(NotifyStructureChangeNeighbors),
+    // NotifyStructureChange(NotifyStructureChangeNeighbors),
     RequestReceived(NetworkerRespondableRequest<R>),
     RequestFriendsRoute(RequestFriendsRoute),
 
@@ -293,6 +295,7 @@ struct FriendCapacity {
     recv: u64,
 }
 
+/*
 enum NotifyStructureChangeFriends {
     // This message is used both to add a new friend and to update the capacity information of a
     // current friend.
@@ -304,6 +307,7 @@ enum NotifyStructureChangeFriends {
     TimestampUpdated(RandValue),
     CommPublicKeyUpdated(PublicKey),
 }
+*/
 
 enum RequestFriendsRoute {
     Direct {
@@ -328,7 +332,7 @@ enum FunderToIndexerClient {
         source_node_public_key: PublicKey,
         dest_node_public_key: PublicKey,
     },
-    NotifyStructureChange(NotifyStructureChangeFriends),
+    // NotifyStructureChange(NotifyStructureChangeFriends),
 }
 
 
