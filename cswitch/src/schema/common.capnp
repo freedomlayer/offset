@@ -25,3 +25,22 @@ struct CustomUInt512 {
         x6 @6: UInt64;
         x7 @7: UInt64;
 }
+
+
+# A receipt for payment to the Funder
+struct Receipt {
+        responseHash @0: CustomUInt256;
+        # = sha512/256(requestId || 
+        #       sha512/256(nodeIdPath) || 
+        #       mediatorPaymentProposal)
+        invoiceId @1: CustomUInt256;
+        destinationPayment @2: CustomUInt128;
+        randNonce @3: CustomUInt256;
+        signature @4: CustomUInt512;
+        # Signature{key=recipientKey}(
+        #   "FUND_SUCCESS" ||
+        #   sha512/256(requestId || sha512/256(nodeIdPath) || mediatorPaymentProposal) ||
+        #   invoiceId ||
+        #   destinationPayment ||
+        #   randNonce)
+}
