@@ -78,8 +78,8 @@ struct RequestNeighborsRoute {
 # Indexer -> Node
 struct ResponseNeighborsRoute { 
         routes @0: List(NeighborsRoute);
-        destinationCommPublicKey @1: CustomUInt256;
-        destinationRecentTimestamp @2: CustomUInt128;
+        # destinationCommPublicKey @1: CustomUInt256;
+        # destinationRecentTimestamp @2: CustomUInt128;
 }
 
 # Request a direct route of friends from the source node to the destination
