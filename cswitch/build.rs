@@ -14,6 +14,8 @@ fn main() {
     build_schema!{
         "src/schema/common.capnp",
         "src/schema/indexer.capnp",
+        "src/schema/networker.capnp",
+        "src/schema/funder.capnp",
         "src/schema/channeler.capnp"
     }
 }
