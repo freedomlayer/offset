@@ -480,8 +480,6 @@ enum AppManagerToFunder {
 }
 
 
-// TODO: Should pather report about closed path?
-// How to do this reliably?
 
 // Security Module
 // ---------------
@@ -491,44 +489,17 @@ pub enum FromSecurityModule {
     ResponseSign {
         signature: Signature,
     },
-    /*
-    ResponseVerify {
-        request_id: Uid,
-        result: bool,
-    },
-    */
     ResponsePublicKey {
         public_key: PublicKey,
     },
-    /*
-    ResponseSymmetricKey {
-        request_id: Uid,
-        symmetric_key: SymmetricKey,
-    },
-    */
 }
 
 pub enum ToSecurityModule {
     RequestSign {
         message: Vec<u8>,
     },
-    /*
-    RequestVerify {
-        request_id: Uid,
-        message: Vec<u8>,
-        public_key: PublicKey,
-        signature: Signature,
-    },
-    */
     RequestPublicKey {
     },
-    /*
-    RequestSymmetricKey {
-        request_id: Uid,
-        public_key: PublicKey,
-        salt: Salt,
-    },
-    */
 }
 
 // Timer
