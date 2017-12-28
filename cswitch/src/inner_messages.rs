@@ -187,9 +187,7 @@ pub struct DiscardMessageReceived {
 
 enum IndexerClientToNetworker {
     RequestSendMessage(RequestSendMessage),
-    ResponseFriendsRoute {
-        routes: Vec<FriendsRoute>,
-    },
+    ResponseFriendsRoutes(ResponseFriendsRoutes),
     ResponseMessageReceived(RespondMessageReceived),
     DiscardMessageReceived(DiscardMessageReceived),
 }
@@ -201,7 +199,7 @@ enum IndexerClientToNetworker {
 enum NetworkerToIndexerClient {
     ResponseSendMessage(ResponseSendMessage),
     MessageReceived(MessageReceived),
-    RequestFriendsRoute(RequestFriendsRoute),
+    RequestFriendsRoutes(RequestFriendsRoutes),
 }
 
 
@@ -298,7 +296,7 @@ struct FriendCapacity {
     recv: u64,
 }
 
-enum RequestFriendsRoute {
+enum RequestFriendsRoutes {
     Direct {
         source_node_public_key: PublicKey,
         dest_node_public_key: PublicKey,
@@ -316,18 +314,27 @@ enum RequestFriendsRoute {
 
 }
 
+struct ResponseFriendsRoutes {
+    routes: Vec<FriendsRoute>,
+}
+
+struct RequestNeighborsRoutes {
+    source_node_public_key: PublicKey,
+    dest_node_public_key: PublicKey,
+}
+
+struct ResponseNeighborsRoutes {
+    routes: Vec<NeighborsRoute>,
+}
+
+
 enum FunderToIndexerClient {
-    RequestNeighborsRoute {
-        source_node_public_key: PublicKey,
-        dest_node_public_key: PublicKey,
-    },
+    RequestNeighborsRoutes(RequestNeighborsRoutes),
 }
 
 
 enum IndexerClientToFunder {
-    ResponseNeighborsRoute {
-        routes: Vec<NeighborsRoute>,
-    }
+    ResponseNeighborsRoutes(ResponseNeighborsRoutes),
 }
 
 struct IndexingProviderInfo {
@@ -343,11 +350,15 @@ enum AppManagerToIndexerClient {
     RemoveIndexingProvider {
         name: IndexingProviderId,
     },
+    RequestNeighborsRoutes(RequestNeighborsRoutes),
+    RequestFriendsRoutes(RequestFriendsRoutes),
 }
 
 
 enum IndexerClientToAppManager {
-    IndexingProviderUpdated(IndexingProviderInfo),
+    // IndexingProviderUpdated(IndexingProviderInfo),
+    ResponseNeighborsRoutes(ResponseNeighborsRoutes),
+    ResponseFriendsRoutes(ResponseFriendsRoutes), 
 }
 
 
