@@ -71,8 +71,8 @@ struct RequestSendMessageTran {
                 commMeans @2: Void;
                 encrypted @3: Data;
         }
-        maxResponseLength @4: UInt64;
-        processingFeeProposal @5: CustomUInt128;
+        maxResponseLength @4: UInt32;
+        processingFeeProposal @5: UInt64;
         halfCreditsPerByteProposal @6: UInt64;
 }
 
