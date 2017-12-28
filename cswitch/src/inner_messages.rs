@@ -12,8 +12,6 @@ use ::crypto::symmetric_enc::SymmetricKey;
 use ::crypto::uid::Uid;
 use ::crypto::rand_values::RandValue;
 
-use ::networker::networker_client::{NetworkerRespondableRequest, DestPort};
-
 
 // Helper structs
 // --------------
@@ -125,51 +123,85 @@ pub enum NetworkerToChanneler {
     },
 }
 
+
+// Networker interface
+// -------------------
+
+/// The result of attempting to send a message to a remote Networker.
+pub enum SendMessageResult {
+    Success(Vec<u8>),
+    Failure,
+}
+
+/// Destination port for the packet.
+/// The destination port is used by the destination Networker to know where to forward the received
+/// message.
+pub enum DestPort {
+    Funder,
+    IndexerClient,
+    PluginManager,
+}
+
+/// Component -> Networker
+pub struct RequestSendMessage {
+    request_id: Uid,
+    route: NeighborsRoute,
+    dest_port: DestPort,
+    request_data: Vec<u8>,
+    max_response_len: u32,
+    processing_fee_proposal: u64,
+    half_credits_per_byte_proposal: u32,
+}
+
+/// Networker -> Component
+pub struct ResponseSendMessage {
+    request_id: Uid,
+    result: SendMessageResult,
+}
+
+/// Networker -> Component
+pub struct MessageReceived {
+    request_id: Uid,
+    route: NeighborsRoute, // sender_public_key is the first public key on the NeighborsRoute
+    request_data: Vec<u8>,
+    max_response_len: u32,
+    processing_fee_proposal: u64,
+    half_credits_per_byte_proposal: u32,
+}
+
+/// Component -> Networker
+pub struct RespondMessageReceived {
+    request_id: Uid,
+    response_data: Vec<u8>,
+}
+
+/// Component -> Networker
+pub struct DiscardMessageReceived {
+    request_id: Uid,
+}
+
+
 // Indexer client to Networker
 // ---------------------------
 
 
 enum IndexerClientToNetworker {
-    RequestSendMessage {
-        request_id: Uid,
-        request_content: Vec<u8>,
-        neighbors_route: NeighborsRoute,
-        dest_port: DestPort,
-        max_response_length: u64,
-        processing_fee: u64,
-        delivery_fee: u64,
-        dest_node_public_key: PublicKey,
-    },
+    RequestSendMessage(RequestSendMessage),
     ResponseFriendsRoute {
         routes: Vec<FriendsRoute>,
     },
+    ResponseMessageReceived(RespondMessageReceived),
+    DiscardMessageReceived(DiscardMessageReceived),
 }
 
 // Networker to Indexer client
 // ---------------------------
 
-enum ResponseSendMessageContent {
-    Success(Vec<u8>),
-    Failure,
-}
 
-enum NetworkerToIndexerClient<R> {
-    /*
-    ResponseSendMessage {
-        request_id: Uid,
-        content: ResponseSendMessageContent,
-    },
-    */
-    // NotifyStructureChange(NotifyStructureChangeNeighbors),
-    RequestReceived(NetworkerRespondableRequest<R>),
+enum NetworkerToIndexerClient {
+    ResponseSendMessage(ResponseSendMessage),
+    MessageReceived(MessageReceived),
     RequestFriendsRoute(RequestFriendsRoute),
-
-    /*
-    MessageReceived {
-        source_node_public_key: PublicKey,
-        message_content: Vec<u8>,
-    },
-    */
 }
 
 
