@@ -1,7 +1,7 @@
 
-fn create_indexer_client<S: NetworkerSenderClientTrait>(
+fn create_indexer_client(
     handle: &Handle,
-    networker_sender_client: S,
+    networker_sender: mpsc::Sender<IndexerClientToNetworker>,
     networker_receiver: mpsc::Receiver<NetworkerToIndexerClient>,
     timer_receiver: mpsc::Receiver<FromTimer>,
     plugin_manager_receiver: mpsc::Receiver<PluginManagerToIndexerClient>,
@@ -10,9 +10,5 @@ fn create_indexer_client<S: NetworkerSenderClientTrait>(
     funder_sender: mpsc::Funder<IndexerClientToFunder>)
         -> (CloseHandle, IndexerClient) 
 {
-    // TODO: 
-    // - Possibly Create a nice interface for Funder and Networker to request routes.
-    // 
-
 }
 
