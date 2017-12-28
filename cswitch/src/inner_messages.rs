@@ -347,6 +347,14 @@ enum IndexerClientToAppManager {
     ResponseFriendsRoutes(ResponseFriendsRoutes), 
 }
 
+enum IndexerClientToDatabase {
+    StoreIndexingProvider(IndexingProviderInfo),
+    RequestLoadIndexingProvider,
+}
+
+enum DatabaseToIndexerClient {
+    ResponseLoadIndexingProviders(Vec<IndexingProviderInfo>)
+}
 
 // Funder to App Manager
 // ------------------------
