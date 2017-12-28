@@ -36,7 +36,7 @@ struct ResponseUpdateState {
 }
 
 # Indexer -> Node
-struct RoutesToIndexer {
+struct RoutesToIndexers {
         routes @0: List(IndexerRoute);
         requestPrice @1: UInt64;
 }
