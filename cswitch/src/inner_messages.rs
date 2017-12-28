@@ -338,14 +338,11 @@ enum AppManagerToIndexerClient {
     },
     RequestNeighborsRoutes(RequestNeighborsRoutes),
     RequestFriendsRoutes(RequestFriendsRoutes),
-    IndexingProviderStateUpdate {
-        // TODO
-    },
 }
 
 
 enum IndexerClientToAppManager {
-    // IndexingProviderUpdated(IndexingProviderInfo),
+    IndexingProviderStateUpdate(IndexingProviderInfo),
     ResponseNeighborsRoutes(ResponseNeighborsRoutes),
     ResponseFriendsRoutes(ResponseFriendsRoutes), 
 }
