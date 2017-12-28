@@ -189,7 +189,7 @@ enum NetworkerToIndexerClient {
 }
 
 
-// Networker to Plugin Manager
+// Networker to App Manager
 // ---------------------------
 
 
@@ -214,7 +214,7 @@ enum NetworkerToAppManager {
     },
 }
 
-// Plugin Manager to Networker
+// App Manager to Networker
 // ---------------------------
 
 
@@ -443,7 +443,7 @@ enum FunderToAppManager {
 }
 
 
-// Plugin Manager to Funder
+// App Manager to Funder
 // ------------------------
 
 enum AppManagerToFunder {
