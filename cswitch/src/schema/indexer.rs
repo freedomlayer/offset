@@ -154,45 +154,23 @@ impl<'a> Schema<'a> for ResponseNeighborsRoute {
             routes.push(NeighborsRoute::read(&neighbors_route_reader)?);
         }
 
-        // Read the destinationCommPublicKey
-        let destination_comm_public_key = read_dh_public_key(
-            &from.get_destination_comm_public_key()?
-        )?;
-
-        // Read the destinationRecentTimesStamp
-        let destination_recent_timestamp = read_rand_value(
-            &from.get_destination_recent_timestamp()?
-        )?;
-
         Ok(ResponseNeighborsRoute {
             routes,
-            destination_comm_public_key,
-            destination_recent_timestamp,
         })
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
         // Write the routes
         {
-            let mut routes_writer = to.borrow().init_routes(self.routes.len() as u32);
+            let mut routes_writer =
+                to.borrow().init_routes(self.routes.len() as u32);
 
             for (idx, ref_neighbors_route) in self.routes.iter().enumerate() {
-                let mut neighbors_route_writer = routes_writer.borrow().get(idx as u32);
-                ref_neighbors_route.write(&mut neighbors_route_writer)?;
+                ref_neighbors_route.write(
+                    &mut routes_writer.borrow().get(idx as u32),
+                )?;
             }
         }
-
-        // Write the destinationCommPublicKey
-        write_dh_public_key(
-            &self.destination_comm_public_key,
-            &mut to.borrow().init_destination_comm_public_key(),
-        )?;
-
-        // Write the destinationRecentTimesStamp
-        write_rand_value(
-            &self.destination_recent_timestamp,
-            &mut to.borrow().init_destination_recent_timestamp(),
-        )?;
 
         Ok(())
     }
@@ -309,20 +287,8 @@ impl<'a> Schema<'a> for ResponseFriendsRoute {
             routes.push(FriendsRoute::read(&friends_route_reader)?);
         }
 
-        // Read the destinationCommPublicKey
-        let destination_comm_public_key = read_dh_public_key(
-            &from.get_destination_comm_public_key()?
-        )?;
-
-        // Read the destinationRecentTimesStamp
-        let destination_recent_timestamp = read_rand_value(
-            &from.get_destination_recent_timestamp()?
-        )?;
-
         Ok(ResponseFriendsRoute {
             routes,
-            destination_comm_public_key,
-            destination_recent_timestamp,
         })
     }
 
@@ -335,144 +301,6 @@ impl<'a> Schema<'a> for ResponseFriendsRoute {
                 let mut neighbors_route_writer = routes_writer.borrow().get(idx as u32);
                 ref_neighbors_route.write(&mut neighbors_route_writer)?;
             }
-        }
-        // Write the destinationCommPublicKey
-        write_dh_public_key(
-            &self.destination_comm_public_key,
-            &mut to.borrow().init_destination_comm_public_key(),
-        )?;
-
-        // Write the destinationRecentTimesStamp
-        write_rand_value(
-            &self.destination_recent_timestamp,
-            &mut to.borrow().init_destination_recent_timestamp(),
-        )?;
-
-        Ok(())
-    }
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct RequestUpdateState {
-    indexing_provider_id: IndexingProviderID,
-    indexing_provider_states_chain: Vec<ChainLink>,
-}
-
-impl<'a> Schema<'a> for RequestUpdateState {
-    type Reader = request_update_state::Reader<'a>;
-    type Writer = request_update_state::Builder<'a>;
-
-    inject_default_impl!();
-
-    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
-        // Read the indexingProviderID
-        let indexing_provider_id_reader = from.get_indexing_provider_id()?;
-        let indexing_provider_id = IndexingProviderID::from_bytes(
-            &read_custom_u_int128(&indexing_provider_id_reader)?
-        ).map_err(|_| SchemaError::Invalid)?;
-
-        // Read the indexingProviderStatesChain
-        let indexing_provider_states_chain_reader = from.get_indexing_provider_states_chain()?;
-
-        let mut indexing_provider_states_chain = Vec::with_capacity(
-            indexing_provider_states_chain_reader.len() as usize
-        );
-
-        for chain_link_reader in indexing_provider_states_chain_reader.iter() {
-            indexing_provider_states_chain.push(ChainLink::read(&chain_link_reader)?);
-        }
-
-        Ok(RequestUpdateState {
-            indexing_provider_id,
-            indexing_provider_states_chain,
-        })
-    }
-
-    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
-        // Write the indexingProviderID
-        write_custom_u_int128(
-            &self.indexing_provider_id,
-            &mut to.borrow().init_indexing_provider_id(),
-        )?;
-
-        // Writer the indexingProviderStatesChain
-        {
-            let mut indexing_provider_states_chain =
-                to.borrow().init_indexing_provider_states_chain(
-                    self.indexing_provider_states_chain.len() as u32
-                );
-
-            for (idx, ref_chain_link) in self.indexing_provider_states_chain.iter().enumerate() {
-                let mut chain_link_writer = indexing_provider_states_chain.borrow().get(idx as u32);
-                ref_chain_link.write(&mut chain_link_writer)?;
-            }
-        }
-
-        Ok(())
-    }
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct ResponseUpdateState {
-    state_hash: IndexingProviderStateHash
-}
-
-impl<'a> Schema<'a> for ResponseUpdateState {
-    type Reader = response_update_state::Reader<'a>;
-    type Writer = response_update_state::Builder<'a>;
-
-    inject_default_impl!();
-
-    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
-        let state_hash_reader = from.get_state_hash()?;
-
-        let state_hash = IndexingProviderStateHash::from_bytes(
-            &read_custom_u_int256(&state_hash_reader)?
-        ).map_err(|_| SchemaError::Invalid)?;
-
-        Ok(ResponseUpdateState { state_hash })
-    }
-
-    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
-        write_custom_u_int256(
-            &self.state_hash,
-            &mut to.borrow().init_state_hash(),
-        )?;
-
-        Ok(())
-    }
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct RoutesToIndexer {
-    routes: Vec<NeighborsRoute>,
-}
-
-impl<'a> Schema<'a> for RoutesToIndexer {
-    type Reader = routes_to_indexer::Reader<'a>;
-    type Writer = routes_to_indexer::Builder<'a>;
-
-    inject_default_impl!();
-
-    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
-        // Read the routes
-        let routes_reader = from.get_routes()?;
-
-        let mut routes = Vec::with_capacity(routes_reader.len() as usize);
-
-        for neighbors_route_reader in routes_reader.iter() {
-            routes.push(NeighborsRoute::read(&neighbors_route_reader)?);
-        }
-
-        Ok(RoutesToIndexer { routes })
-    }
-
-    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
-        // Write the routes
-        let mut routes = to.borrow().init_routes(self.routes.len() as u32);
-
-        for (idx, ref_neighbors_route) in self.routes.iter().enumerate() {
-            ref_neighbors_route.write(&mut routes.borrow().get(idx as u32))?;
         }
 
         Ok(())
@@ -576,153 +404,172 @@ impl<'a> Schema<'a> for ChainLink {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub struct ConnectedFriend {
-    send_capacity: u128,
-    recv_capacity: u128,
-    public_key: PublicKey,
+pub struct RequestUpdateState {
+    indexing_provider_id: IndexingProviderID,
+    indexing_provider_states_chain: Vec<ChainLink>,
 }
 
-impl<'a> Schema<'a> for ConnectedFriend {
-    type Reader = connected_friend::Reader<'a>;
-    type Writer = connected_friend::Builder<'a>;
+impl<'a> Schema<'a> for RequestUpdateState {
+    type Reader = request_update_state::Reader<'a>;
+    type Writer = request_update_state::Builder<'a>;
 
     inject_default_impl!();
 
     fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
-        // Read the sendCapacity
-        let send_capacity_bytes = read_custom_u_int128(
-            &from.get_send_capacity()?
-        )?;
-        let send_capacity = BigEndian::read_u128(&send_capacity_bytes);
+        // Read the indexingProviderID
+        let indexing_provider_id_reader = from.get_indexing_provider_id()?;
+        let indexing_provider_id = IndexingProviderID::from_bytes(
+            &read_custom_u_int128(&indexing_provider_id_reader)?
+        ).map_err(|_| SchemaError::Invalid)?;
 
-        // Read the recvCapacity
-        let recv_capacity_bytes = read_custom_u_int128(
-            &from.get_recv_capacity()?
-        )?;
-        let recv_capacity = BigEndian::read_u128(&recv_capacity_bytes);
+        // Read the indexingProviderStatesChain
+        let indexing_provider_states_chain_reader = from.get_indexing_provider_states_chain()?;
 
-        // Read the publicKey
-        let public_key = read_public_key(&from.get_public_key()?)?;
+        let mut indexing_provider_states_chain = Vec::with_capacity(
+            indexing_provider_states_chain_reader.len() as usize
+        );
 
-        Ok(ConnectedFriend {
-            send_capacity,
-            recv_capacity,
-            public_key,
+        for chain_link_reader in indexing_provider_states_chain_reader.iter() {
+            indexing_provider_states_chain.push(ChainLink::read(&chain_link_reader)?);
+        }
+
+        Ok(RequestUpdateState {
+            indexing_provider_id,
+            indexing_provider_states_chain,
         })
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
-        let mut capacity_bytes = [0u8; CUSTOM_UINT128_LEN];
-
-        // Write the sendCapacity
-        BigEndian::write_u128(&mut capacity_bytes[..], self.send_capacity);
+        // Write the indexingProviderID
         write_custom_u_int128(
-            &capacity_bytes,
-            &mut to.borrow().init_send_capacity(),
+            &self.indexing_provider_id,
+            &mut to.borrow().init_indexing_provider_id(),
         )?;
 
-        // Write the recvCapacity
-        BigEndian::write_u128(&mut capacity_bytes[..], self.recv_capacity);
-        write_custom_u_int128(
-            &capacity_bytes,
-            &mut to.borrow().init_recv_capacity(),
-        )?;
+        // Writer the indexingProviderStatesChain
+        {
+            let mut indexing_provider_states_chain =
+                to.borrow().init_indexing_provider_states_chain(
+                    self.indexing_provider_states_chain.len() as u32
+                );
 
-        // Write the public key
-        write_public_key(&self.public_key, &mut to.borrow().init_public_key())?;
+            for (idx, ref_chain_link) in self.indexing_provider_states_chain.iter().enumerate() {
+                let mut chain_link_writer = indexing_provider_states_chain.borrow().get(idx as u32);
+                ref_chain_link.write(&mut chain_link_writer)?;
+            }
+        }
 
         Ok(())
     }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub struct ResponseIndexerInfo {
-    connected_neighbors_list: Vec<PublicKey>,
-    neighbors_comm_public_key: DhPublicKey,
-    neighbors_recent_timestamp: RandValue,
-    connected_friends_list: Vec<ConnectedFriend>,
-    friends_comm_public_key: DhPublicKey,
-    friends_recent_timestamp: RandValue,
+pub struct ResponseUpdateState {
+    state_hash: IndexingProviderStateHash
 }
 
-impl<'a> Schema<'a> for ResponseIndexerInfo {
-    type Reader = response_indexer_info::Reader<'a>;
-    type Writer = response_indexer_info::Builder<'a>;
+impl<'a> Schema<'a> for ResponseUpdateState {
+    type Reader = response_update_state::Reader<'a>;
+    type Writer = response_update_state::Builder<'a>;
 
     inject_default_impl!();
 
     fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
-        let connected_neighbors_list =
-            read_public_key_list(&from.get_connected_neighbors_list()?)?;
-        let neighbors_comm_public_key =
-            read_dh_public_key(&from.get_neighbors_comm_public_key()?)?;
-        let neighbors_recent_timestamp =
-            read_rand_value(&from.get_neighbors_recent_timestamp()?)?;
+        let state_hash_reader = from.get_state_hash()?;
 
-        let connected_friends_reader = from.get_connected_friends_list()?;
-        let mut connected_friends_list = Vec::with_capacity(
-            connected_friends_reader.len() as usize
-        );
-        for connected_friend_reader in connected_friends_reader.iter() {
-            connected_friends_list.push(ConnectedFriend::read(&connected_friend_reader)?);
-        }
+        let state_hash = IndexingProviderStateHash::from_bytes(
+            &read_custom_u_int256(&state_hash_reader)?
+        ).map_err(|_| SchemaError::Invalid)?;
 
-        let friends_comm_public_key =
-            read_dh_public_key(&from.get_friends_comm_public_key()?)?;
-        let friends_recent_timestamp =
-            read_rand_value(&from.get_friends_recent_timestamp()?)?;
+        Ok(ResponseUpdateState { state_hash })
+    }
 
-        Ok(ResponseIndexerInfo {
-            connected_neighbors_list,
-            neighbors_comm_public_key,
-            neighbors_recent_timestamp,
-            connected_friends_list,
-            friends_comm_public_key,
-            friends_recent_timestamp,
+    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+        write_custom_u_int256(
+            &self.state_hash,
+            &mut to.borrow().init_state_hash(),
+        )?;
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct IndexerRoute {
+    neighbors_route: NeighborsRoute,
+    app_port: u32,
+}
+
+impl<'a> Schema<'a> for IndexerRoute {
+    type Reader = indexer_route::Reader<'a>;
+    type Writer = indexer_route::Builder<'a>;
+
+    inject_default_impl!();
+
+    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+        let neighbors_route =
+            NeighborsRoute::read(&from.get_neighbors_route()?)?;
+
+        Ok(IndexerRoute {
+            neighbors_route,
+            app_port: from.get_app_port(),
         })
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
-        {
-            let mut connected_neighbors_list_writer =
-                to.borrow().init_connected_neighbors_list(
-                    self.connected_neighbors_list.len() as u32
-                );
+        self.neighbors_route.write(
+            &mut to.borrow().init_neighbors_route(),
+        )?;
 
-            write_public_key_list(
-                &self.connected_neighbors_list,
-                &mut connected_neighbors_list_writer,
-            )?;
+        to.set_app_port(self.app_port);
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct RoutesToIndexer {
+    routes: Vec<IndexerRoute>,
+    request_price: u64,
+}
+
+impl<'a> Schema<'a> for RoutesToIndexer {
+    type Reader = routes_to_indexer::Reader<'a>;
+    type Writer = routes_to_indexer::Builder<'a>;
+
+    inject_default_impl!();
+
+    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+        // Read the routes
+        let routes_reader = from.get_routes()?;
+
+        let mut routes = Vec::with_capacity(routes_reader.len() as usize);
+
+        for indexer_route_reader in routes_reader.iter() {
+            routes.push(IndexerRoute::read(&indexer_route_reader)?);
         }
-        write_dh_public_key(
-            &self.neighbors_comm_public_key,
-            &mut to.borrow().init_neighbors_comm_public_key(),
-        )?;
-        write_rand_value(
-            &self.neighbors_recent_timestamp,
-            &mut to.borrow().init_neighbors_recent_timestamp(),
-        )?;
 
+        // Write the requestPrice
+        let request_price = from.get_request_price();
+
+        Ok(RoutesToIndexer {
+            routes,
+            request_price,
+        })
+    }
+
+    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+        // Write the routes
         {
-            let mut connected_friends_list_writer =
-                to.borrow().init_connected_friends_list(
-                    self.connected_friends_list.len() as u32
-                );
+            let mut routes = to.borrow().init_routes(self.routes.len() as u32);
 
-            for (idx, ref_connected_friend) in self.connected_friends_list.iter().enumerate() {
-                ref_connected_friend.write(
-                    &mut connected_friends_list_writer.borrow().get(idx as u32)
-                )?;
+            for (idx, ref_indexer_route) in self.routes.iter().enumerate() {
+                ref_indexer_route.write(&mut routes.borrow().get(idx as u32))?;
             }
         }
-        write_dh_public_key(
-            &self.friends_comm_public_key,
-            &mut to.borrow().init_friends_comm_public_key(),
-        )?;
-        write_rand_value(
-            &self.friends_recent_timestamp,
-            &mut to.borrow().init_friends_recent_timestamp(),
-        )?;
+
+        // Write the requestPrice
+        to.set_request_price(self.request_price);
 
         Ok(())
     }
@@ -810,20 +657,11 @@ mod tests {
         }
     }
 
-    fn create_dummy_connected_friend() -> ConnectedFriend {
-        ConnectedFriend {
-            send_capacity: 0x0123_4567_89ab_cdef,
-            recv_capacity: 0xfedc_ba98_7654_3210,
-            public_key: create_dummy_public_key(),
+    fn create_dummy_indexer_route() -> IndexerRoute {
+        IndexerRoute {
+            neighbors_route: create_dummy_neighbors_route(),
+            app_port: random::<u32>(),
         }
-    }
-
-    fn create_dummy_connected_friends_list() -> Vec<ConnectedFriend> {
-        let num_connected_friends = random::<usize>() % MAX_NUM + 1;
-
-        (0..num_connected_friends).map(|_| {
-            create_dummy_connected_friend()
-        }).collect()
     }
 
     #[test]
@@ -841,6 +679,93 @@ mod tests {
     }
 
     #[test]
+    fn test_request_neighbors_route() {
+        let source_node_public_key = create_dummy_public_key();
+        let destination_node_public_key = create_dummy_public_key();
+
+        let in_request_neighbors_route = RequestNeighborsRoute {
+            source_node_public_key,
+            destination_node_public_key,
+        };
+
+        test_encode_decode!(RequestNeighborsRoute, in_request_neighbors_route);
+    }
+
+    #[test]
+    fn test_response_neighbors_route() {
+        let in_response_neighbors_route = ResponseNeighborsRoute {
+            routes: (0..MAX_NUM)
+                .map(|_| create_dummy_neighbors_route()).collect(),
+        };
+
+        test_encode_decode!(
+            ResponseNeighborsRoute,
+            in_response_neighbors_route
+        );
+    }
+
+    #[test]
+    fn test_request_friends_route() {
+        let in_request_friends_route_direct = RequestFriendsRoute::Direct {
+            source_node_public_key: create_dummy_public_key(),
+            destination_node_public_key: create_dummy_public_key(),
+        };
+
+        let serialized_message =
+            in_request_friends_route_direct.encode().unwrap();
+
+        let out_request_friends_route_direct =
+            RequestFriendsRoute::decode(serialized_message).unwrap();
+
+        assert_eq!(
+            in_request_friends_route_direct,
+            out_request_friends_route_direct
+        );
+
+        let in_request_friends_route_loop_from_friend =
+            RequestFriendsRoute::LoopFromFriend {
+                friend_public_key: create_dummy_public_key(),
+            };
+
+        let serialized_message =
+            in_request_friends_route_loop_from_friend.encode().unwrap();
+
+        let out_request_friends_route_loop_from_friend =
+            RequestFriendsRoute::decode(serialized_message).unwrap();
+
+        assert_eq!(
+            in_request_friends_route_loop_from_friend,
+            out_request_friends_route_loop_from_friend
+        );
+
+        let in_request_friends_route_loop_to_friend =
+            RequestFriendsRoute::LoopToFriend {
+                friend_public_key: create_dummy_public_key(),
+            };
+
+        let serialized_message =
+            in_request_friends_route_loop_to_friend.encode().unwrap();
+
+        let out_request_friends_route_loop_to_friend =
+            RequestFriendsRoute::decode(serialized_message).unwrap();
+
+        assert_eq!(
+            in_request_friends_route_loop_to_friend,
+            out_request_friends_route_loop_to_friend
+        );
+    }
+
+    #[test]
+    fn test_response_friends_route() {
+        let in_response_friends_route = ResponseFriendsRoute {
+            routes: (0..MAX_NUM)
+                .map(|_| create_dummy_friends_route()).collect(),
+        };
+
+        test_encode_decode!(ResponseFriendsRoute, in_response_friends_route);
+    }
+
+    #[test]
     fn test_chain_link() {
         let in_chain_link = create_dummy_chain_link();
 
@@ -854,10 +779,8 @@ mod tests {
             &[fixed_byte; INDEXING_PROVIDER_ID_LEN]
         ).unwrap();
 
-        let mut indexing_provider_states_chain = Vec::new();
-        for _ in 0..MAX_NUM {
-            indexing_provider_states_chain.push(create_dummy_chain_link());
-        }
+        let indexing_provider_states_chain = (0..MAX_NUM)
+            .map(|_| create_dummy_chain_link()).collect::<Vec<_>>();
 
         let in_request_update_state = RequestUpdateState {
             indexing_provider_id,
@@ -880,113 +803,20 @@ mod tests {
     }
 
     #[test]
-    fn test_routes_to_indexer() {
-        let mut routes = Vec::new();
-        for _ in 0..MAX_NUM {
-            routes.push(create_dummy_neighbors_route());
-        }
+    fn test_indexer_route() {
+        let in_indexer_route = create_dummy_indexer_route();
 
-        let in_routes_to_indexer = RoutesToIndexer { routes };
+        test_encode_decode!(IndexerRoute, in_indexer_route);
+    }
+
+    #[test]
+    fn test_routes_to_indexer() {
+        let in_routes_to_indexer = RoutesToIndexer {
+            routes: (0..MAX_NUM)
+                .map(|_| create_dummy_indexer_route()).collect::<Vec<_>>(),
+            request_price: random::<u64>(),
+        };
 
         test_encode_decode!(RoutesToIndexer, in_routes_to_indexer);
-    }
-
-    #[test]
-    fn test_request_neighbors_route() {
-        let source_node_public_key = create_dummy_public_key();
-        let destination_node_public_key = create_dummy_public_key();
-
-        let in_request_neighbors_route = RequestNeighborsRoute {
-            source_node_public_key,
-            destination_node_public_key,
-        };
-
-        test_encode_decode!(RequestNeighborsRoute, in_request_neighbors_route);
-    }
-
-    #[test]
-    fn test_response_neighbors_route() {
-        let in_response_neighbors_route = ResponseNeighborsRoute {
-            routes: (0..MAX_NUM).map(|_| create_dummy_neighbors_route()).collect(),
-            destination_comm_public_key: create_dummy_dh_public_key(),
-            destination_recent_timestamp: create_dummy_rand_value(),
-        };
-
-        test_encode_decode!(ResponseNeighborsRoute, in_response_neighbors_route);
-    }
-
-    #[test]
-    fn test_request_friends_route() {
-        let in_request_friends_route_direct = RequestFriendsRoute::Direct {
-            source_node_public_key: create_dummy_public_key(),
-            destination_node_public_key: create_dummy_public_key(),
-        };
-
-        let serialized_message = in_request_friends_route_direct.encode().unwrap();
-
-        let out_request_friends_route_direct =
-            RequestFriendsRoute::decode(serialized_message).unwrap();
-
-        assert_eq!(in_request_friends_route_direct, out_request_friends_route_direct);
-
-        let in_request_friends_route_loop_from_friend = RequestFriendsRoute::LoopFromFriend {
-            friend_public_key: create_dummy_public_key(),
-        };
-
-        let serialized_message = in_request_friends_route_loop_from_friend.encode().unwrap();
-
-        let out_request_friends_route_loop_from_friend =
-            RequestFriendsRoute::decode(serialized_message).unwrap();
-
-        assert_eq!(
-            in_request_friends_route_loop_from_friend,
-            out_request_friends_route_loop_from_friend
-        );
-
-        let in_request_friends_route_loop_to_friend = RequestFriendsRoute::LoopToFriend {
-            friend_public_key: create_dummy_public_key(),
-        };
-
-        let serialized_message = in_request_friends_route_loop_to_friend.encode().unwrap();
-
-        let out_request_friends_route_loop_to_friend =
-            RequestFriendsRoute::decode(serialized_message).unwrap();
-
-        assert_eq!(
-            in_request_friends_route_loop_to_friend,
-            out_request_friends_route_loop_to_friend
-        );
-    }
-
-    #[test]
-    fn test_response_friends_route() {
-        let in_response_friends_route = ResponseFriendsRoute {
-            routes: (0..MAX_NUM).map(|_| create_dummy_friends_route()).collect(),
-            destination_comm_public_key: create_dummy_dh_public_key(),
-            destination_recent_timestamp: create_dummy_rand_value(),
-        };
-
-        test_encode_decode!(ResponseFriendsRoute, in_response_friends_route);
-    }
-
-    #[test]
-    fn test_connected_friend() {
-        let in_connected_friend = create_dummy_connected_friend();
-
-        test_encode_decode!(ConnectedFriend, in_connected_friend);
-    }
-
-    #[test]
-    fn test_response_indexer_info() {
-        let in_response_indexer_info = ResponseIndexerInfo {
-            connected_neighbors_list: create_dummy_public_keys_list(),
-            neighbors_comm_public_key: create_dummy_dh_public_key(),
-            neighbors_recent_timestamp: create_dummy_rand_value(),
-            connected_friends_list: create_dummy_connected_friends_list(),
-            friends_comm_public_key: create_dummy_dh_public_key(),
-            friends_recent_timestamp: create_dummy_rand_value(),
-        };
-
-        test_encode_decode!(ResponseIndexerInfo, in_response_indexer_info);
     }
 }

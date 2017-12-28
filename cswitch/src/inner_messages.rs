@@ -11,7 +11,7 @@ use ::crypto::symmetric_enc::SymmetricKey;
 use ::crypto::uid::Uid;
 use ::crypto::rand_values::RandValue;
 
-use ::networker::networker_client::NetworkerRespondableRequest;
+use ::networker::networker_client::{NetworkerRespondableRequest, DestPort};
 
 
 // Helper structs
@@ -83,7 +83,6 @@ impl AsRef<[u8]> for IndexingProviderID {
         self.0.as_ref()
     }
 }
-
 
 #[derive(Clone, Debug)]
 pub struct ChannelerAddress {
@@ -203,8 +202,6 @@ pub enum NetworkerToChanneler {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct ResponseFriendsRoute {
     pub routes: Vec<FriendsRoute>,
-    pub destination_comm_public_key: DhPublicKey,
-    pub destination_recent_timestamp: RandValue,
 }
 
 enum IndexerClientToNetworker {
@@ -212,13 +209,11 @@ enum IndexerClientToNetworker {
         request_id: Uid,
         request_content: Vec<u8>,
         neighbors_route: NeighborsRoute,
+        dest_port: DestPort,
         max_response_length: u64,
         processing_fee: u64,
         delivery_fee: u64,
         dest_node_public_key: PublicKey,
-    },
-    IndexerAnnounce {
-        content: Vec<u8>,
     },
     ResponseFriendsRoute(ResponseFriendsRoute)
 }
@@ -231,12 +226,14 @@ enum ResponseSendMessageContent {
     Failure,
 }
 
-pub enum NotifyStructureChangeNeighbors {
+/*
+enum NotifyStructureChangeNeighbors {
     NeighborAdded(PublicKey),
     NeighborRemoved(PublicKey),
     TimestampUpdated(RandValue),
     CommPublicKeyUpdated(PublicKey),
 }
+*/
 
 pub enum NetworkerToIndexerClient<R> {
     /*
@@ -245,7 +242,7 @@ pub enum NetworkerToIndexerClient<R> {
         content: ResponseSendMessageContent,
     },
     */
-    NotifyStructureChange(NotifyStructureChangeNeighbors),
+    // NotifyStructureChange(NotifyStructureChangeNeighbors),
     RequestReceived(NetworkerRespondableRequest<R>),
     RequestFriendsRoute(RequestFriendsRoute),
 
@@ -307,12 +304,6 @@ enum PluginManagerToNetworker {
     RemoveNeighbor {
         neighbor_public_key: PublicKey,
     },
-    IndexerAnnounceSelf {
-        current_time: u64,      // Current perceived time
-        owner_public_key: PublicKey, // Public key of the signing owner.
-        owner_sign_time: u64,   // The time in which the owner has signed
-        owner_signature: Signature, // The signature of the owner over (owner_sign_time || indexer_public_key)
-    },
     SetServerType(ServerType),
 }
 
@@ -363,7 +354,8 @@ pub struct FriendCapacity {
     recv: u64,
 }
 
-pub enum NotifyStructureChangeFriends {
+/*
+enum NotifyStructureChangeFriends {
     // This message is used both to add a new friend and to update the capacity information of a
     // current friend.
     FriendUpdated {
@@ -374,6 +366,7 @@ pub enum NotifyStructureChangeFriends {
     TimestampUpdated(RandValue),
     CommPublicKeyUpdated(PublicKey),
 }
+*/
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum RequestFriendsRoute {
@@ -402,7 +395,7 @@ pub struct RequestNeighborsRoute {
 
 pub enum FunderToIndexerClient {
     RequestNeighborsRoute(RequestNeighborsRoute),
-    NotifyStructureChange(NotifyStructureChangeFriends),
+    // NotifyStructureChange(NotifyStructureChangeFriends),
 }
 
 
@@ -412,8 +405,8 @@ pub enum FunderToIndexerClient {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct ResponseNeighborsRoute {
     pub routes: Vec<NeighborsRoute>,
-    pub destination_comm_public_key: DhPublicKey,
-    pub destination_recent_timestamp: RandValue,
+    // pub destination_comm_public_key: DhPublicKey,
+    // pub destination_recent_timestamp: RandValue,
 }
 
 pub enum IndexerClientToFunder {

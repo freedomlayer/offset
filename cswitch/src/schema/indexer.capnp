@@ -8,6 +8,11 @@ struct NeighborsRoute {
         publicKeys @0: List(CustomUInt256);
 }
 
+struct IndexerRoute {
+        neighborsRoute @0: NeighborsRoute;
+        appPort @1: UInt32;
+}
+
 # Updating states chain
 #######################
 
@@ -32,32 +37,16 @@ struct ResponseUpdateState {
 
 # Indexer -> Node
 struct RoutesToIndexer {
-        routes @0: List(NeighborsRoute);
+        routes @0: List(IndexerRoute);
+        requestPrice @1: UInt64;
 }
 
 
 # Information collection by indexers
 ####################################
 
-# (Indexer -> Node) [Empty message]
-# struct RequestIndexerInfo {
-# }
+# Done by direct requests at funder.capnp and networker.capnp
 
-struct ConnectedFriend {
-        sendCapacity @0: CustomUInt128;
-        recvCapacity @1: CustomUInt128;
-        publicKey @2: CustomUInt256;
-}
-
-# Node -> Indexer
-struct ResponseIndexerInfo {
-        connectedNeighborsList @0: List(CustomUInt256);
-        neighborsCommPublicKey @1: CustomUInt256;
-        neighborsRecentTimestamp @2: CustomUInt128;
-        connectedFriendsList @3: List(ConnectedFriend);
-        friendsCommPublicKey @4: CustomUInt256;
-        friendsRecentTimestamp @5: CustomUInt128;
-}
 
 # Requesting information from indexers
 ######################################
@@ -72,8 +61,8 @@ struct RequestNeighborsRoute {
 # Indexer -> Node
 struct ResponseNeighborsRoute { 
         routes @0: List(NeighborsRoute);
-        destinationCommPublicKey @1: CustomUInt256;
-        destinationRecentTimestamp @2: CustomUInt128;
+        # destinationCommPublicKey @1: CustomUInt256;
+        # destinationRecentTimestamp @2: CustomUInt128;
 }
 
 # Request a direct route of friends from the source node to the destination
@@ -114,6 +103,4 @@ struct FriendsRoute {
 # Indexer -> Node
 struct ResponseFriendsRoute {
         routes @0: List(FriendsRoute);
-        destinationCommPublicKey @1: CustomUInt256;
-        destinationRecentTimestamp @2: CustomUInt128;
 }
