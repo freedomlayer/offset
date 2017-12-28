@@ -92,17 +92,10 @@ pub struct ChannelMessageReceived {
     pub message_content: Vec<u8>,
 }
 
-/*
-struct ResponseNeighborsRelationList {
-    neighbors_relation_list: Vec<NeighborInfo>,
-}
-*/
-
 pub enum ChannelerToNetworker {
     ChannelOpened(ChannelOpened),
     ChannelClosed(ChannelClosed),
     ChannelMessageReceived(ChannelMessageReceived),
-    // ResponseNeighborsRelationList(ResponseNeighborsRelationList),
 }
 
 
@@ -120,11 +113,6 @@ pub enum NetworkerToChanneler {
         neighbor_public_key: PublicKey,
         content: Vec<u8>,
     },
-    /*
-    CloseChannel {
-        neighbor_public_key: PublicKey,
-    },
-    */
     AddNeighbor {
         neighbor_info: ChannelerNeighborInfo,
     },
@@ -135,8 +123,6 @@ pub enum NetworkerToChanneler {
         neighbor_public_key: PublicKey,
         max_channels: u32,
     },
-    // RequestNeighborsRelationList,
-    // SetServerType(ServerType),
 }
 
 // Indexer client to Networker
@@ -166,15 +152,6 @@ enum ResponseSendMessageContent {
     Success(Vec<u8>),
     Failure,
 }
-
-/*
-enum NotifyStructureChangeNeighbors {
-    NeighborAdded(PublicKey),
-    NeighborRemoved(PublicKey),
-    TimestampUpdated(RandValue),
-    CommPublicKeyUpdated(PublicKey),
-}
-*/
 
 enum NetworkerToIndexerClient<R> {
     /*
@@ -270,9 +247,6 @@ enum FunderToNetworker {
 }
 
 
-// Networker to Funder
-// -------------------
-
 enum NetworkerToFunder {
     MessageReceived {
         source_node_public_key: PublicKey,
@@ -287,27 +261,10 @@ enum NetworkerToFunder {
 }
 
 
-// Funder to Indexer Client
-// ------------------------
-
 struct FriendCapacity {
     send: u64,
     recv: u64,
 }
-
-/*
-enum NotifyStructureChangeFriends {
-    // This message is used both to add a new friend and to update the capacity information of a
-    // current friend.
-    FriendUpdated {
-        public_key: PublicKey,
-        capacity: FriendCapacity
-    },
-    FriendRemoved(PublicKey),
-    TimestampUpdated(RandValue),
-    CommPublicKeyUpdated(PublicKey),
-}
-*/
 
 enum RequestFriendsRoute {
     Direct {
@@ -332,12 +289,8 @@ enum FunderToIndexerClient {
         source_node_public_key: PublicKey,
         dest_node_public_key: PublicKey,
     },
-    // NotifyStructureChange(NotifyStructureChangeFriends),
 }
 
-
-// Indexer Client to Funder
-// ------------------------
 
 enum IndexerClientToFunder {
     ResponseNeighborsRoute {
@@ -366,7 +319,7 @@ enum IndexerClientToAppManager {
 }
 
 
-// Funder to Plugin Manager
+// Funder to App Manager
 // ------------------------
 
 // TODO: Not done here:
