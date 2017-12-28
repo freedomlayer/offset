@@ -352,6 +352,9 @@ enum AppManagerToIndexerClient {
     },
     RequestNeighborsRoutes(RequestNeighborsRoutes),
     RequestFriendsRoutes(RequestFriendsRoutes),
+    IndexingProviderStateUpdate {
+        // TODO
+    },
 }
 
 
