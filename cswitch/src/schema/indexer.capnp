@@ -23,12 +23,12 @@ struct ChainLink {
         signaturesByOldOwners @3: List(CustomUInt512);
 }
 
-
 # Indexer -> Node
 struct RequestUpdateState {
-        indexingProviderName @0: CustomUInt128;
+        indexingProviderId @0: CustomUInt128;
         indexingProviderStatesChain @1: List(ChainLink);
-}
+} 
+# This message may be accepted from any node.
 
 # Node -> Indexer
 struct ResponseUpdateState {
@@ -37,9 +37,12 @@ struct ResponseUpdateState {
 
 # Indexer -> Node
 struct RoutesToIndexers {
-        routes @0: List(IndexerRoute);
-        requestPrice @1: UInt64;
+        indexingProviderId @0: CustomUInt128;
+        routes @1: List(IndexerRoute);
+        requestPrice @2: UInt64;
 }
+# This message should be accepted only if the sender is an indexer working for
+# indexingProviderId. Otherwise it will be discarded.
 
 
 # Information collection by indexers
