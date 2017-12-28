@@ -125,7 +125,7 @@ pub enum SendMessageResult {
 pub enum DestPort {
     Funder,
     IndexerClient,
-    PluginManager,
+    AppManager(u32),
 }
 
 /// Component -> Networker
