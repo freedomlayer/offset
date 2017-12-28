@@ -323,12 +323,16 @@ enum IndexerClientToFunder {
     ResponseNeighborsRoutes(ResponseNeighborsRoutes),
 }
 
-struct IndexingProviderInfo {
-    indexing_provider_id: IndexingProviderId,
+struct StateChainLink {
     previous_state_hash: IndexingProviderStateHash,
     new_owners_public_keys: Vec<PublicKey>,
     new_indexers_public_keys: Vec<PublicKey>,
     signatures_by_old_owners: Vec<Signature>,
+}
+
+struct IndexingProviderInfo {
+    id: IndexingProviderId,
+    state_chain_link: StateChainLink,
 }
 
 enum AppManagerToIndexerClient {
@@ -340,9 +344,13 @@ enum AppManagerToIndexerClient {
     RequestFriendsRoutes(RequestFriendsRoutes),
 }
 
+enum IndexingProviderStateUpdate {
+    Add(IndexingProviderInfo),
+    Remove(IndexingProviderId),
+}
 
 enum IndexerClientToAppManager {
-    IndexingProviderStateUpdate(IndexingProviderInfo),
+    IndexingProviderStateUpdate(IndexingProviderStateUpdate),
     ResponseNeighborsRoutes(ResponseNeighborsRoutes),
     ResponseFriendsRoutes(ResponseFriendsRoutes), 
 }
