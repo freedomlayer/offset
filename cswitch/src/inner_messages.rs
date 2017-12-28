@@ -330,6 +330,7 @@ struct StateChainLink {
     signatures_by_old_owners: Vec<Signature>,
 }
 
+
 struct IndexingProviderInfo {
     id: IndexingProviderId,
     state_chain_link: StateChainLink,
@@ -338,7 +339,7 @@ struct IndexingProviderInfo {
 enum AppManagerToIndexerClient {
     AddIndexingProvider(IndexingProviderInfo),
     RemoveIndexingProvider {
-        name: IndexingProviderId,
+        id: IndexingProviderId,
     },
     RequestNeighborsRoutes(RequestNeighborsRoutes),
     RequestFriendsRoutes(RequestFriendsRoutes),
@@ -358,10 +359,20 @@ enum IndexerClientToAppManager {
 enum IndexerClientToDatabase {
     StoreIndexingProvider(IndexingProviderInfo),
     RequestLoadIndexingProvider,
+    StoreRoute {
+        id: IndexingProviderId,
+        route: NeighborsRoute,
+    },
+}
+
+struct IndexingProviderInfoFromDB {
+    id: IndexingProviderId,
+    state_chain_link: StateChainLink,
+    last_routes: Vec<NeighborsRoute>,
 }
 
 enum DatabaseToIndexerClient {
-    ResponseLoadIndexingProviders(Vec<IndexingProviderInfo>)
+    ResponseLoadIndexingProviders(Vec<IndexingProviderInfoFromDB>)
 }
 
 // Funder to App Manager
