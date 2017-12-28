@@ -324,7 +324,7 @@ enum IndexerClientToFunder {
 }
 
 struct IndexingProviderInfo {
-    name: IndexingProviderId,
+    indexing_provider_id: IndexingProviderId,
     previous_state_hash: IndexingProviderStateHash,
     new_owners_public_keys: Vec<PublicKey>,
     new_indexers_public_keys: Vec<PublicKey>,
