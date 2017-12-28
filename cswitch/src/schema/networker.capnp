@@ -39,18 +39,17 @@ struct LoadFundsTran {
         receipt @0: Receipt;
 }
 
-enum DestPort {
-        funder @0;
-        indexerClient @1;
-        pluginManager @2;
-}
 
 struct PlainContent {
         recipientTimestamp @0: CustomUInt128;
         senderTimestamp @1: CustomUInt128;
         senderCommPublicKey @2: CustomUInt256;
-        destPort @3: DestPort;
-        messageContent @4: Data;
+        destPort :union {
+                funder @3: Void;
+                indexerClient @4: Void;
+                appManager @5: UInt32;
+        }
+        messageContent @6: Data;
 }
 
 struct EncMessage {
