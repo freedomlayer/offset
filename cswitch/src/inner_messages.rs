@@ -200,7 +200,7 @@ enum NetworkerToIndexerClient<R> {
 // ---------------------------
 
 
-enum NetworkerToPluginManager {
+enum NetworkerToAppManager {
     SendMessageRequestReceived {
         request_id: Uid,
         source_node_public_key: PublicKey,
@@ -225,7 +225,7 @@ enum NetworkerToPluginManager {
 // ---------------------------
 
 
-enum PluginManagerToNetworker {
+enum AppManagerToNetworker {
     RespondSendMessageRequest {
         request_id: Uid,
         response_content: Vec<u8>,
@@ -353,7 +353,7 @@ struct IndexingProviderInfo {
     signatures_by_old_owners: Vec<Signature>,
 }
 
-enum PluginManagerToIndexerClient {
+enum AppManagerToIndexerClient {
     AddIndexingProvider(IndexingProviderInfo),
     RemoveIndexingProvider {
         name: IndexingProviderId,
@@ -361,7 +361,7 @@ enum PluginManagerToIndexerClient {
 }
 
 
-enum IndexerClientToPluginManager {
+enum IndexerClientToAppManager {
     IndexingProviderUpdated(IndexingProviderInfo),
 }
 
@@ -401,7 +401,7 @@ enum ResponseCloseFriendStatus {
     FailureFriendAlreadyClosed,
 }
 
-enum FunderToPluginManager {
+enum FunderToAppManager {
     FundsReceived {
         source_node_public_key: PublicKey,
         amount: u64,
@@ -448,7 +448,7 @@ enum FunderToPluginManager {
 // Plugin Manager to Funder
 // ------------------------
 
-enum PluginManagerToFunder {
+enum AppManagerToFunder {
     RequestSendFunds {
         request_id: Uid,
         amount: u64,
