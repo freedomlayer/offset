@@ -46,20 +46,6 @@ pub struct NeighborInfo {
     token_channel_capacity: u64,    // Capacity per token channel
 }
 
-struct NeighborTokenChannel {
-    mutual_credit: i64, // TODO: Is this the right type?
-    // Possibly change to bignum?
-
-    // TODO:
-    // - A type for last token
-    // - Keep last operation?
-
-}
-
-struct NeighborTokenChannelInfo {
-    neighbor_info: NeighborInfo,
-    neighbor_token_channels: Vec<NeighborTokenChannel>,
-}
 
 pub struct NeighborsRoute {
     route: Vec<u32>,
