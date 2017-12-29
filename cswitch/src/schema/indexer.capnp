@@ -27,7 +27,7 @@ struct ChainLink {
 struct RequestUpdateState {
         indexingProviderId @0: CustomUInt128;
         indexingProviderStatesChain @1: List(ChainLink);
-} 
+}
 # This message may be accepted from any node.
 
 # Node -> Indexer
@@ -62,7 +62,7 @@ struct RequestNeighborsRoute {
 
 
 # Indexer -> Node
-struct ResponseNeighborsRoute { 
+struct ResponseNeighborsRoute {
         routes @0: List(NeighborsRoute);
         # destinationCommPublicKey @1: CustomUInt256;
         # destinationRecentTimestamp @2: CustomUInt128;
@@ -88,7 +88,7 @@ struct LoopToFriendRoute {
 }
 
 # Node -> Indexer
-struct RequestFriendsRoute { 
+struct RequestFriendsRoute {
         routeType :union {
                 direct @0: DirectRoute;
                 loopFromFriend @1: LoopFromFriendRoute;

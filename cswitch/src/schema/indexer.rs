@@ -4,16 +4,13 @@
 //!
 //! - `NeighborsRoute`
 //! - `FriendsRoute`
-//! - `RequestNeighborsRoute`
-//! - `ResponseNeighborsRoute`
-//! - `RequestFriendsRoute`
-//! - `ResponseFriendsRoute`
+//! - `RequestNeighborsRoutes`
+//! - `ResponseNeighborsRoutes`
+//! - `RequestFriendsRoutes`
+//! - `ResponseFriendsRoutes`
+//! - `StateChainLink`
 
 use std::io;
-
-use crypto::dh::DhPublicKey;
-use crypto::rand_values::RandValue;
-use crypto::identity::{PublicKey, Signature};
 
 use inner_messages::{
     IndexingProviderId,
@@ -29,27 +26,22 @@ use inner_messages::{
 
 use indexer_capnp::*;
 
-use bytes::{BigEndian, ByteOrder, Bytes};
+use bytes::Bytes;
 use capnp::serialize_packed;
 
 use super::{
     Schema,
     SchemaError,
-    read_custom_u_int128,
-    read_custom_u_int256,
-    write_custom_u_int128,
-    write_custom_u_int256,
+    read_indexing_provider_id,
+    write_indexing_provider_id,
+    read_indexing_provider_state_hash,
+    write_indexing_provider_state_hash,
     read_public_key,
     write_public_key,
-    read_rand_value,
-    write_rand_value,
     read_signature,
     write_signature,
-    read_dh_public_key,
-    write_dh_public_key,
     read_public_key_list,
     write_public_key_list,
-    CUSTOM_UINT128_LEN,
 };
 
 impl<'a> Schema<'a> for NeighborsRoute {
@@ -316,10 +308,9 @@ impl<'a> Schema<'a> for StateChainLink {
 
     fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
         // Read the previousStateHash
-        let previous_state_hash_reader = from.get_previous_state_hash()?;
-        let previous_state_hash = IndexingProviderStateHash::from_bytes(
-            &read_custom_u_int256(&previous_state_hash_reader)?
-        ).map_err(|_| SchemaError::Invalid)?;
+        let previous_state_hash = read_indexing_provider_state_hash(
+            &from.get_previous_state_hash()?
+        )?;
 
         // Read the newOwnersPublicKeys
         let new_owners_public_keys =
@@ -350,7 +341,7 @@ impl<'a> Schema<'a> for StateChainLink {
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
         // Write the previousStateHash
-        write_custom_u_int256(
+        write_indexing_provider_state_hash(
             &self.previous_state_hash,
             &mut to.borrow().init_previous_state_hash(),
         )?;
@@ -410,13 +401,13 @@ impl<'a> Schema<'a> for RequestUpdateState {
 
     fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
         // Read the indexingProviderId
-        let indexing_provider_id_reader = from.get_indexing_provider_id()?;
-        let indexing_provider_id = IndexingProviderId::from_bytes(
-            &read_custom_u_int128(&indexing_provider_id_reader)?
-        ).map_err(|_| SchemaError::Invalid)?;
+        let indexing_provider_id = read_indexing_provider_id(
+            &from.get_indexing_provider_id()?
+        )?;
 
         // Read the indexingProviderStatesChain
-        let indexing_provider_states_chain_reader = from.get_indexing_provider_states_chain()?;
+        let indexing_provider_states_chain_reader =
+            from.get_indexing_provider_states_chain()?;
 
         let mut indexing_provider_states_chain = Vec::with_capacity(
             indexing_provider_states_chain_reader.len() as usize
@@ -434,7 +425,7 @@ impl<'a> Schema<'a> for RequestUpdateState {
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
         // Write the indexingProviderId
-        write_custom_u_int128(
+        write_indexing_provider_id(
             &self.indexing_provider_id,
             &mut to.borrow().init_indexing_provider_id(),
         )?;
@@ -468,17 +459,16 @@ impl<'a> Schema<'a> for ResponseUpdateState {
     inject_default_impl!();
 
     fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
-        let state_hash_reader = from.get_state_hash()?;
-
-        let state_hash = IndexingProviderStateHash::from_bytes(
-            &read_custom_u_int256(&state_hash_reader)?
-        ).map_err(|_| SchemaError::Invalid)?;
+        // Read the stateHash
+        let state_hash = read_indexing_provider_state_hash(
+            &from.get_state_hash()?
+        )?;
 
         Ok(ResponseUpdateState { state_hash })
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
-        write_custom_u_int256(
+        write_indexing_provider_state_hash(
             &self.state_hash,
             &mut to.borrow().init_state_hash(),
         )?;
@@ -535,10 +525,9 @@ impl<'a> Schema<'a> for RoutesToIndexer {
 
     fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
         // Read the indexingProviderId
-        let indexing_provider_id_reader = from.get_indexing_provider_id()?;
-        let indexing_provider_id = IndexingProviderId::from_bytes(
-            &read_custom_u_int128(&indexing_provider_id_reader)?
-        ).map_err(|_| SchemaError::Invalid)?;
+        let indexing_provider_id = read_indexing_provider_id(
+            &from.get_indexing_provider_id()?
+        )?;
 
         // Read the routes
         let routes_reader = from.get_routes()?;
@@ -561,7 +550,7 @@ impl<'a> Schema<'a> for RoutesToIndexer {
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
         // Write the indexingProviderId
-        write_custom_u_int128(
+        write_indexing_provider_id(
             &self.indexing_provider_id,
             &mut to.borrow().init_indexing_provider_id(),
         )?;
@@ -586,12 +575,17 @@ impl<'a> Schema<'a> for RoutesToIndexer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crypto::dh::DH_PUBLIC_KEY_LEN;
-    use crypto::rand_values::RAND_VALUE_LEN;
-    use crypto::identity::{PUBLIC_KEY_LEN, SIGNATURE_LEN};
-    use inner_messages::{INDEXING_PROVIDER_STATE_HASH_LEN, INDEXING_PROVIDER_ID_LEN};
-
     use rand::random;
+
+    use crypto::identity::{
+        PublicKey, PUBLIC_KEY_LEN,
+        Signature, SIGNATURE_LEN
+    };
+
+    use inner_messages::{
+        INDEXING_PROVIDER_ID_LEN,
+        INDEXING_PROVIDER_STATE_HASH_LEN
+    };
 
     const MAX_NUM: usize = 512;
 
@@ -603,10 +597,12 @@ mod tests {
         };
     }
 
-    fn create_dummy_rand_value() -> RandValue {
-        let fixed_byte = random::<u8>();
-        RandValue::from_bytes(&[fixed_byte; RAND_VALUE_LEN]).unwrap()
-    }
+    // TODO: Move the create_dummy_* functions to a appropriate place.
+
+    // fn create_dummy_rand_value() -> RandValue {
+    //     let fixed_byte = random::<u8>();
+    //     RandValue::from_bytes(&[fixed_byte; RAND_VALUE_LEN]).unwrap()
+    // }
 
     fn create_dummy_public_key() -> PublicKey {
         let fixed_byte = random::<u8>();
@@ -619,10 +615,10 @@ mod tests {
         (0..num_keys).map(|_| create_dummy_public_key()).collect()
     }
 
-    fn create_dummy_dh_public_key() -> DhPublicKey {
-        let fixed_byte = random::<u8>();
-        DhPublicKey::from_bytes(&[fixed_byte; DH_PUBLIC_KEY_LEN]).unwrap()
-    }
+    // fn create_dummy_dh_public_key() -> DhPublicKey {
+    //     let fixed_byte = random::<u8>();
+    //     DhPublicKey::from_bytes(&[fixed_byte; DH_PUBLIC_KEY_LEN]).unwrap()
+    // }
 
     fn create_dummy_signatures_list() -> Vec<Signature> {
         let num_signatures = random::<usize>() % MAX_NUM + 1;

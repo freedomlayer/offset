@@ -413,7 +413,7 @@ pub enum IndexingProviderStateUpdate {
 pub enum IndexerClientToAppManager {
     IndexingProviderStateUpdate(IndexingProviderStateUpdate),
     ResponseNeighborsRoutes(ResponseNeighborsRoutes),
-    ResponseFriendsRoutes(ResponseFriendsRoutes), 
+    ResponseFriendsRoutes(ResponseFriendsRoutes),
 }
 
 pub enum IndexerClientToDatabase {

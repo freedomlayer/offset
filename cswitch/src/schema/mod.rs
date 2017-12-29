@@ -2,14 +2,16 @@
 //!
 //! # Introduction
 //!
-//! The module is used to encode/decode data for interchanging between `CSwitch` nodes.
+//! The module is used to encode/decode data for interchanging between
+//! `CSwitch` nodes.
+//!
 //! Currently, we use [`capnp`][capnp] as the underlying protocol.
 //!
 //! # Data Format
 //!
-//! ## Common Types
+//! ## Custom Underlying Types
 //!
-//! We have three common types in the low-level, they are:
+//! We have some custom underlying types in the low-level, they are:
 //!
 //! - `CustomUInt128`: A custom made 128 bit data structure;
 //! - `CustomUInt256`: A custom made 256 bit data structure;
@@ -22,6 +24,8 @@
 //! - `RandValue: CustomUInt128`
 //! - `PublicKey: CustomUInt256`
 //! - `DhPublicKey: CustomUInt256`
+//! - `IndexingProviderId: CustomUInt128`
+//! - `IndexingProviderStateHash: CustomUInt256`
 //!
 //! ## Channeler
 //!
@@ -41,6 +45,8 @@ use capnp::struct_list;
 use crypto::rand_values::RandValue;
 use crypto::dh::{Salt, DhPublicKey};
 use crypto::identity::{PublicKey, Signature};
+
+use inner_messages::{IndexingProviderId, IndexingProviderStateHash};
 
 const CUSTOM_UINT128_LEN: usize = 16;
 const CUSTOM_UINT256_LEN: usize = 32;
@@ -328,7 +334,7 @@ pub fn read_public_key_list<'a>(from: &struct_list::Reader<'a, custom_u_int256::
 #[inline]
 pub fn write_public_key_list<'a>(
     from: &Vec<PublicKey>,
-    to: &mut struct_list::Builder<'a,custom_u_int256::Owned>
+    to: &mut struct_list::Builder<'a, custom_u_int256::Owned>
 ) -> Result<(), SchemaError> {
     debug_assert_eq!(from.len(), to.len() as usize);
 
@@ -338,6 +344,40 @@ pub fn write_public_key_list<'a>(
     }
 
     Ok(())
+}
+
+#[inline]
+pub fn read_indexing_provider_id(from: &custom_u_int128::Reader)
+    -> Result<IndexingProviderId, SchemaError> {
+    let indexing_provider_id_bytes = read_custom_u_int128(from)?;
+
+    IndexingProviderId::from_bytes(&indexing_provider_id_bytes)
+        .map_err(|_| SchemaError::Invalid)
+}
+
+#[inline]
+pub fn write_indexing_provider_id(
+    from: &IndexingProviderId,
+    to: &mut custom_u_int128::Builder
+) -> Result<(), SchemaError> {
+    write_custom_u_int128(from, to)
+}
+
+#[inline]
+pub fn read_indexing_provider_state_hash(from: &custom_u_int256::Reader)
+    -> Result<IndexingProviderStateHash, SchemaError> {
+    let indexing_provider_state_hash_bytes = read_custom_u_int256(from)?;
+
+    IndexingProviderStateHash::from_bytes(&indexing_provider_state_hash_bytes)
+        .map_err(|_| SchemaError::Invalid)
+}
+
+#[inline]
+pub fn write_indexing_provider_state_hash(
+    from: &IndexingProviderStateHash,
+    to: &mut custom_u_int256::Builder
+) -> Result<(), SchemaError> {
+    write_custom_u_int256(from, to)
 }
 
 #[cfg(test)]
