@@ -16,14 +16,15 @@ use crypto::rand_values::RandValue;
 use crypto::identity::{PublicKey, Signature};
 
 use inner_messages::{
-    IndexingProviderID,
+    IndexingProviderId,
     IndexingProviderStateHash,
     NeighborsRoute,
     FriendsRoute,
-    RequestNeighborsRoute,
-    ResponseNeighborsRoute,
-    RequestFriendsRoute,
-    ResponseFriendsRoute,
+    RequestNeighborsRoutes,
+    ResponseNeighborsRoutes,
+    RequestFriendsRoutes,
+    ResponseFriendsRoutes,
+    StateChainLink,
 };
 
 use indexer_capnp::*;
@@ -102,7 +103,7 @@ impl<'a> Schema<'a> for FriendsRoute {
     }
 }
 
-impl<'a> Schema<'a> for RequestNeighborsRoute {
+impl<'a> Schema<'a> for RequestNeighborsRoutes {
     type Reader = request_neighbors_route::Reader<'a>;
     type Writer = request_neighbors_route::Builder<'a>;
 
@@ -117,7 +118,7 @@ impl<'a> Schema<'a> for RequestNeighborsRoute {
             &from.get_destination_node_public_key()?
         )?;
 
-        Ok(RequestNeighborsRoute {
+        Ok(RequestNeighborsRoutes {
             source_node_public_key,
             destination_node_public_key,
         })
@@ -138,7 +139,7 @@ impl<'a> Schema<'a> for RequestNeighborsRoute {
     }
 }
 
-impl<'a> Schema<'a> for ResponseNeighborsRoute {
+impl<'a> Schema<'a> for ResponseNeighborsRoutes {
     type Reader = response_neighbors_route::Reader<'a>;
     type Writer = response_neighbors_route::Builder<'a>;
 
@@ -154,7 +155,7 @@ impl<'a> Schema<'a> for ResponseNeighborsRoute {
             routes.push(NeighborsRoute::read(&neighbors_route_reader)?);
         }
 
-        Ok(ResponseNeighborsRoute {
+        Ok(ResponseNeighborsRoutes {
             routes,
         })
     }
@@ -176,7 +177,7 @@ impl<'a> Schema<'a> for ResponseNeighborsRoute {
     }
 }
 
-impl<'a> Schema<'a> for RequestFriendsRoute {
+impl<'a> Schema<'a> for RequestFriendsRoutes {
     type Reader = request_friends_route::Reader<'a>;
     type Writer = request_friends_route::Builder<'a>;
 
@@ -195,7 +196,7 @@ impl<'a> Schema<'a> for RequestFriendsRoute {
                     read_public_key(&direct_reader.get_source_node_public_key()?)?;
                 let destination_node_public_key =
                     read_public_key(&direct_reader.get_destination_node_public_key()?)?;
-                Ok(RequestFriendsRoute::Direct {
+                Ok(RequestFriendsRoutes::Direct {
                     source_node_public_key,
                     destination_node_public_key,
                 })
@@ -205,7 +206,7 @@ impl<'a> Schema<'a> for RequestFriendsRoute {
 
                 let friend_public_key =
                     read_public_key(&loop_from_friend_reader.get_friend_public_key()?)?;
-                Ok(RequestFriendsRoute::LoopFromFriend {
+                Ok(RequestFriendsRoutes::LoopFromFriend {
                     friend_public_key
                 })
             }
@@ -214,7 +215,7 @@ impl<'a> Schema<'a> for RequestFriendsRoute {
 
                 let friend_public_key =
                     read_public_key(&loop_to_friend_reader.get_friend_public_key()?)?;
-                Ok(RequestFriendsRoute::LoopToFriend {
+                Ok(RequestFriendsRoutes::LoopToFriend {
                     friend_public_key
                 })
             }
@@ -225,7 +226,7 @@ impl<'a> Schema<'a> for RequestFriendsRoute {
         let mut route_type_writer = to.borrow().init_route_type();
 
         match *self {
-            RequestFriendsRoute::Direct {
+            RequestFriendsRoutes::Direct {
                 ref source_node_public_key,
                 ref destination_node_public_key
             } => {
@@ -243,7 +244,7 @@ impl<'a> Schema<'a> for RequestFriendsRoute {
                     &mut direct_writer.borrow().init_destination_node_public_key(),
                 )?;
             }
-            RequestFriendsRoute::LoopFromFriend {
+            RequestFriendsRoutes::LoopFromFriend {
                 ref friend_public_key
             } => {
                 let mut loop_from_friend_writer =
@@ -254,7 +255,7 @@ impl<'a> Schema<'a> for RequestFriendsRoute {
 
                 write_public_key(friend_public_key, &mut friend_public_key_writer)?;
             }
-            RequestFriendsRoute::LoopToFriend {
+            RequestFriendsRoutes::LoopToFriend {
                 ref friend_public_key
             } => {
                 let mut loop_to_friend_writer =
@@ -271,7 +272,7 @@ impl<'a> Schema<'a> for RequestFriendsRoute {
     }
 }
 
-impl<'a> Schema<'a> for ResponseFriendsRoute {
+impl<'a> Schema<'a> for ResponseFriendsRoutes {
     type Reader = response_friends_route::Reader<'a>;
     type Writer = response_friends_route::Builder<'a>;
 
@@ -287,7 +288,7 @@ impl<'a> Schema<'a> for ResponseFriendsRoute {
             routes.push(FriendsRoute::read(&friends_route_reader)?);
         }
 
-        Ok(ResponseFriendsRoute {
+        Ok(ResponseFriendsRoutes {
             routes,
         })
     }
@@ -307,15 +308,7 @@ impl<'a> Schema<'a> for ResponseFriendsRoute {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct ChainLink {
-    previous_state_hash: IndexingProviderStateHash,
-    new_owners_public_keys: Vec<PublicKey>,
-    new_indexers_public_keys: Vec<PublicKey>,
-    signatures_by_old_owners: Vec<Signature>,
-}
-
-impl<'a> Schema<'a> for ChainLink {
+impl<'a> Schema<'a> for StateChainLink {
     type Reader = chain_link::Reader<'a>;
     type Writer = chain_link::Builder<'a>;
 
@@ -347,7 +340,7 @@ impl<'a> Schema<'a> for ChainLink {
             signatures_by_old_owners.push(read_signature(&signature_reader)?);
         }
 
-        Ok(ChainLink {
+        Ok(StateChainLink {
             previous_state_hash,
             new_owners_public_keys,
             new_indexers_public_keys,
@@ -405,8 +398,8 @@ impl<'a> Schema<'a> for ChainLink {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct RequestUpdateState {
-    indexing_provider_id: IndexingProviderID,
-    indexing_provider_states_chain: Vec<ChainLink>,
+    indexing_provider_id: IndexingProviderId,
+    indexing_provider_states_chain: Vec<StateChainLink>,
 }
 
 impl<'a> Schema<'a> for RequestUpdateState {
@@ -416,9 +409,9 @@ impl<'a> Schema<'a> for RequestUpdateState {
     inject_default_impl!();
 
     fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
-        // Read the indexingProviderID
+        // Read the indexingProviderId
         let indexing_provider_id_reader = from.get_indexing_provider_id()?;
-        let indexing_provider_id = IndexingProviderID::from_bytes(
+        let indexing_provider_id = IndexingProviderId::from_bytes(
             &read_custom_u_int128(&indexing_provider_id_reader)?
         ).map_err(|_| SchemaError::Invalid)?;
 
@@ -430,7 +423,7 @@ impl<'a> Schema<'a> for RequestUpdateState {
         );
 
         for chain_link_reader in indexing_provider_states_chain_reader.iter() {
-            indexing_provider_states_chain.push(ChainLink::read(&chain_link_reader)?);
+            indexing_provider_states_chain.push(StateChainLink::read(&chain_link_reader)?);
         }
 
         Ok(RequestUpdateState {
@@ -440,7 +433,7 @@ impl<'a> Schema<'a> for RequestUpdateState {
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
-        // Write the indexingProviderID
+        // Write the indexingProviderId
         write_custom_u_int128(
             &self.indexing_provider_id,
             &mut to.borrow().init_indexing_provider_id(),
@@ -529,17 +522,24 @@ impl<'a> Schema<'a> for IndexerRoute {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct RoutesToIndexer {
+    indexing_provider_id: IndexingProviderId,
     routes: Vec<IndexerRoute>,
     request_price: u64,
 }
 
 impl<'a> Schema<'a> for RoutesToIndexer {
-    type Reader = routes_to_indexer::Reader<'a>;
-    type Writer = routes_to_indexer::Builder<'a>;
+    type Reader = routes_to_indexers::Reader<'a>;
+    type Writer = routes_to_indexers::Builder<'a>;
 
     inject_default_impl!();
 
     fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+        // Read the indexingProviderId
+        let indexing_provider_id_reader = from.get_indexing_provider_id()?;
+        let indexing_provider_id = IndexingProviderId::from_bytes(
+            &read_custom_u_int128(&indexing_provider_id_reader)?
+        ).map_err(|_| SchemaError::Invalid)?;
+
         // Read the routes
         let routes_reader = from.get_routes()?;
 
@@ -553,12 +553,19 @@ impl<'a> Schema<'a> for RoutesToIndexer {
         let request_price = from.get_request_price();
 
         Ok(RoutesToIndexer {
+            indexing_provider_id,
             routes,
             request_price,
         })
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+        // Write the indexingProviderId
+        write_custom_u_int128(
+            &self.indexing_provider_id,
+            &mut to.borrow().init_indexing_provider_id(),
+        )?;
+
         // Write the routes
         {
             let mut routes = to.borrow().init_routes(self.routes.len() as u32);
@@ -626,6 +633,13 @@ mod tests {
         }).collect()
     }
 
+    fn create_dummy_indexing_provider_id() -> IndexingProviderId {
+        let fixed_byte = random::<u8>();
+        IndexingProviderId::from_bytes(
+            &[fixed_byte; INDEXING_PROVIDER_ID_LEN]
+        ).unwrap()
+    }
+
     fn create_dummy_neighbors_route() -> NeighborsRoute {
         NeighborsRoute {
             public_keys: create_dummy_public_keys_list()
@@ -639,7 +653,7 @@ mod tests {
         }
     }
 
-    fn create_dummy_chain_link() -> ChainLink {
+    fn create_dummy_chain_link() -> StateChainLink {
         let fixed_byte = random::<u8>();
         let previous_state_hash = IndexingProviderStateHash::from_bytes(
             &[fixed_byte; INDEXING_PROVIDER_STATE_HASH_LEN]
@@ -649,7 +663,7 @@ mod tests {
         let new_indexers_public_keys = create_dummy_public_keys_list();
         let signatures_by_old_owners = create_dummy_signatures_list();
 
-        ChainLink {
+        StateChainLink {
             previous_state_hash,
             new_owners_public_keys,
             new_indexers_public_keys,
@@ -683,30 +697,30 @@ mod tests {
         let source_node_public_key = create_dummy_public_key();
         let destination_node_public_key = create_dummy_public_key();
 
-        let in_request_neighbors_route = RequestNeighborsRoute {
+        let in_request_neighbors_route = RequestNeighborsRoutes {
             source_node_public_key,
             destination_node_public_key,
         };
 
-        test_encode_decode!(RequestNeighborsRoute, in_request_neighbors_route);
+        test_encode_decode!(RequestNeighborsRoutes, in_request_neighbors_route);
     }
 
     #[test]
     fn test_response_neighbors_route() {
-        let in_response_neighbors_route = ResponseNeighborsRoute {
+        let in_response_neighbors_route = ResponseNeighborsRoutes {
             routes: (0..MAX_NUM)
                 .map(|_| create_dummy_neighbors_route()).collect(),
         };
 
         test_encode_decode!(
-            ResponseNeighborsRoute,
+            ResponseNeighborsRoutes,
             in_response_neighbors_route
         );
     }
 
     #[test]
     fn test_request_friends_route() {
-        let in_request_friends_route_direct = RequestFriendsRoute::Direct {
+        let in_request_friends_route_direct = RequestFriendsRoutes::Direct {
             source_node_public_key: create_dummy_public_key(),
             destination_node_public_key: create_dummy_public_key(),
         };
@@ -715,7 +729,7 @@ mod tests {
             in_request_friends_route_direct.encode().unwrap();
 
         let out_request_friends_route_direct =
-            RequestFriendsRoute::decode(serialized_message).unwrap();
+            RequestFriendsRoutes::decode(serialized_message).unwrap();
 
         assert_eq!(
             in_request_friends_route_direct,
@@ -723,7 +737,7 @@ mod tests {
         );
 
         let in_request_friends_route_loop_from_friend =
-            RequestFriendsRoute::LoopFromFriend {
+            RequestFriendsRoutes::LoopFromFriend {
                 friend_public_key: create_dummy_public_key(),
             };
 
@@ -731,7 +745,7 @@ mod tests {
             in_request_friends_route_loop_from_friend.encode().unwrap();
 
         let out_request_friends_route_loop_from_friend =
-            RequestFriendsRoute::decode(serialized_message).unwrap();
+            RequestFriendsRoutes::decode(serialized_message).unwrap();
 
         assert_eq!(
             in_request_friends_route_loop_from_friend,
@@ -739,7 +753,7 @@ mod tests {
         );
 
         let in_request_friends_route_loop_to_friend =
-            RequestFriendsRoute::LoopToFriend {
+            RequestFriendsRoutes::LoopToFriend {
                 friend_public_key: create_dummy_public_key(),
             };
 
@@ -747,7 +761,7 @@ mod tests {
             in_request_friends_route_loop_to_friend.encode().unwrap();
 
         let out_request_friends_route_loop_to_friend =
-            RequestFriendsRoute::decode(serialized_message).unwrap();
+            RequestFriendsRoutes::decode(serialized_message).unwrap();
 
         assert_eq!(
             in_request_friends_route_loop_to_friend,
@@ -757,27 +771,24 @@ mod tests {
 
     #[test]
     fn test_response_friends_route() {
-        let in_response_friends_route = ResponseFriendsRoute {
+        let in_response_friends_route = ResponseFriendsRoutes {
             routes: (0..MAX_NUM)
                 .map(|_| create_dummy_friends_route()).collect(),
         };
 
-        test_encode_decode!(ResponseFriendsRoute, in_response_friends_route);
+        test_encode_decode!(ResponseFriendsRoutes, in_response_friends_route);
     }
 
     #[test]
-    fn test_chain_link() {
-        let in_chain_link = create_dummy_chain_link();
+    fn test_state_chain_link() {
+        let in_state_chain_link = create_dummy_chain_link();
 
-        test_encode_decode!(ChainLink, in_chain_link);
+        test_encode_decode!(StateChainLink, in_state_chain_link);
     }
 
     #[test]
     fn test_request_update_state() {
-        let fixed_byte = random::<u8>();
-        let indexing_provider_id = IndexingProviderID::from_bytes(
-            &[fixed_byte; INDEXING_PROVIDER_ID_LEN]
-        ).unwrap();
+        let indexing_provider_id = create_dummy_indexing_provider_id();
 
         let indexing_provider_states_chain = (0..MAX_NUM)
             .map(|_| create_dummy_chain_link()).collect::<Vec<_>>();
@@ -812,6 +823,7 @@ mod tests {
     #[test]
     fn test_routes_to_indexer() {
         let in_routes_to_indexer = RoutesToIndexer {
+            indexing_provider_id: create_dummy_indexing_provider_id(),
             routes: (0..MAX_NUM)
                 .map(|_| create_dummy_indexer_route()).collect::<Vec<_>>(),
             request_price: random::<u64>(),

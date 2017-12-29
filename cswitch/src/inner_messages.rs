@@ -11,8 +11,6 @@ use ::crypto::symmetric_enc::SymmetricKey;
 use ::crypto::uid::Uid;
 use ::crypto::rand_values::RandValue;
 
-use ::networker::networker_client::{NetworkerRespondableRequest, DestPort};
-
 
 // Helper structs
 // --------------
@@ -54,9 +52,9 @@ impl AsRef<[u8]> for IndexingProviderStateHash {
 
 // The name of an indexing provider.
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub struct IndexingProviderID([u8; INDEXING_PROVIDER_ID_LEN]);
+pub struct IndexingProviderId([u8; INDEXING_PROVIDER_ID_LEN]);
 
-impl IndexingProviderID {
+impl IndexingProviderId {
     pub fn from_bytes<T>(t: &T) -> Result<Self, ()>
         where T: AsRef<[u8]>
     {
@@ -67,7 +65,7 @@ impl IndexingProviderID {
         } else {
             let mut provider_id_bytes = [0; INDEXING_PROVIDER_ID_LEN];
             provider_id_bytes.clone_from_slice(in_bytes);
-            Ok(IndexingProviderID(provider_id_bytes))
+            Ok(IndexingProviderId(provider_id_bytes))
         }
     }
 
@@ -77,7 +75,7 @@ impl IndexingProviderID {
     }
 }
 
-impl AsRef<[u8]> for IndexingProviderID {
+impl AsRef<[u8]> for IndexingProviderId {
     #[inline]
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
@@ -103,20 +101,6 @@ pub struct NeighborInfo {
     token_channel_capacity: u64,    // Capacity per token channel
 }
 
-struct NeighborTokenChannel {
-    mutual_credit: i64, // TODO: Is this the right type?
-    // Possibly change to bignum?
-
-    // TODO:
-    // - A type for last token
-    // - Keep last operation?
-
-}
-
-struct NeighborTokenChannelInfo {
-    neighbor_info: NeighborInfo,
-    neighbor_token_channels: Vec<NeighborTokenChannel>,
-}
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct NeighborsRoute {
@@ -149,17 +133,10 @@ pub struct ChannelMessageReceived {
     pub message_content: Vec<u8>,
 }
 
-/*
-struct ResponseNeighborsRelationList {
-    neighbors_relation_list: Vec<NeighborInfo>,
-}
-*/
-
 pub enum ChannelerToNetworker {
     ChannelOpened(ChannelOpened),
     ChannelClosed(ChannelClosed),
     ChannelMessageReceived(ChannelMessageReceived),
-    // ResponseNeighborsRelationList(ResponseNeighborsRelationList),
 }
 
 
@@ -177,11 +154,6 @@ pub enum NetworkerToChanneler {
         neighbor_public_key: PublicKey,
         content: Vec<u8>,
     },
-    /*
-    CloseChannel {
-        neighbor_public_key: PublicKey,
-    },
-    */
     AddNeighbor {
         neighbor_info: ChannelerNeighborInfo,
     },
@@ -192,74 +164,96 @@ pub enum NetworkerToChanneler {
         neighbor_public_key: PublicKey,
         max_channels: u32,
     },
-    // RequestNeighborsRelationList,
-    // SetServerType(ServerType),
 }
+
+
+// Networker interface
+// -------------------
+
+/// The result of attempting to send a message to a remote Networker.
+pub enum SendMessageResult {
+    Success(Vec<u8>),
+    Failure,
+}
+
+/// Destination port for the packet.
+/// The destination port is used by the destination Networker to know where to forward the received
+/// message.
+pub enum DestPort {
+    Funder,
+    IndexerClient,
+    AppManager(u32),
+}
+
+/// Component -> Networker
+pub struct RequestSendMessage {
+    request_id: Uid,
+    route: NeighborsRoute,
+    dest_port: DestPort,
+    request_data: Vec<u8>,
+    max_response_len: u32,
+    processing_fee_proposal: u64,
+    half_credits_per_byte_proposal: u32,
+}
+
+/// Networker -> Component
+pub struct ResponseSendMessage {
+    request_id: Uid,
+    result: SendMessageResult,
+}
+
+/// Networker -> Component
+pub struct MessageReceived {
+    request_id: Uid,
+    route: NeighborsRoute, // sender_public_key is the first public key on the NeighborsRoute
+    request_data: Vec<u8>,
+    max_response_len: u32,
+    processing_fee_proposal: u64,
+    half_credits_per_byte_proposal: u32,
+}
+
+/// Component -> Networker
+pub struct RespondMessageReceived {
+    request_id: Uid,
+    response_data: Vec<u8>,
+}
+
+/// Component -> Networker
+pub struct DiscardMessageReceived {
+    request_id: Uid,
+}
+
 
 // Indexer client to Networker
 // ---------------------------
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub struct ResponseFriendsRoute {
+pub struct ResponseFriendsRoutes {
     pub routes: Vec<FriendsRoute>,
 }
 
-enum IndexerClientToNetworker {
-    RequestSendMessage {
-        request_id: Uid,
-        request_content: Vec<u8>,
-        neighbors_route: NeighborsRoute,
-        dest_port: DestPort,
-        max_response_length: u64,
-        processing_fee: u64,
-        delivery_fee: u64,
-        dest_node_public_key: PublicKey,
-    },
-    ResponseFriendsRoute(ResponseFriendsRoute)
+pub enum IndexerClientToNetworker {
+    RequestSendMessage(RequestSendMessage),
+    ResponseFriendsRoutes(ResponseFriendsRoutes),
+    ResponseMessageReceived(RespondMessageReceived),
+    DiscardMessageReceived(DiscardMessageReceived),
 }
 
 // Networker to Indexer client
 // ---------------------------
 
-enum ResponseSendMessageContent {
-    Success(Vec<u8>),
-    Failure,
-}
-
-/*
-enum NotifyStructureChangeNeighbors {
-    NeighborAdded(PublicKey),
-    NeighborRemoved(PublicKey),
-    TimestampUpdated(RandValue),
-    CommPublicKeyUpdated(PublicKey),
-}
-*/
-
-pub enum NetworkerToIndexerClient<R> {
-    /*
-    ResponseSendMessage {
-        request_id: Uid,
-        content: ResponseSendMessageContent,
-    },
-    */
-    // NotifyStructureChange(NotifyStructureChangeNeighbors),
-    RequestReceived(NetworkerRespondableRequest<R>),
-    RequestFriendsRoute(RequestFriendsRoute),
-
-    /*
-    MessageReceived {
-        source_node_public_key: PublicKey,
-        message_content: Vec<u8>,
-    },
-    */
+pub enum NetworkerToIndexerClient {
+    ResponseSendMessage(ResponseSendMessage),
+    MessageReceived(MessageReceived),
+    RequestFriendsRoutes(RequestFriendsRoutes),
 }
 
 
-// Networker to Plugin Manager
+// Networker to App Manager
 // ---------------------------
 
 
-enum NetworkerToPluginManager {
+enum NetworkerToAppManager {
     SendMessageRequestReceived {
         request_id: Uid,
         source_node_public_key: PublicKey,
@@ -280,11 +274,11 @@ enum NetworkerToPluginManager {
     },
 }
 
-// Plugin Manager to Networker
+// App Manager to Networker
 // ---------------------------
 
 
-enum PluginManagerToNetworker {
+enum AppManagerToNetworker {
     RespondSendMessageRequest {
         request_id: Uid,
         response_content: Vec<u8>,
@@ -329,9 +323,6 @@ enum FunderToNetworker {
 }
 
 
-// Networker to Funder
-// -------------------
-
 enum NetworkerToFunder {
     MessageReceived {
         source_node_public_key: PublicKey,
@@ -354,22 +345,8 @@ pub struct FriendCapacity {
     recv: u64,
 }
 
-/*
-enum NotifyStructureChangeFriends {
-    // This message is used both to add a new friend and to update the capacity information of a
-    // current friend.
-    FriendUpdated {
-        public_key: PublicKey,
-        capacity: FriendCapacity
-    },
-    FriendRemoved(PublicKey),
-    TimestampUpdated(RandValue),
-    CommPublicKeyUpdated(PublicKey),
-}
-*/
-
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub enum RequestFriendsRoute {
+pub enum RequestFriendsRoutes {
     Direct {
         source_node_public_key: PublicKey,
         destination_node_public_key: PublicKey,
@@ -388,53 +365,77 @@ pub enum RequestFriendsRoute {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub struct RequestNeighborsRoute {
+pub struct RequestNeighborsRoutes {
     pub source_node_public_key: PublicKey,
     pub destination_node_public_key: PublicKey,
 }
 
 pub enum FunderToIndexerClient {
-    RequestNeighborsRoute(RequestNeighborsRoute),
-    // NotifyStructureChange(NotifyStructureChangeFriends),
+    RequestNeighborsRoute(RequestNeighborsRoutes),
 }
 
-
-// Indexer Client to Funder
-// ------------------------
-
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub struct ResponseNeighborsRoute {
+pub struct ResponseNeighborsRoutes {
     pub routes: Vec<NeighborsRoute>,
-    // pub destination_comm_public_key: DhPublicKey,
-    // pub destination_recent_timestamp: RandValue,
 }
 
 pub enum IndexerClientToFunder {
-    ResponseNeighborsRoute(ResponseNeighborsRoute)
+    ResponseNeighborsRoute(ResponseNeighborsRoutes)
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct StateChainLink {
+    pub previous_state_hash: IndexingProviderStateHash,
+    pub new_owners_public_keys: Vec<PublicKey>,
+    pub new_indexers_public_keys: Vec<PublicKey>,
+    pub signatures_by_old_owners: Vec<Signature>,
 }
 
 pub struct IndexingProviderInfo {
-    name: IndexingProviderID,
-    previous_state_hash: IndexingProviderStateHash,
-    new_owners_public_keys: Vec<PublicKey>,
-    new_indexers_public_keys: Vec<PublicKey>,
-    signatures_by_old_owners: Vec<Signature>,
+    id: IndexingProviderId,
+    state_chain_link: StateChainLink,
 }
 
-pub enum PluginManagerToIndexerClient {
+pub enum AppManagerToIndexerClient {
     AddIndexingProvider(IndexingProviderInfo),
     RemoveIndexingProvider {
-        name: IndexingProviderID,
+        id: IndexingProviderId,
+    },
+    RequestNeighborsRoutes(RequestNeighborsRoutes),
+    RequestFriendsRoutes(RequestFriendsRoutes),
+}
+
+pub enum IndexingProviderStateUpdate {
+    Add(IndexingProviderInfo),
+    Remove(IndexingProviderId),
+}
+
+pub enum IndexerClientToAppManager {
+    IndexingProviderStateUpdate(IndexingProviderStateUpdate),
+    ResponseNeighborsRoutes(ResponseNeighborsRoutes),
+    ResponseFriendsRoutes(ResponseFriendsRoutes), 
+}
+
+pub enum IndexerClientToDatabase {
+    StoreIndexingProvider(IndexingProviderInfo),
+    RequestLoadIndexingProvider,
+    StoreRoute {
+        id: IndexingProviderId,
+        route: NeighborsRoute,
     },
 }
 
-
-pub enum IndexerClientToPluginManager {
-    IndexingProviderUpdated(IndexingProviderInfo),
+pub struct IndexingProviderInfoFromDB {
+    id: IndexingProviderId,
+    state_chain_link: StateChainLink,
+    last_routes: Vec<NeighborsRoute>,
 }
 
+pub enum DatabaseToIndexerClient {
+    ResponseLoadIndexingProviders(Vec<IndexingProviderInfoFromDB>)
+}
 
-// Funder to Plugin Manager
+// Funder to App Manager
 // ------------------------
 
 // TODO: Not done here:
@@ -469,7 +470,7 @@ enum ResponseCloseFriendStatus {
     FailureFriendAlreadyClosed,
 }
 
-enum FunderToPluginManager {
+enum FunderToAppManager {
     FundsReceived {
         source_node_public_key: PublicKey,
         amount: u64,
@@ -513,10 +514,10 @@ enum FunderToPluginManager {
 }
 
 
-// Plugin Manager to Funder
+// App Manager to Funder
 // ------------------------
 
-enum PluginManagerToFunder {
+enum AppManagerToFunder {
     RequestSendFunds {
         request_id: Uid,
         amount: u64,
@@ -548,8 +549,6 @@ enum PluginManagerToFunder {
 }
 
 
-// TODO: Should pather report about closed path?
-// How to do this reliably?
 
 // Security Module
 // ---------------
@@ -559,44 +558,17 @@ pub enum FromSecurityModule {
     ResponseSign {
         signature: Signature,
     },
-    /*
-    ResponseVerify {
-        request_id: Uid,
-        result: bool,
-    },
-    */
     ResponsePublicKey {
         public_key: PublicKey,
     },
-    /*
-    ResponseSymmetricKey {
-        request_id: Uid,
-        symmetric_key: SymmetricKey,
-    },
-    */
 }
 
 pub enum ToSecurityModule {
     RequestSign {
         message: Vec<u8>,
     },
-    /*
-    RequestVerify {
-        request_id: Uid,
-        message: Vec<u8>,
-        public_key: PublicKey,
-        signature: Signature,
-    },
-    */
     RequestPublicKey {
     },
-    /*
-    RequestSymmetricKey {
-        request_id: Uid,
-        public_key: PublicKey,
-        salt: Salt,
-    },
-    */
 }
 
 // Timer

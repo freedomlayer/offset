@@ -1,20 +1,21 @@
 #![allow(unused)]
 use futures::{Future, Poll, Async};
 use futures::sync::mpsc;
-
 use tokio_core::reactor::Handle;
 
 use inner_messages::{
+    IndexerClientToNetworker,
     NetworkerToIndexerClient,
     FromTimer,
-    PluginManagerToIndexerClient,
-    IndexerClientToPluginManager,
+    AppManagerToIndexerClient,
+    IndexerClientToAppManager,
     FunderToIndexerClient,
     IndexerClientToFunder,
+    DatabaseToIndexerClient,
+    IndexerClientToDatabase,
 };
 
 use close_handle::CloseHandle;
-use networker::networker_client::NetworkerSenderClientTrait;
 
 #[derive(Debug)]
 pub struct IndexerClient {}
@@ -31,19 +32,17 @@ impl Future for IndexerClient {
     }
 }
 
-fn create_indexer_client<S: NetworkerSenderClientTrait, R>(
+fn create_indexer_client(
     handle: &Handle,
-    networker_sender_client: S,
-    networker_receiver: mpsc::Receiver<NetworkerToIndexerClient<R>>,
+    networker_sender: mpsc::Sender<IndexerClientToNetworker>,
+    networker_receiver: mpsc::Receiver<NetworkerToIndexerClient>,
     timer_receiver: mpsc::Receiver<FromTimer>,
-    plugin_manager_receiver: mpsc::Receiver<PluginManagerToIndexerClient>,
-    plugin_manager_sender: mpsc::Sender<IndexerClientToPluginManager>,
+    app_manager_receiver: mpsc::Receiver<AppManagerToIndexerClient>,
+    app_manager_sender: mpsc::Sender<IndexerClientToAppManager>,
     funder_receiver: mpsc::Receiver<FunderToIndexerClient>,
-    funder_sender: mpsc::Sender<IndexerClientToFunder>
+    funder_sender: mpsc::Sender<IndexerClientToFunder>,
+    database_receiver: mpsc::Receiver<DatabaseToIndexerClient>,
+    database_sender: mpsc::Sender<IndexerClientToDatabase>
 ) -> (CloseHandle, IndexerClient) {
-    // TODO: 
-    // - Possibly Create a nice interface for Funder and Networker to request routes.
-
     unimplemented!()
 }
-
