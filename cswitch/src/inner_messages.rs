@@ -332,7 +332,7 @@ enum NetworkerToFunder {
         request_id: Uid,
         amount: u64,
         message_content: Vec<u8>,
-        dest_node_public_key: PublicKey,
+        destination_node_public_key: PublicKey,
     },
 }
 
@@ -522,7 +522,7 @@ enum AppManagerToFunder {
         request_id: Uid,
         amount: u64,
         message_content: Vec<u8>,
-        dest_node_public_key: PublicKey,
+        destination_node_public_key: PublicKey,
     },
     RequestAddFriend {
         request_id: Uid,
