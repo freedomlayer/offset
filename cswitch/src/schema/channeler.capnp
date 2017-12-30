@@ -31,6 +31,7 @@ enum MessageType {
 }
 
 struct EncryptMessage {
+   # TODO (CR): Change incCounter into 128 bit counter. 64 bits is too short?
    incCounter  @0: UInt64;
    randPadding @1: Data;
    messageType @2: MessageType;
