@@ -40,3 +40,8 @@ mod schema;
 use schema::common_capnp;
 use schema::indexer_capnp;
 use schema::channeler_capnp;
+
+#[macro_use]
+mod macros;
+
+mod service;

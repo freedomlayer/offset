@@ -392,8 +392,8 @@ pub struct StateChainLink {
 }
 
 pub struct IndexingProviderInfo {
-    id: IndexingProviderId,
-    state_chain_link: StateChainLink,
+    pub id: IndexingProviderId,
+    pub state_chain_link: StateChainLink,
 }
 
 pub enum AppManagerToIndexerClient {
