@@ -89,7 +89,7 @@ struct ResponseSendMessageTran {
         # Signature{key=recipientKey}(
         #   "MESSAGE_SUCCESS" ||
         #   requestId ||
-        #   sha512/256(nodeIdPath) ||
+        #   sha512/256(route) ||
         #   sha512/256(requestContent) ||
         #   maxResponseLength ||
         #   processingFeeProposal ||
@@ -104,7 +104,7 @@ struct FailedSendMessageTran {
         # Signature{key=reportingNodePublicKey}(
         #   "MESSAGE_FAILURE" ||
         #   requestId ||
-        #   sha512/256(nodeIdPath) ||
+        #   sha512/256(route) ||
         #   sha512/256(requestContent) ||
         #   maxResponseLength ||
         #   processingFeeProposal ||
