@@ -19,6 +19,7 @@ extern crate byteorder;
 extern crate tokio_core;
 extern crate tokio_io;
 extern crate futures_mutex;
+extern crate rusqlite;
 
 pub mod crypto;
 
@@ -45,3 +46,4 @@ use schema::channeler_capnp;
 mod macros;
 
 mod service;
+mod db_service;

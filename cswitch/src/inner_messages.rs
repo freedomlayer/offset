@@ -548,6 +548,21 @@ enum AppManagerToFunder {
     }
 }
 
+pub enum FunderToDatabase {
+    // TODO:
+}
+
+pub enum DatabaseToFunder {
+    // TODO:
+}
+
+pub enum NetworkerToDatabase {
+    // TODO:
+}
+
+pub enum DatabaseToNetworker {
+    // TODO:
+}
 
 
 // Security Module
