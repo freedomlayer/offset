@@ -71,7 +71,7 @@ impl<S, R> ServiceClient<S, R> {
         }).and_then(|acquire_fut| {
             acquire_fut.map_err(|e| {
                 match e {
-                    AsyncMutexError::FuncError(client_response_error) => client_response_error,
+                    AsyncMutexError::Function(client_response_error) => client_response_error,
                     _ => ServiceClientError::AcquireFailed,
                 }
             })
