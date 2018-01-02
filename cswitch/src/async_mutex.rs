@@ -23,8 +23,7 @@ pub struct AsyncMutex<T> {
 
 #[derive(Debug)]
 pub enum AcquireError {
-    SendFailed,
-    WaiterCanceled,
+    SenderCanceled,
     ResourceBroken,
 }
 
@@ -49,7 +48,8 @@ enum AcquireFutureState<T, F, G> {
 
 #[derive(Debug)]
 #[must_use = "futures do nothing unless polled"]
-pub struct AcquireFuture<T, F, G> {
+pub struct AcquireFuture<T, F, G>
+{
     inner: Rc<Inner<T>>,
     state: AcquireFutureState<T, F, G>,
 }
@@ -72,36 +72,32 @@ impl<T> AsyncMutex<T> {
     /// where `t` is the original `resource`, and `output` is custom output.
     ///
     /// This function returns a future that resolves to the value given at output.
-    pub fn acquire<F, B, E, G, O>(&self, f: F) -> Result<AcquireFuture<T, F, G>, AcquireError>
+    pub fn acquire<F, B, E, G, O>(&self, f: F) -> impl Future<Item=O, Error=AsyncMutexError<E>>
         where
             F: FnOnce(T) -> B,
             G: Future<Item=(T, O), Error=E>,
             B: IntoFuture<Item=G::Item, Error=G::Error, Future=G>,
     {
-        if *self.inner.broken.borrow() {
-            Err(AcquireError::ResourceBroken)
-        } else {
-            match self.inner.bucket.replace(None) {
-                None => {
-                    // If the resource is `None`, there will be two cases:
-                    //
-                    // 1. The resource is being used, **and there are NO other waiters**.
-                    // 2. The resource is being used, **and there are other waiters**.
-                    let (sender, receiver) = oneshot::channel::<T>();
-                    self.inner.waiters.push(sender);
+        match self.inner.bucket.replace(None) {
+            None => {
+                // If the resource is `None`, there will be two cases:
+                //
+                // 1. The resource is being used, **and there are NO other waiters**.
+                // 2. The resource is being used, **and there are other waiters**.
+                let (sender, receiver) = oneshot::channel::<T>();
+                self.inner.waiters.push(sender);
 
-                    Ok(AcquireFuture {
-                        inner: Rc::clone(&self.inner),
-                        state: AcquireFutureState::WaitResource((receiver, f)),
-                    })
+                AcquireFuture {
+                    inner: Rc::clone(&self.inner),
+                    state: AcquireFutureState::WaitResource((receiver, f)),
                 }
-                Some(t) => {
-                    assert!(self.inner.waiters.is_empty());
+            }
+            Some(t) => {
+                assert!(self.inner.waiters.is_empty());
 
-                    Ok(AcquireFuture {
-                        inner: Rc::clone(&self.inner),
-                        state: AcquireFutureState::WaitFunction(f(t).into_future()),
-                    })
+                AcquireFuture::<_, F, _> {
+                    inner: Rc::clone(&self.inner),
+                    state: AcquireFutureState::WaitFunction(f(t).into_future()),
                 }
             }
         }
@@ -122,6 +118,12 @@ impl<T, F, B, G, E, O> Future for AcquireFuture<T, F, G>
             match mem::replace(&mut self.state, AcquireFutureState::Empty) {
                 AcquireFutureState::Empty => unreachable!(),
                 AcquireFutureState::WaitResource((mut receiver, f)) => {
+                    if *self.inner.broken.borrow() {
+                        while let Some(waiter) = self.inner.waiters.try_pop() {
+                            drop(waiter);
+                        }
+                        return Err(AsyncMutexError::Acquire(AcquireError::ResourceBroken));
+                    }
                     match receiver.poll() {
                         Ok(Async::Ready(t)) => {
                             trace!("AcquireFutureState::WaitResource -- Ready");
@@ -135,7 +137,7 @@ impl<T, F, B, G, E, O> Future for AcquireFuture<T, F, G>
                             return Ok(Async::NotReady);
                         }
                         Err(oneshot::Canceled) => {
-                            return Err(AsyncMutexError::Acquire(AcquireError::WaiterCanceled));
+                            return Err(AsyncMutexError::Acquire(AcquireError::SenderCanceled));
                         }
                     }
                 }
@@ -218,7 +220,7 @@ mod tests {
         let task1 = async_mutex.acquire(|mut num_cell| -> Result<_, ()> {
             num_cell.num += 1;
             Ok((num_cell, ()))
-        }).unwrap();
+        });
 
         handle.spawn(task1.map_err(|_| ()));
 
@@ -226,12 +228,12 @@ mod tests {
             let _task2 = async_mutex.acquire(|mut num_cell| -> Result<_, ()> {
                 num_cell.num += 1;
                 Ok((num_cell, ()))
-            }).unwrap();
+            });
 
             let _task3 = async_mutex.acquire(|mut num_cell| -> Result<_, ()> {
                 num_cell.num += 1;
                 Ok((num_cell, ()))
-            }).unwrap();
+            });
         }
 
         let task4 = async_mutex.acquire(|mut num_cell| -> Result<_, ()> {
@@ -239,7 +241,7 @@ mod tests {
 
             let num = num_cell.num;
             Ok((num_cell, num))
-        }).unwrap();
+        });
 
         assert_eq!(core.run(task4).unwrap(), 2);
     }
@@ -259,7 +261,7 @@ mod tests {
 
                 num_cell.num += 1;
                 Ok((num_cell, ()))
-            }).unwrap();
+            });
 
             handle.spawn(task.map_err(|_| ()));
         }
@@ -268,7 +270,7 @@ mod tests {
             num_cell.num += 1;
             let num = num_cell.num;
             Ok((num_cell, num))
-        }).unwrap();
+        });
 
         assert_eq!(core.run(task).unwrap(), N + 1);
     }
@@ -287,12 +289,12 @@ mod tests {
                 assert_eq!(num_cell.num, 1);
                 num_cell.num += 1;
                 Ok((num_cell, ()))
-            }).unwrap();
+            });
             handle.spawn(nested_task.map_err(|_: AsyncMutexError<()>| ()));
 
             let num = num_cell.num;
             Ok((num_cell, num))
-        }).unwrap();
+        });
 
         assert_eq!(core.run(task).unwrap(), 1);
     }
@@ -307,18 +309,16 @@ mod tests {
             num_cell.num += 1;
             let num = num_cell.num;
             Ok((num_cell, num))
-        }).unwrap();
+        });
 
         let task2 = async_mutex.acquire(|_| -> Result<(_, ()), ()> {
             Err(())
-        }).unwrap();
+        });
 
         let task3 = async_mutex.acquire(|mut num_cell| -> Result<_, ()> {
             num_cell.num += 1;
             Ok((num_cell, ()))
-        }).into_future().map_err(|_: AcquireError| ()).and_then(|acquire_fut| {
-            acquire_fut.map_err(|_| ())
-        });
+        }).map_err(|_| ());
 
         assert_eq!(core.run(task1).unwrap(), 1);
         assert!(core.run(task2).is_err());

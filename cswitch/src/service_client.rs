@@ -66,15 +66,11 @@ impl<S, R> ServiceClient<S, R> {
                 };
                 Ok((ServiceClientInner { sender, receiver }, item))
             })
-        }).into_future().map_err(|_| {
-            ServiceClientError::AcquireFailed
-        }).and_then(|acquire_fut| {
-            acquire_fut.map_err(|e| {
-                match e {
-                    AsyncMutexError::Function(client_response_error) => client_response_error,
-                    _ => ServiceClientError::AcquireFailed,
-                }
-            })
+        }).map_err(|e| {
+            match e {
+                AsyncMutexError::Function(client_resp_err) => client_resp_err,
+                _ => ServiceClientError::AcquireFailed,
+            }
         })
     }
 }
