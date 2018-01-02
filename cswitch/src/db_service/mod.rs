@@ -22,11 +22,15 @@
 //! ### TABLE: `IndexingProviders`
 //!
 
-use std::{io, mem};
+use std::io;
 use std::path::Path;
 
 use futures::prelude::*;
+use futures::future::join_all;
 use futures::sync::{mpsc, oneshot};
+
+use tokio_core::reactor::Handle;
+
 use rusqlite::{self, Connection, OpenFlags};
 
 use inner_messages::{
@@ -40,35 +44,17 @@ use inner_messages::{
 
 use close_handle::{CloseHandle, create_close_handle};
 
-enum State {
-    Living,
-    Closing(Box<Future<Item=(), Error=DBServiceError>>),
-    Empty,
-}
-
-pub struct DBService {
-    conn: Option<Connection>,
-    state: State,
-
-    funder_sender: mpsc::Sender<DatabaseToFunder>,
-    funder_receiver: mpsc::Receiver<FunderToDatabase>,
-    networker_sender: mpsc::Sender<DatabaseToNetworker>,
-    networker_receiver: mpsc::Receiver<NetworkerToDatabase>,
-    indexer_client_sender: mpsc::Sender<DatabaseToIndexerClient>,
-    indexer_client_receiver: mpsc::Receiver<IndexerClientToDatabase>,
-
-    close_sender: Option<oneshot::Sender<()>>,
-    close_receiver: oneshot::Receiver<()>,
-
-    buffered_msg_to_funder: Option<DatabaseToFunder>,
-    buffered_msg_to_networker: Option<DatabaseToNetworker>,
-    buffered_msg_to_indexer_client: Option<DatabaseToIndexerClient>,
-}
-
 #[derive(Debug)]
 pub enum DBServiceError {
     Io(io::Error),
     Sqlite(::rusqlite::Error),
+    CloseReceiverCanceled,
+    RecvFromFunderFailed,
+    RecvFromNetworkerFailed,
+    RecvFromIndexerClientFailed,
+    SendToFunderFailed,
+    SendToNetworkerFailed,
+    SendToIndexerClientFailed,
     SendCloseNotificationFailed,
 }
 
@@ -84,256 +70,148 @@ impl From<rusqlite::Error> for DBServiceError {
     }
 }
 
-impl DBService {
-    /// Create a new `DBService` from the given path.
-    ///
-    /// If the given `path` doesn't point to a valid SQLite database,
-    /// an error will be returned.
-    pub fn new<P: AsRef<Path>>(
-        path: P,
-        funder_sender: mpsc::Sender<DatabaseToFunder>,
-        funder_receiver: mpsc::Receiver<FunderToDatabase>,
-        networker_sender: mpsc::Sender<DatabaseToNetworker>,
-        networker_receiver: mpsc::Receiver<NetworkerToDatabase>,
-        indexer_client_sender: mpsc::Sender<DatabaseToIndexerClient>,
-        indexer_client_receiver: mpsc::Receiver<IndexerClientToDatabase>,
-    ) -> Result<(CloseHandle, DBService), DBServiceError> {
-        let conn = Connection::open_with_flags(
-            path,
-            OpenFlags::SQLITE_OPEN_READ_WRITE
-        )?;
+fn create_indexer_client_reader(
+    sender: mpsc::Sender<DatabaseToIndexerClient>,
+    receiver: mpsc::Receiver<IndexerClientToDatabase>,
+) -> (CloseHandle, impl Future<Item=(), Error=DBServiceError>) {
+    let (close_handle, (close_sender, close_receiver)) = create_close_handle();
 
-        if !verify_database(&conn) {
-            Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid database").into())
-        } else {
-            let (close_handle, (close_sender, close_receiver)) = create_close_handle();
-
-            let db_service = DBService {
-                conn: Some(conn),
-                state: State::Living,
-
-                funder_sender,
-                funder_receiver,
-                networker_sender,
-                networker_receiver,
-                indexer_client_sender,
-                indexer_client_receiver,
-
-                close_sender: Some(close_sender),
-                close_receiver,
-
-                buffered_msg_to_funder: None,
-                buffered_msg_to_networker: None,
-                buffered_msg_to_indexer_client: None,
-            };
-
-            Ok((close_handle, db_service))
-        }
-    }
-
-    fn handle_networker_msg(&mut self, msg: NetworkerToDatabase) {
-        debug_assert!(self.buffered_msg_to_networker.is_none());
-        unimplemented!()
-    }
-
-    fn handle_funder_msg(&mut self, msg: FunderToDatabase) {
-        debug_assert!(self.buffered_msg_to_funder.is_none());
-        unimplemented!()
-    }
-
-    fn handle_indexer_client_msg(&mut self, msg: IndexerClientToDatabase) {
-        debug_assert!(self.buffered_msg_to_indexer_client.is_none());
+    let reader = receiver.map_err(|_| {
+        DBServiceError::RecvFromIndexerClientFailed
+    }).for_each(|msg| {
         match msg {
-            IndexerClientToDatabase::RequestLoadIndexingProvider => {
-
-            }
-            IndexerClientToDatabase::StoreIndexingProvider(info) => {
-
-            }
-            IndexerClientToDatabase::StoreRoute { id, route } => {
-
-            }
+            IndexerClientToDatabase::RequestLoadIndexingProvider => {}
+            IndexerClientToDatabase::StoreIndexingProvider(info) => {}
+            IndexerClientToDatabase::StoreRoute { id, route } => {}
         }
 
-        unimplemented!()
-    }
+        Ok(())
+    });
 
-    fn start_close(&mut self) -> Poll<(), DBServiceError> {
-        self.funder_receiver.close();
-        self.networker_receiver.close();
-        self.indexer_client_receiver.close();
-
-        let conn = self.conn.take().expect("Attempted to start close twice!");
-
-        let close_sender =
-            self.close_sender.take().expect("Attempted to start close twice!");
-
-        let mut close_fut = Ok(()).into_future()
-            .and_then(move |_| {
-                if close_sender.send(()).is_err() {
-                    Err(DBServiceError::SendCloseNotificationFailed)
-                } else {
-                    Ok(())
-                }
-            });
-
-        match close_fut.poll()? {
-            Async::Ready(()) => {
-                trace!("DB Service closed!");
-                Ok(Async::Ready(()))
-            },
-            Async::NotReady => {
-                self.state = State::Closing(Box::new(close_fut));
-                Ok(Async::NotReady)
+    let united_reader = close_receiver
+        .map_err(|_: oneshot::Canceled| {
+            DBServiceError::CloseReceiverCanceled
+        })
+        .select(reader)
+        .map_err(move |(reader_error, _)| reader_error)
+        .and_then(|_| {
+            if close_sender.send(()).is_err() {
+                Err(DBServiceError::SendCloseNotificationFailed)
+            } else {
+                Ok(())
             }
-        }
-    }
+        });
+
+    (close_handle, united_reader)
 }
 
-impl Future for DBService {
-    type Item = ();
-    type Error = DBServiceError;
+pub fn create_db_service<P: AsRef<Path>>(
+    path: P,
+    handle: &Handle,
+    funder_sender: mpsc::Sender<DatabaseToFunder>,
+    funder_receiver: mpsc::Receiver<FunderToDatabase>,
+    networker_sender: mpsc::Sender<DatabaseToNetworker>,
+    networker_receiver: mpsc::Receiver<NetworkerToDatabase>,
+    indexer_client_sender: mpsc::Sender<DatabaseToIndexerClient>,
+    indexer_client_receiver: mpsc::Receiver<IndexerClientToDatabase>,
+) -> Result<(CloseHandle, impl Future<Item=(), Error=DBServiceError>), DBServiceError> {
+    let conn = Connection::open_with_flags(
+        path,
+        OpenFlags::SQLITE_OPEN_READ_WRITE,
+    )?;
 
-    fn poll(&mut self) -> Poll<(), DBServiceError> {
-        match mem::replace(&mut self.state, State::Empty) {
-            State::Empty => unreachable!(),
-            State::Closing(mut closing_fut) => {
-                match closing_fut.poll()? {
-                    Async::Ready(_) => {
-                        trace!("DBService closed!");
-                        return Ok(Async::Ready(()))
-                    }
-                    Async::NotReady => {
-                        self.state = State::Closing(closing_fut);
-                        return Ok(Async::NotReady);
-                    }
-                }
-            }
-            State::Living => {
-                self.state = State::Living;
-            }
-        }
+    if !verify_database(&conn) {
+        Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid database").into())
+    } else {
+        let (close_handle, (close_sender, close_receiver)) = create_close_handle();
 
-        // If we've got some items buffered already, we need to write them to the
-        // sink before we can do anything else
-        if let Some(msg) = self.buffered_msg_to_funder.take() {
-            match self.funder_sender.start_send(msg) {
-                Err(_) => {
-                    error!("an error occurred when trying to send message to funder, closing");
-                    return self.start_close();
-                }
-                Ok(AsyncSink::Ready) => (),
-                Ok(AsyncSink::NotReady(msg)) => {
-                    self.buffered_msg_to_funder = Some(msg);
-                }
-            }
-        }
-        while self.buffered_msg_to_funder.is_none() {
-            match self.funder_receiver.poll() {
-                Err(_) => {
-                    error!("funder receiver error, closing");
-                    return self.start_close();
-                }
-                Ok(item) => {
-                    match item {
-                        Async::Ready(None) => {
-                            error!("remote sender closed, closing");
-                            return self.start_close();
-                        }
-                        Async::Ready(Some(msg)) => {
-                            self.handle_funder_msg(msg);
-                        }
-                        Async::NotReady => {
-                            // NOTE: This should always return `Ok(Async::Ready)`,
-                            // so we ignore the error handling here.
-                            drop(self.funder_sender.poll_complete());
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+        // TODO: funder_reader
+        // TODO: networker_reader
 
-        if let Some(msg) = self.buffered_msg_to_networker.take() {
-            match self.networker_sender.start_send(msg) {
-                Err(_) => {
-                    error!("an error occurred when trying to send message to networker, closing");
-                    return self.start_close();
-                }
-                Ok(AsyncSink::Ready) => (),
-                Ok(AsyncSink::NotReady(msg)) => {
-                    self.buffered_msg_to_networker = Some(msg);
-                }
-            }
-        }
-        while self.buffered_msg_to_networker.is_none() {
-            match self.networker_receiver.poll() {
-                Err(_) => {
-                    error!("networker receiver error, closing");
-                    return self.start_close();
-                }
-                Ok(item) => {
-                    match item {
-                        Async::Ready(None) => {
-                            error!("remote sender closed, closing");
-                            return self.start_close();
-                        }
-                        Async::Ready(Some(msg)) => {
-                            self.handle_networker_msg(msg);
-                        }
-                        Async::NotReady => {
-                            // NOTE: This should always return `Ok(Async::Ready)`,
-                            // so we ignore the error handling here.
-                            drop(self.networker_sender.poll_complete());
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+        let (indexer_client_reader_close_handle, indexer_client_reader) =
+            create_indexer_client_reader(indexer_client_sender, indexer_client_receiver);
 
-        if let Some(msg) = self.buffered_msg_to_indexer_client.take() {
-            match self.indexer_client_sender.start_send(msg) {
-                Err(_) => {
-                    error!("an error occurred when trying to send message to indexer client, closing");
-                    return self.start_close();
-                }
-                Ok(AsyncSink::Ready) => (),
-                Ok(AsyncSink::NotReady(msg)) => {
-                    self.buffered_msg_to_indexer_client = Some(msg);
-                }
-            }
-        }
-        while self.buffered_msg_to_indexer_client.is_none() {
-            match self.indexer_client_receiver.poll() {
-                Err(_) => {
-                    error!("indexer client receiver error, closing");
-                    return self.start_close();
-                }
-                Ok(item) => {
-                    match item {
-                        Async::Ready(None) => {
-                            error!("remote sender closed, closing");
-                            return self.start_close();
-                        }
-                        Async::Ready(Some(msg)) => {
-                            self.handle_indexer_client_msg(msg);
-                        }
-                        Async::NotReady => {
-                            // NOTE: This should always return `Ok(Async::Ready)`,
-                            // so we ignore the error handling here.
-                            drop(self.indexer_client_sender.poll_complete());
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+        // FIXME: Would miss the SendCloseNotificationFailed error
+        handle.spawn(indexer_client_reader.map_err(|_| {
+            panic!("internal error");
+        }));
 
-        Ok(Async::NotReady)
+        let db_service_guard = close_receiver
+            .map_err(|_: oneshot::Canceled| DBServiceError::CloseReceiverCanceled)
+            .and_then(|()| {
+                let indexer_client_reader_close_receiver =
+                    indexer_client_reader_close_handle.close().expect("Can not close twice!");
+
+                let internal_close_task = join_all(vec![
+                    indexer_client_reader_close_receiver
+                    // TODO:
+                ]);
+
+                internal_close_task.map_err(|_: oneshot::Canceled| {
+                    DBServiceError::CloseReceiverCanceled
+                }).and_then(|_| {
+                    if close_sender.send(()).is_err() {
+                        Err(DBServiceError::SendCloseNotificationFailed)
+                    } else {
+                        Ok(())
+                    }
+                })
+            });
+
+        Ok((close_handle, db_service_guard))
     }
 }
 
 fn verify_database(conn: &Connection) -> bool {
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::time::Duration;
+
+    use tokio_core::reactor::Timeout;
+    use tokio_core::reactor::Core;
+
+    #[test]
+    fn dispatch_close() {
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+
+        let (db2idx_sender, db2idx_receiver) = mpsc::channel::<DatabaseToIndexerClient>(0);
+        let (idx2db_sender, idx2db_receiver) = mpsc::channel::<IndexerClientToDatabase>(0);
+
+        let (db2funder_sender, db2funder_receiver) = mpsc::channel::<DatabaseToFunder>(0);
+        let (funder2db_sender, funder2db_receiver) = mpsc::channel::<FunderToDatabase>(0);
+
+        let (db2net_sender, db2net_receiver) = mpsc::channel::<DatabaseToNetworker>(0);
+        let (net2db_sender, net2db_receiver) = mpsc::channel::<NetworkerToDatabase>(0);
+
+        let (db_close_handle, db_service) = create_db_service(
+            "test.sqlite",
+            &handle,
+            db2funder_sender,
+            funder2db_receiver,
+            db2net_sender,
+            net2db_receiver,
+            db2idx_sender,
+            idx2db_receiver,
+        ).unwrap();
+
+        handle.spawn(db_service.map_err(|_| ()));
+
+        let timeout = Timeout::new(Duration::from_millis(100), &handle).unwrap();
+
+        let work = timeout.and_then(move |_| {
+                let db_close_receiver =
+                    db_close_handle.close().expect("Can not close twice!");
+
+                db_close_receiver
+                    .map_err(|_| io::Error::new(io::ErrorKind::Other, "Failed to close"))
+            });
+
+        core.run(work).unwrap();
+    }
 }
