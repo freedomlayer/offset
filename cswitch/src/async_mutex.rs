@@ -72,7 +72,7 @@ impl<T> AsyncMutex<T> {
     /// where `t` is the original `resource`, and `output` is custom output.
     ///
     /// This function returns a future that resolves to the value given at output.
-    pub fn acquire<F, B, E, G, O>(&self, f: F) -> impl Future<Item=O, Error=AsyncMutexError<E>>
+    pub fn acquire<F, B, E, G, O>(&self, f: F) -> AcquireFuture<T, F, G>
         where
             F: FnOnce(T) -> B,
             G: Future<Item=(T, O), Error=E>,
