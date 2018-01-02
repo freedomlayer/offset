@@ -6,6 +6,7 @@
 #![cfg_attr(feature = "dev", plugin(clippy))]
 #![cfg_attr(not(feature = "dev"), allow(unknown_lints))]
 #![allow(needless_pass_by_value)]
+#![feature(test)]
 
 #[macro_use]
 extern crate log;

@@ -1,9 +1,7 @@
+use futures::prelude::*;
 use futures::sync::mpsc;
-use futures::{Future, IntoFuture};
-use futures::stream::Stream;
-use futures::sink::Sink;
 
-use ::async_mutex::{AsyncMutex, AsyncMutexError};
+use async_mutex::{AsyncMutex, AsyncMutexError};
 
 #[derive(Debug)]
 pub enum ServiceClientError {
@@ -49,20 +47,17 @@ impl<S, R> ServiceClient<S, R> {
     pub fn request(&self, request: S) -> impl Future<Item=R, Error=ServiceClientError> {
         self.inner.acquire(|inner| {
             let ServiceClientInner { sender, receiver } = inner;
-            sender.send(request)
-                .map_err(|_e: mpsc::SendError<S>| {
-                    ServiceClientError::SendFailed
-                })
-                .and_then(|sender| {
-                    receiver.into_future()
-                        .map_err(|(_e, _receiver): ((), _)| {
-                            ServiceClientError::ReceiveFailed
-                        })
-                        .map(|(opt_item, receiver)| (opt_item, receiver, sender))
-                }).and_then(|(opt_item, receiver, sender)| {
+            sender.send(request).map_err(|_e: mpsc::SendError<S>| {
+                (None, ServiceClientError::SendFailed)
+            }).and_then(|sender| {
+                receiver.into_future()
+                    .map_err(|(_e, _receiver): ((), _)| {
+                        (None, ServiceClientError::ReceiveFailed)
+                    }).map(|(opt_item, receiver)| (opt_item, receiver, sender))
+            }).and_then(|(opt_item, receiver, sender)| {
                 let item = match opt_item {
                     Some(item) => item,
-                    None => return Err(ServiceClientError::NoResponseReceived),
+                    None => return Err((None, ServiceClientError::NoResponseReceived)),
                 };
                 Ok((ServiceClientInner { sender, receiver }, item))
             })
