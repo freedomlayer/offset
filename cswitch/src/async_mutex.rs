@@ -16,6 +16,14 @@ pub struct Inner<T> {
     broken: RefCell<bool>,
 }
 
+impl<T> Inner<T> {
+    fn drop_waiters(&self) {
+        while let Some(waiter) = self.waiters.try_pop() {
+            drop(waiter);
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct AsyncMutex<T> {
     inner: Rc<Inner<T>>,
@@ -95,7 +103,7 @@ impl<T> AsyncMutex<T> {
             Some(t) => {
                 assert!(self.inner.waiters.is_empty());
 
-                AcquireFuture::<_, F, _> {
+                AcquireFuture {
                     inner: Rc::clone(&self.inner),
                     state: AcquireFutureState::WaitFunction(f(t).into_future()),
                 }
@@ -119,9 +127,7 @@ impl<T, F, B, G, E, O> Future for AcquireFuture<T, F, G>
                 AcquireFutureState::Empty => unreachable!(),
                 AcquireFutureState::WaitResource((mut receiver, f)) => {
                     if *self.inner.broken.borrow() {
-                        while let Some(waiter) = self.inner.waiters.try_pop() {
-                            drop(waiter);
-                        }
+                        self.inner.drop_waiters();
                         return Err(AsyncMutexError::Acquire(AcquireError::ResourceBroken));
                     }
                     match receiver.poll() {
@@ -177,10 +183,7 @@ impl<T, F, B, G, E, O> Future for AcquireFuture<T, F, G>
                             debug_assert!(self.inner.bucket.borrow().is_none());
 
                             self.inner.broken.replace(true);
-
-                            while let Some(waiter) = self.inner.waiters.try_pop() {
-                                drop(waiter);
-                            }
+                            self.inner.drop_waiters();
 
                             return Err(AsyncMutexError::Function(e));
                         }
