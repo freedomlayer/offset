@@ -7,6 +7,7 @@
 #![cfg_attr(feature = "dev", plugin(clippy))]
 #![cfg_attr(not(feature = "dev"), allow(unknown_lints))]
 #![allow(needless_pass_by_value)]
+#![feature(test)]
 
 #[macro_use]
 extern crate log;
@@ -14,6 +15,7 @@ extern crate ring;
 extern crate rand;
 extern crate bytes;
 extern crate capnp;
+extern crate crossbeam;
 extern crate futures;
 extern crate byteorder;
 extern crate tokio_core;
