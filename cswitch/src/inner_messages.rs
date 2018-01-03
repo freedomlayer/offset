@@ -392,8 +392,8 @@ pub struct StateChainLink {
 }
 
 pub struct IndexingProviderInfo {
-    id: IndexingProviderId,
-    state_chain_link: StateChainLink,
+    pub id: IndexingProviderId,
+    pub state_chain_link: StateChainLink,
 }
 
 pub enum AppManagerToIndexerClient {
@@ -548,6 +548,21 @@ enum AppManagerToFunder {
     }
 }
 
+pub enum FunderToDatabase {
+    // TODO:
+}
+
+pub enum DatabaseToFunder {
+    // TODO:
+}
+
+pub enum NetworkerToDatabase {
+    // TODO:
+}
+
+pub enum DatabaseToNetworker {
+    // TODO:
+}
 
 
 // Security Module

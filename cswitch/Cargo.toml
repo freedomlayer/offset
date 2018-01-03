@@ -38,6 +38,7 @@ pretty_env_logger = "0.1"
 futures-timer = { git="https://github.com/alexcrichton/futures-timer", version = "0.1" }
 
 futures-mutex = "0.2"
+rusqlite = "0.13"
 
 [build-dependencies]
 capnpc = "0.8.7"
