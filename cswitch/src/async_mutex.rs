@@ -278,7 +278,6 @@ mod tests {
         assert_eq!(core.run(task).unwrap(), N + 1);
     }
 
-    /*
     #[test]
     fn nested() {
         let mut core = Core::new().unwrap();
@@ -302,7 +301,6 @@ mod tests {
 
         assert_eq!(core.run(task).unwrap(), 1);
     }
-    */
 
     #[test]
     fn error() {
