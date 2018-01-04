@@ -16,6 +16,7 @@ extern crate rand;
 extern crate bytes;
 extern crate capnp;
 extern crate crossbeam;
+#[macro_use]
 extern crate futures;
 extern crate byteorder;
 extern crate tokio_core;
@@ -43,9 +44,6 @@ mod schema;
 use schema::common_capnp;
 use schema::indexer_capnp;
 use schema::channeler_capnp;
-
-#[macro_use]
-mod macros;
 
 mod service;
 mod db_service;

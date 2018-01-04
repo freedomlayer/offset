@@ -2,11 +2,10 @@ use std::{io, mem, time};
 use std::cell::RefCell;
 use std::net::SocketAddr;
 use std::collections::HashMap;
-use std::collections::VecDeque;
 
+use futures::prelude::*;
 use futures::sync::mpsc;
 use futures::stream::{SplitSink, SplitStream};
-use futures::{Async, Future, Poll, Stream, Sink, AsyncSink};
 
 use futures_mutex::FutMutex;
 
@@ -22,13 +21,26 @@ use ring::rand::SystemRandom;
 use crypto::uid::gen_uid;
 use crypto::identity::PublicKey;
 use crypto::rand_values::RandValue;
+use crypto::symmetric_enc::{
+    SymmetricKey,
+    Encryptor,
+    Decryptor,
+    EncNonceCounter,
+    SymmetricEncError,
+};
 use crypto::dh::{DhPrivateKey, DhPublicKey, Salt};
-use inner_messages::{ChannelerToNetworker, ChannelOpened, ChannelMessageReceived};
-use security_module::security_module_client::{SecurityModuleClient, SecurityModuleClientError};
-use crypto::symmetric_enc::{SymmetricKey, Encryptor, Decryptor, EncNonceCounter, SymmetricEncError};
+use inner_messages::{
+    ChannelerToNetworker,
+    ChannelOpened,
+    ChannelMessageReceived,
+};
+use security_module::security_module_client::{
+    SecurityModuleClient,
+    SecurityModuleClientError,
+};
 
 use schema::SchemaError;
-use schema::channeler_capnp::MessageType;
+// use schema::channeler_capnp::MessageType;
 use schema::channeler::{
     serialize_message,
     deserialize_message,
@@ -37,7 +49,7 @@ use schema::channeler::{
     serialize_exchange_message,
     deserialize_exchange_message,
     serialize_init_channel_message,
-    deserialize_init_channel_message
+    deserialize_init_channel_message,
 };
 
 use super::{ToChannel, ChannelerNeighbor, KEEP_ALIVE_TICKS};
@@ -54,6 +66,9 @@ pub enum ChannelError {
     SecurityModule(SecurityModuleClientError),
     EncryptError(SymmetricEncError),
     SendToNetworkerFailed,
+    SendToRemoteFailed,
+    RecvFromInnerFailed,
+    KeepAliveTimeout,
     Closed(&'static str),
 }
 
@@ -99,35 +114,25 @@ impl From<SymmetricEncError> for ChannelError {
     }
 }
 
-#[allow(unused)]
-enum ChannelState {
-    Alive,
-    Closing(Box<Future<Item=(), Error=ChannelError>>),
-    Empty,
-}
-
 /// The channel used to communicate to neighbors.
 #[must_use = "futures do nothing unless polled"]
 pub struct Channel {
-    state: ChannelState,
-
     remote_public_key: PublicKey,
-    _neighbors: FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
 
     // The inner sender and receiver used to communicate with internal services
-    inner_sender:     mpsc::Sender<ChannelerToNetworker>,
-    inner_receiver:   mpsc::Receiver<ToChannel>,
-    inner_send_queue: VecDeque<ChannelerToNetworker>,
+    inner_sender:   mpsc::Sender<ChannelerToNetworker>,
+    inner_receiver: mpsc::Receiver<ToChannel>,
+    inner_buffered: Option<ChannelerToNetworker>,
 
     // The outer sender and receiver used to communicate with neighbors
-    outer_sender:     SplitSink<Framed<TcpStream, PrefixFrameCodec>>,
-    outer_receiver:   SplitStream<Framed<TcpStream, PrefixFrameCodec>>,
-    outer_send_queue: VecDeque<Bytes>,
+    outer_sender:   SplitSink<Framed<TcpStream, PrefixFrameCodec>>,
+    outer_receiver: SplitStream<Framed<TcpStream, PrefixFrameCodec>>,
+    outer_buffered: Option<Bytes>,
 
-    send_counter:   u64,
-    recv_counter:   u64,
-    send_encryptor: Encryptor,
-    recv_decryptor: Decryptor,
+    send_counter: u64,
+    recv_counter: u64,
+    encryptor: Encryptor,
+    decryptor: Decryptor,
 
     remaining_tick_to_send_ka: usize,
     remaining_tick_to_recv_ka: usize,
@@ -165,7 +170,7 @@ impl Channel {
         }
     }
 
-    // Create a new channel from a incoming socket.
+    /// Create a new channel from a incoming socket.
     pub fn from_socket(
         socket:           TcpStream,
         handle:           &Handle,
@@ -190,7 +195,7 @@ impl Channel {
             state: RefCell::new(ChannelNewState::PrepareInit(Box::new(prepare_init_fut))),
             role:             Role::Responder,
             timeout:          Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
-            rng:              rng,
+            rng,
             sm_client:        sm_client.clone(),
             neighbors:        neighbors.clone(),
             networker_sender: networker_sender.clone(),
@@ -205,157 +210,217 @@ impl Channel {
             receiver:            Some(RefCell::new(rx)),
         }
     }
+
+    // Pack and encrypt a message to be sent to remote.
+    //
+    // **If the `content` is None, a packed KA message will be returned.**
+    fn pack_msg(&mut self, content: Option<Bytes>) -> Result<Bytes, ChannelError> {
+        // TODO:
+        // 1. Change the return type of Decryptor::encrypt
+        // 2. Use explicit message type (required: refactor schema::channeler)
+        let plain_msg = serialize_enc_message(self.send_counter, content)?;
+        let encrypted = self.encryptor.encrypt(&plain_msg)?;
+
+        serialize_message(Bytes::from(encrypted)).map_err(|e| e.into())
+    }
+
+    // Decrypt and unpack a message received from remote.
+    //
+    // **If the message is a `KeepAlive`, the content will be ignored.**
+    fn unpack_msg(&mut self, raw: Bytes) -> Result<Option<Bytes>, ChannelError> {
+        // TODO:
+        // 1. Change the return type of Decryptor::decrypt
+        // 2. Use explicit message type (required: refactor schema::channeler)
+
+        let plain_msg = Bytes::from(self.decryptor.decrypt(&deserialize_message(raw)?)?);
+        let (counter, _ty, content) = deserialize_enc_message(plain_msg)?;
+
+        if counter != self.recv_counter {
+            Err(ChannelError::Closed("unexpected counter"))
+        } else {
+            update_counter(&mut self.recv_counter);
+            Ok(content)
+        }
+    }
+
+    /// Try to start the process of sending a message to the networker.
+    ///
+    /// # Return Value
+    ///
+    /// - Returns `Async::Ready(())` if the `inner_sender` was able to start
+    /// sending `msg` to `Networker`
+    ///
+    /// - Returns `ASync::NotReady` if the `inner_sender` was unable to
+    /// begin sending `msg` to networker
+    ///
+    /// # Error
+    ///
+    /// This method returns an error `Err(ChannelError::SendToNetworkerFailed)`
+    /// when the `inner_sender` encounters an error in starting sending
+    ///
+    /// # Panic
+    ///
+    /// This method may panic in a few situations:
+    ///
+    /// - The `inner_buffered` not empty
+    ///
+    /// Refer `futures`'s documentation for more information.
+    fn try_start_send_inner(&mut self, msg: ChannelerToNetworker) -> Poll<(), ChannelError> {
+        debug_assert!(self.inner_buffered.is_none());
+
+        // Convert Err(()) to ChannelError
+        let start_send = self.inner_sender.start_send(msg)
+            .map_err(|_| ChannelError::SendToNetworkerFailed);
+
+        if let AsyncSink::NotReady(msg) = start_send? {
+            self.inner_buffered = Some(msg);
+            Ok(Async::NotReady)
+        } else {
+            Ok(Async::Ready(()))
+        }
+    }
+
+    /// Try to start the process of sending a message to the `Remote`.
+    ///
+    /// # Return Value
+    ///
+    /// - Returns `Async::Ready(())` if the `outer_sender` was able to start
+    /// sending `msg` to `Remote`
+    ///
+    /// - Returns `ASync::NotReady` if the `outer_sender` was unable to
+    /// begin sending `msg` to `Remote`
+    ///
+    /// # Error
+    ///
+    /// This method returns an error `Err(ChannelError::Io(...))`
+    /// when the `outer_sender` encounters an error in starting sending
+    ///
+    /// # Panic
+    ///
+    /// This method may panic in a few situations:
+    ///
+    /// - The `outer_buffered` not empty
+    ///
+    /// Refer `futures`'s documentation for more information.
+    fn try_start_send_outer(&mut self, msg: Bytes) -> Poll<(), ChannelError> {
+        debug_assert!(self.outer_buffered.is_none());
+
+        let start_send = self.outer_sender.start_send(msg);
+
+        if let AsyncSink::NotReady(msg) = start_send? {
+            self.outer_buffered = Some(msg);
+            Ok(Async::NotReady)
+        } else {
+            update_counter(&mut self.send_counter);
+            Ok(Async::Ready(()))
+        }
+    }
+
+    /// Attempt to pull out the next message **needed to be sent to remote**.
+    fn try_poll_inner(&mut self) -> Poll<Option<Bytes>, ChannelError> {
+        loop {
+            let poll_result = self.inner_receiver.poll().map_err(|_| {
+                ChannelError::RecvFromInnerFailed
+            });
+
+            if let Some(msg) = try_ready!(poll_result) {
+                match msg {
+                    ToChannel::TimeTick => {
+                        self.remaining_tick_to_send_ka -= 1;
+                        self.remaining_tick_to_recv_ka -= 1;
+
+                        if self.remaining_tick_to_recv_ka == 0 {
+                            return Err(ChannelError::KeepAliveTimeout);
+                        } else {
+                            if self.remaining_tick_to_send_ka == 0 {
+                                self.remaining_tick_to_send_ka = KEEP_ALIVE_TICKS;
+
+                                let msg = self.pack_msg(None)?;
+                                return Ok(Async::Ready(Some(msg)));
+                            }
+                        }
+                    }
+                    ToChannel::SendMessage(raw) => {
+                        let msg = self.pack_msg(Some(Bytes::from(raw)))?;
+                        return Ok(Async::Ready(Some(msg)));
+                    }
+                }
+            } else {
+                // The internal channel has finish
+                return Ok(Async::Ready(None));
+            }
+        }
+    }
+
+    /// Attempt to pull out the next message **needed to be sent to networker**.
+    fn try_poll_outer(&mut self) -> Poll<Option<ChannelerToNetworker>, ChannelError> {
+        loop {
+            if let Some(raw) = try_ready!(self.outer_receiver.poll()) {
+                match self.unpack_msg(raw)? {
+                    Some(content) => {
+                        let msg = ChannelerToNetworker::ChannelMessageReceived(
+                            ChannelMessageReceived {
+                                remote_public_key: self.remote_public_key.clone(),
+                                message_content: content.to_vec(),
+                            }
+                        );
+
+                        return Ok(Async::Ready(Some(msg)));
+                    }
+                    None => {
+                        self.remaining_tick_to_recv_ka = 2 * KEEP_ALIVE_TICKS;
+                    }
+                }
+            } else {
+                // The tcp connection has finished
+                return Ok(Async::Ready(None));
+            }
+        }
+    }
 }
 
 impl Future for Channel {
-    type Item = ();
+    type Item  = ();
     type Error = ChannelError;
 
     fn poll(&mut self) -> Poll<(), Self::Error> {
-        trace!("poll - {:?}", ::std::time::Instant::now());
-
-        match mem::replace(&mut self.state, ChannelState::Empty) {
-            ChannelState::Empty => unreachable!(),
-            ChannelState::Alive => {
-                self.state = ChannelState::Alive;
-            }
-            ChannelState::Closing(mut closing_fut) => {
-                match closing_fut.poll()? {
-                    Async::NotReady => {
-                        self.state = ChannelState::Closing(closing_fut);
-                        return Ok(Async::NotReady);
-                    }
-                    Async::Ready(_) => {
-                        return Ok(Async::Ready(()));
-                    }
-                }
-            }
-        }
-
-        // Handle outer message
         loop {
-            match self.outer_receiver.poll()? {
-                Async::NotReady => break,
+            if let Some(msg) = self.outer_buffered.take() {
+                try_ready!(self.try_start_send_outer(msg));
+            }
+            match self.try_poll_inner()? {
                 Async::Ready(None) => {
-                    debug!("outer tcp connection closed, closing");
+                    debug!("inner channel closed, closing");
                     return Ok(Async::Ready(()));
                 }
                 Async::Ready(Some(msg)) => {
-                    let dec_content = Bytes::from(self.recv_decryptor.decrypt(&deserialize_message(msg)?)?);
-                    let (msg_counter, msg_type, msg_content) = deserialize_enc_message(dec_content).unwrap();
-
-                    if msg_counter != self.recv_counter {
-                        error!("unexpected incremental counter, closing");
-                        return Ok(Async::Ready(()));
-                    } else {
-                        update_counter(&mut self.recv_counter);
-                    }
-
-                    match msg_type {
-                        MessageType::User => {
-                            debug!("received a user message");
-                            let msg_content = msg_content.unwrap();
-                            let inner_msg = ChannelerToNetworker::ChannelMessageReceived(
-                                ChannelMessageReceived {
-                                    remote_public_key: self.remote_public_key.clone(),
-                                    message_content: msg_content.to_vec(),
-                                }
-                            );
-                            self.inner_send_queue.push_back(inner_msg);
-                        }
-                        MessageType::KeepAlive => {
-                            debug!("received a keepalive message");
-                            // TODO: Any thing needed to do here?
-                            self.remaining_tick_to_recv_ka = 2 * KEEP_ALIVE_TICKS;
-                        }
-                    }
+                    try_ready!(self.try_start_send_outer(msg));
                 }
-            }
-        }
+                Async::NotReady => {
+                    try_ready!(self.outer_sender.poll_complete());
 
-        // Handle inner message
-        loop {
-            match self.inner_receiver.poll() {
-                Err(_) => {
-                    debug!("inner receiver error, closing");
-                    return Ok(Async::Ready(()));
-                }
-                Ok(item) => {
-                    match item {
-                        Async::NotReady => break,
-                        Async::Ready(Some(msg)) => {
-                            match msg {
-                                ToChannel::TimeTick => {
-                                    // TODO: Any thing needed to do here?
-                                    self.remaining_tick_to_send_ka -= 1;
-                                    self.remaining_tick_to_recv_ka -= 1;
-                                    if self.remaining_tick_to_recv_ka == 0 {
-                                        error!("keep alive timeout, closing");
-                                        return Ok(Async::Ready(()));
-                                    } else if self.remaining_tick_to_send_ka == 0 {
-                                        debug!("needed to send a keepalive message");
-                                        let plain_msg = serialize_enc_message(self.send_counter, None)?;
-                                        let enc_msg = self.send_encryptor.encrypt(&plain_msg)?;
-                                        let outer_msg = serialize_message(Bytes::from(enc_msg))?;
-
-                                        self.outer_send_queue.push_back(outer_msg);
-                                        update_counter(&mut self.send_counter);
-                                        self.remaining_tick_to_send_ka = KEEP_ALIVE_TICKS;
-                                    }
-                                }
-                                ToChannel::SendMessage(raw_msg) => {
-                                    debug!("requested to send a channel message");
-                                    let plain_msg = serialize_enc_message(self.send_counter, Some(Bytes::from(raw_msg)))?;
-                                    let enc_msg = self.send_encryptor.encrypt(&plain_msg)?;
-                                    let outer_msg = serialize_message(Bytes::from(enc_msg))?;
-
-                                    self.outer_send_queue.push_back(outer_msg);
-                                    update_counter(&mut self.send_counter);
-                                }
-                            }
-                        }
+                    if let Some(msg) = self.inner_buffered.take() {
+                        try_ready!(self.try_start_send_inner(msg));
+                    }
+                    match self.try_poll_outer()? {
                         Async::Ready(None) => {
-                            debug!("inner receiver closed, closing");
+                            debug!("tcp connection closed, closing");
                             return Ok(Async::Ready(()));
                         }
+                        Async::Ready(Some(msg)) => {
+                            try_ready!(self.try_start_send_inner(msg));
+                        }
+                        Async::NotReady => {
+                            try_ready!(
+                                self.inner_sender.poll_complete()
+                                    .map_err(|_| ChannelError::SendToNetworkerFailed)
+                            );
+                            return Ok(Async::NotReady);
+                        }
                     }
                 }
             }
         }
-
-        // Try to send pending outer messages
-        while let Some(msg) = self.outer_send_queue.pop_front() {
-            match self.outer_sender.start_send(msg) {
-                Err(_) => {
-                    debug!("outer sender error, closing");
-                    return Ok(Async::Ready(()));
-                }
-                Ok(AsyncSink::Ready) => (),
-                Ok(AsyncSink::NotReady(msg)) => {
-                    self.outer_send_queue.push_front(msg);
-                    break;
-                }
-            }
-        }
-        self.outer_sender.poll_complete()?;
-
-        // Try to send pending inner messages
-        while let Some(msg) = self.inner_send_queue.pop_front() {
-            match self.inner_sender.start_send(msg) {
-                Err(_) => {
-                    debug!("inner sender error, closing");
-                    return Ok(Async::Ready(()));
-                }
-                Ok(AsyncSink::Ready) => (),
-                Ok(AsyncSink::NotReady(msg)) => {
-                    self.inner_send_queue.push_front(msg);
-                    break;
-                }
-            }
-        }
-        self.inner_sender.poll_complete().map_err(|_| ChannelError::SendToNetworkerFailed)?;
-
-        Ok(Async::NotReady)
     }
 }
 
@@ -387,7 +452,7 @@ enum ChannelNewState {
     VerifyNeighbor {
         public_key: PublicKey,
         recv_rand_value: RandValue,
-        verify_neighbor_fut: Box<Future<Item=(), Error=ChannelError>>
+        verify_neighbor_fut: Box<Future<Item=(), Error=ChannelError>>,
     },
 
     // Prepare a serialized Exchange message, at this stage, we should finish:
@@ -463,7 +528,7 @@ impl ChannelNew {
                     match neighbors.get_mut(&public_key) {
                         None => {
                             error!("nonexistent neighbor");
-                        },
+                        }
                         Some(neighbor) => {
                             if role == Role::Initiator {
                                 neighbor.num_pending_out_conn -= 1;
@@ -585,7 +650,7 @@ impl Future for ChannelNew {
                                 trace!("ChannelNewState::SendingInit\t\t[NotReady]");
 
                                 self.state.replace(ChannelNewState::SendInit(None));
-                                return Ok(Async::NotReady)
+                                return Ok(Async::NotReady);
                             }
                             Ok(Async::Ready(_)) => {
                                 trace!("ChannelNewState::SendingInit\t\t[Ready]");
@@ -614,7 +679,7 @@ impl Future for ChannelNew {
                                     Err(e) => {
                                         self.on_error(e);
                                         continue;
-                                    },
+                                    }
                                     Ok(res) => res,
                                 };
 
@@ -634,7 +699,7 @@ impl Future for ChannelNew {
                                         match neighbors.get(&public_key_to_verify) {
                                             None => {
                                                 return Err(ChannelError::Closed("unknown neighbor"));
-                                            },
+                                            }
                                             Some(neighbor) => {
                                                 if neighbor.info.neighbor_address.socket_addr.is_some() {
                                                     return Err(ChannelError::Closed("not allowed"));
@@ -675,8 +740,8 @@ impl Future for ChannelNew {
                                     verify_neighbor_fut: Box::new(verify_neighbor_fut),
                                 }
                             );
-                            return Ok(Async::NotReady)
-                        },
+                            return Ok(Async::NotReady);
+                        }
                         Ok(Async::Ready(_)) => {
                             trace!("ChannelNewState::VerifyNeighbor\t[Ready]");
                             self.neighbor_public_key = Some(public_key);
@@ -808,7 +873,7 @@ impl Future for ChannelNew {
                             if ::crypto::identity::verify_signature(
                                 &message,
                                 &neighbor_public_key,
-                                &signature
+                                &signature,
                             ) {
                                 let dh_private_key =
                                     mem::replace(&mut self.dh_private_key, None).unwrap();
@@ -879,23 +944,21 @@ impl Future for ChannelNew {
 
                             self.state.replace(ChannelNewState::FinalStage(final_stage_fut));
                             return Ok(Async::NotReady);
-                        },
+                        }
                         Ok(Async::Ready((key_send, key_recv, channel_receiver))) => {
                             trace!("ChannelNewState::FinalStage\t\t[Ready]");
                             return Ok(Async::Ready(Channel {
-                                state: ChannelState::Alive,
                                 remote_public_key: self.neighbor_public_key.take().unwrap(),
-                                _neighbors:        self.neighbors.clone(),
-                                inner_sender:     self.networker_sender.clone(),
-                                inner_receiver:   channel_receiver,
-                                inner_send_queue: VecDeque::new(),
-                                outer_sender:     self.sender.take().unwrap().into_inner(),
-                                outer_receiver:   self.receiver.take().unwrap().into_inner(),
-                                outer_send_queue: VecDeque::new(),
+                                inner_sender: self.networker_sender.clone(),
+                                inner_receiver: channel_receiver,
+                                inner_buffered: None,
+                                outer_sender: self.sender.take().unwrap().into_inner(),
+                                outer_receiver: self.receiver.take().unwrap().into_inner(),
+                                outer_buffered: None,
                                 send_counter: 0,
                                 recv_counter: 0,
-                                send_encryptor: Encryptor::new(&key_send, EncNonceCounter::new(&mut self.rng)),
-                                recv_decryptor: Decryptor::new(&key_recv),
+                                encryptor: Encryptor::new(&key_send, EncNonceCounter::new(&mut self.rng)),
+                                decryptor: Decryptor::new(&key_recv),
                                 remaining_tick_to_send_ka: KEEP_ALIVE_TICKS,
                                 remaining_tick_to_recv_ka: 2 * KEEP_ALIVE_TICKS, // FIXME: suitable value?
                             }));
