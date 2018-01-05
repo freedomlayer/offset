@@ -297,172 +297,73 @@ impl Channeler {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use std::thread;
-    use std::time::{Duration, Instant};
-
-    use ring::signature;
-    use tokio_core::reactor::Core;
-
-    use super::*;
-    use crypto::identity::*;
-
-    fn create_dummy_identity(fixed_byte: u8) -> SoftwareEd25519Identity {
-        let fixed_byte = FixedByteRandom { byte: 0x00 };
-        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(
-            &fixed_byte
-        ).unwrap();
-        SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap()
-    }
-
-//    #[test]
-//    fn establish_channel() {
+//#[cfg(test)]
+//mod tests {
+//    use std::thread;
+//    // use std::time::{Duration, Instant};
+//
+//    use ring::signature;
+//    use ring::test::rand::FixedByteRandom;
+//    use tokio_core::reactor::Core;
+//
+//    use super::*;
+//    use crypto::identity::*;
+//    use security_module::create_security_module;
+//
+//    fn create_dummy_identity(fixed_byte: u8) -> SoftwareEd25519Identity {
+//        let fixed_byte = FixedByteRandom { byte: fixed_byte };
+//        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(
+//            &fixed_byte
+//        ).unwrap();
+//        SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap()
+//    }
+//
+//    fn start_listener() {
 //        let server_addr: SocketAddr = "127.0.0.1:9000".parse().unwrap();
 //
-//        let server = thread::spawn(|| {
-//            let mut core = Core::new().expect("Failed to create an event loop!");
+//        thread::spawn(move || {
+//            // Bootstrap
+//            let mut core = Core::new().unwrap();
 //            let handle = core.handle();
-//
-//            let listener = TcpListener::bind(server_addr, handle).unwrap().incoming();
 //
 //            let (sm_handle, mut sm) = create_security_module(create_dummy_identity(0));
 //            let sm_client = sm.new_client();
 //
-//            listener.for_each(|(socket, _addr)| {
-//                let channel_new = Channel::from_socket(
-//                    socket,
-//                    &handle.clone(),
-//                )
-//            })
+//            // Timer & Channeler
+//            let (networker_sender, channeler_receiver) = mpsc::channel::<ChannelerToNetworker>(0);
+//            let (mut channeler_sender, networker_receiver) = mpsc::channel::<NetworkerToChanneler>(0);
+//
+//            let mut timer_module = TimerModule::new(time::Duration::from_millis(100));
+//
+//            let (_channeler_close_handle, channeler) = Channeler::new(
+//                &addr,
+//                &handle,
+//                timer_module.create_client(),
+//                networker_sender,
+//                networker_receiver,
+//                sm_client,
+//            );
+//
+//            let mock_networker_receiver_part = channeler_receiver.map_err(|_| ()).for_each(|msg| {
+//                match msg {
+//                    ChannelerToNetworker::ChannelOpened(_) => {
+//                    }
+//                    ChannelerToNetworker::ChannelClosed(_) => {
+//                    }
+//                    ChannelerToNetworker::ChannelMessageReceived(msg) => {
+//                    }
+//                }
+//                Ok(())
+//            });
+//
+//            handle.spawn(sm.then(|_| Ok(())));
+//            handle.spawn(timer_module.map_err(|_| ()));
+//            handle.spawn(mock_networker_receiver_part);
+//
+//            core.run(channeler).unwrap();
 //        });
-//    }
-}
-
-//#[cfg(test)]
-//mod tests {
-//    use std::time;
-//    use super::*;
-//    use ring::signature;
-//
-//    use security_module::create_security_module;
-//
-//    use tokio_core::reactor::Core;
-//
-//    use crypto::identity::*;
-//
-//    // Create a dummy node mesh, which has `N = 255` nodes.
-//    //
-//    // The edges from "odd node" point to "even node", in other
-//    // word, only "odd node" can initiate a connection.
-//    //
-//    // For test usage, they use the port from `9000` to `9254`.
-//    fn create_dummy_mesh() -> (
-//        Vec<SoftwareEd25519Identity>,
-//        Vec<Vec<ChannelerNeighborInfo>>
-//    ) {
-//        const N: u8 = 255;
-//
-//        let identities = (0..N).iter().map(|byte| {
-//            let fixed_byte = FixedByteRandom { byte: 0x00 };
-//            let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(
-//                &fixed_byte
-//            ).unwrap();
-//            SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap()
-//        }).collect::<Vec<_>>();
-//
-//        let public_keys = identities.iter().map(|identity| {
-//            identity.get_public_key()
-//        }).collect::<Vec<_>>();
-//
-//        assert_eq!(identities.len(), N as usize);
-//        assert_eq!(public_keys.len(), N as usize);
-//
-//        let mut neighbors = Vec::with_capacity(N as usize);
-//
-//        for i in 0..(N as usize) {
-//            let mut neighbor = Vec::new();
-//
-//            for j in 0..(N as usize) {
-//                if i == j { continue; }
-//
-//                let addr = if i % 2 == 1 && j % 2 == 0 {
-//                    Some(format!("127.0.0.1:{}", 9000 + j).parse().unwrap())
-//                } else {
-//                    None
-//                };
-//
-//                let neighbor_info = ChannelerNeighborInfo {
-//                    neighbor_address: ChannelerAddress {
-//                        socket_addr: addr,
-//                        neighbor_public_key: public_keys[i].clone(),
-//                    },
-//                    max_channels: 8u32,
-//                };
-//
-//                neighbor.push(neighbor_info);
-//            }
-//            neighbors.push(neighbor);
-//        }
-//
-//        (identities, neighbors)
 //    }
 //
 //    #[test]
-//    fn basic() {
-//        let (identities, neighbors_to_add) = create_dummy_mesh();
-//
-//        assert_eq!(identities.len(), neighbors_to_add.len());
-//
-//        for idx in 0..identities.len() {
-//            ::std::thread::spawn(|| {
-//                let mut core = Core::new().unwrap();
-//                let handle = core.handle();
-//
-//                let (sm_handle, mut sm) = create_security_module(identities[i]);
-//                let sm_client = sm.new_client();
-//
-//                let (networker_sender, channeler_receiver) =
-//                    mpsc::channel::<ChannelerToNetworker>(0);
-//                let (channeler_sender, networker_receiver) =
-//                    mpsc::channel::<NetworkerToChanneler>(0);
-//
-//                let mut tm = TimerModule::new(time::Duration::from_millis(100));
-//
-//                let addr = format!("127.0.0.1:{}", 9000 + idx).parse().unwrap();
-//
-//                let (channeler_close_handle, channeler) = Channeler::new(
-//                    &addr,
-//                    &handle,
-//                    tm.create_client(),
-//                    networker_sender,
-//                    networker_receiver,
-//                    sm_client,
-//                );
-//
-//                let mut msg_stream_to_channeler =
-//                    neighbors_to_add[idx].map(|neighbor_info| {
-//                        NetworkerToChanneler::AddNeighbor { neighbor_info }
-//                    }).collect::<Vec<_>>();
-//
-//                let send_task = channeler_sender.send_all(msg_stream_to_channeler);
-//
-//                channeler_receiver.for_each(|msg| {
-//                    match msg {
-//                        ChannelerToNetworker::ChannelOpened(key) => {}
-//                        ChannelerToNetworker::ChannelClosed(key) => {}
-//                        ChannelerToNetworker::ChannelMessageReceived(msg) => {}
-//                    }
-//                });
-//
-//                handle.spawn(sm.map_err(|_| panic!("security module error")));
-//                handle.spawn(tm.map_err(|_| panic!("timer module error")));
-//                handle.spawn(send_task.map_err(|_| ()));
-//                handle.spawn(channeler_receiver.map_err(|_| ()));
-//
-//                core.run(channeler).expect("channeler error");
-//            });
-//        }
-//    }
+//    fn establish_channel() {}
 //}
-

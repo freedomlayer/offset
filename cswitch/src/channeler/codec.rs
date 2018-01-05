@@ -20,10 +20,10 @@ const MAX_FRAME_LEN: usize = 1 << 20;
 enum State {
     Empty,
     CollectingLength,
-    CollectingFrame{
+    CollectingFrame {
         length: usize,
-        frame:  BytesMut,
-    }
+        frame: BytesMut,
+    },
 }
 
 pub struct Codec {
@@ -53,7 +53,7 @@ impl From<io::Error> for CodecError {
 }
 
 impl Decoder for Codec {
-    type Item  = Bytes;
+    type Item = Bytes;
     type Error = CodecError;
 
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
@@ -100,7 +100,7 @@ impl Decoder for Codec {
 }
 
 impl Encoder for Codec {
-    type Item  = Bytes;
+    type Item = Bytes;
     type Error = CodecError;
 
     fn encode(&mut self, data: Bytes, buf: &mut BytesMut) -> Result<(), Self::Error> {
@@ -128,93 +128,93 @@ mod tests {
     use byteorder::WriteBytesExt;
 
     #[test]
-    fn test_prefix_frame_encoder_basic() {
-        let mut prefix_frame_codec = Codec::new();
+    fn encode_basic() {
+        let mut codec = Codec::new();
         let mut buf = BytesMut::new();
-        match prefix_frame_codec.encode(Bytes::from_static(&[1, 2, 3, 4, 5]), &mut buf) {
-            Ok(()) => {},
+        match codec.encode(Bytes::from_static(&[1, 2, 3, 4, 5]), &mut buf) {
+            Ok(()) => {}
             Err(_) => panic!("Error encoding data!"),
         };
-        assert_eq!(buf, vec![0,0,0,5,1,2,3,4,5]);
+        assert_eq!(buf, vec![0, 0, 0, 5, 1, 2, 3, 4, 5]);
     }
 
     #[test]
-    fn test_prefix_frame_encoder_empty_data() {
-        let mut prefix_frame_codec = Codec::new();
+    fn encode_empty() {
+        let mut codec = Codec::new();
         let mut buf = BytesMut::new();
-        match prefix_frame_codec.encode(Bytes::new(), &mut buf) {
-            Ok(()) => {},
+        match codec.encode(Bytes::new(), &mut buf) {
+            Ok(()) => {}
             _ => panic!("Error encoding data!"),
         };
-        assert_eq!(buf, vec![0,0,0,0]);
+        assert_eq!(buf, vec![0, 0, 0, 0]);
     }
 
     #[test]
-    fn test_prefix_frame_encoder_large_data() {
-        let mut prefix_frame_codec = Codec::new();
+    fn encode_large() {
+        let mut codec = Codec::new();
         let mut buf = BytesMut::new();
-        match prefix_frame_codec.encode(Bytes::from_static(&[0; MAX_FRAME_LEN]), &mut buf) {
-            Ok(()) => {},
+        match codec.encode(Bytes::from_static(&[0; MAX_FRAME_LEN]), &mut buf) {
+            Ok(()) => {}
             _ => panic!("Error encoding data!"),
         };
         assert_eq!(buf.len(), 4 + MAX_FRAME_LEN);
     }
 
     #[test]
-    fn test_prefix_frame_encoder_too_large_data() {
-        let mut prefix_frame_codec = Codec::new();
+    fn encode_too_large() {
+        let mut codec = Codec::new();
         let mut buf = BytesMut::new();
-        match prefix_frame_codec.encode(Bytes::from_static(&[0; MAX_FRAME_LEN + 1]), &mut buf) {
-            Err(CodecError::SentFrameLenTooLarge) => {},
+        match codec.encode(Bytes::from_static(&[0; MAX_FRAME_LEN + 1]), &mut buf) {
+            Err(CodecError::TooLarge) => {}
             _ => panic!("Test failed"),
         };
     }
 
     #[test]
-    fn test_prefix_frame_decoder() {
-        let mut prefix_frame_codec = Codec::new();
+    fn decode_basic() {
+        let mut codec = Codec::new();
         let mut buf = BytesMut::new();
-        buf.extend(vec![0,0]);
-        match prefix_frame_codec.decode(&mut buf) {
-            Ok(None) => {},
+        buf.extend(vec![0, 0]);
+        match codec.decode(&mut buf) {
+            Ok(None) => {}
             _ => panic!("Test failed1!"),
         };
         buf.extend(vec![0]);
-        match prefix_frame_codec.decode(&mut buf) {
-            Ok(None) => {},
+        match codec.decode(&mut buf) {
+            Ok(None) => {}
             _ => panic!("Test failed2!"),
         };
         buf.extend(vec![5]);
-        match prefix_frame_codec.decode(&mut buf) {
-            Ok(None) => {},
+        match codec.decode(&mut buf) {
+            Ok(None) => {}
             _ => panic!("Test failed3!"),
         };
-        buf.extend(vec![1,2,3,4]);
-        match prefix_frame_codec.decode(&mut buf) {
-            Ok(None) => {},
+        buf.extend(vec![1, 2, 3, 4]);
+        match codec.decode(&mut buf) {
+            Ok(None) => {}
             _ => panic!("Test failed4!"),
         };
-        buf.extend(vec![5,6,7,8]);
-        match prefix_frame_codec.decode(&mut buf) {
-            Ok(Some(v)) => assert_eq!(v,vec![1,2,3,4,5]),
+        buf.extend(vec![5, 6, 7, 8]);
+        match codec.decode(&mut buf) {
+            Ok(Some(v)) => assert_eq!(v, vec![1, 2, 3, 4, 5]),
             _ => panic!("Test failed5!"),
         };
 
         // Make sure that we still have the remainder:
-        assert_eq!(buf, vec![6,7,8]);
+        assert_eq!(buf, vec![6, 7, 8]);
     }
 
     #[test]
-    fn test_prefix_frame_decoder_len_too_large() {
-        let mut prefix_frame_codec = Codec::new();
+    fn decode_too_large() {
+        let mut codec = Codec::new();
         let mut buf = BytesMut::new();
 
         // Encode length prefix as bytes:
         let mut wtr = vec![];
         wtr.write_u32::<BigEndian>((MAX_FRAME_LEN + 1) as u32).unwrap();
         buf.extend(wtr);
-        match prefix_frame_codec.decode(&mut buf) {
-            Err(CodecError::TooLarge) => {},
+        match codec.decode(&mut buf) {
+            Err(CodecError::TooLarge) => {}
             _ => panic!("Test failed1!"),
         };
     }
