@@ -197,7 +197,7 @@ mod tests {
             panic!("The database file exists!");
         }
 
-        let _connection = Connection::open_with_flags(
+        let connection = Connection::open_with_flags(
             path.clone(),
             OpenFlags::SQLITE_OPEN_READ_WRITE
                 | OpenFlags::SQLITE_OPEN_CREATE
@@ -205,7 +205,11 @@ mod tests {
             panic!("Failed to create temporary database: {:?}", e);
         }).unwrap();
 
-        // TODO: Create tables
+        let create_table_sql = include_str!("create_table.sql");
+
+        connection.execute_batch(create_table_sql).map_err(|e| {
+            panic!("Failed to create table: {:?}", e);
+        });
 
         path
     }
