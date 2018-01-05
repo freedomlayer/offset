@@ -46,4 +46,4 @@ use schema::channeler_capnp;
 mod macros;
 
 mod service;
-mod db_service;
+mod database;
