@@ -8,12 +8,12 @@ use futures::{Async, Poll, Future, Stream, Sink};
 use tokio_core::reactor::Handle;
 
 use crypto::identity::PublicKey;
-use inner_messages::{FromTimer, ChannelerToNetworker, ChannelClosed};
+use inner_messages::{FromTimer, ChannelerToNetworker, ChannelClosed, ChannelOpened};
 use close_handle::{CloseHandle, create_close_handle};
 use security_module::security_module_client::SecurityModuleClient;
 use futures_mutex::FutMutex;
 
-use super::channel::Channel;
+use super::channel::{Channel, ChannelError};
 use super::{ChannelerNeighbor, ToChannel};
 
 const CONN_ATTEMPT_TICKS: usize = 120;
@@ -113,6 +113,9 @@ impl TimerReader {
                 }
 
                 for (addr, neighbor_public_key) in retry_conn_tasks {
+                    let neighbors = neighbors_for_task.clone();
+                    let mut networker_sender = networker_sender_for_task.clone();
+
                     let new_channel = Channel::connect(
                         &addr,
                         &handle_for_task,
@@ -120,7 +123,44 @@ impl TimerReader {
                         &neighbors_for_task,
                         &networker_sender_for_task,
                         &sm_client_for_task
-                    ).map_err(|_| ());
+                    ).then(move |res| {
+                        neighbors.lock().map_err(|_: ()| {
+                            error!("failed to add new channel, would not allow retry conn");
+                            ChannelError::FutMutex
+                        }).and_then(move |mut neighbors| {
+                            match neighbors.get_mut(&neighbor_public_key) {
+                                None => {
+                                    Err(ChannelError::Closed("unknown neighbor"))
+                                }
+                                Some(ref_neighbor) => {
+                                    match res {
+                                        Ok((channel_uid, channel_tx, channel)) => {
+                                            if ref_neighbor.channels.is_empty() {
+                                                let msg = ChannelerToNetworker::ChannelOpened(
+                                                    ChannelOpened {
+                                                        remote_public_key: neighbor_public_key,
+                                                        locally_initialized: true,
+                                                    }
+                                                );
+                                                if networker_sender.try_send(msg).is_err() {
+                                                    return Err(ChannelError::SendToNetworkerFailed);
+                                                }
+                                            }
+                                            ref_neighbor.channels.push(
+                                                (channel_uid, channel_tx)
+                                            );
+                                            ref_neighbor.num_pending_out_conn -= 1;
+                                            Ok(channel)
+                                        }
+                                        Err(e) => {
+                                            ref_neighbor.num_pending_out_conn -= 1;
+                                            Err(e)
+                                        }
+                                    }
+                                }
+                            }
+                        })
+                    });
 
                     let handle_for_channel = handle_for_task.clone();
 

@@ -22,6 +22,7 @@ use inner_messages::{
     ChannelerToNetworker,
     NetworkerToChanneler,
     ChannelerNeighborInfo,
+    ChannelOpened,
 };
 
 mod codec;
@@ -29,7 +30,7 @@ pub mod channel;
 pub mod timer_reader;
 pub mod networker_reader;
 
-use self::channel::Channel;
+use self::channel::{Channel, ChannelError};
 use self::timer_reader::TimerReader;
 use self::networker_reader::NetworkerReader;
 
@@ -160,13 +161,46 @@ impl Future for Channeler {
                             self.state = ChannelerState::Closing(self.close());
                         }
                         Async::Ready(Some((socket, _))) => {
+                            let neighbors = self.neighbors.clone();
+                            let mut networker_sender = self.networker_sender.clone();
                             let new_channel = Channel::from_socket(
                                 socket,
                                 &self.handle,
                                 &self.neighbors,
                                 &self.networker_sender,
                                 &self.sm_client,
-                            );
+                            ).and_then(move |(channel_uid, channel_tx, channel)| {
+                                let remote_public_key = channel.remote_public_key();
+
+                                neighbors.lock().map_err(|_: ()| {
+                                    error!("failed to add new channel");
+                                    ChannelError::FutMutex
+                                }).and_then(move |mut neighbors| {
+                                    match neighbors.get_mut(&remote_public_key) {
+                                        None => {
+                                            debug!("unknown neighbors");
+                                        }
+                                        Some(ref_neighbor) => {
+                                            if ref_neighbor.channels.is_empty() {
+                                                let msg = ChannelerToNetworker::ChannelOpened(
+                                                    ChannelOpened {
+                                                        remote_public_key: remote_public_key,
+                                                        locally_initialized: true,
+                                                    }
+                                                );
+                                                if networker_sender.try_send(msg).is_err() {
+                                                    return Err(ChannelError::SendToNetworkerFailed);
+                                                }
+                                            }
+                                            ref_neighbor.channels.push(
+                                                (channel_uid, channel_tx)
+                                            );
+                                        }
+                                    }
+
+                                    Ok(channel)
+                                })
+                            });
 
                             let handle_for_channel = self.handle.clone();
 
@@ -261,6 +295,48 @@ impl Channeler {
 
         (close_handle, channeler)
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    use ring::signature;
+    use tokio_core::reactor::Core;
+
+    use super::*;
+    use crypto::identity::*;
+
+    fn create_dummy_identity(fixed_byte: u8) -> SoftwareEd25519Identity {
+        let fixed_byte = FixedByteRandom { byte: 0x00 };
+        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(
+            &fixed_byte
+        ).unwrap();
+        SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap()
+    }
+
+//    #[test]
+//    fn establish_channel() {
+//        let server_addr: SocketAddr = "127.0.0.1:9000".parse().unwrap();
+//
+//        let server = thread::spawn(|| {
+//            let mut core = Core::new().expect("Failed to create an event loop!");
+//            let handle = core.handle();
+//
+//            let listener = TcpListener::bind(server_addr, handle).unwrap().incoming();
+//
+//            let (sm_handle, mut sm) = create_security_module(create_dummy_identity(0));
+//            let sm_client = sm.new_client();
+//
+//            listener.for_each(|(socket, _addr)| {
+//                let channel_new = Channel::from_socket(
+//                    socket,
+//                    &handle.clone(),
+//                )
+//            })
+//        });
+//    }
 }
 
 //#[cfg(test)]
@@ -389,4 +465,4 @@ impl Channeler {
 //        }
 //    }
 //}
-//
+
