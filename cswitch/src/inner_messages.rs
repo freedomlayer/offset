@@ -143,10 +143,6 @@ pub enum ChannelerToNetworker {
 // Networker to Channeler
 // ----------------------
 
-pub enum ServerType {
-    PublicServer,
-    PrivateServer
-}
 
 pub enum NetworkerToChanneler {
     SendChannelMessage {
@@ -298,7 +294,6 @@ enum AppManagerToNetworker {
     RemoveNeighbor {
         neighbor_public_key: PublicKey,
     },
-    SetServerType(ServerType),
 }
 
 
