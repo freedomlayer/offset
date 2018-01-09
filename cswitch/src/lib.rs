@@ -46,4 +46,4 @@ use schema::indexer_capnp;
 use schema::channeler_capnp;
 
 mod service;
-mod db_service;
+mod database;

@@ -23,7 +23,7 @@
 //!
 
 use std::io;
-use std::path::Path;
+use std::path::PathBuf;
 
 use futures::prelude::*;
 use futures::future::join_all;
@@ -105,8 +105,8 @@ fn create_indexer_client_reader(
     (close_handle, united_reader)
 }
 
-pub fn create_db_service<P: AsRef<Path>>(
-    path: P,
+pub fn create_db_service(
+    path: PathBuf,
     handle: &Handle,
     funder_sender: mpsc::Sender<DatabaseToFunder>,
     funder_receiver: mpsc::Receiver<FunderToDatabase>,
@@ -116,7 +116,7 @@ pub fn create_db_service<P: AsRef<Path>>(
     indexer_client_receiver: mpsc::Receiver<IndexerClientToDatabase>,
 ) -> Result<(CloseHandle, impl Future<Item=(), Error=DBServiceError>), DBServiceError> {
     let conn = Connection::open_with_flags(
-        path,
+        path.as_path(),
         OpenFlags::SQLITE_OPEN_READ_WRITE,
     )?;
 
@@ -170,41 +170,101 @@ fn verify_database(conn: &Connection) -> bool {
 mod tests {
     use super::*;
 
+    use std::path::Path;
     use std::time::Duration;
 
-    use tokio_core::reactor::Timeout;
-    use tokio_core::reactor::Core;
+    use tokio_core::reactor::{Core, Timeout};
+
+    const FILENAME_LEN: usize = 16;
+
+    // Generate unique filename, cuz the test cases run concurrent.
+    fn generate_filename() -> String {
+        use std::iter::FromIterator;
+        use rand::{Rng, thread_rng};
+
+        let mut rng = thread_rng();
+
+        let chars = (0..FILENAME_LEN).map(|_| {
+            rng.gen_range(b'A', b'Z') as char
+        }).collect::<Vec<_>>();
+
+        String::from_iter(chars.iter())
+    }
+
+    fn create_temporary_database() -> PathBuf {
+        let path = PathBuf::from(format!("{}.sqlite", generate_filename()));
+        if path.exists() {
+            panic!("The database file exists!");
+        }
+
+        let connection = Connection::open_with_flags(
+            path.clone(),
+            OpenFlags::SQLITE_OPEN_READ_WRITE
+                | OpenFlags::SQLITE_OPEN_CREATE
+        ).map_err(|e| {
+            panic!("Failed to create temporary database: {:?}", e);
+        }).unwrap();
+
+        let create_table_sql = include_str!("create_table.sql");
+
+        connection.execute_batch(create_table_sql).map_err(|e| {
+            panic!("Failed to create table: {:?}", e);
+        });
+
+        path
+    }
+
+    fn delete_temporary_database<P: AsRef<Path>>(path: P) {
+        let path = path.as_ref();
+
+        if path.is_file() {
+            if let Err(e) = ::std::fs::remove_file(path) {
+                panic!("Failed to delete temporary database: {:?}\n\
+                        You need to remove it manually.", path);
+            }
+        }
+    }
+
+    fn test<F: FnOnce(PathBuf)>(f: F)
+    {
+        let path = create_temporary_database();
+
+        f(path.clone());
+
+        delete_temporary_database(path);
+    }
 
     #[test]
     fn dispatch_close() {
-        let mut core = Core::new().unwrap();
-        let handle = core.handle();
+        test(|db_path| {
+            let mut core = Core::new().unwrap();
+            let handle = core.handle();
 
-        let (db2idx_sender, db2idx_receiver) = mpsc::channel::<DatabaseToIndexerClient>(0);
-        let (idx2db_sender, idx2db_receiver) = mpsc::channel::<IndexerClientToDatabase>(0);
+            let (db2idx_sender, db2idx_receiver) = mpsc::channel::<DatabaseToIndexerClient>(0);
+            let (idx2db_sender, idx2db_receiver) = mpsc::channel::<IndexerClientToDatabase>(0);
 
-        let (db2funder_sender, db2funder_receiver) = mpsc::channel::<DatabaseToFunder>(0);
-        let (funder2db_sender, funder2db_receiver) = mpsc::channel::<FunderToDatabase>(0);
+            let (db2funder_sender, db2funder_receiver) = mpsc::channel::<DatabaseToFunder>(0);
+            let (funder2db_sender, funder2db_receiver) = mpsc::channel::<FunderToDatabase>(0);
 
-        let (db2net_sender, db2net_receiver) = mpsc::channel::<DatabaseToNetworker>(0);
-        let (net2db_sender, net2db_receiver) = mpsc::channel::<NetworkerToDatabase>(0);
+            let (db2net_sender, db2net_receiver) = mpsc::channel::<DatabaseToNetworker>(0);
+            let (net2db_sender, net2db_receiver) = mpsc::channel::<NetworkerToDatabase>(0);
 
-        let (db_close_handle, db_service) = create_db_service(
-            "test.sqlite",
-            &handle,
-            db2funder_sender,
-            funder2db_receiver,
-            db2net_sender,
-            net2db_receiver,
-            db2idx_sender,
-            idx2db_receiver,
-        ).unwrap();
+            let (db_close_handle, db_service) = create_db_service(
+                db_path,
+                &handle,
+                db2funder_sender,
+                funder2db_receiver,
+                db2net_sender,
+                net2db_receiver,
+                db2idx_sender,
+                idx2db_receiver,
+            ).unwrap();
 
-        handle.spawn(db_service.map_err(|_| ()));
+            handle.spawn(db_service.map_err(|_| ()));
 
-        let timeout = Timeout::new(Duration::from_millis(100), &handle).unwrap();
+            let timeout = Timeout::new(Duration::from_millis(100), &handle).unwrap();
 
-        let work = timeout.and_then(move |_| {
+            let work = timeout.and_then(move |_| {
                 let db_close_receiver =
                     db_close_handle.close().expect("Can not close twice!");
 
@@ -212,6 +272,7 @@ mod tests {
                     .map_err(|_| io::Error::new(io::ErrorKind::Other, "Failed to close"))
             });
 
-        core.run(work).unwrap();
+            core.run(work).unwrap();
+        });
     }
 }
