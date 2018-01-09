@@ -82,24 +82,6 @@ impl AsRef<[u8]> for IndexingProviderId {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct ChannelerAddress {
-    pub socket_addr: Option<SocketAddr>,
-    pub neighbor_public_key: PublicKey,
-}
-
-#[derive(Clone, Debug)]
-pub struct ChannelerNeighborInfo {
-    pub neighbor_address: ChannelerAddress,
-    pub max_channels: u32,  // Maximum amount of token channels
-}
-
-pub struct NeighborInfo {
-    neighbor_public_key: PublicKey,
-    neighbor_address: ChannelerAddress,
-    max_channels: u32,  // Maximum amount of token channels
-    token_channel_capacity: u64,    // Capacity per token channel
-}
 
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -556,12 +538,42 @@ pub enum DatabaseToFunder {
     // TODO:
 }
 
+pub struct StoreNeighborInfo {
+    pub neighbor_public_key: PublicKey,
+    pub remote_maximum_debt: u64,
+    pub maximum_channel: u32,
+    pub is_enable: bool
+}
+
+pub struct MoveTokenMessage {
+    pub move_token_transactions: Bytes,
+    // pub move_token_old_token: TODO
+    pub move_tolen_rand_nonce: RandValue,
+}
+
 pub enum NetworkerToDatabase {
-    // TODO:
+    StoreNeighbor(StoreNeighborInfo),
+    RemoveNeighbor {
+        neighbor_public_key: PublicKey
+    },
+    RequestLoadNeighbors,
+    StoreInNeighborToken {
+        neighbor_public_key: PublicKey,
+        token_channel_index: u32,
+        move_token_message: MoveTokenMessage,
+        remote_maximum_debt: u64,
+        local_maximum_debt: u64,
+        remote_pending_debt: u64,
+        local_pending_debt: u64,
+        balance: u64,
+        local_funds_rand_nonce: Option<RandValue>,
+        remote_funds_rand_nonce: Option<RandValue>,
+        closed_local_requests: Vec<Uid>,
+    }
 }
 
 pub enum DatabaseToNetworker {
-    // TODO:
+    ResponseLoadNeighbors,
 }
 
 

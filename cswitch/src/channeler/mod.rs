@@ -17,66 +17,23 @@ use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 use close_handle::{CloseHandle, create_close_handle};
 use security_module::security_module_client::SecurityModuleClient;
-use inner_messages::{
-    FromTimer,
-    ChannelerToNetworker,
-    NetworkerToChanneler,
-    ChannelerNeighborInfo,
-    ChannelOpened,
-};
+
+use timer::messages::FromTimer;
+use networker::messages::NetworkerToChanneler;
+
+pub mod types;
+pub mod messages;
 
 mod codec;
-pub mod channel;
-pub mod timer_reader;
-pub mod networker_reader;
+mod reader;
+mod channel;
 
+use self::messages::ToChannel;
+use self::messages::ChannelerToNetworker;
 use self::channel::{Channel, ChannelError};
-use self::timer_reader::TimerReader;
-use self::networker_reader::NetworkerReader;
+use self::reader::{TimerReader, NetworkerReader};
 
 const KEEP_ALIVE_TICKS: usize = 15;
-
-#[derive(Debug)]
-pub enum ToChannel {
-    TimeTick,
-    SendMessage(Vec<u8>),
-}
-
-#[derive(Debug)]
-pub struct ChannelerNeighbor {
-    pub info: ChannelerNeighborInfo,
-    pub channels: Vec<(Uid, mpsc::Sender<ToChannel>)>,
-    pub remaining_retry_ticks: usize,
-    pub num_pending_out_conn: usize,
-}
-
-#[derive(Debug)]
-pub enum ChannelerError {
-    Io(io::Error),
-    CloseReceiverCanceled,
-    ClosingTaskCanceled,
-    SendCloseNotificationFailed,
-    NetworkerClosed,
-    // TODO: We should probably start closing too.
-    NetworkerPollError,
-    TimerClosed,
-    // TODO: We should probably start closing too.
-    TimerPollError,
-}
-
-impl From<io::Error> for ChannelerError {
-    #[inline]
-    fn from(e: io::Error) -> ChannelerError {
-        ChannelerError::Io(e)
-    }
-}
-
-impl From<oneshot::Canceled> for ChannelerError {
-    #[inline]
-    fn from(_e: oneshot::Canceled) -> ChannelerError {
-        ChannelerError::CloseReceiverCanceled
-    }
-}
 
 enum ChannelerState {
     Alive,

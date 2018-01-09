@@ -28,10 +28,6 @@ use crypto::symmetric_enc::{
     SymmetricEncError,
 };
 use crypto::dh::{DhPrivateKey, DhPublicKey, Salt};
-use inner_messages::{
-    ChannelerToNetworker,
-    ChannelMessageReceived,
-};
 use security_module::security_module_client::{
     SecurityModuleClient,
     SecurityModuleClientError,
@@ -52,6 +48,7 @@ use schema::channeler::{
 
 use super::{ToChannel, ChannelerNeighbor, KEEP_ALIVE_TICKS};
 use super::codec::{Codec, CodecError};
+use super::messages::ChannelerToNetworker;
 
 #[derive(Debug)]
 pub enum ChannelError {

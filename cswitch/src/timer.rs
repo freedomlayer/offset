@@ -40,16 +40,21 @@
 extern crate futures_timer;
 
 use std::{time, io, mem};
+
+use futures::prelude::*;
 use futures::sync::mpsc;
-use futures::{Future, Sink, Stream, Poll, Async, AsyncSink};
 
 use self::futures_timer::Interval;
 
-use super::inner_messages::FromTimer;
+pub mod messages {
+    pub enum FromTimer {
+        TimeTick,
+    }
+}
 
 #[derive(Debug)]
 pub enum TimerError {
-    IntervalError(io::Error),
+    Interval(io::Error),
 }
 
 /// The timer module.
@@ -95,7 +100,7 @@ impl Future for TimerModule {
 
     fn poll(&mut self) -> Poll<(), TimerError> {
         let poll = self.inner.poll().map_err(|e| {
-            TimerError::IntervalError(e)
+            TimerError::Interval(e)
         })?;
 
         if poll.is_ready() {
