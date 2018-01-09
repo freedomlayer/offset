@@ -30,10 +30,16 @@ enum RequestsState {
         disabled @1;
 }
 
+# Set requests state for the remote party.
+# If the state is enabled, requests may be opened from the remote party.
+# If the state is disabled, requests may not be opened from the remote party.
 struct SetStateTran {
         newState @0: RequestsState;
 }
 
+# Set the maximum possible debt for the remote party.
+# Note: It is not possible to set a maximum debt smaller than the current debt
+# This will cause an inconsistency.
 struct SetRemoteMaxDebtTran {
         remoteMaxDebt @0: UInt64;
 }
