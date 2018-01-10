@@ -260,8 +260,8 @@ enum NeighborTokenChannelEventInner {
     Open,
     Close,
     LocalMaxDebtChange(u64),    // Contains new local max debt
-    BalanceChange(u64),         // Contains new balance
-    InconsistencyError(u64)     // Contains balance required for reset
+    BalanceChange(i64),         // Contains new balance
+    InconsistencyError(i64)     // Contains balance required for reset
 }
 
 struct NeighborTokenChannelEvent {
@@ -486,8 +486,8 @@ enum FriendEvent {
     RequestsOpened,
     RequestsClosed,
     LocalMaxDebtChange(u128),   // Contains new local max debt
-    BalanceChange(u128),        // Contains new balance
-    InconsistencyError(u128),   // Contains balance required for reset
+    BalanceChange(i128),        // Contains new balance
+    InconsistencyError(i128),   // Contains balance required for reset
 }
 
 struct FriendStateUpdate {
