@@ -247,17 +247,19 @@ pub enum NetworkerToIndexerClient {
 
 // Networker to App Manager
 // ---------------------------
+    
 
 struct NeighborLoaded {
-    neighbor_public_key: PublicKey,
+    address: ChannelerAddress,
     max_channels: u32,
-    neighbor_status: NeighborStatus,
+    token_channel_capacity: u64,
+    status: NeighborStatus,
 }
 
 enum NeighborTokenChannelEventInner {
     Open,
     Close,
-    LocalMaxDebtChange(u64),    // Contains new 
+    LocalMaxDebtChange(u64),    // Contains new local max debt
     BalanceChange(u64),         // Contains new balance
     InconsistencyError(u64)     // Contains balance required for reset
 }
@@ -460,55 +462,7 @@ pub enum DatabaseToIndexerClient {
 // ------------------------
 
 // TODO: Not done here:
-
-enum ResponseAddFriendStatus {
-    Success,
-    FailureFriendAlreadyExist,
-
-}
-
-enum ResponseRemoveFriendStatus {
-    Success,
-    FailureFriendNonexistent,
-    FailureMutualCreditNonzero,
-}
-
-enum ResponseSetFriendCapacityStatus {
-    Success,
-    FailureFriendNonexistent,
-    FailureProposedCapacityTooSmall,
-}
-
-enum ResponseOpenFriendStatus {
-    Success,
-    FailureFriendNonexistent,
-    FailureFriendAlreadyOpen,
-}
-
-enum ResponseCloseFriendStatus {
-    Success,
-    FailureFriendNonexistent,
-    FailureFriendAlreadyClosed,
-}
-
-enum FunderToAppManager {
-    FriendStateUpdate {
-        // TODO
-        // - Opened
-        // - Closed
-        // - LocalMaxDebtChanged
-        // - RemoteOpenedRequests
-        // - RemoteClosedRequests
-    },
-    ResponseSendFunds {
-        // TODO
-    },
-}
-
-
-// App Manager to Funder
-// ------------------------
-
+//
 enum FriendStatus {
     Enabled,
     Disabled,
@@ -518,6 +472,40 @@ enum FriendRequestsStatus {
     Open,
     Close,
 }
+
+struct FriendLoaded {
+    token_channel_capacity: u128,
+    status: FriendStatus,
+    requests_status: FriendRequestsStatus,
+}
+
+enum FriendEvent {
+    Loaded(FriendLoaded),
+    Open,
+    Close,
+    RequestsOpened,
+    RequestsClosed,
+    LocalMaxDebtChange(u128),   // Contains new local max debt
+    BalanceChange(u128),        // Contains new balance
+    InconsistencyError(u128),   // Contains balance required for reset
+}
+
+struct FriendStateUpdate {
+    friend_public_key: PublicKey,
+    event: FriendEvent,
+}
+
+enum FunderToAppManager {
+    FriendStateUpdate(FriendStateUpdate),
+    ResponseSendFunds {
+        // TODO
+    },
+}
+
+
+// App Manager to Funder
+// ------------------------
+
 
 enum AppManagerToFunder {
     RequestSendFunds {
