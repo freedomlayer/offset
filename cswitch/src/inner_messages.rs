@@ -248,44 +248,77 @@ pub enum NetworkerToIndexerClient {
 // Networker to App Manager
 // ---------------------------
 
+struct NeighborLoaded {
+    neighbor_public_key: PublicKey,
+    max_channels: u32,
+    neighbor_status: NeighborStatus,
+}
+
+enum NeighborTokenChannelEventInner {
+    Open,
+    Close,
+    BalanceChange(u64), // Contains new balance
+}
+
+struct NeighborTokenChannelEvent {
+    channel_index: u32,
+    event: NeighborTokenChannelEventInner,
+}
+
+enum NeighborEvent {
+    NeighborLoaded(NeighborLoaded),
+    TokenChannelEvent(NeighborTokenChannelEvent),
+}
+
+
+struct NeighborStateUpdate {
+    neighbor_public_key: PublicKey,
+    event: NeighborEvent,
+}
+
 
 enum NetworkerToAppManager {
-    SendMessageRequestReceived {
-        request_id: Uid,
-        source_node_public_key: PublicKey,
-        request_content: Vec<u8>,
-        max_response_length: u64,
-        processing_fee: u64,
-    },
-    InvalidNeighborMoveToken {
+    MessageReceived(MessageReceived),
+    ResponseSendMessage(ResponseSendMessage),
+    NeighborStateUpdate(NeighborStateUpdate),
         // TODO
-    },
-    NeighborsState {
-        // TODO: Current state of neighbors.
-
-    },
-    NeighborsUpdates {
-        // TODO: Add some summary of information about neighbors and their token channels.
-        // Possibly some counters?
-    },
+        // - Load neighbor 
+        //      - neighbor_public_key
+        //      - max_channels
+        //      - neighbor_status
+        //      - remote_max_debt
+        //      - Token channels
+        //          - balance
+        // - token channel event
+        //      - opened
+        //      - closed
+        //      - balance change
 }
 
 // App Manager to Networker
 // ---------------------------
 
+enum NeighborStatus {
+    Enabled,
+    Disabled,
+}
 
 enum AppManagerToNetworker {
-    RespondSendMessageRequest {
-        request_id: Uid,
-        response_content: Vec<u8>,
-    },
-    DiscardSendMessageRequest {
-        request_id: Uid,
-    },
+    RequestSendMessage(RequestSendMessage),
+    ResponseMessageReceived(RespondMessageReceived),
+    DiscardMessageReceived(DiscardMessageReceived),
     SetNeighborChannelCapacity {
+        neighbor_public_key: PublicKey,
         token_channel_capacity: u64,    // Capacity per token channel
     },
+    ResetNeighborChannel {
+        neighbor_public_key: PublicKey,
+        channel_index: u32,
+        // TODO: Should we add wanted parameters for the ChannelReset, or let the Networker use the
+        // last Inconsistency message information to perform Reset?
+    },
     SetNeighborMaxChannels {
+        neighbor_public_key: PublicKey,
         max_channels: u32,
     },
     AddNeighbor {
@@ -293,6 +326,9 @@ enum AppManagerToNetworker {
     },
     RemoveNeighbor {
         neighbor_public_key: PublicKey,
+    },
+    SetNeighborStatus {
+        neighbor_status: NeighborStatus,
     },
 }
 
