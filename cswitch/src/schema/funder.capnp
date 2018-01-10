@@ -18,6 +18,9 @@ struct FriendMoveToken {
 struct FriendInconsistencyError {
         currentToken @0: CustomUInt256;
         balanceForReset @1: CustomUInt128;
+        # Note that this is actually a signed number (Highest bit is the sign
+        # bit, Two's complement method). TODO: Should we have a separate type,
+        # like CustomInt128?
 }
 
 

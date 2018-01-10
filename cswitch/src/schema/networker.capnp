@@ -18,7 +18,7 @@ struct NeighborMoveToken {
 struct NeighborInconsistencyError {
         tokenChannelIndex @0: UInt8;
         currentToken @1: CustomUInt256;
-        balanceForReset @2: UInt64;
+        balanceForReset @2: Int64;
 }
 
 
