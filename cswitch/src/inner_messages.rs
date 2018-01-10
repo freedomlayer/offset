@@ -257,7 +257,9 @@ struct NeighborLoaded {
 enum NeighborTokenChannelEventInner {
     Open,
     Close,
-    BalanceChange(u64), // Contains new balance
+    LocalMaxDebtChange(u64),    // Contains new 
+    BalanceChange(u64),         // Contains new balance
+    InconsistencyError(u64)     // Contains balance required for reset
 }
 
 struct NeighborTokenChannelEvent {
@@ -281,18 +283,6 @@ enum NetworkerToAppManager {
     MessageReceived(MessageReceived),
     ResponseSendMessage(ResponseSendMessage),
     NeighborStateUpdate(NeighborStateUpdate),
-        // TODO
-        // - Load neighbor 
-        //      - neighbor_public_key
-        //      - max_channels
-        //      - neighbor_status
-        //      - remote_max_debt
-        //      - Token channels
-        //          - balance
-        // - token channel event
-        //      - opened
-        //      - closed
-        //      - balance change
 }
 
 // App Manager to Networker
@@ -328,7 +318,7 @@ enum AppManagerToNetworker {
         neighbor_public_key: PublicKey,
     },
     SetNeighborStatus {
-        neighbor_status: NeighborStatus,
+        status: NeighborStatus,
     },
 }
 
