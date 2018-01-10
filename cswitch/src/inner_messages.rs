@@ -492,45 +492,16 @@ enum ResponseCloseFriendStatus {
 }
 
 enum FunderToAppManager {
-    FundsReceived {
-        source_node_public_key: PublicKey,
-        amount: u64,
-        message_content: Vec<u8>,
-    },
-    InvalidFriendMoveToken {
+    FriendStateUpdate {
         // TODO
+        // - Opened
+        // - Closed
+        // - LocalMaxDebtChanged
+        // - RemoteOpenedRequests
+        // - RemoteClosedRequests
     },
     ResponseSendFunds {
-        request_id: Uid,
-        status: ResponseSendFundsStatus,
-    },
-    ResponseAddFriend {
-        request_id: Uid,
-        status: ResponseAddFriendStatus,
-    },
-    ResponseRemoveFriend {
-        request_id: Uid,
-        status: ResponseRemoveFriendStatus,
-    },
-    ResponseSetFriendCapacity {
-        request_id: Uid,
-        status: ResponseSetFriendCapacityStatus,
-    },
-    ResponseOpenFriend {
-        request_id: Uid,
-        status: ResponseOpenFriendStatus,
-    },
-    ResponseCloseFriend {
-        request_id: Uid,
-        status: ResponseCloseFriendStatus,
-    },
-    FriendsState {
-        // TODO: Current state of friends.
-
-    },
-    FriendsUpdates {
-        // TODO: Add some summary of information about friends and their token channels.
-        // Possibly some counters?
+        // TODO
     },
 }
 
@@ -538,35 +509,35 @@ enum FunderToAppManager {
 // App Manager to Funder
 // ------------------------
 
+enum FriendStatus {
+    Enabled,
+    Disabled,
+}
+
+enum FriendRequestsStatus {
+    Open,
+    Close,
+}
+
 enum AppManagerToFunder {
     RequestSendFunds {
         request_id: Uid,
         amount: u64,
-        message_content: Vec<u8>,
         destination_node_public_key: PublicKey,
     },
-    RequestAddFriend {
-        request_id: Uid,
-        friend_public_key: PublicKey,
-        capacity: BigInt, // Max debt possible
+    ResetFriendChannel {
+        // TODO
     },
-    RequestRemoveFriend {
-        request_id: Uid,
-        friend_public_key: PublicKey,
+    AddFriend {
+        // TODO
     },
-    RequestSetFriendCapacity {
-        request_id: Uid,
-        friend_public_key: PublicKey,
-        new_capacity: BigInt,
-    },
-    RequestOpenFriend {
-        request_id: Uid,
+    RemoveFriend {
         friend_public_key: PublicKey,
     },
-    RequestCloseFriend {
-        request_id: Uid,
-        friend_public_key: PublicKey,
-    }
+    SetFriendStatus {
+        status: FriendStatus,
+        requests_status: FriendRequestsStatus,
+    },
 }
 
 pub enum FunderToDatabase {
