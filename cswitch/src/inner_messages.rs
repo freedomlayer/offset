@@ -97,7 +97,7 @@ pub struct ChannelerNeighborInfo {
 pub struct NeighborInfo {
     neighbor_public_key: PublicKey,
     neighbor_address: ChannelerAddress,
-    max_channels: u32,  // Maximum amount of token channels
+    max_channels: u32,              // Maximum amount of token channels
     token_channel_capacity: u64,    // Capacity per token channel
 }
 
@@ -506,18 +506,24 @@ enum FunderToAppManager {
 // App Manager to Funder
 // ------------------------
 
+pub struct FriendInfo {
+    friend_public_key: PublicKey,
+    token_channel_capacity: u128,    // Capacity per token channel
+}
+
 
 enum AppManagerToFunder {
     RequestSendFunds {
+        // TODO
         request_id: Uid,
-        amount: u64,
+        amount: u128,
         destination_node_public_key: PublicKey,
     },
     ResetFriendChannel {
         // TODO
     },
     AddFriend {
-        // TODO
+        friend_info: FriendInfo,
     },
     RemoveFriend {
         friend_public_key: PublicKey,
@@ -525,6 +531,11 @@ enum AppManagerToFunder {
     SetFriendStatus {
         status: FriendStatus,
         requests_status: FriendRequestsStatus,
+        // TODO: How to get Ack for change of requests_status?
+    },
+    SetFriendChannelCapacity {
+        friend_public_key: PublicKey,
+        token_channel_capacity: u128,
     },
 }
 
