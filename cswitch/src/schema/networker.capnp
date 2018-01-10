@@ -78,7 +78,7 @@ struct RequestSendMessageTran {
         }
         maxResponseLength @4: UInt32;
         processingFeeProposal @5: UInt64;
-        halfCreditsPerByteProposal @6: UInt64;
+        creditsPerByteProposal @6: UInt64;
 }
 
 
@@ -93,7 +93,7 @@ struct ResponseSendMessageTran {
         #   sha512/256(requestContent) ||
         #   maxResponseLength ||
         #   processingFeeProposal ||
-        #   halfCreditsPerBytesProposal || 
+        #   creditsPerByteProposal || 
         #   sha512/256(responseContent))
 }
 
@@ -108,7 +108,7 @@ struct FailedSendMessageTran {
         #   sha512/256(requestContent) ||
         #   maxResponseLength ||
         #   processingFeeProposal ||
-        #   halfCreditsPerBytesProposal)
+        #   creditsPerByteProposal)
 }
 
 
