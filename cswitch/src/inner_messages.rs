@@ -520,7 +520,7 @@ enum AppManagerToFunder {
         destination_node_public_key: PublicKey,
     },
     ResetFriendChannel {
-        // TODO
+        friend_public_key: PublicKey,
     },
     AddFriend {
         friend_info: FriendInfo,
