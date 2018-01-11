@@ -80,8 +80,9 @@ fn create_indexer_client_reader(
         DBServiceError::RecvFromIndexerClientFailed
     }).for_each(|msg| {
         match msg {
-            IndexerClientToDatabase::RequestLoadIndexingProvider => {}
+            IndexerClientToDatabase::RequestLoadIndexingProviders => {}
             IndexerClientToDatabase::StoreIndexingProvider(info) => {}
+            IndexerClientToDatabase::RemoveIndexingProvider(_) => {assert!(false)}
             IndexerClientToDatabase::StoreRoute { id, route } => {}
         }
 

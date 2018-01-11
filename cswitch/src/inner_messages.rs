@@ -510,7 +510,8 @@ pub enum IndexerClientToAppManager {
 
 pub enum IndexerClientToDatabase {
     StoreIndexingProvider(IndexingProviderInfo),
-    RequestLoadIndexingProvider,
+    RemoveIndexingProvider(IndexingProviderId),
+    RequestLoadIndexingProviders,
     StoreRoute {
         id: IndexingProviderId,
         route: NeighborsRoute,
@@ -521,6 +522,7 @@ pub struct IndexingProviderInfoFromDB {
     id: IndexingProviderId,
     state_chain_link: StateChainLink,
     last_routes: Vec<NeighborsRoute>,
+    status: IndexingProviderStatus,
 }
 
 pub enum DatabaseToIndexerClient {
