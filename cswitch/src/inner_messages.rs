@@ -597,6 +597,7 @@ enum AppManagerToFunder {
         friend_public_key: PublicKey,
     },
     SetFriendStatus {
+        friend_public_key: PublicKey,
         status: FriendStatus,
         requests_status: FriendRequestsStatus,
     },
