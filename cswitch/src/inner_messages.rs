@@ -531,7 +531,6 @@ enum AppManagerToFunder {
     SetFriendStatus {
         status: FriendStatus,
         requests_status: FriendRequestsStatus,
-        // TODO: How to get Ack for change of requests_status?
     },
     SetFriendChannelCapacity {
         friend_public_key: PublicKey,
