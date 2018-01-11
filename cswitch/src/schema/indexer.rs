@@ -16,7 +16,7 @@ use inner_messages::{
     IndexingProviderId,
     IndexingProviderStateHash,
     NeighborsRoute,
-    FriendsRoute,
+    FriendsRouteWithCapacity,
     RequestNeighborsRoutes,
     ResponseNeighborsRoutes,
     RequestFriendsRoutes,
@@ -66,7 +66,7 @@ impl<'a> Schema<'a> for NeighborsRoute {
     }
 }
 
-impl<'a> Schema<'a> for FriendsRoute {
+impl<'a> Schema<'a> for FriendsRouteWithCapacity {
     type Reader = friends_route::Reader<'a>;
     type Writer = friends_route::Builder<'a>;
 
@@ -77,7 +77,7 @@ impl<'a> Schema<'a> for FriendsRoute {
 
         let capacity = from.get_capacity();
 
-        Ok(FriendsRoute {
+        Ok(FriendsRouteWithCapacity {
             public_keys,
             capacity,
         })
@@ -277,7 +277,7 @@ impl<'a> Schema<'a> for ResponseFriendsRoutes {
         let mut routes = Vec::with_capacity(routes_reader.len() as usize);
 
         for friends_route_reader in routes_reader.iter() {
-            routes.push(FriendsRoute::read(&friends_route_reader)?);
+            routes.push(FriendsRouteWithCapacity::read(&friends_route_reader)?);
         }
 
         Ok(ResponseFriendsRoutes {
@@ -642,8 +642,8 @@ mod tests {
         }
     }
 
-    fn create_dummy_friends_route() -> FriendsRoute {
-        FriendsRoute {
+    fn create_dummy_friends_route() -> FriendsRouteWithCapacity {
+        FriendsRouteWithCapacity {
             public_keys: create_dummy_public_keys_list(),
             capacity: random::<u64>(),
         }
@@ -685,7 +685,7 @@ mod tests {
     fn test_friends_route() {
         let in_friends_route = create_dummy_friends_route();
 
-        test_encode_decode!(FriendsRoute, in_friends_route);
+        test_encode_decode!(FriendsRouteWithCapacity, in_friends_route);
     }
 
     #[test]
