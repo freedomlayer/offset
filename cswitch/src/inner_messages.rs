@@ -50,9 +50,10 @@ impl AsRef<[u8]> for IndexingProviderStateHash {
     }
 }
 
-// The name of an indexing provider.
+// The Id of an indexing provider.
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub struct IndexingProviderId([u8; INDEXING_PROVIDER_ID_LEN]);
+
 
 impl IndexingProviderId {
     pub fn from_bytes<T>(t: &T) -> Result<Self, ()>
