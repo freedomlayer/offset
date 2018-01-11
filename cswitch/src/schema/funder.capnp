@@ -11,7 +11,7 @@ using import "common.capnp".CustomUInt512;
 struct FriendMoveToken {
         transactions @0: List(Data);
         oldToken @1: CustomUInt256;
-        randNonce @2: CustomUInt256;
+        randNonce @2: CustomUInt128;
 }
 
 
@@ -61,7 +61,7 @@ struct RequestSendFundTran {
 
 struct ResponseSendFundTran {
         requestId @0: CustomUInt128;
-        randNonce @1: CustomUInt256;
+        randNonce @1: CustomUInt128;
         signature @2: CustomUInt512;
         # Signature{key=recipientKey}(
         #   "FUND_SUCCESS" ||
@@ -74,7 +74,7 @@ struct ResponseSendFundTran {
 struct FailedSendFundTran {
         requestId @0: CustomUInt128;
         reportingNodePublicKey @1: CustomUInt256;
-        randNonce @2: CustomUInt256;
+        randNonce @2: CustomUInt128;
         signature @3: CustomUInt512;
         # Signature{key=recipientKey}(
         #   "FUND_FAILURE" ||

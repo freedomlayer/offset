@@ -12,7 +12,7 @@ struct NeighborMoveToken {
         tokenChannelIndex @0: UInt8;
         transactions @1: List(Data);
         oldToken @2: CustomUInt256;
-        randNonce @3: CustomUInt256;
+        randNonce @3: CustomUInt128;
 }
 
 struct NeighborInconsistencyError {
