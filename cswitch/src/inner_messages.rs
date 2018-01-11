@@ -269,6 +269,7 @@ enum NeighborTokenChannelEventInner {
     Open,
     Close,
     LocalMaxDebtChange(u64),    // Contains new local max debt
+    RemoteMaxDebtChange(u64),   // Contains new remote max debt
     BalanceChange(i64),         // Contains new balance
     InconsistencyError(i64)     // Contains balance required for reset
 }
