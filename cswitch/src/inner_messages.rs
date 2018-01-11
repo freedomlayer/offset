@@ -495,6 +495,12 @@ pub enum IndexingProviderStatus {
     Disabled,
 }
 
+pub struct IndexingProviderLoaded {
+    id: IndexingProviderId,
+    state_chain_link: StateChainLink,
+    status: IndexingProviderStatus,
+}
+
 pub enum AppManagerToIndexerClient {
     AddIndexingProvider(IndexingProviderInfo),
     SetIndexingProviderStatus {
@@ -509,8 +515,8 @@ pub enum AppManagerToIndexerClient {
 }
 
 pub enum IndexingProviderStateUpdate {
-    Add(IndexingProviderInfo),
-    Remove(IndexingProviderId),
+    Loaded(IndexingProviderLoaded),
+    ChainLinkUpdated(IndexingProviderInfo),
 }
 
 pub enum IndexerClientToAppManager {
