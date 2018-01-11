@@ -241,9 +241,32 @@ struct RequestSendFunds {
     payment: u128,
 }
 
+
+struct SendFundsReceipt {
+    response_hash: (), // TODO
+    // = sha512/256(requestId || 
+    //       sha512/256(nodeIdPath) || 
+    //       mediatorPaymentProposal)
+    invoice_id: InvoiceId,
+    payment: u128,
+    rand_nonce: RandValue,
+    signature: Signature,
+    // Signature{key=recipientKey}(
+    //   "FUND_SUCCESS" ||
+    //   sha512/256(requestId || sha512/256(nodeIdPath) || mediatorPaymentProposal) ||
+    //   invoiceId ||
+    //   destinationPayment ||
+    //   randNonce)
+}
+
+enum SendFundsResult {
+    Success(SendFundsReceipt),
+    Failure,
+}
+
 struct ResponseSendFunds {
     request_id: Uid,
-    // TODO
+    result: SendFundsResult,
 }
 
 
