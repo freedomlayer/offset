@@ -368,7 +368,7 @@ enum AppManagerToNetworker {
     RequestSendMessage(RequestSendMessage),
     ResponseMessageReceived(RespondMessageReceived),
     DiscardMessageReceived(DiscardMessageReceived),
-    SetNeighborChannelCapacity {
+    SetNeighborWantedRemoteMaxDebt {
         neighbor_public_key: PublicKey,
         wanted_remote_max_debt: u64,
     },
@@ -606,7 +606,7 @@ enum AppManagerToFunder {
         status: FriendStatus,
         requests_status: FriendRequestsStatus,
     },
-    SetFriendChannelCapacity {
+    SetFriendWantedRemoteMaxDebt {
         friend_public_key: PublicKey,
         wanted_remote_max_debt: u128,
     },
