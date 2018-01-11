@@ -500,6 +500,7 @@ enum FriendEvent {
     RequestsOpened,
     RequestsClosed,
     LocalMaxDebtChange(u128),   // Contains new local max debt
+    RemoteMaxDebtChange(u128),   // Contains new local max debt
     BalanceChange(i128),        // Contains new balance
     InconsistencyError(i128),   // Contains balance required for reset
 }
