@@ -16,6 +16,7 @@ use ::crypto::rand_values::RandValue;
 // --------------
 
 pub const INDEXING_PROVIDER_STATE_HASH_LEN: usize = 32;
+pub const RECEIPT_RESPONSE_HASH_LEN: usize = 32;
 pub const INDEXING_PROVIDER_ID_LEN: usize = 16;
 pub const INVOICE_ID_LEN: usize = 32;
 
@@ -60,6 +61,12 @@ pub struct IndexingProviderId([u8; INDEXING_PROVIDER_ID_LEN]);
 /// payment.
 struct InvoiceId([u8; INVOICE_ID_LEN]);
 
+/// A hash of:
+/// = sha512/256(requestId || 
+///       sha512/256(nodeIdPath) || 
+///       mediatorPaymentProposal)
+/// Used inside SendFundsReceipt
+struct ReceiptResponseHash([u8; RECEIPT_RESPONSE_HASH_LEN]);
 
 impl IndexingProviderId {
     pub fn from_bytes<T>(t: &T) -> Result<Self, ()>
@@ -242,8 +249,10 @@ struct RequestSendFunds {
 }
 
 
+/// A SendFundsReceipt is received if a RequestSendFunds is successful.
+/// It can be used a proof of payment for a specific invoice_id.
 struct SendFundsReceipt {
-    response_hash: (), // TODO
+    response_hash: ReceiptResponseHash,
     // = sha512/256(requestId || 
     //       sha512/256(nodeIdPath) || 
     //       mediatorPaymentProposal)
@@ -255,7 +264,7 @@ struct SendFundsReceipt {
     //   "FUND_SUCCESS" ||
     //   sha512/256(requestId || sha512/256(nodeIdPath) || mediatorPaymentProposal) ||
     //   invoiceId ||
-    //   destinationPayment ||
+    //   payment ||
     //   randNonce)
 }
 
