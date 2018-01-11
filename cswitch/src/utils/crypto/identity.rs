@@ -107,7 +107,7 @@ pub struct SoftwareEd25519Identity {
 impl SoftwareEd25519Identity {
     pub fn from_pkcs8(pkcs8_bytes: &[u8]) -> Result<Self,()> {
         let key_pair = match signature::Ed25519KeyPair::from_pkcs8(
-            untrusted::Input::from(&pkcs8_bytes)) {
+            untrusted::Input::from(pkcs8_bytes)) {
             Ok(key_pair) => key_pair,
             Err(ring::error::Unspecified) => return Err(())
         };

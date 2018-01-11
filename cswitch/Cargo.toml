@@ -8,37 +8,39 @@ build = "build.rs"
 default = []
 dev = ["clippy"]
 
-[[bin]]
-name = "mock_networker"
-path = "test_utils/mock_networker.rs"
+# [[bin]]
+# name = "mock_networker"
+# path = "test_utils/mock_networker.rs"
 
 [dependencies]
-rand = "0.3.18"
-bytes = "0.4.5"
-num-bigint = "0.1.40"
-untrusted = "0.5.0"
-ring = "0.12.1"
-crossbeam = "0.3"
-
-futures = "0.1.17"
-tokio-core = "0.1.10"
-tokio-io = "0.1.4"
-
-byteorder = { version="1.1.0", features=["i128"] }
-
-log = "0.3.8"
-env_logger = "0.4.3"
-
-clippy = {version = "*", optional = true}
-
-capnp = "0.8.12"
-
+log = "0.4"
+# env_logger = "0.5"
 pretty_env_logger = "0.1"
 
-futures-timer = { git="https://github.com/alexcrichton/futures-timer", version = "0.1" }
+rand = "0.4"
+ring = "0.12"
+untrusted = "0.5"
+crossbeam = "0.3"
 
-futures-mutex = "0.2"
+bytes = "0.4"
+futures = "0.1"
+tokio-io = "0.1"
+tokio-core = "0.1"
+
+capnp = "0.8"
 rusqlite = "0.13"
 
+[dependencies.clippy]
+version = "0.0.176"
+optional = true
+
+[dependencies.byteorder]
+version = "1.1"
+features = ["i128"]
+
+[dependencies.futures-timer]
+version = "0.1"
+git = "https://github.com/alexcrichton/futures-timer"
+
 [build-dependencies]
-capnpc = "0.8.7"
+capnpc = "0.8"

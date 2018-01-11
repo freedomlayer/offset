@@ -1,25 +1,20 @@
 use std::mem;
 
-use futures::sink::Sink;
+use futures::prelude::*;
 use futures::sync::{mpsc, oneshot};
-use futures::{Future, Stream, Poll, Async, AsyncSink};
 
-use crypto::identity::Identity;
-use close_handle::{CloseHandle, create_close_handle};
-use inner_messages::{ToSecurityModule, FromSecurityModule};
+use utils::CloseHandle;
+use utils::crypto::identity::Identity;
 
-pub mod security_module_client;
-use self::security_module_client::SecurityModuleClient;
+pub mod client;
+pub mod messages;
+
+use self::client::SecurityModuleClient;
+use self::messages::{FromSecurityModule, ToSecurityModule};
 
 // TODO: Possibly Make this structure of service future more generic.  
 // Separate process_request from the rest of the code, 
 // so that we could construct more such services.
-
-
-struct PendingSend {
-    dest_index: usize,
-    value: FromSecurityModule,
-}
 
 enum SecurityModuleState {
     Reading(usize),
@@ -42,7 +37,7 @@ pub struct SecurityModule<I> {
 /// Create a new security module, together with a close handle to be used after the security module
 /// future instance was consumed.
 pub fn create_security_module<I: Identity>(identity: I) -> (CloseHandle, SecurityModule<I>) {
-    let (close_handle, (close_sender, close_receiver)) = create_close_handle();
+    let (close_handle, (close_sender, close_receiver)) = CloseHandle::new();
     let security_module = SecurityModule::new(identity, close_sender, close_receiver);
     (close_handle, security_module)
 }
@@ -111,7 +106,7 @@ impl<I: Identity> SecurityModule<I> {
                 Ok(true)
             },
             Ok(Async::NotReady) => Ok(false),
-            Err(_e) => return Err(SecurityModuleError::CloseReceiverCanceled),
+            Err(_e) => Err(SecurityModuleError::CloseReceiverCanceled),
         }
     }
 
@@ -214,9 +209,8 @@ impl<I: Identity> Future for SecurityModule<I> {
                         },
                         Ok(Async::NotReady) => {
                             // Track the first unready index:
-                            match first_unready_index.take() {
-                                None => first_unready_index = Some(j),
-                                _ => {},
+                            if first_unready_index.take().is_none() {
+                                first_unready_index = Some(j);
                             };
                             let next_j = (j + 1) % self.client_endpoints.len();
                             self.state = SecurityModuleState::Reading(next_j);
@@ -233,8 +227,8 @@ impl<I: Identity> Future for SecurityModule<I> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crypto::uid::gen_uid;
-    use crypto::identity::{SoftwareEd25519Identity, verify_signature};
+    // use utils::crypto::uid::gen_uid;
+    use utils::crypto::identity::{SoftwareEd25519Identity, verify_signature};
 
     use ring;
     use rand::{Rng, StdRng};

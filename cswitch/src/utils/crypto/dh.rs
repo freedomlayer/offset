@@ -3,17 +3,17 @@ extern crate untrusted;
 
 use std::mem;
 
-use self::ring::agreement;
-use self::ring::agreement::EphemeralPrivateKey;
-use self::ring::rand::SecureRandom;
-use self::ring::error::Unspecified;
-use self::ring::hkdf::extract_and_expand;
-use self::ring::hmac::SigningKey;
-use super::symmetric_enc::{SymmetricKey, SYMMETRIC_KEY_LEN};
+use ring::agreement::{self, EphemeralPrivateKey};
+use ring::error::Unspecified;
+use ring::rand::SecureRandom;
+use ring::hkdf::extract_and_expand;
+use ring::hmac::SigningKey;
+
+use super::sym_encrypt::{SymmetricKey, SYMMETRIC_KEY_LEN};
 
 pub const SALT_LEN: usize = 32;
 pub const DH_PUBLIC_KEY_LEN: usize = 32;
-const SHARED_SECRET_LEN: usize = 32;
+pub const SHARED_SECRET_LEN: usize = 32;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Salt([u8; SALT_LEN]);
@@ -110,7 +110,7 @@ impl DhPrivateKey {
         let u_public_key = untrusted::Input::from(&public_key.0);
 
         // Force a copy of our private key, so that we can use it more than once.
-        // This is a hack due to current limitation of the *ring* crypto library.
+        // This is a hack due to current limitation of the *ring* utils.crypto library.
         let dh_private_key: EphemeralPrivateKey =
             unsafe { mem::transmute_copy(&self.dh_private_key) };
 
@@ -134,7 +134,7 @@ impl DhPrivateKey {
         let info: [u8; 0] = [];
         let mut out = [0_u8; SYMMETRIC_KEY_LEN];
         extract_and_expand(&skey_salt, &shared_secret_array, &info, &mut out);
-        SymmetricKey(out)
+        SymmetricKey::from_bytes(&out)
     }
 }
 

@@ -25,6 +25,16 @@
 use std::io;
 use std::path::PathBuf;
 
+use crypto::dh::DhPublicKey;
+use crypto::identity::{PublicKey, Signature};
+use crypto::rand_values::RandValue;
+
+pub mod types;
+pub mod messages;
+
+use self::types::*;
+use self::messages::*;
+
 use futures::prelude::*;
 use futures::future::join_all;
 use futures::sync::{mpsc, oneshot};
@@ -205,7 +215,7 @@ mod tests {
             panic!("Failed to create temporary database: {:?}", e);
         }).unwrap();
 
-        let create_table_sql = include_str!("create_table.sql");
+        let create_table_sql = include_str!("./scripts/create_table.sql");
 
         connection.execute_batch(create_table_sql).map_err(|e| {
             panic!("Failed to create table: {:?}", e);

@@ -5,122 +5,15 @@ use std::time::SystemTime;
 use std::net::SocketAddr;
 
 use self::num_bigint::BigInt;
-use ::crypto::identity::{PublicKey, Signature};
-use ::crypto::dh::{Salt, DhPublicKey};
-use ::crypto::symmetric_enc::SymmetricKey;
-use ::crypto::uid::Uid;
-use ::crypto::rand_values::RandValue;
+use utils::crypto::identity::{PublicKey, Signature};
+use utils::crypto::dh::{Salt, DhPublicKey};
+use utils::crypto::sym_encrypt::SymmetricKey;
+use utils::crypto::uuid::Uuid;
+use utils::crypto::rand_values::RandValue;
 
 
 // Helper structs
 // --------------
-
-pub const INDEXING_PROVIDER_STATE_HASH_LEN: usize = 32;
-pub const INDEXING_PROVIDER_ID_LEN: usize = 16;
-
-// A hash of a full link in an indexing provider chain
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct IndexingProviderStateHash([u8; INDEXING_PROVIDER_STATE_HASH_LEN]);
-
-impl IndexingProviderStateHash {
-    pub fn from_bytes<T>(t: &T) -> Result<Self, ()>
-        where T: AsRef<[u8]>
-    {
-        let in_bytes = t.as_ref();
-
-        if in_bytes.len() != INDEXING_PROVIDER_STATE_HASH_LEN {
-            Err(())
-        } else {
-            let mut state_hash_bytes = [0; INDEXING_PROVIDER_STATE_HASH_LEN];
-            state_hash_bytes.clone_from_slice(in_bytes);
-            Ok(IndexingProviderStateHash(state_hash_bytes))
-        }
-    }
-
-    #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        self.as_ref()
-    }
-}
-
-impl AsRef<[u8]> for IndexingProviderStateHash {
-    #[inline]
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
-// The name of an indexing provider.
-#[derive(Debug, Eq, PartialEq, Clone, Hash)]
-pub struct IndexingProviderId([u8; INDEXING_PROVIDER_ID_LEN]);
-
-impl IndexingProviderId {
-    pub fn from_bytes<T>(t: &T) -> Result<Self, ()>
-        where T: AsRef<[u8]>
-    {
-        let in_bytes = t.as_ref();
-
-        if in_bytes.len() != INDEXING_PROVIDER_ID_LEN {
-            Err(())
-        } else {
-            let mut provider_id_bytes = [0; INDEXING_PROVIDER_ID_LEN];
-            provider_id_bytes.clone_from_slice(in_bytes);
-            Ok(IndexingProviderId(provider_id_bytes))
-        }
-    }
-
-    #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        self.as_ref()
-    }
-}
-
-impl AsRef<[u8]> for IndexingProviderId {
-    #[inline]
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
-
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct NeighborsRoute {
-    pub public_keys: Vec<PublicKey>,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct FriendsRoute {
-    pub public_keys: Vec<PublicKey>,
-    // How much credit can we push through this route?
-    pub capacity: u64,
-}
-
-
-
-// Channeler to Networker
-// ----------------------
-
-pub struct ChannelOpened {
-    pub remote_public_key: PublicKey, // Public key of remote side
-    pub locally_initialized: bool, // Was this channel initiated by this end.
-}
-
-pub struct ChannelClosed {
-    pub remote_public_key: PublicKey,
-}
-
-pub struct ChannelMessageReceived {
-    pub remote_public_key: PublicKey,
-    pub message_content: Vec<u8>,
-}
-
-pub enum ChannelerToNetworker {
-    ChannelOpened(ChannelOpened),
-    ChannelClosed(ChannelClosed),
-    ChannelMessageReceived(ChannelMessageReceived),
-}
-
 
 // Networker to Channeler
 // ----------------------
@@ -129,25 +22,6 @@ pub enum ServerType {
     PublicServer,
     PrivateServer
 }
-
-pub enum NetworkerToChanneler {
-    SendChannelMessage {
-        token: u32,
-        neighbor_public_key: PublicKey,
-        content: Vec<u8>,
-    },
-    AddNeighbor {
-        neighbor_info: ChannelerNeighborInfo,
-    },
-    RemoveNeighbor {
-        neighbor_public_key: PublicKey,
-    },
-    SetMaxChannels {
-        neighbor_public_key: PublicKey,
-        max_channels: u32,
-    },
-}
-
 
 // Networker interface
 // -------------------
@@ -169,7 +43,7 @@ pub enum DestPort {
 
 /// Component -> Networker
 pub struct RequestSendMessage {
-    request_id: Uid,
+    request_id: Uuid,
     route: NeighborsRoute,
     dest_port: DestPort,
     request_data: Vec<u8>,
@@ -180,13 +54,13 @@ pub struct RequestSendMessage {
 
 /// Networker -> Component
 pub struct ResponseSendMessage {
-    request_id: Uid,
+    request_id: Uuid,
     result: SendMessageResult,
 }
 
 /// Networker -> Component
 pub struct MessageReceived {
-    request_id: Uid,
+    request_id: Uuid,
     route: NeighborsRoute, // sender_public_key is the first public key on the NeighborsRoute
     request_data: Vec<u8>,
     max_response_len: u32,
@@ -196,23 +70,18 @@ pub struct MessageReceived {
 
 /// Component -> Networker
 pub struct RespondMessageReceived {
-    request_id: Uid,
+    request_id: Uuid,
     response_data: Vec<u8>,
 }
 
 /// Component -> Networker
 pub struct DiscardMessageReceived {
-    request_id: Uid,
+    request_id: Uuid,
 }
 
 
 // Indexer client to Networker
 // ---------------------------
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct ResponseFriendsRoutes {
-    pub routes: Vec<FriendsRoute>,
-}
 
 pub enum IndexerClientToNetworker {
     RequestSendMessage(RequestSendMessage),
@@ -237,7 +106,7 @@ pub enum NetworkerToIndexerClient {
 
 enum NetworkerToAppManager {
     SendMessageRequestReceived {
-        request_id: Uid,
+        request_id: Uuid,
         source_node_public_key: PublicKey,
         request_content: Vec<u8>,
         max_response_length: u64,
@@ -262,11 +131,11 @@ enum NetworkerToAppManager {
 
 enum AppManagerToNetworker {
     RespondSendMessageRequest {
-        request_id: Uid,
+        request_id: Uuid,
         response_content: Vec<u8>,
     },
     DiscardSendMessageRequest {
-        request_id: Uid,
+        request_id: Uuid,
     },
     SetNeighborChannelCapacity {
         token_channel_capacity: u64,    // Capacity per token channel
@@ -299,7 +168,7 @@ enum FunderToNetworker {
         message_content: Vec<u8>,
     },
     ResponseSendFunds {
-        request_id: Uid,
+        request_id: Uuid,
         status: ResponseSendFundsStatus,
     }
 }
@@ -311,7 +180,7 @@ enum NetworkerToFunder {
         message_content: Vec<u8>,
     },
     RequestSendFunds {
-        request_id: Uid,
+        request_id: Uuid,
         amount: u64,
         message_content: Vec<u8>,
         destination_node_public_key: PublicKey,
@@ -327,55 +196,14 @@ pub struct FriendCapacity {
     recv: u64,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum RequestFriendsRoutes {
-    Direct {
-        source_node_public_key: PublicKey,
-        destination_node_public_key: PublicKey,
-    },
-    LoopFromFriend {
-        // A loop from myself through given friend, back to myself.
-        // This is used for money rebalance when we owe the friend money.
-        friend_public_key: PublicKey,
-    },
-    LoopToFriend {
-        // A loop from myself back to myself through given friend.
-        // This is used for money rebalance when the friend owe us money.
-        friend_public_key: PublicKey,
-    },
-
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct RequestNeighborsRoutes {
-    pub source_node_public_key: PublicKey,
-    pub destination_node_public_key: PublicKey,
-}
 
 pub enum FunderToIndexerClient {
     RequestNeighborsRoute(RequestNeighborsRoutes),
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct ResponseNeighborsRoutes {
-    pub routes: Vec<NeighborsRoute>,
-}
 
 pub enum IndexerClientToFunder {
     ResponseNeighborsRoute(ResponseNeighborsRoutes)
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct StateChainLink {
-    pub previous_state_hash: IndexingProviderStateHash,
-    pub new_owners_public_keys: Vec<PublicKey>,
-    pub new_indexers_public_keys: Vec<PublicKey>,
-    pub signatures_by_old_owners: Vec<Signature>,
-}
-
-pub struct IndexingProviderInfo {
-    pub id: IndexingProviderId,
-    pub state_chain_link: StateChainLink,
 }
 
 pub enum AppManagerToIndexerClient {
@@ -462,27 +290,27 @@ enum FunderToAppManager {
         // TODO
     },
     ResponseSendFunds {
-        request_id: Uid,
+        request_id: Uuid,
         status: ResponseSendFundsStatus,
     },
     ResponseAddFriend {
-        request_id: Uid,
+        request_id: Uuid,
         status: ResponseAddFriendStatus,
     },
     ResponseRemoveFriend {
-        request_id: Uid,
+        request_id: Uuid,
         status: ResponseRemoveFriendStatus,
     },
     ResponseSetFriendCapacity {
-        request_id: Uid,
+        request_id: Uuid,
         status: ResponseSetFriendCapacityStatus,
     },
     ResponseOpenFriend {
-        request_id: Uid,
+        request_id: Uuid,
         status: ResponseOpenFriendStatus,
     },
     ResponseCloseFriend {
-        request_id: Uid,
+        request_id: Uuid,
         status: ResponseCloseFriendStatus,
     },
     FriendsState {
@@ -501,31 +329,31 @@ enum FunderToAppManager {
 
 enum AppManagerToFunder {
     RequestSendFunds {
-        request_id: Uid,
+        request_id: Uuid,
         amount: u64,
         message_content: Vec<u8>,
         destination_node_public_key: PublicKey,
     },
     RequestAddFriend {
-        request_id: Uid,
+        request_id: Uuid,
         friend_public_key: PublicKey,
         capacity: BigInt, // Max debt possible
     },
     RequestRemoveFriend {
-        request_id: Uid,
+        request_id: Uuid,
         friend_public_key: PublicKey,
     },
     RequestSetFriendCapacity {
-        request_id: Uid,
+        request_id: Uuid,
         friend_public_key: PublicKey,
         new_capacity: BigInt,
     },
     RequestOpenFriend {
-        request_id: Uid,
+        request_id: Uuid,
         friend_public_key: PublicKey,
     },
     RequestCloseFriend {
-        request_id: Uid,
+        request_id: Uuid,
         friend_public_key: PublicKey,
     }
 }
@@ -568,39 +396,10 @@ pub enum NetworkerToDatabase {
         balance: u64,
         local_funds_rand_nonce: Option<RandValue>,
         remote_funds_rand_nonce: Option<RandValue>,
-        closed_local_requests: Vec<Uid>,
+        closed_local_requests: Vec<Uuid>,
     }
 }
 
 pub enum DatabaseToNetworker {
     ResponseLoadNeighbors,
-}
-
-
-// Security Module
-// ---------------
-
-
-pub enum FromSecurityModule {
-    ResponseSign {
-        signature: Signature,
-    },
-    ResponsePublicKey {
-        public_key: PublicKey,
-    },
-}
-
-pub enum ToSecurityModule {
-    RequestSign {
-        message: Vec<u8>,
-    },
-    RequestPublicKey {
-    },
-}
-
-// Timer
-// -----
-
-pub enum FromTimer {
-    TimeTick,
 }

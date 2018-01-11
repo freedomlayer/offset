@@ -4,7 +4,19 @@ using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomUInt256;
 using import "common.capnp".CustomUInt512;
 
-struct InitChannel {
+struct InitChannelActive {
+        neighborPublicKey @0: CustomUInt256;
+        # The identity public key of the sender of this message.
+        channelRandValue @1: CustomUInt128;
+        # An initial random value.
+        # This will be later used for the key exchange as a nonce.
+        # A nonce is required to avoid replay of the signature.
+        channelIndex @2: UInt32;
+        # The index of this channel. Only messages on token channel number
+        # channelIndex may be sent along this TCP connection.
+}
+
+struct InitChannelPassive {
         neighborPublicKey @0: CustomUInt256;
         # The identity public key of the sender of this message.
         channelRandValue @1: CustomUInt128;

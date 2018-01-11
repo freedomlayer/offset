@@ -1,16 +1,19 @@
 use std::io;
 
-use rand::{Rng, OsRng};
 use bytes::Bytes;
 use capnp::serialize_packed;
 
-use crypto::rand_values::RandValue;
-use crypto::dh::{Salt, DhPublicKey};
-use crypto::identity::{PublicKey, Signature};
+use channeler::messages::{
+    InitChannelActive,
+    InitChannelPassive,
+    Exchange,
+    EncryptMessage,
+};
 
-use channeler_capnp::{self, init_channel, exchange, encrypt_message, MessageType, /*message*/};
+use channeler_capnp::*;
 
 use super::{
+    Schema,
     SchemaError,
     read_public_key,
     write_public_key,
@@ -24,14 +27,15 @@ use super::{
     write_dh_public_key,
 };
 
-/// Create and serialize a `Message` from given `content`, return the serialized message on success.
+/// Create and serialize a `Message` from given `content`,
+/// return the serialized message on success.
 #[inline]
 pub fn serialize_message(content: Bytes) -> Result<Bytes, SchemaError> {
     let mut builder = ::capnp::message::Builder::new_default();
 
     {
-        let mut message = builder.init_root::<channeler_capnp::message::Builder>();
-        let msg_content = message.borrow().init_content(content.len() as u32);
+        let mut msg = builder.init_root::<message::Builder>();
+        let msg_content = msg.borrow().init_content(content.len() as u32);
         // Optimize: Can we avoid copy here?
         msg_content.copy_from_slice(content.as_ref());
     }
@@ -49,260 +53,226 @@ pub fn deserialize_message(buffer: Bytes) -> Result<Bytes, SchemaError> {
 
     let reader = serialize_packed::read_message(
         &mut buffer,
-        ::capnp::message::ReaderOptions::new()
+        ::capnp::message::ReaderOptions::new(),
     )?;
 
-    let message = reader.get_root::<channeler_capnp::message::Reader>()?;
-    let content = Bytes::from(message.get_content()?);
+    let msg = reader.get_root::<message::Reader>()?;
+    let content = Bytes::from(msg.get_content()?);
 
     Ok(content)
 }
 
-/// Create and serialize a `EncryptMessage` with given `counter` and `content`(optional),
-/// return the serialized message on success.
-///
-/// # Details
-///
-/// If content is `None`, the message type will be set to `KeepAlive`, whereas, it would be `User`.
-#[inline]
-pub fn serialize_enc_message(counter: u64, content: Option<Bytes>) -> Result<Bytes, SchemaError> {
-    let mut builder = ::capnp::message::Builder::new_default();
+impl<'a> Schema<'a> for InitChannelActive {
+    type Reader = init_channel_active::Reader<'a>;
+    type Writer = init_channel_active::Builder<'a>;
 
-    {
-        let mut enc_message = builder.init_root::<encrypt_message::Builder>();
+    inject_default_impl!();
 
-        enc_message.set_inc_counter(counter);
+    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+        let neighbor_public_key =
+            read_public_key(&from.get_neighbor_public_key()?)?;
 
-        if content.is_some() {
-            enc_message.set_message_type(MessageType::User);
-        } else {
-            enc_message.set_message_type(MessageType::KeepAlive);
-        }
+        let channel_rand_value =
+            read_rand_value(&from.get_channel_rand_value()?)?;
 
-        {
-            let mut system_rng = OsRng::new()?;
-            let padding_length = system_rng.next_u32() % 33;
-            let rand_padding = enc_message.borrow().init_rand_padding(padding_length);
-            system_rng.fill_bytes(&mut rand_padding[..padding_length as usize]);
-        }
+        let channel_index = from.get_channel_index();
 
-        if let Some(data) = content {
-            let content = enc_message.borrow().init_content(data.len() as u32);
-            // Optimize: Can we avoid copy here?
-            content.copy_from_slice(data.as_ref());
-        }
+        Ok(InitChannelActive {
+            neighbor_public_key,
+            channel_rand_value,
+            channel_index,
+        })
     }
 
-    let mut serialized_msg = Vec::new();
-    serialize_packed::write_message(&mut serialized_msg, &builder)?;
+    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+        write_public_key(
+            &self.neighbor_public_key,
+            &mut to.borrow().init_neighbor_public_key(),
+        )?;
+        write_rand_value(
+            &self.channel_rand_value,
+            &mut to.borrow().init_channel_rand_value(),
+        )?;
 
-    Ok(Bytes::from(serialized_msg))
+        to.borrow().set_channel_index(self.channel_index);
+
+        Ok(())
+    }
 }
 
-/// Deserialize `EncryptMessage` from `buffer`, return the `incCounter`, `messageType` and
-/// `content`(if not a keep alive message) on success.
-#[inline]
-pub fn deserialize_enc_message(buffer: Bytes)
-    -> Result<(u64, MessageType, Option<Bytes>), SchemaError> {
-    let mut buffer = io::Cursor::new(buffer);
+impl<'a> Schema<'a> for InitChannelPassive {
+    type Reader = init_channel_passive::Reader<'a>;
+    type Writer = init_channel_passive::Builder<'a>;
 
-    let reader = serialize_packed::read_message(
-        &mut buffer,
-        ::capnp::message::ReaderOptions::new()
-    )?;
+    inject_default_impl!();
 
-    let enc_message = reader.get_root::<encrypt_message::Reader>()?;
+    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+        let neighbor_public_key =
+            read_public_key(&from.get_neighbor_public_key()?)?;
 
-    // Read the incCounter
-    let inc_counter = enc_message.get_inc_counter();
+        let channel_rand_value =
+            read_rand_value(&from.get_channel_rand_value()?)?;
 
-    // Read the messageType
-    let message_type = enc_message.get_message_type()?;
-
-    let content = match message_type {
-        MessageType::KeepAlive => None,
-        MessageType::User => Some(Bytes::from(enc_message.get_content()?))
-    };
-
-    Ok((inc_counter, message_type, content))
-}
-
-/// Create and serialize a `InitChannel` message from given `rand_value` and `public_key`,
-/// return the serialized message on success.
-#[inline]
-pub fn serialize_init_channel_message(
-    rand_value: RandValue,
-    public_key: PublicKey
-) -> Result<Bytes, SchemaError> {
-    let mut builder = ::capnp::message::Builder::new_default();
-
-    {
-        let mut init_channel_msg = builder.init_root::<init_channel::Builder>();
-
-        // Write the neighborPublicKey
-        {
-            let mut neighbor_public_key_writer = init_channel_msg.borrow().init_neighbor_public_key();
-            write_public_key(&public_key, &mut neighbor_public_key_writer, )?;
-        }
-        // Write the channelRandValue
-        {
-            let mut channel_rand_value_writer = init_channel_msg.borrow().init_channel_rand_value();
-            write_rand_value(&rand_value, &mut channel_rand_value_writer)?;
-        }
+        Ok(InitChannelPassive {
+            neighbor_public_key,
+            channel_rand_value,
+        })
     }
 
-    let mut serialized_msg = Vec::new();
-    serialize_packed::write_message(&mut serialized_msg, &builder)?;
+    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+        write_public_key(
+            &self.neighbor_public_key,
+            &mut to.borrow().init_neighbor_public_key(),
+        )?;
+        write_rand_value(
+            &self.channel_rand_value,
+            &mut to.borrow().init_channel_rand_value(),
+        )?;
 
-    Ok(Bytes::from(serialized_msg))
+        Ok(())
+    }
 }
 
-/// Deserialize `InitChannel` message from `buffer`, return the `neighborPublicKey` and
-/// `channelRandValue` on success.
-#[inline]
-pub fn deserialize_init_channel_message(buffer: Bytes)
-    -> Result<(PublicKey, RandValue), SchemaError> {
-    let mut buffer = io::Cursor::new(buffer);
+impl<'a> Schema<'a> for Exchange {
+    type Reader = exchange::Reader<'a>;
+    type Writer = exchange::Builder<'a>;
 
-    let reader = serialize_packed::read_message(
-        &mut buffer,
-        ::capnp::message::ReaderOptions::new()
-    )?;
+    inject_default_impl!();
 
-    let init_channel_msg = reader.get_root::<init_channel::Reader>()?;
+    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+        let comm_public_key =
+            read_dh_public_key(&from.get_comm_public_key()?)?;
 
-    // Read the neighborPublicKey
-    let neighbor_public_key_reader = init_channel_msg.get_neighbor_public_key()?;
-    let neighbor_public_key = read_public_key(&neighbor_public_key_reader)?;
+        let key_salt = read_salt(&from.get_key_salt()?)?;
 
-    // Read the channelRandValue
-    let channel_rand_value_reader = init_channel_msg.get_channel_rand_value()?;
-    let channel_rand_value = read_rand_value(&channel_rand_value_reader)?;
+        let signature = read_signature(&from.get_signature()?)?;
 
-    Ok((neighbor_public_key, channel_rand_value))
-}
-
-/// Create and serialize a `Exchange` message from given `dh_public_key`, `key_salt` and
-/// `signature`, return the serialized message on success.
-#[inline]
-pub fn serialize_exchange_message(
-    dh_public_key: DhPublicKey,
-    key_salt: Salt,
-    signature: Signature
-) -> Result<Bytes, SchemaError> {
-    let mut builder = ::capnp::message::Builder::new_default();
-
-    {
-        let mut exchange_msg = builder.init_root::<exchange::Builder>();
-
-        // Write the commPublicKey
-        {
-            let mut dh_public_key_writer = exchange_msg.borrow().init_comm_public_key();
-            write_dh_public_key(&dh_public_key, &mut dh_public_key_writer)?;
-        }
-        // Write the keySalt
-        {
-            let mut key_salt_writer = exchange_msg.borrow().init_key_salt();
-            write_salt(&key_salt, &mut key_salt_writer)?;
-        }
-        // Write the signature
-        {
-            let mut signature_writer = exchange_msg.borrow().init_signature();
-            write_signature(&signature, &mut signature_writer)?;
-        }
+        Ok(Exchange {
+            comm_public_key,
+            key_salt,
+            signature,
+        })
     }
 
-    let mut serialized_msg = Vec::new();
-    serialize_packed::write_message(&mut serialized_msg, &builder)?;
+    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+        write_dh_public_key(
+            &self.comm_public_key,
+            &mut to.borrow().init_comm_public_key(),
+        )?;
+        write_salt(
+            &self.key_salt,
+            &mut to.borrow().init_key_salt(),
+        )?;
+        write_signature(
+            &self.signature,
+            &mut to.borrow().init_signature(),
+        )?;
 
-    Ok(Bytes::from(serialized_msg))
+        Ok(())
+    }
 }
 
-/// Deserialize `Exchange` message from `buffer`, return the `commPublicKey`, `keySalt` and
-/// `signature` on success.
-#[inline]
-pub fn deserialize_exchange_message(buffer: Bytes)
-    -> Result<(DhPublicKey, Salt, Signature), SchemaError> {
-    let mut buffer = io::Cursor::new(buffer);
+impl<'a> Schema<'a> for EncryptMessage {
+    type Reader = encrypt_message::Reader<'a>;
+    type Writer = encrypt_message::Builder<'a>;
 
-    let reader = serialize_packed::read_message(
-        &mut buffer,
-        ::capnp::message::ReaderOptions::new()
-    )?;
+    inject_default_impl!();
 
-    let exchange_msg = reader.get_root::<exchange::Reader>()?;
+    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+        let inc_counter = from.get_inc_counter();
+        let rand_padding = Bytes::from(from.get_rand_padding()?);
+        let message_type = from.get_message_type()?;
+        let content = Bytes::from(from.get_content()?);
 
-    // Read the commPublicKey
-    let comm_public_key = read_dh_public_key(&exchange_msg.get_comm_public_key()?)?;
+        Ok(EncryptMessage {
+            inc_counter,
+            rand_padding,
+            message_type,
+            content,
+        })
+    }
 
-    // Read the keySalt
-    let key_salt = read_salt(&exchange_msg.get_key_salt()?)?;
+    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+        to.set_inc_counter(self.inc_counter);
+        to.set_message_type(self.message_type);
 
-    // Read the signature
-    let signature = read_signature(&exchange_msg.get_signature()?)?;
+        to.borrow()
+            .init_rand_padding(self.rand_padding.len() as u32)
+            .copy_from_slice(&self.rand_padding);
 
-    Ok((comm_public_key, key_salt, signature))
+        to.borrow()
+            .init_content(self.content.len() as u32)
+            .copy_from_slice(&self.content);
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    use utils::crypto::rand_values::RandValue;
+    use utils::crypto::dh::{Salt, DhPublicKey};
+    use utils::crypto::identity::{PublicKey, Signature};
+
     #[test]
-    fn test_init_channel() {
-        let in_public_key = PublicKey::from_bytes(&[0x03; 32]).unwrap();
-        let in_rand_value = RandValue::from_bytes(&[0x06; 16]).unwrap();
+    fn test_init_channel_active() {
+        let neighbor_public_key = PublicKey::from_bytes(&[0x03; 32]).unwrap();
+        let channel_rand_value = RandValue::from_bytes(&[0x06; 16]).unwrap();
 
-        let serialized_init_channel = serialize_init_channel_message(
-            in_rand_value.clone(),
-            in_public_key.clone()
-        ).unwrap();
+        let in_init_channel_active = InitChannelActive {
+            neighbor_public_key,
+            channel_rand_value,
+            channel_index: 64,
+        };
 
-        let (out_public_key, out_rand_value) =
-            deserialize_init_channel_message(serialized_init_channel).unwrap();
+        test_encode_decode!(InitChannelActive, in_init_channel_active);
+    }
 
-        assert_eq!(in_public_key, out_public_key);
-        assert_eq!(in_rand_value, out_rand_value);
+    #[test]
+    fn test_init_channel_passive() {
+        let neighbor_public_key = PublicKey::from_bytes(&[0x03; 32]).unwrap();
+        let channel_rand_value = RandValue::from_bytes(&[0x06; 16]).unwrap();
+
+        let in_init_channel_passive = InitChannelPassive {
+            neighbor_public_key,
+            channel_rand_value,
+        };
+
+        test_encode_decode!(InitChannelPassive, in_init_channel_passive);
     }
 
     #[test]
     fn test_exchange() {
-        let in_comm_public_key = DhPublicKey::from_bytes(&[0x13; 32]).unwrap();
-        let in_key_salt = Salt::from_bytes(&[0x16; 32]).unwrap();
-        let in_signature = Signature::from_bytes(&[0x19; 64]).unwrap();
+        let comm_public_key = DhPublicKey::from_bytes(&[0x13; 32]).unwrap();
+        let key_salt = Salt::from_bytes(&[0x16; 32]).unwrap();
+        let signature = Signature::from_bytes(&[0x19; 64]).unwrap();
 
-        let serialized_exchange = serialize_exchange_message(
-            in_comm_public_key.clone(),
-            in_key_salt.clone(),
-            in_signature.clone()
-        ).unwrap();
+        let in_exchange = Exchange {
+            comm_public_key,
+            key_salt,
+            signature,
+        };
 
-        let (out_comm_public_key, out_key_salt, out_signature) =
-            deserialize_exchange_message(serialized_exchange).unwrap();
-
-        assert_eq!(in_comm_public_key, out_comm_public_key);
-        assert_eq!(in_key_salt, out_key_salt);
-        assert_eq!(in_signature, out_signature);
+        test_encode_decode!(Exchange, in_exchange);
     }
 
     #[test]
-    fn test_enc_message() {
-        let in_counter: u64 = 1 << 50;
-        let in_content = Some(Bytes::from_static(&[0x11; 12345]));
+    fn test_encrypt_message() {
+        let inc_counter: u64 = 1 << 50;
+        let rand_padding = Bytes::from_static(&[0x23; 32]);
+        let message_type = MessageType::User;
+        let content = Bytes::from_static(&[0x11; 12345]);
 
-        let serialized_enc_message = serialize_enc_message(
-            in_counter,
-            in_content.clone()
-        ).unwrap();
+        let in_encrypt_message = EncryptMessage {
+            inc_counter,
+            message_type,
+            rand_padding,
+            content,
+        };
 
-        let (out_counter, out_message_type, out_content) =
-            deserialize_enc_message(serialized_enc_message).unwrap();
-
-        assert_eq!(in_counter, out_counter);
-        assert_eq!(in_content, out_content);
-
-        // capnpc not impl Debug for this
-        assert!(MessageType::User == out_message_type);
+        test_encode_decode!(EncryptMessage, in_encrypt_message);
     }
 
     #[test]

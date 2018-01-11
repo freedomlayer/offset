@@ -38,10 +38,11 @@ impl AsRef<[u8]> for RandValue {
     }
 }
 
-/// RandValuesStore is a storage and generation structure of random values. Those random values
-/// are used for cryptographic time. A new random value is generated every rand_value_ticks time
-/// ticks. There is only room for num_rand_values random values, so the creation of new random
-/// values causes the deletion of old random values.
+/// `RandValuesStore` is a storage and generation structure of random values.
+/// Those random values are used for cryptographic time.
+/// A new random value is generated every `rand_value_ticks` time ticks.
+/// There is only room for `num_rand_values` random values, so the creation of
+/// new random values causes the deletion of old random values.
 pub struct RandValuesStore {
     rand_values: VecDeque<RandValue>,
     ticks_left_to_next_rand_value: usize,
@@ -71,7 +72,7 @@ impl RandValuesStore {
     }
 
     /// Apply a time tick over the store.
-    /// If enough time ticks have occured, a new rand value will be generated.
+    /// If enough time ticks have occurred, a new rand value will be generated.
     #[inline]
     pub fn time_tick<R: SecureRandom>(&mut self, crypt_rng: &R) {
         self.ticks_left_to_next_rand_value -= 1;

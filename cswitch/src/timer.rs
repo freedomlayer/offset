@@ -37,9 +37,11 @@
 //! [futures]: https://github.com/alexcrichton/futures
 //! [futures-timer]: https://github.com/alexcrichton/futures-timer
 
+#![deny(warnings)]
+
 extern crate futures_timer;
 
-use std::{time, io, mem};
+use std::{time::Duration, io, mem};
 
 use futures::prelude::*;
 use futures::sync::mpsc;
@@ -51,6 +53,8 @@ pub mod messages {
         TimeTick,
     }
 }
+
+use self::messages::FromTimer;
 
 #[derive(Debug)]
 pub enum TimerError {
@@ -80,7 +84,7 @@ impl<T> TimerClient<T> {
 }
 
 impl TimerModule {
-    pub fn new(duration: time::Duration) -> TimerModule {
+    pub fn new(duration: Duration) -> TimerModule {
         TimerModule {
             inner:   Interval::new(duration),
             clients: Vec::new(),
@@ -99,27 +103,34 @@ impl Future for TimerModule {
     type Error = TimerError;
 
     fn poll(&mut self) -> Poll<(), TimerError> {
-        let poll = self.inner.poll().map_err(|e| {
+        let timer_poll = self.inner.poll().map_err(|e| {
             TimerError::Interval(e)
-        })?;
+        });
 
-        if poll.is_ready() {
+        if try_ready!(timer_poll).is_some() {
             for client in &mut self.clients {
                 match mem::replace(client, TimerClient::Dropped) {
-                    TimerClient::Dropped => unreachable!("encounter a dropped client"),
+                    TimerClient::Dropped => {
+                        unreachable!("encounter a dropped client");
+                    },
                     TimerClient::Active(mut sender) => {
                         match sender.start_send(FromTimer::TimeTick) {
-                            Err(_e) => error!("timer client dropped"),
+                            Err(_e) => {
+                                info!("timer client disconnected");
+                            },
                             Ok(start_send) => {
                                 match start_send {
                                     AsyncSink::Ready => {
+                                        // For now, this should always succeed
                                         if sender.poll_complete().is_ok() {
-                                            mem::replace(client, TimerClient::Active(sender));
+                                            mem::replace(
+                                                client,
+                                                TimerClient::Active(sender)
+                                            );
                                         }
                                     },
                                     AsyncSink::NotReady(_) => {
-                                        warn!("failed to send ticks");
-                                        // TODO: drop client immediately, or use failure counter?
+                                        warn!("failed to send tick");
                                     },
                                 }
                             },
@@ -128,44 +139,50 @@ impl Future for TimerModule {
                 }
             }
             // Remove the dropped clients
-            let _ = self.clients.drain_filter(|client| client.is_dropped());
-        }
+            self.clients.retain(|client| !client.is_dropped());
 
-        Ok(Async::NotReady)
+            Ok(Async::NotReady)
+        } else {
+            Ok(Async::Ready(()))
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::future::join_all;
-    use futures::sync::mpsc::channel;
 
+    use std::time;
+
+    use futures::future::join_all;
     use tokio_core::reactor::Core;
 
     #[test]
     fn test_timer_basic() {
-        let mut timer_module = TimerModule::new(time::Duration::from_millis(20));
+        let mut tm = TimerModule::new(Duration::from_millis(10));
 
         let mut core = Core::new().unwrap();
-        let handle = core.handle();
 
-        let clients = (0..100).map(|_| timer_module.create_client()).step_by(2).collect::<Vec<_>>();
+        let clients = (0..50).map(|_| {
+            tm.create_client()
+        }).step_by(2).collect::<Vec<_>>();
 
-        assert_eq!(clients.len(), 50);
+        assert_eq!(clients.len(), 25);
 
         let now = time::Instant::now();
         let clients_fut = clients.into_iter().map(move |timer_client| {
             let mut ticks: u64 = 0;
-            timer_client.take(10).for_each(move |FromTimer::TimeTick| {
+            timer_client.take(500).for_each(move |FromTimer::TimeTick| {
                 ticks += 1;
-                // Allowed accuracy: 20ms (+- 25%)
-                assert!(now.elapsed() > time::Duration::from_millis(15 * ticks));
-                assert!(now.elapsed() < time::Duration::from_millis(25 * ticks));
+                // Acceptable accuracy: 10ms (+- 20%)
+                assert!(now.elapsed() > Duration::from_millis( 8 * ticks));
+                assert!(now.elapsed() < Duration::from_millis(12 * ticks));
                 Ok(())
             })
         }).collect::<Vec<_>>();
 
-        assert!(core.run(timer_module.map_err(|_| ()).select2(join_all(clients_fut))).is_ok());
+        let task = tm.map_err(|_| ()).select2(join_all(clients_fut));
+
+        assert!(core.run(task).is_ok());
     }
 }

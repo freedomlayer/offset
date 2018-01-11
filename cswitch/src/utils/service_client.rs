@@ -1,7 +1,7 @@
 use futures::prelude::*;
 use futures::sync::mpsc;
 
-use async_mutex::{AsyncMutex, AsyncMutexError};
+use super::async_mutex::{AsyncMutex, AsyncMutexError};
 
 #[derive(Debug)]
 pub enum ServiceClientError {

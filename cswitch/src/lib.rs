@@ -1,8 +1,9 @@
 #![crate_type = "lib"]
 #![feature(i128_type)]
+#![feature(use_nested_groups)]
 #![feature(refcell_replace_swap)]
-#![feature(conservative_impl_trait)]
-#![feature(drain_filter, iterator_step_by)]
+#![feature(conservative_impl_trait, universal_impl_trait)]
+#![feature(iterator_step_by)]
 #![cfg_attr(feature = "dev", feature(plugin))]
 #![cfg_attr(feature = "dev", plugin(clippy))]
 #![cfg_attr(not(feature = "dev"), allow(unknown_lints))]
@@ -21,29 +22,24 @@ extern crate futures;
 extern crate byteorder;
 extern crate tokio_core;
 extern crate tokio_io;
-extern crate futures_mutex;
 extern crate rusqlite;
 
-pub mod crypto;
+// Utils
+pub mod utils;
 
-pub mod inner_messages;
-// mod networker_state_machine;
+//mod inner_messages;
 
-pub mod close_handle;
-pub mod security_module;
-pub mod channeler;
-
-mod networker;
-mod indexer_client;
-
-pub mod async_mutex;
-mod service_client;
+// Modules
 pub mod timer;
+pub mod indexer;
+pub mod security;
+//pub mod database;
+pub mod channeler;
+//pub mod networker;
+//pub mod app_manager;
 
+// Schemas
 mod schema;
 use schema::common_capnp;
 use schema::indexer_capnp;
 use schema::channeler_capnp;
-
-mod service;
-mod database;

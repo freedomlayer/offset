@@ -1,11 +1,10 @@
-extern crate futures;
+use futures::Future;
+use futures::sync::mpsc;
 
-use self::futures::sync::mpsc;
-use self::futures::Future;
+use super::messages::{ToSecurityModule, FromSecurityModule};
 
-use ::service_client::{ServiceClient, ServiceClientError};
-use ::inner_messages::{ToSecurityModule, FromSecurityModule};
-use ::crypto::identity::{PublicKey, Signature};
+use utils::service_client::{ServiceClient, ServiceClientError};
+use utils::crypto::identity::{PublicKey, Signature};
 
 #[derive(Debug)]
 pub enum SecurityModuleClientError {
@@ -13,8 +12,9 @@ pub enum SecurityModuleClientError {
     InvalidResponse,
 }
 
-/// A client to the SecurityModule. Allows multiple futures in the same thread to
-/// access SecurityModule.
+/// A client to the `SecurityModule`.
+///
+/// Allows multiple futures in the same thread to access `SecurityModule`.
 #[derive(Clone)]
 pub struct SecurityModuleClient {
     service_client: ServiceClient<ToSecurityModule, FromSecurityModule>,
@@ -31,7 +31,7 @@ impl SecurityModuleClient {
     /// Returns a future that resolves to the public key of our identity.
     pub fn request_public_key(&self) -> impl Future<Item=PublicKey,Error=SecurityModuleClientError> {
         self.service_client.request(ToSecurityModule::RequestPublicKey {})
-            .map_err(|e| SecurityModuleClientError::RequestError(e))
+            .map_err(SecurityModuleClientError::RequestError)
             .and_then(|response| {
                 match response {
                     FromSecurityModule::ResponsePublicKey {public_key} => 
@@ -45,7 +45,7 @@ impl SecurityModuleClient {
     /// Returns a future that resolves to a signature over the provided message.
     pub fn request_sign(&self, message: Vec<u8>) -> impl Future<Item=Signature, Error=SecurityModuleClientError> {
         self.service_client.request(ToSecurityModule::RequestSign {message})
-            .map_err(|e| SecurityModuleClientError::RequestError(e))
+            .map_err(SecurityModuleClientError::RequestError)
             .and_then(|response| {
                 match response {
                     FromSecurityModule::ResponseSign {signature} => 

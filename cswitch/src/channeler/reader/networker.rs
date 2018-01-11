@@ -1,17 +1,20 @@
 use std::mem;
 use std::collections::HashMap;
 
+use bytes::Bytes;
+use futures::prelude::*;
 use futures::sync::{mpsc, oneshot};
-use futures::{Async, Poll, Future, Stream};
-
-use futures_mutex::FutMutex;
 
 use tokio_core::reactor::Handle;
 
+use async_mutex::{AsyncMutex, AsyncMutexError};
+use channeler::types::{ChannelerNeighbor, ChannelerNeighborInfo};
+use channeler::messages::ToChannel;
+
+use networker::messages::NetworkerToChanneler;
+
 use crypto::identity::PublicKey;
-use super::{ChannelerNeighbor, ToChannel};
 use close_handle::{CloseHandle, create_close_handle};
-use inner_messages::{NetworkerToChanneler, ChannelerNeighborInfo};
 
 pub enum NetworkerReaderError {
     MessageReceiveFailed,
@@ -29,14 +32,14 @@ impl From<oneshot::Canceled> for NetworkerReaderError {
 #[must_use = "futures do nothing unless polled"]
 pub struct NetworkerReader {
     handle: Handle,
-    neighbors: FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
+    neighbors: AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
 
-    inner_receiver: mpsc::Receiver<NetworkerToChanneler>,
+    inner_rx: mpsc::Receiver<NetworkerToChanneler>,
 
     // For reporting the closing event
-    close_sender:   Option<oneshot::Sender<()>>,
+    close_tx: Option<oneshot::Sender<()>>,
     // For observing the closing request
-    close_receiver: oneshot::Receiver<()>,
+    close_rx: oneshot::Receiver<()>,
 }
 
 impl NetworkerReader {
@@ -44,111 +47,118 @@ impl NetworkerReader {
     pub fn new(
         handle: Handle,
         receiver: mpsc::Receiver<NetworkerToChanneler>,
-        neighbors: FutMutex<HashMap<PublicKey, ChannelerNeighbor>>
+        neighbors: AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
     ) -> (CloseHandle, NetworkerReader) {
-        let (close_handle, (close_sender, close_receiver)) = create_close_handle();
+        let (close_handle, (close_tx, close_rx)) = create_close_handle();
 
-        let networker_reader = NetworkerReader {
+        let reader = NetworkerReader {
             handle,
             neighbors,
-            close_sender: Some(close_sender),
-            close_receiver,
-            inner_receiver: receiver,
+            close_tx: Some(close_tx),
+            close_rx: close_rx,
+            inner_rx: receiver,
         };
 
-        (close_handle, networker_reader)
+        (close_handle, reader)
     }
 
     #[inline]
     fn add_neighbor(&self, info: ChannelerNeighborInfo) {
-        let add_neighbor_task = self.neighbors.clone().lock()
-            .map_err(|_| NetworkerReaderError::FutMutex)
-            .and_then(move |mut neighbors| {
-                neighbors.insert(
-                    info.neighbor_address.neighbor_public_key.clone(),
-                    ChannelerNeighbor {
-                        info,
-                        num_pending_out_conn: 0,
-                        remaining_retry_ticks: 0, // Try a new connections immediately
-                        channels: Vec::new(),
-                    });
-                Ok(())
-            });
+        let task = self.neighbors.acquire(|mut neighbors| {
+            neighbors.insert(
+                info.public_key.clone(),
+                ChannelerNeighbor {
+                    info,
+                    num_pending_out_conn: 0,
+                    remaining_ticks: 0,
+                    channels: Vec::new(),
+                });
+            Ok((neighbors, ()))
+        })
+        .map_err(|_: AsyncMutexError<()>| {
+            info!("failed to add neighbor");
+        });
 
-        self.handle.spawn(add_neighbor_task.map_err(|_| ()));
+        self.handle.spawn(task);
     }
 
     #[inline]
     fn del_neighbor(&self, public_key: PublicKey) {
-        let del_neighbor_task = self.neighbors.clone().lock()
-            .map_err(|_| NetworkerReaderError::FutMutex)
-            .and_then(move |mut neighbors| {
-                if neighbors.remove(&public_key).is_some() {
-                    trace!("succeed in removing neighbor");
-                } else {
-                    warn!("attempt to remove a nonexistent neighbor: {:?}", public_key);
-                }
-                Ok(())
-            });
+        let task = self.neighbors.acquire(move |mut neighbors| {
+            if neighbors.remove(&public_key).is_some() {
+                info!("neighbor {:?} removed", public_key);
+            } else {
+                info!("nonexistent neighbor: {:?}", public_key);
+            }
+            Ok((neighbors, ()))
+        })
+        .map_err(|_: AsyncMutexError<()>| {
+            info!("failed to remove neighbor");
+        });
 
-        self.handle.spawn(del_neighbor_task.map_err(|_| ()));
+        self.handle.spawn(task);
     }
 
     #[inline]
-    fn send_message(&self, token: u32, public_key: PublicKey, content: Vec<u8>) {
-        let send_message_task = self.neighbors.clone().lock()
-            .map_err(|_| NetworkerReaderError::FutMutex)
-            .and_then(move |mut neighbors| {
-                match neighbors.get_mut(&public_key) {
-                    None => warn!(
-                        "attempt to send message to a nonexistent neighbor: {:?}",
+    fn send_message(&self, index: u32, public_key: PublicKey, content: Bytes) {
+        let task = self.neighbors.acquire(move |mut neighbors| {
+            match neighbors.get_mut(&public_key) {
+                None => {
+                    info!(
+                        "nonexistent neighbor: {:?}, message would be discard",
                         public_key
-                    ),
-                    Some(neighbors) => {
-                        let channel_idx = (token as usize) % neighbors.channels.len();
-
-                        let channel_sender = &mut neighbors.channels[channel_idx].1;
-                        let msg_to_channel = ToChannel::SendMessage(content);
+                    );
+                }
+                Some(neighbor) => {
+                    if neighbor.channels.is_empty() {
+                        debug!("no opened channel, failed to send message");
+                    } else {
+                        let index = (index as usize) % neighbor.channels.len();
+                        let sender = &mut neighbors.channels[index].1;
+                        let message = ToChannel::SendMessage(content);
 
                         // FIXME: Use backpressure strategy here?
-                        if channel_sender.try_send(msg_to_channel).is_err() {
+                        if sender.try_send(message).is_err() {
                             error!("failed to send message to channel, message will be dropped!");
                         }
                     }
                 }
+            }
 
-                Ok(())
-            });
+            Ok((neighbors, ()))
+        })
+        .map_err(|_: AsyncMutexError<()>| {
+            info!("failed to pass send message request to channel");
+        });
 
-        self.handle.spawn(send_message_task.map_err(|_| ()));
+        self.handle.spawn(task);
     }
 
     #[inline]
     fn set_max_channels(&self, public_key: PublicKey, max_channels: u32) {
-        let set_max_channels_task = self.neighbors.clone().lock()
-            .map_err(|_| NetworkerReaderError::FutMutex)
-            .and_then(move |mut neighbors| {
-                match neighbors.get_mut(&public_key) {
-                    None => warn!(
-                        "attempt to set max_channels of a nonexistent neighbor: {:?}",
-                        public_key
-                    ),
-                    Some(neighbors) => {
-                        neighbors.info.max_channels = max_channels;
-                    }
+        let task = self.neighbors.acquire(move |mut neighbors| {
+            match neighbors.get_mut(&public_key) {
+                None => {
+                    info!("nonexistent neighbor: {:?}", public_key);
                 }
+                Some(neighbor) => {
+                    neighbor.info.max_channels = max_channels;
+                }
+            }
+            Ok((neighbors, ()))
+        })
+        .map_err(|_: AsyncMutexError<()>| {
+            info!("failed to set maximum amount of channels");
+        });
 
-                Ok(())
-            });
-
-        self.handle.spawn(set_max_channels_task.map_err(|_| ()));
+        self.handle.spawn(task);
     }
 
     // TODO: Consume all message before closing actually.
     #[inline]
     fn close(&mut self) {
-        self.inner_receiver.close();
-        match mem::replace(&mut self.close_sender, None) {
+        self.inner_rx.close();
+        match mem::replace(&mut self.close_tx, None) {
             None => {
                 error!("call close after close sender consumed, something go wrong");
             }
@@ -168,19 +178,17 @@ impl Future for NetworkerReader {
     fn poll(&mut self) -> Poll<(), Self::Error> {
         trace!("poll - {:?}", ::std::time::Instant::now());
 
-        match self.close_receiver.poll()? {
+        match self.close_rx.poll()? {
             Async::NotReady => (),
             Async::Ready(()) => {
-                debug!("received the closing request, closing");
-
+                info!("close request received, closing");
                 self.close();
-
                 return Ok(Async::Ready(()));
             }
         }
 
         loop {
-            match self.inner_receiver.poll() {
+            match self.inner_rx.poll() {
                 Err(_) => {
                     debug!("inner receiver error, closing");
 
@@ -192,7 +200,7 @@ impl Future for NetworkerReader {
                     match item {
                         Async::NotReady => {
                             return Ok(Async::NotReady);
-                        },
+                        }
                         Async::Ready(None) => {
                             debug!("inner receiver closed, closing");
 
@@ -213,11 +221,11 @@ impl Future for NetworkerReader {
                                     self.del_neighbor(neighbor_public_key);
                                 }
                                 NetworkerToChanneler::SendChannelMessage {
-                                    token,
                                     neighbor_public_key,
+                                    channel_index,
                                     content
                                 } => {
-                                    self.send_message(token, neighbor_public_key, content);
+                                    self.send_message(channel_index, neighbor_public_key, content);
                                 }
                                 NetworkerToChanneler::SetMaxChannels {
                                     neighbor_public_key,

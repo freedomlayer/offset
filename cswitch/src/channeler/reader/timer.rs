@@ -2,19 +2,20 @@ use std::mem;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
+use futures::prelude::*;
 use futures::sync::{mpsc, oneshot};
-use futures::{Async, Poll, Future, Stream, Sink};
+
 
 use tokio_core::reactor::Handle;
 
+use async_mutex::{AsyncMutex, AsyncMutexError};
 use crypto::identity::PublicKey;
-use inner_messages::{FromTimer, ChannelerToNetworker, ChannelClosed, ChannelOpened};
+//use inner_messages::{FromTimer, ChannelerToNetworker, ChannelClosed, ChannelOpened};
 use close_handle::{CloseHandle, create_close_handle};
 use security_module::security_module_client::SecurityModuleClient;
-use futures_mutex::FutMutex;
 
-use super::channel::{Channel, ChannelError};
-use super::{ChannelerNeighbor, ToChannel};
+use channeler::types::ChannelerNeighbor;
+use channeler::messages::{ToChannel, ChannelerToNetworker, ChannelEvent};
 
 const CONN_ATTEMPT_TICKS: usize = 120;
 
@@ -36,16 +37,16 @@ impl From<oneshot::Canceled> for TimerReaderError {
 #[must_use = "futures do nothing unless polled"]
 pub struct TimerReader {
     handle: Handle,
-    neighbors: FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
+    neighbors: AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
     sm_client: SecurityModuleClient,
 
-    inner_sender: mpsc::Sender<ChannelerToNetworker>,
-    inner_receiver: mpsc::Receiver<FromTimer>,
+    inner_tx: mpsc::Sender<ChannelerToNetworker>,
+    inner_rx: mpsc::Receiver<FromTimer>,
 
     // For reporting the closing event
-    close_sender:   Option<oneshot::Sender<()>>,
+    close_tx:   Option<oneshot::Sender<()>>,
     // For observing the closing request
-    close_receiver: oneshot::Receiver<()>,
+    close_rx: oneshot::Receiver<()>,
 }
 
 impl TimerReader {
@@ -54,18 +55,18 @@ impl TimerReader {
         timer_receiver:   mpsc::Receiver<FromTimer>,
         networker_sender: mpsc::Sender<ChannelerToNetworker>,
         sm_client:        SecurityModuleClient,
-        neighbors:        FutMutex<HashMap<PublicKey, ChannelerNeighbor>>
+        neighbors:        AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>
     ) -> (CloseHandle, TimerReader) {
-        let (close_handle, (close_sender, close_receiver)) = create_close_handle();
+        let (close_handle, (close_tx, close_rx)) = create_close_handle();
 
         let timer_reader = TimerReader {
             handle,
             sm_client,
             neighbors,
-            close_sender: Some(close_sender),
-            close_receiver,
-            inner_sender: networker_sender,
-            inner_receiver: timer_receiver,
+            close_tx: Some(close_tx),
+            close_rx: close_receiver,
+            inner_tx: networker_sender,
+            inner_rx: timer_receiver,
         };
 
         (close_handle, timer_reader)
@@ -76,7 +77,7 @@ impl TimerReader {
         let handle_for_task = self.handle.clone();
         let neighbors_for_task = self.neighbors.clone();
         let sm_client_for_task = self.sm_client.clone();
-        let networker_sender_for_task = self.inner_sender.clone();
+        let networker_sender_for_task = self.inner_tx.clone();
 
         let retry_conn_task = self.neighbors.clone().lock()
             .map_err(|_: ()| TimerReaderError::FutMutex)
@@ -183,74 +184,75 @@ impl TimerReader {
 
     #[inline]
     fn broadcast_tick(&self) {
-        // FIXME: Can we reduce clone here?
-        let handle_for_task = self.handle.clone();
-        let neighbors_for_task = self.neighbors.clone();
-        let networker_sender_for_task = self.inner_sender.clone();
+        let handle = self.handle.clone();
+        let networker_tx = self.inner_tx.clone();
+        let mutex_neighbors = self.neighbors.clone();
 
-        let broadcast_tick_task = self.neighbors.clone().lock()
-            .map_err(|_: ()| TimerReaderError::FutMutex)
-            .and_then(move |neighbors| {
-                for (neighbor_public_key, mut neighbor) in &mut neighbors.iter() {
-                    for &(ref channel_id, ref channel_sender) in &neighbor.channels {
+        let task = self.neighbors.acquire(move |mut neighbors| {
+            for (ref_public_key, mut neighbor) in neighbors.iter_mut() {
+                for &(ref_channel_uuid, ref_channel_tx) in neighbor.channels.iter() {
+                    let channel_uuid = ref_channel_uuid.clone();
 
-                        let target_id = channel_id.clone();
-                        let neighbors = neighbors_for_task.clone();
-                        let neighbor_public_key = neighbor_public_key.clone();
-                        let networker_sender = networker_sender_for_task.clone();
+                    let task = ref_channel_tx.clone().send(ToChannel::TimeTick).map_err(|_e| {
+                        info!("failed to send ticks to channel: {:?}, removing", channel_uuid);
 
-                        let handle_inner1 = handle_for_task.clone();
-                        let handle_inner2 = handle_for_task.clone();
-                        let send_tick_task = channel_sender.clone().send(ToChannel::TimeTick);
+                        // The task to remove channel
+                        let task_remove_channel = mutex_neighbors.acquire(|mut neighbors| {
+                            match neighbors.get_mut(ref_public_key) {
+                                None => {
+                                    info!("nonexistent neighbor");
+                                }
+                                Some(neighbor) => {
+                                    neighbor.channels.retain(|&(uuid, _)| {
+                                        uuid != channel_uuid
+                                    });
 
-                        handle_for_task.spawn(send_tick_task.map_err(move |_e| {
-                            debug!("channel dead, removing {:?}", target_id);
+                                    info!("channel {:?} removed", channel_uuid);
 
-                            handle_inner1.spawn(neighbors.clone().lock()
-                                .map_err(|_: ()| {
-                                    error!("failed to acquire neighbors map");
-                                })
-                                .and_then(move |mut neighbors| {
-                                    match neighbors.get_mut(&neighbor_public_key) {
-                                        None => {
-                                            error!("try to modify a nonexistent neighbor");
-                                        }
-                                        Some(neighbor) => {
-                                            neighbor.channels.retain(|&(ref uid, _)| *uid != target_id);
-                                            // Notify Networker if needed
-                                            if neighbor.channels.is_empty() {
-                                                let msg = ChannelerToNetworker::ChannelClosed(
-                                                    ChannelClosed {
-                                                        remote_public_key: neighbor_public_key.clone(),
-                                                    }
-                                                );
-                                                handle_inner2.spawn(
-                                                    networker_sender.clone()
-                                                        .send(msg)
-                                                        .then(|_| Ok(()))
-                                                );
-                                            }
-                                        }
+                                    // Notify the Networker if there is no active channel
+                                    if neighbor.channels.is_empty() {
+                                        let msg = ChannelerToNetworker {
+                                            remote_public_key: ref_public_key.clone(),
+                                            channel_index: 0,
+                                            event: ChannelEvent::Closed,
+                                        };
+
+                                        let task_notify = networker_tx
+                                            .send(msg)
+                                            .map_err(|_| {
+                                                warn!("failed to notify networker");
+                                            })
+                                            .and_then(|_| Ok(()));
+
+                                        handle.spawn(task_notify);
                                     }
-                                    debug!("removing done");
-                                    Ok(())
-                                })
-                            );
-                        }).then(|_| Ok(())));
-                    }
+                                }
+                            }
+                            Ok((neighbors, ()))
+                        }).map_err(|_: AsyncMutexError<()>| {
+                            info!("failed to remove dead channel: {:?}", channel_uuid);
+                        });
+
+                        handle.spawn(task_remove_channel);
+                    });
+
+                    handle.spawn(task);
                 }
+            }
 
-                Ok(())
-            });
+            Ok((neighbors, ()))
+        }).map_err(|_: AsyncMutexError<()>| {
+            warn!("failed to broadcast tick event to channels");
+        });
 
-        self.handle.spawn(broadcast_tick_task.map_err(|_| ()));
+        self.handle.spawn(task);
     }
 
     // TODO: Consume all message before closing actually.
     #[inline]
     fn close(&mut self) {
-        self.inner_receiver.close();
-        match mem::replace(&mut self.close_sender, None) {
+        self.inner_rx.close();
+        match mem::replace(&mut self.close_tx, None) {
             None => {
                 error!("call close after close sender consumed, something go wrong");
             }
@@ -270,7 +272,7 @@ impl Future for TimerReader {
     fn poll(&mut self) -> Poll<(), Self::Error> {
         trace!("poll - {:?}", ::std::time::Instant::now());
 
-        match self.close_receiver.poll()? {
+        match self.close_rx.poll()? {
             Async::NotReady => (),
             Async::Ready(()) => {
                 debug!("received the closing request, closing");
@@ -282,7 +284,7 @@ impl Future for TimerReader {
         }
 
         loop {
-            match self.inner_receiver.poll() {
+            match self.inner_rx.poll() {
                 Err(_) => {
                     error!("inner receiver error, closing");
 

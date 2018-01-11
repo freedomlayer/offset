@@ -12,16 +12,21 @@
 
 use std::io;
 
-use inner_messages::{
-    IndexingProviderId,
-    IndexingProviderStateHash,
+use indexer::types::{
     NeighborsRoute,
     FriendsRoute,
+    IndexerRoute,
+    StateChainLink,
+};
+
+use indexer::messages::{
     RequestNeighborsRoutes,
     ResponseNeighborsRoutes,
     RequestFriendsRoutes,
     ResponseFriendsRoutes,
-    StateChainLink,
+    RequestUpdateState,
+    ResponseUpdateState,
+    RoutesToIndexer,
 };
 
 use indexer_capnp::*;
@@ -387,12 +392,6 @@ impl<'a> Schema<'a> for StateChainLink {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct RequestUpdateState {
-    indexing_provider_id: IndexingProviderId,
-    indexing_provider_states_chain: Vec<StateChainLink>,
-}
-
 impl<'a> Schema<'a> for RequestUpdateState {
     type Reader = request_update_state::Reader<'a>;
     type Writer = request_update_state::Builder<'a>;
@@ -447,11 +446,6 @@ impl<'a> Schema<'a> for RequestUpdateState {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct ResponseUpdateState {
-    state_hash: IndexingProviderStateHash
-}
-
 impl<'a> Schema<'a> for ResponseUpdateState {
     type Reader = response_update_state::Reader<'a>;
     type Writer = response_update_state::Builder<'a>;
@@ -475,12 +469,6 @@ impl<'a> Schema<'a> for ResponseUpdateState {
 
         Ok(())
     }
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct IndexerRoute {
-    neighbors_route: NeighborsRoute,
-    app_port: u32,
 }
 
 impl<'a> Schema<'a> for IndexerRoute {
@@ -508,13 +496,6 @@ impl<'a> Schema<'a> for IndexerRoute {
 
         Ok(())
     }
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct RoutesToIndexer {
-    indexing_provider_id: IndexingProviderId,
-    routes: Vec<IndexerRoute>,
-    request_price: u64,
 }
 
 impl<'a> Schema<'a> for RoutesToIndexer {
@@ -577,25 +558,19 @@ mod tests {
     use super::*;
     use rand::random;
 
-    use crypto::identity::{
+    use utils::crypto::identity::{
         PublicKey, PUBLIC_KEY_LEN,
         Signature, SIGNATURE_LEN
     };
 
-    use inner_messages::{
+    use indexer::types::{
+        IndexingProviderId,
         INDEXING_PROVIDER_ID_LEN,
+        IndexingProviderStateHash,
         INDEXING_PROVIDER_STATE_HASH_LEN
     };
 
     const MAX_NUM: usize = 512;
-
-    macro_rules! test_encode_decode {
-        ($type: ident, $in: ident) => {
-            let msg = $in.encode().unwrap();
-            let out = $type::decode(msg).unwrap();
-            assert_eq!($in, out);
-        };
-    }
 
     // TODO: Move the create_dummy_* functions to a appropriate place.
 
