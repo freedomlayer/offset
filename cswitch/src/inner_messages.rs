@@ -17,6 +17,7 @@ use ::crypto::rand_values::RandValue;
 
 pub const INDEXING_PROVIDER_STATE_HASH_LEN: usize = 32;
 pub const INDEXING_PROVIDER_ID_LEN: usize = 16;
+pub const INVOICE_ID_LEN: usize = 32;
 
 // A hash of a full link in an indexing provider chain
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -53,6 +54,11 @@ impl AsRef<[u8]> for IndexingProviderStateHash {
 // The Id of an indexing provider.
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub struct IndexingProviderId([u8; INDEXING_PROVIDER_ID_LEN]);
+
+/// The Id number of an invoice. An invoice is used during payment through the Funder. 
+/// It is chosen by the sender of funds. The invoice id then shows up in the receipt for the
+/// payment.
+struct InvoiceId([u8; INVOICE_ID_LEN]);
 
 
 impl IndexingProviderId {
@@ -231,7 +237,7 @@ struct FriendsRoute {
 struct RequestSendFunds {
     request_id: Uid,
     route: FriendsRoute,
-    // - invoice_id
+    invoice_id: InvoiceId,
     payment: u128,
 }
 
