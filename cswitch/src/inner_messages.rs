@@ -396,38 +396,21 @@ enum AppManagerToNetworker {
 }
 
 
-// Funder to Networker
+// Funder <--> Networker
 // -------------------
 
-enum ResponseSendFundsStatus {
-    Success,
-    Failure,
-}
-
 enum FunderToNetworker {
-    FundsReceived {
-        source_node_public_key: PublicKey,
-        amount: u64,
-        message_content: Vec<u8>,
-    },
-    ResponseSendFunds {
-        request_id: Uid,
-        status: ResponseSendFundsStatus,
-    }
+    RequestSendMessage(RequestSendMessage),
+    RespondMessageReceived(RespondMessageReceived),
+    DiscardMessageReceived(DiscardMessageReceived),
+    ResponseSendFunds(ResponseSendFunds),
 }
 
 
 enum NetworkerToFunder {
-    MessageReceived {
-        source_node_public_key: PublicKey,
-        message_content: Vec<u8>,
-    },
-    RequestSendFunds {
-        request_id: Uid,
-        amount: u64,
-        message_content: Vec<u8>,
-        destination_node_public_key: PublicKey,
-    },
+    MessageReceived(MessageReceived),
+    ResponseSendMessage(ResponseSendMessage),
+    RequestSendFunds(RequestSendFunds),
 }
 
 
