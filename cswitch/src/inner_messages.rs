@@ -248,13 +248,22 @@ pub enum NetworkerToIndexerClient {
 // Networker to App Manager
 // ---------------------------
     
+struct NeighborTokenChannelLoaded {
+    channel_index: u32,
+    local_max_debt: u64,
+    remote_max_debt: u64,
+    balance: i64,
+}
 
 struct NeighborLoaded {
     address: ChannelerAddress,
     max_channels: u32,
     wanted_remote_max_debt: u64,
     status: NeighborStatus,
+    token_channels: Vec<NeighborTokenChannelLoaded>,
+    // TODO: Should we use a map instead of a vector for token_channels?
 }
+
 
 enum NeighborTokenChannelEventInner {
     Open,
