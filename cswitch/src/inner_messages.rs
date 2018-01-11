@@ -434,8 +434,8 @@ enum NetworkerToFunder {
 // ------------------------
 
 pub struct FriendCapacity {
-    send: u64,
-    recv: u64,
+    send: u128,
+    recv: u128,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
