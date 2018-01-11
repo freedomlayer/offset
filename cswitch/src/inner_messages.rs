@@ -220,6 +220,26 @@ pub struct DiscardMessageReceived {
 }
 
 
+// Funder interface
+// ----------------
+
+struct FriendsRoute {
+    public_keys: Vec<PublicKey>,
+}
+
+struct RequestSendFunds {
+    request_id: Uid,
+    route: FriendsRoute,
+    // - invoice_id
+    payment: u128,
+}
+
+struct ResponseSendFunds {
+    request_id: Uid,
+    // TODO
+}
+
+
 // Indexer client to Networker
 // ---------------------------
 
