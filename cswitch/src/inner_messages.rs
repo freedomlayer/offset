@@ -608,19 +608,63 @@ enum AppManagerToFunder {
 }
 
 pub enum FunderToDatabase {
-    // TODO:
+    StoreFriend {
+        // TODO:
+    },
+    RemoveFriend {
+        // TODO:
+    },
+    RequestLoadFriends {
+        // TODO:
+    },
+    StoreInFriendToken {
+        // TODO:
+    },
+    StoreOutFriendToken {
+        // TODO:
+    },
+    RequestLoadFriendToken {
+        // TODO:
+    },
 }
 
 pub enum DatabaseToFunder {
-    // TODO:
+    ResponseLoadFriends {
+        // TODO:
+    },
+    ResponseLoadFriendToken {
+        // TODO:
+    },
 }
 
 pub enum NetworkerToDatabase {
-    // TODO:
+    StoreNeighbor {
+        // TODO
+    },
+    RemoveNeighbor {
+        // TODO
+    },
+    RequestLoadNeighbors {
+        // TODO
+    },
+    StoreInNeighborToken {
+        // TODO
+    },
+    StoreOutNeighborToken {
+        // TODO
+    },
+    RequestLoadNeighborToken {
+        // TODO
+    },
 }
 
 pub enum DatabaseToNetworker {
-    // TODO:
+    ResponseLoadNeighbors {
+        // TODO
+    },
+    ResponseLoadNeighborToken {
+        // TODO
+    },
 }
 
 
