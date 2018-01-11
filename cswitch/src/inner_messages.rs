@@ -98,7 +98,7 @@ pub struct NeighborInfo {
     neighbor_public_key: PublicKey,
     neighbor_address: ChannelerAddress,
     max_channels: u32,              // Maximum amount of token channels
-    token_channel_capacity: u64,    // Capacity per token channel
+    wanted_remote_max_debt: u64,    
 }
 
 
@@ -252,7 +252,7 @@ pub enum NetworkerToIndexerClient {
 struct NeighborLoaded {
     address: ChannelerAddress,
     max_channels: u32,
-    token_channel_capacity: u64,
+    wanted_remote_max_debt: u64,
     status: NeighborStatus,
 }
 
@@ -301,7 +301,7 @@ enum AppManagerToNetworker {
     DiscardMessageReceived(DiscardMessageReceived),
     SetNeighborChannelCapacity {
         neighbor_public_key: PublicKey,
-        token_channel_capacity: u64,    // Capacity per token channel
+        wanted_remote_max_debt: u64,
     },
     ResetNeighborChannel {
         neighbor_public_key: PublicKey,
@@ -474,7 +474,7 @@ enum FriendRequestsStatus {
 }
 
 struct FriendLoaded {
-    token_channel_capacity: u128,
+    wanted_remote_max_debt: u128,
     status: FriendStatus,
     requests_status: FriendRequestsStatus,
 }
@@ -508,7 +508,7 @@ enum FunderToAppManager {
 
 pub struct FriendInfo {
     friend_public_key: PublicKey,
-    token_channel_capacity: u128,    // Capacity per token channel
+    wanted_remote_max_debt: u128,
 }
 
 
@@ -535,7 +535,7 @@ enum AppManagerToFunder {
     },
     SetFriendChannelCapacity {
         friend_public_key: PublicKey,
-        token_channel_capacity: u128,
+        wanted_remote_max_debt: u128,
     },
 }
 
