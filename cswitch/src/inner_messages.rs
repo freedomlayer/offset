@@ -390,6 +390,7 @@ enum AppManagerToNetworker {
         neighbor_public_key: PublicKey,
     },
     SetNeighborStatus {
+        neighbor_public_key: PublicKey,
         status: NeighborStatus,
     },
 }
