@@ -571,9 +571,7 @@ struct FriendStateUpdate {
 
 enum FunderToAppManager {
     FriendStateUpdate(FriendStateUpdate),
-    ResponseSendFunds {
-        // TODO
-    },
+    ResponseSendFunds(ResponseSendFunds),
 }
 
 
@@ -587,12 +585,7 @@ pub struct FriendInfo {
 
 
 enum AppManagerToFunder {
-    RequestSendFunds {
-        // TODO
-        request_id: Uid,
-        amount: u128,
-        destination_node_public_key: PublicKey,
-    },
+    RequestSendFunds(RequestSendFunds),
     ResetFriendChannel {
         friend_public_key: PublicKey,
     },
