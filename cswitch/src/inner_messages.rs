@@ -485,9 +485,12 @@ enum FriendRequestsStatus {
 }
 
 struct FriendLoaded {
-    wanted_remote_max_debt: u128,
     status: FriendStatus,
     requests_status: FriendRequestsStatus,
+    wanted_remote_max_debt: u128,
+    local_max_debt: u128,
+    remote_max_debt: u128,
+    balance: i128,
 }
 
 enum FriendEvent {
