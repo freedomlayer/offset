@@ -316,8 +316,9 @@ enum AppManagerToNetworker {
     ResetNeighborChannel {
         neighbor_public_key: PublicKey,
         channel_index: u32,
-        // TODO: Should we add wanted parameters for the ChannelReset, or let the Networker use the
-        // last Inconsistency message information to perform Reset?
+        // TODO: Should we add wanted parameters for the ChannelReset, 
+        // or let the Networker use the last Inconsistency message information 
+        // to perform Reset?
     },
     SetNeighborMaxChannels {
         neighbor_public_key: PublicKey,
