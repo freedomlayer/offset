@@ -84,9 +84,9 @@ struct RequestSendMessageTran {
 
 struct ResponseSendMessageTran {
         requestId @0: CustomUInt128;
-        randNonce @2: CustomUInt128;
-        responseData @1: Data;
-        signature @2: CustomUInt512;
+        randNonce @1: CustomUInt128;
+        responseData @2: Data;
+        signature @3: CustomUInt512;
         # Signature{key=recipientKey}(
         #   "MESSAGE_SUCCESS" ||
         #   requestId ||
@@ -103,7 +103,7 @@ struct FailedSendMessageTran {
         requestId @0: CustomUInt128;
         reportingPublicKey @1: CustomUInt256;
         randNonce @2: CustomUInt128;
-        signature @2: CustomUInt512;
+        signature @3: CustomUInt512;
         # Signature{key=reportingNodePublicKey}(
         #   "MESSAGE_FAILURE" ||
         #   requestId ||
