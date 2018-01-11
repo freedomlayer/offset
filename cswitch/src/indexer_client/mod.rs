@@ -188,6 +188,10 @@ impl Future for IndexerClient {
                                 }
                                 Async::Ready(Some(msg)) => {
                                     match msg {
+                                        AppManagerToIndexerClient::SetIndexingProviderStatus { .. } => {
+                                            // TODO
+                                            assert!(false);
+                                        },
                                         AppManagerToIndexerClient::AddIndexingProvider(info) => {
                                             self.add_indexing_provider(info);
                                         }

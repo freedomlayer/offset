@@ -490,8 +490,17 @@ pub struct IndexingProviderInfo {
     pub state_chain_link: StateChainLink,
 }
 
+pub enum IndexingProviderStatus {
+    Enabled,
+    Disabled,
+}
+
 pub enum AppManagerToIndexerClient {
     AddIndexingProvider(IndexingProviderInfo),
+    SetIndexingProviderStatus {
+        id: IndexingProviderId,
+        status: IndexingProviderStatus,
+    },
     RemoveIndexingProvider {
         id: IndexingProviderId,
     },
