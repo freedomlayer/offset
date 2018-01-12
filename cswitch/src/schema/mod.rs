@@ -41,11 +41,11 @@
 
 use std::io;
 
-use bytes::{BigEndian, Bytes, BytesMut, Buf, BufMut};
+use bytes::{BigEndian, Buf, BufMut, Bytes, BytesMut};
 use capnp::struct_list;
 
 use utils::crypto::rand_values::RandValue;
-use utils::crypto::dh::{Salt, DhPublicKey};
+use utils::crypto::dh::{DhPublicKey, Salt};
 use utils::crypto::identity::{PublicKey, Signature};
 
 use indexer::types::{IndexingProviderId, IndexingProviderStateHash};
@@ -117,6 +117,7 @@ macro_rules! inject_default_impl {
     };
 }
 
+#[cfg(test)]
 macro_rules! test_encode_decode {
         ($type: ident, $in: ident) => {
             let msg = $in.encode().unwrap();
@@ -128,7 +129,6 @@ macro_rules! test_encode_decode {
 pub mod channeler;
 pub mod indexer;
 // pub mod networker;
-
 
 #[derive(Debug)]
 pub enum SchemaError {
@@ -161,9 +161,7 @@ impl From<::capnp::NotInSchema> for SchemaError {
 
 /// Read the underlying bytes from given `CustomUInt128` reader.
 #[inline]
-pub fn read_custom_u_int128(
-    from: &custom_u_int128::Reader
-) -> Result<Bytes, SchemaError> {
+pub fn read_custom_u_int128(from: &custom_u_int128::Reader) -> Result<Bytes, SchemaError> {
     let mut buffer = BytesMut::with_capacity(CUSTOM_UINT128_LEN);
 
     buffer.put_u64::<BigEndian>(from.get_x0());
@@ -192,9 +190,7 @@ pub fn write_custom_u_int128<T: AsRef<[u8]>>(
 
 /// Read the underlying bytes from given `CustomUInt256` reader.
 #[inline]
-pub fn read_custom_u_int256(
-    from: &custom_u_int256::Reader
-) -> Result<Bytes, SchemaError> {
+pub fn read_custom_u_int256(from: &custom_u_int256::Reader) -> Result<Bytes, SchemaError> {
     let mut buffer = BytesMut::with_capacity(CUSTOM_UINT256_LEN);
 
     buffer.put_u64::<BigEndian>(from.get_x0());
@@ -227,9 +223,7 @@ pub fn write_custom_u_int256<T: AsRef<[u8]>>(
 
 /// Read the underlying bytes from given `CustomUInt512` reader.
 #[inline]
-pub fn read_custom_u_int512(
-    from: &custom_u_int512::Reader
-) -> Result<Bytes, SchemaError> {
+pub fn read_custom_u_int512(from: &custom_u_int512::Reader) -> Result<Bytes, SchemaError> {
     let mut buffer = BytesMut::with_capacity(CUSTOM_UINT512_LEN);
 
     buffer.put_u64::<BigEndian>(from.get_x0());
@@ -272,11 +266,8 @@ pub fn write_custom_u_int512<T: AsRef<[u8]>>(
 // TODO: Can we use macro to generate these code automatically?
 
 #[inline]
-pub fn read_public_key(
-    from: &custom_u_int256::Reader
-) -> Result<PublicKey, SchemaError> {
-    PublicKey::from_bytes(&read_custom_u_int256(from)?)
-        .map_err(|_| SchemaError::Invalid)
+pub fn read_public_key(from: &custom_u_int256::Reader) -> Result<PublicKey, SchemaError> {
+    PublicKey::from_bytes(&read_custom_u_int256(from)?).map_err(|_| SchemaError::Invalid)
 }
 
 #[inline]
@@ -288,11 +279,8 @@ pub fn write_public_key(
 }
 
 #[inline]
-pub fn read_rand_value(
-    from: &custom_u_int128::Reader
-) -> Result<RandValue, SchemaError> {
-    RandValue::from_bytes(&read_custom_u_int128(from)?)
-        .map_err(|_| SchemaError::Invalid)
+pub fn read_rand_value(from: &custom_u_int128::Reader) -> Result<RandValue, SchemaError> {
+    RandValue::from_bytes(&read_custom_u_int128(from)?).map_err(|_| SchemaError::Invalid)
 }
 
 #[inline]
@@ -304,11 +292,8 @@ pub fn write_rand_value(
 }
 
 #[inline]
-pub fn read_dh_public_key(
-    from: &custom_u_int256::Reader
-) -> Result<DhPublicKey, SchemaError> {
-    DhPublicKey::from_bytes(&read_custom_u_int256(from)?)
-        .map_err(|_| SchemaError::Invalid)
+pub fn read_dh_public_key(from: &custom_u_int256::Reader) -> Result<DhPublicKey, SchemaError> {
+    DhPublicKey::from_bytes(&read_custom_u_int256(from)?).map_err(|_| SchemaError::Invalid)
 }
 
 #[inline]
@@ -321,24 +306,17 @@ pub fn write_dh_public_key(
 
 #[inline]
 pub fn read_salt(from: &custom_u_int256::Reader) -> Result<Salt, SchemaError> {
-    Salt::from_bytes(&read_custom_u_int256(from)?)
-        .map_err(|_| SchemaError::Invalid)
+    Salt::from_bytes(&read_custom_u_int256(from)?).map_err(|_| SchemaError::Invalid)
 }
 
 #[inline]
-pub fn write_salt(
-    from: &Salt,
-    to: &mut custom_u_int256::Builder,
-) -> Result<(), SchemaError> {
+pub fn write_salt(from: &Salt, to: &mut custom_u_int256::Builder) -> Result<(), SchemaError> {
     write_custom_u_int256(from, to)
 }
 
 #[inline]
-pub fn read_signature(
-    from: &custom_u_int512::Reader
-) -> Result<Signature, SchemaError> {
-    Signature::from_bytes(&read_custom_u_int512(from)?)
-        .map_err(|_| SchemaError::Invalid)
+pub fn read_signature(from: &custom_u_int512::Reader) -> Result<Signature, SchemaError> {
+    Signature::from_bytes(&read_custom_u_int512(from)?).map_err(|_| SchemaError::Invalid)
 }
 
 #[inline]
@@ -351,7 +329,7 @@ pub fn write_signature(
 
 #[inline]
 pub fn read_public_key_list<'a>(
-    from: &struct_list::Reader<'a, custom_u_int256::Owned>
+    from: &struct_list::Reader<'a, custom_u_int256::Owned>,
 ) -> Result<Vec<PublicKey>, SchemaError> {
     let mut public_keys = Vec::with_capacity(from.len() as usize);
 
@@ -379,12 +357,11 @@ pub fn write_public_key_list<'a>(
 
 #[inline]
 pub fn read_indexing_provider_id(
-    from: &custom_u_int128::Reader
+    from: &custom_u_int128::Reader,
 ) -> Result<IndexingProviderId, SchemaError> {
     let id_bytes = read_custom_u_int128(from)?;
 
-    IndexingProviderId::from_bytes(&id_bytes)
-        .map_err(|_| SchemaError::Invalid)
+    IndexingProviderId::from_bytes(&id_bytes).map_err(|_| SchemaError::Invalid)
 }
 
 #[inline]
@@ -396,12 +373,12 @@ pub fn write_indexing_provider_id(
 }
 
 #[inline]
-pub fn read_indexing_provider_state_hash(from: &custom_u_int256::Reader)
-    -> Result<IndexingProviderStateHash, SchemaError> {
+pub fn read_indexing_provider_state_hash(
+    from: &custom_u_int256::Reader,
+) -> Result<IndexingProviderStateHash, SchemaError> {
     let state_hash_bytes = read_custom_u_int256(from)?;
 
-    IndexingProviderStateHash::from_bytes(&state_hash_bytes)
-        .map_err(|_| SchemaError::Invalid)
+    IndexingProviderStateHash::from_bytes(&state_hash_bytes).map_err(|_| SchemaError::Invalid)
 }
 
 #[inline]
@@ -420,9 +397,10 @@ mod tests {
     fn test_custom_u_int128() {
         let mut message = ::capnp::message::Builder::new_default();
 
-        let in_buf = Bytes::from_static(
-            &[0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-                0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]);
+        let in_buf = Bytes::from_static(&[
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+            0x0e, 0x0f,
+        ]);
 
         assert_eq!(in_buf.len(), 16);
 
@@ -438,11 +416,11 @@ mod tests {
     fn test_custom_u_int256() {
         let mut message = ::capnp::message::Builder::new_default();
 
-        let in_buf = Bytes::from_static(
-            &[0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-                0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-                0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
-                0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f]);
+        let in_buf = Bytes::from_static(&[
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+            0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b,
+            0x1c, 0x1d, 0x1e, 0x1f,
+        ]);
         assert_eq!(in_buf.len(), 32);
 
         let mut num_u256 = message.init_root::<custom_u_int256::Builder>();
@@ -457,15 +435,13 @@ mod tests {
     fn test_custom_u_int512() {
         let mut message = ::capnp::message::Builder::new_default();
 
-        let in_buf = Bytes::from_static(
-            &[0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-                0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-                0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
-                0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
-                0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
-                0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f,
-                0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
-                0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f]);
+        let in_buf = Bytes::from_static(&[
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+            0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b,
+            0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29,
+            0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
+            0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f,
+        ]);
         assert_eq!(in_buf.len(), 64);
 
         let mut num_u512 = message.init_root::<custom_u_int512::Builder>();

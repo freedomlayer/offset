@@ -6,7 +6,7 @@ use std::fmt;
 use self::ring::signature;
 
 pub const PUBLIC_KEY_LEN: usize = 32;
-pub const SIGNATURE_LEN:  usize = 64;
+pub const SIGNATURE_LEN: usize = 64;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct PublicKey([u8; PUBLIC_KEY_LEN]);
@@ -77,7 +77,7 @@ impl fmt::Debug for Signature {
 impl PartialEq for Signature {
     #[inline]
     fn eq(&self, other: &Signature) -> bool {
-        for i in 0 .. SIGNATURE_LEN {
+        for i in 0..SIGNATURE_LEN {
             if self.0[i] != other.0[i] {
                 return false;
             }
@@ -99,40 +99,33 @@ pub trait Identity {
     fn get_public_key(&self) -> PublicKey;
 }
 
-
 pub struct SoftwareEd25519Identity {
     key_pair: signature::Ed25519KeyPair,
 }
 
 impl SoftwareEd25519Identity {
-    pub fn from_pkcs8(pkcs8_bytes: &[u8]) -> Result<Self,()> {
-        let key_pair = match signature::Ed25519KeyPair::from_pkcs8(
-            untrusted::Input::from(pkcs8_bytes)) {
-            Ok(key_pair) => key_pair,
-            Err(ring::error::Unspecified) => return Err(())
-        };
+    pub fn from_pkcs8(pkcs8_bytes: &[u8]) -> Result<Self, ()> {
+        let key_pair =
+            match signature::Ed25519KeyPair::from_pkcs8(untrusted::Input::from(pkcs8_bytes)) {
+                Ok(key_pair) => key_pair,
+                Err(ring::error::Unspecified) => return Err(()),
+            };
 
-        Ok(SoftwareEd25519Identity {
-            key_pair,
-        })
+        Ok(SoftwareEd25519Identity { key_pair })
     }
 }
 
-pub fn verify_signature(message: &[u8],
-                        public_key: &PublicKey, signature: &Signature) -> bool {
-
+pub fn verify_signature(message: &[u8], public_key: &PublicKey, signature: &Signature) -> bool {
     let public_key = untrusted::Input::from(&public_key.0);
-    let message    = untrusted::Input::from(message);
-    let signature  = untrusted::Input::from(&signature.0);
+    let message = untrusted::Input::from(message);
+    let signature = untrusted::Input::from(&signature.0);
     match signature::verify(&signature::ED25519, public_key, message, signature) {
         Ok(()) => true,
         Err(ring::error::Unspecified) => false,
     }
 }
 
-
 impl Identity for SoftwareEd25519Identity {
-
     fn sign_message(&self, message: &[u8]) -> Signature {
         let mut sig_array = [0; SIGNATURE_LEN];
         let sig = self.key_pair.sign(message);
@@ -151,8 +144,6 @@ impl Identity for SoftwareEd25519Identity {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -160,7 +151,6 @@ mod tests {
 
     #[test]
     fn test_get_public_key_sanity() {
-
         // let secure_rand = DummyRandom::new(&[1,2,3,4,5]);
         let secure_rand = FixedByteRandom { byte: 0x1 };
         let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
@@ -171,7 +161,6 @@ mod tests {
 
         assert_eq!(public_key1, public_key2);
     }
-
 
     #[test]
     fn test_sign_verify_self() {
@@ -187,7 +176,6 @@ mod tests {
         // println!("signature = {:?}", signature);
 
         assert!(verify_signature(message, &public_key, &signature));
-
     }
 
     #[test]
@@ -205,7 +193,5 @@ mod tests {
 
         let public_key1 = id1.get_public_key();
         assert!(verify_signature(message, &public_key1, &signature1));
-
     }
 }
-

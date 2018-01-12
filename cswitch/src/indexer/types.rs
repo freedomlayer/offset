@@ -9,7 +9,8 @@ pub struct IndexingProviderStateHash([u8; INDEXING_PROVIDER_STATE_HASH_LEN]);
 
 impl IndexingProviderStateHash {
     pub fn from_bytes<T>(t: &T) -> Result<Self, ()>
-        where T: AsRef<[u8]>
+    where
+        T: AsRef<[u8]>,
     {
         let in_bytes = t.as_ref();
 
@@ -41,7 +42,8 @@ pub struct IndexingProviderId([u8; INDEXING_PROVIDER_ID_LEN]);
 
 impl IndexingProviderId {
     pub fn from_bytes<T>(t: &T) -> Result<Self, ()>
-        where T: AsRef<[u8]>
+    where
+        T: AsRef<[u8]>,
     {
         let in_bytes = t.as_ref();
 

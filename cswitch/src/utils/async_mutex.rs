@@ -12,7 +12,7 @@ use crossbeam::sync::MsQueue;
 #[derive(Debug)]
 pub struct Inner<T> {
     is_broken: RefCell<bool>,
-    resource:  RefCell<Option<T>>,
+    resource: RefCell<Option<T>>,
     awakeners: MsQueue<oneshot::Sender<T>>,
 }
 
@@ -22,7 +22,8 @@ impl<T> Inner<T> {
 
         if !self.awakeners.is_empty() {
             while let Some(awakener) = self.awakeners.try_pop() {
-                let resource = bucket.take()
+                let resource = bucket
+                    .take()
                     .expect("Attempted to take resource after it gone");
 
                 match awakener.send(resource) {
@@ -72,8 +73,7 @@ enum AcquireFutureState<T, F, G> {
 
 #[derive(Debug)]
 #[must_use = "futures do nothing unless polled"]
-pub struct AcquireFuture<T, F, G>
-{
+pub struct AcquireFuture<T, F, G> {
     inner: Rc<Inner<T>>,
     state: AcquireFutureState<T, F, G>,
 }
@@ -100,10 +100,10 @@ impl<T> AsyncMutex<T> {
     ///
     /// This function returns a future that resolves to the value given at output.
     pub fn acquire<F, B, E, G, O>(&self, f: F) -> AcquireFuture<T, F, G>
-        where
-            F: FnOnce(T) -> B,
-            G: Future<Item=(T, O), Error=(Option<T>, E)>,
-            B: IntoFuture<Item=G::Item, Error=G::Error, Future=G>,
+    where
+        F: FnOnce(T) -> B,
+        G: Future<Item = (T, O), Error = (Option<T>, E)>,
+        B: IntoFuture<Item = G::Item, Error = G::Error, Future = G>,
     {
         match self.inner.resource.replace(None) {
             None => {
@@ -132,10 +132,10 @@ impl<T> AsyncMutex<T> {
 }
 
 impl<T, F, B, G, E, O> Future for AcquireFuture<T, F, G>
-    where
-        F: FnOnce(T) -> B,
-        G: Future<Item=(T, O), Error=(Option<T>, E)>,
-        B: IntoFuture<Item=G::Item, Error=G::Error, Future=G>
+where
+    F: FnOnce(T) -> B,
+    G: Future<Item = (T, O), Error = (Option<T>, E)>,
+    B: IntoFuture<Item = G::Item, Error = G::Error, Future = G>,
 {
     type Item = O;
     type Error = AsyncMutexError<E>;
@@ -149,7 +149,10 @@ impl<T, F, B, G, E, O> Future for AcquireFuture<T, F, G>
                         self.inner.drop_awakeners();
                         return Err(AsyncMutexError::ResourceBroken);
                     }
-                    match waiter.poll().map_err(|_| AsyncMutexError::AwakenerCanceled)? {
+                    match waiter
+                        .poll()
+                        .map_err(|_| AsyncMutexError::AwakenerCanceled)?
+                    {
                         Async::Ready(t) => {
                             trace!("AcquireFuture::WaitResource -- Ready");
 
@@ -195,7 +198,7 @@ impl<T, F, B, G, E, O> Future for AcquireFuture<T, F, G>
 impl<T> Clone for AsyncMutex<T> {
     fn clone(&self) -> AsyncMutex<T> {
         AsyncMutex {
-            inner: Rc::clone(&self.inner)
+            inner: Rc::clone(&self.inner),
         }
     }
 }
@@ -310,10 +313,8 @@ mod tests {
 
         let async_mutex = AsyncMutex::new(NumCell { num: 0 });
 
-
-        let task1 = async_mutex.acquire(|num_cell| -> Result<(_, ()), (_, ())> {
-            Err((Some(num_cell), ()))
-        });
+        let task1 = async_mutex
+            .acquire(|num_cell| -> Result<(_, ()), (_, ())> { Err((Some(num_cell), ())) });
 
         let task2 = async_mutex.acquire(|mut num_cell| -> Result<_, (_, ())> {
             num_cell.num += 1;
@@ -321,9 +322,7 @@ mod tests {
             Ok((num_cell, num))
         });
 
-        let task3 = async_mutex.acquire(|_| -> Result<(_, ()), (_, ())> {
-            Err((None, ()))
-        });
+        let task3 = async_mutex.acquire(|_| -> Result<(_, ()), (_, ())> { Err((None, ())) });
 
         let task4 = async_mutex.acquire(|mut num_cell| -> Result<_, (_, ())> {
             num_cell.num += 1;

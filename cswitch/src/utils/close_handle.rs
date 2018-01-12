@@ -32,7 +32,7 @@ impl CloseHandle {
     pub fn close(self) -> Result<oneshot::Receiver<()>, ()> {
         match self.tx.send(()) {
             Ok(()) => Ok(self.rx),
-            Err(_) => Err(())
+            Err(_) => Err(()),
         }
     }
 }

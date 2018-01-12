@@ -1,7 +1,7 @@
 use futures::Future;
 use futures::sync::mpsc;
 
-use super::messages::{ToSecurityModule, FromSecurityModule};
+use super::messages::{FromSecurityModule, ToSecurityModule};
 
 use utils::service_client::{ServiceClient, ServiceClientError};
 use utils::crypto::identity::{PublicKey, Signature};
@@ -21,7 +21,10 @@ pub struct SecurityModuleClient {
 }
 
 impl SecurityModuleClient {
-    pub fn new(sender: mpsc::Sender<ToSecurityModule>, receiver: mpsc::Receiver<FromSecurityModule>) -> Self {
+    pub fn new(
+        sender: mpsc::Sender<ToSecurityModule>,
+        receiver: mpsc::Receiver<FromSecurityModule>,
+    ) -> Self {
         SecurityModuleClient {
             service_client: ServiceClient::new(sender, receiver),
         }
@@ -29,29 +32,30 @@ impl SecurityModuleClient {
 
     /// Request the public key of our identity.
     /// Returns a future that resolves to the public key of our identity.
-    pub fn request_public_key(&self) -> impl Future<Item=PublicKey,Error=SecurityModuleClientError> {
-        self.service_client.request(ToSecurityModule::RequestPublicKey {})
+    pub fn request_public_key(
+        &self,
+    ) -> impl Future<Item = PublicKey, Error = SecurityModuleClientError> {
+        self.service_client
+            .request(ToSecurityModule::RequestPublicKey {})
             .map_err(SecurityModuleClientError::RequestError)
-            .and_then(|response| {
-                match response {
-                    FromSecurityModule::ResponsePublicKey {public_key} => 
-                        Ok(public_key),
-                    _ => Err(SecurityModuleClientError::InvalidResponse),
-                }
+            .and_then(|response| match response {
+                FromSecurityModule::ResponsePublicKey { public_key } => Ok(public_key),
+                _ => Err(SecurityModuleClientError::InvalidResponse),
             })
     }
 
     /// Request a signature over a provided message.
     /// Returns a future that resolves to a signature over the provided message.
-    pub fn request_sign(&self, message: Vec<u8>) -> impl Future<Item=Signature, Error=SecurityModuleClientError> {
-        self.service_client.request(ToSecurityModule::RequestSign {message})
+    pub fn request_sign(
+        &self,
+        message: Vec<u8>,
+    ) -> impl Future<Item = Signature, Error = SecurityModuleClientError> {
+        self.service_client
+            .request(ToSecurityModule::RequestSign { message })
             .map_err(SecurityModuleClientError::RequestError)
-            .and_then(|response| {
-                match response {
-                    FromSecurityModule::ResponseSign {signature} => 
-                        Ok(signature),
-                    _ => Err(SecurityModuleClientError::InvalidResponse),
-                }
+            .and_then(|response| match response {
+                FromSecurityModule::ResponseSign { signature } => Ok(signature),
+                _ => Err(SecurityModuleClientError::InvalidResponse),
             })
     }
 }

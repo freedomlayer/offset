@@ -5,15 +5,14 @@ use std::collections::HashMap;
 use futures::prelude::*;
 use futures::sync::{mpsc, oneshot};
 
-
 use tokio_core::reactor::Handle;
 
-use async_mutex::{AsyncMutex, AsyncMutexError};
-use crypto::identity::PublicKey;
-//use inner_messages::{FromTimer, ChannelerToNetworker, ChannelClosed, ChannelOpened};
-use close_handle::{CloseHandle, create_close_handle};
-use security_module::security_module_client::SecurityModuleClient;
+use utils::{AsyncMutex, AsyncMutexError, CloseHandle};
+use utils::crypto::identity::PublicKey;
+use security::client::SecurityModuleClient;
 
+use timer::messages::FromTimer;
+use channeler::channel::{Channel, ChannelError};
 use channeler::types::ChannelerNeighbor;
 use channeler::messages::{ToChannel, ChannelerToNetworker, ChannelEvent};
 
@@ -57,14 +56,14 @@ impl TimerReader {
         sm_client:        SecurityModuleClient,
         neighbors:        AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>
     ) -> (CloseHandle, TimerReader) {
-        let (close_handle, (close_tx, close_rx)) = create_close_handle();
+        let (close_handle, (close_tx, close_rx)) = CloseHandle::new();
 
         let timer_reader = TimerReader {
             handle,
             sm_client,
             neighbors,
             close_tx: Some(close_tx),
-            close_rx: close_receiver,
+            close_rx: close_rx,
             inner_tx: networker_sender,
             inner_rx: timer_receiver,
         };
@@ -119,11 +118,11 @@ impl TimerReader {
 
                     let new_channel = Channel::connect(
                         &addr,
-                        &handle_for_task,
                         &neighbor_public_key,
                         &neighbors_for_task,
                         &networker_sender_for_task,
-                        &sm_client_for_task
+                        &sm_client_for_task,
+                            &handle_for_task,
                     ).then(move |res| {
                         neighbors.lock().map_err(|_: ()| {
                             error!("failed to add new channel, would not allow retry conn");

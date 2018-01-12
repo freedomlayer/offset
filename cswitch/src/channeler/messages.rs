@@ -3,8 +3,10 @@ use bytes::Bytes;
 use utils::crypto::dh::{DhPublicKey, Salt};
 use utils::crypto::identity::{PublicKey, Signature};
 use utils::crypto::rand_values::RandValue;
-use schema::channeler_capnp::MessageType;
 
+pub use schema::channeler_capnp::MessageType;
+
+pub const MAX_PADDING_LEN: u32 = 32;
 
 // ===== Internal interfaces =====
 

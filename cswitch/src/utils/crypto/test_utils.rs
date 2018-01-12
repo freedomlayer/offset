@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
-use rand::{self, StdRng, Rng};
-use ring::{rand::SecureRandom, error::Unspecified};
+use rand::{self, Rng, StdRng};
+use ring::{error::Unspecified, rand::SecureRandom};
 
 pub struct DummyRandom<R> {
     rng: RefCell<R>,

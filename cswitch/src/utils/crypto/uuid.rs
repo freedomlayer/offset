@@ -24,9 +24,10 @@ impl Uuid {
 
     /// Formatting for `Debug` and `Display`.
     fn format(&self) -> String {
-        let upper_hex = self.as_bytes().iter().map(|byte| {
-            format!("{:02X}", byte)
-        }).collect::<Vec<_>>();
+        let upper_hex = self.as_bytes()
+            .iter()
+            .map(|byte| format!("{:02X}", byte))
+            .collect::<Vec<_>>();
 
         upper_hex.join("")
     }

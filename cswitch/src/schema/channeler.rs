@@ -3,29 +3,13 @@ use std::io;
 use bytes::Bytes;
 use capnp::serialize_packed;
 
-use channeler::messages::{
-    InitChannelActive,
-    InitChannelPassive,
-    Exchange,
-    EncryptMessage,
-};
+use channeler::messages::{EncryptMessage, Exchange, InitChannelActive, InitChannelPassive};
 
 use channeler_capnp::*;
 
-use super::{
-    Schema,
-    SchemaError,
-    read_public_key,
-    write_public_key,
-    read_rand_value,
-    write_rand_value,
-    read_signature,
-    write_signature,
-    read_salt,
-    write_salt,
-    read_dh_public_key,
-    write_dh_public_key,
-};
+use super::{read_dh_public_key, read_public_key, read_rand_value, read_salt, read_signature,
+            write_dh_public_key, write_public_key, write_rand_value, write_salt, write_signature,
+            Schema, SchemaError};
 
 /// Create and serialize a `Message` from given `content`,
 /// return the serialized message on success.
@@ -51,10 +35,8 @@ pub fn serialize_message(content: Bytes) -> Result<Bytes, SchemaError> {
 pub fn deserialize_message(buffer: Bytes) -> Result<Bytes, SchemaError> {
     let mut buffer = io::Cursor::new(buffer);
 
-    let reader = serialize_packed::read_message(
-        &mut buffer,
-        ::capnp::message::ReaderOptions::new(),
-    )?;
+    let reader =
+        serialize_packed::read_message(&mut buffer, ::capnp::message::ReaderOptions::new())?;
 
     let msg = reader.get_root::<message::Reader>()?;
     let content = Bytes::from(msg.get_content()?);
@@ -69,11 +51,9 @@ impl<'a> Schema<'a> for InitChannelActive {
     inject_default_impl!();
 
     fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
-        let neighbor_public_key =
-            read_public_key(&from.get_neighbor_public_key()?)?;
+        let neighbor_public_key = read_public_key(&from.get_neighbor_public_key()?)?;
 
-        let channel_rand_value =
-            read_rand_value(&from.get_channel_rand_value()?)?;
+        let channel_rand_value = read_rand_value(&from.get_channel_rand_value()?)?;
 
         let channel_index = from.get_channel_index();
 
@@ -107,11 +87,9 @@ impl<'a> Schema<'a> for InitChannelPassive {
     inject_default_impl!();
 
     fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
-        let neighbor_public_key =
-            read_public_key(&from.get_neighbor_public_key()?)?;
+        let neighbor_public_key = read_public_key(&from.get_neighbor_public_key()?)?;
 
-        let channel_rand_value =
-            read_rand_value(&from.get_channel_rand_value()?)?;
+        let channel_rand_value = read_rand_value(&from.get_channel_rand_value()?)?;
 
         Ok(InitChannelPassive {
             neighbor_public_key,
@@ -140,8 +118,7 @@ impl<'a> Schema<'a> for Exchange {
     inject_default_impl!();
 
     fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
-        let comm_public_key =
-            read_dh_public_key(&from.get_comm_public_key()?)?;
+        let comm_public_key = read_dh_public_key(&from.get_comm_public_key()?)?;
 
         let key_salt = read_salt(&from.get_key_salt()?)?;
 
@@ -159,14 +136,8 @@ impl<'a> Schema<'a> for Exchange {
             &self.comm_public_key,
             &mut to.borrow().init_comm_public_key(),
         )?;
-        write_salt(
-            &self.key_salt,
-            &mut to.borrow().init_key_salt(),
-        )?;
-        write_signature(
-            &self.signature,
-            &mut to.borrow().init_signature(),
-        )?;
+        write_salt(&self.key_salt, &mut to.borrow().init_key_salt())?;
+        write_signature(&self.signature, &mut to.borrow().init_signature())?;
 
         Ok(())
     }
@@ -213,7 +184,7 @@ mod tests {
     use super::*;
 
     use utils::crypto::rand_values::RandValue;
-    use utils::crypto::dh::{Salt, DhPublicKey};
+    use utils::crypto::dh::{DhPublicKey, Salt};
     use utils::crypto::identity::{PublicKey, Signature};
 
     #[test]

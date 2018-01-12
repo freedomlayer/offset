@@ -12,18 +12,15 @@
 //! - `data` (bytes, with length of `length`): the actually data
 
 use std::{cmp, io, mem};
-use tokio_io::codec::{Encoder, Decoder};
-use bytes::{Bytes, BytesMut, Buf, BufMut, BigEndian};
+use tokio_io::codec::{Decoder, Encoder};
+use bytes::{BigEndian, Buf, BufMut, Bytes, BytesMut};
 
 const MAX_FRAME_LEN: usize = 1 << 20;
 
 enum State {
     Empty,
     CollectingLength,
-    CollectingFrame {
-        length: usize,
-        frame: BytesMut,
-    },
+    CollectingFrame { length: usize, frame: BytesMut },
 }
 
 pub struct Codec {
@@ -37,7 +34,7 @@ pub enum CodecError {
 }
 
 impl Codec {
-    pub fn new() -> Self {
+    pub fn new() -> Codec {
         Codec {
             state: State::CollectingLength,
         }
@@ -211,7 +208,8 @@ mod tests {
 
         // Encode length prefix as bytes:
         let mut wtr = vec![];
-        wtr.write_u32::<BigEndian>((MAX_FRAME_LEN + 1) as u32).unwrap();
+        wtr.write_u32::<BigEndian>((MAX_FRAME_LEN + 1) as u32)
+            .unwrap();
         buf.extend(wtr);
         match codec.decode(&mut buf) {
             Err(CodecError::TooLarge) => {}

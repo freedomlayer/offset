@@ -1,13 +1,7 @@
 use utils::crypto::identity::PublicKey;
 
-use super::types::{
-    IndexingProviderId,
-    IndexingProviderStateHash,
-    IndexerRoute,
-    NeighborsRoute,
-    FriendsRoute,
-    StateChainLink,
-};
+use super::types::{FriendsRoute, IndexerRoute, IndexingProviderId, IndexingProviderStateHash,
+                   NeighborsRoute, StateChainLink};
 
 // ===== Internal interfaces =====
 
@@ -51,7 +45,7 @@ pub struct ResponseFriendsRoutes {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct ResponseUpdateState {
-    pub state_hash: IndexingProviderStateHash
+    pub state_hash: IndexingProviderStateHash,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]

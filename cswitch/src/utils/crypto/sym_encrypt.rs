@@ -1,7 +1,7 @@
 use std::iter;
 
 use ring;
-use ring::aead::{seal_in_place, open_in_place, SealingKey, OpeningKey, CHACHA20_POLY1305};
+use ring::aead::{open_in_place, seal_in_place, CHACHA20_POLY1305, OpeningKey, SealingKey};
 use ring::rand::SecureRandom;
 
 pub const SYMMETRIC_KEY_LEN: usize = 32;
@@ -52,9 +52,7 @@ impl EncryptNonceCounter {
         let mut enc_nonce = EncryptNonce([0_u8; ENC_NONCE_LEN]);
         // Generate a random initial EncNonce:
         crypt_rng.fill(&mut enc_nonce.0).unwrap();
-        EncryptNonceCounter {
-            inner: enc_nonce,
-        }
+        EncryptNonceCounter { inner: enc_nonce }
     }
 
     /// Get a new nonce.
@@ -66,11 +64,10 @@ impl EncryptNonceCounter {
 }
 
 #[derive(Debug)]
-pub enum SymEnctyptError {
+pub enum SymEncryptError {
     EncryptionError,
     DecryptionError,
 }
-
 
 /// A structure used for encrypting messages with a given symmetric key.
 /// Maintains internal state of an increasing nonce counter.
@@ -89,7 +86,7 @@ impl Encryptor {
     }
 
     /// Encrypt a message. The nonce must be unique.
-    pub fn encrypt(&mut self, plain_msg: &[u8]) -> Result<Vec<u8>, SymEnctyptError> {
+    pub fn encrypt(&mut self, plain_msg: &[u8]) -> Result<Vec<u8>, SymEncryptError> {
         // Put the nonce in the beginning of the resulting buffer:
         let enc_nonce = self.nonce_counter.next_nonce();
         let mut msg_buffer = enc_nonce.0.to_vec();
@@ -97,9 +94,15 @@ impl Encryptor {
         // Extend the message with TAG_LEN zeroes. This leaves space for the tag:
         msg_buffer.extend(iter::repeat(0).take(TAG_LEN).collect::<Vec<u8>>());
         let ad: [u8; 0] = [];
-        match seal_in_place(&self.sealing_key, &enc_nonce.0, &ad, &mut msg_buffer[ENC_NONCE_LEN..], TAG_LEN) {
-            Err(ring::error::Unspecified) => Err(SymEnctyptError::EncryptionError),
-            Ok(length) => Ok(msg_buffer[..ENC_NONCE_LEN + length].to_vec())
+        match seal_in_place(
+            &self.sealing_key,
+            &enc_nonce.0,
+            &ad,
+            &mut msg_buffer[ENC_NONCE_LEN..],
+            TAG_LEN,
+        ) {
+            Err(ring::error::Unspecified) => Err(SymEncryptError::EncryptionError),
+            Ok(length) => Ok(msg_buffer[..ENC_NONCE_LEN + length].to_vec()),
         }
     }
 }
@@ -118,14 +121,14 @@ impl Decryptor {
     }
 
     /// Decrypt and authenticate a message.
-    pub fn decrypt(&self, cipher_msg: &[u8]) -> Result<Vec<u8>, SymEnctyptError> {
+    pub fn decrypt(&self, cipher_msg: &[u8]) -> Result<Vec<u8>, SymEncryptError> {
         let enc_nonce = &cipher_msg[..ENC_NONCE_LEN];
         let mut msg_buffer = cipher_msg[ENC_NONCE_LEN..].to_vec();
         let ad: [u8; 0] = [];
 
         match open_in_place(&self.opening_key, enc_nonce, &ad, 0, &mut msg_buffer) {
             Ok(slice) => Ok(slice.to_vec()),
-            Err(ring::error::Unspecified) => Err(SymEnctyptError::DecryptionError),
+            Err(ring::error::Unspecified) => Err(SymEncryptError::DecryptionError),
         }
     }
 }
@@ -165,7 +168,6 @@ mod tests {
         let mut encryptor = Encryptor::new(&symmetric_key, enc_nonce_counter);
 
         let decryptor = Decryptor::new(&symmetric_key);
-
 
         let plain_msg = b"Hello world!";
         let cipher_msg = encryptor.encrypt(plain_msg).unwrap();

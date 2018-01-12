@@ -7,14 +7,13 @@ use futures::sync::{mpsc, oneshot};
 
 use tokio_core::reactor::Handle;
 
-use async_mutex::{AsyncMutex, AsyncMutexError};
+use utils::{AsyncMutex, AsyncMutexError, CloseHandle};
 use channeler::types::{ChannelerNeighbor, ChannelerNeighborInfo};
 use channeler::messages::ToChannel;
 
 use networker::messages::NetworkerToChanneler;
 
-use crypto::identity::PublicKey;
-use close_handle::{CloseHandle, create_close_handle};
+use utils::crypto::identity::PublicKey;
 
 pub enum NetworkerReaderError {
     MessageReceiveFailed,
@@ -49,7 +48,7 @@ impl NetworkerReader {
         receiver: mpsc::Receiver<NetworkerToChanneler>,
         neighbors: AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
     ) -> (CloseHandle, NetworkerReader) {
-        let (close_handle, (close_tx, close_rx)) = create_close_handle();
+        let (close_handle, (close_tx, close_rx)) = CloseHandle::new();
 
         let reader = NetworkerReader {
             handle,
@@ -69,8 +68,8 @@ impl NetworkerReader {
                 info.public_key.clone(),
                 ChannelerNeighbor {
                     info,
-                    num_pending_out_conn: 0,
-                    remaining_ticks: 0,
+                    num_pending: 0,
+                    retry_ticks: 0,
                     channels: Vec::new(),
                 });
             Ok((neighbors, ()))

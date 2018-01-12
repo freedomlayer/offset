@@ -1,5 +1,6 @@
 use bytes::Bytes;
-use crypto::identity::PublicKey;
+use utils::crypto::identity::PublicKey;
+use channeler::types::ChannelerNeighborInfo;
 
 /// The internal message sent from `Networker` to `Channeler`.
 pub enum NetworkerToChanneler {
@@ -14,12 +15,10 @@ pub enum NetworkerToChanneler {
         neighbor_info: ChannelerNeighborInfo,
     },
     /// Request to delete a neighbor.
-    RemoteNeighbor {
-        neighbor_public_key: PublicKey,
-    },
+    RemoteNeighbor { neighbor_public_key: PublicKey },
     /// Request to set the maximum amount of token channel.
     SetMaxChannels {
         neighbor_public_key: PublicKey,
         max_channels: u32,
-    }
+    },
 }

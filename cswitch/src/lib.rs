@@ -10,19 +10,19 @@
 #![allow(needless_pass_by_value)]
 #![feature(test)]
 
-#[macro_use]
-extern crate log;
-extern crate ring;
-extern crate rand;
+extern crate byteorder;
 extern crate bytes;
 extern crate capnp;
 extern crate crossbeam;
 #[macro_use]
 extern crate futures;
-extern crate byteorder;
+#[macro_use]
+extern crate log;
+extern crate rand;
+extern crate ring;
+extern crate rusqlite;
 extern crate tokio_core;
 extern crate tokio_io;
-extern crate rusqlite;
 
 // Utils
 pub mod utils;
@@ -35,8 +35,8 @@ pub mod indexer;
 pub mod security;
 //pub mod database;
 pub mod channeler;
-//pub mod networker;
-//pub mod app_manager;
+pub mod networker;
+pub mod app_manager;
 
 // Schemas
 mod schema;

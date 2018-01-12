@@ -50,8 +50,13 @@ pub struct RandValuesStore {
 }
 
 impl RandValuesStore {
-    pub fn new<R: SecureRandom>(crypt_rng: &R, rand_value_ticks: usize, num_rand_values: usize) -> Self {
-        let rand_values = (0 .. num_rand_values).map(|_| RandValue::new(crypt_rng))
+    pub fn new<R: SecureRandom>(
+        crypt_rng: &R,
+        rand_value_ticks: usize,
+        num_rand_values: usize,
+    ) -> Self {
+        let rand_values = (0..num_rand_values)
+            .map(|_| RandValue::new(crypt_rng))
             .collect::<VecDeque<RandValue>>();
 
         if num_rand_values == 0 {
@@ -103,7 +108,7 @@ mod tests {
 
     #[test]
     fn test_rand_values_store() {
-        let rng = DummyRandom::new(&[1,2,3,4,5]);
+        let rng = DummyRandom::new(&[1, 2, 3, 4, 5]);
 
         // Generate some unrelated rand value:
         let rand_value0 = RandValue::new(&rng);
@@ -111,7 +116,7 @@ mod tests {
         let mut rand_values_store = RandValuesStore::new(&rng, 50, 5);
         let rand_value = rand_values_store.last_rand_value();
 
-        for _ in 0 .. (5 * 50) {
+        for _ in 0..(5 * 50) {
             assert!(rand_values_store.contains(&rand_value));
             assert!(!rand_values_store.contains(&rand_value0));
             rand_values_store.time_tick(&rng);

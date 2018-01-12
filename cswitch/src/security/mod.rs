@@ -12,8 +12,8 @@ pub mod messages;
 use self::client::SecurityModuleClient;
 use self::messages::{FromSecurityModule, ToSecurityModule};
 
-// TODO: Possibly Make this structure of service future more generic.  
-// Separate process_request from the rest of the code, 
+// TODO: Possibly Make this structure of service future more generic.
+// Separate process_request from the rest of the code,
 // so that we could construct more such services.
 
 enum SecurityModuleState {
@@ -30,7 +30,12 @@ pub struct SecurityModule<I> {
     identity: I,
     close_receiver: oneshot::Receiver<()>,
     close_sender_opt: Option<oneshot::Sender<()>>,
-    client_endpoints: Vec<(mpsc::Sender<FromSecurityModule>, mpsc::Receiver<ToSecurityModule>)>,
+    client_endpoints: Vec<
+        (
+            mpsc::Sender<FromSecurityModule>,
+            mpsc::Receiver<ToSecurityModule>,
+        ),
+    >,
     state: SecurityModuleState,
 }
 
@@ -45,7 +50,11 @@ pub fn create_security_module<I: Identity>(identity: I) -> (CloseHandle, Securit
 impl<I: Identity> SecurityModule<I> {
     /// Create a security module together with a security module handle.
     /// The handle can be used to notify the security module to close, remotely.
-    fn new(identity: I, close_sender: oneshot::Sender<()>, close_receiver: oneshot::Receiver<()>) -> Self {
+    fn new(
+        identity: I,
+        close_sender: oneshot::Sender<()>,
+        close_receiver: oneshot::Receiver<()>,
+    ) -> Self {
         SecurityModule {
             identity,
             close_sender_opt: Some(close_sender),
@@ -68,15 +77,11 @@ impl<I: Identity> SecurityModule<I> {
     /// Process a request, and produce a response.
     fn process_request(&self, request: ToSecurityModule) -> FromSecurityModule {
         match request {
-            ToSecurityModule::RequestSign {message} => {
-                FromSecurityModule::ResponseSign {
-                    signature: self.identity.sign_message(&message),
-                }
+            ToSecurityModule::RequestSign { message } => FromSecurityModule::ResponseSign {
+                signature: self.identity.sign_message(&message),
             },
-            ToSecurityModule::RequestPublicKey {} => {
-                FromSecurityModule::ResponsePublicKey {
-                    public_key: self.identity.get_public_key(),
-                }
+            ToSecurityModule::RequestPublicKey {} => FromSecurityModule::ResponsePublicKey {
+                public_key: self.identity.get_public_key(),
             },
         }
     }
@@ -87,11 +92,11 @@ impl<I: Identity> SecurityModule<I> {
         // We try to close all the senders.
         while let Some((mut sender, receiver)) = self.client_endpoints.pop() {
             match sender.close() {
-                Ok(Async::Ready(())) => {},
+                Ok(Async::Ready(())) => {}
                 Ok(Async::NotReady) => {
                     self.client_endpoints.push((sender, receiver));
                     return Ok(Async::NotReady);
-                },
+                }
                 Err(_e) => return Err(SecurityModuleError::ErrorClosingSender),
             }
         }
@@ -104,7 +109,7 @@ impl<I: Identity> SecurityModule<I> {
             Ok(Async::Ready(())) => {
                 // We were asked to close
                 Ok(true)
-            },
+            }
             Ok(Async::NotReady) => Ok(false),
             Err(_e) => Err(SecurityModuleError::CloseReceiverCanceled),
         }
@@ -149,17 +154,15 @@ impl<I: Identity> Future for SecurityModule<I> {
                 SecurityModuleState::Closed => {
                     panic!("Invalid state");
                 }
-                SecurityModuleState::Closing => {
-                    match self.attempt_close()? {
-                        Async::Ready(()) => {
-                            self.state = SecurityModuleState::Closed;
-                            self.send_close_notification()?;
-                            return Ok(Async::Ready(()));
-                        },
-                        Async::NotReady => {
-                            self.state = SecurityModuleState::Closing;
-                            return Ok(Async::NotReady);
-                        },
+                SecurityModuleState::Closing => match self.attempt_close()? {
+                    Async::Ready(()) => {
+                        self.state = SecurityModuleState::Closed;
+                        self.send_close_notification()?;
+                        return Ok(Async::Ready(()));
+                    }
+                    Async::NotReady => {
+                        self.state = SecurityModuleState::Closing;
+                        return Ok(Async::NotReady);
                     }
                 },
                 SecurityModuleState::PendingSend { dest_index, value } => {
@@ -171,10 +174,10 @@ impl<I: Identity> Future for SecurityModule<I> {
                         Ok(AsyncSink::Ready) => {
                             let next_index = (dest_index + 1) % self.client_endpoints.len();
                             self.state = SecurityModuleState::Reading(next_index);
-                        },
+                        }
                         Ok(AsyncSink::NotReady(value)) => {
-                            self.state = SecurityModuleState::PendingSend {dest_index, value};
-                            return Ok(Async::NotReady)
+                            self.state = SecurityModuleState::PendingSend { dest_index, value };
+                            return Ok(Async::NotReady);
                         }
                         Err(e) => return Err(SecurityModuleError::SenderError(e)),
                     }
@@ -188,7 +191,7 @@ impl<I: Identity> Future for SecurityModule<I> {
 
                     if self.check_should_close()? {
                         self.state = SecurityModuleState::Closing;
-                        continue
+                        continue;
                     }
 
                     let receiver_poll_res = {
@@ -203,10 +206,10 @@ impl<I: Identity> Future for SecurityModule<I> {
                                 value: self.process_request(request),
                             };
                             continue;
-                        },
+                        }
                         Ok(Async::Ready(None)) => {
                             return Err(SecurityModuleError::RemoteClientClosed);
-                        },
+                        }
                         Ok(Async::NotReady) => {
                             // Track the first unready index:
                             if first_unready_index.take().is_none() {
@@ -215,7 +218,7 @@ impl<I: Identity> Future for SecurityModule<I> {
                             let next_j = (j + 1) % self.client_endpoints.len();
                             self.state = SecurityModuleState::Reading(next_j);
                             continue;
-                        },
+                        }
                         Err(()) => return Err(SecurityModuleError::ErrorReceivingRequest),
                     }
                 }
@@ -228,7 +231,7 @@ impl<I: Identity> Future for SecurityModule<I> {
 mod tests {
     use super::*;
     // use utils::crypto::uid::gen_uid;
-    use utils::crypto::identity::{SoftwareEd25519Identity, verify_signature};
+    use utils::crypto::identity::{verify_signature, SoftwareEd25519Identity};
 
     use ring;
     use rand::{Rng, StdRng};
@@ -240,7 +243,7 @@ mod tests {
         let secure_rand = FixedByteRandom { byte: 0x3 };
         let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
-        
+
         let (sm_handle, mut sm) = create_security_module(identity);
         let sm_client = sm.new_client();
 
@@ -259,7 +262,7 @@ mod tests {
         let secure_rand = FixedByteRandom { byte: 0x3 };
         let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
-        
+
         let (sm_handle, mut sm) = create_security_module(identity);
         let sm_client = sm.new_client();
 
@@ -271,7 +274,8 @@ mod tests {
         handle.spawn(sm.then(|_| Ok(())));
 
         let public_key = core.run(sm_client.request_public_key()).unwrap();
-        let signature = core.run(sm_client.clone().request_sign(my_message.to_vec())).unwrap();
+        let signature = core.run(sm_client.clone().request_sign(my_message.to_vec()))
+            .unwrap();
 
         assert!(verify_signature(&my_message[..], &public_key, &signature));
     }

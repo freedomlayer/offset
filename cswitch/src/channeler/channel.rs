@@ -1,65 +1,45 @@
 use std::{io, mem, time};
-use std::cell::RefCell;
 use std::net::SocketAddr;
 use std::collections::HashMap;
 
+use bytes::Bytes;
+use rand::{OsRng, Rng};
 use futures::prelude::*;
 use futures::sync::mpsc;
-use futures::stream::{SplitSink, SplitStream};
-
-use futures_mutex::FutMutex;
-
-use tokio_core::net::TcpStream;
-use tokio_core::reactor::{Handle, Timeout};
-
 use tokio_io::AsyncRead;
 use tokio_io::codec::Framed;
-
-use bytes::Bytes;
 use ring::rand::SystemRandom;
+use tokio_core::net::TcpStream;
+use tokio_core::reactor::{Handle, Timeout};
+use futures::stream::{SplitSink, SplitStream};
 
-use crypto::uid::{Uid, gen_uid};
-use crypto::identity::PublicKey;
-use crypto::rand_values::RandValue;
-use crypto::symmetric_enc::{
-    Encryptor,
-    Decryptor,
-    EncNonceCounter,
-    SymmetricEncError,
-};
-use crypto::dh::{DhPrivateKey, DhPublicKey, Salt};
-use security_module::security_module_client::{
-    SecurityModuleClient,
-    SecurityModuleClientError,
-};
+use utils::{AsyncMutex, AsyncMutexError};
+use utils::crypto::rand_values::RandValue;
+use utils::crypto::dh::{DhPrivateKey, Salt};
+use utils::crypto::identity::{verify_signature, PublicKey};
+use utils::crypto::sym_encrypt::{Decryptor, EncryptNonceCounter, Encryptor, SymEncryptError};
+use security::client::{SecurityModuleClient, SecurityModuleClientError};
 
-use schema::SchemaError;
-// use schema::channeler_capnp::MessageType;
-use schema::channeler::{
-    serialize_message,
-    deserialize_message,
-    serialize_enc_message,
-    deserialize_enc_message,
-    serialize_exchange_message,
-    deserialize_exchange_message,
-    serialize_init_channel_message,
-    deserialize_init_channel_message,
-};
+use schema::{Schema, SchemaError};
+use schema::channeler::{deserialize_message, serialize_message};
 
-use super::{ToChannel, ChannelerNeighbor, KEEP_ALIVE_TICKS};
+use super::{messages::*, types::*, KEEP_ALIVE_TICKS};
+
 use super::codec::{Codec, CodecError};
-use super::messages::ChannelerToNetworker;
+
+type FramedStream = SplitStream<Framed<TcpStream, Codec>>;
+type FramedSink = SplitSink<Framed<TcpStream, Codec>>;
 
 #[derive(Debug)]
 pub enum ChannelError {
     Io(io::Error),
     Timeout,
-    FutMutex,
+    AsyncMutexError,
     Schema(SchemaError),
     Capnp(::capnp::Error),
     Codec(CodecError),
     SecurityModule(SecurityModuleClientError),
-    EncryptError(SymmetricEncError),
+    EncryptError(SymEncryptError),
     SendToNetworkerFailed,
     SendToRemoteFailed,
     RecvFromInnerFailed,
@@ -67,99 +47,189 @@ pub enum ChannelError {
     Closed(&'static str),
 }
 
-/// The channel used to communicate to neighbors.
+/// The encrypted channel used to communicate with neighbors.
 #[must_use = "futures do nothing unless polled"]
 pub struct Channel {
-    // Remote's public key
+    // Remote identity public key
     remote_public_key: PublicKey,
 
+    // The index of this channel
+    channel_index: u32,
+
+    os_rng: OsRng,
+
     // The inner sender and receiver
-    inner_sender:   mpsc::Sender<ChannelerToNetworker>,
+    inner_sender: mpsc::Sender<ChannelerToNetworker>,
     inner_receiver: mpsc::Receiver<ToChannel>,
     inner_buffered: Option<ChannelerToNetworker>,
 
     // The outer sender and receiver
-    outer_sender:   SplitSink<Framed<TcpStream, Codec>>,
-    outer_receiver: SplitStream<Framed<TcpStream, Codec>>,
+    outer_sender: FramedSink,
+    outer_receiver: FramedStream,
     outer_buffered: Option<Bytes>,
 
     send_counter: u64,
     recv_counter: u64,
-    encryptor:    Encryptor,
-    decryptor:    Decryptor,
+    encryptor: Encryptor,
+    decryptor: Decryptor,
 
-    remaining_tick_to_send_ka: usize,
-    remaining_tick_to_recv_ka: usize,
+    send_ka_ticks: usize,
+    recv_ka_ticks: usize,
 }
 
 impl Channel {
-    /// Create a new channel connected to the specified neighbor.
-    pub fn connect(
-        addr:                &SocketAddr,
-        handle:              &Handle,
-        neighbor_public_key: &PublicKey,
-        neighbors:           &FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
-        networker_sender:    &mpsc::Sender<ChannelerToNetworker>,
-        sm_client:           &SecurityModuleClient
-    ) -> ChannelNew {
-        let prepare_tcp_fut = TcpStream::connect(addr, handle).map_err(|e| e.into());
-
-        ChannelNew {
-            state: RefCell::new(ChannelNewState::PrepareTcp(Box::new(prepare_tcp_fut))),
-            timeout:          Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
-            rng:              SystemRandom::new(),
-            sm_client:        sm_client.clone(),
-            neighbors:        neighbors.clone(),
-            networker_sender: networker_sender.clone(),
-
-            neighbor_public_key: Some(neighbor_public_key.clone()),
-            sent_rand_value:     None,
-            recv_rand_value:     None,
-            dh_private_key:      None,
-            dh_public_key:       None,
-            dh_key_salt:         None,
-            sender:              None,
-            receiver:            None,
-        }
-    }
-
     /// Create a new channel from a incoming socket.
     pub fn from_socket(
-        socket:           TcpStream,
-        handle:           &Handle,
-        neighbors:        &FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
-        networker_sender: &mpsc::Sender<ChannelerToNetworker>,
-        sm_client:        &SecurityModuleClient
+        socket: TcpStream,
+        neighbors: &AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
+        networker_tx: &mpsc::Sender<ChannelerToNetworker>,
+        sm_client: &SecurityModuleClient,
+        handle: &Handle,
     ) -> ChannelNew {
-        let (tx, rx) = socket.framed(Codec::new()).split();
+        let rng = SystemRandom::new();
 
-        let rng             = SystemRandom::new();
-        let rand_value      = RandValue::new(&rng);
-        let sent_rand_value = rand_value.clone();
+        let neighbors_for_task = neighbors.clone();
+        let sm_client_for_task = sm_client.clone();
+        // Precompute here because the `SystemRandom` not implement
+        // `Clone` trait but we need this value inside the `Future`
+        // to create a new `InitChannelPassive` message
+        let rand_value = RandValue::new(&rng);
 
-        let prepare_init_fut = sm_client.request_public_key()
-            .map_err(|e| e.into())
-            .and_then(move |public_key| {
-                serialize_init_channel_message(rand_value, public_key)
-                    .map_err(|e| e.into())
+        let (sink, stream) = socket.framed(Codec::new()).split();
+
+        let init_channel_task = stream
+            .into_future()
+            .map_err(|(e, _)| ChannelError::Codec(e))
+            .and_then(|(frame, stream)| match frame {
+                Some(frame) => Ok((frame, stream)),
+                None => Err(ChannelError::Closed("connection lost")),
+            })
+            .and_then(move |(frame, stream)| {
+                InitChannelActive::decode(frame)
+                    .into_future()
+                    .map_err(ChannelError::Schema)
+                    .and_then(|init_channel_active| {
+                        ChannelNew::create_validation_task(
+                            init_channel_active.neighbor_public_key.clone(),
+                            init_channel_active.channel_index,
+                            neighbors_for_task,
+                        ).and_then(move |_| Ok((init_channel_active, stream)))
+                    })
+            })
+            .and_then(move |(init_channel_active, stream)| {
+                sm_client_for_task
+                    .request_public_key()
+                    .map_err(ChannelError::SecurityModule)
+                    .and_then(move |public_key| {
+                        let init_channel_passive = InitChannelPassive {
+                            neighbor_public_key: public_key,
+                            channel_rand_value: rand_value,
+                        };
+                        Ok((init_channel_active, init_channel_passive, stream))
+                    })
+            })
+            .and_then(|(init_channel_active, init_channel_passive, stream)| {
+                init_channel_passive
+                    .encode()
+                    .into_future()
+                    .map_err(ChannelError::Schema)
+                    .and_then(|init_passive_bytes| {
+                        sink.send(init_passive_bytes).map_err(ChannelError::Codec)
+                    })
+                    .and_then(move |sink| {
+                        Ok((init_channel_active, init_channel_passive, sink, stream))
+                    })
             });
 
         ChannelNew {
-            state: RefCell::new(ChannelNewState::PrepareInit(Box::new(prepare_init_fut))),
-            timeout:          Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
+            state: ChannelNewState::InitChannel(Box::new(init_channel_task)),
+            timeout: Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
             rng,
-            sm_client:        sm_client.clone(),
-            neighbors:        neighbors.clone(),
-            networker_sender: networker_sender.clone(),
+            sm_client: sm_client.clone(),
+            remote_public_key: None,
+            nw_sender: networker_tx.clone(),
+            channel_index: None,
+        }
+    }
 
-            neighbor_public_key: None,
-            sent_rand_value:     Some(sent_rand_value),
-            recv_rand_value:     None,
-            dh_private_key:      None,
-            dh_public_key:       None,
-            dh_key_salt:         None,
-            sender:              Some(RefCell::new(tx)),
-            receiver:            Some(RefCell::new(rx)),
+    /// Create a new channel connected to the specified neighbor.
+    pub fn connect(
+        addr: &SocketAddr,
+        neighbor_public_key: &PublicKey,
+        channel_index: u32,
+        neighbors: &AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
+        networker_tx: &mpsc::Sender<ChannelerToNetworker>,
+        sm_client: &SecurityModuleClient,
+        handle: &Handle,
+    ) -> ChannelNew {
+        let rng = SystemRandom::new();
+
+        // TODO: Add debug assert here to check the neighbor public kety and the channel index
+        // let neighbors_for_task = neighbors.clone();
+        let sm_client_for_task = sm_client.clone();
+        // Precompute here because the `SystemRandom` not implement
+        // `Clone` trait but we need this value inside the `Future`
+        // to create a new `InitChannelActive` message
+        let rand_value = RandValue::new(&rng);
+
+        let expected_public_key = neighbor_public_key.clone();
+
+        let init_channel_task = TcpStream::connect(addr, handle)
+            .map_err(|e| e.into())
+            .and_then(|socket| Ok(socket.framed(Codec::new()).split()))
+            .and_then(move |(sink, stream)| {
+                sm_client_for_task
+                    .request_public_key()
+                    .map_err(ChannelError::SecurityModule)
+                    .and_then(move |public_key| {
+                        let init_channel_active = InitChannelActive {
+                            neighbor_public_key: public_key,
+                            channel_rand_value: rand_value,
+                            channel_index: channel_index,
+                        };
+                        Ok((init_channel_active, sink, stream))
+                    })
+            })
+            .and_then(|(init_channel_active, sink, stream)| {
+                init_channel_active
+                    .encode()
+                    .into_future()
+                    .map_err(ChannelError::Schema)
+                    .and_then(|init_active_bytes| {
+                        sink.send(init_active_bytes).map_err(ChannelError::Codec)
+                    })
+                    .and_then(move |sink| Ok((init_channel_active, sink, stream)))
+            })
+            .and_then(|(init_channel_active, sink, stream)| {
+                stream
+                    .into_future()
+                    .map_err(|(e, _rx)| ChannelError::Codec(e))
+                    .and_then(|(frame, stream)| match frame {
+                        Some(frame) => Ok((init_channel_active, frame, sink, stream)),
+                        None => Err(ChannelError::Closed("connection lost")),
+                    })
+            })
+            .and_then(move |(init_channel_active, frame, sink, stream)| {
+                InitChannelPassive::decode(frame)
+                    .into_future()
+                    .map_err(ChannelError::Schema)
+                    .and_then(move |init_channel_passive| {
+                        if init_channel_passive.neighbor_public_key != expected_public_key {
+                            Err(ChannelError::Closed("unexpected identity"))
+                        } else {
+                            Ok((init_channel_active, init_channel_passive, sink, stream))
+                        }
+                    })
+            });
+
+        ChannelNew {
+            state: ChannelNewState::InitChannel(Box::new(init_channel_task)),
+            timeout: Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
+            rng,
+            sm_client: sm_client.clone(),
+            remote_public_key: None,
+            nw_sender: networker_tx.clone(),
+            channel_index: Some(channel_index),
         }
     }
 
@@ -168,136 +238,102 @@ impl Channel {
     }
 
     // Pack and encrypt a message to be sent to remote.
-    //
-    // **If the `content` is None, a packed KA message will be returned.**
-    fn pack_msg(&mut self, content: Option<Bytes>) -> Result<Bytes, ChannelError> {
-        // TODO:
-        // 1. Change the return type of Decryptor::encrypt
-        // 2. Use explicit message type (required: refactor schema::channeler)
-        let plain_msg = serialize_enc_message(self.send_counter, content)?;
-        let encrypted = self.encryptor.encrypt(&plain_msg)?;
+    fn pack_msg(&mut self, msg_type: MessageType, content: Bytes) -> Result<Bytes, ChannelError> {
+        let padding_len = self.os_rng.next_u32() % MAX_PADDING_LEN;
+        let mut padding_bytes = [0u8; MAX_PADDING_LEN as usize];
+        self.os_rng
+            .fill_bytes(&mut padding_bytes[..padding_len as usize]);
+        let encrypt_message = EncryptMessage {
+            inc_counter: self.send_counter,
+            rand_padding: Bytes::from(&padding_bytes[..padding_len as usize]),
+            message_type: msg_type,
+            content: content,
+        };
 
-        serialize_message(Bytes::from(encrypted)).map_err(|e| e.into())
+        let encrypted = self.encryptor.encrypt(&encrypt_message.encode()?)?;
+
+        serialize_message(Bytes::from(encrypted))
+            .map_err(|e| e.into())
+            .and_then(|bytes| {
+                increase_counter(&mut self.send_counter);
+                Ok(bytes)
+            })
     }
 
     // Decrypt and unpack a message received from remote.
-    //
-    // **If the message is a `KeepAlive`, the content will be ignored.**
-    fn unpack_msg(&mut self, raw: Bytes) -> Result<Option<Bytes>, ChannelError> {
-        // TODO:
-        // 1. Change the return type of Decryptor::decrypt
-        // 2. Use explicit message type (required: refactor schema::channeler)
-
+    fn unpack_msg(&mut self, raw: Bytes) -> Result<EncryptMessage, ChannelError> {
         let plain_msg = Bytes::from(self.decryptor.decrypt(&deserialize_message(raw)?)?);
-        let (counter, _ty, content) = deserialize_enc_message(plain_msg)?;
 
-        if counter != self.recv_counter {
-            Err(ChannelError::Closed("unexpected counter"))
-        } else {
-            update_counter(&mut self.recv_counter);
-            Ok(content)
-        }
+        EncryptMessage::decode(plain_msg)
+            .map_err(|e| e.into())
+            .and_then(|msg| {
+                if msg.inc_counter != self.recv_counter {
+                    Err(ChannelError::Closed("unexpected counter"))
+                } else {
+                    increase_counter(&mut self.recv_counter);
+                    Ok(msg)
+                }
+            })
     }
 
-    /// Try to start the process of sending a message to the networker.
-    ///
-    /// # Return Value
-    ///
-    /// - Returns `Async::Ready(())` if the `inner_sender` was able to start
-    /// sending `msg` to `Networker`
-    ///
-    /// - Returns `ASync::NotReady` if the `inner_sender` was unable to
-    /// begin sending `msg` to networker
-    ///
-    /// # Error
-    ///
-    /// This method returns an error `Err(ChannelError::SendToNetworkerFailed)`
-    /// when the `inner_sender` encounters an error in starting sending
-    ///
-    /// # Panic
-    ///
-    /// This method may panic in a few situations:
-    ///
-    /// - The `inner_buffered` not empty
-    ///
-    /// Refer `futures`'s documentation for more information.
     fn try_start_send_inner(&mut self, msg: ChannelerToNetworker) -> Poll<(), ChannelError> {
         debug_assert!(self.inner_buffered.is_none());
 
-        // Convert Err(()) to ChannelError
-        let start_send = self.inner_sender.start_send(msg)
-            .map_err(|_| ChannelError::SendToNetworkerFailed);
-
-        if let AsyncSink::NotReady(msg) = start_send? {
-            self.inner_buffered = Some(msg);
-            Ok(Async::NotReady)
-        } else {
-            Ok(Async::Ready(()))
-        }
+        self.inner_sender
+            .start_send(msg)
+            .map_err(|_| ChannelError::SendToNetworkerFailed)
+            .and_then(|start_send| {
+                if let AsyncSink::NotReady(msg) = start_send {
+                    self.inner_buffered = Some(msg);
+                    Ok(Async::NotReady)
+                } else {
+                    Ok(Async::Ready(()))
+                }
+            })
     }
 
-    /// Try to start the process of sending a message to the `Remote`.
-    ///
-    /// # Return Value
-    ///
-    /// - Returns `Async::Ready(())` if the `outer_sender` was able to start
-    /// sending `msg` to `Remote`
-    ///
-    /// - Returns `ASync::NotReady` if the `outer_sender` was unable to
-    /// begin sending `msg` to `Remote`
-    ///
-    /// # Error
-    ///
-    /// This method returns an error `Err(ChannelError::Io(...))`
-    /// when the `outer_sender` encounters an error in starting sending
-    ///
-    /// # Panic
-    ///
-    /// This method may panic in a few situations:
-    ///
-    /// - The `outer_buffered` not empty
-    ///
-    /// Refer `futures`'s documentation for more information.
     fn try_start_send_outer(&mut self, msg: Bytes) -> Poll<(), ChannelError> {
         debug_assert!(self.outer_buffered.is_none());
 
-        let start_send = self.outer_sender.start_send(msg);
-
-        if let AsyncSink::NotReady(msg) = start_send? {
-            self.outer_buffered = Some(msg);
-            Ok(Async::NotReady)
-        } else {
-            update_counter(&mut self.send_counter);
-            Ok(Async::Ready(()))
-        }
+        self.outer_sender
+            .start_send(msg)
+            .map_err(|e| e.into())
+            .and_then(|start_send| {
+                if let AsyncSink::NotReady(msg) = start_send {
+                    self.outer_buffered = Some(msg);
+                    Ok(Async::NotReady)
+                } else {
+                    Ok(Async::Ready(()))
+                }
+            })
     }
 
     /// Attempt to pull out the next message **needed to be sent to remote**.
     fn try_poll_inner(&mut self) -> Poll<Option<Bytes>, ChannelError> {
         loop {
-            let poll_result = self.inner_receiver.poll().map_err(|_| {
-                ChannelError::RecvFromInnerFailed
-            });
+            let poll_result = self.inner_receiver
+                .poll()
+                .map_err(|_| ChannelError::RecvFromInnerFailed);
 
             if let Some(msg) = try_ready!(poll_result) {
                 match msg {
                     ToChannel::TimeTick => {
-                        self.remaining_tick_to_send_ka -= 1;
-                        self.remaining_tick_to_recv_ka -= 1;
+                        self.send_ka_ticks -= 1;
+                        self.recv_ka_ticks -= 1;
 
-                        if self.remaining_tick_to_recv_ka == 0 {
+                        if self.recv_ka_ticks == 0 {
                             return Err(ChannelError::KeepAliveTimeout);
                         } else {
-                            if self.remaining_tick_to_send_ka == 0 {
-                                self.remaining_tick_to_send_ka = KEEP_ALIVE_TICKS;
+                            if self.send_ka_ticks == 0 {
+                                self.send_ka_ticks = KEEP_ALIVE_TICKS;
 
-                                let msg = self.pack_msg(None)?;
+                                let msg = self.pack_msg(MessageType::KeepAlive, Bytes::new())?;
                                 return Ok(Async::Ready(Some(msg)));
                             }
                         }
                     }
                     ToChannel::SendMessage(raw) => {
-                        let msg = self.pack_msg(Some(Bytes::from(raw)))?;
+                        let msg = self.pack_msg(MessageType::User, Bytes::from(raw))?;
                         return Ok(Async::Ready(Some(msg)));
                     }
                 }
@@ -312,19 +348,20 @@ impl Channel {
     fn try_poll_outer(&mut self) -> Poll<Option<ChannelerToNetworker>, ChannelError> {
         loop {
             if let Some(raw) = try_ready!(self.outer_receiver.poll()) {
-                match self.unpack_msg(raw)? {
-                    Some(content) => {
-                        let msg = ChannelerToNetworker::ChannelMessageReceived(
-                            ChannelMessageReceived {
-                                remote_public_key: self.remote_public_key.clone(),
-                                message_content: content.to_vec(),
-                            }
-                        );
+                let msg = self.unpack_msg(raw)?;
+
+                match msg.message_type {
+                    MessageType::KeepAlive => {
+                        self.recv_ka_ticks = 2 * KEEP_ALIVE_TICKS;
+                    }
+                    MessageType::User => {
+                        let msg = ChannelerToNetworker {
+                            remote_public_key: self.remote_public_key.clone(),
+                            channel_index: self.channel_index,
+                            event: ChannelEvent::Message(msg.content),
+                        };
 
                         return Ok(Async::Ready(Some(msg)));
-                    }
-                    None => {
-                        self.remaining_tick_to_recv_ka = 2 * KEEP_ALIVE_TICKS;
                     }
                 }
             } else {
@@ -336,7 +373,7 @@ impl Channel {
 }
 
 impl Future for Channel {
-    type Item  = ();
+    type Item = ();
     type Error = ChannelError;
 
     fn poll(&mut self) -> Poll<(), Self::Error> {
@@ -368,7 +405,8 @@ impl Future for Channel {
                         }
                         Async::NotReady => {
                             try_ready!(
-                                self.inner_sender.poll_complete()
+                                self.inner_sender
+                                    .poll_complete()
                                     .map_err(|_| ChannelError::SendToNetworkerFailed)
                             );
                             return Ok(Async::NotReady);
@@ -381,433 +419,301 @@ impl Future for Channel {
 }
 
 enum ChannelNewState {
-    // Prepare a TCP connection used in Channel, at this stage, we should finish:
-    //
-    // 1. Establish a TCP connection to the remote
-    // 2. Increase the `num_pending_out_conn` for the given neighbor
-    PrepareTcp(Box<Future<Item=TcpStream, Error=ChannelError>>),
+    /// The initial stage to establish an encrypted channel.
+    ///
+    /// For the active end, there are several things need to be done:
+    ///
+    /// 1. Establish the TCP connection
+    /// 2. Send `InitChannelActive` message to remote
+    /// 3. Wait for `InitChannelPassive` message from remote
+    /// 4. Verify the identity contained in received message
+    ///
+    /// For the passive end, there are several things need to be done:
+    ///
+    /// 1. Wait for `InitChannelActive` message from remote
+    /// 2. Verify the identity contained in received message
+    /// 3. Send `InitChannelPassive` message to remote
+    ///
+    /// If this stage completed successfully, the `Future` resolved and return
+    /// the `InitChannelActive`, `InitChannelPassive` message, also return the
+    /// underlying `FramedSink` and `FramedStream` which needed in the future
+    /// for communicating between two parties.
+    InitChannel(
+        Box<
+            Future<
+                Item = (
+                    InitChannelActive,
+                    InitChannelPassive,
+                    FramedSink,
+                    FramedStream,
+                ),
+                Error = ChannelError,
+            >,
+        >,
+    ),
 
-    // Prepare a serialized InitChannel message, at this stage, we should finish:
-    //
-    // 1. Request the public key from SecurityModuleClient
-    // 2. Create and serialize the InitChannel message to send
-    PrepareInit(Box<Future<Item=Bytes, Error=ChannelError>>),
-
-    // Trying to send serialized InitChannel message
-    SendInit(Option<Bytes>),
-
-    // Waiting the InitChannel message from neighbor
-    WaitInit,
-
-    VerifyNeighbor {
-        public_key: PublicKey,
-        recv_rand_value: RandValue,
-        verify_neighbor_fut: Box<Future<Item=(), Error=ChannelError>>,
-    },
-
-    // Prepare a serialized Exchange message, at this stage, we should finish:
-    //
-    // 1. Request the signature from SecurityModuleClient
-    // 2. Create and serialize the Exchange message to send
-    PrepareExchange(Box<Future<Item=Bytes, Error=ChannelError>>),
-
-    // Trying to send serialized Exchange message
-    SendExchange(Option<Bytes>),
-
-    // Waiting the Exchange message from neighbor
-    WaitExchange,
+    /// The key exchange stage to establish an encrypted channel.
+    ///
+    /// At this stage, two parties need to done the following things:
+    ///
+    /// 1. Generate a ephemeral private key
+    /// 2. Send the `Exchange` message to the remote
+    /// 3. Wait for `Exchange` message from remote
+    /// 4. Verify the `signature` contained in received message
+    ///
+    /// If this stage completed successfully, the `Future` resolved and return
+    /// the `Exchange` message we sent, followed by the `Exchange` message we
+    /// received, also return the underlying `FramedSink` and `FramedStream`
+    /// which needed to build a `Channel`.
+    Exchange(
+        Box<
+            Future<
+                Item = (Exchange, Exchange, DhPrivateKey, FramedSink, FramedStream),
+                Error = ChannelError,
+            >,
+        >,
+    ),
 
     Empty,
 }
 
-impl ChannelNewState {
-    fn is_empty(&self) -> bool {
-        match *self {
-            ChannelNewState::Empty => true,
-            _ => false
-        }
-    }
-}
-
 #[must_use = "futures do nothing unless polled"]
 pub struct ChannelNew {
-    state: RefCell<ChannelNewState>,
+    state: ChannelNewState,
     timeout: Timeout,
 
     // Utils used in performing exchange
-    rng:       SystemRandom,
+    rng: SystemRandom,
     sm_client: SecurityModuleClient,
+    channel_index: Option<u32>,
+    nw_sender: mpsc::Sender<ChannelerToNetworker>,
 
-    networker_sender: mpsc::Sender<ChannelerToNetworker>,
-    neighbors: FutMutex<HashMap<PublicKey, ChannelerNeighbor>>,
-
-    // The public key of neighbor
-    neighbor_public_key: Option<PublicKey>,
-
-    sent_rand_value: Option<RandValue>,
-    recv_rand_value: Option<RandValue>,
-
-    // The parts used to perform DH exchange
-    dh_key_salt:    Option<Salt>,
-    dh_public_key:  Option<DhPublicKey>,
-    dh_private_key: Option<DhPrivateKey>,
-
-    sender:   Option<RefCell<SplitSink<Framed<TcpStream, Codec>>>>,
-    receiver: Option<RefCell<SplitStream<Framed<TcpStream, Codec>>>>,
+    remote_public_key: Option<PublicKey>,
 }
 
 impl ChannelNew {
-    fn move_to_prepare_init(&mut self, tcp_stream: TcpStream) {
-        debug_assert!(self.state.borrow().is_empty());
-
-        let (tx, rx)  = tcp_stream.framed(Codec::new()).split();
-        self.sender   = Some(RefCell::new(tx));
-        self.receiver = Some(RefCell::new(rx));
-
-        let rand_value = RandValue::new(&self.rng);
-        self.sent_rand_value = Some(rand_value.clone());
-
-        let prepare_init_fut = self.sm_client.request_public_key()
-            .map_err(|e| e.into())
-            .and_then(move |public_key| {
-                serialize_init_channel_message(
-                    rand_value,
-                    public_key
-                ).map_err(|e| e.into())
-            });
-
-        self.state.replace(
-            ChannelNewState::PrepareInit(Box::new(prepare_init_fut))
-        );
-    }
-
-    fn move_to_verify_neighbor(&self, public_key: PublicKey, recv_rand_value: RandValue) {
-        debug_assert!(self.state.borrow().is_empty());
-
-        let public_key_to_verify = public_key.clone();
-        let expected_public_key = self.neighbor_public_key.clone();
-
-        let verify_neighbor_fut = self.neighbors.clone().lock()
-            .map_err(|_: ()| ChannelError::FutMutex)
-            .and_then(move |neighbors| {
-                if let Some(key) = expected_public_key {
-                    if key.as_ref() != public_key_to_verify.as_ref() {
-                        return Err(ChannelError::Closed("neighbor public key not match"));
+    fn create_validation_task(
+        remote_public_key: PublicKey,
+        channel_index: u32,
+        neighbors: AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
+    ) -> impl Future<Item = (), Error = ChannelError> {
+        neighbors
+            .acquire(move |neighbors| {
+                let validation_result = if let Some(neighbor) = neighbors.get(&remote_public_key) {
+                    if neighbor.info.socket_addr.is_some() {
+                        Err(ChannelError::Closed("not allowed initator"))
                     } else {
-                        return Ok(());
+                        if channel_index < neighbor.info.max_channels {
+                            if neighbor.channels.get(&channel_index).is_some() {
+                                Err(ChannelError::Closed("index is in used"))
+                            } else {
+                                Ok(())
+                            }
+                        } else {
+                            Err(ChannelError::Closed("not allowed index"))
+                        }
                     }
                 } else {
-                    match neighbors.get(&public_key_to_verify) {
-                        None => {
-                            return Err(ChannelError::Closed("unknown neighbor"));
-                        }
-                        Some(neighbor) => {
-                            if neighbor.info.neighbor_address.socket_addr.is_some() {
-                                return Err(ChannelError::Closed("not allowed"));
-                            } else {
-                                return Ok(());
-                            }
-                        }
-                    }
-                }
-            });
+                    Err(ChannelError::Closed("unknown neighbor"))
+                };
 
-        self.state.replace(
-            ChannelNewState::VerifyNeighbor {
-                public_key,
-                recv_rand_value,
-                verify_neighbor_fut: Box::new(verify_neighbor_fut),
-            }
-        );
+                if let Err(e) = validation_result {
+                    Err((Some(neighbors), e))
+                } else {
+                    Ok((neighbors, ()))
+                }
+            })
+            .map_err(|e| match e {
+                AsyncMutexError::Function(e) => e.into(),
+                _ => ChannelError::AsyncMutexError,
+            })
     }
 
-    fn move_to_prepare_exchange(&mut self, public_key: PublicKey, recv_rand_value: RandValue) {
-        debug_assert!(self.state.borrow().is_empty());
-
-        self.neighbor_public_key = Some(public_key);
-
+    fn create_exchange_task(
+        remote_public_key: PublicKey,
+        sent_rand_value: RandValue,
+        recv_rand_value: RandValue,
+        sink: FramedSink,
+        stream: FramedStream,
+        rng: &SystemRandom,
+        sm_client: &SecurityModuleClient,
+    ) -> impl Future<
+        Item = (Exchange, Exchange, DhPrivateKey, FramedSink, FramedStream),
+        Error = ChannelError,
+    > {
         // Generate ephemeral DH private key
-        let dh_key_salt    = Salt::new(&self.rng);
-        let dh_private_key = DhPrivateKey::new(&self.rng);
-        let dh_public_key  = dh_private_key.compute_public_key();
+        let key_salt = Salt::new(rng);
+        let comm_private_key = DhPrivateKey::new(rng);
+        let comm_public_key = comm_private_key.compute_public_key();
 
         // message = (channelRandValue + commPublicKey + keySalt)
-        let mut message = Vec::with_capacity(1024);
-        message.extend_from_slice(recv_rand_value.as_bytes());
-        message.extend_from_slice(dh_public_key.as_bytes());
-        message.extend_from_slice(dh_key_salt.as_bytes());
+        let mut msg = Vec::with_capacity(1024);
+        msg.extend_from_slice(recv_rand_value.as_bytes());
+        msg.extend_from_slice(comm_public_key.as_bytes());
+        msg.extend_from_slice(key_salt.as_bytes());
 
-        // Keep these values
-        self.dh_key_salt     = Some(dh_key_salt.clone());
-        self.dh_public_key   = Some(dh_public_key.clone());
-        self.dh_private_key  = Some(dh_private_key);
-        self.recv_rand_value = Some(recv_rand_value);
-
-        let prepare_exchange_fut = self.sm_client.request_sign(message)
-            .map_err(|e| e.into())
+        sm_client
+            .request_sign(msg)
+            .map_err(ChannelError::SecurityModule)
             .and_then(move |signature| {
-                serialize_exchange_message(
-                    dh_public_key,
-                    dh_key_salt,
-                    signature
-                ).map_err(|e| e.into())
-            });
+                Ok(Exchange {
+                    comm_public_key,
+                    key_salt,
+                    signature,
+                })
+            })
+            .and_then(move |exchange| {
+                exchange
+                    .encode()
+                    .into_future()
+                    .map_err(ChannelError::Schema)
+                    .and_then(|exchange_bytes| {
+                        sink.send(exchange_bytes).map_err(ChannelError::Codec)
+                    })
+                    .and_then(move |sink| {
+                        stream
+                            .into_future()
+                            .map_err(|(e, _rx)| ChannelError::Codec(e))
+                            .and_then(move |(frame, stream)| match frame {
+                                Some(frame) => Ok((exchange, frame, sink, stream)),
+                                None => Err(ChannelError::Closed("connection lost")),
+                            })
+                    })
+            })
+            .and_then(move |(sent_exchange, frame, sink, stream)| {
+                Exchange::decode(frame)
+                    .into_future()
+                    .map_err(ChannelError::Schema)
+                    .and_then(move |recv_exchange| {
+                        let mut msg = Vec::with_capacity(1024);
+                        msg.extend_from_slice(sent_rand_value.as_bytes());
+                        msg.extend_from_slice(recv_exchange.comm_public_key.as_bytes());
+                        msg.extend_from_slice(recv_exchange.key_salt.as_bytes());
 
-        self.state.replace(
-            ChannelNewState::PrepareExchange(Box::new(prepare_exchange_fut))
-        );
+                        if verify_signature(&msg, &remote_public_key, &recv_exchange.signature) {
+                            Ok((sent_exchange, recv_exchange, comm_private_key, sink, stream))
+                        } else {
+                            Err(ChannelError::Closed("invalid signature"))
+                        }
+                    })
+            })
     }
 }
 
 impl Future for ChannelNew {
-    type Item  = (Uid, mpsc::Sender<ToChannel>, Channel);
+    type Item = (u32, mpsc::Sender<ToChannel>, Channel);
     type Error = ChannelError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         trace!("ChannelNew::poll - {:?}", ::std::time::Instant::now());
 
-        if self.timeout.poll()?.is_ready() {
-            return Err(ChannelError::Timeout);
-        }
-
         loop {
-            match self.state.replace(ChannelNewState::Empty) {
+            if self.timeout.poll()?.is_ready() {
+                return Err(ChannelError::Timeout);
+            }
+
+            match mem::replace(&mut self.state, ChannelNewState::Empty) {
                 ChannelNewState::Empty => unreachable!("invalid state"),
-                ChannelNewState::PrepareTcp(mut fut) => {
-                    match fut.poll()? {
-                        Async::NotReady => {
-                            trace!("ChannelNewState::PrepareTcp\t\t[NotReady]");
+                ChannelNewState::InitChannel(mut init_channel_task) => {
+                    trace!("ChannelNewState::InitialChannel");
 
-                            self.state.replace(ChannelNewState::PrepareTcp(fut));
-                            return Ok(Async::NotReady);
-                        }
-                        Async::Ready(tcp) => {
-                            trace!("ChannelNewState::PrepareTcp\t\t[Ready]");
+                    match init_channel_task.poll()? {
+                        Async::Ready((init_active, init_passive, tx, rx)) => {
+                            let remote_public_key: PublicKey;
+                            let sent_rand_value: RandValue;
+                            let recv_rand_value: RandValue;
 
-                            self.move_to_prepare_init(tcp);
-                        }
-                    }
-                }
-                ChannelNewState::PrepareInit(mut fut) => {
-                    match fut.poll()? {
-                        Async::Ready(init_msg) => {
-                            trace!("ChannelNewState::PrepareInit\t\t[Ready]");
-
-                            self.state.replace(
-                                ChannelNewState::SendInit(Some(init_msg))
-                            );
-                        }
-                        Async::NotReady => {
-                            trace!("ChannelNewState::PrepareInit\t\t[NotReady]");
-
-                            self.state.replace(ChannelNewState::PrepareInit(fut));
-                            return Ok(Async::NotReady);
-                        }
-                    }
-                }
-                ChannelNewState::SendInit(init_msg) => {
-                    let mut sink = self.sender.as_ref().unwrap().borrow_mut();
-
-                    if let Some(msg) = init_msg {
-                        match sink.start_send(msg)? {
-                            AsyncSink::Ready => {
-                                self.state.replace(ChannelNewState::SendInit(None));
-                            }
-                            AsyncSink::NotReady(msg) => {
-                                self.state.replace(ChannelNewState::SendInit(Some(msg)));
-                                return Ok(Async::NotReady);
-                            }
-                        }
-                    } else {
-                        match sink.poll_complete()? {
-                            Async::NotReady => {
-                                trace!("ChannelNewState::SendingInit\t\t[NotReady]");
-
-                                self.state.replace(ChannelNewState::SendInit(None));
-                                return Ok(Async::NotReady);
-                            }
-                            Async::Ready(_) => {
-                                trace!("ChannelNewState::SendingInit\t\t[Ready]");
-
-                                self.state.replace(ChannelNewState::WaitInit);
-                            }
-                        }
-                    }
-                }
-                ChannelNewState::WaitInit => {
-                    let mut stream = self.receiver.as_ref().unwrap().borrow_mut();
-
-                    match stream.poll()? {
-                        Async::Ready(None) => {
-                            return Err(ChannelError::Closed("connection lost"));
-                        }
-                        Async::Ready(Some(buffer)) => {
-                            trace!("ChannelNewState::WaitInit\t\t[Ready]");
-
-                            let (public_key, recv_rand_value) =
-                                deserialize_init_channel_message(buffer)?;
-
-                            self.move_to_verify_neighbor(public_key, recv_rand_value);
-                        }
-                        Async::NotReady => {
-                            trace!("ChannelNewState::WaitInit\t\t[Not Ready]");
-
-                            self.state.replace(ChannelNewState::WaitInit);
-                            return Ok(Async::NotReady);
-                        }
-                    }
-                }
-                ChannelNewState::VerifyNeighbor { public_key, recv_rand_value, mut verify_neighbor_fut } => {
-                    match verify_neighbor_fut.poll()? {
-                        Async::NotReady => {
-                            trace!("ChannelNewState::VerifyNeighbor\t[Not Ready]");
-
-                            self.state.replace(
-                                ChannelNewState::VerifyNeighbor {
-                                    public_key,
-                                    recv_rand_value,
-                                    verify_neighbor_fut: Box::new(verify_neighbor_fut),
-                                }
-                            );
-                            return Ok(Async::NotReady);
-                        }
-                        Async::Ready(_) => {
-                            trace!("ChannelNewState::VerifyNeighbor\t[Ready]");
-
-                            self.move_to_prepare_exchange(public_key, recv_rand_value);
-                        }
-                    }
-                }
-                ChannelNewState::PrepareExchange(mut prepare_exchange_fut) => {
-                    match prepare_exchange_fut.poll()? {
-                        Async::Ready(serialized_msg) => {
-                            trace!("ChannelNewState::PrepareExchange\t[Ready]");
-
-                            self.state.replace(
-                                ChannelNewState::SendExchange(Some(serialized_msg))
-                            );
-                        }
-                        Async::NotReady => {
-                            trace!("ChannelNewState::PrepareExchange\t[Not Ready]");
-
-                            self.state.replace(
-                                ChannelNewState::PrepareExchange(prepare_exchange_fut)
-                            );
-                            return Ok(Async::NotReady);
-                        }
-                    }
-                }
-                ChannelNewState::SendExchange(exchange_msg) => {
-                    let mut sink = self.sender.as_ref().unwrap().borrow_mut();
-
-                    if let Some(msg) = exchange_msg {
-                        match sink.start_send(msg)? {
-                            AsyncSink::Ready => {
-                                self.state.replace(ChannelNewState::SendExchange(None));
-                            }
-                            AsyncSink::NotReady(msg) => {
-                                self.state.replace(ChannelNewState::SendExchange(Some(msg)));
-                                return Ok(Async::NotReady);
-                            }
-                        }
-                    } else {
-                        match sink.poll_complete()? {
-                            Async::NotReady => {
-                                trace!("ChannelNewState::SendExchange\t[NotReady]");
-
-                                self.state.replace(ChannelNewState::SendExchange(None));
-                                return Ok(Async::NotReady);
-                            }
-                            Async::Ready(_) => {
-                                trace!("ChannelNewState::SendExchange\t[Ready]");
-
-                                self.state.replace(ChannelNewState::WaitExchange);
-                            }
-                        }
-                    }
-                }
-                ChannelNewState::WaitExchange => {
-                    let poll_result = {
-                        let mut receiver =
-                            self.receiver.as_ref().expect("receiver is None").borrow_mut();
-                        receiver.poll()
-                    };
-
-                    match poll_result? {
-                        Async::Ready(None) => {
-                            return Err(ChannelError::Closed("connection lost"));
-                        }
-                        Async::Ready(Some(buffer)) => {
-                            trace!("ChannelNewState::WaitExchange\t[Ready]");
-
-                            let (public_key, recv_key_salt, signature) =
-                                deserialize_exchange_message(buffer)?;
-
-                            let channel_rand_value = match self.sent_rand_value {
-                                None => unreachable!(),
-                                Some(ref rand_value) => rand_value,
-                            };
-
-                            // message = (channelRandValue + commPublicKey + keySalt)
-                            let mut message = Vec::new();
-                            message.extend_from_slice(channel_rand_value.as_bytes());
-                            message.extend_from_slice(public_key.as_bytes());
-                            message.extend_from_slice(recv_key_salt.as_bytes());
-
-                            let neighbor_public_key = match self.neighbor_public_key {
-                                None => unreachable!(),
-                                Some(ref key) => key.clone(),
-                            };
-
-                            let sent_key_salt = match self.dh_key_salt {
-                                None => unreachable!(),
-                                Some(ref salt) => salt.clone(),
-                            };
-
-                            // Verify this message was signed by the neighbor with its private key
-                            if ::crypto::identity::verify_signature(
-                                &message,
-                                &neighbor_public_key,
-                                &signature,
-                            ) {
-                                let dh_private_key =
-                                    mem::replace(&mut self.dh_private_key, None).unwrap();
-                                // received public key + sent_key_salt -> symmetric key for sending data
-                                let key_send =
-                                    dh_private_key.derive_symmetric_key(&public_key, &sent_key_salt);
-                                // received public key + recv_key_salt -> symmetric key for receiving data
-                                let key_recv =
-                                    dh_private_key.derive_symmetric_key(&public_key, &recv_key_salt);
-
-                                let (channel_tx, channel_rx) = mpsc::channel::<ToChannel>(0);
-
-                                let channel_uid = gen_uid(&self.rng);
-                                let channel = Channel {
-                                    remote_public_key: self.neighbor_public_key.take().unwrap(),
-                                    inner_sender: self.networker_sender.clone(),
-                                    inner_receiver: channel_rx,
-                                    inner_buffered: None,
-                                    outer_sender: self.sender.take().unwrap().into_inner(),
-                                    outer_receiver: self.receiver.take().unwrap().into_inner(),
-                                    outer_buffered: None,
-                                    send_counter: 0,
-                                    recv_counter: 0,
-                                    encryptor: Encryptor::new(&key_send, EncNonceCounter::new(&mut self.rng)),
-                                    decryptor: Decryptor::new(&key_recv),
-                                    remaining_tick_to_send_ka: KEEP_ALIVE_TICKS,
-                                    remaining_tick_to_recv_ka: 2 * KEEP_ALIVE_TICKS,
-                                };
-
-                                return Ok(Async::Ready((channel_uid, channel_tx, channel)));
+                            if self.channel_index.is_some() {
+                                remote_public_key = init_passive.neighbor_public_key.clone();
+                                sent_rand_value = init_active.channel_rand_value.clone();
+                                recv_rand_value = init_passive.channel_rand_value.clone();
                             } else {
-                                return Err(ChannelError::Closed("invalid signature"));
+                                remote_public_key = init_active.neighbor_public_key.clone();
+                                sent_rand_value = init_passive.channel_rand_value.clone();
+                                recv_rand_value = init_active.channel_rand_value.clone();
+
+                                self.channel_index = Some(init_active.channel_index);
                             }
+
+                            self.remote_public_key = Some(remote_public_key.clone());
+
+                            let exchange_task = ChannelNew::create_exchange_task(
+                                remote_public_key,
+                                sent_rand_value,
+                                recv_rand_value,
+                                tx,
+                                rx,
+                                &self.rng,
+                                &self.sm_client,
+                            );
+
+                            self.state = ChannelNewState::Exchange(Box::new(exchange_task));
                         }
                         Async::NotReady => {
-                            trace!("ChannelNewState::WaitExchange\t[NotReady]");
-
-                            self.state.replace(ChannelNewState::WaitExchange);
+                            self.state = ChannelNewState::InitChannel(init_channel_task);
                             return Ok(Async::NotReady);
+                        }
+                    }
+                }
+                ChannelNewState::Exchange(mut exchange_task) => {
+                    trace!("ChannelNewState::Exchange");
+
+                    debug_assert!(self.channel_index.is_some());
+                    debug_assert!(self.remote_public_key.is_some());
+
+                    match exchange_task.poll()? {
+                        Async::Ready((sent_xchg, recv_xchg, my_privete_key, tx, rx)) => {
+                            // Combine self private key, received public key
+                            // and received key salt to derive symmetric key
+                            // for sending data
+                            let key_send = my_privete_key.derive_symmetric_key(
+                                &recv_xchg.comm_public_key,
+                                &sent_xchg.key_salt,
+                            );
+
+                            // Combine self private key, received public key
+                            // and received key salt to derive symmetric key
+                            // for receiving data
+                            let key_recv = my_privete_key.derive_symmetric_key(
+                                &recv_xchg.comm_public_key,
+                                &recv_xchg.key_salt,
+                            );
+
+                            let encrypt_nonce_counter = EncryptNonceCounter::new(&mut self.rng);
+
+                            let encryptor = Encryptor::new(&key_send, encrypt_nonce_counter);
+                            let decryptor = Decryptor::new(&key_recv);
+
+                            let (inner_tx, inner_rx) = mpsc::channel::<ToChannel>(0);
+
+                            let channel_index =
+                                self.channel_index.take().expect("missing channel index");
+
+                            let remote_public_key =
+                                self.remote_public_key.take().expect("missing remote public key");
+
+                            let channel = Channel {
+                                os_rng: OsRng::new()?,
+                                remote_public_key,
+                                channel_index,
+                                inner_sender: self.nw_sender.clone(),
+                                inner_receiver: inner_rx,
+                                inner_buffered: None,
+                                outer_sender: tx,
+                                outer_receiver: rx,
+                                outer_buffered: None,
+                                send_counter: 0,
+                                recv_counter: 0,
+                                encryptor: encryptor,
+                                decryptor: decryptor,
+                                send_ka_ticks: KEEP_ALIVE_TICKS,
+                                recv_ka_ticks: 2 * KEEP_ALIVE_TICKS,
+                            };
+
+                            return Ok(Async::Ready((channel_index, inner_tx, channel)));
+                        }
+                        Async::NotReady => {
+                            self.state = ChannelNewState::Exchange(exchange_task);
                         }
                     }
                 }
@@ -816,10 +722,8 @@ impl Future for ChannelNew {
     }
 }
 
-// ===== helper functions =====
-
 #[inline]
-fn update_counter(counter: &mut u64) {
+fn increase_counter(counter: &mut u64) {
     if *counter == u64::max_value() {
         *counter = 0;
     } else {
@@ -836,10 +740,10 @@ impl From<io::Error> for ChannelError {
     }
 }
 
-impl From<::capnp::Error> for ChannelError {
+impl From<SchemaError> for ChannelError {
     #[inline]
-    fn from(e: ::capnp::Error) -> ChannelError {
-        ChannelError::Capnp(e)
+    fn from(e: SchemaError) -> ChannelError {
+        ChannelError::Schema(e)
     }
 }
 
@@ -850,6 +754,13 @@ impl From<CodecError> for ChannelError {
     }
 }
 
+impl From<SymEncryptError> for ChannelError {
+    #[inline]
+    fn from(e: SymEncryptError) -> ChannelError {
+        ChannelError::EncryptError(e)
+    }
+}
+
 impl From<SecurityModuleClientError> for ChannelError {
     #[inline]
     fn from(e: SecurityModuleClientError) -> ChannelError {
@@ -857,16 +768,136 @@ impl From<SecurityModuleClientError> for ChannelError {
     }
 }
 
-impl From<SchemaError> for ChannelError {
-    #[inline]
-    fn from(e: SchemaError) -> ChannelError {
-        ChannelError::Schema(e)
-    }
-}
+#[cfg(test)]
+mod test {
+    use super::*;
 
-impl From<SymmetricEncError> for ChannelError {
-    #[inline]
-    fn from(e: SymmetricEncError) -> ChannelError {
-        ChannelError::EncryptError(e)
+    fn gen_channeler_neighbor(byte: u8) -> ChannelerNeighbor {
+        let key_bytes = [byte; 32];
+        let public_key = PublicKey::from_bytes(&key_bytes).unwrap();
+
+        let info = ChannelerNeighborInfo {
+            public_key: public_key,
+            socket_addr: None,
+            max_channels: 1,
+        };
+
+        let neighbor = ChannelerNeighbor {
+            info,
+            channels: HashMap::new(),
+            retry_ticks: 0,
+            num_pending: 0,
+        };
+
+        neighbor
+    }
+
+    /// This function generate a neighbor table for test usage.
+    ///
+    /// All of the account generated by the `FixedByteRandom`,
+    /// and the they have the following relation ship:
+    ///
+    /// - `0 <-- 1`
+    /// - `0 <-- 2`
+    /// - `0 --> 3`
+    fn gen_neighbors() -> (Vec<PublicKey>, HashMap<PublicKey, ChannelerNeighbor>) {
+        let neighbor1 = gen_channeler_neighbor(1);
+        let neighbor2 = gen_channeler_neighbor(2);
+
+        let mut neighbor3 = gen_channeler_neighbor(3);
+        neighbor3.info.socket_addr = Some("127.0.0.1:1234".parse().unwrap());
+
+        // My public key
+        let key_bytes = [0u8; 32];
+        let my_public_key = PublicKey::from_bytes(&key_bytes).unwrap();
+
+        let mut keys = Vec::new();
+        keys.push(my_public_key);
+        keys.push(neighbor1.info.public_key.clone());
+        keys.push(neighbor2.info.public_key.clone());
+        keys.push(neighbor3.info.public_key.clone());
+
+        let mut neighbors = HashMap::new();
+        neighbors.insert(keys[1].clone(), neighbor1);
+        neighbors.insert(keys[2].clone(), neighbor2);
+        neighbors.insert(keys[3].clone(), neighbor3);
+
+        (keys, neighbors)
+    }
+
+    /// According the design spces, when the Channeler received a `InitChannelActive` message,
+    /// it should do the following:
+    ///
+    /// - Check if the received public key belongs to a neighbor that has the initiator role.
+    /// If not, close the connection.
+    ///
+    /// - Check if the `channelIndex` smaller than the maximum allowed channels. Also check if the
+    /// `channelIndex` is not already in used by another TCP connection. If the `channelIndex` is
+    /// invalid, close the connection.
+    ///
+    /// Note: Only the responder would receive the `InitChannelActive` message, because for the
+    /// initiator, after it sending a `InitChannelActive` message to remote, it expect to receive
+    /// a `InitChannelPassive` message from remote, once he received a message which not conform the
+    /// `InitChannelPassive` message's format, the connection would be closed with the `SchemaError`
+    ///
+    /// Notation: (Initiator, Smaller, In used)
+    #[test]
+    fn test_validation() {
+        let (keys, mut neighbors) = gen_neighbors();
+
+        let (tx, _) = mpsc::channel::<ToChannel>(0);
+        {
+            let mut neighbor = neighbors.get_mut(&keys[2]).unwrap();
+            neighbor.channels.insert(0, tx);
+        }
+
+        let neighbors = AsyncMutex::new(neighbors);
+
+        // Case 1: (Y, Y, N)
+        //
+        // - The received key belong to a neighbor that has the initiator role.
+        // - The channel index smaller than the maximum allowed channels and this
+        //   channel index is not already in used.
+        let remote_public_key = keys[1].clone();
+        let channel_index = 0;
+        let validation_task =
+            ChannelNew::create_validation_task(remote_public_key, channel_index, neighbors.clone());
+
+        assert!(validation_task.wait().is_ok());
+
+        // Case 2: (Y, Y, Y)
+        //
+        // - The received key belong to a neighbor that has the initiator role.
+        // - The channel index smaller than the maximum allowed channels but this
+        //   channel index is already in used.
+        let remote_public_key = keys[2].clone();
+        let channel_index = 0;
+        let validation_task =
+            ChannelNew::create_validation_task(remote_public_key, channel_index, neighbors.clone());
+
+        assert!(validation_task.wait().is_err());
+
+        // Case 3: (Y, N, X)
+        //
+        // - The received key belong to a neighbor that has the initiator role.
+        // - The channel index greater or equal than the maximum allowed channels.
+        let remote_public_key = keys[1].clone();
+        let channel_index = 1;
+        let validation_task =
+            ChannelNew::create_validation_task(remote_public_key, channel_index, neighbors.clone());
+
+        assert!(validation_task.wait().is_err());
+
+        // Case 2: (N, X, X)
+        //
+        // - The received key belong to a neighbor that doesn't have the initiator role.
+        // - The channel index smaller than the maximum allowed channels and this
+        //   channel index is not already in used.
+        let remote_public_key = keys[3].clone();
+        let channel_index = 100;
+        let validation_task =
+            ChannelNew::create_validation_task(remote_public_key, channel_index, neighbors.clone());
+
+        assert!(validation_task.wait().is_err());
     }
 }

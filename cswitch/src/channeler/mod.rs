@@ -22,16 +22,16 @@
 pub mod types;
 pub mod messages;
 
-//mod codec;
+mod codec;
 //mod reader;
-//mod channel;
+mod channel;
 //
 //use self::messages::ToChannel;
 //use self::messages::ChannelerToNetworker;
 //use self::channel::{Channel, ChannelError};
 //use self::reader::{TimerReader, NetworkerReader};
 //
-//const KEEP_ALIVE_TICKS: usize = 15;
+const KEEP_ALIVE_TICKS: usize = 15;
 //
 //enum ChannelerState {
 //    Alive,

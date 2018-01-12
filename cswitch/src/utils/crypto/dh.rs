@@ -84,8 +84,7 @@ pub struct DhPrivateKey {
 impl DhPrivateKey {
     /// Create a new ephemeral private key
     pub fn new<R: SecureRandom>(crypt_rng: &R) -> Self {
-        let dh_pk = match agreement::EphemeralPrivateKey::generate(
-                &agreement::X25519, crypt_rng) {
+        let dh_pk = match agreement::EphemeralPrivateKey::generate(&agreement::X25519, crypt_rng) {
             Ok(dh_pk) => dh_pk,
             Err(Unspecified) => unreachable!(),
         };
@@ -115,14 +114,18 @@ impl DhPrivateKey {
             unsafe { mem::transmute_copy(&self.dh_private_key) };
 
         // Perform diffie hellman:
-        let key_material_res = agreement::agree_ephemeral(dh_private_key,
-                    &agreement::X25519, u_public_key,
-                    ring::error::Unspecified ,|key_material| {
-                        assert_eq!(key_material.len(), SHARED_SECRET_LEN);
-                        let mut shared_secret_array = [0; SHARED_SECRET_LEN];
-                        shared_secret_array.clone_from_slice(key_material);
-                        Ok(shared_secret_array)
-                    });
+        let key_material_res = agreement::agree_ephemeral(
+            dh_private_key,
+            &agreement::X25519,
+            u_public_key,
+            ring::error::Unspecified,
+            |key_material| {
+                assert_eq!(key_material.len(), SHARED_SECRET_LEN);
+                let mut shared_secret_array = [0; SHARED_SECRET_LEN];
+                shared_secret_array.clone_from_slice(key_material);
+                Ok(shared_secret_array)
+            },
+        );
 
         let shared_secret_array = match key_material_res {
             Ok(key_material) => key_material,
@@ -145,7 +148,7 @@ mod tests {
 
     #[test]
     fn test_new_salt() {
-        let rng = DummyRandom::new(&[1,2,3,4,6]);
+        let rng = DummyRandom::new(&[1, 2, 3, 4, 6]);
         let salt1 = Salt::new(&rng);
         let salt2 = Salt::new(&rng);
 
@@ -154,7 +157,7 @@ mod tests {
 
     #[test]
     fn test_derive_symmetric_key() {
-        let rng = DummyRandom::new(&[1,2,3,4,5]);
+        let rng = DummyRandom::new(&[1, 2, 3, 4, 5]);
         let dh_private_key1 = DhPrivateKey::new(&rng);
         let dh_private_key2 = DhPrivateKey::new(&rng);
 
@@ -166,13 +169,10 @@ mod tests {
 
         // Each side derives the symmetric key from the remote's public key
         // and the salt:
-        let symmetric_key1 = dh_private_key1.derive_symmetric_key(
-            &public_key2, &salt);
-        let symmetric_key2 = dh_private_key2.derive_symmetric_key(
-            &public_key1, &salt);
+        let symmetric_key1 = dh_private_key1.derive_symmetric_key(&public_key2, &salt);
+        let symmetric_key2 = dh_private_key2.derive_symmetric_key(&public_key1, &salt);
 
         // Both sides should get the same derived symmetric key:
         assert_eq!(symmetric_key1, symmetric_key2);
     }
 }
-

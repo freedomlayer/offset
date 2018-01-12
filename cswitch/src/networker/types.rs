@@ -1,5 +1,8 @@
 use bytes::Bytes;
 
+use utils::crypto::dh::{DhPublicKey,Salt};
+use utils::crypto::identity::Signature;
+
 // TODO:
 pub struct RequestContent {}
 

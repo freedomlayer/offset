@@ -41,7 +41,7 @@
 
 extern crate futures_timer;
 
-use std::{time::Duration, io, mem};
+use std::{io, mem, time::Duration};
 
 use futures::prelude::*;
 use futures::sync::mpsc;
@@ -86,7 +86,7 @@ impl<T> TimerClient<T> {
 impl TimerModule {
     pub fn new(duration: Duration) -> TimerModule {
         TimerModule {
-            inner:   Interval::new(duration),
+            inner: Interval::new(duration),
             clients: Vec::new(),
         }
     }
@@ -103,37 +103,32 @@ impl Future for TimerModule {
     type Error = TimerError;
 
     fn poll(&mut self) -> Poll<(), TimerError> {
-        let timer_poll = self.inner.poll().map_err(|e| {
-            TimerError::Interval(e)
-        });
+        let timer_poll = self.inner.poll().map_err(|e| TimerError::Interval(e));
 
         if try_ready!(timer_poll).is_some() {
             for client in &mut self.clients {
                 match mem::replace(client, TimerClient::Dropped) {
                     TimerClient::Dropped => {
                         unreachable!("encounter a dropped client");
-                    },
+                    }
                     TimerClient::Active(mut sender) => {
                         match sender.start_send(FromTimer::TimeTick) {
                             Err(_e) => {
                                 info!("timer client disconnected");
-                            },
+                            }
                             Ok(start_send) => {
                                 match start_send {
                                     AsyncSink::Ready => {
                                         // For now, this should always succeed
                                         if sender.poll_complete().is_ok() {
-                                            mem::replace(
-                                                client,
-                                                TimerClient::Active(sender)
-                                            );
+                                            mem::replace(client, TimerClient::Active(sender));
                                         }
-                                    },
+                                    }
                                     AsyncSink::NotReady(_) => {
                                         warn!("failed to send tick");
-                                    },
+                                    }
                                 }
-                            },
+                            }
                         }
                     }
                 }
@@ -163,23 +158,27 @@ mod tests {
 
         let mut core = Core::new().unwrap();
 
-        let clients = (0..50).map(|_| {
-            tm.create_client()
-        }).step_by(2).collect::<Vec<_>>();
+        let clients = (0..50)
+            .map(|_| tm.create_client())
+            .step_by(2)
+            .collect::<Vec<_>>();
 
         assert_eq!(clients.len(), 25);
 
         let now = time::Instant::now();
-        let clients_fut = clients.into_iter().map(move |timer_client| {
-            let mut ticks: u64 = 0;
-            timer_client.take(500).for_each(move |FromTimer::TimeTick| {
-                ticks += 1;
-                // Acceptable accuracy: 10ms (+- 20%)
-                assert!(now.elapsed() > Duration::from_millis( 8 * ticks));
-                assert!(now.elapsed() < Duration::from_millis(12 * ticks));
-                Ok(())
+        let clients_fut = clients
+            .into_iter()
+            .map(move |timer_client| {
+                let mut ticks: u64 = 0;
+                timer_client.take(500).for_each(move |FromTimer::TimeTick| {
+                    ticks += 1;
+                    // Acceptable accuracy: 10ms (+- 20%)
+                    assert!(now.elapsed() > Duration::from_millis(8 * ticks));
+                    assert!(now.elapsed() < Duration::from_millis(12 * ticks));
+                    Ok(())
+                })
             })
-        }).collect::<Vec<_>>();
+            .collect::<Vec<_>>();
 
         let task = tm.map_err(|_| ()).select2(join_all(clients_fut));
 

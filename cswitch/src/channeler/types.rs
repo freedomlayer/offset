@@ -1,13 +1,11 @@
+use std::collections::HashMap;
 use std::net::SocketAddr;
 
 use futures::sync::mpsc;
 
-use utils::crypto::uuid::Uuid;
 use utils::crypto::identity::PublicKey;
 
 use super::messages::ToChannel;
-
-// TODO: Can the following two types be simplified?
 
 #[derive(Clone, Debug)]
 pub struct ChannelerNeighborInfo {
@@ -26,7 +24,7 @@ pub struct NeighborInfo {
 #[derive(Debug)]
 pub struct ChannelerNeighbor {
     pub info: ChannelerNeighborInfo,
-    pub channels: Vec<(Uuid, mpsc::Sender<ToChannel>)>,
-    pub remaining_ticks: usize,
-    pub num_pending_out_conn: usize,
+    pub channels: HashMap<u32, mpsc::Sender<ToChannel>>,
+    pub retry_ticks: usize,
+    pub num_pending: usize,
 }
