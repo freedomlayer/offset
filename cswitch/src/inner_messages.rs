@@ -112,13 +112,6 @@ pub struct ChannelerNeighborInfo {
     pub max_channels: u32,  // Maximum amount of token channels
 }
 
-pub struct NeighborInfo {
-    neighbor_public_key: PublicKey,
-    neighbor_address: ChannelerAddress,
-    max_channels: u32,              // Maximum amount of token channels
-    wanted_remote_max_debt: u64,    
-}
-
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct NeighborsRoute {
@@ -388,7 +381,10 @@ enum AppManagerToNetworker {
         max_channels: u32,
     },
     AddNeighbor {
-        neighbor_info: NeighborInfo,
+        neighbor_public_key: PublicKey,
+        neighbor_address: ChannelerAddress,
+        max_channels: u32,              // Maximum amount of token channels
+        wanted_remote_max_debt: u64,    
     },
     RemoveNeighbor {
         neighbor_public_key: PublicKey,
@@ -611,6 +607,8 @@ enum AppManagerToFunder {
     },
 }
 
+// TODO: Before filling Funder <-> Database interface,
+// check if we should merge the two Funder tables.
 pub enum FunderToDatabase {
     StoreFriend {
         friend_public_key: PublicKey,
@@ -662,13 +660,17 @@ pub struct PendingNeighborRequest {
     credits_per_byte_proposal: u32,
 }
 
+
+pub struct NeighborInfo {
+    neighbor_public_key: PublicKey,
+    neighbor_address: ChannelerAddress,
+    wanted_remote_max_debt: u64,
+    max_channels: u32,
+    status: NeighborStatus,
+}
+
 pub enum NetworkerToDatabase {
-    StoreNeighbor {
-        neighbor_public_key: PublicKey,
-        wanted_remote_max_debt: u64,
-        wanted_max_channels: u32,
-        status: NeighborStatus,
-    },
+    StoreNeighbor(NeighborInfo),    
     RemoveNeighbor {
         neighbor_public_key: PublicKey,
     },
@@ -687,19 +689,46 @@ pub enum NetworkerToDatabase {
         openend_remote_requests: Vec<PendingNeighborRequest>,
     },
     StoreOutNeighborToken {
-        // TODO
+        neighbor_public_key: PublicKey,
+        move_token_message: NeighborMoveToken, 
+        remote_max_debt: u64,
+        local_max_debt: u64, 
+        remote_pending_debt: u64,
+        local_pending_debt: u64,
+        balance: i64,
+        local_invoice_id: Option<InvoiceId>,
+        remote_invoice_id: Option<InvoiceId>,
+        opened_local_requests: Vec<PendingNeighborRequest>,
+        closed_remote_requests: Vec<Uid>,
     },
     RequestLoadNeighborToken {
-        // TODO
+        neighbor_public_key: PublicKey,
+        token_channel_index: u32,
     },
+}
+
+pub enum MoveTokenDirection {
+    Incoming,
+    Outgoing,
 }
 
 pub enum DatabaseToNetworker {
     ResponseLoadNeighbors {
-        // TODO
+        neighbors: Vec<NeighborInfo>,
     },
     ResponseLoadNeighborToken {
-        // TODO
+        neighbor_public_key: PublicKey,
+        move_token_direction: MoveTokenDirection,
+        move_token_message: NeighborMoveToken,
+        remote_max_debt: u64,
+        local_max_debt: u64, 
+        remote_pending_debt: u64,
+        local_pending_debt: u64,
+        balance: i64,
+        local_invoice_id: Option<InvoiceId>,
+        remote_invoice_id: Option<InvoiceId>,
+        pending_local_requests: Vec<PendingNeighborRequest>,
+        pending_remote_requests: Vec<PendingNeighborRequest>,
     },
 }
 
