@@ -74,7 +74,7 @@ struct RequestSendMessageTran {
         route @1: NeighborsRoute;
         requestContent :union {
                 commMeans @2: Void;
-                encrypted @3: Data;
+                encrypted @3: EncMessage;
         }
         maxResponseLength @4: UInt32;
         processingFeeProposal @5: UInt64;
