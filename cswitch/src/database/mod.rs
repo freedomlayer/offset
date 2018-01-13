@@ -245,7 +245,6 @@ mod tests {
         delete_temporary_database(path);
     }
 
-    /*
     #[test]
     fn dispatch_close() {
         test(|db_path| {
@@ -287,5 +286,4 @@ mod tests {
             core.run(work).unwrap();
         });
     }
-    */
 }

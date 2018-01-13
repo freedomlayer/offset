@@ -96,7 +96,7 @@ struct RequestFriendsRoute {
         }
 }
 
-struct FriendsRoute {
+struct FriendsRouteWithCapacity {
         publicKeys @0: List(CustomUInt256);
         capacity @1: UInt64;
         # Maximum amount of credit we can push through this route
@@ -105,5 +105,5 @@ struct FriendsRoute {
 
 # Indexer -> Node
 struct ResponseFriendsRoute {
-        routes @0: List(FriendsRoute);
+        routes @0: List(FriendsRouteWithCapacity);
 }

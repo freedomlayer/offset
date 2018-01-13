@@ -80,7 +80,7 @@ pub struct NeighborsRoute {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub struct FriendsRoute {
+pub struct FriendsRouteWithCapacity {
     pub public_keys: Vec<PublicKey>,
     // How much credit can we push through this route?
     pub capacity: u64,

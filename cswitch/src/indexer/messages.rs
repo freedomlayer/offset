@@ -1,6 +1,6 @@
 use utils::crypto::identity::PublicKey;
 
-use super::types::{FriendsRoute, IndexerRoute, IndexingProviderId, IndexingProviderStateHash,
+use super::types::{FriendsRouteWithCapacity, IndexerRoute, IndexingProviderId, IndexingProviderStateHash,
                    NeighborsRoute, StateChainLink};
 
 // ===== Internal interfaces =====
@@ -40,7 +40,7 @@ pub enum RequestFriendsRoutes {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct ResponseFriendsRoutes {
-    pub routes: Vec<FriendsRoute>,
+    pub routes: Vec<FriendsRouteWithCapacity>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]

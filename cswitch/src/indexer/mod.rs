@@ -31,7 +31,7 @@ pub mod messages;
 //    ResponseNeighborsRoutes,
 //};
 //
-//use service::ServiceState;
+////use service::ServiceState;
 //use schema::indexer::RoutesToIndexer;
 //
 //use close_handle::CloseHandle;
@@ -191,6 +191,10 @@ pub mod messages;
 //                                }
 //                                Async::Ready(Some(msg)) => {
 //                                    match msg {
+//                                        AppManagerToIndexerClient::SetIndexingProviderStatus { .. } => {
+//                                            // TODO
+//                                            assert!(false);
+//                                        },
 //                                        AppManagerToIndexerClient::AddIndexingProvider(info) => {
 //                                            self.add_indexing_provider(info);
 //                                        }
