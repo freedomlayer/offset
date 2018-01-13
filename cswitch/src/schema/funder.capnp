@@ -11,13 +11,16 @@ using import "common.capnp".CustomUInt512;
 struct FriendMoveToken {
         transactions @0: List(Data);
         oldToken @1: CustomUInt256;
-        randNonce @2: CustomUInt256;
+        randNonce @2: CustomUInt128;
 }
 
 
 struct FriendInconsistencyError {
         currentToken @0: CustomUInt256;
         balanceForReset @1: CustomUInt128;
+        # Note that this is actually a signed number (Highest bit is the sign
+        # bit, Two's complement method). TODO: Should we have a separate type,
+        # like CustomInt128?
 }
 
 
@@ -30,10 +33,16 @@ enum RequestsState {
         disabled @1;
 }
 
+# Set requests state for the remote party.
+# If the state is enabled, requests may be opened from the remote party.
+# If the state is disabled, requests may not be opened from the remote party.
 struct SetStateTran {
         newState @0: RequestsState;
 }
 
+# Set the maximum possible debt for the remote party.
+# Note: It is not possible to set a maximum debt smaller than the current debt
+# This will cause an inconsistency.
 struct SetRemoteMaxDebtTran {
         remoteMaxDebt @0: UInt64;
 }
@@ -52,7 +61,7 @@ struct RequestSendFundTran {
 
 struct ResponseSendFundTran {
         requestId @0: CustomUInt128;
-        randNonce @1: CustomUInt256;
+        randNonce @1: CustomUInt128;
         signature @2: CustomUInt512;
         # Signature{key=recipientKey}(
         #   "FUND_SUCCESS" ||
@@ -65,7 +74,7 @@ struct ResponseSendFundTran {
 struct FailedSendFundTran {
         requestId @0: CustomUInt128;
         reportingNodePublicKey @1: CustomUInt256;
-        randNonce @2: CustomUInt256;
+        randNonce @2: CustomUInt128;
         signature @3: CustomUInt512;
         # Signature{key=recipientKey}(
         #   "FUND_FAILURE" ||

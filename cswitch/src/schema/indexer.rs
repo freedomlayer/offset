@@ -12,7 +12,7 @@
 
 use std::io;
 
-use indexer::types::{FriendsRoute, IndexerRoute, NeighborsRoute, StateChainLink};
+use indexer::types::{FriendsRouteWithCapacity, IndexerRoute, NeighborsRoute, StateChainLink};
 
 use indexer::messages::{RequestFriendsRoutes, RequestNeighborsRoutes, RequestUpdateState,
                         ResponseFriendsRoutes, ResponseNeighborsRoutes, ResponseUpdateState,
@@ -50,9 +50,9 @@ impl<'a> Schema<'a> for NeighborsRoute {
     }
 }
 
-impl<'a> Schema<'a> for FriendsRoute {
-    type Reader = friends_route::Reader<'a>;
-    type Writer = friends_route::Builder<'a>;
+impl<'a> Schema<'a> for FriendsRouteWithCapacity {
+    type Reader = friends_route_with_capacity::Reader<'a>;
+    type Writer = friends_route_with_capacity::Builder<'a>;
 
     inject_default_impl!();
 
@@ -61,7 +61,7 @@ impl<'a> Schema<'a> for FriendsRoute {
 
         let capacity = from.get_capacity();
 
-        Ok(FriendsRoute {
+        Ok(FriendsRouteWithCapacity {
             public_keys,
             capacity,
         })
@@ -248,7 +248,7 @@ impl<'a> Schema<'a> for ResponseFriendsRoutes {
         let mut routes = Vec::with_capacity(routes_reader.len() as usize);
 
         for friends_route_reader in routes_reader.iter() {
-            routes.push(FriendsRoute::read(&friends_route_reader)?);
+            routes.push(FriendsRouteWithCapacity::read(&friends_route_reader)?);
         }
 
         Ok(ResponseFriendsRoutes { routes })
@@ -550,8 +550,8 @@ mod tests {
         }
     }
 
-    fn create_dummy_friends_route() -> FriendsRoute {
-        FriendsRoute {
+    fn create_dummy_friends_route_with_capacity() -> FriendsRouteWithCapacity {
+        FriendsRouteWithCapacity {
             public_keys: create_dummy_public_keys_list(),
             capacity: random::<u64>(),
         }
@@ -591,9 +591,9 @@ mod tests {
 
     #[test]
     fn test_friends_route() {
-        let in_friends_route = create_dummy_friends_route();
+        let in_friends_route = create_dummy_friends_route_with_capacity();
 
-        test_encode_decode!(FriendsRoute, in_friends_route);
+        test_encode_decode!(FriendsRouteWithCapacity, in_friends_route);
     }
 
     #[test]
@@ -669,7 +669,7 @@ mod tests {
     #[test]
     fn test_response_friends_route() {
         let in_response_friends_route = ResponseFriendsRoutes {
-            routes: (0..MAX_NUM).map(|_| create_dummy_friends_route()).collect(),
+            routes: (0..MAX_NUM).map(|_| create_dummy_friends_route_with_capacity()).collect(),
         };
 
         test_encode_decode!(ResponseFriendsRoutes, in_response_friends_route);

@@ -15,13 +15,147 @@ use utils::crypto::rand_values::RandValue;
 // Helper structs
 // --------------
 
+pub const INDEXING_PROVIDER_STATE_HASH_LEN: usize = 32;
+pub const RECEIPT_RESPONSE_HASH_LEN: usize = 32;
+pub const INDEXING_PROVIDER_ID_LEN: usize = 16;
+pub const INVOICE_ID_LEN: usize = 32;
+
+// A hash of a full link in an indexing provider chain
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct IndexingProviderStateHash([u8; INDEXING_PROVIDER_STATE_HASH_LEN]);
+
+impl IndexingProviderStateHash {
+    pub fn from_bytes<T>(t: &T) -> Result<Self, ()>
+        where T: AsRef<[u8]>
+    {
+        let in_bytes = t.as_ref();
+
+        if in_bytes.len() != INDEXING_PROVIDER_STATE_HASH_LEN {
+            Err(())
+        } else {
+            let mut state_hash_bytes = [0; INDEXING_PROVIDER_STATE_HASH_LEN];
+            state_hash_bytes.clone_from_slice(in_bytes);
+            Ok(IndexingProviderStateHash(state_hash_bytes))
+        }
+    }
+
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        self.as_ref()
+    }
+}
+
+impl AsRef<[u8]> for IndexingProviderStateHash {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+// The Id of an indexing provider.
+#[derive(Debug, Eq, PartialEq, Clone, Hash)]
+pub struct IndexingProviderId([u8; INDEXING_PROVIDER_ID_LEN]);
+
+/// The Id number of an invoice. An invoice is used during payment through the Funder. 
+/// It is chosen by the sender of funds. The invoice id then shows up in the receipt for the
+/// payment.
+struct InvoiceId([u8; INVOICE_ID_LEN]);
+
+/// A hash of:
+/// = sha512/256(requestId || 
+///       sha512/256(nodeIdPath) || 
+///       mediatorPaymentProposal)
+/// Used inside SendFundsReceipt
+struct ReceiptResponseHash([u8; RECEIPT_RESPONSE_HASH_LEN]);
+
+impl IndexingProviderId {
+    pub fn from_bytes<T>(t: &T) -> Result<Self, ()>
+        where T: AsRef<[u8]>
+    {
+        let in_bytes = t.as_ref();
+
+        if in_bytes.len() != INDEXING_PROVIDER_ID_LEN {
+            Err(())
+        } else {
+            let mut provider_id_bytes = [0; INDEXING_PROVIDER_ID_LEN];
+            provider_id_bytes.clone_from_slice(in_bytes);
+            Ok(IndexingProviderId(provider_id_bytes))
+        }
+    }
+
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        self.as_ref()
+    }
+}
+
+impl AsRef<[u8]> for IndexingProviderId {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ChannelerAddress {
+    pub socket_addr: Option<SocketAddr>,
+    pub neighbor_public_key: PublicKey,
+}
+
+#[derive(Clone, Debug)]
+pub struct ChannelerNeighborInfo {
+    pub neighbor_address: ChannelerAddress,
+    pub max_channels: u32,  // Maximum amount of token channels
+}
+
+pub struct NeighborInfo {
+    neighbor_public_key: PublicKey,
+    neighbor_address: ChannelerAddress,
+    max_channels: u32,              // Maximum amount of token channels
+    wanted_remote_max_debt: u64,    
+}
+
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct NeighborsRoute {
+    pub public_keys: Vec<PublicKey>,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct FriendsRouteWithCapacity {
+    pub public_keys: Vec<PublicKey>,
+    // How much credit can we push through this route?
+    pub capacity: u64,
+}
+
+
+
+// Channeler to Networker
+// ----------------------
+
+pub struct ChannelOpened {
+    pub remote_public_key: PublicKey, // Public key of remote side
+    pub locally_initialized: bool, // Was this channel initiated by this end.
+}
+
+pub struct ChannelClosed {
+    pub remote_public_key: PublicKey,
+}
+
+pub struct ChannelMessageReceived {
+    pub remote_public_key: PublicKey,
+    pub message_content: Vec<u8>,
+}
+
+pub enum ChannelerToNetworker {
+    ChannelOpened(ChannelOpened),
+    ChannelClosed(ChannelClosed),
+    ChannelMessageReceived(ChannelMessageReceived),
+}
+
 // Networker to Channeler
 // ----------------------
 
-pub enum ServerType {
-    PublicServer,
-    PrivateServer
-}
 
 // Networker interface
 // -------------------
@@ -80,6 +214,51 @@ pub struct DiscardMessageReceived {
 }
 
 
+// Funder interface
+// ----------------
+
+struct FriendsRoute {
+    public_keys: Vec<PublicKey>,
+}
+
+struct RequestSendFunds {
+    request_id: Uid,
+    route: FriendsRoute,
+    invoice_id: InvoiceId,
+    payment: u128,
+}
+
+
+/// A SendFundsReceipt is received if a RequestSendFunds is successful.
+/// It can be used a proof of payment for a specific invoice_id.
+struct SendFundsReceipt {
+    response_hash: ReceiptResponseHash,
+    // = sha512/256(requestId || 
+    //       sha512/256(nodeIdPath) || 
+    //       mediatorPaymentProposal)
+    invoice_id: InvoiceId,
+    payment: u128,
+    rand_nonce: RandValue,
+    signature: Signature,
+    // Signature{key=recipientKey}(
+    //   "FUND_SUCCESS" ||
+    //   sha512/256(requestId || sha512/256(nodeIdPath) || mediatorPaymentProposal) ||
+    //   invoiceId ||
+    //   payment ||
+    //   randNonce)
+}
+
+enum SendFundsResult {
+    Success(SendFundsReceipt),
+    Failure,
+}
+
+struct ResponseSendFunds {
+    request_id: Uid,
+    result: SendFundsResult,
+}
+
+
 // Indexer client to Networker
 // ---------------------------
 
@@ -102,45 +281,80 @@ pub enum NetworkerToIndexerClient {
 
 // Networker to App Manager
 // ---------------------------
+    
+struct NeighborTokenChannelLoaded {
+    channel_index: u32,
+    local_max_debt: u64,
+    remote_max_debt: u64,
+    balance: i64,
+}
+
+struct NeighborLoaded {
+    address: ChannelerAddress,
+    max_channels: u32,
+    wanted_remote_max_debt: u64,
+    status: NeighborStatus,
+    token_channels: Vec<NeighborTokenChannelLoaded>,
+    // TODO: Should we use a map instead of a vector for token_channels?
+}
+
+enum NeighborTokenChannelEventInner {
+    Open,
+    Close,
+    LocalMaxDebtChange(u64),    // Contains new local max debt
+    RemoteMaxDebtChange(u64),   // Contains new remote max debt
+    BalanceChange(i64),         // Contains new balance
+    InconsistencyError(i64)     // Contains balance required for reset
+}
+
+struct NeighborTokenChannelEvent {
+    channel_index: u32,
+    event: NeighborTokenChannelEventInner,
+}
+
+enum NeighborEvent {
+    NeighborLoaded(NeighborLoaded),
+    TokenChannelEvent(NeighborTokenChannelEvent),
+}
+
+
+struct NeighborStateUpdate {
+    neighbor_public_key: PublicKey,
+    event: NeighborEvent,
+}
 
 
 enum NetworkerToAppManager {
-    SendMessageRequestReceived {
-        request_id: Uuid,
-        source_node_public_key: PublicKey,
-        request_content: Vec<u8>,
-        max_response_length: u64,
-        processing_fee: u64,
-    },
-    InvalidNeighborMoveToken {
-        // TODO
-    },
-    NeighborsState {
-        // TODO: Current state of neighbors.
-
-    },
-    NeighborsUpdates {
-        // TODO: Add some summary of information about neighbors and their token channels.
-        // Possibly some counters?
-    },
+    MessageReceived(MessageReceived),
+    ResponseSendMessage(ResponseSendMessage),
+    NeighborStateUpdate(NeighborStateUpdate),
 }
 
 // App Manager to Networker
 // ---------------------------
 
+enum NeighborStatus {
+    Enabled,
+    Disabled,
+}
 
 enum AppManagerToNetworker {
-    RespondSendMessageRequest {
-        request_id: Uuid,
-        response_content: Vec<u8>,
+    RequestSendMessage(RequestSendMessage),
+    ResponseMessageReceived(RespondMessageReceived),
+    DiscardMessageReceived(DiscardMessageReceived),
+    SetNeighborWantedRemoteMaxDebt {
+        neighbor_public_key: PublicKey,
+        wanted_remote_max_debt: u64,
     },
-    DiscardSendMessageRequest {
-        request_id: Uuid,
-    },
-    SetNeighborChannelCapacity {
-        token_channel_capacity: u64,    // Capacity per token channel
+    ResetNeighborChannel {
+        neighbor_public_key: PublicKey,
+        channel_index: u32,
+        // TODO: Should we add wanted parameters for the ChannelReset, 
+        // or let the Networker use the last Inconsistency message information 
+        // to perform Reset?
     },
     SetNeighborMaxChannels {
+        neighbor_public_key: PublicKey,
         max_channels: u32,
     },
     AddNeighbor {
@@ -149,42 +363,28 @@ enum AppManagerToNetworker {
     RemoveNeighbor {
         neighbor_public_key: PublicKey,
     },
-    SetServerType(ServerType),
+    SetNeighborStatus {
+        neighbor_public_key: PublicKey,
+        status: NeighborStatus,
+    },
 }
 
 
-// Funder to Networker
+// Funder <--> Networker
 // -------------------
 
-enum ResponseSendFundsStatus {
-    Success,
-    Failure,
-}
-
 enum FunderToNetworker {
-    FundsReceived {
-        source_node_public_key: PublicKey,
-        amount: u64,
-        message_content: Vec<u8>,
-    },
-    ResponseSendFunds {
-        request_id: Uuid,
-        status: ResponseSendFundsStatus,
-    }
+    RequestSendMessage(RequestSendMessage),
+    RespondMessageReceived(RespondMessageReceived),
+    DiscardMessageReceived(DiscardMessageReceived),
+    ResponseSendFunds(ResponseSendFunds),
 }
 
 
 enum NetworkerToFunder {
-    MessageReceived {
-        source_node_public_key: PublicKey,
-        message_content: Vec<u8>,
-    },
-    RequestSendFunds {
-        request_id: Uuid,
-        amount: u64,
-        message_content: Vec<u8>,
-        destination_node_public_key: PublicKey,
-    },
+    MessageReceived(MessageReceived),
+    ResponseSendMessage(ResponseSendMessage),
+    RequestSendFunds(RequestSendFunds),
 }
 
 
@@ -192,8 +392,8 @@ enum NetworkerToFunder {
 // ------------------------
 
 pub struct FriendCapacity {
-    send: u64,
-    recv: u64,
+    send: u128,
+    recv: u128,
 }
 
 
@@ -206,8 +406,36 @@ pub enum IndexerClientToFunder {
     ResponseNeighborsRoute(ResponseNeighborsRoutes)
 }
 
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct StateChainLink {
+    pub previous_state_hash: IndexingProviderStateHash,
+    pub new_owners_public_keys: Vec<PublicKey>,
+    pub new_indexers_public_keys: Vec<PublicKey>,
+    pub signatures_by_old_owners: Vec<Signature>,
+}
+
+pub struct IndexingProviderInfo {
+    pub id: IndexingProviderId,
+    pub state_chain_link: StateChainLink,
+}
+
+pub enum IndexingProviderStatus {
+    Enabled,
+    Disabled,
+}
+
+pub struct IndexingProviderLoaded {
+    id: IndexingProviderId,
+    state_chain_link: StateChainLink,
+    status: IndexingProviderStatus,
+}
+
 pub enum AppManagerToIndexerClient {
     AddIndexingProvider(IndexingProviderInfo),
+    SetIndexingProviderStatus {
+        id: IndexingProviderId,
+        status: IndexingProviderStatus,
+    },
     RemoveIndexingProvider {
         id: IndexingProviderId,
     },
@@ -216,8 +444,8 @@ pub enum AppManagerToIndexerClient {
 }
 
 pub enum IndexingProviderStateUpdate {
-    Add(IndexingProviderInfo),
-    Remove(IndexingProviderId),
+    Loaded(IndexingProviderLoaded),
+    ChainLinkUpdated(IndexingProviderInfo),
 }
 
 pub enum IndexerClientToAppManager {
@@ -228,7 +456,8 @@ pub enum IndexerClientToAppManager {
 
 pub enum IndexerClientToDatabase {
     StoreIndexingProvider(IndexingProviderInfo),
-    RequestLoadIndexingProvider,
+    RemoveIndexingProvider(IndexingProviderId),
+    RequestLoadIndexingProviders,
     StoreRoute {
         id: IndexingProviderId,
         route: NeighborsRoute,
@@ -239,6 +468,7 @@ pub struct IndexingProviderInfoFromDB {
     id: IndexingProviderId,
     state_chain_link: StateChainLink,
     last_routes: Vec<NeighborsRoute>,
+    status: IndexingProviderStatus,
 }
 
 pub enum DatabaseToIndexerClient {
@@ -249,135 +479,152 @@ pub enum DatabaseToIndexerClient {
 // ------------------------
 
 // TODO: Not done here:
-
-enum ResponseAddFriendStatus {
-    Success,
-    FailureFriendAlreadyExist,
-
+//
+enum FriendStatus {
+    Enabled,
+    Disabled,
 }
 
-enum ResponseRemoveFriendStatus {
-    Success,
-    FailureFriendNonexistent,
-    FailureMutualCreditNonzero,
+enum FriendRequestsStatus {
+    Open,
+    Close,
 }
 
-enum ResponseSetFriendCapacityStatus {
-    Success,
-    FailureFriendNonexistent,
-    FailureProposedCapacityTooSmall,
+struct FriendLoaded {
+    status: FriendStatus,
+    requests_status: FriendRequestsStatus,
+    wanted_remote_max_debt: u128,
+    local_max_debt: u128,
+    remote_max_debt: u128,
+    balance: i128,
 }
 
-enum ResponseOpenFriendStatus {
-    Success,
-    FailureFriendNonexistent,
-    FailureFriendAlreadyOpen,
+enum FriendEvent {
+    Loaded(FriendLoaded),
+    Open,
+    Close,
+    RequestsOpened,
+    RequestsClosed,
+    LocalMaxDebtChange(u128),   // Contains new local max debt
+    RemoteMaxDebtChange(u128),   // Contains new local max debt
+    BalanceChange(i128),        // Contains new balance
+    InconsistencyError(i128),   // Contains balance required for reset
 }
 
-enum ResponseCloseFriendStatus {
-    Success,
-    FailureFriendNonexistent,
-    FailureFriendAlreadyClosed,
+struct FriendStateUpdate {
+    friend_public_key: PublicKey,
+    event: FriendEvent,
 }
 
 enum FunderToAppManager {
-    FundsReceived {
-        source_node_public_key: PublicKey,
-        amount: u64,
-        message_content: Vec<u8>,
-    },
-    InvalidFriendMoveToken {
-        // TODO
-    },
-    ResponseSendFunds {
-        request_id: Uuid,
-        status: ResponseSendFundsStatus,
-    },
-    ResponseAddFriend {
-        request_id: Uuid,
-        status: ResponseAddFriendStatus,
-    },
-    ResponseRemoveFriend {
-        request_id: Uuid,
-        status: ResponseRemoveFriendStatus,
-    },
-    ResponseSetFriendCapacity {
-        request_id: Uuid,
-        status: ResponseSetFriendCapacityStatus,
-    },
-    ResponseOpenFriend {
-        request_id: Uuid,
-        status: ResponseOpenFriendStatus,
-    },
-    ResponseCloseFriend {
-        request_id: Uuid,
-        status: ResponseCloseFriendStatus,
-    },
-    FriendsState {
-        // TODO: Current state of friends.
-
-    },
-    FriendsUpdates {
-        // TODO: Add some summary of information about friends and their token channels.
-        // Possibly some counters?
-    },
+    FriendStateUpdate(FriendStateUpdate),
+    ResponseSendFunds(ResponseSendFunds),
 }
 
 
 // App Manager to Funder
 // ------------------------
 
+pub struct FriendInfo {
+    friend_public_key: PublicKey,
+    wanted_remote_max_debt: u128,
+}
+
+
 enum AppManagerToFunder {
-    RequestSendFunds {
-        request_id: Uuid,
-        amount: u64,
-        message_content: Vec<u8>,
-        destination_node_public_key: PublicKey,
-    },
-    RequestAddFriend {
-        request_id: Uuid,
-        friend_public_key: PublicKey,
-        capacity: BigInt, // Max debt possible
-    },
-    RequestRemoveFriend {
-        request_id: Uuid,
+    RequestSendFunds(RequestSendFunds),
+    ResetFriendChannel {
         friend_public_key: PublicKey,
     },
-    RequestSetFriendCapacity {
-        request_id: Uuid,
-        friend_public_key: PublicKey,
-        new_capacity: BigInt,
+    AddFriend {
+        friend_info: FriendInfo,
     },
-    RequestOpenFriend {
-        request_id: Uuid,
+    RemoveFriend {
         friend_public_key: PublicKey,
     },
-    RequestCloseFriend {
-        request_id: Uuid,
+    SetFriendStatus {
         friend_public_key: PublicKey,
-    }
+        status: FriendStatus,
+        requests_status: FriendRequestsStatus,
+    },
+    SetFriendWantedRemoteMaxDebt {
+        friend_public_key: PublicKey,
+        wanted_remote_max_debt: u128,
+    },
 }
 
 pub enum FunderToDatabase {
-    // TODO:
+    StoreFriend {
+        // TODO:
+    },
+    RemoveFriend {
+        // TODO:
+    },
+    RequestLoadFriends {
+        // TODO:
+    },
+    StoreInFriendToken {
+        // TODO:
+    },
+    StoreOutFriendToken {
+        // TODO:
+    },
+    RequestLoadFriendToken {
+        // TODO:
+    },
 }
 
 pub enum DatabaseToFunder {
-    // TODO:
+    ResponseLoadFriends {
+        // TODO:
+    },
+    ResponseLoadFriendToken {
+        // TODO:
+    },
 }
 
-pub struct StoreNeighborInfo {
-    pub neighbor_public_key: PublicKey,
-    pub remote_maximum_debt: u64,
-    pub maximum_channel: u32,
-    pub is_enable: bool
-}
-
-pub struct MoveTokenMessage {
-    pub move_token_transactions: Bytes,
-    // pub move_token_old_token: TODO
-    pub move_tolen_rand_nonce: RandValue,
-}
+//<<<<<<< HEAD
+//pub struct StoreNeighborInfo {
+//    pub neighbor_public_key: PublicKey,
+//    pub remote_maximum_debt: u64,
+//    pub maximum_channel: u32,
+//    pub is_enable: bool
+//}
+//
+//pub struct MoveTokenMessage {
+//    pub move_token_transactions: Bytes,
+//    // pub move_token_old_token: TODO
+//    pub move_tolen_rand_nonce: RandValue,
+//=======
+//pub enum NetworkerToDatabase {
+//    StoreNeighbor {
+//        // TODO
+//    },
+//    RemoveNeighbor {
+//        // TODO
+//    },
+//    RequestLoadNeighbors {
+//        // TODO
+//    },
+//    StoreInNeighborToken {
+//        // TODO
+//    },
+//    StoreOutNeighborToken {
+//        // TODO
+//    },
+//    RequestLoadNeighborToken {
+//        // TODO
+//    },
+//}
+//
+//pub enum DatabaseToNetworker {
+//    ResponseLoadNeighbors {
+//        // TODO
+//    },
+//    ResponseLoadNeighborToken {
+//        // TODO
+//    },
+//}
 
 pub enum NetworkerToDatabase {
     StoreNeighbor(StoreNeighborInfo),
