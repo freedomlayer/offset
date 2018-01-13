@@ -20,6 +20,7 @@ pub const RECEIPT_RESPONSE_HASH_LEN: usize = 32;
 pub const INDEXING_PROVIDER_ID_LEN: usize = 16;
 pub const INVOICE_ID_LEN: usize = 32;
 pub const CHANNEL_TOKEN_LEN: usize = 32;
+pub const HASH_RESULT_LEN: usize = 32;
 
 // A hash of a full link in an indexing provider chain
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -69,8 +70,14 @@ pub struct InvoiceId([u8; INVOICE_ID_LEN]);
 /// Used inside SendFundsReceipt
 struct ReceiptResponseHash([u8; RECEIPT_RESPONSE_HASH_LEN]);
 
+
 /// The hash of the previous message sent over the token channel.
 struct ChannelToken([u8; CHANNEL_TOKEN_LEN]);
+
+/// A Sha512/256 hash over some buffer.  
+/// TODO: Move this into a separate crypto/hash.rs file,
+/// together with Sha512/256 implementation.
+struct HashResult([u8; HASH_RESULT_LEN]);
 
 impl IndexingProviderId {
     pub fn from_bytes<T>(t: &T) -> Result<Self, ()>
@@ -645,16 +652,22 @@ pub enum DatabaseToFunder {
 
 pub struct NeighborMoveToken {
     token_channel_index: u32,
-    transactions: (), // TODO
+    transactions: Vec<Vec<u8>>, // TODO
     old_token: ChannelToken,
     rand_nonce: RandValue,
 }
 
+enum NeighborRequestType {
+    CommMeans,
+    Encrypted,
+}
+
+
 pub struct PendingNeighborRequest {
     request_id: Uid,
     route: NeighborsRoute,
-    request_type: (), // TODO
-    request_content_hash: (), // TODO
+    request_type: NeighborRequestType,
+    request_content_hash: HashResult,
     max_response_len: u32,
     processing_fee_proposal: u64,
     credits_per_byte_proposal: u32,
