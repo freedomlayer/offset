@@ -19,6 +19,7 @@ pub const INDEXING_PROVIDER_STATE_HASH_LEN: usize = 32;
 pub const RECEIPT_RESPONSE_HASH_LEN: usize = 32;
 pub const INDEXING_PROVIDER_ID_LEN: usize = 16;
 pub const INVOICE_ID_LEN: usize = 32;
+pub const CHANNEL_TOKEN_LEN: usize = 32;
 
 // A hash of a full link in an indexing provider chain
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -59,7 +60,7 @@ pub struct IndexingProviderId([u8; INDEXING_PROVIDER_ID_LEN]);
 /// The Id number of an invoice. An invoice is used during payment through the Funder. 
 /// It is chosen by the sender of funds. The invoice id then shows up in the receipt for the
 /// payment.
-struct InvoiceId([u8; INVOICE_ID_LEN]);
+pub struct InvoiceId([u8; INVOICE_ID_LEN]);
 
 /// A hash of:
 /// = sha512/256(requestId || 
@@ -67,6 +68,9 @@ struct InvoiceId([u8; INVOICE_ID_LEN]);
 ///       mediatorPaymentProposal)
 /// Used inside SendFundsReceipt
 struct ReceiptResponseHash([u8; RECEIPT_RESPONSE_HASH_LEN]);
+
+/// The hash of the previous message sent over the token channel.
+struct ChannelToken([u8; CHANNEL_TOKEN_LEN]);
 
 impl IndexingProviderId {
     pub fn from_bytes<T>(t: &T) -> Result<Self, ()>
@@ -359,7 +363,7 @@ enum NetworkerToAppManager {
 // App Manager to Networker
 // ---------------------------
 
-enum NeighborStatus {
+pub enum NeighborStatus {
     Enabled,
     Disabled,
 }
@@ -534,7 +538,7 @@ pub enum DatabaseToIndexerClient {
 
 // TODO: Not done here:
 //
-enum FriendStatus {
+pub enum FriendStatus {
     Enabled,
     Disabled,
 }
@@ -609,6 +613,9 @@ enum AppManagerToFunder {
 
 pub enum FunderToDatabase {
     StoreFriend {
+        friend_public_key: PublicKey,
+        wanted_remote_max_debt: u128,
+        status: FriendStatus,
         // TODO:
     },
     RemoveFriend {
@@ -637,18 +644,47 @@ pub enum DatabaseToFunder {
     },
 }
 
+
+pub struct NeighborMoveToken {
+    token_channel_index: u32,
+    transactions: (), // TODO
+    old_token: ChannelToken,
+    rand_nonce: RandValue,
+}
+
+pub struct PendingNeighborRequest {
+    request_id: Uid,
+    route: NeighborsRoute,
+    request_type: (), // TODO
+    request_content_hash: (), // TODO
+    max_response_len: u32,
+    processing_fee_proposal: u64,
+    credits_per_byte_proposal: u32,
+}
+
 pub enum NetworkerToDatabase {
     StoreNeighbor {
-        // TODO
+        neighbor_public_key: PublicKey,
+        wanted_remote_max_debt: u64,
+        wanted_max_channels: u32,
+        status: NeighborStatus,
     },
     RemoveNeighbor {
-        // TODO
+        neighbor_public_key: PublicKey,
     },
-    RequestLoadNeighbors {
-        // TODO
-    },
+    RequestLoadNeighbors,
     StoreInNeighborToken {
-        // TODO
+        neighbor_public_key: PublicKey,
+        move_token_message: NeighborMoveToken, 
+        remote_max_debt: u64,
+        local_max_debt: u64, 
+        remote_pending_debt: u64,
+        local_pending_debt: u64,
+        balance: i64,
+        local_invoice_id: Option<InvoiceId>,
+        remote_invoice_id: Option<InvoiceId>,
+        closed_local_requests: Vec<Uid>,
+        openend_remote_requests: Vec<PendingNeighborRequest>,
     },
     StoreOutNeighborToken {
         // TODO
