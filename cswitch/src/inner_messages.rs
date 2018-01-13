@@ -207,7 +207,7 @@ pub struct RequestSendMessage {
     request_data: Vec<u8>,
     max_response_len: u32,
     processing_fee_proposal: u64,
-    half_credits_per_byte_proposal: u32,
+    credits_per_byte_proposal: u32,
 }
 
 /// Networker -> Component
@@ -223,7 +223,7 @@ pub struct MessageReceived {
     request_data: Vec<u8>,
     max_response_len: u32,
     processing_fee_proposal: u64,
-    half_credits_per_byte_proposal: u32,
+    credits_per_byte_proposal: u32,
 }
 
 /// Component -> Networker
