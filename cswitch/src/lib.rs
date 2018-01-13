@@ -1,4 +1,5 @@
 #![crate_type = "lib"]
+#![feature(nll)]
 #![feature(i128_type)]
 #![feature(use_nested_groups)]
 #![feature(refcell_replace_swap)]

@@ -15,7 +15,7 @@ pub enum NetworkerToChanneler {
         neighbor_info: ChannelerNeighborInfo,
     },
     /// Request to delete a neighbor.
-    RemoteNeighbor { neighbor_public_key: PublicKey },
+    RemoveNeighbor { neighbor_public_key: PublicKey },
     /// Request to set the maximum amount of token channel.
     SetMaxChannels {
         neighbor_public_key: PublicKey,

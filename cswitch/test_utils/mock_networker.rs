@@ -1,8 +1,8 @@
 #![allow(unused)]
 extern crate ring;
+extern crate bytes;
 extern crate futures;
 extern crate tokio_core;
-extern crate futures_mutex;
 extern crate pretty_env_logger;
 
 extern crate cswitch;
@@ -15,25 +15,23 @@ use std::collections::HashMap;
 use futures::sync::mpsc;
 use futures::{Future, IntoFuture, Stream, Sink};
 
-use futures_mutex::FutMutex;
-
+use bytes::Bytes;
 use tokio_core::reactor::Core;
 use tokio_core::net::TcpListener;
 use ring::test::rand::FixedByteRandom;
 
 use cswitch::channeler::channel::Channel;
-use cswitch::channeler::ChannelerNeighbor;
-use cswitch::close_handle::create_close_handle;
-use cswitch::security_module::create_security_module;
-use cswitch::crypto::identity::{SoftwareEd25519Identity, PublicKey, Identity};
+use cswitch::channeler::types::ChannelerNeighbor;
+use cswitch::utils::{AsyncMutex, AsyncMutexError, CloseHandle};
+use cswitch::security::create_security_module;
+use cswitch::utils::crypto::identity::{SoftwareEd25519Identity, PublicKey, Identity};
 
 use cswitch::timer::TimerModule;
 use cswitch::channeler::Channeler;
 
-use cswitch::inner_messages::{
-    ChannelerAddress, ChannelerNeighborInfo,
-    ChannelerToNetworker, NetworkerToChanneler
-};
+use cswitch::channeler::types::*;
+use cswitch::channeler::messages::*;
+use cswitch::networker::messages::NetworkerToChanneler;
 
 fn main() {
     pretty_env_logger::init().unwrap();
@@ -79,22 +77,21 @@ fn main() {
     );
 
     let mock_networker_receiver_part = channeler_receiver.map_err(|_| ()).for_each(|msg| {
-        match msg {
-            ChannelerToNetworker::ChannelOpened(_) => {
-                println!("Recv ChannelOpened message");
-            }
-            ChannelerToNetworker::ChannelClosed(_) => {
-                println!("Recv ChannelClosed message");
-            }
-            ChannelerToNetworker::ChannelMessageReceived(msg) => {
-                println!("ChannelMessageReceived:");
+            match msg.event {
+                ChannelEvent::Opened => {
+                    println!("Recv ChannelOpened message: {}", msg.channel_index);
+                }
+                ChannelEvent::Closed => {
+                    println!("Recv ChannelClosed message: {}", msg.channel_index);
+                }
+                ChannelEvent::Message(msg) => {
+                    println!("ChannelMessageReceived:");
 
-                let mut raw_msg = msg.message_content;
-                let msg_str = unsafe { ::std::str::from_utf8_unchecked_mut(&mut raw_msg) };
+                    let msg_str = unsafe { ::std::str::from_utf8_unchecked(&msg) };
 
-                println!("{}", msg_str);
+                    println!("{}", msg_str);
+                }
             }
-        }
         Ok(())
     });
 
@@ -142,11 +139,9 @@ fn main() {
                         };
 
                         let neighbor_info = ChannelerNeighborInfo {
-                            neighbor_address: ChannelerAddress {
-                                socket_addr: addr,
-                                neighbor_public_key,
-                            },
-                            max_channels: 8u32,
+                            public_key: neighbor_public_key,
+                            socket_addr: addr,
+                            max_channels: 3u32,
                         };
 
                         let message = NetworkerToChanneler::AddNeighbor {
@@ -193,14 +188,14 @@ fn main() {
 
                         let neighbor_public_key = identity.get_public_key();
 
-                        let token = items[2].parse::<u32>().unwrap();
+                        let channel_index = items[2].parse::<u32>().unwrap();
 
-                        let content = Vec::from(items[3..].join(" ").as_bytes());
+//                        let content = Vec::from(items[3..].join(" ").as_bytes());
 
                         let message = NetworkerToChanneler::SendChannelMessage {
-                            token,
                             neighbor_public_key,
-                            content,
+                            channel_index,
+                            content: Bytes::from(items[3..].join(" ").as_bytes()),
                         };
 
                         if channeler_sender.try_send(message).is_err() {
@@ -237,7 +232,7 @@ Currently supported command:
        add neighbor, generate using FixedByteRandom
 2. del [fixed byte: u8]
        del neighbor, generate using FixedByteRandom
-3. send [fixed byte: u8]  [token: u32]  [content]
+3. send [fixed byte: u8]  [channelIndex: u32]  [content]
        send message to neighbor via token channel with content
 ====================================================================
     "#;

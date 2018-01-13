@@ -165,7 +165,7 @@ impl Channel {
         let rng = SystemRandom::new();
 
         // TODO: Add debug assert here to check the neighbor public kety and the channel index
-        // let neighbors_for_task = neighbors.clone();
+        let _neighbors_for_task = neighbors.clone();
         let sm_client_for_task = sm_client.clone();
         // Precompute here because the `SystemRandom` not implement
         // `Clone` trait but we need this value inside the `Future`
@@ -615,10 +615,9 @@ impl Future for ChannelNew {
             match mem::replace(&mut self.state, ChannelNewState::Empty) {
                 ChannelNewState::Empty => unreachable!("invalid state"),
                 ChannelNewState::InitChannel(mut init_channel_task) => {
-                    trace!("ChannelNewState::InitialChannel");
-
                     match init_channel_task.poll()? {
                         Async::Ready((init_active, init_passive, tx, rx)) => {
+                            trace!("ChannelNewState::InitialChannel [Ready]");
                             let remote_public_key: PublicKey;
                             let sent_rand_value: RandValue;
                             let recv_rand_value: RandValue;
@@ -650,19 +649,19 @@ impl Future for ChannelNew {
                             self.state = ChannelNewState::Exchange(Box::new(exchange_task));
                         }
                         Async::NotReady => {
+                            trace!("ChannelNewState::InitialChannel [Not Ready]");
                             self.state = ChannelNewState::InitChannel(init_channel_task);
                             return Ok(Async::NotReady);
                         }
                     }
                 }
                 ChannelNewState::Exchange(mut exchange_task) => {
-                    trace!("ChannelNewState::Exchange");
-
                     debug_assert!(self.channel_index.is_some());
                     debug_assert!(self.remote_public_key.is_some());
 
                     match exchange_task.poll()? {
                         Async::Ready((sent_xchg, recv_xchg, my_privete_key, tx, rx)) => {
+                            trace!("ChannelNewState::Exchange       [Ready]");
                             // Combine self private key, received public key
                             // and received key salt to derive symmetric key
                             // for sending data
@@ -713,7 +712,9 @@ impl Future for ChannelNew {
                             return Ok(Async::Ready((channel_index, inner_tx, channel)));
                         }
                         Async::NotReady => {
+                            trace!("ChannelNewState::Exchange       [Not Ready]");
                             self.state = ChannelNewState::Exchange(exchange_task);
+                            return Ok(Async::NotReady);
                         }
                     }
                 }

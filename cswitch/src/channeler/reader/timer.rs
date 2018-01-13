@@ -78,164 +78,168 @@ impl TimerReader {
         let sm_client_for_task = self.sm_client.clone();
         let networker_sender_for_task = self.inner_tx.clone();
 
-        let retry_conn_task = self.neighbors.clone().lock()
-            .map_err(|_: ()| TimerReaderError::FutMutex)
-            .and_then(move |mut neighbors| {
-                let mut retry_conn_tasks = Vec::new();
+        let retry_conn_task = self.neighbors.acquire(move |mut neighbors| {
+            let mut need_retry = Vec::new();
 
-                for (neighbor_public_key, mut neighbor) in &mut neighbors.iter_mut() {
-                    let addr = match neighbor.info.neighbor_address.socket_addr {
-                        None => continue,
-                        Some(addr) => addr,
-                    };
-
-                    if neighbor.num_pending_out_conn > 0 {
-                        continue;
-                    }
-
+            for (neighbor_public_key, mut neighbor) in &mut neighbors.iter_mut() {
+                if neighbor.info.socket_addr.is_some() && neighbor.num_pending == 0 {
                     match neighbor.channels.len().cmp(&(neighbor.info.max_channels as usize)) {
-                        Ordering::Greater => unreachable!("number of channel exceeded the maximum"),
                         Ordering::Equal => continue,
+                        Ordering::Greater => {
+                            unreachable!("number of channel exceeded the maximum")
+                        },
                         Ordering::Less => {
                             if neighbor.channels.is_empty() {
-                                if neighbor.remaining_retry_ticks == 0 {
-                                    neighbor.remaining_retry_ticks = CONN_ATTEMPT_TICKS;
+                                if neighbor.retry_ticks == 0 {
+                                    neighbor.retry_ticks = CONN_ATTEMPT_TICKS;
                                 } else {
-                                    neighbor.remaining_retry_ticks -= 1;
+                                    neighbor.retry_ticks -= 1;
                                     continue;
                                 }
                             }
                         }
                     }
 
-                    neighbor.num_pending_out_conn += 1;
-                    retry_conn_tasks.push((addr, neighbor_public_key.clone()));
+                    let mut channel_index: Option<u32> = None;
+                    // Find the minimum index which isn't is used
+                    for index in 0..neighbor.info.max_channels {
+                        if neighbor.channels.get(&index).is_none() {
+                            channel_index = Some(index);
+                            break;
+                        }
+                    }
+
+                    if let Some(index) = channel_index {
+                        let addr = neighbor.info.socket_addr.clone().unwrap();
+                        need_retry.push((addr, neighbor_public_key.clone(), index));
+                        neighbor.num_pending += 1;
+                    }
                 }
+            }
 
-                for (addr, neighbor_public_key) in retry_conn_tasks {
-                    let neighbors = neighbors_for_task.clone();
-                    let mut networker_sender = networker_sender_for_task.clone();
+            for (addr, neighbor_public_key, index) in need_retry {
+                let neighbors = neighbors_for_task.clone();
+                let mut networker_sender = networker_sender_for_task.clone();
 
-                    let new_channel = Channel::connect(
-                        &addr,
-                        &neighbor_public_key,
-                        &neighbors_for_task,
-                        &networker_sender_for_task,
-                        &sm_client_for_task,
-                            &handle_for_task,
-                    ).then(move |res| {
-                        neighbors.lock().map_err(|_: ()| {
-                            error!("failed to add new channel, would not allow retry conn");
-                            ChannelError::FutMutex
-                        }).and_then(move |mut neighbors| {
-                            match neighbors.get_mut(&neighbor_public_key) {
-                                None => {
-                                    Err(ChannelError::Closed("unknown neighbor"))
-                                }
-                                Some(ref_neighbor) => {
-                                    match res {
-                                        Ok((channel_uid, channel_tx, channel)) => {
-                                            if ref_neighbor.channels.is_empty() {
-                                                let msg = ChannelerToNetworker::ChannelOpened(
-                                                    ChannelOpened {
-                                                        remote_public_key: neighbor_public_key,
-                                                        locally_initialized: true,
-                                                    }
-                                                );
-                                                if networker_sender.try_send(msg).is_err() {
-                                                    return Err(ChannelError::SendToNetworkerFailed);
-                                                }
-                                            }
-                                            ref_neighbor.channels.push(
-                                                (channel_uid, channel_tx)
-                                            );
-                                            ref_neighbor.num_pending_out_conn -= 1;
+                let new_channel = Channel::connect(
+                    &addr,
+                    &neighbor_public_key,
+                    index,
+                    &neighbors_for_task,
+                    &networker_sender_for_task,
+                    &sm_client_for_task,
+                    &handle_for_task,
+                ).then(move |conn_result| {
+                    neighbors.acquire(move |mut neighbors| {
+                        let res = match neighbors.get_mut(&neighbor_public_key) {
+                            None => {
+                                Err(ChannelError::Closed("can't find this neighbor"))
+                            }
+                            Some(neighbor) => {
+                                neighbor.num_pending -= 1;
+                                match conn_result {
+                                    Ok((channel_index, channel_tx, channel)) => {
+                                        let msg = ChannelerToNetworker {
+                                            remote_public_key: neighbor_public_key,
+                                            channel_index: channel_index,
+                                            event: ChannelEvent::Opened
+                                        };
+
+                                        if networker_sender.try_send(msg).is_err() {
+                                            Err(ChannelError::SendToNetworkerFailed)
+                                        } else {
+                                            neighbor.channels.insert(channel_index, channel_tx);
                                             Ok(channel)
                                         }
-                                        Err(e) => {
-                                            ref_neighbor.num_pending_out_conn -= 1;
-                                            Err(e)
-                                        }
+                                    }
+                                    Err(e) => {
+                                        Err(e)
                                     }
                                 }
                             }
-                        })
-                    });
+                        };
 
-                    let handle_for_channel = handle_for_task.clone();
+                        match res {
+                            Ok(channel) => Ok((neighbors, channel)),
+                            Err(e) => Err((Some(neighbors), e))
+                        }
+                    }).map_err(|e| {
+                        error!("failed to attempt a new connection: {:?}", e);
+                        ()
+                    })
+                });
 
-                    handle_for_task.spawn(
-                        new_channel.map_err(|e| {
-                            error!("failed to attempt a new connection: {:?}", e);
-                            ()
-                        }).and_then(move |channel| {
-                            handle_for_channel.spawn(channel.map_err(|_| ()));
-                            Ok(())
-                        })
-                    );
-                }
+                let handle_for_channel = handle_for_task.clone();
 
-                Ok(())
-            });
+                handle_for_task.spawn(
+                    new_channel.and_then(move |channel| {
+                        handle_for_channel.spawn(channel.map_err(|_| ()));
+                        Ok(())
+                    })
+                );
+            }
 
-        self.handle.spawn(retry_conn_task.map_err(|_| ()));
+            Ok((neighbors, ()))
+        }).map_err(|_: AsyncMutexError<()>| {
+            error!("retry conn failed");
+        });
+
+        self.handle.spawn(retry_conn_task);
     }
 
     #[inline]
     fn broadcast_tick(&self) {
-        let handle = self.handle.clone();
-        let networker_tx = self.inner_tx.clone();
-        let mutex_neighbors = self.neighbors.clone();
+        let handle_for_task = self.handle.clone();
+        let networker_sender_for_task = self.inner_tx.clone();
+        let neighbor_for_task = self.neighbors.clone();
 
-        let task = self.neighbors.acquire(move |mut neighbors| {
-            for (ref_public_key, mut neighbor) in neighbors.iter_mut() {
-                for &(ref_channel_uuid, ref_channel_tx) in neighbor.channels.iter() {
-                    let channel_uuid = ref_channel_uuid.clone();
+        let task = self.neighbors.acquire(move |neighbors| {
+            for (public_key, neighbor) in neighbors.iter() {
+                for (channel_index, channel_tx) in neighbor.channels.iter() {
+                    let channel_index = *channel_index;
+                    let handle_for_subtask = handle_for_task.clone();
+                    let neighbor_public_key = public_key.clone();
+                    let neighbors_for_subtask = neighbor_for_task.clone();
+                    let networker_sender_for_subtask = networker_sender_for_task.clone();
 
-                    let task = ref_channel_tx.clone().send(ToChannel::TimeTick).map_err(|_e| {
-                        info!("failed to send ticks to channel: {:?}, removing", channel_uuid);
+                    let task = channel_tx.clone().send(ToChannel::TimeTick).map_err(move |_e| {
+                        info!("failed to send ticks to channel: {:?}, removing", channel_index);
 
-                        // The task to remove channel
-                        let task_remove_channel = mutex_neighbors.acquire(|mut neighbors| {
-                            match neighbors.get_mut(ref_public_key) {
+                        neighbors_for_subtask.acquire(move |mut neighbors| {
+                            match neighbors.get_mut(&neighbor_public_key) {
                                 None => {
                                     info!("nonexistent neighbor");
                                 }
                                 Some(neighbor) => {
-                                    neighbor.channels.retain(|&(uuid, _)| {
-                                        uuid != channel_uuid
+                                    neighbor.channels.retain(|index, _| {
+                                        *index != channel_index
                                     });
 
-                                    info!("channel {:?} removed", channel_uuid);
+                                    info!("channel {:?} removed", channel_index);
 
-                                    // Notify the Networker if there is no active channel
-                                    if neighbor.channels.is_empty() {
-                                        let msg = ChannelerToNetworker {
-                                            remote_public_key: ref_public_key.clone(),
-                                            channel_index: 0,
-                                            event: ChannelEvent::Closed,
-                                        };
+                                    let msg = ChannelerToNetworker {
+                                        remote_public_key: neighbor_public_key,
+                                        channel_index: channel_index,
+                                        event: ChannelEvent::Closed,
+                                    };
 
-                                        let task_notify = networker_tx
-                                            .send(msg)
-                                            .map_err(|_| {
-                                                warn!("failed to notify networker");
-                                            })
-                                            .and_then(|_| Ok(()));
+                                    let task_notify = networker_sender_for_subtask
+                                        .send(msg)
+                                        .map_err(|_| {
+                                            warn!("failed to notify networker");
+                                        })
+                                        .and_then(|_| Ok(()));
 
-                                        handle.spawn(task_notify);
-                                    }
+                                    handle_for_subtask.spawn(task_notify);
                                 }
                             }
                             Ok((neighbors, ()))
-                        }).map_err(|_: AsyncMutexError<()>| {
-                            info!("failed to remove dead channel: {:?}", channel_uuid);
-                        });
+                        }).map_err(move |_: AsyncMutexError<()>| {
+                            info!("failed to remove dead channel: {:?}", channel_index);
+                        })
+                    }).then(|_| Ok(()));
 
-                        handle.spawn(task_remove_channel);
-                    });
-
-                    handle.spawn(task);
+                    handle_for_task.spawn(task);
                 }
             }
 

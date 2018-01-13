@@ -70,7 +70,7 @@ impl NetworkerReader {
                     info,
                     num_pending: 0,
                     retry_ticks: 0,
-                    channels: Vec::new(),
+                    channels: HashMap::new(),
                 });
             Ok((neighbors, ()))
         })
@@ -103,22 +103,25 @@ impl NetworkerReader {
         let task = self.neighbors.acquire(move |mut neighbors| {
             match neighbors.get_mut(&public_key) {
                 None => {
-                    info!(
+                    warn!(
                         "nonexistent neighbor: {:?}, message would be discard",
                         public_key
                     );
                 }
                 Some(neighbor) => {
-                    if neighbor.channels.is_empty() {
-                        debug!("no opened channel, failed to send message");
-                    } else {
-                        let index = (index as usize) % neighbor.channels.len();
-                        let sender = &mut neighbors.channels[index].1;
-                        let message = ToChannel::SendMessage(content);
+                    match neighbor.channels.get_mut(&index) {
+                        None => {
+                            warn!(
+                                "unknown channel index: {:?}, message would be discard",
+                                index
+                            );
+                        }
+                        Some(sender) => {
+                            let message = ToChannel::SendMessage(content);
 
-                        // FIXME: Use backpressure strategy here?
-                        if sender.try_send(message).is_err() {
-                            error!("failed to send message to channel, message will be dropped!");
+                            if sender.try_send(message).is_err() {
+                                error!("failed to send message to channel, message will be dropped!");
+                            }
                         }
                     }
                 }
