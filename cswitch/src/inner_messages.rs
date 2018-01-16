@@ -676,58 +676,44 @@ pub struct NeighborInfo {
     status: NeighborStatus,
 }
 
-//pub enum NetworkerToDatabase {
-//    StoreNeighbor(NeighborInfo),
-//    RemoveNeighbor {
-//        neighbor_public_key: PublicKey,
-//>>>>>>> 74f5a341dfa39f28cef21ffe943594246d51c3e3
-//    },
-//    RequestLoadNeighbors,
-//    StoreInNeighborToken {
-//        neighbor_public_key: PublicKey,
-//<<<<<<< HEAD
-//        token_channel_index: u32,
-//        move_token_message: MoveTokenMessage,
-//        remote_maximum_debt: u64,
-//        local_maximum_debt: u64,
-//        remote_pending_debt: u64,
-//        local_pending_debt: u64,
-//        balance: u64,
-//        local_funds_rand_nonce: Option<RandValue>,
-//        remote_funds_rand_nonce: Option<RandValue>,
-//        closed_local_requests: Vec<Uuid>,
-//    }
-//=======
-//        move_token_message: NeighborMoveToken,
-//        remote_max_debt: u64,
-//        local_max_debt: u64,
-//        remote_pending_debt: u64,
-//        local_pending_debt: u64,
-//        balance: i64,
-//        local_invoice_id: Option<InvoiceId>,
-//        remote_invoice_id: Option<InvoiceId>,
-//        closed_local_requests: Vec<Uid>,
-//        openend_remote_requests: Vec<PendingNeighborRequest>,
-//    },
-//    StoreOutNeighborToken {
-//        neighbor_public_key: PublicKey,
-//        move_token_message: NeighborMoveToken,
-//        remote_max_debt: u64,
-//        local_max_debt: u64,
-//        remote_pending_debt: u64,
-//        local_pending_debt: u64,
-//        balance: i64,
-//        local_invoice_id: Option<InvoiceId>,
-//        remote_invoice_id: Option<InvoiceId>,
-//        opened_local_requests: Vec<PendingNeighborRequest>,
-//        closed_remote_requests: Vec<Uid>,
-//    },
-//    RequestLoadNeighborToken {
-//        neighbor_public_key: PublicKey,
-//        token_channel_index: u32,
-//    },
-//>>>>>>> 74f5a341dfa39f28cef21ffe943594246d51c3e3
-//}
+pub enum NetworkerToDatabase {
+    StoreNeighbor(NeighborInfo),
+    RemoveNeighbor {
+        neighbor_public_key: PublicKey,
+    },
+    RequestLoadNeighbors,
+    StoreInNeighborToken {
+        neighbor_public_key: PublicKey,
+        token_channel_index: u32,
+        move_token_message: NeighborMoveToken,
+        remote_max_debt: u64,
+        local_max_debt: u64,
+        remote_pending_debt: u64,
+        local_pending_debt: u64,
+        balance: i64,
+        local_invoice_id: Option<InvoiceId>,
+        remote_invoice_id: Option<InvoiceId>,
+        closed_local_requests: Vec<Uid>,
+        openend_remote_requests: Vec<PendingNeighborRequest>,
+    },
+    StoreOutNeighborToken {
+        neighbor_public_key: PublicKey,
+        move_token_message: NeighborMoveToken,
+        remote_max_debt: u64,
+        local_max_debt: u64,
+        remote_pending_debt: u64,
+        local_pending_debt: u64,
+        balance: i64,
+        local_invoice_id: Option<InvoiceId>,
+        remote_invoice_id: Option<InvoiceId>,
+        opened_local_requests: Vec<PendingNeighborRequest>,
+        closed_remote_requests: Vec<Uid>,
+    },
+    RequestLoadNeighborToken {
+        neighbor_public_key: PublicKey,
+        token_channel_index: u32,
+    },
+}
 
 pub enum MoveTokenDirection {
     Incoming,
