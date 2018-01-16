@@ -126,6 +126,11 @@ impl Channel {
             .and_then(|(frame, stream)| match frame {
                 Some(frame) => Ok((frame, stream)),
                 None => Err(ChannelError::Closed("connection lost")),
+                    // TODO CR: I suggest that we have an enum instead of a string
+                    // inside ChannelError::Closed.
+                    //
+                    // Is closing the channel really an error? Is there a different way to close
+                    // the Channel gracefully in this case? I'm not sure about this myself yet.
             })
             .and_then(move |(frame, stream)| {
                 InitChannelActive::decode(frame)
@@ -144,6 +149,8 @@ impl Channel {
                     .request_public_key()
                     .map_err(ChannelError::SecurityModule)
                     .and_then(move |public_key| {
+                        // TODO CR: rand_value should be generated only at this point in time.
+                        // Note that currently we precompute it earlier.
                         let init_channel_passive = InitChannelPassive {
                             neighbor_public_key: public_key,
                             channel_rand_value: rand_value,
