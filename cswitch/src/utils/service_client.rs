@@ -73,14 +73,12 @@ impl<S, R> ServiceClient<S, R> {
 
 #[cfg(test)]
 mod tests {
-    extern crate tokio_core;
-
     use super::*;
 
     use std::cell::RefCell;
     use std::rc::Rc;
 
-    use self::tokio_core::reactor::Core;
+    use tokio_core::reactor::Core;
 
     #[test]
     fn test_service_client_sequential() {
