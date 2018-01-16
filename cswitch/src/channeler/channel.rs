@@ -133,6 +133,7 @@ impl Channel {
                     // the Channel gracefully in this case? I'm not sure about this myself yet.
             })
             .and_then(move |(frame, stream)| {
+                // Expects an InitChannelActive message.
                 InitChannelActive::decode(frame)
                     .into_future()                  // TODO CR: Why do we have into_future() here? Interesting.
                     .map_err(ChannelError::Schema)
@@ -255,6 +256,9 @@ impl Channel {
         ChannelNew {
             state: ChannelNewState::InitChannel(Box::new(init_channel_task)),
             timeout: Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
+                // TODO CR: The Timer module should be the only source of time. We should use the
+                // timer module to achieve timeout instead of time::Duration::from_secs. This is
+                // important so that we will be able to write tests the simulate the passage of time.
             rng,
             sm_client: sm_client.clone(),
             remote_public_key: None,
