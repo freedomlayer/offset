@@ -74,7 +74,7 @@ struct RequestSendMessageTran {
         route @1: NeighborsRoute;
         requestContent :union {
                 commMeans @2: Void;
-                encrypted @3: Data;
+                encrypted @3: EncMessage;
         }
         maxResponseLength @4: UInt32;
         processingFeeProposal @5: UInt64;
@@ -91,12 +91,16 @@ struct ResponseSendMessageTran {
         #   "MESSAGE_SUCCESS" ||
         #   requestId ||
         #   sha512/256(route) ||
-        #   sha512/256(requestContent) ||
+        #   hash(requestContent) ||
         #   maxResponseLength ||
         #   processingFeeProposal ||
         #   creditsPerByteProposal || 
         #   sha512/256(responseContent)
         #   randNonce)
+        #
+        # Where hash(requestContent) = 
+        #    sha512/256("commMeans") or 
+        #    sha512/256("encrypted" || EncMessage)
 }
 
 struct FailedSendMessageTran {
