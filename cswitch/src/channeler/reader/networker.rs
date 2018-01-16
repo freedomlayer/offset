@@ -13,7 +13,7 @@ use channeler::messages::ToChannel;
 
 use networker::messages::NetworkerToChanneler;
 
-use utils::crypto::identity::PublicKey;
+use crypto::identity::PublicKey;
 
 pub enum NetworkerReaderError {
     MessageReceiveFailed,

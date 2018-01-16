@@ -14,11 +14,11 @@ use tokio_core::reactor::{Handle, Timeout};
 use futures::stream::{SplitSink, SplitStream};
 
 use utils::{AsyncMutex, AsyncMutexError};
-use utils::crypto::rand_values::RandValue;
-use utils::crypto::dh::{DhPrivateKey, Salt};
-use utils::crypto::identity::{verify_signature, PublicKey};
-use utils::crypto::sym_encrypt::{Decryptor, EncryptNonceCounter, Encryptor, SymEncryptError};
-use security::client::{SecurityModuleClient, SecurityModuleClientError};
+use crypto::rand_values::RandValue;
+use crypto::dh::{DhPrivateKey, Salt};
+use crypto::identity::{verify_signature, PublicKey};
+use crypto::sym_encrypt::{Decryptor, EncryptNonceCounter, Encryptor, SymEncryptError};
+use security_module::client::{SecurityModuleClient, SecurityModuleClientError};
 
 use schema::{Schema, SchemaError};
 use schema::channeler::{deserialize_message, serialize_message};

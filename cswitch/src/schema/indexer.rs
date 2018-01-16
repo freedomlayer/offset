@@ -501,7 +501,7 @@ mod tests {
 
     use self::test::Bencher;
 
-    use utils::crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
+    use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
 
     use indexer::types::{IndexingProviderId, IndexingProviderStateHash, INDEXING_PROVIDER_ID_LEN,
                          INDEXING_PROVIDER_STATE_HASH_LEN};

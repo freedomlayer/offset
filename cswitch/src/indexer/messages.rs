@@ -1,4 +1,4 @@
-use utils::crypto::identity::PublicKey;
+use crypto::identity::PublicKey;
 
 use super::types::{FriendsRouteWithCapacity, IndexerRoute, IndexingProviderId, IndexingProviderStateHash,
                    NeighborsRoute, StateChainLink};

@@ -4,7 +4,7 @@ use futures::prelude::*;
 use futures::sync::{mpsc, oneshot};
 
 use utils::CloseHandle;
-use utils::crypto::identity::Identity;
+use crypto::identity::Identity;
 
 pub mod client;
 pub mod messages;
@@ -77,7 +77,7 @@ impl<I: Identity> SecurityModule<I> {
     /// Process a request, and produce a response.
     fn process_request(&self, request: ToSecurityModule) -> FromSecurityModule {
         match request {
-            ToSecurityModule::RequestSign { message } => FromSecurityModule::ResponseSign {
+            ToSecurityModule::RequestSignature { message } => FromSecurityModule::ResponseSignature {
                 signature: self.identity.sign_message(&message),
             },
             ToSecurityModule::RequestPublicKey {} => FromSecurityModule::ResponsePublicKey {
@@ -230,13 +230,13 @@ impl<I: Identity> Future for SecurityModule<I> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // use utils::crypto::uid::gen_uid;
-    use utils::crypto::identity::{verify_signature, SoftwareEd25519Identity};
 
     use ring;
     use rand::{Rng, StdRng};
     use tokio_core::reactor::Core;
     use ring::test::rand::FixedByteRandom;
+
+    use crypto::identity::{verify_signature, SoftwareEd25519Identity};
 
     #[test]
     fn test_security_module_consistent_public_key() {
@@ -274,8 +274,7 @@ mod tests {
         handle.spawn(sm.then(|_| Ok(())));
 
         let public_key = core.run(sm_client.request_public_key()).unwrap();
-        let signature = core.run(sm_client.clone().request_sign(my_message.to_vec()))
-            .unwrap();
+        let signature = core.run(sm_client.clone().request_sign(my_message.to_vec())).unwrap();
 
         assert!(verify_signature(&my_message[..], &public_key, &signature));
     }

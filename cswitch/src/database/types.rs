@@ -1,27 +1,24 @@
-use bytes::Bytes;
-
-use utils::crypto::identity::PublicKey;
-use utils::crypto::rand_values::RandValue;
-use utils::crypto::uuid::Uuid;
+use crypto::identity::PublicKey;
+use crypto::rand_values::RandValue;
+use crypto::uuid::Uuid;
+use crypto::hash::HashResult;
 
 use funder::types::{InvoiceId, FunderTokenChannelTransaction};
 use indexer::messages::RoutesToIndexer;
-use networker::types::NetworkerTokenChannelTransaction;
+//use networker::types::NetworkerTokenChannelTransaction;
 use indexer::types::{FriendsRouteWithCapacity, IndexingProviderId, NeighborsRoute, StateChainLink};
 
 /// The request type.
 #[derive(Clone, Copy, Debug)]
-pub enum RequestType {
+pub enum NeighborRequestType {
     CommMeans = 0,
     Encrypted = 1,
 }
 
-/// Request direction.
+/// Indicate the direction of the move token message.
 #[derive(Clone, Copy, Debug)]
-pub enum RequestDirection {
-    /// Indicate the request is an incoming request.
+pub enum MoveTokenDirection {
     Incoming = 0,
-    /// Indicate the request is an outgoing request.
     Outgoing = 1,
 }
 
@@ -29,7 +26,7 @@ pub enum RequestDirection {
 pub type RequestId = Uuid;
 
 /// The neighbor's information from database.
-pub struct NeighborConfig {
+pub struct NeighborInfoFromDB {
     pub neighbor_public_key:    PublicKey,
     pub wanted_remote_max_debt: u64,
     pub wanted_max_channels:    u32,
@@ -37,14 +34,14 @@ pub struct NeighborConfig {
 }
 
 /// The friend's information from database.
-pub struct FriendConfig {
+pub struct FriendInfoFromDB {
     pub friend_public_key:      PublicKey,
     pub wanted_remote_max_debt: u128,
     pub status:                 u8,
 }
 
 /// The indexing provider's information from database.
-pub struct IndexingProviderConfig {
+pub struct IndexingProviderInfoFromDB {
     pub indexing_provider_id: IndexingProviderId,
     pub last_routes:          RoutesToIndexer,
     pub chain_link:           StateChainLink,
@@ -54,7 +51,7 @@ pub struct IndexingProviderConfig {
 pub struct PendingNeighborRequest {
     pub request_id:                RequestId,
     pub route:                     NeighborsRoute,
-    pub request_type:              RequestType,
+    pub request_type: NeighborRequestType,
     pub request_content_hash:      HashResult,
     pub max_response_length:       u32,
     pub processing_fee_proposal:   u64,

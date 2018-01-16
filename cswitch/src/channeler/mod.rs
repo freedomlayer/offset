@@ -13,9 +13,9 @@ use futures::sync::{mpsc, oneshot};
 use tokio_core::reactor::Handle;
 use tokio_core::net::{TcpListener, Incoming};
 
-use utils::crypto::identity::PublicKey;
+use crypto::identity::PublicKey;
 use utils::{AsyncMutex, AsyncMutexError, CloseHandle};
-use security::client::SecurityModuleClient;
+use security_module::client::SecurityModuleClient;
 
 use timer::messages::FromTimer;
 use networker::messages::NetworkerToChanneler;

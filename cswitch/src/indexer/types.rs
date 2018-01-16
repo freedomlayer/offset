@@ -1,7 +1,7 @@
-use utils::crypto::identity::{PublicKey, Signature};
+use crypto::identity::{PublicKey, Signature};
 
 pub const INDEXING_PROVIDER_STATE_HASH_LEN: usize = 32;
-pub const INDEXING_PROVIDER_ID_LEN: usize = 16;
+pub const INDEXING_PROVIDER_ID_LEN: usize         = 16;
 
 // A hash of a full link in an indexing provider chain
 #[derive(Debug, Eq, PartialEq, Clone)]

@@ -1,8 +1,8 @@
 use bytes::Bytes;
 
-use utils::crypto::dh::{DhPublicKey, Salt};
-use utils::crypto::identity::{PublicKey, Signature};
-use utils::crypto::rand_values::RandValue;
+use crypto::dh::{DhPublicKey, Salt};
+use crypto::identity::{PublicKey, Signature};
+use crypto::rand_values::RandValue;
 
 pub use schema::channeler_capnp::MessageType;
 

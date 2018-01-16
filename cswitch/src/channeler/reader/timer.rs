@@ -8,8 +8,8 @@ use futures::sync::{mpsc, oneshot};
 use tokio_core::reactor::Handle;
 
 use utils::{AsyncMutex, AsyncMutexError, CloseHandle};
-use utils::crypto::identity::PublicKey;
-use security::client::SecurityModuleClient;
+use crypto::identity::PublicKey;
+use security_module::client::SecurityModuleClient;
 
 use timer::messages::FromTimer;
 use channeler::channel::{Channel, ChannelError};

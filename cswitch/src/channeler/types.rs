@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 
 use futures::sync::mpsc;
 
-use utils::crypto::identity::PublicKey;
+use crypto::identity::PublicKey;
 
 use super::messages::ToChannel;
 

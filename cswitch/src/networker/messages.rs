@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use utils::crypto::identity::PublicKey;
+use crypto::identity::PublicKey;
 use channeler::types::ChannelerNeighborInfo;
 
 /// The internal message sent from `Networker` to `Channeler`.

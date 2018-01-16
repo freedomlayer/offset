@@ -183,12 +183,12 @@ impl<'a> Schema<'a> for EncryptMessage {
 mod tests {
     use super::*;
 
-    use utils::crypto::rand_values::RandValue;
-    use utils::crypto::dh::{DhPublicKey, Salt};
-    use utils::crypto::identity::{PublicKey, Signature};
+    use crypto::dh::{DhPublicKey, Salt};
+    use crypto::identity::{PublicKey, Signature};
+    use crypto::rand_values::RandValue;
 
     #[test]
-    fn test_init_channel_active() {
+    fn init_channel_active() {
         let neighbor_public_key = PublicKey::from_bytes(&[0x03; 32]).unwrap();
         let channel_rand_value = RandValue::from_bytes(&[0x06; 16]).unwrap();
 
@@ -202,7 +202,7 @@ mod tests {
     }
 
     #[test]
-    fn test_init_channel_passive() {
+    fn init_channel_passive() {
         let neighbor_public_key = PublicKey::from_bytes(&[0x03; 32]).unwrap();
         let channel_rand_value = RandValue::from_bytes(&[0x06; 16]).unwrap();
 
@@ -215,7 +215,7 @@ mod tests {
     }
 
     #[test]
-    fn test_exchange() {
+    fn exchange() {
         let comm_public_key = DhPublicKey::from_bytes(&[0x13; 32]).unwrap();
         let key_salt = Salt::from_bytes(&[0x16; 32]).unwrap();
         let signature = Signature::from_bytes(&[0x19; 64]).unwrap();
@@ -230,7 +230,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encrypt_message() {
+    fn encrypt_message() {
         let inc_counter: u64 = 1 << 50;
         let rand_padding = Bytes::from_static(&[0x23; 32]);
         let message_type = MessageType::User;
@@ -247,7 +247,7 @@ mod tests {
     }
 
     #[test]
-    fn test_message() {
+    fn message() {
         let in_content = Bytes::from_static(&[0x12; 3456]);
 
         let serialized_message = serialize_message(in_content.clone()).unwrap();

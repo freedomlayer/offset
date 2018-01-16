@@ -44,9 +44,9 @@ use std::io;
 use bytes::{BigEndian, Buf, BufMut, Bytes, BytesMut};
 use capnp::struct_list;
 
-use utils::crypto::rand_values::RandValue;
-use utils::crypto::dh::{DhPublicKey, Salt};
-use utils::crypto::identity::{PublicKey, Signature};
+use crypto::rand_values::RandValue;
+use crypto::dh::{DhPublicKey, Salt};
+use crypto::identity::{PublicKey, Signature};
 
 use indexer::types::{IndexingProviderId, IndexingProviderStateHash};
 
