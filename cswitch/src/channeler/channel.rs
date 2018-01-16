@@ -134,7 +134,7 @@ impl Channel {
             })
             .and_then(move |(frame, stream)| {
                 InitChannelActive::decode(frame)
-                    .into_future()
+                    .into_future()                  // TODO CR: Why do we have into_future() here? Interesting.
                     .map_err(ChannelError::Schema)
                     .and_then(|init_channel_active| {
                         ChannelNew::create_validation_task(
