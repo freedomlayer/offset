@@ -44,7 +44,7 @@ pub enum ChannelError {
     SendToRemoteFailed,
     RecvFromInnerFailed,
     KeepAliveTimeout,
-    Closed(&'static str),
+    Closed(&'static str),           // TODO CR - What is this string?
 }
 
 /// The encrypted channel used to communicate with neighbors.
@@ -56,7 +56,11 @@ pub struct Channel {
     // The index of this channel
     channel_index: u32,
 
-    os_rng: OsRng,
+    os_rng: OsRng,                  // TODO CR: We should take R: SecureRandom instead of the specific OsRng.
+                                    // See for example the implementation of RandValue::new().
+                                    // Using the more generic SecureRandom will allow us to later
+                                    // test this module. On the other hand, if we have OsRng, it
+                                    // can be very difficult to have deterministic tests.
 
     // The inner sender and receiver
     inner_sender: mpsc::Sender<ChannelerToNetworker>,
@@ -73,26 +77,45 @@ pub struct Channel {
     encryptor: Encryptor,
     decryptor: Decryptor,
 
-    send_ka_ticks: usize,
+    send_ka_ticks: usize,           // TODO CR: What is ka? 
+                                    // We should either use a more descriptive name or 
+                                    // add a comment about this here.
     recv_ka_ticks: usize,
 }
 
 impl Channel {
-    /// Create a new channel from a incoming socket.
+    /// Create a new channel from an incoming socket.
     pub fn from_socket(
         socket: TcpStream,
-        neighbors: &AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
+        neighbors: &AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,      
+                    // TODO CR: 
+                    // Can we possibly use something weaker than AsyncMutex for neighbors, for example,
+                    // RefCell? This is assuming neighbors does not contain any Futures related
+                    // items inside.
         networker_tx: &mpsc::Sender<ChannelerToNetworker>,
         sm_client: &SecurityModuleClient,
         handle: &Handle,
     ) -> ChannelNew {
+        // TODO CR: An argument of type R: SecureRandom should be given as argument to this function.
+        // Having SystemRandom::new() being called here will cause tests to be non deterministic.
+        // We should have just one SystemRandom::new() call for the whole application, and hand
+        // references to this instance to all the components.
+        //
+        // See also the first comment block on:
+        // https://github.com/briansmith/ring/blob/master/src/rand.rs
+        //      "An application should create a single `SystemRandom` and then use it for
+        //      all randomness generation. Functions that generate random bytes should take
+        //      a `&SecureRandom` parameter instead of instantiating their own"
         let rng = SystemRandom::new();
 
         let neighbors_for_task = neighbors.clone();
         let sm_client_for_task = sm_client.clone();
-        // Precompute here because the `SystemRandom` not implement
+        // Precompute here because the `SystemRandom` does not implement
         // `Clone` trait but we need this value inside the `Future`
         // to create a new `InitChannelPassive` message
+        //
+        // TODO CR: If it happens to be important to clone SecureRandom, we can make a
+        // wrapper type with some kind of Rc (Ref count) to wrap it and clone it around.
         let rand_value = RandValue::new(&rng);
 
         let (sink, stream) = socket.framed(Codec::new()).split();
