@@ -103,7 +103,7 @@ impl Future for TimerModule {
     type Error = TimerError;
 
     fn poll(&mut self) -> Poll<(), TimerError> {
-        let timer_poll = self.inner.poll().map_err(|e| TimerError::Interval(e));
+        let timer_poll = self.inner.poll().map_err(TimerError::Interval);
 
         if try_ready!(timer_poll).is_some() {
             for client in &mut self.clients {

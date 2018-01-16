@@ -10,8 +10,6 @@ use networker::types::NetworkerTokenChannelTransaction;
 use indexer::types::{FriendsRouteWithCapacity, IndexingProviderId, NeighborsRoute, StateChainLink};
 
 /// The request type.
-///
-// TODO: More explanation here
 #[derive(Clone, Copy, Debug)]
 pub enum RequestType {
     CommMeans = 0,

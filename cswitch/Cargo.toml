@@ -17,8 +17,8 @@ log = "0.4"
 pretty_env_logger = "0.1"
 
 rand = "0.4"
-ring = "0.12"
-untrusted = "0.5"
+ring = "0.13.0-alpha"
+untrusted = "0.6"
 crossbeam = "0.3"
 
 bytes = "0.4"
@@ -30,7 +30,7 @@ capnp = "0.8"
 rusqlite = "0.13"
 
 [dependencies.clippy]
-version = "0.0.176"
+version = "*"
 optional = true
 
 [dependencies.byteorder]
