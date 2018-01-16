@@ -32,9 +32,10 @@ pub mod utils;
 
 // Modules
 pub mod timer;
+//pub mod funder;
 pub mod indexer;
-pub mod security;
 //pub mod database;
+pub mod security;
 pub mod channeler;
 pub mod networker;
 pub mod app_manager;

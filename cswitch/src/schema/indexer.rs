@@ -495,8 +495,11 @@ impl<'a> Schema<'a> for RoutesToIndexer {
 
 #[cfg(test)]
 mod tests {
+    extern crate test;
     use super::*;
     use rand::random;
+
+    use self::test::Bencher;
 
     use utils::crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
 
@@ -587,6 +590,19 @@ mod tests {
         let in_neighbors_route = create_dummy_neighbors_route();
 
         test_encode_decode!(NeighborsRoute, in_neighbors_route);
+    }
+
+    #[bench]
+    fn bench_neighbors_route(b: &mut Bencher) {
+        let in_neighbors_route = create_dummy_neighbors_route();
+
+        let len = in_neighbors_route.encode().unwrap().len();
+
+        println!("Len: {}", len);
+
+        b.iter(|| {
+            test_encode_decode!(NeighborsRoute, in_neighbors_route);
+        });
     }
 
     #[test]

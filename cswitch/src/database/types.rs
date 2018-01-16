@@ -1,51 +1,72 @@
-// TODO: Move inner_messages's type into its module.
-use inner_messages::{IndexingProviderId, NeighborsRoute, FriendsRoute,
-                     StateChainLink};
+use bytes::Bytes;
 
-use networker::types::TokenChannelTransaction;
+use utils::crypto::identity::PublicKey;
+use utils::crypto::rand_values::RandValue;
+use utils::crypto::uuid::Uuid;
 
-use schema::indexer::IndexerRoute;
+use funder::types::{InvoiceId, FunderTokenChannelTransaction};
+use indexer::messages::RoutesToIndexer;
+use networker::types::NetworkerTokenChannelTransaction;
+use indexer::types::{FriendsRouteWithCapacity, IndexingProviderId, NeighborsRoute, StateChainLink};
 
+/// The request type.
+///
+// TODO: More explanation here
+#[derive(Clone, Copy, Debug)]
+pub enum RequestType {
+    CommMeans = 0,
+    Encrypted = 1,
+}
+
+/// Request direction.
+#[derive(Clone, Copy, Debug)]
+pub enum RequestDirection {
+    /// Indicate the request is an incoming request.
+    Incoming = 0,
+    /// Indicate the request is an outgoing request.
+    Outgoing = 1,
+}
+
+/// The universal unique identifier used to identify a request.
+pub type RequestId = Uuid;
+
+/// The neighbor's information from database.
 pub struct NeighborConfig {
-    neighbor_public_key: PublicKey,
-    remote_maximum_debt: u64,
-    maximum_channel:     u32,
-    is_enable:           bool,
+    pub neighbor_public_key:    PublicKey,
+    pub wanted_remote_max_debt: u64,
+    pub wanted_max_channels:    u32,
+    pub status:                 u8,
 }
 
-
-pub struct PendingLocalNeighborRequest {
-    request_id:              Uid,
-    route:                   NeighborsRoute,
-    request_content_hash:    [u8; 32],
-    maximum_response_length: u32,
-    processing_fee_proposal: u64,
-    half_credits_per_byte_proposal: u32,
-}
-
-pub struct MoveTokenMessage {
-    transactions: Vec<TokenChannelTransaction>,
-    old_token:    Bytes,
-    rand_nonce:   RandValue,
-}
-
+/// The friend's information from database.
 pub struct FriendConfig {
-    friend_public_key:   PublicKey,
-    remote_maximum_debt: u128,
-    is_enable:           bool,
+    pub friend_public_key:      PublicKey,
+    pub wanted_remote_max_debt: u128,
+    pub status:                 u8,
 }
 
-pub struct PendingLocalFriendRequest {
-    request_id:                Uid,
-    route:                     FriendsRoute,
-    mediator_payment_proposal: u64,
-    invoice_id:                InvoiceId,
-    destination_payment:       i128,
-}
-
+/// The indexing provider's information from database.
 pub struct IndexingProviderConfig {
-    indexing_provider_id: IndexingProviderId,
-    last_route:           IndexerRoute,
-    chain_link:           StateChainLink,
-    is_enable:            bool,
+    pub indexing_provider_id: IndexingProviderId,
+    pub last_routes:          RoutesToIndexer,
+    pub chain_link:           StateChainLink,
+    pub status:               u8,
+}
+
+pub struct PendingNeighborRequest {
+    pub request_id:                RequestId,
+    pub route:                     NeighborsRoute,
+    pub request_type:              RequestType,
+    pub request_content_hash:      HashResult,
+    pub max_response_length:       u32,
+    pub processing_fee_proposal:   u64,
+    pub credits_per_byte_proposal: u32,
+}
+
+pub struct PendingFriendRequest {
+    pub request_id:                RequestId,
+    pub route:                     FriendsRouteWithCapacity,
+    pub mediator_payment_proposal: u64,
+    pub invoice_id:                InvoiceId,
+    pub destination_payment:       u128,
 }
