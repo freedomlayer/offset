@@ -34,6 +34,7 @@ pub mod schema_impl;
 
 pub mod channeler;
 pub mod indexer;
+pub mod funder;
 pub mod networker;
 
 #[derive(Debug)]
