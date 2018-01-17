@@ -6,6 +6,7 @@ use utils::crypto::rand_values::RandValue;
 
 pub use schema::channeler_capnp::MessageType;
 
+// TODO CR: Maybe this should have the type usize?
 pub const MAX_PADDING_LEN: u32 = 32;
 
 // ===== Internal interfaces =====
