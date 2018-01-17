@@ -101,6 +101,10 @@ impl Channel {
                     // RefCell? This is assuming neighbors does not contain any Futures related
                     // items inside.
         networker_tx: &mpsc::Sender<ChannelerToNetworker>,
+        // TODO CR: I think that we should change SecurityModuleClient to be a trait instead of a
+        // structure. This will make it easier for us to write tests, because we will be able to
+        // easily replace SecurityModuleClient with a mock SecurityModuleClient. This should be
+        // changed in client.rs of security_module.
         sm_client: &SecurityModuleClient,
         handle: &Handle,
     ) -> ChannelNew {
@@ -657,6 +661,7 @@ impl ChannelNew {
         recv_rand_value: RandValue,
         sink: FramedSink,
         stream: FramedStream,
+        // TODO CR: We should take here rng: R, where R: SecureRandom.
         rng: &SystemRandom,
         sm_client: &SecurityModuleClient,
     ) -> impl Future<
@@ -669,7 +674,15 @@ impl ChannelNew {
         let comm_public_key = comm_private_key.compute_public_key();
 
         // message = (channelRandValue + commPublicKey + keySalt)
+        // TODO CR: What is the meaning of 1024 here?
+        // Whenever we use a magic number, we should have a const that equals this value with a
+        // proper name and some explanation.
         let mut msg = Vec::with_capacity(1024);
+
+        // TODO CR: Could/should we use `msg` of type Bytes instead, like done previously in this
+        // source file? Is this done because of the interface of request_sign? We might be able to
+        // change it if necessary. What do you think? I am not sure I fully understand the
+        // advantages and disadvantages of Vec vs Bytes in this case.
         msg.extend_from_slice(recv_rand_value.as_bytes());
         msg.extend_from_slice(comm_public_key.as_bytes());
         msg.extend_from_slice(key_salt.as_bytes());
@@ -707,7 +720,10 @@ impl ChannelNew {
                     .into_future()
                     .map_err(ChannelError::Schema)
                     .and_then(move |recv_exchange| {
+                        // TODO CR: What is the meaning of 1024 here? See previous comment about
+                        // this.
                         let mut msg = Vec::with_capacity(1024);
+                        // TODO CR: Maybe we should turn this part of code into a function?
                         msg.extend_from_slice(sent_rand_value.as_bytes());
                         msg.extend_from_slice(recv_exchange.comm_public_key.as_bytes());
                         msg.extend_from_slice(recv_exchange.key_salt.as_bytes());
@@ -735,6 +751,11 @@ impl Future for ChannelNew {
             }
 
             match mem::replace(&mut self.state, ChannelNewState::Empty) {
+                // TODO CR: It happened to me more than once that my code did reach this
+                // unreachable!() statement, but I could never see any error, because the error is
+                // swallowed when using futures. Do you have an idea for a solution to this
+                // problem? A bug of this type happened to me with the exact same pattern
+                // (mem::replace ... unreachable!()) with the implementation of AsyncMutex.
                 ChannelNewState::Empty => unreachable!("invalid state"),
                 ChannelNewState::InitChannel(mut init_channel_task) => {
                     match init_channel_task.poll()? {
