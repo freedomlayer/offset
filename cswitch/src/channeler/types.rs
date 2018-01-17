@@ -14,13 +14,6 @@ pub struct ChannelerNeighborInfo {
     pub max_channels: u32,
 }
 
-pub struct NeighborInfo {
-    public_key: PublicKey,
-    socket_addr: Option<SocketAddr>,
-    max_channels: u32,
-    token_channel_capacity: u64,
-}
-
 #[derive(Debug)]
 pub struct ChannelerNeighbor {
     pub info: ChannelerNeighborInfo,
