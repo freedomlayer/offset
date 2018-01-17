@@ -23,8 +23,8 @@ use ring::test::rand::FixedByteRandom;
 use cswitch::channeler::channel::Channel;
 use cswitch::channeler::types::ChannelerNeighbor;
 use cswitch::utils::{AsyncMutex, AsyncMutexError, CloseHandle};
-use cswitch::security::create_security_module;
-use cswitch::utils::crypto::identity::{SoftwareEd25519Identity, PublicKey, Identity};
+use cswitch::security_module::create_security_module;
+use cswitch::crypto::identity::{SoftwareEd25519Identity, PublicKey, Identity};
 
 use cswitch::timer::TimerModule;
 use cswitch::channeler::Channeler;

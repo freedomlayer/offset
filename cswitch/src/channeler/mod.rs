@@ -11,11 +11,11 @@ use futures::prelude::*;
 use futures::sync::{mpsc, oneshot};
 
 use tokio_core::reactor::Handle;
-use tokio_core::net::{TcpListener, Incoming};
+use tokio_core::net::{Incoming, TcpListener};
 
-use utils::crypto::identity::PublicKey;
+use crypto::identity::PublicKey;
 use utils::{AsyncMutex, AsyncMutexError, CloseHandle};
-use security::client::SecurityModuleClient;
+use security_module::client::SecurityModuleClient;
 
 use timer::messages::FromTimer;
 use networker::messages::NetworkerToChanneler;
@@ -31,13 +31,13 @@ use self::types::*;
 use self::messages::*;
 
 use self::channel::{Channel, ChannelError};
-use self::reader::{TimerReader, NetworkerReader};
+use self::reader::{NetworkerReader, TimerReader};
 
 const KEEP_ALIVE_TICKS: usize = 15;
 
 enum ChannelerState {
     Alive,
-    Closing(Box<Future<Item=((), ()), Error=ChannelerError>>),
+    Closing(Box<Future<Item = ((), ()), Error = ChannelerError>>),
     Empty,
 }
 
@@ -58,20 +58,16 @@ pub struct Channeler {
 
 impl Channeler {
     #[inline]
-    fn close(&mut self) -> Box<Future<Item=((), ()), Error=ChannelerError>> {
+    fn close(&mut self) -> Box<Future<Item = ((), ()), Error = ChannelerError>> {
         let timer_reader_close_handle =
             match mem::replace(&mut self.timer_reader_close_handle, None) {
-                None => {
-                    panic!("call close after close handler consumed, something go wrong")
-                }
+                None => panic!("call close after close handler consumed, something go wrong"),
                 Some(timer_reader_close_handle) => timer_reader_close_handle,
             };
 
         let networker_reader_close_handle =
             match mem::replace(&mut self.networker_reader_close_handle, None) {
-                None => {
-                    panic!("call close after close handler consumed, something go wrong")
-                }
+                None => panic!("call close after close handler consumed, something go wrong"),
                 Some(networker_reader_close_handle) => networker_reader_close_handle,
             };
 
@@ -79,8 +75,9 @@ impl Channeler {
         let networker_reader_close_fut = networker_reader_close_handle.close().unwrap();
 
         Box::new(
-            timer_reader_close_fut.join(networker_reader_close_fut)
-                .map_err(|e| e.into())
+            timer_reader_close_fut
+                .join(networker_reader_close_fut)
+                .map_err(|e| e.into()),
         )
     }
 }
@@ -120,59 +117,61 @@ impl Future for Channeler {
                         Async::Ready(Some((socket, _))) => {
                             let neighbors = self.neighbors.clone();
                             let mut networker_sender = self.networker_sender.clone();
-                            let new_channel = Channel::from_socket(
-                                socket,
-                                &self.neighbors,
-                                &self.networker_sender,
-                                &self.sm_client,
-                                &self.handle,
-                            ).and_then(move |(channel_index, channel_tx, channel)| {
-                                let remote_public_key = channel.remote_public_key();
+                            let new_channel =
+                                Channel::from_socket(
+                                    socket,
+                                    &self.neighbors,
+                                    &self.networker_sender,
+                                    &self.sm_client,
+                                    &self.handle,
+                                ).and_then(move |(channel_index, channel_tx, channel)| {
+                                    let remote_public_key = channel.remote_public_key();
 
-                                neighbors.acquire(move |mut neighbors| {
-                                    let res = match neighbors.get_mut(&remote_public_key) {
-                                        None => {
-                                            Err(ChannelError::Closed("can't find this neighbor"))
-                                        }
-                                        Some(neighbor) => {
-                                            let msg = ChannelerToNetworker {
-                                                remote_public_key: remote_public_key,
-                                                channel_index: channel_index,
-                                                event: ChannelEvent::Opened
+                                    neighbors
+                                        .acquire(move |mut neighbors| {
+                                            let res = match neighbors.get_mut(&remote_public_key) {
+                                                None => Err(ChannelError::Closed(
+                                                    "can't find this neighbor",
+                                                )),
+                                                Some(neighbor) => {
+                                                    let msg = ChannelerToNetworker {
+                                                        remote_public_key: remote_public_key,
+                                                        channel_index: channel_index,
+                                                        event: ChannelEvent::Opened,
+                                                    };
+
+                                                    if networker_sender.try_send(msg).is_err() {
+                                                        Err(ChannelError::SendToNetworkerFailed)
+                                                    } else {
+                                                        neighbor
+                                                            .channels
+                                                            .insert(channel_index, channel_tx);
+                                                        Ok(channel)
+                                                    }
+                                                }
                                             };
 
-                                            if networker_sender.try_send(msg).is_err() {
-                                                Err(ChannelError::SendToNetworkerFailed)
-                                            } else {
-                                                neighbor.channels.insert(channel_index, channel_tx);
-                                                Ok(channel)
+                                            match res {
+                                                Ok(channel) => Ok((neighbors, channel)),
+                                                Err(e) => Err((Some(neighbors), e)),
                                             }
-                                        }
-                                    };
-
-                                    match res {
-                                        Ok(channel) => Ok((neighbors, channel)),
-                                        Err(e) => Err((Some(neighbors), e))
-                                    }
-                                }).map_err(|e: AsyncMutexError<ChannelError>| {
-                                    match e {
-                                        AsyncMutexError::Function(e) => e,
-                                        _ => ChannelError::AsyncMutexError,
-                                    }
+                                        })
+                                        .map_err(|e: AsyncMutexError<ChannelError>| match e {
+                                            AsyncMutexError::Function(e) => e,
+                                            _ => ChannelError::AsyncMutexError,
+                                        })
                                 })
-                            }).map_err(|e| {
-                                error!("failed to accept a new connection: {:?}", e);
-                                ()
-                            });
+                                    .map_err(|e| {
+                                        error!("failed to accept a new connection: {:?}", e);
+                                        ()
+                                    });
 
                             let handle_for_channel = self.handle.clone();
 
-                            self.handle.spawn(
-                                new_channel.and_then(move |channel| {
-                                    handle_for_channel.spawn(channel.map_err(|_| ()));
-                                    Ok(())
-                                })
-                            );
+                            self.handle.spawn(new_channel.and_then(move |channel| {
+                                handle_for_channel.spawn(channel.map_err(|_| ()));
+                                Ok(())
+                            }));
                         }
                     }
                 }
@@ -207,12 +206,12 @@ impl Future for Channeler {
 
 impl Channeler {
     pub fn new(
-        addr:               &SocketAddr,
-        handle:             &Handle,
-        timer_receiver:     mpsc::Receiver<FromTimer>,
-        networker_sender:   mpsc::Sender<ChannelerToNetworker>,
+        addr: &SocketAddr,
+        handle: &Handle,
+        timer_receiver: mpsc::Receiver<FromTimer>,
+        networker_sender: mpsc::Sender<ChannelerToNetworker>,
         networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
-        sm_client:          SecurityModuleClient,
+        sm_client: SecurityModuleClient,
     ) -> (CloseHandle, Channeler) {
         let neighbors = AsyncMutex::new(HashMap::<PublicKey, ChannelerNeighbor>::new());
 
@@ -226,19 +225,12 @@ impl Channeler {
             neighbors.clone(),
         );
 
-        handle.spawn(
-            timer_reader.map_err(|_| ())
-        );
+        handle.spawn(timer_reader.map_err(|_| ()));
 
-        let (networker_reader_close_handle, networker_reader) = NetworkerReader::new(
-            handle.clone(),
-            networker_receiver,
-            neighbors.clone(),
-        );
+        let (networker_reader_close_handle, networker_reader) =
+            NetworkerReader::new(handle.clone(), networker_receiver, neighbors.clone());
 
-        handle.spawn(
-            networker_reader.map_err(|_| ())
-        );
+        handle.spawn(networker_reader.map_err(|_| ()));
 
         let channeler = Channeler {
             handle: handle.clone(),

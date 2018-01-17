@@ -154,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_timer_basic() {
-        let mut tm = TimerModule::new(Duration::from_millis(10));
+        let mut tm = TimerModule::new(Duration::from_millis(5));
 
         let mut core = Core::new().unwrap();
 
@@ -170,11 +170,11 @@ mod tests {
             .into_iter()
             .map(move |timer_client| {
                 let mut ticks: u64 = 0;
-                timer_client.take(500).for_each(move |FromTimer::TimeTick| {
+                timer_client.take(1000).for_each(move |FromTimer::TimeTick| {
                     ticks += 1;
-                    // Acceptable accuracy: 10ms (+- 20%)
-                    assert!(now.elapsed() > Duration::from_millis(8 * ticks));
-                    assert!(now.elapsed() < Duration::from_millis(12 * ticks));
+                    // Acceptable accuracy for test: 5ms (+- 40%)
+                    assert!(now.elapsed() > Duration::from_millis(3 * ticks));
+                    assert!(now.elapsed() < Duration::from_millis(7 * ticks));
                     Ok(())
                 })
             })

@@ -1,163 +1,21 @@
-//! The schema module.
-//!
-//! # Introduction
-//!
-//! The module is used to encode/decode data for interchanging between
-//! `CSwitch` nodes.
-//!
-//! Currently, we use [`capnp`][capnp] as the underlying protocol.
-//!
-//! # Data Format
-//!
-//! ## Custom Underlying Types
-//!
-//! We have some custom underlying types in the low-level, they are:
-//!
-//! - `CustomUInt128`: A custom made 128 bit data structure;
-//! - `CustomUInt256`: A custom made 256 bit data structure;
-//! - `CustomUInt512`: A custom made 512 bit data structure;
-//!
-//! We use them widely in communicating, the following is the mapping:
-//!
-//! - `Salt: CustomUInt256`
-//! - `Signature: CustomUInt512`
-//! - `RandValue: CustomUInt128`
-//! - `PublicKey: CustomUInt256`
-//! - `DhPublicKey: CustomUInt256`
-//! - `IndexingProviderId: CustomUInt128`
-//! - `IndexingProviderStateHash: CustomUInt256`
-//!
-//! ## Channeler
-//!
-//! TODO:
-//!
-//! ## Indexer
-//!
-//! TODO:
-//!
-//! [capnp]: https://capnproto.org
-
-// #![deny(warnings)]
-
 use std::io;
+use std::convert::TryFrom;
 
 use bytes::{BigEndian, Buf, BufMut, Bytes, BytesMut};
 use capnp::struct_list;
 
-use utils::crypto::rand_values::RandValue;
-use utils::crypto::dh::{DhPublicKey, Salt};
-use utils::crypto::identity::{PublicKey, Signature};
+use crypto::rand_values::RandValue;
+use crypto::dh::{DhPublicKey, Salt};
+use crypto::identity::{PublicKey, Signature};
 
-use indexer::types::{IndexingProviderId, IndexingProviderStateHash};
+use proto::SchemaError;
+use proto::indexer::{IndexingProviderId, IndexingProviderStateHash};
+
+include_schema!(common_capnp, "common_capnp");
 
 const CUSTOM_UINT128_LEN: usize = 16;
 const CUSTOM_UINT256_LEN: usize = 32;
 const CUSTOM_UINT512_LEN: usize = 64;
-
-/// Include the auto-generated schema files.
-macro_rules! include_schema {
-    ($( $name:ident, $path:expr );*) => {
-        $(
-            // Allow clippy's `Warn` lint group
-            #[allow(unused, clippy)]
-            pub mod $name {
-                include!(concat!(env!("OUT_DIR"), "/schema/", $path, ".rs"));
-            }
-        )*
-    };
-}
-
-include_schema! {
-    common_capnp,    "common_capnp";
-    indexer_capnp,   "indexer_capnp";
-    channeler_capnp, "channeler_capnp"
-}
-
-use common_capnp::{custom_u_int128, custom_u_int256, custom_u_int512};
-
-pub trait Schema<'a>: Sized {
-    type Reader: 'a;
-    type Writer: 'a;
-
-    fn decode(buffer: Bytes) -> Result<Self, SchemaError>;
-    fn encode(&self) -> Result<Bytes, SchemaError>;
-    fn read(from: &Self::Reader) -> Result<Self, SchemaError>;
-    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError>;
-}
-
-macro_rules! inject_default_impl {
-    () => {
-        fn decode(buffer: Bytes) -> Result<Self, SchemaError> {
-            let mut buffer = io::Cursor::new(buffer);
-
-            let reader = serialize_packed::read_message(
-                &mut buffer,
-                ::capnp::message::ReaderOptions::new()
-            )?;
-
-            Self::read(&reader.get_root()?)
-        }
-
-        fn encode(&self) -> Result<Bytes, SchemaError> {
-            let mut builder = ::capnp::message::Builder::new_default();
-
-            match self.write(&mut builder.init_root())? {
-                () => {
-                    let mut serialized_msg = Vec::new();
-
-                    serialize_packed::write_message(
-                        &mut serialized_msg,
-                        &builder
-                    )?;
-
-                    Ok(Bytes::from(serialized_msg))
-                }
-            }
-        }
-    };
-}
-
-#[cfg(test)]
-macro_rules! test_encode_decode {
-        ($type: ident, $in: ident) => {
-            let msg = $in.encode().unwrap();
-            let out = $type::decode(msg).unwrap();
-            assert!($in == out);
-        };
-}
-
-pub mod channeler;
-pub mod indexer;
-// pub mod networker;
-
-#[derive(Debug)]
-pub enum SchemaError {
-    Io(io::Error),
-    Capnp(::capnp::Error),
-    Invalid,
-    NotInSchema,
-}
-
-impl From<io::Error> for SchemaError {
-    #[inline]
-    fn from(e: io::Error) -> SchemaError {
-        SchemaError::Io(e)
-    }
-}
-
-impl From<::capnp::Error> for SchemaError {
-    #[inline]
-    fn from(e: ::capnp::Error) -> SchemaError {
-        SchemaError::Capnp(e)
-    }
-}
-
-impl From<::capnp::NotInSchema> for SchemaError {
-    #[inline]
-    fn from(_: ::capnp::NotInSchema) -> SchemaError {
-        SchemaError::NotInSchema
-    }
-}
 
 /// Read the underlying bytes from given `CustomUInt128` reader.
 #[inline]
@@ -262,9 +120,6 @@ pub fn write_custom_u_int512<T: AsRef<[u8]>>(
     Ok(())
 }
 
-// ======= r/w implementation =======
-// TODO: Can we use macro to generate these code automatically?
-
 #[inline]
 pub fn read_public_key(from: &custom_u_int256::Reader) -> Result<PublicKey, SchemaError> {
     PublicKey::from_bytes(&read_custom_u_int256(from)?).map_err(|_| SchemaError::Invalid)
@@ -361,7 +216,7 @@ pub fn read_indexing_provider_id(
 ) -> Result<IndexingProviderId, SchemaError> {
     let id_bytes = read_custom_u_int128(from)?;
 
-    IndexingProviderId::from_bytes(&id_bytes).map_err(|_| SchemaError::Invalid)
+    IndexingProviderId::try_from(id_bytes.as_ref()).map_err(|_| SchemaError::Invalid)
 }
 
 #[inline]
@@ -378,7 +233,7 @@ pub fn read_indexing_provider_state_hash(
 ) -> Result<IndexingProviderStateHash, SchemaError> {
     let state_hash_bytes = read_custom_u_int256(from)?;
 
-    IndexingProviderStateHash::from_bytes(&state_hash_bytes).map_err(|_| SchemaError::Invalid)
+    IndexingProviderStateHash::try_from(state_hash_bytes.as_ref()).map_err(|_| SchemaError::Invalid)
 }
 
 #[inline]

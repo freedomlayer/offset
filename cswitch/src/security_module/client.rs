@@ -1,10 +1,10 @@
 use futures::Future;
 use futures::sync::mpsc;
 
-use super::messages::{FromSecurityModule, ToSecurityModule};
+use crypto::identity::{PublicKey, Signature};
+use utils::{ServiceClient, ServiceClientError};
 
-use utils::service_client::{ServiceClient, ServiceClientError};
-use utils::crypto::identity::{PublicKey, Signature};
+use security_module::messages::{FromSecurityModule, ToSecurityModule};
 
 #[derive(Debug)]
 pub enum SecurityModuleClientError {
@@ -51,10 +51,10 @@ impl SecurityModuleClient {
         message: Vec<u8>,
     ) -> impl Future<Item = Signature, Error = SecurityModuleClientError> {
         self.service_client
-            .request(ToSecurityModule::RequestSign { message })
+            .request(ToSecurityModule::RequestSignature { message })
             .map_err(SecurityModuleClientError::RequestError)
             .and_then(|response| match response {
-                FromSecurityModule::ResponseSign { signature } => Ok(signature),
+                FromSecurityModule::ResponseSignature { signature } => Ok(signature),
                 _ => Err(SecurityModuleClientError::InvalidResponse),
             })
     }

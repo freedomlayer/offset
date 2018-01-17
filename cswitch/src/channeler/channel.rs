@@ -14,14 +14,15 @@ use tokio_core::reactor::{Handle, Timeout};
 use futures::stream::{SplitSink, SplitStream};
 
 use utils::{AsyncMutex, AsyncMutexError};
-use utils::crypto::rand_values::RandValue;
-use utils::crypto::dh::{DhPrivateKey, Salt};
-use utils::crypto::identity::{verify_signature, PublicKey};
-use utils::crypto::sym_encrypt::{Decryptor, EncryptNonceCounter, Encryptor, SymEncryptError};
-use security::client::{SecurityModuleClient, SecurityModuleClientError};
+use crypto::rand_values::RandValue;
+use crypto::dh::{DhPrivateKey, Salt};
+use crypto::identity::{verify_signature, PublicKey};
+use crypto::sym_encrypt::{Decryptor, EncryptNonceCounter, Encryptor, SymEncryptError};
+use security_module::client::{SecurityModuleClient, SecurityModuleClientError};
 
-use schema::{Schema, SchemaError};
-use schema::channeler::{deserialize_message, serialize_message};
+use proto::{Schema, SchemaError};
+use proto::channeler::{deserialize_message, serialize_message, EncryptMessage, Exchange,
+                       InitChannelActive, InitChannelPassive};
 
 use super::{messages::*, types::*, KEEP_ALIVE_TICKS};
 
@@ -831,8 +832,9 @@ impl Future for ChannelNew {
                             let channel_index =
                                 self.channel_index.take().expect("missing channel index");
 
-                            let remote_public_key =
-                                self.remote_public_key.take().expect("missing remote public key");
+                            let remote_public_key = self.remote_public_key
+                                .take()
+                                .expect("missing remote public key");
 
                             let channel = Channel {
                                 os_rng: OsRng::new()?,

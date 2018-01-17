@@ -4,6 +4,7 @@ BEGIN;
 
 CREATE TABLE neighbor (
   neighbor_public_key    BLOB    NOT NULL,
+  neighbor_socket_addr   BLOB,
   wanted_remote_max_debt BIGINT  NOT NULL,
   wanted_max_channel     INT     NOT NULL,
   status                 TINYINT NOT NULL,
@@ -16,7 +17,7 @@ CREATE TABLE neighbor_token_channel (
   neighbor_public_key     BLOB    NOT NULL,
   token_channel_index     INT     NOT NULL,
 
-  move_token_type         TINYINT NOT NULL,
+  move_token_direction    TINYINT NOT NULL,
   move_token_transactions BLOB    NOT NULL,
   move_token_old_token    BLOB    NOT NULL,
   move_token_rand_nonce   BLOB    NOT NULL,
@@ -66,7 +67,7 @@ CREATE TABLE friend (
 
 CREATE TABLE friend_token_channel (
   friend_public_key       BLOB    NOT NULL,
-  move_token_type         TINYINT NOT NULL,
+  move_token_direction    TINYINT NOT NULL,
   move_token_transactions BLOB    NOT NULL,
   move_token_old_token    BLOB    NOT NULL,
   move_token_rand_nonce   BLOB    NOT NULL,
@@ -102,12 +103,12 @@ CREATE TABLE friend_request (
 );
 
 CREATE TABLE indexing_provider (
-  indexing_provider_id BLOB    NOT NULL,
-  chain_link           BLOB    NOT NULL,
-  last_route           BLOB    NOT NULL,
-  status               TINYINT NOT NULL,
+  id               BLOB    NOT NULL,
+  state_chain_link BLOB    NOT NULL,
+  last_routes      BLOB    NOT NULL,
+  status           TINYINT NOT NULL,
 
-  PRIMARY KEY (indexing_provider_id)
+  PRIMARY KEY (id)
 );
 
 -------------- Trigger Definitions --------------

@@ -337,6 +337,6 @@ mod tests {
 
     #[bench]
     fn bench_1000_acquire(b: &mut Bencher) {
-        b.iter(|| multiple());
+        b.iter(multiple);
     }
 }

@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 
 use futures::sync::mpsc;
 
-use utils::crypto::identity::PublicKey;
+use crypto::identity::PublicKey;
 
 use super::messages::ToChannel;
 
@@ -12,13 +12,6 @@ pub struct ChannelerNeighborInfo {
     pub public_key: PublicKey,
     pub socket_addr: Option<SocketAddr>,
     pub max_channels: u32,
-}
-
-pub struct NeighborInfo {
-    public_key: PublicKey,
-    socket_addr: Option<SocketAddr>,
-    max_channels: u32,
-    token_channel_capacity: u64,
 }
 
 #[derive(Debug)]

@@ -19,8 +19,6 @@ pub const INDEXING_PROVIDER_STATE_HASH_LEN: usize = 32;
 pub const RECEIPT_RESPONSE_HASH_LEN: usize = 32;
 pub const INDEXING_PROVIDER_ID_LEN: usize = 16;
 pub const INVOICE_ID_LEN: usize = 32;
-pub const CHANNEL_TOKEN_LEN: usize = 32;
-pub const HASH_RESULT_LEN: usize = 32;
 
 // A hash of a full link in an indexing provider chain
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -69,15 +67,6 @@ pub struct InvoiceId([u8; INVOICE_ID_LEN]);
 ///       mediatorPaymentProposal)
 /// Used inside SendFundsReceipt
 struct ReceiptResponseHash([u8; RECEIPT_RESPONSE_HASH_LEN]);
-
-
-/// The hash of the previous message sent over the token channel.
-struct ChannelToken([u8; CHANNEL_TOKEN_LEN]);
-
-/// A Sha512/256 hash over some buffer.  
-/// TODO: Move this into a separate crypto/hash.rs file,
-/// together with Sha512/256 implementation.
-struct HashResult([u8; HASH_RESULT_LEN]);
 
 impl IndexingProviderId {
     pub fn from_bytes<T>(t: &T) -> Result<Self, ()>
@@ -281,7 +270,6 @@ pub enum NetworkerToIndexerClient {
     MessageReceived(MessageReceived),
     RequestFriendsRoutes(RequestFriendsRoutes),
 }
-
 
 // Networker to App Manager
 // ---------------------------
@@ -715,11 +703,6 @@ pub enum NetworkerToDatabase {
     },
 }
 
-pub enum MoveTokenDirection {
-    Incoming,
-    Outgoing,
-}
-
 pub enum DatabaseToNetworker {
  ResponseLoadNeighbors {
         neighbors: Vec<NeighborInfo>,
@@ -738,33 +721,4 @@ pub enum DatabaseToNetworker {
         pending_local_requests: Vec<PendingNeighborRequest>,
         pending_remote_requests: Vec<PendingNeighborRequest>,
     },
-}
-
-
-// Security Module
-// ---------------
-
-
-pub enum FromSecurityModule {
-    ResponseSign {
-        signature: Signature,
-    },
-    ResponsePublicKey {
-        public_key: PublicKey,
-    },
-}
-
-pub enum ToSecurityModule {
-    RequestSign {
-        message: Vec<u8>,
-    },
-    RequestPublicKey {
-    },
-}
-
-// Timer
-// -----
-
-pub enum FromTimer {
-    TimeTick,
 }

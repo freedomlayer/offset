@@ -1,25 +1,36 @@
-//! The database service used to manage the `CSwitch` node's information.
+//! The database module.
 //!
 //! # Introduction
 //!
-//! The CSwitch requires persistency to make sure the mutual credit management
-//! between neighbors and friends remain consistent, despite possible failures.
+//! The `CSwitch` requires persistence to make sure the mutual credit management between neighbors
+//! and friends remain consistent, despite possible failures.
+//!
+//! We use SQLite as the storage engine, but it should easy to migrate to other database systems.
 //!
 //! # Initialization
 //!
-//! To create an `DBService`, we need to provide a path to the database.
+//! The database module required the path to the database file for booting up.
 //!
 //! # Data Models
 //!
 //! ## Neighbors Token Channel Data Model
 //!
-//! ### TABLE: `NeighborTokenChannel`
+//! <details>
+//! <summary>TABLE: `Neighbor`</summary>
 //!
-//! ### TABLE: `NeighborLocalRequest`
+//! | Column                   | Type    | Can Null | Primary Key | Reference |
+//! | ------------------------ | ------- | :------: | :---------: | --------- |
+//! | `neighbor_public_key`    | BLOB    | N        | Y           | \\        |
+//! | `wanted_remote_max_debt` | BIGINT  | N        | N           | \\        |
+//! | `wanted_max_channels`    | INT     | N        | N           | \\        |
+//! | `status`                 | TINYINT | N        | N           | \\        |
 //!
-//! ## Indexer Client Data Model
+//! **Constraint**
 //!
-//! ### TABLE: `IndexingProviders`
+//! - Removal of a `neighbor` entry should cause removal of the relevant `neighbor_token_channel`
+//! entries.
+//!
+//! </details>
 //!
 
 //use std::io;
@@ -29,11 +40,10 @@
 //use crypto::identity::{PublicKey, Signature};
 //use crypto::rand_values::RandValue;
 
-pub mod types;
+//pub mod types;
+
 pub mod messages;
 
-//use self::types::*;
-//use self::messages::*;
 //
 //use futures::prelude::*;
 //use futures::future::join_all;
