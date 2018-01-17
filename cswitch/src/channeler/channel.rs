@@ -44,11 +44,15 @@ pub enum ChannelError {
     SendToRemoteFailed,
     RecvFromInnerFailed,
     KeepAliveTimeout,
-    Closed(&'static str),           // TODO CR - What is this string?
+    Closed(&'static str),           // TODO CR: I suggest that we use an Enum instead of strings 
+                                    // to indicate the different types of errors here. 
 }
 
 /// The encrypted channel used to communicate with neighbors.
-#[must_use = "futures do nothing unless polled"]
+#[must_use = "futures do nothing unless polled"] // TODO CR: Why do we have this?
+                                                 // I thought futures have this feature
+                                                 // automatically, I might be wrong about this
+                                                 // though.
 pub struct Channel {
     // Remote identity public key
     remote_public_key: PublicKey,
@@ -63,6 +67,9 @@ pub struct Channel {
                                     // can be very difficult to have deterministic tests.
 
     // The inner sender and receiver
+    // TODO CR: It's hard for me to understand from the names inner_sender and outer_sender
+    // what is the job of each of inner_sender and outer_sender. What other meaningful name
+    // could we pick for those?  Maybe networker_sender instead of inner_sender?
     inner_sender: mpsc::Sender<ChannelerToNetworker>,
     inner_receiver: mpsc::Receiver<ToChannel>,
     inner_buffered: Option<ChannelerToNetworker>,
@@ -77,9 +84,10 @@ pub struct Channel {
     encryptor: Encryptor,
     decryptor: Decryptor,
 
-    send_ka_ticks: usize,           // TODO CR: What is ka? 
-                                    // We should either use a more descriptive name or 
-                                    // add a comment about this here.
+    send_ka_ticks: usize,           // TODO CR: 
+                                    // Maybe we can rename this to send_keepalive_ticks or
+                                    // something similar? It took me a while to go through the
+                                    // codebase and find out what ka means.
     recv_ka_ticks: usize,
 }
 
@@ -278,7 +286,7 @@ impl Channel {
         self.remote_public_key.clone()
     }
 
-    // Pack and encrypt a message to be sent to remote.
+    /// Pack and encrypt a message to be sent to remote.
     fn pack_msg(&mut self, msg_type: MessageType, content: Bytes) -> Result<Bytes, ChannelError> {
         let padding_len = self.os_rng.next_u32() % MAX_PADDING_LEN;
         // TODO CR: I think that we should be more careful when calculating padding_len.
@@ -314,13 +322,14 @@ impl Channel {
             .and_then(|bytes| {
                 // TODO CR: I think that it is surprising that pack_msg increases the send_counter.
                 // Maybe we should give the current self.send_counter as argument to pack_msg, and
-                // incremenet it outside of pack_msg? What do you think?
+                // incremenet it outside of pack_msg? See also increasing of counter inside
+                // unpack_msg function. What do you think?
                 increase_counter(&mut self.send_counter);
                 Ok(bytes)
             })
     }
 
-    // Decrypt and unpack a message received from remote.
+    /// Decrypt and unpack a message received from remote.
     fn unpack_msg(&mut self, raw: Bytes) -> Result<EncryptMessage, ChannelError> {
         let plain_msg = Bytes::from(self.decryptor.decrypt(&deserialize_message(raw)?)?);
 
@@ -329,6 +338,8 @@ impl Channel {
             .and_then(|msg| {
                 if msg.inc_counter != self.recv_counter {
                     Err(ChannelError::Closed("unexpected counter"))
+                    // TODO CR: I think that we should have an Enum for the closing reason instead
+                    // of using strings.
                 } else {
                     increase_counter(&mut self.recv_counter);
                     Ok(msg)
@@ -336,6 +347,9 @@ impl Channel {
             })
     }
 
+    /// Attempt to send a message to Networker. If the channel is not ready, we buffer the
+    /// message and it will be sent later. This function may only be called if no other messages
+    /// are planned for sending to the Networker.
     fn try_start_send_inner(&mut self, msg: ChannelerToNetworker) -> Poll<(), ChannelError> {
         debug_assert!(self.inner_buffered.is_none());
 
@@ -352,6 +366,9 @@ impl Channel {
             })
     }
 
+    /// Attempt to send a message through the socket. If the channel is not ready, we buffer the
+    /// message and it will be sent later. This function may only be called if no other messages
+    /// are planned for sending to the socket.
     fn try_start_send_outer(&mut self, msg: Bytes) -> Poll<(), ChannelError> {
         debug_assert!(self.outer_buffered.is_none());
 
@@ -378,6 +395,9 @@ impl Channel {
             if let Some(msg) = try_ready!(poll_result) {
                 match msg {
                     ToChannel::TimeTick => {
+                        // TODO CR:
+                        // Is there any danger here for panic! ?
+                        // Is it possible that at this point send_ka_ticks == 0?
                         self.send_ka_ticks -= 1;
                         self.recv_ka_ticks -= 1;
 
@@ -432,6 +452,22 @@ impl Channel {
     }
 }
 
+// TODO CR: We might be able to split the file here, as this file is pretty long.
+// I'm still not sure about this, as it might be more comfortable to have everything together here.
+// What do you think?
+
+// TODO CR:
+// I think that we might be able to change this code (impl Future for Channel) to use combinators.
+// This might save us all the hassle of the buffered items, and could probably produce shorter
+// code. 
+//
+// What we basically do here is try to get an item from try_poll_inner and push it into send_outer.
+// At the same time we try to get an item from poll_outer and push it into send_inner. It's like
+// connecting two sinks and streams together.
+//
+// I think that doing this kind of refactoring here will be worth it, because the code could become
+// much easier to reason about.
+//
 impl Future for Channel {
     type Item = ();
     type Error = ChannelError;
@@ -444,6 +480,9 @@ impl Future for Channel {
             match self.try_poll_inner()? {
                 Async::Ready(None) => {
                     debug!("inner channel closed, closing");
+                    // TODO CR: Will this code close everything in the channel?
+                    // Will the socket be properly closed in this case? Maybe this happens
+                    // automatically in rust?
                     return Ok(Async::Ready(()));
                 }
                 Async::Ready(Some(msg)) => {
@@ -452,6 +491,9 @@ impl Future for Channel {
                 Async::NotReady => {
                     try_ready!(self.outer_sender.poll_complete());
 
+                    // TODO CR: I think that we might be able to take this code outside of the
+                    // scope (Right after the block of match self.try_poll_inner()?), making the
+                    // code more symmetric with respect to inner_buffered and outer_buffered.
                     if let Some(msg) = self.inner_buffered.take() {
                         try_ready!(self.try_start_send_inner(msg));
                     }
@@ -514,7 +556,7 @@ enum ChannelNewState {
 
     /// The key exchange stage to establish an encrypted channel.
     ///
-    /// At this stage, two parties need to done the following things:
+    /// At this stage, two parties need to do the following steps:
     ///
     /// 1. Generate a ephemeral private key
     /// 2. Send the `Exchange` message to the remote
@@ -543,34 +585,54 @@ pub struct ChannelNew {
     timeout: Timeout,
 
     // Utils used in performing exchange
+    // TODO CR: We should take a reference to SecureRandom instead.  Possible Rc<R> for 
+    // R: SecureRandom.  Also see some previous comments about this.
     rng: SystemRandom,
     sm_client: SecurityModuleClient,
     channel_index: Option<u32>,
-    nw_sender: mpsc::Sender<ChannelerToNetworker>,
-
+    nw_sender: mpsc::Sender<ChannelerToNetworker>, // TODO CR: I suggest to change this into 
+                                                   // networker_sender. It was difficult for me to
+                                                   // guess what is nw until I saw that the
+                                                   // messages type is ChannelerToNetworker.
     remote_public_key: Option<PublicKey>,
 }
 
 impl ChannelNew {
+    // TODO: If we use RefCell<...> for neighbors, this function could return a boolean value
+    // or a Result (for various failure values) instead of an impl Future.
+    /// Obtain neighbors structure, and find out whether the remote_public_key may initialize 
+    /// Find out whether remote_public_key may actively initiate a channel with index
+    /// channel_index.
     fn create_validation_task(
         remote_public_key: PublicKey,
         channel_index: u32,
+        // TODO CR: I think that we can be ok here with RefCell<HashMap<...>>, 
+        // what do you think?
+        //
+        // In addition, maybe we should alias HashMap<PublicKey, ChannelerNeighbor> to be some
+        // type, or maybe give it a type of its own. 
+        // I noticed that we copy paste "HashMap<PublicKey, ChannelerNeighbor>" in at least 3
+        // places in this file, this means it is probably  important enough to get its own name.
         neighbors: AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
     ) -> impl Future<Item = (), Error = ChannelError> {
         neighbors
             .acquire(move |neighbors| {
+                // TODO CR: I think that the whole clause of validation_result = ... should be a
+                // separate function. This will make this function (create_validation_task)
+                // cleaner.
                 let validation_result = if let Some(neighbor) = neighbors.get(&remote_public_key) {
+                    // TODO CR: Maybe we should use match instead of if ... .is_some() ?
                     if neighbor.info.socket_addr.is_some() {
                         Err(ChannelError::Closed("not allowed initator"))
                     } else {
                         if channel_index < neighbor.info.max_channels {
                             if neighbor.channels.get(&channel_index).is_some() {
-                                Err(ChannelError::Closed("index is in used"))
+                                Err(ChannelError::Closed("Index is already in use"))
                             } else {
                                 Ok(())
                             }
                         } else {
-                            Err(ChannelError::Closed("not allowed index"))
+                            Err(ChannelError::Closed("Index is too large"))
                         }
                     }
                 } else {
