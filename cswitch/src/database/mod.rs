@@ -41,7 +41,7 @@
 //use crypto::rand_values::RandValue;
 
 pub mod types;
-// pub mod messages;
+ pub mod messages;
 
 //use self::types::*;
 //use self::messages::*;

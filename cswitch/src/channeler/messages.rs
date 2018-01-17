@@ -4,11 +4,9 @@ use crypto::dh::{DhPublicKey, Salt};
 use crypto::identity::{PublicKey, Signature};
 use crypto::rand_values::RandValue;
 
-pub use schema::channeler_capnp::MessageType;
+pub use proto::channeler::MessageType;
 
 pub const MAX_PADDING_LEN: u32 = 32;
-
-// ===== Internal interfaces =====
 
 /// The internal message expected to be send to a `Channel`.
 #[derive(Debug)]
@@ -42,45 +40,4 @@ pub struct ChannelerToNetworker {
 
     /// The event happened.
     pub event: ChannelEvent,
-}
-
-// ===== External interfaces =====
-
-/// The message intend to be sent by the active end.
-#[derive(PartialEq)]
-pub struct InitChannelActive {
-    /// The identity public key of the sender of this message.
-    pub neighbor_public_key: PublicKey,
-    /// An initial random value.
-    pub channel_rand_value: RandValue,
-    /// The index of this channel.
-    pub channel_index: u32,
-}
-
-/// The message intend to be sent by the passive end.
-#[derive(PartialEq)]
-pub struct InitChannelPassive {
-    /// The identity public key of the sender of this message.
-    pub neighbor_public_key: PublicKey,
-    /// An initial random value.
-    pub channel_rand_value: RandValue,
-}
-
-/// The message used in key exchange.
-#[derive(PartialEq)]
-pub struct Exchange {
-    /// Communication public key.
-    pub comm_public_key: DhPublicKey,
-    /// A salt for the generation of a shared symmertic encryption key.
-    pub key_salt: Salt,
-    /// Signature over `(channelRandValue || commPublicKey || keySalt)`
-    pub signature: Signature,
-}
-
-#[derive(PartialEq)]
-pub struct EncryptMessage {
-    pub inc_counter: u64,
-    pub rand_padding: Bytes,
-    pub message_type: MessageType,
-    pub content: Bytes,
 }

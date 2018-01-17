@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use crypto::identity::PublicKey;
 use crypto::rand_values::RandValue;
 use crypto::uuid::Uuid;
@@ -8,18 +10,9 @@ use indexer::messages::RoutesToIndexer;
 //use networker::types::NetworkerTokenChannelTransaction;
 use indexer::types::{FriendsRouteWithCapacity, IndexingProviderId, NeighborsRoute, StateChainLink};
 
-/// The request type.
-#[derive(Clone, Copy, Debug)]
-pub enum NeighborRequestType {
-    CommMeans = 0,
-    Encrypted = 1,
-}
-
-/// Indicate the direction of the move token message.
-#[derive(Clone, Copy, Debug)]
-pub enum MoveTokenDirection {
-    Incoming = 0,
-    Outgoing = 1,
+pub enum NeighborStatus {
+    Enable = 1,
+    Disable = 0,
 }
 
 /// The universal unique identifier used to identify a request.
@@ -28,6 +21,7 @@ pub type RequestId = Uuid;
 /// The neighbor's information from database.
 pub struct NeighborInfoFromDB {
     pub neighbor_public_key:    PublicKey,
+    pub neighbor_socket_addr: Option<SocketAddr>,
     pub wanted_remote_max_debt: u64,
     pub wanted_max_channels:    u32,
     pub status:                 u8,

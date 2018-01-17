@@ -20,8 +20,9 @@ use crypto::identity::{verify_signature, PublicKey};
 use crypto::sym_encrypt::{Decryptor, EncryptNonceCounter, Encryptor, SymEncryptError};
 use security_module::client::{SecurityModuleClient, SecurityModuleClientError};
 
-use schema::{Schema, SchemaError};
-use schema::channeler::{deserialize_message, serialize_message};
+use proto::{Schema, SchemaError};
+use proto::channeler::{deserialize_message, serialize_message, InitChannelActive, InitChannelPassive,
+                       Exchange, EncryptMessage};
 
 use super::{messages::*, types::*, KEEP_ALIVE_TICKS};
 
@@ -441,13 +442,13 @@ enum ChannelNewState {
     InitChannel(
         Box<
             Future<
-                Item = (
+                Item=(
                     InitChannelActive,
                     InitChannelPassive,
                     FramedSink,
                     FramedStream,
                 ),
-                Error = ChannelError,
+                Error=ChannelError,
             >,
         >,
     ),
@@ -468,8 +469,8 @@ enum ChannelNewState {
     Exchange(
         Box<
             Future<
-                Item = (Exchange, Exchange, DhPrivateKey, FramedSink, FramedStream),
-                Error = ChannelError,
+                Item=(Exchange, Exchange, DhPrivateKey, FramedSink, FramedStream),
+                Error=ChannelError,
             >,
         >,
     ),
@@ -496,7 +497,7 @@ impl ChannelNew {
         remote_public_key: PublicKey,
         channel_index: u32,
         neighbors: AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
-    ) -> impl Future<Item = (), Error = ChannelError> {
+    ) -> impl Future<Item=(), Error=ChannelError> {
         neighbors
             .acquire(move |neighbors| {
                 let validation_result = if let Some(neighbor) = neighbors.get(&remote_public_key) {
@@ -538,8 +539,8 @@ impl ChannelNew {
         rng: &SystemRandom,
         sm_client: &SecurityModuleClient,
     ) -> impl Future<
-        Item = (Exchange, Exchange, DhPrivateKey, FramedSink, FramedStream),
-        Error = ChannelError,
+        Item=(Exchange, Exchange, DhPrivateKey, FramedSink, FramedStream),
+        Error=ChannelError,
     > {
         // Generate ephemeral DH private key
         let key_salt = Salt::new(rng);

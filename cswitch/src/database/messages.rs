@@ -1,44 +1,49 @@
-use utils::crypto::identity::PublicKey;
+use crypto::identity::PublicKey;
 
 use database::types::*;
-use funder::types::InvoiceId;
+use networker::types::NeighborMoveToken;
+use funder::types::{FriendMoveToken, InvoiceId};
 
 pub enum DatabaseToNetworker {
-    ResponseLoadNeighbors(Vec<NeighborConfig>),
+    ResponseLoadNeighbors {
+        neighbors: Vec<NeighborInfoFromDB>
+    },
     ResponseLoadNeighborToken {
-        neighbor_public_key:     PublicKey,
-        move_token_message_type: MoveTokenMessageType,
-        move_token_message:      NeighborMoveTokenMessage,
-        remote_max_debt:         u64,
-        local_max_debt:          u64,
-        remote_pending_debt:     u64,
-        local_pending_debt:      u64,
-        balance:                 u64,
-        local_invoice_id:        Option<InvoiceId>,
-        remote_invoice_id:       Option<InvoiceId>,
-        pending_local_requests:  Vec<PendingLocalNeighborRequest>,
-        pending_remote_requests: Vec<PendingLocalNeighborRequest>,
-    }
+        neighbor_public_key: PublicKey,
+        move_token_direction: MoveTokenDirection,
+        move_token_message: NeighborMoveToken,
+        remote_max_debt: u64,
+        local_max_debt: u64,
+        remote_pending_debt: u64,
+        local_pending_debt: u64,
+        balance: i64,
+        local_invoice_id: Option<InvoiceId>,
+        remote_invoice_id: Option<InvoiceId>,
+        pending_local_requests: Vec<PendingNeighborRequest>,
+        pending_remote_requests: Vec<PendingNeighborRequest>,
+    },
 }
 
 pub enum DatabaseToFunder {
-    ResponseLoadFriends(Vec<FriendConfig>),
+    ResponseLoadFriends {
+        friends: Vec<FriendInfoFromDB>
+    },
     ResponseLoadFriendToken {
-        friend_public_key:       PublicKey,
-        move_token_message_type: MoveTokenMessageType,
-        move_token_message:      FriendMoveTokenMessage,
-        remote_max_debt:         u64,
-        local_max_debt:          u64,
-        remote_pending_debt:     u64,
-        local_pending_debt:      u64,
-        balance:                 u64,
-        local_state:             u8,
-        remote_state:            u8,
-        pending_local_requests:  Vec<PendingLocalFriendRequest>,
-        pending_remote_requests: Vec<PendingLocalFriendRequest>,
-    }
+        friend_public_key: PublicKey,
+        move_token_direction: MoveTokenDirection,
+        move_token_message: FriendMoveToken,
+        remote_max_debt: u64,
+        local_max_debt: u64,
+        remote_pending_debt: u64,
+        local_pending_debt: u64,
+        balance: i64,
+        local_state: u8,
+        remote_state: u8,
+        pending_local_requests: Vec<PendingFriendRequest>,
+        pending_remote_requests: Vec<PendingFriendRequest>,
+    },
 }
 
 pub enum DatabaseToIndexerClient {
-    ResponseLoadIndexingProviders(Vec<IndexingProviderConfig>)
+    ResponseLoadIndexingProviders(Vec<IndexingProviderInfoFromDB>)
 }

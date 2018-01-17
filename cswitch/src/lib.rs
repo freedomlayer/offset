@@ -1,5 +1,6 @@
 #![crate_type = "lib"]
 #![feature(nll)]
+#![feature(try_from)]
 #![feature(i128_type)]
 #![feature(use_nested_groups)]
 #![feature(refcell_replace_swap)]
@@ -30,17 +31,19 @@ pub mod crypto;
 pub mod utils;
 
 // Modules
-pub mod app_manager;
+//pub mod app_manager;
 pub mod channeler;
-pub mod database;
-pub mod funder;
-pub mod indexer;
+//pub mod database;
+//pub mod funder;
+//pub mod indexer;
 pub mod networker;
 pub mod security_module;
 pub mod timer;
 
 // Schemas
-mod schema;
-use schema::common_capnp;
-use schema::indexer_capnp;
-use schema::channeler_capnp;
+mod proto;
+// FIXME: The capnpc generated code assumes that we
+// add it as a module at the top level of the crate.
+use proto::schema_impl::common::common_capnp;
+use proto::schema_impl::indexer::indexer_capnp;
+use proto::schema_impl::channeler::channeler_capnp;

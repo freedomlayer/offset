@@ -1,32 +1,37 @@
-//! The message needed by Indexer.
-//!
-//! The following types are defined in `inner_messages`:
-//!
-//! - `NeighborsRoute`
-//! - `FriendsRoute`
-//! - `RequestNeighborsRoutes`
-//! - `ResponseNeighborsRoutes`
-//! - `RequestFriendsRoutes`
-//! - `ResponseFriendsRoutes`
-//! - `StateChainLink`
-
 use std::io;
-
-use indexer::types::{FriendsRouteWithCapacity, IndexerRoute, NeighborsRoute, StateChainLink};
-
-use indexer::messages::{RequestFriendsRoutes, RequestNeighborsRoutes, RequestUpdateState,
-                        ResponseFriendsRoutes, ResponseNeighborsRoutes, ResponseUpdateState,
-                        RoutesToIndexer};
-
-use indexer_capnp::*;
 
 use bytes::Bytes;
 use capnp::serialize_packed;
 
-use super::{read_indexing_provider_id, read_indexing_provider_state_hash, read_public_key,
-            read_public_key_list, read_signature, write_indexing_provider_id,
-            write_indexing_provider_state_hash, write_public_key, write_public_key_list,
-            write_signature, Schema, SchemaError};
+include_schema!(indexer_capnp, "indexer_capnp");
+
+use proto::{Schema, SchemaError};
+use proto::indexer::{
+    FriendsRouteWithCapacity,
+    IndexerRoute,
+    NeighborsRoute,
+    RequestFriendsRoutes,
+    RequestNeighborsRoutes,
+    RequestUpdateState,
+    ResponseFriendsRoutes,
+    ResponseNeighborsRoutes,
+    ResponseUpdateState,
+    RoutesToIndexer,
+    StateChainLink,
+};
+
+use super::common::{
+    read_indexing_provider_id,
+    read_indexing_provider_state_hash,
+    read_public_key,
+    read_public_key_list,
+    read_signature,
+    write_indexing_provider_id,
+    write_indexing_provider_state_hash,
+    write_public_key,
+    write_public_key_list,
+    write_signature,
+};
 
 impl<'a> Schema<'a> for NeighborsRoute {
     type Reader = neighbors_route::Reader<'a>;
@@ -496,6 +501,7 @@ impl<'a> Schema<'a> for RoutesToIndexer {
 #[cfg(test)]
 mod tests {
     extern crate test;
+
     use super::*;
     use rand::random;
 
