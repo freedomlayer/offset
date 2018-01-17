@@ -32,6 +32,7 @@ pub trait Schema<'a>: Sized {
 
 pub mod schema_impl;
 
+pub mod common;
 pub mod channeler;
 pub mod indexer;
 pub mod funder;

@@ -20,9 +20,9 @@ pub enum NeighborRequestType {
 
 pub struct NeighborMoveToken {
     pub channel_index: u32,
-    pub transactions:  Vec<NetworkerTokenChannelTransaction>,
-    pub old_token:     ChannelToken,
-    pub rand_nonce:    RandValue,
+    pub transactions: Vec<NetworkerTokenChannelTransaction>,
+    pub old_token: ChannelToken,
+    pub rand_nonce: RandValue,
 }
 
 // TODO

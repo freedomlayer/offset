@@ -5,7 +5,7 @@ use crypto::dh::{DhPublicKey, Salt};
 use crypto::identity::{PublicKey, Signature};
 
 pub use super::schema_impl::channeler::MessageType;
-pub use super::schema_impl::channeler::{serialize_message, deserialize_message};
+pub use super::schema_impl::channeler::{deserialize_message, serialize_message};
 
 /// The message intend to be sent by the active end.
 #[derive(PartialEq)]

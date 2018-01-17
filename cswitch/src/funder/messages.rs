@@ -1,31 +1,86 @@
 use crypto::identity::PublicKey;
 use crypto::uuid::Uuid;
 
-use proto::indexer::FriendsRouteWithCapacity;
-use networker::messages::MoveTokenDirection;
-use proto::funder::{InvoiceId, FriendMoveToken};
+use proto::indexer::{FriendsRouteWithCapacity, RequestNeighborsRoutes};
+use networker::messages::{DiscardMessageReceived, MoveTokenDirection, RequestSendMessage,
+                          RespondMessageReceived};
+
+use proto::funder::{FriendMoveToken, InvoiceId};
+
+use proto::common::SendFundsReceipt;
 
 pub enum FriendStatus {
     Enable = 1,
     Disable = 0,
 }
 
-/// The friend's information from database.
-pub struct FriendInfoFromDB {
-    pub friend_public_key:      PublicKey,
-    pub wanted_remote_max_debt: u128,
-    pub status:                 u8,
+pub enum FriendRequestsStatus {
+    Open = 1,
+    Close = 0,
+}
+
+pub struct FriendLoaded {
+    status: FriendStatus,
+    requests_status: FriendRequestsStatus,
+    wanted_remote_max_debt: u128,
+    local_max_debt: u128,
+    remote_max_debt: u128,
+    balance: i128,
+}
+
+enum FriendEvent {
+    Loaded(FriendLoaded),
+    Open,
+    Close,
+    RequestsOpened,
+    RequestsClosed,
+    LocalMaxDebtChange(u128),  // Contains new local max debt
+    RemoteMaxDebtChange(u128), // Contains new local max debt
+    BalanceChange(i128),       // Contains new balance
+    InconsistencyError(i128),  // Contains balance required for reset
+}
+
+pub enum SendFundsResult {
+    Success(SendFundsReceipt),
+    Failure,
+}
+
+pub struct ResponseSendFunds {
+    request_id: Uuid,
+    result: SendFundsResult,
+}
+
+pub struct FriendStateUpdate {
+    friend_public_key: PublicKey,
+    event: FriendEvent,
+}
+
+// TODO: Can we merge this with FriendInfoFromDB
+pub struct FriendInfo {
+    friend_public_key: PublicKey,
+    wanted_remote_max_debt: u128,
 }
 
 pub struct PendingFriendRequest {
-    pub request_id:                Uuid,
-    pub route:                     FriendsRouteWithCapacity,
+    pub request_id: Uuid,
+    pub route: FriendsRouteWithCapacity,
     pub mediator_payment_proposal: u64,
-    pub invoice_id:                InvoiceId,
-    pub destination_payment:       u128,
+    pub invoice_id: InvoiceId,
+    pub destination_payment: u128,
 }
 
 // ======== Internal interface ========
+
+pub struct FriendsRoute {
+    public_keys: Vec<PublicKey>,
+}
+
+pub struct RequestSendFunds {
+    request_id: Uuid,
+    route: FriendsRoute,
+    invoice_id: InvoiceId,
+    payment: u128,
+}
 
 pub enum FunderToAppManager {
     FriendStateUpdate(FriendStateUpdate),
@@ -44,26 +99,6 @@ pub enum FunderToDatabase {
     StoreInFriendToken {},
     StoreOutFriendToken {},
     RequestLoadFriendToken {},
-}
-
-pub enum DatabaseToFunder {
-    ResponseLoadFriends {
-        friends: Vec<FriendInfoFromDB>
-    },
-    ResponseLoadFriendToken {
-        friend_public_key: PublicKey,
-        move_token_direction: MoveTokenDirection,
-        move_token_message: FriendMoveToken,
-        remote_max_debt: u64,
-        local_max_debt: u64,
-        remote_pending_debt: u64,
-        local_pending_debt: u64,
-        balance: i64,
-        local_state: u8,
-        remote_state: u8,
-        pending_local_requests: Vec<PendingFriendRequest>,
-        pending_remote_requests: Vec<PendingFriendRequest>,
-    },
 }
 
 pub enum FunderToNetworker {

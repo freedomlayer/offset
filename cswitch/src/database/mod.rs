@@ -42,8 +42,8 @@
 
 //pub mod types;
 
-//use self::types::*;
-//use self::messages::*;
+pub mod messages;
+
 //
 //use futures::prelude::*;
 //use futures::future::join_all;

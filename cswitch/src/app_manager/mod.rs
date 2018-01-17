@@ -1,2 +1,3 @@
-pub mod types;
+//! App manager module.
+
 pub mod messages;

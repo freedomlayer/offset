@@ -271,7 +271,6 @@ pub enum NetworkerToIndexerClient {
     RequestFriendsRoutes(RequestFriendsRoutes),
 }
 
-
 // Networker to App Manager
 // ---------------------------
     

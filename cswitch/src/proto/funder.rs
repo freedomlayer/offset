@@ -39,9 +39,9 @@ pub enum FunderTokenChannelTransaction {
     SetState,
     SetRemoteMaxDebt,
     //    RequestSendFund {
-//        request_id: Uuid,
-//        reoute:
-//    },
+    //        request_id: Uuid,
+    //        reoute:
+    //    },
     ResponseSendFund,
     FailedSendFund,
     ResetChannel,

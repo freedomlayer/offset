@@ -1,4 +1,8 @@
-use proto::indexer::{IndexingProviderId, NeighborsRoute, StateChainLink};
+use proto::indexer::{IndexingProviderId, NeighborsRoute, RequestFriendsRoutes,
+                     RequestNeighborsRoutes, ResponseFriendsRoutes, ResponseNeighborsRoutes,
+                     ResponseUpdateState, StateChainLink};
+
+use networker::messages::{DiscardMessageReceived, RequestSendMessage, RespondMessageReceived};
 use crypto::identity::{PublicKey, Signature};
 
 /// Indexing provider status.
@@ -7,18 +11,21 @@ pub enum IndexingProviderStatus {
     Disabled = 0,
 }
 
+pub struct IndexingProviderLoaded {
+    id: IndexingProviderId,
+    state_chain_link: StateChainLink,
+    status: IndexingProviderStatus,
+}
+
+pub enum IndexingProviderStateUpdate {
+    Loaded(IndexingProviderLoaded),
+    ChainLinkUpdated(IndexingProviderInfo),
+}
+
 /// The indexing provider's information.
 pub struct IndexingProviderInfo {
     pub id: IndexingProviderId,
     pub state_chain_link: StateChainLink,
-}
-
-/// The indexing provider's information from database.
-pub struct IndexingProviderInfoFromDB {
-    id: IndexingProviderId,
-    state_chain_link: StateChainLink,
-    last_routes: Vec<NeighborsRoute>,
-    status: IndexingProviderStatus,
 }
 
 // ======== Internal interfaces ========
@@ -39,12 +46,8 @@ pub enum IndexerClientToDatabase {
     },
 }
 
-pub enum DatabaseToIndexerClient {
-    ResponseLoadIndexingProviders(Vec<IndexingProviderInfoFromDB>)
-}
-
 pub enum IndexerClientToFunder {
-    ResponseNeighborsRoute(ResponseNeighborsRoutes)
+    ResponseNeighborsRoute(ResponseNeighborsRoutes),
 }
 
 pub enum IndexerClientToNetworker {

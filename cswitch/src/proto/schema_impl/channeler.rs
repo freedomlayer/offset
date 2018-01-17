@@ -11,18 +11,9 @@ pub use self::channeler_capnp::MessageType;
 use proto::{Schema, SchemaError};
 use proto::channeler::{EncryptMessage, Exchange, InitChannelActive, InitChannelPassive};
 
-use super::common::{
-    read_dh_public_key,
-    read_public_key,
-    read_rand_value,
-    read_salt,
-    read_signature,
-    write_dh_public_key,
-    write_public_key,
-    write_rand_value,
-    write_salt,
-    write_signature
-};
+use super::common::{read_dh_public_key, read_public_key, read_rand_value, read_salt,
+                    read_signature, write_dh_public_key, write_public_key, write_rand_value,
+                    write_salt, write_signature};
 
 /// Create and serialize a `Message` from given `content`,
 /// return the serialized message on success.

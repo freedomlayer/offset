@@ -1,7 +1,7 @@
 use std::io;
 use std::convert::TryFrom;
 
-use bytes::{Bytes, BytesMut, Buf, BufMut, BigEndian};
+use bytes::{BigEndian, Buf, BufMut, Bytes, BytesMut};
 use capnp::struct_list;
 
 use crypto::rand_values::RandValue;
@@ -119,7 +119,6 @@ pub fn write_custom_u_int512<T: AsRef<[u8]>>(
 
     Ok(())
 }
-
 
 #[inline]
 pub fn read_public_key(from: &custom_u_int256::Reader) -> Result<PublicKey, SchemaError> {

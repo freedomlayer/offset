@@ -26,14 +26,13 @@ extern crate rusqlite;
 extern crate tokio_core;
 extern crate tokio_io;
 
-
 pub mod crypto;
 pub mod utils;
 
 // Modules
-//pub mod app_manager;
+pub mod app_manager;
 pub mod channeler;
-//pub mod database;
+pub mod database;
 pub mod funder;
 pub mod indexer_client;
 pub mod networker;

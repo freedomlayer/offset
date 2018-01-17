@@ -63,95 +63,100 @@ impl NetworkerReader {
 
     #[inline]
     fn add_neighbor(&self, info: ChannelerNeighborInfo) {
-        let task = self.neighbors.acquire(|mut neighbors| {
-            neighbors.insert(
-                info.public_key.clone(),
-                ChannelerNeighbor {
-                    info,
-                    num_pending: 0,
-                    retry_ticks: 0,
-                    channels: HashMap::new(),
-                });
-            Ok((neighbors, ()))
-        })
-        .map_err(|_: AsyncMutexError<()>| {
-            info!("failed to add neighbor");
-        });
+        let task = self.neighbors
+            .acquire(|mut neighbors| {
+                neighbors.insert(
+                    info.public_key.clone(),
+                    ChannelerNeighbor {
+                        info,
+                        num_pending: 0,
+                        retry_ticks: 0,
+                        channels: HashMap::new(),
+                    },
+                );
+                Ok((neighbors, ()))
+            })
+            .map_err(|_: AsyncMutexError<()>| {
+                info!("failed to add neighbor");
+            });
 
         self.handle.spawn(task);
     }
 
     #[inline]
     fn del_neighbor(&self, public_key: PublicKey) {
-        let task = self.neighbors.acquire(move |mut neighbors| {
-            if neighbors.remove(&public_key).is_some() {
-                info!("neighbor {:?} removed", public_key);
-            } else {
-                info!("nonexistent neighbor: {:?}", public_key);
-            }
-            Ok((neighbors, ()))
-        })
-        .map_err(|_: AsyncMutexError<()>| {
-            info!("failed to remove neighbor");
-        });
+        let task = self.neighbors
+            .acquire(move |mut neighbors| {
+                if neighbors.remove(&public_key).is_some() {
+                    info!("neighbor {:?} removed", public_key);
+                } else {
+                    info!("nonexistent neighbor: {:?}", public_key);
+                }
+                Ok((neighbors, ()))
+            })
+            .map_err(|_: AsyncMutexError<()>| {
+                info!("failed to remove neighbor");
+            });
 
         self.handle.spawn(task);
     }
 
     #[inline]
     fn send_message(&self, index: u32, public_key: PublicKey, content: Bytes) {
-        let task = self.neighbors.acquire(move |mut neighbors| {
-            match neighbors.get_mut(&public_key) {
-                None => {
-                    warn!(
-                        "nonexistent neighbor: {:?}, message would be discard",
-                        public_key
-                    );
-                }
-                Some(neighbor) => {
-                    match neighbor.channels.get_mut(&index) {
-                        None => {
-                            warn!(
-                                "unknown channel index: {:?}, message would be discard",
-                                index
-                            );
-                        }
-                        Some(sender) => {
-                            let message = ToChannel::SendMessage(content);
+        let task = self.neighbors
+            .acquire(move |mut neighbors| {
+                match neighbors.get_mut(&public_key) {
+                    None => {
+                        warn!(
+                            "nonexistent neighbor: {:?}, message would be discard",
+                            public_key
+                        );
+                    }
+                    Some(neighbor) => {
+                        match neighbor.channels.get_mut(&index) {
+                            None => {
+                                warn!(
+                                    "unknown channel index: {:?}, message would be discard",
+                                    index
+                                );
+                            }
+                            Some(sender) => {
+                                let message = ToChannel::SendMessage(content);
 
-                            if sender.try_send(message).is_err() {
-                                error!("failed to send message to channel, message will be dropped!");
+                                if sender.try_send(message).is_err() {
+                                    error!("failed to send message to channel, message will be dropped!");
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            Ok((neighbors, ()))
-        })
-        .map_err(|_: AsyncMutexError<()>| {
-            info!("failed to pass send message request to channel");
-        });
+                Ok((neighbors, ()))
+            })
+            .map_err(|_: AsyncMutexError<()>| {
+                info!("failed to pass send message request to channel");
+            });
 
         self.handle.spawn(task);
     }
 
     #[inline]
     fn set_max_channels(&self, public_key: PublicKey, max_channels: u32) {
-        let task = self.neighbors.acquire(move |mut neighbors| {
-            match neighbors.get_mut(&public_key) {
-                None => {
-                    info!("nonexistent neighbor: {:?}", public_key);
+        let task = self.neighbors
+            .acquire(move |mut neighbors| {
+                match neighbors.get_mut(&public_key) {
+                    None => {
+                        info!("nonexistent neighbor: {:?}", public_key);
+                    }
+                    Some(neighbor) => {
+                        neighbor.info.max_channels = max_channels;
+                    }
                 }
-                Some(neighbor) => {
-                    neighbor.info.max_channels = max_channels;
-                }
-            }
-            Ok((neighbors, ()))
-        })
-        .map_err(|_: AsyncMutexError<()>| {
-            info!("failed to set maximum amount of channels");
-        });
+                Ok((neighbors, ()))
+            })
+            .map_err(|_: AsyncMutexError<()>| {
+                info!("failed to set maximum amount of channels");
+            });
 
         self.handle.spawn(task);
     }
@@ -198,47 +203,41 @@ impl Future for NetworkerReader {
 
                     return Ok(Async::Ready(()));
                 }
-                Ok(item) => {
-                    match item {
-                        Async::NotReady => {
-                            return Ok(Async::NotReady);
-                        }
-                        Async::Ready(None) => {
-                            debug!("inner receiver closed, closing");
-
-                            self.close();
-
-                            return Ok(Async::Ready(()));
-                        }
-                        Async::Ready(Some(message)) => {
-                            match message {
-                                NetworkerToChanneler::AddNeighbor {
-                                    neighbor_info
-                                } => {
-                                    self.add_neighbor(neighbor_info);
-                                }
-                                NetworkerToChanneler::RemoveNeighbor {
-                                    neighbor_public_key
-                                } => {
-                                    self.del_neighbor(neighbor_public_key);
-                                }
-                                NetworkerToChanneler::SendChannelMessage {
-                                    neighbor_public_key,
-                                    channel_index,
-                                    content
-                                } => {
-                                    self.send_message(channel_index, neighbor_public_key, content);
-                                }
-                                NetworkerToChanneler::SetMaxChannels {
-                                    neighbor_public_key,
-                                    max_channels
-                                } => {
-                                    self.set_max_channels(neighbor_public_key, max_channels);
-                                }
-                            }
-                        }
+                Ok(item) => match item {
+                    Async::NotReady => {
+                        return Ok(Async::NotReady);
                     }
-                }
+                    Async::Ready(None) => {
+                        debug!("inner receiver closed, closing");
+
+                        self.close();
+
+                        return Ok(Async::Ready(()));
+                    }
+                    Async::Ready(Some(message)) => match message {
+                        NetworkerToChanneler::AddNeighbor { neighbor_info } => {
+                            self.add_neighbor(neighbor_info);
+                        }
+                        NetworkerToChanneler::RemoveNeighbor {
+                            neighbor_public_key,
+                        } => {
+                            self.del_neighbor(neighbor_public_key);
+                        }
+                        NetworkerToChanneler::SendChannelMessage {
+                            neighbor_public_key,
+                            channel_index,
+                            content,
+                        } => {
+                            self.send_message(channel_index, neighbor_public_key, content);
+                        }
+                        NetworkerToChanneler::SetMaxChannels {
+                            neighbor_public_key,
+                            max_channels,
+                        } => {
+                            self.set_max_channels(neighbor_public_key, max_channels);
+                        }
+                    },
+                },
             }
         }
     }

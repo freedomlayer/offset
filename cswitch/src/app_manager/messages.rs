@@ -1,3 +1,16 @@
+use std::net::SocketAddr;
+
+use crypto::identity::PublicKey;
+
+use networker::messages::{DiscardMessageReceived, NeighborStatus, RequestSendMessage,
+                          RespondMessageReceived};
+
+use funder::messages::{FriendInfo, FriendRequestsStatus, FriendStatus, RequestSendFunds};
+
+use proto::indexer::{IndexingProviderId, RequestFriendsRoutes, RequestNeighborsRoutes};
+
+use indexer_client::messages::{IndexingProviderInfo, IndexingProviderStatus};
+
 pub enum AppManagerToNetworker {
     RequestSendMessage(RequestSendMessage),
     ResponseMessageReceived(RespondMessageReceived),
@@ -19,8 +32,8 @@ pub enum AppManagerToNetworker {
     },
     AddNeighbor {
         neighbor_public_key: PublicKey,
-        neighbor_address: ChannelerAddress,
-        max_channels: u32,              // Maximum amount of token channels
+        neighbor_socket_addr: Option<SocketAddr>,
+        max_channels: u32, // Maximum amount of token channels
         wanted_remote_max_debt: u64,
     },
     RemoveNeighbor {
