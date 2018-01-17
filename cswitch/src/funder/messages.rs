@@ -25,7 +25,12 @@ pub struct PendingFriendRequest {
     pub destination_payment:       u128,
 }
 
-// ========== Interfaces with Database ==========
+// ======== Internal interface ========
+
+pub enum FunderToAppManager {
+    FriendStateUpdate(FriendStateUpdate),
+    ResponseSendFunds(ResponseSendFunds),
+}
 
 // TODO:
 pub enum FunderToDatabase {
@@ -59,4 +64,15 @@ pub enum DatabaseToFunder {
         pending_local_requests: Vec<PendingFriendRequest>,
         pending_remote_requests: Vec<PendingFriendRequest>,
     },
+}
+
+pub enum FunderToNetworker {
+    RequestSendMessage(RequestSendMessage),
+    RespondMessageReceived(RespondMessageReceived),
+    DiscardMessageReceived(DiscardMessageReceived),
+    ResponseSendFunds(ResponseSendFunds),
+}
+
+pub enum FunderToIndexerClient {
+    RequestNeighborsRoute(RequestNeighborsRoutes),
 }
