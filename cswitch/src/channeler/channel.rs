@@ -256,9 +256,16 @@ impl Channel {
         ChannelNew {
             state: ChannelNewState::InitChannel(Box::new(init_channel_task)),
             timeout: Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
-                // TODO CR: The Timer module should be the only source of time. We should use the
-                // timer module to achieve timeout instead of time::Duration::from_secs. This is
-                // important so that we will be able to write tests the simulate the passage of time.
+            // TODO CR: The Timer module should be the only source of time. We should use the
+            // timer module to achieve timeout instead of time::Duration::from_secs. This is
+            // important so that we will be able to write tests the simulate the passage of time.
+            // 
+            // To make a similar type of timer we may be able to get a duplicate Timer stream,
+            // and create a future that wait until the duplicate Timer stream ticks some constant amount of times.
+            //
+            // TODO CR: If we have some magic number like 5, it should be declared as a
+            // constant somewhere with a meaningful name. Later we might be able to group all
+            // those constants, maybe even allow to configure them.
             rng,
             sm_client: sm_client.clone(),
             remote_public_key: None,
@@ -274,13 +281,29 @@ impl Channel {
     // Pack and encrypt a message to be sent to remote.
     fn pack_msg(&mut self, msg_type: MessageType, content: Bytes) -> Result<Bytes, ChannelError> {
         let padding_len = self.os_rng.next_u32() % MAX_PADDING_LEN;
+        // TODO CR: I think that we should be more careful when calculating padding_len.
+        // Note that doing something like (rand() % 0x100) is really random, but doing something
+        // like (rand() % 17) is not absolutely random, because the random is not really uniformly
+        // distributed over all the 17 possibilities. This is because 17 does not divide 2^32.
+        //
+        // We can add an assertion somewhere that MAX_PADDING_LEN is a divisor of 2^32, or use some other function.
+        //
+        // We should check, maybe we have a better interface for generating numbers using SecureRandom? This is not necessary though.
         let mut padding_bytes = [0u8; MAX_PADDING_LEN as usize];
         self.os_rng
             .fill_bytes(&mut padding_bytes[..padding_len as usize]);
+
         let encrypt_message = EncryptMessage {
             inc_counter: self.send_counter,
+            // TODO CR: I realize now that we are using two increasing counters simultaneously: The one
+            // in the encryption nonce (EncryptNonceCounter inside sym_encrypt.rs) and inc_counter
+            // here. Maybe using EncryptNonceCounter should be enough. If we want to use
+            // EncryptNonceCounter we change the interface of sym_encrypt to allow giving the counter
+            // as nonce argument. I am still not sure if doing this is insecure in some way. We need to
+            // discuss this.
             rand_padding: Bytes::from(&padding_bytes[..padding_len as usize]),
             message_type: msg_type,
+            // TODO CR: I suggest changing msg_type -> message_type
             content: content,
         };
 
@@ -289,6 +312,9 @@ impl Channel {
         serialize_message(Bytes::from(encrypted))
             .map_err(|e| e.into())
             .and_then(|bytes| {
+                // TODO CR: I think that it is surprising that pack_msg increases the send_counter.
+                // Maybe we should give the current self.send_counter as argument to pack_msg, and
+                // incremenet it outside of pack_msg? What do you think?
                 increase_counter(&mut self.send_counter);
                 Ok(bytes)
             })
