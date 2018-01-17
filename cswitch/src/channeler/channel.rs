@@ -298,7 +298,7 @@ impl Channel {
             // TODO CR: I realize now that we are using two increasing counters simultaneously: The one
             // in the encryption nonce (EncryptNonceCounter inside sym_encrypt.rs) and inc_counter
             // here. Maybe using EncryptNonceCounter should be enough. If we want to use
-            // EncryptNonceCounter we change the interface of sym_encrypt to allow giving the counter
+            // EncryptNonceCounter we should change the interface of sym_encrypt to allow giving the counter
             // as nonce argument. I am still not sure if doing this is insecure in some way. We need to
             // discuss this.
             rand_padding: Bytes::from(&padding_bytes[..padding_len as usize]),
