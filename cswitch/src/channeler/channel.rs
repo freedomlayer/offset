@@ -755,7 +755,7 @@ impl Future for ChannelNew {
                 // unreachable!() statement, but I could never see any error, because the error is
                 // swallowed when using futures. Do you have an idea for a solution to this
                 // problem? A bug of this type happened to me with the exact same pattern
-                // (mem::replace ... unreachable!()) with the implementation of AsyncMutex.
+                // (mem::replace() ... unreachable!()) with the implementation of AsyncMutex.
                 ChannelNewState::Empty => unreachable!("invalid state"),
                 ChannelNewState::InitChannel(mut init_channel_task) => {
                     match init_channel_task.poll()? {
