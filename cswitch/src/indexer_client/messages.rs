@@ -21,7 +21,13 @@ pub struct IndexingProviderInfoFromDB {
     status: IndexingProviderStatus,
 }
 
-// ========== Interface with the Database ==========
+// ======== Internal interfaces ========
+
+pub enum IndexerClientToAppManager {
+    IndexingProviderStateUpdate(IndexingProviderStateUpdate),
+    ResponseNeighborsRoutes(ResponseNeighborsRoutes),
+    ResponseFriendsRoutes(ResponseFriendsRoutes),
+}
 
 pub enum IndexerClientToDatabase {
     StoreIndexingProvider(IndexingProviderInfo),
@@ -35,4 +41,15 @@ pub enum IndexerClientToDatabase {
 
 pub enum DatabaseToIndexerClient {
     ResponseLoadIndexingProviders(Vec<IndexingProviderInfoFromDB>)
+}
+
+pub enum IndexerClientToFunder {
+    ResponseNeighborsRoute(ResponseNeighborsRoutes)
+}
+
+pub enum IndexerClientToNetworker {
+    RequestSendMessage(RequestSendMessage),
+    ResponseFriendsRoutes(ResponseFriendsRoutes),
+    ResponseMessageReceived(RespondMessageReceived),
+    DiscardMessageReceived(DiscardMessageReceived),
 }
