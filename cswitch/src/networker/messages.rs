@@ -43,9 +43,14 @@ pub struct NeighborInfo {
     pub status: NeighborStatus,
 }
 
-// ========== Interface with the Channeler ==========
+// ======== Internal Interfaces ========
 
-/// The internal message sent from `Networker` to `Channeler`.
+pub enum NetworkerToAppManager {
+    MessageReceived(MessageReceived),
+    ResponseSendMessage(ResponseSendMessage),
+    NeighborStateUpdate(NeighborStateUpdate),
+}
+
 pub enum NetworkerToChanneler {
     /// Request to send a message via given `Channel`.
     SendChannelMessage {
@@ -65,8 +70,6 @@ pub enum NetworkerToChanneler {
         max_channels: u32,
     },
 }
-
-// ========== Interface with the Database ==========
 
 pub enum NetworkerToDatabase {
     StoreNeighbor(NeighborInfo),
@@ -105,6 +108,18 @@ pub enum NetworkerToDatabase {
         neighbor_public_key: PublicKey,
         token_channel_index: u32,
     },
+}
+
+pub enum NetworkerToFunder {
+    MessageReceived(MessageReceived),
+    ResponseSendMessage(ResponseSendMessage),
+    RequestSendFunds(RequestSendFunds),
+}
+
+pub enum NetworkerToIndexerClient {
+    ResponseSendMessage(ResponseSendMessage),
+    MessageReceived(MessageReceived),
+    RequestFriendsRoutes(RequestFriendsRoutes),
 }
 
 pub enum DatabaseToNetworker {

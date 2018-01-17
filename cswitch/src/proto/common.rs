@@ -1,5 +1,7 @@
 use crypto::hash::HashResult;
 
+// TODO: impl Receipt
+
 /// A SendFundsReceipt is received if a RequestSendFunds is successful.
 /// It can be used a proof of payment for a specific invoice_id.
 struct SendFundsReceipt {
