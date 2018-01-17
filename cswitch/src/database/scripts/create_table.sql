@@ -4,6 +4,7 @@ BEGIN;
 
 CREATE TABLE neighbor (
   neighbor_public_key    BLOB    NOT NULL,
+  neighbor_socket_addr   BLOB,
   wanted_remote_max_debt BIGINT  NOT NULL,
   wanted_max_channel     INT     NOT NULL,
   status                 TINYINT NOT NULL,
