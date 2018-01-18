@@ -192,10 +192,10 @@ impl Future for Channeler {
                                             _ => ChannelError::AsyncMutexError,
                                         })
                                 })
-                                    .map_err(|e| {
-                                        error!("failed to accept a new connection: {:?}", e);
-                                        ()
-                                    });
+                                .map_err(|e| {
+                                    error!("failed to accept a new connection: {:?}", e);
+                                    ()
+                                });
 
                             let handle_for_channel = self.handle.clone();
 
