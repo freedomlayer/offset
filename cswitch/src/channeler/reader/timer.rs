@@ -93,6 +93,8 @@ impl TimerReader {
 
     // TODO CR: I don't think that we need the #[inline] hint here. 
     // See my other comments about this.
+    /// Spawn a connection attempt to any neighbor for which we are the active side in the
+    /// relationship. We attempt to connect to every neighbor every once in a while. 
     #[inline]
     fn retry_conn(&self) {
         let handle_for_task = self.handle.clone();
