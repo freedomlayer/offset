@@ -199,6 +199,14 @@ impl Future for Channeler {
 
                             let handle_for_channel = self.handle.clone();
 
+                            // TODO CR: Why do we have two spawn()-s here? 
+                            // Can we write:
+                            //
+                            // self.handle.spawn(new_channel.and_then(move |channel| {
+                            //     channel.map_err(|_| ())
+                            // }));
+                            //
+                            // Instead?
                             self.handle.spawn(new_channel.and_then(move |channel| {
                                 handle_for_channel.spawn(channel.map_err(|_| ()));
                                 Ok(())
@@ -207,12 +215,13 @@ impl Future for Channeler {
                     }
                 }
                 ChannelerState::Closing(mut closing_fut) => {
+                    // TODO CR: We might be able to use try_ready! here.
                     match closing_fut.poll()? {
                         Async::Ready(_) => {
                             debug!("channeler going down");
                             match mem::replace(&mut self.close_sender, None) {
                                 None => {
-                                    error!("close sender had been consumed, something go wrong");
+                                    error!("close sender had been consumed, something went wrong");
                                     return Err(ChannelerError::SendCloseNotificationFailed);
                                 }
                                 Some(close_sender) => {
@@ -221,6 +230,9 @@ impl Future for Channeler {
                                     }
                                 }
                             }
+                            // TODO CR: In this arm of the big match (over ChannelerState) we don't
+                            // set self.state = ...
+                            // Will this leave self.state = Empty?
 
                             return Ok(Async::Ready(()));
                         }
@@ -237,6 +249,8 @@ impl Future for Channeler {
 
 impl Channeler {
     pub fn new(
+        // TODO CR: SocketAddr implements Copy, I think that we don't need to pass it as a reference.
+        // See here: https://doc.rust-lang.org/std/net/enum.SocketAddr.html
         addr: &SocketAddr,
         handle: &Handle,
         timer_receiver: mpsc::Receiver<FromTimer>,
@@ -244,10 +258,17 @@ impl Channeler {
         networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
         sm_client: SecurityModuleClient,
     ) -> (CloseHandle, Channeler) {
+        // TODO CR: We can possibly alias the neighbors type instead of typing it every time.
+        // I am not sure if aliasing is the right solution here, or actually giving it a struct of
+        // its own.
         let neighbors = AsyncMutex::new(HashMap::<PublicKey, ChannelerNeighbor>::new());
 
         let (close_handle, (close_sender, close_receiver)) = CloseHandle::new();
 
+
+        // TODO CR: I think that we are going against Rust's convention by having the new() method
+        // return a tuple of objects. Usually new() returns Self. 
+        // Maybe we should change the name new() to something else? What do you think?
         let (timer_reader_close_handle, timer_reader) = TimerReader::new(
             handle.clone(),
             timer_receiver,
@@ -258,6 +279,8 @@ impl Channeler {
 
         handle.spawn(timer_reader.map_err(|_| ()));
 
+        // TODO CR: See previous CR comment about the new() method for TimerReader. I think it also
+        // applies for the NetworkerReader.
         let (networker_reader_close_handle, networker_reader) =
             NetworkerReader::new(handle.clone(), networker_receiver, neighbors.clone());
 
@@ -266,6 +289,10 @@ impl Channeler {
         let channeler = Channeler {
             handle: handle.clone(),
             state: ChannelerState::Alive,
+            // TODO CR: I think that we need to handle the bind() error more gracefully.
+            // It is possible that bind() attempt will fail, specifically it sometimes happens if
+            // the server crashed and it immediately retries to bind and listen.
+            // What do you think we can do to handle this error gracefully?
             listener: TcpListener::bind(addr, handle).unwrap().incoming(),
             networker_sender,
             neighbors,
