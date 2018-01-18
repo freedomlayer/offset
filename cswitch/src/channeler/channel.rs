@@ -612,7 +612,12 @@ impl ChannelNew {
         remote_public_key: PublicKey,
         channel_index: u32,
         // TODO CR: I think that we can be ok here with RefCell<HashMap<...>>, 
-        // what do you think?
+        // what do you think? 
+        // In case you fear futures might be spawned implicitly in different threads, I think that
+        // a mutex could be a better choice here (Compared with AsyncMutex), because there is
+        // nothing really async about the usage of neighbors.
+        // I think that AsyncMutex is good for cases where a few futures share a Sender or a
+        // Receiver.
         //
         // In addition, maybe we should alias HashMap<PublicKey, ChannelerNeighbor> to be some
         // type, or maybe give it a type of its own. 
