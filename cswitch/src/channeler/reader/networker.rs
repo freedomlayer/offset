@@ -91,6 +91,8 @@ impl NetworkerReader {
                 info!("failed to add neighbor");
             });
 
+        // TODO CR: Maybe we can avoid spawning a new task here. See longer explanation in
+        // del_neighbor.
         self.handle.spawn(task);
     }
 
