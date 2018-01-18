@@ -744,6 +744,18 @@ impl ChannelNew {
     }
 }
 
+// TODO CR:
+// I think that the order of events here is very
+// serial: First InitChannel, we drive it to completion and then we do Exchange.
+// In my opinion we can make the code much shorter here if we use something like
+// InitChannel... .and_then(... Exchange ... )
+// If I don't miss anything here, I think that this is what we currently do inside the ChannelNew
+// state machine.
+//
+// The current state machine design does give us the advantage of having a proper type for this
+// future (ChannelNew), but we can always Box the result of combinators or use some impl
+// Future<...>. We already Box the contents of ChannelNewState, so it's not much of an efficiency
+// loss here.
 impl Future for ChannelNew {
     type Item = (u32, mpsc::Sender<ToChannel>, Channel);
     type Error = ChannelError;
@@ -762,6 +774,11 @@ impl Future for ChannelNew {
                 // swallowed when using futures. Do you have an idea for a solution to this
                 // problem? A bug of this type happened to me with the exact same pattern
                 // (mem::replace() ... unreachable!()) with the implementation of AsyncMutex.
+                //
+                // I'm not suggesting that we have a bug here, but if we forget the 
+                // self.state = ...
+                // statement on any arm of the match {} clause, we will have a bug and it could be
+                // difficult to spot. What is your opinion?
                 ChannelNewState::Empty => unreachable!("invalid state"),
                 ChannelNewState::InitChannel(mut init_channel_task) => {
                     match init_channel_task.poll()? {
@@ -805,10 +822,22 @@ impl Future for ChannelNew {
                     }
                 }
                 ChannelNewState::Exchange(mut exchange_task) => {
+                    // TODO CR: Could we somehow write this code so that we don't need to have
+                    // those asserts for existence of channel_index and remote_public_key?
+                    // Also note the channel_index.take().expect(...) below. 
+                    //
+                    // Maybe those values should be inside exchange_task, or we should pass them in
+                    // some other way? I think that we are giving up some safety from the compiler
+                    // here by using Option<> for these types.
                     debug_assert!(self.channel_index.is_some());
                     debug_assert!(self.remote_public_key.is_some());
 
                     match exchange_task.poll()? {
+                        // TODO CR: I suggest to rename: 
+                        // sent_xchg -> sent_exchange, 
+                        // recv_xchg -> recv_exchange,
+                        // to conform to the other places we mention the Exchange message.
+                        // Also rename my_privete_key -> my_private_key (:
                         Async::Ready((sent_xchg, recv_xchg, my_privete_key, tx, rx)) => {
                             trace!("ChannelNewState::Exchange       [Ready]");
                             // Combine self private key, received public key
@@ -834,6 +863,10 @@ impl Future for ChannelNew {
 
                             let (inner_tx, inner_rx) = mpsc::channel::<ToChannel>(0);
 
+                            // TODO CR: See comment beloew about the debug_assert!-s.
+                            // We might be able to design this part in a different way, to avoid
+                            // the many expect()-s and assert!s. In the meanwhile, we can make sure
+                            // that we do this only once, maybe in the beginning of the function.
                             let channel_index =
                                 self.channel_index.take().expect("missing channel index");
 
@@ -842,6 +875,8 @@ impl Future for ChannelNew {
                                 .expect("missing remote public key");
 
                             let channel = Channel {
+                                // TODO CR: Use some SecureRandom ref from the outside, maybe Rc<R>
+                                // where R: SecureRandom.
                                 os_rng: OsRng::new()?,
                                 remote_public_key,
                                 channel_index,
