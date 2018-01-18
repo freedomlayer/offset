@@ -57,6 +57,20 @@ pub struct Channeler {
 }
 
 impl Channeler {
+    // TODO CR: Why do we have #[inline] here?
+    // If this is done for efficiency, I believe that this is not really required here, close will
+    // be called probably only once in the whole execution of CSwitch!
+    // On the other hand, #[inline] has the cost of increasing our compile time.
+    //
+    // See also: https://internals.rust-lang.org/t/when-should-i-use-inline/598/3
+    //
+    // Same goes for every usage of #[inline] anywhere on the codebase. I think that if we
+    // don't have a very good reason to believe some function is causing us an efficiency
+    // bottleneck, we probably shouldn't #[inline] it. The compiler is probably smarter than my
+    // ideas of what should be inlined and what shouldn't.
+    //
+    // That said, it is very interesting to see. I didn't know about the #[inline] rust feature
+    // until I read it in this code.
     #[inline]
     fn close(&mut self) -> Box<Future<Item = ((), ()), Error = ChannelerError>> {
         let timer_reader_close_handle =
@@ -71,6 +85,11 @@ impl Channeler {
                 Some(networker_reader_close_handle) => networker_reader_close_handle,
             };
 
+        // TODO CR:
+        // Maybe we should wait for timer_reader and networker reader to close?
+        // the .close() method on both of the handles returns a future that resolves only when
+        // closing was successful. We should probably chain those on the returned future from this
+        // function.
         let timer_reader_close_fut = timer_reader_close_handle.close().unwrap();
         let networker_reader_close_fut = networker_reader_close_handle.close().unwrap();
 
@@ -89,6 +108,8 @@ impl Future for Channeler {
     fn poll(&mut self) -> Poll<(), ChannelerError> {
         trace!("poll - {:?}", ::std::time::Instant::now());
 
+        // TODO CR: Maybe we can use loop_fn here? 
+        // See also: https://docs.rs/futures/*/futures/future/fn.loop_fn.html
         loop {
             match mem::replace(&mut self.state, ChannelerState::Empty) {
                 ChannelerState::Empty => unreachable!(),
