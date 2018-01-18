@@ -210,7 +210,7 @@ impl Channel {
     ) -> ChannelNew {
         let rng = SystemRandom::new();
 
-        // TODO: Add debug assert here to check the neighbor public kety and the channel index
+        // TODO: Add debug assert here to check the neighbor public key and the channel index
         let _neighbors_for_task = neighbors.clone();
         let sm_client_for_task = sm_client.clone();
         // Precompute here because the `SystemRandom` not implement
