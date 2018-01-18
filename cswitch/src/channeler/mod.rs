@@ -44,9 +44,13 @@ enum ChannelerState {
 pub struct Channeler {
     handle: Handle,
     state: ChannelerState,
-    listener: Incoming,
+    listener: Incoming,             // Listener for incoming TCP connections:
+    // TODO CR: Maybe we can make a type of HashMap<PublicKey, ChannelerNeighbor>,
+    // as it returns multiple times inside the Channeler code.
     neighbors: AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
     networker_sender: mpsc::Sender<ChannelerToNetworker>,
+    // TODO CR: See also comment about changing SecurityModuleClient to be a trait instead of a
+    // struct.
     sm_client: SecurityModuleClient,
 
     close_sender: Option<oneshot::Sender<()>>,
@@ -110,12 +114,15 @@ impl Future for Channeler {
 
         // TODO CR: Maybe we can use loop_fn here? 
         // See also: https://docs.rs/futures/*/futures/future/fn.loop_fn.html
+        //
+        // It could eliminate the unreachable!() part. I'm still trying to figure out ways to eliminate it.
         loop {
             match mem::replace(&mut self.state, ChannelerState::Empty) {
                 ChannelerState::Empty => unreachable!(),
                 ChannelerState::Alive => {
                     self.state = ChannelerState::Alive;
 
+                    // Handle closing requests:
                     match self.close_receiver.poll()? {
                         Async::NotReady => (),
                         Async::Ready(()) => {
@@ -127,6 +134,7 @@ impl Future for Channeler {
                         }
                     }
 
+                    // TODO CR: We might be able to use try_ready! here:
                     match self.listener.poll()? {
                         Async::NotReady => {
                             return Ok(Async::NotReady);
