@@ -253,6 +253,21 @@ impl TimerReader {
         let networker_sender_for_task = self.inner_tx.clone();
         let neighbor_for_task = self.neighbors.clone();
 
+
+        // TODO CR:
+        // We are allocating here a new task for every time tick sent to any channel.
+        // I remember that this is how I initially implemented this part.
+        // I think that we might be able to implement this so that we don't need to allocate new
+        // tasks every time, I propose the following implementation:
+        //
+        // We will have a vector Senders, to be able to send Time Ticks to all the Channels.
+        // We then go over all the vector and attempt to send a time tick to all of them using
+        // try_send. Some of them might be NotReady, in that case we just give up on them, and they
+        // are going to miss a time tick. 
+        //
+        // This should simplify the implementation here, and allow us to code this part without
+        // spawning new tasks. Please tell me what you think about this when you read this.
+
         let task = self.neighbors
             .acquire(move |neighbors| {
                 for (public_key, neighbor) in neighbors.iter() {
@@ -323,6 +338,10 @@ impl TimerReader {
     }
 
     // TODO: Consume all message before closing actually.
+    // TODO CR: What messages do we need to consume here? The buffered messages inside the Streams?
+    
+    // TODO CR: I don't think that we need the #[inline] hint here. 
+    // See my other comments about this.
     #[inline]
     fn close(&mut self) {
         self.inner_rx.close();
@@ -339,6 +358,10 @@ impl TimerReader {
     }
 }
 
+// TODO CR: I think that we might be able to rewrite this as a for_each over a stream, where the
+// stream is the result of select() over inner_rx and close_rx. 
+// I admit that I'm not sure if it will make the code shorter in this case, but if this code ever
+// gets bigger this might be a good idea.
 impl Future for TimerReader {
     type Item = ();
     type Error = TimerReaderError;
@@ -346,6 +369,7 @@ impl Future for TimerReader {
     fn poll(&mut self) -> Poll<(), Self::Error> {
         trace!("poll - {:?}", ::std::time::Instant::now());
 
+        // Check if we received a closing request:
         match self.close_rx.poll()? {
             Async::NotReady => (),
             Async::Ready(()) => {
