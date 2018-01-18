@@ -245,6 +245,8 @@ impl NetworkerReader {
     }
 }
 
+// TODO CR: I think that we might be able to implement this state machine as a select() over
+// (inner_rx and close_rx), together with for_each over the resulting Stream. What do you think?
 impl Future for NetworkerReader {
     type Item = ();
     type Error = NetworkerReaderError;
