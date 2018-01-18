@@ -135,6 +135,8 @@ impl Future for Channeler {
                     }
 
                     // TODO CR: We might be able to use try_ready! here:
+                    
+                    // Check if we have new connections:
                     match self.listener.poll()? {
                         Async::NotReady => {
                             return Ok(Async::NotReady);
