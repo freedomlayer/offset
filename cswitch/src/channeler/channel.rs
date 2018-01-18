@@ -187,6 +187,8 @@ impl Channel {
 
         ChannelNew {
             state: ChannelNewState::InitChannel(Box::new(init_channel_task)),
+            // TODO CR: See similar comment below about using time ticks as the source of time, instead of using
+            // time::Duration::from_secs.
             timeout: Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
             rng,
             sm_client: sm_client.clone(),
