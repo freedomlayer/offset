@@ -15,6 +15,9 @@ use std::{cmp, io, mem};
 use tokio_io::codec::{Decoder, Encoder};
 use bytes::{BigEndian, Buf, BufMut, Bytes, BytesMut};
 
+/// The maximum allowed length for the data inside the frame.
+/// This means that this maximum size does not include the 4 bytes indicating the length of the
+/// framframe.
 const MAX_FRAME_LEN: usize = 1 << 20;
 
 enum State {
