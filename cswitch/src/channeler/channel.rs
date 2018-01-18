@@ -909,6 +909,7 @@ impl Future for ChannelNew {
 }
 
 #[inline]
+/// Cyclic increase of counter.
 fn increase_counter(counter: &mut u64) {
     if *counter == u64::max_value() {
         *counter = 0;
