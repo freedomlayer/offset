@@ -7,6 +7,10 @@ use crypto::identity::{PublicKey, Signature};
 pub use super::schema_impl::channeler::MessageType;
 pub use super::schema_impl::channeler::{deserialize_message, serialize_message};
 
+// TODO CR: We have to keep in sync the messages here and the messages in channeler.capnp.
+// Is there a way for us to have the messages only in one place?
+// Could we use the structures produced by capnp instead?
+
 /// The message intend to be sent by the active end.
 #[derive(PartialEq)]
 pub struct InitChannelActive {
