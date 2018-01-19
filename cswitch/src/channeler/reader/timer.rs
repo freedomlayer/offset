@@ -178,7 +178,7 @@ impl TimerReader {
                                             Ok((channel_index, channel_tx, channel)) => {
                                                 let msg = ChannelerToNetworker {
                                                     remote_public_key: neighbor_public_key,
-                                                    channel_index: channel_index,
+                                                    channel_index,
                                                     event: ChannelEvent::Opened,
                                                 };
 
@@ -203,22 +203,19 @@ impl TimerReader {
                                     Err(e) => Err((Some(neighbors), e)),
                                 }
                             })
-                            .map_err(|e| {
-                                // TODO CR: Can we really arrive here? Or do we have this because
-                                // of the AsyncMutex design?
-                                error!("Failed to initialize a new connection: {:?}", e);
-                                ()
-                            })
                     });
 
-                    let handle_for_channel = handle_for_task.clone();
-
-                    // TODO CR: Why do we spawn twice here? 
-                    // I think that we may drop the second spawn.
-                    handle_for_task.spawn(new_channel.and_then(move |channel| {
-                        handle_for_channel.spawn(channel.map_err(|_| ()));
-                        Ok(())
-                    }));
+                    handle_for_task.spawn(
+                        new_channel
+                            .map_err(|e| {
+                                error!("failed to initialize a new connection: {:?}", e);
+                            })
+                            .and_then(|channel| {
+                                channel.map_err(|e| {
+                                    warn!("channel closed: {:?}", e);
+                                })
+                            })
+                    );
                 }
 
                 Ok((neighbors, ()))

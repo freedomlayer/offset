@@ -134,7 +134,7 @@ impl Future for Channeler {
                     }
 
                     // TODO CR: We might be able to use try_ready! here:
-                    
+
                     // Check if we have new connections:
                     match self.listener.poll()? {
                         Async::NotReady => {
@@ -165,8 +165,8 @@ impl Future for Channeler {
                                                 )),
                                                 Some(neighbor) => {
                                                     let msg = ChannelerToNetworker {
-                                                        remote_public_key: remote_public_key,
-                                                        channel_index: channel_index,
+                                                        remote_public_key,
+                                                        channel_index,
                                                         event: ChannelEvent::Opened,
                                                     };
 
@@ -190,26 +190,19 @@ impl Future for Channeler {
                                             AsyncMutexError::Function(e) => e,
                                             _ => ChannelError::AsyncMutexError,
                                         })
-                                })
-                                .map_err(|e| {
-                                    error!("failed to accept a new connection: {:?}", e);
-                                    ()
                                 });
 
-                            let handle_for_channel = self.handle.clone();
-
-                            // TODO CR: Why do we have two spawn()-s here? 
-                            // Can we write:
-                            //
-                            // self.handle.spawn(new_channel.and_then(move |channel| {
-                            //     channel.map_err(|_| ())
-                            // }));
-                            //
-                            // Instead?
-                            self.handle.spawn(new_channel.and_then(move |channel| {
-                                handle_for_channel.spawn(channel.map_err(|_| ()));
-                                Ok(())
-                            }));
+                            self.handle.spawn(
+                                new_channel
+                                    .map_err(|e| {
+                                        error!("failed to accept a new connection: {:?}", e);
+                                    })
+                                    .and_then(|channel| {
+                                        channel.map_err(|e| {
+                                            warn!("channel closed: {:?}", e)
+                                        })
+                                    })
+                            );
                         }
                     }
                 }
@@ -321,14 +314,12 @@ pub enum ChannelerError {
 }
 
 impl From<io::Error> for ChannelerError {
-    #[inline]
     fn from(e: io::Error) -> ChannelerError {
         ChannelerError::Io(e)
     }
 }
 
 impl From<oneshot::Canceled> for ChannelerError {
-    #[inline]
     fn from(_e: oneshot::Canceled) -> ChannelerError {
         ChannelerError::CloseReceiverCanceled
     }
