@@ -23,8 +23,6 @@ pub enum TimerReaderError {
     TimerReceiveFailed,
     RemoteCloseHandleClosed,
     SendToNetworkerFailed,
-    // TODO CR: I think that this error type is not used:
-    FutMutex,
 }
 
 // TODO CR: Maybe we should produce the TimerReaderError::RemoteCloseHandleClosed at the right
@@ -38,15 +36,11 @@ pub enum TimerReaderError {
 // other one we will have TimerReaderError::RemoteOneshot2Closed. We won't be able to use the impl
 // From<oneshot::Canceled> for TimerReaderError> in that case.
 impl From<oneshot::Canceled> for TimerReaderError {
-    // TODO CR: I don't think that we need the #[inline] hint here. 
-    // See my other comments about this.
-    #[inline]
     fn from(_e: oneshot::Canceled) -> TimerReaderError {
         TimerReaderError::RemoteCloseHandleClosed
     }
 }
 
-// TODO CR: What happens if we don't have the must_use here?
 #[must_use = "futures do nothing unless polled"]
 pub struct TimerReader {
     handle: Handle,
@@ -91,11 +85,8 @@ impl TimerReader {
         (close_handle, timer_reader)
     }
 
-    // TODO CR: I don't think that we need the #[inline] hint here. 
-    // See my other comments about this.
     /// Spawn a connection attempt to any neighbor for which we are the active side in the
-    /// relationship. We attempt to connect to every neighbor every once in a while. 
-    #[inline]
+    /// relationship. We attempt to connect to every neighbor every once in a while.
     fn retry_conn(&self) {
         let handle_for_task = self.handle.clone();
         let neighbors_for_task = self.neighbors.clone();
@@ -245,17 +236,13 @@ impl TimerReader {
         self.handle.spawn(retry_conn_task);
     }
 
-    // TODO CR: I don't think that we need the #[inline] hint here. 
-    // See my other comments about this.
-    #[inline]
     fn broadcast_tick(&self) {
         let handle_for_task = self.handle.clone();
         let networker_sender_for_task = self.inner_tx.clone();
         let neighbor_for_task = self.neighbors.clone();
 
 
-        // TODO CR:
-        // We are allocating here a new task for every time tick sent to any channel.
+        // TODO CR: We are allocating here a new task for every time tick sent to any channel.
         // I remember that this is how I initially implemented this part.
         // I think that we might be able to implement this so that we don't need to allocate new
         // tasks every time, I propose the following implementation:
@@ -339,10 +326,6 @@ impl TimerReader {
 
     // TODO: Consume all message before closing actually.
     // TODO CR: What messages do we need to consume here? The buffered messages inside the Streams?
-    
-    // TODO CR: I don't think that we need the #[inline] hint here. 
-    // See my other comments about this.
-    #[inline]
     fn close(&mut self) {
         self.inner_rx.close();
         match mem::replace(&mut self.close_tx, None) {

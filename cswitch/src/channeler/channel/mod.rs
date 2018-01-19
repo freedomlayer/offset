@@ -50,10 +50,7 @@ pub enum ChannelError {
 }
 
 /// The encrypted channel used to communicate with neighbors.
-#[must_use = "futures do nothing unless polled"] // TODO CR: Why do we have this?
-                                                 // I thought futures have this feature
-                                                 // automatically, I might be wrong about this
-                                                 // though.
+#[must_use = "futures do nothing unless polled"]
 pub struct Channel {
     // Remote identity public key
     remote_public_key: PublicKey,
@@ -68,12 +65,9 @@ pub struct Channel {
                                     // can be very difficult to have deterministic tests.
 
     // The inner sender and receiver
-    // TODO CR: It's hard for me to understand from the names inner_sender and outer_sender
-    // what is the job of each of inner_sender and outer_sender. What other meaningful name
-    // could we pick for those?  Maybe networker_sender instead of inner_sender?
-    inner_sender: mpsc::Sender<ChannelerToNetworker>,
-    inner_receiver: mpsc::Receiver<ToChannel>,
-    inner_buffered: Option<ChannelerToNetworker>,
+    networker_sender: mpsc::Sender<ChannelerToNetworker>,
+    networker_receiver: mpsc::Receiver<ToChannel>,
+    networker_buffered: Option<ChannelerToNetworker>,
 
     // The outer sender and receiver
     outer_sender: FramedSink,
@@ -85,11 +79,8 @@ pub struct Channel {
     encryptor: Encryptor,
     decryptor: Decryptor,
 
-    send_ka_ticks: usize,           // TODO CR: 
-                                    // Maybe we can rename this to send_keepalive_ticks or
-                                    // something similar? It took me a while to go through the
-                                    // codebase and find out what ka means.
-    recv_ka_ticks: usize,
+    send_keepalive_ticks: usize,
+    recv_keepalive_ticks: usize,
 }
 
 impl Channel {
@@ -101,7 +92,7 @@ impl Channel {
                     // Can we possibly use something weaker than AsyncMutex for neighbors, for example,
                     // RefCell? This is assuming neighbors does not contain any Futures related
                     // items inside.
-        networker_tx: &mpsc::Sender<ChannelerToNetworker>,
+        networker_sender: &mpsc::Sender<ChannelerToNetworker>,
         // TODO CR: I think that we should change SecurityModuleClient to be a trait instead of a
         // structure. This will make it easier for us to write tests, because we will be able to
         // easily replace SecurityModuleClient with a mock SecurityModuleClient. This should be
@@ -193,7 +184,7 @@ impl Channel {
             rng,
             sm_client: sm_client.clone(),
             remote_public_key: None,
-            nw_sender: networker_tx.clone(),
+            networker_sender: networker_sender.clone(),
             channel_index: None,
         }
     }
@@ -284,7 +275,7 @@ impl Channel {
             rng,
             sm_client: sm_client.clone(),
             remote_public_key: None,
-            nw_sender: networker_tx.clone(),
+            networker_sender: networker_tx.clone(),
             channel_index: Some(channel_index),
         }
     }
@@ -294,7 +285,7 @@ impl Channel {
     }
 
     /// Pack and encrypt a message to be sent to remote.
-    fn pack_msg(&mut self, msg_type: MessageType, content: Bytes) -> Result<Bytes, ChannelError> {
+    fn pack_msg(&mut self, message_type: MessageType, content: Bytes) -> Result<Bytes, ChannelError> {
         let padding_len = self.os_rng.next_u32() % MAX_PADDING_LEN;
         // TODO CR: I think that we should be more careful when calculating padding_len.
         // Note that doing something like (rand() % 0x100) is really random, but doing something
@@ -317,8 +308,7 @@ impl Channel {
             // as nonce argument. I am still not sure if doing this is insecure in some way. We need to
             // discuss this.
             rand_padding: Bytes::from(&padding_bytes[..padding_len as usize]),
-            message_type: msg_type,
-            // TODO CR: I suggest changing msg_type -> message_type
+            message_type: message_type,
             content: content,
         };
 
@@ -357,15 +347,15 @@ impl Channel {
     /// Attempt to send a message to Networker. If the channel is not ready, we buffer the
     /// message and it will be sent later. This function may only be called if no other messages
     /// are planned for sending to the Networker.
-    fn try_start_send_inner(&mut self, msg: ChannelerToNetworker) -> Poll<(), ChannelError> {
-        debug_assert!(self.inner_buffered.is_none());
+    fn try_start_send_networker(&mut self, msg: ChannelerToNetworker) -> Poll<(), ChannelError> {
+        debug_assert!(self.networker_buffered.is_none());
 
-        self.inner_sender
+        self.networker_sender
             .start_send(msg)
             .map_err(|_| ChannelError::SendToNetworkerFailed)
             .and_then(|start_send| {
                 if let AsyncSink::NotReady(msg) = start_send {
-                    self.inner_buffered = Some(msg);
+                    self.networker_buffered = Some(msg);
                     Ok(Async::NotReady)
                 } else {
                     Ok(Async::Ready(()))
@@ -395,7 +385,7 @@ impl Channel {
     /// Attempt to pull out the next message **needed to be sent to remote**.
     fn try_poll_inner(&mut self) -> Poll<Option<Bytes>, ChannelError> {
         loop {
-            let poll_result = self.inner_receiver
+            let poll_result = self.networker_receiver
                 .poll()
                 .map_err(|_| ChannelError::RecvFromInnerFailed);
 
@@ -405,14 +395,14 @@ impl Channel {
                         // TODO CR:
                         // Is there any danger here for panic! ?
                         // Is it possible that at this point send_ka_ticks == 0?
-                        self.send_ka_ticks -= 1;
-                        self.recv_ka_ticks -= 1;
+                        self.send_keepalive_ticks -= 1;
+                        self.recv_keepalive_ticks -= 1;
 
-                        if self.recv_ka_ticks == 0 {
+                        if self.recv_keepalive_ticks == 0 {
                             return Err(ChannelError::KeepAliveTimeout);
                         } else {
-                            if self.send_ka_ticks == 0 {
-                                self.send_ka_ticks = KEEP_ALIVE_TICKS;
+                            if self.send_keepalive_ticks == 0 {
+                                self.send_keepalive_ticks = KEEP_ALIVE_TICKS;
 
                                 let msg = self.pack_msg(MessageType::KeepAlive, Bytes::new())?;
                                 return Ok(Async::Ready(Some(msg)));
@@ -439,7 +429,7 @@ impl Channel {
 
                 match msg.message_type {
                     MessageType::KeepAlive => {
-                        self.recv_ka_ticks = 2 * KEEP_ALIVE_TICKS;
+                        self.recv_keepalive_ticks = 2 * KEEP_ALIVE_TICKS;
                     }
                     MessageType::User => {
                         let msg = ChannelerToNetworker {
@@ -501,8 +491,8 @@ impl Future for Channel {
                     // TODO CR: I think that we might be able to take this code outside of the
                     // scope (Right after the block of match self.try_poll_inner()?), making the
                     // code more symmetric with respect to inner_buffered and outer_buffered.
-                    if let Some(msg) = self.inner_buffered.take() {
-                        try_ready!(self.try_start_send_inner(msg));
+                    if let Some(msg) = self.networker_buffered.take() {
+                        try_ready!(self.try_start_send_networker(msg));
                     }
                     match self.try_poll_outer()? {
                         Async::Ready(None) => {
@@ -510,11 +500,11 @@ impl Future for Channel {
                             return Ok(Async::Ready(()));
                         }
                         Async::Ready(Some(msg)) => {
-                            try_ready!(self.try_start_send_inner(msg));
+                            try_ready!(self.try_start_send_networker(msg));
                         }
                         Async::NotReady => {
                             try_ready!(
-                                self.inner_sender
+                                self.networker_sender
                                     .poll_complete()
                                     .map_err(|_| ChannelError::SendToNetworkerFailed)
                             );
@@ -597,10 +587,7 @@ pub struct ChannelNew {
     rng: SystemRandom,
     sm_client: SecurityModuleClient,
     channel_index: Option<u32>,
-    nw_sender: mpsc::Sender<ChannelerToNetworker>, // TODO CR: I suggest to change this into 
-                                                   // networker_sender. It was difficult for me to
-                                                   // guess what is nw until I saw that the
-                                                   // messages type is ChannelerToNetworker.
+    networker_sender: mpsc::Sender<ChannelerToNetworker>,
     remote_public_key: Option<PublicKey>,
 }
 
@@ -832,27 +819,22 @@ impl Future for ChannelNew {
                     debug_assert!(self.remote_public_key.is_some());
 
                     match exchange_task.poll()? {
-                        // TODO CR: I suggest to rename: 
-                        // sent_xchg -> sent_exchange, 
-                        // recv_xchg -> recv_exchange,
-                        // to conform to the other places we mention the Exchange message.
-                        // Also rename my_privete_key -> my_private_key (:
-                        Async::Ready((sent_xchg, recv_xchg, my_privete_key, tx, rx)) => {
+                        Async::Ready((send_exchange, recv_exchange, my_private_key, tx, rx)) => {
                             trace!("ChannelNewState::Exchange       [Ready]");
                             // Combine self private key, received public key
                             // and received key salt to derive symmetric key
                             // for sending data
-                            let key_send = my_privete_key.derive_symmetric_key(
-                                &recv_xchg.comm_public_key,
-                                &sent_xchg.key_salt,
+                            let key_send = my_private_key.derive_symmetric_key(
+                                &recv_exchange.comm_public_key,
+                                &send_exchange.key_salt,
                             );
 
                             // Combine self private key, received public key
                             // and received key salt to derive symmetric key
                             // for receiving data
-                            let key_recv = my_privete_key.derive_symmetric_key(
-                                &recv_xchg.comm_public_key,
-                                &recv_xchg.key_salt,
+                            let key_recv = my_private_key.derive_symmetric_key(
+                                &recv_exchange.comm_public_key,
+                                &recv_exchange.key_salt,
                             );
 
                             let encrypt_nonce_counter = EncryptNonceCounter::new(&mut self.rng);
@@ -879,9 +861,9 @@ impl Future for ChannelNew {
                                 os_rng: OsRng::new()?,
                                 remote_public_key,
                                 channel_index,
-                                inner_sender: self.nw_sender.clone(),
-                                inner_receiver: inner_rx,
-                                inner_buffered: None,
+                                networker_sender: self.networker_sender.clone(),
+                                networker_receiver: inner_rx,
+                                networker_buffered: None,
                                 outer_sender: tx,
                                 outer_receiver: rx,
                                 outer_buffered: None,
@@ -889,8 +871,8 @@ impl Future for ChannelNew {
                                 recv_counter: 0,
                                 encryptor: encryptor,
                                 decryptor: decryptor,
-                                send_ka_ticks: KEEP_ALIVE_TICKS,
-                                recv_ka_ticks: 2 * KEEP_ALIVE_TICKS,
+                                send_keepalive_ticks: KEEP_ALIVE_TICKS,
+                                recv_keepalive_ticks: 2 * KEEP_ALIVE_TICKS,
                             };
 
                             return Ok(Async::Ready((channel_index, inner_tx, channel)));
@@ -1074,7 +1056,7 @@ mod test {
 
         assert!(validation_task.wait().is_err());
 
-        // Case 2: (N, X, X)
+        // Case 4: (N, X, X)
         //
         // - The received key belong to a neighbor that doesn't have the initiator role.
         // - The channel index smaller than the maximum allowed channels and this

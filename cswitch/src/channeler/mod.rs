@@ -75,7 +75,6 @@ impl Channeler {
     //
     // That said, it is very interesting to see. I didn't know about the #[inline] rust feature
     // until I read it in this code.
-    #[inline]
     fn close(&mut self) -> Box<Future<Item = ((), ()), Error = ChannelerError>> {
         let timer_reader_close_handle =
             match mem::replace(&mut self.timer_reader_close_handle, None) {
@@ -293,7 +292,7 @@ impl Channeler {
             // It is possible that bind() attempt will fail, specifically it sometimes happens if
             // the server crashed and it immediately retries to bind and listen.
             // What do you think we can do to handle this error gracefully?
-            listener: TcpListener::bind(addr, handle).unwrap().incoming(),
+            listener: TcpListener::bind(&addr, handle).unwrap().incoming(),
             networker_sender,
             neighbors,
             sm_client,

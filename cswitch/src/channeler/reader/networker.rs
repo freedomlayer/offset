@@ -18,20 +18,14 @@ use crypto::identity::PublicKey;
 pub enum NetworkerReaderError {
     MessageReceiveFailed,
     RemoteCloseHandleClosed,
-    // TODO CR: I think that this is error is unused:
-    FutMutex,
 }
 
 impl From<oneshot::Canceled> for NetworkerReaderError {
-    // TODO CR: Unless we know about a specific performance problem with this function, I don't
-    // think that we need to tell the compiler to inline this.
-    #[inline]
     fn from(_e: oneshot::Canceled) -> NetworkerReaderError {
         NetworkerReaderError::RemoteCloseHandleClosed
     }
 }
 
-// TODO CR: What happens if we don't have this? I thought that all Futures have this by default.
 #[must_use = "futures do nothing unless polled"]
 pub struct NetworkerReader {
     handle: Handle,
@@ -46,9 +40,8 @@ pub struct NetworkerReader {
 }
 
 impl NetworkerReader {
-    // TODO CR:
-    // Maybe we should rename this function? The Rust convention is that Object::new() returns
-    // Object type, but here we return a tuple.
+    // TODO CR: Maybe we should rename this function? The Rust convention is that Object::new()
+    // returns Object type, but here we return a tuple.
     
     // Create a new `NetworkerReader`, return a new `NetworkerReader` with its `CloseHandle`.
     pub fn new(
@@ -71,8 +64,6 @@ impl NetworkerReader {
         (close_handle, reader)
     }
 
-    // TODO CR: See other comments about using #[inline]
-    #[inline]
     fn add_neighbor(&self, info: ChannelerNeighborInfo) {
         let task = self.neighbors
             .acquire(|mut neighbors| {
@@ -96,8 +87,6 @@ impl NetworkerReader {
         self.handle.spawn(task);
     }
 
-    // TODO CR: See other comments about using #[inline]
-    #[inline]
     fn del_neighbor(&self, public_key: PublicKey) {
         let task = self.neighbors
             .acquire(move |mut neighbors| {
@@ -141,8 +130,6 @@ impl NetworkerReader {
         self.handle.spawn(task);
     }
 
-    // TODO CR: See other comments about using #[inline]
-    #[inline]
     fn send_message(&self, index: u32, public_key: PublicKey, content: Bytes) {
         let task = self.neighbors
             .acquire(move |mut neighbors| {
@@ -202,8 +189,6 @@ impl NetworkerReader {
         self.handle.spawn(task);
     }
 
-    // TODO CR: See other comments about using #[inline]
-    #[inline]
     fn set_max_channels(&self, public_key: PublicKey, max_channels: u32) {
         let task = self.neighbors
             .acquire(move |mut neighbors| {
@@ -230,8 +215,6 @@ impl NetworkerReader {
     }
 
     // TODO: Consume all message before closing actually.
-    // TODO CR: See other comments about using #[inline]
-    #[inline]
     fn close(&mut self) {
         self.inner_rx.close();
         match mem::replace(&mut self.close_tx, None) {
