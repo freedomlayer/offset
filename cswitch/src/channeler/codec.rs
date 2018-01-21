@@ -80,7 +80,7 @@ impl Decoder for Codec {
                             frame: BytesMut::with_capacity(length),
                         };
                     }
-                }
+                },
                 State::CollectingFrame { length, mut frame } => {
                     let bytes_to_consume = cmp::min(length - frame.len(), buf.len());
 
@@ -93,7 +93,7 @@ impl Decoder for Codec {
                         self.state = State::CollectingFrame { length, frame };
                         return Ok(None);
                     }
-                }
+                },
             }
         }
     }
@@ -112,10 +112,7 @@ impl Encoder for Codec {
         // avoid more than one allocation caused by using `buf.extend(..)`
         buf.reserve(4 + data.len());
 
-        let mut prefix_length = BytesMut::with_capacity(4usize);
-        prefix_length.put_u32::<BigEndian>(data.len() as u32);
-
-        buf.put(prefix_length);
+        buf.put_u32::<BigEndian>(data.len() as u32);
         buf.put(data);
 
         Ok(())
@@ -131,10 +128,10 @@ mod tests {
     fn encode_basic() {
         let mut codec = Codec::new();
         let mut buf = BytesMut::new();
-        match codec.encode(Bytes::from_static(&[1, 2, 3, 4, 5]), &mut buf) {
-            Ok(()) => {}
-            Err(_) => panic!("Error encoding data!"),
-        };
+
+        codec.encode(Bytes::from_static(&[1, 2, 3, 4, 5]), &mut buf)
+            .expect("Error encoding data!");
+
         assert_eq!(buf, vec![0, 0, 0, 5, 1, 2, 3, 4, 5]);
     }
 
@@ -142,10 +139,10 @@ mod tests {
     fn encode_empty() {
         let mut codec = Codec::new();
         let mut buf = BytesMut::new();
-        match codec.encode(Bytes::new(), &mut buf) {
-            Ok(()) => {}
-            _ => panic!("Error encoding data!"),
-        };
+
+        codec.encode(Bytes::new(), &mut buf)
+            .expect("Error encoding data!");
+
         assert_eq!(buf, vec![0, 0, 0, 0]);
     }
 
@@ -153,10 +150,10 @@ mod tests {
     fn encode_large() {
         let mut codec = Codec::new();
         let mut buf = BytesMut::new();
-        match codec.encode(Bytes::from_static(&[0; MAX_FRAME_LEN]), &mut buf) {
-            Ok(()) => {}
-            _ => panic!("Error encoding data!"),
-        };
+
+        codec.encode(Bytes::from_static(&[0; MAX_FRAME_LEN]), &mut buf)
+            .expect("Error encoding data!");
+
         assert_eq!(buf.len(), 4 + MAX_FRAME_LEN);
     }
 
@@ -165,7 +162,7 @@ mod tests {
         let mut codec = Codec::new();
         let mut buf = BytesMut::new();
         match codec.encode(Bytes::from_static(&[0; MAX_FRAME_LEN + 1]), &mut buf) {
-            Err(CodecError::TooLarge) => {}
+            Err(CodecError::TooLarge) => {},
             _ => panic!("Test failed"),
         };
     }
@@ -173,32 +170,22 @@ mod tests {
     #[test]
     fn decode_basic() {
         let mut codec = Codec::new();
+
         let mut buf = BytesMut::new();
         buf.extend(vec![0, 0]);
-        match codec.decode(&mut buf) {
-            Ok(None) => {}
-            _ => panic!("Test failed1!"),
-        };
+        codec.decode(&mut buf).expect("Test failed1!");
+
         buf.extend(vec![0]);
-        match codec.decode(&mut buf) {
-            Ok(None) => {}
-            _ => panic!("Test failed2!"),
-        };
+        codec.decode(&mut buf).expect("Test failed2!");
+
         buf.extend(vec![5]);
-        match codec.decode(&mut buf) {
-            Ok(None) => {}
-            _ => panic!("Test failed3!"),
-        };
+        codec.decode(&mut buf).expect("Test failed3!");
+
         buf.extend(vec![1, 2, 3, 4]);
-        match codec.decode(&mut buf) {
-            Ok(None) => {}
-            _ => panic!("Test failed4!"),
-        };
+        codec.decode(&mut buf).expect("Test failed4!");
+
         buf.extend(vec![5, 6, 7, 8]);
-        match codec.decode(&mut buf) {
-            Ok(Some(v)) => assert_eq!(v, vec![1, 2, 3, 4, 5]),
-            _ => panic!("Test failed5!"),
-        };
+        codec.decode(&mut buf).expect("Test failed5!");
 
         // Make sure that we still have the remainder:
         assert_eq!(buf, vec![6, 7, 8]);
@@ -211,11 +198,11 @@ mod tests {
 
         // Encode length prefix as bytes:
         let mut wtr = vec![];
-        wtr.write_u32::<BigEndian>((MAX_FRAME_LEN + 1) as u32)
-            .unwrap();
+        wtr.write_u32::<BigEndian>((MAX_FRAME_LEN + 1) as u32).unwrap();
         buf.extend(wtr);
+
         match codec.decode(&mut buf) {
-            Err(CodecError::TooLarge) => {}
+            Err(CodecError::TooLarge) => {},
             _ => panic!("Test failed1!"),
         };
     }

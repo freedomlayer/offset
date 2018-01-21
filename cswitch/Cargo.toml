@@ -8,9 +8,9 @@ build = "build.rs"
 default = []
 dev = ["clippy"]
 
-# [[bin]]
-# name = "mock_networker"
-# path = "test_utils/mock_networker.rs"
+[[bin]]
+name = "mock_networker"
+path = "test_utils/mock_networker.rs"
 
 [dependencies]
 log = "0.4"

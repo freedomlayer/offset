@@ -48,7 +48,7 @@ pub struct EncryptNonceCounter {
 }
 
 impl EncryptNonceCounter {
-    pub fn new<R: SecureRandom>(crypt_rng: &mut R) -> Self {
+    pub fn new<R: SecureRandom>(crypt_rng: &R) -> Self {
         let mut enc_nonce = EncryptNonce([0_u8; ENC_NONCE_LEN]);
         // Generate a random initial EncNonce:
         crypt_rng.fill(&mut enc_nonce.0).unwrap();

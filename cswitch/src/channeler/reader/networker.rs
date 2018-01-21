@@ -6,9 +6,9 @@ use futures::sync::{mpsc, oneshot};
 
 use tokio_core::reactor::Handle;
 
-use utils::CloseHandle;
-use channeler::types::{ChannelerNeighbor, ChannelerNeighborInfo, NeighborsTable};
 use channeler::messages::ToChannel;
+use channeler::types::{ChannelerNeighbor, ChannelerNeighborInfo, NeighborsTable};
+use utils::CloseHandle;
 
 use networker::messages::NetworkerToChanneler;
 
@@ -21,7 +21,7 @@ pub enum NetworkerReaderError {
 
 #[must_use = "futures do nothing unless polled"]
 pub struct NetworkerReader {
-    handle: Handle,
+    handle:    Handle,
     neighbors: Rc<RefCell<NeighborsTable>>,
 
     networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
@@ -34,7 +34,8 @@ pub struct NetworkerReader {
 
 impl NetworkerReader {
     // TODO: Rename this function？
-    // Create a new `NetworkerReader`, return a new `NetworkerReader` with its `CloseHandle`.
+    // Create a new `NetworkerReader`, return a new `NetworkerReader` with its
+    // `CloseHandle`.
     pub fn new(
         networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
         handle: &Handle,
@@ -100,31 +101,36 @@ impl NetworkerReader {
                         })
                         .then(|_| Ok(())),
                 );
-            }
+            },
         }
 
         // self.handle.spawn(task);
 
-        // TODO CR: I think that here spawning a task is actually the correct thing to do , because
-        // it is possible that the neighbor channel_sender is blocked, and we don't want to block the whole
-        // NetworkerReader Future because of that.
+        // TODO CR: I think that here spawning a task is actually the correct thing to
+        // do , because it is possible that the neighbor channel_sender is
+        // blocked, and we don't want to block the whole NetworkerReader Future
+        // because of that.
         //
-        // However, it seems like we allocate a new task for every incoming message. This could be
-        // a very big overhead. I have an idea of how to fix this, but it requires a small
-        // change to the messages interface between Channeler and Networker.
+        // However, it seems like we allocate a new task for every incoming message.
+        // This could be a very big overhead. I have an idea of how to fix
+        // this, but it requires a small change to the messages interface
+        // between Channeler and Networker.
         //
         // Refactor Proposal
         // -----------------
         //
-        // Whenever a new channel is opened, Channeler will send Networker a ChannelEvent::Opened.
-        // ChannelEvent::Opened will contain an mpsc Sender and an mpsc Receiver.
-        // The Receiver will allow receiving messages from the Channel. The Sender will allow
-        // sending messages to the Channel.
+        // Whenever a new channel is opened, Channeler will send Networker a
+        // ChannelEvent::Opened. ChannelEvent::Opened will contain an mpsc
+        // Sender and an mpsc Receiver. The Receiver will allow receiving
+        // messages from the Channel. The Sender will allow sending messages to
+        // the Channel.
         //
-        // Using this method the Networker will be able to experience backpressure for every new
-        // Channel separately, and we won't need to spawn a new task for every message.
+        // Using this method the Networker will be able to experience backpressure for
+        // every new Channel separately, and we won't need to spawn a new task
+        // for every message.
         //
-        // Please tell me you opinion about this, you might have an idea to improve this.
+        // Please tell me you opinion about this, you might have an idea to improve
+        // this.
         //
     }
 
@@ -133,18 +139,19 @@ impl NetworkerReader {
         match self.neighbors.borrow_mut().get_mut(&public_key) {
             None => {
                 info!("nonexistent neighbor: {:?}", public_key);
-            }
+            },
             Some(neighbor) => {
                 neighbor.info.max_channels = max_channels;
 
                 // Drop the channels with an index ge `max_channels`
                 //
-                // We ONLY remove the sender from neighbor's channel list, but some task would hand
-                // a sender, for example, we clone sender then spawn a future to perform the sending
-                // task, in this case, the channel will perceive that it should close when all
+                // We ONLY remove the sender from neighbor's channel list, but some task would
+                // hand a sender, for example, we clone sender then spawn a
+                // future to perform the sending task, in this case, the
+                // channel will perceive that it should close when all
                 // senders were dropped. See also the comment in `del_neighbor`.
                 neighbor.channels.retain(|&index, _| index < max_channels);
-            }
+            },
         }
     }
 
@@ -154,18 +161,19 @@ impl NetworkerReader {
         match mem::replace(&mut self.close_tx, None) {
             None => {
                 error!("call close after close sender consumed, something go wrong");
-            }
+            },
             Some(close_sender) => {
                 if close_sender.send(()).is_err() {
                     error!("remote close handle deallocated, something may go wrong");
                 }
-            }
+            },
         }
     }
 }
 
-// TODO CR: I think that we might be able to implement this state machine as a select() over
-// (inner_rx and close_rx), together with for_each over the resulting Stream. What do you think?
+// TODO CR: I think that we might be able to implement this state machine as a
+// select() over (inner_rx and close_rx), together with for_each over the
+// resulting Stream. What do you think?
 impl Future for NetworkerReader {
     type Item = ();
     type Error = NetworkerReaderError;
@@ -183,7 +191,7 @@ impl Future for NetworkerReader {
                 info!("close request received, closing");
                 self.close();
                 return Ok(Async::Ready(()));
-            }
+            },
         }
 
         loop {
@@ -194,40 +202,40 @@ impl Future for NetworkerReader {
                     self.close();
 
                     return Ok(Async::Ready(()));
-                }
+                },
                 Ok(item) => match item {
                     Async::NotReady => {
                         return Ok(Async::NotReady);
-                    }
+                    },
                     Async::Ready(None) => {
                         debug!("inner receiver closed, closing");
 
                         self.close();
 
                         return Ok(Async::Ready(()));
-                    }
+                    },
                     Async::Ready(Some(message)) => match message {
                         NetworkerToChanneler::AddNeighbor { neighbor_info } => {
                             self.add_neighbor(neighbor_info);
-                        }
+                        },
                         NetworkerToChanneler::RemoveNeighbor {
                             neighbor_public_key,
                         } => {
                             self.del_neighbor(neighbor_public_key);
-                        }
+                        },
                         NetworkerToChanneler::SendChannelMessage {
                             neighbor_public_key,
                             channel_index,
                             content,
                         } => {
                             self.send_message(neighbor_public_key, channel_index, content);
-                        }
+                        },
                         NetworkerToChanneler::SetMaxChannels {
                             neighbor_public_key,
                             max_channels,
                         } => {
                             self.set_max_channels(neighbor_public_key, max_channels);
-                        }
+                        },
                     },
                 },
             }

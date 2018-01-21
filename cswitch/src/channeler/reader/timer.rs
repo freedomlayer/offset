@@ -3,21 +3,208 @@ use std::{mem, cell::RefCell, rc::Rc};
 use futures::prelude::*;
 use futures::sync::{mpsc, oneshot};
 
+use ring::rand::SecureRandom;
+
 use tokio_core::reactor::Handle;
 
-use utils::CloseHandle;
 use security_module::client::SecurityModuleClient;
+use utils::CloseHandle;
 
-use timer::messages::FromTimer;
 use channeler::channel::{Channel, ChannelError};
-use channeler::types::{ChannelerNeighbor, NeighborsTable};
 use channeler::messages::{ChannelEvent, ChannelerToNetworker, ToChannel};
+use channeler::types::{ChannelerNeighbor, NeighborsTable};
+use timer::messages::FromTimer;
 
 const CONN_ATTEMPT_TICKS: usize = 120;
 
+//fn broadcast_tick(
+//    handle: &Handle,
+//    neighbors: Rc<RefCell<NeighborsTable>>,
+//    networker_sender: mpsc::Sender<ChannelerToNetworker>,
+//) {
+//    let handle = handle.clone();
+//
+//    for (neighbor_public_key, neighbor) in neighbors.borrow().iter() {
+//        for (channel_index, channel_tx) in neighbor.channels.iter() {
+//            let channel_index = *channel_index;
+//            let handle_for_subtask = handle.clone();
+//            let remote_public_key = neighbor_public_key.clone();
+//            let neighbors_for_subtask = neighbors.clone();
+//            let networker_sender_for_subtask = networker_sender.clone();
+//
+//            let task = channel_tx
+//                .clone()
+//                .send(ToChannel::TimeTick)
+//                .map_err(move |_e| {
+//                    info!(
+//                        "failed to send ticks to channel: {:?}, removing",
+//                        channel_index
+//                    );
+//                    match neighbors_for_subtask
+//                        .borrow_mut()
+//                        .get_mut(&remote_public_key)
+//                        {
+//                            None => info!("nonexistent neighbor"),
+//                            Some(neighbor) => {
+//                                neighbor.channels.retain(|index, _| *index != channel_index);
+//
+//                                info!("channel {:?} removed", channel_index);
+//
+//                                let msg = ChannelerToNetworker {
+//                                    remote_public_key,
+//                                    channel_index,
+//                                    event: ChannelEvent::Closed,
+//                                };
+//
+//                                let task_notify = networker_sender_for_subtask
+//                                    .send(msg)
+//                                    .map_err(|_| {
+//                                        warn!("failed to notify networker");
+//                                    })
+//                                    .and_then(|_| Ok(()));
+//
+//                                handle_for_subtask.spawn(task_notify);
+//                            },
+//                        }
+//                })
+//                .and_then(|_| Ok(()));
+//
+//            handle.spawn(task);
+//        }
+//    }
+//}
+
+/// Whether needs to retry connection.
+fn needs_retry(neighbor: &ChannelerNeighbor) -> bool {
+    if neighbor.info.socket_addr.is_some() && neighbor.num_pending == 0 && neighbor.channels.len() < neighbor.info.max_channels as usize {
+        return neighbor.retry_ticks == 0;
+    }
+
+    false
+}
+
+fn min_unused_channel_index(neighbor: &ChannelerNeighbor) -> Option<u32> {
+    let mut channel_index: Option<u32> = None;
+    for index in 0..neighbor.info.max_channels {
+        if neighbor.channels.get(&index).is_none() {
+            channel_index = Some(index);
+            break;
+        }
+    }
+    channel_index
+}
+
+///// Spawn a connection attempt to any neighbor for which we are the active side in the
+///// relationship. We attempt to connect to every neighbor every once in a while.
+//fn reconnect<SR: SecureRandom>(
+//    handle: &Handle,
+//    neighbors: Rc<RefCell<NeighborsTable>>,
+//    networker_sender: mpsc::Sender<ChannelerToNetworker>,
+//    secure_rng: Rc<SR>,
+//    sm_client: SecurityModuleClient,
+//) {
+//    let handle = handle.clone();
+//
+//    // TODO: Extract the following part as a function
+//    let mut need_retry = Vec::new();
+//    {
+//        for (neighbor_public_key, mut neighbor) in &mut neighbors.borrow_mut().iter_mut() {
+//            // TODO: Use a separate function to do this.
+//            if neighbor.retry_ticks == 0 {
+//                neighbor.retry_ticks = CONN_ATTEMPT_TICKS;
+//            } else {
+//                neighbor.retry_ticks -= 1;
+//            }
+//            if TimerReader::needs_retry(neighbor) {
+//                let mut channel_index = TimerReader::min_unused_channel_index(neighbor);
+//
+//                if let Some(index) = channel_index {
+//                    let addr = neighbor.info.socket_addr.clone().unwrap();
+//                    need_retry.push((addr, neighbor_public_key.clone(), index));
+//                    // TODO CR: Is this the right place to increase num_pending?
+//                    // Maybe we should do it right before we open the new Channel?
+//                    // I need to read the rest of the code in this file to be sure about this.
+//                    neighbor.num_pending += 1;
+//                }
+//            }
+//        }
+//    }
+//
+//    for (addr, neighbor_public_key, channel_index) in need_retry {
+//        let neighbors = neighbors.clone();
+//        let mut networker_sender = networker_sender.clone();
+//
+//        let new_channel = Channel::connect(
+//            &addr,
+//            &neighbor_public_key,
+//            channel_index,
+//            Rc::clone(&neighbors),
+//            &networker_sender,
+//            &sm_client,
+//            &handle,
+//        ).then(move |conn_result| {
+//            match neighbors.borrow_mut().get_mut(&neighbor_public_key) {
+//                None => Err(ChannelError::Closed("Can't find this neighbor")),
+//                Some(neighbor) => {
+//                    neighbor.num_pending -= 1;
+//
+//                    let (channel_index, channel_tx, channel) = conn_result?;
+//
+//                    let msg = ChannelerToNetworker {
+//                        remote_public_key: neighbor_public_key,
+//                        channel_index,
+//                        event: ChannelEvent::Opened,
+//                    };
+//
+//                    if networker_sender.try_send(msg).is_err() {
+//                        Err(ChannelError::SendToNetworkerFailed)
+//                    } else {
+//                        neighbor.channels.insert(channel_index, channel_tx);
+//                        Ok(channel)
+//                    }
+//                },
+//            }
+//        });
+//
+//        handle.spawn(
+//            new_channel
+//                .map_err(|e| {
+//                    error!("failed to initialize a new connection: {:?}", e);
+//                })
+//                .and_then(|channel| {
+//                    channel.map_err(|e| {
+//                        warn!("channel closed: {:?}", e);
+//                    })
+//                }),
+//        );
+//    }
+//}
+
+//fn create_timer_reader<SR>(
+//    timer_receiver: mpsc::Receiver<FromTimer>,
+//    handle: &Handle,
+//    networker_sender: mpsc::Sender<ChannelerToNetworker>,
+//    secure_rng: Rc<SR>,
+//    sm_client: SecurityModuleClient,
+//    neighbors: Rc<RefCell<NeighborsTable>>,
+//) -> (CloseHandle, impl Future<Item=(), Error=TimerReaderError>) {
+//    let (close_handle, (close_tx, close_rx)) = CloseHandle::new();
+//
+//    timer_receiver
+//        .map_err(|_| TimerReaderError::RecvFromTimerFailed)
+//        .for_each(move |FromTimer::TimeTick| {
+//            retry_connect();
+//            broadcast_tick(
+//                Rc::clone(&neighbors),
+//                handle,
+//                networker_sender.clone(),
+//            );
+//        })
+//}
+
 #[derive(Debug)]
 pub enum TimerReaderError {
-    // TimerReceiveFailed,
+    // RecvFromTimerFailed,
     RemoteCloseHandleCanceled,
     // SendToNetworkerFailed,
 }
@@ -39,12 +226,14 @@ impl From<oneshot::Canceled> for TimerReaderError {
 }
 
 #[must_use = "futures do nothing unless polled"]
-pub struct TimerReader {
-    handle: Handle,
+pub struct TimerReader<SR> {
+    handle:    Handle,
     neighbors: Rc<RefCell<NeighborsTable>>,
     sm_client: SecurityModuleClient,
 
-    timer_receiver: mpsc::Receiver<FromTimer>,
+    secure_rng: Rc<SR>,
+
+    timer_receiver:   mpsc::Receiver<FromTimer>,
     networker_sender: mpsc::Sender<ChannelerToNetworker>,
 
     // For reporting the closing event
@@ -53,14 +242,15 @@ pub struct TimerReader {
     close_rx: oneshot::Receiver<()>,
 }
 
-impl TimerReader {
+impl<SR: SecureRandom + 'static> TimerReader<SR> {
     pub fn new(
         timer_receiver: mpsc::Receiver<FromTimer>,
         handle: &Handle,
         networker_sender: mpsc::Sender<ChannelerToNetworker>,
         sm_client: SecurityModuleClient,
         neighbors: Rc<RefCell<NeighborsTable>>,
-    ) -> (CloseHandle, TimerReader) {
+        secure_rng: Rc<SR>,
+    ) -> (CloseHandle, TimerReader<SR>) {
         let (close_handle, (close_tx, close_rx)) = CloseHandle::new();
 
         let timer_reader = TimerReader {
@@ -69,6 +259,7 @@ impl TimerReader {
             neighbors,
             close_tx: Some(close_tx),
             close_rx,
+            secure_rng,
             networker_sender,
             timer_receiver,
         };
@@ -76,33 +267,11 @@ impl TimerReader {
         (close_handle, timer_reader)
     }
 
-    /// Whether needs to retry connection.
-    fn needs_retry(neighbor: &ChannelerNeighbor) -> bool {
-        if neighbor.info.socket_addr.is_some() && neighbor.num_pending == 0 {
-            if neighbor.channels.len() < neighbor.info.max_channels as usize {
-                return neighbor.retry_ticks == 0;
-            }
-        }
-
-        false
-    }
-
-    fn min_unused_channel_index(neighbor: &ChannelerNeighbor) -> Option<u32> {
-        let mut channel_index: Option<u32> = None;
-        for index in 0..neighbor.info.max_channels {
-            if neighbor.channels.get(&index).is_none() {
-                channel_index = Some(index);
-                break;
-            }
-        }
-        channel_index
-    }
-
     /// Spawn a connection attempt to any neighbor for which we are the active side in the
     /// relationship. We attempt to connect to every neighbor every once in a while.
-    fn retry_conn(&self) {
+    fn reconnect(&self) {
         let handle_for_task = self.handle.clone();
-        let neighbors_for_task = self.neighbors.clone();
+        let neighbors_for_task = Rc::clone(&self.neighbors);
         let sm_client_for_task = self.sm_client.clone();
         let networker_sender_for_task = self.networker_sender.clone();
 
@@ -116,11 +285,11 @@ impl TimerReader {
                 } else {
                     neighbor.retry_ticks -= 1;
                 }
-                if TimerReader::needs_retry(neighbor) {
-                    let mut channel_index = TimerReader::min_unused_channel_index(neighbor);
+                if needs_retry(neighbor) {
+                    let mut channel_index = min_unused_channel_index(neighbor);
 
                     if let Some(index) = channel_index {
-                        let addr = neighbor.info.socket_addr.clone().unwrap();
+                        let addr = neighbor.info.socket_addr.unwrap();
                         need_retry.push((addr, neighbor_public_key.clone(), index));
                         // TODO CR: Is this the right place to increase num_pending?
                         // Maybe we should do it right before we open the new Channel?
@@ -132,17 +301,18 @@ impl TimerReader {
         }
 
         for (addr, neighbor_public_key, channel_index) in need_retry {
-            let neighbors = neighbors_for_task.clone();
+            let neighbors = Rc::clone(&neighbors_for_task);
             let mut networker_sender = networker_sender_for_task.clone();
 
             let new_channel = Channel::connect(
                 &addr,
+                &handle_for_task,
                 &neighbor_public_key,
                 channel_index,
-                Rc::clone(&neighbors_for_task),
+                // Rc::clone(&neighbors_for_task),
                 &networker_sender_for_task,
                 &sm_client_for_task,
-                &handle_for_task,
+                Rc::clone(&self.secure_rng),
             ).then(move |conn_result| {
                 match neighbors.borrow_mut().get_mut(&neighbor_public_key) {
                     None => Err(ChannelError::Closed("Can't find this neighbor")),
@@ -163,7 +333,7 @@ impl TimerReader {
                             neighbor.channels.insert(channel_index, channel_tx);
                             Ok(channel)
                         }
-                    }
+                    },
                 }
             });
 
@@ -184,27 +354,30 @@ impl TimerReader {
     fn broadcast_tick(&self) {
         let handle_for_task = self.handle.clone();
         let networker_sender_for_task = self.networker_sender.clone();
-        let neighbor_for_task = self.neighbors.clone();
+        let neighbors_for_task = Rc::clone(&self.neighbors);
 
-        // TODO CR: We are allocating here a new task for every time tick sent to any channel.
-        // I remember that this is how I initially implemented this part.
-        // I think that we might be able to implement this so that we don't need to allocate new
-        // tasks every time, I propose the following implementation:
+        // TODO CR: We are allocating here a new task for every time tick sent to any
+        // channel. I remember that this is how I initially implemented this
+        // part. I think that we might be able to implement this so that we
+        // don't need to allocate new tasks every time, I propose the following
+        // implementation:
         //
-        // We will have a vector Senders, to be able to send Time Ticks to all the Channels.
-        // We then go over all the vector and attempt to send a time tick to all of them using
-        // try_send. Some of them might be NotReady, in that case we just give up on them, and they
-        // are going to miss a time tick.
+        // We will have a vector Senders, to be able to send Time Ticks to all the
+        // Channels. We then go over all the vector and attempt to send a time
+        // tick to all of them using try_send. Some of them might be NotReady,
+        // in that case we just give up on them, and they are going to miss a
+        // time tick.
         //
-        // This should simplify the implementation here, and allow us to code this part without
-        // spawning new tasks. Please tell me what you think about this when you read this.
+        // This should simplify the implementation here, and allow us to code this part
+        // without spawning new tasks. Please tell me what you think about this
+        // when you read this.
 
         for (neighbor_public_key, neighbor) in self.neighbors.borrow().iter() {
-            for (channel_index, channel_tx) in neighbor.channels.iter() {
+            for (channel_index, channel_tx) in &neighbor.channels {
                 let channel_index = *channel_index;
                 let handle_for_subtask = handle_for_task.clone();
                 let remote_public_key = neighbor_public_key.clone();
-                let neighbors_for_subtask = neighbor_for_task.clone();
+                let neighbors_for_subtask = Rc::clone(&neighbors_for_task);
                 let networker_sender_for_subtask = networker_sender_for_task.clone();
 
                 let task = channel_tx
@@ -239,7 +412,7 @@ impl TimerReader {
                                     .and_then(|_| Ok(()));
 
                                 handle_for_subtask.spawn(task_notify);
-                            }
+                            },
                         }
                     })
                     .and_then(|_| Ok(()));
@@ -250,27 +423,24 @@ impl TimerReader {
     }
 
     // TODO: Consume all message before closing actually.
-    // TODO CR: What messages do we need to consume here? The buffered messages inside the Streams?
+    // TODO CR: What messages do we need to consume here? The buffered messages
+    // inside the Streams?
     fn close(&mut self) {
         self.timer_receiver.close();
         match mem::replace(&mut self.close_tx, None) {
             None => {
                 error!("call close after close sender consumed, something go wrong");
-            }
+            },
             Some(close_sender) => {
                 if close_sender.send(()).is_err() {
                     error!("remote close handle deallocated, something may go wrong");
                 }
-            }
+            },
         }
     }
 }
 
-// TODO CR: I think that we might be able to rewrite this as a for_each over a stream, where the
-// stream is the result of select() over inner_rx and close_rx.
-// I admit that I'm not sure if it will make the code shorter in this case, but if this code ever
-// gets bigger this might be a good idea.
-impl Future for TimerReader {
+impl<SR: SecureRandom + 'static> Future for TimerReader<SR> {
     type Item = ();
     type Error = TimerReaderError;
 
@@ -286,7 +456,7 @@ impl Future for TimerReader {
                 self.close();
 
                 return Ok(Async::Ready(()));
-            }
+            },
         }
 
         loop {
@@ -297,22 +467,22 @@ impl Future for TimerReader {
                     self.close();
 
                     return Ok(Async::Ready(()));
-                }
+                },
                 Ok(item) => match item {
                     Async::NotReady => {
                         return Ok(Async::NotReady);
-                    }
+                    },
                     Async::Ready(None) => {
                         error!("inner receiver closed, closing");
 
                         self.close();
 
                         return Ok(Async::Ready(()));
-                    }
+                    },
                     Async::Ready(Some(FromTimer::TimeTick)) => {
-                        self.retry_conn();
+                        self.reconnect();
                         self.broadcast_tick();
-                    }
+                    },
                 },
             }
         }

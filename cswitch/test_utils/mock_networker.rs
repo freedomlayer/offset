@@ -1,30 +1,32 @@
 #![allow(unused)]
-extern crate ring;
 extern crate bytes;
 extern crate futures;
-extern crate tokio_core;
 extern crate pretty_env_logger;
+extern crate ring;
+extern crate tokio_core;
 
 extern crate cswitch;
 
 use std::io;
 use std::time;
+use std::rc::Rc;
 use std::net::SocketAddr;
 use std::collections::HashMap;
 
 use futures::sync::mpsc;
-use futures::{Future, IntoFuture, Stream, Sink};
+use futures::{Future, IntoFuture, Sink, Stream};
 
 use bytes::Bytes;
 use tokio_core::reactor::Core;
 use tokio_core::net::TcpListener;
+use ring::rand::SystemRandom;
 use ring::test::rand::FixedByteRandom;
 
 use cswitch::channeler::channel::Channel;
 use cswitch::channeler::types::ChannelerNeighbor;
 use cswitch::utils::{AsyncMutex, AsyncMutexError, CloseHandle};
 use cswitch::security_module::create_security_module;
-use cswitch::crypto::identity::{SoftwareEd25519Identity, PublicKey, Identity};
+use cswitch::crypto::identity::{Identity, PublicKey, SoftwareEd25519Identity};
 
 use cswitch::timer::TimerModule;
 use cswitch::channeler::Channeler;
@@ -67,6 +69,8 @@ fn main() {
 
     let mut timer_module = TimerModule::new(time::Duration::from_millis(100));
 
+    let rng = SystemRandom::new();
+
     let (_channeler_close_handle, channeler) = Channeler::new(
         &addr,
         &handle,
@@ -74,24 +78,25 @@ fn main() {
         networker_sender,
         networker_receiver,
         sm_client,
+        Rc::new(rng),
     );
 
     let mock_networker_receiver_part = channeler_receiver.map_err(|_| ()).for_each(|msg| {
-            match msg.event {
-                ChannelEvent::Opened => {
-                    println!("Recv ChannelOpened message: {}", msg.channel_index);
-                }
-                ChannelEvent::Closed => {
-                    println!("Recv ChannelClosed message: {}", msg.channel_index);
-                }
-                ChannelEvent::Message(msg) => {
-                    println!("ChannelMessageReceived:");
-
-                    let msg_str = unsafe { ::std::str::from_utf8_unchecked(&msg) };
-
-                    println!("{}", msg_str);
-                }
+        match msg.event {
+            ChannelEvent::Opened => {
+                println!("Recv ChannelOpened message: {}", msg.channel_index);
             }
+            ChannelEvent::Closed => {
+                println!("Recv ChannelClosed message: {}", msg.channel_index);
+            }
+            ChannelEvent::Message(msg) => {
+                println!("ChannelMessageReceived:");
+
+                let msg_str = unsafe { ::std::str::from_utf8_unchecked(&msg) };
+
+                println!("{}", msg_str);
+            }
+        }
         Ok(())
     });
 
@@ -109,12 +114,12 @@ fn main() {
     //
     // Each command split by '\n'
     let mock_networker_sender_part = stdin_rx
-        .map(move |command: String| {
-            (command, channeler_sender.clone())
-        })
+        .map(move |command: String| (command, channeler_sender.clone()))
         .for_each(|(command, mut channeler_sender)| {
             println!("receive a command");
-            let items = command.as_str().split_whitespace()
+            let items = command
+                .as_str()
+                .split_whitespace()
                 .map(String::from)
                 .collect::<Vec<String>>();
 
@@ -127,7 +132,8 @@ fn main() {
                         let fixed_byte = items[1].parse::<u8>().unwrap();
 
                         let fixed_rand = FixedByteRandom { byte: fixed_byte };
-                        let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&fixed_rand).unwrap();
+                        let pkcs8 =
+                            ring::signature::Ed25519KeyPair::generate_pkcs8(&fixed_rand).unwrap();
                         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
                         let neighbor_public_key = identity.get_public_key();
@@ -144,9 +150,7 @@ fn main() {
                             max_channels: 3u32,
                         };
 
-                        let message = NetworkerToChanneler::AddNeighbor {
-                            neighbor_info,
-                        };
+                        let message = NetworkerToChanneler::AddNeighbor { neighbor_info };
 
                         if channeler_sender.try_send(message).is_err() {
                             println!("Failed to send [add] command.");
@@ -161,7 +165,8 @@ fn main() {
                         let fixed_byte = items[1].parse::<u8>().unwrap();
 
                         let fixed_rand = FixedByteRandom { byte: fixed_byte };
-                        let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&fixed_rand).unwrap();
+                        let pkcs8 =
+                            ring::signature::Ed25519KeyPair::generate_pkcs8(&fixed_rand).unwrap();
                         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
                         let neighbor_public_key = identity.get_public_key();
@@ -183,14 +188,13 @@ fn main() {
                         let fixed_byte = items[1].parse::<u8>().unwrap();
 
                         let fixed_rand = FixedByteRandom { byte: fixed_byte };
-                        let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&fixed_rand).unwrap();
+                        let pkcs8 =
+                            ring::signature::Ed25519KeyPair::generate_pkcs8(&fixed_rand).unwrap();
                         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
                         let neighbor_public_key = identity.get_public_key();
 
                         let channel_index = items[2].parse::<u32>().unwrap();
-
-//                        let content = Vec::from(items[3..].join(" ").as_bytes());
 
                         let message = NetworkerToChanneler::SendChannelMessage {
                             neighbor_public_key,
@@ -240,7 +244,6 @@ Currently supported command:
     println!("{}", usage);
 }
 
-
 fn read_stdin(mut tx: mpsc::Sender<String>) {
     let mut stdin = io::stdin();
     loop {
@@ -254,7 +257,7 @@ fn read_stdin(mut tx: mpsc::Sender<String>) {
             Err(_) => {
                 println!("[stdio reader]: send failed");
                 break;
-            },
+            }
         };
     }
 }

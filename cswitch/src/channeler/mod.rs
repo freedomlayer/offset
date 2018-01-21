@@ -3,21 +3,22 @@
 #![deny(warnings)]
 
 use std::{io, mem, cell::RefCell, rc::Rc};
-use std::net::SocketAddr;
 use std::collections::HashMap;
+use std::net::SocketAddr;
 
 use futures::prelude::*;
 use futures::sync::{mpsc, oneshot};
 
-use tokio_core::reactor::Handle;
 use tokio_core::net::{Incoming, TcpListener};
+use tokio_core::reactor::Handle;
 
 use crypto::identity::PublicKey;
-use utils::CloseHandle;
+use ring::rand::SecureRandom;
 use security_module::client::SecurityModuleClient;
+use utils::CloseHandle;
 
-use timer::messages::FromTimer;
 use networker::messages::NetworkerToChanneler;
+use timer::messages::FromTimer;
 
 pub mod types;
 pub mod messages;
@@ -26,8 +27,8 @@ mod codec;
 mod reader;
 pub mod channel;
 
-use self::types::*;
 use self::messages::*;
+use self::types::*;
 
 use self::channel::{Channel, ChannelError};
 use self::reader::{NetworkerReader, TimerReader};
@@ -40,16 +41,19 @@ enum ChannelerState {
     Empty,
 }
 
-pub struct Channeler {
+pub struct Channeler<SR> {
     handle: Handle,
     state: ChannelerState,
-    listener: Incoming, // Listener for incoming TCP connections:
+
+    /// Listener for incoming TCP connections
+    listener: Incoming,
 
     neighbors: Rc<RefCell<NeighborsTable>>,
     networker_sender: mpsc::Sender<ChannelerToNetworker>,
-    // TODO CR: Changing SecurityModuleClient to be a trait.
-    sm_client: SecurityModuleClient,
 
+    // FIXME: Changing SecurityModuleClient to be a trait.
+    sm_client: SecurityModuleClient,
+    secure_rng: Rc<SR>,
     close_sender: Option<oneshot::Sender<()>>,
     close_receiver: oneshot::Receiver<()>,
 
@@ -57,7 +61,7 @@ pub struct Channeler {
     networker_reader_close_handle: Option<CloseHandle>,
 }
 
-impl Channeler {
+impl<SR> Channeler<SR> {
     fn close(&mut self) -> Box<Future<Item = ((), ()), Error = ChannelerError>> {
         let timer_reader_close_handle =
             match mem::replace(&mut self.timer_reader_close_handle, None) {
@@ -73,9 +77,9 @@ impl Channeler {
 
         // TODO CR:
         // Maybe we should wait for timer_reader and networker reader to close?
-        // the .close() method on both of the handles returns a future that resolves only when
-        // closing was successful. We should probably chain those on the returned future from this
-        // function.
+        // the .close() method on both of the handles returns a future that resolves
+        // only when closing was successful. We should probably chain those on
+        // the returned future from this function.
         let timer_reader_close_fut = timer_reader_close_handle.close().unwrap();
         let networker_reader_close_fut = networker_reader_close_handle.close().unwrap();
 
@@ -87,7 +91,64 @@ impl Channeler {
     }
 }
 
-impl Future for Channeler {
+impl<SR: SecureRandom + 'static> Channeler<SR> {
+    pub fn new(
+        addr: &SocketAddr,
+        handle: &Handle,
+        timer_receiver: mpsc::Receiver<FromTimer>,
+        networker_sender: mpsc::Sender<ChannelerToNetworker>,
+        networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
+        sm_client: SecurityModuleClient,
+        secure_rng: Rc<SR>,
+    ) -> (CloseHandle, Channeler<SR>) {
+        let neighbors = Rc::new(RefCell::new(HashMap::<PublicKey, ChannelerNeighbor>::new()));
+
+        let (close_handle, (close_sender, close_receiver)) = CloseHandle::new();
+
+        // TODO CR: I think that we are going against Rust's convention by having the
+        // new() method return a tuple of objects. Usually new() returns Self.
+        // Maybe we should change the name new() to something else? What do you think?
+        let (timer_reader_close_handle, timer_reader) = TimerReader::new(
+            timer_receiver,
+            handle,
+            networker_sender.clone(),
+            sm_client.clone(),
+            Rc::clone(&neighbors),
+            Rc::clone(&secure_rng),
+        );
+
+        handle.spawn(timer_reader.map_err(|_| ()));
+
+        // TODO CR: See previous CR comment about the new() method for TimerReader. I
+        // think it also applies for the NetworkerReader.
+        let (networker_reader_close_handle, networker_reader) =
+            NetworkerReader::new(networker_receiver, handle, Rc::clone(&neighbors));
+
+        handle.spawn(networker_reader.map_err(|_| ()));
+
+        let channeler = Channeler {
+            handle: handle.clone(),
+            state: ChannelerState::Alive,
+            // TODO CR: I think that we need to handle the bind() error more gracefully.
+            // It is possible that bind() attempt will fail, specifically it sometimes happens if
+            // the server crashed and it immediately retries to bind and listen.
+            // What do you think we can do to handle this error gracefully?
+            listener: TcpListener::bind(addr, handle).unwrap().incoming(),
+            networker_sender,
+            neighbors,
+            sm_client,
+            secure_rng,
+            close_sender: Some(close_sender),
+            close_receiver,
+            timer_reader_close_handle: Some(timer_reader_close_handle),
+            networker_reader_close_handle: Some(networker_reader_close_handle),
+        };
+
+        (close_handle, channeler)
+    }
+}
+
+impl<SR: SecureRandom + 'static> Future for Channeler<SR> {
     type Item = ();
     type Error = ChannelerError;
 
@@ -97,7 +158,8 @@ impl Future for Channeler {
         // TODO CR: Maybe we can use loop_fn here?
         // See also: https://docs.rs/futures/*/futures/future/fn.loop_fn.html
         //
-        // It could eliminate the unreachable!() part. I'm still trying to figure out ways to eliminate it.
+        // It could eliminate the unreachable!() part. I'm still trying to figure out
+        // ways to eliminate it.
         loop {
             match mem::replace(&mut self.state, ChannelerState::Empty) {
                 ChannelerState::Empty => unreachable!(),
@@ -128,7 +190,7 @@ impl Future for Channeler {
                             self.state = ChannelerState::Closing(self.close());
                         }
                         Async::Ready(Some((socket, _))) => {
-                            let neighbors = self.neighbors.clone();
+                            let neighbors = Rc::clone(&self.neighbors);
                             let mut networker_sender = self.networker_sender.clone();
 
                             let new_channel = Channel::from_socket(
@@ -137,6 +199,7 @@ impl Future for Channeler {
                                 Rc::clone(&self.neighbors),
                                 &self.networker_sender,
                                 &self.sm_client,
+                                Rc::clone(&self.secure_rng),
                             ).and_then(
                                 move |(channel_index, channel_tx, channel)| {
                                     let remote_public_key = channel.remote_public_key();
@@ -208,61 +271,6 @@ impl Future for Channeler {
     }
 }
 
-impl Channeler {
-    pub fn new(
-        // TODO CR: SocketAddr implements Copy, I think that we don't need to pass it as a reference.
-        // See here: https://doc.rust-lang.org/std/net/enum.SocketAddr.html
-        addr: &SocketAddr,
-        handle: &Handle,
-        timer_receiver: mpsc::Receiver<FromTimer>,
-        networker_sender: mpsc::Sender<ChannelerToNetworker>,
-        networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
-        sm_client: SecurityModuleClient,
-    ) -> (CloseHandle, Channeler) {
-        let neighbors = Rc::new(RefCell::new(HashMap::<PublicKey, ChannelerNeighbor>::new()));
-
-        let (close_handle, (close_sender, close_receiver)) = CloseHandle::new();
-
-        // TODO CR: I think that we are going against Rust's convention by having the new() method
-        // return a tuple of objects. Usually new() returns Self.
-        // Maybe we should change the name new() to something else? What do you think?
-        let (timer_reader_close_handle, timer_reader) = TimerReader::new(
-            timer_receiver,
-            &handle,
-            networker_sender.clone(),
-            sm_client.clone(),
-            Rc::clone(&neighbors),
-        );
-
-        handle.spawn(timer_reader.map_err(|_| ()));
-
-        // TODO CR: See previous CR comment about the new() method for TimerReader. I think it also
-        // applies for the NetworkerReader.
-        let (networker_reader_close_handle, networker_reader) =
-            NetworkerReader::new(networker_receiver, &handle, Rc::clone(&neighbors));
-
-        handle.spawn(networker_reader.map_err(|_| ()));
-
-        let channeler = Channeler {
-            handle: handle.clone(),
-            state: ChannelerState::Alive,
-            // TODO CR: I think that we need to handle the bind() error more gracefully.
-            // It is possible that bind() attempt will fail, specifically it sometimes happens if
-            // the server crashed and it immediately retries to bind and listen.
-            // What do you think we can do to handle this error gracefully?
-            listener: TcpListener::bind(&addr, handle).unwrap().incoming(),
-            networker_sender,
-            neighbors,
-            sm_client,
-            close_sender: Some(close_sender),
-            close_receiver,
-            timer_reader_close_handle: Some(timer_reader_close_handle),
-            networker_reader_close_handle: Some(networker_reader_close_handle),
-        };
-
-        (close_handle, channeler)
-    }
-}
 
 #[derive(Debug)]
 pub enum ChannelerError {
@@ -320,14 +328,17 @@ impl From<oneshot::Canceled> for ChannelerError {
 ////            let mut core = Core::new().unwrap();
 ////            let handle = core.handle();
 ////
-////            let (sm_handle, mut sm) = create_security_module(create_dummy_identity(0));
-////            let sm_client = sm.new_client();
+//// let (sm_handle, mut sm) =
+//// create_security_module(create_dummy_identity(0)); let sm_client
+//// = sm.new_client();
 ////
 ////            // Timer & Channeler
-////            let (networker_sender, channeler_receiver) = mpsc::channel::<ChannelerToNetworker>(0);
-////            let (mut channeler_sender, networker_receiver) = mpsc::channel::<NetworkerToChanneler>(0);
+//// let (networker_sender, channeler_receiver) =
+//// mpsc::channel::<ChannelerToNetworker>(0); let (mut channeler_sender,
+//// networker_receiver) = mpsc::channel::<NetworkerToChanneler>(0);
 ////
-////            let mut timer_module = TimerModule::new(time::Duration::from_millis(100));
+//// let mut timer_module =
+//// TimerModule::new(time::Duration::from_millis(100));
 ////
 ////            let (_channeler_close_handle, channeler) = Channeler::new(
 ////                &addr,
@@ -338,8 +349,8 @@ impl From<oneshot::Canceled> for ChannelerError {
 ////                sm_client,
 ////            );
 ////
-////            let mock_networker_receiver_part = channeler_receiver.map_err(|_| ()).for_each(|msg| {
-////                match msg {
+//// let mock_networker_receiver_part = channeler_receiver.map_err(|_|
+//// ()).for_each(|msg| {                match msg {
 ////                    ChannelerToNetworker::ChannelOpened(_) => {
 ////                    }
 ////                    ChannelerToNetworker::ChannelClosed(_) => {
