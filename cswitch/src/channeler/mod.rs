@@ -1,9 +1,8 @@
 //! The Channeler Module.
 
-// TODO: Add test, cleanup and remove this
-#![allow(unused, dead_code)]
+#![deny(warnings)]
 
-use std::{io, mem};
+use std::{io, mem, cell::RefCell, rc::Rc};
 use std::net::SocketAddr;
 use std::collections::HashMap;
 
@@ -14,7 +13,7 @@ use tokio_core::reactor::Handle;
 use tokio_core::net::{Incoming, TcpListener};
 
 use crypto::identity::PublicKey;
-use utils::{AsyncMutex, AsyncMutexError, CloseHandle};
+use utils::CloseHandle;
 use security_module::client::SecurityModuleClient;
 
 use timer::messages::FromTimer;
@@ -44,13 +43,11 @@ enum ChannelerState {
 pub struct Channeler {
     handle: Handle,
     state: ChannelerState,
-    listener: Incoming,             // Listener for incoming TCP connections:
-    // TODO CR: Maybe we can make a type of HashMap<PublicKey, ChannelerNeighbor>,
-    // as it returns multiple times inside the Channeler code.
-    neighbors: AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
+    listener: Incoming, // Listener for incoming TCP connections:
+
+    neighbors: Rc<RefCell<NeighborsTable>>,
     networker_sender: mpsc::Sender<ChannelerToNetworker>,
-    // TODO CR: See also comment about changing SecurityModuleClient to be a trait instead of a
-    // struct.
+    // TODO CR: Changing SecurityModuleClient to be a trait.
     sm_client: SecurityModuleClient,
 
     close_sender: Option<oneshot::Sender<()>>,
@@ -61,20 +58,6 @@ pub struct Channeler {
 }
 
 impl Channeler {
-    // TODO CR: Why do we have #[inline] here?
-    // If this is done for efficiency, I believe that this is not really required here, close will
-    // be called probably only once in the whole execution of CSwitch!
-    // On the other hand, #[inline] has the cost of increasing our compile time.
-    //
-    // See also: https://internals.rust-lang.org/t/when-should-i-use-inline/598/3
-    //
-    // Same goes for every usage of #[inline] anywhere on the codebase. I think that if we
-    // don't have a very good reason to believe some function is causing us an efficiency
-    // bottleneck, we probably shouldn't #[inline] it. The compiler is probably smarter than my
-    // ideas of what should be inlined and what shouldn't.
-    //
-    // That said, it is very interesting to see. I didn't know about the #[inline] rust feature
-    // until I read it in this code.
     fn close(&mut self) -> Box<Future<Item = ((), ()), Error = ChannelerError>> {
         let timer_reader_close_handle =
             match mem::replace(&mut self.timer_reader_close_handle, None) {
@@ -111,7 +94,7 @@ impl Future for Channeler {
     fn poll(&mut self) -> Poll<(), ChannelerError> {
         trace!("poll - {:?}", ::std::time::Instant::now());
 
-        // TODO CR: Maybe we can use loop_fn here? 
+        // TODO CR: Maybe we can use loop_fn here?
         // See also: https://docs.rs/futures/*/futures/future/fn.loop_fn.html
         //
         // It could eliminate the unreachable!() part. I'm still trying to figure out ways to eliminate it.
@@ -147,50 +130,38 @@ impl Future for Channeler {
                         Async::Ready(Some((socket, _))) => {
                             let neighbors = self.neighbors.clone();
                             let mut networker_sender = self.networker_sender.clone();
-                            let new_channel =
-                                Channel::from_socket(
-                                    socket,
-                                    &self.neighbors,
-                                    &self.networker_sender,
-                                    &self.sm_client,
-                                    &self.handle,
-                                ).and_then(move |(channel_index, channel_tx, channel)| {
+
+                            let new_channel = Channel::from_socket(
+                                socket,
+                                &self.handle,
+                                Rc::clone(&self.neighbors),
+                                &self.networker_sender,
+                                &self.sm_client,
+                            ).and_then(
+                                move |(channel_index, channel_tx, channel)| {
                                     let remote_public_key = channel.remote_public_key();
 
-                                    neighbors
-                                        .acquire(move |mut neighbors| {
-                                            let res = match neighbors.get_mut(&remote_public_key) {
-                                                None => Err(ChannelError::Closed(
-                                                    "can't find this neighbor",
-                                                )),
-                                                Some(neighbor) => {
-                                                    let msg = ChannelerToNetworker {
-                                                        remote_public_key,
-                                                        channel_index,
-                                                        event: ChannelEvent::Opened,
-                                                    };
-
-                                                    if networker_sender.try_send(msg).is_err() {
-                                                        Err(ChannelError::SendToNetworkerFailed)
-                                                    } else {
-                                                        neighbor
-                                                            .channels
-                                                            .insert(channel_index, channel_tx);
-                                                        Ok(channel)
-                                                    }
-                                                }
+                                    match neighbors.borrow_mut().get_mut(&remote_public_key) {
+                                        None => {
+                                            Err(ChannelError::Closed("can't find this neighbor"))
+                                        }
+                                        Some(neighbor) => {
+                                            let msg = ChannelerToNetworker {
+                                                remote_public_key,
+                                                channel_index,
+                                                event: ChannelEvent::Opened,
                                             };
 
-                                            match res {
-                                                Ok(channel) => Ok((neighbors, channel)),
-                                                Err(e) => Err((Some(neighbors), e)),
+                                            if networker_sender.try_send(msg).is_err() {
+                                                Err(ChannelError::SendToNetworkerFailed)
+                                            } else {
+                                                neighbor.channels.insert(channel_index, channel_tx);
+                                                Ok(channel)
                                             }
-                                        })
-                                        .map_err(|e: AsyncMutexError<ChannelError>| match e {
-                                            AsyncMutexError::Function(e) => e,
-                                            _ => ChannelError::AsyncMutexError,
-                                        })
-                                });
+                                        }
+                                    }
+                                },
+                            );
 
                             self.handle.spawn(
                                 new_channel
@@ -198,10 +169,8 @@ impl Future for Channeler {
                                         error!("failed to accept a new connection: {:?}", e);
                                     })
                                     .and_then(|channel| {
-                                        channel.map_err(|e| {
-                                            warn!("channel closed: {:?}", e)
-                                        })
-                                    })
+                                        channel.map_err(|e| warn!("channel closed: {:?}", e))
+                                    }),
                             );
                         }
                     }
@@ -250,23 +219,19 @@ impl Channeler {
         networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
         sm_client: SecurityModuleClient,
     ) -> (CloseHandle, Channeler) {
-        // TODO CR: We can possibly alias the neighbors type instead of typing it every time.
-        // I am not sure if aliasing is the right solution here, or actually giving it a struct of
-        // its own.
-        let neighbors = AsyncMutex::new(HashMap::<PublicKey, ChannelerNeighbor>::new());
+        let neighbors = Rc::new(RefCell::new(HashMap::<PublicKey, ChannelerNeighbor>::new()));
 
         let (close_handle, (close_sender, close_receiver)) = CloseHandle::new();
 
-
         // TODO CR: I think that we are going against Rust's convention by having the new() method
-        // return a tuple of objects. Usually new() returns Self. 
+        // return a tuple of objects. Usually new() returns Self.
         // Maybe we should change the name new() to something else? What do you think?
         let (timer_reader_close_handle, timer_reader) = TimerReader::new(
-            handle.clone(),
             timer_receiver,
+            &handle,
             networker_sender.clone(),
             sm_client.clone(),
-            neighbors.clone(),
+            Rc::clone(&neighbors),
         );
 
         handle.spawn(timer_reader.map_err(|_| ()));
@@ -274,7 +239,7 @@ impl Channeler {
         // TODO CR: See previous CR comment about the new() method for TimerReader. I think it also
         // applies for the NetworkerReader.
         let (networker_reader_close_handle, networker_reader) =
-            NetworkerReader::new(handle.clone(), networker_receiver, neighbors.clone());
+            NetworkerReader::new(networker_receiver, &handle, Rc::clone(&neighbors));
 
         handle.spawn(networker_reader.map_err(|_| ()));
 

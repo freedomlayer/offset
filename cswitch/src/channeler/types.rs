@@ -7,6 +7,8 @@ use crypto::identity::PublicKey;
 
 use super::messages::ToChannel;
 
+pub type NeighborsTable = HashMap<PublicKey, ChannelerNeighbor>;
+
 #[derive(Clone, Debug)]
 pub struct ChannelerNeighborInfo {
     pub public_key: PublicKey,

@@ -1,5 +1,4 @@
-use std::mem;
-use std::collections::HashMap;
+use std::{mem, cell::RefCell, collections::HashMap, rc::Rc};
 
 use bytes::Bytes;
 use futures::prelude::*;
@@ -7,8 +6,8 @@ use futures::sync::{mpsc, oneshot};
 
 use tokio_core::reactor::Handle;
 
-use utils::{AsyncMutex, AsyncMutexError, CloseHandle};
-use channeler::types::{ChannelerNeighbor, ChannelerNeighborInfo};
+use utils::CloseHandle;
+use channeler::types::{ChannelerNeighbor, ChannelerNeighborInfo, NeighborsTable};
 use channeler::messages::ToChannel;
 
 use networker::messages::NetworkerToChanneler;
@@ -16,22 +15,16 @@ use networker::messages::NetworkerToChanneler;
 use crypto::identity::PublicKey;
 
 pub enum NetworkerReaderError {
-    MessageReceiveFailed,
-    RemoteCloseHandleClosed,
-}
-
-impl From<oneshot::Canceled> for NetworkerReaderError {
-    fn from(_e: oneshot::Canceled) -> NetworkerReaderError {
-        NetworkerReaderError::RemoteCloseHandleClosed
-    }
+    // MessageReceiveFailed,
+    RemoteCloseHandleCanceled,
 }
 
 #[must_use = "futures do nothing unless polled"]
 pub struct NetworkerReader {
     handle: Handle,
-    neighbors: AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
+    neighbors: Rc<RefCell<NeighborsTable>>,
 
-    inner_rx: mpsc::Receiver<NetworkerToChanneler>,
+    networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
 
     // For reporting the closing event
     close_tx: Option<oneshot::Sender<()>>,
@@ -40,134 +33,81 @@ pub struct NetworkerReader {
 }
 
 impl NetworkerReader {
-    // TODO CR: Maybe we should rename this function? The Rust convention is that Object::new()
-    // returns Object type, but here we return a tuple.
-    
+    // TODO: Rename this function？
     // Create a new `NetworkerReader`, return a new `NetworkerReader` with its `CloseHandle`.
     pub fn new(
-        handle: Handle,
-        receiver: mpsc::Receiver<NetworkerToChanneler>,
-        // TODO CR: We can probably alias the neighbors type or give it its own type, in order to
-        // avoid repeating this type.
-        neighbors: AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
+        networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
+        handle: &Handle,
+        neighbors: Rc<RefCell<NeighborsTable>>,
     ) -> (CloseHandle, NetworkerReader) {
         let (close_handle, (close_tx, close_rx)) = CloseHandle::new();
 
-        let reader = NetworkerReader {
-            handle,
+        let networker_reader = NetworkerReader {
+            handle: handle.clone(),
             neighbors,
             close_tx: Some(close_tx),
-            close_rx: close_rx,
-            inner_rx: receiver,
+            close_rx,
+            networker_receiver,
         };
 
-        (close_handle, reader)
+        (close_handle, networker_reader)
     }
 
+    /// Add neighbor relation.
     fn add_neighbor(&self, info: ChannelerNeighborInfo) {
-        let task = self.neighbors
-            .acquire(|mut neighbors| {
-                neighbors.insert(
-                    info.public_key.clone(),
-                    ChannelerNeighbor {
-                        info,
-                        num_pending: 0,
-                        retry_ticks: 0,
-                        channels: HashMap::new(),
-                    },
-                );
-                Ok((neighbors, ()))
-            })
-            .map_err(|_: AsyncMutexError<()>| {
-                info!("failed to add neighbor");
-            });
-
-        // TODO CR: Maybe we can avoid spawning a new task here. See longer explanation in
-        // del_neighbor.
-        self.handle.spawn(task);
+        self.neighbors.borrow_mut().insert(
+            info.public_key.clone(),
+            ChannelerNeighbor {
+                info,
+                num_pending: 0,
+                retry_ticks: 0,
+                channels: HashMap::new(),
+            },
+        );
     }
 
+    /// Remove neighbor relation.
+    ///
+    /// In this case, we just remove the `ToChannel` senders, if any one hold a clone
+    /// of the sender, the channel perceive it should close ONLY all senders have gone.
+    /// In other word, the scheduled jobs would continue and the channel would be closed
+    /// until all scheduled jobs done!
     fn del_neighbor(&self, public_key: PublicKey) {
-        let task = self.neighbors
-            .acquire(move |mut neighbors| {
-                if neighbors.remove(&public_key).is_some() {
-                    info!("neighbor {:?} removed", public_key);
-                    // TODO CR: Will this close all current TCP connections with the neighbor?
-                    // If there are any Channels of communication with this neighbor 
-                    // currently working, do we need to close them here?
-                } else {
-                    info!("nonexistent neighbor: {:?}", public_key);
-                }
-                Ok((neighbors, ()))
-            })
-            .map_err(|_: AsyncMutexError<()>| {
-                info!("failed to remove neighbor");
-            });
-
-
-        // TODO CR: I don't think that we need to spawn a task here.
-        // Here are my reasons:
-        //
-        // 1. del_neighbor barely does anything async related.  Theoretically we don't even need
-        //    AsyncMutex over neighbors here, as all of the futures that touch it live in the same
-        //    thread, and it is never possible for two of them to run at the same time.
-        //
-        // 2. We lose control over the order in which things happen. It makes it hard for me to reason
-        //    about the order that things happen. For example: Assume that the Networker has just
-        //    sent two requests, one to delete a neighbor and one to add a neighbor. If we spawn
-        //    tasks to do those things, we have the risk of doing the two tasks (adding and
-        //    deleting a neighbor) in the wrong order.
-        //
-        // Instead, I think that we have the following options:
-        //
-        // 1. Use combinators. We wait until the acquiring of neighbors and its modification is
-        //    done, and only then we move on to process the next message. This could be done as a
-        //    pattern of applying for_each over a Stream of events.
-        //
-        // 2. Keep the current operation in progress inside the state machine. We won't start doing
-        //    other operations until the current operation is not done.
-        //
-        self.handle.spawn(task);
+        if self.neighbors.borrow_mut().remove(&public_key).is_some() {
+            info!("neighbor {:?} removed", public_key);
+        } else {
+            info!("nonexistent neighbor: {:?}", public_key);
+        }
     }
 
-    fn send_message(&self, index: u32, public_key: PublicKey, content: Bytes) {
-        let task = self.neighbors
-            .acquire(move |mut neighbors| {
-                match neighbors.get_mut(&public_key) {
-                    None => {
-                        warn!(
-                            "nonexistent neighbor: {:?}, message will be discarded",
-                            public_key
-                        );
-                    }
-                    Some(neighbor) => {
-                        match neighbor.channels.get_mut(&index) {
-                            None => {
-                                warn!(
-                                    "unknown channel index: {:?}, message will be discarded",
-                                    index
-                                );
-                            }
-                            Some(sender) => {
-                                let message = ToChannel::SendMessage(content);
+    /// Send channel message via channel with index `channel_index`.
+    fn send_message(&self, remote_public_key: PublicKey, channel_index: u32, content: Bytes) {
+        let channel_sender = self.neighbors
+            .borrow()
+            .get(&remote_public_key)
+            .and_then(|neighbor| neighbor.channels.get(&channel_index).cloned());
 
-                                if sender.try_send(message).is_err() {
-                                    error!("failed to send message to channel, message will be dropped!");
-                                }
-                            }
-                        }
-                    }
-                }
+        match channel_sender {
+            None => info!("no such channel, message will be discarded"),
+            Some(sender) => {
+                let message = ToChannel::SendMessage(content);
 
-                Ok((neighbors, ()))
-            })
-            .map_err(|_: AsyncMutexError<()>| {
-                info!("failed to pass send message request to channel");
-            });
+                self.handle.spawn(
+                    sender
+                        .send(message)
+                        .map_err(|_| {
+                            warn!("failed to send message to channel, message will be discarded");
+                        })
+                        .then(|_| Ok(())),
+                );
+            }
+        }
+
+        // self.handle.spawn(task);
 
         // TODO CR: I think that here spawning a task is actually the correct thing to do , because
-        // it is possible that the neighbor sender is blocked, and we don't want to block the whole
-        // NetworkerReader Future because of that. 
+        // it is possible that the neighbor channel_sender is blocked, and we don't want to block the whole
+        // NetworkerReader Future because of that.
         //
         // However, it seems like we allocate a new task for every incoming message. This could be
         // a very big overhead. I have an idea of how to fix this, but it requires a small
@@ -180,43 +120,37 @@ impl NetworkerReader {
         // ChannelEvent::Opened will contain an mpsc Sender and an mpsc Receiver.
         // The Receiver will allow receiving messages from the Channel. The Sender will allow
         // sending messages to the Channel.
-        // 
+        //
         // Using this method the Networker will be able to experience backpressure for every new
         // Channel separately, and we won't need to spawn a new task for every message.
         //
         // Please tell me you opinion about this, you might have an idea to improve this.
         //
-        self.handle.spawn(task);
     }
 
+    /// Set neighbor maximum channels
     fn set_max_channels(&self, public_key: PublicKey, max_channels: u32) {
-        let task = self.neighbors
-            .acquire(move |mut neighbors| {
-                match neighbors.get_mut(&public_key) {
-                    None => {
-                        info!("nonexistent neighbor: {:?}", public_key);
-                    }
-                    Some(neighbor) => {
-                        neighbor.info.max_channels = max_channels;
-                    }
-                }
-                Ok((neighbors, ()))
-            })
-            .map_err(|_: AsyncMutexError<()>| {
-                info!("failed to set maximum amount of channels");
-            });
+        match self.neighbors.borrow_mut().get_mut(&public_key) {
+            None => {
+                info!("nonexistent neighbor: {:?}", public_key);
+            }
+            Some(neighbor) => {
+                neighbor.info.max_channels = max_channels;
 
-        // TODO CR: We also need to close at this point all current TCP connections that have an
-        // index larger than max_channels (This could happen if we lowered max_channels).
-
-        // TODO CR: I don't think that we need to spawn a task here.
-        // See earlier comments about this.
-        self.handle.spawn(task);
+                // Drop the channels with an index ge `max_channels`
+                //
+                // We ONLY remove the sender from neighbor's channel list, but some task would hand
+                // a sender, for example, we clone sender then spawn a future to perform the sending
+                // task, in this case, the channel will perceive that it should close when all
+                // senders were dropped. See also the comment in `del_neighbor`.
+                neighbor.channels.retain(|&index, _| index < max_channels);
+            }
+        }
     }
 
     // TODO: Consume all message before closing actually.
     fn close(&mut self) {
-        self.inner_rx.close();
+        self.networker_receiver.close();
         match mem::replace(&mut self.close_tx, None) {
             None => {
                 error!("call close after close sender consumed, something go wrong");
@@ -240,7 +174,10 @@ impl Future for NetworkerReader {
         trace!("poll - {:?}", ::std::time::Instant::now());
 
         // Check if we have received a request to close:
-        match self.close_rx.poll()? {
+        match self.close_rx
+            .poll()
+            .map_err(|_| NetworkerReaderError::RemoteCloseHandleCanceled)?
+        {
             Async::NotReady => (),
             Async::Ready(()) => {
                 info!("close request received, closing");
@@ -250,7 +187,7 @@ impl Future for NetworkerReader {
         }
 
         loop {
-            match self.inner_rx.poll() {
+            match self.networker_receiver.poll() {
                 Err(_) => {
                     debug!("inner receiver error, closing");
 
@@ -283,7 +220,7 @@ impl Future for NetworkerReader {
                             channel_index,
                             content,
                         } => {
-                            self.send_message(channel_index, neighbor_public_key, content);
+                            self.send_message(neighbor_public_key, channel_index, content);
                         }
                         NetworkerToChanneler::SetMaxChannels {
                             neighbor_public_key,

@@ -1,13 +1,9 @@
 use bytes::Bytes;
 
-use crypto::dh::{DhPublicKey, Salt};
-use crypto::identity::{PublicKey, Signature};
-use crypto::rand_values::RandValue;
-
+use crypto::identity::PublicKey;
 pub use proto::channeler::MessageType;
 
-// TODO CR: Maybe this should have the type usize?
-pub const MAX_PADDING_LEN: u32 = 32;
+pub const MAX_PADDING_LEN: usize = 32;
 
 /// The internal message expected to be send to a `Channel`.
 #[derive(Debug)]

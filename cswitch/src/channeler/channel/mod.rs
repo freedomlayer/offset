@@ -1,6 +1,5 @@
-use std::{io, mem, time};
+use std::{io, mem, time, cell::RefCell, rc::Rc};
 use std::net::SocketAddr;
-use std::collections::HashMap;
 
 use bytes::Bytes;
 use rand::{OsRng, Rng};
@@ -13,9 +12,8 @@ use tokio_core::net::TcpStream;
 use tokio_core::reactor::{Handle, Timeout};
 use futures::stream::{SplitSink, SplitStream};
 
-use utils::{AsyncMutex, AsyncMutexError};
 use crypto::rand_values::RandValue;
-use crypto::dh::{DhPrivateKey, Salt};
+use crypto::dh::{DhPrivateKey, DhPublicKey, Salt};
 use crypto::identity::{verify_signature, PublicKey};
 use crypto::sym_encrypt::{Decryptor, EncryptNonceCounter, Encryptor, SymEncryptError};
 use security_module::client::{SecurityModuleClient, SecurityModuleClientError};
@@ -24,12 +22,12 @@ use proto::{Schema, SchemaError};
 use proto::channeler::{deserialize_message, serialize_message, EncryptMessage, Exchange,
                        InitChannelActive, InitChannelPassive};
 
-use super::{messages::*, types::*, KEEP_ALIVE_TICKS};
+use super::{NeighborsTable, messages::*, KEEP_ALIVE_TICKS};
 
 use super::codec::{Codec, CodecError};
 
-type FramedStream = SplitStream<Framed<TcpStream, Codec>>;
 type FramedSink = SplitSink<Framed<TcpStream, Codec>>;
+type FramedStream = SplitStream<Framed<TcpStream, Codec>>;
 
 #[derive(Debug)]
 pub enum ChannelError {
@@ -45,8 +43,8 @@ pub enum ChannelError {
     SendToRemoteFailed,
     RecvFromInnerFailed,
     KeepAliveTimeout,
-    Closed(&'static str),           // TODO CR: I suggest that we use an Enum instead of strings 
-                                    // to indicate the different types of errors here. 
+    Closed(&'static str), // TODO CR: I suggest that we use an Enum instead of strings
+                          // to indicate the different types of errors here.
 }
 
 /// The encrypted channel used to communicate with neighbors.
@@ -58,8 +56,8 @@ pub struct Channel {
     // The index of this channel
     channel_index: u32,
 
-    os_rng: OsRng,                  // TODO CR: We should take R: SecureRandom instead of the specific OsRng.
-                                    // See for example the implementation of RandValue::new().
+    os_rng: OsRng, // TODO CR: We should take R: SecureRandom instead of the specific OsRng.
+    // See for example the implementation of RandValue::new().
                                     // Using the more generic SecureRandom will allow us to later
                                     // test this module. On the other hand, if we have OsRng, it
                                     // can be very difficult to have deterministic tests.
@@ -87,20 +85,13 @@ impl Channel {
     /// Create a new channel from an incoming socket.
     pub fn from_socket(
         socket: TcpStream,
-        neighbors: &AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,      
-                    // TODO CR: 
-                    // Can we possibly use something weaker than AsyncMutex for neighbors, for example,
-                    // RefCell? This is assuming neighbors does not contain any Futures related
-                    // items inside.
-        networker_sender: &mpsc::Sender<ChannelerToNetworker>,
-        // TODO CR: I think that we should change SecurityModuleClient to be a trait instead of a
-        // structure. This will make it easier for us to write tests, because we will be able to
-        // easily replace SecurityModuleClient with a mock SecurityModuleClient. This should be
-        // changed in client.rs of security_module.
-        sm_client: &SecurityModuleClient,
         handle: &Handle,
+        neighbors: Rc<RefCell<NeighborsTable>>,
+        networker_sender: &mpsc::Sender<ChannelerToNetworker>,
+        sm_client: &SecurityModuleClient,
     ) -> ChannelNew {
-        // TODO CR: An argument of type R: SecureRandom should be given as argument to this function.
+        // TODO CR: Use R: SecureRandom
+        //
         // Having SystemRandom::new() being called here will cause tests to be non deterministic.
         // We should have just one SystemRandom::new() call for the whole application, and hand
         // references to this instance to all the components.
@@ -112,7 +103,7 @@ impl Channel {
         //      a `&SecureRandom` parameter instead of instantiating their own"
         let rng = SystemRandom::new();
 
-        let neighbors_for_task = neighbors.clone();
+        // let neighbors_for_task = neighbors.clone();
         let sm_client_for_task = sm_client.clone();
         // Precompute here because the `SystemRandom` does not implement
         // `Clone` trait but we need this value inside the `Future`
@@ -130,23 +121,29 @@ impl Channel {
             .and_then(|(frame, stream)| match frame {
                 Some(frame) => Ok((frame, stream)),
                 None => Err(ChannelError::Closed("connection lost")),
-                    // TODO CR: I suggest that we have an enum instead of a string
-                    // inside ChannelError::Closed.
-                    //
-                    // Is closing the channel really an error? Is there a different way to close
-                    // the Channel gracefully in this case? I'm not sure about this myself yet.
+                // TODO CR: I suggest that we have an enum instead of a string inside
+                // ChannelError::Closed.
+                //
+                // Is closing the channel really an error?
+                //
+                // Is there a different way to close the Channel gracefully in this case?
+                // I'm not sure about this myself yet.
             })
             .and_then(move |(frame, stream)| {
                 // Expects an InitChannelActive message.
                 InitChannelActive::decode(frame)
-                    .into_future()                  // TODO CR: Why do we have into_future() here? Interesting.
+                    .into_future()
                     .map_err(ChannelError::Schema)
-                    .and_then(|init_channel_active| {
-                        ChannelNew::create_validation_task(
-                            init_channel_active.neighbor_public_key.clone(),
+                    .and_then(move |init_channel_active| {
+                        if ChannelNew::validate_neighbor(
+                            &init_channel_active.neighbor_public_key,
                             init_channel_active.channel_index,
-                            neighbors_for_task,
-                        ).and_then(move |_| Ok((init_channel_active, stream)))
+                            &neighbors.borrow(),
+                        ) {
+                            Ok((init_channel_active, stream))
+                        } else {
+                            Err(ChannelError::Closed("validate failed"))
+                        }
                     })
             })
             .and_then(move |(init_channel_active, stream)| {
@@ -194,7 +191,7 @@ impl Channel {
         addr: &SocketAddr,
         neighbor_public_key: &PublicKey,
         channel_index: u32,
-        neighbors: &AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
+        neighbors: Rc<RefCell<NeighborsTable>>,
         networker_tx: &mpsc::Sender<ChannelerToNetworker>,
         sm_client: &SecurityModuleClient,
         handle: &Handle,
@@ -265,7 +262,7 @@ impl Channel {
             // TODO CR: The Timer module should be the only source of time. We should use the
             // timer module to achieve timeout instead of time::Duration::from_secs. This is
             // important so that we will be able to write tests the simulate the passage of time.
-            // 
+            //
             // To make a similar type of timer we may be able to get a duplicate Timer stream,
             // and create a future that wait until the duplicate Timer stream ticks some constant amount of times.
             //
@@ -285,8 +282,12 @@ impl Channel {
     }
 
     /// Pack and encrypt a message to be sent to remote.
-    fn pack_msg(&mut self, message_type: MessageType, content: Bytes) -> Result<Bytes, ChannelError> {
-        let padding_len = self.os_rng.next_u32() % MAX_PADDING_LEN;
+    fn pack_msg(
+        &mut self,
+        message_type: MessageType,
+        content: Bytes,
+    ) -> Result<Bytes, ChannelError> {
+        let padding_len = (self.os_rng.next_u32() as usize) % MAX_PADDING_LEN;
         // TODO CR: I think that we should be more careful when calculating padding_len.
         // Note that doing something like (rand() % 0x100) is really random, but doing something
         // like (rand() % 17) is not absolutely random, because the random is not really uniformly
@@ -295,9 +296,8 @@ impl Channel {
         // We can add an assertion somewhere that MAX_PADDING_LEN is a divisor of 2^32, or use some other function.
         //
         // We should check, maybe we have a better interface for generating numbers using SecureRandom? This is not necessary though.
-        let mut padding_bytes = [0u8; MAX_PADDING_LEN as usize];
-        self.os_rng
-            .fill_bytes(&mut padding_bytes[..padding_len as usize]);
+        let mut padding_bytes = [0u8; MAX_PADDING_LEN];
+        self.os_rng.fill_bytes(&mut padding_bytes[..padding_len]);
 
         let encrypt_message = EncryptMessage {
             inc_counter: self.send_counter,
@@ -335,8 +335,8 @@ impl Channel {
             .and_then(|msg| {
                 if msg.inc_counter != self.recv_counter {
                     Err(ChannelError::Closed("unexpected counter"))
-                    // TODO CR: I think that we should have an Enum for the closing reason instead
-                    // of using strings.
+                // TODO CR: I think that we should have an Enum for the closing reason instead
+                // of using strings.
                 } else {
                     increase_counter(&mut self.recv_counter);
                     Ok(msg)
@@ -456,7 +456,7 @@ impl Channel {
 // TODO CR:
 // I think that we might be able to change this code (impl Future for Channel) to use combinators.
 // This might save us all the hassle of the buffered items, and could probably produce shorter
-// code. 
+// code.
 //
 // What we basically do here is try to get an item from try_poll_inner and push it into send_outer.
 // At the same time we try to get an item from poll_outer and push it into send_inner. It's like
@@ -582,7 +582,7 @@ pub struct ChannelNew {
     timeout: Timeout,
 
     // Utils used in performing exchange
-    // TODO CR: We should take a reference to SecureRandom instead.  Possible Rc<R> for 
+    // TODO CR: We should take a reference to SecureRandom instead.  Possible Rc<R> for
     // R: SecureRandom.  Also see some previous comments about this.
     rng: SystemRandom,
     sm_client: SecurityModuleClient,
@@ -592,59 +592,34 @@ pub struct ChannelNew {
 }
 
 impl ChannelNew {
-    // TODO: If we use RefCell<...> for neighbors, this function could return a boolean value
-    // or a Result (for various failure values) instead of an impl Future.
-    /// Obtain neighbors structure, and find out whether the remote_public_key may initialize 
-    /// Find out whether remote_public_key may actively initiate a channel with index
-    /// channel_index.
-    fn create_validation_task(
-        remote_public_key: PublicKey,
+    /// Obtain neighbors table, validate whether `remote_public_key`
+    /// may actively initiate a channel with index `channel_index`.
+    fn validate_neighbor(
+        remote_public_key: &PublicKey,
         channel_index: u32,
-        // TODO CR: I think that we can be ok here with RefCell<HashMap<...>>, 
-        // what do you think? 
-        // Do we have a good basis to believe that futures might be spawned implicitly in different
-        // threads?
-        //
-        // In addition, maybe we should alias HashMap<PublicKey, ChannelerNeighbor> to be some
-        // type, or maybe give it a type of its own. 
-        // I noticed that we copy paste "HashMap<PublicKey, ChannelerNeighbor>" in at least 3
-        // places in this file, this means it is probably  important enough to get its own name.
-        neighbors: AsyncMutex<HashMap<PublicKey, ChannelerNeighbor>>,
-    ) -> impl Future<Item = (), Error = ChannelError> {
-        neighbors
-            .acquire(move |neighbors| {
-                // TODO CR: I think that the whole clause of validation_result = ... should be a
-                // separate function. This will make this function (create_validation_task)
-                // cleaner.
-                let validation_result = if let Some(neighbor) = neighbors.get(&remote_public_key) {
-                    // TODO CR: Maybe we should use match instead of if ... .is_some() ?
-                    if neighbor.info.socket_addr.is_some() {
-                        Err(ChannelError::Closed("not allowed initator"))
-                    } else {
-                        if channel_index < neighbor.info.max_channels {
-                            if neighbor.channels.get(&channel_index).is_some() {
-                                Err(ChannelError::Closed("Index is already in use"))
-                            } else {
-                                Ok(())
-                            }
-                        } else {
-                            Err(ChannelError::Closed("Index is too large"))
-                        }
-                    }
-                } else {
-                    Err(ChannelError::Closed("unknown neighbor"))
-                };
+        neighbors: &NeighborsTable,
+    ) -> bool {
+        if let Some(neighbor) = neighbors.get(remote_public_key) {
+            neighbor.info.socket_addr.is_none() && channel_index < neighbor.info.max_channels
+                && neighbor.channels.get(&channel_index).is_none()
+        } else {
+            false
+        }
+    }
 
-                if let Err(e) = validation_result {
-                    Err((Some(neighbors), e))
-                } else {
-                    Ok((neighbors, ()))
-                }
-            })
-            .map_err(|e| match e {
-                AsyncMutexError::Function(e) => e.into(),
-                _ => ChannelError::AsyncMutexError,
-            })
+    fn create_message_to_sign(
+        rand_value: &RandValue,
+        comm_public_key: &DhPublicKey,
+        key_salt: &Salt,
+    ) -> Vec<u8> {
+        // message = (channelRandValue + commPublicKey + keySalt)
+        let mut msg = Vec::new();
+
+        msg.extend_from_slice(rand_value.as_bytes());
+        msg.extend_from_slice(comm_public_key.as_bytes());
+        msg.extend_from_slice(key_salt.as_bytes());
+
+        msg
     }
 
     fn create_exchange_task(
@@ -666,18 +641,7 @@ impl ChannelNew {
         let comm_public_key = comm_private_key.compute_public_key();
 
         // message = (channelRandValue + commPublicKey + keySalt)
-        // TODO CR: What is the meaning of 1024 here?
-        // Whenever we use a magic number, we should have a const that equals this value with a
-        // proper name and some explanation.
-        let mut msg = Vec::with_capacity(1024);
-
-        // TODO CR: Could/should we use `msg` of type Bytes instead, like done previously in this
-        // source file? Is this done because of the interface of request_sign? We might be able to
-        // change it if necessary. What do you think? I am not sure I fully understand the
-        // advantages and disadvantages of Vec vs Bytes in this case.
-        msg.extend_from_slice(recv_rand_value.as_bytes());
-        msg.extend_from_slice(comm_public_key.as_bytes());
-        msg.extend_from_slice(key_salt.as_bytes());
+        let msg = ChannelNew::create_message_to_sign(&recv_rand_value, &comm_public_key, &key_salt);
 
         sm_client
             .request_sign(msg)
@@ -712,13 +676,11 @@ impl ChannelNew {
                     .into_future()
                     .map_err(ChannelError::Schema)
                     .and_then(move |recv_exchange| {
-                        // TODO CR: What is the meaning of 1024 here? See previous comment about
-                        // this.
-                        let mut msg = Vec::with_capacity(1024);
-                        // TODO CR: Maybe we should turn this part of code into a function?
-                        msg.extend_from_slice(sent_rand_value.as_bytes());
-                        msg.extend_from_slice(recv_exchange.comm_public_key.as_bytes());
-                        msg.extend_from_slice(recv_exchange.key_salt.as_bytes());
+                        let msg = ChannelNew::create_message_to_sign(
+                            &sent_rand_value,
+                            &recv_exchange.comm_public_key,
+                            &recv_exchange.key_salt,
+                        );
 
                         if verify_signature(&msg, &remote_public_key, &recv_exchange.signature) {
                             Ok((sent_exchange, recv_exchange, comm_private_key, sink, stream))
@@ -761,7 +723,7 @@ impl Future for ChannelNew {
                 // problem? A bug of this type happened to me with the exact same pattern
                 // (mem::replace() ... unreachable!()) with the implementation of AsyncMutex.
                 //
-                // I'm not suggesting that we have a bug here, but if we forget the 
+                // I'm not suggesting that we have a bug here, but if we forget the
                 // self.state = ...
                 // statement on any arm of the match {} clause, we will have a bug and it could be
                 // difficult to spot. What is your opinion?
@@ -810,7 +772,7 @@ impl Future for ChannelNew {
                 ChannelNewState::Exchange(mut exchange_task) => {
                     // TODO CR: Could we somehow write this code so that we don't need to have
                     // those asserts for existence of channel_index and remote_public_key?
-                    // Also note the channel_index.take().expect(...) below. 
+                    // Also note the channel_index.take().expect(...) below.
                     //
                     // Maybe those values should be inside exchange_task, or we should pass them in
                     // some other way? I think that we are giving up some safety from the compiler
@@ -938,23 +900,26 @@ impl From<SecurityModuleClientError> for ChannelError {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
+
     use super::*;
+    use channeler::types::{ChannelerNeighbor, ChannelerNeighborInfo};
 
     fn gen_channeler_neighbor(byte: u8) -> ChannelerNeighbor {
         let key_bytes = [byte; 32];
         let public_key = PublicKey::from_bytes(&key_bytes).unwrap();
 
         let info = ChannelerNeighborInfo {
-            public_key: public_key,
+            public_key,
             socket_addr: None,
             max_channels: 1,
         };
 
         let neighbor = ChannelerNeighbor {
             info,
-            channels: HashMap::new(),
             retry_ticks: 0,
             num_pending: 0,
+            channels: HashMap::new(),
         };
 
         neighbor
@@ -1015,11 +980,9 @@ mod test {
 
         let (tx, _) = mpsc::channel::<ToChannel>(0);
         {
-            let mut neighbor = neighbors.get_mut(&keys[2]).unwrap();
+            let neighbor = neighbors.get_mut(&keys[2]).unwrap();
             neighbor.channels.insert(0, tx);
         }
-
-        let neighbors = AsyncMutex::new(neighbors);
 
         // Case 1: (Y, Y, N)
         //
@@ -1028,10 +991,8 @@ mod test {
         //   channel index is not already in used.
         let remote_public_key = keys[1].clone();
         let channel_index = 0;
-        let validation_task =
-            ChannelNew::create_validation_task(remote_public_key, channel_index, neighbors.clone());
 
-        assert!(validation_task.wait().is_ok());
+        assert!(ChannelNew::validate_neighbor(&remote_public_key, channel_index, &neighbors));
 
         // Case 2: (Y, Y, Y)
         //
@@ -1040,10 +1001,8 @@ mod test {
         //   channel index is already in used.
         let remote_public_key = keys[2].clone();
         let channel_index = 0;
-        let validation_task =
-            ChannelNew::create_validation_task(remote_public_key, channel_index, neighbors.clone());
 
-        assert!(validation_task.wait().is_err());
+        assert!(!ChannelNew::validate_neighbor(&remote_public_key, channel_index, &neighbors));
 
         // Case 3: (Y, N, X)
         //
@@ -1051,10 +1010,8 @@ mod test {
         // - The channel index greater or equal than the maximum allowed channels.
         let remote_public_key = keys[1].clone();
         let channel_index = 1;
-        let validation_task =
-            ChannelNew::create_validation_task(remote_public_key, channel_index, neighbors.clone());
 
-        assert!(validation_task.wait().is_err());
+        assert!(!ChannelNew::validate_neighbor(&remote_public_key, channel_index, &neighbors));
 
         // Case 4: (N, X, X)
         //
@@ -1063,9 +1020,7 @@ mod test {
         //   channel index is not already in used.
         let remote_public_key = keys[3].clone();
         let channel_index = 100;
-        let validation_task =
-            ChannelNew::create_validation_task(remote_public_key, channel_index, neighbors.clone());
 
-        assert!(validation_task.wait().is_err());
+        assert!(!ChannelNew::validate_neighbor(&remote_public_key, channel_index, &neighbors));
     }
 }
