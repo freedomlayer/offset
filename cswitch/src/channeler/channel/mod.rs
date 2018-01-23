@@ -23,6 +23,8 @@ use proto::channeler::{
     InitChannelPassive,
 };
 
+use bytes::{Buf, BigEndian};
+
 use super::{NeighborsTable, messages::*, KEEP_ALIVE_TICKS};
 
 use super::codec::{Codec, CodecError};
@@ -265,25 +267,7 @@ impl<R: SecureRandom + 'static> Channel<R> {
         message_type: MessageType,
         content: Bytes,
     ) -> Result<Bytes, ChannelError> {
-        // FIXME:
-        let padding_len = 10;
-        // let padding_len = (self.secure_rng.next_u32() as usize) % MAX_PADDING_LEN;
-        // let padding_len_buffer = BytesMut::with_capacity(4);
-        // *(self.secure_rng).fill_bytes()
-
-        // TODO CR: I think that we should be more careful when calculating padding_len.
-        // Note that doing something like (rand() % 0x100) is really random, but doing
-        // something like (rand() % 17) is not absolutely random, because the
-        // random is not really uniformly distributed over all the 17
-        // possibilities. This is because 17 does not divide 2^32.
-        //
-        // We can add an assertion somewhere that MAX_PADDING_LEN is a divisor of 2^32,
-        // or use some other function.
-        //
-        // We should check, maybe we have a better interface for generating numbers
-        // using SecureRandom? This is not necessary though.
-        let mut padding_bytes = [0u8; MAX_PADDING_LEN];
-        (&*self.secure_rng).fill(&mut padding_bytes[..padding_len])?;
+        let (padding_len, padding_bytes) = gen_padding(&*self.secure_rng)?;
 
         let encrypt_message = EncryptMessage {
             inc_counter: self.send_counter,
@@ -817,6 +801,27 @@ fn increase_counter(counter: &mut u64) {
     } else {
         *counter += 1;
     }
+}
+
+fn gen_padding(secure_rng: &SecureRandom)
+    -> Result<(usize, [u8; MAX_PADDING_LEN]), ChannelError> {
+    debug_assert!(MAX_PADDING_LEN % (u32::max_value() as usize) == 0);
+
+    const UINT32_LEN: usize = 4;
+
+    let mut bytes = [0x00; UINT32_LEN];
+
+    secure_rng.fill(&mut bytes[..])?;
+
+    let mut rdr = io::Cursor::new(&bytes[..]);
+
+    let padding_len = rdr.get_u32::<BigEndian>();
+
+    let mut padding_bytes = [0x00; MAX_PADDING_LEN];
+
+    secure_rng.fill(&mut padding_bytes[..(padding_len as usize)])?;
+
+    Ok((padding_len as usize, padding_bytes))
 }
 
 /// Obtain neighbors table, validate whether `remote_public_key`
