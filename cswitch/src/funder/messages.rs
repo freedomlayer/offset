@@ -1,7 +1,7 @@
 use crypto::identity::PublicKey;
 use crypto::uuid::Uuid;
 
-use proto::indexer::{FriendsRouteWithCapacity, RequestNeighborsRoutes};
+use indexer_client::messages::{FriendsRouteWithCapacity, RequestNeighborsRoutes};
 use networker::messages::{MessageReceivedResponse, MoveTokenDirection, RequestSendMessage};
                           
 

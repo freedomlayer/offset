@@ -6,9 +6,9 @@ use networker::messages::{MessageReceivedResponse, NeighborStatus, RequestSendMe
 
 use funder::messages::{FriendInfo, FriendRequestsStatus, FriendStatus, RequestSendFunds};
 
-use proto::indexer::{IndexingProviderId, RequestFriendsRoutes, RequestNeighborsRoutes};
-
-use indexer_client::messages::{IndexingProviderInfo, IndexingProviderStatus};
+use proto::indexer::IndexingProviderId;
+use indexer_client::messages::{IndexingProviderInfo, IndexingProviderStatus, 
+    RequestFriendsRoutes, RequestNeighborsRoutes};
 
 pub enum AppManagerToNetworker {
     RequestSendMessage(RequestSendMessage),

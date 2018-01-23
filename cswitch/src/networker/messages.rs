@@ -11,7 +11,8 @@ use futures::sync::mpsc;
 use channeler::types::ChannelerNeighborInfo;
 use funder::messages::{FriendStateUpdate, RequestSendFunds};
 
-use proto::indexer::{NeighborsRoute, RequestFriendsRoutes};
+use indexer_client::messages::RequestFriendsRoutes;
+use proto::indexer::NeighborsRoute;
 use proto::funder::InvoiceId;
 use proto::networker::{NeighborMoveToken, NeighborRequestType};
 
@@ -208,12 +209,10 @@ pub enum NetworkerToDatabase {
 
 pub enum NetworkerToFunder {
     MessageReceived(MessageReceived),
-    ResponseSendMessage(ResponseSendMessage),
     RequestSendFunds(RequestSendFunds),
 }
 
 pub enum NetworkerToIndexerClient {
-    ResponseSendMessage(ResponseSendMessage),
     MessageReceived(MessageReceived),
     RequestFriendsRoutes(RequestFriendsRoutes),
 }
