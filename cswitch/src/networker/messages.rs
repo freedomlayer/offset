@@ -9,7 +9,7 @@ use crypto::uuid::Uuid;
 use futures::sync::mpsc;
 
 use channeler::types::ChannelerNeighborInfo;
-use funder::messages::{FriendStateUpdate, RequestSendFunds};
+use funder::messages::{RequestSendFunds};
 
 use indexer_client::messages::RequestFriendsRoutes;
 use proto::indexer::NeighborsRoute;
