@@ -6,12 +6,15 @@ use crypto::identity::PublicKey;
 use crypto::hash::HashResult;
 use crypto::uuid::Uuid;
 
+use futures::sync::mpsc;
+
 use channeler::types::ChannelerNeighborInfo;
 use funder::messages::{FriendStateUpdate, RequestSendFunds};
 
 use proto::indexer::{NeighborsRoute, RequestFriendsRoutes};
 use proto::funder::InvoiceId;
 use proto::networker::{NeighborMoveToken, NeighborRequestType};
+
 
 /// Indicate the direction of the move token message.
 #[derive(Clone, Copy, Debug)]
@@ -104,41 +107,39 @@ pub enum DestinationPort {
 
 /// Component -> Networker
 pub struct RequestSendMessage {
-    request_id: Uuid,
     route: NeighborsRoute,
     dest_port: DestinationPort,
     request_data: Vec<u8>,
     max_response_len: u32,
     processing_fee_proposal: u64,
     credits_per_byte_proposal: u32,
+    response_sender: mpsc::Sender<ResponseSendMessage>,
 }
 
 /// Networker -> Component
 pub struct ResponseSendMessage {
-    request_id: Uuid,
     result: SendMessageResult,
 }
 
 /// Networker -> Component
 pub struct MessageReceived {
-    request_id: Uuid,
     route: NeighborsRoute, // sender_public_key is the first public key on the NeighborsRoute
     request_data: Vec<u8>,
     max_response_len: u32,
     processing_fee_proposal: u64,
     credits_per_byte_proposal: u32,
+    response_sender: mpsc::Sender<MessageReceivedResponse>,
 }
 
-/// Component -> Networker
-pub struct RespondMessageReceived {
-    request_id: Uuid,
-    response_data: Vec<u8>,
-}
 
 /// Component -> Networker
-pub struct DiscardMessageReceived {
-    request_id: Uuid,
+pub enum MessageReceivedResponse {
+    Accept {
+        response_data: Vec<u8>,
+    },
+    Discard,
 }
+
 
 pub enum NetworkerToAppManager {
     MessageReceived(MessageReceived),

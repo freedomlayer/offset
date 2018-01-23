@@ -2,8 +2,8 @@ use crypto::identity::PublicKey;
 use crypto::uuid::Uuid;
 
 use proto::indexer::{FriendsRouteWithCapacity, RequestNeighborsRoutes};
-use networker::messages::{DiscardMessageReceived, MoveTokenDirection, RequestSendMessage,
-                          RespondMessageReceived};
+use networker::messages::{MessageReceivedResponse, MoveTokenDirection, RequestSendMessage};
+                          
 
 use proto::funder::{FriendMoveToken, InvoiceId};
 
@@ -103,8 +103,6 @@ pub enum FunderToDatabase {
 
 pub enum FunderToNetworker {
     RequestSendMessage(RequestSendMessage),
-    RespondMessageReceived(RespondMessageReceived),
-    DiscardMessageReceived(DiscardMessageReceived),
     ResponseSendFunds(ResponseSendFunds),
 }
 

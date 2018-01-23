@@ -2,8 +2,7 @@ use std::net::SocketAddr;
 
 use crypto::identity::PublicKey;
 
-use networker::messages::{DiscardMessageReceived, NeighborStatus, RequestSendMessage,
-                          RespondMessageReceived};
+use networker::messages::{MessageReceivedResponse, NeighborStatus, RequestSendMessage};
 
 use funder::messages::{FriendInfo, FriendRequestsStatus, FriendStatus, RequestSendFunds};
 
@@ -13,8 +12,6 @@ use indexer_client::messages::{IndexingProviderInfo, IndexingProviderStatus};
 
 pub enum AppManagerToNetworker {
     RequestSendMessage(RequestSendMessage),
-    ResponseMessageReceived(RespondMessageReceived),
-    DiscardMessageReceived(DiscardMessageReceived),
     SetNeighborWantedRemoteMaxDebt {
         neighbor_public_key: PublicKey,
         wanted_remote_max_debt: u64,

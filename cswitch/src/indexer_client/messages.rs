@@ -2,7 +2,7 @@ use proto::indexer::{IndexingProviderId, NeighborsRoute, RequestFriendsRoutes,
                      RequestNeighborsRoutes, ResponseFriendsRoutes, ResponseNeighborsRoutes,
                      ResponseUpdateState, StateChainLink};
 
-use networker::messages::{DiscardMessageReceived, RequestSendMessage, RespondMessageReceived};
+use networker::messages::{MessageReceivedResponse, RequestSendMessage};
 use crypto::identity::{PublicKey, Signature};
 
 /// Indexing provider status.
@@ -53,6 +53,4 @@ pub enum IndexerClientToFunder {
 pub enum IndexerClientToNetworker {
     RequestSendMessage(RequestSendMessage),
     ResponseFriendsRoutes(ResponseFriendsRoutes),
-    ResponseMessageReceived(RespondMessageReceived),
-    DiscardMessageReceived(DiscardMessageReceived),
 }
