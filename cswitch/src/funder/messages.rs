@@ -3,7 +3,8 @@ use crypto::uuid::Uuid;
 
 use indexer_client::messages::{FriendsRouteWithCapacity, RequestNeighborsRoutes};
 use networker::messages::{MessageReceivedResponse, MoveTokenDirection, RequestSendMessage};
-                          
+
+use futures::sync::mpsc;
 
 use proto::funder::{FriendMoveToken, InvoiceId};
 
@@ -46,7 +47,6 @@ pub enum SendFundsResult {
 }
 
 pub struct ResponseSendFunds {
-    request_id: Uuid,
     result: SendFundsResult,
 }
 
@@ -76,15 +76,14 @@ pub struct FriendsRoute {
 }
 
 pub struct RequestSendFunds {
-    request_id: Uuid,
     route: FriendsRoute,
     invoice_id: InvoiceId,
     payment: u128,
+    response_sender: mpsc::Sender<ResponseSendFunds>,
 }
 
 pub enum FunderToAppManager {
     FriendStateUpdate(FriendStateUpdate),
-    ResponseSendFunds(ResponseSendFunds),
 }
 
 // TODO:
@@ -103,7 +102,6 @@ pub enum FunderToDatabase {
 
 pub enum FunderToNetworker {
     RequestSendMessage(RequestSendMessage),
-    ResponseSendFunds(ResponseSendFunds),
 }
 
 pub enum FunderToIndexerClient {
