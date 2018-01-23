@@ -2,12 +2,10 @@ use crypto::identity::PublicKey;
 use crypto::uuid::Uuid;
 
 use indexer_client::messages::{FriendsRouteWithCapacity, RequestNeighborsRoutes};
-use networker::messages::{MessageReceivedResponse, MoveTokenDirection, RequestSendMessage};
+use networker::messages::{RequestSendMessage};
 
 use futures::sync::mpsc;
-
-use proto::funder::{FriendMoveToken, InvoiceId};
-
+use proto::funder::{InvoiceId};
 use proto::common::SendFundsReceipt;
 
 pub enum FriendStatus {
