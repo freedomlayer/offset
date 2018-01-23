@@ -24,27 +24,21 @@ impl<S: Stream + 'static> StreamMediatorFuture<S>
 {
     fn broadcast(&mut self, msg: S::Item) {
         for client in &mut self.clients {
-            match client.take() {
-                None => {
-                    unreachable!("encounter a dropped client");
+            let mut sender = client.take().expect("encounter a dropped client");
+            match sender.start_send(msg.clone()) {
+                Err(_e) => {
+                    info!("client disconnected, client will be removed");
                 }
-                Some(mut sender) => {
-                    match sender.start_send(msg.clone()) {
-                        Err(_e) => {
-                            info!("timer client disconnected");
-                        }
-                        Ok(start_send) => {
-                            match start_send {
-                                AsyncSink::Ready => {
-                                    // For now, this should always succeed
-                                    if sender.poll_complete().is_ok() {
-                                        mem::replace(client, Some(sender));
-                                    }
-                                }
-                                AsyncSink::NotReady(_) => {
-                                    warn!("failed to send tick");
-                                }
+                Ok(start_send) => {
+                    match start_send {
+                        AsyncSink::Ready => {
+                            // For now, this should always succeed
+                            if sender.poll_complete().is_ok() {
+                                mem::replace(client, Some(sender));
                             }
+                        }
+                        AsyncSink::NotReady(_) => {
+                            warn!("failed to send item, client will be removed");
                         }
                     }
                 }
