@@ -1,4 +1,4 @@
-use std::{io, mem, time, cell::RefCell, rc::Rc};
+use std::{io, mem, cell::RefCell, rc::Rc};
 use std::net::SocketAddr;
 
 use bytes::Bytes;
@@ -7,7 +7,7 @@ use futures::stream::{SplitSink, SplitStream};
 use futures::sync::mpsc;
 use ring::rand::SecureRandom;
 use tokio_core::net::TcpStream;
-use tokio_core::reactor::{Handle, Timeout};
+use tokio_core::reactor::{Handle};
 use tokio_io::AsyncRead;
 use tokio_io::codec::Framed;
 
@@ -23,9 +23,12 @@ use proto::channeler::{
     InitChannelPassive,
 };
 
+use timer::messages::FromTimer;
 use bytes::{Buf, BigEndian};
 
 use super::{NeighborsTable, messages::*, KEEP_ALIVE_TICKS};
+
+const TIMEOUT_TICKS: usize = 100;
 
 use super::codec::{Codec, CodecError};
 
@@ -46,6 +49,7 @@ pub enum ChannelError {
     SendToNetworkerFailed,
     SendToRemoteFailed,
     RecvFromInnerFailed,
+    RecvFromTimerFailed,
     KeepAliveTimeout,
     // FIXME: Use enum instead of reason string?
     Closed(&'static str),
@@ -83,10 +87,11 @@ impl<R: SecureRandom + 'static> Channel<R> {
     /// Create a new channel from an incoming socket.
     pub fn from_socket(
         socket: TcpStream,
-        handle: &Handle,
+        // handle: &Handle,
         neighbors: Rc<RefCell<NeighborsTable>>,
         networker_sender: &mpsc::Sender<ChannelerToNetworker>,
         sm_client: &SecurityModuleClient,
+        timer_receiver: mpsc::Receiver<FromTimer>,
         secure_rng: Rc<R>,
     ) -> ChannelNew<R> {
         // let neighbors_for_task = neighbors.clone();
@@ -153,9 +158,8 @@ impl<R: SecureRandom + 'static> Channel<R> {
 
         ChannelNew {
             state: ChannelNewState::InitChannel(Box::new(init_channel_task)),
-            // TODO CR: See similar comment below about using time ticks as the source of time,
-            // instead of using time::Duration::from_secs.
-            timeout: Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
+            timeout_ticks: TIMEOUT_TICKS,
+            timer_receiver: timer_receiver,
             secure_rng,
             sm_client: sm_client.clone(),
             remote_public_key: None,
@@ -172,6 +176,7 @@ impl<R: SecureRandom + 'static> Channel<R> {
         // neighbors: Rc<RefCell<NeighborsTable>>,
         networker_sender: &mpsc::Sender<ChannelerToNetworker>,
         sm_client: &SecurityModuleClient,
+        timer_receiver: mpsc::Receiver<FromTimer>,
         secure_rng: Rc<R>,
     ) -> ChannelNew<R> {
         // TODO: Add debug assert here to check the neighbor public key and the channel index
@@ -232,18 +237,8 @@ impl<R: SecureRandom + 'static> Channel<R> {
 
         ChannelNew {
             state: ChannelNewState::InitChannel(Box::new(init_channel_task)),
-            timeout: Timeout::new(time::Duration::from_secs(5), handle).unwrap(),
-            // TODO CR: The Timer module should be the only source of time. We should use the
-            // timer module to achieve timeout instead of time::Duration::from_secs. This is
-            // important so that we will be able to write tests the simulate the passage of time.
-            //
-            // To make a similar type of timer we may be able to get a duplicate Timer stream,
-            // and create a future that wait until the duplicate Timer stream ticks some constant
-            // amount of times.
-            //
-            // TODO CR: If we have some magic number like 5, it should be declared as a
-            // constant somewhere with a meaningful name. Later we might be able to group all
-            // those constants, maybe even allow to configure them.
+            timeout_ticks: TIMEOUT_TICKS,
+            timer_receiver,
             secure_rng,
             sm_client: sm_client.clone(),
             remote_public_key: None,
@@ -394,6 +389,7 @@ impl<R: SecureRandom + 'static> Channel<R> {
 
                 match msg.message_type {
                     MessageType::KeepAlive => {
+                        trace!("recv keepalive from {:?}", self.remote_public_key);
                         self.recv_keepalive_ticks = 2 * KEEP_ALIVE_TICKS;
                     }
                     MessageType::User => {
@@ -540,7 +536,8 @@ enum ChannelNewState {
 #[must_use = "futures do nothing unless polled"]
 pub struct ChannelNew<R> {
     state: ChannelNewState,
-    timeout: Timeout,
+    timeout_ticks: usize,
+    timer_receiver: mpsc::Receiver<FromTimer>,
 
     secure_rng: Rc<R>,
     sm_client: SecurityModuleClient,
@@ -641,8 +638,15 @@ impl<R: SecureRandom + 'static> Future for ChannelNew<R> {
         trace!("ChannelNew::poll - {:?}", ::std::time::Instant::now());
 
         loop {
-            if self.timeout.poll()?.is_ready() {
-                return Err(ChannelError::Timeout);
+            let poll_timer = self.timer_receiver.poll()
+                .map_err(|_| ChannelError::RecvFromTimerFailed);
+
+            if poll_timer?.is_ready() {
+                if self.timeout_ticks > 0 {
+                    self.timeout_ticks -= 1;
+                } else {
+                    return Err(ChannelError::Timeout);
+                }
             }
 
             match mem::replace(&mut self.state, ChannelNewState::Empty) {

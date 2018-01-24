@@ -49,6 +49,7 @@ use futures::sync::mpsc;
 use self::futures_timer::Interval;
 
 pub mod messages {
+    #[derive(Clone)]
     pub enum FromTimer {
         TimeTick,
     }

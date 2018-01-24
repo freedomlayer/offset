@@ -8,7 +8,7 @@ use tokio_core::reactor::Handle;
 
 use channeler::messages::ToChannel;
 use channeler::types::{ChannelerNeighbor, ChannelerNeighborInfo, NeighborsTable};
-use utils::CloseHandle;
+use utils::{CloseHandle};
 
 use networker::messages::NetworkerToChanneler;
 

@@ -15,7 +15,7 @@ use tokio_core::reactor::Handle;
 use crypto::identity::PublicKey;
 use ring::rand::SecureRandom;
 use security_module::client::SecurityModuleClient;
-use utils::CloseHandle;
+use utils::{CloseHandle, StreamMediator};
 
 use networker::messages::NetworkerToChanneler;
 use timer::messages::FromTimer;
@@ -50,6 +50,8 @@ pub struct Channeler<SR> {
 
     neighbors: Rc<RefCell<NeighborsTable>>,
     networker_sender: mpsc::Sender<ChannelerToNetworker>,
+
+    timer_dispatcher: StreamMediator<mpsc::Receiver<FromTimer>>,
 
     // FIXME: Changing SecurityModuleClient to be a trait.
     sm_client: SecurityModuleClient,
@@ -103,13 +105,15 @@ impl<SR: SecureRandom + 'static> Channeler<SR> {
     ) -> (CloseHandle, Channeler<SR>) {
         let neighbors = Rc::new(RefCell::new(HashMap::<PublicKey, ChannelerNeighbor>::new()));
 
+        let mut mediator = StreamMediator::new(timer_receiver, 10, handle);
+
         let (close_handle, (close_sender, close_receiver)) = CloseHandle::new();
 
         // TODO CR: I think that we are going against Rust's convention by having the
         // new() method return a tuple of objects. Usually new() returns Self.
         // Maybe we should change the name new() to something else? What do you think?
         let (timer_reader_close_handle, timer_reader) = TimerReader::new(
-            timer_receiver,
+            mediator.get_stream(10).expect("failed to sub timer"),
             handle,
             networker_sender.clone(),
             sm_client.clone(),
@@ -140,6 +144,7 @@ impl<SR: SecureRandom + 'static> Channeler<SR> {
             secure_rng,
             close_sender: Some(close_sender),
             close_receiver,
+            timer_dispatcher: mediator,
             timer_reader_close_handle: Some(timer_reader_close_handle),
             networker_reader_close_handle: Some(networker_reader_close_handle),
         };
@@ -195,10 +200,11 @@ impl<SR: SecureRandom + 'static> Future for Channeler<SR> {
 
                             let new_channel = Channel::from_socket(
                                 socket,
-                                &self.handle,
+                                // &self.handle,
                                 Rc::clone(&self.neighbors),
                                 &self.networker_sender,
                                 &self.sm_client,
+                                self.timer_dispatcher.get_stream(10).expect("failed to sub timer"),
                                 Rc::clone(&self.secure_rng),
                             ).and_then(
                                 move |(channel_tx, channel)| {

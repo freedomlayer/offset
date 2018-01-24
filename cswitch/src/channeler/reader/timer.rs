@@ -8,7 +8,7 @@ use ring::rand::SecureRandom;
 use tokio_core::reactor::Handle;
 
 use security_module::client::SecurityModuleClient;
-use utils::CloseHandle;
+use utils::{CloseHandle, StreamMediator};
 
 use channeler::channel::{Channel, ChannelError};
 use channeler::messages::{ChannelerToNetworker, ToChannel};
@@ -49,6 +49,7 @@ pub struct TimerReader<SR> {
     secure_rng: Rc<SR>,
 
     timer_receiver:   mpsc::Receiver<FromTimer>,
+    timer_dispatcher: StreamMediator<mpsc::Receiver<FromTimer>>,
     networker_sender: mpsc::Sender<ChannelerToNetworker>,
 
     // For reporting the closing event
@@ -77,6 +78,9 @@ impl<SR: SecureRandom + 'static> TimerReader<SR> {
     ) -> (CloseHandle, TimerReader<SR>) {
         let (close_handle, (close_tx, close_rx)) = CloseHandle::new();
 
+        let buffer_size = 10;
+        let mut mediator = StreamMediator::new(timer_receiver, buffer_size, handle);
+
         let timer_reader = TimerReader {
             handle: handle.clone(),
             sm_client,
@@ -85,7 +89,8 @@ impl<SR: SecureRandom + 'static> TimerReader<SR> {
             close_rx,
             secure_rng,
             networker_sender,
-            timer_receiver,
+            timer_receiver: mediator.get_stream(buffer_size).expect("failed to sub the timer"),
+            timer_dispatcher: mediator,
         };
 
         (close_handle, timer_reader)
@@ -93,7 +98,7 @@ impl<SR: SecureRandom + 'static> TimerReader<SR> {
 
     /// Spawn a connection attempt to any neighbor for which we are the active side in the
     /// relationship. We attempt to connect to every neighbor every once in a while.
-    fn reconnect(&self) {
+    fn reconnect(&mut self) {
         let handle_for_task = self.handle.clone();
         let neighbors_for_task = Rc::clone(&self.neighbors);
         let sm_client_for_task = self.sm_client.clone();
@@ -124,6 +129,7 @@ impl<SR: SecureRandom + 'static> TimerReader<SR> {
             let neighbors = Rc::clone(&neighbors_for_task);
             // let mut networker_sender = networker_sender_for_task.clone();
 
+            let buffer_size = 10;
             let new_channel = Channel::connect(
                 &addr,
                 &handle_for_task,
@@ -132,6 +138,7 @@ impl<SR: SecureRandom + 'static> TimerReader<SR> {
                 // Rc::clone(&neighbors_for_task),
                 &networker_sender_for_task,
                 &sm_client_for_task,
+                self.timer_dispatcher.get_stream(buffer_size).expect("failed to sub timer"),
                 Rc::clone(&self.secure_rng),
             ).then(move |conn_result| {
                 match neighbors.borrow_mut().get_mut(&neighbor_public_key) {
