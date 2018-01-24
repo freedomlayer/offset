@@ -149,22 +149,18 @@ pub enum NetworkerToAppManager {
 }
 
 pub enum NetworkerToChanneler {
-    /// Request to send a message via given `Channel`.
+    /// Request send message to remote.
     SendChannelMessage {
         neighbor_public_key: PublicKey,
-        channel_index: u32,
         content: Bytes,
     },
     /// Request to add a new neighbor.
     AddNeighbor {
-        neighbor_info: ChannelerNeighborInfo,
+        info: ChannelerNeighborInfo,
     },
-    /// Request to delete a neighbor.
-    RemoveNeighbor { neighbor_public_key: PublicKey },
-    /// Request to set the maximum amount of token channel.
-    SetMaxChannels {
-        neighbor_public_key: PublicKey,
-        max_channels: u32,
+    /// Request to remove a neighbor.
+    RemoveNeighbor {
+        neighbor_public_key: PublicKey
     },
 }
 

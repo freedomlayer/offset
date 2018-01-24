@@ -17,12 +17,6 @@ pub enum ToChannel {
 
 /// The channel event expected to be sent to `Networker`.
 pub enum ChannelEvent {
-    /// The `Channel` opened.
-    Opened,
-
-    /// All `Channel` closed.
-    Closed,
-
     /// A message received from remote.
     Message(Bytes),
 }
@@ -31,9 +25,6 @@ pub enum ChannelEvent {
 pub struct ChannelerToNetworker {
     /// The public key of the event sender.
     pub remote_public_key: PublicKey,
-
-    /// The channel index of the event sender.
-    pub channel_index: u32,
 
     /// The event happened.
     pub event: ChannelEvent,

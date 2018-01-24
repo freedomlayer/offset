@@ -191,7 +191,7 @@ impl<SR: SecureRandom + 'static> Future for Channeler<SR> {
                         }
                         Async::Ready(Some((socket, _))) => {
                             let neighbors = Rc::clone(&self.neighbors);
-                            let mut networker_sender = self.networker_sender.clone();
+                            // let mut networker_sender = self.networker_sender.clone();
 
                             let new_channel = Channel::from_socket(
                                 socket,
@@ -201,7 +201,7 @@ impl<SR: SecureRandom + 'static> Future for Channeler<SR> {
                                 &self.sm_client,
                                 Rc::clone(&self.secure_rng),
                             ).and_then(
-                                move |(channel_index, channel_tx, channel)| {
+                                move |(channel_tx, channel)| {
                                     let remote_public_key = channel.remote_public_key();
 
                                     match neighbors.borrow_mut().get_mut(&remote_public_key) {
@@ -209,18 +209,8 @@ impl<SR: SecureRandom + 'static> Future for Channeler<SR> {
                                             Err(ChannelError::Closed("can't find this neighbor"))
                                         }
                                         Some(neighbor) => {
-                                            let msg = ChannelerToNetworker {
-                                                remote_public_key,
-                                                channel_index,
-                                                event: ChannelEvent::Opened,
-                                            };
-
-                                            if networker_sender.try_send(msg).is_err() {
-                                                Err(ChannelError::SendToNetworkerFailed)
-                                            } else {
-                                                neighbor.channels.insert(channel_index, channel_tx);
-                                                Ok(channel)
-                                            }
+                                            neighbor.channel = Some(channel_tx);
+                                            Ok(channel)
                                         }
                                     }
                                 },

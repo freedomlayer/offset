@@ -57,26 +57,23 @@ pub struct Channel<R> {
     // Remote identity public key
     remote_public_key: PublicKey,
 
-    // The index of this channel
-    channel_index: u32,
-
     // Secure random number generator
     secure_rng: Rc<R>,
 
     // The inner sender and receiver
-    networker_sender:   mpsc::Sender<ChannelerToNetworker>,
+    networker_sender: mpsc::Sender<ChannelerToNetworker>,
     channeler_receiver: mpsc::Receiver<ToChannel>,
     networker_buffered: Option<ChannelerToNetworker>,
 
     // The outer sender and receiver
-    outer_sender:   FramedSink,
+    outer_sender: FramedSink,
     outer_receiver: FramedStream,
     outer_buffered: Option<Bytes>,
 
     send_counter: u64,
     recv_counter: u64,
-    encryptor:    Encryptor,
-    decryptor:    Decryptor,
+    encryptor: Encryptor,
+    decryptor: Decryptor,
 
     send_keepalive_ticks: usize,
     recv_keepalive_ticks: usize,
@@ -120,7 +117,6 @@ impl<R: SecureRandom + 'static> Channel<R> {
                     .and_then(move |init_channel_active| {
                         if validate_neighbor(
                             &init_channel_active.neighbor_public_key,
-                            init_channel_active.channel_index,
                             &neighbors.borrow(),
                         ) {
                             Ok((init_channel_active, stream))
@@ -173,7 +169,6 @@ impl<R: SecureRandom + 'static> Channel<R> {
         addr: &SocketAddr,
         handle: &Handle,
         remote_public_key: &PublicKey,
-        channel_index: u32,
         // neighbors: Rc<RefCell<NeighborsTable>>,
         networker_sender: &mpsc::Sender<ChannelerToNetworker>,
         sm_client: &SecurityModuleClient,
@@ -198,7 +193,7 @@ impl<R: SecureRandom + 'static> Channel<R> {
                         let init_channel_active = InitChannelActive {
                             neighbor_public_key: public_key,
                             channel_rand_value,
-                            channel_index,
+                            channel_index: 0, // FIXME: Remove this field
                         };
                         Ok((init_channel_active, sink, stream))
                     })
@@ -253,7 +248,7 @@ impl<R: SecureRandom + 'static> Channel<R> {
             sm_client: sm_client.clone(),
             remote_public_key: None,
             networker_sender: networker_sender.clone(),
-            channel_index: Some(channel_index),
+            channel_index: Some(0), // FIXME: Remove this field
         }
     }
 
@@ -307,8 +302,8 @@ impl<R: SecureRandom + 'static> Channel<R> {
             .and_then(|msg| {
                 if msg.inc_counter != self.recv_counter {
                     Err(ChannelError::Closed("unexpected counter"))
-                // TODO CR: I think that we should have an Enum for the closing reason instead
-                // of using strings.
+                    // TODO CR: I think that we should have an Enum for the closing reason instead
+                    // of using strings.
                 } else {
                     increase_counter(&mut self.recv_counter);
                     Ok(msg)
@@ -378,11 +373,11 @@ impl<R: SecureRandom + 'static> Channel<R> {
                             let msg = self.pack_msg(MessageType::KeepAlive, Bytes::new())?;
                             return Ok(Async::Ready(Some(msg)));
                         }
-                    },
+                    }
                     ToChannel::SendMessage(raw) => {
                         let msg = self.pack_msg(MessageType::User, raw)?;
                         return Ok(Async::Ready(Some(msg)));
-                    },
+                    }
                 }
             } else {
                 // The internal channel has finish
@@ -400,16 +395,15 @@ impl<R: SecureRandom + 'static> Channel<R> {
                 match msg.message_type {
                     MessageType::KeepAlive => {
                         self.recv_keepalive_ticks = 2 * KEEP_ALIVE_TICKS;
-                    },
+                    }
                     MessageType::User => {
                         let msg = ChannelerToNetworker {
                             remote_public_key: self.remote_public_key.clone(),
-                            channel_index:     self.channel_index,
-                            event:             ChannelEvent::Message(msg.content),
+                            event: ChannelEvent::Message(msg.content),
                         };
 
                         return Ok(Async::Ready(Some(msg)));
-                    },
+                    }
                 }
             } else {
                 // The tcp connection has finished
@@ -453,10 +447,10 @@ impl<R: SecureRandom + 'static> Future for Channel<R> {
                     // automatically in rust?
                     // FIXME: Call close() and wait TCP stream closed
                     return Ok(Async::Ready(()));
-                },
+                }
                 Async::Ready(Some(msg)) => {
                     try_ready!(self.try_start_send_outer(msg));
-                },
+                }
                 Async::NotReady => {
                     try_ready!(self.outer_sender.poll_complete());
 
@@ -470,10 +464,10 @@ impl<R: SecureRandom + 'static> Future for Channel<R> {
                         Async::Ready(None) => {
                             debug!("tcp connection closed, closing");
                             return Ok(Async::Ready(()));
-                        },
+                        }
                         Async::Ready(Some(msg)) => {
                             try_ready!(self.try_start_send_networker(msg));
-                        },
+                        }
                         Async::NotReady => {
                             try_ready!(
                                 self.networker_sender
@@ -481,9 +475,9 @@ impl<R: SecureRandom + 'static> Future for Channel<R> {
                                     .map_err(|_| ChannelError::SendToNetworkerFailed)
                             );
                             return Ok(Async::NotReady);
-                        },
+                        }
                     }
-                },
+                }
             }
         }
     }
@@ -512,8 +506,8 @@ enum ChannelNewState {
     InitChannel(
         Box<
             Future<
-                Item = (InitChannelActive, InitChannelPassive, FramedSink, FramedStream),
-                Error = ChannelError,
+                Item=(InitChannelActive, InitChannelPassive, FramedSink, FramedStream),
+                Error=ChannelError,
             >,
         >,
     ),
@@ -534,8 +528,8 @@ enum ChannelNewState {
     Exchange(
         Box<
             Future<
-                Item = (Exchange, Exchange, DhPrivateKey, FramedSink, FramedStream),
-                Error = ChannelError,
+                Item=(Exchange, Exchange, DhPrivateKey, FramedSink, FramedStream),
+                Error=ChannelError,
             >,
         >,
     ),
@@ -545,13 +539,13 @@ enum ChannelNewState {
 
 #[must_use = "futures do nothing unless polled"]
 pub struct ChannelNew<R> {
-    state:   ChannelNewState,
+    state: ChannelNewState,
     timeout: Timeout,
 
-    secure_rng:        Rc<R>,
-    sm_client:         SecurityModuleClient,
-    channel_index:     Option<u32>,
-    networker_sender:  mpsc::Sender<ChannelerToNetworker>,
+    secure_rng: Rc<R>,
+    sm_client: SecurityModuleClient,
+    channel_index: Option<u32>,
+    networker_sender: mpsc::Sender<ChannelerToNetworker>,
     remote_public_key: Option<PublicKey>,
 }
 
@@ -565,8 +559,8 @@ impl<R: SecureRandom> ChannelNew<R> {
         sm_client: &SecurityModuleClient,
         secure_rng: Rc<R>,
     ) -> impl Future<
-        Item = (Exchange, Exchange, DhPrivateKey, FramedSink, FramedStream),
-        Error = ChannelError,
+        Item=(Exchange, Exchange, DhPrivateKey, FramedSink, FramedStream),
+        Error=ChannelError,
     > {
         // Generate ephemeral DH private key
         let key_salt = Salt::new(&*secure_rng);
@@ -640,7 +634,7 @@ impl<R: SecureRandom> ChannelNew<R> {
 //
 // Answer: Hard to debug when using the combinator.
 impl<R: SecureRandom + 'static> Future for ChannelNew<R> {
-    type Item = (u32, mpsc::Sender<ToChannel>, Channel<R>);
+    type Item = (mpsc::Sender<ToChannel>, Channel<R>);
     type Error = ChannelError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -687,14 +681,14 @@ impl<R: SecureRandom + 'static> Future for ChannelNew<R> {
                             );
 
                             self.state = ChannelNewState::Exchange(Box::new(exchange_task));
-                        },
+                        }
                         Async::NotReady => {
                             trace!("ChannelNewState::InitialChannel [Not Ready]");
                             self.state = ChannelNewState::InitChannel(init_channel_task);
                             return Ok(Async::NotReady);
-                        },
+                        }
                     }
-                },
+                }
                 ChannelNewState::Exchange(mut exchange_task) => {
                     // TODO CR: Could we somehow write this code so that we don't need to have
                     // those asserts for existence of channel_index and remote_public_key?
@@ -742,9 +736,9 @@ impl<R: SecureRandom + 'static> Future for ChannelNew<R> {
                             // We might be able to design this part in a different way, to avoid
                             // the many expect()-s and assert!s. In the meanwhile, we can make sure
                             // that we do this only once, maybe in the beginning of the function.
-                            let channel_index = self.channel_index
-                                .take()
-                                .expect("missing channel index");
+                            // let channel_index = self.channel_index
+                            //     .take()
+                            //     .expect("missing channel index");
 
                             let remote_public_key = self.remote_public_key
                                 .take()
@@ -753,7 +747,6 @@ impl<R: SecureRandom + 'static> Future for ChannelNew<R> {
                             let channel = Channel {
                                 secure_rng: Rc::clone(&self.secure_rng),
                                 remote_public_key,
-                                channel_index,
                                 networker_sender: self.networker_sender.clone(),
                                 channeler_receiver: inner_rx,
                                 networker_buffered: None,
@@ -768,15 +761,15 @@ impl<R: SecureRandom + 'static> Future for ChannelNew<R> {
                                 recv_keepalive_ticks: 2 * KEEP_ALIVE_TICKS,
                             };
 
-                            return Ok(Async::Ready((channel_index, inner_tx, channel)));
-                        },
+                            return Ok(Async::Ready((inner_tx, channel)));
+                        }
                         Async::NotReady => {
                             trace!("ChannelNewState::Exchange       [Not Ready]");
                             self.state = ChannelNewState::Exchange(exchange_task);
                             return Ok(Async::NotReady);
-                        },
+                        }
                     }
-                },
+                }
             }
         }
     }
@@ -805,37 +798,32 @@ fn increase_counter(counter: &mut u64) {
 
 fn gen_padding(secure_rng: &SecureRandom)
     -> Result<(usize, [u8; MAX_PADDING_LEN]), ChannelError> {
-    debug_assert!(MAX_PADDING_LEN % (u32::max_value() as usize) == 0);
+    debug_assert!((u16::max_value() as usize + 1) % MAX_PADDING_LEN == 0);
 
-    const UINT32_LEN: usize = 4;
+    const UINT16_LEN: usize = 2;
 
-    let mut bytes = [0x00; UINT32_LEN];
+    let mut bytes = [0x00; UINT16_LEN];
 
     secure_rng.fill(&mut bytes[..])?;
 
     let mut rdr = io::Cursor::new(&bytes[..]);
 
-    let padding_len = rdr.get_u32::<BigEndian>();
+    let padding_len = (rdr.get_u16::<BigEndian>() as usize) % MAX_PADDING_LEN;
 
     let mut padding_bytes = [0x00; MAX_PADDING_LEN];
 
-    secure_rng.fill(&mut padding_bytes[..(padding_len as usize)])?;
+    secure_rng.fill(&mut padding_bytes[..padding_len])?;
 
-    Ok((padding_len as usize, padding_bytes))
+    Ok((padding_len, padding_bytes))
 }
 
-/// Obtain neighbors table, validate whether `remote_public_key`
-/// may actively initiate a channel with index `channel_index`.
-fn validate_neighbor(
-    remote_public_key: &PublicKey,
-    channel_index: u32,
-    neighbors: &NeighborsTable,
-) -> bool {
-    if let Some(neighbor) = neighbors.get(remote_public_key) {
-        neighbor.info.socket_addr.is_none() && channel_index < neighbor.info.max_channels
-            && neighbor.channels.get(&channel_index).is_none()
-    } else {
-        false
+/// Validate whether `remote_public_key` may actively initiate a channel
+fn validate_neighbor(remote_public_key: &PublicKey, neighbors: &NeighborsTable) -> bool {
+    match neighbors.get(remote_public_key) {
+        None => false,
+        Some(neighbor) => {
+            neighbor.info.socket_addr.is_none() && neighbor.channel.is_none()
+        }
     }
 }
 
@@ -891,14 +879,13 @@ mod test {
         let info = ChannelerNeighborInfo {
             public_key,
             socket_addr: None,
-            max_channels: 1,
         };
 
         ChannelerNeighbor {
             info,
+            channel: None,
             retry_ticks: 0,
             num_pending: 0,
-            channels: HashMap::new(),
         }
     }
 
@@ -950,7 +937,7 @@ mod test {
     /// a `InitChannelPassive` message from remote, once he received a message which not conform the
     /// `InitChannelPassive` message's format, the connection would be closed with the `SchemaError`
     ///
-    /// Notation: (Initiator, Smaller, In used)
+    /// Notation: (Initiator, Connected)
     #[test]
     fn test_validation() {
         let (keys, mut neighbors) = gen_neighbors();
@@ -958,46 +945,31 @@ mod test {
         let (tx, _) = mpsc::channel::<ToChannel>(0);
         {
             let neighbor = neighbors.get_mut(&keys[2]).unwrap();
-            neighbor.channels.insert(0, tx);
+            neighbor.channel = Some(tx);
         }
 
-        // Case 1: (Y, Y, N)
+        // Case 1: (Y, N)
         //
-        // - The received key belong to a neighbor that has the initiator role.
-        // - The channel index smaller than the maximum allowed channels and this
-        //   channel index is not already in used.
+        // - The neighbor has the initiator role.
+        // - There is no connected channel between remote.
         let remote_public_key = keys[1].clone();
-        let channel_index = 0;
 
-        assert!(validate_neighbor(&remote_public_key, channel_index, &neighbors));
+        assert!(validate_neighbor(&remote_public_key, &neighbors));
 
-        // Case 2: (Y, Y, Y)
+        // Case 2: (Y, Y)
         //
-        // - The received key belong to a neighbor that has the initiator role.
-        // - The channel index smaller than the maximum allowed channels but this
-        //   channel index is already in used.
+        // - The neighbor has the initiator role.
+        // - There was a connected channel between remote.
         let remote_public_key = keys[2].clone();
-        let channel_index = 0;
 
-        assert!(!validate_neighbor(&remote_public_key, channel_index, &neighbors));
+        assert!(!validate_neighbor(&remote_public_key, &neighbors));
 
-        // Case 3: (Y, N, X)
+        // Case 3: (N, X)
         //
-        // - The received key belong to a neighbor that has the initiator role.
-        // - The channel index greater or equal than the maximum allowed channels.
-        let remote_public_key = keys[1].clone();
-        let channel_index = 1;
-
-        assert!(!validate_neighbor(&remote_public_key, channel_index, &neighbors));
-
-        // Case 4: (N, X, X)
-        //
-        // - The received key belong to a neighbor that doesn't have the initiator role.
-        // - The channel index smaller than the maximum allowed channels and this
-        //   channel index is not already in used.
+        // - The neighbor doesn't have the initiator role.
+        // - There is no connected channel between remote.
         let remote_public_key = keys[3].clone();
-        let channel_index = 100;
 
-        assert!(!validate_neighbor(&remote_public_key, channel_index, &neighbors));
+        assert!(!validate_neighbor(&remote_public_key, &neighbors));
     }
 }

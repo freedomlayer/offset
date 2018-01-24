@@ -83,12 +83,6 @@ fn main() {
 
     let mock_networker_receiver_part = channeler_receiver.map_err(|_| ()).for_each(|msg| {
         match msg.event {
-            ChannelEvent::Opened => {
-                println!("Recv ChannelOpened message: {}", msg.channel_index);
-            }
-            ChannelEvent::Closed => {
-                println!("Recv ChannelClosed message: {}", msg.channel_index);
-            }
             ChannelEvent::Message(msg) => {
                 println!("ChannelMessageReceived:");
 
@@ -147,10 +141,9 @@ fn main() {
                         let neighbor_info = ChannelerNeighborInfo {
                             public_key: neighbor_public_key,
                             socket_addr: addr,
-                            max_channels: 3u32,
                         };
 
-                        let message = NetworkerToChanneler::AddNeighbor { neighbor_info };
+                        let message = NetworkerToChanneler::AddNeighbor { info: neighbor_info };
 
                         if channeler_sender.try_send(message).is_err() {
                             println!("Failed to send [add] command.");
@@ -181,7 +174,7 @@ fn main() {
                     }
                 }
                 "send" => {
-                    if items.len() < 4 {
+                    if items.len() < 3 {
                         println!("Too few args.");
                         print_usage();
                     } else {
@@ -194,12 +187,9 @@ fn main() {
 
                         let neighbor_public_key = identity.get_public_key();
 
-                        let channel_index = items[2].parse::<u32>().unwrap();
-
                         let message = NetworkerToChanneler::SendChannelMessage {
-                            neighbor_public_key,
-                            channel_index,
-                            content: Bytes::from(items[3..].join(" ").as_bytes()),
+                            neighbor_public_key: neighbor_public_key,
+                            content: Bytes::from(items[2..].join(" ").as_bytes()),
                         };
 
                         if channeler_sender.try_send(message).is_err() {

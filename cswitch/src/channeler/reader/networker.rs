@@ -1,4 +1,4 @@
-use std::{mem, cell::RefCell, collections::HashMap, rc::Rc};
+use std::{mem, cell::RefCell, rc::Rc};
 
 use bytes::Bytes;
 use futures::prelude::*;
@@ -60,9 +60,9 @@ impl NetworkerReader {
             info.public_key.clone(),
             ChannelerNeighbor {
                 info,
+                channel: None,
                 num_pending: 0,
                 retry_ticks: 0,
-                channels: HashMap::new(),
             },
         );
     }
@@ -82,11 +82,11 @@ impl NetworkerReader {
     }
 
     /// Send channel message via channel with index `channel_index`.
-    fn send_message(&self, remote_public_key: PublicKey, channel_index: u32, content: Bytes) {
+    fn send_message(&self, remote_public_key: PublicKey, content: Bytes) {
         let channel_sender = self.neighbors
             .borrow()
             .get(&remote_public_key)
-            .and_then(|neighbor| neighbor.channels.get(&channel_index).cloned());
+            .and_then(|neighbor| neighbor.channel.clone());
 
         match channel_sender {
             None => info!("no such channel, message will be discarded"),
@@ -132,27 +132,6 @@ impl NetworkerReader {
         // Please tell me you opinion about this, you might have an idea to improve
         // this.
         //
-    }
-
-    /// Set neighbor maximum channels
-    fn set_max_channels(&self, public_key: PublicKey, max_channels: u32) {
-        match self.neighbors.borrow_mut().get_mut(&public_key) {
-            None => {
-                info!("nonexistent neighbor: {:?}", public_key);
-            },
-            Some(neighbor) => {
-                neighbor.info.max_channels = max_channels;
-
-                // Drop the channels with an index ge `max_channels`
-                //
-                // We ONLY remove the sender from neighbor's channel list, but some task would
-                // hand a sender, for example, we clone sender then spawn a
-                // future to perform the sending task, in this case, the
-                // channel will perceive that it should close when all
-                // senders were dropped. See also the comment in `del_neighbor`.
-                neighbor.channels.retain(|&index, _| index < max_channels);
-            },
-        }
     }
 
     // TODO: Consume all message before closing actually.
@@ -215,8 +194,8 @@ impl Future for NetworkerReader {
                         return Ok(Async::Ready(()));
                     },
                     Async::Ready(Some(message)) => match message {
-                        NetworkerToChanneler::AddNeighbor { neighbor_info } => {
-                            self.add_neighbor(neighbor_info);
+                        NetworkerToChanneler::AddNeighbor { info } => {
+                            self.add_neighbor(info);
                         },
                         NetworkerToChanneler::RemoveNeighbor {
                             neighbor_public_key,
@@ -225,16 +204,9 @@ impl Future for NetworkerReader {
                         },
                         NetworkerToChanneler::SendChannelMessage {
                             neighbor_public_key,
-                            channel_index,
                             content,
                         } => {
-                            self.send_message(neighbor_public_key, channel_index, content);
-                        },
-                        NetworkerToChanneler::SetMaxChannels {
-                            neighbor_public_key,
-                            max_channels,
-                        } => {
-                            self.set_max_channels(neighbor_public_key, max_channels);
+                            self.send_message(neighbor_public_key, content);
                         },
                     },
                 },
