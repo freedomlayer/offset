@@ -4,9 +4,7 @@ use futures::sync::mpsc;
 
 use tokio_core::reactor::Handle;
 
-const INTERNAL_CHANNEL_CAPACITY: usize = 512;
-
-struct StreamMediatorFuture<S: Stream + 'static>
+struct StreamMediatorFuture<S: Stream>
     where S::Item: Clone
 {
     upstream: S,
@@ -19,7 +17,7 @@ pub enum StreamMediatorError<E> {
     StreamError(E),
 }
 
-impl<S: Stream + 'static> StreamMediatorFuture<S>
+impl<S: Stream> StreamMediatorFuture<S>
     where S::Item: Clone
 {
     fn broadcast(&mut self, msg: S::Item) {
@@ -50,7 +48,7 @@ impl<S: Stream + 'static> StreamMediatorFuture<S>
     }
 }
 
-impl<S: Stream + 'static> Future for StreamMediatorFuture<S>
+impl<S: Stream> Future for StreamMediatorFuture<S>
     where S::Item: Clone
 {
     type Item = ();
@@ -89,15 +87,15 @@ impl<S: Stream + 'static> Future for StreamMediatorFuture<S>
     }
 }
 
-pub struct StreamMediator<S: Stream + 'static> {
+pub struct StreamMediator<S: Stream> {
     inner: mpsc::Sender<mpsc::Sender<S::Item>>,
 }
 
 impl<S: Stream + 'static> StreamMediator<S>
     where S::Item: Clone
 {
-    pub fn new(stream: S, handle: &Handle) -> StreamMediator<S> {
-        let (inner_tx, inner_rx) = mpsc::channel(INTERNAL_CHANNEL_CAPACITY);
+    pub fn new(stream: S, buffer: usize, handle: &Handle) -> StreamMediator<S> {
+        let (inner_tx, inner_rx) = mpsc::channel(buffer);
 
         let mediator_task = StreamMediatorFuture {
             upstream: stream,
@@ -114,8 +112,8 @@ impl<S: Stream + 'static> StreamMediator<S>
         StreamMediator { inner: inner_tx }
     }
 
-    pub fn get_stream(&mut self) -> Result<mpsc::Receiver<S::Item>, ()> {
-        let (sender, receiver) = mpsc::channel(INTERNAL_CHANNEL_CAPACITY);
+    pub fn get_stream(&mut self, buffer: usize) -> Result<mpsc::Receiver<S::Item>, ()> {
+        let (sender, receiver) = mpsc::channel(buffer);
 
         self.inner.try_send(sender).map_err(|_| ())?;
 
@@ -132,6 +130,7 @@ mod tests {
     use tokio_core::reactor::Core;
 
     const CLIENT_NUM: usize = 100;
+    const BUFFER_SIZE: usize = 1000;
 
     #[test]
     fn broadcast() {
@@ -140,10 +139,10 @@ mod tests {
         let mut core = Core::new().unwrap();
         let handle = core.handle();
 
-        let mut mediator = StreamMediator::new(iter_ok::<_, ()>(v), &handle);
+        let mut mediator = StreamMediator::new(iter_ok::<_, ()>(v), BUFFER_SIZE, &handle);
 
         let client_tasks = (0..CLIENT_NUM).map(|x| {
-            let stream = mediator.get_stream().unwrap();
+            let stream = mediator.get_stream(BUFFER_SIZE).unwrap();
             stream.collect().and_then(|result| {
                 assert_eq!(result, vec![0, 1, 2, 3, 4]);
                 Ok(())
