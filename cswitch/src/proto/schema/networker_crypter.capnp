@@ -1,5 +1,9 @@
 @0xcaa25ded5bdbc81a;
 
+# This file contains messages used for managing encrypted sessions between
+# networkers. All messages are sent as requests or responses transactions in
+# through a Networker Token Channel.
+
 using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomUInt256;
 using import "common.capnp".CustomUInt512;
