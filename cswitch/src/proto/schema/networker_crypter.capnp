@@ -11,8 +11,8 @@ using import "common.capnp".CustomUInt512;
 
 # 4-way handshake
 # ---------------
-# 1. A -> B: Handshake1 (randNonce1, publicKeyA) 
-# 2. B -> A: Handshake2 (hashPrev, randNonce2, publicKeyB, dhPublicKeyB, keySaltB, Signature(B))
+# 1. A -> B: Handshake1 (randNonceA, publicKeyA) 
+# 2. B -> A: Handshake2 (hashPrev, randNonceB, publicKeyB, dhPublicKeyB, keySaltB, Signature(B))
 # 3. A -> B: Handshake3 (hashPrev, dhPublicKeyA, keySaltA, Signature(A))
 # 4. B -> A: Handshake4 (hashPrev, Signature(B))
 
