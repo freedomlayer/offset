@@ -43,3 +43,6 @@ git = "https://github.com/alexcrichton/futures-timer"
 
 [build-dependencies]
 capnpc = "0.8"
+
+[profile.release]
+debug = true

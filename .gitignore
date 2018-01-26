@@ -1,3 +1,9 @@
 *.sw*
 *_capnp.rs
 target/
+
+## IntelliJ IDEA
+*.iml
+*.ipr
+*.iws
+dataSources/
