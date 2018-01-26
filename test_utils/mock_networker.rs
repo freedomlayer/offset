@@ -67,7 +67,7 @@ fn main() {
     let (networker_sender, channeler_receiver) = mpsc::channel::<ChannelerToNetworker>(0);
     let (mut channeler_sender, networker_receiver) = mpsc::channel::<NetworkerToChanneler>(0);
 
-    let mut timer_module = TimerModule::new(time::Duration::from_millis(100));
+    let mut timer_module = TimerModule::new(time::Duration::from_millis(100), &handle);
 
     let rng = SystemRandom::new();
 

@@ -39,14 +39,12 @@
 
 #![deny(warnings)]
 
-extern crate futures_timer;
-
 use std::{io, mem, time::Duration};
 
 use futures::prelude::*;
 use futures::sync::mpsc;
 
-use self::futures_timer::Interval;
+use tokio_core::reactor::{Handle, Interval};
 
 pub mod messages {
     #[derive(Clone)]
@@ -85,11 +83,11 @@ impl<T> TimerClient<T> {
 }
 
 impl TimerModule {
-    pub fn new(duration: Duration) -> TimerModule {
-        TimerModule {
-            inner: Interval::new(duration),
-            clients: Vec::new(),
-        }
+    pub fn new(duration: Duration, handle: &Handle) -> TimerModule {
+        let inner = Interval::new(duration, handle)
+            .expect("can't create timer module");
+
+        TimerModule { inner, clients: Vec::new() }
     }
 
     pub fn create_client(&mut self) -> mpsc::Receiver<FromTimer> {
@@ -155,9 +153,10 @@ mod tests {
 
     #[test]
     fn test_timer_basic() {
-        let mut tm = TimerModule::new(Duration::from_millis(5));
-
         let mut core = Core::new().unwrap();
+        let handle = core.handle();
+
+        let mut tm = TimerModule::new(Duration::from_millis(5), &handle);
 
         let clients = (0..50)
             .map(|_| tm.create_client())
