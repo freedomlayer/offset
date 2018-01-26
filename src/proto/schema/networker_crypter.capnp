@@ -70,14 +70,6 @@ struct PlainRequest {
         }
 }
 
-# An encrypted request message.
-# The response for this message is a blob of encrypted data.
-# [Request]
-struct EncryptedRequest {
-        encryptedData @0: Data;
-        # encryptedData is an encrypted PlainRequest structure.
-}
-
 
 # All possible request messages:
 struct RequestMessage {
@@ -85,7 +77,7 @@ struct RequestMessage {
                 handshake1 @0: Handshake1;
                 handshake3 @1: Handshake3;
                 unknownChannel @2: UnknownChannel;
-                encrypted @3: EncryptedRequest;
+                encrypted @3: Data;
         }
 }
 
