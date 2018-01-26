@@ -68,16 +68,12 @@ struct ResponseSendMessageTran {
         #   "REQUEST_SUCCESS" ||
         #   requestId ||
         #   sha512/256(route) ||
-        #   hash(requestContent) ||
+        #   sha512/256(requestContent) ||
         #   maxResponseLength ||
         #   processingFeeProposal ||
         #   creditsPerByteProposal || 
         #   sha512/256(responseContent)
         #   randNonce)
-        #
-        # Where hash(requestContent) = 
-        #    sha512/256("commMeans") or 
-        #    sha512/256("encrypted" || EncMessage)
 }
 
 struct FailedSendMessageTran {
