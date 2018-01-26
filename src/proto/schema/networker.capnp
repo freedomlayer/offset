@@ -41,9 +41,6 @@ struct LoadFundsTran {
 
 
 
-struct RequestMessage {
-}
-
 struct NeighborsRoute {
         publicKeys @0: List(CustomUInt256);
 }
