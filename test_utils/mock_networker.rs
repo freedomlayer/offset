@@ -36,7 +36,7 @@ use cswitch::channeler::messages::*;
 use cswitch::networker::messages::NetworkerToChanneler;
 
 fn main() {
-    pretty_env_logger::init().unwrap();
+    pretty_env_logger::init();
 
     let mut line = String::new();
 

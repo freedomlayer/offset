@@ -205,12 +205,8 @@ impl<T> Clone for AsyncMutex<T> {
 
 #[cfg(test)]
 mod tests {
-    extern crate test;
-
     use super::*;
     use tokio_core::reactor::Core;
-
-    use self::test::Bencher;
 
     struct NumCell {
         num: usize,
@@ -333,10 +329,5 @@ mod tests {
 
         assert!(core.run(task3).is_err());
         assert!(core.run(task4).is_err());
-    }
-
-    #[bench]
-    fn bench_1000_acquire(b: &mut Bencher) {
-        b.iter(multiple);
     }
 }

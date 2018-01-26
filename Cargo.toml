@@ -14,7 +14,7 @@ path = "test_utils/mock_networker.rs"
 
 [dependencies]
 log = "0.4"
-pretty_env_logger = "0.1"
+pretty_env_logger = "0.2"
 
 rand = "0.4"
 ring = "0.13.0-alpha"
@@ -36,10 +36,6 @@ optional = true
 [dependencies.byteorder]
 version = "1.1"
 features = ["i128"]
-
-[dependencies.futures-timer]
-version = "0.1"
-git = "https://github.com/alexcrichton/futures-timer"
 
 [build-dependencies]
 capnpc = "0.8"
