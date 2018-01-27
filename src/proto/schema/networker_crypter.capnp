@@ -8,24 +8,23 @@ using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomUInt256;
 using import "common.capnp".CustomUInt512;
 
-
 # 4-way handshake
 # ---------------
-# 1. A -> B: Handshake1 (randNonceA, publicKeyA) 
-# 2. B -> A: Handshake2 (hashPrev, randNonceB, publicKeyB, dhPublicKeyB, keySaltB, Signature(B))
-# 3. A -> B: Handshake3 (hashPrev, dhPublicKeyA, keySaltA, Signature(A))
-# 4. B -> A: Handshake4 (hashPrev, Signature(B))
+# 1. A -> B: InitChannel      (randNonceA, publicKeyA)
+# 2. B -> A: ExchangePassive  (hashPrev, randNonceB, publicKeyB, dhPublicKeyB, keySaltB, Signature(B))
+# 3. A -> B: ExchangeActive   (hashPrev, dhPublicKeyA, keySaltA, Signature(A))
+# 4. B -> A: ChannelReady     (hashPrev, Signature(B))
 
 
-# Expects Handshake2 as response.
+# Expects ExchangePassive as response.
 # [Request]
-struct Handshake1 {
+struct InitChannel {
         randNonce1 @0: CustomUInt128;
         publicKey1 @1: CustomUInt256;
 }
 
 # [Response]
-struct Handshake2 {
+struct ExchangePassive {
         randNonce2 @0: CustomUInt128;
         publicKey2 @1: CustomUInt256;
         dhPublicKey2 @2: CustomUInt256;
@@ -38,7 +37,7 @@ struct Handshake2 {
 # signed response is received for this message. The receiver of this message
 # considers the connection to be completed.
 # [Request]
-struct Handshake3 {
+struct ExchangeActive {
         hashPrev @0: CustomUInt256;
         dhPublicKey1 @1: CustomUInt256;
         keySalt1 @2: CustomUInt256;
@@ -47,7 +46,7 @@ struct Handshake3 {
         # therefore we need to have a signature here.
 }
 
-# Handshake4 is any signed response to Handshake3.
+# ChannelReady is any signed response to ExchangeActive.
 
 
 # The sender of this response indicates that it does not have the receiver end
@@ -83,8 +82,8 @@ struct PlainRequest {
 # All possible request messages:
 struct RequestMessage {
         union {
-                handshake1 @0: Handshake1;
-                handshake3 @1: Handshake3;
+                initChannel @0: InitChannel;
+                exchangeActive @1: ExchangeActive;
                 encrypted @2: Data;
         }
 }
