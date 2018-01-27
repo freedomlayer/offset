@@ -55,6 +55,9 @@ struct UnknownChannel {
 }
 
 
+# TODO: Add a structure for EncryptedMessage, and add random padding.
+
+
 struct ChannelerMessage {
         union {
                 handshake1 @0: Handshake1;

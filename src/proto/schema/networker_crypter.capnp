@@ -70,6 +70,7 @@ struct PlainRequest {
         }
 }
 
+# TODO: Add a structure for EncryptedMessage, and add random padding.
 
 # All possible request messages:
 struct RequestMessage {
