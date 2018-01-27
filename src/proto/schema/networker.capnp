@@ -59,8 +59,11 @@ struct RequestSendMessageTran {
 struct ResponseSendMessageTran {
         requestId @0: CustomUInt128;
         randNonce @1: CustomUInt128;
-        responseContent @2: Data;
-        signature @3: CustomUInt512;
+        processingFeeCollected @2: UInt64;
+        # The amount of credit actually collected from the proposed
+        # processingFee. This value is at most request.processingFeeProposal.
+        responseContent @3: Data;
+        signature @4: CustomUInt512;
         # Signature{key=recipientKey}(
         #   "REQUEST_SUCCESS" ||
         #   requestId ||
