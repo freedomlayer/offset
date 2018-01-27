@@ -50,14 +50,15 @@ struct Handshake3 {
 # Handshake4 is any signed response to Handshake3.
 
 
-# The sender of this request indicates that it does not have the receiver end
-# of the channel channelId. The response for this request is ignored.
-# [Request]
+# The sender of this response indicates that it does not have the receiver end
+# of the channel channelId. This message can only be sent as a response to an
+# encrypted request.
+# [Response]
 struct UnknownChannel {
         channelId @0: CustomUInt128;
         randNonce @1: CustomUInt128;
-        signature @2: CustomUInt512;
-        # Signature(channelId || randNonce)
+        # Signature is not required because responses are signed by the outer
+        # protocol.
 }
 
 # The data we encrypt. Contains random padding (Of variable length) together
@@ -84,8 +85,20 @@ struct RequestMessage {
         union {
                 handshake1 @0: Handshake1;
                 handshake3 @1: Handshake3;
-                unknownChannel @2: UnknownChannel;
-                encrypted @3: Data;
+                encrypted @2: Data;
+        }
+}
+
+# A response for RequestMesasge.encrypted request.
+struct ResponseToEncryptedRequest {
+        # TODO: What is the real size of a union in capnp? This is important,
+        # because we need to know how much space should we allocate in credit
+        # for the response.
+        # Is it possible to have an empty response here as a default empty
+        # encrypted response, for saving in space?
+        union {
+                encrypted @0: Data;
+                unknownChannel @1: UnknownChannel;
         }
 }
 
