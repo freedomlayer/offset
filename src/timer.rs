@@ -11,7 +11,7 @@
 //!
 //! ```rust,ignore
 //! enum FromTimer {
-//!    TimeTick
+//!     TimeTick,
 //! }
 //! ```
 //!
@@ -63,36 +63,22 @@ pub enum TimerError {
 /// The timer module.
 pub struct TimerModule {
     inner: Interval,
-    clients: Vec<TimerClient<mpsc::Sender<FromTimer>>>,
-}
-
-#[derive(Debug)]
-enum TimerClient<T> {
-    Active(T),
-    Dropped,
-}
-
-impl<T> TimerClient<T> {
-    #[inline]
-    fn is_dropped(&self) -> bool {
-        match *self {
-            TimerClient::Active(_) => false,
-            TimerClient::Dropped => true,
-        }
-    }
+    clients: Vec<Option<mpsc::Sender<FromTimer>>>,
 }
 
 impl TimerModule {
-    pub fn new(duration: Duration, handle: &Handle) -> TimerModule {
-        let inner = Interval::new(duration, handle)
-            .expect("can't create timer module");
+    pub fn new(dur: Duration, handle: &Handle) -> TimerModule {
+        let inner = Interval::new(dur, handle).expect("can't create timer module");
 
-        TimerModule { inner, clients: Vec::new() }
+        TimerModule {
+            inner,
+            clients: Vec::new(),
+        }
     }
 
     pub fn create_client(&mut self) -> mpsc::Receiver<FromTimer> {
         let (sender, receiver) = mpsc::channel(100);
-        self.clients.push(TimerClient::Active(sender));
+        self.clients.push(Some(sender));
         receiver
     }
 }
@@ -106,11 +92,11 @@ impl Future for TimerModule {
 
         if try_ready!(timer_poll).is_some() {
             for client in &mut self.clients {
-                match mem::replace(client, TimerClient::Dropped) {
-                    TimerClient::Dropped => {
+                match mem::replace(client, None) {
+                    None => {
                         unreachable!("encounter a dropped client");
                     }
-                    TimerClient::Active(mut sender) => {
+                    Some(mut sender) => {
                         match sender.start_send(FromTimer::TimeTick) {
                             Err(_e) => {
                                 info!("timer client disconnected");
@@ -120,7 +106,7 @@ impl Future for TimerModule {
                                     AsyncSink::Ready => {
                                         // For now, this should always succeed
                                         if sender.poll_complete().is_ok() {
-                                            mem::replace(client, TimerClient::Active(sender));
+                                            mem::replace(client, Some(sender));
                                         }
                                     }
                                     AsyncSink::NotReady(_) => {
@@ -132,8 +118,9 @@ impl Future for TimerModule {
                     }
                 }
             }
+
             // Remove the dropped clients
-            self.clients.retain(|client| !client.is_dropped());
+            self.clients.retain(|client| client.is_some());
 
             Ok(Async::NotReady)
         } else {
@@ -156,7 +143,9 @@ mod tests {
         let mut core = Core::new().unwrap();
         let handle = core.handle();
 
-        let mut tm = TimerModule::new(Duration::from_millis(5), &handle);
+        let dur = Duration::from_millis(10);
+
+        let mut tm = TimerModule::new(dur, &handle);
 
         let clients = (0..50)
             .map(|_| tm.create_client())
@@ -165,16 +154,12 @@ mod tests {
 
         assert_eq!(clients.len(), 25);
 
-        let now = time::Instant::now();
+        let start = time::Instant::now();
         let clients_fut = clients
             .into_iter()
-            .map(move |timer_client| {
-                let mut ticks: u64 = 0;
-                timer_client.take(1000).for_each(move |FromTimer::TimeTick| {
-                    ticks += 1;
-                    // Acceptable accuracy for test: 5ms (+- 40%)
-                    assert!(now.elapsed() > Duration::from_millis(3 * ticks));
-                    assert!(now.elapsed() < Duration::from_millis(7 * ticks));
+            .map(|client| {
+                client.take(100).collect().and_then(|_| {
+                    assert!(start.elapsed() >= dur * 100);
                     Ok(())
                 })
             })
