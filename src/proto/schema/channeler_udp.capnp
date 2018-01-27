@@ -55,7 +55,13 @@ struct UnknownChannel {
 }
 
 
-# TODO: Add a structure for EncryptedMessage, and add random padding.
+# The data we encrypt. Contains random padding (Of variable length) together
+# with actual data. This struct is used for any data we encrypt.
+struct Plain {
+   randPadding @0: Data;
+   # Random padding: Makes traffic analysis harder.
+   content @1: Data;
+}
 
 
 struct ChannelerMessage {
@@ -66,7 +72,7 @@ struct ChannelerMessage {
                 handshake4 @3: Handshake4;
                 unknownChannel @4: UnknownChannel;
                 encrypted @5: Data;
-                # Nonce is be 96 bit counter, Additional authenticated data is
+                # Nonce is a 96 bit counter, Additional authenticated data is
                 # channelId.
         }
 }

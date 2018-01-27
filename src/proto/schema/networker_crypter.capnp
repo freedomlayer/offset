@@ -60,7 +60,16 @@ struct UnknownChannel {
         # Signature(channelId || randNonce)
 }
 
+# The data we encrypt. Contains random padding (Of variable length) together
+# with actual data. This struct is used for any data we encrypt.
+struct Plain {
+   randPadding @0: Data;
+   # Random padding: Makes traffic analysis harder.
+   content @1: Data;
+}
 
+
+# This structure is used as the content field inside the Plain struct.
 struct PlainRequest {
         plainContent @0: Data;
         destPort :union {
@@ -69,8 +78,6 @@ struct PlainRequest {
                 appManager @3: UInt32;
         }
 }
-
-# TODO: Add a structure for EncryptedMessage, and add random padding.
 
 # All possible request messages:
 struct RequestMessage {
