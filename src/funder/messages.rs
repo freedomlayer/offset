@@ -2,7 +2,7 @@ use crypto::identity::PublicKey;
 use crypto::uuid::Uuid;
 
 use indexer_client::messages::{FriendsRouteWithCapacity, RequestNeighborsRoutes};
-use networker::messages::{RequestSendMessage};
+use networker::messages::{RequestPath};
 
 use futures::sync::mpsc;
 use proto::funder::{InvoiceId};
@@ -99,7 +99,7 @@ pub enum FunderToDatabase {
 }
 
 pub enum FunderToNetworker {
-    RequestSendMessage(RequestSendMessage),
+    RequestPath(RequestPath),
 }
 
 pub enum FunderToIndexerClient {
