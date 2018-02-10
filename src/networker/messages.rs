@@ -106,9 +106,10 @@ pub enum DestinationPort {
     AppManager(u32),
 }
 
+/// Component -> Networker
 pub struct RequestPath {
     route: NeighborsRoute,
-    response_sender: mpsc::Sender<mpsc::Sender<RequestSendMessage>>,
+    response_sender: mpsc::Sender<Option<mpsc::Sender<RequestSendMessage>>>,
 }
 
 /// Component -> Networker
