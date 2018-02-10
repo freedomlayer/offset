@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use crypto::identity::PublicKey;
 
-use networker::messages::{MessageReceivedResponse, NeighborStatus, RequestPath};
+use networker::messages::{NeighborStatus, RequestPath};
 
 use funder::messages::{FriendInfo, FriendRequestsStatus, FriendStatus, RequestSendFunds};
 
