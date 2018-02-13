@@ -12,9 +12,10 @@ use channeler::types::ChannelerNeighborInfo;
 use funder::messages::{RequestSendFunds};
 
 use indexer_client::messages::RequestFriendsRoutes;
+use database::messages::{ResponseLoadNeighbors, ResponseLoadNeighborToken};
 use proto::indexer::NeighborsRoute;
 use proto::funder::InvoiceId;
-use proto::networker::{NeighborMoveToken, NeighborRequestType};
+use proto::networker::{NeighborMoveToken};
 
 
 /// Indicate the direction of the move token message.
@@ -32,7 +33,6 @@ pub enum NeighborStatus {
 pub struct PendingNeighborRequest {
     pub request_id: Uid,
     pub route: NeighborsRoute,
-    pub request_type: NeighborRequestType,
     pub request_content_hash: HashResult,
     pub max_response_length: u32,
     pub processing_fee_proposal: u64,
@@ -172,7 +172,9 @@ pub enum NetworkerToDatabase {
     RemoveNeighbor {
         neighbor_public_key: PublicKey,
     },
-    RequestLoadNeighbors,
+    RequestLoadNeighbors {
+        response_sender: mpsc::Sender<ResponseLoadNeighbors>,
+    },
     StoreInNeighborToken {
         neighbor_public_key: PublicKey,
         token_channel_index: u32,
@@ -203,6 +205,7 @@ pub enum NetworkerToDatabase {
     RequestLoadNeighborToken {
         neighbor_public_key: PublicKey,
         token_channel_index: u32,
+        response_sender: mpsc::Sender<Option<ResponseLoadNeighborToken>>,
     },
 }
 

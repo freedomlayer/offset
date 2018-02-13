@@ -1,10 +1,10 @@
-use proto::indexer::{IndexingProviderId, NeighborsRoute, StateChainLink};
-use crypto::identity::{PublicKey, Signature};
-
 use futures::sync::mpsc;
 
-use networker::messages::{RequestPath};
-// use crypto::identity::{PublicKey, Signature};
+use proto::indexer::{IndexingProviderId, NeighborsRoute, StateChainLink};
+use crypto::identity::PublicKey;
+
+use networker::messages::RequestPath;
+use database::messages::ResponseLoadIndexingProviders;
 
 /// Indexing provider status.
 pub enum IndexingProviderStatus {
@@ -85,7 +85,9 @@ pub enum IndexerClientToAppManager {
 pub enum IndexerClientToDatabase {
     StoreIndexingProvider(IndexingProviderInfo),
     RemoveIndexingProvider(IndexingProviderId),
-    RequestLoadIndexingProviders,
+    RequestLoadIndexingProviders {
+        response_sender: mpsc::Sender<ResponseLoadIndexingProviders>,
+    },
     StoreRoute {
         id: IndexingProviderId,
         route: NeighborsRoute,
