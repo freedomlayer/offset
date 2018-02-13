@@ -3,7 +3,7 @@ use crypto::identity::{PublicKey, Signature};
 
 use futures::sync::mpsc;
 
-use networker::messages::{RequestSendMessage};
+use networker::messages::{RequestPath};
 // use crypto::identity::{PublicKey, Signature};
 
 /// Indexing provider status.
@@ -98,5 +98,5 @@ pub enum IndexerClientToFunder {
 */
 
 pub enum IndexerClientToNetworker {
-    RequestSendMessage(RequestSendMessage),
+    RequestPath(RequestPath),
 }

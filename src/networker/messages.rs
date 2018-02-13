@@ -107,8 +107,14 @@ pub enum DestinationPort {
 }
 
 /// Component -> Networker
-pub struct RequestSendMessage {
+pub struct RequestPath {
     route: NeighborsRoute,
+    response_sender: mpsc::Sender<Option<mpsc::Sender<RequestSendMessage>>>,
+}
+
+/// Component -> Networker
+pub struct RequestSendMessage {
+    // route: NeighborsRoute,
     dest_port: DestinationPort,
     request_data: Vec<u8>,
     max_response_len: u32,
@@ -134,11 +140,8 @@ pub struct MessageReceived {
 
 
 /// Component -> Networker
-pub enum MessageReceivedResponse {
-    Accept {
-        response_data: Vec<u8>,
-    },
-    Discard,
+pub struct MessageReceivedResponse {
+    processing_fee_collected: u64,
 }
 
 
