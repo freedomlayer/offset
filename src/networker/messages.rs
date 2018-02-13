@@ -12,6 +12,7 @@ use channeler::types::ChannelerNeighborInfo;
 use funder::messages::{RequestSendFunds};
 
 use indexer_client::messages::RequestFriendsRoutes;
+use database::messages::{ResponseLoadNeighbors, ResponseLoadNeighborToken};
 use proto::indexer::NeighborsRoute;
 use proto::funder::InvoiceId;
 use proto::networker::{NeighborMoveToken, NeighborRequestType};
@@ -172,7 +173,9 @@ pub enum NetworkerToDatabase {
     RemoveNeighbor {
         neighbor_public_key: PublicKey,
     },
-    RequestLoadNeighbors,
+    RequestLoadNeighbors {
+        response_sender: mpsc::Sender<ResponseLoadNeighbors>,
+    },
     StoreInNeighborToken {
         neighbor_public_key: PublicKey,
         token_channel_index: u32,
@@ -203,6 +206,7 @@ pub enum NetworkerToDatabase {
     RequestLoadNeighborToken {
         neighbor_public_key: PublicKey,
         token_channel_index: u32,
+        response_sender: mpsc::Sender<Option<ResponseLoadNeighborToken>>,
     },
 }
 

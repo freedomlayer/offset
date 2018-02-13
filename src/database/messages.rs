@@ -51,22 +51,22 @@ pub enum DatabaseToIndexerClient {
     ResponseLoadIndexingProviders(Vec<IndexingProviderInfoFromDB>),
 }
 
-pub enum DatabaseToNetworker {
-    ResponseLoadNeighbors {
-        neighbors: Vec<NeighborInfo>,
-    },
-    ResponseLoadNeighborToken {
-        neighbor_public_key: PublicKey,
-        move_token_direction: MoveTokenDirection,
-        move_token_message: NeighborMoveToken,
-        remote_max_debt: u64,
-        local_max_debt: u64,
-        remote_pending_debt: u64,
-        local_pending_debt: u64,
-        balance: i64,
-        local_invoice_id: Option<InvoiceId>,
-        remote_invoice_id: Option<InvoiceId>,
-        pending_local_requests: Vec<PendingNeighborRequest>,
-        pending_remote_requests: Vec<PendingNeighborRequest>,
-    },
+pub struct ResponseLoadNeighbors {
+    neighbors: Vec<NeighborInfo>,
 }
+
+pub struct ResponseLoadNeighborToken {
+    neighbor_public_key: PublicKey,
+    move_token_direction: MoveTokenDirection,
+    move_token_message: NeighborMoveToken,
+    remote_max_debt: u64,
+    local_max_debt: u64,
+    remote_pending_debt: u64,
+    local_pending_debt: u64,
+    balance: i64,
+    local_invoice_id: Option<InvoiceId>,
+    remote_invoice_id: Option<InvoiceId>,
+    pending_local_requests: Vec<PendingNeighborRequest>,
+    pending_remote_requests: Vec<PendingNeighborRequest>,
+}
+
