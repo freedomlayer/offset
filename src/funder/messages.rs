@@ -1,5 +1,5 @@
 use crypto::identity::PublicKey;
-use crypto::uuid::Uuid;
+use crypto::uid::Uid;
 
 use indexer_client::messages::{FriendsRouteWithCapacity, RequestNeighborsRoutes};
 use networker::messages::{RequestPath};
@@ -60,7 +60,7 @@ pub struct FriendInfo {
 }
 
 pub struct PendingFriendRequest {
-    pub request_id: Uuid,
+    pub request_id: Uid,
     pub route: FriendsRouteWithCapacity,
     pub mediator_payment_proposal: u64,
     pub invoice_id: InvoiceId,

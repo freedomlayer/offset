@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use crypto::uuid::Uuid;
+use crypto::uid::Uid;
 use crypto::rand_values::RandValue;
 use crypto::identity::{PublicKey, Signature};
 
@@ -31,7 +31,7 @@ pub enum NetworkerTokenChannelTransaction {
     FundsRandNonce,
     LoadFunds,
     RequestSendMessage {
-        request_id: Uuid,
+        request_id: Uid,
         route: NeighborsRoute,
         // request_content: RequestContent,
         maximum_response_length: u32,
@@ -39,12 +39,12 @@ pub enum NetworkerTokenChannelTransaction {
         half_credits_per_byte_proposal: u32,
     },
     ResponseSendMessage {
-        request_id: Uuid,
+        request_id: Uid,
         // response_content: ResponseContent,
         signature: Signature,
     },
     FailedSendMessage {
-        request_id: Uuid,
+        request_id: Uid,
         reporting_node_public_key: PublicKey,
         signature: Signature,
     },

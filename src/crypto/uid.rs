@@ -1,24 +1,22 @@
-///! A rough implementation of UUID v4.
-
 use std::fmt;
 use ring::rand::SecureRandom;
 
-const UUID_LEN: usize = 16;
+const UID_LEN: usize = 16;
 
 /// A Universally Unique Identifier (UUID).
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Uuid([u8; UUID_LEN]);
+pub struct Uid([u8; UID_LEN]);
 
-impl Uuid {
+impl Uid {
     /// Creates a random `Uuid`.
-    pub fn new<R: SecureRandom>(rng: &R) -> Uuid {
-        let mut uuid = Uuid([0; UUID_LEN]);
+    pub fn new<R: SecureRandom>(rng: &R) -> Uid {
+        let mut uuid = Uid([0; UID_LEN]);
         rng.fill(&mut uuid.0).unwrap();
         uuid
     }
 
     /// Returns an array of 16 bytes containing the `Uuid` data.
-    pub fn as_bytes(&self) -> &[u8; UUID_LEN] {
+    pub fn as_bytes(&self) -> &[u8; UID_LEN] {
         &self.0
     }
 
@@ -33,13 +31,13 @@ impl Uuid {
     }
 }
 
-impl fmt::Debug for Uuid {
+impl fmt::Debug for Uid {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.format())
     }
 }
 
-impl fmt::Display for Uuid {
+impl fmt::Display for Uid {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.format())
     }
@@ -53,24 +51,24 @@ mod tests {
     #[test]
     fn basic() {
         let rng1 = FixedByteRandom { byte: 0x03 };
-        let uuid1 = Uuid::new(&rng1);
+        let uid1 = Uid::new(&rng1);
 
-        assert_eq!(uuid1.0.len(), UUID_LEN);
-        assert_eq!(uuid1.as_bytes(), &[0x3; UUID_LEN]);
+        assert_eq!(uid1.0.len(), UID_LEN);
+        assert_eq!(uid1.as_bytes(), &[0x3; UID_LEN]);
 
         let rng2 = FixedByteRandom { byte: 0x4 };
-        let uuid2 = Uuid::new(&rng2);
+        let uid2 = Uid::new(&rng2);
 
-        assert_ne!(uuid1, uuid2);
+        assert_ne!(uid1, uid2);
     }
 
     #[test]
     fn format() {
         let rng = FixedByteRandom { byte: 0x03 };
-        let uuid = Uuid::new(&rng);
+        let uid = Uid::new(&rng);
 
-        let debug = format!("{:?}", uuid);
-        let display = format!("{}", uuid);
+        let debug = format!("{:?}", uid);
+        let display = format!("{}", uid);
 
         let expected = "03030303030303030303030303030303".to_owned();
         assert_eq!(expected.len(), 32);

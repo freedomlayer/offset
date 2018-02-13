@@ -4,7 +4,7 @@ use bytes::Bytes;
 
 use crypto::identity::PublicKey;
 use crypto::hash::HashResult;
-use crypto::uuid::Uuid;
+use crypto::uid::Uid;
 
 use futures::sync::mpsc;
 
@@ -30,7 +30,7 @@ pub enum NeighborStatus {
 }
 
 pub struct PendingNeighborRequest {
-    pub request_id: Uuid,
+    pub request_id: Uid,
     pub route: NeighborsRoute,
     pub request_type: NeighborRequestType,
     pub request_content_hash: HashResult,
@@ -184,7 +184,7 @@ pub enum NetworkerToDatabase {
         balance: i64,
         local_invoice_id: Option<InvoiceId>,
         remote_invoice_id: Option<InvoiceId>,
-        closed_local_requests: Vec<Uuid>,
+        closed_local_requests: Vec<Uid>,
         opened_remote_requests: Vec<PendingNeighborRequest>,
     },
     StoreOutNeighborToken {
@@ -198,7 +198,7 @@ pub enum NetworkerToDatabase {
         local_invoice_id: Option<InvoiceId>,
         remote_invoice_id: Option<InvoiceId>,
         opened_local_requests: Vec<PendingNeighborRequest>,
-        closed_remote_requests: Vec<Uuid>,
+        closed_remote_requests: Vec<Uid>,
     },
     RequestLoadNeighborToken {
         neighbor_public_key: PublicKey,
