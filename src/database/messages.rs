@@ -5,11 +5,10 @@ use crypto::identity::PublicKey;
 use networker::messages::{MoveTokenDirection, NeighborInfo, PendingNeighborRequest};
 
 use proto::funder::{FriendMoveToken, InvoiceId};
-use funder::messages::PendingFriendRequest;
+use funder::messages::{PendingFriendRequest, FriendInfo, FriendRequestsStatus};
 
 use indexer_client::messages::IndexingProviderStatus;
 use proto::indexer::{IndexingProviderId, NeighborsRoute, StateChainLink};
-
 use proto::networker::NeighborMoveToken;
 
 /// The indexing provider's information from database.
@@ -20,32 +19,34 @@ pub struct IndexingProviderInfoFromDB {
     status: IndexingProviderStatus,
 }
 
+/*
 /// The friend's information from database.
-pub struct FriendInfoFromDB {
+pub struct FriendInfo {
     pub friend_public_key: PublicKey,
     pub wanted_remote_max_debt: u128,
     pub status: u8,
 }
+*/
 
-pub enum DatabaseToFunder {
-    ResponseLoadFriends {
-        friends: Vec<FriendInfoFromDB>,
-    },
-    ResponseLoadFriendToken {
-        friend_public_key: PublicKey,
-        move_token_direction: MoveTokenDirection,
-        move_token_message: FriendMoveToken,
-        remote_max_debt: u64,
-        local_max_debt: u64,
-        remote_pending_debt: u64,
-        local_pending_debt: u64,
-        balance: i64,
-        local_state: u8,
-        remote_state: u8,
-        pending_local_requests: Vec<PendingFriendRequest>,
-        pending_remote_requests: Vec<PendingFriendRequest>,
-    },
+pub struct ResponseLoadFriendToken {
+    friend_public_key: PublicKey,
+    move_token_direction: MoveTokenDirection,
+    move_token_message: FriendMoveToken,
+    remote_max_debt: u64,
+    local_max_debt: u64,
+    remote_pending_debt: u64,
+    local_pending_debt: u64,
+    balance: i64,
+    local_state: FriendRequestsStatus,
+    remote_state: FriendRequestsStatus,
+    pending_local_requests: Vec<PendingFriendRequest>,
+    pending_remote_requests: Vec<PendingFriendRequest>,
 }
+
+pub struct ResponseLoadFriends {
+    friends: Vec<FriendInfo>,
+}
+
 
 pub enum DatabaseToIndexerClient {
     ResponseLoadIndexingProviders(Vec<IndexingProviderInfoFromDB>),

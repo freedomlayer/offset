@@ -1,11 +1,13 @@
+use futures::sync::mpsc;
+
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 use indexer_client::messages::{FriendsRouteWithCapacity, RequestNeighborsRoutes};
 use networker::messages::{RequestPath};
+use database::messages::{ResponseLoadFriends, ResponseLoadFriendToken};
 
-use futures::sync::mpsc;
-use proto::funder::{InvoiceId};
+use proto::funder::{InvoiceId, FriendMoveToken};
 use proto::common::SendFundsReceipt;
 
 pub enum FriendStatus {
@@ -57,6 +59,7 @@ pub struct FriendStateUpdate {
 pub struct FriendInfo {
     friend_public_key: PublicKey,
     wanted_remote_max_debt: u128,
+    status: FriendStatus,
 }
 
 pub struct PendingFriendRequest {
@@ -84,18 +87,50 @@ pub enum FunderToAppManager {
     FriendStateUpdate(FriendStateUpdate),
 }
 
-// TODO:
+
 pub enum FunderToDatabase {
     StoreFriend {
         friend_public_key: PublicKey,
         wanted_remote_max_debt: u128,
         status: FriendStatus,
     },
-    RemoveFriend {},
-    RequestLoadFriends {},
-    StoreInFriendToken {},
-    StoreOutFriendToken {},
-    RequestLoadFriendToken {},
+    RemoveFriend {
+        friend_public_key: PublicKey,
+    },
+    RequestLoadFriends {
+        response_sender: mpsc::Sender<ResponseLoadFriends>,
+    },
+    StoreInFriendToken {
+        friend_public_key: PublicKey,
+        token_channel_index: u32,
+        move_token_message: FriendMoveToken,
+        remote_max_debt: u64,
+        local_max_debt: u64,
+        remote_pending_debt: u64,
+        local_pending_debt: u64,
+        balance: i64,
+        local_state: FriendRequestsStatus,
+        remote_state: FriendRequestsStatus,
+        closed_local_requests: Vec<Uid>,
+        opened_remote_requests: Vec<PendingFriendRequest>,
+    },
+    StoreOutFriendToken {
+        friend_public_key: PublicKey,
+        move_token_message: FriendMoveToken,
+        remote_max_debt: u64,
+        local_max_debt: u64,
+        remote_pending_debt: u64,
+        local_pending_debt: u64,
+        balance: i64,
+        local_invoice_id: Option<InvoiceId>,
+        remote_invoice_id: Option<InvoiceId>,
+        opened_local_requests: Vec<PendingFriendRequest>,
+        closed_remote_requests: Vec<Uid>,
+    },
+    RequestLoadFriendToken {
+        friend_public_key: PublicKey,
+        response_sender: mpsc::Sender<Option<ResponseLoadFriendToken>>,
+    },
 }
 
 pub enum FunderToNetworker {
