@@ -4,6 +4,7 @@ use crypto::identity::{PublicKey, Signature};
 use futures::sync::mpsc;
 
 use networker::messages::{RequestPath};
+use database::messages::ResponseLoadIndexingProviders;
 // use crypto::identity::{PublicKey, Signature};
 
 /// Indexing provider status.
@@ -85,7 +86,9 @@ pub enum IndexerClientToAppManager {
 pub enum IndexerClientToDatabase {
     StoreIndexingProvider(IndexingProviderInfo),
     RemoveIndexingProvider(IndexingProviderId),
-    RequestLoadIndexingProviders,
+    RequestLoadIndexingProviders {
+        response_sender: mpsc::Sender<ResponseLoadIndexingProviders>,
+    },
     StoreRoute {
         id: IndexingProviderId,
         route: NeighborsRoute,

@@ -48,9 +48,7 @@ pub struct ResponseLoadFriends {
 }
 
 
-pub enum DatabaseToIndexerClient {
-    ResponseLoadIndexingProviders(Vec<IndexingProviderInfoFromDB>),
-}
+pub struct ResponseLoadIndexingProviders(Vec<IndexingProviderInfoFromDB>);
 
 pub struct ResponseLoadNeighbors {
     neighbors: Vec<NeighborInfo>,
