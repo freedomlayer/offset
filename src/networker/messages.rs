@@ -141,6 +141,7 @@ pub struct MessageReceived {
 
 /// Component -> Networker
 pub struct MessageReceivedResponse {
+    response_data: Vec<u8>,
     processing_fee_collected: u64,
 }
 
