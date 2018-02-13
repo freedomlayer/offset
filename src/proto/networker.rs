@@ -12,11 +12,6 @@ pub const CHANNEL_TOKEN_LEN: usize = 32;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ChannelToken([u8; CHANNEL_TOKEN_LEN]);
 
-#[derive(Clone, Copy, Debug)]
-pub enum NeighborRequestType {
-    CommMeans = 0,
-    Encrypted = 1,
-}
 
 pub struct NeighborMoveToken {
     pub channel_index: u32,
