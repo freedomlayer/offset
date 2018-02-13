@@ -94,11 +94,6 @@ pub enum IndexerClientToDatabase {
     },
 }
 
-/*
-pub enum IndexerClientToFunder {
-}
-*/
-
 pub enum IndexerClientToNetworker {
     RequestPath(RequestPath),
 }
