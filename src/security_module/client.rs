@@ -86,6 +86,9 @@ mod tests {
         let (requests_sender, sm) = create_security_module(identity);
         let smc = SecurityModuleClient::new(requests_sender);
 
+        // SecurityModuleClient can be cloned:
+        let smc = smc.clone();
+
         let my_message = b"This is my message!";
 
         // Start the SecurityModule service:
