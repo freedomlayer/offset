@@ -1,3 +1,4 @@
+/*
 #![allow(unused)]
 extern crate bytes;
 extern crate futures;
@@ -251,3 +252,4 @@ fn read_stdin(mut tx: mpsc::Sender<String>) {
         };
     }
 }
+*/

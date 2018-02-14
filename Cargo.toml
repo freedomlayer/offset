@@ -9,8 +9,8 @@ default = []
 dev = ["clippy"]
 
 [[bin]]
-name = "mock_networker"
-path = "test_utils/mock_networker.rs"
+name = "main"
+path = "src/bin/main.rs"
 
 [dependencies]
 log = "0.4"

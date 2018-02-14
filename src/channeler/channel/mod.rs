@@ -1,3 +1,4 @@
+/*
 use std::{io, mem, cell::RefCell, rc::Rc};
 use std::net::SocketAddr;
 
@@ -977,3 +978,4 @@ mod test {
         assert!(!validate_neighbor(&remote_public_key, &neighbors));
     }
 }
+*/
