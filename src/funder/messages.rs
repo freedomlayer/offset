@@ -41,13 +41,10 @@ enum FriendEvent {
     InconsistencyError(i128),  // Contains balance required for reset
 }
 
-pub enum SendFundsResult {
+
+pub enum ResponseSendFunds {
     Success(SendFundsReceipt),
     Failure,
-}
-
-pub struct ResponseSendFunds {
-    result: SendFundsResult,
 }
 
 pub struct FriendStateUpdate {
