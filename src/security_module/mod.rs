@@ -1,7 +1,8 @@
 pub mod messages;
+pub mod client;
 
 use futures::prelude::*;
-use futures::sync::{mpsc, oneshot};
+use futures::sync::mpsc;
 
 use crypto::identity::Identity;
 
@@ -35,38 +36,9 @@ pub fn create_security_module<I: Identity>(identity: I) -> (mpsc::Sender<ToSecur
             },
         }
     });
-
+    
     (requests_sender, security_module)
 }
-
-/*
-pub enum SecurityModuleClientError {
-}
-
-pub struct SecurityModuleClient {
-    requests_sender: mpsc::Sender<ToSecurityModule>,
-}
-
-impl SecurityModuleClient {
-    pub fn new(requests_sender: mpsc::Sender<ToSecurityModule>) -> Self {
-        SecurityModuleClient { requests_sender }
-    }
-    pub fn request_signature(&self, message: Vec<u8>) -> impl Future<Item=Signature, Error=()> {
-        let rsender = self.requests_sender.clone();
-        let (tx, rx) = oneshot::channel();
-        rsender
-         .send(ToSecurityModule::RequestPublicKey {response_sender: tx})
-         .then(|result| {
-             match result {
-                 Ok(_) => rx,
-                 Err(_) => panic!("Failed to send publick key request (1) !"),
-             }
-         }).unwrap().public_key;
-    }
-    pub fn request_public_key() -> impl Future<Item=PublicKey, Error=()> {
-    }
-}
-*/
 
 
 #[cfg(test)]
@@ -100,7 +72,7 @@ mod tests {
                  .then(|result| {
                      match result {
                          Ok(_) => rx,
-                         Err(_) => panic!("Failed to send publick key request (1) !"),
+                         Err(_) => panic!("Failed to send public key request (1) !"),
                      }
                  })).unwrap().public_key;
 
