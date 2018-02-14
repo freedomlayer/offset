@@ -6,7 +6,7 @@ use crypto::identity::PublicKey;
 use crypto::hash::HashResult;
 use crypto::uid::Uid;
 
-use futures::sync::mpsc;
+use futures::sync::{mpsc, oneshot};
 
 use channeler::types::ChannelerNeighborInfo;
 use funder::messages::{RequestSendFunds};
@@ -104,7 +104,7 @@ pub enum DestinationPort {
 /// Component -> Networker
 pub struct RequestPath {
     route: NeighborsRoute,
-    response_sender: mpsc::Sender<Option<mpsc::Sender<RequestSendMessage>>>,
+    response_sender: oneshot::Sender<Option<mpsc::Sender<RequestSendMessage>>>,
 }
 
 /// Component -> Networker
@@ -115,7 +115,7 @@ pub struct RequestSendMessage {
     max_response_len: u32,
     processing_fee_proposal: u64,
     credits_per_byte_proposal: u32,
-    response_sender: mpsc::Sender<ResponseSendMessage>,
+    response_sender: oneshot::Sender<ResponseSendMessage>,
 }
 
 /// Networker -> Component
@@ -131,7 +131,7 @@ pub struct MessageReceived {
     max_response_len: u32,
     processing_fee_proposal: u64,
     credits_per_byte_proposal: u32,
-    response_sender: mpsc::Sender<MessageReceivedResponse>,
+    response_sender: oneshot::Sender<MessageReceivedResponse>,
 }
 
 
@@ -170,7 +170,7 @@ pub enum NetworkerToDatabase {
         neighbor_public_key: PublicKey,
     },
     RequestLoadNeighbors {
-        response_sender: mpsc::Sender<ResponseLoadNeighbors>,
+        response_sender: oneshot::Sender<ResponseLoadNeighbors>,
     },
     StoreInNeighborToken {
         neighbor_public_key: PublicKey,
@@ -202,7 +202,7 @@ pub enum NetworkerToDatabase {
     RequestLoadNeighborToken {
         neighbor_public_key: PublicKey,
         token_channel_index: u32,
-        response_sender: mpsc::Sender<Option<ResponseLoadNeighborToken>>,
+        response_sender: oneshot::Sender<Option<ResponseLoadNeighborToken>>,
     },
 }
 
