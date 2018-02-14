@@ -91,11 +91,6 @@ pub struct NeighborStateUpdate {
     event: NeighborEvent,
 }
 
-/// The result of attempting to send a message to a remote Networker.
-pub enum SendMessageResult {
-    Success(Vec<u8>),
-    Failure,
-}
 
 /// Destination port for the packet.
 /// The destination port is used by the destination Networker to know where to forward the received
@@ -124,8 +119,9 @@ pub struct RequestSendMessage {
 }
 
 /// Networker -> Component
-pub struct ResponseSendMessage {
-    result: SendMessageResult,
+pub enum ResponseSendMessage {
+    Success(Vec<u8>),
+    Failure,
 }
 
 /// Networker -> Component
