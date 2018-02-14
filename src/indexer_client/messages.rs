@@ -1,4 +1,4 @@
-use futures::sync::mpsc;
+use futures::sync::oneshot;
 
 use proto::indexer::{IndexingProviderId, NeighborsRoute, StateChainLink};
 use crypto::identity::PublicKey;
@@ -36,7 +36,7 @@ pub struct IndexingProviderInfo {
 pub struct RequestNeighborsRoutes {
     source_node_public_key: PublicKey,
     destination_node_public_key: PublicKey,
-    response_sender: mpsc::Sender<ResponseNeighborsRoutes>,
+    response_sender: oneshot::Sender<ResponseNeighborsRoutes>,
 
 }
 
@@ -64,7 +64,7 @@ enum RequiredFriendsRoutes {
 
 pub struct RequestFriendsRoutes {
     required_friends_routes: RequiredFriendsRoutes,
-    response_sender: mpsc::Sender<ResponseFriendsRoutes>,
+    response_sender: oneshot::Sender<ResponseFriendsRoutes>,
 }
 
 pub struct FriendsRouteWithCapacity {
@@ -86,7 +86,7 @@ pub enum IndexerClientToDatabase {
     StoreIndexingProvider(IndexingProviderInfo),
     RemoveIndexingProvider(IndexingProviderId),
     RequestLoadIndexingProviders {
-        response_sender: mpsc::Sender<ResponseLoadIndexingProviders>,
+        response_sender: oneshot::Sender<ResponseLoadIndexingProviders>,
     },
     StoreRoute {
         id: IndexingProviderId,
