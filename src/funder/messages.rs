@@ -1,4 +1,4 @@
-use futures::sync::mpsc;
+use futures::sync::oneshot;
 
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
@@ -77,7 +77,7 @@ pub struct RequestSendFunds {
     route: FriendsRoute,
     invoice_id: InvoiceId,
     payment: u128,
-    response_sender: mpsc::Sender<ResponseSendFunds>,
+    response_sender: oneshot::Sender<ResponseSendFunds>,
 }
 
 pub enum FunderToAppManager {
@@ -95,7 +95,7 @@ pub enum FunderToDatabase {
         friend_public_key: PublicKey,
     },
     RequestLoadFriends {
-        response_sender: mpsc::Sender<ResponseLoadFriends>,
+        response_sender: oneshot::Sender<ResponseLoadFriends>,
     },
     StoreInFriendToken {
         friend_public_key: PublicKey,
@@ -126,7 +126,7 @@ pub enum FunderToDatabase {
     },
     RequestLoadFriendToken {
         friend_public_key: PublicKey,
-        response_sender: mpsc::Sender<Option<ResponseLoadFriendToken>>,
+        response_sender: oneshot::Sender<Option<ResponseLoadFriendToken>>,
     },
 }
 
