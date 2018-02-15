@@ -98,7 +98,7 @@ struct FailedSendMessageTran {
 
 
 struct ResetChannelTran {
-        newBalance @0: UInt64;
+        newBalance @0: Int64;
 }
 
 
