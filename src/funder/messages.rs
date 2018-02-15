@@ -85,45 +85,40 @@ pub enum FunderToAppManager {
 }
 
 
+pub struct FriendTokenCommon {
+    pub friend_public_key: PublicKey,
+    pub move_token_message: FriendMoveToken,
+    pub remote_max_debt: u64,
+    pub local_max_debt: u64,
+    pub remote_pending_debt: u64,
+    pub local_pending_debt: u64,
+    pub balance: i64,
+    pub local_state: FriendRequestsStatus,
+    pub remote_state: FriendRequestsStatus,
+}
+
+pub struct InFriendToken {
+    pub friend_token_common: FriendTokenCommon,
+    pub closed_local_requests: Vec<Uid>,
+    pub opened_remote_requests: Vec<PendingFriendRequest>,
+}
+
+pub struct OutFriendToken {
+    pub friend_token_common: FriendTokenCommon,
+    pub opened_local_requests: Vec<PendingFriendRequest>,
+    pub closed_remote_requests: Vec<Uid>,
+}
+
 pub enum FunderToDatabase {
-    StoreFriend {
-        friend_public_key: PublicKey,
-        wanted_remote_max_debt: u128,
-        status: FriendStatus,
-    },
+    StoreFriend(FriendInfo),
     RemoveFriend {
         friend_public_key: PublicKey,
     },
     RequestLoadFriends {
         response_sender: oneshot::Sender<ResponseLoadFriends>,
     },
-    StoreInFriendToken {
-        friend_public_key: PublicKey,
-        token_channel_index: u32,
-        move_token_message: FriendMoveToken,
-        remote_max_debt: u64,
-        local_max_debt: u64,
-        remote_pending_debt: u64,
-        local_pending_debt: u64,
-        balance: i64,
-        local_state: FriendRequestsStatus,
-        remote_state: FriendRequestsStatus,
-        closed_local_requests: Vec<Uid>,
-        opened_remote_requests: Vec<PendingFriendRequest>,
-    },
-    StoreOutFriendToken {
-        friend_public_key: PublicKey,
-        move_token_message: FriendMoveToken,
-        remote_max_debt: u64,
-        local_max_debt: u64,
-        remote_pending_debt: u64,
-        local_pending_debt: u64,
-        balance: i64,
-        local_invoice_id: Option<InvoiceId>,
-        remote_invoice_id: Option<InvoiceId>,
-        opened_local_requests: Vec<PendingFriendRequest>,
-        closed_remote_requests: Vec<Uid>,
-    },
+    StoreInFriendToken(InFriendToken),
+    StoreOutFriendToken(OutFriendToken),
     RequestLoadFriendToken {
         friend_public_key: PublicKey,
         response_sender: oneshot::Sender<Option<ResponseLoadFriendToken>>,
