@@ -10,10 +10,10 @@ use proto::indexer::{IndexingProviderId, NeighborsRoute, StateChainLink};
 
 /// The indexing provider's information from database.
 pub struct IndexingProviderInfoFromDB {
-    id: IndexingProviderId,
-    state_chain_link: StateChainLink,
-    last_routes: Vec<NeighborsRoute>,
-    status: IndexingProviderStatus,
+    pub id: IndexingProviderId,
+    pub state_chain_link: StateChainLink,
+    pub last_routes: Vec<NeighborsRoute>,
+    pub status: IndexingProviderStatus,
 }
 
 /*
@@ -26,10 +26,10 @@ pub struct FriendInfo {
 */
 
 pub struct ResponseLoadFriendToken {
-    move_token_direction: MoveTokenDirection,
-    friend_token_common: FriendTokenCommon,
-    pending_local_requests: Vec<PendingFriendRequest>,
-    pending_remote_requests: Vec<PendingFriendRequest>,
+    pub move_token_direction: MoveTokenDirection,
+    pub friend_token_common: FriendTokenCommon,
+    pub pending_local_requests: Vec<PendingFriendRequest>,
+    pub pending_remote_requests: Vec<PendingFriendRequest>,
 }
 
 pub struct ResponseLoadFriends {
@@ -44,9 +44,9 @@ pub struct ResponseLoadNeighbors {
 }
 
 pub struct ResponseLoadNeighborToken {
-    move_token_direction: MoveTokenDirection,
-    neighbor_token_common: NeighborTokenCommon,
-    pending_local_requests: Vec<PendingNeighborRequest>,
-    pending_remote_requests: Vec<PendingNeighborRequest>,
+    pub move_token_direction: MoveTokenDirection,
+    pub neighbor_token_common: NeighborTokenCommon,
+    pub pending_local_requests: Vec<PendingNeighborRequest>,
+    pub pending_remote_requests: Vec<PendingNeighborRequest>,
 }
 
