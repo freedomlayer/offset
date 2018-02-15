@@ -89,7 +89,10 @@ struct FailedSendFundTran {
 
 
 struct ResetChannelTran {
-        newBalance @0: UInt64;
+        newBalance @0: CustomUInt128;
+        # Note that this is actually a signed number (Highest bit is the sign
+        # bit, Two's complement method). TODO: Should we have a separate type,
+        # like CustomInt128?
 }
 
 
