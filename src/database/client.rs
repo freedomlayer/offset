@@ -56,6 +56,7 @@ pub enum NetworkerToDatabase {
 */
 
 
+
 #[derive(Clone)]
 pub struct DBNetworkerClient {
     requests_sender: mpsc::Sender<NetworkerToDatabase>,
@@ -65,36 +66,43 @@ impl DBNetworkerClient {
     pub fn new(requests_sender: mpsc::Sender<NetworkerToDatabase>) -> Self {
         DBNetworkerClient { requests_sender }
     }
-    pub fn store_neighbor(&self, neighbor_info: NeighborInfo) 
-        -> impl Future<Item=(), Error=DBNetworkerClientError> {
+
+    fn send_command(&self, request: NetworkerToDatabase) -> 
+        impl Future<Item=(), Error=DBNetworkerClientError> {
         let rsender = self.requests_sender.clone();
-        let request = NetworkerToDatabase::StoreNeighbor(neighbor_info);
         rsender
          .send(request)
          .map_err(|_| DBNetworkerClientError::RequestSendFailed)
          .and_then(|_| Ok(()))
     }
 
+    fn request_response<R>(&self, request: NetworkerToDatabase, rx: oneshot::Receiver<R>) -> 
+        impl Future<Item=R, Error=DBNetworkerClientError> {
+        self.requests_sender
+            .clone()
+            .send(request)
+            .map_err(|_| DBNetworkerClientError::RequestSendFailed)
+            .and_then(|_| rx.map_err(|oneshot::Canceled| DBNetworkerClientError::OneshotReceiverCanceled))
+    }
+
+    pub fn store_neighbor(&self, neighbor_info: NeighborInfo) 
+        -> impl Future<Item=(), Error=DBNetworkerClientError> {
+        let request = NetworkerToDatabase::StoreNeighbor(neighbor_info);
+        self.send_command(request)
+    }
+
     pub fn remove_neighbor(&self, neighbor_public_key: PublicKey)
         -> impl Future<Item=(), Error=DBNetworkerClientError> {
-        let rsender = self.requests_sender.clone();
         let request = NetworkerToDatabase::RemoveNeighbor {neighbor_public_key};
-        rsender
-         .send(request)
-         .map_err(|_| DBNetworkerClientError::RequestSendFailed)
-         .and_then(|_| Ok(()))
+        self.send_command(request)
     }
 
     pub fn request_load_neighbors(&self)
         -> impl Future<Item=Vec<NeighborInfo>, Error=DBNetworkerClientError> {
 
-        let rsender = self.requests_sender.clone();
         let (tx, rx) = oneshot::channel();
         let request = NetworkerToDatabase::RequestLoadNeighbors {response_sender: tx};
-        rsender
-         .send(request)
-         .map_err(|_| DBNetworkerClientError::RequestSendFailed)
-         .and_then(|_| rx.map_err(|oneshot::Canceled| DBNetworkerClientError::OneshotReceiverCanceled))
+        self.request_response(request, rx)
          .and_then(|ResponseLoadNeighbors {neighbors}| {
              Ok(neighbors)
          })
@@ -103,36 +111,24 @@ impl DBNetworkerClient {
     // TODO
     pub fn store_in_neighbor_token(&self, neighbor_public_key: PublicKey)
         -> impl Future<Item=(), Error=DBNetworkerClientError> {
-        let rsender = self.requests_sender.clone();
         let request = NetworkerToDatabase::RemoveNeighbor {neighbor_public_key};
-        rsender
-         .send(request)
-         .map_err(|_| DBNetworkerClientError::RequestSendFailed)
-         .and_then(|_| Ok(()))
+        self.send_command(request)
     }
 
     // TODO
     pub fn store_out_neighbor_token(&self, neighbor_public_key: PublicKey)
         -> impl Future<Item=(), Error=DBNetworkerClientError> {
-        let rsender = self.requests_sender.clone();
         let request = NetworkerToDatabase::RemoveNeighbor {neighbor_public_key};
-        rsender
-         .send(request)
-         .map_err(|_| DBNetworkerClientError::RequestSendFailed)
-         .and_then(|_| Ok(()))
+        self.send_command(request)
     }
 
     // TODO
     pub fn request_load_neighbor_token(&self)
         -> impl Future<Item=Vec<NeighborInfo>, Error=DBNetworkerClientError> {
 
-        let rsender = self.requests_sender.clone();
         let (tx, rx) = oneshot::channel();
         let request = NetworkerToDatabase::RequestLoadNeighbors {response_sender: tx};
-        rsender
-         .send(request)
-         .map_err(|_| DBNetworkerClientError::RequestSendFailed)
-         .and_then(|_| rx.map_err(|oneshot::Canceled| DBNetworkerClientError::OneshotReceiverCanceled))
+        self.request_response(request, rx)
          .and_then(|ResponseLoadNeighbors {neighbors}| {
              Ok(neighbors)
          })
