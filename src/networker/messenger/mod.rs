@@ -1,14 +1,18 @@
 use std::rc::Rc;
+use std::collections::HashMap;
+use std::net::SocketAddr;
 
 use futures::sync::mpsc;
 use tokio_core::reactor::Handle;
 
 use ring::rand::SecureRandom;
 
+use crypto::uid::Uid;
 use timer::messages::FromTimer;
 
 use super::messages::{NetworkerToChanneler, NetworkerToDatabase, 
-    NetworkerToAppManager, MessageReceived};
+    NetworkerToAppManager, MessageReceived, MoveTokenDirection,
+    NeighborTokenCommon, PendingNeighborRequest, NeighborStatus};
 use super::crypter::messages::CrypterRequestSendMessage;
 
 use app_manager::messages::AppManagerToNetworker;
@@ -21,6 +25,28 @@ use funder::messages::RequestSendFunds;
 use database::clients::networker_client::DBNetworkerClient;
 
 use channeler::messages::ChannelerToNetworker;
+
+
+/// Full state of a Neighbor token channel.
+struct NeighborTokenChannel {
+    pub move_token_direction: MoveTokenDirection,
+    pub neighbor_token_common: NeighborTokenCommon,
+    pub pending_local_requests: HashMap<Uid, PendingNeighborRequest>,
+    pub pending_remote_requests: HashMap<Uid, PendingNeighborRequest>,
+}
+
+struct NeighborState {
+    neighbor_socket_addr: Option<SocketAddr>, 
+    wanted_remote_max_debt: u64,
+    wanted_max_channels: u32,
+    status: NeighborStatus,
+    // Enabled or disabled?
+    token_channels: HashMap<u32, NeighborTokenChannel>,
+    ticks_since_last_incoming: usize,
+    // Number of time ticks since last incoming message
+    ticks_since_last_outgoing: usize,
+    // Number of time ticks since last outgoing message
+}
 
 
 
