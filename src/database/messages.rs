@@ -2,10 +2,12 @@
 
 use crypto::identity::PublicKey;
 
-use networker::messages::{MoveTokenDirection, NeighborInfo, PendingNeighborRequest, NeighborTokenCommon};
+use networker::messages::{MoveTokenDirection, NeighborInfo, 
+    PendingNeighborRequest, NeighborTokenCommon};
 
 use proto::funder::FriendMoveToken;
-use funder::messages::{PendingFriendRequest, FriendInfo, FriendRequestsStatus};
+use funder::messages::{PendingFriendRequest, FriendInfo, 
+    FriendRequestsStatus, FriendTokenCommon};
 
 use indexer_client::messages::IndexingProviderStatus;
 use proto::indexer::{IndexingProviderId, NeighborsRoute, StateChainLink};
@@ -28,16 +30,8 @@ pub struct FriendInfo {
 */
 
 pub struct ResponseLoadFriendToken {
-    friend_public_key: PublicKey,
     move_token_direction: MoveTokenDirection,
-    move_token_message: FriendMoveToken,
-    remote_max_debt: u64,
-    local_max_debt: u64,
-    remote_pending_debt: u64,
-    local_pending_debt: u64,
-    balance: i64,
-    local_state: FriendRequestsStatus,
-    remote_state: FriendRequestsStatus,
+    friend_token_common: FriendTokenCommon,
     pending_local_requests: Vec<PendingFriendRequest>,
     pending_remote_requests: Vec<PendingFriendRequest>,
 }
