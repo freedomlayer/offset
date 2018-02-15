@@ -12,7 +12,7 @@ use timer::messages::FromTimer;
 
 use super::messages::{NetworkerToChanneler, NetworkerToDatabase, 
     NetworkerToAppManager, MessageReceived, MoveTokenDirection,
-    NeighborTokenCommon, PendingNeighborRequest, NeighborStatus};
+    PendingNeighborRequest, NeighborStatus};
 use super::crypter::messages::CrypterRequestSendMessage;
 
 use app_manager::messages::AppManagerToNetworker;
@@ -26,11 +26,23 @@ use database::clients::networker_client::DBNetworkerClient;
 
 use channeler::messages::ChannelerToNetworker;
 
+use proto::funder::InvoiceId;
+use proto::networker::{NetworkerTokenChannelTransaction, ChannelToken};
+
 
 /// Full state of a Neighbor token channel.
 struct NeighborTokenChannel {
     pub move_token_direction: MoveTokenDirection,
-    pub neighbor_token_common: NeighborTokenCommon,
+    pub transactions: Vec<NetworkerTokenChannelTransaction>,
+    pub old_token: ChannelToken,
+    pub rand_nonce: Uid,
+    pub remote_max_debt: u64,
+    pub local_max_debt: u64,
+    pub remote_pending_debt: u64,
+    pub local_pending_debt: u64,
+    pub balance: i64,
+    pub local_invoice_id: Option<InvoiceId>,
+    pub remote_invoice_id: Option<InvoiceId>,
     pub pending_local_requests: HashMap<Uid, PendingNeighborRequest>,
     pub pending_remote_requests: HashMap<Uid, PendingNeighborRequest>,
 }
