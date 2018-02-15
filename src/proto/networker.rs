@@ -5,6 +5,7 @@ use crypto::rand_values::RandValue;
 use crypto::identity::{PublicKey, Signature};
 
 use proto::indexer::NeighborsRoute;
+use proto::common::SendFundsReceipt;
 
 pub const CHANNEL_TOKEN_LEN: usize = 32;
 
@@ -20,31 +21,33 @@ pub struct NeighborMoveToken {
     pub rand_nonce: RandValue,
 }
 
-// TODO
 pub enum NetworkerTokenChannelTransaction {
-    SetRemoteMaximumDebt,
-    FundsRandNonce,
-    LoadFunds,
+    SetRemoteMaximumDebt(u64),
+    FundsRandNonce(Uid),
+    LoadFunds(SendFundsReceipt),
     RequestSendMessage {
         request_id: Uid,
         route: NeighborsRoute,
-        // request_content: RequestContent,
-        maximum_response_length: u32,
+        request_content: Vec<u8>,
+        max_response_len: u32,
         processing_fee_proposal: u64,
-        half_credits_per_byte_proposal: u32,
+        credits_per_byte_proposal: u64,
     },
     ResponseSendMessage {
         request_id: Uid,
-        // response_content: ResponseContent,
+        rand_nonce: Uid,
+        processing_fee_collected: u64,
+        response_content: Vec<u8>,
         signature: Signature,
     },
     FailedSendMessage {
         request_id: Uid,
-        reporting_node_public_key: PublicKey,
+        reporting_public_key: PublicKey,
+        rand_nonce: Uid,
         signature: Signature,
     },
     ResetChannel {
-        new_balance: i128,
+        new_balance: i64,
     },
 }
 
