@@ -47,7 +47,7 @@ pub struct ResponseLoadFriends {
 }
 
 
-pub struct ResponseLoadIndexingProviders(Vec<IndexingProviderInfoFromDB>);
+pub struct ResponseLoadIndexingProviders(pub Vec<IndexingProviderInfoFromDB>);
 
 pub struct ResponseLoadNeighbors {
     pub neighbors: Vec<NeighborInfo>,
