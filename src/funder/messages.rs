@@ -74,10 +74,10 @@ pub struct FriendsRoute {
 }
 
 pub struct RequestSendFunds {
-    route: FriendsRoute,
-    invoice_id: InvoiceId,
-    payment: u128,
-    response_sender: oneshot::Sender<ResponseSendFunds>,
+    pub route: FriendsRoute,
+    pub invoice_id: InvoiceId,
+    pub payment: u128,
+    pub response_sender: oneshot::Sender<ResponseSendFunds>,
 }
 
 pub enum FunderToAppManager {
