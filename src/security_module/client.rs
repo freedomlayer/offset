@@ -20,25 +20,34 @@ impl SecurityModuleClient {
     pub fn new(requests_sender: mpsc::Sender<ToSecurityModule>) -> Self {
         SecurityModuleClient { requests_sender }
     }
+
+    /// Send a request to the SecurityModule. Returns a Future that waits for the response.
+    fn request_response<R>(&self, request: ToSecurityModule, rx: oneshot::Receiver<R>) -> 
+        impl Future<Item=R, Error=SecurityModuleClientError> {
+        self.requests_sender
+            .clone()
+            .send(request)
+            .map_err(|_| SecurityModuleClientError::RequestSendFailed)
+            .and_then(|_| rx.map_err(|oneshot::Canceled| SecurityModuleClientError::OneshotReceiverCanceled))
+    }
+
+    /// Request a signature over a provided message.
+    /// Returns a Future that resolves to the calculated signature.
     pub fn request_signature(&self, message: Vec<u8>) -> impl Future<Item=Signature, Error=SecurityModuleClientError> {
-        let rsender = self.requests_sender.clone();
         let (tx, rx) = oneshot::channel();
-        rsender
-         .send(ToSecurityModule::RequestSignature {message, response_sender: tx})
-         .map_err(|_| SecurityModuleClientError::RequestSendFailed)
-         .and_then(|_| rx.map_err(|oneshot::Canceled| SecurityModuleClientError::OneshotReceiverCanceled))
+        let request = ToSecurityModule::RequestSignature {message, response_sender: tx};
+        self.request_response(request, rx)
          .and_then(|response_signature| {
              Ok(response_signature.signature)
          })
     }
 
+    /// Request the public key of the used Identity.
+    /// Returns a Future that resolves to the public key.
     pub fn request_public_key(&self) -> impl Future<Item=PublicKey, Error=SecurityModuleClientError> {
-        let rsender = self.requests_sender.clone();
         let (tx, rx) = oneshot::channel();
-        rsender
-         .send(ToSecurityModule::RequestPublicKey {response_sender: tx})
-         .map_err(|_| SecurityModuleClientError::RequestSendFailed)
-         .and_then(|_| rx.map_err(|oneshot::Canceled| SecurityModuleClientError::OneshotReceiverCanceled))
+        let request = ToSecurityModule::RequestPublicKey {response_sender: tx};
+        self.request_response(request, rx)
          .and_then(|response_public_key| {
              Ok(response_public_key.public_key)
          })
