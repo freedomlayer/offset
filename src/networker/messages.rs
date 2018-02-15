@@ -166,7 +166,6 @@ pub enum NetworkerToChanneler {
 
 pub struct NeighborTokenCommon {
     pub neighbor_public_key: PublicKey,
-    pub token_channel_index: u32,
     pub move_token_message: NeighborMoveToken,
     pub remote_max_debt: u64,
     pub local_max_debt: u64,
