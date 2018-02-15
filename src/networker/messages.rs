@@ -15,7 +15,7 @@ use indexer_client::messages::RequestFriendsRoutes;
 use database::messages::{ResponseLoadNeighbors, ResponseLoadNeighborToken};
 use proto::indexer::NeighborsRoute;
 use proto::funder::InvoiceId;
-use proto::networker::{NeighborMoveToken};
+use proto::networker::NeighborMoveToken;
 
 
 /// Indicate the direction of the move token message.
