@@ -2,7 +2,7 @@ use futures::{Future, Sink};
 use futures::sync::{mpsc, oneshot};
 
 use crypto::identity::PublicKey;
-use networker::messages::{NetworkerToDatabase, NeighborInfo};
+use networker::messages::{NetworkerToDatabase, NeighborInfo, InNeighborToken, OutNeighborToken};
 use super::messages::ResponseLoadNeighbors;
 
 #[derive(Debug)]
@@ -108,17 +108,15 @@ impl DBNetworkerClient {
          })
     }
 
-    // TODO
-    pub fn store_in_neighbor_token(&self, neighbor_public_key: PublicKey)
+    pub fn store_in_neighbor_token(&self, in_neighbor_token: InNeighborToken)
         -> impl Future<Item=(), Error=DBNetworkerClientError> {
-        let request = NetworkerToDatabase::RemoveNeighbor {neighbor_public_key};
+        let request = NetworkerToDatabase::StoreInNeighborToken(in_neighbor_token);
         self.send_command(request)
     }
 
-    // TODO
-    pub fn store_out_neighbor_token(&self, neighbor_public_key: PublicKey)
+    pub fn store_out_neighbor_token(&self, out_neighbor_token: OutNeighborToken)
         -> impl Future<Item=(), Error=DBNetworkerClientError> {
-        let request = NetworkerToDatabase::RemoveNeighbor {neighbor_public_key};
+        let request = NetworkerToDatabase::StoreOutNeighborToken(out_neighbor_token);
         self.send_command(request)
     }
 
