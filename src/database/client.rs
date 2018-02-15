@@ -12,51 +12,6 @@ pub enum DBNetworkerClientError {
     OneshotReceiverCanceled,
 }
 
-/*
-pub enum NetworkerToDatabase {
-    StoreNeighbor(NeighborInfo),
-    RemoveNeighbor {
-        neighbor_public_key: PublicKey,
-    },
-    RequestLoadNeighbors {
-        response_sender: oneshot::Sender<ResponseLoadNeighbors>,
-    },
-    StoreInNeighborToken {
-        neighbor_public_key: PublicKey,
-        token_channel_index: u32,
-        move_token_message: NeighborMoveToken,
-        remote_max_debt: u64,
-        local_max_debt: u64,
-        remote_pending_debt: u64,
-        local_pending_debt: u64,
-        balance: i64,
-        local_invoice_id: Option<InvoiceId>,
-        remote_invoice_id: Option<InvoiceId>,
-        closed_local_requests: Vec<Uid>,
-        opened_remote_requests: Vec<PendingNeighborRequest>,
-    },
-    StoreOutNeighborToken {
-        neighbor_public_key: PublicKey,
-        move_token_message: NeighborMoveToken,
-        remote_max_debt: u64,
-        local_max_debt: u64,
-        remote_pending_debt: u64,
-        local_pending_debt: u64,
-        balance: i64,
-        local_invoice_id: Option<InvoiceId>,
-        remote_invoice_id: Option<InvoiceId>,
-        opened_local_requests: Vec<PendingNeighborRequest>,
-        closed_remote_requests: Vec<Uid>,
-    },
-    RequestLoadNeighborToken {
-        neighbor_public_key: PublicKey,
-        token_channel_index: u32,
-        response_sender: oneshot::Sender<Option<ResponseLoadNeighborToken>>,
-    },
-}
-*/
-
-
 
 #[derive(Clone)]
 pub struct DBNetworkerClient {
