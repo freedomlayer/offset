@@ -4,7 +4,7 @@ use futures::sync::{mpsc, oneshot};
 use crypto::identity::PublicKey;
 use networker::messages::{NetworkerToDatabase, NeighborInfo, InNeighborToken, OutNeighborToken};
 use database::messages::ResponseLoadNeighborToken;
-use super::messages::ResponseLoadNeighbors;
+use super::super::messages::ResponseLoadNeighbors;
 
 #[derive(Debug)]
 pub enum DBNetworkerClientError {

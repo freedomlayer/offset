@@ -42,7 +42,7 @@
 
 //pub mod types;
 
-pub mod client;
+pub mod clients;
 pub mod messages;
 
 //
