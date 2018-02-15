@@ -164,6 +164,31 @@ pub enum NetworkerToChanneler {
     },
 }
 
+pub struct NeighborTokenCommon {
+    pub neighbor_public_key: PublicKey,
+    pub token_channel_index: u32,
+    pub move_token_message: NeighborMoveToken,
+    pub remote_max_debt: u64,
+    pub local_max_debt: u64,
+    pub remote_pending_debt: u64,
+    pub local_pending_debt: u64,
+    pub balance: i64,
+    pub local_invoice_id: Option<InvoiceId>,
+    pub remote_invoice_id: Option<InvoiceId>,
+}
+
+pub struct InNeighborToken {
+    pub neighbor_token_common: NeighborTokenCommon,
+    pub closed_local_requests: Vec<Uid>,
+    pub opened_remote_requests: Vec<PendingNeighborRequest>,
+}
+
+pub struct OutNeighborToken {
+    pub neighbor_token_common: NeighborTokenCommon,
+    pub opened_local_requests: Vec<PendingNeighborRequest>,
+    pub closed_remote_requests: Vec<Uid>,
+}
+
 pub enum NetworkerToDatabase {
     StoreNeighbor(NeighborInfo),
     RemoveNeighbor {
@@ -172,33 +197,8 @@ pub enum NetworkerToDatabase {
     RequestLoadNeighbors {
         response_sender: oneshot::Sender<ResponseLoadNeighbors>,
     },
-    StoreInNeighborToken {
-        neighbor_public_key: PublicKey,
-        token_channel_index: u32,
-        move_token_message: NeighborMoveToken,
-        remote_max_debt: u64,
-        local_max_debt: u64,
-        remote_pending_debt: u64,
-        local_pending_debt: u64,
-        balance: i64,
-        local_invoice_id: Option<InvoiceId>,
-        remote_invoice_id: Option<InvoiceId>,
-        closed_local_requests: Vec<Uid>,
-        opened_remote_requests: Vec<PendingNeighborRequest>,
-    },
-    StoreOutNeighborToken {
-        neighbor_public_key: PublicKey,
-        move_token_message: NeighborMoveToken,
-        remote_max_debt: u64,
-        local_max_debt: u64,
-        remote_pending_debt: u64,
-        local_pending_debt: u64,
-        balance: i64,
-        local_invoice_id: Option<InvoiceId>,
-        remote_invoice_id: Option<InvoiceId>,
-        opened_local_requests: Vec<PendingNeighborRequest>,
-        closed_remote_requests: Vec<Uid>,
-    },
+    StoreInNeighborToken(InNeighborToken),
+    StoreOutNeighborToken(OutNeighborToken),
     RequestLoadNeighborToken {
         neighbor_public_key: PublicKey,
         token_channel_index: u32,
