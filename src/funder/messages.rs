@@ -110,11 +110,7 @@ pub struct OutFriendToken {
 }
 
 pub enum FunderToDatabase {
-    StoreFriend {
-        friend_public_key: PublicKey,
-        wanted_remote_max_debt: u128,
-        status: FriendStatus,
-    },
+    StoreFriend(FriendInfo),
     RemoveFriend {
         friend_public_key: PublicKey,
     },
