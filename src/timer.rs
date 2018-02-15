@@ -77,7 +77,7 @@ impl TimerModule {
     }
 
     pub fn create_client(&mut self) -> mpsc::Receiver<FromTimer> {
-        let (sender, receiver) = mpsc::channel(100);
+        let (sender, receiver) = mpsc::channel(0);
         self.clients.push(Some(sender));
         receiver
     }
