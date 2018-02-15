@@ -43,7 +43,7 @@ pub struct ResponseLoadFriendToken {
 }
 
 pub struct ResponseLoadFriends {
-    friends: Vec<FriendInfo>,
+    pub friends: Vec<FriendInfo>,
 }
 
 
