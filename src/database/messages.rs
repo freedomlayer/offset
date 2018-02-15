@@ -51,7 +51,7 @@ pub struct ResponseLoadFriends {
 pub struct ResponseLoadIndexingProviders(Vec<IndexingProviderInfoFromDB>);
 
 pub struct ResponseLoadNeighbors {
-    neighbors: Vec<NeighborInfo>,
+    pub neighbors: Vec<NeighborInfo>,
 }
 
 pub struct ResponseLoadNeighborToken {
