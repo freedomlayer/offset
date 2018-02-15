@@ -9,7 +9,7 @@ using import "common.capnp".CustomUInt512;
 # ----------------------
 
 struct FriendMoveToken {
-        transactions @0: List(Data);
+        transactions @0: List(FriendTransaction);
         oldToken @1: CustomUInt256;
         randNonce @2: CustomUInt128;
 }
@@ -93,6 +93,17 @@ struct ResetChannelTran {
         # Note that this is actually a signed number (Highest bit is the sign
         # bit, Two's complement method). TODO: Should we have a separate type,
         # like CustomInt128?
+}
+
+struct FriendTransaction {
+        union {
+                setState @0: SetStateTran;
+                setRemoteMaxDebt @1: SetRemoteMaxDebtTran;
+                requestSendFund @2: RequestSendFundTran;
+                responseSendFund @3: ResponseSendFundTran;
+                failedSendFund @4: FailedSendFundTran;
+                resetChannelTran @5: ResetChannelTran;
+        }
 }
 
 
