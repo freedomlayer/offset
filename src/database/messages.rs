@@ -1,13 +1,9 @@
 //! The messages sent by database to other components.
 
-use crypto::identity::PublicKey;
-
 use networker::messages::{MoveTokenDirection, NeighborInfo, 
     PendingNeighborRequest, NeighborTokenCommon};
 
-use proto::funder::FriendMoveToken;
-use funder::messages::{PendingFriendRequest, FriendInfo, 
-    FriendRequestsStatus, FriendTokenCommon};
+use funder::messages::{PendingFriendRequest, FriendInfo, FriendTokenCommon};
 
 use indexer_client::messages::IndexingProviderStatus;
 use proto::indexer::{IndexingProviderId, NeighborsRoute, StateChainLink};
