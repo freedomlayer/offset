@@ -90,8 +90,9 @@ impl DBFunderClient {
     }
 
     /// Load a friend token given its public key. This will return the full state (including
-    /// pending requests for both sides) of a friend. 
-    /// This will usually be called only once, on the startup of the Funder.
+    /// pending requests for both sides) of a friend. In case the friend public key was not found,
+    /// a None will be returned.
+    /// This method usually be called only once, on the startup of the Funder.
     pub fn request_load_friend_token(&self, friend_public_key: PublicKey)
         -> impl Future<Item=Option<ResponseLoadFriendToken>, Error=DBFunderClientError> {
 

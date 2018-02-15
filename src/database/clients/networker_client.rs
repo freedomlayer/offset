@@ -93,6 +93,7 @@ impl DBNetworkerClient {
     /// Request all known information about a neighbor token channel, given a neighbor public key
     /// and the token channel index.
     /// Note that the item returned might be None. This happens if no such token channel was found.
+    /// This method usually be called only once, on the startup of the Networker.
     pub fn request_load_neighbor_token(&self, 
                                        neighbor_public_key: PublicKey, 
                                        token_channel_index: u32)
