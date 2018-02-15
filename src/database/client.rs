@@ -3,6 +3,7 @@ use futures::sync::{mpsc, oneshot};
 
 use crypto::identity::PublicKey;
 use networker::messages::{NetworkerToDatabase, NeighborInfo, InNeighborToken, OutNeighborToken};
+use database::messages::ResponseLoadNeighborToken;
 use super::messages::ResponseLoadNeighbors;
 
 #[derive(Debug)]
@@ -120,16 +121,18 @@ impl DBNetworkerClient {
         self.send_command(request)
     }
 
-    // TODO
-    pub fn request_load_neighbor_token(&self)
-        -> impl Future<Item=Vec<NeighborInfo>, Error=DBNetworkerClientError> {
+    pub fn request_load_neighbor_token(&self, 
+                                       neighbor_public_key: PublicKey, 
+                                       token_channel_index: u32)
+        -> impl Future<Item=Option<ResponseLoadNeighborToken>, Error=DBNetworkerClientError> {
 
         let (tx, rx) = oneshot::channel();
-        let request = NetworkerToDatabase::RequestLoadNeighbors {response_sender: tx};
+        let request = NetworkerToDatabase::RequestLoadNeighborToken {
+            neighbor_public_key,
+            token_channel_index,
+            response_sender: tx
+        };
         self.request_response(request, rx)
-         .and_then(|ResponseLoadNeighbors {neighbors}| {
-             Ok(neighbors)
-         })
     }
 }
 
