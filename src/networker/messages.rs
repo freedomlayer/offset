@@ -15,7 +15,7 @@ use indexer_client::messages::RequestFriendsRoutes;
 use database::messages::{ResponseLoadNeighbors, ResponseLoadNeighborToken};
 use proto::indexer::NeighborsRoute;
 use proto::funder::InvoiceId;
-use proto::networker::NeighborMoveToken;
+use proto::networker::ChannelToken;
 
 
 /// Indicate the direction of the move token message.
@@ -166,7 +166,14 @@ pub enum NetworkerToChanneler {
 
 pub struct NeighborTokenCommon {
     pub neighbor_public_key: PublicKey,
-    pub move_token_message: NeighborMoveToken,
+    pub token_channel_index: u32,
+    pub move_token_message: Vec<u8>,
+    // The move_token_message is opaque. The Database can not read it.
+    // This is why we have the external token_channel_index, old_token and new_token,
+    // although theoretically they could be deduced from move_token_message.
+    pub old_token: ChannelToken,
+    pub new_token: ChannelToken,
+    // Equals Sha512/256(move_token_message)
     pub remote_max_debt: u64,
     pub local_max_debt: u64,
     pub remote_pending_debt: u64,
