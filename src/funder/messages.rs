@@ -8,6 +8,7 @@ use networker::messages::{RequestPath};
 use database::messages::{ResponseLoadFriends, ResponseLoadFriendToken};
 
 use proto::funder::{InvoiceId, FriendMoveToken};
+use proto::networker::ChannelToken;
 use proto::common::SendFundsReceipt;
 
 pub enum FriendStatus {
@@ -87,7 +88,12 @@ pub enum FunderToAppManager {
 
 pub struct FriendTokenCommon {
     pub friend_public_key: PublicKey,
-    pub move_token_message: FriendMoveToken,
+    pub move_token_message: Vec<u8>,
+    // move_token_message is opaque. (Can not be read by the database). 
+    // This is why we have the extra old_token and new_token fields.
+    pub old_token: ChannelToken,
+    pub new_token: ChannelToken,
+    // Equals Sha512/256(move_token_message)
     pub remote_max_debt: u64,
     pub local_max_debt: u64,
     pub remote_pending_debt: u64,
