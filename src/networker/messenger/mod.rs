@@ -8,6 +8,7 @@ use tokio_core::reactor::Handle;
 use ring::rand::SecureRandom;
 
 use crypto::uid::Uid;
+use crypto::rand_values::RandValue;
 use timer::messages::FromTimer;
 
 use super::messages::{NetworkerToChanneler, NetworkerToDatabase, 
@@ -35,7 +36,7 @@ struct NeighborTokenChannel {
     pub move_token_direction: MoveTokenDirection,
     pub transactions: Vec<NetworkerTokenChannelTransaction>,
     pub old_token: ChannelToken,
-    pub rand_nonce: Uid,
+    pub rand_nonce: RandValue,
     pub remote_max_debt: u64,
     pub local_max_debt: u64,
     pub remote_pending_debt: u64,
