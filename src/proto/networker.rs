@@ -35,7 +35,7 @@ pub enum NetworkerTokenChannelTransaction {
     },
     ResponseSendMessage {
         request_id: Uid,
-        rand_nonce: Uid,
+        rand_nonce: RandValue,
         processing_fee_collected: u64,
         response_content: Vec<u8>,
         signature: Signature,
@@ -43,7 +43,7 @@ pub enum NetworkerTokenChannelTransaction {
     FailedSendMessage {
         request_id: Uid,
         reporting_public_key: PublicKey,
-        rand_nonce: Uid,
+        rand_nonce: RandValue,
         signature: Signature,
     },
     ResetChannel {
