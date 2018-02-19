@@ -30,6 +30,8 @@ use channeler::messages::ChannelerToNetworker;
 use proto::funder::InvoiceId;
 use proto::networker::{NetworkerTokenChannelTransaction, ChannelToken};
 
+mod neighbor_tc_logic;
+
 
 /// Full state of a Neighbor token channel.
 struct NeighborTokenChannel {
