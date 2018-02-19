@@ -107,6 +107,64 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_backup_key_exists() {
+        let mut orig = HashMap::new();
+        let mut hmap = HashMap::<usize,usize>::new();
+        hmap.insert(0,10);
+        hmap.insert(1,11);
+        hmap.insert(2,12);
+        hmap.insert(3,13);
+
+        backup_key(&hmap, &mut orig, &1);
+        assert_eq!(orig.len(), 1);
+        assert_eq!(orig.get(&1), Some(&Some(11)));
+    }
+
+    #[test]
+    fn test_backup_key_nonexistent() {
+        let mut orig = HashMap::new();
+        let mut hmap = HashMap::<usize,usize>::new();
+        hmap.insert(0,10);
+        hmap.insert(1,11);
+        hmap.insert(2,12);
+        hmap.insert(3,13);
+
+        backup_key(&hmap, &mut orig, &5);
+        assert_eq!(orig.len(), 1);
+        assert_eq!(orig.get(&5), Some(&None));
+    }
+
+    #[test]
+    fn test_backup_key_twice_exists() {
+        let mut orig = HashMap::new();
+        let mut hmap = HashMap::<usize,usize>::new();
+        hmap.insert(0,10);
+        hmap.insert(1,11);
+        hmap.insert(2,12);
+        hmap.insert(3,13);
+
+        backup_key(&hmap, &mut orig, &2);
+        backup_key(&hmap, &mut orig, &2);
+        assert_eq!(orig.len(), 1);
+        assert_eq!(orig.get(&2), Some(&Some(12)));
+    }
+
+    #[test]
+    fn test_backup_key_twice_nonexistent() {
+        let mut orig = HashMap::new();
+        let mut hmap = HashMap::<usize,usize>::new();
+        hmap.insert(0,10);
+        hmap.insert(1,11);
+        hmap.insert(2,12);
+        hmap.insert(3,13);
+
+        backup_key(&hmap, &mut orig, &5);
+        backup_key(&hmap, &mut orig, &5);
+        assert_eq!(orig.len(), 1);
+        assert_eq!(orig.get(&5), Some(&None));
+    }
+
+    #[test]
     fn test_trans_insert_nonexistent() {
         let mut orig = HashMap::new();
         let mut hmap = HashMap::<usize,usize>::new();
