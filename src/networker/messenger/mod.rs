@@ -34,9 +34,13 @@ use proto::networker::{NetworkerTokenChannelTransaction, ChannelToken};
 /// Full state of a Neighbor token channel.
 struct NeighborTokenChannel {
     pub move_token_direction: MoveTokenDirection,
-    pub transactions: Vec<NetworkerTokenChannelTransaction>,
+    // pub transactions: Vec<NetworkerTokenChannelTransaction>,
+    pub move_token_message: Vec<u8>,
+    // Raw bytes of last incoming/outgoing Move Token Message.
+    // We already processed this message.
     pub old_token: ChannelToken,
-    pub rand_nonce: RandValue,
+    pub new_token: ChannelToken,
+    // Equals Sha512/256(move_token_message)
     pub remote_max_debt: u64,
     pub local_max_debt: u64,
     pub remote_pending_debt: u64,
