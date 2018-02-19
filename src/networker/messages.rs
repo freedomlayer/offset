@@ -30,6 +30,7 @@ pub enum NeighborStatus {
     Disable = 0,
 }
 
+#[derive(Clone)]
 pub struct PendingNeighborRequest {
     pub request_id: Uid,
     pub route: NeighborsRoute,
