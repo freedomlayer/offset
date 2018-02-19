@@ -28,9 +28,10 @@ use database::clients::networker_client::DBNetworkerClient;
 use channeler::messages::ChannelerToNetworker;
 
 use proto::funder::InvoiceId;
-use proto::networker::{NetworkerTokenChannelTransaction, ChannelToken};
+use proto::networker::{ChannelToken};
 
 mod neighbor_tc_logic;
+mod balance_state;
 
 
 /// Full state of a Neighbor token channel.

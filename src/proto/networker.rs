@@ -14,42 +14,6 @@ pub const CHANNEL_TOKEN_LEN: usize = 32;
 pub struct ChannelToken([u8; CHANNEL_TOKEN_LEN]);
 
 
-pub struct NeighborMoveToken {
-    pub channel_index: u32,
-    pub transactions: Vec<NetworkerTokenChannelTransaction>,
-    pub old_token: ChannelToken,
-    pub rand_nonce: RandValue,
-}
-
-pub enum NetworkerTokenChannelTransaction {
-    SetRemoteMaximumDebt(u64),
-    FundsRandNonce(Uid),
-    LoadFunds(SendFundsReceipt),
-    RequestSendMessage {
-        request_id: Uid,
-        route: NeighborsRoute,
-        request_content: Vec<u8>,
-        max_response_len: u32,
-        processing_fee_proposal: u64,
-        credits_per_byte_proposal: u64,
-    },
-    ResponseSendMessage {
-        request_id: Uid,
-        rand_nonce: RandValue,
-        processing_fee_collected: u64,
-        response_content: Vec<u8>,
-        signature: Signature,
-    },
-    FailedSendMessage {
-        request_id: Uid,
-        reporting_public_key: PublicKey,
-        rand_nonce: RandValue,
-        signature: Signature,
-    },
-    ResetChannel {
-        new_balance: i64,
-    },
-}
 
 // ========== Conversions ==========
 
