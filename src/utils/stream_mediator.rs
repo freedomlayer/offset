@@ -134,7 +134,7 @@ mod tests {
 
         let mut mediator = StreamMediator::new(iter_ok::<_, ()>(v), BUFFER_SIZE, &handle);
 
-        let client_tasks = (0..CLIENT_NUM).map(|x| {
+        let client_tasks = (0..CLIENT_NUM).map(|_| {
             let stream = mediator.get_stream(BUFFER_SIZE).unwrap();
             stream.collect().and_then(|result| {
                 assert_eq!(result, vec![0, 1, 2, 3, 4]);
