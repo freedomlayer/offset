@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 
-
 /// Backup key from hmap to orig.
 fn backup_key<K,V>(hmap: &HashMap<K,V>, orig: &mut HashMap<K,Option<V>>, key: &K) 
 where
