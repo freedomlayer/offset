@@ -36,7 +36,6 @@ mod neighbor_tc_logic;
 /// Full state of a Neighbor token channel.
 struct NeighborTokenChannel {
     pub move_token_direction: MoveTokenDirection,
-    // pub transactions: Vec<NetworkerTokenChannelTransaction>,
     pub move_token_message: Vec<u8>,
     // Raw bytes of last incoming/outgoing Move Token Message.
     // We already processed this message.
