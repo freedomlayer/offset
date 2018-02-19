@@ -2,9 +2,8 @@ use std::collections::HashMap;
 use std::hash::Hash;
 
 
-/// Transactional insert into a hashmap.
-/// Keeps the original values before modification in orig.
-fn trans_insert<K,V>(hmap: &mut HashMap<K,V>, orig: &mut HashMap<K,Option<V>>, key: K, value: V) -> Option<V> 
+/// Backup key from hmap to orig.
+fn backup_key<K,V>(hmap: &HashMap<K,V>, orig: &mut HashMap<K,Option<V>>, key: &K) 
 where
     K: Eq + Hash + Clone,
     V: Clone
@@ -13,6 +12,16 @@ where
         orig.insert(key.clone(), 
                     hmap.get(&key).map(|value| value.clone()));
     }
+}
+
+/// Transactional insert into a hashmap.
+/// Keeps the original values before modification in orig.
+fn trans_insert<K,V>(hmap: &mut HashMap<K,V>, orig: &mut HashMap<K,Option<V>>, key: K, value: V) -> Option<V> 
+where
+    K: Eq + Hash + Clone,
+    V: Clone
+{
+    backup_key(hmap, orig, &key);
     hmap.insert(key, value)
 }
 
@@ -23,10 +32,7 @@ where
     K: Eq + Hash + Clone,
     V: Clone,
 {
-    if !orig.contains_key(key) {
-        orig.insert(key.clone(), 
-                    hmap.get(key).map(|value| value.clone()));
-    }
+    backup_key(hmap, orig, key);
     hmap.remove(key)
 }
 
