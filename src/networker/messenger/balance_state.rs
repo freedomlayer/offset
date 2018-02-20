@@ -1,4 +1,3 @@
-use std::mem;
 use std::collections::HashMap;
 
 use proto::indexer::NeighborsRoute;
@@ -41,7 +40,7 @@ pub enum NetworkerTCTransaction {
 }
 
 #[derive(Clone)]
-pub struct CreditState {
+struct CreditState {
     pub remote_max_debt: u64,
     pub local_max_debt: u64,
     pub remote_pending_debt: u64,
@@ -52,9 +51,43 @@ pub struct CreditState {
 }
 
 pub struct BalanceState {
-    pub credit_state: CreditState,
-    pub pending_local_requests: HashMap<Uid, PendingNeighborRequest>,
-    pub pending_remote_requests: HashMap<Uid, PendingNeighborRequest>,
+    credit_state: CreditState,
+    pending_local_requests: HashMap<Uid, PendingNeighborRequest>,
+    pending_remote_requests: HashMap<Uid, PendingNeighborRequest>,
+}
+
+struct TransBalanceState {
+    credit_state: CreditState,
+    orig_credit_state: CreditState,
+    tp_local_requests: TransHashMap<Uid, PendingNeighborRequest>,
+    tp_remote_requests: TransHashMap<Uid, PendingNeighborRequest>,
+}
+
+impl TransBalanceState {
+    pub fn new(balance_state: BalanceState) -> Self {
+        TransBalanceState {
+            credit_state: balance_state.credit_state.clone(),
+            orig_credit_state: balance_state.credit_state,
+            tp_local_requests: TransHashMap::new(balance_state.pending_local_requests),
+            tp_remote_requests: TransHashMap::new(balance_state.pending_remote_requests),
+        }
+    }
+
+    pub fn commit(self) -> BalanceState {
+        BalanceState {
+            credit_state: self.credit_state,
+            pending_local_requests: self.tp_local_requests.commit(),
+            pending_remote_requests: self.tp_remote_requests.commit(),
+        }
+    }
+
+    pub fn cancel(self) -> BalanceState {
+        BalanceState {
+            credit_state: self.orig_credit_state,
+            pending_local_requests: self.tp_local_requests.cancel(),
+            pending_remote_requests: self.tp_remote_requests.cancel(),
+        }
+    }
 }
 
 struct IncomingRequestSendMessage {
@@ -85,74 +118,50 @@ pub struct ProcessTransListError {
 }
 
 fn process_trans(trans: &NetworkerTCTransaction,
-                credit_state: &mut CreditState,
-                t_pending_local_requests: &mut TransHashMap<Uid, PendingNeighborRequest>,
-                t_pending_remote_requests: &mut TransHashMap<Uid, PendingNeighborRequest>)
-                    -> Result<ProcessTransOutput, ProcessTransError> {
+                trans_balance_state: TransBalanceState)
+                    -> (TransBalanceState, Result<ProcessTransOutput, ProcessTransError>) {
 
     // TODO: Implement this
     assert!(false);
-    Err(ProcessTransError::TempToCompile)
+    (trans_balance_state, Err(ProcessTransError::TempToCompile))
 }
 
 fn process_trans_list(transactions: &[NetworkerTCTransaction], 
-    credit_state: &mut CreditState,
-    t_pending_local_requests: &mut TransHashMap<Uid, PendingNeighborRequest>,
-    t_pending_remote_requests: &mut TransHashMap<Uid, PendingNeighborRequest>)
-                        -> Result<ProcessTransListOutput, ProcessTransListError> {
+    mut trans_balance_state: TransBalanceState)
+                        -> (TransBalanceState, Result<ProcessTransListOutput, ProcessTransListError>) {
 
     let mut trans_list_output = ProcessTransListOutput {
         requests: Vec::new(),
         responses: Vec::new(),
     };
+
     for (index, trans) in transactions.into_iter().enumerate() {
-        match process_trans(trans, credit_state, 
-                            t_pending_local_requests, t_pending_remote_requests) {
-            Err(e) => return Err(ProcessTransListError {
+        trans_balance_state = match process_trans(trans, trans_balance_state) {
+            (tbs, Err(e)) => return (tbs, Err(ProcessTransListError {
                 index, 
                 process_trans_error: e
-            }),
-            Ok(ProcessTransOutput::Request(incoming_request)) => {
+            })),
+            (tbs, Ok(ProcessTransOutput::Request(incoming_request))) => {
                 trans_list_output.requests.push(incoming_request);
+                tbs
             },
-            Ok(ProcessTransOutput::Response(incoming_response)) => {
+            (tbs, Ok(ProcessTransOutput::Response(incoming_response))) => {
                 trans_list_output.responses.push(incoming_response);
+                tbs
             },
         }
     }
-    Ok(trans_list_output)
+    (trans_balance_state, Ok(trans_list_output))
 }
 
-impl BalanceState {
-    pub fn process_trans_list_atomic(&mut self, transactions: &[NetworkerTCTransaction]) 
-        -> Result<ProcessTransListOutput, ProcessTransListError> {
+pub fn atomic_process_trans_list(balance_state: BalanceState,
+                             transactions: &[NetworkerTCTransaction])
+    -> (BalanceState, Result<ProcessTransListOutput, ProcessTransListError>) {
 
-        let mut credit_state = self.credit_state.clone();
-        let pending_local_requests = mem::replace(&mut self.pending_local_requests, HashMap::new());
-        let pending_remote_requests = mem::replace(&mut self.pending_remote_requests, HashMap::new());
-
-        let mut tpl_requests = TransHashMap::new(pending_local_requests);
-        let mut tpr_requests = TransHashMap::new(pending_remote_requests);
-
-        // Process all transactions. 
-        match process_trans_list(transactions, 
-                                       &mut credit_state, 
-                                       &mut tpl_requests, 
-                                       &mut tpr_requests) {
-            Ok(out) => {
-                // Processing was successful. 
-                // We commit changes to the state.
-                self.pending_local_requests = tpl_requests.commit();
-                self.pending_remote_requests = tpr_requests.commit();
-                self.credit_state = credit_state;
-                Ok(out)
-            },
-            Err(e) => {
-                // Processing failed. We revert to the original state.
-                self.pending_local_requests = tpl_requests.cancel();
-                self.pending_remote_requests = tpr_requests.cancel();
-                Err(e)
-            },
-        }
+    let trans_balance_state = TransBalanceState::new(balance_state);
+    match process_trans_list(transactions, trans_balance_state) {
+        (tbs, Ok(out)) => (tbs.commit(), Ok(out)),
+        (tbs, Err(e)) => (tbs.cancel(), Err(e)),
     }
 }
+
