@@ -14,7 +14,7 @@ pub struct SendFundsReceipt {
     // = sha512/256(requestId ||
     //       sha512/256(nodeIdPath) ||
     //       mediatorPaymentProposal)
-    invoice_id: InvoiceId,
+    pub invoice_id: InvoiceId,
     payment: u128,
     rand_nonce: RandValue,
     signature: Signature,
