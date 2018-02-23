@@ -8,7 +8,7 @@ pub const INVOICE_ID_LEN: usize = 32;
 ///
 /// An invoice is used during payment through the `Funder`. It is chosen by the sender of funds.
 /// The invoice id then shows up in the receipt for the payment.
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct InvoiceId([u8; INVOICE_ID_LEN]);
 
 impl InvoiceId {
