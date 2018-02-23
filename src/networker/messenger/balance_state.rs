@@ -1,3 +1,4 @@
+use std::cmp;
 use std::collections::HashMap;
 
 use proto::indexer::NeighborsRoute;
@@ -9,34 +10,41 @@ use proto::common::SendFundsReceipt;
 use super::super::messages::PendingNeighborRequest;
 use utils::trans_hashmap::TransHashMap;
 
+const MAX_NEIGHBOR_DEBT: u64 = (1 << 63) - 1;
+
+pub struct RequestSendMessage {
+    request_id: Uid,
+    route: NeighborsRoute,
+    request_content: Vec<u8>,
+    max_response_len: u32,
+    processing_fee_proposal: u64,
+    credits_per_byte_proposal: u64,
+}
+
+pub struct ResponseSendMessage {
+    request_id: Uid,
+    rand_nonce: RandValue,
+    processing_fee_collected: u64,
+    response_content: Vec<u8>,
+    signature: Signature,
+}
+
+pub struct FailedSendMessage {
+    request_id: Uid,
+    reporting_public_key: PublicKey,
+    rand_nonce: RandValue,
+    signature: Signature,
+}
+
+
 pub enum NetworkerTCTransaction {
-    SetRemoteMaximumDebt(u64),
-    FundsRandNonce(Uid),
+    SetRemoteMaxDebt(u64),
+    FundsRandNonce(RandValue),
     LoadFunds(SendFundsReceipt),
-    RequestSendMessage {
-        request_id: Uid,
-        route: NeighborsRoute,
-        request_content: Vec<u8>,
-        max_response_len: u32,
-        processing_fee_proposal: u64,
-        credits_per_byte_proposal: u64,
-    },
-    ResponseSendMessage {
-        request_id: Uid,
-        rand_nonce: RandValue,
-        processing_fee_collected: u64,
-        response_content: Vec<u8>,
-        signature: Signature,
-    },
-    FailedSendMessage {
-        request_id: Uid,
-        reporting_public_key: PublicKey,
-        rand_nonce: RandValue,
-        signature: Signature,
-    },
-    ResetChannel {
-        new_balance: i64,
-    },
+    RequestSendMessage(RequestSendMessage),
+    ResponseSendMessage(ResponseSendMessage), 
+    FailedSendMessage(FailedSendMessage),
+    ResetChannel(i64), // new_balanace
 }
 
 #[derive(Clone)]
@@ -109,6 +117,7 @@ pub struct ProcessTransListOutput {
 #[derive(Debug)]
 pub enum ProcessTransError {
     TempToCompile,
+    RemoteMaxDebtTooLarge(u64),
 }
 
 #[derive(Debug)]
@@ -117,13 +126,102 @@ pub struct ProcessTransListError {
     process_trans_error: ProcessTransError,
 }
 
-fn process_trans(trans: &NetworkerTCTransaction,
-                trans_balance_state: TransBalanceState)
-                    -> (TransBalanceState, Result<ProcessTransOutput, ProcessTransError>) {
+fn process_set_remote_max_debt(mut trans_balance_state: TransBalanceState,
+                                   trans_list_output: &mut ProcessTransListOutput,
+                                   proposed_max_debt: u64)
+                                    -> (TransBalanceState, Result<(), ProcessTransError>) {
 
-    // TODO: Implement this
-    assert!(false);
-    (trans_balance_state, Err(ProcessTransError::TempToCompile))
+    let credit_state = &trans_balance_state.credit_state;
+    let max_local_max_debt: u64 = cmp::min(
+        MAX_NEIGHBOR_DEBT as i64, 
+        (credit_state.local_pending_debt as i64) - credit_state.balance) as u64;
+
+    if proposed_max_debt > max_local_max_debt {
+        (trans_balance_state, 
+         Err(ProcessTransError::RemoteMaxDebtTooLarge(proposed_max_debt)))
+    } else {
+        trans_balance_state.credit_state.local_max_debt = proposed_max_debt;
+        (trans_balance_state, Ok(()))
+    }
+}
+
+fn process_funds_rand_nonce(trans_balance_state: TransBalanceState,
+                                   trans_list_output: &mut ProcessTransListOutput,
+                                   funds_rand_nonce: &RandValue)
+                                    -> (TransBalanceState, Result<(), ProcessTransError>) {
+    unreachable!();
+}
+
+fn process_load_funds(trans_balance_state: TransBalanceState,
+                                   trans_list_output: &mut ProcessTransListOutput,
+                                   send_funds_receipt: &SendFundsReceipt)
+                                    -> (TransBalanceState, Result<(), ProcessTransError>) {
+    unreachable!();
+}
+
+fn process_request_send_message(trans_balance_state: TransBalanceState,
+                                   trans_list_output: &mut ProcessTransListOutput,
+                                   request_send_msg: &RequestSendMessage)
+                                    -> (TransBalanceState, Result<(), ProcessTransError>) {
+    unreachable!();
+}
+
+fn process_response_send_message(trans_balance_state: TransBalanceState,
+                                   trans_list_output: &mut ProcessTransListOutput,
+                                   response_send_msg: &ResponseSendMessage)
+                                    -> (TransBalanceState, Result<(), ProcessTransError>) {
+    unreachable!();
+}
+
+fn process_failed_send_message(trans_balance_state: TransBalanceState,
+                                   trans_list_output: &mut ProcessTransListOutput,
+                                   failed_send_msg: &FailedSendMessage)
+                                    -> (TransBalanceState, Result<(), ProcessTransError>) {
+    unreachable!();
+}
+
+fn process_reset_channel(trans_balance_state: TransBalanceState,
+                                   trans_list_output: &mut ProcessTransListOutput,
+                                   new_balance: i64)
+                                    -> (TransBalanceState, Result<(), ProcessTransError>) {
+    unreachable!();
+}
+
+fn process_trans(trans_balance_state: TransBalanceState, 
+                 trans: &NetworkerTCTransaction,
+                 mut trans_list_output: &mut ProcessTransListOutput)
+                    -> (TransBalanceState, Result<(), ProcessTransError>) {
+
+    match *trans {
+        NetworkerTCTransaction::SetRemoteMaxDebt(proposed_max_debt) => 
+            process_set_remote_max_debt(trans_balance_state,
+                                        &mut trans_list_output, 
+                                        proposed_max_debt),
+        NetworkerTCTransaction::FundsRandNonce(ref rand_nonce) =>
+            process_funds_rand_nonce(trans_balance_state,
+                                     &mut trans_list_output,
+                                     rand_nonce),
+        NetworkerTCTransaction::LoadFunds(ref send_funds_receipt) => 
+            process_load_funds(trans_balance_state,
+                               &mut trans_list_output,
+                               send_funds_receipt),
+        NetworkerTCTransaction::RequestSendMessage(ref request_send_msg) =>
+            process_request_send_message(trans_balance_state,
+                                         &mut trans_list_output,
+                                         request_send_msg),
+        NetworkerTCTransaction::ResponseSendMessage(ref response_send_msg) =>
+            process_response_send_message(trans_balance_state,
+                                          &mut trans_list_output,
+                                          response_send_msg),
+        NetworkerTCTransaction::FailedSendMessage(ref failed_send_msg) => 
+            process_failed_send_message(trans_balance_state,
+                                        &mut trans_list_output,
+                                        failed_send_msg),
+        NetworkerTCTransaction::ResetChannel(new_balance) => 
+            process_reset_channel(trans_balance_state,
+                                  &mut trans_list_output,
+                                  new_balance),
+    }
 }
 
 fn process_trans_list(transactions: &[NetworkerTCTransaction], 
@@ -136,17 +234,12 @@ fn process_trans_list(transactions: &[NetworkerTCTransaction],
     };
 
     for (index, trans) in transactions.into_iter().enumerate() {
-        trans_balance_state = match process_trans(trans, trans_balance_state) {
+        trans_balance_state = match process_trans(trans_balance_state, trans, &mut trans_list_output) {
             (tbs, Err(e)) => return (tbs, Err(ProcessTransListError {
                 index, 
                 process_trans_error: e
             })),
-            (tbs, Ok(ProcessTransOutput::Request(incoming_request))) => {
-                trans_list_output.requests.push(incoming_request);
-                tbs
-            },
-            (tbs, Ok(ProcessTransOutput::Response(incoming_response))) => {
-                trans_list_output.responses.push(incoming_response);
+            (tbs, Ok(())) => {
                 tbs
             },
         }
