@@ -104,6 +104,9 @@ struct IncomingRequestSendMessage {
 struct IncomingResponseSendMessage {
 }
 
+struct IncomingFailedSendMessage {
+}
+
 enum ProcessTransOutput {
     Request(IncomingRequestSendMessage),
     Response(IncomingResponseSendMessage),
@@ -112,6 +115,7 @@ enum ProcessTransOutput {
 pub struct ProcessTransListOutput {
     requests: Vec<IncomingRequestSendMessage>,
     responses: Vec<IncomingResponseSendMessage>,
+    failures: Vec<IncomingFailedSendMessage>,
 }
 
 #[derive(Debug)]
@@ -232,6 +236,7 @@ fn process_trans_list(transactions: &[NetworkerTCTransaction],
     let mut trans_list_output = ProcessTransListOutput {
         requests: Vec::new(),
         responses: Vec::new(),
+        failures: Vec::new(),
     };
 
     for (index, trans) in transactions.into_iter().enumerate() {
