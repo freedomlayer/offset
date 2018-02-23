@@ -39,7 +39,7 @@ pub struct FailedSendMessage {
 
 pub enum NetworkerTCTransaction {
     SetRemoteMaxDebt(u64),
-    FundsRandNonce(RandValue),
+    SetInvoiceId(InvoiceId),
     LoadFunds(SendFundsReceipt),
     RequestSendMessage(RequestSendMessage),
     ResponseSendMessage(ResponseSendMessage), 
@@ -118,6 +118,7 @@ pub struct ProcessTransListOutput {
 pub enum ProcessTransError {
     TempToCompile,
     RemoteMaxDebtTooLarge(u64),
+    InvoiceIdExists,
 }
 
 #[derive(Debug)]
@@ -145,11 +146,18 @@ fn process_set_remote_max_debt(mut trans_balance_state: TransBalanceState,
     }
 }
 
-fn process_funds_rand_nonce(trans_balance_state: TransBalanceState,
+fn process_funds_rand_nonce(mut trans_balance_state: TransBalanceState,
                                    trans_list_output: &mut ProcessTransListOutput,
-                                   funds_rand_nonce: &RandValue)
+                                   invoice_id: &InvoiceId)
                                     -> (TransBalanceState, Result<(), ProcessTransError>) {
-    unreachable!();
+
+    let remote_invoice_id = &mut trans_balance_state.credit_state.remote_invoice_id;
+    *remote_invoice_id = match *remote_invoice_id {
+        None => Some(invoice_id.clone()),
+        Some(_) => return (trans_balance_state, 
+                           Err(ProcessTransError::InvoiceIdExists)),
+    };
+    (trans_balance_state, Ok(()))
 }
 
 fn process_load_funds(trans_balance_state: TransBalanceState,
@@ -197,7 +205,7 @@ fn process_trans(trans_balance_state: TransBalanceState,
             process_set_remote_max_debt(trans_balance_state,
                                         &mut trans_list_output, 
                                         proposed_max_debt),
-        NetworkerTCTransaction::FundsRandNonce(ref rand_nonce) =>
+        NetworkerTCTransaction::SetInvoiceId(ref rand_nonce) =>
             process_funds_rand_nonce(trans_balance_state,
                                      &mut trans_list_output,
                                      rand_nonce),
