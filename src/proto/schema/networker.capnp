@@ -32,7 +32,7 @@ struct SetRemoteMaxDebtTran {
 
 
 struct FundsRandNonceTran {
-        fundsRandNonce @0: CustomUInt128;
+        fundsRandNonce @0: CustomUInt256;
 }
 
 struct LoadFundsTran {
