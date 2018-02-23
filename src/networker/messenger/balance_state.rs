@@ -128,7 +128,6 @@ pub struct ProcessTransListError {
 }
 
 fn process_set_remote_max_debt(mut trans_balance_state: TransBalanceState,
-                                   trans_list_output: &mut ProcessTransListOutput,
                                    proposed_max_debt: u64)
                                     -> (TransBalanceState, Result<(), ProcessTransError>) {
 
@@ -146,8 +145,7 @@ fn process_set_remote_max_debt(mut trans_balance_state: TransBalanceState,
     }
 }
 
-fn process_funds_rand_nonce(mut trans_balance_state: TransBalanceState,
-                                   trans_list_output: &mut ProcessTransListOutput,
+fn process_set_invoice_id(mut trans_balance_state: TransBalanceState,
                                    invoice_id: &InvoiceId)
                                     -> (TransBalanceState, Result<(), ProcessTransError>) {
 
@@ -161,7 +159,6 @@ fn process_funds_rand_nonce(mut trans_balance_state: TransBalanceState,
 }
 
 fn process_load_funds(trans_balance_state: TransBalanceState,
-                                   trans_list_output: &mut ProcessTransListOutput,
                                    send_funds_receipt: &SendFundsReceipt)
                                     -> (TransBalanceState, Result<(), ProcessTransError>) {
     unreachable!();
@@ -189,7 +186,6 @@ fn process_failed_send_message(trans_balance_state: TransBalanceState,
 }
 
 fn process_reset_channel(trans_balance_state: TransBalanceState,
-                                   trans_list_output: &mut ProcessTransListOutput,
                                    new_balance: i64)
                                     -> (TransBalanceState, Result<(), ProcessTransError>) {
     unreachable!();
@@ -203,15 +199,12 @@ fn process_trans(trans_balance_state: TransBalanceState,
     match *trans {
         NetworkerTCTransaction::SetRemoteMaxDebt(proposed_max_debt) => 
             process_set_remote_max_debt(trans_balance_state,
-                                        &mut trans_list_output, 
                                         proposed_max_debt),
         NetworkerTCTransaction::SetInvoiceId(ref rand_nonce) =>
-            process_funds_rand_nonce(trans_balance_state,
-                                     &mut trans_list_output,
+            process_set_invoice_id(trans_balance_state,
                                      rand_nonce),
         NetworkerTCTransaction::LoadFunds(ref send_funds_receipt) => 
             process_load_funds(trans_balance_state,
-                               &mut trans_list_output,
                                send_funds_receipt),
         NetworkerTCTransaction::RequestSendMessage(ref request_send_msg) =>
             process_request_send_message(trans_balance_state,
@@ -227,7 +220,6 @@ fn process_trans(trans_balance_state: TransBalanceState,
                                         failed_send_msg),
         NetworkerTCTransaction::ResetChannel(new_balance) => 
             process_reset_channel(trans_balance_state,
-                                  &mut trans_list_output,
                                   new_balance),
     }
 }
