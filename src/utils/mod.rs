@@ -3,6 +3,7 @@ mod close_handle;
 mod service_client;
 mod stream_mediator;
 mod trans_hashmap;
+mod sliding_window;
 
 pub use self::close_handle::CloseHandle;
 pub use self::async_mutex::{AsyncMutex, AsyncMutexError};
