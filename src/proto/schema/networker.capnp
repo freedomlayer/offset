@@ -31,8 +31,8 @@ struct SetRemoteMaxDebtTran {
 }
 
 
-struct FundsRandNonceTran {
-        fundsRandNonce @0: CustomUInt256;
+struct SetInvoiceIdTran {
+        invoiceId @0: CustomUInt256;
 }
 
 struct LoadFundsTran {
@@ -104,7 +104,7 @@ struct ResetChannelTran {
 struct NeighborTransaction {
         union {
                 setRemoteMaxDebt @0: SetRemoteMaxDebtTran;
-                fundsRandNonce @1: FundsRandNonceTran;
+                setInvoiceIdTran @1: SetInvoiceIdTran;
                 loadFunds @2: LoadFundsTran;
                 requestSendMessage @3: RequestSendMessageTran;
                 responseSendMessage @4: ResponseSendMessageTran;
