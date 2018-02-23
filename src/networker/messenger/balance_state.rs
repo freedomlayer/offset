@@ -226,7 +226,8 @@ fn process_trans(trans_balance_state: TransBalanceState,
 
 fn process_trans_list(transactions: &[NetworkerTCTransaction], 
     mut trans_balance_state: TransBalanceState)
-                        -> (TransBalanceState, Result<ProcessTransListOutput, ProcessTransListError>) {
+                        -> (TransBalanceState, 
+                            Result<ProcessTransListOutput, ProcessTransListError>) {
 
     let mut trans_list_output = ProcessTransListOutput {
         requests: Vec::new(),
@@ -234,7 +235,8 @@ fn process_trans_list(transactions: &[NetworkerTCTransaction],
     };
 
     for (index, trans) in transactions.into_iter().enumerate() {
-        trans_balance_state = match process_trans(trans_balance_state, trans, &mut trans_list_output) {
+        trans_balance_state = match process_trans(trans_balance_state, trans, 
+                                                  &mut trans_list_output) {
             (tbs, Err(e)) => return (tbs, Err(ProcessTransListError {
                 index, 
                 process_trans_error: e
