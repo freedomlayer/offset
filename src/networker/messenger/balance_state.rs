@@ -123,6 +123,8 @@ pub enum ProcessTransError {
     TempToCompile,
     RemoteMaxDebtTooLarge(u64),
     InvoiceIdExists,
+    MissingInvoiceId,
+    InvalidInvoiceId,
 }
 
 #[derive(Debug)]
@@ -150,7 +152,7 @@ fn process_set_remote_max_debt(mut trans_balance_state: TransBalanceState,
 }
 
 fn process_set_invoice_id(mut trans_balance_state: TransBalanceState,
-                                   invoice_id: &InvoiceId)
+                          invoice_id: &InvoiceId)
                                     -> (TransBalanceState, Result<(), ProcessTransError>) {
 
     let remote_invoice_id = &mut trans_balance_state.credit_state.remote_invoice_id;
@@ -163,8 +165,27 @@ fn process_set_invoice_id(mut trans_balance_state: TransBalanceState,
 }
 
 fn process_load_funds(trans_balance_state: TransBalanceState,
-                                   send_funds_receipt: &SendFundsReceipt)
+                      send_funds_receipt: &SendFundsReceipt)
                                     -> (TransBalanceState, Result<(), ProcessTransError>) {
+    // Verify signature:
+    // send_funds_receipt.verify()
+    // TODO: We need to know our own public key somehow.
+    assert!(false);
+
+    // Make sure that the invoice_id matches the one we have:
+    match &trans_balance_state.credit_state.local_invoice_id {
+        &Some(ref local_invoice_id) => {
+            if local_invoice_id != &send_funds_receipt.invoice_id {
+                return (trans_balance_state, Err(ProcessTransError::InvalidInvoiceId));
+            }
+        },
+        &None => return (trans_balance_state, Err(ProcessTransError::MissingInvoiceId)),
+    };
+
+
+    // Make sure that there is enough room to apply the funds.
+
+
     unreachable!();
 }
 
