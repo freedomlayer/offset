@@ -4,6 +4,7 @@ use crypto::identity::Signature;
 use crypto::rand_values::RandValue;
 
 use proto::funder::InvoiceId;
+use crypto::identity::{verify_signature, PublicKey};
 
 // TODO: impl Receipt
 
@@ -24,4 +25,18 @@ pub struct SendFundsReceipt {
     //   invoiceId ||
     //   payment ||
     //   randNonce)
+}
+
+
+impl SendFundsReceipt {
+    pub fn verify(&self, public_key: &PublicKey) -> bool {
+        let mut data = Vec::new();
+        data.extend(self.response_hash.as_ref());
+        data.extend(self.invoice_id.as_ref());
+        // TODO: Serialize u128
+        assert!(false);
+        data.extend(self.rand_nonce.as_ref());
+
+        verify_signature(&data, public_key, &self.signature)
+    }
 }
