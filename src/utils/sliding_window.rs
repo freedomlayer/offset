@@ -1,5 +1,7 @@
 //! The implementation of the sliding window
 
+use byteorder::{ByteOrder, LittleEndian};
+
 /// A sliding window
 ///
 /// # Introduction
@@ -15,9 +17,8 @@
 ///   ↳  counter - width - 1                                   counter ↵
 /// ```
 pub struct SlidingWindow {
-    block: Vec<u64>,
+    blocks: Vec<u64>,
     nonce: u128,
-    width: usize,
 }
 
 impl SlidingWindow {
@@ -30,9 +31,8 @@ impl SlidingWindow {
         assert_eq!(width % 64, 0, "width should divisible by 64");
 
         SlidingWindow {
-            block: vec![0; width / 64],
+            blocks: vec![0; width / 64],
             nonce: 0,
-            width,
         }
     }
 
@@ -51,10 +51,12 @@ impl SlidingWindow {
     pub fn try_accept(&mut self, nonce: &[u8]) -> bool {
         let nonce = nonce_to_u128(nonce);
 
+        let width = self.blocks.len() as u128 * 64;
+
         if nonce < self.nonce {
             let dif = self.nonce - nonce;
 
-            if dif >= self.width as u128 {
+            if dif >= width {
                 false
             } else {
                 !self.set(dif as usize)
@@ -63,48 +65,25 @@ impl SlidingWindow {
             let dif = nonce - self.nonce;
 
             // Note: we truncate the difference here
-            self.shift_left(::std::cmp::min(dif, self.width as u128) as usize);
+            shift_left(&mut self.blocks, ::std::cmp::min(dif, width) as usize);
 
             self.nonce = nonce;
             !self.set(0)
         }
     }
 
-    /// Bitwise shift left.
-    fn shift_left(&mut self, nbits: usize) {
-        if nbits > 0 {
-            if nbits >= self.width {
-                self.block = vec![0; self.width / 64];
-            } else {
-                let nwords = nbits / 64;
-                self.block = self.block.split_off(nwords);
-                self.block.extend(&vec![0; nwords]);
-
-                assert_eq!(self.block.len(), self.width / 64, "bad shift result");
-
-                let nbits = nbits % 64;
-                if nbits > 0 {
-                    let len = self.block.len();
-
-                    for i in 0..(len - 1) {
-                        self.block[i] <<= nbits;
-                        self.block[i] |= self.block[i + 1] >> (64 - nbits);
-                    }
-                    self.block[len - 1] <<= nbits;
-                }
-            }
-        }
-    }
 
     /// Set the specified bit, returns the old value.
     fn set(&mut self, i: usize) -> bool {
-        assert!(i < self.width, "index out of bounds: {} >= {}", i, self.width);
+        let width = self.blocks.len() * 64;
 
-        let i = self.width - 1 - i;
+        assert!(i < width, "index out of bounds: {} >= {}", i, width);
+
+        let i = width - 1 - i;
 
         let mask = 1 << (64 - 1 - i % 64);
-        let old_bit = self.block[i / 64] & mask == mask;
-        self.block[i / 64] |= mask;
+        let old_bit = self.blocks[i / 64] & mask == mask;
+        self.blocks[i / 64] |= mask;
 
         old_bit
     }
@@ -117,18 +96,36 @@ impl SlidingWindow {
 /// Panics if the length of the `nonce` greater than `16`.
 #[inline]
 fn nonce_to_u128(nonce: &[u8]) -> u128 {
-    assert!(nonce.len() <= 16, "nonce length overflows");
+    assert!(nonce.len() <= 16, "nonce overflows");
 
     let mut aligned = Vec::from(nonce);
-    aligned.extend(&vec![0; 16 - nonce.len()]);
+    aligned.resize(16, 0);
 
-    #[cfg(target_endian="big")]
-    aligned.reverse();
+    LittleEndian::read_u128(&aligned)
+}
 
-    unsafe {
-        let u128_ptr = ::std::mem::transmute::<*const u8, *const u128>(aligned.as_ptr());
+/// Logical left shift of the bits.
+#[inline]
+fn shift_left(blocks: &mut Vec<u64>, nbits: usize) {
+    let len = blocks.len();
 
-        *u128_ptr
+    if nbits > 0 {
+        if nbits >= len * 64 {
+            *blocks = vec![0; len];
+        } else {
+            let nwords = nbits / 64;
+            *blocks = blocks.split_off(nwords);
+            blocks.extend(&vec![0; nwords]);
+
+            let nbits = nbits % 64;
+            if nbits > 0 {
+                for i in 0..(len - 1) {
+                    blocks[i] <<= nbits;
+                    blocks[i] |= blocks[i + 1] >> (64 - nbits);
+                }
+                blocks[len - 1] <<= nbits;
+            }
+        }
     }
 }
 
@@ -164,21 +161,26 @@ mod tests {
     }
 
     #[test]
-    fn test_sliding_window_shift() {
-        let mut window = SlidingWindow::new(WINDOW_WIDTH >> 1);
+    fn test_shift_left() {
+        let mut blocks = vec![0xf0f0f0f0_f0f0f0f0, 0xf0f0f0f0_f0f0f0f0];
 
-        window.block = vec![0xf0f0f0f0_f0f0f0f0, 0xf0f0f0f0_f0f0f0f0];
-        window.shift_left(0);
-        assert_eq!(window.block, vec![0xf0f0f0f0_f0f0f0f0, 0xf0f0f0f0_f0f0f0f0]);
+        shift_left(&mut blocks, 0);
+        assert_eq!(blocks, vec![0xf0f0f0f0_f0f0f0f0, 0xf0f0f0f0_f0f0f0f0]);
 
-        window.shift_left(1);
-        assert_eq!(window.block, vec![0xe1e1e1e1_e1e1e1e1, 0xe1e1e1e1_e1e1e1e0]);
+        shift_left(&mut blocks, 1);
+        assert_eq!(blocks, vec![0xe1e1e1e1_e1e1e1e1, 0xe1e1e1e1_e1e1e1e0]);
 
-        window.shift_left(31);
-        assert_eq!(window.block, vec![0xf0f0f0f0_f0f0f0f0, 0xf0f0f0f0_00000000]);
+        shift_left(&mut blocks, 15);
+        assert_eq!(blocks, vec![0xf0f0f0f0_f0f0f0f0, 0xf0f0f0f0_f0f00000]);
 
-        window.shift_left(64);
-        assert_eq!(window.block, vec![0xf0f0f0f0_00000000, 0x00000000_00000000]);
+        shift_left(&mut blocks, 31);
+        assert_eq!(blocks, vec![0x78787878_78787878, 0x78780000_00000000]);
+
+        shift_left(&mut blocks, 64);
+        assert_eq!(blocks, vec![0x78780000_00000000, 0x00000000_00000000]);
+
+        shift_left(&mut blocks, 128);
+        assert_eq!(blocks, vec![0x00000000_00000000, 0x00000000_00000000]);
     }
 
     #[test]
@@ -193,13 +195,13 @@ mod tests {
         }
 
         assert_eq!(window.nonce, nonce_to_u128(&nonce));
-        assert_eq!(window.block, vec![u64::max_value(); 4]);
+        assert_eq!(window.blocks, vec![u64::max_value(); 4]);
 
         increase_nonce(&mut nonce);
         let out_of_range = nonce.clone();
         assert_eq!(out_of_range, vec![1, 1, 0, 0]);
 
-        for i in 0..WINDOW_WIDTH {
+        for _ in 0..WINDOW_WIDTH {
             increase_nonce(&mut nonce);
             assert!(window.try_accept(&nonce) && !window.try_accept(&nonce));
         }
