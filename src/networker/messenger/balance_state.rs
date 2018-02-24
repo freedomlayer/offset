@@ -166,11 +166,11 @@ fn process_set_invoice_id(mut trans_balance_state: TransBalanceState,
 
 
 fn process_load_funds(mut trans_balance_state: TransBalanceState,
-                      self_public_key: &PublicKey,
+                      local_public_key: &PublicKey,
                       send_funds_receipt: &SendFundsReceipt)
                                     -> (TransBalanceState, Result<(), ProcessTransError>) {
     // Verify signature:
-    if !send_funds_receipt.verify(self_public_key) {
+    if !send_funds_receipt.verify(local_public_key) {
         return (trans_balance_state, Err(ProcessTransError::InvalidFundsReceipt))
     }
 
@@ -226,13 +226,17 @@ fn process_failed_send_message(trans_balance_state: TransBalanceState,
 }
 
 fn process_reset_channel(trans_balance_state: TransBalanceState,
-                                   new_balance: i64)
+                         local_public_key: &PublicKey,
+                         remote_public_key: &PublicKey,
+                           new_balance: i64)
                                     -> (TransBalanceState, Result<(), ProcessTransError>) {
+
     unreachable!();
 }
 
 fn process_trans(trans_balance_state: TransBalanceState, 
-                 self_public_key: &PublicKey,
+                 local_public_key: &PublicKey,
+                 remote_public_key: &PublicKey,
                  trans: &NetworkerTCTransaction, 
                  mut trans_list_output: &mut ProcessTransListOutput)
                     -> (TransBalanceState, Result<(), ProcessTransError>) {
@@ -246,7 +250,7 @@ fn process_trans(trans_balance_state: TransBalanceState,
                                      rand_nonce),
         NetworkerTCTransaction::LoadFunds(ref send_funds_receipt) => 
             process_load_funds(trans_balance_state,
-                               self_public_key,
+                               local_public_key,
                                send_funds_receipt),
         NetworkerTCTransaction::RequestSendMessage(ref request_send_msg) =>
             process_request_send_message(trans_balance_state,
@@ -262,12 +266,15 @@ fn process_trans(trans_balance_state: TransBalanceState,
                                         failed_send_msg),
         NetworkerTCTransaction::ResetChannel(new_balance) => 
             process_reset_channel(trans_balance_state,
+                                  local_public_key,
+                                  remote_public_key,
                                   new_balance),
     }
 }
 
 fn process_trans_list(mut trans_balance_state: TransBalanceState, 
-                      self_public_key: &PublicKey,
+                      local_public_key: &PublicKey,
+                      remote_public_key: &PublicKey,
                       transactions: &[NetworkerTCTransaction])
                         -> (TransBalanceState, 
                             Result<ProcessTransListOutput, ProcessTransListError>) {
@@ -280,7 +287,8 @@ fn process_trans_list(mut trans_balance_state: TransBalanceState,
 
     for (index, trans) in transactions.into_iter().enumerate() {
         trans_balance_state = match process_trans(trans_balance_state,
-                                                  self_public_key,
+                                                  local_public_key,
+                                                  remote_public_key,
                                                   trans, 
                                                   &mut trans_list_output) {
             (tbs, Err(e)) => return (tbs, Err(ProcessTransListError {
@@ -296,12 +304,16 @@ fn process_trans_list(mut trans_balance_state: TransBalanceState,
 }
 
 pub fn atomic_process_trans_list(balance_state: BalanceState,
-                                 self_public_key: &PublicKey,
+                                 local_public_key: &PublicKey,
+                                 remote_public_key: &PublicKey,
                                  transactions: &[NetworkerTCTransaction])
     -> (BalanceState, Result<ProcessTransListOutput, ProcessTransListError>) {
 
     let trans_balance_state = TransBalanceState::new(balance_state);
-    match process_trans_list(trans_balance_state, self_public_key, transactions) {
+    match process_trans_list(trans_balance_state, 
+                             local_public_key, 
+                             remote_public_key,
+                             transactions) {
         (tbs, Ok(out)) => (tbs.commit(), Ok(out)),
         (tbs, Err(e)) => (tbs.cancel(), Err(e)),
     }
