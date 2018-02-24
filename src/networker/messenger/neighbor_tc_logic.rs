@@ -3,7 +3,7 @@ use crypto::rand_values::RandValue;
 use crypto::identity::PublicKey;
 use super::super::messages::MoveTokenDirection;
 use super::balance_state::{BalanceState, NetworkerTCTransaction, 
-    ProcessTransListOutput, ProcessTransListError,
+    ProcessTransOutput, ProcessTransListError,
     atomic_process_trans_list};
 
 pub struct NeighborMoveToken {
@@ -35,7 +35,7 @@ pub enum NeighborTCStateError {
 pub enum ReceiveTokenOutput {
     Duplicate,
     RetransmitOutgoing,
-    ProcessTransListOutput(ProcessTransListOutput),
+    ProcessTransListOutput(Vec<ProcessTransOutput>),
 }
 
 

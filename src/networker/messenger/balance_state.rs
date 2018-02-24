@@ -44,7 +44,7 @@ pub enum NetworkerTCTransaction {
     RequestSendMessage(RequestSendMessage),
     ResponseSendMessage(ResponseSendMessage), 
     FailedSendMessage(FailedSendMessage),
-    ResetChannel(i64), // new_balanace
+    // ResetChannel(i64), // new_balanace
 }
 
 #[derive(Clone)]
@@ -98,25 +98,21 @@ impl TransBalanceState {
     }
 }
 
-struct IncomingRequestSendMessage {
+pub struct IncomingRequestSendMessage {
 }
 
-struct IncomingResponseSendMessage {
+pub struct IncomingResponseSendMessage {
 }
 
-struct IncomingFailedSendMessage {
+pub struct IncomingFailedSendMessage {
 }
 
-enum ProcessTransOutput {
+pub enum ProcessTransOutput {
     Request(IncomingRequestSendMessage),
     Response(IncomingResponseSendMessage),
+    Failure(IncomingFailedSendMessage),
 }
 
-pub struct ProcessTransListOutput {
-    requests: Vec<IncomingRequestSendMessage>,
-    responses: Vec<IncomingResponseSendMessage>,
-    failures: Vec<IncomingFailedSendMessage>,
-}
 
 #[derive(Debug)]
 pub enum ProcessTransError {
@@ -135,7 +131,8 @@ pub struct ProcessTransListError {
 
 fn process_set_remote_max_debt(mut trans_balance_state: TransBalanceState,
                                    proposed_max_debt: u64)
-                                    -> (TransBalanceState, Result<(), ProcessTransError>) {
+                                    -> (TransBalanceState, 
+                                        Result<Option<ProcessTransOutput>, ProcessTransError>) {
 
     let credit_state = &trans_balance_state.credit_state;
     let max_local_max_debt: u64 = cmp::min(
@@ -147,13 +144,14 @@ fn process_set_remote_max_debt(mut trans_balance_state: TransBalanceState,
          Err(ProcessTransError::RemoteMaxDebtTooLarge(proposed_max_debt)))
     } else {
         trans_balance_state.credit_state.local_max_debt = proposed_max_debt;
-        (trans_balance_state, Ok(()))
+        (trans_balance_state, Ok(None))
     }
 }
 
 fn process_set_invoice_id(mut trans_balance_state: TransBalanceState,
                           invoice_id: &InvoiceId)
-                                    -> (TransBalanceState, Result<(), ProcessTransError>) {
+                                    -> (TransBalanceState, 
+                                        Result<Option<ProcessTransOutput>, ProcessTransError>) {
 
     let remote_invoice_id = &mut trans_balance_state.credit_state.remote_invoice_id;
     *remote_invoice_id = match *remote_invoice_id {
@@ -161,14 +159,15 @@ fn process_set_invoice_id(mut trans_balance_state: TransBalanceState,
         Some(_) => return (trans_balance_state, 
                            Err(ProcessTransError::InvoiceIdExists)),
     };
-    (trans_balance_state, Ok(()))
+    (trans_balance_state, Ok(None))
 }
 
 
 fn process_load_funds(mut trans_balance_state: TransBalanceState,
                       local_public_key: &PublicKey,
                       send_funds_receipt: &SendFundsReceipt)
-                                    -> (TransBalanceState, Result<(), ProcessTransError>) {
+                        -> (TransBalanceState, 
+                            Result<Option<ProcessTransOutput>, ProcessTransError>) {
     // Verify signature:
     if !send_funds_receipt.verify(local_public_key) {
         return (trans_balance_state, Err(ProcessTransError::InvalidFundsReceipt))
@@ -201,45 +200,60 @@ fn process_load_funds(mut trans_balance_state: TransBalanceState,
         credit_state.local_pending_debt as i64 - credit_state.balance as i64)
             as u64;
 
-    (trans_balance_state, Ok(()))
+    (trans_balance_state, Ok(None))
 }
 
 fn process_request_send_message(trans_balance_state: TransBalanceState,
-                                   trans_list_output: &mut ProcessTransListOutput,
                                    request_send_msg: &RequestSendMessage)
-                                    -> (TransBalanceState, Result<(), ProcessTransError>) {
+                                    -> (TransBalanceState, 
+                                        Result<Option<ProcessTransOutput>, ProcessTransError>) {
     unreachable!();
 }
 
 fn process_response_send_message(trans_balance_state: TransBalanceState,
-                                   trans_list_output: &mut ProcessTransListOutput,
                                    response_send_msg: &ResponseSendMessage)
-                                    -> (TransBalanceState, Result<(), ProcessTransError>) {
+                                    -> (TransBalanceState, 
+                                        Result<Option<ProcessTransOutput>, ProcessTransError>) {
     unreachable!();
 }
 
 fn process_failed_send_message(trans_balance_state: TransBalanceState,
-                                   trans_list_output: &mut ProcessTransListOutput,
                                    failed_send_msg: &FailedSendMessage)
-                                    -> (TransBalanceState, Result<(), ProcessTransError>) {
+                                    -> (TransBalanceState, 
+                                        Result<Option<ProcessTransOutput>, ProcessTransError>) {
     unreachable!();
 }
 
-fn process_reset_channel(trans_balance_state: TransBalanceState,
+/*
+fn process_reset_channel(mut trans_balance_state: TransBalanceState,
                          local_public_key: &PublicKey,
                          remote_public_key: &PublicKey,
-                           new_balance: i64)
-                                    -> (TransBalanceState, Result<(), ProcessTransError>) {
+                         trans_list_output: &mut TransListOutput,
+                         new_balance: i64)
+                            -> (TransBalanceState, Result<(), ProcessTransError>) {
+
+    let credit_state = &mut trans_balance_state.credit_state;
+    let expected_new_balance = credit_state.balance 
+        + credit_state.remote_pending_debt as i64
+        - credit_state.local_pending_debt as i64;
+
+    if new_balance == expected_new_balance {
+        credit_state.balance = new_balance;
+        credit_state.remote_pending_debt = 0;
+        credit_state.local_pending_debt = 0;
+
+    }
 
     unreachable!();
 }
+*/
 
 fn process_trans(trans_balance_state: TransBalanceState, 
                  local_public_key: &PublicKey,
                  remote_public_key: &PublicKey,
-                 trans: &NetworkerTCTransaction, 
-                 mut trans_list_output: &mut ProcessTransListOutput)
-                    -> (TransBalanceState, Result<(), ProcessTransError>) {
+                 trans: &NetworkerTCTransaction)
+                    -> (TransBalanceState, 
+                        Result<Option<ProcessTransOutput>, ProcessTransError>) {
 
     match *trans {
         NetworkerTCTransaction::SetRemoteMaxDebt(proposed_max_debt) => 
@@ -254,21 +268,13 @@ fn process_trans(trans_balance_state: TransBalanceState,
                                send_funds_receipt),
         NetworkerTCTransaction::RequestSendMessage(ref request_send_msg) =>
             process_request_send_message(trans_balance_state,
-                                         &mut trans_list_output,
                                          request_send_msg),
         NetworkerTCTransaction::ResponseSendMessage(ref response_send_msg) =>
             process_response_send_message(trans_balance_state,
-                                          &mut trans_list_output,
                                           response_send_msg),
         NetworkerTCTransaction::FailedSendMessage(ref failed_send_msg) => 
             process_failed_send_message(trans_balance_state,
-                                        &mut trans_list_output,
                                         failed_send_msg),
-        NetworkerTCTransaction::ResetChannel(new_balance) => 
-            process_reset_channel(trans_balance_state,
-                                  local_public_key,
-                                  remote_public_key,
-                                  new_balance),
     }
 }
 
@@ -277,25 +283,24 @@ fn process_trans_list(mut trans_balance_state: TransBalanceState,
                       remote_public_key: &PublicKey,
                       transactions: &[NetworkerTCTransaction])
                         -> (TransBalanceState, 
-                            Result<ProcessTransListOutput, ProcessTransListError>) {
+                            Result<Vec<ProcessTransOutput>, ProcessTransListError>) {
 
-    let mut trans_list_output = ProcessTransListOutput {
-        requests: Vec::new(),
-        responses: Vec::new(),
-        failures: Vec::new(),
-    };
+    let mut trans_list_output = Vec::new();
 
     for (index, trans) in transactions.into_iter().enumerate() {
         trans_balance_state = match process_trans(trans_balance_state,
                                                   local_public_key,
                                                   remote_public_key,
-                                                  trans, 
-                                                  &mut trans_list_output) {
+                                                  trans) {
             (tbs, Err(e)) => return (tbs, Err(ProcessTransListError {
                 index, 
                 process_trans_error: e
             })),
-            (tbs, Ok(())) => {
+            (tbs, Ok(Some(trans_output))) => {
+                trans_list_output.push(trans_output);
+                tbs
+            },
+            (tbs, Ok(None)) => {
                 tbs
             },
         }
@@ -307,7 +312,7 @@ pub fn atomic_process_trans_list(balance_state: BalanceState,
                                  local_public_key: &PublicKey,
                                  remote_public_key: &PublicKey,
                                  transactions: &[NetworkerTCTransaction])
-    -> (BalanceState, Result<ProcessTransListOutput, ProcessTransListError>) {
+    -> (BalanceState, Result<Vec<ProcessTransOutput>, ProcessTransListError>) {
 
     let trans_balance_state = TransBalanceState::new(balance_state);
     match process_trans_list(trans_balance_state, 
