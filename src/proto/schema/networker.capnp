@@ -10,9 +10,12 @@ using import "common.capnp".Receipt;
 
 struct NeighborMoveToken {
         tokenChannelIndex @0: UInt8;
-        transactions @1: List(NeighborTransaction);
-        oldToken @2: CustomUInt256;
-        randNonce @3: CustomUInt128;
+        union {
+                transactions @1: List(NeighborTransaction);
+                resetChannel @2: Int64;
+        }
+        oldToken @3: CustomUInt256;
+        randNonce @4: CustomUInt128;
 }
 
 struct NeighborInconsistencyError {
@@ -31,8 +34,8 @@ struct SetRemoteMaxDebtTran {
 }
 
 
-struct FundsRandNonceTran {
-        fundsRandNonce @0: CustomUInt128;
+struct SetInvoiceIdTran {
+        invoiceId @0: CustomUInt256;
 }
 
 struct LoadFundsTran {
@@ -97,19 +100,14 @@ struct FailedSendMessageTran {
 }
 
 
-struct ResetChannelTran {
-        newBalance @0: Int64;
-}
-
 struct NeighborTransaction {
         union {
                 setRemoteMaxDebt @0: SetRemoteMaxDebtTran;
-                fundsRandNonce @1: FundsRandNonceTran;
+                setInvoiceIdTran @1: SetInvoiceIdTran;
                 loadFunds @2: LoadFundsTran;
                 requestSendMessage @3: RequestSendMessageTran;
                 responseSendMessage @4: ResponseSendMessageTran;
                 failedSendMessage @5: FailedSendMessageTran;
-                resetChannel @6: ResetChannelTran;
         }
 }
 

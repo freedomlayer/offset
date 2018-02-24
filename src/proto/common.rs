@@ -1,9 +1,12 @@
+use byteorder::{WriteBytesExt, BigEndian};
+
 use crypto::hash::HashResult;
 
 use crypto::identity::Signature;
 use crypto::rand_values::RandValue;
 
 use proto::funder::InvoiceId;
+use crypto::identity::{verify_signature, PublicKey};
 
 // TODO: impl Receipt
 
@@ -14,8 +17,8 @@ pub struct SendFundsReceipt {
     // = sha512/256(requestId ||
     //       sha512/256(nodeIdPath) ||
     //       mediatorPaymentProposal)
-    invoice_id: InvoiceId,
-    payment: u128,
+    pub invoice_id: InvoiceId,
+    pub payment: u128,
     rand_nonce: RandValue,
     signature: Signature,
     // Signature{key=recipientKey}(
@@ -24,4 +27,18 @@ pub struct SendFundsReceipt {
     //   invoiceId ||
     //   payment ||
     //   randNonce)
+}
+
+
+impl SendFundsReceipt {
+    pub fn verify(&self, public_key: &PublicKey) -> bool {
+        let mut data = Vec::new();
+        data.extend(self.response_hash.as_ref());
+        data.extend(self.invoice_id.as_ref());
+        data.write_u128::<BigEndian>(self.payment)
+            .expect("Error writing u128 into data");
+        data.extend(self.rand_nonce.as_ref());
+
+        verify_signature(&data, public_key, &self.signature)
+    }
 }
