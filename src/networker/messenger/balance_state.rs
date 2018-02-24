@@ -204,6 +204,8 @@ fn process_load_funds(mut trans_balance_state: TransBalanceState,
 }
 
 fn process_request_send_message(trans_balance_state: TransBalanceState,
+                                    local_public_key: &PublicKey,
+                                    remote_public_key: &PublicKey,
                                    request_send_msg: &RequestSendMessage)
                                     -> (TransBalanceState, 
                                         Result<Option<ProcessTransOutput>, ProcessTransError>) {
@@ -268,6 +270,8 @@ fn process_trans(trans_balance_state: TransBalanceState,
                                send_funds_receipt),
         NetworkerTCTransaction::RequestSendMessage(ref request_send_msg) =>
             process_request_send_message(trans_balance_state,
+                                         local_public_key,
+                                         remote_public_key,
                                          request_send_msg),
         NetworkerTCTransaction::ResponseSendMessage(ref response_send_msg) =>
             process_response_send_message(trans_balance_state,
