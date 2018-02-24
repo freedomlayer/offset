@@ -165,6 +165,7 @@ fn process_set_invoice_id(mut trans_balance_state: TransBalanceState,
 }
 
 fn process_load_funds(trans_balance_state: TransBalanceState,
+                      self_public_key: &PublicKey,
                       send_funds_receipt: &SendFundsReceipt)
                                     -> (TransBalanceState, Result<(), ProcessTransError>) {
     // Verify signature:
@@ -231,6 +232,7 @@ fn process_trans(trans_balance_state: TransBalanceState,
                                      rand_nonce),
         NetworkerTCTransaction::LoadFunds(ref send_funds_receipt) => 
             process_load_funds(trans_balance_state,
+                               self_public_key,
                                send_funds_receipt),
         NetworkerTCTransaction::RequestSendMessage(ref request_send_msg) =>
             process_request_send_message(trans_balance_state,
