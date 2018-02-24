@@ -15,7 +15,7 @@
 ///   ↳  counter - width - 1                                   counter ↵
 /// ```
 pub struct SlidingWindow {
-    words: Vec<u64>,
+    block: Vec<u64>,
     nonce: u128,
     width: usize,
 }
@@ -30,7 +30,7 @@ impl SlidingWindow {
         assert_eq!(width % 64, 0, "width should divisible by 64");
 
         SlidingWindow {
-            words: vec![0; width / 64],
+            block: vec![0; width / 64],
             nonce: 0,
             width,
         }
@@ -74,23 +74,23 @@ impl SlidingWindow {
     fn shift_left(&mut self, nbits: usize) {
         if nbits > 0 {
             if nbits >= self.width {
-                self.words = vec![0; self.width / 64];
+                self.block = vec![0; self.width / 64];
             } else {
                 let nwords = nbits / 64;
-                self.words = self.words.split_off(nwords);
-                self.words.extend(&vec![0; nwords]);
+                self.block = self.block.split_off(nwords);
+                self.block.extend(&vec![0; nwords]);
 
-                assert_eq!(self.words.len(), self.width / 64, "bad shift result");
+                assert_eq!(self.block.len(), self.width / 64, "bad shift result");
 
                 let nbits = nbits % 64;
                 if nbits > 0 {
-                    let len = self.words.len();
+                    let len = self.block.len();
 
                     for i in 0..(len - 1) {
-                        self.words[i] <<= nbits;
-                        self.words[i] |= self.words[i + 1] >> (64 - nbits);
+                        self.block[i] <<= nbits;
+                        self.block[i] |= self.block[i + 1] >> (64 - nbits);
                     }
-                    self.words[len - 1] <<= nbits;
+                    self.block[len - 1] <<= nbits;
                 }
             }
         }
@@ -103,8 +103,8 @@ impl SlidingWindow {
         let i = self.width - 1 - i;
 
         let mask = 1 << (64 - 1 - i % 64);
-        let old_bit = self.words[i / 64] & mask == mask;
-        self.words[i / 64] |= mask;
+        let old_bit = self.block[i / 64] & mask == mask;
+        self.block[i / 64] |= mask;
 
         old_bit
     }
@@ -165,7 +165,20 @@ mod tests {
 
     #[test]
     fn test_sliding_window_shift() {
-        let mut window = SlidingWindow::new(WINDOW_WIDTH);
+        let mut window = SlidingWindow::new(WINDOW_WIDTH >> 1);
+
+        window.block = vec![0xf0f0f0f0_f0f0f0f0, 0xf0f0f0f0_f0f0f0f0];
+        window.shift_left(0);
+        assert_eq!(window.block, vec![0xf0f0f0f0_f0f0f0f0, 0xf0f0f0f0_f0f0f0f0]);
+
+        window.shift_left(1);
+        assert_eq!(window.block, vec![0xe1e1e1e1_e1e1e1e1, 0xe1e1e1e1_e1e1e1e0]);
+
+        window.shift_left(31);
+        assert_eq!(window.block, vec![0xf0f0f0f0_f0f0f0f0, 0xf0f0f0f0_00000000]);
+
+        window.shift_left(64);
+        assert_eq!(window.block, vec![0xf0f0f0f0_00000000, 0x00000000_00000000]);
     }
 
     #[test]
@@ -180,7 +193,7 @@ mod tests {
         }
 
         assert_eq!(window.nonce, nonce_to_u128(&nonce));
-        assert_eq!(window.words, vec![u64::max_value(); 4]);
+        assert_eq!(window.block, vec![u64::max_value(); 4]);
 
         increase_nonce(&mut nonce);
         let out_of_range = nonce.clone();
