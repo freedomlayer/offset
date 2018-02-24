@@ -217,7 +217,8 @@ fn process_reset_channel(trans_balance_state: TransBalanceState,
 }
 
 fn process_trans(trans_balance_state: TransBalanceState, 
-                 trans: &NetworkerTCTransaction,
+                 self_public_key: &PublicKey,
+                 trans: &NetworkerTCTransaction, 
                  mut trans_list_output: &mut ProcessTransListOutput)
                     -> (TransBalanceState, Result<(), ProcessTransError>) {
 
@@ -249,8 +250,9 @@ fn process_trans(trans_balance_state: TransBalanceState,
     }
 }
 
-fn process_trans_list(transactions: &[NetworkerTCTransaction], 
-    mut trans_balance_state: TransBalanceState)
+fn process_trans_list(mut trans_balance_state: TransBalanceState, 
+                      self_public_key: &PublicKey,
+                      transactions: &[NetworkerTCTransaction])
                         -> (TransBalanceState, 
                             Result<ProcessTransListOutput, ProcessTransListError>) {
 
@@ -261,7 +263,9 @@ fn process_trans_list(transactions: &[NetworkerTCTransaction],
     };
 
     for (index, trans) in transactions.into_iter().enumerate() {
-        trans_balance_state = match process_trans(trans_balance_state, trans, 
+        trans_balance_state = match process_trans(trans_balance_state,
+                                                  self_public_key,
+                                                  trans, 
                                                   &mut trans_list_output) {
             (tbs, Err(e)) => return (tbs, Err(ProcessTransListError {
                 index, 
@@ -276,11 +280,12 @@ fn process_trans_list(transactions: &[NetworkerTCTransaction],
 }
 
 pub fn atomic_process_trans_list(balance_state: BalanceState,
-                             transactions: &[NetworkerTCTransaction])
+                                 self_public_key: &PublicKey,
+                                 transactions: &[NetworkerTCTransaction])
     -> (BalanceState, Result<ProcessTransListOutput, ProcessTransListError>) {
 
     let trans_balance_state = TransBalanceState::new(balance_state);
-    match process_trans_list(transactions, trans_balance_state) {
+    match process_trans_list(trans_balance_state, self_public_key, transactions) {
         (tbs, Ok(out)) => (tbs.commit(), Ok(out)),
         (tbs, Err(e)) => (tbs.cancel(), Err(e)),
     }

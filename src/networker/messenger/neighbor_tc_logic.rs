@@ -1,5 +1,6 @@
 use proto::networker::ChannelToken;
 use crypto::rand_values::RandValue;
+use crypto::identity::PublicKey;
 use super::super::messages::MoveTokenDirection;
 use super::balance_state::{BalanceState, NetworkerTCTransaction, 
     ProcessTransListOutput, ProcessTransListError,
@@ -39,6 +40,7 @@ pub enum ReceiveTokenOutput {
 
 
 pub fn receive_move_token(neighbor_tc_state: NeighborTCState, 
+                          self_public_key: &PublicKey,
                           move_token_message: &NeighborMoveToken, 
                           new_token: ChannelToken) 
     -> (NeighborTCState, Result<ReceiveTokenOutput, NeighborTCStateError>) {
@@ -57,6 +59,7 @@ pub fn receive_move_token(neighbor_tc_state: NeighborTCState,
         MoveTokenDirection::Outgoing => {
             if move_token_message.old_token == neighbor_tc_state.chain_state.new_token {
                 match atomic_process_trans_list(neighbor_tc_state.balance_state, 
+                                                self_public_key,
                                                 &move_token_message.transactions) {
                     (balance_state, Ok(output)) => {
                         // If processing the transactions was successful, we 
