@@ -120,11 +120,11 @@ pub struct ProcessTransListOutput {
 
 #[derive(Debug)]
 pub enum ProcessTransError {
-    TempToCompile,
     RemoteMaxDebtTooLarge(u64),
     InvoiceIdExists,
     MissingInvoiceId,
     InvalidInvoiceId,
+    InvalidFundsReceipt,
 }
 
 #[derive(Debug)]
@@ -164,14 +164,15 @@ fn process_set_invoice_id(mut trans_balance_state: TransBalanceState,
     (trans_balance_state, Ok(()))
 }
 
-fn process_load_funds(trans_balance_state: TransBalanceState,
+
+fn process_load_funds(mut trans_balance_state: TransBalanceState,
                       self_public_key: &PublicKey,
                       send_funds_receipt: &SendFundsReceipt)
                                     -> (TransBalanceState, Result<(), ProcessTransError>) {
     // Verify signature:
-    // send_funds_receipt.verify()
-    // TODO: We need to know our own public key somehow.
-    assert!(false);
+    if !send_funds_receipt.verify(self_public_key) {
+        return (trans_balance_state, Err(ProcessTransError::InvalidFundsReceipt))
+    }
 
     // Make sure that the invoice_id matches the one we have:
     match &trans_balance_state.credit_state.local_invoice_id {
@@ -183,11 +184,24 @@ fn process_load_funds(trans_balance_state: TransBalanceState,
         &None => return (trans_balance_state, Err(ProcessTransError::MissingInvoiceId)),
     };
 
+    // Possibly trim payment so that: local_pending_debt - balance < MAX_NEIGHBOR_DEBT
+    // This means that the sender of payment is losing some credits in this transaction.
+    let credit_state = &mut trans_balance_state.credit_state;
+    let max_payment = cmp::max(MAX_NEIGHBOR_DEBT as i64 - 
+        credit_state.local_pending_debt as i64 + 
+        credit_state.balance as i64, 0) as u64;
+    let payment = cmp::min(send_funds_receipt.payment, max_payment as u128) as u64;
 
-    // Make sure that there is enough room to apply the funds.
+    // Apply payment to balance:
+    credit_state.balance -= payment as i64;
 
+    // Possibly increase local_max_debt if we got too many credits:
+    credit_state.local_max_debt = cmp::max(
+        credit_state.local_max_debt as i64, 
+        credit_state.local_pending_debt as i64 - credit_state.balance as i64)
+            as u64;
 
-    unreachable!();
+    (trans_balance_state, Ok(()))
 }
 
 fn process_request_send_message(trans_balance_state: TransBalanceState,
