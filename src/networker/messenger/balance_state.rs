@@ -209,6 +209,16 @@ fn process_request_send_message(trans_balance_state: TransBalanceState,
                                    request_send_msg: &RequestSendMessage)
                                     -> (TransBalanceState, 
                                         Result<Option<ProcessTransOutput>, ProcessTransError>) {
+    // TODO:
+    // - Make sure that route contains 
+    //  (remote_public_key -> local_public_key) in this order.
+    //
+    // - Make sure it is possible to increase remote_max_debt, and then increase it.
+    //
+    // - Check if request_id is not already inside pending_remote_requests.
+    //   If not, insert into pending_remote_requests.
+    //
+    // - Output a Some(IncomingRequestSendMessage)
     unreachable!();
 }
 
