@@ -1,3 +1,5 @@
+use byteorder::{WriteBytesExt, BigEndian};
+
 use crypto::hash::HashResult;
 
 use crypto::identity::Signature;
@@ -16,7 +18,7 @@ pub struct SendFundsReceipt {
     //       sha512/256(nodeIdPath) ||
     //       mediatorPaymentProposal)
     pub invoice_id: InvoiceId,
-    payment: u128,
+    pub payment: u128,
     rand_nonce: RandValue,
     signature: Signature,
     // Signature{key=recipientKey}(
@@ -33,8 +35,8 @@ impl SendFundsReceipt {
         let mut data = Vec::new();
         data.extend(self.response_hash.as_ref());
         data.extend(self.invoice_id.as_ref());
-        // TODO: Serialize u128
-        assert!(false);
+        data.write_u128::<BigEndian>(self.payment)
+            .expect("Error writing u128 into data");
         data.extend(self.rand_nonce.as_ref());
 
         verify_signature(&data, public_key, &self.signature)
