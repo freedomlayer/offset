@@ -1,22 +1,10 @@
-use std::cmp::Ordering;
-
-const BASE: i16 = 256;
-
-/// Default counter length, in the number of bytes
-const DEFAULT_COUNTER_LENGTH: usize = 12;
-
-/// Default size of window, in the number of bits
-const DEFAULT_WINDOW_CAPACITY: usize = 256;
-
-pub struct SlidingWindow {
-    words:    Vec<usize>,
-    counter:  Vec<u8>,
-    capacity: usize,
-}
+//! The implementation of the sliding window
 
 /// A sliding window
 ///
-/// The slidable bit window, with a internal counter, the inner data layout can
+/// # Introduction
+///
+/// The slidable bit window, with a internal nonce, the inner data layout can
 /// be shown as follow:
 ///
 /// ```ignore
@@ -24,197 +12,123 @@ pub struct SlidingWindow {
 /// +---+---+---+---+---+---+---+---+ ... +---+---+---+---+---+---+---+---+
 /// | 1 | 0 | 1 | 0 | 0 | 0 | 1 | 1 | ... | 1 | 0 | 1 | 0 | 0 | 0 | 1 | 1 |
 /// +---+---+---+---+---+---+---+---+ ... +---+---+---+---+---+---+---+---+
-///   ↳  counter - capacity -1                                  counter ↵
+///   ↳  counter - width - 1                                   counter ↵
 /// ```
+pub struct SlidingWindow {
+    words: Vec<u64>,
+    nonce: u128,
+    width: usize,
+}
+
 impl SlidingWindow {
-    pub fn new() -> SlidingWindow {
-        let word_size = ::std::mem::size_of::<usize>() * 8;
-
-        SlidingWindow {
-            words:    vec![usize::max_value(); DEFAULT_WINDOW_CAPACITY / word_size],
-            counter:  vec![0; DEFAULT_COUNTER_LENGTH],
-            capacity: DEFAULT_WINDOW_CAPACITY,
-        }
-    }
-
-    /// Try to accept a new counter.
-    ///
-    /// Check whether the given `counter` in the range of the current
-    /// window, if so, the counter will be updated and return `true`,
-    /// otherwise, `false` will be returned.
-    ///
-    /// **NOTE:** If the length of the given counter differ to the one
-    /// of window, `false` would be returned directly.
+    /// Constructs a new `SlidingWindow` with exactly the width.
     ///
     /// # Panics
     ///
-    /// Panics if the counters have different length.
-    pub fn try_accept(&mut self, counter: &[u8]) -> bool {
-        if counter.len() != self.counter.len() {
-            return false;
+    /// Panics if the width not divisible by `64`.
+    pub fn new(width: usize) -> SlidingWindow {
+        assert_eq!(width % 64, 0, "width should divisible by 64");
+
+        SlidingWindow {
+            words: vec![0; width / 64],
+            nonce: 0,
+            width,
         }
+    }
 
-        match cmp(&counter, &self.counter) {
-            Ordering::Equal => false,
-            Ordering::Less => {
-                let dif = sub_unchecked(&self.counter, &counter);
-                let dif = dif.iter()
-                    .rev()
-                    .fold(0usize, |dif, &x| dif * BASE as usize + x as usize);
+    /// Try to accept a nonce, returns `true` if the `nonce` was accepted.
+    ///
+    /// This function determine whether we should accept a nonce, we accept
+    /// a nonce if it satisfies either:
+    ///
+    /// - The nonce greater than the old one.
+    /// - The nonce in the range of `(old nonce - capacity , old nonce)`, and
+    ///   it have not been accepted previous.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the length of the `nonce` greater than `16`.
+    pub fn try_accept(&mut self, nonce: &[u8]) -> bool {
+        let nonce = nonce_to_u128(nonce);
 
-                dif < self.capacity && !self.set(dif)
+        if nonce < self.nonce {
+            let dif = self.nonce - nonce;
+
+            if dif >= self.width as u128 {
+                false
+            } else {
+                !self.set(dif as usize)
             }
-            Ordering::Greater => {
-                let dif = sub_unchecked(&counter, &self.counter);
-                if dif.len() > ::std::mem::size_of::<usize>() {
-                    self.clear();
-                } else {
-                    let dif = dif.iter()
-                        .rev()
-                        .fold(0usize, |dif, &x| dif * BASE as usize + x as usize);
-                    if dif >= self.capacity {
-                        self.clear();
-                    } else {
-                        self.shift_left(dif);
-                    }
-                }
-
-                self.counter.copy_from_slice(&counter);
-                !self.set(0)
-            }
-        }
-    }
-
-    fn clear(&mut self) {
-        self.words = vec![0; self.capacity / (::std::mem::size_of::<usize>() * 8)];
-    }
-
-    fn shift_left(&mut self, nbits: usize) {
-        let word_size = ::std::mem::size_of::<usize>() * 8;
-
-        let nwords = nbits / word_size;
-        self.words = self.words.split_off(nwords);
-        self.words.extend(&vec![0; nwords]);
-
-        assert_eq!(
-            self.words.len(),
-            self.capacity / word_size,
-            "bad shift left in words"
-        );
-
-        let nbits = nbits % word_size;
-
-        let len = self.words.len();
-
-        for i in 0..(len - 1) {
-            self.words[i] <<= nbits;
-            self.words[i] |= self.words[i + 1] >> (word_size - nbits);
-        }
-        self.words[len - 1] <<= nbits;
-    }
-
-    // Set the specified bit, return the previous value
-    fn set(&mut self, i: usize) -> bool {
-        assert!(
-            i < self.capacity,
-            "index out of bounds: {} >= {}",
-            i,
-            self.capacity
-        );
-
-        let (w, f) = calc_offset_and_flag(i, self.capacity);
-
-        let prev = self.words[w] & f == f;
-
-        self.words[w] |= f;
-
-        prev
-    }
-}
-
-#[inline]
-fn calc_offset_and_flag(mut i: usize, capacity: usize) -> (usize, usize) {
-    let word_size = ::std::mem::size_of::<usize>() * 8;
-
-    i = capacity - 1 - i;
-
-    let w = i / word_size;
-    let b = i % word_size;
-
-    let f = 1 << (word_size - 1 - b);
-
-    (w, f)
-}
-
-#[inline]
-fn cmp(lhs: &[u8], rhs: &[u8]) -> Ordering {
-    assert_eq!(lhs.len(), rhs.len());
-
-    let len = lhs.len();
-
-    for i in (0..len).rev() {
-        match lhs[i].cmp(&rhs[i]) {
-            Ordering::Equal => (),
-            res @ _ => return res,
-        }
-    }
-
-    Ordering::Equal
-}
-
-#[inline]
-fn sub_unchecked(lhs: &[u8], rhs: &[u8]) -> Vec<u8> {
-    let len = ::std::cmp::min(lhs.len(), rhs.len());
-    let (lhs_lo, lhs_hi) = lhs.split_at(len);
-    let (rhs_lo, rhs_hi) = rhs.split_at(len);
-
-    let mut dif: i16 = 0;
-    let mut res = Vec::new();
-
-    for (lhs, rhs) in lhs_lo.iter().zip(rhs_lo) {
-        dif += *lhs as i16;
-        dif -= *rhs as i16;
-
-        if dif < 0 {
-            res.push((dif + BASE) as u8);
-            dif = -1;
         } else {
-            res.push((dif % BASE) as u8);
-            dif = dif / BASE;
+            let dif = nonce - self.nonce;
+
+            // Note: we truncate the difference here
+            self.shift_left(::std::cmp::min(dif, self.width as u128) as usize);
+
+            self.nonce = nonce;
+            !self.set(0)
         }
     }
 
-    for lhs in lhs_hi {
-        dif += *lhs as i16;
+    /// Bitwise shift left.
+    fn shift_left(&mut self, nbits: usize) {
+        if nbits > 0 {
+            if nbits >= self.width {
+                self.words = vec![0; self.width / 64];
+            } else {
+                let nwords = nbits / 64;
+                self.words = self.words.split_off(nwords);
+                self.words.extend(&vec![0; nwords]);
 
-        res.push((dif % BASE) as u8);
-        dif = dif / BASE;
+                assert_eq!(self.words.len(), self.width / 64, "bad shift result");
+
+                let nbits = nbits % 64;
+                if nbits > 0 {
+                    let len = self.words.len();
+
+                    for i in 0..(len - 1) {
+                        self.words[i] <<= nbits;
+                        self.words[i] |= self.words[i + 1] >> (64 - nbits);
+                    }
+                    self.words[len - 1] <<= nbits;
+                }
+            }
+        }
     }
 
-    assert!(
-        dif == 0 && rhs_hi.iter().all(|rhs| *rhs == 0),
-        "can't not subtract rhs from lhs because rhs is larger than lhs"
-    );
+    /// Set the specified bit, returns the old value.
+    fn set(&mut self, i: usize) -> bool {
+        assert!(i < self.width, "index out of bounds: {} >= {}", i, self.width);
 
-    // Remove the trailing ZERO
-    while res.ends_with(&[0]) {
-        res.pop();
+        let i = self.width - 1 - i;
+
+        let mask = 1 << (64 - 1 - i % 64);
+        let old_bit = self.words[i / 64] & mask == mask;
+        self.words[i / 64] |= mask;
+
+        old_bit
     }
-
-    res
 }
 
-/// Increase the bytes represented number by 1.
+/// Convert an array style nonce to `u128`.
 ///
-/// Reference: `libsodium/sodium/utils.c#L241`
+/// # Panics
+///
+/// Panics if the length of the `nonce` greater than `16`.
 #[inline]
-#[cfg(test)]
-fn increase_nonce(nonce: &mut [u8]) {
-    let mut c: u16 = 1;
-    for i in nonce {
-        c += u16::from(*i);
-        *i = c as u8;
-        c >>= 8;
+fn nonce_to_u128(nonce: &[u8]) -> u128 {
+    assert!(nonce.len() <= 16, "nonce length overflows");
+
+    let mut aligned = Vec::from(nonce);
+    aligned.extend(&vec![0; 16 - nonce.len()]);
+
+    #[cfg(target_endian="big")]
+    aligned.reverse();
+
+    unsafe {
+        let u128_ptr = ::std::mem::transmute::<*const u8, *const u128>(aligned.as_ptr());
+
+        *u128_ptr
     }
 }
 
@@ -222,80 +136,61 @@ fn increase_nonce(nonce: &mut [u8]) {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_sub_unchecked_same_length() {
-        let a = vec![0, 0, 0];
-        let b = vec![0, 0, 0];
+    const WINDOW_WIDTH: usize = 256;
 
-        assert_eq!(sub_unchecked(&a, &b), vec![]);
-
-        let a = vec![4, 5, 6];
-        let b = vec![1, 2, 3];
-
-        assert_eq!(sub_unchecked(&a, &b), vec![3, 3, 3]);
-
-        let a = vec![7, 8, 9];
-        let b = vec![9, 8, 7];
-
-        assert_eq!(sub_unchecked(&a, &b), vec![254, 255, 1]);
+    /// Increase the bytes represented number by 1.
+    fn increase_nonce(nonce: &mut [u8]) {
+        let mut c: u16 = 1;
+        for i in nonce {
+            c += u16::from(*i);
+            *i = c as u8;
+            c >>= 8;
+        }
     }
 
     #[test]
-    fn test_sub_unchecked_diff_length() {
-        let a = vec![0, 0];
-        let b = vec![0, 0, 0];
+    fn nonce_to_u128_small() {
+        let nonce1 = vec![0, 1, 2];
+        assert_eq!(nonce_to_u128(&nonce1), 131_328);
 
-        assert_eq!(sub_unchecked(&a, &b), vec![]);
+        let nonce2 = vec![255; 16];
+        assert_eq!(nonce_to_u128(&nonce2), u128::max_value());
+    }
 
-        let a = vec![4, 5, 6, 7];
-        let b = vec![1, 2, 3];
+    #[test]
+    #[should_panic]
+    fn nonce_to_u128_large() {
+        let _ = nonce_to_u128(&vec![0; 17]);
+    }
 
-        assert_eq!(sub_unchecked(&a, &b), vec![3, 3, 3, 7]);
-
-        let a = vec![1, 2, 3, 4];
-        let b = vec![2, 3, 4];
-
-        assert_eq!(sub_unchecked(&a, &b), vec![255, 254, 254, 3]);
-
-        let a = vec![1, 2, 3, 4];
-        let b = vec![2, 3, 4, 0, 0];
-
-        assert_eq!(sub_unchecked(&a, &b), vec![255, 254, 254, 3]);
+    #[test]
+    fn test_sliding_window_shift() {
+        let mut window = SlidingWindow::new(WINDOW_WIDTH);
     }
 
     #[test]
     fn test_sliding_window() {
-        let mut window = SlidingWindow::new();
+        let mut window = SlidingWindow::new(WINDOW_WIDTH);
 
-        let zero = vec![0x00; DEFAULT_COUNTER_LENGTH];
-        let mut counter = vec![0x00; DEFAULT_COUNTER_LENGTH];
+        let mut nonce = vec![0, 0, 0, 0];
 
-        // Don't accept the zero
-        assert!(!window.try_accept(&zero));
-
-        for i in 0..DEFAULT_WINDOW_CAPACITY {
-            increase_nonce(&mut counter);
-            assert!(window.try_accept(&counter) && !window.try_accept(&counter));
+        for _ in 0..WINDOW_WIDTH {
+            increase_nonce(&mut nonce);
+            assert!(window.try_accept(&nonce) && !window.try_accept(&nonce));
         }
 
-        let word_size = ::std::mem::size_of::<usize>() * 8;
-        assert_eq!(window.counter, counter);
-        assert_eq!(
-            window.words,
-            vec![usize::max_value(); DEFAULT_WINDOW_CAPACITY / word_size]
-        );
+        assert_eq!(window.nonce, nonce_to_u128(&nonce));
+        assert_eq!(window.words, vec![u64::max_value(); 4]);
 
-        // Don't accept the zero
-        assert!(!window.try_accept(&zero));
+        increase_nonce(&mut nonce);
+        let out_of_range = nonce.clone();
+        assert_eq!(out_of_range, vec![1, 1, 0, 0]);
 
-        increase_nonce(&mut counter);
-        let delay_counter = counter.clone();
-
-        for i in 1..DEFAULT_WINDOW_CAPACITY {
-            increase_nonce(&mut counter);
-            assert!(window.try_accept(&counter) && !window.try_accept(&counter));
+        for i in 0..WINDOW_WIDTH {
+            increase_nonce(&mut nonce);
+            assert!(window.try_accept(&nonce) && !window.try_accept(&nonce));
         }
 
-        assert!(window.try_accept(&delay_counter) && !window.try_accept(&delay_counter));
+        assert!(!window.try_accept(&out_of_range));
     }
 }
