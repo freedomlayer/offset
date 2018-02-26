@@ -1,55 +1,47 @@
-//! The implementation of the sliding window
+//! Implementation of the sliding nonce window
 
-use byteorder::{ByteOrder, LittleEndian};
-
-/// A sliding window
+/// A sliding nonce window
 ///
-/// # Introduction
-///
-/// The slidable bit window, with a internal nonce, the inner data layout can
-/// be shown as follow:
+/// The sliding nonce window keeps a nonce, which indicates the upper
+/// bound of the window. The inner data layout can be shown as follow:
 ///
 /// ```ignore
 ///                                   ...   7   6   5   4   3   2   1   0
 /// +---+---+---+---+---+---+---+---+ ... +---+---+---+---+---+---+---+---+
 /// | 1 | 0 | 1 | 0 | 0 | 0 | 1 | 1 | ... | 1 | 0 | 1 | 0 | 0 | 0 | 1 | 1 |
 /// +---+---+---+---+---+---+---+---+ ... +---+---+---+---+---+---+---+---+
-///   ↳  counter - width - 1                                   counter ↵
+///   ↳  nonce - width - 1                                       nonce ↵
 /// ```
-pub struct SlidingWindow {
-    blocks: Vec<u64>,
+pub struct NonceWindow {
     nonce: u128,
+    blocks: Vec<u64>,
 }
 
-impl SlidingWindow {
-    /// Constructs a new `SlidingWindow` with exactly the width.
+impl NonceWindow {
+    /// Constructs a new `NonceWindow` with exactly the width.
     ///
     /// # Panics
     ///
     /// Panics if the width not divisible by `64`.
-    pub fn new(width: usize) -> SlidingWindow {
+    pub fn new(width: usize) -> NonceWindow {
         assert_eq!(width % 64, 0, "width should divisible by 64");
 
-        SlidingWindow {
-            blocks: vec![0; width / 64],
+        NonceWindow {
             nonce: 0,
+            blocks: vec![0; width / 64],
         }
     }
 
     /// Try to accept a nonce, returns `true` if the `nonce` was accepted.
     ///
     /// This function determine whether we should accept a nonce, we accept
-    /// a nonce if it satisfies either:
+    /// a nonce if it satisfies either of:
     ///
     /// - The nonce greater than the old one.
-    /// - The nonce in the range of `(old nonce - capacity , old nonce)`, and
-    ///   it have not been accepted previous.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the length of the `nonce` greater than `16`.
-    pub fn try_accept(&mut self, nonce: &[u8]) -> bool {
-        let nonce = nonce_to_u128(nonce);
+    /// - The nonce in the range of `(old nonce - window width, old nonce]`,
+    ///   and it have not been accepted previous.
+    pub fn try_accept<T: Into<u128>>(&mut self, nonce: T) -> bool {
+        let nonce = nonce.into();
 
         let width = self.blocks.len() as u128 * 64;
 
@@ -72,7 +64,6 @@ impl SlidingWindow {
         }
     }
 
-
     /// Set the specified bit, returns the old value.
     fn set(&mut self, i: usize) -> bool {
         let width = self.blocks.len() * 64;
@@ -89,20 +80,6 @@ impl SlidingWindow {
     }
 }
 
-/// Convert an array style nonce to `u128`.
-///
-/// # Panics
-///
-/// Panics if the length of the `nonce` greater than `16`.
-#[inline]
-fn nonce_to_u128(nonce: &[u8]) -> u128 {
-    assert!(nonce.len() <= 16, "nonce overflows");
-
-    let mut aligned = Vec::from(nonce);
-    aligned.resize(16, 0);
-
-    LittleEndian::read_u128(&aligned)
-}
 
 /// Logical left shift of the bits.
 #[inline]
@@ -132,8 +109,23 @@ fn shift_left(blocks: &mut Vec<u64>, nbits: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use byteorder::{ByteOrder, LittleEndian};
 
+    const NONCE_LENGTH: usize = 4;
     const WINDOW_WIDTH: usize = 256;
+
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    struct Nonce(pub [u8; NONCE_LENGTH]);
+
+    impl<'a> From<&'a Nonce> for u128 {
+        #[inline]
+        fn from(src: &'a Nonce) -> u128 {
+            let mut aligned = Vec::from(&src.0[..]);
+            aligned.resize(16, 0);
+
+            LittleEndian::read_u128(&aligned)
+        }
+    }
 
     /// Increase the bytes represented number by 1.
     fn increase_nonce(nonce: &mut [u8]) {
@@ -143,21 +135,6 @@ mod tests {
             *i = c as u8;
             c >>= 8;
         }
-    }
-
-    #[test]
-    fn nonce_to_u128_small() {
-        let nonce1 = vec![0, 1, 2];
-        assert_eq!(nonce_to_u128(&nonce1), 131_328);
-
-        let nonce2 = vec![255; 16];
-        assert_eq!(nonce_to_u128(&nonce2), u128::max_value());
-    }
-
-    #[test]
-    #[should_panic]
-    fn nonce_to_u128_large() {
-        let _ = nonce_to_u128(&vec![0; 17]);
     }
 
     #[test]
@@ -184,25 +161,25 @@ mod tests {
     }
 
     #[test]
-    fn test_sliding_window() {
-        let mut window = SlidingWindow::new(WINDOW_WIDTH);
+    fn test_nonce_window() {
+        let mut window = NonceWindow::new(WINDOW_WIDTH);
 
-        let mut nonce = vec![0, 0, 0, 0];
+        let mut nonce = Nonce([0; NONCE_LENGTH]);
 
         for _ in 0..WINDOW_WIDTH {
-            increase_nonce(&mut nonce);
+            increase_nonce(&mut nonce.0[..]);
             assert!(window.try_accept(&nonce) && !window.try_accept(&nonce));
         }
 
-        assert_eq!(window.nonce, nonce_to_u128(&nonce));
-        assert_eq!(window.blocks, vec![u64::max_value(); 4]);
+        assert_eq!(window.nonce, (&nonce).into());
+        assert_eq!(window.blocks, vec![u64::max_value(); WINDOW_WIDTH / 64]);
 
-        increase_nonce(&mut nonce);
+        increase_nonce(&mut nonce.0[..]);
         let out_of_range = nonce.clone();
-        assert_eq!(out_of_range, vec![1, 1, 0, 0]);
+        assert_eq!(out_of_range, Nonce([1, 1, 0, 0]));
 
         for _ in 0..WINDOW_WIDTH {
-            increase_nonce(&mut nonce);
+            increase_nonce(&mut nonce.0[..]);
             assert!(window.try_accept(&nonce) && !window.try_accept(&nonce));
         }
 
