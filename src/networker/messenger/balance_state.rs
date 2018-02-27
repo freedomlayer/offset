@@ -215,6 +215,9 @@ fn process_load_funds(mut trans_balance_state: TransBalanceState,
         credit_state.local_pending_debt as i64 - credit_state.balance as i64)
             as u64;
 
+    // Empty local_invoice_id:
+    trans_balance_state.credit_state.local_invoice_id = None;
+
     (trans_balance_state, Ok(None))
 }
 
