@@ -2,7 +2,7 @@ use std::cmp;
 use std::mem;
 use std::collections::HashMap;
 
-use proto::indexer::NeighborsRoute;
+use proto::indexer::{NeighborsRoute, PkPairPosition};
 use crypto::rand_values::RandValue;
 use crypto::uid::Uid;
 use crypto::identity::{Signature, PublicKey};
@@ -260,21 +260,7 @@ fn process_request_send_message(mut trans_balance_state: TransBalanceState,
 
     // TODO: Deal with case where we are the the last on the route chain 
     // (Should get processing fee)
-
-    // Find myself in the route chain:
-    let public_keys = &request_send_msg.route.public_keys;
-    match public_keys
-        .iter()
-        .position(|pk| pk == local_public_key) {
-        None => return (trans_balance_state, Err(ProcessTransError::PKPairNotInChain)),
-        Some(0) => return (trans_balance_state, Err(ProcessTransError::PKPairNotInChain)),
-        Some(i) => {
-            if public_keys[i-1] != *remote_public_key {
-                return (trans_balance_state, Err(ProcessTransError::PKPairNotInChain))
-            }
-        },
-    };
-
+    
     // Check if request_id is not already inside pending_remote_requests.
     // If not, insert into pending_remote_requests.
     let remote_requests = trans_balance_state.tp_remote_requests.get_hmap();
@@ -282,16 +268,25 @@ fn process_request_send_message(mut trans_balance_state: TransBalanceState,
         return (trans_balance_state, Err(ProcessTransError::RemoteRequestIdExists))
     }
 
-    // Make sure it is possible to increase remote_max_debt, and then increase it.
-    let per_byte = request_send_msg.credits_per_byte_proposal;
-    if per_byte == 0 {
-        return (trans_balance_state, Err(ProcessTransError::InvalidFeeProposal))
-    }
+    // Find myself in the route chain:
+    let pending_credit = match request_send_msg.route.find_pk_pair(remote_public_key, local_public_key) {
+        PkPairPosition::NotFound => return (trans_balance_state, Err(ProcessTransError::PKPairNotInChain)),
+        PkPairPosition::NotLast => {
+            // Make sure it is possible to increase remote_max_debt, and then increase it.
+            let per_byte = request_send_msg.credits_per_byte_proposal;
+            if per_byte == 0 {
+                return (trans_balance_state, Err(ProcessTransError::InvalidFeeProposal))
+            }
 
-    // The amount of credit we are expected to freeze if we process this message:
-    let pending_credit = match per_byte.checked_mul(request_send_msg.bytes_count() as u64) {
-        Some(pending_credit) => pending_credit,
-        None => return (trans_balance_state, Err(ProcessTransError::PendingCreditTooLarge)),
+            // The amount of credit we are expected to freeze if we process this message:
+            match per_byte.checked_mul(request_send_msg.bytes_count() as u64) {
+                Some(pending_credit) => pending_credit,
+                None => return (trans_balance_state, Err(ProcessTransError::PendingCreditTooLarge)),
+            }
+        },
+        PkPairPosition::IsLast => {
+            panic!("TODO here");
+        },
     };
 
 
