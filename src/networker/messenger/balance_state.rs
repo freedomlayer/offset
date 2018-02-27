@@ -13,7 +13,6 @@ use utils::trans_hashmap::TransHashMap;
 
 const MAX_NEIGHBOR_DEBT: u64 = (1 << 63) - 1;
 
-#[derive(Clone)]
 pub struct RequestSendMessage {
     request_id: Uid,
     route: NeighborsRoute,
@@ -212,7 +211,7 @@ fn process_set_remote_max_debt(mut trans_balance_state: TransBalanceState,
 }
 
 fn process_set_invoice_id(mut trans_balance_state: TransBalanceState,
-                          invoice_id: &InvoiceId)
+                          invoice_id: InvoiceId)
                                     -> (TransBalanceState, 
                                         Result<Option<ProcessTransOutput>, ProcessTransError>) {
 
@@ -226,7 +225,7 @@ fn process_set_invoice_id(mut trans_balance_state: TransBalanceState,
 
 fn process_load_funds(mut trans_balance_state: TransBalanceState,
                       local_public_key: &PublicKey,
-                      send_funds_receipt: &SendFundsReceipt)
+                      send_funds_receipt: SendFundsReceipt)
                         -> (TransBalanceState, 
                             Result<Option<ProcessTransOutput>, ProcessTransError>) {
     // Verify signature:
@@ -300,35 +299,18 @@ fn process_request_send_message(mut trans_balance_state: TransBalanceState,
         return (trans_balance_state, Err(ProcessTransError::PendingCreditTooLarge));
     }
 
-    let request_send_msg = request_send_msg.clone();
     (trans_balance_state, Ok(Some(ProcessTransOutput::Request(request_send_msg))))
-
-
-    /*
-      balance - localPendingD  balance       balance + remotePendingD
-                      |          |                |
-    ----------[-------(----------*----------------)------------]--------->
-              |                                                |
-    -localMaxDebt                                   RemoteMaxDebt
-    */
-
-
-    // TODO:
-    //
-    //
-    // - Output a Some(IncomingRequestSendMessage)
-    // unreachable!();
 }
 
 fn process_response_send_message(trans_balance_state: TransBalanceState,
-                                   response_send_msg: &ResponseSendMessage)
+                                   response_send_msg: ResponseSendMessage)
                                     -> (TransBalanceState, 
                                         Result<Option<ProcessTransOutput>, ProcessTransError>) {
     unreachable!();
 }
 
 fn process_failed_send_message(trans_balance_state: TransBalanceState,
-                                   failed_send_msg: &FailedSendMessage)
+                                   failed_send_msg: FailedSendMessage)
                                     -> (TransBalanceState, 
                                         Result<Option<ProcessTransOutput>, ProcessTransError>) {
     unreachable!();
@@ -361,30 +343,30 @@ fn process_reset_channel(mut trans_balance_state: TransBalanceState,
 fn process_trans(trans_balance_state: TransBalanceState, 
                  local_public_key: &PublicKey,
                  remote_public_key: &PublicKey,
-                 trans: &NetworkerTCTransaction)
+                 trans: NetworkerTCTransaction)
                     -> (TransBalanceState, 
                         Result<Option<ProcessTransOutput>, ProcessTransError>) {
 
-    match *trans {
+    match trans {
         NetworkerTCTransaction::SetRemoteMaxDebt(proposed_max_debt) => 
             process_set_remote_max_debt(trans_balance_state,
                                         proposed_max_debt),
-        NetworkerTCTransaction::SetInvoiceId(ref rand_nonce) =>
+        NetworkerTCTransaction::SetInvoiceId(rand_nonce) =>
             process_set_invoice_id(trans_balance_state,
                                      rand_nonce),
-        NetworkerTCTransaction::LoadFunds(ref send_funds_receipt) => 
+        NetworkerTCTransaction::LoadFunds(send_funds_receipt) => 
             process_load_funds(trans_balance_state,
                                local_public_key,
                                send_funds_receipt),
-        NetworkerTCTransaction::RequestSendMessage(ref request_send_msg) =>
+        NetworkerTCTransaction::RequestSendMessage(request_send_msg) =>
             process_request_send_message(trans_balance_state,
                                          local_public_key,
                                          remote_public_key,
                                          request_send_msg),
-        NetworkerTCTransaction::ResponseSendMessage(ref response_send_msg) =>
+        NetworkerTCTransaction::ResponseSendMessage(response_send_msg) =>
             process_response_send_message(trans_balance_state,
                                           response_send_msg),
-        NetworkerTCTransaction::FailedSendMessage(ref failed_send_msg) => 
+        NetworkerTCTransaction::FailedSendMessage(failed_send_msg) => 
             process_failed_send_message(trans_balance_state,
                                         failed_send_msg),
     }
@@ -393,7 +375,7 @@ fn process_trans(trans_balance_state: TransBalanceState,
 fn process_trans_list(mut trans_balance_state: TransBalanceState, 
                       local_public_key: &PublicKey,
                       remote_public_key: &PublicKey,
-                      transactions: &[NetworkerTCTransaction])
+                      transactions: Vec<NetworkerTCTransaction>)
                         -> (TransBalanceState, 
                             Result<Vec<ProcessTransOutput>, ProcessTransListError>) {
 
@@ -423,7 +405,7 @@ fn process_trans_list(mut trans_balance_state: TransBalanceState,
 pub fn atomic_process_trans_list(balance_state: BalanceState,
                                  local_public_key: &PublicKey,
                                  remote_public_key: &PublicKey,
-                                 transactions: &[NetworkerTCTransaction])
+                                 transactions: Vec<NetworkerTCTransaction>)
     -> (BalanceState, Result<Vec<ProcessTransOutput>, ProcessTransListError>) {
 
     let trans_balance_state = TransBalanceState::new(balance_state);

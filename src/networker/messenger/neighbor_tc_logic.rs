@@ -42,7 +42,7 @@ pub enum ReceiveTokenOutput {
 pub fn receive_move_token(neighbor_tc_state: NeighborTCState, 
                           local_public_key: &PublicKey,
                           remote_public_key: &PublicKey,
-                          move_token_message: &NeighborMoveToken, 
+                          move_token_message: NeighborMoveToken, 
                           new_token: ChannelToken) 
     -> (NeighborTCState, Result<ReceiveTokenOutput, NeighborTCStateError>) {
 
@@ -62,7 +62,7 @@ pub fn receive_move_token(neighbor_tc_state: NeighborTCState,
                 match atomic_process_trans_list(neighbor_tc_state.balance_state, 
                                                 local_public_key,
                                                 remote_public_key,
-                                                &move_token_message.transactions) {
+                                                move_token_message.transactions) {
                     (balance_state, Ok(output)) => {
                         // If processing the transactions was successful, we 
                         // set old_token, new_token and direction:
