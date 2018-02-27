@@ -17,6 +17,8 @@ pub struct NonceWindow {
     blocks: Vec<u64>,
 }
 
+pub trait WindowNonce: Into<u128> {}
+
 impl NonceWindow {
     /// Constructs a new `NonceWindow` with exactly the width.
     ///
@@ -40,7 +42,7 @@ impl NonceWindow {
     /// - The nonce greater than the old one.
     /// - The nonce in the range of `(old nonce - window width, old nonce]`,
     ///   and it have not been accepted previous.
-    pub fn try_accept<T: Into<u128>>(&mut self, nonce: T) -> bool {
+    pub fn try_accept<T: WindowNonce>(&mut self, nonce: T) -> bool {
         let nonce = nonce.into();
 
         let width = self.blocks.len() as u128 * 64;
@@ -126,6 +128,8 @@ mod tests {
             LittleEndian::read_u128(&aligned)
         }
     }
+
+    impl<'a> WindowNonce for &'a Nonce {}
 
     /// Increase the bytes represented number by 1.
     fn increase_nonce(nonce: &mut [u8]) {
