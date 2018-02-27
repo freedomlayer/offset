@@ -8,6 +8,7 @@ use tokio_core::reactor::Handle;
 use ring::rand::SecureRandom;
 
 use crypto::uid::Uid;
+use crypto::rand_values::RandValue;
 use timer::messages::FromTimer;
 
 use super::messages::{NetworkerToChanneler, NetworkerToDatabase, 
@@ -27,15 +28,21 @@ use database::clients::networker_client::DBNetworkerClient;
 use channeler::messages::ChannelerToNetworker;
 
 use proto::funder::InvoiceId;
-use proto::networker::{NetworkerTokenChannelTransaction, ChannelToken};
+use proto::networker::{ChannelToken};
+
+mod neighbor_tc_logic;
+mod balance_state;
 
 
 /// Full state of a Neighbor token channel.
 struct NeighborTokenChannel {
     pub move_token_direction: MoveTokenDirection,
-    pub transactions: Vec<NetworkerTokenChannelTransaction>,
+    pub move_token_message: Vec<u8>,
+    // Raw bytes of last incoming/outgoing Move Token Message.
+    // We already processed this message.
     pub old_token: ChannelToken,
-    pub rand_nonce: Uid,
+    pub new_token: ChannelToken,
+    // Equals Sha512/256(move_token_message)
     pub remote_max_debt: u64,
     pub local_max_debt: u64,
     pub remote_pending_debt: u64,
