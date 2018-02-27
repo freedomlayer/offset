@@ -1,4 +1,5 @@
 use std::cmp;
+use std::mem;
 use std::collections::HashMap;
 
 use proto::indexer::NeighborsRoute;
@@ -19,6 +20,20 @@ pub struct RequestSendMessage {
     max_response_len: u32,
     processing_fee_proposal: u64,
     credits_per_byte_proposal: u64,
+}
+
+impl RequestSendMessage {
+    pub fn bytes_count(&self) -> usize {
+        // We count the bytes count here and not before deserialization,
+        // because we actually charge for the amount of bytes we send, and not for the 
+        // amount of bytes we receive (Those could possibly be encoded in some strange way)
+        mem::size_of::<Uid>() + 
+            mem::size_of::<PublicKey>() * self.route.public_keys.len() +
+            self.request_content.len() * 1 +
+            mem::size_of_val(&self.max_response_len) +
+            mem::size_of_val(&self.processing_fee_proposal) +
+            mem::size_of_val(&self.credits_per_byte_proposal)
+    }
 }
 
 pub struct ResponseSendMessage {
@@ -338,3 +353,35 @@ pub fn atomic_process_trans_list(balance_state: BalanceState,
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ring::test::rand::FixedByteRandom;
+    use crypto::uid::Uid;
+
+
+    #[test]
+    fn test_request_send_msg_bytes_count() {
+        let rng1 = FixedByteRandom { byte: 0x03 };
+
+        assert_eq!(mem::size_of::<PublicKey>(), 32);
+
+        let rsm = RequestSendMessage {
+            request_id: Uid::new(&rng1),
+            route: NeighborsRoute {
+                public_keys: vec![
+                    PublicKey::from_bytes(&vec![0u8; 32]).unwrap(),
+                    PublicKey::from_bytes(&vec![0u8; 32]).unwrap(),
+                ],
+            },
+            request_content: vec![1,2,3,4,5],
+            max_response_len: 0x200,
+            processing_fee_proposal: 1,
+            credits_per_byte_proposal: 2,
+        };
+
+        let expected = 16 + 32 + 32 + 5 + 4 + 8 + 8;
+        assert_eq!(rsm.bytes_count(), expected);
+    }
+}
