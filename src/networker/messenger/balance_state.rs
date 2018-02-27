@@ -13,6 +13,7 @@ use utils::trans_hashmap::TransHashMap;
 
 const MAX_NEIGHBOR_DEBT: u64 = (1 << 63) - 1;
 
+#[derive(Clone)]
 pub struct RequestSendMessage {
     request_id: Uid,
     route: NeighborsRoute,
@@ -73,6 +74,58 @@ struct CreditState {
     pub remote_invoice_id: Option<InvoiceId>,
 }
 
+impl CreditState {
+    fn set_local_max_debt(&mut self, proposed_max_debt: u64) -> bool {
+        let max_local_max_debt: u64 = cmp::min(
+            MAX_NEIGHBOR_DEBT as i64, 
+            (self.local_pending_debt as i64) - self.balance) as u64;
+
+        if proposed_max_debt > max_local_max_debt {
+            false
+        } else {
+            self.local_max_debt = proposed_max_debt;
+            true
+        }
+    }
+
+    fn set_remote_invoice_id(&mut self, invoice_id: InvoiceId) -> bool {
+        self.remote_invoice_id = match &self.remote_invoice_id {
+            &None => Some(invoice_id),
+            &Some(_) => return false,
+        };
+        true
+    }
+
+    fn decrease_balance(&mut self, payment: u128) {
+        // Possibly trim payment so that: local_pending_debt - balance < MAX_NEIGHBOR_DEBT
+        // This means that the sender of payment is losing some credits in this transaction.
+        let max_payment = cmp::max(MAX_NEIGHBOR_DEBT as i64 - 
+            self.local_pending_debt as i64 + 
+            self.balance as i64, 0) as u64;
+        let payment = cmp::min(payment, max_payment as u128) as u64;
+
+        // Apply payment to balance:
+        self.balance -= payment as i64;
+
+        // Possibly increase local_max_debt if we got too many credits:
+        self.local_max_debt = cmp::max(
+            self.local_max_debt as i64, 
+            self.local_pending_debt as i64 - self.balance as i64)
+                as u64;
+    }
+
+    fn increase_remote_pending(&mut self, pending_credit: u64) -> bool {
+        if pending_credit as i64 > 
+            (self.remote_max_debt as i64) - self.balance 
+                - self.remote_max_debt as i64 {
+            self.remote_pending_debt += pending_credit;
+            true
+        } else {
+            false
+        }
+    }
+}
+
 pub struct BalanceState {
     credit_state: CreditState,
     pending_local_requests: HashMap<Uid, PendingNeighborRequest>,
@@ -113,8 +166,6 @@ impl TransBalanceState {
     }
 }
 
-pub struct IncomingRequestSendMessage {
-}
 
 pub struct IncomingResponseSendMessage {
 }
@@ -123,7 +174,7 @@ pub struct IncomingFailedSendMessage {
 }
 
 pub enum ProcessTransOutput {
-    Request(IncomingRequestSendMessage),
+    Request(RequestSendMessage),
     Response(IncomingResponseSendMessage),
     Failure(IncomingFailedSendMessage),
 }
@@ -139,6 +190,7 @@ pub enum ProcessTransError {
     PKPairNotInChain,
     RemoteRequestIdExists,
     InvalidFeeProposal,
+    PendingCreditTooLarge,
 }
 
 #[derive(Debug)]
@@ -152,17 +204,10 @@ fn process_set_remote_max_debt(mut trans_balance_state: TransBalanceState,
                                     -> (TransBalanceState, 
                                         Result<Option<ProcessTransOutput>, ProcessTransError>) {
 
-    let credit_state = &trans_balance_state.credit_state;
-    let max_local_max_debt: u64 = cmp::min(
-        MAX_NEIGHBOR_DEBT as i64, 
-        (credit_state.local_pending_debt as i64) - credit_state.balance) as u64;
-
-    if proposed_max_debt > max_local_max_debt {
-        (trans_balance_state, 
-         Err(ProcessTransError::RemoteMaxDebtTooLarge(proposed_max_debt)))
-    } else {
-        trans_balance_state.credit_state.local_max_debt = proposed_max_debt;
+    if trans_balance_state.credit_state.set_local_max_debt(proposed_max_debt) {
         (trans_balance_state, Ok(None))
+    } else {
+        (trans_balance_state, Err(ProcessTransError::RemoteMaxDebtTooLarge(proposed_max_debt)))
     }
 }
 
@@ -171,13 +216,11 @@ fn process_set_invoice_id(mut trans_balance_state: TransBalanceState,
                                     -> (TransBalanceState, 
                                         Result<Option<ProcessTransOutput>, ProcessTransError>) {
 
-    let remote_invoice_id = &mut trans_balance_state.credit_state.remote_invoice_id;
-    *remote_invoice_id = match *remote_invoice_id {
-        None => Some(invoice_id.clone()),
-        Some(_) => return (trans_balance_state, 
-                           Err(ProcessTransError::InvoiceIdExists)),
-    };
-    (trans_balance_state, Ok(None))
+    if trans_balance_state.credit_state.set_remote_invoice_id(invoice_id.clone()) {
+        (trans_balance_state, Ok(None))
+    } else {
+        (trans_balance_state, Err(ProcessTransError::InvoiceIdExists))
+    }
 }
 
 
@@ -201,22 +244,7 @@ fn process_load_funds(mut trans_balance_state: TransBalanceState,
         &None => return (trans_balance_state, Err(ProcessTransError::MissingInvoiceId)),
     };
 
-    // Possibly trim payment so that: local_pending_debt - balance < MAX_NEIGHBOR_DEBT
-    // This means that the sender of payment is losing some credits in this transaction.
-    let credit_state = &mut trans_balance_state.credit_state;
-    let max_payment = cmp::max(MAX_NEIGHBOR_DEBT as i64 - 
-        credit_state.local_pending_debt as i64 + 
-        credit_state.balance as i64, 0) as u64;
-    let payment = cmp::min(send_funds_receipt.payment, max_payment as u128) as u64;
-
-    // Apply payment to balance:
-    credit_state.balance -= payment as i64;
-
-    // Possibly increase local_max_debt if we got too many credits:
-    credit_state.local_max_debt = cmp::max(
-        credit_state.local_max_debt as i64, 
-        credit_state.local_pending_debt as i64 - credit_state.balance as i64)
-            as u64;
+    trans_balance_state.credit_state.decrease_balance(send_funds_receipt.payment);
 
     // Empty local_invoice_id:
     trans_balance_state.credit_state.local_invoice_id = None;
@@ -224,12 +252,15 @@ fn process_load_funds(mut trans_balance_state: TransBalanceState,
     (trans_balance_state, Ok(None))
 }
 
-fn process_request_send_message(trans_balance_state: TransBalanceState,
+fn process_request_send_message(mut trans_balance_state: TransBalanceState,
                                     local_public_key: &PublicKey,
                                     remote_public_key: &PublicKey,
                                    request_send_msg: &RequestSendMessage)
                                     -> (TransBalanceState, 
                                         Result<Option<ProcessTransOutput>, ProcessTransError>) {
+
+    // TODO: Deal with case where we are the the last on the route chain 
+    // (Should get processing fee)
 
     // Find myself in the route chain:
     let public_keys = &request_send_msg.route.public_keys;
@@ -247,30 +278,31 @@ fn process_request_send_message(trans_balance_state: TransBalanceState,
 
     // Check if request_id is not already inside pending_remote_requests.
     // If not, insert into pending_remote_requests.
-    
     let remote_requests = trans_balance_state.tp_remote_requests.get_hmap();
     if remote_requests.contains_key(&request_send_msg.request_id) {
         return (trans_balance_state, Err(ProcessTransError::RemoteRequestIdExists))
     }
 
-    // - Make sure it is possible to increase remote_max_debt, and then increase it.
-    
-
+    // Make sure it is possible to increase remote_max_debt, and then increase it.
     let per_byte = request_send_msg.credits_per_byte_proposal;
     if per_byte == 0 {
         return (trans_balance_state, Err(ProcessTransError::InvalidFeeProposal))
     }
 
     // The amount of credit we are expected to freeze if we process this message:
-    let pending_credit = (per_byte as u128) * (request_send_msg.bytes_count() as u128);
-    let credit_state = &trans_balance_state.credit_state;
+    let pending_credit = match per_byte.checked_mul(request_send_msg.bytes_count() as u64) {
+        Some(pending_credit) => pending_credit,
+        None => return (trans_balance_state, Err(ProcessTransError::PendingCreditTooLarge)),
+    };
 
-    /*
-    if pending_credit > 
-        (credit_state.remote_max_debt as i64) - credit_state.balance - credit_state.remote_max_debt {
+
+    if !trans_balance_state.credit_state.increase_remote_pending(pending_credit) {
+        return (trans_balance_state, Err(ProcessTransError::PendingCreditTooLarge));
     }
-    */
-    
+
+    let request_send_msg = request_send_msg.clone();
+    (trans_balance_state, Ok(Some(ProcessTransOutput::Request(request_send_msg))))
+
 
     /*
       balance - localPendingD  balance       balance + remotePendingD
@@ -281,14 +313,11 @@ fn process_request_send_message(trans_balance_state: TransBalanceState,
     */
 
 
-
     // TODO:
-    //
-    // - Make sure it is possible to increase remote_max_debt, and then increase it.
     //
     //
     // - Output a Some(IncomingRequestSendMessage)
-    unreachable!();
+    // unreachable!();
 }
 
 fn process_response_send_message(trans_balance_state: TransBalanceState,
