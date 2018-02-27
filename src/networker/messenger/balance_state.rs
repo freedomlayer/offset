@@ -254,7 +254,7 @@ fn process_load_funds(mut trans_balance_state: TransBalanceState,
 fn process_request_send_message(mut trans_balance_state: TransBalanceState,
                                     local_public_key: &PublicKey,
                                     remote_public_key: &PublicKey,
-                                   request_send_msg: &RequestSendMessage)
+                                   request_send_msg: RequestSendMessage)
                                     -> (TransBalanceState, 
                                         Result<Option<ProcessTransOutput>, ProcessTransError>) {
 
