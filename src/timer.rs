@@ -160,6 +160,7 @@ mod tests {
             .map(|client| {
                 client.take(100).collect().and_then(|_| {
                     assert!(start.elapsed() >= dur * 100);
+                    assert!(start.elapsed() < dur * (100 + 1));
                     Ok(())
                 })
             })
