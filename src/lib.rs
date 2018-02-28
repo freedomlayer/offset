@@ -1,8 +1,9 @@
+#![allow(dead_code)]
+
 #![crate_type = "lib"]
 #![feature(nll)]
 #![feature(try_from)]
 #![feature(i128_type)]
-#![feature(use_nested_groups)]
 #![feature(refcell_replace_swap)]
 #![feature(conservative_impl_trait, universal_impl_trait)]
 #![feature(iterator_step_by)]
