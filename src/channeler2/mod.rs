@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use std::rc::Rc;
 
 use bytes::{Bytes, BytesMut, Buf, BufMut, BigEndian};
-use byteorder::ByteOrder;
+use byteorder::{ByteOrder, LittleEndian};
 use futures::prelude::*;
 use futures::sync::{mpsc, oneshot};
 use ring::aead::{open_in_place, seal_in_place, OpeningKey, SealingKey};
@@ -19,6 +19,7 @@ use crypto::identity::PublicKey;
 //use crypto::rand_values::RandValue;
 use security_module::client::SecurityModuleClient;
 use timer::messages::FromTimer;
+use utils::{NonceWindow, WindowNonce};
 
 use proto::{Schema, SchemaError};
 use networker::messages::NetworkerToChanneler;
@@ -35,15 +36,24 @@ mod handshake;
 
 use self::handshake::{HandshakeManager, ToHandshakeManager, HandshakeManagerError};
 
+// TODO: Introduce `ChannelerConfig`
 const TAG_LEN: usize = 16;
 const NONCE_LEN: usize = 12;
+const RETRY_TICKS: usize = 100;
 const CHANNEL_ID_LEN: usize = 16;
 const MAX_RAND_PADDING_LEN: usize = 32;
 
 define_wrapped_bytes!(Nonce, NONCE_LEN);
 define_wrapped_bytes!(ChannelId, CHANNEL_ID_LEN);
 
-const RETRY_TICKS: usize = 100;
+impl<'a> From<&'a Nonce> for u128 {
+    #[inline]
+    fn from(nonce: &'a Nonce) -> u128 {
+        let mut aligned = Vec::from(&nonce.0[..]);
+        aligned.resize(16, 0);
+        LittleEndian::read_u128(&aligned)
+    }
+}
 
 /// The channel event expected to be sent to `Networker`.
 pub enum ChannelEvent {
@@ -68,9 +78,9 @@ pub struct SendingEndState {
 }
 
 pub struct ReceivingEndState {
-    channel_id:    ChannelId,
-//    recv_window:  NonceWindow,
-opening_key: OpeningKey,
+    channel_id:  ChannelId,
+    recv_window: NonceWindow,
+    opening_key: OpeningKey,
 }
 
 #[derive(Clone)]
@@ -155,7 +165,26 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
         TE: Into<ChannelerError>,
 {
     fn process_timer_next(&mut self) -> Poll<(), ChannelerError> {
-        unimplemented!()
+        self.timer_receiver.poll()
+            .map_err(|_| ChannelerError::RecvFromTimerError)
+            .and_then(|item| match item {
+                Async::NotReady => Ok(Async::NotReady),
+                Async::Ready(None) => Err(ChannelerError::TimerClosed),
+                Async::Ready(Some(FromTimer::TimeTick)) => {
+                    for neighbor in self.neighbors.borrow_mut().values_mut() {
+                        if let Some(remote_addr) = neighbor.socket_addr {
+                            if neighbor.retry_ticks <= 1 {
+                                neighbor.retry_ticks = RETRY_TICKS;
+                                self.process_new_handshake(remote_addr, neighbor.public_key.clone());
+                            } else {
+                                neighbor.retry_ticks -= 1;
+                            }
+                        }
+                    }
+
+                    Ok(Async::Ready(()))
+                }
+            })
     }
 
     fn process_networker_next(&mut self) -> Poll<(), ChannelerError> {
@@ -223,47 +252,6 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
 
     // ===========================================================================================
 
-//     fn retry_connect(&mut self) -> Poll<(), ChannelerError> {
-//         let mut messages = Vec::new();
-//
-//         for (public_key, neighbor) in self.neighbors.borrow_mut().iter_mut() {
-//             if let Some(socket_addr) = neighbor.socket_addr {
-//                 if let Some(remaining) = neighbor.retry_ticks.checked_sub(1) {
-//                     neighbor.retry_ticks = remaining;
-//                 } else {
-//                     neighbor.retry_ticks = RETRY_TICKS;
-//
-//                     let session_id = (public_key.clone(), Direction::Outgoing);
-//
-//                     if !self.pending.contains(&session_id) {
-//                         let init = InitChannel {
-//                             rand_nonce: RandValue::new(&*self.secure_rng),
-//                             public_key: public_key.clone(),
-//                         };
-//                         let message = {
-//                             let raw = ChannelerMessage::InitChannel(init)
-//                                 .encode()
-//                                 .map_err(ChannelerError::Schema)?;
-//
-//                             (socket_addr, raw)
-//                         };
-//
-//                         messages.push((session_id, message));
-//                     }
-//                 }
-//             }
-//         }
-//
-//         for (session_id, message) in messages {
-//             // Try to send the `InitChannel` message to remote, we
-//             // do not buffer this message when the sender is busy.
-//             try_ready!(self.start_send_outer(message, false));
-//             debug_assert!(self.pending.insert(session_id));
-//         }
-//
-//         Ok(Async::Ready(()))
-//     }
-
     /// Add the given neighbor to channeler
     fn add_neighbor(&mut self, info: ChannelerNeighborInfo) {
         trace!("request to add neighbor: {:?}", info.public_key);
@@ -311,6 +299,42 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
         };
 
         self.try_start_send_outgoing(item)
+    }
+
+    fn process_new_handshake(&self, remote_addr: SocketAddr, neighbor_public_key: PublicKey) {
+        let outgoing_sender = self.outgoing_sender.clone();
+        let handshake_manager_sender = self.handshake_manager_sender.clone();
+
+        let (response_sender, response_receiver) = oneshot::channel();
+
+        let message_to_handshake_manager = ToHandshakeManager::NewHandshake {
+            neighbor_public_key,
+            response_sender,
+        };
+
+        let forward_task = handshake_manager_sender
+            .send(message_to_handshake_manager)
+            .map_err(|_| ChannelerError::HandshakeManagerError)
+            .and_then(move |_| {
+                response_receiver
+                    .map_err(|_| ChannelerError::HandshakeManagerError)
+                    .and_then(move |init_channel| {
+                        ChannelerMessage::InitChannel(init_channel)
+                            .encode()
+                            .into_future()
+                            .map_err(ChannelerError::Schema)
+                            .and_then(move |plain| {
+                                outgoing_sender
+                                    .send((remote_addr, plain))
+                                    .map_err(|_| ChannelerError::SendToRemoteFailed)
+                                    .and_then(|_| Ok(()))
+                            })
+                    })
+            });
+
+        self.handle.spawn(forward_task.map_err(|e| {
+            info!("failed to process new handshake request: {:?}", e);
+        }))
     }
 
     fn process_init_channel(&self, remote_addr: SocketAddr, init_channel: InitChannel) {
@@ -563,7 +587,6 @@ pub fn opening_channel_message(
 ) -> Result<Plain, ()> {
     let nonce = encrypted_message.split_to(NONCE_LEN);
 
-    // FIXME: test nonce
     // if !receiving_end.recv_window.try_accept(&nonce) {
     //     Err(())
     // } else {
@@ -616,6 +639,7 @@ mod tests {
 
         let mut receiving_end = ReceivingEndState {
             channel_id: ChannelId::try_from(&[0x00u8; CHANNEL_ID_LEN][..]).unwrap(),
+            recv_window: NonceWindow::new(256),
             opening_key: OpeningKey::new(&CHACHA20_POLY1305, &[0x03u8; 32][..]).unwrap(),
         };
 
@@ -644,6 +668,7 @@ mod tests {
 
         let mut receiving_end = ReceivingEndState {
             channel_id: ChannelId::try_from(&[0xffu8; CHANNEL_ID_LEN][..]).unwrap(),
+            recv_window: NonceWindow::new(256),
             opening_key: OpeningKey::new(&CHACHA20_POLY1305, &[0x03u8; 32][..]).unwrap(),
         };
 
