@@ -166,7 +166,7 @@ fn main() {
                         let neighbor_public_key = identity.get_public_key();
 
                         let message = NetworkerToChanneler::RemoveNeighbor {
-                            neighbor_public_key,
+                            public_key: neighbor_public_key,
                         };
 
                         if channeler_sender.try_send(message).is_err() {

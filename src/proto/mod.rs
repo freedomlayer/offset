@@ -24,7 +24,7 @@ pub trait Schema<'a>: Sized {
     type Reader: 'a;
     type Writer: 'a;
 
-    fn decode(buffer: Bytes) -> Result<Self, SchemaError>;
+    fn decode(buffer: &[u8]) -> Result<Self, SchemaError>;
     fn encode(&self) -> Result<Bytes, SchemaError>;
     fn read(from: &Self::Reader) -> Result<Self, SchemaError>;
     fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError>;
@@ -34,6 +34,7 @@ pub mod schema_impl;
 
 pub mod common;
 pub mod channeler;
+pub mod channeler_udp;
 pub mod indexer;
 pub mod funder;
 pub mod networker;

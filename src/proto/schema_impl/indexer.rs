@@ -633,44 +633,17 @@ mod tests {
             source_node_public_key: create_dummy_public_key(),
             destination_node_public_key: create_dummy_public_key(),
         };
-
-        let serialized_message = in_request_friends_route_direct.encode().unwrap();
-
-        let out_request_friends_route_direct =
-            RequestFriendsRoutes::decode(serialized_message).unwrap();
-
-        assert_eq!(
-            in_request_friends_route_direct,
-            out_request_friends_route_direct
-        );
+        test_encode_decode!(RequestFriendsRoutes, in_request_friends_route_direct);
 
         let in_request_friends_route_loop_from_friend = RequestFriendsRoutes::LoopFromFriend {
             friend_public_key: create_dummy_public_key(),
         };
-
-        let serialized_message = in_request_friends_route_loop_from_friend.encode().unwrap();
-
-        let out_request_friends_route_loop_from_friend =
-            RequestFriendsRoutes::decode(serialized_message).unwrap();
-
-        assert_eq!(
-            in_request_friends_route_loop_from_friend,
-            out_request_friends_route_loop_from_friend
-        );
+        test_encode_decode!(RequestFriendsRoutes, in_request_friends_route_loop_from_friend);
 
         let in_request_friends_route_loop_to_friend = RequestFriendsRoutes::LoopToFriend {
             friend_public_key: create_dummy_public_key(),
         };
-
-        let serialized_message = in_request_friends_route_loop_to_friend.encode().unwrap();
-
-        let out_request_friends_route_loop_to_friend =
-            RequestFriendsRoutes::decode(serialized_message).unwrap();
-
-        assert_eq!(
-            in_request_friends_route_loop_to_friend,
-            out_request_friends_route_loop_to_friend
-        );
+        test_encode_decode!(RequestFriendsRoutes, in_request_friends_route_loop_to_friend);
     }
 
     #[test]

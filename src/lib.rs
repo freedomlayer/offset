@@ -31,6 +31,7 @@ pub mod utils;
 // Modules
 pub mod app_manager;
 pub mod channeler;
+pub mod channeler2;
 pub mod database;
 pub mod funder;
 pub mod indexer_client;
@@ -45,3 +46,4 @@ mod proto;
 use proto::schema_impl::common::common_capnp;
 use proto::schema_impl::indexer::indexer_capnp;
 use proto::schema_impl::channeler::channeler_capnp;
+use proto::schema_impl::channeler_udp::channeler_udp_capnp;
