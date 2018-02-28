@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::net::SocketAddr;
 use std::rc::Rc;
 
 use futures::prelude::*;
@@ -11,7 +10,7 @@ use tokio_core::reactor::Handle;
 use channeler2::{ChannelId, NeighborInfo, NeighborsTable, CHANNEL_ID_LEN};
 use crypto::dh::{DhPrivateKey, Salt};
 use crypto::hash::{HashResult, sha_512_256};
-use crypto::identity::verify_signature;
+use crypto::identity::{PublicKey, verify_signature};
 use crypto::rand_values::RandValue;
 use proto::channeler_udp::*;
 use security_module::client::SecurityModuleClient;
@@ -23,8 +22,8 @@ pub enum ToHandshakeManager {
     TimerTick,
 
     NewHandshake {
-        neighbor_info:   NeighborInfo,
-        response_sender: oneshot::Sender<(SocketAddr, InitChannel)>,
+        neighbor_public_key: PublicKey,
+        response_sender:     oneshot::Sender<InitChannel>,
     },
 
     InitChannel {
@@ -135,27 +134,27 @@ impl<SR: SecureRandom + 'static> HandshakeManager<SR> {
 
     fn new_handshake(
         &self,
-        info: NeighborInfo,
-        response_sender: oneshot::Sender<(SocketAddr, InitChannel)>,
+        neighbor_public_key: PublicKey,
+        response_sender: oneshot::Sender<InitChannel>,
     ) {
         let sm_client = self.sm_client.clone();
         let handshakes = Rc::clone(&self.handshakes);
         let secure_rng = Rc::clone(&self.secure_rng);
         let timeout_ticks = self.handshake_timeout_ticks;
 
-        let new_handshake_task = info.socket_addr
-            .ok_or(HandshakeManagerError::NotAllowed)
-            .into_future()
-            .and_then(move |remote_addr| {
-                let id = HandshakeId::new(HandshakeRole::Initiator, info.public_key.clone());
+        let validation = move || {
+            let id = HandshakeId::new(HandshakeRole::Initiator, neighbor_public_key);
 
-                if handshakes.borrow().contains_id(&id) {
-                    Err(HandshakeManagerError::NotAllowed)
-                } else {
-                    Ok((remote_addr, id, handshakes))
-                }
-            })
-            .and_then(move |(remote_addr, id, handshakes)| {
+            if handshakes.borrow().contains_id(&id) {
+                Err(HandshakeManagerError::NotAllowed)
+            } else {
+                Ok((id, handshakes))
+            }
+        };
+
+        let new_handshake_task = validation()
+            .into_future()
+            .and_then(move |(id, handshakes)| {
                 let rand_nonce = RandValue::new(&*secure_rng);
 
                 sm_client
@@ -166,12 +165,12 @@ impl<SR: SecureRandom + 'static> HandshakeManager<SR> {
                             rand_nonce,
                             public_key,
                         };
-                        Ok((remote_addr, id, handshakes, init_channel))
+                        Ok((id, handshakes, init_channel))
                     })
             })
-            .and_then(move |(remote_addr, id, handshakes, init_channel)| {
+            .and_then(move |(id, handshakes, init_channel)| {
                 response_sender
-                    .send((remote_addr, init_channel.clone()))
+                    .send(init_channel.clone())
                     .map_err(|_| HandshakeManagerError::SendResponseError)
                     .and_then(move |_| Ok((id, handshakes, init_channel)))
             })
@@ -486,10 +485,10 @@ impl<SR: SecureRandom + 'static> Future for HandshakeManager<SR> {
                 Some(request) => match request {
                     ToHandshakeManager::TimerTick => self.process_timer_tick(),
                     ToHandshakeManager::NewHandshake {
-                        neighbor_info,
+                        neighbor_public_key,
                         response_sender,
                     } => {
-                        self.new_handshake(neighbor_info, response_sender);
+                        self.new_handshake(neighbor_public_key, response_sender);
                     }
                     ToHandshakeManager::InitChannel {
                         init_channel,
@@ -662,13 +661,13 @@ mod tests {
         let (response_sender, response_receiver) = oneshot::channel();
 
         let handshake_task = tx_a.send(ToHandshakeManager::NewHandshake {
-            neighbor_info: info_b,
+            neighbor_public_key: info_b.public_key.clone(),
             response_sender,
         }).map_err(|_| panic!("failed to send request to A[1]"))
             .and_then(move |tx_a| {
                 response_receiver
                     .map_err(|_| panic!("failed to receive response from A[1]"))
-                    .and_then(move |(socket_addr, init_channel)| {
+                    .and_then(move |init_channel| {
                         let (response_sender, response_receiver) = oneshot::channel();
 
                         tx_b.send(ToHandshakeManager::InitChannel {
