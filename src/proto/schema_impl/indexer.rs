@@ -619,7 +619,7 @@ mod tests {
     #[test]
     fn test_response_neighbors_route() {
         let in_response_neighbors_route = ResponseNeighborsRoutes {
-            routes: (0..MAX_NUM)
+            routes: (0..20)
                 .map(|_| create_dummy_neighbors_route())
                 .collect(),
         };
@@ -676,7 +676,7 @@ mod tests {
     #[test]
     fn test_response_friends_route() {
         let in_response_friends_route = ResponseFriendsRoutes {
-            routes: (0..MAX_NUM).map(|_| create_dummy_friends_route_with_capacity()).collect(),
+            routes: (0..20).map(|_| create_dummy_friends_route_with_capacity()).collect(),
         };
 
         test_encode_decode!(ResponseFriendsRoutes, in_response_friends_route);
@@ -692,16 +692,13 @@ mod tests {
     #[test]
     fn test_request_update_state() {
         let indexing_provider_id = create_dummy_indexing_provider_id();
-
-        let indexing_provider_states_chain = (0..MAX_NUM)
+        let indexing_provider_states_chain = (0..20)
             .map(|_| create_dummy_chain_link())
             .collect::<Vec<_>>();
-
         let in_request_update_state = RequestUpdateState {
             indexing_provider_id,
             indexing_provider_states_chain,
         };
-
         test_encode_decode!(RequestUpdateState, in_request_update_state);
     }
 
@@ -728,7 +725,7 @@ mod tests {
     fn test_routes_to_indexer() {
         let in_routes_to_indexer = RoutesToIndexer {
             indexing_provider_id: create_dummy_indexing_provider_id(),
-            routes: (0..MAX_NUM)
+            routes: (0..20)
                 .map(|_| create_dummy_indexer_route())
                 .collect::<Vec<_>>(),
             request_price: random::<u64>(),

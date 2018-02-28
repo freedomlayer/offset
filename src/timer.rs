@@ -40,7 +40,6 @@
 #![deny(warnings)]
 
 use std::{io, mem, time::Duration};
-
 use futures::prelude::*;
 use futures::sync::mpsc;
 
@@ -158,9 +157,9 @@ mod tests {
         let clients_fut = clients
             .into_iter()
             .map(|client| {
-                client.take(100).collect().and_then(|_| {
-                    assert!(start.elapsed() >= dur * 100);
-                    assert!(start.elapsed() < dur * (100 + 10));
+                client.take(17).collect().and_then(|_| {
+                    assert!(start.elapsed() >= dur * 17);
+                    assert!(start.elapsed() < dur * (17 + 10));
                     Ok(())
                 })
             })
