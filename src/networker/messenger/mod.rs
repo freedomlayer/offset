@@ -8,7 +8,6 @@ use tokio_core::reactor::Handle;
 use ring::rand::SecureRandom;
 
 use crypto::uid::Uid;
-use crypto::rand_values::RandValue;
 use timer::messages::FromTimer;
 
 use super::messages::{NetworkerToChanneler, NetworkerToDatabase, 
@@ -68,7 +67,7 @@ struct NeighborState {
 }
 
 
-
+#[allow(unused)] //TODO(a4vision): implement.
 pub fn create_messenger<SR: SecureRandom>(handle: &Handle,
                         secure_rng: Rc<SR>,
                         timer_receiver: mpsc::Receiver<FromTimer>,

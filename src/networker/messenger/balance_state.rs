@@ -203,6 +203,7 @@ fn process_load_funds(mut trans_balance_state: TransBalanceState,
     (trans_balance_state, Ok(None))
 }
 
+#[allow(unused)] //TODO(a4vision): implement.
 fn process_request_send_message(trans_balance_state: TransBalanceState,
                                     local_public_key: &PublicKey,
                                     remote_public_key: &PublicKey,
@@ -222,6 +223,7 @@ fn process_request_send_message(trans_balance_state: TransBalanceState,
     unreachable!();
 }
 
+#[allow(unused)] //TODO(a4vision): implement.
 fn process_response_send_message(trans_balance_state: TransBalanceState,
                                    response_send_msg: &ResponseSendMessage)
                                     -> (TransBalanceState, 
@@ -229,6 +231,7 @@ fn process_response_send_message(trans_balance_state: TransBalanceState,
     unreachable!();
 }
 
+#[allow(unused)] //TODO(a4vision): implement.
 fn process_failed_send_message(trans_balance_state: TransBalanceState,
                                    failed_send_msg: &FailedSendMessage)
                                     -> (TransBalanceState, 

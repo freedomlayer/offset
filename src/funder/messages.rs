@@ -7,7 +7,7 @@ use indexer_client::messages::{FriendsRouteWithCapacity, RequestNeighborsRoutes}
 use networker::messages::{RequestPath};
 use database::messages::{ResponseLoadFriends, ResponseLoadFriendToken};
 
-use proto::funder::{InvoiceId, FriendMoveToken};
+use proto::funder::InvoiceId;
 use proto::networker::ChannelToken;
 use proto::common::SendFundsReceipt;
 
