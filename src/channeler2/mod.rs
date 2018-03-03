@@ -34,7 +34,7 @@ mod channel;
 mod handshake;
 
 pub use self::channel::{ChannelId, CHANNEL_ID_LEN};
-use self::channel::{Channel, NewChannelInfo};
+use self::channel::{Channel, NewChannelInfo, ChannelConfig};
 use self::handshake::{HandshakeManager, ToHandshakeManager, HandshakeManagerError};
 
 // TODO: Introduce `ChannelerConfig`
@@ -64,6 +64,7 @@ pub struct NeighborInfo {
     pub retry_ticks: usize,
 }
 
+type ChannelsTable  = HashMap<PublicKey, Channel>;
 type NeighborsTable = HashMap<PublicKey, NeighborInfo>;
 
 pub struct Channeler<I: Stream, O: Sink, SR: SecureRandom> {
@@ -75,7 +76,7 @@ pub struct Channeler<I: Stream, O: Sink, SR: SecureRandom> {
     /// Secure random number generator
     secure_rng: Rc<SR>,
 
-    channels:  HashMap<PublicKey, Channel>,
+    channels:  Rc<RefCell<ChannelsTable>>,
     neighbors: Rc<RefCell<NeighborsTable>>,
 
     handshake_manager_sender: mpsc::Sender<ToHandshakeManager>,
@@ -189,19 +190,31 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
                 match channeler_message {
                     ChannelerMessage::Encrypted(encrypted) => {
                         // FIXME: This actually block the channeler!
-                        for (remote_public_key, channel) in self.channels.iter_mut() {
-                            match channel.try_recv(encrypted.clone()) {
-                                Ok(None) => break,
-                                Ok(Some(content)) => {
-                                    let message_to_networker = ChannelerToNetworker {
-                                        remote_public_key: remote_public_key.clone(),
-                                        event: ChannelEvent::Message(content),
-                                    };
+                        // FIXME: We may borrow the channels too long here!
+                        let opt_message = {
+                            let mut res = None;
 
-                                    return self.start_send_networker(message_to_networker);
+                            for (remote_public_key, channel) in self.channels.borrow_mut().iter_mut() {
+                                match channel.try_recv(encrypted.clone()) {
+                                    Ok(None) => break,
+                                    Ok(Some(content)) => {
+                                        let message_to_networker = ChannelerToNetworker {
+                                            remote_public_key: remote_public_key.clone(),
+                                            event: ChannelEvent::Message(content),
+                                        };
+
+                                        res = Some(message_to_networker);
+                                        break;
+                                    }
+                                    Err(_) => continue,
                                 }
-                                Err(_) => continue,
                             }
+
+                            res
+                        };
+
+                        if let Some(message) = opt_message {
+                            return self.start_send_networker(message);
                         }
                     }
                     ChannelerMessage::InitChannel(init_channel) => {
@@ -243,11 +256,6 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
         }
     }
 
-    fn add_channel(&mut self, remote_public_key: &PublicKey, new_channel_info: NewChannelInfo) {
-        if !self.channels.contains_key(remote_public_key) {
-        } else {
-        }
-    }
 
     /// Remove specified neighbor from channeler
     ///
@@ -260,7 +268,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
         trace!("request to remove neighbor: {:?}", public_key);
 
         self.neighbors.borrow_mut().remove(&public_key);
-        self.channels.remove(&public_key);
+        self.channels.borrow_mut().remove(&public_key);
     }
 
     fn do_send_channel_message(
@@ -368,6 +376,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
     }
 
     fn process_channel_ready(&self, remote_addr: SocketAddr, channel_ready: ChannelReady) {
+        let channels = Rc::clone(&self.channels);
         let handshake_manager_sender = self.handshake_manager_sender.clone();
 
         let (response_sender, response_receiver) = oneshot::channel();
@@ -383,8 +392,8 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
             .and_then(move |_| {
                 response_receiver
                     .map_err(|_| ChannelerError::HandshakeManagerError)
-                    .and_then(|new_channel_info| {
-                        // TODO: Constructs a new channel and add it into channeler
+                    .and_then(move |new_channel_info| {
+                        add_channel(channels, remote_addr, new_channel_info);
                         Ok(())
                     })
             });
@@ -395,6 +404,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
     }
 
     fn process_exchange_active(&self, remote_addr: SocketAddr, exchange_active: ExchangeActive) {
+        let channels = Rc::clone(&self.channels);
         let outgoing_sender = self.outgoing_sender.clone();
         let handshake_manager_sender = self.handshake_manager_sender.clone();
 
@@ -423,8 +433,8 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
                                     .and_then(move |_| Ok(new_channel_info))
                             })
                     })
-                    .and_then(|new_channel_info| {
-                        // TODO: Constructs a new channel and add it into channeler
+                    .and_then(move |new_channel_info| {
+                        add_channel(channels, remote_addr, new_channel_info);
                         Ok(())
                     })
             });
@@ -528,6 +538,28 @@ impl<I, O, SR, TE, RE> Future for Channeler<I, O, SR>
                     }
                 }
             }
+        }
+    }
+}
+
+fn add_channel(channels: Rc<RefCell<ChannelsTable>>, remote_addr: SocketAddr, info: NewChannelInfo) {
+    // FIXME: Find a proper way to get the config
+    let config = ChannelConfig {
+        max_recv_end: 3,
+        recv_wnd_size: 256,
+        keepalive_ticks: 100,
+    };
+
+    let remote_public_key = info.remote_public_key.clone();
+
+    {
+        let mut channels = channels.borrow_mut();
+
+        if let Some(channel) = channels.get_mut(&remote_public_key) {
+            channel.replace(remote_addr, info);
+        } else {
+            let new_channel = Channel::new(remote_addr, info, config);
+            channels.insert(remote_public_key, new_channel);
         }
     }
 }
