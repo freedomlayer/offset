@@ -40,7 +40,6 @@
 #![deny(warnings)]
 
 use std::{io, mem, time::Duration};
-
 use futures::prelude::*;
 use futures::sync::mpsc;
 
@@ -147,19 +146,21 @@ mod tests {
 
         let mut tm = TimerModule::new(dur, &handle);
 
-        let clients = (0..50)
+        const TIMER_CLIENT_NUM: usize = 50;
+        let clients = (0..TIMER_CLIENT_NUM)
             .map(|_| tm.create_client())
             .step_by(2)
             .collect::<Vec<_>>();
 
-        assert_eq!(clients.len(), 25);
+        assert_eq!(clients.len(), TIMER_CLIENT_NUM / 2);
 
         let start = time::Instant::now();
         let clients_fut = clients
             .into_iter()
             .map(|client| {
-                client.take(100).collect().and_then(|_| {
-                    assert!(start.elapsed() >= dur * 100);
+                client.take(17).collect().and_then(|_| {
+                    assert!(start.elapsed() >= dur * 17);
+                    assert!(start.elapsed() < dur * 17 * 12 / 10);
                     Ok(())
                 })
             })
