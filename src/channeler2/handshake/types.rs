@@ -124,6 +124,8 @@ impl Handshake {
             .derive_symmetric_key(&exchange_active.dh_public_key, &exchange_passive.key_salt);
 
         if self.id.is_initiator() {
+            let remote_public_key = exchange_passive.public_key;
+
             let sending_key = SealingKey::new(&CHACHA20_POLY1305, initiator_sending_key.as_bytes())
                 .map_err(|_| HandshakeManagerError::Other)?;
             let receiving_key =
@@ -131,12 +133,16 @@ impl Handshake {
                     .map_err(|_| HandshakeManagerError::Other)?;
 
             Ok(NewChannelInfo {
-                receiver_id:  responder_sender_id,
-                sender_id:    initiator_sender_id,
-                sender_key:   sending_key,
-                receiver_key: receiving_key,
+                remote_public_key,
+
+                recv_end_id:  responder_sender_id,
+                send_end_id:  initiator_sender_id,
+                send_end_key: sending_key,
+                recv_end_key: receiving_key,
             })
         } else {
+            let remote_public_key = init_channel.public_key;
+
             let sending_key = SealingKey::new(&CHACHA20_POLY1305, responder_sending_key.as_bytes())
                 .map_err(|_| HandshakeManagerError::Other)?;
             let receiving_key =
@@ -144,10 +150,12 @@ impl Handshake {
                     .map_err(|_| HandshakeManagerError::Other)?;
 
             Ok(NewChannelInfo {
-                receiver_id:  initiator_sender_id,
-                sender_id:    responder_sender_id,
-                sender_key:   sending_key,
-                receiver_key: receiving_key,
+                remote_public_key,
+
+                recv_end_id:  initiator_sender_id,
+                send_end_id:  responder_sender_id,
+                send_end_key: sending_key,
+                recv_end_key: receiving_key,
             })
         }
     }
@@ -216,12 +224,12 @@ mod tests {
 
     const TICKS: usize = 100;
 
-    fn gen_handshake_session(seed: &[u8]) -> (HashResult, Handshake) {
+    fn gen_dummy_handshake(seed: &[u8]) -> (HashResult, Handshake) {
         let hash = sha_512_256(seed);
         let remote_public_key = PublicKey::from_bytes(&[seed[0]; PUBLIC_KEY_LEN]).unwrap();
         let id = HandshakeId::new(HandshakeRole::Initiator, remote_public_key);
 
-        let new_session = Handshake {
+        let new_handshake = Handshake {
             id,
             timeout_ticks: TICKS,
             init_channel: None,
@@ -230,58 +238,58 @@ mod tests {
             exchange_passive: None,
         };
 
-        (hash, new_session)
+        (hash, new_handshake)
     }
 
     #[test]
     fn test_insert() {
-        let mut handshake_session_table = HandshakeTable::new();
+        let mut handshake_table = HandshakeTable::new();
 
-        let (hash, new_session) = gen_handshake_session(&[0, 1, 2][..]);
+        let (hash, new_session) = gen_dummy_handshake(&[0, 1, 2][..]);
 
         let new_session_id = new_session.id.clone();
 
-        handshake_session_table.insert(hash.clone(), new_session);
+        handshake_table.insert(hash.clone(), new_session);
 
-        assert!(handshake_session_table.contains(&hash));
-        assert!(handshake_session_table.contains_id(&new_session_id));
+        assert!(handshake_table.contains(&hash));
+        assert!(handshake_table.contains_id(&new_session_id));
 
-        assert!(handshake_session_table.remove(&hash).is_some());
+        assert!(handshake_table.remove(&hash).is_some());
 
-        assert!(!handshake_session_table.contains(&hash));
-        assert!(!handshake_session_table.contains_id(&new_session_id));
+        assert!(!handshake_table.contains(&hash));
+        assert!(!handshake_table.contains_id(&new_session_id));
     }
 
     #[test]
     #[should_panic]
     fn test_insert_with_same_key() {
-        let mut handshake_session_table = HandshakeTable::new();
+        let mut handshake_table = HandshakeTable::new();
 
-        let (hash, new_session1) = gen_handshake_session(&[0, 1, 2][..]);
-        let (_hash, new_session2) = gen_handshake_session(&[1, 2, 3][..]);
+        let (hash, new_session1) = gen_dummy_handshake(&[0, 1, 2][..]);
+        let (_hash, new_session2) = gen_dummy_handshake(&[1, 2, 3][..]);
 
-        handshake_session_table.insert(hash.clone(), new_session1);
-        handshake_session_table.insert(hash.clone(), new_session2);
+        handshake_table.insert(hash.clone(), new_session1);
+        handshake_table.insert(hash.clone(), new_session2);
     }
 
     #[test]
     fn test_tick() {
-        let mut handshake_session_table = HandshakeTable::new();
+        let mut handshake_table = HandshakeTable::new();
 
-        let (hash1, new_session1) = gen_handshake_session(&[0, 1, 2][..]);
-        let (hash2, mut new_session2) = gen_handshake_session(&[1, 2, 3][..]);
+        let (hash1, new_handshake1) = gen_dummy_handshake(&[0, 1, 2][..]);
+        let (hash2, mut new_handshake2) = gen_dummy_handshake(&[1, 2, 3][..]);
 
-        new_session2.timeout_ticks += 1;
+        new_handshake2.timeout_ticks += 1;
 
-        handshake_session_table.insert(hash1.clone(), new_session1);
-        handshake_session_table.insert(hash2.clone(), new_session2);
+        handshake_table.insert(hash1.clone(), new_handshake1);
+        handshake_table.insert(hash2.clone(), new_handshake2);
 
         for _ in 0..TICKS {
-            handshake_session_table.tick();
+            handshake_table.tick();
         }
 
-        assert!(!handshake_session_table.contains(&hash1));
-        assert!(handshake_session_table.contains(&hash2));
-        assert_eq!(handshake_session_table.tick(), 1);
+        assert!(!handshake_table.contains(&hash1));
+        assert!(handshake_table.contains(&hash2));
+        assert_eq!(handshake_table.tick(), 1);
     }
 }

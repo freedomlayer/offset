@@ -8,7 +8,6 @@ use bytes::{Bytes, BytesMut, Buf, BufMut, BigEndian};
 use byteorder::{ByteOrder, LittleEndian};
 use futures::prelude::*;
 use futures::sync::{mpsc, oneshot};
-use ring::aead::{open_in_place, seal_in_place, OpeningKey, SealingKey};
 use ring::rand::SecureRandom;
 use tokio_core::reactor::Handle;
 
@@ -31,12 +30,11 @@ use proto::channeler_udp::{
 
 #[macro_use]
 mod macros;
-// mod errors;
 mod channel;
 mod handshake;
 
 pub use self::channel::{ChannelId, CHANNEL_ID_LEN};
-use self::channel::Channel;
+use self::channel::{Channel, NewChannelInfo};
 use self::handshake::{HandshakeManager, ToHandshakeManager, HandshakeManagerError};
 
 // TODO: Introduce `ChannelerConfig`
@@ -68,7 +66,7 @@ pub struct NeighborInfo {
 
 type NeighborsTable = HashMap<PublicKey, NeighborInfo>;
 
-pub struct Channeler<T: Sink, R: Stream, SR: SecureRandom> {
+pub struct Channeler<I: Stream, O: Sink, SR: SecureRandom> {
     handle: Handle,
 
     /// Security module client.
@@ -89,59 +87,51 @@ pub struct Channeler<T: Sink, R: Stream, SR: SecureRandom> {
 
     networker_receiver: mpsc::Receiver<NetworkerToChanneler>,
 
-    outgoing_sender:   T,
+    outgoing_sender: O,
     outgoing_buffered: Option<(SocketAddr, Bytes)>,
 
-    incoming_receiver: R,
+    incoming_receiver: I,
 }
 
+// NOTE: When an error returned by Stream::poll, it not a fatal error for futures 0.1
+// check https://github.com/rust-lang-nursery/futures-rs/issues/206 for more details.
 #[derive(Debug)]
 pub enum ChannelerError {
     Io(io::Error),
 
-    /// Error may occurred when encoding and decoding message
     Schema(SchemaError),
 
-    /// Error may occurred when processing handshake messages
-    HandshakeManager(HandshakeManagerError),
+    PollTimerError,
+    TimerTerminated,      // fatal error
 
-    RecvFromTimerError,
-    TimerClosed,
+    PollNetworkerError,
+    SendToNetworkerError, // fatal error
+    NetworkerTerminated,  // fatal error
 
-    RecvFromNetworkerError,
-    SendToNetworkerError,
-    NetworkerClosed,
+    PollIncomingError,
+    SendOutgoingError,    // fatal error
+    IncomingTerminated,   // fatal error
 
-    RecvFromRemoteError,
-    SendToRemoteError,
-    RemoteClosed,
 
-    EncryptionError,
-    DecryptionError,
+    SendToHandshakeManagerError, // fatal error
 
-    SecureRandomError,
     HandshakeManagerError,
-
-    CloseReceiverCanceled,
-    ClosingTaskCanceled,
-    SendCloseNotificationFailed,
-    NetworkerPollError,
 }
 
-impl<T, R, SR, TE, RE> Channeler<T, R, SR>
+impl<I, O, SR, TE, RE> Channeler<I, O, SR>
     where
-        T: Sink<SinkItem=(SocketAddr, Bytes), SinkError=TE> + Clone + 'static,
-        R: Stream<Item=(SocketAddr, Bytes), Error=RE>,
+        I: Stream<Item=(SocketAddr, Bytes), Error=RE>,
+        O: Sink<SinkItem=(SocketAddr, Bytes), SinkError=TE> + Clone + 'static,
         SR: SecureRandom,
         RE: Into<ChannelerError>,
         TE: Into<ChannelerError>,
 {
     fn process_timer_next(&mut self) -> Poll<(), ChannelerError> {
         let poll_result = self.timer_receiver.poll()
-            .map_err(|_| ChannelerError::RecvFromTimerError);
+            .map_err(|_| ChannelerError::PollTimerError);
 
         match try_ready!(poll_result) {
-            None => Err(ChannelerError::TimerClosed),
+            None => Err(ChannelerError::TimerTerminated),
             Some(FromTimer::TimeTick) => {
                 for neighbor in self.neighbors.borrow_mut().values_mut() {
                     if let Some(remote_addr) = neighbor.socket_addr {
@@ -161,10 +151,10 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
 
     fn process_networker_next(&mut self) -> Poll<(), ChannelerError> {
         let poll_result = self.networker_receiver.poll()
-            .map_err(|_| ChannelerError::RecvFromNetworkerError);
+            .map_err(|_| ChannelerError::PollNetworkerError);
 
         match try_ready!(poll_result) {
-            None => Err(ChannelerError::NetworkerClosed),
+            None => Err(ChannelerError::NetworkerTerminated),
             Some(networker_message) => {
                 match networker_message {
                     NetworkerToChanneler::AddNeighbor { info } => {
@@ -188,17 +178,31 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
 
     fn process_incoming_next(&mut self) -> Poll<(), ChannelerError> {
         let poll_result = self.incoming_receiver.poll()
-            .map_err(|_| ChannelerError::RecvFromRemoteError);
+            .map_err(|_| ChannelerError::PollIncomingError);
 
         match try_ready!(poll_result) {
-            None => Err(ChannelerError::RemoteClosed),
+            None => Err(ChannelerError::IncomingTerminated),
             Some((remote_addr, plain)) => {
                 let channeler_message = ChannelerMessage::decode(&plain)
                     .map_err(ChannelerError::Schema)?;
 
                 match channeler_message {
-                    ChannelerMessage::Encrypted(_encrypted) => {
-                        unimplemented!()
+                    ChannelerMessage::Encrypted(encrypted) => {
+                        // FIXME: This actually block the channeler!
+                        for (remote_public_key, channel) in self.channels.iter_mut() {
+                            match channel.try_recv(encrypted.clone()) {
+                                Ok(None) => break,
+                                Ok(Some(content)) => {
+                                    let message_to_networker = ChannelerToNetworker {
+                                        remote_public_key: remote_public_key.clone(),
+                                        event: ChannelEvent::Message(content),
+                                    };
+
+                                    return self.start_send_networker(message_to_networker);
+                                }
+                                Err(_) => continue,
+                            }
+                        }
                     }
                     ChannelerMessage::InitChannel(init_channel) => {
                         self.process_init_channel(remote_addr, init_channel);
@@ -224,7 +228,6 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
 
     // ===========================================================================================
 
-    /// Add the given neighbor to channeler
     fn add_neighbor(&mut self, info: ChannelerNeighborInfo) {
         trace!("request to add neighbor: {:?}", info.public_key);
 
@@ -237,6 +240,12 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
             self.neighbors.borrow_mut().insert(info.public_key, new_neighbor);
         } else {
             info!("neighbor: {:?} exist, do nothing", info.public_key);
+        }
+    }
+
+    fn add_channel(&mut self, remote_public_key: &PublicKey, new_channel_info: NewChannelInfo) {
+        if !self.channels.contains_key(remote_public_key) {
+        } else {
         }
     }
 
@@ -311,7 +320,7 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
                             .and_then(move |plain| {
                                 outgoing_sender
                                     .send((remote_addr, plain))
-                                    .map_err(|_| ChannelerError::SendToRemoteError)
+                                    .map_err(|_| ChannelerError::SendOutgoingError)
                                     .and_then(|_| Ok(()))
                             })
                     })
@@ -347,7 +356,7 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
                             .and_then(move |plain| {
                                 outgoing_sender
                                     .send((remote_addr, plain))
-                                    .map_err(|_| ChannelerError::SendToRemoteError)
+                                    .map_err(|_| ChannelerError::SendOutgoingError)
                                     .and_then(|_| Ok(()))
                             })
                     })
@@ -410,7 +419,7 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
                             .and_then(move |plain| {
                                 outgoing_sender
                                     .send((remote_addr, plain))
-                                    .map_err(|_| ChannelerError::SendToRemoteError)
+                                    .map_err(|_| ChannelerError::SendOutgoingError)
                                     .and_then(move |_| Ok(new_channel_info))
                             })
                     })
@@ -450,7 +459,7 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
                             .and_then(move |plain| {
                                 outgoing_sender
                                     .send((remote_addr, plain))
-                                    .map_err(|_| ChannelerError::SendToRemoteError)
+                                    .map_err(|_| ChannelerError::SendOutgoingError)
                                     .and_then(move |_| Ok(()))
                             })
                     })
@@ -461,7 +470,7 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
         }));
     }
 
-    fn try_start_send_networker(&mut self, item: ChannelerToNetworker) -> Poll<(), ChannelerError> {
+    fn start_send_networker(&mut self, item: ChannelerToNetworker) -> Poll<(), ChannelerError> {
         debug_assert!(self.networker_buffered.is_none());
 
         let start_send_result = self.networker_sender.start_send(item)
@@ -475,11 +484,11 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
         Ok(Async::Ready(()))
     }
 
-    fn try_start_send_outgoing(&mut self, item: (SocketAddr, Bytes)) -> Poll<(), ChannelerError> {
+    fn start_send_outgoing(&mut self, item: (SocketAddr, Bytes)) -> Poll<(), ChannelerError> {
         debug_assert!(self.outgoing_buffered.is_none());
 
         let start_send_result = self.outgoing_sender.start_send(item)
-            .map_err(|_| ChannelerError::SendToRemoteError);
+            .map_err(|_| ChannelerError::SendOutgoingError);
 
         if let AsyncSink::NotReady(item) = start_send_result? {
             self.outgoing_buffered = Some(item);
@@ -490,10 +499,10 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
     }
 }
 
-impl<T, R, SR, TE, RE> Future for Channeler<T, R, SR>
+impl<I, O, SR, TE, RE> Future for Channeler<I, O, SR>
     where
-        T: Sink<SinkItem=(SocketAddr, Bytes), SinkError=TE> + Clone + 'static,
-        R: Stream<Item=(SocketAddr, Bytes), Error=RE>,
+        I: Stream<Item=(SocketAddr, Bytes), Error=RE>,
+        O: Sink<SinkItem=(SocketAddr, Bytes), SinkError=TE> + Clone + 'static,
         SR: SecureRandom,
         TE: Into<ChannelerError>,
         RE: Into<ChannelerError>,
@@ -504,14 +513,14 @@ impl<T, R, SR, TE, RE> Future for Channeler<T, R, SR>
     fn poll(&mut self) -> Poll<(), ChannelerError> {
         loop {
             if let Some(outgoing_item) = self.outgoing_buffered.take() {
-                try_ready!(self.try_start_send_outgoing(outgoing_item));
+                try_ready!(self.start_send_outgoing(outgoing_item));
             }
 
             if let Some(networker_item) = self.networker_buffered.take() {
-                try_ready!(self.try_start_send_networker(networker_item));
+                try_ready!(self.start_send_networker(networker_item));
             }
 
-            // FIXME: Only finish this Future when encountered a fatal error
+            // FIXME: Only terminated Channeler when encountered a fatal error!
             if let Async::NotReady = self.process_timer_next()? {
                 if let Async::NotReady = self.process_networker_next()? {
                     if let Async::NotReady = self.process_incoming_next()? {
@@ -522,9 +531,6 @@ impl<T, R, SR, TE, RE> Future for Channeler<T, R, SR>
         }
     }
 }
-
-// ===== helper functions =====
-// TODO A proper place for these
 
 /// Generate a random byte sequence.
 #[inline]
@@ -546,8 +552,6 @@ pub fn gen_random_bytes<R: SecureRandom>(rng: &R, max_len: usize) -> Result<Byte
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::convert::TryFrom;
-    use ring::aead::CHACHA20_POLY1305;
     use ring::test::rand::FixedByteRandom;
 
     #[test]

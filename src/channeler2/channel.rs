@@ -6,8 +6,9 @@ use bytes::{Bytes, BytesMut};
 use byteorder::{ByteOrder, LittleEndian};
 use ring::aead::{SealingKey, OpeningKey, seal_in_place, open_in_place};
 
+use crypto::identity::PublicKey;
 use proto::Schema;
-use proto::channeler_udp::{ChannelerMessage, Plain};
+use proto::channeler_udp::{ChannelerMessage, Plain, PlainContent};
 use utils::{NonceWindow, WindowNonce};
 
 const TAG_LEN: usize = 16;
@@ -51,24 +52,28 @@ pub struct ChannelConfig {
 }
 
 pub struct NewChannelInfo {
-    pub send_end_id: ChannelId,
+    pub remote_public_key: PublicKey,
+
+    pub send_end_id:  ChannelId,
     pub send_end_key: SealingKey,
-    pub recv_end_id: ChannelId,
+    pub recv_end_id:  ChannelId,
     pub recv_end_key: OpeningKey,
 }
 
 pub struct SendEnd {
-    addr: SocketAddr,
-    id: ChannelId,
+    addr:  SocketAddr,
+    id:    ChannelId,
     nonce: Nonce,
-    key: SealingKey,
+    key:   SealingKey,
+
     keepalive_ticks: usize,
 }
 
 pub struct RecvEnd {
-    id: ChannelId,
+    id:  ChannelId,
     wnd: NonceWindow,
     key: OpeningKey,
+
     keepalive_ticks: usize,
 }
 
@@ -113,11 +118,16 @@ impl Channel {
     }
 
     // TODO: Also take the addr, and update the addr when encrypt the message successful?
-    pub fn try_recv(&mut self, msg: ChannelerMessage) -> Result<Plain, ()> {
-        if let ChannelerMessage::Encrypted(encrypted) = msg {
-            self.decrypt(encrypted)
-        } else {
-            Err(())
+    pub fn try_recv(&mut self, encrypted: Bytes) -> Result<Option<Bytes>, ()> {
+        let plain = self.decrypt(encrypted)?;
+
+        match plain.content {
+            PlainContent::KeepAlive => {
+                // TODO: Reset the send_end keepalive_ticks if we accept this message
+                // using the mapping recv_end.
+                Ok(None)
+            },
+            PlainContent::User(content) => Ok(Some(content)),
         }
     }
 
@@ -199,6 +209,7 @@ mod tests {
     #[test]
     fn send_recv() {
         let new_channel_info_a = NewChannelInfo {
+            remote_public_key: PublicKey::from_bytes(&vec![1u8; 32]).unwrap(),
             send_end_id: ChannelId::try_from(&[0x00; CHANNEL_ID_LEN][..]).unwrap(),
             send_end_key: SealingKey::new(&CHACHA20_POLY1305, &[0x00; 32][..]).unwrap(),
             recv_end_id: ChannelId::try_from(&[0x01; CHANNEL_ID_LEN][..]).unwrap(),
@@ -206,6 +217,7 @@ mod tests {
         };
 
         let new_channel_info_b = NewChannelInfo {
+            remote_public_key: PublicKey::from_bytes(&vec![0u8; 32]).unwrap(),
             send_end_id: ChannelId::try_from(&[0x01; CHANNEL_ID_LEN][..]).unwrap(),
             send_end_key: SealingKey::new(&CHACHA20_POLY1305, &[0x01; 32][..]).unwrap(),
             recv_end_id: ChannelId::try_from(&[0x00; CHANNEL_ID_LEN][..]).unwrap(),
@@ -230,8 +242,12 @@ mod tests {
         };
 
         let (_addr, msg) = channel_a.pre_send(plain_to_b.clone()).unwrap();
-        let plain_from_b = channel_b.try_recv(msg).unwrap();
-
-        assert_eq!(plain_to_b, plain_from_b);
+        match msg {
+            ChannelerMessage::Encrypted(encrypted) => {
+                let content_from_b = channel_b.try_recv(encrypted).unwrap();
+                assert_eq!(Some(Bytes::from("hello!")), content_from_b);
+            }
+            _ => panic!("message type not match"),
+        }
     }
 }

@@ -17,6 +17,7 @@ use security_module::client::SecurityModuleClient;
 
 mod types;
 use self::types::*;
+use super::channel::NewChannelInfo;
 
 pub enum ToHandshakeManager {
     TimerTick,
@@ -45,13 +46,6 @@ pub enum ToHandshakeManager {
         exchange_passive: ExchangePassive,
         response_sender:  oneshot::Sender<ExchangeActive>,
     },
-}
-
-pub struct NewChannelInfo {
-    pub sender_id:    ChannelId,
-    pub sender_key:   SealingKey,
-    pub receiver_id:  ChannelId,
-    pub receiver_key: OpeningKey,
 }
 
 /// The handshake manager, which manage all pending 4-way handshakes
@@ -726,8 +720,8 @@ mod tests {
 
         let (channel_a, channel_b) = core.run(handshake_task).unwrap();
 
-        assert_eq!(channel_a.sender_id, channel_b.receiver_id);
-        assert_eq!(channel_a.receiver_id, channel_b.sender_id);
+        assert_eq!(channel_a.send_end_id, channel_b.recv_end_id);
+        assert_eq!(channel_a.recv_end_id, channel_b.send_end_id);
 
         // FIXME: We can't access the raw bytes of the SealingKey and OpeningKey
         // assert_eq!(channel_a.sender_key, channel_b.receiver_key);
