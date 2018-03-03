@@ -5,6 +5,12 @@ macro_rules! define_wrapped_bytes {
         #[derive(Clone, Debug, PartialEq, Eq, Hash)]
         pub struct $name([u8; $len]);
 
+        impl $name {
+            pub fn zero() -> $name {
+                $name([0u8; $len])
+            }
+        }
+
         impl AsRef<[u8]> for $name {
             #[inline]
             fn as_ref(&self) -> &[u8] {

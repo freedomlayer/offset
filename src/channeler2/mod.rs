@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io;
 use std::net::SocketAddr;
 use std::rc::Rc;
@@ -12,6 +12,7 @@ use ring::aead::{open_in_place, seal_in_place, OpeningKey, SealingKey};
 use ring::rand::SecureRandom;
 use tokio_core::reactor::Handle;
 
+// FIXME
 use channeler::types::ChannelerNeighborInfo;
 //use crypto::dh::{DhPrivateKey, DhPublicKey, Salt};
 //use crypto::hash::{HashResult, sha_512_256};
@@ -19,7 +20,6 @@ use crypto::identity::PublicKey;
 //use crypto::rand_values::RandValue;
 use security_module::client::SecurityModuleClient;
 use timer::messages::FromTimer;
-use utils::{NonceWindow, WindowNonce};
 
 use proto::{Schema, SchemaError};
 use networker::messages::NetworkerToChanneler;
@@ -32,28 +32,17 @@ use proto::channeler_udp::{
 #[macro_use]
 mod macros;
 // mod errors;
+mod channel;
 mod handshake;
 
+pub use self::channel::{ChannelId, CHANNEL_ID_LEN};
+use self::channel::Channel;
 use self::handshake::{HandshakeManager, ToHandshakeManager, HandshakeManagerError};
 
 // TODO: Introduce `ChannelerConfig`
 const TAG_LEN: usize = 16;
-const NONCE_LEN: usize = 12;
 const RETRY_TICKS: usize = 100;
-const CHANNEL_ID_LEN: usize = 16;
 const MAX_RAND_PADDING_LEN: usize = 32;
-
-define_wrapped_bytes!(Nonce, NONCE_LEN);
-define_wrapped_bytes!(ChannelId, CHANNEL_ID_LEN);
-
-impl<'a> From<&'a Nonce> for u128 {
-    #[inline]
-    fn from(nonce: &'a Nonce) -> u128 {
-        let mut aligned = Vec::from(&nonce.0[..]);
-        aligned.resize(16, 0);
-        LittleEndian::read_u128(&aligned)
-    }
-}
 
 /// The channel event expected to be sent to `Networker`.
 pub enum ChannelEvent {
@@ -68,19 +57,6 @@ pub struct ChannelerToNetworker {
 
     /// The event happened.
     pub event: ChannelEvent,
-}
-
-pub struct SendingEndState {
-    remote_addr: SocketAddr,
-    channel_id:  ChannelId,
-    send_nonce:  Nonce,
-    sealing_key: SealingKey,
-}
-
-pub struct ReceivingEndState {
-    channel_id:  ChannelId,
-    recv_window: NonceWindow,
-    opening_key: OpeningKey,
 }
 
 #[derive(Clone)]
@@ -101,10 +77,8 @@ pub struct Channeler<T: Sink, R: Stream, SR: SecureRandom> {
     /// Secure random number generator
     secure_rng: Rc<SR>,
 
+    channels:  HashMap<PublicKey, Channel>,
     neighbors: Rc<RefCell<NeighborsTable>>,
-
-    sending_ends:   HashMap<PublicKey, SendingEndState>,
-    receiving_ends: HashMap<ChannelId, ReceivingEndState>,
 
     handshake_manager_sender: mpsc::Sender<ToHandshakeManager>,
 
@@ -134,18 +108,16 @@ pub enum ChannelerError {
     RecvFromTimerError,
     TimerClosed,
 
-
     RecvFromNetworkerError,
     SendToNetworkerError,
     NetworkerClosed,
 
+    RecvFromRemoteError,
+    SendToRemoteError,
+    RemoteClosed,
+
     EncryptionError,
     DecryptionError,
-
-    RecvFromTimerFailed,
-    SendToRemoteFailed,
-    RecvFromOuterFailed,
-    OuterStreamClosed,
 
     SecureRandomError,
     HandshakeManagerError,
@@ -165,89 +137,89 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
         TE: Into<ChannelerError>,
 {
     fn process_timer_next(&mut self) -> Poll<(), ChannelerError> {
-        self.timer_receiver.poll()
-            .map_err(|_| ChannelerError::RecvFromTimerError)
-            .and_then(|item| match item {
-                Async::NotReady => Ok(Async::NotReady),
-                Async::Ready(None) => Err(ChannelerError::TimerClosed),
-                Async::Ready(Some(FromTimer::TimeTick)) => {
-                    for neighbor in self.neighbors.borrow_mut().values_mut() {
-                        if let Some(remote_addr) = neighbor.socket_addr {
-                            if neighbor.retry_ticks <= 1 {
-                                neighbor.retry_ticks = RETRY_TICKS;
-                                self.process_new_handshake(remote_addr, neighbor.public_key.clone());
-                            } else {
-                                neighbor.retry_ticks -= 1;
-                            }
+        let poll_result = self.timer_receiver.poll()
+            .map_err(|_| ChannelerError::RecvFromTimerError);
+
+        match try_ready!(poll_result) {
+            None => Err(ChannelerError::TimerClosed),
+            Some(FromTimer::TimeTick) => {
+                for neighbor in self.neighbors.borrow_mut().values_mut() {
+                    if let Some(remote_addr) = neighbor.socket_addr {
+                        if neighbor.retry_ticks <= 1 {
+                            neighbor.retry_ticks = RETRY_TICKS;
+                            self.process_new_handshake(remote_addr, neighbor.public_key.clone());
+                        } else {
+                            neighbor.retry_ticks -= 1;
                         }
                     }
-
-                    Ok(Async::Ready(()))
                 }
-            })
+
+                Ok(Async::Ready(()))
+            }
+        }
     }
 
     fn process_networker_next(&mut self) -> Poll<(), ChannelerError> {
-        self.networker_receiver.poll()
-            .map_err(|_| ChannelerError::RecvFromNetworkerError)
-            .and_then(|item| match item {
-                Async::NotReady => Ok(Async::NotReady),
-                Async::Ready(None) => Err(ChannelerError::NetworkerClosed),
-                Async::Ready(Some(networker_message)) => {
-                    match networker_message {
-                        NetworkerToChanneler::AddNeighbor { info } => {
-                            self.add_neighbor(info);
-                        },
-                        NetworkerToChanneler::RemoveNeighbor { public_key } => {
-                            self.remove_neighbor(public_key);
-                        },
-                        NetworkerToChanneler::SendChannelMessage {
-                            neighbor_public_key,
-                            content,
-                        } => {
-                            return self.do_send_channel_message(neighbor_public_key, content);
-                        }
-                    }
+        let poll_result = self.networker_receiver.poll()
+            .map_err(|_| ChannelerError::RecvFromNetworkerError);
 
-                    Ok(Async::Ready(()))
+        match try_ready!(poll_result) {
+            None => Err(ChannelerError::NetworkerClosed),
+            Some(networker_message) => {
+                match networker_message {
+                    NetworkerToChanneler::AddNeighbor { info } => {
+                        self.add_neighbor(info);
+                    },
+                    NetworkerToChanneler::RemoveNeighbor { public_key } => {
+                        self.remove_neighbor(public_key);
+                    },
+                    NetworkerToChanneler::SendChannelMessage {
+                        neighbor_public_key,
+                        content,
+                    } => {
+                        return self.do_send_channel_message(neighbor_public_key, content);
+                    }
                 }
-            })
+
+                Ok(Async::Ready(()))
+            }
+        }
     }
 
     fn process_incoming_next(&mut self) -> Poll<(), ChannelerError> {
-        self.incoming_receiver.poll()
-            .map_err(|_| ChannelerError::RecvFromOuterFailed)
-            .and_then(|item| match item {
-                Async::NotReady => Ok(Async::NotReady),
-                Async::Ready(None) => Err(ChannelerError::RecvFromOuterFailed),
-                Async::Ready(Some((remote_addr, plain))) => {
-                    let channeler_message =
-                        ChannelerMessage::decode(&plain).map_err(ChannelerError::Schema)?;
+        let poll_result = self.incoming_receiver.poll()
+            .map_err(|_| ChannelerError::RecvFromRemoteError);
 
-                    match channeler_message {
-                        ChannelerMessage::Encrypted(encrypted) => {
-                            unimplemented!()
-                        }
-                        ChannelerMessage::InitChannel(init_channel) => {
-                            self.process_init_channel(remote_addr, init_channel);
-                        }
-                        ChannelerMessage::ChannelReady(channel_ready) => {
-                            self.process_channel_ready(remote_addr, channel_ready);
-                        }
-                        ChannelerMessage::UnknownChannel(unknown_channel) => {
-                            unimplemented!()
-                        }
-                        ChannelerMessage::ExchangeActive(exchange_active) => {
-                            self.process_exchange_active(remote_addr, exchange_active);
-                        }
-                        ChannelerMessage::ExchangePassive(exchange_passive) => {
-                            self.process_exchange_passive(remote_addr, exchange_passive);
-                        }
+        match try_ready!(poll_result) {
+            None => Err(ChannelerError::RemoteClosed),
+            Some((remote_addr, plain)) => {
+                let channeler_message = ChannelerMessage::decode(&plain)
+                    .map_err(ChannelerError::Schema)?;
+
+                match channeler_message {
+                    ChannelerMessage::Encrypted(_encrypted) => {
+                        unimplemented!()
                     }
-
-                    Ok(Async::Ready(()))
+                    ChannelerMessage::InitChannel(init_channel) => {
+                        self.process_init_channel(remote_addr, init_channel);
+                    }
+                    ChannelerMessage::ChannelReady(channel_ready) => {
+                        self.process_channel_ready(remote_addr, channel_ready);
+                    }
+                    ChannelerMessage::UnknownChannel(_unknown_channel) => {
+                        unimplemented!()
+                    }
+                    ChannelerMessage::ExchangeActive(exchange_active) => {
+                        self.process_exchange_active(remote_addr, exchange_active);
+                    }
+                    ChannelerMessage::ExchangePassive(exchange_passive) => {
+                        self.process_exchange_passive(remote_addr, exchange_passive);
+                    }
                 }
-            })
+
+                Ok(Async::Ready(()))
+            }
+        }
     }
 
     // ===========================================================================================
@@ -256,7 +228,16 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
     fn add_neighbor(&mut self, info: ChannelerNeighborInfo) {
         trace!("request to add neighbor: {:?}", info.public_key);
 
-        unimplemented!()
+        if !self.neighbors.borrow().contains_key(&info.public_key) {
+            let new_neighbor = NeighborInfo {
+                public_key: info.public_key.clone(),
+                socket_addr: info.socket_addr,
+                retry_ticks: 0,
+            };
+            self.neighbors.borrow_mut().insert(info.public_key, new_neighbor);
+        } else {
+            info!("neighbor: {:?} exist, do nothing", info.public_key);
+        }
     }
 
     /// Remove specified neighbor from channeler
@@ -269,7 +250,8 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
     fn remove_neighbor(&mut self, public_key: PublicKey) {
         trace!("request to remove neighbor: {:?}", public_key);
 
-        unimplemented!()
+        self.neighbors.borrow_mut().remove(&public_key);
+        self.channels.remove(&public_key);
     }
 
     fn do_send_channel_message(
@@ -277,28 +259,31 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
         remote_public_key: PublicKey,
         content: Bytes
     ) -> Poll<(), ChannelerError> {
-        let item = if let Some(sending_end) = self.sending_ends.get_mut(&remote_public_key) {
-            let rand_padding = gen_random_bytes(&*self.secure_rng, MAX_RAND_PADDING_LEN)
-                .map_err(|_| ChannelerError::SecureRandomError)?;
-
-            let plain = Plain {
-                rand_padding,
-                content: PlainContent::User(content)
-            };
-
-            let encrypted_message = sealing_channel_message(sending_end, plain)
-                .map_err(|_| ChannelerError::EncryptionError)?;
-
-            let message = ChannelerMessage::Encrypted(encrypted_message)
-                .encode().map_err(ChannelerError::Schema)?;
-
-            (sending_end.remote_addr, message)
-        } else {
-            info!("no sending end for: {:?}", remote_public_key);
-            return Ok(Async::Ready(()));
-        };
-
-        self.try_start_send_outgoing(item)
+        unimplemented!()
+//        let item = if let Some(channel) = self.channels.get_mut(&remote_public_key) {
+//            let rand_padding = gen_random_bytes(&*self.secure_rng, MAX_RAND_PADDING_LEN)
+//                .map_err(|_| ChannelerError::SecureRandomError)?;
+//
+//            let plain = Plain {
+//                rand_padding,
+//                content: PlainContent::User(content)
+//            };
+//
+//            let encrypted_message = sealing_channel_message(sending_end, plain)
+//                .map_err(|_| ChannelerError::EncryptionError)?;
+//
+//            increase_nonce(&mut channel.sending)
+//
+//            let message = ChannelerMessage::Encrypted(encrypted_message)
+//                .encode().map_err(ChannelerError::Schema)?;
+//
+//            (sending_end.remote_addr, message)
+//        } else {
+//            info!("no sending end for: {:?}", remote_public_key);
+//            return Ok(Async::Ready(()));
+//        };
+//
+//        self.try_start_send_outgoing(item)
     }
 
     fn process_new_handshake(&self, remote_addr: SocketAddr, neighbor_public_key: PublicKey) {
@@ -326,7 +311,7 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
                             .and_then(move |plain| {
                                 outgoing_sender
                                     .send((remote_addr, plain))
-                                    .map_err(|_| ChannelerError::SendToRemoteFailed)
+                                    .map_err(|_| ChannelerError::SendToRemoteError)
                                     .and_then(|_| Ok(()))
                             })
                     })
@@ -362,7 +347,7 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
                             .and_then(move |plain| {
                                 outgoing_sender
                                     .send((remote_addr, plain))
-                                    .map_err(|_| ChannelerError::SendToRemoteFailed)
+                                    .map_err(|_| ChannelerError::SendToRemoteError)
                                     .and_then(|_| Ok(()))
                             })
                     })
@@ -425,7 +410,7 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
                             .and_then(move |plain| {
                                 outgoing_sender
                                     .send((remote_addr, plain))
-                                    .map_err(|_| ChannelerError::SendToRemoteFailed)
+                                    .map_err(|_| ChannelerError::SendToRemoteError)
                                     .and_then(move |_| Ok(new_channel_info))
                             })
                     })
@@ -465,7 +450,7 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
                             .and_then(move |plain| {
                                 outgoing_sender
                                     .send((remote_addr, plain))
-                                    .map_err(|_| ChannelerError::SendToRemoteFailed)
+                                    .map_err(|_| ChannelerError::SendToRemoteError)
                                     .and_then(move |_| Ok(()))
                             })
                     })
@@ -494,7 +479,7 @@ impl<T, R, SR, TE, RE> Channeler<T, R, SR>
         debug_assert!(self.outgoing_buffered.is_none());
 
         let start_send_result = self.outgoing_sender.start_send(item)
-            .map_err(|_| ChannelerError::SendToRemoteFailed);
+            .map_err(|_| ChannelerError::SendToRemoteError);
 
         if let AsyncSink::NotReady(item) = start_send_result? {
             self.outgoing_buffered = Some(item);
@@ -526,6 +511,7 @@ impl<T, R, SR, TE, RE> Future for Channeler<T, R, SR>
                 try_ready!(self.try_start_send_networker(networker_item));
             }
 
+            // FIXME: Only finish this Future when encountered a fatal error
             if let Async::NotReady = self.process_timer_next()? {
                 if let Async::NotReady = self.process_networker_next()? {
                     if let Async::NotReady = self.process_incoming_next()? {
@@ -557,59 +543,6 @@ pub fn gen_random_bytes<R: SecureRandom>(rng: &R, max_len: usize) -> Result<Byte
     }
 }
 
-#[inline]
-pub fn sealing_channel_message(
-    sending_end: &mut SendingEndState,
-    plain_message: Plain,
-) -> Result<Bytes, ()> {
-    let serialized_plain = plain_message.encode().map_err(|_| ())?;
-
-    increase_nonce(&mut sending_end.send_nonce);
-
-    let mut buffer = BytesMut::with_capacity(NONCE_LEN + serialized_plain.len() + TAG_LEN);
-
-    buffer.extend_from_slice(&sending_end.send_nonce);
-    buffer.extend_from_slice(&serialized_plain);
-    buffer.extend_from_slice(&[0x00; TAG_LEN][..]);
-
-    let key   = &sending_end.sealing_key;
-    let nonce = &sending_end.send_nonce;
-    let ad    = &sending_end.channel_id;
-
-    seal_in_place(key, nonce, ad, &mut buffer[NONCE_LEN..], TAG_LEN)
-        .map_err(|_| ()).and_then(move |sz| Ok(buffer.split_to(NONCE_LEN + sz).freeze()))
-}
-
-#[inline]
-pub fn opening_channel_message(
-    receiving_end: &mut ReceivingEndState,
-    mut encrypted_message: Bytes
-) -> Result<Plain, ()> {
-    let nonce = encrypted_message.split_to(NONCE_LEN);
-
-    // if !receiving_end.recv_window.try_accept(&nonce) {
-    //     Err(())
-    // } else {
-        let key = &receiving_end.opening_key;
-        let ad  = &receiving_end.channel_id;
-        open_in_place(key, &nonce, ad, 0, &mut BytesMut::from(encrypted_message)).map_err(|_| ())
-            .and_then(|serialized_plain| {
-                Plain::decode(serialized_plain).map_err(|_| ())
-            })
-    // }
-}
-
-/// Increase the bytes represented number by 1.
-#[inline]
-pub fn increase_nonce(nonce: &mut [u8]) {
-    let mut c: u16 = 1;
-    for i in nonce {
-        c += u16::from(*i);
-        *i = c as u8;
-        c >>= 8;
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -624,62 +557,5 @@ mod tests {
 
         assert_eq!(bytes.len(), 2);
         assert!(bytes.iter().all(|x| *x == 0x01));
-    }
-
-    #[test]
-    fn test_sealing_opening_good() {
-        let fixed = FixedByteRandom { byte: 0x01 };
-
-        let mut sending_end = SendingEndState {
-            remote_addr: "127.0.0.1:10001".parse().unwrap(),
-            channel_id: ChannelId::try_from(&[0x00u8; CHANNEL_ID_LEN][..]).unwrap(),
-            send_nonce: Nonce::try_from(&[0x01u8; NONCE_LEN][..]).unwrap(),
-            sealing_key: SealingKey::new(&CHACHA20_POLY1305, &[0x03u8; 32][..]).unwrap(),
-        };
-
-        let mut receiving_end = ReceivingEndState {
-            channel_id: ChannelId::try_from(&[0x00u8; CHANNEL_ID_LEN][..]).unwrap(),
-            recv_window: NonceWindow::new(256),
-            opening_key: OpeningKey::new(&CHACHA20_POLY1305, &[0x03u8; 32][..]).unwrap(),
-        };
-
-        let plain = Plain {
-            rand_padding: gen_random_bytes(&fixed, MAX_RAND_PADDING_LEN).unwrap(),
-            content: PlainContent::User(Bytes::from("hello!")),
-        };
-
-        let encrypted = sealing_channel_message(&mut sending_end, plain).unwrap();
-        let plain = opening_channel_message(&mut receiving_end, encrypted).unwrap();
-
-        assert_eq!(plain.content, PlainContent::User(Bytes::from("hello!")));
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_sealing_opening_bad_channel_id() {
-        let fixed = FixedByteRandom { byte: 0x01 };
-
-        let mut sending_end = SendingEndState {
-            remote_addr: "127.0.0.1:10001".parse().unwrap(),
-            channel_id: ChannelId::try_from(&[0x00u8; CHANNEL_ID_LEN][..]).unwrap(),
-            send_nonce: Nonce::try_from(&[0x01u8; NONCE_LEN][..]).unwrap(),
-            sealing_key: SealingKey::new(&CHACHA20_POLY1305, &[0x03u8; 32][..]).unwrap(),
-        };
-
-        let mut receiving_end = ReceivingEndState {
-            channel_id: ChannelId::try_from(&[0xffu8; CHANNEL_ID_LEN][..]).unwrap(),
-            recv_window: NonceWindow::new(256),
-            opening_key: OpeningKey::new(&CHACHA20_POLY1305, &[0x03u8; 32][..]).unwrap(),
-        };
-
-        let plain = Plain {
-            rand_padding: gen_random_bytes(&fixed, MAX_RAND_PADDING_LEN).unwrap(),
-            content: PlainContent::User(Bytes::from("hello!")),
-        };
-
-        let encrypted = sealing_channel_message(&mut sending_end, plain).unwrap();
-        let plain = opening_channel_message(&mut receiving_end, encrypted).unwrap();
-
-        assert_eq!(plain.content, PlainContent::User(Bytes::from("hello!")));
     }
 }
