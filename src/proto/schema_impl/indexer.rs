@@ -33,6 +33,8 @@ use super::common::{
     write_signature,
 };
 
+const MAX_COUNT_FOR_TEST: i32 = 20;
+
 impl<'a> Schema<'a> for NeighborsRoute {
     type Reader = neighbors_route::Reader<'a>;
     type Writer = neighbors_route::Builder<'a>;
@@ -619,7 +621,7 @@ mod tests {
     #[test]
     fn test_response_neighbors_route() {
         let in_response_neighbors_route = ResponseNeighborsRoutes {
-            routes: (0..20)
+            routes: (0..MAX_COUNT_FOR_TEST)
                 .map(|_| create_dummy_neighbors_route())
                 .collect(),
         };
@@ -676,7 +678,7 @@ mod tests {
     #[test]
     fn test_response_friends_route() {
         let in_response_friends_route = ResponseFriendsRoutes {
-            routes: (0..20).map(|_| create_dummy_friends_route_with_capacity()).collect(),
+            routes: (0..MAX_COUNT_FOR_TEST).map(|_| create_dummy_friends_route_with_capacity()).collect(),
         };
 
         test_encode_decode!(ResponseFriendsRoutes, in_response_friends_route);
@@ -692,7 +694,7 @@ mod tests {
     #[test]
     fn test_request_update_state() {
         let indexing_provider_id = create_dummy_indexing_provider_id();
-        let indexing_provider_states_chain = (0..20)
+        let indexing_provider_states_chain = (0..MAX_COUNT_FOR_TEST)
             .map(|_| create_dummy_chain_link())
             .collect::<Vec<_>>();
         let in_request_update_state = RequestUpdateState {
@@ -725,7 +727,7 @@ mod tests {
     fn test_routes_to_indexer() {
         let in_routes_to_indexer = RoutesToIndexer {
             indexing_provider_id: create_dummy_indexing_provider_id(),
-            routes: (0..20)
+            routes: (0..MAX_COUNT_FOR_TEST)
                 .map(|_| create_dummy_indexer_route())
                 .collect::<Vec<_>>(),
             request_price: random::<u64>(),
