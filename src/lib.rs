@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 #![crate_type = "lib"]
 #![feature(nll)]
 #![feature(try_from)]
