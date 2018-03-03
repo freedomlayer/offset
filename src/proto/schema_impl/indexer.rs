@@ -33,7 +33,6 @@ use super::common::{
     write_signature,
 };
 
-const MAX_COUNT_FOR_TEST: i32 = 20;
 
 impl<'a> Schema<'a> for NeighborsRoute {
     type Reader = neighbors_route::Reader<'a>;
@@ -513,6 +512,7 @@ mod tests {
                          IndexingProviderStateHash, INDEXING_PROVIDER_STATE_HASH_LEN};
 
     const MAX_NUM: usize = 512;
+    const MAX_COUNT_FOR_TEST: i32 = 20;
 
     // TODO: Move the create_dummy_* functions to a appropriate place.
 
