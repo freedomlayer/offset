@@ -146,12 +146,13 @@ mod tests {
 
         let mut tm = TimerModule::new(dur, &handle);
 
-        let clients = (0..50)
+        const TIMER_CLIENT_NUM: usize = 50;
+        let clients = (0..TIMER_CLIENT_NUM)
             .map(|_| tm.create_client())
             .step_by(2)
             .collect::<Vec<_>>();
 
-        assert_eq!(clients.len(), 25);
+        assert_eq!(clients.len(), TIMER_CLIENT_NUM / 2);
 
         let start = time::Instant::now();
         let clients_fut = clients
