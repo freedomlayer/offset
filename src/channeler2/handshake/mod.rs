@@ -80,13 +80,12 @@ pub struct HandshakeManager<SR: SecureRandom> {
 
 #[derive(Debug)]
 pub enum HandshakeManagerError {
-    /// Secure module client report an error
-    SecureModuleClientError,
+    SecurityModuleClientError,
 
-    /// An error occurred during receiving request
-    RecvRequestError,
+    /// Error may occur when polling the next request
+    PollRequestError,
 
-    /// An error occurred during sending response
+    /// Error may occur when sending back the response
     SendResponseError,
 
     /// Not allowed
@@ -153,7 +152,7 @@ impl<SR: SecureRandom + 'static> HandshakeManager<SR> {
 
                 sm_client
                     .request_public_key()
-                    .map_err(|_| HandshakeManagerError::SecureModuleClientError)
+                    .map_err(|_| HandshakeManagerError::SecurityModuleClientError)
                     .and_then(move |public_key| {
                         let init_channel = InitChannel {
                             rand_nonce,
@@ -222,7 +221,7 @@ impl<SR: SecureRandom + 'static> HandshakeManager<SR> {
             .and_then(move |(handshakes, id, init_channel)| {
                 sm_client
                     .request_public_key()
-                    .map_err(|_| HandshakeManagerError::SecureModuleClientError)
+                    .map_err(|_| HandshakeManagerError::SecurityModuleClientError)
                     .and_then(move |public_key| {
                         Ok((handshakes, id, init_channel, sm_client, public_key))
                     })
@@ -252,7 +251,7 @@ impl<SR: SecureRandom + 'static> HandshakeManager<SR> {
 
                 sm_client
                     .request_signature(msg_to_sign)
-                    .map_err(|_| HandshakeManagerError::SecureModuleClientError)
+                    .map_err(|_| HandshakeManagerError::SecurityModuleClientError)
                     .and_then(move |signature| {
                         let exchange_passive = ExchangePassive {
                             prev_hash,
@@ -355,7 +354,7 @@ impl<SR: SecureRandom + 'static> HandshakeManager<SR> {
 
                 sm_client
                     .request_signature(msg_to_sign)
-                    .map_err(|_| HandshakeManagerError::SecureModuleClientError)
+                    .map_err(|_| HandshakeManagerError::SecurityModuleClientError)
                     .and_then(move |signature| {
                         handshake.finish().and_then(move |new_channel_info| {
                             let channel_ready = ChannelReady {
@@ -427,7 +426,7 @@ impl<SR: SecureRandom + 'static> HandshakeManager<SR> {
 
                 sm_client
                     .request_signature(msg_to_sign)
-                    .map_err(|_| HandshakeManagerError::SecureModuleClientError)
+                    .map_err(|_| HandshakeManagerError::SecurityModuleClientError)
                     .and_then(move |signature| {
                         let exchange_active = ExchangeActive {
                             prev_hash,
@@ -469,10 +468,11 @@ impl<SR: SecureRandom + 'static> Future for HandshakeManager<SR> {
     type Error = HandshakeManagerError;
 
     fn poll(&mut self) -> Poll<(), HandshakeManagerError> {
+        // TODO: We may have to control how many tasks in-flight, consider expose runtime metrics?
         loop {
             let poll_result = self.request_receiver
                 .poll()
-                .map_err(|_| HandshakeManagerError::RecvRequestError);
+                .map_err(|_| HandshakeManagerError::PollRequestError);
 
             match try_ready!(poll_result) {
                 None => return Ok(Async::Ready(())),
