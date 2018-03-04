@@ -113,6 +113,8 @@ pub enum ChannelerError {
     SendOutgoingError,    // fatal error
     IncomingTerminated,   // fatal error
 
+    SecureRandomError,
+    PrepareSendError,
 
     SendToHandshakeManagerError, // fatal error
 
@@ -267,8 +269,8 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
     fn remove_neighbor(&mut self, public_key: PublicKey) {
         trace!("request to remove neighbor: {:?}", public_key);
 
-        self.neighbors.borrow_mut().remove(&public_key);
         self.channels.borrow_mut().remove(&public_key);
+        self.neighbors.borrow_mut().remove(&public_key);
     }
 
     fn do_send_channel_message(
@@ -276,31 +278,28 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
         remote_public_key: PublicKey,
         content: Bytes
     ) -> Poll<(), ChannelerError> {
-        unimplemented!()
-//        let item = if let Some(channel) = self.channels.get_mut(&remote_public_key) {
-//            let rand_padding = gen_random_bytes(&*self.secure_rng, MAX_RAND_PADDING_LEN)
-//                .map_err(|_| ChannelerError::SecureRandomError)?;
-//
-//            let plain = Plain {
-//                rand_padding,
-//                content: PlainContent::User(content)
-//            };
-//
-//            let encrypted_message = sealing_channel_message(sending_end, plain)
-//                .map_err(|_| ChannelerError::EncryptionError)?;
-//
-//            increase_nonce(&mut channel.sending)
-//
-//            let message = ChannelerMessage::Encrypted(encrypted_message)
-//                .encode().map_err(ChannelerError::Schema)?;
-//
-//            (sending_end.remote_addr, message)
-//        } else {
-//            info!("no sending end for: {:?}", remote_public_key);
-//            return Ok(Async::Ready(()));
-//        };
-//
-//        self.try_start_send_outgoing(item)
+        let item = if let Some(channel) = self.channels.borrow_mut().get_mut(&remote_public_key) {
+            let rand_padding = gen_random_bytes(&*self.secure_rng, MAX_RAND_PADDING_LEN)
+                .map_err(|_| ChannelerError::SecureRandomError)?;
+
+            let plain = Plain {
+                rand_padding,
+                content: PlainContent::User(content)
+            };
+
+            let (addr, channeler_message) = channel.pre_send(plain)
+                .map_err(|_| ChannelerError::PrepareSendError)?;
+
+            let serialized_message = channeler_message.encode().map_err(ChannelerError::Schema)?;
+
+
+            (addr, serialized_message)
+        } else {
+            info!("no sending end for: {:?}", remote_public_key);
+            return Ok(Async::Ready(()));
+        };
+
+        self.start_send_outgoing(item)
     }
 
     fn process_new_handshake(&self, remote_addr: SocketAddr, neighbor_public_key: PublicKey) {
