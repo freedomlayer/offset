@@ -32,6 +32,7 @@ use proto::networker::{ChannelToken};
 
 mod neighbor_tc_logic;
 mod balance_state;
+mod credit_state;
 
 
 /// Full state of a Neighbor token channel.
