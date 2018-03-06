@@ -31,9 +31,13 @@ use proto::funder::InvoiceId;
 use proto::networker::{ChannelToken};
 
 mod neighbor_tc_logic;
-mod balance_state;
+mod balance_state_old;
 mod credit_state;
 
+mod token_channel;
+mod tc_balance;
+mod pending_requests;
+mod invoice_validator;
 
 /// Full state of a Neighbor token channel.
 struct NeighborTokenChannel {

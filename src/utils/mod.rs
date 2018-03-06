@@ -4,6 +4,7 @@ mod service_client;
 mod stream_mediator;
 mod nonce_window;
 pub mod trans_hashmap;
+pub mod trans_hashmap_mut;
 
 pub use self::close_handle::CloseHandle;
 pub use self::async_mutex::{AsyncMutex, AsyncMutexError};
