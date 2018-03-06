@@ -18,6 +18,31 @@ pub struct NeighborsRoute {
     pub public_keys: Vec<PublicKey>,
 }
 
+pub enum PkPairPosition {
+    NotFound,
+    NotLast,
+    IsLast,
+}
+
+impl NeighborsRoute {
+    /// Find two consecutive public keys (pk1, pk2) inside a neighbors route.
+    /// If found, returns the index of the first of them.
+    pub fn find_pk_pair(&self, pk1: &PublicKey, pk2: &PublicKey) -> PkPairPosition {
+        let public_keys = &self.public_keys;
+        for i in 1 .. public_keys.len() {
+            if &public_keys[i] == pk2 && &public_keys[i-1] == pk1 {
+                if i == public_keys.len() - 1 {
+                    return PkPairPosition::IsLast;
+                } else {
+                    return PkPairPosition::NotLast;
+                }
+            }
+        }
+        PkPairPosition::NotFound
+    }
+
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IndexerRoute {
     pub neighbors_route: NeighborsRoute,
