@@ -209,7 +209,7 @@ fn process_request_send_message(mut trans_balance_state: TransBalanceState,
     let pending_credit = match request_send_msg.route.find_pk_pair(remote_public_key, local_public_key) {
         PkPairPosition::NotFound => return (trans_balance_state, Err(ProcessTransError::PKPairNotInChain)),
         PkPairPosition::NotLast => {
-            // Make sure it is possible to increase remote_max_debt, and then increase it.
+            // Make sure it is possible to increase remote_pending_debt, and then increase it.
             let per_byte = request_send_msg.credits_per_byte_proposal;
             if per_byte == 0 {
                 return (trans_balance_state, Err(ProcessTransError::InvalidFeeProposal))
