@@ -59,10 +59,21 @@ pub fn credits_on_success(processing_fee_proposal: u64, request_len: u32,
                                     max_response_len)?)
 }
 
-pub fn credits_on_failure(processing_fee_proposal: u64, request_len: u32,
-                         credits_per_byte_proposal: u64, max_response_len: u32,
-                         nodes_to_dest: usize) -> Option<u64> {
-    unreachable!();
+/// The amount of credits paid to a node in case of failure.
+/// This amount depends on the length of the Request message, 
+/// and also on the amount of nodes until the reporting node.
+/// Example:
+///
+/// A -- B -- C -- D -- E
+///
+/// Asssume that A sends a Request message along the route in the picture all the way to E.
+/// Assume that D is not willing to pass the message to E for some reason, and therefore he reports
+/// a failure message back to C. In this case, for example: 
+/// - D will receive credits_on_failure(request_len, 0) credits
+/// - C will receive credits_on_failure(request_len, 1) credits.
+pub fn credits_on_failure(request_len: u32, nodes_to_reporting: usize) -> Option<u64> {
+    // request_len * (nodes_to_reporting + 1)
+    (request_len as u64).checked_mul((nodes_to_reporting as u64).checked_add(1)?)
 }
 
 /// Compute the amount of credits we need to freeze on a node along a request route. 
