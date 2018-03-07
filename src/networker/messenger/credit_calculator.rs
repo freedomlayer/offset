@@ -1,18 +1,5 @@
 use std::cmp;
 use crypto::identity::PublicKey;
-// use super::super::messages::PendingNeighborRequest;
-
-
-/*
-pub struct PendingNeighborRequest {
-    pub request_id: Uid,
-    pub route: NeighborsRoute,
-    pub request_content_hash: HashResult,
-    pub max_response_length: u32,
-    pub processing_fee_proposal: u64,
-    pub credits_per_byte_proposal: u32,
-}
-*/
 
 
 /// Amount of credits paid to destination node, upon issuing a signed Response message.
