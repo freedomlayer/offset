@@ -18,6 +18,7 @@ pub struct NeighborsRoute {
     pub public_keys: Vec<PublicKey>,
 }
 
+#[derive(PartialEq, Eq)]
 pub enum PkPairPosition {
     NotFound,
     NotLast,
