@@ -2,9 +2,6 @@ use std::cmp;
 use crypto::identity::PublicKey;
 // use super::super::messages::PendingNeighborRequest;
 
-pub struct CreditCalculator {
-
-}
 
 /*
 pub struct PendingNeighborRequest {
