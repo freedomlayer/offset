@@ -19,7 +19,7 @@ impl BalanceState{
 
     pub fn atomic_process_trans_list(token_channel_index: u32,
                                      remote_public_key: &PublicKey,
-                                     transactions: Vec<NetworkerTCTransaction>) {
+                                     transactions: Vec<NetworkerTCMessage>) {
     }
 }
 

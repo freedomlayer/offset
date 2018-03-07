@@ -1,5 +1,6 @@
 use proto::funder::InvoiceId;
 
+#[derive(Clone)]
 pub struct InvoiceValidator{
     pub local_invoice_id: Option<InvoiceId>,
     pub remote_invoice_id: Option<InvoiceId>,

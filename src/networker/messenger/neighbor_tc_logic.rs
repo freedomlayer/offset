@@ -2,13 +2,13 @@ use proto::networker::ChannelToken;
 use crypto::rand_values::RandValue;
 use crypto::identity::PublicKey;
 use super::super::messages::MoveTokenDirection;
-use super::balance_state_old::{BalanceState, NetworkerTCTransaction,
+use super::balance_state_old::{BalanceState, NetworkerTCMessage,
                                ProcessTransOutput, ProcessTransListError,
                                atomic_process_trans_list};
 
 pub struct NeighborMoveToken {
     // pub channel_index: u32,
-    pub transactions: Vec<NetworkerTCTransaction>,
+    pub transactions: Vec<NetworkerTCMessage>,
     pub old_token: ChannelToken,
     pub rand_nonce: RandValue,
 }
