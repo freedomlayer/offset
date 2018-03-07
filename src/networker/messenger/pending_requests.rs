@@ -1,11 +1,9 @@
-
 use std::collections::HashMap;
 use utils::trans_hashmap_mut::TransHashMapMut;
 use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 use proto::indexer::PkPairPosition;
 use super::super::messages::PendingNeighborRequest;
-use super::credit_calculator::CreditCalculator;
 
 // TODO(a4vision): Note that the functions for local requests and for
 // local requests are probably identical. Maybe hold each one of them in a separate instance
@@ -45,17 +43,20 @@ impl <'a> TransPendingRequests<'a> {
         }
     }
 
+    /*
     /// Total amount of remote pending credit towards the given neighbor
-    pub fn get_total_remote_pending_to(&self, local_public_key: &PublicKey, remote_public_key: &PublicKey,
-                                 calculator: &CreditCalculator) -> u64{
+    pub fn get_total_remote_pending_to(&self, local_public_key: &PublicKey, remote_public_key: &PublicKey) -> u64 {
+        assert!(false);
         let mut total: u64 = 0;
         for request in self.tp_remote_requests.get_hmap().values() {
             let position = request.route.find_pk_pair(&local_public_key, &remote_public_key);
             if position != PkPairPosition::NotFound{
-                total += calculator.pending_credit(&request);
+                // total += calculator.pending_credit(&request);
+                // TODO
             }
         }
         return total;
     }
+    */
 }
 
