@@ -34,15 +34,22 @@ impl <'a> TransPendingRequests<'a> {
         tp_local_requests.cancel();
         tp_remote_requests.cancel();
     }
-}
 
+    // TODO(a4vision): Is it reasonable to consume the request here ?
+    pub fn add_pending_remote_request(&mut self, remote_request: PendingNeighborRequest) -> bool {
+        if self.tp_remote_requests.get_hmap().contains_key(&remote_request.request_id){
+            return false;
+        }else{
+            self.tp_remote_requests.insert(remote_request.request_id, remote_request);
+            return  true;
+        }
+    }
 
-impl PendingRequests {
     /// Total amount of remote pending credit towards the given neighbor
-    pub fn get_remote_pending_to(&self, local_public_key: &PublicKey, remote_public_key: &PublicKey,
+    pub fn get_total_remote_pending_to(&self, local_public_key: &PublicKey, remote_public_key: &PublicKey,
                                  calculator: &CreditCalculator) -> u64{
         let mut total: u64 = 0;
-        for (request_uid, request) in &self.pending_remote_requests {
+        for request in self.tp_remote_requests.get_hmap().values() {
             let position = request.route.find_pk_pair(&local_public_key, &remote_public_key);
             if position != PkPairPosition::NotFound{
                 total += calculator.pending_credit(&request);
@@ -50,15 +57,5 @@ impl PendingRequests {
         }
         return total;
     }
-
-    // TODO(a4vision): Is it reasonable to consume the request here ?
-    pub fn add_pending_remote_request(&mut self, remote_request: PendingNeighborRequest) -> bool {
-
-        if self.pending_remote_requests.get(&remote_request.request_id).is_none() {
-            self.pending_remote_requests.insert(remote_request.request_id, remote_request);
-            return true;
-        }else{
-            return false;
-        }
-    }
 }
+
