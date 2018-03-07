@@ -43,6 +43,7 @@ impl <'a> TransPendingRequests<'a> {
         }
     }
 
+    /*
     /// Total amount of remote pending credit towards the given neighbor
     pub fn get_total_remote_pending_to(&self, local_public_key: &PublicKey, remote_public_key: &PublicKey) -> u64 {
         assert!(false);
@@ -56,5 +57,6 @@ impl <'a> TransPendingRequests<'a> {
         }
         return total;
     }
+    */
 }
 
