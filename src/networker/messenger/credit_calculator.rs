@@ -97,3 +97,42 @@ pub fn credits_to_freeze(processing_fee_proposal: u64, request_len: u32,
     Some(cmp::min(credits_resp_len_zero, credits_resp_len_max))
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tests_credits_on_success_dest_basic() {
+        let processing_fee_proposal = 5;
+        let request_len = 10;
+        let credits_per_byte_proposal = 2;
+        let response_len = 5;
+        let max_response_len = 10;
+
+        let num_credits = credits_on_success_dest(
+            processing_fee_proposal,
+            request_len,
+            credits_per_byte_proposal,
+            response_len,
+            max_response_len).unwrap();
+
+        assert_eq!(num_credits, 5 + 10 * 2 + (10 - 5));
+    }
+
+    #[test]
+    fn test_credits_on_success_basic() {
+        // TODO
+    }
+
+    #[test]
+    fn test_credits_on_failure_basic() {
+        // TODO
+    }
+
+    #[test]
+    fn credits_to_freeze_basic() {
+        // TODO
+    }
+}
+
