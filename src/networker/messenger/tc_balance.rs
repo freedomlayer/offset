@@ -21,6 +21,7 @@ const MAX_BALANCE: i64 = i64::max_value();
 ///         balance + new_remote_pending_debt <= remote_max_debt
 ///         balance - new_local_pending_debt >= local_max_debt
 ///       Notice that these inequalities may be broken !
+#[derive(Clone)]
 pub struct TokenChannelCredit {
     /// maximum amount of credits I let the neighbor owe me
     pub remote_max_debt: u64,
