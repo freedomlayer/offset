@@ -1,4 +1,8 @@
+/*
+<<<<<<< Updated upstream
 use crypto::hash;
+=======
+>>>>>>> Stashed changes
 use std::cmp;
 use std::mem;
 use std::collections::HashMap;
@@ -15,6 +19,7 @@ use utils::trans_hashmap::TransHashMap;
 use super::credit_calculator;
 
 
+<<<<<<< Updated upstream
 pub struct RequestSendMessage {
     request_id: Uid,
     route: NeighborsRoute,
@@ -91,6 +96,8 @@ pub enum NetworkerTCMessage {
     FailedSendMessage(FailedSendMessage),
     // ResetChannel(i64), // new_balanace
 }
+=======
+>>>>>>> Stashed changes
 
 pub struct BalanceState {
     credit_state: CreditState,
@@ -133,6 +140,7 @@ impl TransBalanceState {
 }
 
 
+<<<<<<< Updated upstream
 pub struct IncomingResponseSendMessage {
 }
 
@@ -161,12 +169,10 @@ pub enum ProcessMessageError {
     /// The Route contains some public key twice.
     DuplicateNodesInRoute,
 }
+=======
 
-#[derive(Debug)]
-pub struct ProcessTransListError {
-    index: usize,
-    process_trans_error: ProcessMessageError,
-}
+>>>>>>> Stashed changes
+
 
 fn process_set_remote_max_debt(mut trans_balance_state: TransBalanceState,
                                    proposed_max_debt: u64)
@@ -415,3 +421,4 @@ mod tests {
         assert_eq!(rsm.bytes_count(), expected);
     }
 }
+*/

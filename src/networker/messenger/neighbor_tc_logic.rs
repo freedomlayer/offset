@@ -1,9 +1,15 @@
+/*
 use proto::networker::ChannelToken;
 use crypto::rand_values::RandValue;
 use crypto::identity::PublicKey;
 use super::super::messages::MoveTokenDirection;
+<<<<<<< Updated upstream
 use super::balance_state_old::{BalanceState, NetworkerTCMessage,
                                ProcessMessageOutput, ProcessTransListError,
+=======
+use super::token_channel::{BalanceState, NetworkerTCMessage,
+                               ProcessTransOutput, ProcessTransListError,
+>>>>>>> Stashed changes
                                atomic_process_trans_list};
 
 pub struct NeighborMoveToken {
@@ -100,3 +106,4 @@ pub fn send_move_token(neighbor_tc_state: NeighborTCState, move_token_message: &
     (neighbor_tc_state, Ok(()))
 }
 
+*/

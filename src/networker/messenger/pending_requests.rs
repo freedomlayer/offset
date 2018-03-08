@@ -5,7 +5,7 @@ use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 use proto::indexer::PkPairPosition;
 use super::super::messages::PendingNeighborRequest;
-use super::balance_state_old::RequestSendMessage;
+use super::token_channel::RequestSendMessage;
 
 // TODO(a4vision): Note that the functions for local requests and for
 // local requests are probably identical. Maybe hold each one of them in a separate instance
@@ -37,11 +37,11 @@ impl <'a> TransPendingRequests<'a> {
 
     // TODO(a4vision): Is it reasonable to consume the request here ?
     pub fn add_pending_remote_request(&mut self, message: &RequestSendMessage) -> bool {
-        if self.tp_remote_requests.get_hmap().contains_key(message.get_request_id()){
+        if self.tp_remote_requests.get_hmap().contains_key(message.get_request_id()) {
             return false;
-        }else{
+        } else {
             self.tp_remote_requests.insert(message.get_request_id().clone(), message.create_pending_request());
-            return  true;
+            return true;
         }
     }
 

@@ -1,19 +1,53 @@
+use std::mem;
 use std::cmp;
-use crypto::identity::PublicKey;
+use byteorder::{LittleEndian, WriteBytesExt};
+
+use crypto::identity::{PublicKey, verify_signature, Signature};
+use crypto::uid::Uid;
+use crypto::rand_values::RandValue;
+use crypto::hash;
+
+use proto::common::SendFundsReceipt;
+use proto::indexer::{NeighborsRoute, PkPairPosition};
+use proto::funder::InvoiceId;
+
 use super::tc_balance::TokenChannelCredit;
 use super::invoice_validator::InvoiceValidator;
 use super::pending_requests::PendingRequests;
 use super::pending_requests::TransPendingRequests;
-use super::balance_state_old::RequestSendMessage;
-use proto::common::SendFundsReceipt;
-use super::balance_state_old::ProcessMessageOutput;
-use super::balance_state_old::ProcessMessageError;
-use super::balance_state_old::ResponseSendMessage;
-use super::balance_state_old::FailedSendMessage;
-use super::balance_state_old::NetworkerTCMessage;
-use proto::indexer::{NeighborsRoute, PkPairPosition};
-use proto::funder::InvoiceId;
+use super::credit_calculator;
+use super::super::messages::PendingNeighborRequest;
 
+
+pub struct IncomingResponseSendMessage {
+}
+
+pub struct IncomingFailedSendMessage {
+}
+
+pub enum ProcessMessageOutput {
+    Request(RequestSendMessage),
+    Response(IncomingResponseSendMessage),
+    Failure(IncomingFailedSendMessage),
+}
+
+
+#[derive(Debug)]
+pub enum ProcessMessageError {
+    RemoteMaxDebtTooLarge(u64),
+    /// Trying to set the invoiceId, while already expecting another invoice id.
+    InvoiceIdExists,
+    MissingInvoiceId,
+    InvalidInvoiceId,
+    InvalidFundsReceipt,
+    PKPairNotInChain,
+    RemoteRequestIdExists,
+    InvalidFeeProposal,
+    PendingCreditTooLarge,
+    InvalidResponseSignature,
+    /// The Route contains some public key twice.
+    DuplicateNodesInRoute,
+}
 
 #[derive(Debug)]
 pub struct ProcessTransListError {
@@ -21,7 +55,88 @@ pub struct ProcessTransListError {
     process_trans_error: ProcessMessageError,
 }
 
-pub struct TokenChannel{
+pub struct ResponseSendMessage {
+    request_id: Uid,
+    rand_nonce: RandValue,
+    processing_fee_collected: u64,
+    response_content: Vec<u8>,
+    signature: Signature,
+}
+
+pub struct RequestSendMessage {
+    request_id: Uid,
+    route: NeighborsRoute,
+    request_content: Vec<u8>,
+    max_response_len: u32,
+    processing_fee_proposal: u64,
+    credits_per_byte_proposal: u64,
+}
+
+impl RequestSendMessage {
+    pub fn bytes_count(&self) -> usize {
+        // We count the bytes count here and not before deserialization,
+        // because we actually charge for the amount of bytes we send, and not for the 
+        // amount of bytes we receive (Those could possibly be encoded in some strange way)
+        mem::size_of::<Uid>() + 
+            mem::size_of::<PublicKey>() * self.route.public_keys.len() +
+            self.request_content.len() * 1 +
+            mem::size_of_val(&self.max_response_len) +
+            mem::size_of_val(&self.processing_fee_proposal) +
+            mem::size_of_val(&self.credits_per_byte_proposal)
+    }
+
+    pub fn calculate_credits_to_freeze(&self, public_key: &PublicKey) -> Option<u64> {
+        let index = self.route.index_of(&public_key);
+
+        credit_calculator::credits_to_freeze(self.processing_fee_proposal,
+        self.request_content.len() as u32, self.credits_per_byte_proposal, self.max_response_len,
+            self.route.public_keys.len() - 1
+        )
+    }
+
+    pub fn get_request_id(&self) -> &Uid {
+        &self.request_id
+    }
+
+    pub fn get_route(&self) -> &NeighborsRoute {
+        &self.route
+    }
+
+    pub fn create_pending_request(&self) -> PendingNeighborRequest {
+        PendingNeighborRequest {
+            request_id: self.request_id.clone(),
+            route: self.route.clone(),
+            request_content_hash: hash::sha_512_256(self.request_content.as_ref()),
+            max_response_length: self.max_response_len,
+            processing_fee_proposal: self.processing_fee_proposal,
+            credits_per_byte_proposal: self.credits_per_byte_proposal,
+        }
+    }
+}
+
+
+pub struct FailedSendMessage {
+    request_id: Uid,
+    reporting_public_key: PublicKey,
+    rand_nonce: RandValue,
+    signature: Signature,
+}
+
+
+pub enum NetworkerTCMessage {
+    SetRemoteMaxDebt(u64),
+    SetInvoiceId(InvoiceId),
+    LoadFunds(SendFundsReceipt),
+    RequestSendMessage(RequestSendMessage),
+    ResponseSendMessage(ResponseSendMessage), 
+    FailedSendMessage(FailedSendMessage),
+    // ResetChannel(i64), // new_balanace
+}
+
+
+
+
+pub struct TokenChannel {
     local_public_key: PublicKey,
     remote_public_key: PublicKey,
     tc_balance: TokenChannelCredit,
@@ -30,7 +145,7 @@ pub struct TokenChannel{
 }
 
 
-struct TransTokenChannelState<'a>{
+struct TransTokenChannelState<'a> {
     orig_tc_balance: TokenChannelCredit,
     orig_invoice_validator: InvoiceValidator,
     local_public_key: PublicKey,
@@ -41,7 +156,7 @@ struct TransTokenChannelState<'a>{
     trans_pending_requests: TransPendingRequests<'a>,
 }
 
-impl TokenChannel{
+impl TokenChannel {
     pub fn atomic_process_messages_list(&mut self, transactions: Vec<NetworkerTCMessage>)
                                         -> Result<Vec<ProcessMessageOutput>, ProcessTransListError>{
         let mut trans_token_channel = TransTokenChannelState::new(self);
@@ -59,7 +174,7 @@ impl TokenChannel{
 
 impl <'a>TransTokenChannelState<'a>{
     pub fn new(token_channel: &'a mut TokenChannel) -> TransTokenChannelState<'a> {
-        TransTokenChannelState{
+        TransTokenChannelState {
             orig_tc_balance: token_channel.tc_balance.clone(),
             orig_invoice_validator: token_channel.invoice_validator.clone(),
 
@@ -105,21 +220,22 @@ impl <'a>TransTokenChannelState<'a>{
         unreachable!()
     }
 
-    fn process_request_send_message(&mut self,
-                                   request_send_msg: RequestSendMessage)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+    fn process_request_send_message(&mut self, request_send_msg: RequestSendMessage)-> 
+        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+
         // TODO: Deal with case where we are the the last on the route chain
-        if !request_send_msg.get_route().is_unique(){
+        if !request_send_msg.route.is_unique(){
             return Err(ProcessMessageError::DuplicateNodesInRoute);
         }
 
-        let credits = match request_send_msg.get_route().find_pk_pair(&self.remote_public_key, &self.local_public_key) {
+        let credits = match request_send_msg.route.find_pk_pair(&self.remote_public_key, &self.local_public_key) {
             PkPairPosition::NotFound => return Err(ProcessMessageError::PKPairNotInChain),
             PkPairPosition::IsLast => {
                 return self.process_request_send_message(request_send_msg);
             },
             PkPairPosition::NotLast => {
                 // Make sure it is possible to increase remote_pending_debt, and then increase it.
-                request_send_msg.calculate_credits_to_freeze(self.local_public_key);
+                request_send_msg.calculate_credits_to_freeze(&self.local_public_key);
             },
 
         };
@@ -131,25 +247,47 @@ impl <'a>TransTokenChannelState<'a>{
 
         // Find myself in the route chain:
 
-
-
+        /*
         if !trans_balance_state.credit_state.increase_remote_pending(pending_credit) {
             return (trans_balance_state, Err(ProcessMessageError::PendingCreditTooLarge));
         }
+        */
+        unreachable!();
 
         Ok(Some(ProcessMessageOutput::Request(request_send_msg)))
 
     }
 
 
-    fn process_response_send_message(&mut self, response_send_msg: ResponseSendMessage)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-            unreachable!()
+    fn process_response_send_message(&mut self, response_send_msg: ResponseSendMessage) -> 
+        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
 
+
+        // Verify signature
+        let mut message = Vec::new();
+        message.extend_from_slice(response_send_msg.request_id.as_bytes());
+        message.extend_from_slice(response_send_msg.rand_nonce.as_bytes());
+        // Serialize the processing_fee_collected:
+        message.write_u64::<LittleEndian>(response_send_msg.processing_fee_collected);
+        message.extend_from_slice(&response_send_msg.response_content);
+
+        if !verify_signature(&message, &self.remote_public_key, &response_send_msg.signature) {
+            return Err(ProcessMessageError::InvalidResponseSignature);
+        }
+
+
+        // Things to do:
+        // - Check if we have a pending request that matches this response.
+        // - Move credits accordingly (Move balance along pending credits)
+        // - Output a task message, telling about a received response message.
+        //
+        unreachable!()
     }
 
-    fn process_failed_send_message(&mut self, failed_send_msg: FailedSendMessage)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-            unreachable!()
+    fn process_failed_send_message(&mut self, failed_send_msg: FailedSendMessage) -> 
+        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
 
+        unreachable!()
     }
 
     fn process_message(&mut self, message: NetworkerTCMessage)->
@@ -194,3 +332,36 @@ impl <'a>TransTokenChannelState<'a>{
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::mem;
+    use ring::test::rand::FixedByteRandom;
+    use crypto::uid::Uid;
+    use proto::indexer::NeighborsRoute;
+
+
+    #[test]
+    fn test_request_send_msg_bytes_count() {
+        let rng1 = FixedByteRandom { byte: 0x03 };
+
+        assert_eq!(mem::size_of::<PublicKey>(), 32);
+
+        let rsm = RequestSendMessage {
+            request_id: Uid::new(&rng1),
+            route: NeighborsRoute {
+                public_keys: vec![
+                    PublicKey::from_bytes(&vec![0u8; 32]).unwrap(),
+                    PublicKey::from_bytes(&vec![0u8; 32]).unwrap(),
+                ],
+            },
+            request_content: vec![1,2,3,4,5],
+            max_response_len: 0x200,
+            processing_fee_proposal: 1,
+            credits_per_byte_proposal: 2,
+        };
+
+        let expected = 16 + 32 + 32 + 5 + 4 + 8 + 8;
+        assert_eq!(rsm.bytes_count(), expected);
+    }
+}

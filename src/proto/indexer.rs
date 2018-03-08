@@ -55,7 +55,7 @@ impl NeighborsRoute {
     }
 
     pub fn index_of(&self, key: &PublicKey) -> Option<usize>{
-        self.public_keys.iter().position(|&k| &k == key)
+        self.public_keys.iter().position(|k| k == key)
     }
 }
 
