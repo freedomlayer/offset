@@ -33,7 +33,7 @@ use proto::networker::{ChannelToken};
 mod credit_state;
 
 mod token_channel;
-mod tc_balance;
+mod tc_credit;
 mod pending_requests;
 mod invoice_validator;
 mod credit_calculator;

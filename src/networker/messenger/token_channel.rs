@@ -11,7 +11,7 @@ use proto::common::SendFundsReceipt;
 use proto::indexer::{NeighborsRoute, PkPairPosition};
 use proto::funder::InvoiceId;
 
-use super::tc_balance::TokenChannelCredit;
+use super::tc_credit::TokenChannelCredit;
 use super::invoice_validator::InvoiceValidator;
 use super::pending_requests::PendingRequests;
 use super::pending_requests::TransPendingRequests;
