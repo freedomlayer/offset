@@ -56,8 +56,8 @@ impl TokenChannelCredit {
     }
 
     // Normally called if received credits through the Funder layer.
-    pub fn decrease_balance(&mut self, credits: u64) -> bool {
-        if credits > MAX_NEIGHBOR_DEBT {
+    pub fn decrease_balance(&mut self, credits: u128) -> bool {
+        if credits > MAX_NEIGHBOR_DEBT as u128 {
             false
         } else {
             match self.balance.checked_sub(credits as i64) {
