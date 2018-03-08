@@ -37,9 +37,6 @@ highest priority.
     with numbers (addition, subtraction, multiplication, safe casting etc.).
     Always prefer those over checking inequalities manually.
 
-Security and safety in CSwitch are of higher priority than efficiency. Always
-prefer the safer code over the fast code.
-
 
 ### Easy to read code
 
