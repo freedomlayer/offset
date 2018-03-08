@@ -206,7 +206,7 @@ impl <'a>TransTokenChannelState<'a>{
 
     fn process_load_funds(&mut self, send_funds_receipt: SendFundsReceipt)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
         // Verify signature:
-        match self.invoice_validator.validate_reciept(&send_funds_receipt,
+        match self.invoice_validator.validate_receipt(&send_funds_receipt,
                                                       &self.local_public_key){
             Ok(()) => {
                 match self.tc_balance.decrease_balance(send_funds_receipt.payment) {

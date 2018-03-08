@@ -21,7 +21,7 @@ impl InvoiceValidator{
         true
     }
 
-    pub fn validate_reciept(&mut self, send_funds_receipt: &SendFundsReceipt,
+    pub fn validate_receipt(&mut self, send_funds_receipt: &SendFundsReceipt,
                             public_key: &PublicKey) ->
     Result<(), ProcessMessageError> {
         // TODO(a4vision): Don't create the errors here, but in the Token Channel.
