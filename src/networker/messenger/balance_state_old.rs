@@ -287,30 +287,6 @@ fn process_failed_send_message(trans_balance_state: TransBalanceState,
     unreachable!();
 }
 
-/*
-fn process_reset_channel(mut trans_balance_state: TransBalanceState,
-                         local_public_key: &PublicKey,
-                         remote_public_key: &PublicKey,
-                         trans_list_output: &mut TransListOutput,
-                         new_balance: i64)
-                            -> (TransBalanceState, Result<(), ProcessTransError>) {
-
-    let credit_state = &mut trans_balance_state.credit_state;
-    let expected_new_balance = credit_state.balance 
-        + credit_state.remote_pending_debt as i64
-        - credit_state.local_pending_debt as i64;
-
-    if new_balance == expected_new_balance {
-        credit_state.balance = new_balance;
-        credit_state.remote_pending_debt = 0;
-        credit_state.local_pending_debt = 0;
-
-    }
-
-    unreachable!();
-}
-*/
-
 fn process_trans(trans_balance_state: TransBalanceState, 
                  local_public_key: &PublicKey,
                  remote_public_key: &PublicKey,
@@ -422,3 +398,29 @@ mod tests {
     }
 }
 */
+
+
+/*
+fn process_reset_channel(mut trans_balance_state: TransBalanceState,
+                         local_public_key: &PublicKey,
+                         remote_public_key: &PublicKey,
+                         trans_list_output: &mut TransListOutput,
+                         new_balance: i64)
+                            -> (TransBalanceState, Result<(), ProcessTransError>) {
+
+    let credit_state = &mut trans_balance_state.credit_state;
+    let expected_new_balance = credit_state.balance 
+        + credit_state.remote_pending_debt as i64
+        - credit_state.local_pending_debt as i64;
+
+    if new_balance == expected_new_balance {
+        credit_state.balance = new_balance;
+        credit_state.remote_pending_debt = 0;
+        credit_state.local_pending_debt = 0;
+
+    }
+
+    unreachable!();
+}
+*/
+
