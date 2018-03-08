@@ -38,18 +38,18 @@ pub struct TokenChannelCredit {
 
 impl TokenChannelCredit {
     pub fn set_remote_max_debt(&mut self, proposed_max_debt: u64) -> bool {
-        if proposed_max_debt > MAX_NEIGHBOR_DEBT{
+        if proposed_max_debt > MAX_NEIGHBOR_DEBT {
             false
-        }else{
+        } else {
             self.remote_max_debt = proposed_max_debt;
             true
         }
     }
 
     pub fn set_local_max_debt(&mut self, proposed_max_debt: u64) -> bool {
-        if proposed_max_debt > MAX_NEIGHBOR_DEBT{
+        if proposed_max_debt > MAX_NEIGHBOR_DEBT {
             false
-        }else{
+        } else {
             self.local_max_debt = proposed_max_debt;
             true
         }
@@ -70,7 +70,7 @@ impl TokenChannelCredit {
     /// Freeze credits, that may be unfreezed later
     pub fn increase_remote_pending(&mut self, pending_credit_requested: u64) -> bool {
         let new_remote_pending = self.remote_pending_debt as u128 + (pending_credit_requested as u128);
-        if new_remote_pending as i128 + self.balance as i128 <= self.remote_max_debt as i128{
+        if new_remote_pending as i128 + self.balance as i128 <= self.remote_max_debt as i128 {
             self.remote_pending_debt = new_remote_pending as u64;
             true
         } else {
@@ -95,7 +95,7 @@ impl TokenChannelCredit {
 
     // TODO(a4vision): Make sure that it is ok that in case of an overflow in the value for balance,
     //                  we just ignore the value.
-    pub fn receive_from_pending_credits(&mut self, credits: u64) -> bool{
+    pub fn receive_from_pending_credits(&mut self, credits: u64) -> bool {
         self.receive_some_from_pending_credits(credits, credits)
     }
 
