@@ -720,8 +720,8 @@ mod tests {
 
         let (channel_a, channel_b) = core.run(handshake_task).unwrap();
 
-        assert_eq!(channel_a.send_end_id, channel_b.recv_end_id);
-        assert_eq!(channel_a.recv_end_id, channel_b.send_end_id);
+        assert_eq!(channel_a.sender_id, channel_b.receiver_id);
+        assert_eq!(channel_a.receiver_id, channel_b.sender_id);
 
         // FIXME: We can't access the raw bytes of the SealingKey and OpeningKey
         // assert_eq!(channel_a.sender_key, channel_b.receiver_key);

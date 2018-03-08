@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::convert::TryFrom;
 use std::net::SocketAddr;
@@ -7,8 +8,8 @@ use byteorder::{ByteOrder, LittleEndian};
 use ring::aead::{SealingKey, OpeningKey, seal_in_place, open_in_place};
 
 use crypto::identity::PublicKey;
-use proto::Schema;
-use proto::channeler_udp::{ChannelerMessage, Plain, PlainContent};
+use proto::{Schema, SchemaError};
+use proto::channeler_udp::{Plain, PlainContent, ChannelerMessage};
 use utils::{NonceWindow, WindowNonce};
 
 const TAG_LEN: usize = 16;
@@ -45,22 +46,42 @@ fn increase_nonce(nonce: &mut [u8]) {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct ChannelConfig {
-    pub max_recv_end: usize,
-    pub recv_wnd_size: usize,
-    pub keepalive_ticks: usize,
+pub struct ChannelPoolConfig {
+    pub keepalive_ticks:       usize,
+    pub maximum_receiver:      usize,
+    pub receiving_window_size: usize,
+}
+
+impl Default for ChannelPoolConfig {
+    fn default() -> ChannelPoolConfig {
+        ChannelPoolConfig {
+            keepalive_ticks:       100,
+            maximum_receiver:      3,
+            receiving_window_size: 256,
+        }
+    }
+}
+
+impl ChannelPoolConfig {
+    // TODO: Read configuration from file?
+
+    /// Check if the configuration is valid.
+    pub fn is_valid(&self) -> bool {
+        self.maximum_receiver           >= 3 &&
+        self.receiving_window_size % 64 == 0
+    }
 }
 
 pub struct NewChannelInfo {
-    pub remote_public_key: PublicKey,
+    pub sender_id:    ChannelId,
+    pub sender_key:   SealingKey,
+    pub receiver_id:  ChannelId,
+    pub receiver_key: OpeningKey,
 
-    pub send_end_id:  ChannelId,
-    pub send_end_key: SealingKey,
-    pub recv_end_id:  ChannelId,
-    pub recv_end_key: OpeningKey,
+    pub remote_public_key: PublicKey,
 }
 
-pub struct SendEnd {
+pub struct SenderInfo {
     addr:  SocketAddr,
     id:    ChannelId,
     nonce: Nonce,
@@ -69,7 +90,7 @@ pub struct SendEnd {
     keepalive_ticks: usize,
 }
 
-pub struct RecvEnd {
+pub struct ReceiverInfo {
     id:  ChannelId,
     wnd: NonceWindow,
     key: OpeningKey,
@@ -78,125 +99,248 @@ pub struct RecvEnd {
 }
 
 pub struct Channel {
-    config: ChannelConfig,
-    send_end: SendEnd,
-    recv_ends: VecDeque<RecvEnd>,
+    tx: Option<SenderInfo>,
+    rx: VecDeque<ReceiverInfo>,
 }
 
-/// A channel represents a symmetric channel between neighbor.
-///
-/// A channel works like a crypter. It contains the information needed to
-/// encrypt the message needs to be sent, and determine whether we should
-/// accept and decrypt a encrypted message from neighbor.
-impl Channel {
-    pub fn new(addr: SocketAddr, info: NewChannelInfo, config: ChannelConfig) -> Channel {
-        let (send_end, recv_end) = derive_send_recv_end(addr, info, &config);
+pub struct ChannelPool {
+    inner: HashMap<PublicKey, Channel>,
 
-        Channel {
-            config,
-            send_end,
-            recv_ends: VecDeque::from(vec![recv_end]),
+    index: HashMap<ChannelId, PublicKey>,
+
+    config: ChannelPoolConfig,
+}
+
+#[derive(Debug)]
+pub enum ChannelPoolError {
+    InvalidConfig,
+
+    InvalidChannelId,
+
+    InvalidNonce,
+
+    SealingFailed,
+
+    OpeningFailed,
+
+    Schema(SchemaError),
+
+    // Indicate that a specified channel does not exist.
+    NoSuchChannel,
+}
+
+impl ChannelPool {
+    /// Creates a new `ChannelPool` with the default `ChannelPoolConfig`.
+    pub fn new() -> Result<ChannelPool, ChannelPoolError> {
+        ChannelPool::with_config(ChannelPoolConfig::default())
+    }
+
+    /// Creates a new `ChannelPool` with the specified `ChannelPoolConfig`.
+    pub fn with_config(config: ChannelPoolConfig) -> Result<ChannelPool, ChannelPoolError> {
+        if !config.is_valid() {
+            Err(ChannelPoolError::InvalidConfig)
+        } else {
+            Ok(ChannelPool {
+                inner:  HashMap::new(),
+                index:  HashMap::new(),
+                config: config,
+            })
         }
     }
 
-    pub fn replace(&mut self, addr: SocketAddr, info: NewChannelInfo) {
-        let (send_end, recv_end) = derive_send_recv_end(addr, info, &self.config);
+    /// Add a "new" channel to the pool.
+    pub fn add_channel(&mut self, addr: SocketAddr, info: NewChannelInfo) {
+        // Build sender and receiver
+        let tx = SenderInfo {
+            addr,
+            id: info.sender_id,
+            nonce: Nonce::zero(),
+            key: info.sender_key,
+            keepalive_ticks: self.config.keepalive_ticks,
+        };
+        let rx = ReceiverInfo {
+            id: info.receiver_id,
+            wnd: NonceWindow::new(self.config.receiving_window_size),
+            key: info.receiver_key,
+            keepalive_ticks: 2 * self.config.keepalive_ticks,
+        };
 
-        while self.recv_ends.len() >= self.config.max_recv_end {
-            self.recv_ends.pop_front();
+        let public_key = info.remote_public_key;
+
+        if let Some(channel) = self.inner.get_mut(&public_key) {
+            // Remove the old receiving ends
+            while channel.rx.len() >= self.config.maximum_receiver {
+                let old_rx = channel.rx.pop_front().unwrap();
+                self.index.remove(&old_rx.id);
+            }
+            // Push the new receiving end to the ring
+            self.index.insert(rx.id.clone(), public_key);
+            channel.rx.push_back(rx);
+
+            // Replace the old sending ends
+            channel.tx = Some(tx);
+        } else {
+            self.index.insert(rx.id.clone(), public_key.clone());
+            let new_channel = Channel {
+                tx: Some(tx),
+                rx: VecDeque::from(vec![rx]),
+            };
+            self.inner.insert(public_key, new_channel);
         }
-
-        self.send_end = send_end;
-        self.recv_ends.push_back(recv_end);
     }
 
-    pub fn pre_send(&mut self, plain: Plain) -> Result<(SocketAddr, ChannelerMessage), ()> {
-        self.encrypt(plain).and_then(|channeler_message| {
-            increase_nonce(&mut self.send_end.nonce);
-            Ok((self.send_end.addr, channeler_message))
-        })
-    }
-
-    // TODO: Also take the addr, and update the addr when encrypt the message successful?
-    pub fn try_recv(&mut self, encrypted: Bytes) -> Result<Option<Bytes>, ()> {
-        let plain = self.decrypt(encrypted)?;
-
-        match plain.content {
-            PlainContent::KeepAlive => {
-                // TODO: Reset the send_end keepalive_ticks if we accept this message
-                // using the mapping recv_end.
-                Ok(None)
-            },
-            PlainContent::User(content) => Ok(Some(content)),
+    /// Delete a channel from pool.
+    pub fn del_channel(&mut self, public_key: &PublicKey) {
+        if let Some(channel) = self.inner.remove(public_key) {
+            for rx in channel.rx {
+                let _ = self.index.remove(&rx.id);
+            }
         }
     }
 
-    // ========== encrypt/decrypt ==========
-    // FIXME: decouple?
+    pub fn encrypt_outgoing_msg(
+        &mut self,
+        public_key: &PublicKey,
+        msg: Plain
+    ) -> Result<(SocketAddr, Bytes), ChannelPoolError> {
+        let mut tx = self.inner.get_mut(public_key).ok_or(ChannelPoolError::NoSuchChannel)
+            .and_then(|ch| ch.tx.as_mut().ok_or(ChannelPoolError::NoSuchChannel))?;
 
-    #[inline]
-    fn encrypt(&self, plain: Plain) -> Result<ChannelerMessage, ()> {
-        let serialized_plain = plain.encode().map_err(|_| ())?;
-        let mut buf = BytesMut::with_capacity(NONCE_LEN + serialized_plain.len() + TAG_LEN);
+        let encrypted = encrypt(&mut tx, msg)?;
+        let msg = ChannelerMessage::Encrypted(encrypted).encode().map_err(ChannelPoolError::Schema)?;
 
-        buf.extend_from_slice(&self.send_end.nonce);
-        buf.extend_from_slice(&serialized_plain);
-        buf.extend_from_slice(&[0x00; TAG_LEN][..]);
-
-        let ad = &self.send_end.id;
-        let key = &self.send_end.key;
-        let nonce = &self.send_end.nonce;
-
-        seal_in_place(key, nonce, ad, &mut buf[NONCE_LEN..], TAG_LEN).map_err(|_| ()).and_then(move |sz| {
-            let encrypted = buf.split_to(NONCE_LEN + sz).freeze();
-            Ok(ChannelerMessage::Encrypted(encrypted))
-        })
+        Ok((tx.addr, msg))
     }
 
-    #[inline]
-    fn decrypt(&mut self, mut encrypted: Bytes) -> Result<Plain, ()> {
-        // FIXME: Change the `Nonce` implementation to avoid copy here?
-        let nonce = Nonce::try_from(encrypted.split_to(NONCE_LEN).as_ref())?;
+    pub fn process_incoming_msg(&mut self, mut msg: Bytes) -> Result<Option<(PublicKey, Bytes)>, ChannelPoolError> {
+        let channel_id = ChannelId::try_from(msg.split_to(CHANNEL_ID_LEN).as_ref())
+            .map_err(|_| ChannelPoolError::InvalidChannelId)?;
 
-        for recv_end in self.recv_ends.iter_mut() {
-            let ad = &recv_end.id;
-            let key = &recv_end.key;
+        let public_key = self.index.get(&channel_id).ok_or(ChannelPoolError::NoSuchChannel)?;
 
-            match open_in_place(key, &nonce, ad, 0, &mut BytesMut::from(encrypted.clone())) {
-                Ok(serialized_plain) => {
-                    if recv_end.wnd.try_accept(&nonce) {
-                        return Plain::decode(serialized_plain).map_err(|_| ());
+        // Get the exact channel and process the encrypted message
+        if let Some(channel) = self.inner.get_mut(public_key) {
+            // Search the matching sender and try to decrypt the message
+            for receiver in channel.rx.iter_mut() {
+                if receiver.id == channel_id {
+                    // Try to decrypt this message using the given receiver,
+                    // the receiving window will be update when successful.
+                    let plain_content = decrypt(receiver, msg)?.content;
+
+                    match plain_content {
+                        PlainContent::KeepAlive => {
+                            // Reset the keepalive counter
+                            receiver.keepalive_ticks = 2 * self.config.keepalive_ticks;
+                            return Ok(None)
+                        }
+                        PlainContent::User(content) => return Ok(Some((public_key.clone(), content))),
                     }
                 }
-                Err(_) => continue,
             }
         }
 
-        Err(())
+        // Reach here means the index broken
+        // panic!("ChannelPool: invalid index");
+        // TODO: Add method to rebuild the index
+
+        Err(ChannelPoolError::NoSuchChannel)
+    }
+
+    // Handle the timer tick event, returns an array of public key, which indicates
+    // we need to send keepalive to those neighbor.
+    //
+    // # Panicss
+    //
+    // Panics if the internal state inconsistent.
+    pub fn process_timer_tick(&mut self) -> Result<Vec<PublicKey>, ChannelPoolError> {
+        let mut should_send_keepalive = Vec::new();
+
+        for (public_key, channel) in self.inner.iter_mut() {
+            // If we have a sender in this channel, we should done the following:
+            //
+            // Firstly, we check whether the newest receiving end have no activity
+            // for a while, if so, we remove the corresponding sending end.
+            // Then we check whether we need to send keepalive message to remote.
+            if let Some(mut sender) = channel.tx.take() {
+                // Check the keepalive_ticks of the newest receiving end first
+                if let Some(receiver) = channel.rx.back_mut() {
+                    if receiver.keepalive_ticks > 0 {
+                        receiver.keepalive_ticks -= 1;
+
+                        // Check if we need to send keepalive message
+                        if sender.keepalive_ticks == 0 {
+                            should_send_keepalive.push(public_key.clone());
+                            // Reset the keepalive tick counter
+                            sender.keepalive_ticks = self.config.keepalive_ticks;
+                        } else {
+                            sender.keepalive_ticks -= 1;
+                        }
+
+                        // Put the sender back
+                        channel.tx = Some(sender);
+                    }
+                } else {
+                    panic!("ChannelPool: internal state inconsistent");
+                }
+            }
+        }
+
+        Ok(should_send_keepalive)
     }
 }
 
-fn derive_send_recv_end(
-    addr: SocketAddr,
-    info: NewChannelInfo,
-    config: &ChannelConfig
-) -> (SendEnd, RecvEnd) {
-    let send_end = SendEnd {
-        addr,
-        id: info.send_end_id,
-        nonce: Nonce::zero(),
-        key: info.send_end_key,
-        keepalive_ticks: config.keepalive_ticks,
-    };
+/// Decrypt a encrypted serialized `Plain` message, returns the `Plain` message
+/// on success. On failure, returns an error indicates the reason.
+#[inline]
+fn decrypt(receiver: &mut ReceiverInfo, mut encrypted: Bytes) -> Result<Plain, ChannelPoolError> {
+    // FIXME: will panic if len(encrypted) < NONCE_LEN
+    let nonce = Nonce::try_from(encrypted.split_to(NONCE_LEN).as_ref())
+        .map_err(|_| ChannelPoolError::InvalidNonce)?;
 
-    let recv_end = RecvEnd {
-        id: info.recv_end_id,
-        wnd: NonceWindow::new(config.recv_wnd_size),
-        key: info.recv_end_key,
-        keepalive_ticks: config.keepalive_ticks,
-    };
 
-    (send_end, recv_end)
+    let ad = &receiver.id;
+    let key = &receiver.key;
+
+    match open_in_place(key, &nonce, ad, 0, &mut BytesMut::from(encrypted)) {
+        Ok(serialized_plain) => {
+            let plain = Plain::decode(serialized_plain).map_err(ChannelPoolError::Schema)?;
+
+            if receiver.wnd.try_accept(&nonce) {
+                Ok(plain)
+            } else {
+                Err(ChannelPoolError::InvalidNonce)
+            }
+        }
+        Err(_) => Err(ChannelPoolError::OpeningFailed),
+    }
+}
+
+/// Encrypt a `Plain` message, returns the encrypted serialized `Plain` message
+/// of the input on success. On failure, returns an error indicates the reason.
+#[inline]
+fn encrypt(sender: &mut SenderInfo, plain: Plain) -> Result<Bytes, ChannelPoolError> {
+    static PREFIX_LENGTH: usize = CHANNEL_ID_LEN + NONCE_LEN;
+
+    let serialized = plain.encode().map_err(ChannelPoolError::Schema)?;
+
+    let mut buf = BytesMut::with_capacity(PREFIX_LENGTH + serialized.len() + TAG_LEN);
+
+    buf.extend_from_slice(&sender.id);
+    buf.extend_from_slice(&sender.nonce);
+    buf.extend_from_slice(&serialized);
+    buf.extend_from_slice(&[0x00; TAG_LEN][..]);
+
+    let ad = &sender.id;
+    let key = &sender.key;
+    let nonce = &sender.nonce;
+
+    match seal_in_place(key, nonce, ad, &mut buf[PREFIX_LENGTH..], TAG_LEN) {
+        Ok(out_size) => {
+            increase_nonce(&mut sender.nonce);
+            Ok(buf.split_to(PREFIX_LENGTH + out_size).freeze())
+        }
+        Err(_) => Err(ChannelPoolError::SealingFailed)
+    }
 }
 
 #[cfg(test)]
@@ -207,47 +351,40 @@ mod tests {
     use ring::aead::CHACHA20_POLY1305;
 
     #[test]
-    fn send_recv() {
-        let new_channel_info_a = NewChannelInfo {
-            remote_public_key: PublicKey::from_bytes(&vec![1u8; 32]).unwrap(),
-            send_end_id: ChannelId::try_from(&[0x00; CHANNEL_ID_LEN][..]).unwrap(),
-            send_end_key: SealingKey::new(&CHACHA20_POLY1305, &[0x00; 32][..]).unwrap(),
-            recv_end_id: ChannelId::try_from(&[0x01; CHANNEL_ID_LEN][..]).unwrap(),
-            recv_end_key: OpeningKey::new(&CHACHA20_POLY1305, &[0x01; 32][..]).unwrap(),
-        };
-
-        let new_channel_info_b = NewChannelInfo {
-            remote_public_key: PublicKey::from_bytes(&vec![0u8; 32]).unwrap(),
-            send_end_id: ChannelId::try_from(&[0x01; CHANNEL_ID_LEN][..]).unwrap(),
-            send_end_key: SealingKey::new(&CHACHA20_POLY1305, &[0x01; 32][..]).unwrap(),
-            recv_end_id: ChannelId::try_from(&[0x00; CHANNEL_ID_LEN][..]).unwrap(),
-            recv_end_key: OpeningKey::new(&CHACHA20_POLY1305, &[0x00; 32][..]).unwrap(),
-        };
-
-        let channel_config = ChannelConfig {
-            max_recv_end: 3,
-            recv_wnd_size: 256,
+    fn test_encrypt_decrypt() {
+        let mut tx = SenderInfo {
+            addr: "127.0.0.1:10001".parse().unwrap(),
+            id: ChannelId::try_from(&[0x00; CHANNEL_ID_LEN][..]).unwrap(),
+            nonce: Nonce::zero(),
+            key: SealingKey::new(&CHACHA20_POLY1305, &[0x01; 32][..]).unwrap(),
             keepalive_ticks: 100,
         };
 
-        let addr_a = "127.0.0.1:10001".parse().unwrap();
-        let addr_b = "127.0.0.1:10002".parse().unwrap();
+        let mut rx = ReceiverInfo {
+            id: ChannelId::try_from(&[0x00; CHANNEL_ID_LEN][..]).unwrap(),
+            wnd: NonceWindow::new(256),
+            key: OpeningKey::new(&CHACHA20_POLY1305, &[0x01; 32][..]).unwrap(),
+            keepalive_ticks: 200,
+        };
 
-        let mut channel_a = Channel::new(addr_a, new_channel_info_a, channel_config);
-        let mut channel_b = Channel::new(addr_b, new_channel_info_b, channel_config);
-
-        let plain_to_b = Plain {
+        let plain1 = Plain {
             rand_padding: Bytes::from(vec![0xff; 32]),
             content: PlainContent::User(Bytes::from("hello!")),
         };
 
-        let (_addr, msg) = channel_a.pre_send(plain_to_b.clone()).unwrap();
-        match msg {
-            ChannelerMessage::Encrypted(encrypted) => {
-                let content_from_b = channel_b.try_recv(encrypted).unwrap();
-                assert_eq!(Some(Bytes::from("hello!")), content_from_b);
-            }
-            _ => panic!("message type not match"),
-        }
+        let mut encrypted = encrypt(&mut tx, plain1).unwrap();
+
+        let _channel_id = encrypted.split_to(CHANNEL_ID_LEN);
+
+        let plain2 = decrypt(&mut rx, encrypted.clone()).unwrap();
+
+        assert_eq!(plain2.content, PlainContent::User(Bytes::from("hello!")));
+
+        // Don't accept a same message twice.
+        assert!(decrypt(&mut rx, encrypted).is_err());
     }
+
+    #[test]
+    fn test_channel_pool() {}
 }
+

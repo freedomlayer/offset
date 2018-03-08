@@ -135,10 +135,10 @@ impl Handshake {
             Ok(NewChannelInfo {
                 remote_public_key,
 
-                recv_end_id:  responder_sender_id,
-                send_end_id:  initiator_sender_id,
-                send_end_key: sending_key,
-                recv_end_key: receiving_key,
+                receiver_id:  responder_sender_id,
+                sender_id:  initiator_sender_id,
+                sender_key: sending_key,
+                receiver_key: receiving_key,
             })
         } else {
             let remote_public_key = init_channel.public_key;
@@ -152,10 +152,10 @@ impl Handshake {
             Ok(NewChannelInfo {
                 remote_public_key,
 
-                recv_end_id:  initiator_sender_id,
-                send_end_id:  responder_sender_id,
-                send_end_key: sending_key,
-                recv_end_key: receiving_key,
+                receiver_id:  initiator_sender_id,
+                sender_id:  responder_sender_id,
+                sender_key: sending_key,
+                receiver_key: receiving_key,
             })
         }
     }

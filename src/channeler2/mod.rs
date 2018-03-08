@@ -34,11 +34,10 @@ mod channel;
 mod handshake;
 
 pub use self::channel::{ChannelId, CHANNEL_ID_LEN};
-use self::channel::{Channel, NewChannelInfo, ChannelConfig};
+use self::channel::{NewChannelInfo, ChannelPool, ChannelPoolError, ChannelPoolConfig};
 use self::handshake::{HandshakeManager, ToHandshakeManager, HandshakeManagerError};
 
 // TODO: Introduce `ChannelerConfig`
-const TAG_LEN: usize = 16;
 const RETRY_TICKS: usize = 100;
 const MAX_RAND_PADDING_LEN: usize = 32;
 
@@ -64,7 +63,6 @@ pub struct NeighborInfo {
     pub retry_ticks: usize,
 }
 
-type ChannelsTable  = HashMap<PublicKey, Channel>;
 type NeighborsTable = HashMap<PublicKey, NeighborInfo>;
 
 pub struct Channeler<I: Stream, O: Sink, SR: SecureRandom> {
@@ -76,7 +74,7 @@ pub struct Channeler<I: Stream, O: Sink, SR: SecureRandom> {
     /// Secure random number generator
     secure_rng: Rc<SR>,
 
-    channels:  Rc<RefCell<ChannelsTable>>,
+    channel_pool: Rc<RefCell<ChannelPool>>,
     neighbors: Rc<RefCell<NeighborsTable>>,
 
     handshake_manager_sender: mpsc::Sender<ToHandshakeManager>,
@@ -116,9 +114,17 @@ pub enum ChannelerError {
     SecureRandomError,
     PrepareSendError,
 
+    ChannelPool(ChannelPoolError),
+
     SendToHandshakeManagerError, // fatal error
 
     HandshakeManagerError,
+}
+
+impl From<ChannelPoolError> for ChannelerError {
+    fn from(e: ChannelPoolError) -> ChannelerError {
+        ChannelerError::ChannelPool(e)
+    }
 }
 
 impl<I, O, SR, TE, RE> Channeler<I, O, SR>
@@ -130,12 +136,13 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
         TE: Into<ChannelerError>,
 {
     fn process_timer_next(&mut self) -> Poll<(), ChannelerError> {
-        let poll_result = self.timer_receiver.poll()
-            .map_err(|_| ChannelerError::PollTimerError);
+        let poll_result = self.timer_receiver.poll().map_err(|_| ChannelerError::PollTimerError);
 
         match try_ready!(poll_result) {
             None => Err(ChannelerError::TimerTerminated),
             Some(FromTimer::TimeTick) => {
+                // Decrease the retry ticks of all neighbor, initiate a new handshake
+                // if the counter reach ZERO
                 for neighbor in self.neighbors.borrow_mut().values_mut() {
                     if let Some(remote_addr) = neighbor.socket_addr {
                         if neighbor.retry_ticks <= 1 {
@@ -146,6 +153,12 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
                         }
                     }
                 }
+
+                // Notify the handshake manager
+                // FIXME: Handle the error here
+                let _ = self.handshake_manager_sender.try_send(ToHandshakeManager::TimerTick);
+
+                // TODO: Notify the channel pool and sent the keepalive message, if any.
 
                 Ok(Async::Ready(()))
             }
@@ -191,32 +204,15 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
 
                 match channeler_message {
                     ChannelerMessage::Encrypted(encrypted) => {
-                        // FIXME: This actually block the channeler!
-                        // FIXME: We may borrow the channels too long here!
-                        let opt_message = {
-                            let mut res = None;
+                        let opt_message =
+                            self.channel_pool.borrow_mut().process_incoming_msg(encrypted)?;
 
-                            for (remote_public_key, channel) in self.channels.borrow_mut().iter_mut() {
-                                match channel.try_recv(encrypted.clone()) {
-                                    Ok(None) => break,
-                                    Ok(Some(content)) => {
-                                        let message_to_networker = ChannelerToNetworker {
-                                            remote_public_key: remote_public_key.clone(),
-                                            event: ChannelEvent::Message(content),
-                                        };
-
-                                        res = Some(message_to_networker);
-                                        break;
-                                    }
-                                    Err(_) => continue,
-                                }
-                            }
-
-                            res
-                        };
-
-                        if let Some(message) = opt_message {
-                            return self.start_send_networker(message);
+                        if let Some((pk, message)) = opt_message {
+                            let message_to_networker = ChannelerToNetworker {
+                                remote_public_key: pk,
+                                event: ChannelEvent::Message(message),
+                            };
+                            return self.start_send_networker(message_to_networker);
                         }
                     }
                     ChannelerMessage::InitChannel(init_channel) => {
@@ -269,35 +265,24 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
     fn remove_neighbor(&mut self, public_key: PublicKey) {
         trace!("request to remove neighbor: {:?}", public_key);
 
-        self.channels.borrow_mut().remove(&public_key);
+        self.channel_pool.borrow_mut().del_channel(&public_key);
         self.neighbors.borrow_mut().remove(&public_key);
     }
 
     fn do_send_channel_message(
         &mut self,
-        remote_public_key: PublicKey,
+        public_key: PublicKey,
         content: Bytes
     ) -> Poll<(), ChannelerError> {
-        let item = if let Some(channel) = self.channels.borrow_mut().get_mut(&remote_public_key) {
-            let rand_padding = gen_random_bytes(&*self.secure_rng, MAX_RAND_PADDING_LEN)
-                .map_err(|_| ChannelerError::SecureRandomError)?;
+        let rand_padding = gen_random_bytes(&*self.secure_rng, MAX_RAND_PADDING_LEN)
+            .map_err(|_| ChannelerError::SecureRandomError)?;
 
-            let plain = Plain {
-                rand_padding,
-                content: PlainContent::User(content)
-            };
-
-            let (addr, channeler_message) = channel.pre_send(plain)
-                .map_err(|_| ChannelerError::PrepareSendError)?;
-
-            let serialized_message = channeler_message.encode().map_err(ChannelerError::Schema)?;
-
-
-            (addr, serialized_message)
-        } else {
-            info!("no sending end for: {:?}", remote_public_key);
-            return Ok(Async::Ready(()));
+        let plain = Plain {
+            rand_padding,
+            content: PlainContent::User(content)
         };
+
+        let item = self.channel_pool.borrow_mut().encrypt_outgoing_msg(&public_key, plain)?;
 
         self.start_send_outgoing(item)
     }
@@ -375,7 +360,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
     }
 
     fn process_channel_ready(&self, remote_addr: SocketAddr, channel_ready: ChannelReady) {
-        let channels = Rc::clone(&self.channels);
+        let channel_pool = Rc::clone(&self.channel_pool);
         let handshake_manager_sender = self.handshake_manager_sender.clone();
 
         let (response_sender, response_receiver) = oneshot::channel();
@@ -392,7 +377,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
                 response_receiver
                     .map_err(|_| ChannelerError::HandshakeManagerError)
                     .and_then(move |new_channel_info| {
-                        add_channel(channels, remote_addr, new_channel_info);
+                        channel_pool.borrow_mut().add_channel(remote_addr, new_channel_info);
                         Ok(())
                     })
             });
@@ -403,7 +388,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
     }
 
     fn process_exchange_active(&self, remote_addr: SocketAddr, exchange_active: ExchangeActive) {
-        let channels = Rc::clone(&self.channels);
+        let channel_pool = Rc::clone(&self.channel_pool);
         let outgoing_sender = self.outgoing_sender.clone();
         let handshake_manager_sender = self.handshake_manager_sender.clone();
 
@@ -433,7 +418,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
                             })
                     })
                     .and_then(move |new_channel_info| {
-                        add_channel(channels, remote_addr, new_channel_info);
+                        channel_pool.borrow_mut().add_channel(remote_addr, new_channel_info);
                         Ok(())
                     })
             });
@@ -541,31 +526,12 @@ impl<I, O, SR, TE, RE> Future for Channeler<I, O, SR>
     }
 }
 
-fn add_channel(channels: Rc<RefCell<ChannelsTable>>, remote_addr: SocketAddr, info: NewChannelInfo) {
-    // FIXME: Find a proper way to get the config
-    let config = ChannelConfig {
-        max_recv_end: 3,
-        recv_wnd_size: 256,
-        keepalive_ticks: 100,
-    };
+// =============================== Helpers =============================
 
-    let remote_public_key = info.remote_public_key.clone();
-
-    {
-        let mut channels = channels.borrow_mut();
-
-        if let Some(channel) = channels.get_mut(&remote_public_key) {
-            channel.replace(remote_addr, info);
-        } else {
-            let new_channel = Channel::new(remote_addr, info, config);
-            channels.insert(remote_public_key, new_channel);
-        }
-    }
-}
-
-/// Generate a random byte sequence.
 #[inline]
-pub fn gen_random_bytes<R: SecureRandom>(rng: &R, max_len: usize) -> Result<Bytes, ()> {
+pub fn gen_random_bytes<SR>(rng: &SR, max_len: usize) -> Result<Bytes, ()>
+    where SR: SecureRandom
+{
     if (u16::max_value() as usize + 1) % max_len != 0 {
         Err(())
     } else {
