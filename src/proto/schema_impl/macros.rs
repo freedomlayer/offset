@@ -1,5 +1,4 @@
 /// Include the auto-generated schema files.
-//#[macro_export]
 macro_rules! include_schema {
     ($( $name:ident, $path:expr );*) => {
         $(
@@ -15,10 +14,9 @@ macro_rules! include_schema {
 }
 
 /// Macro to inject the default implementation of `Schema::decode` and `Schema::encode`.
-//#[macro_export]
 macro_rules! inject_default_impl {
     () => {
-        fn decode(buffer: Bytes) -> Result<Self, SchemaError> {
+        fn decode(buffer: &[u8]) -> Result<Self, SchemaError> {
             let mut buffer = io::Cursor::new(buffer);
 
             let reader = serialize_packed::read_message(
@@ -49,11 +47,10 @@ macro_rules! inject_default_impl {
 }
 
 #[cfg(test)]
-//#[macro_export]
 macro_rules! test_encode_decode {
     ($type: ident, $in: ident) => {
         let msg = $in.encode().unwrap();
-        let out = $type::decode(msg).unwrap();
+        let out = $type::decode(&msg).unwrap();
         assert!($in == out);
     };
 }

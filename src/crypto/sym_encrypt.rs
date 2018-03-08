@@ -15,14 +15,14 @@ pub struct SymmetricKey([u8; SYMMETRIC_KEY_LEN]);
 
 // NOTICE: Do not expose the following methods to every one.
 impl SymmetricKey {
-    pub(super) fn from_bytes(raw: &[u8]) -> SymmetricKey {
+    pub fn from_bytes(raw: &[u8]) -> SymmetricKey {
         debug_assert!(raw.len() == SYMMETRIC_KEY_LEN);
         let mut key = [0x00; SYMMETRIC_KEY_LEN];
         key.copy_from_slice(raw);
         SymmetricKey(key)
     }
 
-    pub(super) fn as_bytes(&self) -> &[u8; SYMMETRIC_KEY_LEN] {
+    pub fn as_bytes(&self) -> &[u8; SYMMETRIC_KEY_LEN] {
         &self.0
     }
 }

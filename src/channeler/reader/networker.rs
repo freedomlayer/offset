@@ -198,9 +198,9 @@ impl Future for NetworkerReader {
                             self.add_neighbor(info);
                         },
                         NetworkerToChanneler::RemoveNeighbor {
-                            neighbor_public_key,
+                            public_key,
                         } => {
-                            self.del_neighbor(neighbor_public_key);
+                            self.del_neighbor(public_key);
                         },
                         NetworkerToChanneler::SendChannelMessage {
                             neighbor_public_key,

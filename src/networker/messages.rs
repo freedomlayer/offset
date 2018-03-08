@@ -161,7 +161,7 @@ pub enum NetworkerToChanneler {
     },
     /// Request to remove a neighbor.
     RemoveNeighbor {
-        neighbor_public_key: PublicKey
+        public_key: PublicKey
     },
 }
 
