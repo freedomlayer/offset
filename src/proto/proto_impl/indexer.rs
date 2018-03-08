@@ -5,7 +5,7 @@ use capnp::serialize_packed;
 
 include_schema!(indexer_capnp, "indexer_capnp");
 
-use proto::{Schema, SchemaError};
+use proto::{Proto, ProtoError};
 use proto::indexer::{
     FriendsRouteWithCapacity,
     IndexerRoute,
@@ -34,19 +34,19 @@ use super::common::{
 };
 
 
-impl<'a> Schema<'a> for NeighborsRoute {
+impl<'a> Proto<'a> for NeighborsRoute {
     type Reader = neighbors_route::Reader<'a>;
     type Writer = neighbors_route::Builder<'a>;
 
     inject_default_impl!();
 
-    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+    fn read(from: &Self::Reader) -> Result<Self, ProtoError> {
         let public_keys = read_public_key_list(&from.get_public_keys()?)?;
 
         Ok(NeighborsRoute { public_keys })
     }
 
-    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+    fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         write_public_key_list(
             &self.public_keys,
             &mut to.borrow().init_public_keys(self.public_keys.len() as u32),
@@ -56,13 +56,13 @@ impl<'a> Schema<'a> for NeighborsRoute {
     }
 }
 
-impl<'a> Schema<'a> for FriendsRouteWithCapacity {
+impl<'a> Proto<'a> for FriendsRouteWithCapacity {
     type Reader = friends_route_with_capacity::Reader<'a>;
     type Writer = friends_route_with_capacity::Builder<'a>;
 
     inject_default_impl!();
 
-    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+    fn read(from: &Self::Reader) -> Result<Self, ProtoError> {
         let public_keys = read_public_key_list(&from.get_public_keys()?)?;
 
         let capacity = from.get_capacity();
@@ -73,7 +73,7 @@ impl<'a> Schema<'a> for FriendsRouteWithCapacity {
         })
     }
 
-    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+    fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         write_public_key_list(
             &self.public_keys,
             &mut to.borrow().init_public_keys(self.public_keys.len() as u32),
@@ -85,13 +85,13 @@ impl<'a> Schema<'a> for FriendsRouteWithCapacity {
     }
 }
 
-impl<'a> Schema<'a> for RequestNeighborsRoutes {
+impl<'a> Proto<'a> for RequestNeighborsRoutes {
     type Reader = request_neighbors_route::Reader<'a>;
     type Writer = request_neighbors_route::Builder<'a>;
 
     inject_default_impl!();
 
-    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+    fn read(from: &Self::Reader) -> Result<Self, ProtoError> {
         let source_node_public_key = read_public_key(&from.get_source_node_public_key()?)?;
 
         let destination_node_public_key =
@@ -103,7 +103,7 @@ impl<'a> Schema<'a> for RequestNeighborsRoutes {
         })
     }
 
-    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+    fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         write_public_key(
             &self.source_node_public_key,
             &mut to.borrow().init_source_node_public_key(),
@@ -118,13 +118,13 @@ impl<'a> Schema<'a> for RequestNeighborsRoutes {
     }
 }
 
-impl<'a> Schema<'a> for ResponseNeighborsRoutes {
+impl<'a> Proto<'a> for ResponseNeighborsRoutes {
     type Reader = response_neighbors_route::Reader<'a>;
     type Writer = response_neighbors_route::Builder<'a>;
 
     inject_default_impl!();
 
-    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+    fn read(from: &Self::Reader) -> Result<Self, ProtoError> {
         // Read the routes
         let routes_reader = from.get_routes()?;
 
@@ -137,7 +137,7 @@ impl<'a> Schema<'a> for ResponseNeighborsRoutes {
         Ok(ResponseNeighborsRoutes { routes })
     }
 
-    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+    fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         // Write the routes
         {
             let mut routes_writer = to.borrow().init_routes(self.routes.len() as u32);
@@ -151,13 +151,13 @@ impl<'a> Schema<'a> for ResponseNeighborsRoutes {
     }
 }
 
-impl<'a> Schema<'a> for RequestFriendsRoutes {
+impl<'a> Proto<'a> for RequestFriendsRoutes {
     type Reader = request_friends_route::Reader<'a>;
     type Writer = request_friends_route::Builder<'a>;
 
     inject_default_impl!();
 
-    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+    fn read(from: &Self::Reader) -> Result<Self, ProtoError> {
         use self::request_friends_route::route_type::Which::*;
 
         let route_type_reader = from.borrow().get_route_type();
@@ -192,7 +192,7 @@ impl<'a> Schema<'a> for RequestFriendsRoutes {
         }
     }
 
-    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+    fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         let mut route_type_writer = to.borrow().init_route_type();
 
         match *self {
@@ -241,13 +241,13 @@ impl<'a> Schema<'a> for RequestFriendsRoutes {
     }
 }
 
-impl<'a> Schema<'a> for ResponseFriendsRoutes {
+impl<'a> Proto<'a> for ResponseFriendsRoutes {
     type Reader = response_friends_route::Reader<'a>;
     type Writer = response_friends_route::Builder<'a>;
 
     inject_default_impl!();
 
-    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+    fn read(from: &Self::Reader) -> Result<Self, ProtoError> {
         // Read the routes
         let routes_reader = from.get_routes()?;
 
@@ -260,7 +260,7 @@ impl<'a> Schema<'a> for ResponseFriendsRoutes {
         Ok(ResponseFriendsRoutes { routes })
     }
 
-    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+    fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         // Write the routes
         {
             let mut routes_writer = to.borrow().init_routes(self.routes.len() as u32);
@@ -275,13 +275,13 @@ impl<'a> Schema<'a> for ResponseFriendsRoutes {
     }
 }
 
-impl<'a> Schema<'a> for StateChainLink {
+impl<'a> Proto<'a> for StateChainLink {
     type Reader = chain_link::Reader<'a>;
     type Writer = chain_link::Builder<'a>;
 
     inject_default_impl!();
 
-    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+    fn read(from: &Self::Reader) -> Result<Self, ProtoError> {
         // Read the previousStateHash
         let previous_state_hash =
             read_indexing_provider_state_hash(&from.get_previous_state_hash()?)?;
@@ -310,7 +310,7 @@ impl<'a> Schema<'a> for StateChainLink {
         })
     }
 
-    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+    fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         // Write the previousStateHash
         write_indexing_provider_state_hash(
             &self.previous_state_hash,
@@ -353,13 +353,13 @@ impl<'a> Schema<'a> for StateChainLink {
     }
 }
 
-impl<'a> Schema<'a> for RequestUpdateState {
+impl<'a> Proto<'a> for RequestUpdateState {
     type Reader = request_update_state::Reader<'a>;
     type Writer = request_update_state::Builder<'a>;
 
     inject_default_impl!();
 
-    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+    fn read(from: &Self::Reader) -> Result<Self, ProtoError> {
         // Read the indexingProviderId
         let indexing_provider_id = read_indexing_provider_id(&from.get_indexing_provider_id()?)?;
 
@@ -379,7 +379,7 @@ impl<'a> Schema<'a> for RequestUpdateState {
         })
     }
 
-    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+    fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         // Write the indexingProviderId
         write_indexing_provider_id(
             &self.indexing_provider_id,
@@ -402,33 +402,33 @@ impl<'a> Schema<'a> for RequestUpdateState {
     }
 }
 
-impl<'a> Schema<'a> for ResponseUpdateState {
+impl<'a> Proto<'a> for ResponseUpdateState {
     type Reader = response_update_state::Reader<'a>;
     type Writer = response_update_state::Builder<'a>;
 
     inject_default_impl!();
 
-    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+    fn read(from: &Self::Reader) -> Result<Self, ProtoError> {
         // Read the stateHash
         let state_hash = read_indexing_provider_state_hash(&from.get_state_hash()?)?;
 
         Ok(ResponseUpdateState { state_hash })
     }
 
-    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+    fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         write_indexing_provider_state_hash(&self.state_hash, &mut to.borrow().init_state_hash())?;
 
         Ok(())
     }
 }
 
-impl<'a> Schema<'a> for IndexerRoute {
+impl<'a> Proto<'a> for IndexerRoute {
     type Reader = indexer_route::Reader<'a>;
     type Writer = indexer_route::Builder<'a>;
 
     inject_default_impl!();
 
-    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+    fn read(from: &Self::Reader) -> Result<Self, ProtoError> {
         let neighbors_route = NeighborsRoute::read(&from.get_neighbors_route()?)?;
 
         Ok(IndexerRoute {
@@ -437,7 +437,7 @@ impl<'a> Schema<'a> for IndexerRoute {
         })
     }
 
-    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+    fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         self.neighbors_route
             .write(&mut to.borrow().init_neighbors_route())?;
 
@@ -447,13 +447,13 @@ impl<'a> Schema<'a> for IndexerRoute {
     }
 }
 
-impl<'a> Schema<'a> for RoutesToIndexer {
+impl<'a> Proto<'a> for RoutesToIndexer {
     type Reader = routes_to_indexers::Reader<'a>;
     type Writer = routes_to_indexers::Builder<'a>;
 
     inject_default_impl!();
 
-    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+    fn read(from: &Self::Reader) -> Result<Self, ProtoError> {
         // Read the indexingProviderId
         let indexing_provider_id = read_indexing_provider_id(&from.get_indexing_provider_id()?)?;
 
@@ -476,7 +476,7 @@ impl<'a> Schema<'a> for RoutesToIndexer {
         })
     }
 
-    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+    fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         // Write the indexingProviderId
         write_indexing_provider_id(
             &self.indexing_provider_id,
@@ -636,43 +636,20 @@ mod tests {
             destination_node_public_key: create_dummy_public_key(),
         };
 
-        let serialized_message = in_request_friends_route_direct.encode().unwrap();
-
-        let out_request_friends_route_direct =
-            RequestFriendsRoutes::decode(serialized_message).unwrap();
-
-        assert_eq!(
-            in_request_friends_route_direct,
-            out_request_friends_route_direct
-        );
+        test_encode_decode!(RequestFriendsRoutes, in_request_friends_route_direct);
 
         let in_request_friends_route_loop_from_friend = RequestFriendsRoutes::LoopFromFriend {
             friend_public_key: create_dummy_public_key(),
         };
 
-        let serialized_message = in_request_friends_route_loop_from_friend.encode().unwrap();
+        test_encode_decode!(RequestFriendsRoutes, in_request_friends_route_loop_from_friend);
 
-        let out_request_friends_route_loop_from_friend =
-            RequestFriendsRoutes::decode(serialized_message).unwrap();
-
-        assert_eq!(
-            in_request_friends_route_loop_from_friend,
-            out_request_friends_route_loop_from_friend
-        );
 
         let in_request_friends_route_loop_to_friend = RequestFriendsRoutes::LoopToFriend {
             friend_public_key: create_dummy_public_key(),
         };
 
-        let serialized_message = in_request_friends_route_loop_to_friend.encode().unwrap();
-
-        let out_request_friends_route_loop_to_friend =
-            RequestFriendsRoutes::decode(serialized_message).unwrap();
-
-        assert_eq!(
-            in_request_friends_route_loop_to_friend,
-            out_request_friends_route_loop_to_friend
-        );
+        test_encode_decode!(RequestFriendsRoutes, in_request_friends_route_loop_to_friend);
     }
 
     #[test]
@@ -701,6 +678,7 @@ mod tests {
             indexing_provider_id,
             indexing_provider_states_chain,
         };
+
         test_encode_decode!(RequestUpdateState, in_request_update_state);
     }
 

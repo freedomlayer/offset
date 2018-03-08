@@ -4,8 +4,8 @@ use crypto::rand_values::RandValue;
 use crypto::dh::{DhPublicKey, Salt};
 use crypto::identity::{PublicKey, Signature};
 
-pub use super::schema_impl::channeler::MessageType;
-pub use super::schema_impl::channeler::{deserialize_message, serialize_message};
+pub use super::proto_impl::channeler::MessageType;
+pub use super::proto_impl::channeler::{deserialize_message, serialize_message};
 
 // TODO CR: We have to keep in sync the messages here and the messages in channeler.capnp.
 // Is there a way for us to have the messages only in one place?

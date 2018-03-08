@@ -14,11 +14,11 @@ macro_rules! include_schema {
     };
 }
 
-/// Macro to inject the default implementation of `Schema::decode` and `Schema::encode`.
+/// Macro to inject the default implementation of `Proto::decode` and `Proto::encode`.
 //#[macro_export]
 macro_rules! inject_default_impl {
     () => {
-        fn decode(buffer: Bytes) -> Result<Self, SchemaError> {
+        fn decode<B: AsRef<[u8]>>(buffer: B) -> Result<Self, ProtoError> {
             let mut buffer = io::Cursor::new(buffer);
 
             let reader = serialize_packed::read_message(
@@ -29,7 +29,7 @@ macro_rules! inject_default_impl {
             Self::read(&reader.get_root()?)
         }
 
-        fn encode(&self) -> Result<Bytes, SchemaError> {
+        fn encode(&self) -> Result<Bytes, ProtoError> {
             let mut builder = ::capnp::message::Builder::new_default();
 
             match self.write(&mut builder.init_root())? {
@@ -49,7 +49,6 @@ macro_rules! inject_default_impl {
 }
 
 #[cfg(test)]
-//#[macro_export]
 macro_rules! test_encode_decode {
     ($type: ident, $in: ident) => {
         let msg = $in.encode().unwrap();
