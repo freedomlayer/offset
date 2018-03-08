@@ -56,9 +56,18 @@ impl TokenChannelCredit {
     }
 
     // Normally called if received credits through the Funder layer.
-    pub fn decrease_balance(&mut self, credits: u64) {
-        self.balance = cmp::max(self.balance as i128 - credits as i128,
-                                MIN_BALANCE as i128) as i64;
+    pub fn decrease_balance(&mut self, credits: u64) -> bool {
+        if credits > MAX_NEIGHBOR_DEBT {
+            false
+        } else {
+            match self.balance.checked_sub(credits as i64) {
+                None => false,
+                Some(new_balance) => {
+                    self.balance = new_balance;
+                    true
+                }
+            }
+        }
     }
 
     // Normally called if gave credits through the Funder layer.
