@@ -205,7 +205,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
                 match channeler_message {
                     ChannelerMessage::Encrypted(encrypted) => {
                         let opt_message =
-                            self.channel_pool.borrow_mut().process_incoming_msg(encrypted)?;
+                            self.channel_pool.borrow_mut().decrypt_incoming(encrypted)?;
 
                         if let Some((pk, message)) = opt_message {
                             let message_to_networker = ChannelerToNetworker {
@@ -265,7 +265,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
     fn remove_neighbor(&mut self, public_key: PublicKey) {
         trace!("request to remove neighbor: {:?}", public_key);
 
-        self.channel_pool.borrow_mut().del_channel(&public_key);
+        self.channel_pool.borrow_mut().remove(&public_key);
         self.neighbors.borrow_mut().remove(&public_key);
     }
 
@@ -282,7 +282,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
             content: PlainContent::User(content)
         };
 
-        let item = self.channel_pool.borrow_mut().encrypt_outgoing_msg(&public_key, plain)?;
+        let item = self.channel_pool.borrow_mut().encrypt_outgoing(&public_key, plain)?;
 
         self.start_send_outgoing(item)
     }
@@ -377,7 +377,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
                 response_receiver
                     .map_err(|_| ChannelerError::HandshakeManagerError)
                     .and_then(move |new_channel_info| {
-                        channel_pool.borrow_mut().add_channel(remote_addr, new_channel_info);
+                        channel_pool.borrow_mut().insert(remote_addr, new_channel_info);
                         Ok(())
                     })
             });
@@ -418,7 +418,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
                             })
                     })
                     .and_then(move |new_channel_info| {
-                        channel_pool.borrow_mut().add_channel(remote_addr, new_channel_info);
+                        channel_pool.borrow_mut().insert(remote_addr, new_channel_info);
                         Ok(())
                     })
             });

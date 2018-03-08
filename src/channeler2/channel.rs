@@ -115,6 +115,8 @@ pub struct ChannelPool {
 pub enum ChannelPoolError {
     InvalidConfig,
 
+    InvalidMessage,
+
     InvalidChannelId,
 
     InvalidNonce,
@@ -149,13 +151,13 @@ impl ChannelPool {
     }
 
     /// Add a "new" channel to the pool.
-    pub fn add_channel(&mut self, addr: SocketAddr, info: NewChannelInfo) {
+    pub fn insert(&mut self, addr: SocketAddr, info: NewChannelInfo) {
         // Build sender and receiver
         let tx = SenderInfo {
             addr,
             id: info.sender_id,
-            nonce: Nonce::zero(),
             key: info.sender_key,
+            nonce: Nonce::zero(),
             keepalive_ticks: self.config.keepalive_ticks,
         };
         let rx = ReceiverInfo {
@@ -190,7 +192,7 @@ impl ChannelPool {
     }
 
     /// Delete a channel from pool.
-    pub fn del_channel(&mut self, public_key: &PublicKey) {
+    pub fn remove(&mut self, public_key: &PublicKey) {
         if let Some(channel) = self.inner.remove(public_key) {
             for rx in channel.rx {
                 let _ = self.index.remove(&rx.id);
@@ -198,52 +200,61 @@ impl ChannelPool {
         }
     }
 
-    pub fn encrypt_outgoing_msg(
+    pub fn encrypt_outgoing(
         &mut self,
         public_key: &PublicKey,
-        msg: Plain
+        plain: Plain
     ) -> Result<(SocketAddr, Bytes), ChannelPoolError> {
         let mut tx = self.inner.get_mut(public_key).ok_or(ChannelPoolError::NoSuchChannel)
             .and_then(|ch| ch.tx.as_mut().ok_or(ChannelPoolError::NoSuchChannel))?;
 
-        let encrypted = encrypt(&mut tx, msg)?;
+        let encrypted = encrypt(&mut tx, plain)?;
         let msg = ChannelerMessage::Encrypted(encrypted).encode().map_err(ChannelPoolError::Schema)?;
 
         Ok((tx.addr, msg))
     }
 
-    pub fn process_incoming_msg(&mut self, mut msg: Bytes) -> Result<Option<(PublicKey, Bytes)>, ChannelPoolError> {
-        let channel_id = ChannelId::try_from(msg.split_to(CHANNEL_ID_LEN).as_ref())
-            .map_err(|_| ChannelPoolError::InvalidChannelId)?;
+    pub fn decrypt_incoming(
+        &mut self,
+        mut encrypted: Bytes
+    ) -> Result<Option<(PublicKey, Bytes)>, ChannelPoolError> {
+        if encrypted.len() <= CHANNEL_ID_LEN + NONCE_LEN + TAG_LEN {
+            Err(ChannelPoolError::InvalidMessage)
+        } else {
+            let channel_id = ChannelId::try_from(encrypted.split_to(CHANNEL_ID_LEN).as_ref())
+                .map_err(|_| ChannelPoolError::InvalidChannelId)?;
 
-        let public_key = self.index.get(&channel_id).ok_or(ChannelPoolError::NoSuchChannel)?;
+            // Get the key of the two-level index
+            let public_key = self.index.get(&channel_id).ok_or(ChannelPoolError::NoSuchChannel)?;
 
-        // Get the exact channel and process the encrypted message
-        if let Some(channel) = self.inner.get_mut(public_key) {
-            // Search the matching sender and try to decrypt the message
-            for receiver in channel.rx.iter_mut() {
-                if receiver.id == channel_id {
-                    // Try to decrypt this message using the given receiver,
-                    // the receiving window will be update when successful.
-                    let plain_content = decrypt(receiver, msg)?.content;
+            // Get the exact channel and process the encrypted message
+            if let Some(channel) = self.inner.get_mut(public_key) {
+                // Search the matching sender and try to decrypt the message
+                for rx in channel.rx.iter_mut() {
+                    if rx.id == channel_id {
+                        // Try to decrypt this message using the given receiver,
+                        // the receiving window will be update when successful.
+                        let plain_content = decrypt(rx, encrypted)?.content;
 
-                    match plain_content {
-                        PlainContent::KeepAlive => {
-                            // Reset the keepalive counter
-                            receiver.keepalive_ticks = 2 * self.config.keepalive_ticks;
-                            return Ok(None)
+                        match plain_content {
+                            PlainContent::KeepAlive => {
+                                rx.keepalive_ticks = 2 * self.config.keepalive_ticks;
+                                return Ok(None)
+                            }
+                            PlainContent::User(content) => {
+                                return Ok(Some((public_key.clone(), content)))
+                            }
                         }
-                        PlainContent::User(content) => return Ok(Some((public_key.clone(), content))),
                     }
                 }
             }
+
+            // Reach here means the index broken
+            warn!("index broken");
+            self.rebuild_index();
+
+            Err(ChannelPoolError::NoSuchChannel)
         }
-
-        // Reach here means the index broken
-        // panic!("ChannelPool: invalid index");
-        // TODO: Add method to rebuild the index
-
-        Err(ChannelPoolError::NoSuchChannel)
     }
 
     // Handle the timer tick event, returns an array of public key, which indicates
@@ -261,31 +272,42 @@ impl ChannelPool {
             // Firstly, we check whether the newest receiving end have no activity
             // for a while, if so, we remove the corresponding sending end.
             // Then we check whether we need to send keepalive message to remote.
-            if let Some(mut sender) = channel.tx.take() {
+            if let Some(mut tx) = channel.tx.take() {
                 // Check the keepalive_ticks of the newest receiving end first
-                if let Some(receiver) = channel.rx.back_mut() {
-                    if receiver.keepalive_ticks > 0 {
-                        receiver.keepalive_ticks -= 1;
+                if let Some(rx) = channel.rx.back_mut() {
+                    if rx.keepalive_ticks > 0 {
+                        rx.keepalive_ticks -= 1;
 
-                        // Check if we need to send keepalive message
-                        if sender.keepalive_ticks == 0 {
+                        // Check whether we need to send keepalive message
+                        if tx.keepalive_ticks == 0 {
                             should_send_keepalive.push(public_key.clone());
-                            // Reset the keepalive tick counter
-                            sender.keepalive_ticks = self.config.keepalive_ticks;
+                            tx.keepalive_ticks = self.config.keepalive_ticks;
                         } else {
-                            sender.keepalive_ticks -= 1;
+                            tx.keepalive_ticks -= 1;
                         }
 
-                        // Put the sender back
-                        channel.tx = Some(sender);
+                        channel.tx = Some(tx);
                     }
                 } else {
-                    panic!("ChannelPool: internal state inconsistent");
+                    error!("no receiving end, while there is a sending end");
                 }
             }
         }
 
         Ok(should_send_keepalive)
+    }
+
+    fn rebuild_index(&mut self) {
+        info!("rehashing index");
+
+        self.index.clear();
+        for (public_key, channel) in &self.inner {
+            for rx in &channel.rx {
+                self.index.insert(rx.id.clone(), public_key.clone());
+            }
+        }
+
+        info!("index rehashed");
     }
 }
 
@@ -293,7 +315,9 @@ impl ChannelPool {
 /// on success. On failure, returns an error indicates the reason.
 #[inline]
 fn decrypt(receiver: &mut ReceiverInfo, mut encrypted: Bytes) -> Result<Plain, ChannelPoolError> {
-    // FIXME: will panic if len(encrypted) < NONCE_LEN
+    // NOTE: The caller should promise encrypted.len() > NONCE_LEN
+    debug_assert!(encrypted.len() > NONCE_LEN);
+
     let nonce = Nonce::try_from(encrypted.split_to(NONCE_LEN).as_ref())
         .map_err(|_| ChannelPoolError::InvalidNonce)?;
 
@@ -387,4 +411,3 @@ mod tests {
     #[test]
     fn test_channel_pool() {}
 }
-
