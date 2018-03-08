@@ -29,6 +29,7 @@ highest priority.
 - When two possible designs are possible, always choose the safer design.
 - Always prefer using a boring well tested cryptographic library over writing
     your own.
+- Random for cryptographic uses should only be obtained from Cryptographic sources.
 - Do not use `unsafe` statements, only if really necessary.
 - In most cases, prefer to use a compile time guarantee over a runtime guarantee.
     Instead of verifying that a state is valid at runtime, design your data
