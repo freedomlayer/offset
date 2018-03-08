@@ -6,11 +6,12 @@ use super::pending_requests::PendingRequests;
 use super::pending_requests::TransPendingRequests;
 use super::balance_state_old::RequestSendMessage;
 use proto::common::SendFundsReceipt;
-use super::balance_state_old::ProcessTransOutput;
+use super::balance_state_old::ProcessMessageOutput;
 use super::balance_state_old::ProcessMessageError;
 use super::balance_state_old::ResponseSendMessage;
 use super::balance_state_old::FailedSendMessage;
 use super::balance_state_old::NetworkerTCMessage;
+use proto::indexer::{NeighborsRoute, PkPairPosition};
 use proto::funder::InvoiceId;
 
 
@@ -42,7 +43,7 @@ struct TransTokenChannelState<'a>{
 
 impl TokenChannel{
     pub fn atomic_process_messages_list(&mut self, transactions: Vec<NetworkerTCMessage>)
-                                        -> Result<Vec<ProcessTransOutput>, ProcessTransListError>{
+                                        -> Result<Vec<ProcessMessageOutput>, ProcessTransListError>{
         let mut trans_token_channel = TransTokenChannelState::new(self);
         match trans_token_channel.process_messages_list(transactions){
             Err(e) => {
@@ -71,7 +72,7 @@ impl <'a>TransTokenChannelState<'a>{
         }
     }
 
-    fn process_set_remote_max_debt(&mut self, proposed_max_debt: u64)-> Result<Option<ProcessTransOutput>, ProcessMessageError> {
+    fn process_set_remote_max_debt(&mut self, proposed_max_debt: u64)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
         match self.tc_balance.set_local_max_debt(proposed_max_debt) {
             true => Ok(None),
             false => Err(ProcessMessageError::RemoteMaxDebtTooLarge(proposed_max_debt)),
@@ -79,7 +80,7 @@ impl <'a>TransTokenChannelState<'a>{
     }
 
     fn process_set_invoice_id(&mut self, invoice_id: InvoiceId)
-    -> Result<Option<ProcessTransOutput>, ProcessMessageError> {
+    -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
         // TODO(a4vision): What if we set the invoice id, and then regret about it ? One cannot reset it.
         match self.invoice_validator.set_remote_invoice_id(invoice_id.clone()) {
             true=> Ok(None),
@@ -87,37 +88,72 @@ impl <'a>TransTokenChannelState<'a>{
         }
     }
 
-    fn process_load_funds(&mut self, send_funds_receipt: SendFundsReceipt)-> Result<Option<ProcessTransOutput>, ProcessMessageError> {
+    fn process_load_funds(&mut self, send_funds_receipt: SendFundsReceipt)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
         // Verify signature:
         match self.invoice_validator.validate_reciept(&send_funds_receipt,
                                                       &self.local_public_key){
             Ok(()) => {
-                self.tc_balance.decrease_balance(cmp::min(send_funds_receipt.payment, u64::max_value() as u128) as u64);
+                let payment_as_u64 = cmp::min(send_funds_receipt.payment, u64::max_value() as u128) as u64;
+                self.tc_balance.decrease_balance(payment_as_u64);
                 return Ok(None);
             },
             Err(e) => return Err(e),
         }
     }
 
+    fn process_message_final(&mut self, request_send_msg: RequestSendMessage)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        unreachable!()
+    }
+
     fn process_request_send_message(&mut self,
-                                   request_send_msg: RequestSendMessage)-> Result<Option<ProcessTransOutput>, ProcessMessageError> {
-            unreachable!()
+                                   request_send_msg: RequestSendMessage)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        // TODO: Deal with case where we are the the last on the route chain
+        if !request_send_msg.get_route().is_unique(){
+            return Err(ProcessMessageError::DuplicateNodesInRoute);
+        }
+
+        let credits = match request_send_msg.get_route().find_pk_pair(&self.remote_public_key, &self.local_public_key) {
+            PkPairPosition::NotFound => return Err(ProcessMessageError::PKPairNotInChain),
+            PkPairPosition::IsLast => {
+                return self.process_request_send_message(request_send_msg);
+            },
+            PkPairPosition::NotLast => {
+                // Make sure it is possible to increase remote_pending_debt, and then increase it.
+                request_send_msg.calculate_credits_to_freeze(self.local_public_key);
+            },
+
+        };
+        // Check if request_id is not already inside pending_remote_requests.
+        // If not, insert into pending_remote_requests.
+        if !self.trans_pending_requests.add_pending_remote_request(&request_send_msg){
+            return Err(ProcessMessageError::RemoteRequestIdExists);
+        }
+
+        // Find myself in the route chain:
+
+
+
+        if !trans_balance_state.credit_state.increase_remote_pending(pending_credit) {
+            return (trans_balance_state, Err(ProcessMessageError::PendingCreditTooLarge));
+        }
+
+        Ok(Some(ProcessMessageOutput::Request(request_send_msg)))
 
     }
 
 
-    fn process_response_send_message(&mut self, response_send_msg: ResponseSendMessage)-> Result<Option<ProcessTransOutput>, ProcessMessageError> {
+    fn process_response_send_message(&mut self, response_send_msg: ResponseSendMessage)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
             unreachable!()
 
     }
 
-    fn process_failed_send_message(&mut self, failed_send_msg: FailedSendMessage)-> Result<Option<ProcessTransOutput>, ProcessMessageError> {
+    fn process_failed_send_message(&mut self, failed_send_msg: FailedSendMessage)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
             unreachable!()
 
     }
 
     fn process_message(&mut self, message: NetworkerTCMessage)->
-                                        Result<Option<ProcessTransOutput>, ProcessMessageError>{
+                                        Result<Option<ProcessMessageOutput>, ProcessMessageError>{
          match message {
             NetworkerTCMessage::SetRemoteMaxDebt(proposed_max_debt) =>
                 self.process_set_remote_max_debt(proposed_max_debt),
@@ -135,7 +171,7 @@ impl <'a>TransTokenChannelState<'a>{
     }
 
     fn process_messages_list(&mut self, messages: Vec<NetworkerTCMessage>) ->
-    Result<Vec<ProcessTransOutput>, ProcessTransListError>{
+    Result<Vec<ProcessMessageOutput>, ProcessTransListError>{
         let mut trans_list_output = Vec::new();
 
         for (index, message) in messages.into_iter().enumerate() {

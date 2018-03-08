@@ -37,7 +37,7 @@ pub struct PendingNeighborRequest {
     pub request_content_hash: HashResult,
     pub max_response_length: u32,
     pub processing_fee_proposal: u64,
-    pub credits_per_byte_proposal: u32,
+    pub credits_per_byte_proposal: u64,
 }
 
 /// The neighbor's information from database.

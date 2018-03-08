@@ -24,6 +24,7 @@ impl InvoiceValidator{
     pub fn validate_reciept(&mut self, send_funds_receipt: &SendFundsReceipt,
                             public_key: &PublicKey) ->
     Result<(), ProcessMessageError> {
+        // TODO(a4vision): Don't create the errors here, but in the Token Channel.
         if !send_funds_receipt.verify(public_key) {
             return Err(ProcessMessageError::InvalidFundsReceipt);
         }
