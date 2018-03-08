@@ -6,7 +6,10 @@ use capnp::struct_list;
 
 use crypto::rand_values::RandValue;
 use crypto::dh::{DhPublicKey, Salt};
+use crypto::hash::HashResult;
 use crypto::identity::{PublicKey, Signature};
+
+use channeler2::ChannelId;
 
 use proto::SchemaError;
 use proto::indexer::{IndexingProviderId, IndexingProviderStateHash};
@@ -242,6 +245,40 @@ pub fn write_indexing_provider_state_hash(
     to: &mut custom_u_int256::Builder,
 ) -> Result<(), SchemaError> {
     write_custom_u_int256(from, to)
+}
+
+#[inline]
+pub fn write_hash_result(
+    from: &HashResult,
+    to: &mut custom_u_int256::Builder,
+) -> Result<(), SchemaError> {
+    write_custom_u_int256(from, to)
+}
+
+#[inline]
+pub fn read_hash_result(
+    from: &custom_u_int256::Reader
+) -> Result<HashResult, SchemaError> {
+    let hash_result_bytes = read_custom_u_int256(from)?;
+
+    HashResult::try_from(hash_result_bytes.as_ref()).map_err(|_| SchemaError::Invalid)
+}
+
+#[inline]
+pub fn read_channel_id(
+    from: &custom_u_int128::Reader
+) -> Result<ChannelId, SchemaError> {
+    let channel_id_bytes = read_custom_u_int128(from)?;
+
+    ChannelId::try_from(channel_id_bytes.as_ref()).map_err(|_| SchemaError::Invalid)
+}
+
+#[inline]
+pub fn write_channel_id(
+    from: &ChannelId,
+    to: &mut custom_u_int128::Builder
+) -> Result<(), SchemaError> {
+    write_custom_u_int128(from, to)
 }
 
 #[cfg(test)]

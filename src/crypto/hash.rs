@@ -3,7 +3,7 @@ use ring::digest::{digest, SHA512_256};
 pub const HASH_RESULT_LEN: usize = 32;
 
 /// A SHA512/256 hash over some data.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct HashResult([u8; HASH_RESULT_LEN]);
 
 /// Calculate SHA512/256 over the given data.
@@ -19,6 +19,20 @@ pub fn sha_512_256(data: &[u8]) -> HashResult {
 impl AsRef<[u8]> for HashResult {
     fn as_ref(&self) -> &[u8] {
         &self.0
+    }
+}
+
+impl<'a> ::std::convert::TryFrom<&'a [u8]> for HashResult {
+    type Error = ();
+
+    fn try_from(src: &'a [u8]) -> Result<HashResult, Self::Error> {
+        if src.len() != HASH_RESULT_LEN {
+            Err(())
+        } else {
+            let mut inner = [0; HASH_RESULT_LEN];
+            inner.clone_from_slice(src);
+            Ok(HashResult(inner))
+        }
     }
 }
 
