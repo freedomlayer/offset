@@ -81,8 +81,8 @@ impl TokenChannelCredit {
     /// Unfreeze total_pending_credits_to_dismiss credits, take pending_credits_to_receive credits
     /// out of them.
     /// If the new balance overflows, just take the minimum/maximum possible value.
-    pub fn receive_some_from_pending_creits(&mut self, pending_credits_to_receive: u64,
-                                            total_pending_credits_to_dismiss: u64) -> bool {
+    pub fn receive_some_from_pending_credits(&mut self, pending_credits_to_receive: u64,
+                                             total_pending_credits_to_dismiss: u64) -> bool {
         if total_pending_credits_to_dismiss < pending_credits_to_receive ||
             self.remote_pending_debt < total_pending_credits_to_dismiss {
             false
@@ -96,7 +96,7 @@ impl TokenChannelCredit {
     // TODO(a4vision): Make sure that it is ok that in case of an overflow in the value for balance,
     //                  we just ignore the value.
     pub fn receive_from_pending_credits(&mut self, credits: u64) -> bool{
-        self.receive_some_from_pending_creits(credits, credits)
+        self.receive_some_from_pending_credits(credits, credits)
     }
 
     pub fn give_some_from_pending_credits(&mut self, pending_credits_to_give: u64,

@@ -117,8 +117,9 @@ pub enum ProcessTransOutput {
 
 
 #[derive(Debug)]
-pub enum ProcessTransError {
+pub enum ProcessMessageError {
     RemoteMaxDebtTooLarge(u64),
+    /// Trying to set the invoiceId, while already expecting another invoice id.
     InvoiceIdExists,
     MissingInvoiceId,
     InvalidInvoiceId,
@@ -132,30 +133,30 @@ pub enum ProcessTransError {
 #[derive(Debug)]
 pub struct ProcessTransListError {
     index: usize,
-    process_trans_error: ProcessTransError,
+    process_trans_error: ProcessMessageError,
 }
 
 fn process_set_remote_max_debt(mut trans_balance_state: TransBalanceState,
                                    proposed_max_debt: u64)
                                     -> (TransBalanceState, 
-                                        Result<Option<ProcessTransOutput>, ProcessTransError>) {
+                                        Result<Option<ProcessTransOutput>, ProcessMessageError>) {
 
     if trans_balance_state.credit_state.set_local_max_debt(proposed_max_debt) {
         (trans_balance_state, Ok(None))
     } else {
-        (trans_balance_state, Err(ProcessTransError::RemoteMaxDebtTooLarge(proposed_max_debt)))
+        (trans_balance_state, Err(ProcessMessageError::RemoteMaxDebtTooLarge(proposed_max_debt)))
     }
 }
 
 fn process_set_invoice_id(mut trans_balance_state: TransBalanceState,
                           invoice_id: InvoiceId)
                                     -> (TransBalanceState, 
-                                        Result<Option<ProcessTransOutput>, ProcessTransError>) {
+                                        Result<Option<ProcessTransOutput>, ProcessMessageError>) {
 
     if trans_balance_state.credit_state.set_remote_invoice_id(invoice_id.clone()) {
         (trans_balance_state, Ok(None))
     } else {
-        (trans_balance_state, Err(ProcessTransError::InvoiceIdExists))
+        (trans_balance_state, Err(ProcessMessageError::InvoiceIdExists))
     }
 }
 
@@ -164,20 +165,20 @@ fn process_load_funds(mut trans_balance_state: TransBalanceState,
                       local_public_key: &PublicKey,
                       send_funds_receipt: SendFundsReceipt)
                         -> (TransBalanceState, 
-                            Result<Option<ProcessTransOutput>, ProcessTransError>) {
+                            Result<Option<ProcessTransOutput>, ProcessMessageError>) {
     // Verify signature:
     if !send_funds_receipt.verify(local_public_key) {
-        return (trans_balance_state, Err(ProcessTransError::InvalidFundsReceipt))
+        return (trans_balance_state, Err(ProcessMessageError::InvalidFundsReceipt))
     }
 
     // Make sure that the invoice_id matches the one we have:
     match &trans_balance_state.credit_state.local_invoice_id {
         &Some(ref local_invoice_id) => {
             if local_invoice_id != &send_funds_receipt.invoice_id {
-                return (trans_balance_state, Err(ProcessTransError::InvalidInvoiceId));
+                return (trans_balance_state, Err(ProcessMessageError::InvalidInvoiceId));
             }
         },
-        &None => return (trans_balance_state, Err(ProcessTransError::MissingInvoiceId)),
+        &None => return (trans_balance_state, Err(ProcessMessageError::MissingInvoiceId)),
     };
 
     trans_balance_state.credit_state.decrease_balance(send_funds_receipt.payment);
@@ -193,7 +194,7 @@ fn process_request_send_message(mut trans_balance_state: TransBalanceState,
                                     remote_public_key: &PublicKey,
                                    request_send_msg: RequestSendMessage)
                                     -> (TransBalanceState, 
-                                        Result<Option<ProcessTransOutput>, ProcessTransError>) {
+                                        Result<Option<ProcessTransOutput>, ProcessMessageError>) {
 
     // TODO: Deal with case where we are the the last on the route chain 
     // (Should get processing fee)
@@ -202,23 +203,23 @@ fn process_request_send_message(mut trans_balance_state: TransBalanceState,
     // If not, insert into pending_remote_requests.
     let remote_requests = trans_balance_state.tp_remote_requests.get_hmap();
     if remote_requests.contains_key(&request_send_msg.request_id) {
-        return (trans_balance_state, Err(ProcessTransError::RemoteRequestIdExists))
+        return (trans_balance_state, Err(ProcessMessageError::RemoteRequestIdExists))
     }
 
     // Find myself in the route chain:
     let pending_credit = match request_send_msg.route.find_pk_pair(remote_public_key, local_public_key) {
-        PkPairPosition::NotFound => return (trans_balance_state, Err(ProcessTransError::PKPairNotInChain)),
+        PkPairPosition::NotFound => return (trans_balance_state, Err(ProcessMessageError::PKPairNotInChain)),
         PkPairPosition::NotLast => {
             // Make sure it is possible to increase remote_pending_debt, and then increase it.
             let per_byte = request_send_msg.credits_per_byte_proposal;
             if per_byte == 0 {
-                return (trans_balance_state, Err(ProcessTransError::InvalidFeeProposal))
+                return (trans_balance_state, Err(ProcessMessageError::InvalidFeeProposal))
             }
 
             // The amount of credit we are expected to freeze if we process this message:
             match per_byte.checked_mul(request_send_msg.bytes_count() as u64) {
                 Some(pending_credit) => pending_credit,
-                None => return (trans_balance_state, Err(ProcessTransError::PendingCreditTooLarge)),
+                None => return (trans_balance_state, Err(ProcessMessageError::PendingCreditTooLarge)),
             }
         },
         PkPairPosition::IsLast => {
@@ -228,7 +229,7 @@ fn process_request_send_message(mut trans_balance_state: TransBalanceState,
 
 
     if !trans_balance_state.credit_state.increase_remote_pending(pending_credit) {
-        return (trans_balance_state, Err(ProcessTransError::PendingCreditTooLarge));
+        return (trans_balance_state, Err(ProcessMessageError::PendingCreditTooLarge));
     }
 
     (trans_balance_state, Ok(Some(ProcessTransOutput::Request(request_send_msg))))
@@ -237,14 +238,14 @@ fn process_request_send_message(mut trans_balance_state: TransBalanceState,
 fn process_response_send_message(trans_balance_state: TransBalanceState,
                                    response_send_msg: ResponseSendMessage)
                                     -> (TransBalanceState, 
-                                        Result<Option<ProcessTransOutput>, ProcessTransError>) {
+                                        Result<Option<ProcessTransOutput>, ProcessMessageError>) {
     unreachable!();
 }
 
 fn process_failed_send_message(trans_balance_state: TransBalanceState,
                                    failed_send_msg: FailedSendMessage)
                                     -> (TransBalanceState, 
-                                        Result<Option<ProcessTransOutput>, ProcessTransError>) {
+                                        Result<Option<ProcessTransOutput>, ProcessMessageError>) {
     unreachable!();
 }
 
@@ -277,7 +278,7 @@ fn process_trans(trans_balance_state: TransBalanceState,
                  remote_public_key: &PublicKey,
                  trans: NetworkerTCMessage)
                     -> (TransBalanceState, 
-                        Result<Option<ProcessTransOutput>, ProcessTransError>) {
+                        Result<Option<ProcessTransOutput>, ProcessMessageError>) {
 
     match trans {
         NetworkerTCMessage::SetRemoteMaxDebt(proposed_max_debt) =>

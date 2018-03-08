@@ -1,3 +1,4 @@
+use std::cmp;
 use crypto::identity::PublicKey;
 use super::tc_balance::TokenChannelCredit;
 use super::invoice_validator::InvoiceValidator;
@@ -6,7 +7,7 @@ use super::pending_requests::TransPendingRequests;
 use super::balance_state_old::RequestSendMessage;
 use proto::common::SendFundsReceipt;
 use super::balance_state_old::ProcessTransOutput;
-use super::balance_state_old::ProcessTransError;
+use super::balance_state_old::ProcessMessageError;
 use super::balance_state_old::ResponseSendMessage;
 use super::balance_state_old::FailedSendMessage;
 use super::balance_state_old::NetworkerTCMessage;
@@ -16,7 +17,7 @@ use proto::funder::InvoiceId;
 #[derive(Debug)]
 pub struct ProcessTransListError {
     index: usize,
-    process_trans_error: ProcessTransError,
+    process_trans_error: ProcessMessageError,
 }
 
 pub struct TokenChannel{
@@ -31,6 +32,8 @@ pub struct TokenChannel{
 struct TransTokenChannelState<'a>{
     orig_tc_balance: TokenChannelCredit,
     orig_invoice_validator: InvoiceValidator,
+    local_public_key: PublicKey,
+    remote_public_key: PublicKey,
 
     tc_balance: &'a mut TokenChannelCredit,
     invoice_validator: &'a mut InvoiceValidator,
@@ -59,46 +62,62 @@ impl <'a>TransTokenChannelState<'a>{
             orig_tc_balance: token_channel.tc_balance.clone(),
             orig_invoice_validator: token_channel.invoice_validator.clone(),
 
+            remote_public_key: token_channel.remote_public_key.clone(),
+            local_public_key: token_channel.local_public_key.clone(),
+
             tc_balance: &mut token_channel.tc_balance,
             invoice_validator: &mut token_channel.invoice_validator,
             trans_pending_requests: TransPendingRequests::new(&mut token_channel.pending_requests)
         }
     }
 
-    fn process_set_remote_max_debt(&mut self, proposed_max_debt: u64)-> Result<Option<ProcessTransOutput>, ProcessTransError> {
-            unreachable!()
-
+    fn process_set_remote_max_debt(&mut self, proposed_max_debt: u64)-> Result<Option<ProcessTransOutput>, ProcessMessageError> {
+        match self.tc_balance.set_local_max_debt(proposed_max_debt) {
+            true => Ok(None),
+            false => Err(ProcessMessageError::RemoteMaxDebtTooLarge(proposed_max_debt)),
+        }
     }
 
     fn process_set_invoice_id(&mut self, invoice_id: InvoiceId)
-    -> Result<Option<ProcessTransOutput>, ProcessTransError> {
-            unreachable!()
+    -> Result<Option<ProcessTransOutput>, ProcessMessageError> {
+        // TODO(a4vision): What if we set the invoice id, and then regret about it ? One cannot reset it.
+        match self.invoice_validator.set_remote_invoice_id(invoice_id.clone()) {
+            true=> Ok(None),
+            false=> Err(ProcessMessageError::InvoiceIdExists),
+        }
     }
 
-    fn process_load_funds(&mut self, send_funds_receipt: SendFundsReceipt)-> Result<Option<ProcessTransOutput>, ProcessTransError> {
-            unreachable!()
-
+    fn process_load_funds(&mut self, send_funds_receipt: SendFundsReceipt)-> Result<Option<ProcessTransOutput>, ProcessMessageError> {
+        // Verify signature:
+        match self.invoice_validator.validate_reciept(&send_funds_receipt,
+                                                      &self.local_public_key){
+            Ok(()) => {
+                self.tc_balance.decrease_balance(cmp::min(send_funds_receipt.payment, u64::max_value() as u128) as u64);
+                return Ok(None);
+            },
+            Err(e) => return Err(e),
+        }
     }
 
     fn process_request_send_message(&mut self,
-                                   request_send_msg: RequestSendMessage)-> Result<Option<ProcessTransOutput>, ProcessTransError> {
+                                   request_send_msg: RequestSendMessage)-> Result<Option<ProcessTransOutput>, ProcessMessageError> {
             unreachable!()
 
     }
 
 
-    fn process_response_send_message(&mut self, response_send_msg: ResponseSendMessage)-> Result<Option<ProcessTransOutput>, ProcessTransError> {
+    fn process_response_send_message(&mut self, response_send_msg: ResponseSendMessage)-> Result<Option<ProcessTransOutput>, ProcessMessageError> {
             unreachable!()
 
     }
 
-    fn process_failed_send_message(&mut self, failed_send_msg: FailedSendMessage)-> Result<Option<ProcessTransOutput>, ProcessTransError> {
+    fn process_failed_send_message(&mut self, failed_send_msg: FailedSendMessage)-> Result<Option<ProcessTransOutput>, ProcessMessageError> {
             unreachable!()
 
     }
 
     fn process_message(&mut self, message: NetworkerTCMessage)->
-                                        Result<Option<ProcessTransOutput>, ProcessTransError>{
+                                        Result<Option<ProcessTransOutput>, ProcessMessageError>{
          match message {
             NetworkerTCMessage::SetRemoteMaxDebt(proposed_max_debt) =>
                 self.process_set_remote_max_debt(proposed_max_debt),
