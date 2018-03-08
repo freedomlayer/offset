@@ -8,7 +8,7 @@ use crypto::rand_values::RandValue;
 use crypto::dh::{DhPublicKey, Salt};
 use crypto::identity::{PublicKey, Signature};
 
-use proto::SchemaError;
+use proto::ProtoError;
 use proto::indexer::{IndexingProviderId, IndexingProviderStateHash};
 
 include_schema!(common_capnp, "common_capnp");
@@ -19,7 +19,7 @@ const CUSTOM_UINT512_LEN: usize = 64;
 
 /// Read the underlying bytes from given `CustomUInt128` reader.
 #[inline]
-pub fn read_custom_u_int128(from: &custom_u_int128::Reader) -> Result<Bytes, SchemaError> {
+pub fn read_custom_u_int128(from: &custom_u_int128::Reader) -> Result<Bytes, ProtoError> {
     let mut buffer = BytesMut::with_capacity(CUSTOM_UINT128_LEN);
 
     buffer.put_u64::<BigEndian>(from.get_x0());
@@ -37,7 +37,7 @@ pub fn read_custom_u_int128(from: &custom_u_int128::Reader) -> Result<Bytes, Sch
 pub fn write_custom_u_int128<T: AsRef<[u8]>>(
     from: &T,
     to: &mut custom_u_int128::Builder,
-) -> Result<(), SchemaError> {
+) -> Result<(), ProtoError> {
     let mut reader = io::Cursor::new(from.as_ref());
 
     to.set_x0(reader.get_u64::<BigEndian>());
@@ -48,7 +48,7 @@ pub fn write_custom_u_int128<T: AsRef<[u8]>>(
 
 /// Read the underlying bytes from given `CustomUInt256` reader.
 #[inline]
-pub fn read_custom_u_int256(from: &custom_u_int256::Reader) -> Result<Bytes, SchemaError> {
+pub fn read_custom_u_int256(from: &custom_u_int256::Reader) -> Result<Bytes, ProtoError> {
     let mut buffer = BytesMut::with_capacity(CUSTOM_UINT256_LEN);
 
     buffer.put_u64::<BigEndian>(from.get_x0());
@@ -68,7 +68,7 @@ pub fn read_custom_u_int256(from: &custom_u_int256::Reader) -> Result<Bytes, Sch
 pub fn write_custom_u_int256<T: AsRef<[u8]>>(
     from: &T,
     to: &mut custom_u_int256::Builder,
-) -> Result<(), SchemaError> {
+) -> Result<(), ProtoError> {
     let mut reader = io::Cursor::new(from.as_ref());
 
     to.set_x0(reader.get_u64::<BigEndian>());
@@ -81,7 +81,7 @@ pub fn write_custom_u_int256<T: AsRef<[u8]>>(
 
 /// Read the underlying bytes from given `CustomUInt512` reader.
 #[inline]
-pub fn read_custom_u_int512(from: &custom_u_int512::Reader) -> Result<Bytes, SchemaError> {
+pub fn read_custom_u_int512(from: &custom_u_int512::Reader) -> Result<Bytes, ProtoError> {
     let mut buffer = BytesMut::with_capacity(CUSTOM_UINT512_LEN);
 
     buffer.put_u64::<BigEndian>(from.get_x0());
@@ -105,7 +105,7 @@ pub fn read_custom_u_int512(from: &custom_u_int512::Reader) -> Result<Bytes, Sch
 pub fn write_custom_u_int512<T: AsRef<[u8]>>(
     from: &T,
     to: &mut custom_u_int512::Builder,
-) -> Result<(), SchemaError> {
+) -> Result<(), ProtoError> {
     let mut reader = io::Cursor::new(from.as_ref());
 
     to.set_x0(reader.get_u64::<BigEndian>());
@@ -121,71 +121,71 @@ pub fn write_custom_u_int512<T: AsRef<[u8]>>(
 }
 
 #[inline]
-pub fn read_public_key(from: &custom_u_int256::Reader) -> Result<PublicKey, SchemaError> {
-    PublicKey::from_bytes(&read_custom_u_int256(from)?).map_err(|_| SchemaError::Invalid)
+pub fn read_public_key(from: &custom_u_int256::Reader) -> Result<PublicKey, ProtoError> {
+    PublicKey::from_bytes(&read_custom_u_int256(from)?).map_err(|_| ProtoError::Invalid)
 }
 
 #[inline]
 pub fn write_public_key(
     from: &PublicKey,
     to: &mut custom_u_int256::Builder,
-) -> Result<(), SchemaError> {
+) -> Result<(), ProtoError> {
     write_custom_u_int256(from, to)
 }
 
 #[inline]
-pub fn read_rand_value(from: &custom_u_int128::Reader) -> Result<RandValue, SchemaError> {
-    RandValue::from_bytes(&read_custom_u_int128(from)?).map_err(|_| SchemaError::Invalid)
+pub fn read_rand_value(from: &custom_u_int128::Reader) -> Result<RandValue, ProtoError> {
+    RandValue::from_bytes(&read_custom_u_int128(from)?).map_err(|_| ProtoError::Invalid)
 }
 
 #[inline]
 pub fn write_rand_value(
     from: &RandValue,
     to: &mut custom_u_int128::Builder,
-) -> Result<(), SchemaError> {
+) -> Result<(), ProtoError> {
     write_custom_u_int128(from, to)
 }
 
 #[inline]
-pub fn read_dh_public_key(from: &custom_u_int256::Reader) -> Result<DhPublicKey, SchemaError> {
-    DhPublicKey::from_bytes(&read_custom_u_int256(from)?).map_err(|_| SchemaError::Invalid)
+pub fn read_dh_public_key(from: &custom_u_int256::Reader) -> Result<DhPublicKey, ProtoError> {
+    DhPublicKey::from_bytes(&read_custom_u_int256(from)?).map_err(|_| ProtoError::Invalid)
 }
 
 #[inline]
 pub fn write_dh_public_key(
     from: &DhPublicKey,
     to: &mut custom_u_int256::Builder,
-) -> Result<(), SchemaError> {
+) -> Result<(), ProtoError> {
     write_custom_u_int256(from, to)
 }
 
 #[inline]
-pub fn read_salt(from: &custom_u_int256::Reader) -> Result<Salt, SchemaError> {
-    Salt::from_bytes(&read_custom_u_int256(from)?).map_err(|_| SchemaError::Invalid)
+pub fn read_salt(from: &custom_u_int256::Reader) -> Result<Salt, ProtoError> {
+    Salt::from_bytes(&read_custom_u_int256(from)?).map_err(|_| ProtoError::Invalid)
 }
 
 #[inline]
-pub fn write_salt(from: &Salt, to: &mut custom_u_int256::Builder) -> Result<(), SchemaError> {
+pub fn write_salt(from: &Salt, to: &mut custom_u_int256::Builder) -> Result<(), ProtoError> {
     write_custom_u_int256(from, to)
 }
 
 #[inline]
-pub fn read_signature(from: &custom_u_int512::Reader) -> Result<Signature, SchemaError> {
-    Signature::from_bytes(&read_custom_u_int512(from)?).map_err(|_| SchemaError::Invalid)
+pub fn read_signature(from: &custom_u_int512::Reader) -> Result<Signature, ProtoError> {
+    Signature::from_bytes(&read_custom_u_int512(from)?).map_err(|_| ProtoError::Invalid)
 }
 
 #[inline]
 pub fn write_signature(
     from: &Signature,
     to: &mut custom_u_int512::Builder,
-) -> Result<(), SchemaError> {
+) -> Result<(), ProtoError> {
     write_custom_u_int512(from, to)
 }
 
 #[inline]
 pub fn read_public_key_list<'a>(
     from: &struct_list::Reader<'a, custom_u_int256::Owned>,
-) -> Result<Vec<PublicKey>, SchemaError> {
+) -> Result<Vec<PublicKey>, ProtoError> {
     let mut public_keys = Vec::with_capacity(from.len() as usize);
 
     for public_key_reader in from.iter() {
@@ -199,7 +199,7 @@ pub fn read_public_key_list<'a>(
 pub fn write_public_key_list<'a>(
     from: &[PublicKey],
     to: &mut struct_list::Builder<'a, custom_u_int256::Owned>,
-) -> Result<(), SchemaError> {
+) -> Result<(), ProtoError> {
     debug_assert_eq!(from.len(), to.len() as usize);
 
     for (idx, ref_public_key) in from.iter().enumerate() {
@@ -213,34 +213,34 @@ pub fn write_public_key_list<'a>(
 #[inline]
 pub fn read_indexing_provider_id(
     from: &custom_u_int128::Reader,
-) -> Result<IndexingProviderId, SchemaError> {
+) -> Result<IndexingProviderId, ProtoError> {
     let id_bytes = read_custom_u_int128(from)?;
 
-    IndexingProviderId::try_from(id_bytes.as_ref()).map_err(|_| SchemaError::Invalid)
+    IndexingProviderId::try_from(id_bytes.as_ref()).map_err(|_| ProtoError::Invalid)
 }
 
 #[inline]
 pub fn write_indexing_provider_id(
     from: &IndexingProviderId,
     to: &mut custom_u_int128::Builder,
-) -> Result<(), SchemaError> {
+) -> Result<(), ProtoError> {
     write_custom_u_int128(from, to)
 }
 
 #[inline]
 pub fn read_indexing_provider_state_hash(
     from: &custom_u_int256::Reader,
-) -> Result<IndexingProviderStateHash, SchemaError> {
+) -> Result<IndexingProviderStateHash, ProtoError> {
     let state_hash_bytes = read_custom_u_int256(from)?;
 
-    IndexingProviderStateHash::try_from(state_hash_bytes.as_ref()).map_err(|_| SchemaError::Invalid)
+    IndexingProviderStateHash::try_from(state_hash_bytes.as_ref()).map_err(|_| ProtoError::Invalid)
 }
 
 #[inline]
 pub fn write_indexing_provider_state_hash(
     from: &IndexingProviderStateHash,
     to: &mut custom_u_int256::Builder,
-) -> Result<(), SchemaError> {
+) -> Result<(), ProtoError> {
     write_custom_u_int256(from, to)
 }
 

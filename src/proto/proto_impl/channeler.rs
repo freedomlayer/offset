@@ -8,7 +8,7 @@ include_schema!(channeler_capnp, "channeler_capnp");
 // Re-export the `MessageType`
 pub use self::channeler_capnp::MessageType;
 
-use proto::{Schema, SchemaError};
+use proto::{Proto, ProtoError};
 use proto::channeler::{EncryptMessage, Exchange, InitChannelActive, InitChannelPassive};
 
 use super::common::{read_dh_public_key, read_public_key, read_rand_value, read_salt,
@@ -18,7 +18,7 @@ use super::common::{read_dh_public_key, read_public_key, read_rand_value, read_s
 /// Create and serialize a `Message` from given `content`,
 /// return the serialized message on success.
 #[inline]
-pub fn serialize_message(content: Bytes) -> Result<Bytes, SchemaError> {
+pub fn serialize_message(content: Bytes) -> Result<Bytes, ProtoError> {
     let mut builder = ::capnp::message::Builder::new_default();
 
     {
@@ -36,7 +36,7 @@ pub fn serialize_message(content: Bytes) -> Result<Bytes, SchemaError> {
 
 /// Deserialize `Message` from `buffer`, return the `content` on success.
 #[inline]
-pub fn deserialize_message(buffer: Bytes) -> Result<Bytes, SchemaError> {
+pub fn deserialize_message(buffer: Bytes) -> Result<Bytes, ProtoError> {
     let mut buffer = io::Cursor::new(buffer);
 
     let reader =
@@ -48,13 +48,13 @@ pub fn deserialize_message(buffer: Bytes) -> Result<Bytes, SchemaError> {
     Ok(content)
 }
 
-impl<'a> Schema<'a> for InitChannelActive {
+impl<'a> Proto<'a> for InitChannelActive {
     type Reader = init_channel_active::Reader<'a>;
     type Writer = init_channel_active::Builder<'a>;
 
     inject_default_impl!();
 
-    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+    fn read(from: &Self::Reader) -> Result<Self, ProtoError> {
         let neighbor_public_key = read_public_key(&from.get_neighbor_public_key()?)?;
 
         let channel_rand_value = read_rand_value(&from.get_channel_rand_value()?)?;
@@ -68,7 +68,7 @@ impl<'a> Schema<'a> for InitChannelActive {
         })
     }
 
-    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+    fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         write_public_key(
             &self.neighbor_public_key,
             &mut to.borrow().init_neighbor_public_key(),
@@ -84,13 +84,13 @@ impl<'a> Schema<'a> for InitChannelActive {
     }
 }
 
-impl<'a> Schema<'a> for InitChannelPassive {
+impl<'a> Proto<'a> for InitChannelPassive {
     type Reader = init_channel_passive::Reader<'a>;
     type Writer = init_channel_passive::Builder<'a>;
 
     inject_default_impl!();
 
-    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+    fn read(from: &Self::Reader) -> Result<Self, ProtoError> {
         let neighbor_public_key = read_public_key(&from.get_neighbor_public_key()?)?;
 
         let channel_rand_value = read_rand_value(&from.get_channel_rand_value()?)?;
@@ -101,7 +101,7 @@ impl<'a> Schema<'a> for InitChannelPassive {
         })
     }
 
-    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+    fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         write_public_key(
             &self.neighbor_public_key,
             &mut to.borrow().init_neighbor_public_key(),
@@ -115,13 +115,13 @@ impl<'a> Schema<'a> for InitChannelPassive {
     }
 }
 
-impl<'a> Schema<'a> for Exchange {
+impl<'a> Proto<'a> for Exchange {
     type Reader = exchange::Reader<'a>;
     type Writer = exchange::Builder<'a>;
 
     inject_default_impl!();
 
-    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+    fn read(from: &Self::Reader) -> Result<Self, ProtoError> {
         let comm_public_key = read_dh_public_key(&from.get_comm_public_key()?)?;
 
         let key_salt = read_salt(&from.get_key_salt()?)?;
@@ -135,7 +135,7 @@ impl<'a> Schema<'a> for Exchange {
         })
     }
 
-    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+    fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         write_dh_public_key(
             &self.comm_public_key,
             &mut to.borrow().init_comm_public_key(),
@@ -147,13 +147,13 @@ impl<'a> Schema<'a> for Exchange {
     }
 }
 
-impl<'a> Schema<'a> for EncryptMessage {
+impl<'a> Proto<'a> for EncryptMessage {
     type Reader = encrypt_message::Reader<'a>;
     type Writer = encrypt_message::Builder<'a>;
 
     inject_default_impl!();
 
-    fn read(from: &Self::Reader) -> Result<Self, SchemaError> {
+    fn read(from: &Self::Reader) -> Result<Self, ProtoError> {
         let inc_counter = from.get_inc_counter();
         let rand_padding = Bytes::from(from.get_rand_padding()?);
         let message_type = from.get_message_type()?;
@@ -167,7 +167,7 @@ impl<'a> Schema<'a> for EncryptMessage {
         })
     }
 
-    fn write(&self, to: &mut Self::Writer) -> Result<(), SchemaError> {
+    fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         to.set_inc_counter(self.inc_counter);
         to.set_message_type(self.message_type);
 
