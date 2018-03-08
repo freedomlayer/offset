@@ -47,6 +47,7 @@ pub enum ProcessMessageError {
     InvalidResponseSignature,
     /// The Route contains some public key twice.
     DuplicateNodesInRoute,
+    LoadFundsOverflow,
 }
 
 #[derive(Debug)]
@@ -208,9 +209,10 @@ impl <'a>TransTokenChannelState<'a>{
         match self.invoice_validator.validate_reciept(&send_funds_receipt,
                                                       &self.local_public_key){
             Ok(()) => {
-                let payment_as_u64 = cmp::min(send_funds_receipt.payment, u64::max_value() as u128) as u64;
-                self.tc_balance.decrease_balance(payment_as_u64);
-                return Ok(None);
+                match self.tc_balance.decrease_balance(send_funds_receipt.payment) {
+                    true => Ok(None),
+                    false => Err(ProcessMessageError::LoadFundsOverflow),
+                }
             },
             Err(e) => return Err(e),
         }
