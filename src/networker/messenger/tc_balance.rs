@@ -71,11 +71,17 @@ impl TokenChannelCredit {
     }
 
     // Normally called if gave credits through the Funder layer.
+    // BUGBUG: Possible overflow here.
+    /*
     pub fn increase_balance(&mut self, credits: u64){
         self.balance = cmp::min(self.balance as i128 + credits as i128,
                                 MAX_BALANCE as i128) as i64;
     }
+    */
 
+    // BUGBUG: Possible overflow here. This should be rewritten in the future to use 
+    // something like checked_add().
+    /*
     /// Freeze credits, that may be unfreezed later
     pub fn increase_remote_pending(&mut self, pending_credit_requested: u64) -> bool {
         let new_remote_pending = self.remote_pending_debt as u128 + (pending_credit_requested as u128);
@@ -86,7 +92,14 @@ impl TokenChannelCredit {
             false
         }
     }
+    */
 
+
+    // CR: I can not understand what this function do from its name.
+    // What is some?  When is this function called?
+
+    /*
+     *
     /// Unfreeze total_pending_credits_to_dismiss credits, take pending_credits_to_receive credits
     /// out of them.
     /// If the new balance overflows, just take the minimum/maximum possible value.
@@ -101,28 +114,39 @@ impl TokenChannelCredit {
             true
         }
     }
+    */
 
     // TODO(a4vision): Make sure that it is ok that in case of an overflow in the value for balance,
     //                  we just ignore the value.
+    //  CR: We can not ignore this case. It should cause inconsistency.
+    //  Generally, anything strange that happens should cause inconsistency.
+    //
+    
+    /*
     pub fn receive_from_pending_credits(&mut self, credits: u64) -> bool {
         self.receive_some_from_pending_credits(credits, credits)
     }
 
+    // TODO(real): Write this function using checked_sub() and similar functions.
     pub fn give_some_from_pending_credits(&mut self, pending_credits_to_give: u64,
-                                          total_pending_credits_to_dismiss: u64) -> bool{
+                                          total_pending_credits_to_dismiss: u64) -> bool {
         if total_pending_credits_to_dismiss < pending_credits_to_give ||
             self.local_pending_debt < total_pending_credits_to_dismiss {
             false
-        }else{
-            self.local_pending_debt -= total_pending_credits_to_dismiss;
-            self.decrease_balance(pending_credits_to_give);
-            true
+        } else {
+            if self.decrease_balance(pending_credits_to_give) {
+                self.local_pending_debt -= total_pending_credits_to_dismiss;
+                true
+            } else {
+                false
+            }
         }
     }
 
-    pub fn give_from_pending_credits(&mut self, credits: u64) -> bool{
+    pub fn give_from_pending_credits(&mut self, credits: u64) -> bool {
         self.give_some_from_pending_credits(credits, credits)
     }
+    */
 }
 
 
