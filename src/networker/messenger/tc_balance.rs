@@ -9,8 +9,8 @@ use std::cmp;
 
 /// Maximum value possible for max_debt.
 const MAX_NEIGHBOR_DEBT: u64 = (1 << 63) - 1;
-const MIN_BALANCE: i64 = i64::min_value();
-const MAX_BALANCE: i64 = i64::max_value();
+// const MIN_BALANCE: i64 = i64::min_value();
+// const MAX_BALANCE: i64 = i64::max_value();
 
 /// Track the credits, allow freezing credits before actually sending them.
 /// Guarantees:
