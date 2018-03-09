@@ -25,8 +25,9 @@ extern crate rusqlite;
 extern crate tokio_core;
 extern crate tokio_io;
 
-pub mod crypto;
+#[macro_use]
 pub mod utils;
+pub mod crypto;
 
 // Modules
 pub mod app_manager;
@@ -38,10 +39,10 @@ pub mod networker;
 pub mod security_module;
 pub mod timer;
 
-// Schemas
 mod proto;
 // FIXME: The capnpc generated code assumes that we
 // add it as a module at the top level of the crate.
 use proto::proto_impl::common::common_capnp;
 use proto::proto_impl::indexer::indexer_capnp;
 use proto::proto_impl::channeler::channeler_capnp;
+use proto::proto_impl::channeler_udp::channeler_udp_capnp;
