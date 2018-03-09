@@ -2,9 +2,7 @@ use ring::digest::{digest, SHA512_256};
 
 pub const HASH_RESULT_LEN: usize = 32;
 
-/// A SHA512/256 hash over some data.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct HashResult([u8; HASH_RESULT_LEN]);
+define_ty!(HashResult, HASH_RESULT_LEN);
 
 /// Calculate SHA512/256 over the given data.
 pub fn sha_512_256(data: &[u8]) -> HashResult {
@@ -14,12 +12,6 @@ pub fn sha_512_256(data: &[u8]) -> HashResult {
     inner.copy_from_slice(digest_res.as_ref());
 
     HashResult(inner)
-}
-
-impl AsRef<[u8]> for HashResult {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
 }
 
 #[cfg(test)]
