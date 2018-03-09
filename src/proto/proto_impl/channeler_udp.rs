@@ -365,16 +365,32 @@ mod tests {
     }
 
     #[test]
-    fn channeler_message_encrypted() {
-        let plain = Plain {
+    fn channeler_message_encrypted_keepalive() {
+        let plain_keepalive = Plain {
             rand_padding: Bytes::from("rand_padding"),
             content: PlainContent::KeepAlive,
         };
 
-        let serialized_plain = plain.encode().unwrap();
+        let serialized_plain_keepalive = plain_keepalive.encode().unwrap();
 
-        let channeler_message_encrypted = ChannelerMessage::Encrypted(serialized_plain);
+        let channeler_message_encrypted_keepalive =
+            ChannelerMessage::Encrypted(serialized_plain_keepalive);
 
-        test_encode_decode!(ChannelerMessage, channeler_message_encrypted);
+        test_encode_decode!(ChannelerMessage, channeler_message_encrypted_keepalive);
+    }
+
+    #[test]
+    fn channeler_message_encrypted_user() {
+        let plain_user = Plain {
+            rand_padding: Bytes::from("rand_padding"),
+            content: PlainContent::User(Bytes::from("user data")),
+        };
+
+        let serialized_plain_user = plain_user.encode().unwrap();
+
+        let channeler_message_encrypted_user =
+            ChannelerMessage::Encrypted(serialized_plain_user);
+
+        test_encode_decode!(ChannelerMessage, channeler_message_encrypted_user);
     }
 }
