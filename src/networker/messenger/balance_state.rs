@@ -17,9 +17,9 @@ impl BalanceState{
     pub fn app_remove_neighbor(remote_key: PublicKey){
     }
 
-    pub fn atomic_process_trans_list(token_channel_index: u32,
-                                     remote_public_key: &PublicKey,
-                                     transactions: Vec<NetworkerTCMessage>) {
+    pub fn atomic_process_messagess_list(token_channel_index: u32,
+                                         remote_public_key: &PublicKey,
+                                         transactions: Vec<NetworkerTCMessage>) {
     }
 }
 

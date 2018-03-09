@@ -189,7 +189,7 @@ impl <'a>TransTokenChannelState<'a>{
     }
 
     fn process_set_remote_max_debt(&mut self, proposed_max_debt: u64)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        match self.tc_balance.set_local_max_debt(proposed_max_debt) {
+        match self.tc_balance.set_remote_max_debt(proposed_max_debt) {
             true => Ok(None),
             false => Err(ProcessMessageError::RemoteMaxDebtTooLarge(proposed_max_debt)),
         }
@@ -209,6 +209,7 @@ impl <'a>TransTokenChannelState<'a>{
         match self.invoice_validator.validate_receipt(&send_funds_receipt,
                                                       &self.local_public_key){
             Ok(()) => {
+                // TODO(a4vision): The actual payment redeemed for networking cannot be u128.
                 match self.tc_balance.decrease_balance(send_funds_receipt.payment) {
                     true => Ok(None),
                     false => Err(ProcessMessageError::LoadFundsOverflow),

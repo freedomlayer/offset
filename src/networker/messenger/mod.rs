@@ -30,7 +30,6 @@ use channeler::messages::ChannelerToNetworker;
 use proto::funder::InvoiceId;
 use proto::networker::{ChannelToken};
 
-mod credit_state;
 
 mod token_channel;
 mod tc_credit;
