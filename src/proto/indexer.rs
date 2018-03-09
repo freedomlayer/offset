@@ -44,7 +44,7 @@ impl NeighborsRoute {
 
     pub fn is_unique(&self) -> bool {
         let public_keys = &self.public_keys;
-        for i in 1 .. public_keys.len() {
+        for i in 0 .. public_keys.len() {
             for j in i + 1.. public_keys.len() {
                 if &public_keys[i] == &public_keys[j]{
                     return false
@@ -56,6 +56,11 @@ impl NeighborsRoute {
 
     pub fn index_of(&self, key: &PublicKey) -> Option<usize>{
         self.public_keys.iter().position(|k| k == key)
+    }
+
+    pub fn destination_public_key(&self) -> Option<PublicKey>{
+        let key = self.public_keys.last()?;
+        return Some(key.clone());
     }
 }
 
