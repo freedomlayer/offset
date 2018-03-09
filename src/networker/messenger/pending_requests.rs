@@ -36,14 +36,19 @@ impl <'a> TransPendingRequests<'a> {
     }
 
     // TODO(a4vision): Is it reasonable to consume the request here ?
-    pub fn add_pending_remote_request(&mut self, message: &RequestSendMessage) -> bool {
-        if self.tp_remote_requests.get_hmap().contains_key(message.get_request_id()) {
+    pub fn add_pending_remote_request(&mut self, uid: Uid, pending_request: PendingNeighborRequest) -> bool {
+        if self.tp_remote_requests.get_hmap().contains_key(&uid) {
             return false;
         } else {
-            self.tp_remote_requests.insert(message.get_request_id().clone(), message.create_pending_request());
+            self.tp_remote_requests.insert(uid, pending_request);
             return true;
         }
     }
+
+    pub fn remove_local_pending_request(&mut self, uid: &Uid) -> Option<PendingNeighborRequest>{
+        self.tp_local_requests.remove(uid)
+    }
+
 
     /*
     /// Total amount of remote pending credit towards the given neighbor

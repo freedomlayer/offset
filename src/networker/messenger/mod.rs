@@ -35,7 +35,7 @@ mod token_channel;
 mod tc_credit;
 mod pending_requests;
 mod invoice_validator;
-mod credit_calculator;
+pub mod credit_calculator;
 
 /// Full state of a Neighbor token channel.
 struct NeighborTokenChannel {

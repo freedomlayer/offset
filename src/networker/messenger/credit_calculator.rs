@@ -2,6 +2,9 @@ use std::cmp;
 use crypto::identity::PublicKey;
 
 
+// CR(a4vision): Let's discuss it - maybe it is better to introduce explicit formulas,
+//                  by converting to i128 - to make the code more readable.
+
 /// Amount of credits paid to destination node, upon issuing a signed Response message.
 /// The destination node is the last node along the route of a request.
 /// Upon any overflow (u64) this function will return None.
@@ -71,6 +74,9 @@ pub fn credits_on_failure(request_len: u32, nodes_to_reporting: usize) -> Option
 /// A sends a request along the route in the picture, all the way to E.  Here we can compute for
 /// example the maximum amount of credits C has to freeze when the request goes through C to D. The
 /// amount of credits to freeze should be the maximum amount of credits C can earn.
+///
+/// nodes_to_dest: number of nodes to the destination, excluding the current node and the
+/// final destination. In the example above, nodes_to_dest = 2
 pub fn credits_to_freeze(processing_fee_proposal: u64, request_len: u32,
                          credits_per_byte_proposal: u64, max_response_len: u32,
                          nodes_to_dest: usize) -> Option<u64> {
@@ -94,7 +100,7 @@ pub fn credits_to_freeze(processing_fee_proposal: u64, request_len: u32,
                        max_response_len, // Maximum response len
                        nodes_to_dest)?;
 
-    Some(cmp::min(credits_resp_len_zero, credits_resp_len_max))
+    Some(cmp::max(credits_resp_len_zero, credits_resp_len_max))
 }
 
 
@@ -102,6 +108,8 @@ pub fn credits_to_freeze(processing_fee_proposal: u64, request_len: u32,
 mod tests {
     use super::*;
 
+    // CR(a4vision): Re-think about these tests, it reminds "configuration-testing"
+    //              I think that edge cases (overflow) MUST be checked.
     #[test]
     fn tests_credits_on_success_dest_basic() {
         let processing_fee_proposal = 5;

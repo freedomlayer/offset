@@ -5,9 +5,9 @@ use super::token_channel::ProcessMessageError;
 
 #[derive(Clone)]
 pub struct InvoiceValidator{
-    /// The invoice which I randomized locally.
+    /// The invoice id which I randomized locally.
     pub local_invoice_id: Option<InvoiceId>,
-    /// The invoice which the neighbor randomized.
+    /// The invoice id which the neighbor randomized.
     pub remote_invoice_id: Option<InvoiceId>,
 }
 
@@ -17,12 +17,12 @@ impl InvoiceValidator{
     /// Sets the invoice id randomized  by the neighbor.
     /// Returns `true` if the invoice id was successfully set to the given value.
     pub fn set_remote_invoice_id(&mut self, invoice_id: InvoiceId) -> bool {
-        // TODO(a4vision): Should it be self.local_invoice_id here ?
-        self.remote_invoice_id = match &self.remote_invoice_id {
-            &None => Some(invoice_id),
-            &Some(_) => return false,
-        };
-        true
+        if self.remote_invoice_id.is_none(){
+            self.remote_invoice_id = Some(invoice_id);
+            true
+        }else{
+            false
+        }
     }
 
     /// Validate the signature and the invoice id of the given receipt.

@@ -204,6 +204,8 @@ impl Debt{
     /// Make sure that
     ///     debt + new_pending_debt <= i64::max_value()
     ///     new_pending_debt <= i64::max_value()
+    // TODO(a4vision): Discuss it - maybe it is better to introduce explicit formulas,
+    //                  by converting to i128 - to make the code more readable.
     fn freeze_credits(&mut self, credits: u64) -> bool{
         match self.pending_debt.checked_add(credits){
             Some(new_pending_debt) => {

@@ -6,6 +6,7 @@ use crypto::identity::{PublicKey, verify_signature, Signature};
 use crypto::uid::Uid;
 use crypto::rand_values::RandValue;
 use crypto::hash;
+use crypto::hash::HashResult;
 
 use proto::common::SendFundsReceipt;
 use proto::indexer::{NeighborsRoute, PkPairPosition};
@@ -17,9 +18,12 @@ use super::pending_requests::PendingRequests;
 use super::pending_requests::TransPendingRequests;
 use super::credit_calculator;
 use super::super::messages::PendingNeighborRequest;
-
+use utils::convert_int;
 
 pub struct IncomingResponseSendMessage {
+    request: PendingNeighborRequest,
+    response: ResponseSendMessage,
+
 }
 
 pub struct IncomingFailedSendMessage {
@@ -42,12 +46,16 @@ pub enum ProcessMessageError {
     InvalidFundsReceipt,
     PKPairNotInChain,
     RemoteRequestIdExists,
+    RequestIdNotExists,
     InvalidFeeProposal,
     PendingCreditTooLarge,
     InvalidResponseSignature,
     /// The Route contains some public key twice.
     DuplicateNodesInRoute,
     LoadFundsOverflow,
+    CreditsCalculationOverflow,
+    TooLongMessage,
+    TooMuchFeeCollected,
 }
 
 #[derive(Debug)]
@@ -58,10 +66,36 @@ pub struct ProcessTransListError {
 
 pub struct ResponseSendMessage {
     request_id: Uid,
+    // TODO(a4vision): Discuss it: What is this nonce for ?
     rand_nonce: RandValue,
+    // TODO(a4vision): Discuss it: Is it possible that the final destination will accept a processing
+    //                  fee lower than the assigned processing fee ?
     processing_fee_collected: u64,
     response_content: Vec<u8>,
     signature: Signature,
+}
+
+impl ResponseSendMessage{
+    pub fn verify_signature(&self, public_key: &PublicKey, request_hash: &HashResult) -> bool{
+        let mut message = Vec::new();
+        message.extend_from_slice(self.request_id.as_bytes());
+        message.extend_from_slice(self.rand_nonce.as_bytes());
+        // Serialize the processing_fee_collected:
+        message.write_u64::<LittleEndian>(self.processing_fee_collected);
+        message.extend_from_slice(&self.response_content);
+        // TODO(a4vision): Discuss it.
+        message.extend(request_hash.as_ref());
+        return verify_signature(&message, &public_key, &self.signature);
+    }
+
+    pub fn bytes_count(&self) -> usize{
+        // TODO(a4vision): Should we check for an overflow here ?
+        mem::size_of_val(&self.request_id) +
+        mem::size_of_val(&self.rand_nonce) +
+        mem::size_of_val(&self.processing_fee_collected) +
+        self.response_content.len() * 1 +
+        mem::size_of_val(&self.signature)
+    }
 }
 
 pub struct RequestSendMessage {
@@ -78,7 +112,9 @@ impl RequestSendMessage {
         // We count the bytes count here and not before deserialization,
         // because we actually charge for the amount of bytes we send, and not for the 
         // amount of bytes we receive (Those could possibly be encoded in some strange way)
-        mem::size_of::<Uid>() + 
+
+        // TODO(a4vision): Should we check for an overflow here ?
+        mem::size_of::<Uid>() +
             mem::size_of::<PublicKey>() * self.route.public_keys.len() +
             self.request_content.len() * 1 +
             mem::size_of_val(&self.max_response_len) +
@@ -86,32 +122,28 @@ impl RequestSendMessage {
             mem::size_of_val(&self.credits_per_byte_proposal)
     }
 
-    pub fn calculate_credits_to_freeze(&self, public_key: &PublicKey) -> Option<u64> {
-        let index = self.route.index_of(&public_key);
-
-        credit_calculator::credits_to_freeze(self.processing_fee_proposal,
-        self.request_content.len() as u32, self.credits_per_byte_proposal, self.max_response_len,
-            self.route.public_keys.len() - 1
-        )
+    fn nodes_to_dest(&self, public_key: &PublicKey) -> Option<usize> {
+        let index = self.route.index_of(&public_key)?;
+        Some(self.route.public_keys.len() - index - 1)
     }
 
     pub fn get_request_id(&self) -> &Uid {
         &self.request_id
     }
 
-    pub fn get_route(&self) -> &NeighborsRoute {
-        &self.route
-    }
-
-    pub fn create_pending_request(&self) -> PendingNeighborRequest {
-        PendingNeighborRequest {
+    pub fn create_pending_request(&self, public_key: &PublicKey) -> Option<PendingNeighborRequest> {
+        Some(PendingNeighborRequest {
             request_id: self.request_id.clone(),
             route: self.route.clone(),
+            // TODO(a4vision): Discuss it: Shouldn't this hash be over the whole request ??? Otherwise,
+            //                  some mediators might change parameters along the way.
+            request_content_len: convert_int::checked_as_u32(self.request_content.len())?,
             request_content_hash: hash::sha_512_256(self.request_content.as_ref()),
             max_response_length: self.max_response_len,
             processing_fee_proposal: self.processing_fee_proposal,
             credits_per_byte_proposal: self.credits_per_byte_proposal,
-        }
+            nodes_to_dest: self.nodes_to_dest(public_key)?,
+        })
     }
 }
 
@@ -129,19 +161,22 @@ pub enum NetworkerTCMessage {
     SetInvoiceId(InvoiceId),
     LoadFunds(SendFundsReceipt),
     RequestSendMessage(RequestSendMessage),
-    ResponseSendMessage(ResponseSendMessage), 
+    ResponseSendMessage(ResponseSendMessage),
     FailedSendMessage(FailedSendMessage),
     // ResetChannel(i64), // new_balanace
 }
 
 
-
-
 pub struct TokenChannel {
+    /// My public key
     local_public_key: PublicKey,
+    /// Neighbor's public key
     remote_public_key: PublicKey,
+    /// The balance - how much do we owe each other, and what are the limits for this debt.
     tc_balance: TokenChannelCredit,
+    /// Validates an incoming invoice
     invoice_validator: InvoiceValidator,
+    /// All pending requests - both incoming and outgoing
     pending_requests: PendingRequests,
 }
 
@@ -154,16 +189,19 @@ struct TransTokenChannelState<'a> {
 
     tc_balance: &'a mut TokenChannelCredit,
     invoice_validator: &'a mut InvoiceValidator,
-    trans_pending_requests: TransPendingRequests<'a>,
+    transactional_pending_requests: TransPendingRequests<'a>,
 }
 
 impl TokenChannel {
-    pub fn atomic_process_messages_list(&mut self, transactions: Vec<NetworkerTCMessage>)
+    // TODO(a4vision): Discuss it: Shouldn't we charge the Failure credit for every incoming message ?
+    //                  When the function process_request_send_message fails, we need to
+    //                  charge for it
+    pub fn atomic_process_messages_list(&mut self, messages: Vec<NetworkerTCMessage>)
                                         -> Result<Vec<ProcessMessageOutput>, ProcessTransListError>{
-        let mut trans_token_channel = TransTokenChannelState::new(self);
-        match trans_token_channel.process_messages_list(transactions){
+        let mut transactional_token_channel = TransTokenChannelState::new(self);
+        match transactional_token_channel.process_messages_list(messages){
             Err(e) => {
-                trans_token_channel.cancel();
+                transactional_token_channel.cancel();
                 Err(e)
             },
             Ok(output_tasks) =>{
@@ -184,7 +222,7 @@ impl <'a>TransTokenChannelState<'a>{
 
             tc_balance: &mut token_channel.tc_balance,
             invoice_validator: &mut token_channel.invoice_validator,
-            trans_pending_requests: TransPendingRequests::new(&mut token_channel.pending_requests)
+            transactional_pending_requests: TransPendingRequests::new(&mut token_channel.pending_requests)
         }
     }
 
@@ -196,7 +234,7 @@ impl <'a>TransTokenChannelState<'a>{
     }
 
     fn process_set_invoice_id(&mut self, invoice_id: InvoiceId)
-    -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+                              -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
         // TODO(a4vision): What if we set the invoice id, and then regret about it ? One cannot reset it.
         match self.invoice_validator.set_remote_invoice_id(invoice_id.clone()) {
             true=> Ok(None),
@@ -205,7 +243,6 @@ impl <'a>TransTokenChannelState<'a>{
     }
 
     fn process_load_funds(&mut self, send_funds_receipt: SendFundsReceipt)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        // Verify signature:
         match self.invoice_validator.validate_receipt(&send_funds_receipt,
                                                       &self.local_public_key){
             Ok(()) => {
@@ -219,83 +256,121 @@ impl <'a>TransTokenChannelState<'a>{
         }
     }
 
-    fn process_message_final(&mut self, request_send_msg: RequestSendMessage)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+    fn process_request_message_last_node(&mut self, request_send_msg: RequestSendMessage) -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        // TODO(a4vision): implement
         unreachable!()
     }
 
-    fn process_request_send_message(&mut self, request_send_msg: RequestSendMessage)-> 
-        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-
-        // TODO: Deal with case where we are the the last on the route chain
+    fn process_request_send_message(&mut self, request_send_msg: RequestSendMessage)->
+    Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        // TODO(a4vision): Somewhere here, we should create some failure message in case of an
+        //                  invalid RequestSendMessage
         if !request_send_msg.route.is_unique(){
             return Err(ProcessMessageError::DuplicateNodesInRoute);
         }
 
-        let credits = match request_send_msg.route.find_pk_pair(&self.remote_public_key, &self.local_public_key) {
+        let pending_request = match request_send_msg.route.find_pk_pair(&self.remote_public_key, &self.local_public_key) {
             PkPairPosition::NotFound => return Err(ProcessMessageError::PKPairNotInChain),
             PkPairPosition::IsLast => {
-                return self.process_request_send_message(request_send_msg);
+                return self.process_request_message_last_node(request_send_msg);
             },
             PkPairPosition::NotLast => {
-                // Make sure it is possible to increase remote_pending_debt, and then increase it.
-                request_send_msg.calculate_credits_to_freeze(&self.local_public_key);
+                request_send_msg.create_pending_request(&self.local_public_key)
             },
-
         };
-        // Check if request_id is not already inside pending_remote_requests.
-        // If not, insert into pending_remote_requests.
-        if !self.trans_pending_requests.add_pending_remote_request(&request_send_msg){
-            return Err(ProcessMessageError::RemoteRequestIdExists);
+        match pending_request{
+            None => {
+                return Err(ProcessMessageError::TooLongMessage);
+            },
+            Some(pending_request) => {
+                match pending_request.credits_to_freeze(){
+                    None => {
+                        return Err(ProcessMessageError::CreditsCalculationOverflow);
+                    },
+                    Some(credits) =>{
+                        if !self.transactional_pending_requests.add_pending_remote_request(request_send_msg.get_request_id().clone(),
+                                                                                           pending_request) {
+                            return Err(ProcessMessageError::RemoteRequestIdExists);
+                        }
+                        if !self.tc_balance.freeze_remote_credits(credits){
+                            return Err(ProcessMessageError::PendingCreditTooLarge);
+                        }
+                        return Ok(Some(ProcessMessageOutput::Request(request_send_msg)));
+                    }
+                }
+            }
         }
-
-        // Find myself in the route chain:
-
-        /*
-        if !trans_balance_state.credit_state.increase_remote_pending(pending_credit) {
-            return (trans_balance_state, Err(ProcessMessageError::PendingCreditTooLarge));
-        }
-        */
-        unreachable!();
-
-        Ok(Some(ProcessMessageOutput::Request(request_send_msg)))
-
     }
 
 
-    fn process_response_send_message(&mut self, response_send_msg: ResponseSendMessage) -> 
-        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+    fn process_response_send_message(&mut self, response_send_msg: ResponseSendMessage) ->
+    Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        let pending_request_option = self.transactional_pending_requests.remove_local_pending_request(&response_send_msg.request_id);
+        let pending_request = match pending_request_option{
+            None => {return Err(ProcessMessageError::RequestIdNotExists);},
+            Some(request) => request,
+        };
 
+        let destionation_key_option = pending_request.route.destination_public_key();
+        let destination_key = match destionation_key_option{
+            None => {
+                // TODO(a4vision): What is the correct way to handle this case ?
+                unreachable!()},
+            Some(key) => key,
+        };
 
-        // Verify signature
-        let mut message = Vec::new();
-        message.extend_from_slice(response_send_msg.request_id.as_bytes());
-        message.extend_from_slice(response_send_msg.rand_nonce.as_bytes());
-        // Serialize the processing_fee_collected:
-        message.write_u64::<LittleEndian>(response_send_msg.processing_fee_collected);
-        message.extend_from_slice(&response_send_msg.response_content);
-
-        if !verify_signature(&message, &self.remote_public_key, &response_send_msg.signature) {
+        if !response_send_msg.verify_signature(&destination_key, &pending_request.request_content_hash){
             return Err(ProcessMessageError::InvalidResponseSignature);
         }
+        // TODO(a4vision): Did we mean bytes_count, or response_send_msg.response_content.len() ?
+        let response_length = match convert_int::checked_as_u32(response_send_msg.bytes_count()){
+            None => return Err(ProcessMessageError::TooLongMessage),
+            Some(length) => length,
+        };
 
+        if response_length > pending_request.max_response_length{
+            return Err(ProcessMessageError::TooLongMessage);
+        }
 
-        // Things to do:
-        // - Check if we have a pending request that matches this response.
-        // - Move credits accordingly (Move balance along pending credits)
-        // - Output a task message, telling about a received response message.
-        //
-        unreachable!()
+        if pending_request.processing_fee_proposal < response_send_msg.processing_fee_collected{
+            return Err(ProcessMessageError::TooMuchFeeCollected);
+        }
+
+        let frozen_credits = match pending_request.credits_to_freeze(){
+            None => return Err(ProcessMessageError::CreditsCalculationOverflow),
+            Some(credits) => credits,
+
+        };
+
+        let credits_to_realize = match pending_request.credits_on_success(response_length as usize){
+            None => return Err(ProcessMessageError::CreditsCalculationOverflow),
+            Some(credits) => credits,
+        };
+
+        if !self.tc_balance.realize_local_frozen_credits(credits_to_realize){
+            // TODO(a4vision): What is the correct way to handle this case ?
+            unreachable!()
+        }
+        // Should we check for an overflow in this substraction ?
+        if !self.tc_balance.unfreeze_local_credits(frozen_credits - credits_to_realize){
+            // TODO(a4vision): What is the correct way to handle this case ?
+            unreachable!()
+        }
+
+        return Ok(Some(ProcessMessageOutput::Response(IncomingResponseSendMessage{
+            request: pending_request, response: response_send_msg
+        })));
     }
 
-    fn process_failed_send_message(&mut self, failed_send_msg: FailedSendMessage) -> 
-        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+    fn process_failed_send_message(&mut self, failed_send_msg: FailedSendMessage) ->
+    Result<Option<ProcessMessageOutput>, ProcessMessageError> {
 
         unreachable!()
     }
 
     fn process_message(&mut self, message: NetworkerTCMessage)->
-                                        Result<Option<ProcessMessageOutput>, ProcessMessageError>{
-         match message {
+    Result<Option<ProcessMessageOutput>, ProcessMessageError>{
+        match message {
             NetworkerTCMessage::SetRemoteMaxDebt(proposed_max_debt) =>
                 self.process_set_remote_max_debt(proposed_max_debt),
             NetworkerTCMessage::SetInvoiceId(rand_nonce) =>
@@ -313,7 +388,7 @@ impl <'a>TransTokenChannelState<'a>{
 
     fn process_messages_list(&mut self, messages: Vec<NetworkerTCMessage>) ->
     Result<Vec<ProcessMessageOutput>, ProcessTransListError>{
-        let mut trans_list_output = Vec::new();
+        let mut outputs = Vec::new();
 
         for (index, message) in messages.into_iter().enumerate() {
             match self.process_message(message){
@@ -321,17 +396,17 @@ impl <'a>TransTokenChannelState<'a>{
                     index,
                     process_trans_error: e
                 }),
-                Ok(Some(trans_output)) => trans_list_output.push(trans_output),
+                Ok(Some(trans_output)) => outputs.push(trans_output),
                 Ok(None) => {},
             }
         }
-        Ok(trans_list_output)
+        Ok(outputs)
     }
 
     fn cancel(self){
         *self.tc_balance = self.orig_tc_balance;
         *self.invoice_validator = self.orig_invoice_validator;
-        self.trans_pending_requests.cancel();
+        self.transactional_pending_requests.cancel();
     }
 }
 

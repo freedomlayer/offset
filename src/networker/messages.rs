@@ -17,6 +17,9 @@ use proto::indexer::NeighborsRoute;
 use proto::funder::InvoiceId;
 use proto::networker::ChannelToken;
 
+use networker::messenger::credit_calculator;
+use utils::convert_int;
+
 
 /// Indicate the direction of the move token message.
 #[derive(Clone, Copy, Debug)]
@@ -38,6 +41,33 @@ pub struct PendingNeighborRequest {
     pub max_response_length: u32,
     pub processing_fee_proposal: u64,
     pub credits_per_byte_proposal: u64,
+    pub request_content_len: u32,
+    pub nodes_to_dest: usize,
+}
+
+impl PendingNeighborRequest{
+    /// Returns None if the given public key does not appear in the route, or if
+    /// an integer overflow occurs during calculation.
+    pub fn credits_to_freeze(&self) -> Option<u64> {
+        credit_calculator::credits_to_freeze(self.processing_fee_proposal,
+                                             self.request_content_len,
+                                             self.credits_per_byte_proposal,
+                                             self.max_response_length,
+                                             self.nodes_to_dest)
+    }
+
+    // TODO(a4vision): Discuss it: We should be aware that an attacker might try to make this calcuclation
+    //                  fail (or the credits_on_failure calculation fail). We need to defend
+    //                  against such failures. It is important to note that they might be
+    //                  less predictable if the calculation methods get complex.
+    pub fn credits_on_success(&self, response_length: usize) -> Option<u64> {
+        credit_calculator::credits_on_success(self.processing_fee_proposal,
+                                             self.request_content_len,
+                                             self.credits_per_byte_proposal,
+                                             self.max_response_length,
+            convert_int::checked_as_u32(response_length)?,
+            self.nodes_to_dest)
+    }
 }
 
 /// The neighbor's information from database.
