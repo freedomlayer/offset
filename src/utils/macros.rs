@@ -50,6 +50,14 @@ macro_rules! define_fixed_bytes {
                 &mut self.0
             }
         }
+        impl<'a> ::std::convert::From<&'a [u8; $len]> for $name {
+            #[inline]
+            fn from(src: &'a [u8; $len]) -> $name {
+                let mut inner = [0x00u8; $len];
+                inner.copy_from_slice(&src[..$len]);
+                $name(inner)
+            }
+        }
         impl<'a> ::std::convert::TryFrom<&'a [u8]> for $name {
             type Error = ::utils::TryFromBytesError;
 
@@ -62,16 +70,6 @@ macro_rules! define_fixed_bytes {
                     inner.copy_from_slice(&src[..$len]);
                     Ok($name(inner))
                 }
-            }
-        }
-        impl<'a> ::std::convert::TryFrom<&'a [u8; $len]> for $name {
-            type Error = ::utils::TryFromBytesError;
-
-            #[inline]
-            fn try_from(src: &'a [u8; $len]) -> Result<$name, ::utils::TryFromBytesError> {
-                let mut inner = [0x00u8; $len];
-                inner.copy_from_slice(&src[..$len]);
-                Ok($name(inner))
             }
         }
         impl<'a> ::std::convert::TryFrom<&'a ::bytes::Bytes> for $name {
