@@ -186,6 +186,7 @@ impl<'a> Proto<'a> for EncryptMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::convert::TryFrom;
 
     use crypto::dh::{DhPublicKey, Salt};
     use crypto::identity::{PublicKey, Signature};
@@ -194,7 +195,7 @@ mod tests {
     #[test]
     fn init_channel_active() {
         let neighbor_public_key = PublicKey::from_bytes(&[0x03; 32]).unwrap();
-        let channel_rand_value = RandValue::from_bytes(&[0x06; 16]).unwrap();
+        let channel_rand_value = RandValue::try_from(&[0x06; 16]).unwrap();
 
         let in_init_channel_active = InitChannelActive {
             neighbor_public_key,
@@ -208,7 +209,7 @@ mod tests {
     #[test]
     fn init_channel_passive() {
         let neighbor_public_key = PublicKey::from_bytes(&[0x03; 32]).unwrap();
-        let channel_rand_value = RandValue::from_bytes(&[0x06; 16]).unwrap();
+        let channel_rand_value = RandValue::try_from(&[0x06; 16]).unwrap();
 
         let in_init_channel_passive = InitChannelPassive {
             neighbor_public_key,
@@ -220,8 +221,8 @@ mod tests {
 
     #[test]
     fn exchange() {
-        let comm_public_key = DhPublicKey::from_bytes(&[0x13; 32]).unwrap();
-        let key_salt = Salt::from_bytes(&[0x16; 32]).unwrap();
+        let comm_public_key = DhPublicKey::try_from(&[0x13; 32]).unwrap();
+        let key_salt = Salt::try_from(&[0x16; 32]).unwrap();
         let signature = Signature::from_bytes(&[0x19; 64]).unwrap();
 
         let in_exchange = Exchange {
