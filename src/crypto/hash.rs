@@ -2,7 +2,7 @@ use ring::digest::{digest, SHA512_256};
 
 pub const HASH_RESULT_LEN: usize = 32;
 
-define_ty!(HashResult, HASH_RESULT_LEN);
+define_fixed_bytes!(HashResult, HASH_RESULT_LEN);
 
 /// Calculate SHA512/256 over the given data.
 pub fn sha_512_256(data: &[u8]) -> HashResult {

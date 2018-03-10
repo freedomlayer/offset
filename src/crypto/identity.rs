@@ -1,9 +1,10 @@
-extern crate ring;
 extern crate untrusted;
 
 use std::fmt;
 
-use self::ring::signature;
+use ring::signature;
+
+use super::CryptoError;
 
 pub const PUBLIC_KEY_LEN: usize = 32;
 pub const SIGNATURE_LEN: usize = 64;
@@ -104,12 +105,10 @@ pub struct SoftwareEd25519Identity {
 }
 
 impl SoftwareEd25519Identity {
-    pub fn from_pkcs8(pkcs8_bytes: &[u8]) -> Result<Self, ()> {
-        let key_pair =
-            match signature::Ed25519KeyPair::from_pkcs8(untrusted::Input::from(pkcs8_bytes)) {
-                Ok(key_pair) => key_pair,
-                Err(ring::error::Unspecified) => return Err(()),
-            };
+    pub fn from_pkcs8(pkcs8_bytes: &[u8]) -> Result<Self, CryptoError> {
+        let key_pair = signature::Ed25519KeyPair::from_pkcs8(
+            untrusted::Input::from(pkcs8_bytes)
+        )?;
 
         Ok(SoftwareEd25519Identity { key_pair })
     }
@@ -119,10 +118,8 @@ pub fn verify_signature(message: &[u8], public_key: &PublicKey, signature: &Sign
     let public_key = untrusted::Input::from(&public_key.0);
     let message = untrusted::Input::from(message);
     let signature = untrusted::Input::from(&signature.0);
-    match signature::verify(&signature::ED25519, public_key, message, signature) {
-        Ok(()) => true,
-        Err(ring::error::Unspecified) => false,
-    }
+
+    signature::verify(&signature::ED25519, public_key, message, signature).is_ok()
 }
 
 impl Identity for SoftwareEd25519Identity {
@@ -147,7 +144,7 @@ impl Identity for SoftwareEd25519Identity {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use self::ring::test::rand::FixedByteRandom;
+    use ring::test::rand::FixedByteRandom;
 
     #[test]
     fn test_get_public_key_sanity() {
@@ -172,8 +169,6 @@ mod tests {
 
         let signature = id.sign_message(message);
         let public_key = id.get_public_key();
-        // println!("public_key = {:?}", public_key);
-        // println!("signature = {:?}", signature);
 
         assert!(verify_signature(message, &public_key, &signature));
     }

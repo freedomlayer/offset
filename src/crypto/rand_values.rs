@@ -4,37 +4,13 @@ use ring::rand::SecureRandom;
 
 pub const RAND_VALUE_LEN: usize = 16;
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct RandValue([u8; RAND_VALUE_LEN]);
+define_fixed_bytes!(RandValue, RAND_VALUE_LEN);
 
 impl RandValue {
     pub fn new<R: SecureRandom>(crypt_rng: &R) -> Self {
         let mut rand_value = RandValue([0; RAND_VALUE_LEN]);
         crypt_rng.fill(&mut rand_value.0).unwrap();
         rand_value
-    }
-
-    #[inline]
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ()> {
-        if bytes.len() != RAND_VALUE_LEN {
-            Err(())
-        } else {
-            let mut rand_value_bytes = [0; RAND_VALUE_LEN];
-            rand_value_bytes.clone_from_slice(&bytes[..RAND_VALUE_LEN]);
-            Ok(RandValue(rand_value_bytes))
-        }
-    }
-
-    #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        self.as_ref()
-    }
-}
-
-impl AsRef<[u8]> for RandValue {
-    #[inline]
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
     }
 }
 
