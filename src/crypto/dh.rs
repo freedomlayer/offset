@@ -56,15 +56,9 @@ impl DhPrivateKey {
     }
 
     /// Derive a symmetric key from our private key and remote's public key.
-    pub fn derive_symmetric_key(&self, public_key: &DhPublicKey, salt: &Salt)
+    pub fn derive_symmetric_key(self, public_key: &DhPublicKey, salt: &Salt)
         -> Result<SymmetricKey, CryptoError> {
         let peer_public_key = untrusted::Input::from(&public_key);
-
-        // Force a copy of our private key, so that we can use it more than once.
-        // This is a hack due to current limitation of the *ring* utils.crypto library.
-        let my_private_key: EphemeralPrivateKey = unsafe {
-            mem::transmute_copy(&self.inner)
-        };
 
         let kdf = |shared_key: &[u8]| -> Result<SymmetricKey, CryptoError> {
             if shared_key.len() != SHARED_SECRET_LEN {
@@ -80,7 +74,7 @@ impl DhPrivateKey {
         };
 
         // Perform Diffie-Hellman and derive the symmetric key
-        agreement::agree_ephemeral(my_private_key, &agreement::X25519,
+        agreement::agree_ephemeral(self.inner, &agreement::X25519,
                                    peer_public_key, CryptoError, kdf)
     }
 }
