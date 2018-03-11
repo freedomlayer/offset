@@ -57,7 +57,7 @@ mod tests {
         let secure_rand = FixedByteRandom { byte: 0x3 };
         let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
-
+        let actual_public_key = identity.get_public_key();
         let (requests_sender, sm) = create_security_module(identity);
 
         // Start the SecurityModule service:
@@ -67,7 +67,7 @@ mod tests {
 
         let rsender = requests_sender.clone();
         let (tx, rx) = oneshot::channel();
-        let public_key1 = core.run(rsender
+        let public_key_from_client = core.run(rsender
                  .send(ToSecurityModule::RequestPublicKey {response_sender: tx})
                  .then(|result| {
                      match result {
@@ -76,18 +76,7 @@ mod tests {
                      }
                  })).unwrap().public_key;
 
-        let rsender = requests_sender.clone();
-        let (tx, rx) = oneshot::channel();
-        let public_key2 = core.run(rsender
-                 .send(ToSecurityModule::RequestPublicKey {response_sender: tx})
-                 .then(|result| {
-                     match result {
-                         Ok(_) => rx,
-                         Err(_) => panic!("Failed to send public key request (2) !"),
-                     }
-                 })).unwrap().public_key;
-
-        assert_eq!(public_key1, public_key2);
+        assert_eq!(actual_public_key, public_key_from_client);
     }
 
     #[test]
@@ -95,6 +84,7 @@ mod tests {
         let secure_rand = FixedByteRandom { byte: 0x3 };
         let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        let public_key = identity.get_public_key();
 
         let (requests_sender, sm) = create_security_module(identity);
 
@@ -104,17 +94,6 @@ mod tests {
         let mut core = Core::new().unwrap();
         let handle = core.handle();
         handle.spawn(sm.then(|_| Ok(())));
-
-        let rsender = requests_sender.clone();
-        let (tx, rx) = oneshot::channel();
-        let public_key = core.run(rsender
-                 .send(ToSecurityModule::RequestPublicKey {response_sender: tx})
-                 .then(|result| {
-                     match result {
-                         Ok(_) => rx,
-                         Err(_) => panic!("Failed to send PublicKey request"),
-                     }
-                 })).unwrap().public_key;
 
         let rsender = requests_sender.clone();
         let (tx, rx) = oneshot::channel();
