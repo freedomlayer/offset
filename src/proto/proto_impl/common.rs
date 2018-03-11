@@ -124,7 +124,7 @@ pub fn write_custom_u_int512<T: AsRef<[u8]>>(
 
 #[inline]
 pub fn read_public_key(from: &custom_u_int256::Reader) -> Result<PublicKey, ProtoError> {
-    PublicKey::from_bytes(&read_custom_u_int256(from)?).map_err(|_| ProtoError::Invalid)
+    PublicKey::try_from(&read_custom_u_int256(from)?).map_err(|_| ProtoError::Invalid)
 }
 
 #[inline]
@@ -173,7 +173,7 @@ pub fn write_salt(from: &Salt, to: &mut custom_u_int256::Builder) -> Result<(), 
 
 #[inline]
 pub fn read_signature(from: &custom_u_int512::Reader) -> Result<Signature, ProtoError> {
-    Signature::from_bytes(&read_custom_u_int512(from)?).map_err(|_| ProtoError::Invalid)
+    Signature::try_from(&read_custom_u_int512(from)?).map_err(|_| ProtoError::Invalid)
 }
 
 #[inline]

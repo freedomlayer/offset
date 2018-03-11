@@ -194,7 +194,7 @@ mod tests {
 
     #[test]
     fn init_channel_active() {
-        let neighbor_public_key = PublicKey::from_bytes(&[0x03; 32]).unwrap();
+        let neighbor_public_key = PublicKey::try_from(&[0x03; 32]).unwrap();
         let channel_rand_value = RandValue::try_from(&[0x06; 16]).unwrap();
 
         let in_init_channel_active = InitChannelActive {
@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn init_channel_passive() {
-        let neighbor_public_key = PublicKey::from_bytes(&[0x03; 32]).unwrap();
+        let neighbor_public_key = PublicKey::try_from(&[0x03; 32]).unwrap();
         let channel_rand_value = RandValue::try_from(&[0x06; 16]).unwrap();
 
         let in_init_channel_passive = InitChannelPassive {
@@ -223,7 +223,7 @@ mod tests {
     fn exchange() {
         let comm_public_key = DhPublicKey::try_from(&[0x13; 32]).unwrap();
         let key_salt = Salt::try_from(&[0x16; 32]).unwrap();
-        let signature = Signature::from_bytes(&[0x19; 64]).unwrap();
+        let signature = Signature::try_from(&[0x19; 64]).unwrap();
 
         let in_exchange = Exchange {
             comm_public_key,

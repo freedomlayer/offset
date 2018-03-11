@@ -126,7 +126,7 @@ mod tests {
     fn test_init_channel_concat_fields() {
         let init_channel = InitChannel {
             rand_nonce: RandValue::try_from(&[0x00; RAND_VALUE_LEN]).unwrap(),
-            public_key: PublicKey::from_bytes(&[0x01; PUBLIC_KEY_LEN]).unwrap(),
+            public_key: PublicKey::try_from(&[0x01; PUBLIC_KEY_LEN]).unwrap(),
         };
 
         let underlying = init_channel.concat_fields();
@@ -141,10 +141,10 @@ mod tests {
         let exchange_passive = ExchangePassive {
             prev_hash: HashResult::try_from(&[0x01u8; HASH_RESULT_LEN]).unwrap(),
             rand_nonce: RandValue::try_from(&[0x02; RAND_VALUE_LEN]).unwrap(),
-            public_key: PublicKey::from_bytes(&[0x03; PUBLIC_KEY_LEN]).unwrap(),
+            public_key: PublicKey::try_from(&[0x03; PUBLIC_KEY_LEN]).unwrap(),
             dh_public_key: DhPublicKey::try_from(&[0x04; DH_PUBLIC_KEY_LEN]).unwrap(),
             key_salt: Salt::try_from(&[0x05; SALT_LEN]).unwrap(),
-            signature: Signature::from_bytes(&[0x06; SIGNATURE_LEN]).unwrap(),
+            signature: Signature::try_from(&[0x06; SIGNATURE_LEN]).unwrap(),
         };
 
         let underlying = exchange_passive.concat_fields();
@@ -170,7 +170,7 @@ mod tests {
             prev_hash: HashResult::try_from(&[0x01u8; HASH_RESULT_LEN]).unwrap(),
             dh_public_key: DhPublicKey::try_from(&[0x02; DH_PUBLIC_KEY_LEN]).unwrap(),
             key_salt: Salt::try_from(&[0x03; SALT_LEN]).unwrap(),
-            signature: Signature::from_bytes(&[0x04; SIGNATURE_LEN]).unwrap(),
+            signature: Signature::try_from(&[0x04; SIGNATURE_LEN]).unwrap(),
         };
 
         let underlying = exchange_active.concat_fields();
@@ -190,7 +190,7 @@ mod tests {
     fn test_channel_ready_concat_fields() {
         let channel_ready = ChannelReady {
             prev_hash: HashResult::try_from(&[0x01u8; HASH_RESULT_LEN]).unwrap(),
-            signature: Signature::from_bytes(&[0x02; SIGNATURE_LEN]).unwrap(),
+            signature: Signature::try_from(&[0x02; SIGNATURE_LEN]).unwrap(),
         };
 
         let underlying = channel_ready.concat_fields();

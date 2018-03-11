@@ -298,7 +298,7 @@ mod tests {
     fn channeler_message_init_channel() {
         let init_channel = InitChannel {
             rand_nonce: RandValue::try_from(&[0x7f; RAND_VALUE_LEN]).unwrap(),
-            public_key: PublicKey::from_bytes(&[0xf7; PUBLIC_KEY_LEN]).unwrap(),
+            public_key: PublicKey::try_from(&[0xf7; PUBLIC_KEY_LEN]).unwrap(),
         };
 
         let in_channeler_message = ChannelerMessage::InitChannel(init_channel);
@@ -311,10 +311,10 @@ mod tests {
         let exchange_passive = ExchangePassive {
             prev_hash: HashResult::try_from(&[0x01u8; HASH_RESULT_LEN][..]).unwrap(),
             rand_nonce: RandValue::try_from(&[0x02; RAND_VALUE_LEN]).unwrap(),
-            public_key: PublicKey::from_bytes(&[0x03; PUBLIC_KEY_LEN]).unwrap(),
+            public_key: PublicKey::try_from(&[0x03; PUBLIC_KEY_LEN]).unwrap(),
             dh_public_key: DhPublicKey::try_from(&[0x04; DH_PUBLIC_KEY_LEN]).unwrap(),
             key_salt: Salt::try_from(&[0x05; SALT_LEN]).unwrap(),
-            signature: Signature::from_bytes(&[0x06; SIGNATURE_LEN]).unwrap(),
+            signature: Signature::try_from(&[0x06; SIGNATURE_LEN]).unwrap(),
         };
 
         let in_channeler_message = ChannelerMessage::ExchangePassive(exchange_passive);
@@ -329,7 +329,7 @@ mod tests {
             prev_hash: HashResult::try_from(&[0x01u8; HASH_RESULT_LEN]).unwrap(),
             dh_public_key: DhPublicKey::try_from(&[0x02; DH_PUBLIC_KEY_LEN]).unwrap(),
             key_salt: Salt::try_from(&[0x03; SALT_LEN]).unwrap(),
-            signature: Signature::from_bytes(&[0x04; SIGNATURE_LEN]).unwrap(),
+            signature: Signature::try_from(&[0x04; SIGNATURE_LEN]).unwrap(),
         };
 
         let in_channeler_message = ChannelerMessage::ExchangeActive(exchange_active);
@@ -342,7 +342,7 @@ mod tests {
     fn channeler_message_channel_ready() {
         let channel_ready = ChannelReady {
             prev_hash: HashResult::try_from(&[0x01u8; HASH_RESULT_LEN][..]).unwrap(),
-            signature: Signature::from_bytes(&[0x02; SIGNATURE_LEN]).unwrap(),
+            signature: Signature::try_from(&[0x02; SIGNATURE_LEN]).unwrap(),
         };
 
         let in_channeler_message = ChannelerMessage::ChannelReady(channel_ready);
@@ -356,7 +356,7 @@ mod tests {
         let unknown_channel = UnknownChannel {
             channel_id: ChannelId::try_from(&[0x01u8; CHANNEL_ID_LEN][..]).unwrap(),
             rand_nonce: RandValue::try_from(&[0x02; RAND_VALUE_LEN]).unwrap(),
-            signature: Signature::from_bytes(&[0x03; SIGNATURE_LEN]).unwrap(),
+            signature: Signature::try_from(&[0x03; SIGNATURE_LEN]).unwrap(),
         };
 
         let in_channeler_message = ChannelerMessage::UnknownChannel(unknown_channel);
