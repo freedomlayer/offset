@@ -53,7 +53,7 @@ Prefer OOP design principles whenever possible.
 real: With Rust in many cases OOP is not the best solution.
 If a problem is solved nicely with OOP, you should probably use OOP.
 However, in some cases a function approach could get you a cleaner solution.
-My take on this is to not be religios. Choose the right solution for the
+My take on this is to not be religious. Choose the right solution for the
 problem.
 
 
