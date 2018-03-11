@@ -71,8 +71,13 @@ When writing your code, always think about how you are going to test it.
 If you think that testing your code will be difficult, you should probably
 change your design.
 
-
 ### Rust
 
 - In most cases, prefer the design with less lifetime hints. Every time you add
     a new lifetime hint, an angel dies.
+
+### GitHub
+
+Before merging your into the master branch, run ```cargo check --features=dev```,
+and fix the warnings if any before submitting a PullRequest. If Clippy
+outputs a mistaken warning, attach an explanation along with the PR.
