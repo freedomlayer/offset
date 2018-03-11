@@ -46,6 +46,10 @@ the one who wrote it. As a conclusion, if you write the smartest code you can,
 you will not be able to debug it. Prefer to write simple code that is easy to
 reason about. 
 
+Normally, a comment inside a function means the function sohuld be split into
+smaller functions with reasonable names.
+
+Prefer OOP design principles whenever possible.
 
 ### Async tips
 
