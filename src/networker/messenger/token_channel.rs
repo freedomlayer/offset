@@ -17,16 +17,19 @@ use super::invoice_validator::InvoiceValidator;
 use super::pending_requests::PendingRequests;
 use super::pending_requests::TransPendingRequests;
 use super::credit_calculator;
-use super::super::messages::PendingNeighborRequest;
+use super::pending_neighbor_request::PendingNeighborRequest;
+use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, RequestSendMessage};
 use utils::convert_int;
 
-pub struct IncomingResponseSendMessage {
-    request: PendingNeighborRequest,
-    response: ResponseSendMessage,
 
+pub struct IncomingResponseSendMessage {
+    pending_request: PendingNeighborRequest,
+    incoming_response: ResponseSendMessage,
 }
 
 pub struct IncomingFailedSendMessage {
+    pending_request: PendingNeighborRequest,
+    incoming_failed: FailedSendMessage,
 }
 
 pub enum ProcessMessageOutput {
@@ -56,103 +59,15 @@ pub enum ProcessMessageError {
     CreditsCalculationOverflow,
     TooLongMessage,
     TooMuchFeeCollected,
+    InvalidFailedSignature,
+    InvalidFailureReporter,
+    InnerBug,
 }
 
 #[derive(Debug)]
 pub struct ProcessTransListError {
     index: usize,
     process_trans_error: ProcessMessageError,
-}
-
-pub struct ResponseSendMessage {
-    request_id: Uid,
-    // TODO(a4vision): Discuss it: What is this nonce for ?
-    rand_nonce: RandValue,
-    // TODO(a4vision): Discuss it: Is it possible that the final destination will accept a processing
-    //                  fee lower than the assigned processing fee ?
-    processing_fee_collected: u64,
-    response_content: Vec<u8>,
-    signature: Signature,
-}
-
-impl ResponseSendMessage{
-    pub fn verify_signature(&self, public_key: &PublicKey, request_hash: &HashResult) -> bool{
-        let mut message = Vec::new();
-        message.extend_from_slice(self.request_id.as_bytes());
-        message.extend_from_slice(self.rand_nonce.as_bytes());
-        // Serialize the processing_fee_collected:
-        message.write_u64::<LittleEndian>(self.processing_fee_collected);
-        message.extend_from_slice(&self.response_content);
-        // TODO(a4vision): Discuss it.
-        message.extend(request_hash.as_ref());
-        return verify_signature(&message, &public_key, &self.signature);
-    }
-
-    pub fn bytes_count(&self) -> usize{
-        // TODO(a4vision): Should we check for an overflow here ?
-        mem::size_of_val(&self.request_id) +
-        mem::size_of_val(&self.rand_nonce) +
-        mem::size_of_val(&self.processing_fee_collected) +
-        self.response_content.len() * 1 +
-        mem::size_of_val(&self.signature)
-    }
-}
-
-pub struct RequestSendMessage {
-    request_id: Uid,
-    route: NeighborsRoute,
-    request_content: Vec<u8>,
-    max_response_len: u32,
-    processing_fee_proposal: u64,
-    credits_per_byte_proposal: u64,
-}
-
-impl RequestSendMessage {
-    pub fn bytes_count(&self) -> usize {
-        // We count the bytes count here and not before deserialization,
-        // because we actually charge for the amount of bytes we send, and not for the 
-        // amount of bytes we receive (Those could possibly be encoded in some strange way)
-
-        // TODO(a4vision): Should we check for an overflow here ?
-        mem::size_of::<Uid>() +
-            mem::size_of::<PublicKey>() * self.route.public_keys.len() +
-            self.request_content.len() * 1 +
-            mem::size_of_val(&self.max_response_len) +
-            mem::size_of_val(&self.processing_fee_proposal) +
-            mem::size_of_val(&self.credits_per_byte_proposal)
-    }
-
-    fn nodes_to_dest(&self, public_key: &PublicKey) -> Option<usize> {
-        let index = self.route.index_of(&public_key)?;
-        Some(self.route.public_keys.len() - index - 1)
-    }
-
-    pub fn get_request_id(&self) -> &Uid {
-        &self.request_id
-    }
-
-    pub fn create_pending_request(&self, public_key: &PublicKey) -> Option<PendingNeighborRequest> {
-        Some(PendingNeighborRequest {
-            request_id: self.request_id.clone(),
-            route: self.route.clone(),
-            // TODO(a4vision): Discuss it: Shouldn't this hash be over the whole request ??? Otherwise,
-            //                  some mediators might change parameters along the way.
-            request_content_len: convert_int::checked_as_u32(self.request_content.len())?,
-            request_content_hash: hash::sha_512_256(self.request_content.as_ref()),
-            max_response_length: self.max_response_len,
-            processing_fee_proposal: self.processing_fee_proposal,
-            credits_per_byte_proposal: self.credits_per_byte_proposal,
-            nodes_to_dest: self.nodes_to_dest(public_key)?,
-        })
-    }
-}
-
-
-pub struct FailedSendMessage {
-    request_id: Uid,
-    reporting_public_key: PublicKey,
-    rand_nonce: RandValue,
-    signature: Signature,
 }
 
 
@@ -247,9 +162,10 @@ impl <'a>TransTokenChannelState<'a>{
                                                       &self.local_public_key){
             Ok(()) => {
                 // TODO(a4vision): The actual payment redeemed for networking cannot be u128.
-                match self.tc_balance.decrease_balance(send_funds_receipt.payment) {
-                    true => Ok(None),
-                    false => Err(ProcessMessageError::LoadFundsOverflow),
+                if self.tc_balance.decrease_balance(send_funds_receipt.payment) {
+                    Ok(None)
+                }else{
+                    Err(ProcessMessageError::LoadFundsOverflow)
                 }
             },
             Err(e) => return Err(e),
@@ -265,107 +181,93 @@ impl <'a>TransTokenChannelState<'a>{
     Result<Option<ProcessMessageOutput>, ProcessMessageError> {
         // TODO(a4vision): Somewhere here, we should create some failure message in case of an
         //                  invalid RequestSendMessage
-        if !request_send_msg.route.is_unique(){
+        if !request_send_msg.get_route().is_unique(){
             return Err(ProcessMessageError::DuplicateNodesInRoute);
         }
 
-        let pending_request = match request_send_msg.route.find_pk_pair(&self.remote_public_key, &self.local_public_key) {
+        let pending_request = match request_send_msg.get_route().find_pk_pair(&self.remote_public_key, &self.local_public_key) {
             PkPairPosition::NotFound => return Err(ProcessMessageError::PKPairNotInChain),
             PkPairPosition::IsLast => {
                 return self.process_request_message_last_node(request_send_msg);
             },
             PkPairPosition::NotLast => {
-                request_send_msg.create_pending_request(&self.local_public_key)
+                request_send_msg.create_pending_request(&self.remote_public_key).ok_or(ProcessMessageError::TooLongMessage)?
             },
         };
-        match pending_request{
-            None => {
-                return Err(ProcessMessageError::TooLongMessage);
-            },
-            Some(pending_request) => {
-                match pending_request.credits_to_freeze(){
-                    None => {
-                        return Err(ProcessMessageError::CreditsCalculationOverflow);
-                    },
-                    Some(credits) =>{
-                        if !self.transactional_pending_requests.add_pending_remote_request(request_send_msg.get_request_id().clone(),
-                                                                                           pending_request) {
-                            return Err(ProcessMessageError::RemoteRequestIdExists);
-                        }
-                        if !self.tc_balance.freeze_remote_credits(credits){
-                            return Err(ProcessMessageError::PendingCreditTooLarge);
-                        }
-                        return Ok(Some(ProcessMessageOutput::Request(request_send_msg)));
-                    }
-                }
-            }
+        let credits_to_freeze = pending_request.credits_to_freeze().ok_or(ProcessMessageError::CreditsCalculationOverflow)?;
+
+        if !self.transactional_pending_requests.add_pending_remote_request(pending_request) {
+            return Err(ProcessMessageError::RemoteRequestIdExists);
         }
+        if !self.tc_balance.freeze_remote_credits(credits_to_freeze){
+            return Err(ProcessMessageError::PendingCreditTooLarge);
+        }
+        Ok(Some(ProcessMessageOutput::Request(request_send_msg)))
     }
 
 
+    fn get_pending_request(&mut self, request_id: &Uid) -> Result<PendingNeighborRequest, ProcessMessageError>{
+        self.transactional_pending_requests.remove_local_pending_request(&request_id).
+            ok_or(ProcessMessageError::RequestIdNotExists)
+    }
+
+    fn rebalance_credits_upon_receive_response(&mut self, pending_request: &PendingNeighborRequest,
+                                               response_send_msg: &ResponseSendMessage)
+                                               -> Result<(), ProcessMessageError> {
+        let credits_to_realize = pending_request.credits_on_success(response_send_msg.response_length()).
+            ok_or(ProcessMessageError::CreditsCalculationOverflow)?;
+
+        self.realize_some_of_frozen_credits(pending_request, credits_to_realize)
+    }
+
     fn process_response_send_message(&mut self, response_send_msg: ResponseSendMessage) ->
     Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        let pending_request_option = self.transactional_pending_requests.remove_local_pending_request(&response_send_msg.request_id);
-        let pending_request = match pending_request_option{
-            None => {return Err(ProcessMessageError::RequestIdNotExists);},
-            Some(request) => request,
-        };
-
-        let destionation_key_option = pending_request.route.destination_public_key();
-        let destination_key = match destionation_key_option{
-            None => {
-                // TODO(a4vision): What is the correct way to handle this case ?
-                unreachable!()},
-            Some(key) => key,
-        };
-
-        if !response_send_msg.verify_signature(&destination_key, &pending_request.request_content_hash){
-            return Err(ProcessMessageError::InvalidResponseSignature);
-        }
-        // TODO(a4vision): Did we mean bytes_count, or response_send_msg.response_content.len() ?
-        let response_length = match convert_int::checked_as_u32(response_send_msg.bytes_count()){
-            None => return Err(ProcessMessageError::TooLongMessage),
-            Some(length) => length,
-        };
-
-        if response_length > pending_request.max_response_length{
-            return Err(ProcessMessageError::TooLongMessage);
-        }
-
-        if pending_request.processing_fee_proposal < response_send_msg.processing_fee_collected{
-            return Err(ProcessMessageError::TooMuchFeeCollected);
-        }
-
-        let frozen_credits = match pending_request.credits_to_freeze(){
-            None => return Err(ProcessMessageError::CreditsCalculationOverflow),
-            Some(credits) => credits,
-
-        };
-
-        let credits_to_realize = match pending_request.credits_on_success(response_length as usize){
-            None => return Err(ProcessMessageError::CreditsCalculationOverflow),
-            Some(credits) => credits,
-        };
-
-        if !self.tc_balance.realize_local_frozen_credits(credits_to_realize){
-            // TODO(a4vision): What is the correct way to handle this case ?
-            unreachable!()
-        }
-        // Should we check for an overflow in this substraction ?
-        if !self.tc_balance.unfreeze_local_credits(frozen_credits - credits_to_realize){
-            // TODO(a4vision): What is the correct way to handle this case ?
-            unreachable!()
-        }
+        // TODO(a4vision): Handle the case where this is the source node.
+        let pending_request = self.get_pending_request(response_send_msg.get_request_id())?;
+        pending_request.verify_response_message(&response_send_msg)?;
+        self.rebalance_credits_upon_receive_response(&pending_request, &response_send_msg)?;
 
         return Ok(Some(ProcessMessageOutput::Response(IncomingResponseSendMessage{
-            request: pending_request, response: response_send_msg
+            pending_request, incoming_response: response_send_msg
         })));
+    }
+
+    fn realize_some_of_frozen_credits(&mut self, pending_request: &PendingNeighborRequest,
+    credits_to_realize: u64) -> Result<(), ProcessMessageError>{
+        let frozen_credits = pending_request.credits_to_freeze().ok_or(ProcessMessageError::CreditsCalculationOverflow)?;
+
+        if !self.tc_balance.realize_local_frozen_credits(credits_to_realize){
+            return Err(ProcessMessageError::InnerBug);
+        }
+
+        let credits_to_unfreeze = frozen_credits.checked_sub(credits_to_realize).ok_or(ProcessMessageError::InnerBug)?;
+        if !self.tc_balance.unfreeze_local_credits(credits_to_unfreeze){
+            return Err(ProcessMessageError::InnerBug);
+        }
+        Ok(())
+    }
+
+    fn rebalance_credits_upon_receive_failed(&mut self, pending_request: &PendingNeighborRequest,
+            failed_send_message: &FailedSendMessage) -> Result<(), ProcessMessageError>{
+
+        let nodes_to_reporting = failed_send_message.nodes_to_reporting(&self.local_public_key,
+                                                                        pending_request.get_route()).
+            ok_or(ProcessMessageError::InnerBug)?;
+        let credits_to_realize = pending_request.credits_on_failure(nodes_to_reporting).
+            ok_or(ProcessMessageError::CreditsCalculationOverflow)?;
+
+        self.realize_some_of_frozen_credits(pending_request, credits_to_realize)
     }
 
     fn process_failed_send_message(&mut self, failed_send_msg: FailedSendMessage) ->
     Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        let pending_request = self.get_pending_request(failed_send_msg.get_request_id())?;
+        pending_request.verify_failed_message(&self.local_public_key, &failed_send_msg)?;
+        self.rebalance_credits_upon_receive_failed(&pending_request, &failed_send_msg)?;
 
-        unreachable!()
+        return Ok(Some(ProcessMessageOutput::Failure(IncomingFailedSendMessage{
+            pending_request, incoming_failed: failed_send_msg
+        })));
     }
 
     fn process_message(&mut self, message: NetworkerTCMessage)->
@@ -410,36 +312,3 @@ impl <'a>TransTokenChannelState<'a>{
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::mem;
-    use ring::test::rand::FixedByteRandom;
-    use crypto::uid::Uid;
-    use proto::indexer::NeighborsRoute;
-
-
-    #[test]
-    fn test_request_send_msg_bytes_count() {
-        let rng1 = FixedByteRandom { byte: 0x03 };
-
-        assert_eq!(mem::size_of::<PublicKey>(), 32);
-
-        let rsm = RequestSendMessage {
-            request_id: Uid::new(&rng1),
-            route: NeighborsRoute {
-                public_keys: vec![
-                    PublicKey::from_bytes(&vec![0u8; 32]).unwrap(),
-                    PublicKey::from_bytes(&vec![0u8; 32]).unwrap(),
-                ],
-            },
-            request_content: vec![1,2,3,4,5],
-            max_response_len: 0x200,
-            processing_fee_proposal: 1,
-            credits_per_byte_proposal: 2,
-        };
-
-        let expected = 16 + 32 + 32 + 5 + 4 + 8 + 8;
-        assert_eq!(rsm.bytes_count(), expected);
-    }
-}

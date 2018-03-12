@@ -13,7 +13,8 @@ use timer::messages::FromTimer;
 
 use super::messages::{NetworkerToChanneler, NetworkerToDatabase, 
     NetworkerToAppManager, MessageReceived, MoveTokenDirection,
-    PendingNeighborRequest, NeighborStatus};
+    NeighborStatus};
+
 use super::crypter::messages::CrypterRequestSendMessage;
 
 use app_manager::messages::AppManagerToNetworker;
@@ -35,7 +36,12 @@ mod token_channel;
 mod tc_credit;
 mod pending_requests;
 mod invoice_validator;
+mod messenger_messages;
+pub mod pending_neighbor_request;
 pub mod credit_calculator;
+
+use self::pending_neighbor_request::PendingNeighborRequest;
+
 
 /// Full state of a Neighbor token channel.
 struct NeighborTokenChannel {

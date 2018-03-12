@@ -1,7 +1,7 @@
 //! The messages sent by database to other components.
 
-use networker::messages::{MoveTokenDirection, NeighborInfo, 
-    PendingNeighborRequest, NeighborTokenCommon};
+use networker::messages::{MoveTokenDirection, NeighborInfo, NeighborTokenCommon};
+use networker::messenger::pending_neighbor_request::PendingNeighborRequest;
 
 use funder::messages::{PendingFriendRequest, FriendInfo, FriendTokenCommon};
 

@@ -54,13 +54,24 @@ impl NeighborsRoute {
         true
     }
 
-    pub fn index_of(&self, key: &PublicKey) -> Option<usize>{
+    fn index_of(&self, key: &PublicKey) -> Option<usize>{
         self.public_keys.iter().position(|k| k == key)
     }
 
-    pub fn destination_public_key(&self) -> Option<PublicKey>{
+    pub fn get_destination_public_key(&self) -> Option<PublicKey>{
         let key = self.public_keys.last()?;
         return Some(key.clone());
+    }
+
+    pub fn distance_between_nodes(&self, first_node: &PublicKey, second_node: &PublicKey)
+        -> Option<usize>{
+        let index_first = self.index_of(first_node)?;
+        let index_second = self.index_of(second_node)?;
+        if index_first > index_second{
+            None
+        }else{
+            Some(index_second - index_first)
+        }
     }
 }
 

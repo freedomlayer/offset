@@ -101,9 +101,10 @@ impl TokenChannelCredit {
     /// Realize frozen credits
     // Normally called when receiving a Response/Failure message.
     pub fn realize_local_frozen_credits(&mut self, credits: u64) -> bool {
-        if self.remote_debt.can_decrease_debt(credits) {
-            self.remote_debt.decrease_debt(credits);
-            self.local_debt.redeem_frozen_credits(credits)
+        if self.remote_debt.can_decrease_debt(credits) &&
+            self.local_debt.realize_frozen_credits(credits){
+            self.remote_debt.decrease_debt(credits)
+
         } else {
            false
         }
@@ -112,9 +113,9 @@ impl TokenChannelCredit {
     /// Realize frozen credits
     // Normally called when sending a Response/ message.
     pub fn realize_remote_frozen_credits(&mut self, credits: u64) -> bool {
-        if self.local_debt.can_decrease_debt(credits) {
-            self.local_debt.decrease_debt(credits);
-            self.remote_debt.redeem_frozen_credits(credits)
+        if self.local_debt.can_decrease_debt(credits) &&
+            self.remote_debt.realize_frozen_credits(credits){
+            self.local_debt.decrease_debt(credits)
         } else {
             false
         }
@@ -238,7 +239,7 @@ impl Debt{
 
     // The sum (debt + pending_debt) is not changed, therefore we don't need to validate
     //      debt + pending_debt <= i64::max_value()
-    fn redeem_frozen_credits(&mut self, credits: u64) -> bool{
+    fn realize_frozen_credits(&mut self, credits: u64) -> bool{
         if self.unfreeze_credits(credits){
             self.debt += credits as i64;
             true
@@ -286,7 +287,7 @@ mod tests {
         assert_eq!(0, debt.get_debt());
         assert_eq!(true, debt.freeze_credits(5));
         assert_eq!(0, debt.get_debt());
-        assert_eq!(true, debt.redeem_frozen_credits(5));
+        assert_eq!(true, debt.realize_frozen_credits(5));
         assert_eq!(5, debt.get_debt());
     }
 

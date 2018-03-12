@@ -4,8 +4,8 @@ use utils::trans_hashmap_mut::TransHashMapMut;
 use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 use proto::indexer::PkPairPosition;
-use super::super::messages::PendingNeighborRequest;
-use super::token_channel::RequestSendMessage;
+use super::pending_neighbor_request::PendingNeighborRequest;
+use super::messenger_messages::RequestSendMessage;
 
 // TODO(a4vision): Note that the functions for local requests and for
 // local requests are probably identical. Maybe hold each one of them in a separate instance
@@ -36,11 +36,11 @@ impl <'a> TransPendingRequests<'a> {
     }
 
     // TODO(a4vision): Is it reasonable to consume the request here ?
-    pub fn add_pending_remote_request(&mut self, uid: Uid, pending_request: PendingNeighborRequest) -> bool {
-        if self.tp_remote_requests.get_hmap().contains_key(&uid) {
+    pub fn add_pending_remote_request(&mut self, pending_request: PendingNeighborRequest) -> bool {
+        if self.tp_remote_requests.get_hmap().contains_key(&pending_request.request_id) {
             return false;
         } else {
-            self.tp_remote_requests.insert(uid, pending_request);
+            self.tp_remote_requests.insert(pending_request.request_id.clone(), pending_request);
             return true;
         }
     }
