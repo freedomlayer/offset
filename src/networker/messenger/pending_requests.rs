@@ -7,9 +7,7 @@ use proto::indexer::PkPairPosition;
 use super::pending_neighbor_request::PendingNeighborRequest;
 use super::messenger_messages::RequestSendMessage;
 
-// TODO(a4vision): Note that the functions for local requests and for
-// local requests are probably identical. Maybe hold each one of them in a separate instance
-// of this struct.
+// TODO(a4vision): Decompose this class.
 pub struct PendingRequests{
     pending_local_requests: HashMap<Uid, PendingNeighborRequest>,
     pending_remote_requests: HashMap<Uid, PendingNeighborRequest>,

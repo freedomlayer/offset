@@ -29,7 +29,7 @@ impl InvoiceValidator{
     pub fn validate_receipt(&mut self, send_funds_receipt: &SendFundsReceipt,
                             public_key: &PublicKey) ->
     Result<(), ProcessMessageError> {
-        // TODO(a4vision): Is it reasonable to raise so called errors here ?
+        // TODO(a4vision): Discuss it. Is it reasonable to raise so called errors here ?
         if !send_funds_receipt.verify(public_key) {
             return Err(ProcessMessageError::InvalidFundsReceipt);
         }

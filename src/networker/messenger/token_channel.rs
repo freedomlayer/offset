@@ -108,9 +108,7 @@ struct TransTokenChannelState<'a> {
 }
 
 impl TokenChannel {
-    // TODO(a4vision): Discuss it: Shouldn't we charge the Failure credit for every incoming message ?
-    //                  When the function process_request_send_message fails, we need to
-    //                  charge for it
+    // TODO(a4vision): Discuss it: Should we charge for creation of incosistency ?
     pub fn atomic_process_messages_list(&mut self, messages: Vec<NetworkerTCMessage>)
                                         -> Result<Vec<ProcessMessageOutput>, ProcessTransListError>{
         let mut transactional_token_channel = TransTokenChannelState::new(self);
@@ -172,15 +170,20 @@ impl <'a>TransTokenChannelState<'a>{
         }
     }
 
-    fn process_request_message_last_node(&mut self, request_send_msg: RequestSendMessage) -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        // TODO(a4vision): implement
-        unreachable!()
+    fn process_request_message_last_node(&mut self, request_send_msg: RequestSendMessage)
+        -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        let credits = request_send_msg.credits_to_freeze_on_destination().
+            ok_or(ProcessMessageError::CreditsCalculationOverflow)?;
+        if !self.tc_balance.freeze_remote_credits(credits){
+            return Err(ProcessMessageError::PendingCreditTooLarge);
+        }
+
+        Ok(Some(ProcessMessageOutput::Request(request_send_msg)))
     }
 
     fn process_request_send_message(&mut self, request_send_msg: RequestSendMessage)->
     Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        // TODO(a4vision): Somewhere here, we should create some failure message in case of an
-        //                  invalid RequestSendMessage
+        // TODO(a4vision): Discuss - every error here causes inconsistency.
         if !request_send_msg.get_route().is_unique(){
             return Err(ProcessMessageError::DuplicateNodesInRoute);
         }
@@ -194,7 +197,8 @@ impl <'a>TransTokenChannelState<'a>{
                 request_send_msg.create_pending_request(&self.remote_public_key).ok_or(ProcessMessageError::TooLongMessage)?
             },
         };
-        let credits_to_freeze = pending_request.credits_to_freeze().ok_or(ProcessMessageError::CreditsCalculationOverflow)?;
+        let credits_to_freeze = pending_request.credits_to_freeze().ok_or(
+            ProcessMessageError::CreditsCalculationOverflow)?;
 
         if !self.transactional_pending_requests.add_pending_remote_request(pending_request) {
             return Err(ProcessMessageError::RemoteRequestIdExists);
@@ -206,7 +210,7 @@ impl <'a>TransTokenChannelState<'a>{
     }
 
 
-    fn get_pending_request(&mut self, request_id: &Uid) -> Result<PendingNeighborRequest, ProcessMessageError>{
+    fn remove_local_pending_request(&mut self, request_id: &Uid) -> Result<PendingNeighborRequest, ProcessMessageError>{
         self.transactional_pending_requests.remove_local_pending_request(&request_id).
             ok_or(ProcessMessageError::RequestIdNotExists)
     }
@@ -220,10 +224,11 @@ impl <'a>TransTokenChannelState<'a>{
         self.realize_some_of_frozen_credits(pending_request, credits_to_realize)
     }
 
+
+
     fn process_response_send_message(&mut self, response_send_msg: ResponseSendMessage) ->
     Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        // TODO(a4vision): Handle the case where this is the source node.
-        let pending_request = self.get_pending_request(response_send_msg.get_request_id())?;
+        let pending_request = self.remove_local_pending_request(response_send_msg.get_request_id())?;
         pending_request.verify_response_message(&response_send_msg)?;
         self.rebalance_credits_upon_receive_response(&pending_request, &response_send_msg)?;
 
@@ -240,7 +245,8 @@ impl <'a>TransTokenChannelState<'a>{
             return Err(ProcessMessageError::InnerBug);
         }
 
-        let credits_to_unfreeze = frozen_credits.checked_sub(credits_to_realize).ok_or(ProcessMessageError::InnerBug)?;
+        let credits_to_unfreeze = frozen_credits.checked_sub(credits_to_realize).
+            ok_or(ProcessMessageError::InnerBug)?;
         if !self.tc_balance.unfreeze_local_credits(credits_to_unfreeze){
             return Err(ProcessMessageError::InnerBug);
         }
@@ -261,7 +267,7 @@ impl <'a>TransTokenChannelState<'a>{
 
     fn process_failed_send_message(&mut self, failed_send_msg: FailedSendMessage) ->
     Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        let pending_request = self.get_pending_request(failed_send_msg.get_request_id())?;
+        let pending_request = self.remove_local_pending_request(failed_send_msg.get_request_id())?;
         pending_request.verify_failed_message(&self.local_public_key, &failed_send_msg)?;
         self.rebalance_credits_upon_receive_failed(&pending_request, &failed_send_msg)?;
 

@@ -17,7 +17,7 @@ pub struct PendingNeighborRequest {
     pub max_response_length: u32,
     pub processing_fee_proposal: u64,
     pub credits_per_byte_proposal: u64,
-    pub request_content_len: u32,
+    pub request_bytes_count: u32,
     pub nodes_to_dest: usize,
 }
 
@@ -27,7 +27,7 @@ impl PendingNeighborRequest{
     pub fn credits_to_freeze(&self) -> Option<u64> {
         credit_calculator::credits_to_freeze(self.processing_fee_proposal,
                                              // TODO(a4vision): Should this be the bytes_count ?
-                                             self.request_content_len,
+                                             self.request_bytes_count,
                                              self.credits_per_byte_proposal,
                                              self.max_response_length,
                                              self.nodes_to_dest)
@@ -40,7 +40,7 @@ impl PendingNeighborRequest{
     pub fn credits_on_success(&self, response_length: usize) -> Option<u64> {
         credit_calculator::credits_on_success(self.processing_fee_proposal,
                                              // TODO(a4vision): Should this be the bytes_count() ?
-                                             self.request_content_len,
+                                             self.request_bytes_count,
                                              self.credits_per_byte_proposal,
                                              self.max_response_length,
             convert_int::checked_as_u32(response_length)?,
@@ -49,7 +49,7 @@ impl PendingNeighborRequest{
 
     pub fn credits_on_failure(&self, nodes_to_reporting: usize) -> Option<u64> {
         credit_calculator::credits_on_failure(// TODO(a4vision): Should this be the bytes_count() ?
-                                             self.request_content_len,
+                                             self.request_bytes_count,
                                              nodes_to_reporting)
     }
 

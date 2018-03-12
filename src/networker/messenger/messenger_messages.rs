@@ -8,12 +8,13 @@ use crypto::hash::HashResult;
 use byteorder::LittleEndian;
 use byteorder::WriteBytesExt;
 use proto::indexer::NeighborsRoute;
+use super::credit_calculator;
 use super::pending_neighbor_request::PendingNeighborRequest;
 
 
 pub struct ResponseSendMessage {
     request_id: Uid,
-    // TODO(a4vision): Discuss it: What is this nonce for ?
+    // TODO(a4vision): Discuss it: What is this nonce for ? Is it against replay attacks ?
     rand_nonce: RandValue,
     // TODO(a4vision): Discuss it: Is it possible that the final destination will accept a processing
     //                  fee lower than the assigned processing fee ?
@@ -97,9 +98,9 @@ impl RequestSendMessage {
         Some(PendingNeighborRequest {
             request_id: self.request_id.clone(),
             route: self.route.clone(),
-            // TODO(a4vision): Discuss it: Shouldn't this hash be over the whole request ??? Otherwise,
+            request_bytes_count: convert_int::checked_as_u32(self.bytes_count())?,
+            // TODO(a4vision): Discuss it: Should this hash be over the whole request ??? Otherwise,
             //                  some mediators might change parameters along the way.
-            request_content_len: convert_int::checked_as_u32(self.request_content.len())?,
             request_content_hash: hash::sha_512_256(self.request_content.as_ref()),
             max_response_length: self.max_response_len,
             processing_fee_proposal: self.processing_fee_proposal,
@@ -110,6 +111,13 @@ impl RequestSendMessage {
 
     pub fn get_route(&self) -> &NeighborsRoute{
         &self.route
+    }
+
+    pub fn credits_to_freeze_on_destination(&self) -> Option<u64>{
+        credit_calculator::credits_to_freeze(self.processing_fee_proposal,
+                            convert_int::checked_as_u32(self.bytes_count())?,
+                                              self.credits_per_byte_proposal,
+                                              self.max_response_len, 1)
     }
 }
 
@@ -136,6 +144,7 @@ impl FailedSendMessage{
                 } else {
                     match self.nodes_to_reporting(receiver_public_key, route) {
                         None => false,
+                        // TODO(a4vision): Should we allow the destination to report a failure ?
                         Some(0) => false,
                         _ => true,
                     }
