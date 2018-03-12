@@ -20,6 +20,13 @@
 //                  an integer overflow. Normally, for a reasonable max_debt it shouldn't happen.
 //                  Maybe we should prevent it completely by bounding strictly the maximal
 //                  redeemable value,
+
+///
+/// Freezing credits does not change the balance.
+/// Realizing frozen credits: after freezes credits,
+///         realizing them means transforming them into an actual debt.
+/// Realizing frozen credits: after freezes credits,
+///         realizing them means transforming them into an actual debt.
 #[derive(Clone)]
 pub struct TokenChannelCredit {
     /// How many credits does my neighbor owe me
@@ -127,6 +134,14 @@ impl TokenChannelCredit {
 
     pub fn set_local_max_debt(&mut self, local_max_debt: u64) -> bool{
         self.local_debt.set_max_debt(local_max_debt)
+    }
+
+    pub fn get_remote_max_debt(&self) -> u64{
+        self.remote_debt.get_max_debt()
+    }
+
+    pub fn get_local_max_debt(&self) -> u64{
+        self.local_debt.get_max_debt()
     }
 }
 
@@ -257,9 +272,14 @@ impl Debt{
         }
     }
 
+    fn get_max_debt(&self) -> u64{
+        self.max_debt
+    }
+
     fn get_debt(&self) -> i64{
         self.debt
     }
+
 }
 
 #[derive(Debug)]
@@ -269,7 +289,7 @@ pub enum CreditsError{
 
 
 #[cfg(test)]
-mod tests {
+mod test_debt {
     use super::*;
 
     #[test]
@@ -305,9 +325,120 @@ mod tests {
     fn test_increase_debt() {
         let mut debt = Debt::new(1).unwrap();
         assert_eq!(true, debt.increase_debt(20));
-        assert_eq!(false, debt.increase_debt((1<<63)));
-        assert_eq!(true, debt.increase_debt((1<<63) - 21));
+        assert_eq!(20, debt.get_debt());
+        assert_eq!(false, debt.increase_debt((1u64<<63)));
+        assert_eq!(20, debt.get_debt());
+        assert_eq!(true, debt.increase_debt((1u64<<63) - 21));
+        assert_eq!(((1u64<<63) - 1) as i64, debt.get_debt());
         assert_eq!(false, debt.freeze_credits(1));
     }
+
+    #[test]
+    fn test_decrease_debt(){
+        let mut debt = Debt::new(10).unwrap();
+        assert_eq!(true, debt.decrease_debt(i64::max_value() as u64));
+        assert_eq!(-i64::max_value(), debt.get_debt());
+        assert_eq!(true, debt.increase_debt(i64::max_value() as u64));
+        assert_eq!(0, debt.get_debt());
+    }
+
+    #[test]
+    fn test_freezing_credits(){
+        let mut debt = Debt::new(20).unwrap();
+        assert_eq!(false, debt.freeze_credits(21));
+        assert_eq!(true, debt.freeze_credits(20));
+        assert_eq!(false, debt.unfreeze_credits(21));
+        assert_eq!(true, debt.unfreeze_credits(20));
+        assert_eq!(true, debt.freeze_credits(20));
+    }
+
+    #[test]
+    fn test_inequality_while_freezing_credit(){
+        let mut debt = Debt::new(20).unwrap();
+        assert_eq!(true, debt.increase_debt(10));
+        assert_eq!(false, debt.freeze_credits(11));
+        assert_eq!(true, debt.freeze_credits(10));
+    }
+
+    #[test]
+    fn test_overflow_while_increasing_debt(){
+        let mut debt = Debt::new(10).unwrap();
+        assert_eq!(true, debt.freeze_credits(10));
+        assert_eq!(false, debt.increase_debt(i64::max_value() as u64));
+    }
 }
+
+#[cfg(test)]
+mod test_channel_credit {
+    use super::*;
+    use rand::Rng;
+    use rand::distributions::Range;
+    extern crate rand;
+    use rand::distributions::Sample;
+
+    fn is_consistent(credit:&TokenChannelCredit) -> bool{
+        credit.remote_debt.get_debt() == -credit.local_debt.get_debt()
+    }
+
+    #[test]
+    fn test_basic(){
+        let mut credit = TokenChannelCredit::new(10, 10).unwrap();
+        assert_eq!(true, credit.increase_balance(100));
+        assert_eq!(100, credit.get_balance());
+        assert_eq!(false, credit.freeze_remote_credits(1));
+        assert_eq!(true, credit.freeze_local_credits(100 + 10));
+        assert_eq!(100, credit.get_balance());
+        assert_eq!(true, credit.realize_local_frozen_credits(100 + 10));
+        assert_eq!(-10, credit.get_balance());
+    }
+
+    #[test]
+    fn test_consistency_while_changing_balance(){
+        let mut credit = TokenChannelCredit::new(10, 10).unwrap();
+        assert_eq!(true, is_consistent(&credit));
+        assert_eq!(true, credit.increase_balance(100));
+        assert_eq!(true, is_consistent(&credit));
+        assert_eq!(100, credit.get_balance());
+        assert_eq!(true, is_consistent(&credit));
+        assert_eq!(false, credit.freeze_remote_credits(1));
+        assert_eq!(true, is_consistent(&credit));
+        assert_eq!(true, credit.freeze_local_credits(100 + 10));
+        assert_eq!(true, is_consistent(&credit));
+        assert_eq!(100, credit.get_balance());
+        assert_eq!(true, credit.realize_local_frozen_credits(100 + 10));
+        assert_eq!(true, is_consistent(&credit));
+
+        assert_eq!(-10, credit.get_balance());
+    }
+
+    #[test]
+    fn test_consistency_while_fuzzing(){
+        let mut credit = TokenChannelCredit::new(15, 15).unwrap();
+        let mut rng = rand::thread_rng();
+        let mut range = Range::new(0u64, 10u64);
+        assert_eq!(true, is_consistent(&credit));
+        for i in 0 .. 10000{
+            if rng.gen(){
+                credit.freeze_remote_credits(range.sample(&mut rng));
+                assert_eq!(true, is_consistent(&credit));
+                credit.unfreeze_remote_credits(range.sample(&mut rng));
+                assert_eq!(true, is_consistent(&credit));
+                credit.realize_remote_frozen_credits(range.sample(&mut rng));
+                assert_eq!(true, is_consistent(&credit));
+
+            }else{
+                credit.freeze_local_credits(range.sample(&mut rng));
+                assert_eq!(true, is_consistent(&credit));
+                credit.unfreeze_local_credits(range.sample(&mut rng));
+                assert_eq!(true, is_consistent(&credit));
+                credit.realize_local_frozen_credits(range.sample(&mut rng));
+                assert_eq!(true, is_consistent(&credit));
+
+            }
+//            println!("{}", credit.get_balance());
+        }
+
+    }
+}
+
 

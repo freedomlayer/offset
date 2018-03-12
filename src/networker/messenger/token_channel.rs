@@ -20,7 +20,7 @@ use super::credit_calculator;
 use super::pending_neighbor_request::PendingNeighborRequest;
 use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, RequestSendMessage};
 use utils::convert_int;
-
+use super::messenger_messages::NetworkerTCMessage;
 
 pub struct IncomingResponseSendMessage {
     pending_request: PendingNeighborRequest,
@@ -32,6 +32,9 @@ pub struct IncomingFailedSendMessage {
     incoming_failed: FailedSendMessage,
 }
 
+
+/// Resulting tasks to perform after processing an incoming message.
+/// Note that
 pub enum ProcessMessageOutput {
     Request(RequestSendMessage),
     Response(IncomingResponseSendMessage),
@@ -71,15 +74,6 @@ pub struct ProcessTransListError {
 }
 
 
-pub enum NetworkerTCMessage {
-    SetRemoteMaxDebt(u64),
-    SetInvoiceId(InvoiceId),
-    LoadFunds(SendFundsReceipt),
-    RequestSendMessage(RequestSendMessage),
-    ResponseSendMessage(ResponseSendMessage),
-    FailedSendMessage(FailedSendMessage),
-    // ResetChannel(i64), // new_balanace
-}
 
 
 pub struct TokenChannel {
@@ -96,20 +90,31 @@ pub struct TokenChannel {
 }
 
 
+/// Processes incoming messages, acts upon an underlying TokenChannel.
 struct TransTokenChannelState<'a> {
+    /// The original balance
     orig_tc_balance: TokenChannelCredit,
+    /// The original invoice
     orig_invoice_validator: InvoiceValidator,
     local_public_key: PublicKey,
     remote_public_key: PublicKey,
 
+    /// Pointer to the balance of the underlying TokenChannel
     tc_balance: &'a mut TokenChannelCredit,
+    /// Pointer to the invoice validator of the underlying TokenChannel
     invoice_validator: &'a mut InvoiceValidator,
+    // Pointers to the pending requests of the underlying TokenChannel.
+    //  transactional_local_pending_requests, transactional_remote_pending_requests
+    // together form TokenChannel.pending_requests
     transactional_local_pending_requests: TransPendingRequests<'a>,
     transactional_remote_pending_requests: TransPendingRequests<'a>,
 }
 
+/// Processes transactions - list of incoming messages.
 impl TokenChannel {
     // TODO(a4vision): Discuss it: Should we charge for creation of incosistency ?
+
+    /// If this function returns an error, the token channel becomes incosistent.
     pub fn atomic_process_messages_list(&mut self, messages: Vec<NetworkerTCMessage>)
                                         -> Result<Vec<ProcessMessageOutput>, ProcessTransListError>{
         let mut transactional_token_channel = TransTokenChannelState::new(self);
@@ -123,21 +128,33 @@ impl TokenChannel {
             }
         }
     }
+
+    pub fn get_remote_max_debt(&self) -> u64{
+        self.tc_balance.get_remote_max_debt()
+    }
+
+    pub fn get_local_max_debt(&self) -> u64{
+        self.tc_balance.get_local_max_debt()
+    }
 }
 
+/// Transactional state of the token channel.
+/// Call cancel() to abort all changes to the channel, do nothing in order to apply the changes
+/// on the underlying TokenChannel.
 impl <'a>TransTokenChannelState<'a>{
-    pub fn new(token_channel: &'a mut TokenChannel) -> TransTokenChannelState<'a> {
+    /// original_token_channel: the underlying TokenChannel.
+    pub fn new(original_token_channel: &'a mut TokenChannel) -> TransTokenChannelState<'a> {
         let (local_requests, remote_requests) =
-            TransPendingRequests::new_transactionals(&mut token_channel.pending_requests);
+            TransPendingRequests::new_transactionals(&mut original_token_channel.pending_requests);
         TransTokenChannelState {
-            orig_tc_balance: token_channel.tc_balance.clone(),
-            orig_invoice_validator: token_channel.invoice_validator.clone(),
+            orig_tc_balance: original_token_channel.tc_balance.clone(),
+            orig_invoice_validator: original_token_channel.invoice_validator.clone(),
 
-            remote_public_key: token_channel.remote_public_key.clone(),
-            local_public_key: token_channel.local_public_key.clone(),
+            remote_public_key: original_token_channel.remote_public_key.clone(),
+            local_public_key: original_token_channel.local_public_key.clone(),
 
-            tc_balance: &mut token_channel.tc_balance,
-            invoice_validator: &mut token_channel.invoice_validator,
+            tc_balance: &mut original_token_channel.tc_balance,
+            invoice_validator: &mut original_token_channel.invoice_validator,
 
             transactional_local_pending_requests: local_requests,
             transactional_remote_pending_requests: remote_requests,
@@ -299,7 +316,7 @@ impl <'a>TransTokenChannelState<'a>{
         }
     }
 
-    fn process_messages_list(&mut self, messages: Vec<NetworkerTCMessage>) ->
+    pub fn process_messages_list(&mut self, messages: Vec<NetworkerTCMessage>) ->
     Result<Vec<ProcessMessageOutput>, ProcessTransListError>{
         let mut outputs = Vec::new();
 
@@ -316,7 +333,7 @@ impl <'a>TransTokenChannelState<'a>{
         Ok(outputs)
     }
 
-    fn cancel(self){
+    pub fn cancel(self){
         *self.tc_balance = self.orig_tc_balance;
         *self.invoice_validator = self.orig_invoice_validator;
         self.transactional_local_pending_requests.cancel();

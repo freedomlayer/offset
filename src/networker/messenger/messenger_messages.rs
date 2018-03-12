@@ -8,8 +8,20 @@ use crypto::hash::HashResult;
 use byteorder::LittleEndian;
 use byteorder::WriteBytesExt;
 use proto::indexer::NeighborsRoute;
+use proto::common::SendFundsReceipt;
+use proto::funder::InvoiceId;
 use super::credit_calculator;
 use super::pending_neighbor_request::PendingNeighborRequest;
+
+pub enum NetworkerTCMessage {
+    SetRemoteMaxDebt(u64),
+    SetInvoiceId(InvoiceId),
+    LoadFunds(SendFundsReceipt),
+    RequestSendMessage(RequestSendMessage),
+    ResponseSendMessage(ResponseSendMessage),
+    FailedSendMessage(FailedSendMessage),
+    // ResetChannel(i64), // new_balanace
+}
 
 
 pub struct ResponseSendMessage {
