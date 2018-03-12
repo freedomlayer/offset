@@ -64,7 +64,7 @@ pub fn credits_on_success(processing_fee_proposal: u64, request_len: u32,
 /// In other words,
 ///     - The amount of credit transferred on the edge (C, D) is credits_on_failure(request_len, 1)
 ///     - The amount of credit transferred on the edge (B, C) is credits_on_failure(request_len, 2)
-// TODO(a4vision): Discuss it. Change the whole terminology to be edge-oriented.
+// TODO(a4vision): Discuss it. I changed the whole terminology to be edge-oriented.
 pub fn credits_on_failure(request_len: u32, nodes_to_reporting: usize) -> Option<u64> {
     // request_len * nodes_to_reporting
     (request_len as u64).checked_mul((nodes_to_reporting as u64))

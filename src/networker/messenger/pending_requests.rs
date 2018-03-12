@@ -7,7 +7,6 @@ use proto::indexer::PkPairPosition;
 use super::pending_neighbor_request::PendingNeighborRequest;
 use super::messenger_messages::RequestSendMessage;
 
-// TODO(a4vision): Decompose this class.
 pub struct PendingRequests{
     pending_local_requests: HashMap<Uid, PendingNeighborRequest>,
     pending_remote_requests: HashMap<Uid, PendingNeighborRequest>,
@@ -30,7 +29,6 @@ impl <'a> TransPendingRequests<'a> {
         self.tp_requests.cancel();
     }
 
-    // TODO(a4vision): Is it reasonable to consume the request here ?
     pub fn add_pending_request(&mut self, pending_request: PendingNeighborRequest) -> bool {
         if self.tp_requests.get_hmap().contains_key(&pending_request.request_id) {
             return false;
