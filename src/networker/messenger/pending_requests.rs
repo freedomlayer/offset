@@ -14,37 +14,34 @@ pub struct PendingRequests{
 }
 
 pub struct TransPendingRequests<'a>{
-    tp_local_requests: TransHashMapMut<'a, Uid, PendingNeighborRequest>,
-    tp_remote_requests: TransHashMapMut<'a, Uid, PendingNeighborRequest>,
+    tp_requests: TransHashMapMut<'a, Uid, PendingNeighborRequest>,
 }
 
 
 impl <'a> TransPendingRequests<'a> {
-    pub fn new(pending_requests: &'a mut PendingRequests) -> Self {
-        TransPendingRequests {
-            tp_local_requests: TransHashMapMut::new(&mut pending_requests.pending_local_requests),
-            tp_remote_requests: TransHashMapMut::new(&mut pending_requests.pending_remote_requests),
-        }
+    pub fn new_transactionals(pending_requests: &'a mut PendingRequests) -> (Self, Self) {
+        (TransPendingRequests {
+            tp_requests: TransHashMapMut::new(&mut pending_requests.pending_local_requests)},
+            TransPendingRequests {
+            tp_requests: TransHashMapMut::new(&mut pending_requests.pending_remote_requests)})
     }
 
     pub fn cancel(self) {
-        let TransPendingRequests{tp_local_requests, tp_remote_requests } = self;
-        tp_local_requests.cancel();
-        tp_remote_requests.cancel();
+        self.tp_requests.cancel();
     }
 
     // TODO(a4vision): Is it reasonable to consume the request here ?
-    pub fn add_pending_remote_request(&mut self, pending_request: PendingNeighborRequest) -> bool {
-        if self.tp_remote_requests.get_hmap().contains_key(&pending_request.request_id) {
+    pub fn add_pending_request(&mut self, pending_request: PendingNeighborRequest) -> bool {
+        if self.tp_requests.get_hmap().contains_key(&pending_request.request_id) {
             return false;
         } else {
-            self.tp_remote_requests.insert(pending_request.request_id.clone(), pending_request);
+            self.tp_requests.insert(pending_request.request_id.clone(), pending_request);
             return true;
         }
     }
 
-    pub fn remove_local_pending_request(&mut self, uid: &Uid) -> Option<PendingNeighborRequest>{
-        self.tp_local_requests.remove(uid)
+    pub fn remove_pending_request(&mut self, uid: &Uid) -> Option<PendingNeighborRequest>{
+        self.tp_requests.remove(uid)
     }
 
 

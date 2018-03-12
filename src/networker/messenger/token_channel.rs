@@ -104,7 +104,8 @@ struct TransTokenChannelState<'a> {
 
     tc_balance: &'a mut TokenChannelCredit,
     invoice_validator: &'a mut InvoiceValidator,
-    transactional_pending_requests: TransPendingRequests<'a>,
+    transactional_local_pending_requests: TransPendingRequests<'a>,
+    transactional_remote_pending_requests: TransPendingRequests<'a>,
 }
 
 impl TokenChannel {
@@ -126,6 +127,8 @@ impl TokenChannel {
 
 impl <'a>TransTokenChannelState<'a>{
     pub fn new(token_channel: &'a mut TokenChannel) -> TransTokenChannelState<'a> {
+        let (local_requests, remote_requests) =
+            TransPendingRequests::new_transactionals(&mut token_channel.pending_requests);
         TransTokenChannelState {
             orig_tc_balance: token_channel.tc_balance.clone(),
             orig_invoice_validator: token_channel.invoice_validator.clone(),
@@ -135,7 +138,9 @@ impl <'a>TransTokenChannelState<'a>{
 
             tc_balance: &mut token_channel.tc_balance,
             invoice_validator: &mut token_channel.invoice_validator,
-            transactional_pending_requests: TransPendingRequests::new(&mut token_channel.pending_requests)
+
+            transactional_local_pending_requests: local_requests,
+            transactional_remote_pending_requests: remote_requests,
         }
     }
 
@@ -200,7 +205,7 @@ impl <'a>TransTokenChannelState<'a>{
         let credits_to_freeze = pending_request.credits_to_freeze().ok_or(
             ProcessMessageError::CreditsCalculationOverflow)?;
 
-        if !self.transactional_pending_requests.add_pending_remote_request(pending_request) {
+        if !self.transactional_remote_pending_requests.add_pending_request(pending_request) {
             return Err(ProcessMessageError::RemoteRequestIdExists);
         }
         if !self.tc_balance.freeze_remote_credits(credits_to_freeze){
@@ -211,7 +216,7 @@ impl <'a>TransTokenChannelState<'a>{
 
 
     fn remove_local_pending_request(&mut self, request_id: &Uid) -> Result<PendingNeighborRequest, ProcessMessageError>{
-        self.transactional_pending_requests.remove_local_pending_request(&request_id).
+        self.transactional_local_pending_requests.remove_pending_request(&request_id).
             ok_or(ProcessMessageError::RequestIdNotExists)
     }
 
@@ -314,7 +319,8 @@ impl <'a>TransTokenChannelState<'a>{
     fn cancel(self){
         *self.tc_balance = self.orig_tc_balance;
         *self.invoice_validator = self.orig_invoice_validator;
-        self.transactional_pending_requests.cancel();
+        self.transactional_local_pending_requests.cancel();
+        self.transactional_remote_pending_requests.cancel();
     }
 }
 
