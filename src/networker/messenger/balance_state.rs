@@ -55,7 +55,7 @@ fn sum_u64<I>(vals: I) -> u128
 where
     I: Iterator<Item = u64>,
 {
-    vals.fold(0u128, |mut sum, val| sum + u128::from(val))
+    vals.fold(0u128, |sum, val| sum + u128::from(val))
 }
 
 
