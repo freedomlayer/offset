@@ -80,14 +80,14 @@ struct ResponseSendMessageTran {
         #   randNonce)
 }
 
+
+
 struct FailedSendMessageTran {
         requestId @0: CustomUInt128;
-        reportingPublicKey @1: CustomUInt256;
-        # The reporting public key could be any public key along the route,
-        # except for the destination node. The destination node should not be
-        # able to issue this message.
-        randNonce @2: CustomUInt128;
-        signature @3: CustomUInt512;
+        reportingPublicKeyIndex @1: UInt16;
+        # Index on the route of the public key reporting this failure message.
+        # The destination node should not be able to issue this message.
+        randNonceSignatures @2: List(RandNonceSignature);
         # Signature{key=reportingNodePublicKey}(
         #   "REQUEST_FAILURE" ||
         #   requestId ||
@@ -96,6 +96,7 @@ struct FailedSendMessageTran {
         #   maxResponseLength ||
         #   processingFeeProposal ||
         #   creditsPerByteProposal || 
+        #   prev randNonceSignatures ||
         #   randNonce)
 }
 
