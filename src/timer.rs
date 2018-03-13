@@ -154,18 +154,23 @@ mod tests {
 
         assert_eq!(clients.len(), TIMER_CLIENT_NUM / 2);
 
-        let start = time::Instant::now();
+
+
+
+
         let clients_fut = clients
-            .into_iter()
-            .map(|client| {
-                client.take(17).collect().and_then(|_| {
+        .into_iter()
+        .map(|client| {
+                let start = time::Instant::now();
+                client.take(17).collect().and_then(move |_| {
                     assert!(start.elapsed() >= dur * 17);
+                    println!("{:?}", start.elapsed());
+                    println!("{:?}", dur * 17);
                     assert!(start.elapsed() < dur * 17 * 12 / 10);
                     Ok(())
                 })
             })
-            .collect::<Vec<_>>();
-
+        .collect::<Vec<_>>();
         let task = tm.map_err(|_| ()).select2(join_all(clients_fut));
 
         assert!(core.run(task).is_ok());
