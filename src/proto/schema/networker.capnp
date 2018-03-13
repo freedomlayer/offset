@@ -4,6 +4,7 @@ using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomUInt256;
 using import "common.capnp".CustomUInt512;
 using import "common.capnp".Receipt;
+using import "common.capnp".RandNonceSignature;
 
 # Token channel messages
 # ----------------------
