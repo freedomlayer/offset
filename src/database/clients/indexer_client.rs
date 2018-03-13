@@ -7,14 +7,14 @@ use proto::indexer::{IndexingProviderId, NeighborsRoute};
 
 #[derive(Debug)]
 pub enum DBIndexerClientError {
-    RequestSendFailed,
-    OneshotReceiverCanceled,
+RequestSendFailed,
+OneshotReceiverCanceled,
 }
 
-
-/// A databse client used by IndexerClient.
+#[allow(doc_markdown)]
+/// A databse client used by `IndexerClient`.
 /// (Should have been called IndexerClientClient)
-/// Used for storing and loading indexing providers' related information 
+/// Used for storing and loading indexing providers' related information
 /// from and to the Database.
 #[derive(Clone)]
 pub struct DBIndexerClient {

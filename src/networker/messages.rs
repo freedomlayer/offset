@@ -17,6 +17,11 @@ use proto::indexer::NeighborsRoute;
 use proto::funder::InvoiceId;
 use proto::networker::ChannelToken;
 
+use networker::messenger::credit_calculator;
+use utils::convert_int;
+
+
+use super::messenger::pending_neighbor_request::PendingNeighborRequest;
 
 /// Indicate the direction of the move token message.
 #[derive(Clone, Copy, Debug)]
@@ -30,15 +35,6 @@ pub enum NeighborStatus {
     Disable = 0,
 }
 
-#[derive(Clone)]
-pub struct PendingNeighborRequest {
-    pub request_id: Uid,
-    pub route: NeighborsRoute,
-    pub request_content_hash: HashResult,
-    pub max_response_length: u32,
-    pub processing_fee_proposal: u64,
-    pub credits_per_byte_proposal: u32,
-}
 
 /// The neighbor's information from database.
 pub struct NeighborInfo {
@@ -196,6 +192,7 @@ pub struct OutNeighborToken {
     pub closed_remote_requests: Vec<Uid>,
 }
 
+#[allow(large_enum_variant)]
 pub enum NetworkerToDatabase {
     StoreNeighbor(NeighborInfo),
     RemoveNeighbor {
