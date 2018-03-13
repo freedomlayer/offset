@@ -7,9 +7,9 @@ where
     K: Eq + Hash + Clone,
     V: Clone
 {
-    if !orig.contains_key(&key) {
+    if !orig.contains_key(key) {
         orig.insert(key.clone(), 
-                    hmap.get(&key).map(|value| value.clone()));
+                    hmap.get(key).cloned());
     }
 }
 
@@ -41,7 +41,7 @@ fn trans_restore<K,V>(hmap: &mut HashMap<K,V>, orig: HashMap<K, Option<V>>)
 where
     K: Eq + Hash,
 {
-    for (key, opt_value) in orig.into_iter() {
+    for (key, opt_value) in orig {
         match opt_value {
             Some(value) => {hmap.insert(key, value);},
             None => {hmap.remove(&key);},
@@ -50,7 +50,7 @@ where
 }
 
 
-/// Transactional HashMap.
+/// Transactional `HashMap`.
 /// This struct wraps a hashmap, allowing to insert and remove entries.
 /// It is possible to restore all changes made to the original hashmap by calling abort(), or
 /// accept all the changes by calling commit().
