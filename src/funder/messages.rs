@@ -115,6 +115,7 @@ pub struct OutFriendToken {
     pub closed_remote_requests: Vec<Uid>,
 }
 
+#[allow(large_enum_variant)]
 pub enum FunderToDatabase {
     StoreFriend(FriendInfo),
     RemoveFriend {

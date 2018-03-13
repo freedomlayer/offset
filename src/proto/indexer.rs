@@ -46,7 +46,7 @@ impl NeighborsRoute {
         let public_keys = &self.public_keys;
         for i in 0 .. public_keys.len() {
             for j in i + 1.. public_keys.len() {
-                if &public_keys[i] == &public_keys[j]{
+                if public_keys[i] == public_keys[j]{
                     return false
                 }
             }
@@ -60,7 +60,7 @@ impl NeighborsRoute {
 
     pub fn get_destination_public_key(&self) -> Option<PublicKey>{
         let key = self.public_keys.last()?;
-        return Some(key.clone());
+        Some(key.clone())
     }
 
     pub fn distance_between_nodes(&self, first_node: &PublicKey, second_node: &PublicKey)

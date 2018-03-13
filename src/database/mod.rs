@@ -5,7 +5,7 @@
 //! The `CSwitch` requires persistence to make sure the mutual credit management between neighbors
 //! and friends remain consistent, despite possible failures.
 //!
-//! We use SQLite as the storage engine, but it should easy to migrate to other database systems.
+//! We use `SQLite` as the storage engine, but it should easy to migrate to other database systems.
 //!
 //! # Initialization
 //!

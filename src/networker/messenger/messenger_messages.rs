@@ -42,14 +42,14 @@ impl ResponseSendMessage{
         message.extend_from_slice(&self.response_content);
         // TODO(a4vision): Change to hash over contents, and see capnp to hash everything.
         message.extend(request_hash.as_ref());
-        return verify_signature(&message, &public_key, &self.signature);
+        verify_signature(&message, public_key, &self.signature)
     }
 
     pub fn bytes_count(&self) -> usize{
         mem::size_of_val(&self.request_id) +
         mem::size_of_val(&self.rand_nonce) +
         mem::size_of_val(&self.processing_fee_collected) +
-        self.response_content.len() * 1 +
+        self.response_content.len() + // number of bytes that represent the array
         mem::size_of_val(&self.signature)
     }
 
@@ -83,7 +83,7 @@ impl RequestSendMessage {
         // amount of bytes we receive (Those could possibly be encoded in some strange way)
         mem::size_of::<Uid>() +
             mem::size_of::<PublicKey>() * self.route.public_keys.len() +
-            self.request_content.len() * 1 +
+            self.request_content.len() + // number of bytes that represent the array
             mem::size_of_val(&self.max_response_len) +
             mem::size_of_val(&self.processing_fee_proposal) +
             mem::size_of_val(&self.credits_per_byte_proposal)
@@ -91,7 +91,7 @@ impl RequestSendMessage {
 
     fn nodes_to_dest(&self, sender_public_key: &PublicKey) -> Option<usize> {
         let destination = self.route.get_destination_public_key()?;
-        let distance = self.route.distance_between_nodes(&sender_public_key, &destination)?;
+        let distance = self.route.distance_between_nodes(sender_public_key, &destination)?;
         Some(distance)
     }
 
@@ -101,7 +101,7 @@ impl RequestSendMessage {
 
     pub fn create_pending_request(&self, sender_public_key: &PublicKey) -> Option<PendingNeighborRequest> {
         Some(PendingNeighborRequest {
-            request_id: self.request_id.clone(),
+            request_id: self.request_id,
             route: self.route.clone(),
             request_bytes_count: convert_int::checked_as_u32(self.bytes_count())?,
             request_content_hash: hash::sha_512_256(self.request_content.as_ref()),
@@ -146,8 +146,8 @@ impl FailedSendMessage{
                     false
                 } else {
                     match self.nodes_to_reporting(receiver_public_key, route) {
-                        None => false,
-                        Some(0) => false,
+                        Some(0) | None => false,
+//                        Some(0) => false,
                         _ => true,
                     }
                 }
@@ -162,7 +162,7 @@ impl FailedSendMessage{
         message.extend_from_slice(self.rand_nonce.as_bytes());
         // TODO(a4vision): Change this as well
         message.extend(request_hash.as_ref());
-        return verify_signature(&message, &self.reporting_public_key, &self.signature);
+        verify_signature(&message, &self.reporting_public_key, &self.signature)
     }
 
     pub fn get_request_id(&self) -> &Uid{

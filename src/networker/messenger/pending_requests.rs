@@ -29,12 +29,13 @@ impl <'a> TransPendingRequests<'a> {
         self.tp_requests.cancel();
     }
 
+    #[allow(map_entry)]
     pub fn add_pending_request(&mut self, pending_request: PendingNeighborRequest) -> bool {
         if self.tp_requests.get_hmap().contains_key(&pending_request.request_id) {
-            return false;
+            false
         } else {
-            self.tp_requests.insert(pending_request.request_id.clone(), pending_request);
-            return true;
+            self.tp_requests.insert(pending_request.request_id, pending_request);
+            true
         }
     }
 

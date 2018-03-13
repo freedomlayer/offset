@@ -7,7 +7,7 @@
 
 /// Track the credits balance, allow freezing credits before actually sending them.
 /// We must validate
-///     debt + pending_debt <= max_debt
+///     `debt` + `pending_debt` <= `max_debt`
 /// or else processing of some valid Response message might fail. The protocol does not incorporate
 /// well with such failures.
 
@@ -41,7 +41,7 @@ impl TokenChannelCredit {
     // Normally called when the neighbor tries to redeem credits it sent me in the Funder layer.
     // The neighbor wants to do it in order to send me more messages in the Networker layer.
     pub fn decrease_balance(&mut self, credits: u128) -> bool {
-        if credits > u64::max_value() as u128{
+        if credits > u128::from(u64::max_value()){
             return false;
         }
         let credits_u64 = credits as u64;
@@ -58,7 +58,7 @@ impl TokenChannelCredit {
     // Normally called when I try to redeem credits after I sent them in the Funder layer.
     // I want to do it in order to send more messages in the Networker layer.
     pub fn increase_balance(&mut self, credits: u128) -> bool {
-        if credits > u64::max_value() as u128{
+        if credits > u128::from(u64::max_value()){
             return false;
         }
         let credits_u64 = credits as u64;
@@ -140,11 +140,11 @@ impl TokenChannelCredit {
 /// Guarantees:
 ///     * No integer overflow
 ///     * Pending debt is never too large
-///         pending_debt < i64::max_value()
+///         `pending_debt` < `i64::max_value()`
 ///     * Unfreezing debt is always possible, i.e.:
-///         debt + pending_debt <= i64::max_value()
+///         `debt` + `pending_debt` <= `i64::max_value()`
 ///     * (Only) Before freezing debt,
-///         debt + pending_debt <= max_debt
+///         `debt` + `pending_debt` <= `max_debt`
 #[derive(Clone)]
 struct Debt{
     debt: i64,
@@ -213,21 +213,15 @@ impl Debt{
     ///     new_pending_debt <= i64::max_value()
     // TODO(a4vision): Maybe talk again after changing to use Result<>
     fn freeze_credits(&mut self, credits: u64) -> bool{
-        match self.pending_debt.checked_add(credits){
-            Some(new_pending_debt) => {
-                if new_pending_debt <= i64::max_value() as u64 {
-                    match self.debt.checked_add(new_pending_debt as i64) {
-                        Some(potential_debt) => {
-                            if potential_debt < 0 || potential_debt <= self.max_debt as i64 {
-                                self.pending_debt = credits;
-                                return true;
-                            }
-                        },
-                        None => {}
+        if let Some(new_pending_debt) = self.pending_debt.checked_add(credits){
+            if new_pending_debt <= i64::max_value() as u64 {
+                if let Some(potential_debt) = self.debt.checked_add(new_pending_debt as i64) {
+                    if potential_debt < 0 || potential_debt <= self.max_debt as i64 {
+                        self.pending_debt = credits;
+                        return true;
                     }
                 }
-            },
-            None => {},
+            }
         }
         false
     }

@@ -78,7 +78,7 @@ struct NeighborState {
 }
 
 
-
+#[allow(too_many_arguments)]
 pub fn create_messenger<SR: SecureRandom>(handle: &Handle,
                         secure_rng: Rc<SR>,
                         timer_receiver: mpsc::Receiver<FromTimer>,

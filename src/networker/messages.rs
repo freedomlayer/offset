@@ -192,6 +192,7 @@ pub struct OutNeighborToken {
     pub closed_remote_requests: Vec<Uid>,
 }
 
+#[allow(large_enum_variant)]
 pub enum NetworkerToDatabase {
     StoreNeighbor(NeighborInfo),
     RemoveNeighbor {
