@@ -11,16 +11,6 @@
 /// or else processing of some valid Response message might fail. The protocol does not incorporate
 /// well with such failures.
 
-// TODO(a4vision): What should we do if a valid funds transfer fails due to the following requirement
-//                      debt + pending_debt <= max_debt
-//                  It might happen in the following scenario:
-//                  Assume A sends funds to B through the Funder layer, and then before
-//                  A manages to redeem in the Networker layer, these funds, B sends many many many
-//                  messages through A. So A is not able to redeem the funds without encountering
-//                  an integer overflow. Normally, for a reasonable max_debt it shouldn't happen.
-//                  Maybe we should prevent it completely by bounding strictly the maximal
-//                  redeemable value,
-
 ///
 /// Freezing credits does not change the balance.
 /// Realizing frozen credits: after freezes credits,
@@ -35,6 +25,7 @@ pub struct TokenChannelCredit {
     local_debt: Debt,
 }
 
+// TODO(a4vision): Change the style of this file to Result<(), Error>
 impl TokenChannelCredit {
     pub fn new(local_max_debt: u64, remote_max_debt: u64) -> Result<TokenChannelCredit, CreditsError>{
         Ok(TokenChannelCredit {local_debt: Debt::new(local_max_debt)?,
@@ -220,8 +211,7 @@ impl Debt{
     /// Make sure that
     ///     debt + new_pending_debt <= i64::max_value()
     ///     new_pending_debt <= i64::max_value()
-    // TODO(a4vision): Discuss it - maybe it is better to introduce explicit formulas,
-    //                  by converting to i128 - to make the code more readable.
+    // TODO(a4vision): Maybe talk again after changing to use Result<>
     fn freeze_credits(&mut self, credits: u64) -> bool{
         match self.pending_debt.checked_add(credits){
             Some(new_pending_debt) => {
@@ -229,7 +219,7 @@ impl Debt{
                     match self.debt.checked_add(new_pending_debt as i64) {
                         Some(potential_debt) => {
                             if potential_debt < 0 || potential_debt <= self.max_debt as i64 {
-                                self.pending_debt += credits;
+                                self.pending_debt = credits;
                                 return true;
                             }
                         },

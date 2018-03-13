@@ -26,10 +26,7 @@ pub enum NetworkerTCMessage {
 
 pub struct ResponseSendMessage {
     request_id: Uid,
-    // TODO(a4vision): Discuss it: What is this nonce for ? Is it against replay attacks ?
     rand_nonce: RandValue,
-    // TODO(a4vision): Discuss it: Is it possible that the final destination will accept a processing
-    //                  fee lower than the assigned processing fee ?
     processing_fee_collected: u64,
     response_content: Vec<u8>,
     signature: Signature,
@@ -43,13 +40,12 @@ impl ResponseSendMessage{
         // Serialize the processing_fee_collected:
         message.write_u64::<LittleEndian>(self.processing_fee_collected);
         message.extend_from_slice(&self.response_content);
-        // TODO(a4vision): Discuss it.
+        // TODO(a4vision): Change to hash over contents, and see capnp to hash everything.
         message.extend(request_hash.as_ref());
         return verify_signature(&message, &public_key, &self.signature);
     }
 
     pub fn bytes_count(&self) -> usize{
-        // TODO(a4vision): Should we check for an overflow here ?
         mem::size_of_val(&self.request_id) +
         mem::size_of_val(&self.rand_nonce) +
         mem::size_of_val(&self.processing_fee_collected) +
@@ -58,7 +54,6 @@ impl ResponseSendMessage{
     }
 
     pub fn response_length(&self) -> usize{
-        // TODO(a4vision): Did we mean bytes_count, or response_send_msg.response_content.len() ?
         self.bytes_count()
     }
 
@@ -86,8 +81,6 @@ impl RequestSendMessage {
         // We count the bytes count here and not before deserialization,
         // because we actually charge for the amount of bytes we send, and not for the
         // amount of bytes we receive (Those could possibly be encoded in some strange way)
-
-        // TODO(a4vision): Should we check for an overflow here ?
         mem::size_of::<Uid>() +
             mem::size_of::<PublicKey>() * self.route.public_keys.len() +
             self.request_content.len() * 1 +
@@ -111,8 +104,6 @@ impl RequestSendMessage {
             request_id: self.request_id.clone(),
             route: self.route.clone(),
             request_bytes_count: convert_int::checked_as_u32(self.bytes_count())?,
-            // TODO(a4vision): Discuss it: Should this hash be over the whole request ??? Otherwise,
-            //                  some mediators might change parameters along the way.
             request_content_hash: hash::sha_512_256(self.request_content.as_ref()),
             max_response_length: self.max_response_len,
             processing_fee_proposal: self.processing_fee_proposal,
@@ -149,14 +140,13 @@ impl FailedSendMessage{
 
     pub fn verify_reporter_position(&self, receiver_public_key: &PublicKey, route: &NeighborsRoute) -> bool{
         match route.get_destination_public_key(){
-            None=>return false,
+            None=>false,
             Some(destination_key)=> {
                 if destination_key == self.reporting_public_key {
                     false
                 } else {
                     match self.nodes_to_reporting(receiver_public_key, route) {
                         None => false,
-                        // TODO(a4vision): Should we allow the destination to report a failure ?
                         Some(0) => false,
                         _ => true,
                     }
@@ -170,7 +160,7 @@ impl FailedSendMessage{
         message.extend_from_slice(self.request_id.as_bytes());
         message.extend_from_slice(self.reporting_public_key.as_bytes());
         message.extend_from_slice(self.rand_nonce.as_bytes());
-        // TODO(a4vision): Discuss it.
+        // TODO(a4vision): Change this as well
         message.extend(request_hash.as_ref());
         return verify_signature(&message, &self.reporting_public_key, &self.signature);
     }

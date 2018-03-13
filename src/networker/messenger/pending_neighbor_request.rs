@@ -26,20 +26,19 @@ impl PendingNeighborRequest{
     /// an integer overflow occurs during calculation.
     pub fn credits_to_freeze(&self) -> Option<u64> {
         credit_calculator::credits_to_freeze(self.processing_fee_proposal,
-                                             // TODO(a4vision): Should this be the bytes_count ?
                                              self.request_bytes_count,
                                              self.credits_per_byte_proposal,
                                              self.max_response_length,
                                              self.nodes_to_dest)
     }
 
-    // TODO(a4vision): Discuss it: We should be aware that an attacker might try to make this calculation
+    // TODO(a4vision): Write good tests to avoid this, and write large comments to prevent it.
+    //                  We should be aware that an attacker might try to make this calculation
     //                  fail (or the credits_on_failure calculation fail). We need to defend
     //                  against such failures. It is important to note that they might be
     //                  less predictable if the calculation methods get complex.
     pub fn credits_on_success(&self, response_length: usize) -> Option<u64> {
         credit_calculator::credits_on_success(self.processing_fee_proposal,
-                                             // TODO(a4vision): Should this be the bytes_count() ?
                                              self.request_bytes_count,
                                              self.credits_per_byte_proposal,
                                              self.max_response_length,
@@ -48,7 +47,7 @@ impl PendingNeighborRequest{
     }
 
     pub fn credits_on_failure(&self, nodes_to_reporting: usize) -> Option<u64> {
-        credit_calculator::credits_on_failure(// TODO(a4vision): Should this be the bytes_count() ?
+        credit_calculator::credits_on_failure(
                                              self.request_bytes_count,
                                              nodes_to_reporting)
     }
@@ -57,7 +56,6 @@ impl PendingNeighborRequest{
         -> Result<(), ProcessMessageError>{
         let destination_key = self.route.get_destination_public_key().
             ok_or(ProcessMessageError::InnerBug)?;
-        // TODO(a4vision): Should it be request_content_hash, or hash over the whole request ?
         if !response_send_msg.verify_signature(&destination_key, &self.request_content_hash){
             return Err(ProcessMessageError::InvalidResponseSignature);
         }

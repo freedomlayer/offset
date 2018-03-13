@@ -112,8 +112,6 @@ struct TransTokenChannelState<'a> {
 
 /// Processes transactions - list of incoming messages.
 impl TokenChannel {
-    // TODO(a4vision): Discuss it: Should we charge for creation of incosistency ?
-
     /// If this function returns an error, the token channel becomes incosistent.
     pub fn atomic_process_messages_list(&mut self, messages: Vec<NetworkerTCMessage>)
                                         -> Result<Vec<ProcessMessageOutput>, ProcessTransListError>{
@@ -141,6 +139,7 @@ impl TokenChannel {
 /// Transactional state of the token channel.
 /// Call cancel() to abort all changes to the channel, do nothing in order to apply the changes
 /// on the underlying TokenChannel.
+
 impl <'a>TransTokenChannelState<'a>{
     /// original_token_channel: the underlying TokenChannel.
     pub fn new(original_token_channel: &'a mut TokenChannel) -> TransTokenChannelState<'a> {
@@ -170,7 +169,6 @@ impl <'a>TransTokenChannelState<'a>{
 
     fn process_set_invoice_id(&mut self, invoice_id: InvoiceId)
                               -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        // TODO(a4vision): What if we set the invoice id, and then regret about it ? One cannot reset it.
         match self.invoice_validator.set_remote_invoice_id(invoice_id.clone()) {
             true=> Ok(None),
             false=> Err(ProcessMessageError::InvoiceIdExists),
@@ -182,6 +180,7 @@ impl <'a>TransTokenChannelState<'a>{
                                                       &self.local_public_key){
             Ok(()) => {
                 // TODO(a4vision): The actual payment redeemed for networking cannot be u128.
+                //                  Solution: truncate to i64.
                 if self.tc_balance.decrease_balance(send_funds_receipt.payment) {
                     Ok(None)
                 }else{
@@ -205,7 +204,6 @@ impl <'a>TransTokenChannelState<'a>{
 
     fn process_request_send_message(&mut self, request_send_msg: RequestSendMessage)->
     Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        // TODO(a4vision): Discuss - every error here causes inconsistency.
         if !request_send_msg.get_route().is_unique(){
             return Err(ProcessMessageError::DuplicateNodesInRoute);
         }
@@ -316,6 +314,7 @@ impl <'a>TransTokenChannelState<'a>{
         }
     }
 
+    /// Every error is translated into an inconsistency of the token channel.
     pub fn process_messages_list(&mut self, messages: Vec<NetworkerTCMessage>) ->
     Result<Vec<ProcessMessageOutput>, ProcessTransListError>{
         let mut outputs = Vec::new();
