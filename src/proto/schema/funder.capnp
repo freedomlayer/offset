@@ -84,6 +84,8 @@ struct FailedSendFundTran {
         # Index of the reporting node in the route of the corresponding request.
         # The reporting npde cannot be the destination node.
         randNonceSignatures @2: List(RandNonceSignature);
+        # Contains a signature for every node in the route, from the reporting
+        # node, until the current node.
         # Signature{key=recipientKey}(
         #   "FUND_FAILURE" ||
         #   sha512/256(requestId || sha512/256(nodeIdPath) || mediatorPaymentProposal) ||
