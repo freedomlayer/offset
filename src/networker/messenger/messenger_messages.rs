@@ -24,6 +24,7 @@ pub enum NetworkerTCMessage {
 }
 
 
+#[derive(Debug, Eq, PartialEq)]
 pub struct ResponseSendMessage {
     request_id: Uid,
     rand_nonce: RandValue,
@@ -67,6 +68,7 @@ impl ResponseSendMessage{
 
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct RequestSendMessage {
     request_id: Uid,
     route: NeighborsRoute,
@@ -125,6 +127,7 @@ impl RequestSendMessage {
 }
 
 
+#[derive(Debug, Eq, PartialEq)]
 pub struct FailedSendMessage {
     request_id: Uid,
     reporting_public_key: PublicKey,

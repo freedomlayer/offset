@@ -13,7 +13,7 @@ use proto::indexer::{NeighborsRoute, PkPairPosition};
 use proto::funder::InvoiceId;
 
 use super::tc_credit::TokenChannelCredit;
-use super::invoice_validator::InvoiceValidator;
+use super::invoice_validator::InvoiceIds;
 use super::pending_requests::PendingRequests;
 use super::pending_requests::TransPendingRequests;
 use super::credit_calculator;
@@ -22,11 +22,13 @@ use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, RequestS
 use utils::convert_int;
 use super::messenger_messages::NetworkerTCMessage;
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct IncomingResponseSendMessage {
     pending_request: PendingNeighborRequest,
     incoming_response: ResponseSendMessage,
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct IncomingFailedSendMessage {
     pending_request: PendingNeighborRequest,
     incoming_failed: FailedSendMessage,
@@ -35,14 +37,18 @@ pub struct IncomingFailedSendMessage {
 
 /// Resulting tasks to perform after processing an incoming message.
 /// Note that
+#[derive(Debug, PartialEq, Eq)]
 pub enum ProcessMessageOutput {
     Request(RequestSendMessage),
     Response(IncomingResponseSendMessage),
     Failure(IncomingFailedSendMessage),
+    /// After processing `LoadFunds`, the invoice_id of the token channel was reset to None.
+    /// During further processing, need to set a new invoice id, and send it to the neighbor.
+    InvoiceIdReset,
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ProcessMessageError {
     RemoteMaxDebtTooLarge(u64),
     /// Trying to set the invoiceId, while already expecting another invoice id.
@@ -67,7 +73,7 @@ pub enum ProcessMessageError {
     InnerBug,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ProcessTransListError {
     index: usize,
     process_trans_error: ProcessMessageError,
@@ -84,10 +90,12 @@ pub struct TokenChannel {
     /// The balance - how much do we owe each other, and what are the limits for this debt.
     tc_balance: TokenChannelCredit,
     /// Validates an incoming invoice
-    invoice_validator: InvoiceValidator,
+    invoice_validator: InvoiceIds,
     /// All pending requests - both incoming and outgoing
     pending_requests: PendingRequests,
 }
+
+
 
 
 /// Processes incoming messages, acts upon an underlying `TokenChannel`.
@@ -95,14 +103,14 @@ struct TransTokenChannelState<'a> {
     /// The original balance
     orig_tc_balance: TokenChannelCredit,
     /// The original invoice
-    orig_invoice_validator: InvoiceValidator,
+    orig_invoice_validator: InvoiceIds,
     local_public_key: PublicKey,
     remote_public_key: PublicKey,
 
     /// Pointer to the balance of the underlying TokenChannel
     tc_balance: &'a mut TokenChannelCredit,
     /// Pointer to the invoice validator of the underlying TokenChannel
-    invoice_validator: &'a mut InvoiceValidator,
+    invoice_validator: &'a mut InvoiceIds,
     // Pointers to the pending requests of the underlying TokenChannel.
     //  transactional_local_pending_requests, transactional_remote_pending_requests
     // together form TokenChannel.pending_requests
@@ -112,6 +120,13 @@ struct TransTokenChannelState<'a> {
 
 /// Processes transactions - list of incoming messages.
 impl TokenChannel {
+    pub fn new(local_public_key: PublicKey, remote_public_key: PublicKey,
+               tc_balance: TokenChannelCredit, invoice_validator: InvoiceIds,
+               pending_requests: PendingRequests) -> TokenChannel{
+        TokenChannel{local_public_key, remote_public_key, tc_balance,
+            invoice_validator, pending_requests}
+    }
+
     /// If this function returns an error, the token channel becomes incosistent.
     pub fn atomic_process_messages_list(&mut self, messages: Vec<NetworkerTCMessage>)
                                         -> Result<Vec<ProcessMessageOutput>, ProcessTransListError>{
@@ -178,19 +193,9 @@ impl <'a>TransTokenChannelState<'a>{
     }
 
     fn process_load_funds(&mut self, send_funds_receipt: SendFundsReceipt)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        match self.invoice_validator.validate_receipt(&send_funds_receipt,
-                                                      &self.local_public_key){
-            Ok(()) => {
-                // TODO(a4vision): The actual payment redeemed for networking cannot be u128.
-                //                  Solution: truncate to i64.
-                if self.tc_balance.decrease_balance(send_funds_receipt.payment) {
-                    Ok(None)
-                }else{
-                    Err(ProcessMessageError::LoadFundsOverflow)
-                }
-            },
-            Err(e) => Err(e),
-        }
+        self.invoice_validator.validate_receipt(&send_funds_receipt, &self.local_public_key)?;
+        self.tc_balance.decrease_balance_truncated(send_funds_receipt.payment);
+        Ok(None)
     }
 
     fn process_request_message_last_node(&mut self, request_send_msg: RequestSendMessage)
@@ -342,3 +347,37 @@ impl <'a>TransTokenChannelState<'a>{
     }
 }
 
+
+#[cfg(test)]
+mod test{
+    use super::*;
+    use crypto::identity::PUBLIC_KEY_LEN;
+    use proto::funder::InvoiceId;
+    use proto::funder::INVOICE_ID_LEN;
+
+    fn create_token_channel() -> TokenChannel{
+        let pk1 = PublicKey::from_bytes(&[0x01; PUBLIC_KEY_LEN]).unwrap();
+        let pk2 = PublicKey::from_bytes(&[0x02; PUBLIC_KEY_LEN]).unwrap();
+        let balance = TokenChannelCredit::new(10, 20).unwrap();
+        let validator = InvoiceIds::new(None, None);
+        let local_pending = Vec::new();
+        let remote_pending = Vec::new();
+        let pending = PendingRequests::from_vecs_ignore_duplicates(local_pending, remote_pending);
+        let channel = TokenChannel::new(pk1, pk2, balance,
+                                        validator, pending);
+        channel
+    }
+
+    #[test]
+    fn test_set_remote_max_debt() {
+        let mut channel = create_token_channel();
+        assert_eq!(20, channel.get_remote_max_debt());
+        assert_eq!(10, channel.get_local_max_debt());
+        let message1 = NetworkerTCMessage::SetRemoteMaxDebt(30);
+        let messages_list = vec![message1];
+        let outputs = channel.atomic_process_messages_list(messages_list);
+        assert_eq!(Ok(Vec::new()), outputs);
+        assert_eq!(30, channel.get_remote_max_debt());
+    }
+
+}

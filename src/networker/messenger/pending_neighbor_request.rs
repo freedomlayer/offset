@@ -9,7 +9,7 @@ use crypto::identity::PublicKey;
 use super::messenger_messages::ResponseSendMessage;
 use super::messenger_messages::FailedSendMessage;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PendingNeighborRequest {
     pub request_id: Uid,
     pub route: NeighborsRoute,
