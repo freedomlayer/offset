@@ -4,6 +4,7 @@ using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomUInt256;
 using import "common.capnp".CustomUInt512;
 using import "common.capnp".Receipt;
+using import "common.capnp".RandNonceSignature;
 
 # Token channel messages
 # ----------------------
@@ -80,14 +81,16 @@ struct ResponseSendMessageTran {
         #   randNonce)
 }
 
+
+
 struct FailedSendMessageTran {
         requestId @0: CustomUInt128;
-        reportingPublicKey @1: CustomUInt256;
-        # The reporting public key could be any public key along the route,
-        # except for the destination node. The destination node should not be
-        # able to issue this message.
-        randNonce @2: CustomUInt128;
-        signature @3: CustomUInt512;
+        reportingPublicKeyIndex @1: UInt16;
+        # Index on the route of the public key reporting this failure message.
+        # The destination node should not be able to issue this message.
+        randNonceSignatures @2: List(RandNonceSignature);
+        # Contains a signature for every node in the route, from the reporting
+        # node, until the current node.
         # Signature{key=reportingNodePublicKey}(
         #   "REQUEST_FAILURE" ||
         #   requestId ||
@@ -96,6 +99,7 @@ struct FailedSendMessageTran {
         #   maxResponseLength ||
         #   processingFeeProposal ||
         #   creditsPerByteProposal || 
+        #   prev randNonceSignatures ||
         #   randNonce)
 }
 

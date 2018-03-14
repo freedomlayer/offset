@@ -3,6 +3,7 @@
 using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomUInt256;
 using import "common.capnp".CustomUInt512;
+using import "common.capnp".RandNonceSignature;
 
 
 # Token channel messages
@@ -79,17 +80,18 @@ struct ResponseSendFundTran {
 
 struct FailedSendFundTran {
         requestId @0: CustomUInt128;
-        reportingNodePublicKey @1: CustomUInt256;
-        # The reporting public key could be any public key along the route,
-        # except for the destination node. The destination node should not be
-        # able to issue this message.
-        randNonce @2: CustomUInt128;
-        signature @3: CustomUInt512;
+        reportingPublicKeyIndex @1: UInt16;
+        # Index of the reporting node in the route of the corresponding request.
+        # The reporting npde cannot be the destination node.
+        randNonceSignatures @2: List(RandNonceSignature);
+        # Contains a signature for every node in the route, from the reporting
+        # node, until the current node.
         # Signature{key=recipientKey}(
         #   "FUND_FAILURE" ||
         #   sha512/256(requestId || sha512/256(nodeIdPath) || mediatorPaymentProposal) ||
         #   invoiceId ||
         #   destinationPayment ||
+        #   prev randNonceSignatures ||
         #   randNonce)
 }
 
