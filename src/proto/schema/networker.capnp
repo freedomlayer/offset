@@ -89,6 +89,8 @@ struct FailedSendMessageTran {
         # Index on the route of the public key reporting this failure message.
         # The destination node should not be able to issue this message.
         randNonceSignatures @2: List(RandNonceSignature);
+        # Contains a signature for every node in the route, from the reporting
+        # node, until the current node.
         # Signature{key=reportingNodePublicKey}(
         #   "REQUEST_FAILURE" ||
         #   requestId ||
