@@ -149,6 +149,10 @@ impl TokenChannel {
     pub fn get_local_max_debt(&self) -> u64{
         self.tc_balance.get_local_max_debt()
     }
+
+    pub fn get_balance(&self) -> i64{
+        self.tc_balance.get_balance()
+    }
 }
 
 /// Transactional state of the token channel.
@@ -195,7 +199,8 @@ impl <'a>TransTokenChannelState<'a>{
     fn process_load_funds(&mut self, send_funds_receipt: SendFundsReceipt)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
         self.invoice_validator.validate_receipt(&send_funds_receipt, &self.local_public_key)?;
         self.tc_balance.decrease_balance_truncated(send_funds_receipt.payment);
-        Ok(None)
+        self.invoice_validator.reset_local_invoice_id();
+        Ok(Some(ProcessMessageOutput::InvoiceIdReset))
     }
 
     fn process_request_message_last_node(&mut self, request_send_msg: RequestSendMessage)
@@ -355,22 +360,42 @@ mod test{
     use proto::funder::InvoiceId;
     use proto::funder::INVOICE_ID_LEN;
 
-    fn create_token_channel() -> TokenChannel{
-        let pk1 = PublicKey::from_bytes(&[0x01; PUBLIC_KEY_LEN]).unwrap();
+    use crypto::hash::HASH_RESULT_LEN;
+    use crypto::hash::HashResult;
+    use crypto::identity::SIGNATURE_LEN;
+    use crypto::identity::Signature;
+    use crypto::rand_values::RAND_VALUE_LEN;
+    use crypto::rand_values::RandValue;
+    use ring;
+    use crypto::identity::SoftwareEd25519Identity;
+    use crypto::identity::Identity;
+
+    use std::convert::TryFrom;
+
+    fn create_token_channel() -> (TokenChannel, SoftwareEd25519Identity, InvoiceId){
+        let fixed_rand = ring::test::rand::FixedByteRandom { byte: 0x1 };
+        let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&fixed_rand).unwrap();
+        let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+
+        let pk1 = identity.get_public_key();
         let pk2 = PublicKey::from_bytes(&[0x02; PUBLIC_KEY_LEN]).unwrap();
         let balance = TokenChannelCredit::new(10, 20).unwrap();
-        let validator = InvoiceIds::new(None, None);
+
+        let invoice_id = InvoiceId::from_bytes(&[0x02; INVOICE_ID_LEN]).unwrap();
+
+        let validator = InvoiceIds::new(Some(invoice_id.clone()), None);
         let local_pending = Vec::new();
         let remote_pending = Vec::new();
         let pending = PendingRequests::from_vecs_ignore_duplicates(local_pending, remote_pending);
         let channel = TokenChannel::new(pk1, pk2, balance,
                                         validator, pending);
-        channel
+        (channel, identity, invoice_id)
     }
 
     #[test]
     fn test_set_remote_max_debt() {
-        let mut channel = create_token_channel();
+
+        let (mut channel , _, _) = create_token_channel();
         assert_eq!(20, channel.get_remote_max_debt());
         assert_eq!(10, channel.get_local_max_debt());
         let message1 = NetworkerTCMessage::SetRemoteMaxDebt(30);
@@ -380,4 +405,29 @@ mod test{
         assert_eq!(30, channel.get_remote_max_debt());
     }
 
+    #[test]
+    fn test_process_load_funds(){
+        let (mut channel , local_identity, local_invoice_id) = create_token_channel();
+
+        let hash = HashResult::try_from(&[0x01u8; HASH_RESULT_LEN][..]).unwrap();
+        let payment = 1234;
+        let rand_nonce = RandValue::from_bytes(&[0x04f; RAND_VALUE_LEN]).unwrap();
+
+
+
+        let invalid_signature = Signature::from_bytes(&[0x05; SIGNATURE_LEN]).unwrap();
+        let mut receipt = SendFundsReceipt::new(hash, &local_invoice_id,
+                                                payment, rand_nonce, invalid_signature);
+        receipt.sign(&local_identity);
+
+//        Result<Vec<ProcessMessageOutput>, ProcessTransListError>
+        let result_outputs_vec1 = channel.atomic_process_messages_list(vec![NetworkerTCMessage::LoadFunds(receipt.clone())]);
+        assert!(result_outputs_vec1.is_ok());
+        assert_eq!(result_outputs_vec1.unwrap(), vec![ProcessMessageOutput::InvoiceIdReset]);
+        assert_eq!(-i64::try_from(payment).unwrap(), channel.get_balance());
+        let result_outputs_vec2 = channel.atomic_process_messages_list(vec![NetworkerTCMessage::LoadFunds(receipt.clone())]);
+        assert_eq!(Err(ProcessTransListError{index: 0, process_trans_error: ProcessMessageError::MissingInvoiceId }),
+                   result_outputs_vec2);
+
+    }
 }

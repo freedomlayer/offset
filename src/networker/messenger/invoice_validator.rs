@@ -59,6 +59,10 @@ impl InvoiceIds {
         &self.remote_invoice_id
     }
 
+    pub fn reset_local_invoice_id(&mut self){
+        self.local_invoice_id = None;
+    }
+
     /// Sets the invoice id randomized  by the neighbor.
     /// Returns `true` if the invoice id was successfully set to the given value.
     pub fn set_local_invoice_id(&mut self, invoice_id: InvoiceId) -> bool {
