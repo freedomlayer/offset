@@ -1,6 +1,8 @@
 # CSwitch
 
-[![Build Status](https://travis-ci.com/kamyuentse/cswitch.svg?token=bxuBsFuxMyAChxHzJWNQ&branch=master)](https://travis-ci.com/kamyuentse/cswitch)
+[![Build Status](https://travis-ci.com/kamyuentse/cswitch.svg?token=bxuBsFuxMyAChxHzJWNQ&branch=master)](https://travis-ci.com/realcr/cswitch)
+[![Build Status](https://travis-ci.com/realcr/cswitch.svg?token=BTq7pyQeAJ7BsmCssexj&branch=master)](https://travis-ci.com/realcr/cswitch)
+
 [![codecov](https://codecov.io/gh/kamyuentse/cswitch/branch/master/graph/badge.svg?token=8wnbKAjDFl)](https://codecov.io/gh/kamyuentse/cswitch)
 
 A Credit Switching engine written in Rust.
