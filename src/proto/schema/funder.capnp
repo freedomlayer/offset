@@ -82,9 +82,7 @@ struct FailedSendFundTran {
         requestId @0: CustomUInt128;
         reportingPublicKeyIndex @1: UInt16;
         # Index of the reporting node in the route of the corresponding request.
-        # The reporting public key could be any public key along the route,
-        # except for the destination node. The destination node should not be
-        # able to issue this message.
+        # The reporting npde cannot be the destination node.
         randNonceSignatures @2: List(RandNonceSignature);
         # Signature{key=recipientKey}(
         #   "FUND_FAILURE" ||
