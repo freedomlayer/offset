@@ -87,7 +87,7 @@ mod tests {
 
         // This is a service that receives a number and increases it by 1:
         let receiver2_inc = receiver2.map(|x| x + 1);
-        let fut_inc = sender1.sink_map_err(|e| ()).send_all(receiver2_inc);
+        let fut_inc = sender1.sink_map_err(|_| ()).send_all(receiver2_inc);
 
         let mut core = Core::new().unwrap();
         let handle = core.handle();
@@ -108,7 +108,7 @@ mod tests {
 
         // This is a service that receives a number and increases it by 1:
         let receiver2_inc = receiver2.map(|x| x + 1);
-        let fut_inc = sender1.sink_map_err(|e| ()).send_all(receiver2_inc);
+        let fut_inc = sender1.sink_map_err(|_| ()).send_all(receiver2_inc);
 
         let mut core = Core::new().unwrap();
         let handle = core.handle();

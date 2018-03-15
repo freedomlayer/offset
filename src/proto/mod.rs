@@ -26,7 +26,6 @@ pub mod proto_impl;
 
 pub mod common;
 pub mod channeler;
-pub mod channeler_udp;
 pub mod indexer;
 pub mod funder;
 pub mod networker;

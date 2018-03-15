@@ -1,12 +1,5 @@
 use std::convert::TryFrom;
 
-use crypto::uid::Uid;
-use crypto::rand_values::RandValue;
-use crypto::identity::{PublicKey, Signature};
-
-use proto::indexer::NeighborsRoute;
-use proto::common::SendFundsReceipt;
-
 pub const CHANNEL_TOKEN_LEN: usize = 32;
 
 /// The hash of the previous message sent over the token channel.

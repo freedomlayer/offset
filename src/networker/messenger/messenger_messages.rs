@@ -160,7 +160,7 @@ impl FailedSendMessage{
         message.extend_from_slice(&self.request_id);
         message.extend_from_slice(&self.reporting_public_key);
         message.extend_from_slice(&self.rand_nonce);
-        message.extend_from_slice(&request_hash);
+        message.extend_from_slice(request_hash);
         verify_signature(&message, &self.reporting_public_key, &self.signature)
     }
 
