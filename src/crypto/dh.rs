@@ -1,143 +1,84 @@
-extern crate ring;
 extern crate untrusted;
 
-use std::mem;
-
+use ring::digest;
 use ring::agreement::{self, EphemeralPrivateKey};
-use ring::error::Unspecified;
 use ring::rand::SecureRandom;
 use ring::hkdf::extract_and_expand;
 use ring::hmac::SigningKey;
 
+use super::CryptoError;
 use super::sym_encrypt::{SymmetricKey, SYMMETRIC_KEY_LEN};
 
 pub const SALT_LEN: usize = 32;
 pub const DH_PUBLIC_KEY_LEN: usize = 32;
 pub const SHARED_SECRET_LEN: usize = 32;
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct Salt([u8; SALT_LEN]);
+define_fixed_bytes!(Salt, SALT_LEN);
+define_fixed_bytes!(DhPublicKey, DH_PUBLIC_KEY_LEN);
 
 impl Salt {
-    pub fn new<R: SecureRandom>(crypt_rng: &R) -> Self {
-        let mut inner_salt = [0_u8; SALT_LEN];
-        crypt_rng.fill(&mut inner_salt).unwrap();
-        Salt(inner_salt)
-    }
+    pub fn new<R: SecureRandom>(crypt_rng: &R) -> Result<Salt, CryptoError> {
+        let mut salt = Salt::zero();
 
-    // TODO: Migrate to try_from as soon as it stable
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ()> {
-        if bytes.len() != SALT_LEN {
-            Err(())
+        if crypt_rng.fill(&mut salt).is_ok() {
+            Ok(salt)
         } else {
-            let mut salt_bytes = [0; SALT_LEN];
-            salt_bytes.clone_from_slice(bytes);
-            Ok(Salt(salt_bytes))
+            Err(CryptoError)
         }
     }
-
-    #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        self.as_ref()
-    }
 }
 
-impl AsRef<[u8]> for Salt {
-    #[inline]
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct DhPublicKey([u8; DH_PUBLIC_KEY_LEN]);
-
-impl DhPublicKey {
-    // TODO: Migrate to try_from as soon as it stable
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ()> {
-        if bytes.len() != DH_PUBLIC_KEY_LEN {
-            Err(())
-        } else {
-            let mut dh_public_key_bytes = [0; DH_PUBLIC_KEY_LEN];
-            dh_public_key_bytes.clone_from_slice(bytes);
-            Ok(DhPublicKey(dh_public_key_bytes))
-        }
-    }
-
-    #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        self.as_ref()
-    }
-}
-
-impl AsRef<[u8]> for DhPublicKey {
-    #[inline]
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
-pub struct DhPrivateKey {
-    dh_private_key: EphemeralPrivateKey,
-}
+pub struct DhPrivateKey(EphemeralPrivateKey);
 
 impl DhPrivateKey {
-    /// Create a new ephemeral private key
-    pub fn new<R: SecureRandom>(crypt_rng: &R) -> Self {
-        let dh_pk = match agreement::EphemeralPrivateKey::generate(&agreement::X25519, crypt_rng) {
-            Ok(dh_pk) => dh_pk,
-            Err(Unspecified) => unreachable!(),
-        };
-
-        DhPrivateKey {
-            dh_private_key: dh_pk,
-        }
+    /// Create a new ephemeral private key.
+    pub fn new<R: SecureRandom>(rng: &R) -> Result<DhPrivateKey, CryptoError> {
+        Ok(DhPrivateKey(EphemeralPrivateKey::generate(&agreement::X25519, rng)?))
     }
 
     /// Compute public key from our private key.
     /// The public key will be sent to remote side.
-    pub fn compute_public_key(&self) -> DhPublicKey {
+    pub fn compute_public_key(&self) -> Result<DhPublicKey, CryptoError> {
         let mut public_key = DhPublicKey([0_u8; DH_PUBLIC_KEY_LEN]);
-        match self.dh_private_key.compute_public_key(&mut public_key.0) {
-            Ok(()) => public_key,
-            Err(Unspecified) => unreachable!(),
+
+        if self.0.compute_public_key(&mut public_key).is_ok() {
+            Ok(public_key)
+        } else {
+            Err(CryptoError)
         }
     }
 
     /// Derive a symmetric key from our private key and remote's public key.
-    pub fn derive_symmetric_key(&self, public_key: &DhPublicKey, salt: &Salt) -> SymmetricKey {
-        let u_public_key = untrusted::Input::from(&public_key.0);
+    pub fn derive_symmetric_key(
+        self,
+        remote_public_key: DhPublicKey,
+        sent_salt: Salt,
+        recv_salt: Salt,
+    ) -> Result<(SymmetricKey, SymmetricKey), CryptoError> {
+        let u_remote_public_key = untrusted::Input::from(&remote_public_key);
 
-        // Force a copy of our private key, so that we can use it more than once.
-        // This is a hack due to current limitation of the *ring* utils.crypto library.
-        let dh_private_key: EphemeralPrivateKey =
-            unsafe { mem::transmute_copy(&self.dh_private_key) };
+        let kdf = |shared_key: &[u8]| -> Result<(SymmetricKey, SymmetricKey), CryptoError> {
+            if shared_key.len() != SHARED_SECRET_LEN {
+                Err(CryptoError)
+            } else {
+                let sent_sk = SigningKey::new(&digest::SHA512_256, &sent_salt);
+                let recv_sk = SigningKey::new(&digest::SHA512_256, &recv_salt);
 
-        // Perform diffie hellman:
-        let key_material_res = agreement::agree_ephemeral(
-            dh_private_key,
-            &agreement::X25519,
-            u_public_key,
-            ring::error::Unspecified,
-            |key_material| {
-                assert_eq!(key_material.len(), SHARED_SECRET_LEN);
-                let mut shared_secret_array = [0; SHARED_SECRET_LEN];
-                shared_secret_array.clone_from_slice(key_material);
-                Ok(shared_secret_array)
-            },
-        );
+                let mut send_key = [0x00u8; SYMMETRIC_KEY_LEN];
+                let mut recv_key = [0x00u8; SYMMETRIC_KEY_LEN];
+                extract_and_expand(&sent_sk, &shared_key, &[], &mut send_key);
+                extract_and_expand(&recv_sk, &shared_key, &[], &mut recv_key);
 
-        let shared_secret_array = match key_material_res {
-            Ok(key_material) => key_material,
-            _ => unreachable!(),
+                Ok((SymmetricKey::from(&send_key), SymmetricKey::from(&recv_key)))
+            }
         };
 
-        // Add the salt to the raw_secret using hkdf:
-        let skey_salt = SigningKey::new(&ring::digest::SHA512_256, &salt.0);
-        let info: [u8; 0] = [];
-        let mut out = [0_u8; SYMMETRIC_KEY_LEN];
-        extract_and_expand(&skey_salt, &shared_secret_array, &info, &mut out);
-        SymmetricKey::from_bytes(&out)
+        agreement::agree_ephemeral(
+            self.0,
+            &agreement::X25519,
+            u_remote_public_key,
+            CryptoError, kdf,
+        )
     }
 }
 
@@ -149,8 +90,8 @@ mod tests {
     #[test]
     fn test_new_salt() {
         let rng = DummyRandom::new(&[1, 2, 3, 4, 6]);
-        let salt1 = Salt::new(&rng);
-        let salt2 = Salt::new(&rng);
+        let salt1 = Salt::new(&rng).unwrap();
+        let salt2 = Salt::new(&rng).unwrap();
 
         assert_ne!(salt1, salt2);
     }
@@ -158,21 +99,31 @@ mod tests {
     #[test]
     fn test_derive_symmetric_key() {
         let rng = DummyRandom::new(&[1, 2, 3, 4, 5]);
-        let dh_private_key1 = DhPrivateKey::new(&rng);
-        let dh_private_key2 = DhPrivateKey::new(&rng);
+        let dh_private_a = DhPrivateKey::new(&rng).unwrap();
+        let dh_private_b = DhPrivateKey::new(&rng).unwrap();
 
-        let public_key1 = dh_private_key1.compute_public_key();
-        let public_key2 = dh_private_key2.compute_public_key();
+        let public_key_a = dh_private_a.compute_public_key().unwrap();
+        let public_key_b = dh_private_b.compute_public_key().unwrap();
 
-        // Same salt for both sides:
-        let salt = Salt::new(&rng);
+        let salt_a = Salt::new(&rng).unwrap();
+        let salt_b = Salt::new(&rng).unwrap();
 
         // Each side derives the symmetric key from the remote's public key
         // and the salt:
-        let symmetric_key1 = dh_private_key1.derive_symmetric_key(&public_key2, &salt);
-        let symmetric_key2 = dh_private_key2.derive_symmetric_key(&public_key1, &salt);
+        let (send_key_a, recv_key_a) = dh_private_a.derive_symmetric_key(
+            public_key_b,
+            salt_a.clone(),
+            salt_b.clone(),
+        ).unwrap();
+
+        let (send_key_b, recv_key_b) = dh_private_b.derive_symmetric_key(
+            public_key_a,
+            salt_b,
+            salt_a,
+        ).unwrap();
 
         // Both sides should get the same derived symmetric key:
-        assert_eq!(symmetric_key1, symmetric_key2);
+        assert_eq!(send_key_a, recv_key_b);
+        assert_eq!(send_key_b, recv_key_a)
     }
 }

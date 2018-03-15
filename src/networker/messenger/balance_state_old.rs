@@ -369,9 +369,11 @@ pub fn atomic_process_trans_list(balance_state: BalanceState,
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::convert::TryFrom;
+
     use ring::test::rand::FixedByteRandom;
     use crypto::uid::Uid;
-
 
     #[test]
     fn test_request_send_msg_bytes_count() {
@@ -383,8 +385,8 @@ mod tests {
             request_id: Uid::new(&rng1),
             route: NeighborsRoute {
                 public_keys: vec![
-                    PublicKey::from_bytes(&vec![0u8; 32]).unwrap(),
-                    PublicKey::from_bytes(&vec![0u8; 32]).unwrap(),
+                    PublicKey::try_from(&[0u8; 32]).unwrap(),
+                    PublicKey::try_from(&[0u8; 32]).unwrap(),
                 ],
             },
             request_content: vec![1,2,3,4,5],

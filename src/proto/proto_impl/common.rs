@@ -124,7 +124,7 @@ pub fn write_custom_u_int512<T: AsRef<[u8]>>(
 
 #[inline]
 pub fn read_public_key(from: &custom_u_int256::Reader) -> Result<PublicKey, ProtoError> {
-    PublicKey::from_bytes(&read_custom_u_int256(from)?).map_err(|_| ProtoError::Invalid)
+    PublicKey::try_from(&read_custom_u_int256(from)?).map_err(|_| ProtoError::Invalid)
 }
 
 #[inline]
@@ -137,7 +137,7 @@ pub fn write_public_key(
 
 #[inline]
 pub fn read_rand_value(from: &custom_u_int128::Reader) -> Result<RandValue, ProtoError> {
-    RandValue::from_bytes(&read_custom_u_int128(from)?).map_err(|_| ProtoError::Invalid)
+    RandValue::try_from(&read_custom_u_int128(from)?).map_err(|_| ProtoError::Invalid)
 }
 
 #[inline]
@@ -150,7 +150,7 @@ pub fn write_rand_value(
 
 #[inline]
 pub fn read_dh_public_key(from: &custom_u_int256::Reader) -> Result<DhPublicKey, ProtoError> {
-    DhPublicKey::from_bytes(&read_custom_u_int256(from)?).map_err(|_| ProtoError::Invalid)
+    DhPublicKey::try_from(&read_custom_u_int256(from)?).map_err(|_| ProtoError::Invalid)
 }
 
 #[inline]
@@ -163,7 +163,7 @@ pub fn write_dh_public_key(
 
 #[inline]
 pub fn read_salt(from: &custom_u_int256::Reader) -> Result<Salt, ProtoError> {
-    Salt::from_bytes(&read_custom_u_int256(from)?).map_err(|_| ProtoError::Invalid)
+    Salt::try_from(&read_custom_u_int256(from)?).map_err(|_| ProtoError::Invalid)
 }
 
 #[inline]
@@ -173,7 +173,7 @@ pub fn write_salt(from: &Salt, to: &mut custom_u_int256::Builder) -> Result<(), 
 
 #[inline]
 pub fn read_signature(from: &custom_u_int512::Reader) -> Result<Signature, ProtoError> {
-    Signature::from_bytes(&read_custom_u_int512(from)?).map_err(|_| ProtoError::Invalid)
+    Signature::try_from(&read_custom_u_int512(from)?).map_err(|_| ProtoError::Invalid)
 }
 
 #[inline]

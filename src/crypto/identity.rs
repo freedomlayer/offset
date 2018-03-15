@@ -1,92 +1,24 @@
-extern crate ring;
 extern crate untrusted;
 
 use std::fmt;
 
-use self::ring::signature;
+use ring::signature;
+
+use super::CryptoError;
 
 pub const PUBLIC_KEY_LEN: usize = 32;
 pub const SIGNATURE_LEN: usize = 64;
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct PublicKey([u8; PUBLIC_KEY_LEN]);
+define_fixed_bytes!(PublicKey, PUBLIC_KEY_LEN);
 
-impl PublicKey {
-    // TODO: Migrate to try_from as soon as it stable
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ()> {
-        if bytes.len() != PUBLIC_KEY_LEN {
-            Err(())
-        } else {
-            let mut public_key_bytes = [0; PUBLIC_KEY_LEN];
-            public_key_bytes.clone_from_slice(bytes);
-            Ok(PublicKey(public_key_bytes))
-        }
-    }
-
-    #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        self.as_ref()
-    }
-}
-
-impl AsRef<[u8]> for PublicKey {
-    #[inline]
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
-// We had to implement Debug and PartialEq ourselves here,
-// because PartialEq and Debug traits are not automatically implemented
-// for size larger than 32.
 #[derive(Clone)]
 pub struct Signature([u8; SIGNATURE_LEN]);
 
 impl Signature {
-    // TODO: Migrate to try_from as soon as it stable
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ()> {
-        if bytes.len() != SIGNATURE_LEN {
-            Err(())
-        } else {
-            let mut signature_bytes = [0; SIGNATURE_LEN];
-            signature_bytes.clone_from_slice(bytes);
-            Ok(Signature(signature_bytes))
-        }
-    }
-    #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        self.as_ref()
+    pub fn zero() -> Signature {
+        Signature([0x00u8; SIGNATURE_LEN])
     }
 }
-
-impl AsRef<[u8]> for Signature {
-    #[inline]
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
-// ========== Debug / PartialEq ==========
-
-impl fmt::Debug for Signature {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&&self.0[..], f)
-    }
-}
-
-impl PartialEq for Signature {
-    #[inline]
-    fn eq(&self, other: &Signature) -> bool {
-        for i in 0..SIGNATURE_LEN {
-            if self.0[i] != other.0[i] {
-                return false;
-            }
-        }
-        true
-    }
-}
-
-impl Eq for Signature {}
 
 /// A generic interface for signing and verifying messages.
 pub trait Identity {
@@ -104,12 +36,10 @@ pub struct SoftwareEd25519Identity {
 }
 
 impl SoftwareEd25519Identity {
-    pub fn from_pkcs8(pkcs8_bytes: &[u8]) -> Result<Self, ()> {
-        let key_pair =
-            match signature::Ed25519KeyPair::from_pkcs8(untrusted::Input::from(pkcs8_bytes)) {
-                Ok(key_pair) => key_pair,
-                Err(ring::error::Unspecified) => return Err(()),
-            };
+    pub fn from_pkcs8(pkcs8_bytes: &[u8]) -> Result<Self, CryptoError> {
+        let key_pair = signature::Ed25519KeyPair::from_pkcs8(
+            untrusted::Input::from(pkcs8_bytes)
+        )?;
 
         Ok(SoftwareEd25519Identity { key_pair })
     }
@@ -119,10 +49,8 @@ pub fn verify_signature(message: &[u8], public_key: &PublicKey, signature: &Sign
     let public_key = untrusted::Input::from(&public_key.0);
     let message = untrusted::Input::from(message);
     let signature = untrusted::Input::from(&signature.0);
-    match signature::verify(&signature::ED25519, public_key, message, signature) {
-        Ok(()) => true,
-        Err(ring::error::Unspecified) => false,
-    }
+
+    signature::verify(&signature::ED25519, public_key, message, signature).is_ok()
 }
 
 impl Identity for SoftwareEd25519Identity {
@@ -144,14 +72,98 @@ impl Identity for SoftwareEd25519Identity {
     }
 }
 
+// ==================== Convenience for Signature ====================
+// Cuz SIGNATURE_LEN > 32, these trait can't be derived automatically.
+// ===================================================================
+
+impl AsRef<[u8]> for Signature {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl ::std::ops::Deref for Signature {
+    type Target = [u8];
+    #[inline]
+    fn deref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl ::std::ops::DerefMut for Signature {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
+}
+
+impl<'a> ::std::convert::From<&'a [u8; SIGNATURE_LEN]> for Signature {
+    #[inline]
+    fn from(src: &'a [u8; SIGNATURE_LEN]) -> Signature {
+        let mut inner = [0x00u8; SIGNATURE_LEN];
+        inner.copy_from_slice(&src[..SIGNATURE_LEN]);
+        Signature(inner)
+    }
+}
+
+impl<'a> ::std::convert::TryFrom<&'a [u8]> for Signature {
+    type Error = ::utils::TryFromBytesError;
+
+    #[inline]
+    fn try_from(src: &'a [u8]) -> Result<Signature, ::utils::TryFromBytesError> {
+        if src.len() < SIGNATURE_LEN {
+            Err(::utils::TryFromBytesError)
+        } else {
+            let mut inner = [0x00u8; SIGNATURE_LEN];
+            inner.copy_from_slice(&src[..SIGNATURE_LEN]);
+            Ok(Signature(inner))
+        }
+    }
+}
+
+impl<'a> ::std::convert::TryFrom<&'a ::bytes::Bytes> for Signature {
+    type Error = ::utils::TryFromBytesError;
+
+    #[inline]
+    fn try_from(src: &'a ::bytes::Bytes) -> Result<Signature, ::utils::TryFromBytesError> {
+        if src.len() < SIGNATURE_LEN {
+            Err(::utils::TryFromBytesError)
+        } else {
+            let mut inner = [0x00u8; SIGNATURE_LEN];
+            inner.copy_from_slice(&src[..SIGNATURE_LEN]);
+            Ok(Signature(inner))
+        }
+    }
+}
+
+impl PartialEq for Signature {
+    #[inline]
+    fn eq(&self, other: &Signature) -> bool {
+        for i in 0..SIGNATURE_LEN {
+            if self.0[i] != other.0[i] {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+impl Eq for Signature {}
+
+impl ::std::fmt::Debug for Signature {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        ::std::fmt::Debug::fmt(&self.0[..], f)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use self::ring::test::rand::FixedByteRandom;
+    use ring::test::rand::FixedByteRandom;
 
     #[test]
     fn test_get_public_key_sanity() {
-        // let secure_rand = DummyRandom::new(&[1,2,3,4,5]);
         let secure_rand = FixedByteRandom { byte: 0x1 };
         let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
         let id = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
@@ -172,8 +184,6 @@ mod tests {
 
         let signature = id.sign_message(message);
         let public_key = id.get_public_key();
-        // println!("public_key = {:?}", public_key);
-        // println!("signature = {:?}", signature);
 
         assert!(verify_signature(message, &public_key, &signature));
     }
