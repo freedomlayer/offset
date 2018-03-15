@@ -146,7 +146,9 @@ mod tests {
 
         let mut tm = TimerModule::new(dur, &handle);
 
+        const TICKS: u32 = 20;
         const TIMER_CLIENT_NUM: usize = 50;
+
         let clients = (0..TIMER_CLIENT_NUM)
             .map(|_| tm.create_client())
             .step_by(2)
@@ -158,9 +160,9 @@ mod tests {
         let clients_fut = clients
             .into_iter()
             .map(|client| {
-                client.take(17).collect().and_then(|_| {
-                    assert!(start.elapsed() >= dur * 17);
-                    assert!(start.elapsed() < dur * 17 * 12 / 10);
+                client.take(TICKS as u64).collect().and_then(|_| {
+                    assert!(start.elapsed() >= dur * TICKS);
+                    assert!(start.elapsed() < dur * TICKS * 14 / 10);
                     Ok(())
                 })
             })
