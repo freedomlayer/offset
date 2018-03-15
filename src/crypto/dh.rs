@@ -28,16 +28,12 @@ impl Salt {
     }
 }
 
-pub struct DhPrivateKey {
-    inner: EphemeralPrivateKey,
-}
+pub struct DhPrivateKey(EphemeralPrivateKey);
 
 impl DhPrivateKey {
     /// Create a new ephemeral private key.
     pub fn new<R: SecureRandom>(rng: &R) -> Result<DhPrivateKey, CryptoError> {
-        Ok(DhPrivateKey {
-            inner: EphemeralPrivateKey::generate(&agreement::X25519, rng)?
-        })
+        Ok(DhPrivateKey(EphemeralPrivateKey::generate(&agreement::X25519, rng)?))
     }
 
     /// Compute public key from our private key.
@@ -45,7 +41,7 @@ impl DhPrivateKey {
     pub fn compute_public_key(&self) -> Result<DhPublicKey, CryptoError> {
         let mut public_key = DhPublicKey([0_u8; DH_PUBLIC_KEY_LEN]);
 
-        if self.inner.compute_public_key(&mut public_key).is_ok() {
+        if self.0.compute_public_key(&mut public_key).is_ok() {
             Ok(public_key)
         } else {
             Err(CryptoError)
@@ -78,7 +74,7 @@ impl DhPrivateKey {
         };
 
         agreement::agree_ephemeral(
-            self.inner,
+            self.0,
             &agreement::X25519,
             u_remote_public_key,
             CryptoError, kdf,
