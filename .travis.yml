@@ -23,8 +23,7 @@ matrix:
           sources:
             - ubuntu-toolchain-r-test
       script:
-        - cargo build -vv
-        - cargo test -vv
+        - cargo test --features=dev --no-run
       after_success:
         - travis/trusty/after-success.sh
 
@@ -35,5 +34,4 @@ matrix:
       before_script:
         - brew install capnp
       script:
-        - cargo build -vv
-        - cargo test -vv
+        - cargo test --features-dev

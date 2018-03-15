@@ -159,7 +159,7 @@ mod tests {
         let start = time::Instant::now();
         let clients_fut = clients
             .into_iter()
-            .map(|client| client.take(TICKS as u64).collect().and_then(|_| {
+            .map(|client| client.take(u64::from(TICKS)).collect().and_then(|_| {
                     assert!(start.elapsed() >= dur * TICKS);
                     assert!(start.elapsed() < dur * TICKS * 15 / 10);
                     Ok(())

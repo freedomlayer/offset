@@ -112,6 +112,7 @@ fn shift_left(blocks: &mut Vec<u64>, nbits: usize) {
 mod tests {
     use super::*;
     use byteorder::{ByteOrder, LittleEndian};
+    use crypto::increase_nonce;
 
     const NONCE_LENGTH: usize = 4;
     const WINDOW_WIDTH: usize = 256;
@@ -131,37 +132,27 @@ mod tests {
 
     impl<'a> WindowNonce for &'a Nonce {}
 
-    /// Increase the bytes represented number by 1.
-    fn increase_nonce(nonce: &mut [u8]) {
-        let mut c: u16 = 1;
-        for i in nonce {
-            c += u16::from(*i);
-            *i = c as u8;
-            c >>= 8;
-        }
-    }
-
     #[test]
     fn test_shift_left() {
-        let mut blocks = vec![0xf0f0f0f0_f0f0f0f0, 0xf0f0f0f0_f0f0f0f0];
+        let mut blocks = vec![0xf0f0_f0f0_f0f0_f0f0, 0xf0f0_f0f0_f0f0_f0f0];
 
         shift_left(&mut blocks, 0);
-        assert_eq!(blocks, vec![0xf0f0f0f0_f0f0f0f0, 0xf0f0f0f0_f0f0f0f0]);
+        assert_eq!(blocks, vec![0xf0f0_f0f0_f0f0_f0f0, 0xf0f0_f0f0_f0f0_f0f0]);
 
         shift_left(&mut blocks, 1);
-        assert_eq!(blocks, vec![0xe1e1e1e1_e1e1e1e1, 0xe1e1e1e1_e1e1e1e0]);
+        assert_eq!(blocks, vec![0xe1e1_e1e1_e1e1_e1e1, 0xe1e1_e1e1_e1e1_e1e0]);
 
         shift_left(&mut blocks, 15);
-        assert_eq!(blocks, vec![0xf0f0f0f0_f0f0f0f0, 0xf0f0f0f0_f0f00000]);
+        assert_eq!(blocks, vec![0xf0f0_f0f0_f0f0_f0f0, 0xf0f0_f0f0_f0f0_0000]);
 
         shift_left(&mut blocks, 31);
-        assert_eq!(blocks, vec![0x78787878_78787878, 0x78780000_00000000]);
+        assert_eq!(blocks, vec![0x7878_7878_7878_7878, 0x7878_0000_0000_0000]);
 
         shift_left(&mut blocks, 64);
-        assert_eq!(blocks, vec![0x78780000_00000000, 0x00000000_00000000]);
+        assert_eq!(blocks, vec![0x7878_0000_0000_0000, 0x0000_0000_0000_0000]);
 
         shift_left(&mut blocks, 128);
-        assert_eq!(blocks, vec![0x00000000_00000000, 0x00000000_00000000]);
+        assert_eq!(blocks, vec![0x0000_0000_0000_0000, 0x0000_0000_0000_0000]);
     }
 
     #[test]
