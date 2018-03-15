@@ -159,13 +159,11 @@ mod tests {
         let start = time::Instant::now();
         let clients_fut = clients
             .into_iter()
-            .map(|client| {
-                client.take(TICKS as u64).collect().and_then(|_| {
+            .map(|client| client.take(TICKS as u64).collect().and_then(|_| {
                     assert!(start.elapsed() >= dur * TICKS);
-                    assert!(start.elapsed() < dur * TICKS * 14 / 10);
+                    assert!(start.elapsed() < dur * TICKS * 15 / 10);
                     Ok(())
-                })
-            })
+            }))
             .collect::<Vec<_>>();
 
         let task = tm.map_err(|_| ()).select2(join_all(clients_fut));
