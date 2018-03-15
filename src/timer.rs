@@ -9,7 +9,7 @@
 //!
 //! The message from timer module was shown bellow:
 //!
-//! ```rust,ignore
+//! ```rust,norun
 //! enum FromTimer {
 //!     TimeTick,
 //! }

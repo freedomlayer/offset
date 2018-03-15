@@ -5,7 +5,7 @@
 /// The sliding nonce window keeps a nonce, which indicates the upper
 /// bound of the window. The inner data layout can be shown as follow:
 ///
-/// ```ignore
+/// ```notrust
 ///                                   ...   7   6   5   4   3   2   1   0
 /// +---+---+---+---+---+---+---+---+ ... +---+---+---+---+---+---+---+---+
 /// | 1 | 0 | 1 | 0 | 0 | 0 | 1 | 1 | ... | 1 | 0 | 1 | 0 | 0 | 0 | 1 | 1 |
