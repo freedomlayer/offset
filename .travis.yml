@@ -34,4 +34,4 @@ matrix:
       before_script:
         - brew install capnp
       script:
-        - cargo test --features-dev
+        - cargo test --features=dev
