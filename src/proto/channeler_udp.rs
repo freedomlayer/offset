@@ -69,7 +69,7 @@ pub enum ChannelerMessage {
 
 impl InitChannel {
     #[inline]
-    pub fn concat_fields(&self) -> Bytes {
+    pub fn as_bytes(&self) -> Bytes {
         let mut buffer = BytesMut::with_capacity(RAND_VALUE_LEN + PUBLIC_KEY_LEN);
 
         buffer.put(self.rand_nonce.as_ref());
@@ -81,7 +81,7 @@ impl InitChannel {
 
 impl ExchangePassive {
     #[inline]
-    pub fn concat_fields(&self) -> Bytes {
+    pub fn as_bytes(&self) -> Bytes {
         let mut buffer = BytesMut::with_capacity(HASH_RESULT_LEN + RAND_VALUE_LEN + PUBLIC_KEY_LEN +
                                                  DH_PUBLIC_KEY_LEN + SALT_LEN);
 
@@ -98,7 +98,7 @@ impl ExchangePassive {
 
 impl ExchangeActive {
     #[inline]
-    pub fn concat_fields(&self) -> Bytes {
+    pub fn as_bytes(&self) -> Bytes {
         let mut buffer = BytesMut::with_capacity(HASH_RESULT_LEN + DH_PUBLIC_KEY_LEN + SALT_LEN);
 
         buffer.put(self.prev_hash.as_ref());
@@ -111,7 +111,7 @@ impl ExchangeActive {
 
 impl ChannelReady {
     #[inline]
-    pub fn concat_fields(&self) -> Bytes {
+    pub fn as_bytes(&self) -> Bytes {
         Bytes::from(self.prev_hash.as_ref())
     }
 }
@@ -123,13 +123,13 @@ mod tests {
     use std::convert::TryFrom;
 
     #[test]
-    fn test_init_channel_concat_fields() {
+    fn test_init_channel_as_bytes() {
         let init_channel = InitChannel {
             rand_nonce: RandValue::try_from(&[0x00; RAND_VALUE_LEN]).unwrap(),
             public_key: PublicKey::try_from(&[0x01; PUBLIC_KEY_LEN]).unwrap(),
         };
 
-        let underlying = init_channel.concat_fields();
+        let underlying = init_channel.as_bytes();
 
         assert_eq!(underlying.len(), RAND_VALUE_LEN + PUBLIC_KEY_LEN);
         assert!(&underlying[..RAND_VALUE_LEN].into_iter().all(|x| *x == 0));
@@ -137,7 +137,7 @@ mod tests {
     }
 
     #[test]
-    fn test_exchange_passive_concat_fields() {
+    fn test_exchange_passive_as_bytes() {
         let exchange_passive = ExchangePassive {
             prev_hash: HashResult::try_from(&[0x01u8; HASH_RESULT_LEN]).unwrap(),
             rand_nonce: RandValue::try_from(&[0x02; RAND_VALUE_LEN]).unwrap(),
@@ -147,7 +147,7 @@ mod tests {
             signature: Signature::try_from(&[0x06; SIGNATURE_LEN]).unwrap(),
         };
 
-        let underlying = exchange_passive.concat_fields();
+        let underlying = exchange_passive.as_bytes();
 
         let a = HASH_RESULT_LEN;
         let b = a + RAND_VALUE_LEN;
@@ -165,7 +165,7 @@ mod tests {
 
 
     #[test]
-    fn test_exchange_active_concat_fields() {
+    fn test_exchange_active_as_bytes() {
         let exchange_active = ExchangeActive {
             prev_hash: HashResult::try_from(&[0x01u8; HASH_RESULT_LEN]).unwrap(),
             dh_public_key: DhPublicKey::try_from(&[0x02; DH_PUBLIC_KEY_LEN]).unwrap(),
@@ -173,7 +173,7 @@ mod tests {
             signature: Signature::try_from(&[0x04; SIGNATURE_LEN]).unwrap(),
         };
 
-        let underlying = exchange_active.concat_fields();
+        let underlying = exchange_active.as_bytes();
 
         let a = HASH_RESULT_LEN;
         let b = a + DH_PUBLIC_KEY_LEN;
@@ -187,13 +187,13 @@ mod tests {
 
 
     #[test]
-    fn test_channel_ready_concat_fields() {
+    fn test_channel_ready_as_bytes() {
         let channel_ready = ChannelReady {
             prev_hash: HashResult::try_from(&[0x01u8; HASH_RESULT_LEN]).unwrap(),
             signature: Signature::try_from(&[0x02; SIGNATURE_LEN]).unwrap(),
         };
 
-        let underlying = channel_ready.concat_fields();
+        let underlying = channel_ready.as_bytes();
 
         assert_eq!(underlying.len(), HASH_RESULT_LEN);
         assert!(underlying.into_iter().all(|x| x == 1));
