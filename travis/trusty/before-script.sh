@@ -2,8 +2,6 @@
 
 set -eux -o pipefail
 
-printenv
-
 if [[ -f ".cargo/config" ]]; then
     rm .cargo/config
 elif [[ ! -d ".cargo" ]]; then
@@ -15,4 +13,4 @@ echo "linker= \"$CC\"" >> .cargo/config
 
 cat .cargo/config
 
-travis/install-capnp.sh
+travis/trusty/install-capnp.sh
