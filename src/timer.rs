@@ -161,7 +161,7 @@ mod tests {
             .into_iter()
             .map(|client| client.take(u64::from(TICKS)).collect().and_then(|_| {
                     assert!(start.elapsed() >= dur * TICKS);
-                    assert!(start.elapsed() < dur * TICKS * 15 / 10);
+                    assert!(start.elapsed() < dur * TICKS * 2);
                     Ok(())
             }))
             .collect::<Vec<_>>();
