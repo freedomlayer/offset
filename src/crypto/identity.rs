@@ -1,7 +1,5 @@
 extern crate untrusted;
 
-use std::fmt;
-
 use ring::signature;
 
 use super::CryptoError;

@@ -10,7 +10,7 @@ use crypto::hash::HashResult;
 use crypto::identity::{PublicKey, Signature};
 
 use proto::ProtoError;
-use proto::channeler_udp::ChannelId;
+use proto::channeler::ChannelId;
 use proto::indexer::{IndexingProviderId, IndexingProviderStateHash};
 
 include_schema!(common_capnp, "common_capnp");

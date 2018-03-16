@@ -44,4 +44,3 @@ mod proto;
 use proto::proto_impl::common::common_capnp;
 use proto::proto_impl::indexer::indexer_capnp;
 use proto::proto_impl::channeler::channeler_capnp;
-use proto::proto_impl::channeler_udp::channeler_udp_capnp;

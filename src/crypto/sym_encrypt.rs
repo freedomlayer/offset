@@ -52,8 +52,8 @@ impl Encryptor {
     pub fn new(symmetric_key: &SymmetricKey, nonce_counter: EncryptNonceCounter)
         -> Result<Self, CryptoError> {
         Ok(Encryptor {
-            sealing_key: SealingKey::new(&CHACHA20_POLY1305, &symmetric_key)?,
-            nonce_counter: nonce_counter,
+            sealing_key: SealingKey::new(&CHACHA20_POLY1305, symmetric_key)?,
+            nonce_counter,
         })
     }
 
@@ -89,7 +89,7 @@ impl Decryptor {
     /// Create a new decryptor object. This object can decrypt messages.
     pub fn new(symmetric_key: &SymmetricKey) -> Result<Self, CryptoError> {
         Ok(Decryptor {
-            opening_key: OpeningKey::new(&CHACHA20_POLY1305, &symmetric_key)?,
+            opening_key: OpeningKey::new(&CHACHA20_POLY1305, symmetric_key)?,
         })
     }
 

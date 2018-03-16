@@ -1,7 +1,7 @@
+#![allow(dead_code, unused)]
 pub mod types;
 pub mod messages;
 
-//#![allow(unused)]
 //use std::mem;
 //use std::collections::HashMap;
 //

@@ -18,7 +18,7 @@ define_fixed_bytes!(DhPublicKey, DH_PUBLIC_KEY_LEN);
 
 impl Salt {
     pub fn new<R: SecureRandom>(crypt_rng: &R) -> Result<Salt, CryptoError> {
-        let mut salt = Salt::zero();
+        let mut salt = Salt::default();
 
         if crypt_rng.fill(&mut salt).is_ok() {
             Ok(salt)
@@ -66,8 +66,8 @@ impl DhPrivateKey {
 
                 let mut send_key = [0x00u8; SYMMETRIC_KEY_LEN];
                 let mut recv_key = [0x00u8; SYMMETRIC_KEY_LEN];
-                extract_and_expand(&sent_sk, &shared_key, &[], &mut send_key);
-                extract_and_expand(&recv_sk, &shared_key, &[], &mut recv_key);
+                extract_and_expand(&sent_sk, shared_key, &[], &mut send_key);
+                extract_and_expand(&recv_sk, shared_key, &[], &mut recv_key);
 
                 Ok((SymmetricKey::from(&send_key), SymmetricKey::from(&recv_key)))
             }

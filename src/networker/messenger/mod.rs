@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::rc::Rc;
 use std::collections::HashMap;
 use std::net::SocketAddr;
