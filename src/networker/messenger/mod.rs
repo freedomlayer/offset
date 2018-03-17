@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::rc::Rc;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -13,7 +15,8 @@ use timer::messages::FromTimer;
 
 use super::messages::{NetworkerToChanneler, NetworkerToDatabase, 
     NetworkerToAppManager, MessageReceived, MoveTokenDirection,
-    PendingNeighborRequest, NeighborStatus};
+    NeighborStatus};
+
 use super::crypter::messages::CrypterRequestSendMessage;
 
 use app_manager::messages::AppManagerToNetworker;
@@ -30,14 +33,18 @@ use channeler::messages::ChannelerToNetworker;
 use proto::funder::InvoiceId;
 use proto::networker::{ChannelToken};
 
-mod neighbor_tc_logic;
-mod balance_state_old;
-mod credit_state;
 
 mod token_channel;
-mod tc_balance;
+mod tc_credit;
 mod pending_requests;
 mod invoice_validator;
+pub mod balance_state;
+mod messenger_messages;
+pub mod pending_neighbor_request;
+pub mod credit_calculator;
+
+use self::pending_neighbor_request::PendingNeighborRequest;
+
 
 /// Full state of a Neighbor token channel.
 struct NeighborTokenChannel {
@@ -73,7 +80,7 @@ struct NeighborState {
 }
 
 
-
+#[allow(too_many_arguments)]
 pub fn create_messenger<SR: SecureRandom>(handle: &Handle,
                         secure_rng: Rc<SR>,
                         timer_receiver: mpsc::Receiver<FromTimer>,

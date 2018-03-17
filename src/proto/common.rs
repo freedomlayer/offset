@@ -10,8 +10,8 @@ use crypto::identity::{verify_signature, PublicKey};
 
 // TODO: impl Receipt
 
-/// A SendFundsReceipt is received if a RequestSendFunds is successful.
-/// It can be used a proof of payment for a specific invoice_id.
+/// A `SendFundsReceipt` is received if a `RequestSendFunds` is successful.
+/// It can be used a proof of payment for a specific `invoice_id`.
 pub struct SendFundsReceipt {
     response_hash: HashResult,
     // = sha512/256(requestId ||

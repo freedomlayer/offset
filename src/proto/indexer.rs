@@ -1,23 +1,20 @@
-use std::convert::TryFrom;
-
 use crypto::identity::{PublicKey, Signature};
 
 pub const INDEXING_PROVIDER_ID_LEN: usize = 16;
 pub const INDEXING_PROVIDER_STATE_HASH_LEN: usize = 32;
 
 /// The identifier of an indexing provider.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct IndexingProviderId([u8; INDEXING_PROVIDER_ID_LEN]);
+define_fixed_bytes!(IndexingProviderId, INDEXING_PROVIDER_ID_LEN);
 
 /// A hash of a full link in an indexing provider chain
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct IndexingProviderStateHash([u8; INDEXING_PROVIDER_STATE_HASH_LEN]);
+define_fixed_bytes!(IndexingProviderStateHash, INDEXING_PROVIDER_STATE_HASH_LEN);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NeighborsRoute {
     pub public_keys: Vec<PublicKey>,
 }
 
+#[derive(PartialEq, Eq)]
 pub enum PkPairPosition {
     NotFound,
     NotLast,
@@ -41,6 +38,37 @@ impl NeighborsRoute {
         PkPairPosition::NotFound
     }
 
+    pub fn is_unique(&self) -> bool {
+        let public_keys = &self.public_keys;
+        for i in 0 .. public_keys.len() {
+            for j in i + 1.. public_keys.len() {
+                if public_keys[i] == public_keys[j]{
+                    return false
+                }
+            }
+        }
+        true
+    }
+
+    fn index_of(&self, key: &PublicKey) -> Option<usize>{
+        self.public_keys.iter().position(|k| k == key)
+    }
+
+    pub fn get_destination_public_key(&self) -> Option<PublicKey>{
+        let key = self.public_keys.last()?;
+        Some(key.clone())
+    }
+
+    pub fn distance_between_nodes(&self, first_node: &PublicKey, second_node: &PublicKey)
+        -> Option<usize>{
+        let index_first = self.index_of(first_node)?;
+        let index_second = self.index_of(second_node)?;
+        if index_first > index_second{
+            None
+        }else{
+            Some(index_second - index_first)
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -114,46 +142,4 @@ pub struct RoutesToIndexer {
     pub indexing_provider_id: IndexingProviderId,
     pub routes: Vec<IndexerRoute>,
     pub request_price: u64,
-}
-
-// =========== Conversions ==========
-
-impl<'a> TryFrom<&'a [u8]> for IndexingProviderId {
-    type Error = ();
-
-    fn try_from(src: &'a [u8]) -> Result<IndexingProviderId, Self::Error> {
-        if src.len() != INDEXING_PROVIDER_ID_LEN {
-            Err(())
-        } else {
-            let mut inner = [0; INDEXING_PROVIDER_ID_LEN];
-            inner.clone_from_slice(src);
-            Ok(IndexingProviderId(inner))
-        }
-    }
-}
-
-impl AsRef<[u8]> for IndexingProviderId {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-impl<'a> TryFrom<&'a [u8]> for IndexingProviderStateHash {
-    type Error = ();
-
-    fn try_from(src: &[u8]) -> Result<IndexingProviderStateHash, Self::Error> {
-        if src.len() != INDEXING_PROVIDER_STATE_HASH_LEN {
-            Err(())
-        } else {
-            let mut inner = [0; INDEXING_PROVIDER_STATE_HASH_LEN];
-            inner.clone_from_slice(src);
-            Ok(IndexingProviderStateHash(inner))
-        }
-    }
-}
-
-impl AsRef<[u8]> for IndexingProviderStateHash {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
 }
