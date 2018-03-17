@@ -65,18 +65,21 @@ mod tests {
         let handle = core.handle();
         handle.spawn(sm.then(|_| Ok(())));
 
-        let rsender = requests_sender.clone();
-        let (tx, rx) = oneshot::channel();
-        let public_key_from_client = core.run(rsender
-                 .send(ToSecurityModule::RequestPublicKey {response_sender: tx})
-                 .then(|result| {
-                     match result {
-                         Ok(_) => rx,
-                         Err(_) => panic!("Failed to send public key request (1) !"),
-                     }
-                 })).unwrap().public_key;
+        // Query the security module twice to check for consistency
+        for i in 0..2 {
+            let rsender = requests_sender.clone();
+            let (tx, rx) = oneshot::channel();
+            let public_key_from_client = core.run(rsender
+                .send(ToSecurityModule::RequestPublicKey { response_sender: tx })
+                .then(|result| {
+                    match result {
+                        Ok(_) => rx,
+                        Err(_) => panic!("Failed to send public key request (1) !"),
+                    }
+                })).unwrap().public_key;
 
-        assert_eq!(actual_public_key, public_key_from_client);
+            assert_eq!(actual_public_key, public_key_from_client);
+        }
     }
 
     #[test]
