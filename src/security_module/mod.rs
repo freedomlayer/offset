@@ -83,20 +83,21 @@ mod tests {
     }
 
     #[test]
-    fn test_security_module_request_sign() {
+    fn test_security_module_request_signature_against_identity() {
         let secure_rand = FixedByteRandom { byte: 0x3 };
         let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        // Get the public key straight from the Identity
         let public_key = identity.get_public_key();
 
-        let (requests_sender, sm) = create_security_module(identity);
-
-        let my_message = b"This is my message!";
-
         // Start the SecurityModule service:
+        let (requests_sender, sm) = create_security_module(identity);
         let mut core = Core::new().unwrap();
         let handle = core.handle();
         handle.spawn(sm.then(|_| Ok(())));
+
+        // Get a signature from the service
+        let my_message = b"This is my message!";
 
         let rsender = requests_sender.clone();
         let (tx, rx) = oneshot::channel();
@@ -110,6 +111,48 @@ mod tests {
                  })).unwrap().signature;
 
         assert!(verify_signature(&my_message[..], &public_key, &signature));
+    }
+
+    #[test]
+    fn test_security_module_request_signature() {
+        let secure_rand = FixedByteRandom { byte: 0x3 };
+        let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
+        let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+
+
+
+        // Start the SecurityModule service:
+        let (requests_sender, sm) = create_security_module(identity);
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+        handle.spawn(sm.then(|_| Ok(())));
+
+        // Get the public key from the service
+        let my_message = b"This is my message!";
+        let rsender1 = requests_sender.clone();
+        let (tx1, rx1) = oneshot::channel();
+        let public_key_from_client = core.run(rsender1
+            .send(ToSecurityModule::RequestPublicKey { response_sender: tx1 })
+            .then(|result| {
+                match result {
+                    Ok(_) => rx1,
+                    Err(_) => panic!("Failed to send public key request (1) !"),
+                }
+            })).unwrap().public_key;
+
+        // Get a signature from the service
+        let rsender2 = requests_sender.clone();
+        let (tx2, rx2) = oneshot::channel();
+        let signature = core.run(rsender2
+                 .send(ToSecurityModule::RequestSignature {message: my_message.to_vec(), response_sender: tx2})
+                 .then(|result| {
+                     match result {
+                         Ok(_) => rx2,
+                         Err(_) => panic!("Failed to send signature request"),
+                     }
+                 })).unwrap().signature;
+
+        assert!(verify_signature(&my_message[..], &public_key_from_client, &signature));
     }
 
     // TODO: Add tests that check "concurrency": Multiple clients that send requests.
