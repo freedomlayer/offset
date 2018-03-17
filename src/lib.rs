@@ -2,7 +2,6 @@
 #![feature(nll)]
 #![feature(try_from)]
 #![feature(i128_type)]
-#![feature(use_nested_groups)]
 #![feature(refcell_replace_swap)]
 #![feature(conservative_impl_trait, universal_impl_trait)]
 #![feature(iterator_step_by)]
@@ -45,4 +44,3 @@ mod proto;
 use proto::proto_impl::common::common_capnp;
 use proto::proto_impl::indexer::indexer_capnp;
 use proto::proto_impl::channeler::channeler_capnp;
-use proto::proto_impl::channeler_udp::channeler_udp_capnp;

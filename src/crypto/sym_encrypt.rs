@@ -4,55 +4,32 @@ use ring;
 use ring::aead::{open_in_place, seal_in_place, CHACHA20_POLY1305, OpeningKey, SealingKey};
 use ring::rand::SecureRandom;
 
+use super::{CryptoError, increase_nonce};
+
 pub const SYMMETRIC_KEY_LEN: usize = 32;
 // Length of tag for CHACHA20_POLY1305
 const TAG_LEN: usize = 16;
 // Length of nonce for CHACHA20_POLY1305
 const ENC_NONCE_LEN: usize = 12;
 
-#[derive(Debug, PartialEq)]
-pub struct SymmetricKey([u8; SYMMETRIC_KEY_LEN]);
-
-// NOTICE: Do not expose the following methods to every one.
-impl SymmetricKey {
-    pub(super) fn from_bytes(raw: &[u8]) -> SymmetricKey {
-        debug_assert!(raw.len() == SYMMETRIC_KEY_LEN);
-        let mut key = [0x00; SYMMETRIC_KEY_LEN];
-        key.copy_from_slice(raw);
-        SymmetricKey(key)
-    }
-
-    pub(super) fn as_bytes(&self) -> &[u8; SYMMETRIC_KEY_LEN] {
-        &self.0
-    }
-}
+define_fixed_bytes!(SymmetricKey, SYMMETRIC_KEY_LEN);
 
 #[derive(Clone)]
 pub struct EncryptNonce(pub [u8; ENC_NONCE_LEN]);
-
-/// Increase the bytes represented number by 1.
-///
-/// Reference: `libsodium/sodium/utils.c#L241`
-#[inline]
-fn increase_nonce(nonce: &mut [u8]) {
-    let mut c: u16 = 1;
-    for i in nonce {
-        c += u16::from(*i);
-        *i = c as u8;
-        c >>= 8;
-    }
-}
 
 pub struct EncryptNonceCounter {
     inner: EncryptNonce,
 }
 
 impl EncryptNonceCounter {
-    pub fn new<R: SecureRandom>(crypt_rng: &R) -> Self {
+    pub fn new<R: SecureRandom>(crypt_rng: &R) -> Result<Self, CryptoError> {
         let mut enc_nonce = EncryptNonce([0_u8; ENC_NONCE_LEN]);
         // Generate a random initial EncNonce:
-        crypt_rng.fill(&mut enc_nonce.0).unwrap();
-        EncryptNonceCounter { inner: enc_nonce }
+        if crypt_rng.fill(&mut enc_nonce.0).is_ok() {
+            Ok(EncryptNonceCounter { inner: enc_nonce })
+        } else {
+            Err(CryptoError)
+        }
     }
 
     /// Get a new nonce.
@@ -61,12 +38,6 @@ impl EncryptNonceCounter {
         increase_nonce(&mut self.inner.0);
         export_nonce
     }
-}
-
-#[derive(Debug)]
-pub enum SymEncryptError {
-    EncryptionError,
-    DecryptionError,
 }
 
 /// A structure used for encrypting messages with a given symmetric key.
@@ -78,15 +49,16 @@ pub struct Encryptor {
 
 impl Encryptor {
     /// Create a new encryptor object. This object can encrypt messages.
-    pub fn new(symmetric_key: &SymmetricKey, nonce_counter: EncryptNonceCounter) -> Self {
-        Encryptor {
-            sealing_key: SealingKey::new(&CHACHA20_POLY1305, symmetric_key.as_bytes()).unwrap(),
-            nonce_counter: nonce_counter,
-        }
+    pub fn new(symmetric_key: &SymmetricKey, nonce_counter: EncryptNonceCounter)
+        -> Result<Self, CryptoError> {
+        Ok(Encryptor {
+            sealing_key: SealingKey::new(&CHACHA20_POLY1305, symmetric_key)?,
+            nonce_counter,
+        })
     }
 
     /// Encrypt a message. The nonce must be unique.
-    pub fn encrypt(&mut self, plain_msg: &[u8]) -> Result<Vec<u8>, SymEncryptError> {
+    pub fn encrypt(&mut self, plain_msg: &[u8]) -> Result<Vec<u8>, CryptoError> {
         // Put the nonce in the beginning of the resulting buffer:
         let enc_nonce = self.nonce_counter.next_nonce();
         let mut msg_buffer = enc_nonce.0.to_vec();
@@ -94,6 +66,7 @@ impl Encryptor {
         // Extend the message with TAG_LEN zeroes. This leaves space for the tag:
         msg_buffer.extend(iter::repeat(0).take(TAG_LEN).collect::<Vec<u8>>());
         let ad: [u8; 0] = [];
+
         match seal_in_place(
             &self.sealing_key,
             &enc_nonce.0,
@@ -101,7 +74,7 @@ impl Encryptor {
             &mut msg_buffer[ENC_NONCE_LEN..],
             TAG_LEN,
         ) {
-            Err(ring::error::Unspecified) => Err(SymEncryptError::EncryptionError),
+            Err(ring::error::Unspecified) => Err(CryptoError),
             Ok(length) => Ok(msg_buffer[..ENC_NONCE_LEN + length].to_vec()),
         }
     }
@@ -114,21 +87,21 @@ pub struct Decryptor {
 
 impl Decryptor {
     /// Create a new decryptor object. This object can decrypt messages.
-    pub fn new(symmetric_key: &SymmetricKey) -> Self {
-        Decryptor {
-            opening_key: OpeningKey::new(&CHACHA20_POLY1305, symmetric_key.as_bytes()).unwrap(),
-        }
+    pub fn new(symmetric_key: &SymmetricKey) -> Result<Self, CryptoError> {
+        Ok(Decryptor {
+            opening_key: OpeningKey::new(&CHACHA20_POLY1305, symmetric_key)?,
+        })
     }
 
     /// Decrypt and authenticate a message.
-    pub fn decrypt(&self, cipher_msg: &[u8]) -> Result<Vec<u8>, SymEncryptError> {
+    pub fn decrypt(&self, cipher_msg: &[u8]) -> Result<Vec<u8>, CryptoError> {
         let enc_nonce = &cipher_msg[..ENC_NONCE_LEN];
         let mut msg_buffer = cipher_msg[ENC_NONCE_LEN..].to_vec();
         let ad: [u8; 0] = [];
 
         match open_in_place(&self.opening_key, enc_nonce, &ad, 0, &mut msg_buffer) {
             Ok(slice) => Ok(slice.to_vec()),
-            Err(ring::error::Unspecified) => Err(SymEncryptError::DecryptionError),
+            Err(ring::error::Unspecified) => Err(CryptoError),
         }
     }
 }
@@ -159,15 +132,15 @@ mod tests {
 
     #[test]
     fn test_encryptor_decryptor() {
-        let symmetric_key = SymmetricKey([1; SYMMETRIC_KEY_LEN]);
+        let symmetric_key = SymmetricKey::from(&[1; SYMMETRIC_KEY_LEN]);
 
         // let rng_seed: &[_] = &[1,2,3,4,5,6];
         // let mut rng: StdRng = rand::SeedableRng::from_seed(rng_seed);
         let mut rng = FixedByteRandom { byte: 0x10 };
-        let enc_nonce_counter = EncryptNonceCounter::new(&mut rng);
-        let mut encryptor = Encryptor::new(&symmetric_key, enc_nonce_counter);
+        let enc_nonce_counter = EncryptNonceCounter::new(&mut rng).unwrap();
+        let mut encryptor = Encryptor::new(&symmetric_key, enc_nonce_counter).unwrap();
 
-        let decryptor = Decryptor::new(&symmetric_key);
+        let decryptor = Decryptor::new(&symmetric_key).unwrap();
 
         let plain_msg = b"Hello world!";
         let cipher_msg = encryptor.encrypt(plain_msg).unwrap();

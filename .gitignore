@@ -1,5 +1,6 @@
 *.sw*
 *_capnp.rs
+Cargo.lock
 target/
 
 ## IntelliJ IDEA
@@ -7,3 +8,4 @@ target/
 *.ipr
 *.iws
 dataSources/
+.idea/

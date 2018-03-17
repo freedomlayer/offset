@@ -1,7 +1,6 @@
 use bytes::Bytes;
 
 use crypto::identity::PublicKey;
-pub use proto::channeler::MessageType;
 
 pub const MAX_PADDING_LEN: usize = 32;
 
