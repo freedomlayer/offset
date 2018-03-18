@@ -11,7 +11,7 @@ use proto::channeler::{ChannelId, CHANNEL_ID_LEN};
 
 use ring::aead::{CHACHA20_POLY1305, SealingKey, OpeningKey};
 
-use super::state_machine::State;
+use super::state_machine::HandshakeState;
 
 pub struct NewChannelInfo {
     pub sender_id: ChannelId,
@@ -69,7 +69,7 @@ impl HandshakeId {
 
 pub struct HandshakeSession {
     pub id: HandshakeId,
-    pub state: State,
+    pub state: HandshakeState,
     timeout_ticks: usize,
 }
 
@@ -80,7 +80,7 @@ pub struct HandshakeSessionMap {
 
 impl HandshakeSession {
     /// Creates a new `HandshakeSession`.
-    pub fn new(id: HandshakeId, state: State, timeout: usize) -> HandshakeSession {
+    pub fn new(id: HandshakeId, state: HandshakeState, timeout: usize) -> HandshakeSession {
         HandshakeSession {
             id,
             state,
@@ -106,7 +106,12 @@ impl HandshakeSession {
         let is_initiator = self.is_initiator();
 
         match self.state {
-            State::Active { init_channel, exchange_passive, my_private_key, exchange_active } => {
+            HandshakeState::Active {
+                init_channel,
+                exchange_passive,
+                my_private_key,
+                exchange_active
+            } => {
                 let (initiator_id, responder_id) = derive_channel_id(
                     &init_channel.rand_nonce,
                     &exchange_passive.rand_nonce,
@@ -134,7 +139,6 @@ impl HandshakeSession {
 
                     sender_key = keys.0;
                     receiver_key = keys.1;
-
                 } else {
                     sender_id = responder_id;
                     receiver_id = initiator_id;
@@ -215,18 +219,7 @@ impl HandshakeSessionMap {
 
     /// Remove all in-flight sessions belong to given neighbor.
     pub fn remove_by_pk(&mut self, pk: &PublicKey) {
-        let mut ids = Vec::new();
-        self.last_hash_map.retain(|_, sess| {
-            if sess.remote_public_key() == pk {
-                ids.push(sess.id.clone());
-                false // Remove this session
-            } else {
-                true  // Retain this session
-            }
-        });
-        for id in &ids {
-            self.in_flight_ids.remove(id);
-        }
+        self.remove_sessions(|sess| sess.remote_public_key() == pk);
     }
 
     /// Apply timer tick over all sessions, then remove timeout sessions.
@@ -237,14 +230,24 @@ impl HandshakeSessionMap {
                 sess.timeout_ticks -= 1;
             }
         }
+        self.remove_sessions(|sess| sess.timeout_ticks == 0)
+    }
 
+    pub fn len(&self) -> usize {
+        self.last_hash_map.len()
+    }
+
+    fn remove_sessions<F>(&mut self, f: F) -> usize
+        where
+            F: Fn(&HandshakeSession) -> bool
+    {
         let mut ids = Vec::new();
         self.last_hash_map.retain(|_, sess| {
-            if sess.timeout_ticks > 0 {
-                true  // Retain this session
-            } else {
+            if f(sess) {
                 ids.push(sess.id.clone());
-                false // Remove this session
+                false
+            } else {
+                true
             }
         });
         for id in &ids {
@@ -252,10 +255,6 @@ impl HandshakeSessionMap {
         }
 
         ids.len()
-    }
-
-    pub fn len(&self) -> usize {
-        self.last_hash_map.len()
     }
 }
 
@@ -337,7 +336,7 @@ mod tests {
 
         let new_session = HandshakeSession {
             id: id.clone(),
-            state: State::InitChannel { init_channel },
+            state: HandshakeState::InitChannel { init_channel },
             timeout_ticks: TIMEOUT_TICKS,
         };
 
@@ -368,7 +367,7 @@ mod tests {
         );
         let new_session1 = HandshakeSession {
             id: handshake_id1.clone(),
-            state: State::InitChannel { init_channel: init_channel1 },
+            state: HandshakeState::InitChannel { init_channel: init_channel1 },
             timeout_ticks: TIMEOUT_TICKS,
         };
         let last_hash1 = HashResult::from(&[0x03; HASH_RESULT_LEN]);
@@ -383,7 +382,7 @@ mod tests {
         );
         let new_session2 = HandshakeSession {
             id: handshake_id2.clone(),
-            state: State::InitChannel { init_channel: init_channel2 },
+            state: HandshakeState::InitChannel { init_channel: init_channel2 },
             timeout_ticks: TIMEOUT_TICKS + 1,
         };
         let last_hash2 = HashResult::from(&[0x06; HASH_RESULT_LEN]);
@@ -428,7 +427,7 @@ mod tests {
         );
         let new_session1 = HandshakeSession {
             id: handshake_id1.clone(),
-            state: State::InitChannel { init_channel: init_channel1 },
+            state: HandshakeState::InitChannel { init_channel: init_channel1 },
             timeout_ticks: TIMEOUT_TICKS,
         };
         let last_hash1 = HashResult::from(&[0x03; HASH_RESULT_LEN]);
@@ -443,7 +442,7 @@ mod tests {
         );
         let new_session2 = HandshakeSession {
             id: handshake_id2.clone(),
-            state: State::InitChannel { init_channel: init_channel2 },
+            state: HandshakeState::InitChannel { init_channel: init_channel2 },
             timeout_ticks: TIMEOUT_TICKS + 1,
         };
 
@@ -466,7 +465,7 @@ mod tests {
 
         let new_session1 = HandshakeSession {
             id: handshake_id.clone(),
-            state: State::InitChannel { init_channel: init_channel1 },
+            state: HandshakeState::InitChannel { init_channel: init_channel1 },
             timeout_ticks: TIMEOUT_TICKS,
         };
         let last_hash1 = HashResult::from(&[0x03; HASH_RESULT_LEN]);
@@ -477,7 +476,7 @@ mod tests {
         };
         let new_session2 = HandshakeSession {
             id: handshake_id.clone(),
-            state: State::InitChannel { init_channel: init_channel2 },
+            state: HandshakeState::InitChannel { init_channel: init_channel2 },
             timeout_ticks: TIMEOUT_TICKS + 1,
         };
 
@@ -500,7 +499,7 @@ mod tests {
         };
         let new_session1 = HandshakeSession {
             id: HandshakeId::new(HandshakeRole::Responder, public_key.clone()),
-            state: State::InitChannel { init_channel: init_channel1 },
+            state: HandshakeState::InitChannel { init_channel: init_channel1 },
             timeout_ticks: TIMEOUT_TICKS,
         };
         let last_hash1 = HashResult::from(&[0x02; HASH_RESULT_LEN]);
@@ -511,7 +510,7 @@ mod tests {
         };
         let new_session2 = HandshakeSession {
             id: HandshakeId::new(HandshakeRole::Initiator, public_key.clone()),
-            state: State::InitChannel { init_channel: init_channel2 },
+            state: HandshakeState::InitChannel { init_channel: init_channel2 },
             timeout_ticks: TIMEOUT_TICKS + 1,
         };
         let last_hash2 = HashResult::from(&[0x04; HASH_RESULT_LEN]);

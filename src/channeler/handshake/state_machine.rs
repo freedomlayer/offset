@@ -15,7 +15,7 @@ use super::Result;
 use super::types::*;
 
 /// The state of a handshake session.
-pub enum State {
+pub enum HandshakeState {
     InitChannel {
         init_channel: InitChannel,
     },
@@ -34,19 +34,19 @@ pub enum State {
     },
 }
 
-impl State {
-    pub fn new(init_channel: InitChannel) -> State {
-        State::InitChannel { init_channel }
+impl HandshakeState {
+    pub fn new(init_channel: InitChannel) -> HandshakeState {
+        HandshakeState::InitChannel { init_channel }
     }
 
     pub fn move_passive(
         self,
         my_private_key: DhPrivateKey,
         exchange_passive: ExchangePassive,
-    ) -> Result<State> {
+    ) -> Result<HandshakeState> {
         match self {
-            State::InitChannel { init_channel } => {
-                Ok(State::Passive {
+            HandshakeState::InitChannel { init_channel } => {
+                Ok(HandshakeState::Passive {
                     init_channel,
                     my_private_key,
                     exchange_passive,
@@ -56,10 +56,10 @@ impl State {
         }
     }
 
-    pub fn move_active(self, exchange_active: ExchangeActive) -> Result<State> {
+    pub fn move_active(self, exchange_active: ExchangeActive) -> Result<HandshakeState> {
         match self {
-            State::Passive { init_channel, my_private_key, exchange_passive } => {
-                Ok(State::Active {
+            HandshakeState::Passive { init_channel, my_private_key, exchange_passive } => {
+                Ok(HandshakeState::Active {
                     init_channel,
                     my_private_key,
                     exchange_passive,
@@ -75,19 +75,19 @@ pub struct HandshakeStateMachine<SR> {
     neighbors: Rc<RefCell<NeighborsTable>>,
     secure_rng: Rc<SR>,
     sessions_map: HandshakeSessionMap,
-    self_public_key: PublicKey,
+    my_public_key: PublicKey,
 }
 
 impl<SR: SecureRandom> HandshakeStateMachine<SR> {
     pub fn new(
         neighbors: Rc<RefCell<NeighborsTable>>,
         secure_rng: Rc<SR>,
-        public_key: PublicKey,
+        my_public_key: PublicKey,
     ) -> HandshakeStateMachine<SR> {
         HandshakeStateMachine {
             neighbors,
             secure_rng,
-            self_public_key: public_key,
+            my_public_key,
             sessions_map: HandshakeSessionMap::new(),
         }
     }
@@ -102,13 +102,11 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
         let rand_nonce = RandValue::new(&*self.secure_rng);
         let init_channel = InitChannel {
             rand_nonce,
-            public_key: self.self_public_key.clone(),
+            public_key: self.my_public_key.clone(),
         };
 
         let last_hash = sha_512_256(&init_channel.as_bytes());
-
-        let state = State::new(init_channel.clone());
-
+        let state = HandshakeState::new(init_channel.clone());
         let session = HandshakeSession::new(id, state, 100);
 
         match self.sessions_map.insert(last_hash, session) {
@@ -141,7 +139,7 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
         let exchange_passive = ExchangePassive {
             prev_hash,
             rand_nonce,
-            public_key: self.self_public_key.clone(),
+            public_key: self.my_public_key.clone(),
             dh_public_key,
             key_salt,
             signature: Signature::from(&[0x00u8; SIGNATURE_LEN]),
@@ -149,7 +147,7 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
 
         let last_hash = sha_512_256(&exchange_passive.as_bytes());
 
-        let state = State::new(init_channel);
+        let state = HandshakeState::new(init_channel);
         let state = state.move_passive(dh_private_key, exchange_passive.clone())?;
 
         let session = HandshakeSession::new(id, state, 100);
@@ -158,47 +156,6 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
             None => Ok(exchange_passive),
             Some(_) => Err(HandshakeError::AlreadyExist),
         }
-    }
-
-    pub fn process_channel_ready(&mut self, channel_ready: ChannelReady) -> Result<NewChannelInfo> {
-        let session = self.sessions_map.take_by_hash(&channel_ready.prev_hash)
-            .ok_or(HandshakeError::NoSuchSession)?;
-
-        let remote_public_key = session.remote_public_key();
-
-        if !verify_signature(&channel_ready.prev_hash, remote_public_key, &channel_ready.signature) {
-            return Err(HandshakeError::InvalidSignature);
-        }
-
-        session.finish()
-    }
-
-    pub fn process_exchange_active(&mut self, exchange_active: ExchangeActive) -> Result<(NewChannelInfo, ChannelReady)> {
-        let session = self.sessions_map.take_by_hash(&exchange_active.prev_hash)
-            .ok_or(HandshakeError::NoSuchSession)?;
-
-        let remote_public_key = session.remote_public_key();
-
-        if !verify_signature(&exchange_active.as_bytes(), remote_public_key, &exchange_active.signature) {
-            return Err(HandshakeError::InvalidSignature);
-        }
-
-        let channel_ready = ChannelReady {
-            prev_hash: sha_512_256(&exchange_active.as_bytes()),
-            signature: Signature::from(&[0x00u8; SIGNATURE_LEN]),
-        };
-
-//        let last_hash = sha_512_256(&channel_ready.prev_hash);
-        let id = session.id;
-        let state = session.state.move_active(exchange_active)?;
-
-        // Rebuild a session, also reset the timeout counter
-        // FIXME: Change the design
-        let session = HandshakeSession::new(id, state, 100);
-
-        let new_channel_info = session.finish()?;
-
-        Ok((new_channel_info, channel_ready))
     }
 
     pub fn process_exchange_passive(&mut self, exchange_passive: ExchangePassive) -> Result<ExchangeActive> {
@@ -238,6 +195,46 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
             None => Ok(exchange_active),
             Some(_) => Err(HandshakeError::AlreadyExist),
         }
+    }
+
+    pub fn process_exchange_active(&mut self, exchange_active: ExchangeActive) -> Result<(NewChannelInfo, ChannelReady)> {
+        let session = self.sessions_map.take_by_hash(&exchange_active.prev_hash)
+            .ok_or(HandshakeError::NoSuchSession)?;
+
+        let remote_public_key = session.remote_public_key();
+
+        if !verify_signature(&exchange_active.as_bytes(), remote_public_key, &exchange_active.signature) {
+            return Err(HandshakeError::InvalidSignature);
+        }
+
+        let channel_ready = ChannelReady {
+            prev_hash: sha_512_256(&exchange_active.as_bytes()),
+            signature: Signature::from(&[0x00u8; SIGNATURE_LEN]),
+        };
+
+        let id = session.id;
+        let state = session.state.move_active(exchange_active)?;
+
+        // Rebuild a session, also reset the timeout counter
+        // FIXME: Change the design
+        let session = HandshakeSession::new(id, state, 100);
+
+        let new_channel_info = session.finish()?;
+
+        Ok((new_channel_info, channel_ready))
+    }
+
+    pub fn process_channel_ready(&mut self, channel_ready: ChannelReady) -> Result<NewChannelInfo> {
+        let session = self.sessions_map.take_by_hash(&channel_ready.prev_hash)
+            .ok_or(HandshakeError::NoSuchSession)?;
+
+        let remote_public_key = session.remote_public_key();
+
+        if !verify_signature(&channel_ready.prev_hash, remote_public_key, &channel_ready.signature) {
+            return Err(HandshakeError::InvalidSignature);
+        }
+
+        session.finish()
     }
 }
 
