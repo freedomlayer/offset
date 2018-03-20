@@ -162,7 +162,7 @@ mod tests {
             .map(|client| client.take(u64::from(TICKS)).collect().and_then(|_| {
                     let elapsed = start.elapsed();
                     assert!(elapsed >= dur * TICKS * 2 / 3);
-                    assert!(elapsed < dur * TICKS * 3 / 2);
+                    assert!(elapsed < dur * TICKS * 2);
                     Ok(())
             }))
             .collect::<Vec<_>>();
