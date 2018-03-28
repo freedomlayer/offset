@@ -6,51 +6,60 @@ using import "common.capnp".CustomUInt512;
 
 # 5-phase handshake process
 # =========================
-# 1. A -> B: RequestNonce     randNonce1
-# 2. B -> A: ResponseNonce    (randNonce1, randNonceB, Signature(B)) [publicKeyB necessary?]
-# 3. A -> B: ExchangeActive   (randNonceB, randNonceA, publicKeyA, dhPublicKeyA, keySaltA, Signature(A))
+# 1. A -> B: RequestNonce     randNonceA
+# 2. B -> A: ResponseNonce    (randNonceA, randNonceB, Signature(B)) [publicKeyB necessary?]
+# 3. A -> B: ExchangeActive   (randNonceB, publicKeyA, publicKeyB dhPublicKeyA, keySaltA, Signature(A))
 # 4. B -> A: ExchangePassive  (hashPrev, dhPublicKeyB, keySaltB, Signature(B))
 # 5. A -> B: ChannelReady     (hashPrev, Signature(A))
-
-# At the first phase, initiator send a RequestNonce message to the responder
-# for requesting a nonce, which will be used in performing DH key exchange.
 #
-# Implement note: The initiator MUST keep nonce he sent for a while.
+# In the above scheme, A is called the initiator, and B is called the responder.
+# The handshake session has a limited time to complete (measured from its creation). If it times
+# out, then it is dropped.
+# In all messages, the signature is over the whole message, except for the signature itself.
+# randNonceB is used to validate that 
+
+# Phases 1-2 exist to prevent a DoS by using a replay attack.
+#
+# Upon sending RequestNonce, the initiator creates a new handshake session.
+# Implementation note: The initiator MUST keep nonce he sent for a while.
 struct RequestNonce {
+    # Plain random. Not taken from a constant size list.
     randNonce @0: CustomUInt128;
 }
 
-# After receiving RequestNonce message, responder generate a new nonce, then
-# sign (receivedRandNonce || generatedNonce), then send ResponseNonce back to
-# initiator.
-#
-# Implement note: The responder MUST NOT keep any thing at this phase.
+# Implementation note: The responder MUST NOT keep any thing at this phase, or else
+# an attacker could consume all its memory by flooding the responder with
+# RequestNonce messages.
 struct ResponseNonce {
     receivedRandNonce @0: CustomUInt128;
 
+    # This nonce is taken from a local constant size list of nonces
+    # maintained by the responder. It is the newest nonce on this list.
     randNonce @1: CustomUInt128;
     signature @2: CustomUInt512;
 }
 
-# After receiving a ResponseNonce message, initiator verify the nonce first.
-# Then generates a new nonce, DH public key and salt, send these information
-# together with its public key to responder, these information MUST be signed.
+# Upon receiving a ResponseNonce message, the initiator verifies the nonce first.
+# Then, it generates a new DH public key and salt, and sends them to the responder.
 #
-# Implement note: Initiator create a new handshake session after it sending
+# Implementation note: The initiator creates a new handshake session after it sends
 # ExchangeActive message.
 struct ExchangeActive {
-    receivedRandNonce   @0: CustomUInt128;
+    receivedRandNonce  @0: CustomUInt128;
 
-    randNonce   @1: CustomUInt128;
-    publicKey   @2: CustomUInt256;
-    dhPublicKey @3: CustomUInt256;
-    keySalt     @4: CustomUInt256;
-    signature   @5: CustomUInt512;
+    publicKeyInitiator @1: CustomUInt256;
+    publicKeyResponder @2: CustomUInt256;
+    dhPublicKey        @3: CustomUInt256;
+    keySalt            @4: CustomUInt256;
+    signature          @5: CustomUInt512;
 }
 
-# After receiving ExchangeActive message, responder verify the signature first.
-# Then create a new handshake session. As response, it generate DH public key,
-# salt, then send to the initiator, these information MUST be signed.
+# Upon receiving ExchangeActive message, the responder first checks whether an ongoing
+# handshake session with the initiator already exists. If one exists, then the message
+# is ignored.
+# Then, the responder verifies the signature.
+# Then, it verifies that the nonce indeed exists in its local list.
+# Then, it generates a new DH key and salt and creates a new handshake session.
 struct ExchangePassive {
     prevHash    @0: CustomUInt256;
     dhPublicKey @1: CustomUInt256;
@@ -58,8 +67,8 @@ struct ExchangePassive {
     signature   @3: CustomUInt512;
 }
 
-# This message is used by initiator to confirm that the responder received
-# ExchangePassive, and the 5-way handshake done.
+# This message is used by the initiator to confirm that the responder received
+# ExchangePassive, and then the 5-way handshake is complete.
 struct ChannelReady {
     prevHash  @0: CustomUInt256;
     signature @1: CustomUInt512;
@@ -71,7 +80,7 @@ struct UnknownChannel {
     signature @2: CustomUInt512;
 }
 
-# The data we encrypt. Contains random padding (Of variable length) together
+# The data we encrypt. Contains random padding (of a variable length) together
 # with actual data. This structure is used for any data we encrypt.
 struct Plain {
     randPadding  @0: Data;
