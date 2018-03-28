@@ -30,6 +30,8 @@ struct RequestNonce {
 # Implementation note: The responder MUST NOT keep any thing at this phase, or else
 # an attacker could consume all its memory by flooding the responder with
 # RequestNonce messages.
+# These nonce values are not used for generating the keys, but only to prevent DoS
+# attacks without using timestamps.
 struct ResponseNonce {
     receivedRandNonce @0: CustomUInt128;
 
