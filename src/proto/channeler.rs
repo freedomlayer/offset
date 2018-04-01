@@ -9,28 +9,38 @@ pub const CHANNEL_ID_LEN: usize = 16;
 define_fixed_bytes!(ChannelId, CHANNEL_ID_LEN);
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct InitChannel {
+pub struct RequestNonce {
     pub rand_nonce: RandValue,
-    pub public_key: PublicKey,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct ExchangePassive {
-    pub prev_hash:     HashResult,
-    pub rand_nonce:    RandValue,
-    pub public_key:    PublicKey,
-    pub dh_public_key: DhPublicKey,
-    pub key_salt:      Salt,
-    pub signature:     Signature,
+pub struct RespondNonce {
+    pub req_rand_nonce: RandValue,
+    pub res_rand_nonce: RandValue,
+    pub responder_rand_nonce: RandValue,
+    pub signature: Signature,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExchangeActive {
-    pub prev_hash:     HashResult,
+    pub responder_rand_nonce: RandValue,
+    pub initiator_rand_nonce: RandValue,
+
+    pub initiator_public_key: PublicKey,
+    pub responder_public_key: PublicKey,
     pub dh_public_key: DhPublicKey,
-    pub key_salt:      Salt,
-    pub signature:     Signature,
+    pub key_salt: Salt,
+    pub signature: Signature,
 }
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ExchangePassive {
+    pub prev_hash: HashResult,
+    pub dh_public_key: DhPublicKey,
+    pub key_salt: Salt,
+    pub signature: Signature,
+}
+
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ChannelReady {
@@ -48,7 +58,7 @@ pub struct UnknownChannel {
 #[derive(Clone, Debug, PartialEq)]
 pub enum PlainContent {
     KeepAlive,
-    User(Bytes),
+    Application(Bytes),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -59,7 +69,8 @@ pub struct Plain {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ChannelerMessage {
-    InitChannel(InitChannel),
+    RequestNonce(RequestNonce),
+    RespondNonce(RespondNonce),
     ExchangeActive(ExchangeActive),
     ExchangePassive(ExchangePassive),
     ChannelReady(ChannelReady),
@@ -67,45 +78,61 @@ pub enum ChannelerMessage {
     Encrypted(Bytes),
 }
 
-impl InitChannel {
+impl RequestNonce {
     #[inline]
     pub fn as_bytes(&self) -> Bytes {
-        let mut buffer = BytesMut::with_capacity(RAND_VALUE_LEN + PUBLIC_KEY_LEN);
+        Bytes::from(self.rand_nonce.as_ref())
+    }
+}
 
-        buffer.put(self.rand_nonce.as_ref());
-        buffer.put(self.public_key.as_ref());
+impl RespondNonce {
+    #[inline]
+    pub fn as_bytes(&self) -> Bytes {
+        let mut buf = BytesMut::with_capacity(3 * RAND_VALUE_LEN);
 
-        buffer.freeze()
+        buf.put(self.req_rand_nonce.as_ref());
+        buf.put(self.res_rand_nonce.as_ref());
+        buf.put(self.responder_rand_nonce.as_ref());
+
+        buf.freeze()
+    }
+}
+
+impl ExchangeActive {
+    #[inline]
+    pub fn as_bytes(&self) -> Bytes {
+        let mut buf = BytesMut::with_capacity(
+            2 * RAND_VALUE_LEN
+                + 2 * PUBLIC_KEY_LEN
+                + DH_PUBLIC_KEY_LEN
+                + SALT_LEN
+        );
+
+        buf.put(self.responder_rand_nonce.as_ref());
+        buf.put(self.initiator_rand_nonce.as_ref());
+        buf.put(self.initiator_public_key.as_ref());
+        buf.put(self.responder_public_key.as_ref());
+        buf.put(self.dh_public_key.as_ref());
+        buf.put(self.key_salt.as_ref());
+
+        buf.freeze()
     }
 }
 
 impl ExchangePassive {
     #[inline]
     pub fn as_bytes(&self) -> Bytes {
-        let mut buffer = BytesMut::with_capacity(HASH_RESULT_LEN + RAND_VALUE_LEN + PUBLIC_KEY_LEN +
-                                                 DH_PUBLIC_KEY_LEN + SALT_LEN);
+        let mut buf = BytesMut::with_capacity(
+            HASH_RESULT_LEN
+                + DH_PUBLIC_KEY_LEN
+                + SALT_LEN
+        );
 
-        buffer.put(self.prev_hash.as_ref());
-        buffer.put(self.rand_nonce.as_ref());
-        buffer.put(self.public_key.as_ref());
-        buffer.put(self.dh_public_key.as_ref());
-        buffer.put(self.key_salt.as_ref());
+        buf.put(self.prev_hash.as_ref());
+        buf.put(self.dh_public_key.as_ref());
+        buf.put(self.key_salt.as_ref());
 
-        buffer.freeze()
-    }
-}
-
-
-impl ExchangeActive {
-    #[inline]
-    pub fn as_bytes(&self) -> Bytes {
-        let mut buffer = BytesMut::with_capacity(HASH_RESULT_LEN + DH_PUBLIC_KEY_LEN + SALT_LEN);
-
-        buffer.put(self.prev_hash.as_ref());
-        buffer.put(self.dh_public_key.as_ref());
-        buffer.put(self.key_salt.as_ref());
-
-        buffer.freeze()
+        buf.freeze()
     }
 }
 
@@ -116,87 +143,136 @@ impl ChannelReady {
     }
 }
 
+impl UnknownChannel {
+    #[inline]
+    pub fn as_bytes(&self) -> Bytes {
+        let mut buf = BytesMut::with_capacity(CHANNEL_ID_LEN + RAND_VALUE_LEN);
+
+        buf.put(self.channel_id.as_ref());
+        buf.put(self.rand_nonce.as_ref());
+
+        buf.freeze()
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::convert::TryFrom;
     use crypto::identity::SIGNATURE_LEN;
 
     #[test]
-    fn test_init_channel_as_bytes() {
-        let init_channel = InitChannel {
-            rand_nonce: RandValue::try_from(&[0x00; RAND_VALUE_LEN]).unwrap(),
-            public_key: PublicKey::try_from(&[0x01; PUBLIC_KEY_LEN]).unwrap(),
+    fn test_request_nonce_as_bytes() {
+        let request_nonce = RequestNonce {
+            rand_nonce: RandValue::from(&[0x00; RAND_VALUE_LEN]),
         };
 
-        let underlying = init_channel.as_bytes();
+        let underlying = request_nonce.as_bytes();
 
-        assert_eq!(underlying.len(), RAND_VALUE_LEN + PUBLIC_KEY_LEN);
-        assert!(&underlying[..RAND_VALUE_LEN].into_iter().all(|x| *x == 0));
-        assert!(&underlying[RAND_VALUE_LEN..].into_iter().all(|x| *x == 1));
+        assert!(underlying.into_iter().all(|x| x == 0));
+    }
+
+    #[test]
+    fn test_respond_nonce_as_bytes() {
+        let respond_nonce = RespondNonce {
+            req_rand_nonce: RandValue::from(&[0x00; RAND_VALUE_LEN]),
+            res_rand_nonce: RandValue::from(&[0x01; RAND_VALUE_LEN]),
+            responder_rand_nonce: RandValue::from(&[0x02; RAND_VALUE_LEN]),
+            signature: Signature::from(&[0xff; SIGNATURE_LEN]),
+        };
+
+        let underlying = respond_nonce.as_bytes();
+
+        let a = RAND_VALUE_LEN;
+        let b = a + RAND_VALUE_LEN;
+        let n = b + RAND_VALUE_LEN;
+
+        assert_eq!(underlying.len(), n);
+
+        assert!(&underlying[0..a].into_iter().all(|x| *x == 0));
+        assert!(&underlying[a..b].into_iter().all(|x| *x == 1));
+        assert!(&underlying[b..n].into_iter().all(|x| *x == 2));
+    }
+
+    #[test]
+    fn test_exchange_active_as_bytes() {
+        let exchange_active = ExchangeActive {
+            responder_rand_nonce: RandValue::from(&[0x00; RAND_VALUE_LEN]),
+            initiator_rand_nonce: RandValue::from(&[0x01; RAND_VALUE_LEN]),
+            initiator_public_key: PublicKey::from(&[0x02; PUBLIC_KEY_LEN]),
+            responder_public_key: PublicKey::from(&[0x03; PUBLIC_KEY_LEN]),
+            dh_public_key: DhPublicKey::from(&[0x04; DH_PUBLIC_KEY_LEN]),
+            key_salt: Salt::from(&[0x05; SALT_LEN]),
+            signature: Signature::from(&[0xff; SIGNATURE_LEN]),
+        };
+
+        let underlying = exchange_active.as_bytes();
+
+        let a = RAND_VALUE_LEN;
+        let b = a + RAND_VALUE_LEN;
+        let c = b + PUBLIC_KEY_LEN;
+        let d = c + PUBLIC_KEY_LEN;
+        let e = d + DH_PUBLIC_KEY_LEN;
+        let n = e + SALT_LEN;
+
+        assert_eq!(underlying.len(), n);
+
+        assert!(&underlying[0..a].into_iter().all(|x| *x == 0));
+        assert!(&underlying[a..b].into_iter().all(|x| *x == 1));
+        assert!(&underlying[b..c].into_iter().all(|x| *x == 2));
+        assert!(&underlying[c..d].into_iter().all(|x| *x == 3));
+        assert!(&underlying[d..e].into_iter().all(|x| *x == 4));
+        assert!(&underlying[e..n].into_iter().all(|x| *x == 5));
     }
 
     #[test]
     fn test_exchange_passive_as_bytes() {
         let exchange_passive = ExchangePassive {
-            prev_hash: HashResult::try_from(&[0x01u8; HASH_RESULT_LEN]).unwrap(),
-            rand_nonce: RandValue::try_from(&[0x02; RAND_VALUE_LEN]).unwrap(),
-            public_key: PublicKey::try_from(&[0x03; PUBLIC_KEY_LEN]).unwrap(),
-            dh_public_key: DhPublicKey::try_from(&[0x04; DH_PUBLIC_KEY_LEN]).unwrap(),
-            key_salt: Salt::try_from(&[0x05; SALT_LEN]).unwrap(),
-            signature: Signature::try_from(&[0x06; SIGNATURE_LEN]).unwrap(),
+            prev_hash: HashResult::from(&[0x00; HASH_RESULT_LEN]),
+            dh_public_key: DhPublicKey::from(&[0x01; DH_PUBLIC_KEY_LEN]),
+            key_salt: Salt::from(&[0x02; SALT_LEN]),
+            signature: Signature::from(&[0xff; SIGNATURE_LEN]),
         };
 
         let underlying = exchange_passive.as_bytes();
 
         let a = HASH_RESULT_LEN;
-        let b = a + RAND_VALUE_LEN;
-        let c = b + PUBLIC_KEY_LEN;
-        let d = c + DH_PUBLIC_KEY_LEN;
-        let e = d + SALT_LEN;
-
-        assert_eq!(underlying.len(), e);
-        assert!(&underlying[..a].into_iter().all(|x| *x == 1));
-        assert!(&underlying[a..b].into_iter().all(|x| *x == 2));
-        assert!(&underlying[b..c].into_iter().all(|x| *x == 3));
-        assert!(&underlying[c..d].into_iter().all(|x| *x == 4));
-        assert!(&underlying[d..e].into_iter().all(|x| *x == 5));
-    }
-
-
-    #[test]
-    fn test_exchange_active_as_bytes() {
-        let exchange_active = ExchangeActive {
-            prev_hash: HashResult::try_from(&[0x01u8; HASH_RESULT_LEN]).unwrap(),
-            dh_public_key: DhPublicKey::try_from(&[0x02; DH_PUBLIC_KEY_LEN]).unwrap(),
-            key_salt: Salt::try_from(&[0x03; SALT_LEN]).unwrap(),
-            signature: Signature::try_from(&[0x04; SIGNATURE_LEN]).unwrap(),
-        };
-
-        let underlying = exchange_active.as_bytes();
-
-        let a = HASH_RESULT_LEN;
         let b = a + DH_PUBLIC_KEY_LEN;
-        let c = b + SALT_LEN;
+        let n = b + SALT_LEN;
 
-        assert_eq!(underlying.len(), c);
-        assert!(&underlying[..a].into_iter().all(|x| *x == 1));
-        assert!(&underlying[a..b].into_iter().all(|x| *x == 2));
-        assert!(&underlying[b..c].into_iter().all(|x| *x == 3));
+        assert_eq!(underlying.len(), n);
+
+        assert!(&underlying[0..a].into_iter().all(|x| *x == 0));
+        assert!(&underlying[a..b].into_iter().all(|x| *x == 1));
+        assert!(&underlying[b..n].into_iter().all(|x| *x == 2));
     }
-
 
     #[test]
     fn test_channel_ready_as_bytes() {
         let channel_ready = ChannelReady {
-            prev_hash: HashResult::try_from(&[0x01u8; HASH_RESULT_LEN]).unwrap(),
-            signature: Signature::try_from(&[0x02; SIGNATURE_LEN]).unwrap(),
+            prev_hash: HashResult::from(&[0x00; HASH_RESULT_LEN]),
+            signature: Signature::from(&[0xff; SIGNATURE_LEN]),
         };
 
         let underlying = channel_ready.as_bytes();
 
         assert_eq!(underlying.len(), HASH_RESULT_LEN);
-        assert!(underlying.into_iter().all(|x| x == 1));
+        assert!(underlying.into_iter().all(|x| x == 0));
+    }
+
+    #[test]
+    fn test_unknown_channel_as_bytes() {
+        let unknown_channel = UnknownChannel {
+            channel_id: ChannelId::from(&[0x00; CHANNEL_ID_LEN]),
+            rand_nonce: RandValue::from(&[0x01; RAND_VALUE_LEN]),
+            signature: Signature::from(&[0xff; SIGNATURE_LEN]),
+        };
+
+        let underlying = unknown_channel.as_bytes();
+
+        assert_eq!(underlying.len(), CHANNEL_ID_LEN + RAND_VALUE_LEN);
+
+        assert!(&underlying[0..CHANNEL_ID_LEN].into_iter().all(|x| *x == 0));
+        assert!(&underlying[RAND_VALUE_LEN..].into_iter().all(|x| *x == 1));
     }
 }
