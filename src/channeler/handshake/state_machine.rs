@@ -4,66 +4,84 @@ use std::cell::RefCell;
 use ring::rand::SecureRandom;
 use bytes::Bytes;
 
-use crypto::dh::{DhPrivateKey, Salt};
+use crypto::dh::{DhPrivateKey, DhPublicKey, Salt};
 use crypto::identity::{PublicKey, verify_signature, SIGNATURE_LEN, Signature};
 use crypto::hash::{HashResult, sha_512_256};
-use crypto::rand_values::RandValue;
-use proto::channeler::{InitChannel, ExchangeActive, ExchangePassive, ChannelReady};
+use crypto::rand_values::{RandValue, RandValuesStore};
+use proto::channeler::{RequestNonce, RespondNonce, ExchangeActive, ExchangePassive, ChannelReady};
 use channeler::types::NeighborsTable;
 
 use super::Result;
 use super::types::*;
 
-/// The state of a handshake session.
+/// The 5-way handshake state of CSwitch.
 pub enum HandshakeState {
-    InitChannel {
-        init_channel: InitChannel,
+    RequestNonce,
+
+    ExchangeActive {
+        responder_rand_nonce: RandValue,
+        initiator_rand_nonce: RandValue,
+        initiator_key_salt: Salt,
+
+        my_private_key: DhPrivateKey,
     },
 
-    Passive {
-        init_channel: InitChannel,
-        my_private_key: DhPrivateKey,
-        exchange_passive: ExchangePassive,
-    },
+    ExchangePassive {
+        responder_rand_nonce: RandValue,
+        initiator_rand_nonce: RandValue,
+        initiator_key_salt: Salt,
+        responder_key_salt: Salt,
+        remote_dh_public_key: DhPublicKey,
 
-    Active {
-        init_channel: InitChannel,
-        exchange_passive: ExchangePassive,
         my_private_key: DhPrivateKey,
-        exchange_active: ExchangeActive,
-    },
+    }
 }
 
 impl HandshakeState {
-    pub fn new(init_channel: InitChannel) -> HandshakeState {
-        HandshakeState::InitChannel { init_channel }
+    pub fn new() -> HandshakeState {
+        HandshakeState::RequestNonce
     }
 
-    pub fn move_passive(
+    pub fn trans_exchange_active(
         self,
-        my_private_key: DhPrivateKey,
-        exchange_passive: ExchangePassive,
+        responder_rand_nonce: RandValue,
+        initiator_rand_nonce: RandValue,
+        initiator_key_salt: Salt,
+        my_private_key: DhPrivateKey
     ) -> Result<HandshakeState> {
         match self {
-            HandshakeState::InitChannel { init_channel } => {
-                Ok(HandshakeState::Passive {
-                    init_channel,
+            HandshakeState::RequestNonce => {
+                Ok(HandshakeState::ExchangeActive {
+                    responder_rand_nonce,
+                    initiator_rand_nonce,
+                    initiator_key_salt,
                     my_private_key,
-                    exchange_passive,
                 })
             }
             _ => Err(HandshakeError::InvalidTransfer)
         }
     }
 
-    pub fn move_active(self, exchange_active: ExchangeActive) -> Result<HandshakeState> {
+    pub fn trans_exchange_passive(
+        self,
+        responder_key_salt: Salt,
+        remote_dh_public_key: DhPublicKey,
+    ) -> Result<HandshakeState> {
         match self {
-            HandshakeState::Passive { init_channel, my_private_key, exchange_passive } => {
-                Ok(HandshakeState::Active {
-                    init_channel,
+            HandshakeState::ExchangeActive {
+                responder_rand_nonce,
+                initiator_rand_nonce,
+                initiator_key_salt,
+                my_private_key,
+            } => {
+                Ok(HandshakeState::ExchangePassive {
+                    responder_rand_nonce,
+                    initiator_rand_nonce,
+                    initiator_key_salt,
+                    responder_key_salt,
+                    remote_dh_public_key,
+
                     my_private_key,
-                    exchange_passive,
-                    exchange_active,
                 })
             }
             _ => Err(HandshakeError::InvalidTransfer)
@@ -75,6 +93,7 @@ pub struct HandshakeStateMachine<SR> {
     neighbors: Rc<RefCell<NeighborsTable>>,
     secure_rng: Rc<SR>,
     sessions_map: HandshakeSessionMap,
+    rand_nonces_store: RandValuesStore,
     my_public_key: PublicKey,
 }
 
@@ -84,81 +103,161 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
         secure_rng: Rc<SR>,
         my_public_key: PublicKey,
     ) -> HandshakeStateMachine<SR> {
+        let rand_nonces_store = RandValuesStore::new(&*secure_rng, 5, 3);
+
         HandshakeStateMachine {
             neighbors,
             secure_rng,
+            rand_nonces_store,
             my_public_key,
             sessions_map: HandshakeSessionMap::new(),
         }
     }
 
-    pub fn new_handshake(&mut self, neighbor_public_key: PublicKey) -> Result<InitChannel> {
-        let id = HandshakeId::new(HandshakeRole::Initiator, neighbor_public_key);
+    pub fn new_handshake(&mut self, remote_public_key: PublicKey) -> Result<RequestNonce> {
+        let id = HandshakeId::new(HandshakeRole::Initiator, remote_public_key);
 
         if self.sessions_map.contains_id(&id) {
             return Err(HandshakeError::AlreadyExist);
         }
 
-        let rand_nonce = RandValue::new(&*self.secure_rng);
-        let init_channel = InitChannel {
-            rand_nonce,
-            public_key: self.my_public_key.clone(),
+        let request_nonce = RequestNonce {
+            rand_nonce: RandValue::new(&*self.secure_rng),
         };
 
-        let last_hash = sha_512_256(&init_channel.as_bytes());
-        let state = HandshakeState::new(init_channel.clone());
+        let state = HandshakeState::new();
         let session = HandshakeSession::new(id, state, 100);
 
+        let last_hash = sha_512_256(&request_nonce.as_bytes());
         match self.sessions_map.insert(last_hash, session) {
-            None => Ok(init_channel),
+            None => Ok(request_nonce),
             Some(_) => Err(HandshakeError::AlreadyExist),
         }
     }
 
-    pub fn process_init_channel(&mut self, init_channel: InitChannel) -> Result<ExchangePassive> {
-        let id = HandshakeId::new(HandshakeRole::Responder, init_channel.public_key.clone());
+    pub fn process_request_nonce(&mut self, request_nonce: RequestNonce) -> Result<RespondNonce> {
+        let respond_nonce = RespondNonce {
+            req_rand_nonce: request_nonce.rand_nonce,
+            res_rand_nonce: RandValue::new(&*self.secure_rng),
+            responder_rand_nonce: self.rand_nonces_store.last_rand_value(),
 
-        if self.sessions_map.contains_id(&id) {
-            return Err(HandshakeError::AlreadyExist);
-        } else {
-            match self.neighbors.borrow().get(&init_channel.public_key) {
-                Some(neighbor) if neighbor.info.socket_addr.is_none() => (),
-                _ => return Err(HandshakeError::NotAllowed),
-            }
-        }
-
-        let prev_hash = sha_512_256(&init_channel.as_bytes());
-        let rand_nonce = RandValue::new(&*self.secure_rng);
-        let dh_private_key = DhPrivateKey::new(&*self.secure_rng)
-            .map_err(|e| HandshakeError::CryptoError(e))?;
-        let dh_public_key = dh_private_key.compute_public_key()
-            .map_err(|e| HandshakeError::CryptoError(e))?;
-        let key_salt = Salt::new(&*self.secure_rng)
-            .map_err(|e| HandshakeError::CryptoError(e))?;
-
-        let exchange_passive = ExchangePassive {
-            prev_hash,
-            rand_nonce,
-            public_key: self.my_public_key.clone(),
-            dh_public_key,
-            key_salt,
-            signature: Signature::from(&[0x00u8; SIGNATURE_LEN]),
+            signature: Signature::from(&[0x00; SIGNATURE_LEN]),
         };
 
+        Ok(respond_nonce)
+    }
+
+    pub fn process_respond_nonce(&mut self, respond_nonce: RespondNonce) -> Result<ExchangeActive> {
+        // Check whether we sent the RequestNonce message
+        let mut session = self.sessions_map.take_by_hash(&sha_512_256(&respond_nonce.req_rand_nonce))
+            .ok_or(HandshakeError::NoSuchSession)?;
+
+        // Verify the signature of this message
+        let msg = respond_nonce.as_bytes();
+        if !verify_signature(&msg, session.remote_public_key(), &respond_nonce.signature) {
+            return Err(HandshakeError::InvalidSignature);
+        }
+
+        // Generate DH private key and key salt
+        let my_private_key = DhPrivateKey::new(&*self.secure_rng)
+            .map_err(HandshakeError::CryptoError)?;
+        let dh_public_key = my_private_key.compute_public_key()
+            .map_err(HandshakeError::CryptoError)?;
+        let key_salt = Salt::new(&*self.secure_rng)
+            .map_err(HandshakeError::CryptoError)?;
+
+        let exchange_active = ExchangeActive {
+            key_salt,
+            dh_public_key,
+
+            responder_rand_nonce: respond_nonce.responder_rand_nonce,
+            initiator_rand_nonce: RandValue::new(&*self.secure_rng),
+            initiator_public_key: self.my_public_key.clone(),
+            responder_public_key: session.remote_public_key().clone(),
+            signature: Signature::from(&[0x00; SIGNATURE_LEN]),
+        };
+
+        // Transfer handshake state
+        session.state = session.state.trans_exchange_active(
+            exchange_active.responder_rand_nonce.clone(),
+            exchange_active.initiator_rand_nonce.clone(),
+            exchange_active.key_salt.clone(),
+            my_private_key,
+        )?;
+
+        let last_hash = sha_512_256(&exchange_active.as_bytes());
+        match self.sessions_map.insert(last_hash, session) {
+            None => Ok(exchange_active),
+            Some(_) => Err(HandshakeError::AlreadyExist),
+        }
+    }
+
+    pub fn process_exchange_active(&mut self, exchange_active: ExchangeActive) -> Result<ExchangePassive> {
+        let remote_public_key = &exchange_active.initiator_public_key;
+        let id = HandshakeId::new(HandshakeRole::Responder, remote_public_key.clone());
+
+        match self.neighbors.borrow().get(&remote_public_key) {
+            Some(neighbor) => {
+                // Check whether a allowed initiator
+                if neighbor.info.socket_addr.is_some() {
+                    return Err(HandshakeError::NotAllowed)
+                } else {
+                    // Check whether an ongoing handshake session with initiator
+                    if self.sessions_map.contains_id(&id) {
+                        return Err(HandshakeError::AlreadyExist)
+                    }
+                }
+            },
+            None => return Err(HandshakeError::NotAllowed),
+        }
+
+        // Verify the signature of this message
+        let msg = exchange_active.as_bytes();
+        if !verify_signature(&msg, &remote_public_key, &exchange_active.signature) {
+            return Err(HandshakeError::InvalidSignature)
+        }
+
+        // Generate DH private key and key salt
+        let my_private_key = DhPrivateKey::new(&*self.secure_rng)
+            .map_err(HandshakeError::CryptoError)?;
+        let dh_public_key = my_private_key.compute_public_key()
+            .map_err(HandshakeError::CryptoError)?;
+        let key_salt = Salt::new(&*self.secure_rng)
+            .map_err(HandshakeError::CryptoError)?;
+
+        let exchange_passive = ExchangePassive {
+            prev_hash: sha_512_256(&msg),
+            dh_public_key,
+            key_salt,
+
+            signature: Signature::from(&[0x00; SIGNATURE_LEN]),
+        };
+
+        let mut state = HandshakeState::new();
+
+        // RequestNonce -> ExchangeActive
+        state = state.trans_exchange_active(
+            exchange_active.responder_rand_nonce,
+            exchange_active.initiator_rand_nonce,
+            exchange_active.key_salt,
+            my_private_key,
+        )?;
+        // ExchangeActive -> ExchangePassive
+        state = state.trans_exchange_passive(
+            exchange_passive.key_salt.clone(),
+            exchange_active.dh_public_key,
+        )?;
+
+        let session  = HandshakeSession::new(id, state, 100);
+
         let last_hash = sha_512_256(&exchange_passive.as_bytes());
-
-        let state = HandshakeState::new(init_channel);
-        let state = state.move_passive(dh_private_key, exchange_passive.clone())?;
-
-        let session = HandshakeSession::new(id, state, 100);
-
         match self.sessions_map.insert(last_hash, session) {
             None => Ok(exchange_passive),
             Some(_) => Err(HandshakeError::AlreadyExist),
         }
     }
 
-    pub fn process_exchange_passive(&mut self, exchange_passive: ExchangePassive) -> Result<ExchangeActive> {
+    pub fn process_exchange_passive(&mut self, exchange_passive: ExchangePassive) -> Result<(NewChannelInfo, ChannelReady)> {
         let session = self.sessions_map.take_by_hash(&exchange_passive.prev_hash)
             .ok_or(HandshakeError::NoSuchSession)?;
 
@@ -168,56 +267,10 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
             return Err(HandshakeError::InvalidSignature);
         }
 
-        let prev_hash = sha_512_256(&exchange_passive.as_bytes());
-        let dh_private_key = DhPrivateKey::new(&*self.secure_rng)
-            .map_err(|e| HandshakeError::CryptoError(e))?;
-        let dh_public_key = dh_private_key.compute_public_key()
-            .map_err(|e| HandshakeError::CryptoError(e))?;
-        let key_salt = Salt::new(&*self.secure_rng)
-            .map_err(|e| HandshakeError::CryptoError(e))?;
-
-        let exchange_active = ExchangeActive {
-            prev_hash,
-            dh_public_key,
-            key_salt,
-            signature: Signature::from(&[0x00u8; SIGNATURE_LEN]),
-        };
-
-        let last_hash = sha_512_256(&exchange_active.as_bytes());
-        let id = session.id;
-        let state = session.state.move_passive(dh_private_key, exchange_passive)?;
-        let state = state.move_active(exchange_active.clone())?;
-
-        // Rebuild a session, also reset the timeout counter
-        let session = HandshakeSession::new(id, state, 100);
-
-        match self.sessions_map.insert(last_hash, session) {
-            None => Ok(exchange_active),
-            Some(_) => Err(HandshakeError::AlreadyExist),
-        }
-    }
-
-    pub fn process_exchange_active(&mut self, exchange_active: ExchangeActive) -> Result<(NewChannelInfo, ChannelReady)> {
-        let session = self.sessions_map.take_by_hash(&exchange_active.prev_hash)
-            .ok_or(HandshakeError::NoSuchSession)?;
-
-        let remote_public_key = session.remote_public_key();
-
-        if !verify_signature(&exchange_active.as_bytes(), remote_public_key, &exchange_active.signature) {
-            return Err(HandshakeError::InvalidSignature);
-        }
-
         let channel_ready = ChannelReady {
-            prev_hash: sha_512_256(&exchange_active.as_bytes()),
-            signature: Signature::from(&[0x00u8; SIGNATURE_LEN]),
+            prev_hash: sha_512_256(&exchange_passive.as_bytes()),
+            signature: Signature::from(&[0x00; SIGNATURE_LEN]),
         };
-
-        let id = session.id;
-        let state = session.state.move_active(exchange_active)?;
-
-        // Rebuild a session, also reset the timeout counter
-        // FIXME: Change the design
-        let session = HandshakeSession::new(id, state, 100);
 
         let new_channel_info = session.finish()?;
 
@@ -306,38 +359,59 @@ mod tests {
 
         let shared_secure_rng = Rc::new(SystemRandom::new());
 
-        let mut handshake_state_machine_a = HandshakeStateMachine::new(
+        let mut hs_state_machine_a = HandshakeStateMachine::new(
             neighbors_a,
             Rc::clone(&shared_secure_rng),
             public_key_a.clone(),
         );
 
-        let mut handshake_state_machine_b = HandshakeStateMachine::new(
+        let mut hs_state_machine_b = HandshakeStateMachine::new(
             neighbors_b,
             Rc::clone(&shared_secure_rng),
             public_key_b.clone(),
         );
 
-        // A -> B
-        let init_channel_to_b =
-            handshake_state_machine_a.new_handshake(public_key_b.clone()).unwrap();
-        // B -> A
-        let mut exchange_passive_to_a =
-            handshake_state_machine_b.process_init_channel(init_channel_to_b).unwrap();
-        exchange_passive_to_a.signature =
-            identity_b.sign_message(&exchange_passive_to_a.as_bytes());
-        // A -> B
-        let mut exchange_active_to_b =
-            handshake_state_machine_a.process_exchange_passive(exchange_passive_to_a).unwrap();
-        exchange_active_to_b.signature =
-            identity_a.sign_message(&exchange_active_to_b.as_bytes());
-        // B -> A
-        let (new_channel_info_b, mut channel_ready_to_a) =
-            handshake_state_machine_b.process_exchange_active(exchange_active_to_b).unwrap();
-        channel_ready_to_a.signature = identity_b.sign_message(&channel_ready_to_a.prev_hash);
+        // A -> B: RequestNonce
+        let request_nonce_to_b = hs_state_machine_a.new_handshake(
+            public_key_b.clone()
+        ).unwrap();
 
-        let new_channel_info_a =
-            handshake_state_machine_a.process_channel_ready(channel_ready_to_a).unwrap();
+        // B -> A: RespondNonce
+        let mut respond_nonce_to_a = hs_state_machine_b.process_request_nonce(
+            request_nonce_to_b
+        ).unwrap();
+        respond_nonce_to_a.signature = identity_b.sign_message(
+            &respond_nonce_to_a.as_bytes()
+        );
+
+        // A -> B: ExchangeActive
+        let mut exchange_active_to_b = hs_state_machine_a.process_respond_nonce(
+            respond_nonce_to_a
+        ).unwrap();
+        exchange_active_to_b.signature = identity_a.sign_message(
+            &exchange_active_to_b.as_bytes()
+        );
+
+        // B -> A: ExchangePassive
+        let mut exchange_passive_to_a = hs_state_machine_b.process_exchange_active(
+            exchange_active_to_b
+        ).unwrap();
+        exchange_passive_to_a.signature = identity_b.sign_message(
+            &exchange_passive_to_a.as_bytes()
+        );
+
+        // A -> B: ChannelReady (A: Finish)
+        let (new_channel_info_a, mut channel_ready_to_b) = hs_state_machine_a.process_exchange_passive(
+            exchange_passive_to_a
+        ).unwrap();
+        channel_ready_to_b.signature = identity_b.sign_message(
+            &channel_ready_to_b.as_bytes()
+        );
+
+        // B: Finish
+        let new_channel_info_b = hs_state_machine_b.process_channel_ready(
+            channel_ready_to_b
+        ).unwrap();
 
         assert_eq!(new_channel_info_a.sender_id, new_channel_info_b.receiver_id);
         assert_eq!(new_channel_info_b.receiver_id, new_channel_info_a.sender_id);

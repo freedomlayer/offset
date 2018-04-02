@@ -51,8 +51,8 @@ pub enum HandshakeRole {
 pub struct HandshakeId(HandshakeRole, PublicKey);
 
 impl HandshakeId {
-    pub fn new(role: HandshakeRole, public_key: PublicKey) -> HandshakeId {
-        HandshakeId(role, public_key)
+    pub fn new(role: HandshakeRole, remote_public_key: PublicKey) -> HandshakeId {
+        HandshakeId(role, remote_public_key)
     }
 
     pub fn is_initiator(&self) -> bool {
@@ -101,40 +101,52 @@ impl HandshakeSession {
     //
     // # Panics
     //
-    // Panics if the state of the session isn't `State::Active`
+    // Panics if the state of the session isn't `HandshakeState::ExchangePassive`
     pub fn finish(self) -> Result<NewChannelInfo, HandshakeError> {
         let is_initiator = self.is_initiator();
+        let remote_public_key = self.remote_public_key().clone();
 
         match self.state {
-            HandshakeState::Active {
-                init_channel,
-                exchange_passive,
+            HandshakeState::ExchangePassive {
+                initiator_rand_nonce,
+                responder_rand_nonce,
+                remote_dh_public_key,
+                initiator_key_salt,
+                responder_key_salt,
                 my_private_key,
-                exchange_active
             } => {
+                let (initiator_dh_public_key, responder_dh_public_key) = {
+                    let my_dh_public_key = my_private_key.compute_public_key()
+                        .map_err(HandshakeError::CryptoError)?;
+
+                    if is_initiator {
+                        (my_dh_public_key, remote_dh_public_key)
+                    } else {
+                        (remote_dh_public_key, my_dh_public_key)
+                    }
+                };
+
                 let (initiator_id, responder_id) = derive_channel_id(
-                    &init_channel.rand_nonce,
-                    &exchange_passive.rand_nonce,
-                    &exchange_active.dh_public_key,
-                    &exchange_passive.dh_public_key,
+                    &initiator_rand_nonce,
+                    &responder_rand_nonce,
+                    &initiator_dh_public_key,
+                    &responder_dh_public_key,
                 );
 
                 let sender_id: ChannelId;
                 let receiver_id: ChannelId;
                 let sender_key: SealingKey;
                 let receiver_key: OpeningKey;
-                let remote_public_key: PublicKey;
 
                 if is_initiator {
                     sender_id = initiator_id;
                     receiver_id = responder_id;
-                    remote_public_key = exchange_passive.public_key;
 
                     let keys = derive_key(
                         my_private_key,
-                        exchange_passive.dh_public_key,
-                        exchange_active.key_salt,
-                        exchange_passive.key_salt,
+                        responder_dh_public_key,
+                        initiator_key_salt,
+                        responder_key_salt,
                     ).map_err(|_| HandshakeError::InvalidKey)?;
 
                     sender_key = keys.0;
@@ -142,13 +154,12 @@ impl HandshakeSession {
                 } else {
                     sender_id = responder_id;
                     receiver_id = initiator_id;
-                    remote_public_key = init_channel.public_key;
 
                     let keys = derive_key(
                         my_private_key,
-                        exchange_active.dh_public_key,
-                        exchange_passive.key_salt,
-                        exchange_active.key_salt,
+                        initiator_dh_public_key,
+                        responder_key_salt,
+                        initiator_key_salt,
                     ).map_err(|_| HandshakeError::InvalidKey)?;
 
                     sender_key = keys.0;
@@ -183,7 +194,8 @@ impl HandshakeSessionMap {
     /// session relevant to the "last hash" or "id", the input parameter
     /// will be returned and the map not changed.
     pub fn insert(&mut self, hash: HashResult, sess: HandshakeSession)
-                  -> Option<(HashResult, HandshakeSession)> {
+        -> Option<(HashResult, HandshakeSession)>
+    {
         if !self.contains_id(&sess.id) && !self.contains_hash(&hash) {
             self.in_flight_ids.insert(sess.id.clone());
             self.last_hash_map.insert(hash, sess);
@@ -262,12 +274,12 @@ impl HandshakeSessionMap {
 
 fn derive_key(
     my_private_key: DhPrivateKey,
-    remote_public_key: DhPublicKey,
+    remote_dh_public_key: DhPublicKey,
     sent_salt: Salt,
     recv_salt: Salt,
 ) -> Result<(SealingKey, OpeningKey), HandshakeError> {
     let (send_key, recv_key) = my_private_key.derive_symmetric_key(
-        remote_public_key,
+        remote_dh_public_key,
         sent_salt,
         recv_salt,
     ).map_err(|_| HandshakeError::InvalidKey)?;
@@ -336,7 +348,7 @@ mod tests {
 
         let new_session = HandshakeSession {
             id: id.clone(),
-            state: HandshakeState::InitChannel { init_channel },
+            state: HandshakeState::RequestNonce,
             timeout_ticks: TIMEOUT_TICKS,
         };
 
