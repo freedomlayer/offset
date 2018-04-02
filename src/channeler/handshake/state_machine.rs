@@ -196,7 +196,7 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
         let remote_public_key = &exchange_active.initiator_public_key;
         let id = HandshakeId::new(HandshakeRole::Responder, remote_public_key.clone());
 
-        match self.neighbors.borrow().get(&remote_public_key) {
+        match self.neighbors.borrow().get(remote_public_key) {
             Some(neighbor) => {
                 // Check whether a allowed initiator
                 if neighbor.info.socket_addr.is_some() {
@@ -213,7 +213,7 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
 
         // Verify the signature of this message
         let msg = exchange_active.as_bytes();
-        if !verify_signature(&msg, &remote_public_key, &exchange_active.signature) {
+        if !verify_signature(&msg, remote_public_key, &exchange_active.signature) {
             return Err(HandshakeError::InvalidSignature)
         }
 
@@ -258,7 +258,7 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
     }
 
     pub fn process_exchange_passive(&mut self, exchange_passive: ExchangePassive) -> Result<(NewChannelInfo, ChannelReady)> {
-        let session = self.sessions_map.take_by_hash(&exchange_passive.prev_hash)
+        let mut session = self.sessions_map.take_by_hash(&exchange_passive.prev_hash)
             .ok_or(HandshakeError::NoSuchSession)?;
 
         let remote_public_key = session.remote_public_key();
@@ -271,6 +271,11 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
             prev_hash: sha_512_256(&exchange_passive.as_bytes()),
             signature: Signature::from(&[0x00; SIGNATURE_LEN]),
         };
+
+        session.state = session.state.trans_exchange_passive(
+            exchange_passive.key_salt,
+            exchange_passive.dh_public_key,
+        )?;
 
         let new_channel_info = session.finish()?;
 
@@ -404,7 +409,7 @@ mod tests {
         let (new_channel_info_a, mut channel_ready_to_b) = hs_state_machine_a.process_exchange_passive(
             exchange_passive_to_a
         ).unwrap();
-        channel_ready_to_b.signature = identity_b.sign_message(
+        channel_ready_to_b.signature = identity_a.sign_message(
             &channel_ready_to_b.as_bytes()
         );
 

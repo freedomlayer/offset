@@ -331,7 +331,6 @@ mod tests {
     use crypto::rand_values::RAND_VALUE_LEN;
     use crypto::identity::PUBLIC_KEY_LEN;
     use crypto::hash::HASH_RESULT_LEN;
-    use proto::channeler::InitChannel;
 
     const TIMEOUT_TICKS: usize = 10;
 
@@ -339,12 +338,8 @@ mod tests {
     fn session_map_insert_remove() {
         let mut sessions = HandshakeSessionMap::new();
 
-        let init_channel = InitChannel {
-            rand_nonce: RandValue::from(&[0x01; RAND_VALUE_LEN]),
-            public_key: PublicKey::from(&[0x02; PUBLIC_KEY_LEN]),
-        };
-
-        let id = HandshakeId::new(HandshakeRole::Responder, init_channel.public_key.clone());
+        let remote_public_key = PublicKey::from(&[0x00; PUBLIC_KEY_LEN]);
+        let id = HandshakeId::new(HandshakeRole::Responder, remote_public_key);
 
         let new_session = HandshakeSession {
             id: id.clone(),
@@ -352,7 +347,7 @@ mod tests {
             timeout_ticks: TIMEOUT_TICKS,
         };
 
-        let last_hash = HashResult::from(&[0x03; HASH_RESULT_LEN]);
+        let last_hash = HashResult::from(&[0x01; HASH_RESULT_LEN]);
 
         assert!(sessions.insert(last_hash.clone(), new_session).is_none());
 
@@ -369,35 +364,23 @@ mod tests {
     fn session_map_timer_tick() {
         let mut sessions = HandshakeSessionMap::new();
 
-        let init_channel1 = InitChannel {
-            rand_nonce: RandValue::from(&[0x01; RAND_VALUE_LEN]),
-            public_key: PublicKey::from(&[0x02; PUBLIC_KEY_LEN]),
-        };
-        let handshake_id1 = HandshakeId::new(
-            HandshakeRole::Responder,
-            init_channel1.public_key.clone(),
-        );
+        let remote_public_key1 = PublicKey::from(&[0x00; PUBLIC_KEY_LEN]);
+        let handshake_id1 = HandshakeId::new(HandshakeRole::Responder, remote_public_key1);
         let new_session1 = HandshakeSession {
             id: handshake_id1.clone(),
-            state: HandshakeState::InitChannel { init_channel: init_channel1 },
+            state: HandshakeState::RequestNonce,
             timeout_ticks: TIMEOUT_TICKS,
         };
-        let last_hash1 = HashResult::from(&[0x03; HASH_RESULT_LEN]);
+        let last_hash1 = HashResult::from(&[0x01; HASH_RESULT_LEN]);
 
-        let init_channel2 = InitChannel {
-            rand_nonce: RandValue::from(&[0x04; RAND_VALUE_LEN]),
-            public_key: PublicKey::from(&[0x05; PUBLIC_KEY_LEN]),
-        };
-        let handshake_id2 = HandshakeId::new(
-            HandshakeRole::Responder,
-            init_channel2.public_key.clone(),
-        );
+        let remote_public_key2 = PublicKey::from(&[0x02; PUBLIC_KEY_LEN]);
+        let handshake_id2 = HandshakeId::new(HandshakeRole::Responder, remote_public_key2);
         let new_session2 = HandshakeSession {
             id: handshake_id2.clone(),
-            state: HandshakeState::InitChannel { init_channel: init_channel2 },
+            state: HandshakeState::RequestNonce,
             timeout_ticks: TIMEOUT_TICKS + 1,
         };
-        let last_hash2 = HashResult::from(&[0x06; HASH_RESULT_LEN]);
+        let last_hash2 = HashResult::from(&[0x03; HASH_RESULT_LEN]);
 
         assert!(sessions.insert(last_hash1.clone(), new_session1).is_none());
         assert!(sessions.insert(last_hash2.clone(), new_session2).is_none());
@@ -429,32 +412,21 @@ mod tests {
     fn session_map_insert_same_hash() {
         let mut sessions = HandshakeSessionMap::new();
 
-        let init_channel1 = InitChannel {
-            rand_nonce: RandValue::from(&[0x01; RAND_VALUE_LEN]),
-            public_key: PublicKey::from(&[0x02; PUBLIC_KEY_LEN]),
-        };
-        let handshake_id1 = HandshakeId::new(
-            HandshakeRole::Responder,
-            init_channel1.public_key.clone(),
-        );
+        let remote_public_key1 = PublicKey::from(&[0x00; PUBLIC_KEY_LEN]);
+        let handshake_id1 = HandshakeId::new(HandshakeRole::Responder, remote_public_key1);
         let new_session1 = HandshakeSession {
             id: handshake_id1.clone(),
-            state: HandshakeState::InitChannel { init_channel: init_channel1 },
+            state: HandshakeState::RequestNonce,
             timeout_ticks: TIMEOUT_TICKS,
         };
-        let last_hash1 = HashResult::from(&[0x03; HASH_RESULT_LEN]);
 
-        let init_channel2 = InitChannel {
-            rand_nonce: RandValue::from(&[0x04; RAND_VALUE_LEN]),
-            public_key: PublicKey::from(&[0x05; PUBLIC_KEY_LEN]),
-        };
-        let handshake_id2 = HandshakeId::new(
-            HandshakeRole::Initiator,
-            init_channel2.public_key.clone(),
-        );
+        let last_hash1 = HashResult::from(&[0x01; HASH_RESULT_LEN]);
+
+        let remote_public_key2 = PublicKey::from(&[0x02; PUBLIC_KEY_LEN]);
+        let handshake_id2 = HandshakeId::new(HandshakeRole::Responder, remote_public_key2);
         let new_session2 = HandshakeSession {
             id: handshake_id2.clone(),
-            state: HandshakeState::InitChannel { init_channel: init_channel2 },
+            state: HandshakeState::RequestNonce,
             timeout_ticks: TIMEOUT_TICKS + 1,
         };
 
@@ -466,31 +438,22 @@ mod tests {
     fn session_map_insert_same_id() {
         let mut sessions = HandshakeSessionMap::new();
 
-        let init_channel1 = InitChannel {
-            rand_nonce: RandValue::from(&[0x01; RAND_VALUE_LEN]),
-            public_key: PublicKey::from(&[0x02; PUBLIC_KEY_LEN]),
-        };
-        let handshake_id = HandshakeId::new(
-            HandshakeRole::Responder,
-            init_channel1.public_key.clone(),
-        );
-
+        let remote_public_key = PublicKey::from(&[0x00; PUBLIC_KEY_LEN]);
+        let handshake_id1 = HandshakeId::new(HandshakeRole::Responder, remote_public_key.clone());
         let new_session1 = HandshakeSession {
-            id: handshake_id.clone(),
-            state: HandshakeState::InitChannel { init_channel: init_channel1 },
+            id: handshake_id1.clone(),
+            state: HandshakeState::RequestNonce,
             timeout_ticks: TIMEOUT_TICKS,
         };
-        let last_hash1 = HashResult::from(&[0x03; HASH_RESULT_LEN]);
+        let last_hash1 = HashResult::from(&[0x01; HASH_RESULT_LEN]);
 
-        let init_channel2 = InitChannel {
-            rand_nonce: RandValue::from(&[0x04; RAND_VALUE_LEN]),
-            public_key: PublicKey::from(&[0x05; PUBLIC_KEY_LEN]),
-        };
+        let handshake_id2 = HandshakeId::new(HandshakeRole::Responder, remote_public_key);
         let new_session2 = HandshakeSession {
-            id: handshake_id.clone(),
-            state: HandshakeState::InitChannel { init_channel: init_channel2 },
+            id: handshake_id2.clone(),
+            state: HandshakeState::RequestNonce,
             timeout_ticks: TIMEOUT_TICKS + 1,
         };
+        let last_hash2 = HashResult::from(&[0x03; HASH_RESULT_LEN]);
 
         assert!(sessions.insert(last_hash1, new_session1).is_none());
 
@@ -503,36 +466,29 @@ mod tests {
     fn session_map_remove_pk() {
         let mut sessions = HandshakeSessionMap::new();
 
-        let public_key = PublicKey::from(&[0x00; PUBLIC_KEY_LEN]);
-
-        let init_channel1 = InitChannel {
-            rand_nonce: RandValue::from(&[0x01; RAND_VALUE_LEN]),
-            public_key: public_key.clone(),
-        };
+        let remote_public_key = PublicKey::from(&[0x00; PUBLIC_KEY_LEN]);
+        let handshake_id1 = HandshakeId::new(HandshakeRole::Responder, remote_public_key.clone());
         let new_session1 = HandshakeSession {
-            id: HandshakeId::new(HandshakeRole::Responder, public_key.clone()),
-            state: HandshakeState::InitChannel { init_channel: init_channel1 },
+            id: handshake_id1.clone(),
+            state: HandshakeState::RequestNonce,
             timeout_ticks: TIMEOUT_TICKS,
         };
-        let last_hash1 = HashResult::from(&[0x02; HASH_RESULT_LEN]);
+        let last_hash1 = HashResult::from(&[0x01; HASH_RESULT_LEN]);
 
-        let init_channel2 = InitChannel {
-            rand_nonce: RandValue::from(&[0x03; RAND_VALUE_LEN]),
-            public_key: public_key.clone(),
-        };
+        let handshake_id2 = HandshakeId::new(HandshakeRole::Initiator, remote_public_key.clone());
         let new_session2 = HandshakeSession {
-            id: HandshakeId::new(HandshakeRole::Initiator, public_key.clone()),
-            state: HandshakeState::InitChannel { init_channel: init_channel2 },
+            id: handshake_id2.clone(),
+            state: HandshakeState::RequestNonce,
             timeout_ticks: TIMEOUT_TICKS + 1,
         };
-        let last_hash2 = HashResult::from(&[0x04; HASH_RESULT_LEN]);
+        let last_hash2 = HashResult::from(&[0x03; HASH_RESULT_LEN]);
 
         assert!(sessions.insert(last_hash1, new_session1).is_none());
         assert!(sessions.insert(last_hash2, new_session2).is_none());
 
         assert_eq!(sessions.len(), 2);
 
-        sessions.remove_by_pk(&public_key);
+        sessions.remove_by_pk(&remote_public_key);
 
         assert_eq!(sessions.len(), 0);
     }
