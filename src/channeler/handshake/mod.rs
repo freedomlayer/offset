@@ -1,6 +1,8 @@
 #![allow(dead_code, unused)]
 
 mod types;
-mod state_machine;
+mod state;
+mod error;
 
-pub type Result<T> = ::std::result::Result<T, types::HandshakeError>;
+pub use self::state::HandshakeStateMachine;
+pub type Result<T> = ::std::result::Result<T, error::HandshakeError>;

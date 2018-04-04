@@ -12,13 +12,13 @@ use proto::channeler::{RequestNonce, RespondNonce, ExchangeActive, ExchangePassi
 use channeler::types::NeighborsTable;
 
 use super::Result;
+use super::error::HandshakeError;
 use super::types::*;
 
-/// The 5-way handshake state of CSwitch.
 pub enum HandshakeState {
-    RequestNonce,
+    InitiatorRequestNonce,
 
-    ExchangeActive {
+    InitiatorExchangeActive {
         responder_rand_nonce: RandValue,
         initiator_rand_nonce: RandValue,
         initiator_key_salt: Salt,
@@ -38,8 +38,8 @@ pub enum HandshakeState {
 }
 
 impl HandshakeState {
-    pub fn new() -> HandshakeState {
-        HandshakeState::RequestNonce
+    pub fn request_nonce() -> HandshakeState {
+        HandshakeState::InitiatorRequestNonce
     }
 
     pub fn trans_exchange_active(
@@ -50,8 +50,8 @@ impl HandshakeState {
         my_private_key: DhPrivateKey
     ) -> Result<HandshakeState> {
         match self {
-            HandshakeState::RequestNonce => {
-                Ok(HandshakeState::ExchangeActive {
+            HandshakeState::InitiatorRequestNonce => {
+                Ok(HandshakeState::InitiatorExchangeActive {
                     responder_rand_nonce,
                     initiator_rand_nonce,
                     initiator_key_salt,
@@ -68,7 +68,7 @@ impl HandshakeState {
         remote_dh_public_key: DhPublicKey,
     ) -> Result<HandshakeState> {
         match self {
-            HandshakeState::ExchangeActive {
+            HandshakeState::InitiatorExchangeActive {
                 responder_rand_nonce,
                 initiator_rand_nonce,
                 initiator_key_salt,
@@ -93,8 +93,10 @@ pub struct HandshakeStateMachine<SR> {
     neighbors: Rc<RefCell<NeighborsTable>>,
     secure_rng: Rc<SR>,
     sessions_map: HandshakeSessionMap,
-    rand_nonces_store: RandValuesStore,
+    rand_values_store: RandValuesStore,
     my_public_key: PublicKey,
+
+    handshake_timeout: usize,
 }
 
 impl<SR: SecureRandom> HandshakeStateMachine<SR> {
@@ -102,15 +104,17 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
         neighbors: Rc<RefCell<NeighborsTable>>,
         secure_rng: Rc<SR>,
         my_public_key: PublicKey,
+        // TODO: HandshakeConfig
     ) -> HandshakeStateMachine<SR> {
-        let rand_nonces_store = RandValuesStore::new(&*secure_rng, 5, 3);
+        let rand_values_store = RandValuesStore::new(&*secure_rng, 5, 3);
 
         HandshakeStateMachine {
             neighbors,
             secure_rng,
-            rand_nonces_store,
+            rand_values_store,
             my_public_key,
             sessions_map: HandshakeSessionMap::new(),
+            handshake_timeout: 100,
         }
     }
 
@@ -118,20 +122,20 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
         let id = HandshakeId::new(HandshakeRole::Initiator, remote_public_key);
 
         if self.sessions_map.contains_id(&id) {
-            return Err(HandshakeError::AlreadyExist);
+            return Err(HandshakeError::SessionExist);
         }
 
         let request_nonce = RequestNonce {
             rand_nonce: RandValue::new(&*self.secure_rng),
         };
 
-        let state = HandshakeState::new();
-        let session = HandshakeSession::new(id, state, 100);
+        let state = HandshakeState::request_nonce();
+        let session = HandshakeSession::new(id, state, self.handshake_timeout);
 
         let last_hash = sha_512_256(&request_nonce.as_bytes());
         match self.sessions_map.insert(last_hash, session) {
             None => Ok(request_nonce),
-            Some(_) => Err(HandshakeError::AlreadyExist),
+            Some(_) => Err(HandshakeError::SessionExist),
         }
     }
 
@@ -139,7 +143,7 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
         let respond_nonce = RespondNonce {
             req_rand_nonce: request_nonce.rand_nonce,
             res_rand_nonce: RandValue::new(&*self.secure_rng),
-            responder_rand_nonce: self.rand_nonces_store.last_rand_value(),
+            responder_rand_nonce: self.rand_values_store.last_rand_value(),
 
             signature: Signature::from(&[0x00; SIGNATURE_LEN]),
         };
@@ -160,11 +164,11 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
 
         // Generate DH private key and key salt
         let my_private_key = DhPrivateKey::new(&*self.secure_rng)
-            .map_err(HandshakeError::CryptoError)?;
+            .map_err(HandshakeError::Crypto)?;
         let dh_public_key = my_private_key.compute_public_key()
-            .map_err(HandshakeError::CryptoError)?;
+            .map_err(HandshakeError::Crypto)?;
         let key_salt = Salt::new(&*self.secure_rng)
-            .map_err(HandshakeError::CryptoError)?;
+            .map_err(HandshakeError::Crypto)?;
 
         let exchange_active = ExchangeActive {
             key_salt,
@@ -188,7 +192,7 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
         let last_hash = sha_512_256(&exchange_active.as_bytes());
         match self.sessions_map.insert(last_hash, session) {
             None => Ok(exchange_active),
-            Some(_) => Err(HandshakeError::AlreadyExist),
+            Some(_) => Err(HandshakeError::SessionExist),
         }
     }
 
@@ -204,7 +208,7 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
                 } else {
                     // Check whether an ongoing handshake session with initiator
                     if self.sessions_map.contains_id(&id) {
-                        return Err(HandshakeError::AlreadyExist)
+                        return Err(HandshakeError::SessionExist)
                     }
                 }
             },
@@ -219,11 +223,11 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
 
         // Generate DH private key and key salt
         let my_private_key = DhPrivateKey::new(&*self.secure_rng)
-            .map_err(HandshakeError::CryptoError)?;
+            .map_err(HandshakeError::Crypto)?;
         let dh_public_key = my_private_key.compute_public_key()
-            .map_err(HandshakeError::CryptoError)?;
+            .map_err(HandshakeError::Crypto)?;
         let key_salt = Salt::new(&*self.secure_rng)
-            .map_err(HandshakeError::CryptoError)?;
+            .map_err(HandshakeError::Crypto)?;
 
         let exchange_passive = ExchangePassive {
             prev_hash: sha_512_256(&msg),
@@ -233,7 +237,7 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
             signature: Signature::from(&[0x00; SIGNATURE_LEN]),
         };
 
-        let mut state = HandshakeState::new();
+        let mut state = HandshakeState::request_nonce();
 
         // RequestNonce -> ExchangeActive
         state = state.trans_exchange_active(
@@ -248,12 +252,12 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
             exchange_active.dh_public_key,
         )?;
 
-        let session  = HandshakeSession::new(id, state, 100);
+        let session  = HandshakeSession::new(id, state, self.handshake_timeout);
 
         let last_hash = sha_512_256(&exchange_passive.as_bytes());
         match self.sessions_map.insert(last_hash, session) {
             None => Ok(exchange_passive),
-            Some(_) => Err(HandshakeError::AlreadyExist),
+            Some(_) => Err(HandshakeError::SessionExist),
         }
     }
 

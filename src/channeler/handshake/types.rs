@@ -7,11 +7,13 @@ use crypto::identity::PublicKey;
 use crypto::rand_values::RandValue;
 use crypto::sym_encrypt::SymmetricKey;
 use crypto::CryptoError;
+
 use proto::channeler::{ChannelId, CHANNEL_ID_LEN};
 
 use ring::aead::{CHACHA20_POLY1305, SealingKey, OpeningKey};
 
-use super::state_machine::HandshakeState;
+use super::state::HandshakeState;
+use super::error::HandshakeError;
 
 pub struct NewChannelInfo {
     pub sender_id: ChannelId,
@@ -19,25 +21,6 @@ pub struct NewChannelInfo {
     pub receiver_id: ChannelId,
     pub receiver_key: OpeningKey,
     pub remote_public_key: PublicKey,
-}
-
-#[derive(Debug)]
-pub enum HandshakeError {
-    AlreadyExist,
-
-    NotAllowed,
-
-    NoSuchSession,
-
-    InvalidKey,
-
-    InvalidSignature,
-
-    Incomplete,
-
-    InvalidTransfer,
-
-    CryptoError(CryptoError),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -80,12 +63,8 @@ pub struct HandshakeSessionMap {
 
 impl HandshakeSession {
     /// Creates a new `HandshakeSession`.
-    pub fn new(id: HandshakeId, state: HandshakeState, timeout: usize) -> HandshakeSession {
-        HandshakeSession {
-            id,
-            state,
-            timeout_ticks: timeout,
-        }
+    pub fn new(id: HandshakeId, state: HandshakeState, timeout_ticks: usize) -> HandshakeSession {
+        HandshakeSession { id, state, timeout_ticks }
     }
     /// Returns a reference of remote's public key.
     pub fn remote_public_key(&self) -> &PublicKey {
@@ -117,7 +96,7 @@ impl HandshakeSession {
             } => {
                 let (initiator_dh_public_key, responder_dh_public_key) = {
                     let my_dh_public_key = my_private_key.compute_public_key()
-                        .map_err(HandshakeError::CryptoError)?;
+                        .map_err(HandshakeError::Crypto)?;
 
                     if is_initiator {
                         (my_dh_public_key, remote_dh_public_key)
@@ -343,7 +322,7 @@ mod tests {
 
         let new_session = HandshakeSession {
             id: id.clone(),
-            state: HandshakeState::RequestNonce,
+            state: HandshakeState::InitiatorRequestNonce,
             timeout_ticks: TIMEOUT_TICKS,
         };
 
@@ -368,7 +347,7 @@ mod tests {
         let handshake_id1 = HandshakeId::new(HandshakeRole::Responder, remote_public_key1);
         let new_session1 = HandshakeSession {
             id: handshake_id1.clone(),
-            state: HandshakeState::RequestNonce,
+            state: HandshakeState::InitiatorRequestNonce,
             timeout_ticks: TIMEOUT_TICKS,
         };
         let last_hash1 = HashResult::from(&[0x01; HASH_RESULT_LEN]);
@@ -377,7 +356,7 @@ mod tests {
         let handshake_id2 = HandshakeId::new(HandshakeRole::Responder, remote_public_key2);
         let new_session2 = HandshakeSession {
             id: handshake_id2.clone(),
-            state: HandshakeState::RequestNonce,
+            state: HandshakeState::InitiatorRequestNonce,
             timeout_ticks: TIMEOUT_TICKS + 1,
         };
         let last_hash2 = HashResult::from(&[0x03; HASH_RESULT_LEN]);
@@ -416,7 +395,7 @@ mod tests {
         let handshake_id1 = HandshakeId::new(HandshakeRole::Responder, remote_public_key1);
         let new_session1 = HandshakeSession {
             id: handshake_id1.clone(),
-            state: HandshakeState::RequestNonce,
+            state: HandshakeState::InitiatorRequestNonce,
             timeout_ticks: TIMEOUT_TICKS,
         };
 
@@ -426,7 +405,7 @@ mod tests {
         let handshake_id2 = HandshakeId::new(HandshakeRole::Responder, remote_public_key2);
         let new_session2 = HandshakeSession {
             id: handshake_id2.clone(),
-            state: HandshakeState::RequestNonce,
+            state: HandshakeState::InitiatorRequestNonce,
             timeout_ticks: TIMEOUT_TICKS + 1,
         };
 
@@ -442,7 +421,7 @@ mod tests {
         let handshake_id1 = HandshakeId::new(HandshakeRole::Responder, remote_public_key.clone());
         let new_session1 = HandshakeSession {
             id: handshake_id1.clone(),
-            state: HandshakeState::RequestNonce,
+            state: HandshakeState::InitiatorRequestNonce,
             timeout_ticks: TIMEOUT_TICKS,
         };
         let last_hash1 = HashResult::from(&[0x01; HASH_RESULT_LEN]);
@@ -450,7 +429,7 @@ mod tests {
         let handshake_id2 = HandshakeId::new(HandshakeRole::Responder, remote_public_key);
         let new_session2 = HandshakeSession {
             id: handshake_id2.clone(),
-            state: HandshakeState::RequestNonce,
+            state: HandshakeState::InitiatorRequestNonce,
             timeout_ticks: TIMEOUT_TICKS + 1,
         };
         let last_hash2 = HashResult::from(&[0x03; HASH_RESULT_LEN]);
@@ -470,7 +449,7 @@ mod tests {
         let handshake_id1 = HandshakeId::new(HandshakeRole::Responder, remote_public_key.clone());
         let new_session1 = HandshakeSession {
             id: handshake_id1.clone(),
-            state: HandshakeState::RequestNonce,
+            state: HandshakeState::InitiatorRequestNonce,
             timeout_ticks: TIMEOUT_TICKS,
         };
         let last_hash1 = HashResult::from(&[0x01; HASH_RESULT_LEN]);
@@ -478,7 +457,7 @@ mod tests {
         let handshake_id2 = HandshakeId::new(HandshakeRole::Initiator, remote_public_key.clone());
         let new_session2 = HandshakeSession {
             id: handshake_id2.clone(),
-            state: HandshakeState::RequestNonce,
+            state: HandshakeState::InitiatorRequestNonce,
             timeout_ticks: TIMEOUT_TICKS + 1,
         };
         let last_hash2 = HashResult::from(&[0x03; HASH_RESULT_LEN]);
