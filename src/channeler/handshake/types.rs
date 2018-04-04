@@ -191,7 +191,7 @@ impl HandshakeSessionMap {
     }
 
     /// Apply timer tick over all sessions, then remove timeout sessions.
-    pub fn timer_tick(&mut self) -> usize {
+    pub fn time_tick(&mut self) -> usize {
         // Decrease timeout ticks for all sessions.
         for sess in self.last_hash_map.values_mut() {
             if sess.session_timeout > 0 {
@@ -348,18 +348,18 @@ mod tests {
 
         // Remove nothing
         for _ in 0..TIMEOUT_TICKS - 1 {
-            assert_eq!(sessions.timer_tick(), 0);
+            assert_eq!(sessions.time_tick(), 0);
         }
 
         // Remove the session1
-        assert_eq!(sessions.timer_tick(), 1);
+        assert_eq!(sessions.time_tick(), 1);
         assert!(!sessions.contains_id(&handshake_id1));
         assert!(!sessions.contains_hash(&last_hash1));
         assert!(sessions.contains_id(&handshake_id2));
         assert!(sessions.contains_hash(&last_hash2));
 
         // Remove the session2
-        assert_eq!(sessions.timer_tick(), 1);
+        assert_eq!(sessions.time_tick(), 1);
         assert!(!sessions.contains_id(&handshake_id2));
         assert!(!sessions.contains_hash(&last_hash2));
     }

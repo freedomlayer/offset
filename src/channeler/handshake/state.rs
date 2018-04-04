@@ -279,6 +279,11 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
 
         session.finish()
     }
+
+    pub fn time_tick(&mut self) {
+        self.sessions_map.time_tick();
+        self.rand_values_store.time_tick(&*self.secure_rng);
+    }
 }
 
 #[cfg(test)]
