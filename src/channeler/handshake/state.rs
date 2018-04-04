@@ -19,18 +19,21 @@ pub enum HandshakeState {
     InitiatorRequestNonce,
 
     InitiatorExchangeActive {
-        responder_rand_nonce: RandValue,
-        initiator_rand_nonce: RandValue,
-        initiator_key_salt: Salt,
+        recv_rand_nonce: RandValue,
+        sent_rand_nonce: RandValue,
+
+        sent_key_salt: Salt,
 
         my_private_key: DhPrivateKey,
     },
 
     ExchangePassive {
-        responder_rand_nonce: RandValue,
-        initiator_rand_nonce: RandValue,
-        initiator_key_salt: Salt,
-        responder_key_salt: Salt,
+        sent_rand_nonce: RandValue,
+        recv_rand_nonce: RandValue,
+
+        sent_key_salt: Salt,
+        recv_key_salt: Salt,
+
         remote_dh_public_key: DhPublicKey,
 
         my_private_key: DhPrivateKey,
@@ -42,49 +45,24 @@ impl HandshakeState {
         HandshakeState::InitiatorRequestNonce
     }
 
-    pub fn trans_exchange_active(
-        self,
-        responder_rand_nonce: RandValue,
-        initiator_rand_nonce: RandValue,
-        initiator_key_salt: Salt,
-        my_private_key: DhPrivateKey
-    ) -> Result<HandshakeState> {
-        match self {
-            HandshakeState::InitiatorRequestNonce => {
-                Ok(HandshakeState::InitiatorExchangeActive {
-                    responder_rand_nonce,
-                    initiator_rand_nonce,
-                    initiator_key_salt,
-                    my_private_key,
-                })
-            }
-            _ => Err(HandshakeError::InvalidTransfer)
-        }
-    }
-
-    pub fn trans_exchange_passive(
-        self,
-        responder_key_salt: Salt,
-        remote_dh_public_key: DhPublicKey,
-    ) -> Result<HandshakeState> {
+    pub fn transfer2passive(self, recv_key_salt: Salt, remote_dh_public_key: DhPublicKey) -> Result<HandshakeState> {
         match self {
             HandshakeState::InitiatorExchangeActive {
-                responder_rand_nonce,
-                initiator_rand_nonce,
-                initiator_key_salt,
+                sent_rand_nonce,
+                recv_rand_nonce,
+                sent_key_salt,
                 my_private_key,
             } => {
                 Ok(HandshakeState::ExchangePassive {
-                    responder_rand_nonce,
-                    initiator_rand_nonce,
-                    initiator_key_salt,
-                    responder_key_salt,
+                    sent_rand_nonce,
+                    recv_rand_nonce,
+                    sent_key_salt,
+                    recv_key_salt,
                     remote_dh_public_key,
-
                     my_private_key,
                 })
             }
-            _ => Err(HandshakeError::InvalidTransfer)
+            _ => Err(HandshakeError::InvalidTransfer),
         }
     }
 }
@@ -153,8 +131,14 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
 
     pub fn process_respond_nonce(&mut self, respond_nonce: RespondNonce) -> Result<ExchangeActive> {
         // Check whether we sent the RequestNonce message
-        let mut session = self.sessions_map.take_by_hash(&sha_512_256(&respond_nonce.req_rand_nonce))
+        let prev_hash = sha_512_256(&respond_nonce.req_rand_nonce);
+        let mut session = self.sessions_map.take_by_hash(&prev_hash)
             .ok_or(HandshakeError::NoSuchSession)?;
+
+        match session.state() {
+            HandshakeState::InitiatorRequestNonce => (),
+            _ => return Err(HandshakeError::InvalidTransfer)
+        }
 
         // Verify the signature of this message
         let msg = respond_nonce.as_bytes();
@@ -181,13 +165,12 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
             signature: Signature::from(&[0x00; SIGNATURE_LEN]),
         };
 
-        // Transfer handshake state
-        session.state = session.state.trans_exchange_active(
-            exchange_active.responder_rand_nonce.clone(),
-            exchange_active.initiator_rand_nonce.clone(),
-            exchange_active.key_salt.clone(),
+        *session.state_mut() = HandshakeState::InitiatorExchangeActive {
+            sent_rand_nonce: exchange_active.initiator_rand_nonce.clone(),
+            recv_rand_nonce: exchange_active.responder_rand_nonce.clone(),
+            sent_key_salt: exchange_active.key_salt.clone(),
             my_private_key,
-        )?;
+        };
 
         let last_hash = sha_512_256(&exchange_active.as_bytes());
         match self.sessions_map.insert(last_hash, session) {
@@ -237,22 +220,16 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
             signature: Signature::from(&[0x00; SIGNATURE_LEN]),
         };
 
-        let mut state = HandshakeState::request_nonce();
-
-        // RequestNonce -> ExchangeActive
-        state = state.trans_exchange_active(
-            exchange_active.responder_rand_nonce,
-            exchange_active.initiator_rand_nonce,
-            exchange_active.key_salt,
+        let state = HandshakeState::ExchangePassive {
+            sent_key_salt: exchange_passive.key_salt.clone(),
+            recv_key_salt: exchange_active.key_salt,
+            sent_rand_nonce: exchange_active.responder_rand_nonce,
+            recv_rand_nonce: exchange_active.initiator_rand_nonce,
+            remote_dh_public_key: exchange_active.dh_public_key,
             my_private_key,
-        )?;
-        // ExchangeActive -> ExchangePassive
-        state = state.trans_exchange_passive(
-            exchange_passive.key_salt.clone(),
-            exchange_active.dh_public_key,
-        )?;
+        };
 
-        let session  = HandshakeSession::new(id, state, self.handshake_timeout);
+        let session = HandshakeSession::new(id, state, self.handshake_timeout);
 
         let last_hash = sha_512_256(&exchange_passive.as_bytes());
         match self.sessions_map.insert(last_hash, session) {
@@ -264,6 +241,10 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
     pub fn process_exchange_passive(&mut self, exchange_passive: ExchangePassive) -> Result<(NewChannelInfo, ChannelReady)> {
         let mut session = self.sessions_map.take_by_hash(&exchange_passive.prev_hash)
             .ok_or(HandshakeError::NoSuchSession)?;
+        match session.state() {
+            HandshakeState::InitiatorExchangeActive { .. } => (),
+            _ => return Err(HandshakeError::InvalidTransfer)
+        }
 
         let remote_public_key = session.remote_public_key();
 
@@ -276,9 +257,9 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
             signature: Signature::from(&[0x00; SIGNATURE_LEN]),
         };
 
-        session.state = session.state.trans_exchange_passive(
+        session.state = session.state.transfer2passive(
             exchange_passive.key_salt,
-            exchange_passive.dh_public_key,
+            exchange_passive.dh_public_key
         )?;
 
         let new_channel_info = session.finish()?;
