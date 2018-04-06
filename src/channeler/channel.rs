@@ -11,6 +11,8 @@ use proto::{Proto, ProtoError};
 use proto::channeler::{ChannelId, CHANNEL_ID_LEN, Plain, PlainContent, ChannelerMessage};
 use utils::{NonceWindow, WindowNonce};
 
+use channeler::handshake::NewChannelInfo;
+
 const TAG_LEN: usize = 16;
 const NONCE_LEN: usize = 12;
 
@@ -53,15 +55,6 @@ impl ChannelPoolConfig {
         self.max_receiving_end >= 3 &&
             self.receiving_window_size % 64 == 0
     }
-}
-
-pub struct NewChannelInfo {
-    pub sender_id: ChannelId,
-    pub sender_key: SealingKey,
-    pub receiver_id: ChannelId,
-    pub receiver_key: OpeningKey,
-
-    pub remote_public_key: PublicKey,
 }
 
 pub struct SenderState {
@@ -128,7 +121,8 @@ impl ChannelPool {
             Ok(ChannelPool {
                 inner: HashMap::new(),
                 index: HashMap::new(),
-                config: config,
+
+                config,
             })
         }
     }
@@ -140,7 +134,7 @@ impl ChannelPool {
             remote_addr: addr,
             channel_id: info.sender_id,
             sealing_key: info.sender_key,
-            nonce: Nonce::zero(),
+            nonce: Nonce::default(),
             keepalive_timeout: self.config.keepalive_timeout,
         };
         let rx = ReceiverState {
@@ -224,7 +218,7 @@ impl ChannelPool {
                                 rx.keepalive_timeout = 2 * self.config.keepalive_timeout;
                                 return Ok(None)
                             }
-                            PlainContent::User(content) => {
+                            PlainContent::Application(content) => {
                                 return Ok(Some((public_key.clone(), content)))
                             }
                         }
@@ -286,7 +280,7 @@ impl ChannelPool {
         self.index.clear();
         for (public_key, channel) in &self.inner {
             for rx in &channel.rx {
-                self.index.insert(rx.id.clone(), public_key.clone());
+                self.index.insert(rx.channel_id.clone(), public_key.clone());
             }
         }
 
@@ -353,7 +347,6 @@ fn encrypt(sender: &mut SenderState, plain: Plain) -> Result<Bytes, ChannelPoolE
 #[cfg(test)]
 mod tests {
     use super::*;
-    use proto::channeler_udp::PlainContent;
 
     use ring::aead::CHACHA20_POLY1305;
 
@@ -361,14 +354,14 @@ mod tests {
     fn test_encrypt_decrypt() {
         let mut tx = SenderState {
             remote_addr: "127.0.0.1:10001".parse().unwrap(),
-            channel_id: ChannelId::try_from(&[0x00; CHANNEL_ID_LEN][..]).unwrap(),
-            nonce: Nonce::zero(),
+            channel_id: ChannelId::from(&[0x00; CHANNEL_ID_LEN]),
+            nonce: Nonce::default(),
             sealing_key: SealingKey::new(&CHACHA20_POLY1305, &[0x01; 32][..]).unwrap(),
             keepalive_timeout: 100,
         };
 
         let mut rx = ReceiverState {
-            channel_id: ChannelId::try_from(&[0x00; CHANNEL_ID_LEN][..]).unwrap(),
+            channel_id: ChannelId::from(&[0x00; CHANNEL_ID_LEN]),
             recv_window: NonceWindow::new(256),
             opening_key: OpeningKey::new(&CHACHA20_POLY1305, &[0x01; 32][..]).unwrap(),
             keepalive_timeout: 200,
@@ -376,7 +369,7 @@ mod tests {
 
         let plain1 = Plain {
             rand_padding: Bytes::from(vec![0xff; 32]),
-            content: PlainContent::User(Bytes::from("hello!")),
+            content: PlainContent::Application(Bytes::from("hello!")),
         };
 
         let mut encrypted = encrypt(&mut tx, plain1).unwrap();
@@ -385,12 +378,9 @@ mod tests {
 
         let plain2 = decrypt(&mut rx, encrypted.clone()).unwrap();
 
-        assert_eq!(plain2.content, PlainContent::User(Bytes::from("hello!")));
+        assert_eq!(plain2.content, PlainContent::Application(Bytes::from("hello!")));
 
         // Don't accept a same message twice.
         assert!(decrypt(&mut rx, encrypted).is_err());
     }
-
-    #[test]
-    fn test_channel_pool() {}
 }

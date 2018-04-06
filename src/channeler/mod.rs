@@ -1,55 +1,40 @@
-//use std::rc::Rc;
-//use std::cell::RefCell;
-//
-//use std::collections::{HashMap, VecDeque};
-//use std::io;
-//use std::net::SocketAddr;
-//
-//use bytes::{Bytes, BytesMut, Buf, BufMut, BigEndian};
-//use byteorder::{ByteOrder, LittleEndian};
-//use futures::prelude::*;
-//use futures::sync::{mpsc, oneshot};
-//use ring::rand::SecureRandom;
-//use tokio_core::reactor::Handle;
-//
-//// FIXME
-//use channeler::types::ChannelerNeighborInfo;
-//use crypto::identity::PublicKey;
-//use security_module::client::SecurityModuleClient;
-//use timer::messages::FromTimer;
-//
-//use proto::{Proto, ProtoError};
-//use networker::messages::NetworkerToChanneler;
-//
-//use proto::channeler::{ChannelId, CHANNEL_ID_LEN, ChannelerMessage, RequestNonce,
-//    RespondNonce, ExchangeActive, ExchangePassive, ChannelReady, PlainContent, Plain};
-//
-//use self::channel::{ChannelPool, ChannelPoolError, ChannelPoolConfig};
-//use self::handshake::HandshakeStateMachine;
+use std::rc::Rc;
+use std::cell::RefCell;
+
+use std::collections::{HashMap, VecDeque};
+use std::io;
+use std::net::SocketAddr;
+
+use bytes::{Bytes, BytesMut, Buf, BufMut, BigEndian};
+use byteorder::{ByteOrder, LittleEndian};
+use futures::prelude::*;
+use futures::sync::{mpsc, oneshot};
+use ring::rand::SecureRandom;
+use tokio_core::reactor::Handle;
+
+// FIXME
+use channeler::types::ChannelerNeighborInfo;
+use crypto::identity::PublicKey;
+use security_module::client::SecurityModuleClient;
+use timer::messages::FromTimer;
+
+use proto::{Proto, ProtoError};
+use networker::messages::NetworkerToChanneler;
+
+use proto::channeler::{ChannelId, CHANNEL_ID_LEN, ChannelerMessage, RequestNonce,
+    RespondNonce, ExchangeActive, ExchangePassive, ChannelReady, PlainContent, Plain};
+
+use self::channel::{ChannelPool, ChannelPoolError, ChannelPoolConfig};
+use self::handshake::HandshakeStateMachine;
 
 pub mod types;
-//pub mod channel;
+pub mod channel;
 pub mod messages;
 pub mod handshake;
 //
 //// TODO: Introduce `ChannelerConfig`
 //const RETRY_TICKS: usize = 100;
 //const MAX_RAND_PADDING_LEN: usize = 32;
-//
-///// The channel event expected to be sent to `Networker`.
-//pub enum ChannelEvent {
-//    /// A message received from remote.
-//    Message(Bytes),
-//}
-//
-///// The internal message expected to be sent to `Networker`.
-//pub struct ChannelerToNetworker {
-//    /// The public key of the event sender.
-//    pub remote_public_key: PublicKey,
-//
-//    /// The event happened.
-//    pub event: ChannelEvent,
-//}
 //
 //#[derive(Clone)]
 //pub struct NeighborInfo {
@@ -514,37 +499,38 @@ pub mod handshake;
 //    }
 //}
 //
-//// =============================== Helpers =============================
-//
-//#[inline]
-//pub fn gen_random_bytes<SR>(rng: &SR, max_len: usize) -> Result<Bytes, ()>
-//    where SR: SecureRandom
-//{
-//    if (u16::max_value() as usize + 1) % max_len != 0 {
-//        Err(())
-//    } else {
-//        let mut len_bytes = [0x00; 2];
-//        rng.fill(&mut len_bytes[..]).map_err(|_| ())?;
-//        let len = BigEndian::read_u16(&len_bytes[..]) as usize % max_len + 1;
-//
-//        let mut bytes = BytesMut::from(vec![0x00; len]);
-//        rng.fill(&mut bytes[..len]).map_err(|_| ())?;
-//
-//        Ok(bytes.freeze())
-//    }
-//}
-//
-//#[cfg(test)]
-//mod tests {
-//    use super::*;
-//    use ring::test::rand::FixedByteRandom;
-//
-//    #[test]
-//    fn test_gen_random_bytes() {
-//        let fixed = FixedByteRandom { byte: 0x01 };
-//        let bytes = gen_random_bytes(&fixed, 32).unwrap();
-//
-//        assert_eq!(bytes.len(), 2);
-//        assert!(bytes.iter().all(|x| *x == 0x01));
-//    }
-//}
+
+// =============================== Helpers =============================
+
+#[inline]
+pub fn gen_random_bytes<SR>(rng: &SR, max_len: usize) -> Result<Bytes, ()>
+    where SR: SecureRandom
+{
+    if (u16::max_value() as usize + 1) % max_len != 0 {
+        Err(())
+    } else {
+        let mut len_bytes = [0x00; 2];
+        rng.fill(&mut len_bytes[..]).map_err(|_| ())?;
+        let len = BigEndian::read_u16(&len_bytes[..]) as usize % max_len + 1;
+
+        let mut bytes = BytesMut::from(vec![0x00; len]);
+        rng.fill(&mut bytes[..len]).map_err(|_| ())?;
+
+        Ok(bytes.freeze())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ring::test::rand::FixedByteRandom;
+
+    #[test]
+    fn test_gen_random_bytes() {
+        let fixed = FixedByteRandom { byte: 0x01 };
+        let bytes = gen_random_bytes(&fixed, 32).unwrap();
+
+        assert_eq!(bytes.len(), 2);
+        assert!(bytes.iter().all(|x| *x == 0x01));
+    }
+}
