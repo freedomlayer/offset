@@ -67,7 +67,7 @@ impl HandshakeState {
     }
 }
 
-pub struct HandshakeStateMachine<SR> {
+pub struct Handshaker<SR> {
     neighbors: Rc<RefCell<NeighborsTable>>,
     secure_rng: Rc<SR>,
     sessions_map: HandshakeSessionMap,
@@ -77,16 +77,16 @@ pub struct HandshakeStateMachine<SR> {
     handshake_timeout: usize,
 }
 
-impl<SR: SecureRandom> HandshakeStateMachine<SR> {
+impl<SR: SecureRandom> Handshaker<SR> {
     pub fn new(
         neighbors: Rc<RefCell<NeighborsTable>>,
         secure_rng: Rc<SR>,
         my_public_key: PublicKey,
         // TODO: HandshakeConfig
-    ) -> HandshakeStateMachine<SR> {
+    ) -> Handshaker<SR> {
         let rand_values_store = RandValuesStore::new(&*secure_rng, 5, 3);
 
-        HandshakeStateMachine {
+        Handshaker {
             neighbors,
             secure_rng,
             rand_values_store,
@@ -238,7 +238,7 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
         }
     }
 
-    pub fn process_exchange_passive(&mut self, exchange_passive: ExchangePassive) -> Result<(NewChannelInfo, ChannelReady)> {
+    pub fn process_exchange_passive(&mut self, exchange_passive: ExchangePassive) -> Result<(HandshakeResult, ChannelReady)> {
         let mut session = self.sessions_map.take_by_hash(&exchange_passive.prev_hash)
             .ok_or(HandshakeError::NoSuchSession)?;
         match session.state() {
@@ -267,7 +267,7 @@ impl<SR: SecureRandom> HandshakeStateMachine<SR> {
         Ok((new_channel_info, channel_ready))
     }
 
-    pub fn process_channel_ready(&mut self, channel_ready: ChannelReady) -> Result<NewChannelInfo> {
+    pub fn process_channel_ready(&mut self, channel_ready: ChannelReady) -> Result<HandshakeResult> {
         let session = self.sessions_map.take_by_hash(&channel_ready.prev_hash)
             .ok_or(HandshakeError::NoSuchSession)?;
 
@@ -354,13 +354,13 @@ mod tests {
 
         let shared_secure_rng = Rc::new(SystemRandom::new());
 
-        let mut hs_state_machine_a = HandshakeStateMachine::new(
+        let mut hs_state_machine_a = Handshaker::new(
             neighbors_a,
             Rc::clone(&shared_secure_rng),
             public_key_a.clone(),
         );
 
-        let mut hs_state_machine_b = HandshakeStateMachine::new(
+        let mut hs_state_machine_b = Handshaker::new(
             neighbors_b,
             Rc::clone(&shared_secure_rng),
             public_key_b.clone(),

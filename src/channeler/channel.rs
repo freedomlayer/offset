@@ -11,7 +11,7 @@ use proto::{Proto, ProtoError};
 use proto::channeler::{ChannelId, CHANNEL_ID_LEN, Plain, PlainContent, ChannelerMessage};
 use utils::{NonceWindow, WindowNonce};
 
-use channeler::handshake::NewChannelInfo;
+use channeler::handshake::HandshakeResult;
 
 const TAG_LEN: usize = 16;
 const NONCE_LEN: usize = 12;
@@ -128,7 +128,7 @@ impl ChannelPool {
     }
 
     /// Add a "new" channel to the pool.
-    pub fn insert(&mut self, addr: SocketAddr, info: NewChannelInfo) {
+    pub fn insert(&mut self, addr: SocketAddr, info: HandshakeResult) {
         // Build sender and receiver
         let tx = SenderState {
             remote_addr: addr,

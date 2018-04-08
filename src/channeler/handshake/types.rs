@@ -35,7 +35,7 @@ pub struct HandshakeSessionMap {
     last_hash_map: HashMap<HashResult, HandshakeSession>,
 }
 
-pub struct NewChannelInfo {
+pub struct HandshakeResult {
     pub sender_id: ChannelId,
     pub sender_key: SealingKey,
     pub receiver_id: ChannelId,
@@ -92,7 +92,7 @@ impl HandshakeSession {
     // # Panics
     //
     // Panics if the state of the session isn't `HandshakeState::ExchangePassive`
-    pub fn finish(self) -> Result<NewChannelInfo, HandshakeError> {
+    pub fn finish(self) -> Result<HandshakeResult, HandshakeError> {
         let is_initiator = self.is_initiator();
         let remote_public_key = self.remote_public_key().clone();
 
@@ -122,7 +122,7 @@ impl HandshakeSession {
                     recv_key_salt,
                 ).map_err(|_| HandshakeError::InvalidKey)?;
 
-                Ok(NewChannelInfo {
+                Ok(HandshakeResult {
                     sender_id,
                     receiver_id,
                     sender_key,

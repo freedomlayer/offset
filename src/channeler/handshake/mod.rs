@@ -1,9 +1,12 @@
-#![allow(dead_code, unused)]
+//! The
 
 mod types;
 mod state;
 mod error;
 
-pub use self::types::NewChannelInfo;
-pub use self::state::HandshakeStateMachine;
+pub use self::types::HandshakeResult;
+pub use self::state::Handshaker;
+
+
 pub type Result<T> = ::std::result::Result<T, error::HandshakeError>;
+pub type SharedRandom = ::std::rc::Rc<::ring::rand::SecureRandom>;
