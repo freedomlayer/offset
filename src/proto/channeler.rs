@@ -10,13 +10,13 @@ define_fixed_bytes!(ChannelId, CHANNEL_ID_LEN);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RequestNonce {
-    pub rand_nonce: RandValue,
+    pub request_rand_nonce: RandValue,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct RespondNonce {
-    pub req_rand_nonce: RandValue,
-    pub res_rand_nonce: RandValue,
+pub struct ResponseNonce {
+    pub request_rand_nonce: RandValue,
+    pub response_rand_nonce: RandValue,
     pub responder_rand_nonce: RandValue,
     pub signature: Signature,
 }
@@ -70,7 +70,7 @@ pub struct Plain {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ChannelerMessage {
     RequestNonce(RequestNonce),
-    RespondNonce(RespondNonce),
+    ResponseNonce(ResponseNonce),
     ExchangeActive(ExchangeActive),
     ExchangePassive(ExchangePassive),
     ChannelReady(ChannelReady),
@@ -81,17 +81,17 @@ pub enum ChannelerMessage {
 impl RequestNonce {
     #[inline]
     pub fn as_bytes(&self) -> Bytes {
-        Bytes::from(self.rand_nonce.as_ref())
+        Bytes::from(self.request_rand_nonce.as_ref())
     }
 }
 
-impl RespondNonce {
+impl ResponseNonce {
     #[inline]
     pub fn as_bytes(&self) -> Bytes {
         let mut buf = BytesMut::with_capacity(3 * RAND_VALUE_LEN);
 
-        buf.put(self.req_rand_nonce.as_ref());
-        buf.put(self.res_rand_nonce.as_ref());
+        buf.put(self.request_rand_nonce.as_ref());
+        buf.put(self.response_rand_nonce.as_ref());
         buf.put(self.responder_rand_nonce.as_ref());
 
         buf.freeze()
@@ -160,7 +160,7 @@ impl ChannelerMessage {
     pub fn is_handshake_message(&self) -> bool {
         match *self {
             ChannelerMessage::RequestNonce(_)
-            | ChannelerMessage::RespondNonce(_)
+            | ChannelerMessage::ResponseNonce(_)
             | ChannelerMessage::ExchangeActive(_)
             | ChannelerMessage::ExchangePassive(_)
             | ChannelerMessage::ChannelReady(_) => true,
@@ -177,7 +177,7 @@ mod tests {
     #[test]
     fn test_request_nonce_as_bytes() {
         let request_nonce = RequestNonce {
-            rand_nonce: RandValue::from(&[0x00; RAND_VALUE_LEN]),
+            request_rand_nonce: RandValue::from(&[0x00; RAND_VALUE_LEN]),
         };
 
         let underlying = request_nonce.as_bytes();
@@ -187,9 +187,9 @@ mod tests {
 
     #[test]
     fn test_respond_nonce_as_bytes() {
-        let respond_nonce = RespondNonce {
-            req_rand_nonce: RandValue::from(&[0x00; RAND_VALUE_LEN]),
-            res_rand_nonce: RandValue::from(&[0x01; RAND_VALUE_LEN]),
+        let respond_nonce = ResponseNonce {
+            request_rand_nonce: RandValue::from(&[0x00; RAND_VALUE_LEN]),
+            response_rand_nonce: RandValue::from(&[0x01; RAND_VALUE_LEN]),
             responder_rand_nonce: RandValue::from(&[0x02; RAND_VALUE_LEN]),
             signature: Signature::from(&[0xff; SIGNATURE_LEN]),
         };

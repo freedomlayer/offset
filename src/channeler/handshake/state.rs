@@ -8,7 +8,7 @@ use crypto::dh::{DhPrivateKey, DhPublicKey, Salt};
 use crypto::identity::{PublicKey, verify_signature, SIGNATURE_LEN, Signature};
 use crypto::hash::{HashResult, sha_512_256};
 use crypto::rand_values::{RandValue, RandValuesStore};
-use proto::channeler::{RequestNonce, RespondNonce, ExchangeActive, ExchangePassive, ChannelReady};
+use proto::channeler::{RequestNonce, ResponseNonce, ExchangeActive, ExchangePassive, ChannelReady};
 use channeler::types::NeighborsTable;
 
 use super::Result;
@@ -104,7 +104,7 @@ impl<SR: SecureRandom> Handshaker<SR> {
         }
 
         let request_nonce = RequestNonce {
-            rand_nonce: RandValue::new(&*self.secure_rng),
+            request_rand_nonce: RandValue::new(&*self.secure_rng),
         };
 
         let state = HandshakeState::request_nonce();
@@ -117,10 +117,10 @@ impl<SR: SecureRandom> Handshaker<SR> {
         }
     }
 
-    pub fn process_request_nonce(&mut self, request_nonce: RequestNonce) -> Result<RespondNonce> {
-        let respond_nonce = RespondNonce {
-            req_rand_nonce: request_nonce.rand_nonce,
-            res_rand_nonce: RandValue::new(&*self.secure_rng),
+    pub fn process_request_nonce(&mut self, request_nonce: RequestNonce) -> Result<ResponseNonce> {
+        let respond_nonce = ResponseNonce {
+            request_rand_nonce: request_nonce.request_rand_nonce,
+            response_rand_nonce: RandValue::new(&*self.secure_rng),
             responder_rand_nonce: self.rand_values_store.last_rand_value(),
 
             signature: Signature::from(&[0x00; SIGNATURE_LEN]),
@@ -129,9 +129,9 @@ impl<SR: SecureRandom> Handshaker<SR> {
         Ok(respond_nonce)
     }
 
-    pub fn process_respond_nonce(&mut self, respond_nonce: RespondNonce) -> Result<ExchangeActive> {
+    pub fn process_respond_nonce(&mut self, respond_nonce: ResponseNonce) -> Result<ExchangeActive> {
         // Check whether we sent the RequestNonce message
-        let prev_hash = sha_512_256(&respond_nonce.req_rand_nonce);
+        let prev_hash = sha_512_256(&respond_nonce.request_rand_nonce);
         let mut session = self.sessions_map.take_by_hash(&prev_hash)
             .ok_or(HandshakeError::NoSuchSession)?;
 

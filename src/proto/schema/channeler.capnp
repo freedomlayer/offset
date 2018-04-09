@@ -24,7 +24,7 @@ using import "common.capnp".CustomUInt512;
 # Implementation note: The initiator MUST keep nonce he sent for a while.
 struct RequestNonce {
     # Plain random. Not taken from a constant size list.
-    randNonce @0: CustomUInt128;
+    requestRandNonce @0: CustomUInt128;
 }
 
 # Implementation note: The responder MUST NOT keep any thing at this phase, or
@@ -33,9 +33,9 @@ struct RequestNonce {
 #
 # These nonce values are not used for generating the keys, but only to prevent
 # DoS attacks without using timestamps.
-struct RespondNonce {
-    reqRandNonce        @0: CustomUInt128;
-    resRandNonce        @1: CustomUInt128;
+struct ResponseNonce {
+    requestRandNonce        @0: CustomUInt128;
+    responseRandNonce        @1: CustomUInt128;
 
     # This nonce is taken from a local constant size list of nonces maintained
     # by the responder. It is the newest nonce on this list.
@@ -106,7 +106,7 @@ struct Plain {
 struct ChannelerMessage {
     union {
         requestNonce    @0: RequestNonce;
-        respondNonce    @1: RespondNonce;
+        responseNonce    @1: ResponseNonce;
         exchangeActive  @2: ExchangeActive;
         exchangePassive @3: ExchangePassive;
         channelReady    @4: ChannelReady;

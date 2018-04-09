@@ -21,7 +21,7 @@ use proto::{Proto, ProtoError};
 use networker::messages::NetworkerToChanneler;
 
 use proto::channeler::{ChannelId, CHANNEL_ID_LEN, ChannelerMessage, RequestNonce,
-    RespondNonce, ExchangeActive, ExchangePassive, ChannelReady, PlainContent, Plain};
+    ResponseNonce, ExchangeActive, ExchangePassive, ChannelReady, PlainContent, Plain};
 
 use self::channel::{ChannelPool, ChannelPoolError, ChannelPoolConfig};
 use self::handshake::Handshaker;
@@ -196,7 +196,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
                     ChannelerMessage::RequestNonce(request_nonce) => {
                         self.process_request_nonce(remote_addr, request_nonce);
                     }
-                    ChannelerMessage::RespondNonce(respond_nonce) => {
+                    ChannelerMessage::ResponseNonce(respond_nonce) => {
                         self.process_respond_nonce(remote_addr, respond_nonce);
                     },
                     ChannelerMessage::ExchangeActive(exchange_active) => {
@@ -311,7 +311,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
                     })
             })
             .and_then(move |respond_nonce| {
-                ChannelerMessage::RespondNonce(respond_nonce)
+                ChannelerMessage::ResponseNonce(respond_nonce)
                     .encode()
                     .into_future()
                     .map_err(ChannelerError::Proto)
@@ -328,7 +328,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
         }));
     }
 
-    fn process_respond_nonce(&mut self, remote_addr: SocketAddr, respond_nonce: RespondNonce) {
+    fn process_respond_nonce(&mut self, remote_addr: SocketAddr, respond_nonce: ResponseNonce) {
         let sm_client = self.sm_client.clone();
         let outgoing_sender = self.outgoing_sender.clone();
 

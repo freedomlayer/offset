@@ -16,37 +16,58 @@ impl<'a> Proto<'a> for RequestNonce {
     inject_default_impl!();
 
     fn read(from: &Self::Reader) -> Result<Self, ProtoError> {
-        let rand_nonce = read_rand_value(&from.get_rand_nonce()?)?;
+        let request_rand_nonce =
+            read_rand_value(&from.get_request_rand_nonce()?)?;
 
-        Ok(RequestNonce { rand_nonce })
+        Ok(RequestNonce { request_rand_nonce })
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
-        write_rand_value(&self.rand_nonce, &mut to.reborrow().init_rand_nonce())?;
+        write_rand_value(
+            &self.request_rand_nonce,
+            &mut to.reborrow().init_request_rand_nonce()
+        )?;
 
         Ok(())
     }
 }
 
-impl<'a> Proto<'a> for RespondNonce {
-    type Reader = respond_nonce::Reader<'a>;
-    type Writer = respond_nonce::Builder<'a>;
+impl<'a> Proto<'a> for ResponseNonce {
+    type Reader = response_nonce::Reader<'a>;
+    type Writer = response_nonce::Builder<'a>;
 
     inject_default_impl!();
 
     fn read(from: &Self::Reader) -> Result<Self, ProtoError> {
-        let req_rand_nonce = read_rand_value(&from.get_req_rand_nonce()?)?;
-        let res_rand_nonce = read_rand_value(&from.get_res_rand_nonce()?)?;
+        let request_rand_nonce = read_rand_value(&from.get_request_rand_nonce()?)?;
+        let response_rand_nonce = read_rand_value(&from.get_response_rand_nonce()?)?;
         let responder_rand_nonce = read_rand_value(&from.get_responder_rand_nonce()?)?;
         let signature = read_signature(&from.get_signature()?)?;
 
-        Ok(RespondNonce { req_rand_nonce, res_rand_nonce, responder_rand_nonce, signature })
+        Ok(ResponseNonce {
+            request_rand_nonce,
+            response_rand_nonce,
+            responder_rand_nonce,
+            signature
+        })
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
-        write_rand_value(&self.req_rand_nonce, &mut to.reborrow().init_req_rand_nonce())?;
-        write_rand_value(&self.res_rand_nonce, &mut to.reborrow().init_res_rand_nonce())?;
-        write_rand_value(&self.responder_rand_nonce, &mut to.reborrow().init_responder_rand_nonce())?;
+        write_rand_value(
+            &self.request_rand_nonce,
+            &mut to.reborrow().init_request_rand_nonce()
+        )?;
+
+        write_rand_value(
+            &self.response_rand_nonce,
+            &mut to.reborrow().init_response_rand_nonce()
+        )?;
+
+        write_rand_value(
+            &self.responder_rand_nonce,
+            &mut to.reborrow().init_responder_rand_nonce()
+        )?;
+
         write_signature(&self.signature, &mut to.reborrow().init_signature())?;
 
         Ok(())
@@ -241,11 +262,11 @@ impl<'a> Proto<'a> for ChannelerMessage {
                     RequestNonce::read(&request_nonce_reader)?
                 ))
             }
-            Which::RespondNonce(wrapped_respond_nonce_reader) => {
-                let respond_nonce_reader = wrapped_respond_nonce_reader?;
+            Which::ResponseNonce(wrapped_response_nonce_reader) => {
+                let respond_nonce_reader = wrapped_response_nonce_reader?;
 
-                Ok(ChannelerMessage::RespondNonce(
-                    RespondNonce::read(&respond_nonce_reader)?
+                Ok(ChannelerMessage::ResponseNonce(
+                    ResponseNonce::read(&respond_nonce_reader)?
                 ))
             }
             Which::ExchangeActive(wrapped_exchange_active_reader) => {
@@ -289,8 +310,8 @@ impl<'a> Proto<'a> for ChannelerMessage {
             ChannelerMessage::RequestNonce(ref request_nonce) => {
                 request_nonce.write(&mut to.reborrow().init_request_nonce())?;
             }
-            ChannelerMessage::RespondNonce(ref respond_nonce) => {
-                respond_nonce.write(&mut to.reborrow().init_respond_nonce())?;
+            ChannelerMessage::ResponseNonce(ref response_nonce) => {
+                response_nonce.write(&mut to.reborrow().init_response_nonce())?;
             }
             ChannelerMessage::ExchangeActive(ref exchange_active) => {
                 exchange_active.write(&mut to.reborrow().init_exchange_active())?;
@@ -326,7 +347,7 @@ mod tests {
     #[test]
     fn channeler_message_request_nonce() {
         let request_nonce = RequestNonce {
-            rand_nonce: RandValue::from(&[0x00; RAND_VALUE_LEN]),
+            request_rand_nonce: RandValue::from(&[0x00; RAND_VALUE_LEN]),
         };
 
         let in_channeler_message = ChannelerMessage::RequestNonce(request_nonce);
@@ -335,15 +356,15 @@ mod tests {
     }
 
     #[test]
-    fn channeler_message_respond_nonce() {
-        let respond_nonce = RespondNonce {
-            req_rand_nonce: RandValue::from(&[0x00; RAND_VALUE_LEN]),
-            res_rand_nonce: RandValue::from(&[0x01; RAND_VALUE_LEN]),
+    fn channeler_message_response_nonce() {
+        let respond_nonce = ResponseNonce {
+            request_rand_nonce: RandValue::from(&[0x00; RAND_VALUE_LEN]),
+            response_rand_nonce: RandValue::from(&[0x01; RAND_VALUE_LEN]),
             responder_rand_nonce: RandValue::from(&[0x02; RAND_VALUE_LEN]),
             signature: Signature::from(&[0xff; SIGNATURE_LEN]),
         };
 
-        let in_channeler_message = ChannelerMessage::RespondNonce(respond_nonce);
+        let in_channeler_message = ChannelerMessage::ResponseNonce(respond_nonce);
 
         test_encode_decode!(ChannelerMessage, in_channeler_message);
     }
