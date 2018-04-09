@@ -23,7 +23,7 @@ use networker::messages::NetworkerToChanneler;
 use proto::channeler::{ChannelId, CHANNEL_ID_LEN, ChannelerMessage, RequestNonce,
     ResponseNonce, ExchangeActive, ExchangePassive, ChannelReady, PlainContent, Plain};
 
-use self::channel::{ChannelPool, ChannelPoolError, ChannelPoolConfig};
+use self::channel::{ChannelPool, ChannelPoolError};
 use self::handshake::Handshaker;
 use self::types::{NeighborsTable, ChannelerNeighbor, ChannelerNeighborInfo};
 use self::messages::{ChannelEvent, ChannelerToNetworker};
@@ -33,7 +33,6 @@ pub mod channel;
 pub mod messages;
 pub mod handshake;
 
-// TODO: Introduce `ChannelerConfig`
 const RETRY_TICKS: usize = 100;
 const MAX_RAND_PADDING_LEN: usize = 32;
 
@@ -185,7 +184,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
                         let opt_message =
                             self.channel_pool.borrow_mut().decrypt_incoming(encrypted)?;
 
-                        if let Some((pk, message)) = opt_message {
+                        if let (pk, Some(message)) = opt_message {
                             let message_to_networker = ChannelerToNetworker {
                                 remote_public_key: pk,
                                 event: ChannelEvent::Message(message),
@@ -251,7 +250,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
     }
 
     fn do_send_channel_message(&mut self, public_key: PublicKey, content: Bytes) -> Poll<(), ChannelerError> {
-        let rand_padding = gen_random_bytes(&*self.secure_rng, MAX_RAND_PADDING_LEN)
+        let rand_padding = generate_random_bytes(MAX_RAND_PADDING_LEN, &*self.secure_rng)
             .map_err(|_| ChannelerError::SecureRandomError)?;
 
         let plain = Plain {
@@ -521,21 +520,19 @@ impl<I, O, SR, TE, RE> Future for Channeler<I, O, SR>
 // =============================== Helpers =============================
 
 #[inline]
-pub fn gen_random_bytes<SR>(rng: &SR, max_len: usize) -> Result<Bytes, ()>
-    where SR: SecureRandom
-{
+pub fn generate_random_bytes(max_len: usize, rng: &SecureRandom) -> Result<Bytes, ()> {
     if (u16::max_value() as usize + 1) % max_len != 0 {
-        Err(())
-    } else {
-        let mut len_bytes = [0x00; 2];
-        rng.fill(&mut len_bytes[..]).map_err(|_| ())?;
-        let len = BigEndian::read_u16(&len_bytes[..]) as usize % max_len + 1;
-
-        let mut bytes = BytesMut::from(vec![0x00; len]);
-        rng.fill(&mut bytes[..len]).map_err(|_| ())?;
-
-        Ok(bytes.freeze())
+        return Err(());
     }
+
+    let mut len_bytes = [0x00; 2];
+    rng.fill(&mut len_bytes[..]).map_err(|_| ())?;
+    let len = BigEndian::read_u16(&len_bytes[..]) as usize % max_len + 1;
+
+    let mut bytes = BytesMut::from(vec![0x00; len]);
+    rng.fill(&mut bytes[..len]).map_err(|_| ())?;
+
+    Ok(bytes.freeze())
 }
 
 #[cfg(test)]
@@ -546,7 +543,7 @@ mod tests {
     #[test]
     fn test_gen_random_bytes() {
         let fixed = FixedByteRandom { byte: 0x01 };
-        let bytes = gen_random_bytes(&fixed, 32).unwrap();
+        let bytes = generate_random_bytes(32, &fixed).unwrap();
 
         assert_eq!(bytes.len(), 2);
         assert!(bytes.iter().all(|x| *x == 0x01));
