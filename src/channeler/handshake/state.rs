@@ -141,8 +141,12 @@ impl<SR: SecureRandom> Handshaker<SR> {
         }
 
         // Verify the signature of this message
-        let msg = respond_nonce.as_bytes();
-        if !verify_signature(&msg, session.remote_public_key(), &respond_nonce.signature) {
+        if !verify_signature(
+            &respond_nonce.as_bytes(),
+            session.remote_public_key(),
+            &respond_nonce.signature
+        ) {
+            self.sessions_map.insert(prev_hash, session);
             return Err(HandshakeError::InvalidSignature);
         }
 
@@ -182,6 +186,10 @@ impl<SR: SecureRandom> Handshaker<SR> {
     pub fn process_exchange_active(&mut self, exchange_active: ExchangeActive) -> Result<ExchangePassive> {
         let remote_public_key = &exchange_active.initiator_public_key;
         let id = HandshakeId::new(HandshakeRole::Responder, remote_public_key.clone());
+
+        if !self.rand_values_store.contains(&exchange_active.responder_rand_nonce) {
+            return Err(HandshakeError::NotAllowed);
+        }
 
         match self.neighbors.borrow().get(remote_public_key) {
             Some(neighbor) => {
@@ -246,9 +254,12 @@ impl<SR: SecureRandom> Handshaker<SR> {
             _ => return Err(HandshakeError::InvalidTransfer)
         }
 
-        let remote_public_key = session.remote_public_key();
-
-        if !verify_signature(&exchange_passive.as_bytes(), remote_public_key, &exchange_passive.signature) {
+        if !verify_signature(
+            &exchange_passive.as_bytes(),
+            session.remote_public_key(),
+            &exchange_passive.signature
+        ) {
+            self.sessions_map.insert(exchange_passive.prev_hash, session);
             return Err(HandshakeError::InvalidSignature);
         }
 
@@ -273,7 +284,12 @@ impl<SR: SecureRandom> Handshaker<SR> {
 
         let remote_public_key = session.remote_public_key();
 
-        if !verify_signature(&channel_ready.prev_hash, remote_public_key, &channel_ready.signature) {
+        if !verify_signature(
+            &channel_ready.prev_hash,
+            remote_public_key,
+            &channel_ready.signature
+        ) {
+            self.sessions_map.insert(channel_ready.prev_hash, session);
             return Err(HandshakeError::InvalidSignature);
         }
 
@@ -411,4 +427,6 @@ mod tests {
         assert_eq!(new_channel_info_a.sender_id, new_channel_info_b.receiver_id);
         assert_eq!(new_channel_info_b.receiver_id, new_channel_info_a.sender_id);
     }
+
+    // TODO: Add test for replay attack!
 }
