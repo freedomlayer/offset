@@ -13,7 +13,6 @@ pub struct PendingRequests{
 }
 
 impl PendingRequests{
-    // TODO(a4vision): Receive
     pub fn new(local_requests: HashMap<Uid, PendingNeighborRequest>, remote_requests: HashMap<Uid, PendingNeighborRequest>,)
     -> PendingRequests{
         PendingRequests{

@@ -19,6 +19,8 @@ use super::pending_requests::TransPendingRequests;
 use super::credit_calculator;
 use super::pending_neighbor_request::PendingNeighborRequest;
 use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, RequestSendMessage};
+
+use utils::signed_message::SignedMessage;
 use utils::convert_int;
 use super::messenger_messages::NetworkerTCMessage;
 
@@ -70,6 +72,7 @@ pub enum ProcessMessageError {
     TooMuchFeeCollected,
     InvalidFailedSignature,
     InvalidFailureReporter,
+    InvalidRequestId,
     InnerBug,
 }
 
@@ -418,7 +421,7 @@ mod test{
         let invalid_signature = Signature::from_bytes(&[0x05; SIGNATURE_LEN]).unwrap();
         let mut receipt = SendFundsReceipt::new(hash, &local_invoice_id,
                                                 payment, rand_nonce, invalid_signature);
-        receipt.sign(&local_identity);
+        receipt.sign(&vec![], &local_identity);
 
 //        Result<Vec<ProcessMessageOutput>, ProcessTransListError>
         let result_outputs_vec1 = channel.atomic_process_messages_list(vec![NetworkerTCMessage::LoadFunds(receipt.clone())]);

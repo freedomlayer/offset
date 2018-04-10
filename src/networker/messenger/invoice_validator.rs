@@ -1,6 +1,7 @@
 use crypto::identity::PublicKey;
 use proto::funder::InvoiceId;
 use proto::common::SendFundsReceipt;
+use utils::signed_message::SignedMessage;
 use super::token_channel::ProcessMessageError;
 
 #[derive(Clone)]
@@ -35,7 +36,7 @@ impl InvoiceIds {
     }
 
     pub fn get_local_invoice_id(&self) -> &Option<InvoiceId>{
-        &self.local_invoice_id.get_invoice_id()
+        self.local_invoice_id.get_invoice_id()
     }
 
     pub fn get_remote_invoice_id(&self) -> &Option<InvoiceId>{
@@ -76,7 +77,7 @@ impl InvoiceIdStore {
     fn validate_receipt(&mut self, receipt: &SendFundsReceipt,
                             public_key: &PublicKey) ->
     Result<(), ProcessMessageError> {
-        if !receipt.verify_signature(public_key) {
+        if !receipt.verify_signature(public_key, &[]) {
             return Err(ProcessMessageError::InvalidFundsReceipt);
         }
 
@@ -140,7 +141,7 @@ mod test{
 
 
         assert_eq!(Err(ProcessMessageError::InvalidFundsReceipt), validator0.validate_receipt(&receipt, &identity.get_public_key()));
-        receipt.sign(&identity);
+        receipt.sign(&vec![], &identity);
         assert_eq!(Err(ProcessMessageError::MissingInvoiceId), validator0.validate_receipt(&receipt, &identity.get_public_key()));
         assert_eq!(Err(ProcessMessageError::InvalidInvoiceId), validator1.validate_receipt(&receipt, &identity.get_public_key()));
         assert_eq!(Ok(()), validator2.validate_receipt(&receipt, &identity.get_public_key()));
