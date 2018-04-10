@@ -381,10 +381,10 @@ mod test{
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
         let pk1 = identity.get_public_key();
-        let pk2 = PublicKey::from_bytes(&[0x02; PUBLIC_KEY_LEN]).unwrap();
+        let pk2 = PublicKey::try_from(&[0x02; PUBLIC_KEY_LEN]).unwrap();
         let balance = TokenChannelCredit::new(10, 20).unwrap();
 
-        let invoice_id = InvoiceId::from_bytes(&[0x02; INVOICE_ID_LEN]).unwrap();
+        let invoice_id = InvoiceId::try_from(&[0x02; INVOICE_ID_LEN]).unwrap();
 
         let validator = InvoiceIds::new(Some(invoice_id.clone()), None);
         let local_pending = Vec::new();
@@ -414,11 +414,11 @@ mod test{
 
         let hash = HashResult::try_from(&[0x01u8; HASH_RESULT_LEN][..]).unwrap();
         let payment = 1234;
-        let rand_nonce = RandValue::from_bytes(&[0x04f; RAND_VALUE_LEN]).unwrap();
+        let rand_nonce = RandValue::try_from(&[0x04f; RAND_VALUE_LEN]).unwrap();
 
 
 
-        let invalid_signature = Signature::from_bytes(&[0x05; SIGNATURE_LEN]).unwrap();
+        let invalid_signature = Signature::try_from(&[0x05; SIGNATURE_LEN]).unwrap();
         let mut receipt = SendFundsReceipt::new(hash, &local_invoice_id,
                                                 payment, rand_nonce, invalid_signature);
         receipt.sign(&vec![], &local_identity);

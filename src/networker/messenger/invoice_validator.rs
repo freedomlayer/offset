@@ -126,16 +126,16 @@ mod test{
 
         let hash = HashResult::try_from(&[0x01u8; HASH_RESULT_LEN][..]).unwrap();
         let payment = 10u128;
-        let rand_nonce = RandValue::from_bytes(&[0x04f; RAND_VALUE_LEN]).unwrap();
+        let rand_nonce = RandValue::try_from(&[0x04f; RAND_VALUE_LEN]).unwrap();
 
 
         let mut validator0 = InvoiceIds::new(None, None);
-        let invoice_id1 = InvoiceId::from_bytes(&[0x02; INVOICE_ID_LEN]).unwrap();
+        let invoice_id1 = InvoiceId::try_from(&[0x02; INVOICE_ID_LEN]).unwrap();
         let mut validator1 = InvoiceIds::new(Some(invoice_id1), None);
-        let invoice_id2 = InvoiceId::from_bytes(&[0x03; INVOICE_ID_LEN]).unwrap();
+        let invoice_id2 = InvoiceId::try_from(&[0x03; INVOICE_ID_LEN]).unwrap();
         let mut validator2 = InvoiceIds::new(Some(invoice_id2.clone()), None);
 
-        let invalid_signature = Signature::from_bytes(&[0x05; SIGNATURE_LEN]).unwrap();
+        let invalid_signature = Signature::try_from(&[0x05; SIGNATURE_LEN]).unwrap();
         let mut receipt = SendFundsReceipt::new(hash, &invoice_id2,
         payment, rand_nonce, invalid_signature);
 

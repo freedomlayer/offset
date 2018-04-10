@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 //! Pieces pertaining to the `CSwitch` protocol.
 //!
 //! This module define `CSwitch` messages's format.

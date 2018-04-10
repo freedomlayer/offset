@@ -158,8 +158,7 @@ mod tests {
 
 
 
-
-
+        let start = time::Instant::now();
         let clients_fut = clients
             .into_iter()
             .map(|client| client.take(u64::from(TICKS)).collect().and_then(|_| {

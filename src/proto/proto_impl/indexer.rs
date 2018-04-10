@@ -518,7 +518,7 @@ mod tests {
 
     // fn create_dummy_rand_value() -> RandValue {
     //     let fixed_byte = random::<u8>();
-    //     RandValue::from_bytes(&[fixed_byte; RAND_VALUE_LEN]).unwrap()
+    //     RandValue::try_from(&[fixed_byte; RAND_VALUE_LEN]).unwrap()
     // }
 
     fn create_dummy_public_key() -> PublicKey {

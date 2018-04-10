@@ -6,7 +6,6 @@ use crypto::identity::Signature;
 use crypto::rand_values::RandValue;
 
 use proto::funder::InvoiceId;
-use crypto::identity::{verify_signature, PublicKey, Identity};
 
 // TODO: implement Receipt
 

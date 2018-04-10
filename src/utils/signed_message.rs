@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use crypto::identity::Signature;
 use crypto::identity;
 use crypto::identity::Identity;

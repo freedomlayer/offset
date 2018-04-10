@@ -159,9 +159,9 @@ impl SignedMessage for FailedSendMessage{
 
     fn as_bytes(&self) -> Vec<u8> {
         let mut message = Vec::new();
-        message.extend_from_slice(self.request_id.as_bytes());
-        message.extend_from_slice(self.reporting_public_key.as_bytes());
-        message.extend_from_slice(self.rand_nonce.as_bytes());
+        message.extend_from_slice(self.request_id.as_ref());
+        message.extend_from_slice(self.reporting_public_key.as_ref());
+        message.extend_from_slice(self.rand_nonce.as_ref());
         message
     }
 }
