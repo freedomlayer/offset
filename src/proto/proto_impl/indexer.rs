@@ -523,7 +523,7 @@ mod tests {
 
     fn create_dummy_public_key() -> PublicKey {
         let fixed_byte = random::<u8>();
-        PublicKey::from_bytes(&[fixed_byte; PUBLIC_KEY_LEN]).unwrap()
+        PublicKey::try_from(&[fixed_byte; PUBLIC_KEY_LEN]).unwrap()
     }
 
     fn create_dummy_public_keys_list() -> Vec<PublicKey> {
@@ -534,7 +534,7 @@ mod tests {
 
     // fn create_dummy_dh_public_key() -> DhPublicKey {
     //     let fixed_byte = random::<u8>();
-    //     DhPublicKey::from_bytes(&[fixed_byte; DH_PUBLIC_KEY_LEN]).unwrap()
+    //     DhPublicKey::try_from(&[fixed_byte; DH_PUBLIC_KEY_LEN]).unwrap()
     // }
 
     fn create_dummy_signatures_list() -> Vec<Signature> {
@@ -543,7 +543,7 @@ mod tests {
         (0..num_signatures)
             .map(|_| {
                 let fixed_byte = random::<u8>();
-                Signature::from_bytes(&[fixed_byte; SIGNATURE_LEN]).unwrap()
+                Signature::try_from(&[fixed_byte; SIGNATURE_LEN]).unwrap()
             })
             .collect()
     }

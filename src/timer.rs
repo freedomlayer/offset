@@ -9,7 +9,7 @@
 //!
 //! The message from timer module was shown bellow:
 //!
-//! ```rust,ignore
+//! ```rust,norun
 //! enum FromTimer {
 //!     TimeTick,
 //! }
@@ -146,7 +146,9 @@ mod tests {
 
         let mut tm = TimerModule::new(dur, &handle);
 
+        const TICKS: u32 = 20;
         const TIMER_CLIENT_NUM: usize = 50;
+
         let clients = (0..TIMER_CLIENT_NUM)
             .map(|_| tm.create_client())
             .step_by(2)
@@ -159,18 +161,15 @@ mod tests {
 
 
         let clients_fut = clients
-        .into_iter()
-        .map(|client| {
-                let start = time::Instant::now();
-                client.take(17).collect().and_then(move |_| {
-                    assert!(start.elapsed() >= dur * 17);
-                    println!("{:?}", start.elapsed());
-                    println!("{:?}", dur * 17);
-                    assert!(start.elapsed() < dur * 17 * 12 / 10);
+            .into_iter()
+            .map(|client| client.take(u64::from(TICKS)).collect().and_then(|_| {
+                    let elapsed = start.elapsed();
+                    assert!(elapsed >= dur * TICKS * 2 / 3);
+                    assert!(elapsed < dur * TICKS * 2);
                     Ok(())
-                })
-            })
-        .collect::<Vec<_>>();
+            }))
+            .collect::<Vec<_>>();
+      
         let task = tm.map_err(|_| ()).select2(join_all(clients_fut));
 
         assert!(core.run(task).is_ok());

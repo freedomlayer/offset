@@ -2,8 +2,6 @@
 
 set -ex
 
-printenv
-
 KCOV_INSTALL_PREFIX="${HOME}/kcov-${TARGET}"
 KCOV_MINIMUM_REQUIRED=${KCOV_MINIMUM_REQUIRED:-34}
 
@@ -33,7 +31,7 @@ pushd build
 
 TARGET=${TARGET} cmake -DCMAKE_INSTALL_PREFIX:PATH="${KCOV_INSTALL_PREFIX}" ..
 
-make
+make -j2
 make install
 
 ${KCOV_INSTALL_PREFIX}/bin/kcov --version

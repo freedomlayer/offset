@@ -48,8 +48,8 @@ impl SignedMessage for ResponseSendMessage{
 
     fn as_bytes(&self) -> Vec<u8>{
         let mut message = Vec::new();
-        message.extend_from_slice(self.request_id.as_bytes());
-        message.extend_from_slice(self.rand_nonce.as_bytes());
+        message.extend_from_slice(&self.request_id);
+        message.extend_from_slice(&self.rand_nonce);
         // Serialize the processing_fee_collected:
         message.write_u64::<LittleEndian>(self.processing_fee_collected);
         message.extend_from_slice(&self.response_content);
@@ -219,8 +219,8 @@ mod tests {
             request_id: Uid::new(&rng1),
             route: NeighborsRoute {
                 public_keys: vec![
-                    PublicKey::from_bytes(&vec![0u8; 32]).unwrap(),
-                    PublicKey::from_bytes(&vec![0u8; 32]).unwrap(),
+                    PublicKey::from(&[0u8; 32]),
+                    PublicKey::from(&[0u8; 32]),
                 ],
             },
             request_content: vec![1,2,3,4,5],

@@ -13,7 +13,6 @@ macro_rules! build_schema {
 fn main() {
     build_schema!{
         "src/proto/schema/channeler.capnp",
-        "src/proto/schema/channeler_udp.capnp",
         "src/proto/schema/common.capnp",
         "src/proto/schema/funder.capnp",
         "src/proto/schema/indexer.capnp",

@@ -1,19 +1,16 @@
 use byteorder::LittleEndian;
 use byteorder::WriteBytesExt;
 use std::convert::TryFrom;
-
 use crypto::identity::{PublicKey, Signature};
 
 pub const INDEXING_PROVIDER_ID_LEN: usize = 16;
 pub const INDEXING_PROVIDER_STATE_HASH_LEN: usize = 32;
 
 /// The identifier of an indexing provider.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct IndexingProviderId([u8; INDEXING_PROVIDER_ID_LEN]);
+define_fixed_bytes!(IndexingProviderId, INDEXING_PROVIDER_ID_LEN);
 
 /// A hash of a full link in an indexing provider chain
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct IndexingProviderStateHash([u8; INDEXING_PROVIDER_STATE_HASH_LEN]);
+define_fixed_bytes!(IndexingProviderStateHash, INDEXING_PROVIDER_STATE_HASH_LEN);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NeighborsRoute {
@@ -157,46 +154,4 @@ pub struct RoutesToIndexer {
     pub indexing_provider_id: IndexingProviderId,
     pub routes: Vec<IndexerRoute>,
     pub request_price: u64,
-}
-
-// =========== Conversions ==========
-
-impl<'a> TryFrom<&'a [u8]> for IndexingProviderId {
-    type Error = ();
-
-    fn try_from(src: &'a [u8]) -> Result<IndexingProviderId, Self::Error> {
-        if src.len() != INDEXING_PROVIDER_ID_LEN {
-            Err(())
-        } else {
-            let mut inner = [0; INDEXING_PROVIDER_ID_LEN];
-            inner.clone_from_slice(src);
-            Ok(IndexingProviderId(inner))
-        }
-    }
-}
-
-impl AsRef<[u8]> for IndexingProviderId {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-impl<'a> TryFrom<&'a [u8]> for IndexingProviderStateHash {
-    type Error = ();
-
-    fn try_from(src: &[u8]) -> Result<IndexingProviderStateHash, Self::Error> {
-        if src.len() != INDEXING_PROVIDER_STATE_HASH_LEN {
-            Err(())
-        } else {
-            let mut inner = [0; INDEXING_PROVIDER_STATE_HASH_LEN];
-            inner.clone_from_slice(src);
-            Ok(IndexingProviderStateHash(inner))
-        }
-    }
-}
-
-impl AsRef<[u8]> for IndexingProviderStateHash {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
 }

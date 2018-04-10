@@ -1,56 +1,74 @@
-@0xa235992fe59d8f83;
+@0xbc544d9c10380608;
 
 using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomUInt256;
 using import "common.capnp".CustomUInt512;
 
-struct InitChannelActive {
-        neighborPublicKey @0: CustomUInt256;
-        # The identity public key of the sender of this message.
-        channelRandValue @1: CustomUInt128;
-        # An initial random value.
-        # This will be later used for the key exchange as a nonce.
-        # A nonce is required to avoid replay of the signature.
-        channelIndex @2: UInt32;
-        # The index of this channel. Only messages on token channel number
-        # channelIndex may be sent along this TCP connection.
+# 4-way handshake
+# ---------------
+# 1. A -> B: InitChannel      (randNonceA, publicKeyA)
+# 2. B -> A: ExchangePassive  (hashPrev, randNonceB, publicKeyB, dhPublicKeyB, keySaltB, Signature(B))
+# 3. A -> B: ExchangeActive   (hashPrev, dhPublicKeyA, keySaltA, Signature(A))
+# 4. B -> A: ChannelReady     (hashPrev, Signature(B))
+
+struct InitChannel {
+    randNonce @0: CustomUInt128;
+    publicKey @1: CustomUInt256;
 }
 
-struct InitChannelPassive {
-        neighborPublicKey @0: CustomUInt256;
-        # The identity public key of the sender of this message.
-        channelRandValue @1: CustomUInt128;
-        # An initial random value.
-        # This will be later used for the key exchange as a nonce.
-        # A nonce is required to avoid replay of the signature.
+struct ExchangePassive {
+    prevHash    @0: CustomUInt256;
+    randNonce   @1: CustomUInt128;
+    publicKey   @2: CustomUInt256;
+    dhPublicKey @3: CustomUInt256;
+    keySalt     @4: CustomUInt256;
+    signature   @5: CustomUInt512;
+    # Signature is applied for all the previous fields
+    # Signature("ExchangePassive" || fields ...)
 }
 
-struct Exchange {
-        commPublicKey @0: CustomUInt256;
-        # Communication public key (Generated for the new channel)
-        # Using diffie-hellman we will use the communication keys to generate a
-        # symmetric encryption key for this channel.
-        keySalt @1: CustomUInt256;
-        # A salt for the generation of a shared symmetric encryption key.
-        signature @2: CustomUInt512;
-        # Signature over (channelRandValue || commPublicKey || keySalt)
-        # Signed using NeighborPublicKey.
+struct ExchangeActive {
+        prevHash    @0: CustomUInt256;
+        dhPublicKey @1: CustomUInt256;
+        keySalt     @2: CustomUInt256;
+        signature   @3: CustomUInt512;
+        # Signature is applied for all the previous fields
+        # Signature("ExchangeActive" || fields ...)
 }
 
-enum MessageType {
-        user @0;
-        keepAlive @1;
+struct ChannelReady {
+    prevHash  @0: CustomUInt256;
+    signature @1: CustomUInt512;
+    # Signature is applied for all the previous fields
+    # Signature("ChannelReady" || fields ...)
 }
 
-struct EncryptMessage {
-   # TODO (CR): Change incCounter into 128 bit counter. 64 bits is too short?
-   incCounter  @0: UInt64;
-   randPadding @1: Data;
-   messageType @2: MessageType;
-   content     @3: Data;
+struct UnknownChannel {
+    channelId @0: CustomUInt128;
+    randNonce @1: CustomUInt128;
+    signature @2: CustomUInt512;
+    # Signature is applied for all the previous fields.
+    # Signature("UnknownChannel" || fields ...)
 }
 
-struct Message {
-    content @0: Data;
-    # The encrypt content of the EncryptMessage.
+# The data we encrypt. Contains random padding (Of variable length) together
+# with actual data. This struct is used for any data we encrypt.
+struct Plain {
+    randPadding  @0: Data;
+    content :union {
+        user      @1: Data;
+        keepAlive @2: Void;
+    }
+}
+
+struct ChannelerMessage {
+    union {
+        initChannel     @0: InitChannel;
+        exchangePassive @1: ExchangePassive;
+        exchangeActive  @2: ExchangeActive;
+        channelReady    @3: ChannelReady;
+        unknownChannel  @4: UnknownChannel;
+        encrypted       @5: Data;
+        # Nonce is a 96 bit counter, Additional authenticated data is channelId.
+    }
 }
