@@ -70,14 +70,15 @@ struct ResponseSendMessageTran {
         # Signature{key=recipientKey}(
         #   "REQUEST_SUCCESS" ||
         #   requestId ||
-        #   sha512/256(route) ||
+        #   randNonce ||
+        #   processingFeeCollected ||
+        #   responseContent ||
+        #     ---  Data from the corresponding request message  ---
+        #   route ||
         #   sha512/256(requestContent) ||
         #   maxResponseLength ||
         #   processingFeeProposal ||
-        #   creditsPerByteProposal || 
-        #   processingFeeCollected ||
-        #   sha512/256(responseContent) ||
-        #   randNonce)
+        #   creditsPerByteProposal)
 }
 
 struct FailedSendMessageTran {
@@ -91,12 +92,14 @@ struct FailedSendMessageTran {
         # Signature{key=reportingNodePublicKey}(
         #   "REQUEST_FAILURE" ||
         #   requestId ||
-        #   sha512/256(route) ||
+        #   reportingPublicKey ||
+        #   randNonce ||
+        #     ---  Data from the corresponding request message  ---
+        #   route ||
         #   sha512/256(requestContent) ||
         #   maxResponseLength ||
         #   processingFeeProposal ||
-        #   creditsPerByteProposal || 
-        #   randNonce)
+        #   creditsPerByteProposal)
 }
 
 
