@@ -1,4 +1,5 @@
-
+use byteorder::LittleEndian;
+use byteorder::WriteBytesExt;
 use super::token_channel::ProcessMessageError;
 use super::credit_calculator;
 use utils::convert_int;
@@ -6,10 +7,11 @@ use proto::indexer::NeighborsRoute;
 use crypto::hash::HashResult;
 use crypto::uid::Uid;
 use crypto::identity::PublicKey;
+use utils::signed_message::SignedMessage;
 use super::messenger_messages::ResponseSendMessage;
 use super::messenger_messages::FailedSendMessage;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PendingNeighborRequest {
     pub request_id: Uid,
     pub route: NeighborsRoute,
@@ -52,11 +54,25 @@ impl PendingNeighborRequest{
                                              nodes_to_reporting)
     }
 
+    fn request_data(&self) -> Vec<u8> {
+        let mut result = Vec::new();
+        result.extend_from_slice(&self.route.as_bytes());
+        result.extend_from_slice(self.request_content_hash.as_ref());
+        result.write_u32::<LittleEndian>(self.max_response_length);
+        result.write_u64::<LittleEndian>(self.processing_fee_proposal);
+        result.write_u64::<LittleEndian>(self.credits_per_byte_proposal);
+        result
+    }
+
     pub fn verify_response_message(&self, response_send_msg: &ResponseSendMessage)
         -> Result<(), ProcessMessageError>{
+        if response_send_msg.get_request_id() != &self.request_id {
+            return Err(ProcessMessageError::InvalidRequestId)
+        }
+
         let destination_key = self.route.get_destination_public_key().
             ok_or(ProcessMessageError::InnerBug)?;
-        if !response_send_msg.verify_signature(&destination_key, &self.request_content_hash){
+        if !response_send_msg.verify_signature(&destination_key, &self.request_data()){
             return Err(ProcessMessageError::InvalidResponseSignature);
         }
 
@@ -78,7 +94,7 @@ impl PendingNeighborRequest{
         if !failed_message.verify_reporter_position(receiver_public_key, &self.route){
             return Err(ProcessMessageError::InvalidFailureReporter)
         }
-        if !failed_message.verify_signature(&self.request_content_hash){
+        if !failed_message.verify_failed_message_signature(&self.request_data()){
             return Err(ProcessMessageError::InvalidFailedSignature)
         }
         Ok(())

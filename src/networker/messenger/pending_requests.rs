@@ -12,6 +12,31 @@ pub struct PendingRequests{
     pending_remote_requests: HashMap<Uid, PendingNeighborRequest>,
 }
 
+impl PendingRequests{
+    pub fn new(local_requests: HashMap<Uid, PendingNeighborRequest>, remote_requests: HashMap<Uid, PendingNeighborRequest>,)
+    -> PendingRequests{
+        PendingRequests{
+            pending_local_requests: local_requests,
+            pending_remote_requests: remote_requests,
+        }
+    }
+
+    fn vec_to_hashmap(requests: Vec<PendingNeighborRequest>)
+        -> HashMap<Uid, PendingNeighborRequest>{
+        let mut hashmap = HashMap::new();
+        for request in requests{
+            hashmap.insert(request.request_id, request);
+        }
+        hashmap
+    }
+
+    pub fn from_vecs_ignore_duplicates(local: Vec<PendingNeighborRequest>, remote: Vec<PendingNeighborRequest>)
+    -> PendingRequests {
+        PendingRequests::new(PendingRequests::vec_to_hashmap(local),
+                             PendingRequests::vec_to_hashmap(remote))
+    }
+}
+
 pub struct TransPendingRequests<'a>{
     tp_requests: TransHashMapMut<'a, Uid, PendingNeighborRequest>,
 }

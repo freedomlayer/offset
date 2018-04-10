@@ -1,3 +1,6 @@
+use byteorder::LittleEndian;
+use byteorder::WriteBytesExt;
+use std::convert::TryFrom;
 use crypto::identity::{PublicKey, Signature};
 
 pub const INDEXING_PROVIDER_ID_LEN: usize = 16;
@@ -68,6 +71,15 @@ impl NeighborsRoute {
         }else{
             Some(index_second - index_first)
         }
+    }
+
+    pub fn as_bytes(&self) -> Vec<u8> {
+        let mut result = Vec::new();
+        result.write_u64::<LittleEndian>(self.public_keys.len() as u64);
+        for key in &self.public_keys{
+            result.extend(key.as_bytes());
+        }
+        result
     }
 }
 
