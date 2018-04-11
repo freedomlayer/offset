@@ -29,7 +29,13 @@ pub struct TokenChannelCredit {
     local_debt: Debt,
 }
 
-// TODO(a4vision): Change the style of this file to Result<(), Error>
+
+#[derive(Debug, PartialEq)]
+pub enum CreditsError{
+    TooLargeMaxDebt,
+    ModifyBalanceError,
+}
+
 impl TokenChannelCredit {
     pub fn new(local_max_debt: u64, remote_max_debt: u64) -> Result<TokenChannelCredit, CreditsError>{
         Ok(TokenChannelCredit {local_debt: Debt::new(local_max_debt)?,
@@ -62,82 +68,81 @@ impl TokenChannelCredit {
 
     // Normally called when the neighbor tries to redeem credits it sent me in the Funder layer.
     // The neighbor wants to do it in order to send me more messages in the Networker layer.
-    pub fn decrease_balance(&mut self, credits: u64) -> bool {
+    pub fn decrease_balance(&mut self, credits: u64) -> Result<(), CreditsError> {
         if self.remote_debt.can_decrease_debt(credits) &&
-            self.local_debt.can_increase_debt(credits){
+            self.local_debt.can_increase_debt(credits) {
             self.remote_debt.decrease_debt(credits);
             self.local_debt.increase_debt(credits);
-            true
+            Ok(())
         }else{
-            false
+            Err(CreditsError::ModifyBalanceError)
         }
     }
 
     // Normally called when I try to redeem credits after I sent them in the Funder layer.
     // I want to do it in order to send more messages in the Networker layer.
-    pub fn increase_balance(&mut self, credits: u64) -> bool {
+    pub fn increase_balance(&mut self, credits: u64) -> Result<(), CreditsError> {
         if self.remote_debt.can_increase_debt(credits) &&
             self.local_debt.can_decrease_debt(credits){
             self.remote_debt.increase_debt(credits);
             self.local_debt.decrease_debt(credits);
-            true
+            Ok(())
         }else{
-            false
+            Err(CreditsError::ModifyBalanceError)
         }
     }
 
     /// Freeze my credits
     // Normally called when sending a Request Message
-    pub fn freeze_local_credits(&mut self, credits: u64) -> bool{
+    pub fn freeze_local_credits(&mut self, credits: u64) -> Result<(), CreditsError>{
         self.local_debt.freeze_credits(credits)
     }
 
     /// Freeze credits of my neighbor
     // Normally called when receiving a Request Message
-    pub fn freeze_remote_credits(&mut self, credits: u64) -> bool{
+    pub fn freeze_remote_credits(&mut self, credits: u64) -> Result<(), CreditsError>{
         self.remote_debt.freeze_credits(credits)
     }
 
     /// Unfreeze credits of my neighbor
     // Normally called when sending a Failure message
-    pub fn unfreeze_remote_credits(&mut self, credits: u64) -> bool{
+    pub fn unfreeze_remote_credits(&mut self, credits: u64) -> Result<(), CreditsError>{
         self.remote_debt.unfreeze_credits(credits)
     }
 
     /// Unfreeze my credits
     // Normally called when receiving a Failure message
-    pub fn unfreeze_local_credits(&mut self, credits: u64) -> bool{
+    pub fn unfreeze_local_credits(&mut self, credits: u64) -> Result<(), CreditsError>{
         self.local_debt.unfreeze_credits(credits)
     }
 
     /// Realize frozen credits
     // Normally called when receiving a Response/Failure message.
-    pub fn realize_local_frozen_credits(&mut self, credits: u64) -> bool {
-        if self.remote_debt.can_decrease_debt(credits) &&
-            self.local_debt.realize_frozen_credits(credits){
+    pub fn realize_local_frozen_credits(&mut self, credits: u64) -> Result<(), CreditsError> {
+        if self.remote_debt.can_decrease_debt(credits){
+            self.local_debt.realize_frozen_credits(credits)?;
             self.remote_debt.decrease_debt(credits)
-
         } else {
-           false
+           Err(CreditsError::ModifyBalanceError)
         }
     }
 
     /// Realize frozen credits
     // Normally called when sending a Response/ message.
-    pub fn realize_remote_frozen_credits(&mut self, credits: u64) -> bool {
-        if self.local_debt.can_decrease_debt(credits) &&
-            self.remote_debt.realize_frozen_credits(credits){
+    pub fn realize_remote_frozen_credits(&mut self, credits: u64) -> Result<(), CreditsError> {
+        if self.local_debt.can_decrease_debt(credits){
+            self.remote_debt.realize_frozen_credits(credits)?;
             self.local_debt.decrease_debt(credits)
         } else {
-            false
+            Err(CreditsError::ModifyBalanceError)
         }
     }
 
-    pub fn set_remote_max_debt(&mut self, remote_max_debt: u64) -> bool{
+    pub fn set_remote_max_debt(&mut self, remote_max_debt: u64) -> Result<(), CreditsError>{
         self.remote_debt.set_max_debt(remote_max_debt)
     }
 
-    pub fn set_local_max_debt(&mut self, local_max_debt: u64) -> bool{
+    pub fn set_local_max_debt(&mut self, local_max_debt: u64) -> Result<(), CreditsError>{
         self.local_debt.set_max_debt(local_max_debt)
     }
 
@@ -201,12 +206,12 @@ impl Debt{
         false
     }
 
-    fn increase_debt(&mut self, credits: u64) -> bool{
+    fn increase_debt(&mut self, credits: u64) -> Result<(), CreditsError>{
         if self.can_increase_debt(credits){
             self.debt += credits as i64;
-            true
+            Ok(())
         }else{
-            false
+            Err(CreditsError::ModifyBalanceError)
         }
     }
 
@@ -218,12 +223,12 @@ impl Debt{
         }
     }
 
-    fn decrease_debt(&mut self, credits: u64) -> bool{
+    fn decrease_debt(&mut self, credits: u64) -> Result<(), CreditsError>{
         if self.can_decrease_debt(credits){
             self.debt -= credits as i64;
-            true
+            Ok(())
         }else{
-            false
+            Err(CreditsError::ModifyBalanceError)
         }
     }
 
@@ -245,48 +250,48 @@ impl Debt{
     ///     debt + new_pending_debt <= i64::max_value()
     ///     new_pending_debt <= i64::max_value()
     // TODO(a4vision): Maybe talk again after changing to use Result<>
-    fn freeze_credits(&mut self, credits: u64) -> bool{
+    fn freeze_credits(&mut self, credits: u64) -> Result<(), CreditsError>{
         if let Some(new_pending_debt) = self.pending_debt.checked_add(credits){
             if new_pending_debt <= Debt::MAX_I64 {
                 if let Some(potential_debt) = self.debt.checked_add(new_pending_debt as i64) {
                     if potential_debt <= self.max_debt as i64 {
                         self.pending_debt = new_pending_debt;
-                        return true;
+                        return Ok(());
                     }
                 }
             }
         }
-        false
+        Err(CreditsError::ModifyBalanceError)
     }
 
     /// Dismiss some of the pending debt.
-    fn unfreeze_credits(&mut self, credits: u64) -> bool{
+    fn unfreeze_credits(&mut self, credits: u64) -> Result<(), CreditsError>{
         if let Some(new_pending_debt) = self.pending_debt.checked_sub(credits) {
             self.pending_debt = new_pending_debt;
-            true
+            Ok(())
         }else {
-            false
+            Err(CreditsError::ModifyBalanceError)
         }
     }
 
     // The sum (debt + pending_debt) is not changed, therefore we don't need to validate
     //      debt + pending_debt <= i64::max_value()
-    fn realize_frozen_credits(&mut self, credits: u64) -> bool{
+    fn realize_frozen_credits(&mut self, credits: u64) -> Result<(), CreditsError>{
         if let Ok(credits_i64) = i64::try_from(credits){
-            if self.unfreeze_credits(credits) {
-                self.debt += credits_i64;
-                return true;
-            }
+            self.unfreeze_credits(credits)?;
+            self.debt += credits_i64;
+            Ok(())
+        }else{
+            Err(CreditsError::ModifyBalanceError)
         }
-        false
     }
 
-    fn set_max_debt(&mut self, max_debt: u64) -> bool{
+    fn set_max_debt(&mut self, max_debt: u64) -> Result<(), CreditsError>{
         if max_debt <= Debt::MAX_I64{
             self.max_debt = max_debt;
-            true
+            Ok(())
         }else{
-            false
+            Err(CreditsError::TooLargeMaxDebt)
         }
     }
 
@@ -305,10 +310,7 @@ impl Debt{
     }
 }
 
-#[derive(Debug)]
-pub enum CreditsError{
-    TooLargeMaxDebt,
-}
+
 
 
 #[cfg(test)]
@@ -318,76 +320,76 @@ mod test_debt {
     #[test]
     fn test_max_debt() {
         let mut debt = Debt::new(12).unwrap();
-        assert_eq!(true, debt.freeze_credits(12));
-        assert_eq!(false, debt.freeze_credits(1));
-        assert_eq!(true, debt.set_max_debt(0));
-        assert_eq!(false, debt.set_max_debt((1 << 63)));
+        assert_eq!(true, debt.freeze_credits(12).is_ok());
+        assert_eq!(Err(CreditsError::ModifyBalanceError), debt.freeze_credits(1));
+        assert_eq!(true, debt.set_max_debt(0).is_ok());
+        assert_eq!(Err(CreditsError::TooLargeMaxDebt), debt.set_max_debt((1 << 63)));
     }
 
     #[test]
     fn test_redeem() {
         let mut debt = Debt::new(12).unwrap();
         assert_eq!(0, debt.debt());
-        assert_eq!(true, debt.freeze_credits(5));
+        assert!(debt.freeze_credits(5).is_ok());
         assert_eq!(0, debt.debt());
-        assert_eq!(true, debt.realize_frozen_credits(5));
+        assert!(debt.realize_frozen_credits(5).is_ok());
         assert_eq!(5, debt.debt());
     }
 
     #[test]
     fn test_unfreeze() {
         let mut debt = Debt::new(12).unwrap();
-        assert_eq!(true, debt.freeze_credits(12));
-        assert_eq!(false, debt.freeze_credits(12));
-        assert_eq!(true, debt.unfreeze_credits(12));
-        assert_eq!(false, debt.unfreeze_credits(12));
-        assert_eq!(true, debt.freeze_credits(12));
+        assert!(debt.freeze_credits(12).is_ok());
+        assert!(debt.freeze_credits(12).is_err());
+        assert!(debt.unfreeze_credits(12).is_ok());
+        assert!(debt.unfreeze_credits(12).is_err());
+        assert!(debt.freeze_credits(12).is_ok());
     }
 
     #[test]
     fn test_increase_debt() {
         let mut debt = Debt::new(1).unwrap();
-        assert_eq!(true, debt.increase_debt(20));
+        assert!(debt.increase_debt(20).is_ok());
         assert_eq!(20, debt.debt());
-        assert_eq!(false, debt.increase_debt((1u64<<63)));
+        assert!(debt.increase_debt((1u64<<63)).is_err());
         assert_eq!(20, debt.debt());
-        assert_eq!(true, debt.increase_debt((1u64<<63) - 21));
+        assert!(debt.increase_debt((1u64<<63) - 21).is_ok());
         assert_eq!(((1u64<<63) - 1) as i64, debt.debt());
-        assert_eq!(false, debt.freeze_credits(1));
+        assert!(debt.freeze_credits(1).is_err());
     }
 
     #[test]
     fn test_decrease_debt(){
         let mut debt = Debt::new(10).unwrap();
-        assert_eq!(true, debt.decrease_debt(i64::max_value() as u64));
+        assert!(debt.decrease_debt(i64::max_value() as u64).is_ok());
         assert_eq!(-i64::max_value(), debt.debt());
-        assert_eq!(true, debt.increase_debt(i64::max_value() as u64));
+        assert!(debt.increase_debt(i64::max_value() as u64).is_ok());
         assert_eq!(0, debt.debt());
     }
 
     #[test]
     fn test_freezing_credits(){
         let mut debt = Debt::new(20).unwrap();
-        assert_eq!(false, debt.freeze_credits(21));
-        assert_eq!(true, debt.freeze_credits(20));
-        assert_eq!(false, debt.unfreeze_credits(21));
-        assert_eq!(true, debt.unfreeze_credits(20));
-        assert_eq!(true, debt.freeze_credits(20));
+        assert!(debt.freeze_credits(21).is_err());
+        assert!(debt.freeze_credits(20).is_ok());
+        assert!(debt.unfreeze_credits(21).is_err());
+        assert!(debt.unfreeze_credits(20).is_ok());
+        assert!(debt.freeze_credits(20).is_ok());
     }
 
     #[test]
     fn test_inequality_while_freezing_credit(){
         let mut debt = Debt::new(20).unwrap();
-        assert_eq!(true, debt.increase_debt(10));
-        assert_eq!(false, debt.freeze_credits(11));
-        assert_eq!(true, debt.freeze_credits(10));
+        assert!(debt.increase_debt(10).is_ok());
+        assert!(debt.freeze_credits(11).is_err());
+        assert!(debt.freeze_credits(10).is_ok());
     }
 
     #[test]
     fn test_overflow_while_increasing_debt(){
         let mut debt = Debt::new(10).unwrap();
-        assert_eq!(true, debt.freeze_credits(10));
-        assert_eq!(false, debt.increase_debt(i64::max_value() as u64));
+        assert!(debt.freeze_credits(10).is_ok());
+        assert!(debt.increase_debt(i64::max_value() as u64).is_err());
     }
 }
 
@@ -409,12 +411,12 @@ mod test_channel_credit {
     #[test]
     fn test_debt_basic(){
         let mut credit = TokenChannelCredit::new(10, 10).unwrap();
-        assert_eq!(true, credit.increase_balance(100));
+        assert!(credit.increase_balance(100).is_ok());
         assert_eq!(100, credit.balance());
-        assert_eq!(false, credit.freeze_remote_credits(1));
-        assert_eq!(true, credit.freeze_local_credits(100 + 10));
+        assert!(credit.freeze_remote_credits(1).is_err());
+        assert!(credit.freeze_local_credits(100 + 10).is_ok());
         assert_eq!(100, credit.balance());
-        assert_eq!(true, credit.realize_local_frozen_credits(100 + 10));
+        assert!(credit.realize_local_frozen_credits(100 + 10).is_ok());
         assert_eq!(-10, credit.balance());
     }
 
@@ -464,16 +466,16 @@ mod test_channel_credit {
     fn test_consistency_while_changing_balance(){
         let mut credit = TokenChannelCredit::new(10, 10).unwrap();
         assert_eq!(true, is_tc_credit_consistent(&credit));
-        assert_eq!(true, credit.increase_balance(100));
+        assert!(credit.increase_balance(100).is_ok());
         assert_eq!(true, is_tc_credit_consistent(&credit));
         assert_eq!(100, credit.balance());
         assert_eq!(true, is_tc_credit_consistent(&credit));
-        assert_eq!(false, credit.freeze_remote_credits(1));
+        assert!(credit.freeze_remote_credits(1).is_err());
         assert_eq!(true, is_tc_credit_consistent(&credit));
-        assert_eq!(true, credit.freeze_local_credits(100 + 10));
+        assert!(credit.freeze_local_credits(100 + 10).is_ok());
         assert_eq!(true, is_tc_credit_consistent(&credit));
         assert_eq!(100, credit.balance());
-        assert_eq!(true, credit.realize_local_frozen_credits(100 + 10));
+        assert!(credit.realize_local_frozen_credits(100 + 10).is_ok());
         assert_eq!(true, is_tc_credit_consistent(&credit));
         assert_eq!(-10, credit.balance());
     }

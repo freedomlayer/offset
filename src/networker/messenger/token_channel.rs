@@ -183,7 +183,7 @@ impl <'a>TransTokenChannelState<'a>{
     }
 
     fn process_set_remote_max_debt(&mut self, proposed_max_debt: u64)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        if self.tc_balance.set_remote_max_debt(proposed_max_debt) {
+        if self.tc_balance.set_remote_max_debt(proposed_max_debt).is_ok() {
             Ok(None)
         }else{
             Err(ProcessMessageError::RemoteMaxDebtTooLarge(proposed_max_debt))
@@ -210,7 +210,7 @@ impl <'a>TransTokenChannelState<'a>{
         -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
         let credits = request_send_msg.credits_to_freeze_on_destination().
             ok_or(ProcessMessageError::CreditsCalculationOverflow)?;
-        if !self.tc_balance.freeze_remote_credits(credits){
+        if !self.tc_balance.freeze_remote_credits(credits).is_ok(){
             return Err(ProcessMessageError::PendingCreditTooLarge);
         }
 
@@ -238,7 +238,7 @@ impl <'a>TransTokenChannelState<'a>{
         if !self.transactional_remote_pending_requests.add_pending_request(pending_request) {
             return Err(ProcessMessageError::RemoteRequestIdExists);
         }
-        if !self.tc_balance.freeze_remote_credits(credits_to_freeze){
+        if !self.tc_balance.freeze_remote_credits(credits_to_freeze).is_ok(){
             return Err(ProcessMessageError::PendingCreditTooLarge);
         }
         Ok(Some(ProcessMessageOutput::Request(request_send_msg)))
@@ -276,13 +276,13 @@ impl <'a>TransTokenChannelState<'a>{
     credits_to_realize: u64) -> Result<(), ProcessMessageError>{
         let frozen_credits = pending_request.credits_to_freeze().ok_or(ProcessMessageError::CreditsCalculationOverflow)?;
 
-        if !self.tc_balance.realize_local_frozen_credits(credits_to_realize){
+        if !self.tc_balance.realize_local_frozen_credits(credits_to_realize).is_ok(){
             return Err(ProcessMessageError::InnerBug);
         }
 
         let credits_to_unfreeze = frozen_credits.checked_sub(credits_to_realize).
             ok_or(ProcessMessageError::InnerBug)?;
-        if !self.tc_balance.unfreeze_local_credits(credits_to_unfreeze){
+        if !self.tc_balance.unfreeze_local_credits(credits_to_unfreeze).is_ok(){
             return Err(ProcessMessageError::InnerBug);
         }
         Ok(())
