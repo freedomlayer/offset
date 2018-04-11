@@ -22,7 +22,7 @@ pub struct SendFundsReceipt {
 
 
 impl SignedMessage for SendFundsReceipt{
-    fn get_signature(&self) -> &Signature{
+    fn signature(&self) -> &Signature{
         &self.signature
     }
 
