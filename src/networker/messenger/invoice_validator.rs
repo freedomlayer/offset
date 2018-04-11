@@ -35,12 +35,12 @@ impl InvoiceIds {
         self.local_invoice_id.validate_receipt(send_funds_receipt, public_key)
     }
 
-    pub fn get_local_invoice_id(&self) -> &Option<InvoiceId>{
-        self.local_invoice_id.get_invoice_id()
+    pub fn local_invoice_id(&self) -> &Option<InvoiceId>{
+        self.local_invoice_id.invoice_id()
     }
 
-    pub fn get_remote_invoice_id(&self) -> &Option<InvoiceId>{
-        self.remote_invoice_id.get_invoice_id()
+    pub fn remote_invoice_id(&self) -> &Option<InvoiceId>{
+        self.remote_invoice_id.invoice_id()
     }
 
     pub fn reset_local_invoice_id(&mut self){
@@ -70,7 +70,7 @@ impl InvoiceIdStore {
         }
     }
 
-    fn get_invoice_id(&self) -> &Option<InvoiceId> {
+    fn invoice_id(&self) -> &Option<InvoiceId> {
         &self.invoice_id
     }
 
@@ -141,7 +141,7 @@ mod test{
 
 
         assert_eq!(Err(ProcessMessageError::InvalidFundsReceipt), validator0.validate_receipt(&receipt, &identity.get_public_key()));
-        receipt.sign(&vec![], &identity);
+        receipt.sign(&[], &identity);
         assert_eq!(Err(ProcessMessageError::MissingInvoiceId), validator0.validate_receipt(&receipt, &identity.get_public_key()));
         assert_eq!(Err(ProcessMessageError::InvalidInvoiceId), validator1.validate_receipt(&receipt, &identity.get_public_key()));
         assert_eq!(Ok(()), validator2.validate_receipt(&receipt, &identity.get_public_key()));

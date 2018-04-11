@@ -7,7 +7,7 @@ use crypto::identity::PublicKey;
 /// A signed message.
 pub trait SignedMessage {
     /// The signature.
-    fn get_signature(&self) -> &Signature;
+    fn signature(&self) -> &Signature;
 
     fn set_signature(&mut self, signature: Signature);
 
@@ -23,7 +23,7 @@ pub trait SignedMessage {
 
     /// Check whether the signature is valid.
     fn verify_signature(&self, public_key: &PublicKey, extra_data: &[u8]) -> bool{
-        identity::verify_signature(&self.data_to_sign(extra_data), public_key, self.get_signature())
+        identity::verify_signature(&self.data_to_sign(extra_data), public_key, self.signature())
     }
 
     fn sign(&mut self, extra_data: &[u8], identity: &Identity){

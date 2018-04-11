@@ -66,7 +66,7 @@ impl PendingNeighborRequest{
 
     pub fn verify_response_message(&self, response_send_msg: &ResponseSendMessage)
         -> Result<(), ProcessMessageError>{
-        if response_send_msg.get_request_id() != &self.request_id {
+        if response_send_msg.request_id() != &self.request_id {
             return Err(ProcessMessageError::InvalidRequestId)
         }
 
@@ -82,7 +82,7 @@ impl PendingNeighborRequest{
         if response_length > self.max_response_length{
             return Err(ProcessMessageError::TooLongMessage);
         }
-        if self.processing_fee_proposal < response_send_msg.get_processing_fee(){
+        if self.processing_fee_proposal < response_send_msg.processing_fee(){
             return Err(ProcessMessageError::TooMuchFeeCollected);
         }
         Ok(())
@@ -100,7 +100,7 @@ impl PendingNeighborRequest{
         Ok(())
     }
 
-    pub fn get_route(&self) -> &NeighborsRoute{
+    pub fn route(&self) -> &NeighborsRoute{
         &self.route
     }
 }

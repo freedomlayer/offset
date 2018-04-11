@@ -32,12 +32,12 @@ impl BalanceState{
     fn local_max_debt(&self, key: &PublicKey, channel_index: usize) -> Option<u64>{
         let tcs = self.token_channels.get(key)?;
         let channel = &tcs[channel_index];
-        Some(channel.get_local_max_debt())
+        Some(channel.local_max_debt())
     }
 
     fn remote_max_debt(&self, remote_public_key: &PublicKey) -> Option<u128>{
         let src_tcs = self.token_channels.get(remote_public_key)?;
-        let iter = src_tcs.into_iter().map(|tc| tc.get_remote_max_debt());
+        let iter = src_tcs.into_iter().map(|tc| tc.remote_max_debt());
         Some(sum_u64(iter))
     }
 

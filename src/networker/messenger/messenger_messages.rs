@@ -38,7 +38,7 @@ pub struct ResponseSendMessage {
 }
 
 impl SignedMessage for ResponseSendMessage{
-    fn get_signature(&self) -> &Signature{
+    fn signature(&self) -> &Signature{
         &self.signature
     }
 
@@ -71,11 +71,11 @@ impl ResponseSendMessage{
         self.bytes_count()
     }
 
-    pub fn get_request_id(&self) -> &Uid{
+    pub fn request_id(&self) -> &Uid{
         &self.request_id
     }
 
-    pub fn get_processing_fee(&self) -> u64{
+    pub fn processing_fee(&self) -> u64{
         self.processing_fee_collected
     }
 
@@ -110,7 +110,7 @@ impl RequestSendMessage {
         Some(distance)
     }
 
-    pub fn get_request_id(&self) -> &Uid {
+    pub fn request_id(&self) -> &Uid {
         &self.request_id
     }
 
@@ -127,7 +127,7 @@ impl RequestSendMessage {
         })
     }
 
-    pub fn get_route(&self) -> &NeighborsRoute{
+    pub fn route(&self) -> &NeighborsRoute{
         &self.route
     }
 
@@ -149,7 +149,7 @@ pub struct FailedSendMessage {
 }
 
 impl SignedMessage for FailedSendMessage{
-    fn get_signature(&self) -> &Signature{
+    fn signature(&self) -> &Signature{
         &self.signature
     }
 
@@ -193,7 +193,7 @@ impl FailedSendMessage{
         self.verify_signature(&self.reporting_public_key, &[])
     }
 
-    pub fn get_request_id(&self) -> &Uid{
+    pub fn request_id(&self) -> &Uid{
         &self.request_id
     }
 
