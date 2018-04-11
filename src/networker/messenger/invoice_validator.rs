@@ -29,7 +29,7 @@ impl InvoiceIds {
     }
 
     /// Validate the signature and the invoice id of the given receipt.
-    pub fn validate_receipt(&mut self, send_funds_receipt: &SendFundsReceipt,
+    pub fn validate_receipt(&self, send_funds_receipt: &SendFundsReceipt,
                             public_key: &PublicKey) ->
     Result<(), ProcessMessageError> {
         self.local_invoice_id.validate_receipt(send_funds_receipt, public_key)
@@ -74,7 +74,7 @@ impl InvoiceIdStore {
         &self.invoice_id
     }
 
-    fn validate_receipt(&mut self, receipt: &SendFundsReceipt,
+    fn validate_receipt(&self, receipt: &SendFundsReceipt,
                             public_key: &PublicKey) ->
     Result<(), ProcessMessageError> {
         if !receipt.verify_signature(public_key, &[]) {
