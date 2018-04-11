@@ -1,3 +1,4 @@
+use bytes::{Bytes, BytesMut};
 use crypto::identity::Signature;
 use crypto::identity;
 use crypto::identity::Identity;
@@ -12,7 +13,7 @@ pub trait SignedMessage {
     fn set_signature(&mut self, signature: Signature);
 
     /// The message content, excluding the signature.
-    fn as_bytes(&self) -> Vec<u8>;
+    fn as_bytes(&self) -> Bytes;
 
     fn data_to_sign(&self, extra_data: &[u8]) -> Vec<u8>{
         let mut res = Vec::new();
@@ -29,4 +30,11 @@ pub trait SignedMessage {
     fn sign(&mut self, extra_data: &[u8], identity: &Identity){
         self.set_signature(identity.sign_message(&self.data_to_sign(extra_data)));
     }
+}
+
+
+pub fn ref_to_bytes(data: &[u8]) -> Bytes {
+    let mut buffer = BytesMut::with_capacity(data.len());
+    buffer.extend_from_slice(&data);
+    buffer.freeze()
 }

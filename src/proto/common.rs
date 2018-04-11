@@ -1,5 +1,7 @@
+use bytes::Bytes;
 use byteorder::{WriteBytesExt, BigEndian};
 use utils::signed_message::SignedMessage;
+use utils::signed_message;
 use crypto::hash::HashResult;
 
 use crypto::identity::Signature;
@@ -30,7 +32,7 @@ impl SignedMessage for SendFundsReceipt{
         self.signature = signature
     }
 
-    fn as_bytes(&self) -> Vec<u8>{
+    fn as_bytes(&self) -> Bytes{
         let mut data = Vec::new();
         data.extend(b"FUND_SUCCESS");
         data.extend(self.response_hash.as_ref());
@@ -38,7 +40,7 @@ impl SignedMessage for SendFundsReceipt{
         data.write_u128::<BigEndian>(self.payment)
             .expect("Error writing u128 into data");
         data.extend(self.rand_nonce.as_ref());
-        data
+        signed_message::ref_to_bytes(data.as_ref())
     }
 }
 

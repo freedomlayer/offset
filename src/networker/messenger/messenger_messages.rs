@@ -1,7 +1,10 @@
+use bytes::Bytes;
+use bytes::BytesMut;
 use crypto::identity::{PublicKey, verify_signature, Signature};
 use crypto::uid::Uid;
 use crypto::rand_values::RandValue;
 use utils::signed_message::SignedMessage;
+use utils::signed_message;
 use std::mem;
 use utils::convert_int;
 use crypto::hash;
@@ -46,14 +49,15 @@ impl SignedMessage for ResponseSendMessage{
         self.signature = signature
     }
 
-    fn as_bytes(&self) -> Vec<u8>{
+    fn as_bytes(&self) -> Bytes{
         let mut message = Vec::new();
         message.extend_from_slice(&self.request_id);
         message.extend_from_slice(&self.rand_nonce);
         // Serialize the processing_fee_collected:
         message.write_u64::<LittleEndian>(self.processing_fee_collected);
         message.extend_from_slice(&self.response_content);
-        message
+
+        signed_message::ref_to_bytes(message.as_ref())
     }
 }
 
@@ -157,12 +161,12 @@ impl SignedMessage for FailedSendMessage{
         self.signature = signature
     }
 
-    fn as_bytes(&self) -> Vec<u8> {
+    fn as_bytes(&self) -> Bytes {
         let mut message = Vec::new();
         message.extend_from_slice(self.request_id.as_ref());
         message.extend_from_slice(self.reporting_public_key.as_ref());
         message.extend_from_slice(self.rand_nonce.as_ref());
-        message
+        signed_message::ref_to_bytes(message.as_ref())
     }
 }
 
