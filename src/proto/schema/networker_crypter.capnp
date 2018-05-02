@@ -95,9 +95,10 @@ struct PlainRequest {
 # All possible request messages:
 struct RequestMessage {
         union {
-                initChannel @0: InitChannel;
+                requestNonce @0: RequestNonce;
                 exchangeActive @1: ExchangeActive;
-                encrypted @2: Data;
+                channelReady @2: ChannelReady;
+                encrypted @3: Data;
         }
 }
 
