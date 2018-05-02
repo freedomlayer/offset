@@ -137,6 +137,8 @@ struct ConnectedFriend {
         sendCapacity @0: CustomUInt128;
         recvCapacity @1: CustomUInt128;
         publicKey @2: CustomUInt256;
+        requestBase @3: UInt64;
+        requestMultiplier @4: UInt64;
 }
 
 # Node::Funder -> Node
