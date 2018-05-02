@@ -29,6 +29,18 @@ struct NeighborInconsistencyError {
 # Token Transactions
 # ------------------
 
+struct EnableRequests {
+        base @0: UInt32;
+        multiplier @1: UInt32;
+        # The sender of this message declares that
+        # Sending x bytes to the remote side costs `base + x * multiplier`
+        # credits.
+}
+# This message may be sent more than once, to update the values of base and multiplier.
+
+
+# struct DisableRequests {
+# }
 
 struct SetRemoteMaxDebtTran {
         remoteMaxDebt @0: UInt64;
@@ -124,12 +136,14 @@ struct FailedSendMessageTran {
 
 struct NeighborTransaction {
         union {
-                setRemoteMaxDebt @0: SetRemoteMaxDebtTran;
-                setInvoiceIdTran @1: SetInvoiceIdTran;
-                loadFunds @2: LoadFundsTran;
-                requestSendMessage @3: RequestSendMessageTran;
-                responseSendMessage @4: ResponseSendMessageTran;
-                failedSendMessage @5: FailedSendMessageTran;
+                enableRequests @0: EnableRequests;
+                disableRequests @1: Void;
+                setRemoteMaxDebt @2: SetRemoteMaxDebtTran;
+                setInvoiceIdTran @3: SetInvoiceIdTran;
+                loadFunds @4: LoadFundsTran;
+                requestSendMessage @5: RequestSendMessageTran;
+                responseSendMessage @6: ResponseSendMessageTran;
+                failedSendMessage @7: FailedSendMessageTran;
         }
 }
 
