@@ -85,9 +85,10 @@ struct Plain {
 struct PlainRequest {
         plainContent @0: Data;
         destPort :union {
-                funder @1: Void;
-                indexerClient @2: Void;
-                appManager @3: UInt32;
+                networker @1: Void;
+                funder @2: Void;
+                indexerClient @3: Void;
+                appManager @4: UInt32;
         }
 }
 
