@@ -34,18 +34,18 @@ struct FriendInconsistencyError {
 # Token Transactions
 # ------------------
 
-
-enum RequestsState {
-        enabled @0;
-        disabled @1;
+struct EnableRequests {
+        base @0: UInt64;
+        multiplier @1: UInt64;
+        # The sender of this message declares that
+        # Sending x bytes to the remote side costs `base + x * multiplier`
+        # credits.
 }
+# This message may be sent more than once, to update the values of base and multiplier.
 
-# Set requests state for the remote party.
-# If the state is enabled, requests may be opened from the remote party.
-# If the state is disabled, requests may not be opened from the remote party.
-struct SetStateTran {
-        newState @0: RequestsState;
-}
+
+# struct DisableRequests {
+# }
 
 # Set the maximum possible debt for the remote party.
 # Note: It is not possible to set a maximum debt smaller than the current debt
@@ -117,11 +117,12 @@ struct FailedSendFundTran {
 
 struct FriendTransaction {
         union {
-                setState @0: SetStateTran;
-                setRemoteMaxDebt @1: SetRemoteMaxDebtTran;
-                requestSendFund @2: RequestSendFundTran;
-                responseSendFund @3: ResponseSendFundTran;
-                failedSendFund @4: FailedSendFundTran;
+                enableRequests @0: EnableRequests;
+                disableRequests @1: Void;
+                setRemoteMaxDebt @2: SetRemoteMaxDebtTran;
+                requestSendFund @3: RequestSendFundTran;
+                responseSendFund @4: ResponseSendFundTran;
+                failedSendFund @5: FailedSendFundTran;
         }
 }
 
