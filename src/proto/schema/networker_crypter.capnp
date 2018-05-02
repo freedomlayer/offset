@@ -115,3 +115,21 @@ struct ResponseToEncryptedRequest {
         }
 }
 
+
+# Requests sent directly to the Networker
+# ---------------------------------------
+
+# Node -> Node::Networker
+# struct RequestNodeNeighborsInfo {} # (Empty)
+
+struct ConnectedNeighbor {
+        publicKey @0: CustomUInt256;
+        requestBase @1: UInt32;
+        requestMultiplier @2: UInt32;
+}
+
+# Node::Networker -> Node
+struct ResponseNodeNeighborsInfo {
+        connectedNeighborsList @0: List(ConnectedNeighbor);
+        # A list of neighbors currently online.
+}
