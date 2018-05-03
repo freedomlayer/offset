@@ -179,18 +179,16 @@ struct TransTokenChannel {
     trans_pending_requests: TransTCPendingRequests,
 }
 
-/*
 /// If this function returns an error, the token channel becomes incosistent.
 pub fn atomic_process_messages_list(token_channel: TokenChannel, messages: Vec<NetworkerTCMessage>)
                                     -> (TokenChannel, Result<Vec<ProcessMessageOutput>, ProcessTransListError>) {
 
-    let trans_token_channel = TransTokenChannel::new(token_channel);
+    let mut trans_token_channel = TransTokenChannel::new(token_channel);
     match trans_token_channel.process_messages_list(messages) {
         Err(e) => (trans_token_channel.cancel(), Err(e)),
         Ok(output_tasks) => (trans_token_channel.commit(), Ok(output_tasks)),
     }
 }
-*/
 
 /// Transactional state of the token channel.
 impl TransTokenChannel {
@@ -229,143 +227,42 @@ impl TransTokenChannel {
         }
     }
 
-    /*
     fn process_set_remote_max_debt(&mut self, proposed_max_debt: u64)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        if self.tc_balance.set_remote_max_debt(proposed_max_debt) {
-            Ok(None)
-        }else{
-            Err(ProcessMessageError::RemoteMaxDebtTooLarge(proposed_max_debt))
-        }
+        // TODO
+        Err(ProcessMessageError::RemoteMaxDebtTooLarge(proposed_max_debt))
     }
 
     fn process_set_invoice_id(&mut self, invoice_id: InvoiceId)
                               -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        if self.invoice_validator.set_remote_invoice_id(invoice_id.clone()) {
+        if self.invoice.remote_invoice_id.is_none(){
+            self.invoice.remote_invoice_id = Some(invoice_id);
             Ok(None)
-        }else{
+        } else {
             Err(ProcessMessageError::InvoiceIdExists)
         }
     }
 
     fn process_load_funds(&mut self, send_funds_receipt: SendFundsReceipt)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        match self.invoice_validator.validate_receipt(&send_funds_receipt,
-                                                      &self.local_public_key){
-            Ok(()) => {
-                // TODO(a4vision): The actual payment redeemed for networking cannot be u128.
-                //                  Solution: truncate to i64.
-                if self.tc_balance.decrease_balance(send_funds_receipt.payment) {
-                    Ok(None)
-                }else{
-                    Err(ProcessMessageError::LoadFundsOverflow)
-                }
-            },
-            Err(e) => Err(e),
-        }
+        // TODO
+        Err(ProcessMessageError::LoadFundsOverflow)
     }
 
-    fn process_request_message_last_node(&mut self, request_send_msg: RequestSendMessage)
+    fn process_request_send_message(&mut self, request_send_msg: RequestSendMessage)
         -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        let credits = request_send_msg.credits_to_freeze_on_destination().
-            ok_or(ProcessMessageError::CreditsCalculationOverflow)?;
-        if !self.tc_balance.freeze_remote_credits(credits){
-            return Err(ProcessMessageError::PendingCreditTooLarge);
-        }
 
-        Ok(Some(ProcessMessageOutput::Request(request_send_msg)))
+        // TODO
+        Err(ProcessMessageError::PendingCreditTooLarge)
     }
-
-    fn process_request_send_message(&mut self, request_send_msg: RequestSendMessage)->
-    Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        if !request_send_msg.get_route().is_unique(){
-            return Err(ProcessMessageError::DuplicateNodesInRoute);
-        }
-
-        let pending_request = match request_send_msg.get_route().find_pk_pair(&self.remote_public_key, &self.local_public_key) {
-            PkPairPosition::NotFound => return Err(ProcessMessageError::PKPairNotInChain),
-            PkPairPosition::IsLast => {
-                return self.process_request_message_last_node(request_send_msg);
-            },
-            PkPairPosition::NotLast => {
-                request_send_msg.create_pending_request(&self.remote_public_key).ok_or(ProcessMessageError::TooLongMessage)?
-            },
-        };
-        let credits_to_freeze = pending_request.credits_to_freeze().ok_or(
-            ProcessMessageError::CreditsCalculationOverflow)?;
-
-        if !self.transactional_remote_pending_requests.add_pending_request(pending_request) {
-            return Err(ProcessMessageError::RemoteRequestIdExists);
-        }
-        if !self.tc_balance.freeze_remote_credits(credits_to_freeze){
-            return Err(ProcessMessageError::PendingCreditTooLarge);
-        }
-        Ok(Some(ProcessMessageOutput::Request(request_send_msg)))
-    }
-
-
-    fn remove_local_pending_request(&mut self, request_id: &Uid) -> Result<PendingNeighborRequest, ProcessMessageError>{
-        self.transactional_local_pending_requests.remove_pending_request(request_id).
-            ok_or(ProcessMessageError::RequestIdNotExists)
-    }
-
-    fn rebalance_credits_upon_receive_response(&mut self, pending_request: &PendingNeighborRequest,
-                                               response_send_msg: &ResponseSendMessage)
-                                               -> Result<(), ProcessMessageError> {
-        let credits_to_realize = pending_request.credits_on_success(response_send_msg.response_length()).
-            ok_or(ProcessMessageError::CreditsCalculationOverflow)?;
-
-        self.realize_some_of_frozen_credits(pending_request, credits_to_realize)
-    }
-
-
 
     fn process_response_send_message(&mut self, response_send_msg: ResponseSendMessage) ->
-    Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        let pending_request = self.remove_local_pending_request(response_send_msg.get_request_id())?;
-        pending_request.verify_response_message(&response_send_msg)?;
-        self.rebalance_credits_upon_receive_response(&pending_request, &response_send_msg)?;
-
-        Ok(Some(ProcessMessageOutput::Response(IncomingResponseSendMessage{
-            pending_request, incoming_response: response_send_msg
-        })))
-    }
-
-    fn realize_some_of_frozen_credits(&mut self, pending_request: &PendingNeighborRequest,
-    credits_to_realize: u64) -> Result<(), ProcessMessageError>{
-        let frozen_credits = pending_request.credits_to_freeze().ok_or(ProcessMessageError::CreditsCalculationOverflow)?;
-
-        if !self.tc_balance.realize_local_frozen_credits(credits_to_realize){
-            return Err(ProcessMessageError::InnerBug);
-        }
-
-        let credits_to_unfreeze = frozen_credits.checked_sub(credits_to_realize).
-            ok_or(ProcessMessageError::InnerBug)?;
-        if !self.tc_balance.unfreeze_local_credits(credits_to_unfreeze){
-            return Err(ProcessMessageError::InnerBug);
-        }
-        Ok(())
-    }
-
-    fn rebalance_credits_upon_receive_failed(&mut self, pending_request: &PendingNeighborRequest,
-            failed_send_message: &FailedSendMessage) -> Result<(), ProcessMessageError>{
-
-        let nodes_to_reporting = failed_send_message.nodes_to_reporting(&self.local_public_key,
-                                                                        pending_request.get_route()).
-            ok_or(ProcessMessageError::InnerBug)?;
-        let credits_to_realize = pending_request.credits_on_failure(nodes_to_reporting).
-            ok_or(ProcessMessageError::CreditsCalculationOverflow)?;
-
-        self.realize_some_of_frozen_credits(pending_request, credits_to_realize)
+        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        // TODO
+        unreachable!();
     }
 
     fn process_failed_send_message(&mut self, failed_send_msg: FailedSendMessage) ->
-    Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        let pending_request = self.remove_local_pending_request(failed_send_msg.get_request_id())?;
-        pending_request.verify_failed_message(&self.local_public_key, &failed_send_msg)?;
-        self.rebalance_credits_upon_receive_failed(&pending_request, &failed_send_msg)?;
-
-        Ok(Some(ProcessMessageOutput::Failure(IncomingFailedSendMessage{
-            pending_request, incoming_failed: failed_send_msg
-        })))
+        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        unreachable!();
     }
 
     fn process_message(&mut self, message: NetworkerTCMessage)->
@@ -403,7 +300,6 @@ impl TransTokenChannel {
         }
         Ok(outputs)
     }
-    */
 
 }
 
