@@ -30,7 +30,7 @@ capnp = "0.8"
 rusqlite = "0.13"
 
 [dependencies.clippy]
-version = "*"
+version = "=0.0.195"
 optional = true
 
 [dependencies.byteorder]
