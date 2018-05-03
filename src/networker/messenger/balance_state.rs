@@ -3,6 +3,7 @@ use super::token_channel::TokenChannel;
 use super::messenger_messages::NetworkerTCMessage;
 use crypto::identity::PublicKey;
 
+/*
 
 pub struct BalanceState {
     token_channels: HashMap<PublicKey, Vec<TokenChannel>>,
@@ -84,3 +85,4 @@ mod tests{
     }
 
 }
+*/
