@@ -29,6 +29,18 @@ struct NeighborInconsistencyError {
 # Token Transactions
 # ------------------
 
+struct EnableRequestsTran {
+        base @0: UInt32;
+        multiplier @1: UInt32;
+        # The sender of this message declares that
+        # Sending x bytes to the remote side costs `base + x * multiplier`
+        # credits.
+}
+# This message may be sent more than once, to update the values of base and multiplier.
+
+
+# struct DisableRequestsTran {
+# }
 
 struct SetRemoteMaxDebtTran {
         remoteMaxDebt @0: UInt64;
@@ -44,9 +56,27 @@ struct LoadFundsTran {
 }
 
 
+struct NeighborRouteLink {
+        nodePublicKey @0: CustomUInt256;
+        # Public key of current node
+        requestBaseProposal @1: UInt32;
+        # request base pricing for the current node
+        requestMultiplierProposal @2: UInt32;
+        # request multiplier pricing for the current node.
+        responseBaseProposal @3: UInt32;
+        # response base pricing for the next node.
+        responseMultiplierProposal @4: UInt32;
+        # response multiplier pricing for the next node.
+}
+
 
 struct NeighborsRoute {
-        publicKeys @0: List(CustomUInt256);
+        sourcePublicKey @0: CustomUInt256;
+        # Public key for the message originator.
+        routeLinks @1: List(NeighborRouteLink);
+        # A chain of all intermediate nodes.
+        destinationPublicKey @2: CustomUInt256;
+        # Public key for the message destination.
 }
 
 
@@ -106,12 +136,14 @@ struct FailedSendMessageTran {
 
 struct NeighborTransaction {
         union {
-                setRemoteMaxDebt @0: SetRemoteMaxDebtTran;
-                setInvoiceIdTran @1: SetInvoiceIdTran;
-                loadFunds @2: LoadFundsTran;
-                requestSendMessage @3: RequestSendMessageTran;
-                responseSendMessage @4: ResponseSendMessageTran;
-                failedSendMessage @5: FailedSendMessageTran;
+                enableRequests @0: EnableRequestsTran;
+                disableRequests @1: Void;
+                setRemoteMaxDebt @2: SetRemoteMaxDebtTran;
+                setInvoiceId @3: SetInvoiceIdTran;
+                loadFunds @4: LoadFundsTran;
+                requestSendMessage @5: RequestSendMessageTran;
+                responseSendMessage @6: ResponseSendMessageTran;
+                failedSendMessage @7: FailedSendMessageTran;
         }
 }
 
