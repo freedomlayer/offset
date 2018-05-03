@@ -13,20 +13,24 @@ use proto::indexer::{NeighborsRoute, PkPairPosition};
 use proto::funder::InvoiceId;
 
 use super::tc_credit::TokenChannelCredit;
-use super::invoice_validator::InvoiceValidator;
+use super::invoice_validator::InvoiceIds;
 use super::pending_requests::PendingRequests;
 use super::pending_requests::TransPendingRequests;
 use super::credit_calculator;
 use super::pending_neighbor_request::PendingNeighborRequest;
 use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, RequestSendMessage};
+
+use utils::signed_message::SignedMessage;
 use utils::convert_int;
 use super::messenger_messages::NetworkerTCMessage;
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct IncomingResponseSendMessage {
     pending_request: PendingNeighborRequest,
     incoming_response: ResponseSendMessage,
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct IncomingFailedSendMessage {
     pending_request: PendingNeighborRequest,
     incoming_failed: FailedSendMessage,
@@ -35,14 +39,18 @@ pub struct IncomingFailedSendMessage {
 
 /// Resulting tasks to perform after processing an incoming message.
 /// Note that
+#[derive(Debug, PartialEq, Eq)]
 pub enum ProcessMessageOutput {
     Request(RequestSendMessage),
     Response(IncomingResponseSendMessage),
     Failure(IncomingFailedSendMessage),
+    /// After processing `LoadFunds`, the invoice_id of the token channel was reset to None.
+    /// During further processing, need to set a new invoice id, and send it to the neighbor.
+    InvoiceIdReset,
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ProcessMessageError {
     RemoteMaxDebtTooLarge(u64),
     /// Trying to set the invoiceId, while already expecting another invoice id.
@@ -64,10 +72,11 @@ pub enum ProcessMessageError {
     TooMuchFeeCollected,
     InvalidFailedSignature,
     InvalidFailureReporter,
+    InvalidRequestId,
     InnerBug,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ProcessTransListError {
     index: usize,
     process_trans_error: ProcessMessageError,
@@ -84,10 +93,12 @@ pub struct TokenChannel {
     /// The balance - how much do we owe each other, and what are the limits for this debt.
     tc_balance: TokenChannelCredit,
     /// Validates an incoming invoice
-    invoice_validator: InvoiceValidator,
+    invoice_validator: InvoiceIds,
     /// All pending requests - both incoming and outgoing
     pending_requests: PendingRequests,
 }
+
+
 
 
 /// Processes incoming messages, acts upon an underlying `TokenChannel`.
@@ -95,14 +106,14 @@ struct TransTokenChannelState<'a> {
     /// The original balance
     orig_tc_balance: TokenChannelCredit,
     /// The original invoice
-    orig_invoice_validator: InvoiceValidator,
+    orig_invoice_validator: InvoiceIds,
     local_public_key: PublicKey,
     remote_public_key: PublicKey,
 
     /// Pointer to the balance of the underlying TokenChannel
     tc_balance: &'a mut TokenChannelCredit,
     /// Pointer to the invoice validator of the underlying TokenChannel
-    invoice_validator: &'a mut InvoiceValidator,
+    invoice_validator: &'a mut InvoiceIds,
     // Pointers to the pending requests of the underlying TokenChannel.
     //  transactional_local_pending_requests, transactional_remote_pending_requests
     // together form TokenChannel.pending_requests
@@ -112,6 +123,13 @@ struct TransTokenChannelState<'a> {
 
 /// Processes transactions - list of incoming messages.
 impl TokenChannel {
+    pub fn new(local_public_key: PublicKey, remote_public_key: PublicKey,
+               tc_balance: TokenChannelCredit, invoice_validator: InvoiceIds,
+               pending_requests: PendingRequests) -> TokenChannel{
+        TokenChannel{local_public_key, remote_public_key, tc_balance,
+            invoice_validator, pending_requests}
+    }
+
     /// If this function returns an error, the token channel becomes incosistent.
     pub fn atomic_process_messages_list(&mut self, messages: Vec<NetworkerTCMessage>)
                                         -> Result<Vec<ProcessMessageOutput>, ProcessTransListError>{
@@ -127,12 +145,16 @@ impl TokenChannel {
         }
     }
 
-    pub fn get_remote_max_debt(&self) -> u64{
-        self.tc_balance.get_remote_max_debt()
+    pub fn remote_max_debt(&self) -> u64{
+        self.tc_balance.remote_max_debt()
     }
 
-    pub fn get_local_max_debt(&self) -> u64{
-        self.tc_balance.get_local_max_debt()
+    pub fn local_max_debt(&self) -> u64{
+        self.tc_balance.local_max_debt()
+    }
+
+    pub fn balance(&self) -> i64{
+        self.tc_balance.balance()
     }
 }
 
@@ -161,7 +183,7 @@ impl <'a>TransTokenChannelState<'a>{
     }
 
     fn process_set_remote_max_debt(&mut self, proposed_max_debt: u64)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        if self.tc_balance.set_remote_max_debt(proposed_max_debt) {
+        if self.tc_balance.set_remote_max_debt(proposed_max_debt).is_ok() {
             Ok(None)
         }else{
             Err(ProcessMessageError::RemoteMaxDebtTooLarge(proposed_max_debt))
@@ -178,26 +200,17 @@ impl <'a>TransTokenChannelState<'a>{
     }
 
     fn process_load_funds(&mut self, send_funds_receipt: SendFundsReceipt)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        match self.invoice_validator.validate_receipt(&send_funds_receipt,
-                                                      &self.local_public_key){
-            Ok(()) => {
-                // TODO(a4vision): The actual payment redeemed for networking cannot be u128.
-                //                  Solution: truncate to i64.
-                if self.tc_balance.decrease_balance(send_funds_receipt.payment) {
-                    Ok(None)
-                }else{
-                    Err(ProcessMessageError::LoadFundsOverflow)
-                }
-            },
-            Err(e) => Err(e),
-        }
+        self.invoice_validator.validate_receipt(&send_funds_receipt, &self.local_public_key)?;
+        self.tc_balance.decrease_balance_truncated(send_funds_receipt.payment);
+        self.invoice_validator.reset_local_invoice_id();
+        Ok(Some(ProcessMessageOutput::InvoiceIdReset))
     }
 
     fn process_request_message_last_node(&mut self, request_send_msg: RequestSendMessage)
         -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
         let credits = request_send_msg.credits_to_freeze_on_destination().
             ok_or(ProcessMessageError::CreditsCalculationOverflow)?;
-        if !self.tc_balance.freeze_remote_credits(credits){
+        if !self.tc_balance.freeze_remote_credits(credits).is_ok(){
             return Err(ProcessMessageError::PendingCreditTooLarge);
         }
 
@@ -206,11 +219,11 @@ impl <'a>TransTokenChannelState<'a>{
 
     fn process_request_send_message(&mut self, request_send_msg: RequestSendMessage)->
     Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        if !request_send_msg.get_route().is_unique(){
+        if !request_send_msg.route().is_unique(){
             return Err(ProcessMessageError::DuplicateNodesInRoute);
         }
 
-        let pending_request = match request_send_msg.get_route().find_pk_pair(&self.remote_public_key, &self.local_public_key) {
+        let pending_request = match request_send_msg.route().find_pk_pair(&self.remote_public_key, &self.local_public_key) {
             PkPairPosition::NotFound => return Err(ProcessMessageError::PKPairNotInChain),
             PkPairPosition::IsLast => {
                 return self.process_request_message_last_node(request_send_msg);
@@ -225,7 +238,7 @@ impl <'a>TransTokenChannelState<'a>{
         if !self.transactional_remote_pending_requests.add_pending_request(pending_request) {
             return Err(ProcessMessageError::RemoteRequestIdExists);
         }
-        if !self.tc_balance.freeze_remote_credits(credits_to_freeze){
+        if !self.tc_balance.freeze_remote_credits(credits_to_freeze).is_ok(){
             return Err(ProcessMessageError::PendingCreditTooLarge);
         }
         Ok(Some(ProcessMessageOutput::Request(request_send_msg)))
@@ -250,7 +263,7 @@ impl <'a>TransTokenChannelState<'a>{
 
     fn process_response_send_message(&mut self, response_send_msg: ResponseSendMessage) ->
     Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        let pending_request = self.remove_local_pending_request(response_send_msg.get_request_id())?;
+        let pending_request = self.remove_local_pending_request(response_send_msg.request_id())?;
         pending_request.verify_response_message(&response_send_msg)?;
         self.rebalance_credits_upon_receive_response(&pending_request, &response_send_msg)?;
 
@@ -263,13 +276,13 @@ impl <'a>TransTokenChannelState<'a>{
     credits_to_realize: u64) -> Result<(), ProcessMessageError>{
         let frozen_credits = pending_request.credits_to_freeze().ok_or(ProcessMessageError::CreditsCalculationOverflow)?;
 
-        if !self.tc_balance.realize_local_frozen_credits(credits_to_realize){
+        if !self.tc_balance.realize_local_frozen_credits(credits_to_realize).is_ok(){
             return Err(ProcessMessageError::InnerBug);
         }
 
         let credits_to_unfreeze = frozen_credits.checked_sub(credits_to_realize).
             ok_or(ProcessMessageError::InnerBug)?;
-        if !self.tc_balance.unfreeze_local_credits(credits_to_unfreeze){
+        if !self.tc_balance.unfreeze_local_credits(credits_to_unfreeze).is_ok(){
             return Err(ProcessMessageError::InnerBug);
         }
         Ok(())
@@ -279,7 +292,7 @@ impl <'a>TransTokenChannelState<'a>{
             failed_send_message: &FailedSendMessage) -> Result<(), ProcessMessageError>{
 
         let nodes_to_reporting = failed_send_message.nodes_to_reporting(&self.local_public_key,
-                                                                        pending_request.get_route()).
+                                                                        pending_request.route()).
             ok_or(ProcessMessageError::InnerBug)?;
         let credits_to_realize = pending_request.credits_on_failure(nodes_to_reporting).
             ok_or(ProcessMessageError::CreditsCalculationOverflow)?;
@@ -289,7 +302,7 @@ impl <'a>TransTokenChannelState<'a>{
 
     fn process_failed_send_message(&mut self, failed_send_msg: FailedSendMessage) ->
     Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        let pending_request = self.remove_local_pending_request(failed_send_msg.get_request_id())?;
+        let pending_request = self.remove_local_pending_request(failed_send_msg.request_id())?;
         pending_request.verify_failed_message(&self.local_public_key, &failed_send_msg)?;
         self.rebalance_credits_upon_receive_failed(&pending_request, &failed_send_msg)?;
 
@@ -342,3 +355,82 @@ impl <'a>TransTokenChannelState<'a>{
     }
 }
 
+
+#[cfg(test)]
+mod test{
+    use super::*;
+    use crypto::identity::PUBLIC_KEY_LEN;
+    use proto::funder::InvoiceId;
+    use proto::funder::INVOICE_ID_LEN;
+
+    use crypto::hash::HASH_RESULT_LEN;
+    use crypto::hash::HashResult;
+    use crypto::identity::SIGNATURE_LEN;
+    use crypto::identity::Signature;
+    use crypto::rand_values::RAND_VALUE_LEN;
+    use crypto::rand_values::RandValue;
+    use ring;
+    use crypto::identity::SoftwareEd25519Identity;
+    use crypto::identity::Identity;
+
+    use std::convert::TryFrom;
+
+    fn create_token_channel() -> (TokenChannel, SoftwareEd25519Identity, InvoiceId){
+        let fixed_rand = ring::test::rand::FixedByteRandom { byte: 0x1 };
+        let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&fixed_rand).unwrap();
+        let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+
+        let pk1 = identity.get_public_key();
+        let pk2 = PublicKey::try_from(&[0x02; PUBLIC_KEY_LEN]).unwrap();
+        let balance = TokenChannelCredit::new(10, 20).unwrap();
+
+        let invoice_id = InvoiceId::try_from(&[0x02; INVOICE_ID_LEN]).unwrap();
+
+        let validator = InvoiceIds::new(Some(invoice_id.clone()), None);
+        let local_pending = Vec::new();
+        let remote_pending = Vec::new();
+        let pending = PendingRequests::from_vecs_ignore_duplicates(local_pending, remote_pending);
+        let channel = TokenChannel::new(pk1, pk2, balance,
+                                        validator, pending);
+        (channel, identity, invoice_id)
+    }
+
+    #[test]
+    fn test_set_remote_max_debt() {
+
+        let (mut channel , _, _) = create_token_channel();
+        assert_eq!(20, channel.remote_max_debt());
+        assert_eq!(10, channel.local_max_debt());
+        let message1 = NetworkerTCMessage::SetRemoteMaxDebt(30);
+        let messages_list = vec![message1];
+        let outputs = channel.atomic_process_messages_list(messages_list);
+        assert_eq!(Ok(Vec::new()), outputs);
+        assert_eq!(30, channel.remote_max_debt());
+    }
+
+    #[test]
+    fn test_process_load_funds(){
+        let (mut channel , local_identity, local_invoice_id) = create_token_channel();
+
+        let hash = HashResult::try_from(&[0x01u8; HASH_RESULT_LEN][..]).unwrap();
+        let payment = 1234;
+        let rand_nonce = RandValue::try_from(&[0x04f; RAND_VALUE_LEN]).unwrap();
+
+
+
+        let invalid_signature = Signature::try_from(&[0x05; SIGNATURE_LEN]).unwrap();
+        let mut receipt = SendFundsReceipt::new(hash, &local_invoice_id,
+                                                payment, rand_nonce, invalid_signature);
+        receipt.sign(&[], &local_identity);
+
+//        Result<Vec<ProcessMessageOutput>, ProcessTransListError>
+        let result_outputs_vec1 = channel.atomic_process_messages_list(vec![NetworkerTCMessage::LoadFunds(receipt.clone())]);
+        assert!(result_outputs_vec1.is_ok());
+        assert_eq!(result_outputs_vec1.unwrap(), vec![ProcessMessageOutput::InvoiceIdReset]);
+        assert_eq!(-i64::try_from(payment).unwrap(), channel.balance());
+        let result_outputs_vec2 = channel.atomic_process_messages_list(vec![NetworkerTCMessage::LoadFunds(receipt.clone())]);
+        assert_eq!(Err(ProcessTransListError{index: 0, process_trans_error: ProcessMessageError::MissingInvoiceId }),
+                   result_outputs_vec2);
+
+    }
+}

@@ -8,6 +8,7 @@ mod macros;
 pub mod trans_hashmap;
 pub mod trans_hashmap_mut;
 pub mod convert_int;
+pub mod signed_message;
 
 pub use self::close_handle::CloseHandle;
 pub use self::async_mutex::{AsyncMutex, AsyncMutexError};

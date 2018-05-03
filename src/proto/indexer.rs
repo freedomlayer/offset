@@ -1,3 +1,7 @@
+use bytes::Bytes;
+use utils::signed_message;
+use byteorder::LittleEndian;
+use byteorder::WriteBytesExt;
 use crypto::identity::{PublicKey, Signature};
 
 pub const INDEXING_PROVIDER_ID_LEN: usize = 16;
@@ -68,6 +72,16 @@ impl NeighborsRoute {
         }else{
             Some(index_second - index_first)
         }
+    }
+
+    pub fn as_bytes(&self) -> Bytes {
+        let mut data = Vec::new();
+        data.write_u64::<LittleEndian>(self.public_keys.len() as u64).
+            expect("Failed to write Route");
+        for key in &self.public_keys{
+            data.extend(key.as_ref());
+        }
+        signed_message::ref_to_bytes(data.as_ref())
     }
 }
 

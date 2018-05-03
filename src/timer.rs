@@ -156,6 +156,8 @@ mod tests {
 
         assert_eq!(clients.len(), TIMER_CLIENT_NUM / 2);
 
+
+
         let start = time::Instant::now();
         let clients_fut = clients
             .into_iter()
@@ -166,7 +168,7 @@ mod tests {
                     Ok(())
             }))
             .collect::<Vec<_>>();
-
+      
         let task = tm.map_err(|_| ()).select2(join_all(clients_fut));
 
         assert!(core.run(task).is_ok());

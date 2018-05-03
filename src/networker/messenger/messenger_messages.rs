@@ -1,6 +1,10 @@
+use bytes::Bytes;
+use bytes::BytesMut;
 use crypto::identity::{PublicKey, verify_signature, Signature};
 use crypto::uid::Uid;
 use crypto::rand_values::RandValue;
+use utils::signed_message::SignedMessage;
+use utils::signed_message;
 use std::mem;
 use utils::convert_int;
 use crypto::hash;
@@ -13,6 +17,8 @@ use proto::funder::InvoiceId;
 use super::credit_calculator;
 use super::pending_neighbor_request::PendingNeighborRequest;
 
+
+/// Messages that a `Networker` sends and receives.
 pub enum NetworkerTCMessage {
     SetRemoteMaxDebt(u64),
     SetInvoiceId(InvoiceId),
@@ -20,10 +26,12 @@ pub enum NetworkerTCMessage {
     RequestSendMessage(RequestSendMessage),
     ResponseSendMessage(ResponseSendMessage),
     FailedSendMessage(FailedSendMessage),
-    // ResetChannel(i64), // new_balanace
+    // new_balanace
+    // ResetChannel(i64),
 }
 
 
+#[derive(Debug, Eq, PartialEq)]
 pub struct ResponseSendMessage {
     request_id: Uid,
     rand_nonce: RandValue,
@@ -32,18 +40,28 @@ pub struct ResponseSendMessage {
     signature: Signature,
 }
 
-impl ResponseSendMessage{
-    pub fn verify_signature(&self, public_key: &PublicKey, request_hash: &HashResult) -> bool{
+impl SignedMessage for ResponseSendMessage{
+    fn signature(&self) -> &Signature{
+        &self.signature
+    }
+
+    fn set_signature(&mut self, signature: Signature){
+        self.signature = signature
+    }
+
+    fn as_bytes(&self) -> Bytes{
         let mut message = Vec::new();
         message.extend_from_slice(&self.request_id);
         message.extend_from_slice(&self.rand_nonce);
         // Serialize the processing_fee_collected:
         message.write_u64::<LittleEndian>(self.processing_fee_collected);
         message.extend_from_slice(&self.response_content);
-        // TODO(a4vision): Change to hash over contents, and see capnp to hash everything.
-        message.extend(request_hash.as_ref());
-        verify_signature(&message, public_key, &self.signature)
+
+        signed_message::ref_to_bytes(message.as_ref())
     }
+}
+
+impl ResponseSendMessage{
 
     pub fn bytes_count(&self) -> usize{
         mem::size_of_val(&self.request_id) +
@@ -57,16 +75,17 @@ impl ResponseSendMessage{
         self.bytes_count()
     }
 
-    pub fn get_request_id(&self) -> &Uid{
+    pub fn request_id(&self) -> &Uid{
         &self.request_id
     }
 
-    pub fn get_processing_fee(&self) -> u64{
+    pub fn processing_fee(&self) -> u64{
         self.processing_fee_collected
     }
 
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct RequestSendMessage {
     request_id: Uid,
     route: NeighborsRoute,
@@ -95,7 +114,7 @@ impl RequestSendMessage {
         Some(distance)
     }
 
-    pub fn get_request_id(&self) -> &Uid {
+    pub fn request_id(&self) -> &Uid {
         &self.request_id
     }
 
@@ -112,7 +131,7 @@ impl RequestSendMessage {
         })
     }
 
-    pub fn get_route(&self) -> &NeighborsRoute{
+    pub fn route(&self) -> &NeighborsRoute{
         &self.route
     }
 
@@ -125,11 +144,30 @@ impl RequestSendMessage {
 }
 
 
+#[derive(Debug, Eq, PartialEq)]
 pub struct FailedSendMessage {
     request_id: Uid,
     reporting_public_key: PublicKey,
     rand_nonce: RandValue,
     signature: Signature,
+}
+
+impl SignedMessage for FailedSendMessage{
+    fn signature(&self) -> &Signature{
+        &self.signature
+    }
+
+    fn set_signature(&mut self, signature: Signature){
+        self.signature = signature
+    }
+
+    fn as_bytes(&self) -> Bytes {
+        let mut message = Vec::new();
+        message.extend_from_slice(self.request_id.as_ref());
+        message.extend_from_slice(self.reporting_public_key.as_ref());
+        message.extend_from_slice(self.rand_nonce.as_ref());
+        signed_message::ref_to_bytes(message.as_ref())
+    }
 }
 
 impl FailedSendMessage{
@@ -155,16 +193,11 @@ impl FailedSendMessage{
         }
     }
 
-    pub fn verify_signature(&self, request_hash: &HashResult) -> bool{
-        let mut message = Vec::new();
-        message.extend_from_slice(&self.request_id);
-        message.extend_from_slice(&self.reporting_public_key);
-        message.extend_from_slice(&self.rand_nonce);
-        message.extend_from_slice(request_hash);
-        verify_signature(&message, &self.reporting_public_key, &self.signature)
+    pub fn verify_failed_message_signature(&self, request_data: &[u8]) -> bool{
+        self.verify_signature(&self.reporting_public_key, &[])
     }
 
-    pub fn get_request_id(&self) -> &Uid{
+    pub fn request_id(&self) -> &Uid{
         &self.request_id
     }
 

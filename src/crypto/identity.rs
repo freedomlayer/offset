@@ -199,7 +199,7 @@ mod tests {
         let message = b"This is a message";
         let signature1 = id1.sign_message(message);
 
-        let public_key1 = id1.get_public_key();
-        assert!(verify_signature(message, &public_key1, &signature1));
+        let public_key2 = id2.get_public_key();
+        assert!(!verify_signature(message, &public_key2, &signature1));
     }
 }
