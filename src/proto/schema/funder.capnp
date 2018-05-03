@@ -34,18 +34,18 @@ struct FriendInconsistencyError {
 # Token Transactions
 # ------------------
 
-
-enum RequestsState {
-        enabled @0;
-        disabled @1;
+struct EnableRequests {
+        base @0: UInt64;
+        multiplier @1: UInt64;
+        # The sender of this message declares that
+        # Sending x bytes to the remote side costs `base + x * multiplier`
+        # credits.
 }
+# This message may be sent more than once, to update the values of base and multiplier.
 
-# Set requests state for the remote party.
-# If the state is enabled, requests may be opened from the remote party.
-# If the state is disabled, requests may not be opened from the remote party.
-struct SetStateTran {
-        newState @0: RequestsState;
-}
+
+# struct DisableRequests {
+# }
 
 # Set the maximum possible debt for the remote party.
 # Note: It is not possible to set a maximum debt smaller than the current debt
@@ -54,8 +54,27 @@ struct SetRemoteMaxDebtTran {
         remoteMaxDebt @0: UInt64;
 }
 
+struct FriendRouteLink {
+        nodePublicKey @0: CustomUInt256;
+        # Public key of current node
+        requestBaseProposal @1: UInt32;
+        # request base pricing for the current node
+        requestMultiplierProposal @2: UInt32;
+        # request multiplier pricing for the current node.
+        responseBaseProposal @3: UInt32;
+        # response base pricing for the next node.
+        responseMultiplierProposal @4: UInt32;
+        # response multiplier pricing for the next node.
+}
+
+
 struct FriendsRoute {
-        publicKeys @0: List(CustomUInt256);
+        sourcePublicKey @0: CustomUInt256;
+        # Public key for the message originator.
+        routeLinks @1: List(FriendRouteLink);
+        # A chain of all intermediate nodes.
+        destinationPublicKey @2: CustomUInt256;
+        # Public key for the message destination.
 }
 
 struct RequestSendFundTran { 
@@ -98,11 +117,12 @@ struct FailedSendFundTran {
 
 struct FriendTransaction {
         union {
-                setState @0: SetStateTran;
-                setRemoteMaxDebt @1: SetRemoteMaxDebtTran;
-                requestSendFund @2: RequestSendFundTran;
-                responseSendFund @3: ResponseSendFundTran;
-                failedSendFund @4: FailedSendFundTran;
+                enableRequests @0: EnableRequests;
+                disableRequests @1: Void;
+                setRemoteMaxDebt @2: SetRemoteMaxDebtTran;
+                requestSendFund @3: RequestSendFundTran;
+                responseSendFund @4: ResponseSendFundTran;
+                failedSendFund @5: FailedSendFundTran;
         }
 }
 
@@ -117,6 +137,8 @@ struct ConnectedFriend {
         sendCapacity @0: CustomUInt128;
         recvCapacity @1: CustomUInt128;
         publicKey @2: CustomUInt256;
+        requestBase @3: UInt64;
+        requestMultiplier @4: UInt64;
 }
 
 # Node::Funder -> Node
