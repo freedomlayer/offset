@@ -1,5 +1,6 @@
 use std::mem;
 use std::cmp;
+use std::collections::HashMap;
 use byteorder::{LittleEndian, WriteBytesExt};
 
 use crypto::identity::{PublicKey, verify_signature, Signature};
@@ -19,7 +20,7 @@ use super::pending_requests::TransPendingRequests;
 use super::credit_calculator;
 use super::pending_neighbor_request::PendingNeighborRequest;
 use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, RequestSendMessage};
-use utils::convert_int;
+use utils::{convert_int, trans_hashmap::TransHashMap};
 use super::messenger_messages::NetworkerTCMessage;
 
 pub struct IncomingResponseSendMessage {
@@ -73,93 +74,162 @@ pub struct ProcessTransListError {
     process_trans_error: ProcessMessageError,
 }
 
+#[derive(Clone)]
+struct LinearSendPrice<T> {
+    base: T,
+    multiplier: T,
+}
 
-
-
-pub struct TokenChannel {
+#[derive(Clone)]
+struct TCIdents {
     /// My public key
     local_public_key: PublicKey,
     /// Neighbor's public key
     remote_public_key: PublicKey,
-    /// The balance - how much do we owe each other, and what are the limits for this debt.
-    tc_balance: TokenChannelCredit,
-    /// Validates an incoming invoice
-    invoice_validator: InvoiceValidator,
-    /// All pending requests - both incoming and outgoing
-    pending_requests: PendingRequests,
+}
+
+#[derive(Clone)]
+struct TCBalance {
+    /// Amount of credits this side has against the remote side.
+    /// The other side keeps the negation of this value.
+    balance: i64,
+    /// Maximum possible remote debt
+    max_remote_debt: u64,
+    /// Maximum possible local debt
+    max_local_debt: u64,
+    /// Frozen credits by our side
+    pending_local_debt: u64,
+    /// Frozen credits by the remote side
+    pending_remote_debt: u64,
+}
+
+#[derive(Clone)]
+struct TCInvoice {
+    /// The invoice id which I randomized locally
+    local_invoice_id: Option<InvoiceId>,
+    /// The invoice id which the neighbor randomized
+    remote_invoice_id: Option<InvoiceId>,
+}
+
+#[derive(Clone)]
+struct TCSendPrice {
+    /// Price for us to send message to the remote side
+    /// Knowns only if we enabled requests
+    local_send_price: Option<LinearSendPrice<u32>>,
+    /// Price for the remote side to send messages to us
+    /// Knowns only if remote side enabled requests
+    remote_send_price: Option<LinearSendPrice<u32>>,
+}
+
+struct TCPendingRequests {
+    /// Pending requests that were opened locally and not yet completed
+    pending_local_requests: HashMap<Uid, PendingNeighborRequest>,
+    /// Pending requests that were opened remotely and not yet completed
+    pending_remote_requests: HashMap<Uid, PendingNeighborRequest>,
+}
+
+struct TransTCPendingRequests {
+    trans_pending_local_requests: TransHashMap<Uid, PendingNeighborRequest>,
+    trans_pending_remote_requests: TransHashMap<Uid, PendingNeighborRequest>,
+}
+
+impl TransTCPendingRequests {
+    fn new(pending_requests: TCPendingRequests) -> TransTCPendingRequests {
+        TransTCPendingRequests {
+            trans_pending_local_requests: TransHashMap::new(pending_requests.pending_local_requests),
+            trans_pending_remote_requests: TransHashMap::new(pending_requests.pending_remote_requests),
+        }
+    }
+
+    fn commit(self) -> TCPendingRequests {
+        TCPendingRequests {
+            pending_local_requests: self.trans_pending_local_requests.commit(),
+            pending_remote_requests: self.trans_pending_remote_requests.commit(),
+        }
+    }
+
+    fn cancel(self) -> TCPendingRequests {
+        TCPendingRequests {
+            pending_local_requests: self.trans_pending_local_requests.cancel(),
+            pending_remote_requests: self.trans_pending_remote_requests.cancel(),
+        }
+    }
+}
+
+
+pub struct TokenChannel {
+    idents: TCIdents,
+    balance: TCBalance,
+    invoice: TCInvoice,
+    send_price: TCSendPrice,
+    pending_requests: TCPendingRequests,
 }
 
 
 /// Processes incoming messages, acts upon an underlying `TokenChannel`.
-struct TransTokenChannelState<'a> {
-    /// The original balance
-    orig_tc_balance: TokenChannelCredit,
-    /// The original invoice
-    orig_invoice_validator: InvoiceValidator,
-    local_public_key: PublicKey,
-    remote_public_key: PublicKey,
-
-    /// Pointer to the balance of the underlying TokenChannel
-    tc_balance: &'a mut TokenChannelCredit,
-    /// Pointer to the invoice validator of the underlying TokenChannel
-    invoice_validator: &'a mut InvoiceValidator,
-    // Pointers to the pending requests of the underlying TokenChannel.
-    //  transactional_local_pending_requests, transactional_remote_pending_requests
-    // together form TokenChannel.pending_requests
-    transactional_local_pending_requests: TransPendingRequests<'a>,
-    transactional_remote_pending_requests: TransPendingRequests<'a>,
+struct TransTokenChannel {
+    orig_idents: TCIdents,
+    orig_balance: TCBalance,
+    orig_invoice: TCInvoice,
+    orig_send_price: TCSendPrice,
+    idents: TCIdents,
+    balance: TCBalance,
+    invoice: TCInvoice,
+    send_price: TCSendPrice,
+    trans_pending_requests: TransTCPendingRequests,
 }
 
-/// Processes transactions - list of incoming messages.
-impl TokenChannel {
-    /// If this function returns an error, the token channel becomes incosistent.
-    pub fn atomic_process_messages_list(&mut self, messages: Vec<NetworkerTCMessage>)
-                                        -> Result<Vec<ProcessMessageOutput>, ProcessTransListError>{
-        let mut transactional_token_channel = TransTokenChannelState::new(self);
-        match transactional_token_channel.process_messages_list(messages){
-            Err(e) => {
-                transactional_token_channel.cancel();
-                Err(e)
-            },
-            Ok(output_tasks) =>{
-                Ok(output_tasks)
-            }
-        }
-    }
+/*
+/// If this function returns an error, the token channel becomes incosistent.
+pub fn atomic_process_messages_list(token_channel: TokenChannel, messages: Vec<NetworkerTCMessage>)
+                                    -> (TokenChannel, Result<Vec<ProcessMessageOutput>, ProcessTransListError>) {
 
-    pub fn get_remote_max_debt(&self) -> u64{
-        self.tc_balance.get_remote_max_debt()
-    }
-
-    pub fn get_local_max_debt(&self) -> u64{
-        self.tc_balance.get_local_max_debt()
+    let trans_token_channel = TransTokenChannel::new(token_channel);
+    match trans_token_channel.process_messages_list(messages) {
+        Err(e) => (trans_token_channel.cancel(), Err(e)),
+        Ok(output_tasks) => (trans_token_channel.commit(), Ok(output_tasks)),
     }
 }
+*/
 
 /// Transactional state of the token channel.
-/// Call cancel() to abort all changes to the channel, do nothing in order to apply the changes
-/// on the underlying `TokenChannel`.
-
-impl <'a>TransTokenChannelState<'a>{
+impl TransTokenChannel {
     /// original_token_channel: the underlying TokenChannel.
-    pub fn new(original_token_channel: &'a mut TokenChannel) -> TransTokenChannelState<'a> {
-        let (local_requests, remote_requests) =
-            TransPendingRequests::new_transactionals(&mut original_token_channel.pending_requests);
-        TransTokenChannelState {
-            orig_tc_balance: original_token_channel.tc_balance.clone(),
-            orig_invoice_validator: original_token_channel.invoice_validator.clone(),
-
-            remote_public_key: original_token_channel.remote_public_key.clone(),
-            local_public_key: original_token_channel.local_public_key.clone(),
-
-            tc_balance: &mut original_token_channel.tc_balance,
-            invoice_validator: &mut original_token_channel.invoice_validator,
-
-            transactional_local_pending_requests: local_requests,
-            transactional_remote_pending_requests: remote_requests,
+    pub fn new(token_channel: TokenChannel) -> TransTokenChannel {
+        TransTokenChannel {
+            orig_idents: token_channel.idents.clone(),
+            orig_balance: token_channel.balance.clone(),
+            orig_invoice: token_channel.invoice.clone(),
+            orig_send_price: token_channel.send_price.clone(),
+            idents: token_channel.idents,
+            balance: token_channel.balance,
+            invoice: token_channel.invoice,
+            send_price: token_channel.send_price,
+            trans_pending_requests: TransTCPendingRequests::new(token_channel.pending_requests),
         }
     }
 
+    pub fn cancel(self) -> TokenChannel {
+        TokenChannel {
+            idents: self.orig_idents,
+            balance: self.orig_balance,
+            invoice: self.orig_invoice,
+            send_price: self.orig_send_price,
+            pending_requests: self.trans_pending_requests.cancel(),
+        }
+    }
+
+    pub fn commit(self) -> TokenChannel {
+        TokenChannel {
+            idents: self.idents,
+            balance: self.balance,
+            invoice: self.invoice,
+            send_price: self.send_price,
+            pending_requests: self.trans_pending_requests.commit(),
+        }
+    }
+
+    /*
     fn process_set_remote_max_debt(&mut self, proposed_max_debt: u64)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
         if self.tc_balance.set_remote_max_debt(proposed_max_debt) {
             Ok(None)
@@ -333,12 +403,7 @@ impl <'a>TransTokenChannelState<'a>{
         }
         Ok(outputs)
     }
+    */
 
-    pub fn cancel(self){
-        *self.tc_balance = self.orig_tc_balance;
-        *self.invoice_validator = self.orig_invoice_validator;
-        self.transactional_local_pending_requests.cancel();
-        self.transactional_remote_pending_requests.cancel();
-    }
 }
 
