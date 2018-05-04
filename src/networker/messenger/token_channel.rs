@@ -227,14 +227,15 @@ impl TransTokenChannel {
         }
     }
 
-    fn process_set_remote_max_debt(&mut self, proposed_max_debt: u64)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+    fn process_set_remote_max_debt(&mut self, proposed_max_debt: u64) -> 
+        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
         // TODO
         Err(ProcessMessageError::RemoteMaxDebtTooLarge(proposed_max_debt))
     }
 
     fn process_set_invoice_id(&mut self, invoice_id: InvoiceId)
                               -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        if self.invoice.remote_invoice_id.is_none(){
+        if self.invoice.remote_invoice_id.is_none() {
             self.invoice.remote_invoice_id = Some(invoice_id);
             Ok(None)
         } else {
@@ -242,7 +243,8 @@ impl TransTokenChannel {
         }
     }
 
-    fn process_load_funds(&mut self, send_funds_receipt: SendFundsReceipt)-> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+    fn process_load_funds(&mut self, send_funds_receipt: SendFundsReceipt) -> 
+        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
         // TODO
         Err(ProcessMessageError::LoadFundsOverflow)
     }
@@ -265,8 +267,8 @@ impl TransTokenChannel {
         unreachable!();
     }
 
-    fn process_message(&mut self, message: NetworkerTCMessage)->
-    Result<Option<ProcessMessageOutput>, ProcessMessageError>{
+    fn process_message(&mut self, message: NetworkerTCMessage) ->
+        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
         match message {
             NetworkerTCMessage::SetRemoteMaxDebt(proposed_max_debt) =>
                 self.process_set_remote_max_debt(proposed_max_debt),
@@ -285,11 +287,11 @@ impl TransTokenChannel {
 
     /// Every error is translated into an inconsistency of the token channel.
     pub fn process_messages_list(&mut self, messages: Vec<NetworkerTCMessage>) ->
-    Result<Vec<ProcessMessageOutput>, ProcessTransListError>{
+        Result<Vec<ProcessMessageOutput>, ProcessTransListError> {
         let mut outputs = Vec::new();
 
         for (index, message) in messages.into_iter().enumerate() {
-            match self.process_message(message){
+            match self.process_message(message) {
                 Err(e) => return Err(ProcessTransListError {
                     index,
                     process_trans_error: e
