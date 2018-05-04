@@ -8,45 +8,57 @@ using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomUInt256;
 using import "common.capnp".CustomUInt512;
 
-# 4-way handshake
-# ---------------
-# 1. A -> B: InitChannel      (randNonceA, publicKeyA)
-# 2. B -> A: ExchangePassive  (hashPrev, randNonceB, publicKeyB, dhPublicKeyB, keySaltB, Signature(B))
-# 3. A -> B: ExchangeActive   (hashPrev, dhPublicKeyA, keySaltA, Signature(A))
-# 4. B -> A: ChannelReady     (hashPrev, Signature(B))
 
+# 1. A -> B: RequestNonce         (randNonce1)
+# 2. B -> A: ResponseNonce        (randNonce1, randNonceB, responseNonceB, Signature(B))
+#
+# 3. A -> B: ExchangeActive       (randNonceB, randNonceA, publicKeyA, publicKeyB,  dhPublicKeyA, keySaltA, Signature(A))
+# 4. B -> A: ExchangePassive      (hashPrev, dhPublicKeyB, keySaltB, Signature(B))
+# 5. A -> B: ChannelReady         (hashPrev, Signature(A))
 
-# Expects ExchangePassive as response.
-# [Request]
-struct InitChannel {
+##########################################
+
+#[Request]
+struct RequestNonce {
         randNonce1 @0: CustomUInt128;
-        publicKey1 @1: CustomUInt256;
 }
 
-# [Response]
-struct ExchangePassive {
-        randNonce2 @0: CustomUInt128;
-        publicKey2 @1: CustomUInt256;
-        dhPublicKey2 @2: CustomUInt256;
-        keySalt2 @3: CustomUInt256;
-        # We don't have a signature here because responses are signed by the
-        # request/response networker protocol.
-}
-
-# The sender of this request considers the connection to be completed when a
-# signed response is received for this message. The receiver of this message
-# considers the connection to be completed.
-# [Request]
-struct ExchangeActive {
-        hashPrev @0: CustomUInt256;
-        dhPublicKey1 @1: CustomUInt256;
-        keySalt1 @2: CustomUInt256;
+#[Response]
+struct ResponseNonce {
+        randNonce1 @0: CustomUInt128;
+        randNonceB @1: CustomUInt128;
+        responseNonceB @2: CustomUInt128;
         signature @3: CustomUInt512;
-        # Requests are not signed by the request/response networker protocol,
-        # therefore we need to have a signature here.
 }
 
-# ChannelReady is any signed response to ExchangeActive.
+###########################################
+
+#[Request]
+struct ExchangeActive {
+        randNonceB @0: CustomUInt128;
+        randNonceA @1: CustomUInt128;
+        publicKeyA @2: CustomUInt256;
+        publicKeyB @3: CustomUInt256;
+        dhPublicKeyA @4: CustomUInt256;
+        keySaltA @5: CustomUInt256;
+        signature @6: CustomUInt512;
+}
+
+#[Response]
+struct ExchangePassive {
+        hashPrev @0: CustomUInt256;
+        dhPublicKeyB @1: CustomUInt256;
+        keySaltB @2: CustomUInt256;
+        signature @3: CustomUInt512;
+}
+
+#[Request]
+struct ChannelReady {
+        hashPrev @0: CustomUInt256;
+        signature @1: CustomUInt512;
+}
+# Note: This message must have an empty response.
+
 
 
 # The sender of this response indicates that it does not have the receiver end
@@ -73,18 +85,20 @@ struct Plain {
 struct PlainRequest {
         plainContent @0: Data;
         destPort :union {
-                funder @1: Void;
-                indexerClient @2: Void;
-                appManager @3: UInt32;
+                networker @1: Void;
+                funder @2: Void;
+                indexerClient @3: Void;
+                appManager @4: UInt32;
         }
 }
 
 # All possible request messages:
 struct RequestMessage {
         union {
-                initChannel @0: InitChannel;
+                requestNonce @0: RequestNonce;
                 exchangeActive @1: ExchangeActive;
-                encrypted @2: Data;
+                channelReady @2: ChannelReady;
+                encrypted @3: Data;
         }
 }
 
@@ -101,3 +115,21 @@ struct ResponseToEncryptedRequest {
         }
 }
 
+
+# Requests sent directly to the Networker
+# ---------------------------------------
+
+# Node -> Node::Networker
+# struct RequestNodeNeighborsInfo {} # (Empty)
+
+struct ConnectedNeighbor {
+        publicKey @0: CustomUInt256;
+        requestBase @1: UInt32;
+        requestMultiplier @2: UInt32;
+}
+
+# Node::Networker -> Node
+struct ResponseNodeNeighborsInfo {
+        connectedNeighborsList @0: List(ConnectedNeighbor);
+        # A list of neighbors currently online.
+}
