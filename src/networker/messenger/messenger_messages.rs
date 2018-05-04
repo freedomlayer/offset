@@ -12,8 +12,11 @@ use proto::common::SendFundsReceipt;
 use proto::funder::InvoiceId;
 use super::credit_calculator;
 use super::pending_neighbor_request::PendingNeighborRequest;
+use super::token_channel::NetworkerSendPrice;
 
 pub enum NetworkerTCMessage {
+    EnableRequests(NetworkerSendPrice),
+    DisableRequests,
     SetRemoteMaxDebt(u64),
     SetInvoiceId(InvoiceId),
     LoadFunds(SendFundsReceipt),
