@@ -80,6 +80,8 @@ struct LinearSendPrice<T> {
     multiplier: T,
 }
 
+type NetworkerSendPrice = LinearSendPrice<u32>;
+
 #[derive(Clone)]
 struct TCIdents {
     /// My public key
@@ -115,10 +117,10 @@ struct TCInvoice {
 struct TCSendPrice {
     /// Price for us to send message to the remote side
     /// Knowns only if we enabled requests
-    local_send_price: Option<LinearSendPrice<u32>>,
+    local_send_price: Option<NetworkerSendPrice>,
     /// Price for the remote side to send messages to us
     /// Knowns only if remote side enabled requests
-    remote_send_price: Option<LinearSendPrice<u32>>,
+    remote_send_price: Option<NetworkerSendPrice>,
 }
 
 struct TCPendingRequests {
@@ -227,7 +229,7 @@ impl TransTokenChannel {
         }
     }
 
-    fn process_enable_requests(&mut self, send_price: LinearSendPrice<u32>) ->
+    fn process_enable_requests(&mut self, send_price: NetworkerSendPrice) ->
         Result<Option<ProcessMessageOutput>, ProcessMessageError> {
         // TODO
         unreachable!();
