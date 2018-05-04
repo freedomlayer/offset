@@ -75,12 +75,12 @@ pub struct ProcessTransListError {
 }
 
 #[derive(Clone)]
-struct LinearSendPrice<T> {
+pub struct LinearSendPrice<T> {
     base: T,
     multiplier: T,
 }
 
-type NetworkerSendPrice = LinearSendPrice<u32>;
+pub type NetworkerSendPrice = LinearSendPrice<u32>;
 
 #[derive(Clone)]
 struct TCIdents {
@@ -284,6 +284,10 @@ impl TransTokenChannel {
     fn process_message(&mut self, message: NetworkerTCMessage) ->
         Result<Option<ProcessMessageOutput>, ProcessMessageError> {
         match message {
+            NetworkerTCMessage::EnableRequests(send_price) =>
+                self.process_enable_requests(send_price),
+            NetworkerTCMessage::DisableRequests =>
+                self.process_disable_requests(),
             NetworkerTCMessage::SetRemoteMaxDebt(proposed_max_debt) =>
                 self.process_set_remote_max_debt(proposed_max_debt),
             NetworkerTCMessage::SetInvoiceId(rand_nonce) =>
