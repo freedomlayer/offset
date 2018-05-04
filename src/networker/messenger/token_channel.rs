@@ -227,6 +227,18 @@ impl TransTokenChannel {
         }
     }
 
+    fn process_enable_requests(&mut self, send_price: LinearSendPrice<u32>) ->
+        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        // TODO
+        unreachable!();
+    }
+
+    fn process_disable_requests(&mut self) ->
+        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        // TODO
+        unreachable!();
+    }
+
     fn process_set_remote_max_debt(&mut self, proposed_max_debt: u64) -> 
         Result<Option<ProcessMessageOutput>, ProcessMessageError> {
         // TODO
