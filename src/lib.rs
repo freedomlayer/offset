@@ -16,6 +16,7 @@ extern crate futures_await as futures;
 #[macro_use]
 extern crate log;
 extern crate rand;
+extern crate slab;
 extern crate ring;
 extern crate rusqlite;
 extern crate tokio_core;
