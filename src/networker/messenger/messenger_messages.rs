@@ -72,10 +72,12 @@ impl ResponseSendMessage{
 
 pub struct RequestSendMessage {
     request_id: Uid,
+    // TODO: Rewrite this to contain linear payment proposals:
     route: NeighborsRoute,
     request_content: Vec<u8>,
     max_response_len: u32,
     processing_fee_proposal: u64,
+    // TODO: Rewrite this to be inside NeighborsRoute:
     credits_per_byte_proposal: u64,
 }
 
