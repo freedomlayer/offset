@@ -351,7 +351,12 @@ impl TransTokenChannel {
     fn process_request_send_message(&mut self, request_send_msg: RequestSendMessage)
         -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
 
-        // TODO
+        // TODO:
+        // - Make sure that we are on the route somewhere.
+        // - Differentiate between the cases of being the last on the route, and being somewhere in
+        // the middle.
+        // - If linear payment proposal for returning response is too low, return error
+        //   (Inconsistency).
         Err(ProcessMessageError::PendingCreditTooLarge)
     }
 
