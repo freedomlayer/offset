@@ -319,7 +319,7 @@ impl TransTokenChannel {
 
         // Check if the SendFundsReceipt is signed properly by us. 
         //      Could we somehow abstract this, for easier testing?
-        if !send_funds_receipt.verify(&self.idents.local_public_key) {
+        if !send_funds_receipt.verify_signature(&self.idents.local_public_key) {
             return Err(ProcessMessageError::InvalidSendFundsReceiptSignature);
         }
 
