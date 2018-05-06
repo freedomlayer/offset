@@ -342,9 +342,9 @@ impl TransTokenChannel {
             Err(_) => u64::max_value(), // This case wasted credits for the sender.
         };
         let half64 = (payment64 / 2) as i64;
-        self.balance.balance.saturating_add(half64);
-        self.balance.balance.saturating_add(half64);
-        self.balance.balance.saturating_add((payment64 % 2) as i64);
+        self.balance.balance = self.balance.balance.saturating_add(half64);
+        self.balance.balance = self.balance.balance.saturating_add(half64);
+        self.balance.balance = self.balance.balance.saturating_add((payment64 % 2) as i64);
         Ok(None)
     }
 
