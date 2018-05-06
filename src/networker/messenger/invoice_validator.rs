@@ -17,10 +17,10 @@ impl InvoiceValidator{
     /// Sets the invoice id randomized  by the neighbor.
     /// Returns `true` if the invoice id was successfully set to the given value.
     pub fn set_remote_invoice_id(&mut self, invoice_id: InvoiceId) -> bool {
-        if self.remote_invoice_id.is_none(){
+        if self.remote_invoice_id.is_none() {
             self.remote_invoice_id = Some(invoice_id);
             true
-        }else{
+        } else {
             false
         }
     }
@@ -33,7 +33,7 @@ impl InvoiceValidator{
             return Err(ProcessMessageError::InvalidFundsReceipt);
         }
 
-        match self.local_invoice_id{
+        match self.local_invoice_id {
             Some(ref local_invoice_id) => {
                 if local_invoice_id != &send_funds_receipt.invoice_id {
                     return Err(ProcessMessageError::InvalidInvoiceId);
@@ -41,7 +41,6 @@ impl InvoiceValidator{
             },
             None => return Err(ProcessMessageError::MissingInvoiceId),
         };
-
         Ok(())
     }
 }
