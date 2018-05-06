@@ -1,3 +1,4 @@
+use std::mem;
 use crypto::identity::{PublicKey, Signature};
 use proto::networker::NetworkerSendPrice;
 
@@ -31,8 +32,21 @@ pub enum PkPairPosition {
     IsLast,
 }
 
-/*
+impl NeighborRouteLink {
+    pub fn bytes_count() -> usize {
+        mem::size_of::<PublicKey>() + 
+            NetworkerSendPrice::bytes_count() * 2
+    }
+}
+
 impl NeighborsRoute {
+    pub fn bytes_count(&self) -> usize {
+        mem::size_of::<PublicKey>() * 2 +
+            NeighborRouteLink::bytes_count()
+                * self.route_links.len()
+    }
+}
+/*
     /// Find two consecutive public keys (pk1, pk2) inside a neighbors route.
     /// If found, returns the index of the first of them.
     pub fn find_pk_pair(&self, pk1: &PublicKey, pk2: &PublicKey) -> PkPairPosition {

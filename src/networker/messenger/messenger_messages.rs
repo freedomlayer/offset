@@ -80,20 +80,15 @@ pub struct RequestSendMessage {
 
 impl RequestSendMessage {
     pub fn bytes_count(&self) -> usize {
-        // TODO
-        unreachable!();
         // We count the bytes count here and not before deserialization,
         // because we actually charge for the amount of bytes we send, and not for the
         // amount of bytes we receive (Those could possibly be encoded in some strange way)
         
-        /*
         mem::size_of::<Uid>() +
-            mem::size_of::<PublicKey>() * self.route.public_keys.len() +
+            self.route.bytes_count() +
             self.request_content.len() + // number of bytes that represent the array
             mem::size_of_val(&self.max_response_len) +
-            mem::size_of_val(&self.processing_fee_proposal) +
-            mem::size_of_val(&self.credits_per_byte_proposal)
-        */
+            mem::size_of_val(&self.processing_fee_proposal)
     }
 
     fn nodes_to_dest(&self, sender_public_key: &PublicKey) -> Option<usize> {
