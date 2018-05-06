@@ -234,6 +234,46 @@ impl TransTokenChannel {
         }
     }
 
+    /// Every error is translated into an inconsistency of the token channel.
+    pub fn process_messages_list(&mut self, messages: Vec<NetworkerTCMessage>) ->
+        Result<Vec<ProcessMessageOutput>, ProcessTransListError> {
+        let mut outputs = Vec::new();
+
+        for (index, message) in messages.into_iter().enumerate() {
+            match self.process_message(message) {
+                Err(e) => return Err(ProcessTransListError {
+                    index,
+                    process_trans_error: e
+                }),
+                Ok(Some(trans_output)) => outputs.push(trans_output),
+                Ok(None) => {},
+            }
+        }
+        Ok(outputs)
+    }
+
+    fn process_message(&mut self, message: NetworkerTCMessage) ->
+        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        match message {
+            NetworkerTCMessage::EnableRequests(send_price) =>
+                self.process_enable_requests(send_price),
+            NetworkerTCMessage::DisableRequests =>
+                self.process_disable_requests(),
+            NetworkerTCMessage::SetRemoteMaxDebt(proposed_max_debt) =>
+                self.process_set_remote_max_debt(proposed_max_debt),
+            NetworkerTCMessage::SetInvoiceId(rand_nonce) =>
+                self.process_set_invoice_id(rand_nonce),
+            NetworkerTCMessage::LoadFunds(send_funds_receipt) =>
+                self.process_load_funds(send_funds_receipt),
+            NetworkerTCMessage::RequestSendMessage(request_send_msg) =>
+                self.process_request_send_message(request_send_msg),
+            NetworkerTCMessage::ResponseSendMessage(response_send_msg) =>
+                self.process_response_send_message(response_send_msg),
+            NetworkerTCMessage::FailedSendMessage(failed_send_msg) =>
+                self.process_failed_send_message(failed_send_msg),
+        }
+    }
+
     fn process_enable_requests(&mut self, send_price: NetworkerSendPrice) ->
         Result<Option<ProcessMessageOutput>, ProcessMessageError> {
 
@@ -326,45 +366,6 @@ impl TransTokenChannel {
         unreachable!();
     }
 
-    fn process_message(&mut self, message: NetworkerTCMessage) ->
-        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        match message {
-            NetworkerTCMessage::EnableRequests(send_price) =>
-                self.process_enable_requests(send_price),
-            NetworkerTCMessage::DisableRequests =>
-                self.process_disable_requests(),
-            NetworkerTCMessage::SetRemoteMaxDebt(proposed_max_debt) =>
-                self.process_set_remote_max_debt(proposed_max_debt),
-            NetworkerTCMessage::SetInvoiceId(rand_nonce) =>
-                self.process_set_invoice_id(rand_nonce),
-            NetworkerTCMessage::LoadFunds(send_funds_receipt) =>
-                self.process_load_funds(send_funds_receipt),
-            NetworkerTCMessage::RequestSendMessage(request_send_msg) =>
-                self.process_request_send_message(request_send_msg),
-            NetworkerTCMessage::ResponseSendMessage(response_send_msg) =>
-                self.process_response_send_message(response_send_msg),
-            NetworkerTCMessage::FailedSendMessage(failed_send_msg) =>
-                self.process_failed_send_message(failed_send_msg),
-        }
-    }
-
-    /// Every error is translated into an inconsistency of the token channel.
-    pub fn process_messages_list(&mut self, messages: Vec<NetworkerTCMessage>) ->
-        Result<Vec<ProcessMessageOutput>, ProcessTransListError> {
-        let mut outputs = Vec::new();
-
-        for (index, message) in messages.into_iter().enumerate() {
-            match self.process_message(message) {
-                Err(e) => return Err(ProcessTransListError {
-                    index,
-                    process_trans_error: e
-                }),
-                Ok(Some(trans_output)) => outputs.push(trans_output),
-                Ok(None) => {},
-            }
-        }
-        Ok(outputs)
-    }
 
 }
 
