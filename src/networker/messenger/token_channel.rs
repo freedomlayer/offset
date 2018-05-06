@@ -14,14 +14,9 @@ use proto::common::SendFundsReceipt;
 use proto::indexer::{NeighborsRoute, PkPairPosition};
 use proto::funder::InvoiceId;
 
-// use super::tc_credit::TokenChannelCredit;
-// use super::invoice_validator::InvoiceValidator;
-// use super::pending_requests::PendingRequests;
-// use super::pending_requests::TransPendingRequests;
-// use super::credit_calculator;
 use super::pending_neighbor_request::PendingNeighborRequest;
 use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, RequestSendMessage};
-use utils::{/*convert_int,*/ trans_hashmap::TransHashMap};
+use utils::trans_hashmap::TransHashMap;
 use super::messenger_messages::NetworkerTCMessage;
 
 /// The maximum possible networker debt.
