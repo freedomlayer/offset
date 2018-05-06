@@ -47,6 +47,18 @@ struct SetRemoteMaxDebtTran {
 }
 
 
+# TODO:
+# Find out relation between freezing amounts
+# and remoteMaxDebt. Possibly put all of those in one message (SetRemoteMaxDebtTran).
+#       struct SetRemoteMaxFreezeTran {
+#               maxFreezes @0: List(MaxFreezeItem);
+#               struct MaxFreezeItem {
+#                       publicKey @0: CustomUInt256;
+#                       maxFreeze @1: UInt64;
+#               }
+#       }
+
+
 struct SetInvoiceIdTran {
         invoiceId @0: CustomUInt256;
 }
