@@ -1,4 +1,5 @@
 use crypto::identity::{PublicKey, Signature};
+use proto::networker::NetworkerSendPrice;
 
 pub const INDEXING_PROVIDER_ID_LEN: usize = 16;
 pub const INDEXING_PROVIDER_STATE_HASH_LEN: usize = 32;
@@ -10,8 +11,17 @@ define_fixed_bytes!(IndexingProviderId, INDEXING_PROVIDER_ID_LEN);
 define_fixed_bytes!(IndexingProviderStateHash, INDEXING_PROVIDER_STATE_HASH_LEN);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+struct NeighborRouteLink {
+    node_public_key: PublicKey,
+    request_payment_proposal: NetworkerSendPrice,
+    response_payment_proposal: NetworkerSendPrice,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NeighborsRoute {
-    pub public_keys: Vec<PublicKey>,
+    source_public_key: PublicKey,
+    route_links: Vec<NeighborRouteLink>,
+    destination_public_key: PublicKey,
 }
 
 #[derive(PartialEq, Eq)]
@@ -21,6 +31,7 @@ pub enum PkPairPosition {
     IsLast,
 }
 
+/*
 impl NeighborsRoute {
     /// Find two consecutive public keys (pk1, pk2) inside a neighbors route.
     /// If found, returns the index of the first of them.
@@ -70,6 +81,7 @@ impl NeighborsRoute {
         }
     }
 }
+*/
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IndexerRoute {

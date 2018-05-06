@@ -41,18 +41,26 @@ impl<'a> Proto<'a> for NeighborsRoute {
     inject_default_impl!();
 
     fn read(from: &Self::Reader) -> Result<Self, ProtoError> {
+        // TODO
+        unreachable!();
+        /*
         let public_keys = read_public_key_list(&from.get_public_keys()?)?;
 
         Ok(NeighborsRoute { public_keys })
+        */
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
+        // TODO
+        unreachable!();
+        /*
         write_public_key_list(
             &self.public_keys,
             &mut to.borrow().init_public_keys(self.public_keys.len() as u32),
         )?;
 
         Ok(())
+        */
     }
 }
 
@@ -499,6 +507,8 @@ impl<'a> Proto<'a> for RoutesToIndexer {
     }
 }
 
+/*
+
 #[cfg(test)]
 mod tests {
     use std::convert::TryFrom;
@@ -714,3 +724,4 @@ mod tests {
         test_encode_decode!(RoutesToIndexer, in_routes_to_indexer);
     }
 }
+*/
