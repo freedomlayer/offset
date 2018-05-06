@@ -346,6 +346,9 @@ impl TransTokenChannel {
         //      the middle.
         // - If linear payment proposal for returning response is too low, return error
         //   (Inconsistency).
+        // - Make sure that we can freeze the credits
+        //      - Should consider relative freezing allocations (Avoiding DoS).
+        // - Freeze correct amount of credits
         Err(ProcessMessageError::PendingCreditTooLarge)
     }
 
