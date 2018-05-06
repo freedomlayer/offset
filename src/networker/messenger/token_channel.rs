@@ -284,29 +284,28 @@ impl TransTokenChannel {
         }
 
         // Check if invoice_id matches. If so, we remove the remote invoice.
-        let invoice_id = match self.invoice.remote_invoice_id.take() {
+        match self.invoice.remote_invoice_id.take() {
             None => return Err(ProcessMessageError::MissingInvoiceId),
             Some(invoice_id) => {
                 if invoice_id != send_funds_receipt.invoice_id {
                     self.invoice.remote_invoice_id = Some(invoice_id);
                     return Err(ProcessMessageError::InvalidInvoiceId);
-                } else {
-                    invoice_id
                 }
             }
         };
 
-        // TODO: Rewrite this part.
-        unreachable!();
-        let payment_small = match i64::try_from(send_funds_receipt.payment) {
+        // Add payment to self.balance.balance. We have to be careful because payment u128, and
+        // self.balance.balance is of type i64.
+        // TODO: Rewrite this part: Possibly simplify or refactor.
+        let payment64 = match u64::try_from(send_funds_receipt.payment) {
             Ok(value) => value,
-            Err(_) => i64::max_value(), // This case wasted credits for the sender.
+            Err(_) => u64::max_value(), // This case wasted credits for the sender.
         };
-        self.balance.balance.saturating_add(payment_small);
-
-
-        // - If payment is too large, it will be trimmed.
-        Err(ProcessMessageError::LoadFundsOverflow)
+        let half64 = (payment64 / 2) as i64;
+        self.balance.balance.saturating_add(half64);
+        self.balance.balance.saturating_add(half64);
+        self.balance.balance.saturating_add((payment64 % 2) as i64);
+        Ok(None)
     }
 
     fn process_request_send_message(&mut self, request_send_msg: RequestSendMessage)
