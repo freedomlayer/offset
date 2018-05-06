@@ -349,7 +349,7 @@ impl TransTokenChannel {
         // TODO:
         // - Make sure that we are on the route somewhere.
         // - Differentiate between the cases of being the last on the route, and being somewhere in
-        // the middle.
+        //      the middle.
         // - If linear payment proposal for returning response is too low, return error
         //   (Inconsistency).
         Err(ProcessMessageError::PendingCreditTooLarge)
@@ -365,7 +365,5 @@ impl TransTokenChannel {
         Result<Option<ProcessMessageOutput>, ProcessMessageError> {
         unreachable!();
     }
-
-
 }
 
