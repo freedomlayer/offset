@@ -29,7 +29,7 @@ impl InvoiceValidator{
     pub fn validate_receipt(&mut self, send_funds_receipt: &SendFundsReceipt,
                             public_key: &PublicKey) ->
     Result<(), ProcessMessageError> {
-        if !send_funds_receipt.verify(public_key) {
+        if !send_funds_receipt.verify_signature(public_key) {
             return Err(ProcessMessageError::InvalidFundsReceipt);
         }
 
