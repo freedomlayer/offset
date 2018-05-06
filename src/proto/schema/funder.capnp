@@ -80,9 +80,8 @@ struct FriendsRoute {
 struct RequestSendFundTran { 
         requestId @0: CustomUInt128;
         route @1: FriendsRoute;
-        mediatorPaymentProposal @2: UInt64;
-        invoiceId @3: CustomUInt256;
-        destinationPayment @4: CustomUInt128;
+        invoiceId @2: CustomUInt256;
+        destinationPayment @3: CustomUInt128;
 }
 
 struct ResponseSendFundTran {
@@ -91,7 +90,7 @@ struct ResponseSendFundTran {
         signature @2: CustomUInt512;
         # Signature{key=recipientKey}(
         #   "FUND_SUCCESS" ||
-        #   sha512/256(requestId || sha512/256(nodeIdPath) || mediatorPaymentProposal) ||
+        #   sha512/256(requestId || sha512/256(nodeIdPath) || 
         #   invoiceId ||
         #   destinationPayment ||
         #   randNonce)
@@ -107,7 +106,7 @@ struct FailedSendFundTran {
         # node, until the current node.
         # Signature{key=recipientKey}(
         #   "FUND_FAILURE" ||
-        #   sha512/256(requestId || sha512/256(nodeIdPath) || mediatorPaymentProposal) ||
+        #   sha512/256(requestId || sha512/256(nodeIdPath) || 
         #   invoiceId ||
         #   destinationPayment ||
         #   prev randNonceSignatures ||
