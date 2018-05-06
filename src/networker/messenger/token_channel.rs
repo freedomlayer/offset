@@ -1,5 +1,6 @@
 use std::mem;
 use std::cmp;
+use std::convert::TryFrom;
 use std::collections::HashMap;
 use byteorder::{LittleEndian, WriteBytesExt};
 
@@ -55,6 +56,7 @@ pub enum ProcessMessageError {
     MissingInvoiceId,
     InvalidInvoiceId,
     InvalidFundsReceipt,
+    InvalidSendFundsReceiptSignature,
     PKPairNotInChain,
     RemoteRequestIdExists,
     RequestIdNotExists,
@@ -175,7 +177,6 @@ pub struct TokenChannel {
 
 /// Processes incoming messages, acts upon an underlying `TokenChannel`.
 struct TransTokenChannel {
-    orig_idents: TCIdents,
     orig_balance: TCBalance,
     orig_invoice: TCInvoice,
     orig_send_price: TCSendPrice,
@@ -202,7 +203,6 @@ impl TransTokenChannel {
     /// original_token_channel: the underlying TokenChannel.
     pub fn new(token_channel: TokenChannel) -> TransTokenChannel {
         TransTokenChannel {
-            orig_idents: token_channel.idents.clone(),
             orig_balance: token_channel.balance.clone(),
             orig_invoice: token_channel.invoice.clone(),
             orig_send_price: token_channel.send_price.clone(),
@@ -216,7 +216,7 @@ impl TransTokenChannel {
 
     pub fn cancel(self) -> TokenChannel {
         TokenChannel {
-            idents: self.orig_idents,
+            idents: self.idents,
             balance: self.orig_balance,
             invoice: self.orig_invoice,
             send_price: self.orig_send_price,
@@ -276,7 +276,36 @@ impl TransTokenChannel {
 
     fn process_load_funds(&mut self, send_funds_receipt: SendFundsReceipt) -> 
         Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        // TODO
+
+        // Check if the SendFundsReceipt is signed properly by us. 
+        //      Could we somehow abstract this, for easier testing?
+        if !send_funds_receipt.verify(&self.idents.local_public_key) {
+            return Err(ProcessMessageError::InvalidSendFundsReceiptSignature);
+        }
+
+        // Check if invoice_id matches. If so, we remove the remote invoice.
+        let invoice_id = match self.invoice.remote_invoice_id.take() {
+            None => return Err(ProcessMessageError::MissingInvoiceId),
+            Some(invoice_id) => {
+                if invoice_id != send_funds_receipt.invoice_id {
+                    self.invoice.remote_invoice_id = Some(invoice_id);
+                    return Err(ProcessMessageError::InvalidInvoiceId);
+                } else {
+                    invoice_id
+                }
+            }
+        };
+
+        // TODO: Rewrite this part.
+        unreachable!();
+        let payment_small = match i64::try_from(send_funds_receipt.payment) {
+            Ok(value) => value,
+            Err(_) => i64::max_value(), // This case wasted credits for the sender.
+        };
+        self.balance.balance.saturating_add(payment_small);
+
+
+        // - If payment is too large, it will be trimmed.
         Err(ProcessMessageError::LoadFundsOverflow)
     }
 
