@@ -13,6 +13,7 @@ use crypto::hash::HashResult;
 use proto::common::SendFundsReceipt;
 use proto::indexer::{NeighborsRoute, PkPairPosition};
 use proto::funder::InvoiceId;
+use proto::networker::NetworkerSendPrice;
 
 use super::pending_neighbor_request::PendingNeighborRequest;
 use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, RequestSendMessage};
@@ -76,13 +77,6 @@ pub struct ProcessTransListError {
     process_trans_error: ProcessMessageError,
 }
 
-#[derive(Clone)]
-pub struct LinearSendPrice<T> {
-    base: T,
-    multiplier: T,
-}
-
-pub type NetworkerSendPrice = LinearSendPrice<u32>;
 
 #[derive(Clone)]
 struct TCIdents {

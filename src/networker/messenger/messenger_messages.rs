@@ -10,9 +10,9 @@ use byteorder::WriteBytesExt;
 use proto::indexer::NeighborsRoute;
 use proto::common::SendFundsReceipt;
 use proto::funder::InvoiceId;
+use proto::networker::NetworkerSendPrice;
 use super::credit_calculator;
 use super::pending_neighbor_request::PendingNeighborRequest;
-use super::token_channel::NetworkerSendPrice;
 
 pub enum NetworkerTCMessage {
     EnableRequests(NetworkerSendPrice),
@@ -72,34 +72,41 @@ impl ResponseSendMessage{
 
 pub struct RequestSendMessage {
     request_id: Uid,
-    // TODO: Rewrite this to contain linear payment proposals:
     route: NeighborsRoute,
     request_content: Vec<u8>,
     max_response_len: u32,
     processing_fee_proposal: u64,
-    // TODO: Rewrite this to be inside NeighborsRoute:
-    credits_per_byte_proposal: u64,
 }
 
 impl RequestSendMessage {
     pub fn bytes_count(&self) -> usize {
+        // TODO
+        unreachable!();
         // We count the bytes count here and not before deserialization,
         // because we actually charge for the amount of bytes we send, and not for the
         // amount of bytes we receive (Those could possibly be encoded in some strange way)
+        
+        /*
         mem::size_of::<Uid>() +
             mem::size_of::<PublicKey>() * self.route.public_keys.len() +
             self.request_content.len() + // number of bytes that represent the array
             mem::size_of_val(&self.max_response_len) +
             mem::size_of_val(&self.processing_fee_proposal) +
             mem::size_of_val(&self.credits_per_byte_proposal)
+        */
     }
 
     fn nodes_to_dest(&self, sender_public_key: &PublicKey) -> Option<usize> {
+        // TODO
+        unreachable!();
+        /*
         let destination = self.route.get_destination_public_key()?;
         let distance = self.route.distance_between_nodes(sender_public_key, &destination)?;
         Some(distance)
+        */
     }
 
+    /*
     pub fn get_request_id(&self) -> &Uid {
         &self.request_id
     }
@@ -127,6 +134,7 @@ impl RequestSendMessage {
                                               self.credits_per_byte_proposal,
                                               self.max_response_len, 1)
     }
+    */
 }
 
 
@@ -137,6 +145,7 @@ pub struct FailedSendMessage {
     signature: Signature,
 }
 
+/*
 impl FailedSendMessage{
     pub fn nodes_to_reporting(&self, receiver_public_key: &PublicKey, route: &NeighborsRoute) -> Option<usize> {
         let distance = route.distance_between_nodes(receiver_public_key, &self.reporting_public_key)?;
@@ -174,8 +183,10 @@ impl FailedSendMessage{
     }
 
 }
+*/
 
 
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -209,3 +220,4 @@ mod tests {
         assert_eq!(rsm.bytes_count(), expected);
     }
 }
+*/

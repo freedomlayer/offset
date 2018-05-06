@@ -21,6 +21,7 @@ pub struct PendingNeighborRequest {
     pub nodes_to_dest: usize,
 }
 
+/*
 impl PendingNeighborRequest{
     /// Returns None if the given public key does not appear in the route, or if
     /// an integer overflow occurs during calculation.
@@ -88,3 +89,4 @@ impl PendingNeighborRequest{
         &self.route
     }
 }
+*/
