@@ -31,7 +31,7 @@ pub struct SendFundsReceipt {
 
 
 impl SendFundsReceipt {
-    pub fn verify(&self, public_key: &PublicKey) -> bool {
+    pub fn verify_signature(&self, public_key: &PublicKey) -> bool {
         let mut data = Vec::new();
         data.extend(self.response_hash.as_ref());
         data.extend(self.invoice_id.as_ref());
