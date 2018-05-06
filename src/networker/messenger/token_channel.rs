@@ -23,6 +23,10 @@ use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, RequestS
 use utils::{/*convert_int,*/ trans_hashmap::TransHashMap};
 use super::messenger_messages::NetworkerTCMessage;
 
+/// The maximum possible networker debt.
+/// We don't use the full u64 because i64 can not go beyond this value.
+const MAX_NETWORKER_DEBT: u64 = (1 << 63) - 1;
+
 pub struct IncomingResponseSendMessage {
     pending_request: PendingNeighborRequest,
     incoming_response: ResponseSendMessage,
@@ -66,6 +70,7 @@ pub enum ProcessMessageError {
     InvalidFailedSignature,
     InvalidFailureReporter,
     InnerBug,
+    RequestsAlreadyDisabled,
 }
 
 #[derive(Debug)]
@@ -96,9 +101,9 @@ struct TCBalance {
     /// The other side keeps the negation of this value.
     balance: i64,
     /// Maximum possible remote debt
-    max_remote_debt: u64,
+    remote_max_debt: u64,
     /// Maximum possible local debt
-    max_local_debt: u64,
+    local_max_debt: u64,
     /// Frozen credits by our side
     pending_local_debt: u64,
     /// Frozen credits by the remote side
@@ -231,20 +236,32 @@ impl TransTokenChannel {
 
     fn process_enable_requests(&mut self, send_price: NetworkerSendPrice) ->
         Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        // TODO
-        unreachable!();
+
+        self.send_price.remote_send_price = Some(send_price);
+        // TODO: Should the price change be reported somewhere?
+        Ok(None)
     }
 
     fn process_disable_requests(&mut self) ->
         Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        // TODO
-        unreachable!();
+
+        self.send_price.remote_send_price = match self.send_price.remote_send_price {
+            Some(ref send_price) => None,
+            None => return Err(ProcessMessageError::RequestsAlreadyDisabled),
+        };
+        // TODO: Should this event be reported somehow?
+        Ok(None)
     }
 
     fn process_set_remote_max_debt(&mut self, proposed_max_debt: u64) -> 
         Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        // TODO
-        Err(ProcessMessageError::RemoteMaxDebtTooLarge(proposed_max_debt))
+
+        if proposed_max_debt > MAX_NETWORKER_DEBT {
+            Err(ProcessMessageError::RemoteMaxDebtTooLarge(proposed_max_debt))
+        } else {
+            self.balance.remote_max_debt = proposed_max_debt;
+            Ok(None)
+        }
     }
 
     fn process_set_invoice_id(&mut self, invoice_id: InvoiceId)
