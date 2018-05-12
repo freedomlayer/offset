@@ -93,7 +93,7 @@ struct NeighborsRoute {
         # Public key for the message destination.
 }
 
-struct FreezeLink {
+struct NeighborFreezeLink {
         sharedCredits @0: UInt64;
         # Credits shared for freezing through previous edge.
         usableRatio @1: Rational64;
@@ -109,7 +109,7 @@ struct RequestSendMessageTran {
         requestContent @2: Data;
         maxResponseLength @3: UInt32;
         processingFeeProposal @4: UInt64;
-        freezeLinks @5: List(FreezeLink);
+        freezeLinks @5: List(NeighborFreezeLink);
         # Variable amount of freezing links. This is used for protection
         # against DoS of credit freezing by have exponential decay of available
         # credits freezing according to derived trust.
