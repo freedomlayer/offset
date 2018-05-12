@@ -68,25 +68,23 @@ struct LoadFundsTran {
 }
 
 
-struct NeighborRouteLink {
-        nodePublicKey @0: CustomUInt256;
-        # Public key of current node
-        requestBaseProposal @1: UInt32;
-        # request base pricing for the current node
-        requestMultiplierProposal @2: UInt32;
-        # request multiplier pricing for the current node.
-        responseBaseProposal @3: UInt32;
-        # response base pricing for the next node.
-        responseMultiplierProposal @4: UInt32;
-        # response multiplier pricing for the next node.
-}
-
-
 struct NeighborsRoute {
         sourcePublicKey @0: CustomUInt256;
         # Public key for the message originator.
         routeLinks @1: List(NeighborRouteLink);
         # A chain of all intermediate nodes.
+        struct NeighborRouteLink {
+                nodePublicKey @0: CustomUInt256;
+                # Public key of current node
+                requestBaseProposal @1: UInt32;
+                # request base pricing for the current node
+                requestMultiplierProposal @2: UInt32;
+                # request multiplier pricing for the current node.
+                responseBaseProposal @3: UInt32;
+                # response base pricing for the next node.
+                responseMultiplierProposal @4: UInt32;
+                # response multiplier pricing for the next node.
+        }
         destinationPublicKey @2: CustomUInt256;
         # Public key for the message destination.
 }
