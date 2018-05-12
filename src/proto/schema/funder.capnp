@@ -12,7 +12,7 @@ using import "common.capnp".RandNonceSignature;
 
 struct FriendMoveToken {
         union {
-                transactions @0: List(FriendTransaction);
+                transactions @0: List(FriendOperation);
                 resetChannel @1: CustomUInt128;
                 # Note that this is actually a signed number (Highest bit is the sign
                 # bit, Two's complement method). TODO: Should we have a separate type,
@@ -32,10 +32,10 @@ struct FriendInconsistencyError {
 }
 
 
-# Token Transactions
+# Token Operations
 # ------------------
 
-struct EnableRequests {
+struct EnableRequestsOp {
         base @0: UInt64;
         multiplier @1: UInt64;
         # The sender of this message declares that
@@ -51,7 +51,7 @@ struct EnableRequests {
 # Set the maximum possible debt for the remote party.
 # Note: It is not possible to set a maximum debt smaller than the current debt
 # This will cause an inconsistency.
-struct SetRemoteMaxDebtTran {
+struct SetRemoteMaxDebtOp {
         remoteMaxDebt @0: UInt64;
 }
 
@@ -87,7 +87,7 @@ struct FriendFreezeLink {
         # value can not be represented as a u128/u128.
 }
 
-struct RequestSendFundTran { 
+struct RequestSendFundOp { 
         requestId @0: CustomUInt128;
         route @1: FriendsRoute;
         invoiceId @2: CustomUInt256;
@@ -99,7 +99,7 @@ struct RequestSendFundTran {
         # This part should not be signed in the Response message.
 }
 
-struct ResponseSendFundTran {
+struct ResponseSendFundOp {
         requestId @0: CustomUInt128;
         randNonce @1: CustomUInt128;
         signature @2: CustomUInt512;
@@ -111,7 +111,7 @@ struct ResponseSendFundTran {
         #   randNonce)
 }
 
-struct FailedSendFundTran {
+struct FailedSendFundOp {
         requestId @0: CustomUInt128;
         reportingPublicKeyIndex @1: UInt16;
         # Index of the reporting node in the route of the corresponding request.
@@ -129,14 +129,14 @@ struct FailedSendFundTran {
 }
 
 
-struct FriendTransaction {
+struct FriendOperation {
         union {
-                enableRequests @0: EnableRequests;
+                enableRequests @0: EnableRequestsOp;
                 disableRequests @1: Void;
-                setRemoteMaxDebt @2: SetRemoteMaxDebtTran;
-                requestSendFund @3: RequestSendFundTran;
-                responseSendFund @4: ResponseSendFundTran;
-                failedSendFund @5: FailedSendFundTran;
+                setRemoteMaxDebt @2: SetRemoteMaxDebtOp;
+                requestSendFund @3: RequestSendFundOp;
+                responseSendFund @4: ResponseSendFundOp;
+                failedSendFund @5: FailedSendFundOp;
         }
 }
 
