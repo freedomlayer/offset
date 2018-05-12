@@ -13,7 +13,7 @@ using import "common.capnp".RandNonceSignature;
 struct NeighborMoveToken {
         tokenChannelIndex @0: UInt8;
         union {
-                transactions @1: List(NeighborTransaction);
+                transactions @1: List(NeighborOperation);
                 resetChannel @2: Int64;
         }
         oldToken @3: CustomUInt256;
@@ -27,11 +27,11 @@ struct NeighborInconsistencyError {
 }
 
 
-# Token Transactions
+# Token Operations
 # ------------------
 
 
-struct EnableRequestsTran {
+struct EnableRequestsOp {
         base @0: UInt32;
         multiplier @1: UInt32;
         # The sender of this message declares that
@@ -41,18 +41,18 @@ struct EnableRequestsTran {
 # This message may be sent more than once, to update the values of base and multiplier.
 
 
-# struct DisableRequestsTran {
+# struct DisableRequestsOp {
 # }
 
-struct SetRemoteMaxDebtTran {
+struct SetRemoteMaxDebtOp {
         remoteMaxDebt @0: UInt64;
 }
 
 
 # TODO:
 # Find out relation between freezing amounts
-# and remoteMaxDebt. Possibly put all of those in one message (SetRemoteMaxDebtTran).
-#       struct SetRemoteMaxFreezeTran {
+# and remoteMaxDebt. Possibly put all of those in one message (SetRemoteMaxDebtOp).
+#       struct SetRemoteMaxFreezeOp {
 #               maxFreezes @0: List(MaxFreezeItem);
 #               struct MaxFreezeItem {
 #                       publicKey @0: CustomUInt256;
@@ -61,11 +61,11 @@ struct SetRemoteMaxDebtTran {
 #       }
 
 
-struct SetInvoiceIdTran {
+struct SetInvoiceIdOp {
         invoiceId @0: CustomUInt256;
 }
 
-struct LoadFundsTran {
+struct LoadFundsOp {
         receipt @0: Receipt;
 }
 
@@ -103,7 +103,7 @@ struct NeighborFreezeLink {
 }
 
 
-struct RequestSendMessageTran {
+struct RequestSendMessageOp {
         requestId @0: CustomUInt128;
         route @1: NeighborsRoute;
         requestContent @2: Data;
@@ -117,7 +117,7 @@ struct RequestSendMessageTran {
 }
 
 
-struct ResponseSendMessageTran {
+struct ResponseSendMessageOp {
         requestId @0: CustomUInt128;
         randNonce @1: CustomUInt128;
         processingFeeCollected @2: UInt64;
@@ -139,7 +139,7 @@ struct ResponseSendMessageTran {
 
 
 
-struct FailedSendMessageTran {
+struct FailedSendMessageOp {
         requestId @0: CustomUInt128;
         reportingPublicKeyIndex @1: UInt16;
         # Index on the route of the public key reporting this failure message.
@@ -159,16 +159,16 @@ struct FailedSendMessageTran {
 }
 
 
-struct NeighborTransaction {
+struct NeighborOperation {
         union {
-                enableRequests @0: EnableRequestsTran;
+                enableRequests @0: EnableRequestsOp;
                 disableRequests @1: Void;
-                setRemoteMaxDebt @2: SetRemoteMaxDebtTran;
-                setInvoiceId @3: SetInvoiceIdTran;
-                loadFunds @4: LoadFundsTran;
-                requestSendMessage @5: RequestSendMessageTran;
-                responseSendMessage @6: ResponseSendMessageTran;
-                failedSendMessage @7: FailedSendMessageTran;
+                setRemoteMaxDebt @2: SetRemoteMaxDebtOp;
+                setInvoiceId @3: SetInvoiceIdOp;
+                loadFunds @4: LoadFundsOp;
+                requestSendMessage @5: RequestSendMessageOp;
+                responseSendMessage @6: ResponseSendMessageOp;
+                failedSendMessage @7: FailedSendMessageOp;
         }
 }
 
