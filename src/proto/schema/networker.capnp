@@ -3,6 +3,7 @@
 using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomUInt256;
 using import "common.capnp".CustomUInt512;
+using import "common.capnp".Rational64;
 using import "common.capnp".Receipt;
 using import "common.capnp".RandNonceSignature;
 
@@ -92,6 +93,15 @@ struct NeighborsRoute {
         # Public key for the message destination.
 }
 
+struct FreezeLink {
+        sharedCredits @0: UInt64;
+        # Credits shared for freezing through previous edge.
+        usableRatio @1: Rational64;
+        # Ratio of credits that can be used for freezing from the previous
+        # edge. Ratio might only be an approximation to real value, if the real
+        # value can not be represented as a u64/u64.
+}
+
 
 struct RequestSendMessageTran {
         requestId @0: CustomUInt128;
@@ -99,6 +109,11 @@ struct RequestSendMessageTran {
         requestContent @2: Data;
         maxResponseLength @3: UInt32;
         processingFeeProposal @4: UInt64;
+        freezeLinks @5: List(FreezeLink);
+        # Variable amount of freezing links. This is used for protection
+        # against DoS of credit freezing by have exponential decay of available
+        # credits freezing according to derived trust.
+        # This part should not be signed in the Response message.
 }
 
 
