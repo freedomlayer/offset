@@ -26,6 +26,18 @@ struct CustomUInt512 {
         x7 @7: UInt64;
 }
 
+# A custom type for a rational 64 bit number.
+struct Rational64 {
+        numerator @0: UInt64;
+        denominator @1: UInt64;
+}
+
+# A custom type for a rational 128 bit number.
+struct Rational128 {
+        numerator @0: CustomUInt128;
+        denominator @1: CustomUInt128;
+}
+
 # A pair of a nonce and a signature used to sign a FailedSendXXXTran.
 # Every party on the route back to the originator of the request message add his 
 # signature over the failure message. This is important to avoid the hollow failure route attack.
