@@ -154,8 +154,13 @@ impl TransTCPendingRequests {
     }
 }
 
+struct KnownNeighbor {
+    max_debt: u64,
+}
+
 
 pub struct TokenChannel {
+    known_neighbors: HashMap<PublicKey, KnownNeighbor>,
     idents: TCIdents,
     balance: TCBalance,
     invoice: TCInvoice,
@@ -164,11 +169,13 @@ pub struct TokenChannel {
 }
 
 
+
 /// Processes incoming messages, acts upon an underlying `TokenChannel`.
 struct TransTokenChannel {
     orig_balance: TCBalance,
     orig_invoice: TCInvoice,
     orig_send_price: TCSendPrice,
+    known_neighbors: HashMap<PublicKey, KnownNeighbor>,
     idents: TCIdents,
     balance: TCBalance,
     invoice: TCInvoice,
@@ -195,6 +202,7 @@ impl TransTokenChannel {
             orig_balance: token_channel.balance.clone(),
             orig_invoice: token_channel.invoice.clone(),
             orig_send_price: token_channel.send_price.clone(),
+            known_neighbors: token_channel.known_neighbors,
             idents: token_channel.idents,
             balance: token_channel.balance,
             invoice: token_channel.invoice,
@@ -205,6 +213,7 @@ impl TransTokenChannel {
 
     pub fn cancel(self) -> TokenChannel {
         TokenChannel {
+            known_neighbors: self.known_neighbors,
             idents: self.idents,
             balance: self.orig_balance,
             invoice: self.orig_invoice,
@@ -215,6 +224,7 @@ impl TransTokenChannel {
 
     pub fn commit(self) -> TokenChannel {
         TokenChannel {
+            known_neighbors: self.known_neighbors,
             idents: self.idents,
             balance: self.balance,
             invoice: self.invoice,
