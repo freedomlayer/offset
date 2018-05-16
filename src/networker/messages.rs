@@ -145,18 +145,13 @@ pub enum NetworkerToAppManager {
 }
 
 pub enum NetworkerToChanneler {
-    /// Request send message to remote.
-    SendChannelMessage {
-        neighbor_public_key: PublicKey,
-        content: Bytes,
-    },
     /// Request to add a new neighbor.
     AddNeighbor {
         info: ChannelerNeighborInfo,
-    },
-    /// Request to remove a neighbor.
-    RemoveNeighbor {
-        neighbor_public_key: PublicKey
+        /// Possibly return a sender. This sender is then used to send
+        /// messages to the new neighbor.
+        /// Communication to the new neighbor is closed by dropping the sender.
+        response_sender: oneshot::Sender<Option<mpsc::Sender<Vec<u8>>>>,
     },
 }
 

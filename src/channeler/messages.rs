@@ -1,4 +1,4 @@
-use bytes::Bytes;
+// use bytes::Bytes;
 
 use crypto::identity::PublicKey;
 
@@ -11,13 +11,13 @@ pub enum ToChannel {
     TimeTick,
 
     /// Request the `Channel` to send a message.
-    SendMessage(Bytes),
+    SendMessage(Vec<u8>),
 }
 
 /// The channel event expected to be sent to `Networker`.
 pub enum ChannelEvent {
     /// A message received from remote.
-    Message(Bytes),
+    Message(Vec<u8>),
 }
 
 /// The internal message expected to be sent to `Networker`.
