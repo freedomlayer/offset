@@ -70,12 +70,25 @@ impl ResponseSendMessage{
 
 }
 
+/// A rational number. 
+/// T is the type of the numerator and the denominator.
+struct Rational<T> {
+    numerator: T,
+    denominator: T,
+}
+
+struct NeighborFreezeLink {
+    shared_credits: u64,
+    usable_ratio: Rational<u64>,
+}
+
 pub struct RequestSendMessage {
     request_id: Uid,
     route: NeighborsRoute,
     request_content: Vec<u8>,
     max_response_len: u32,
     processing_fee_proposal: u64,
+    freeze_links: Vec<NeighborFreezeLink>,
 }
 
 impl RequestSendMessage {
@@ -88,7 +101,8 @@ impl RequestSendMessage {
             self.route.bytes_count() +
             self.request_content.len() + // number of bytes that represent the array
             mem::size_of_val(&self.max_response_len) +
-            mem::size_of_val(&self.processing_fee_proposal)
+            mem::size_of_val(&self.processing_fee_proposal) +
+            mem::size_of::<NeighborFreezeLink>() * self.freeze_links.len()
     }
 
     fn nodes_to_dest(&self, sender_public_key: &PublicKey) -> Option<usize> {
