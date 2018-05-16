@@ -111,7 +111,6 @@ pub struct RequestSendMessage {
     request_data: Vec<u8>,
     max_response_len: u32,
     processing_fee_proposal: u64,
-    credits_per_byte_proposal: u32,
     response_sender: oneshot::Sender<ResponseSendMessage>,
 }
 
