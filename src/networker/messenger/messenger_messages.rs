@@ -103,6 +103,8 @@ impl RequestSendMessage {
             mem::size_of_val(&self.max_response_len) +
             mem::size_of_val(&self.processing_fee_proposal) +
             mem::size_of::<NeighborFreezeLink>() * self.freeze_links.len()
+
+        // TODO: Test this.
     }
 
     fn nodes_to_dest(&self, sender_public_key: &PublicKey) -> Option<usize> {
