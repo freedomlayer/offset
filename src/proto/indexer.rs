@@ -1,4 +1,5 @@
 use std::mem;
+use std::collections::HashSet;
 use crypto::identity::{PublicKey, Signature};
 use proto::networker::NetworkerSendPrice;
 
@@ -27,9 +28,8 @@ pub struct NeighborsRoute {
 
 #[derive(PartialEq, Eq)]
 pub enum PkPairPosition {
-    NotFound,
-    NotLast,
-    IsLast,
+    Last,
+    NotLast
 }
 
 impl NeighborRouteLink {
@@ -45,23 +45,53 @@ impl NeighborsRoute {
             NeighborRouteLink::bytes_count()
                 * self.route_links.len()
     }
-}
-/*
-    /// Find two consecutive public keys (pk1, pk2) inside a neighbors route.
-    /// If found, returns the index of the first of them.
-    pub fn find_pk_pair(&self, pk1: &PublicKey, pk2: &PublicKey) -> PkPairPosition {
-        let public_keys = &self.public_keys;
-        for i in 1 .. public_keys.len() {
-            if &public_keys[i] == pk2 && &public_keys[i-1] == pk1 {
-                if i == public_keys.len() - 1 {
-                    return PkPairPosition::IsLast;
-                } else {
-                    return PkPairPosition::NotLast;
-                }
+
+    /// Check if every node shows up in the route at most once.
+    /// This makes sure no cycles are present
+    pub fn is_cycle_free(&self) -> bool {
+        // All seen public keys:
+        let mut seen = HashSet::new();
+        if !seen.insert(self.source_public_key.clone()) { 
+            return false
+        }
+        if !seen.insert(self.destination_public_key.clone()) {
+            return false
+        }
+        for route_link in &self.route_links {
+            if !seen.insert(route_link.node_public_key.clone()) {
+                return false
             }
         }
-        PkPairPosition::NotFound
+        true
     }
+
+    /// Find two consecutive public keys (pk1, pk2) inside a neighbors route.
+    /// If found, returns the index of the first of them.
+    pub fn find_pk_pair(&self, pk1: &PublicKey, pk2: &PublicKey) -> Option<PkPairPosition> {
+        if self.route_links.is_empty() {
+            if &self.source_public_key == pk1 && &self.destination_public_key == pk2 {
+                Some(PkPairPosition::Last)
+            } else {
+                None
+            }
+        } else {
+            let rl = &self.route_links;
+            if &self.source_public_key == pk1 && &rl[0].node_public_key == pk2 {
+                Some(PkPairPosition::NotLast)
+            } else if &rl[rl.len() - 1].node_public_key == pk1 && &self.destination_public_key == pk2 {
+                Some(PkPairPosition::Last)
+            } else {
+                for i in 1 .. rl.len() {
+                    if &rl[i-1].node_public_key == pk1 && &rl[i].node_public_key == pk2 {
+                        return Some(PkPairPosition::NotLast);
+                    }
+                }
+                None
+            }
+        }
+    }
+}
+/*
 
     pub fn is_unique(&self) -> bool {
         let public_keys = &self.public_keys;
