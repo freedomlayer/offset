@@ -358,7 +358,6 @@ impl TransTokenChannel {
         -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
 
         // If linear payment proposal for returning response is too low, return error
-        // (Inconsistency).
         let local_send_price = match self.send_price.local_send_price {
             None => return Err(ProcessMessageError::IncomingRequestsDisabled),
             Some(ref local_send_price) => local_send_price.clone(),
@@ -377,7 +376,29 @@ impl TransTokenChannel {
             }
         };
 
+        // Find out how many credits we need to freeze:
+        let rl = &request_send_msg.route.route_links;
+        /*
+        let credits_freeze_dest = request_send_msg.processing_fee_proposal +
+            rl[rl.len() - 1].
+            request_send_msg.route.route_links
+        */
+
+            /*
+            processing_fee 
+                + {FE}_b + max_response_len * {FE}_r +
+                + (max_response_len - response_len) * ({CB}_r + {DC}_r + {ED}_r) 
+            */
+
+
         // TODO
+        // - Calculate amount of credits to freeze
+        // - Verify previous freezing links.
+        //      - Verify self freezing link?
+        //
+        // - Make sure we can freeze the credits
+        // - Freeze correct amount of credits
+
         unreachable!();
 
         // - Make sure that we can freeze the credits
