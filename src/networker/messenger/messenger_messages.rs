@@ -77,18 +77,18 @@ struct Rational<T> {
     denominator: T,
 }
 
-struct NeighborFreezeLink {
+pub struct NeighborFreezeLink {
     shared_credits: u64,
     usable_ratio: Rational<u64>,
 }
 
 pub struct RequestSendMessage {
-    request_id: Uid,
-    route: NeighborsRoute,
-    request_content: Vec<u8>,
-    max_response_len: u32,
-    processing_fee_proposal: u64,
-    freeze_links: Vec<NeighborFreezeLink>,
+    pub request_id: Uid,
+    pub route: NeighborsRoute,
+    pub request_content: Vec<u8>,
+    pub max_response_len: u32,
+    pub processing_fee_proposal: u64,
+    pub freeze_links: Vec<NeighborFreezeLink>,
 }
 
 impl RequestSendMessage {
