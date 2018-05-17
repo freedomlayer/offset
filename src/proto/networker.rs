@@ -36,6 +36,11 @@ impl NetworkerSendPrice {
     pub fn bytes_count() -> usize {
         LinearSendPrice::<u32>::bytes_count()
     }
+
+    pub fn calc_cost(&self, length: u32) -> Option<u64> {
+        u64::from(self.0.multiplier).checked_mul(u64::from(length))?
+            .checked_add(u64::from(self.0.base))
+    }
 }
 
 
@@ -67,6 +72,18 @@ mod tests {
         assert!(!(lsp2 < lsp3));
         assert!(!(lsp3 < lsp2));
     }
+
+    #[test]
+    fn test_networker_send_price_calc_cost_basic() {
+        let nsp = NetworkerSendPrice(LinearSendPrice {
+            base: 5,
+            multiplier: 3,
+        });
+        assert_eq!(nsp.calc_cost(0), Some(5));
+        assert_eq!(nsp.calc_cost(1), Some(8));
+    }
+
 }
+
 
 
