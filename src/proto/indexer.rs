@@ -13,7 +13,7 @@ define_fixed_bytes!(IndexingProviderId, INDEXING_PROVIDER_ID_LEN);
 define_fixed_bytes!(IndexingProviderStateHash, INDEXING_PROVIDER_STATE_HASH_LEN);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct NeighborRouteLink {
+pub struct NeighborRouteLink {
     node_public_key: PublicKey,
     request_payment_proposal: NetworkerSendPrice,
     response_payment_proposal: NetworkerSendPrice,
@@ -22,7 +22,7 @@ struct NeighborRouteLink {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NeighborsRoute {
     source_public_key: PublicKey,
-    route_links: Vec<NeighborRouteLink>,
+    pub route_links: Vec<NeighborRouteLink>,
     destination_public_key: PublicKey,
 }
 
