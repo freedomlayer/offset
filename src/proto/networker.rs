@@ -1,4 +1,6 @@
 use std::mem;
+use std::cmp::Ordering;
+
 pub const CHANNEL_TOKEN_LEN: usize = 32;
 
 /// The hash of the previous message sent over the token channel.
@@ -15,10 +17,19 @@ impl<T> LinearSendPrice<T> {
     pub fn bytes_count() -> usize {
         mem::size_of::<T>() * 2
     }
-
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+impl<T:PartialOrd> PartialOrd for LinearSendPrice<T> {
+    fn partial_cmp(&self, other: &LinearSendPrice<T>) -> Option<Ordering> {
+        if (self.base < other.base) && (self.multiplier < other.multiplier) {
+            Some(Ordering::Less)
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Debug)]
 pub struct NetworkerSendPrice(LinearSendPrice<u32>);
 
 impl NetworkerSendPrice {
@@ -26,3 +37,36 @@ impl NetworkerSendPrice {
         LinearSendPrice::<u32>::bytes_count()
     }
 }
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_linear_send_price_ord() {
+        let lsp1 = LinearSendPrice {
+            base: 3,
+            multiplier: 3,
+        };
+
+        let lsp2 = LinearSendPrice {
+            base: 5,
+            multiplier: 5,
+        };
+
+        let lsp3 = LinearSendPrice {
+            base: 4,
+            multiplier: 6,
+        };
+
+        assert!(lsp1 < lsp2);
+        assert!(lsp1 < lsp3);
+
+        assert!(!(lsp2 < lsp3));
+        assert!(!(lsp3 < lsp2));
+    }
+}
+
+
