@@ -9,8 +9,8 @@ define_fixed_bytes!(ChannelToken, CHANNEL_TOKEN_LEN);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LinearSendPrice<T> {
-    base: T,
-    multiplier: T,
+    pub base: T,
+    pub multiplier: T,
 }
 
 impl<T> LinearSendPrice<T> {
@@ -30,7 +30,7 @@ impl<T:PartialOrd> PartialOrd for LinearSendPrice<T> {
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Debug)]
-pub struct NetworkerSendPrice(LinearSendPrice<u32>);
+pub struct NetworkerSendPrice(pub LinearSendPrice<u32>);
 
 impl NetworkerSendPrice {
     pub fn bytes_count() -> usize {
@@ -82,8 +82,5 @@ mod tests {
         assert_eq!(nsp.calc_cost(0), Some(5));
         assert_eq!(nsp.calc_cost(1), Some(8));
     }
-
 }
-
-
 
