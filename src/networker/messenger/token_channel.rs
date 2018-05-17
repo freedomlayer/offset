@@ -367,6 +367,8 @@ impl TransTokenChannel {
         let response_payment_proposal = match opt_response_payment_proposal {
             None => local_send_price,
             Some(response_payment_proposal) => {
+                // Beware: This is only partial order.
+                // ">=" and "<" are not complements.
                 if response_payment_proposal >= local_send_price {
                     response_payment_proposal
                 } else {
