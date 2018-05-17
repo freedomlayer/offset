@@ -69,6 +69,8 @@ pub enum ProcessMessageError {
     InvalidFailureReporter,
     InnerBug,
     RequestsAlreadyDisabled,
+    ResponsePaymentProposalTooLow,
+    IncomingRequestsDisabled,
 }
 
 #[derive(Debug)]
@@ -355,11 +357,27 @@ impl TransTokenChannel {
                                      opt_response_payment_proposal: Option<NetworkerSendPrice>)
         -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
 
+        // If linear payment proposal for returning response is too low, return error
+        // (Inconsistency).
+        let local_send_price = match self.send_price.local_send_price {
+            None => return Err(ProcessMessageError::IncomingRequestsDisabled),
+            Some(ref local_send_price) => local_send_price.clone(),
+        };
+
+        let response_payment_proposal = match opt_response_payment_proposal {
+            None => local_send_price,
+            Some(response_payment_proposal) => {
+                if response_payment_proposal >= local_send_price {
+                    response_payment_proposal
+                } else {
+                    return Err(ProcessMessageError::ResponsePaymentProposalTooLow);
+                }
+            }
+        };
+
         // TODO
         unreachable!();
 
-        // - If linear payment proposal for returning response is too low, return error
-        //   (Inconsistency).
         // - Make sure that we can freeze the credits
         //      - Should consider relative freezing allocations (Avoiding DoS).
         // - Freeze correct amount of credits
