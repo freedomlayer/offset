@@ -378,11 +378,23 @@ impl TransTokenChannel {
 
         // Find out how many credits we need to freeze:
         let rl = &request_send_msg.route.route_links;
+
         /*
+        // TODO: Make this summation safe:
+        let sum_multiplier = (0 .. rl.len() - 1)
+            .map(|i| rl[i].response_payment_proposal.0.multiplier)
+            .sum();
+
+        let resp_prop = rl[rl.len() - 1].response_payment_proposal;
+
+        // TODO: Make this calculation safe:
         let credits_freeze_dest = request_send_msg.processing_fee_proposal +
-            rl[rl.len() - 1].
-            request_send_msg.route.route_links
+            resp_prop.0.base + resp_prop.0.multiplier * request_send_msg.max_response_len +
+            request_send_msg.max_response_len * sum_multiplier;
         */
+
+
+            // request_send_msg.route.route_links
 
             /*
             processing_fee 
