@@ -17,8 +17,8 @@ use proto::networker::NetworkerSendPrice;
 
 use super::pending_neighbor_request::PendingNeighborRequest;
 use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, RequestSendMessage};
+use super::messenger_messages::{NetworkerTCMessage, NeighborFreezeLink};
 use utils::trans_hashmap::TransHashMap;
-use super::messenger_messages::NetworkerTCMessage;
 
 /// The maximum possible networker debt.
 /// We don't use the full u64 because i64 can not go beyond this value.
@@ -53,7 +53,7 @@ pub enum ProcessMessageError {
     InvalidInvoiceId,
     InvalidFundsReceipt,
     InvalidSendFundsReceiptSignature,
-    PKPairNotInChain,
+    PkPairNotInRoute,
     RemoteRequestIdExists,
     RequestIdNotExists,
     InvalidFeeProposal,
@@ -347,19 +347,67 @@ impl TransTokenChannel {
         Ok(None)
     }
 
-    fn process_request_send_message(&mut self, request_send_msg: RequestSendMessage)
+    /// Process an incoming RequestSendMessage where we are not the destination of the route.
+    fn request_send_message_not_dest(&mut self, 
+                                     request_send_msg: RequestSendMessage,
+                                     next_public_key: PublicKey,
+                                     request_payment_proposal: NetworkerSendPrice,
+                                     opt_response_payment_proposal: Option<NetworkerSendPrice>)
         -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
 
-        // TODO:
-        // - Make sure that we are on the route somewhere.
-        // - Differentiate between the cases of being the last on the route, and being somewhere in
-        //      the middle.
+        // TODO
+        unreachable!();
+
         // - If linear payment proposal for returning response is too low, return error
         //   (Inconsistency).
         // - Make sure that we can freeze the credits
         //      - Should consider relative freezing allocations (Avoiding DoS).
         // - Freeze correct amount of credits
         Err(ProcessMessageError::PendingCreditTooLarge)
+    }
+
+    /// Process an incoming RequestSendMessage where we are the destination of the route
+    fn request_send_message_dest(&mut self, 
+                                 request_send_msg: RequestSendMessage,
+                                 opt_response_payment_proposal: Option<NetworkerSendPrice>)
+        -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+
+
+        // TODO
+        unreachable!();
+    }
+
+
+
+    /// Process an incoming RequestSendMessage
+    fn process_request_send_message(&mut self, request_send_msg: RequestSendMessage)
+        -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+
+        // TODO:
+        // - Make sure that the route does not contains cycles/duplicates:
+        if !request_send_msg.route.is_cycle_free() {
+            return Err(ProcessMessageError::DuplicateNodesInRoute);
+        }
+
+        // - Make sure that we are on the route somewhere.
+        // - Differentiate between the cases of being the last on the route, and being somewhere in
+        //      the middle.
+        let opt_pk_pair = request_send_msg.route.find_pk_pair(
+            &self.idents.remote_public_key, 
+            &self.idents.local_public_key);
+        match opt_pk_pair {
+            None => Err(ProcessMessageError::PkPairNotInRoute),
+            Some(PkPairPosition::NotDest {next_public_key, 
+                                            request_payment_proposal, 
+                                            opt_response_payment_proposal}) =>
+                self.request_send_message_not_dest(request_send_msg,
+                                                   next_public_key,
+                                                   request_payment_proposal,
+                                                   opt_response_payment_proposal),
+            Some(PkPairPosition::Dest(opt_response_payment_proposal)) => 
+                self.request_send_message_dest(request_send_msg,
+                                               opt_response_payment_proposal),
+        }
     }
 
     fn process_response_send_message(&mut self, response_send_msg: ResponseSendMessage) ->
