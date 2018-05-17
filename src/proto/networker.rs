@@ -18,4 +18,11 @@ impl<T> LinearSendPrice<T> {
 
 }
 
-pub type NetworkerSendPrice = LinearSendPrice<u32>;
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct NetworkerSendPrice(LinearSendPrice<u32>);
+
+impl NetworkerSendPrice {
+    pub fn bytes_count() -> usize {
+        LinearSendPrice::<u32>::bytes_count()
+    }
+}
