@@ -14,9 +14,9 @@ define_fixed_bytes!(IndexingProviderStateHash, INDEXING_PROVIDER_STATE_HASH_LEN)
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NeighborRouteLink {
-    node_public_key: PublicKey,
-    request_payment_proposal: NetworkerSendPrice,
-    response_payment_proposal: NetworkerSendPrice,
+    pub node_public_key: PublicKey,
+    pub request_payment_proposal: NetworkerSendPrice,
+    pub response_payment_proposal: NetworkerSendPrice,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
