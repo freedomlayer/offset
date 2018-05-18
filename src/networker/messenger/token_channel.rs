@@ -71,6 +71,7 @@ pub enum ProcessMessageError {
     RequestsAlreadyDisabled,
     ResponsePaymentProposalTooLow,
     IncomingRequestsDisabled,
+    RoutePricingOverflow,
 }
 
 #[derive(Debug)]
@@ -194,6 +195,46 @@ pub fn atomic_process_messages_list(token_channel: TokenChannel, messages: Vec<N
         Err(e) => (trans_token_channel.cancel(), Err(e)),
         Ok(output_tasks) => (trans_token_channel.commit(), Ok(output_tasks)),
     }
+}
+
+
+/// Calculate the amount of credits that needs to be frozen
+/// for the destination (By the node before the destination).
+fn calc_dest_freeze_credits(route: &NeighborsRoute,
+                            processing_fee_proposal: u64,
+                            max_response_len: u32) -> Option<u64> {
+    /*
+    processing_fee 
+        + {FE}_b + max_response_len * {FE}_r +
+        + (max_response_len - response_len) * ({CB}_r + {DC}_r + {ED}_r) 
+
+    We set response_len = 0 to obtain the maximum amount of required credit.
+    */
+
+    // Find out how many credits we need to freeze:
+    let rl = &route.route_links;
+
+    // Sum of multiplier of responses, not including the response mutliplier of the
+    // destionation
+    let mut sum_resp_multiplier: u64 = 0;
+    for route_link in &rl[0 .. rl.len() - 1] {
+        sum_resp_multiplier = sum_resp_multiplier.checked_add(
+            u64::from(route_link.response_payment_proposal.0.multiplier))?;
+    }
+
+    let resp_prop = &rl[rl.len() - 1].response_payment_proposal;
+
+    // TODO: Make this calculation safe:
+    let credits_freeze_dest = 
+            processing_fee_proposal
+            .checked_add(u64::from(resp_prop.0.base))?
+            .checked_add(
+                u64::from(resp_prop.0.multiplier).checked_mul(u64::from(max_response_len))?)?
+            .checked_add(
+                u64::from(max_response_len).checked_mul(sum_resp_multiplier)?)?;
+
+    Some(credits_freeze_dest)
+    
 }
 
 /// Transactional state of the token channel.
@@ -376,31 +417,20 @@ impl TransTokenChannel {
             }
         };
 
-        // Find out how many credits we need to freeze:
-        let rl = &request_send_msg.route.route_links;
 
-        /*
-        // TODO: Make this summation safe:
-        let sum_multiplier = (0 .. rl.len() - 1)
-            .map(|i| rl[i].response_payment_proposal.0.multiplier)
-            .sum();
+        let credits_freeze_dest = calc_dest_freeze_credits(&request_send_msg.route, 
+                                 request_send_msg.processing_fee_proposal,
+                                 request_send_msg.max_response_len)
+            .ok_or(ProcessMessageError::RoutePricingOverflow);
 
-        let resp_prop = rl[rl.len() - 1].response_payment_proposal;
-
-        // TODO: Make this calculation safe:
-        let credits_freeze_dest = request_send_msg.processing_fee_proposal +
-            resp_prop.0.base + resp_prop.0.multiplier * request_send_msg.max_response_len +
-            request_send_msg.max_response_len * sum_multiplier;
-        */
-
-
-            // request_send_msg.route.route_links
-
-            /*
-            processing_fee 
-                + {FE}_b + max_response_len * {FE}_r +
-                + (max_response_len - response_len) * ({CB}_r + {DC}_r + {ED}_r) 
-            */
+        // TODO: Calculate the amount of credits to freeze backwards.
+        // Start from the amount of credits to freeze at the destination,
+        // then calculate backwards until we reach how many credits we need to freeze. 
+        // Check if this value is reasonable:
+        // - Avoiding freezing DoS.
+        // - Are enough credits available?
+        // Next, keep calculating backwards and see if all previous nodes can freeze according to
+        // their freezing DoS protection.
 
 
         // TODO
