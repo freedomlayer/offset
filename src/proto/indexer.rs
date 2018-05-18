@@ -13,10 +13,15 @@ define_fixed_bytes!(IndexingProviderId, INDEXING_PROVIDER_ID_LEN);
 define_fixed_bytes!(IndexingProviderStateHash, INDEXING_PROVIDER_STATE_HASH_LEN);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct NeighborRouteLink {
-    pub node_public_key: PublicKey,
+pub struct PaymentProposalPair {
     pub request_payment_proposal: NetworkerSendPrice,
     pub response_payment_proposal: NetworkerSendPrice,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NeighborRouteLink {
+    pub node_public_key: PublicKey,
+    pub payment_proposal_pair: PaymentProposalPair,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -89,18 +94,25 @@ impl NeighborsRoute {
             if &self.source_public_key == pk1 && &rl[0].node_public_key == pk2 {
                 Some(PkPairPosition::NotDest {
                     next_public_key: rl[0].node_public_key.clone(),
-                    request_payment_proposal: rl[0].request_payment_proposal.clone(),
+                    request_payment_proposal: 
+                        rl[0].payment_proposal_pair.request_payment_proposal.clone(),
                     opt_response_payment_proposal: None,
                 })
             } else if &rl[rl.len() - 1].node_public_key == pk1 && &self.destination_public_key == pk2 {
-                Some(PkPairPosition::Dest(Some(rl[rl.len() - 1].request_payment_proposal.clone())))
+                Some(PkPairPosition::Dest(Some(rl[rl.len() - 1]
+                                               .payment_proposal_pair
+                                               .request_payment_proposal.clone())))
             } else {
                 for i in 1 .. rl.len() {
                     if &rl[i-1].node_public_key == pk1 && &rl[i].node_public_key == pk2 {
                         return Some(PkPairPosition::NotDest {
                             next_public_key: rl[i].node_public_key.clone(),
-                            request_payment_proposal: rl[i].request_payment_proposal.clone(),
-                            opt_response_payment_proposal: Some(rl[i-1].response_payment_proposal.clone()),
+                            request_payment_proposal: rl[i]
+                                .payment_proposal_pair
+                                .request_payment_proposal.clone(),
+                            opt_response_payment_proposal: Some(rl[i-1]
+                                                                .payment_proposal_pair
+                                                                .response_payment_proposal.clone()),
                         })
                     }
                 }
