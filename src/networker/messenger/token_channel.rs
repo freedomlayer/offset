@@ -16,8 +16,9 @@ use proto::funder::InvoiceId;
 use proto::networker::NetworkerSendPrice;
 
 use super::pending_neighbor_request::PendingNeighborRequest;
-use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, RequestSendMessage};
-use super::messenger_messages::{NetworkerTCMessage, NeighborFreezeLink};
+use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, RequestSendMessage,
+                                NetworkerTCMessage, NeighborFreezeLink};
+use super::credit_calculator::calc_dest_freeze_credits;
 use utils::trans_hashmap::TransHashMap;
 
 /// The maximum possible networker debt.
@@ -198,47 +199,6 @@ pub fn atomic_process_messages_list(token_channel: TokenChannel, messages: Vec<N
 }
 
 
-/// Calculate the amount of credits that needs to be frozen
-/// for the destination (By the node before the destination).
-fn calc_dest_freeze_credits(route: &NeighborsRoute,
-                            processing_fee_proposal: u64,
-                            max_response_len: u32) -> Option<u64> {
-
-    // TODO: Make this function more generic, to deal with routes of length 2?
-    // Currently this function assumes that rl.len() > 0.
-    /*
-    processing_fee 
-        + {FE}_b + max_response_len * {FE}_r +
-        + (max_response_len - response_len) * ({CB}_r + {DC}_r + {ED}_r) 
-
-    We set response_len = 0 to obtain the maximum amount of required credit.
-    */
-
-    // Find out how many credits we need to freeze:
-    let rl = &route.route_links;
-
-    // Sum of multiplier of responses, not including the response mutliplier of the
-    // destionation
-    let mut sum_resp_multiplier: u64 = 0;
-    for route_link in &rl[0 .. rl.len() - 1] {
-        sum_resp_multiplier = sum_resp_multiplier.checked_add(
-            u64::from(route_link.response_payment_proposal.0.multiplier))?;
-    }
-
-    let resp_prop = &rl[rl.len() - 1].response_payment_proposal;
-
-    // TODO: Make this calculation safe:
-    let credits_freeze_dest = 
-            processing_fee_proposal
-            .checked_add(u64::from(resp_prop.0.base))?
-            .checked_add(
-                u64::from(resp_prop.0.multiplier).checked_mul(u64::from(max_response_len))?)?
-            .checked_add(
-                u64::from(max_response_len).checked_mul(sum_resp_multiplier)?)?;
-
-    Some(credits_freeze_dest)
-    
-}
 
 /// Transactional state of the token channel.
 impl TransTokenChannel {
