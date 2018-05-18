@@ -18,7 +18,7 @@ use proto::networker::NetworkerSendPrice;
 use super::pending_neighbor_request::PendingNeighborRequest;
 use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, RequestSendMessage,
                                 NetworkerTCMessage, NeighborFreezeLink};
-use super::credit_calculator::calc_dest_freeze_credits;
+use super::credit_calculator::credits_on_success_dest;
 use utils::trans_hashmap::TransHashMap;
 
 /// The maximum possible networker debt.
@@ -114,13 +114,13 @@ struct TCInvoice {
 }
 
 #[derive(Clone)]
-struct TCSendPrice {
+pub struct TCSendPrice {
     /// Price for us to send message to the remote side
     /// Knowns only if we enabled requests
-    local_send_price: Option<NetworkerSendPrice>,
+    pub local_send_price: Option<NetworkerSendPrice>,
     /// Price for the remote side to send messages to us
     /// Knowns only if remote side enabled requests
-    remote_send_price: Option<NetworkerSendPrice>,
+    pub remote_send_price: Option<NetworkerSendPrice>,
 }
 
 struct TCPendingRequests {
@@ -381,10 +381,14 @@ impl TransTokenChannel {
         };
 
 
-        let credits_freeze_dest = calc_dest_freeze_credits(&request_send_msg.route, 
+        /*
+        let credits_freeze_dest = credits_on_success_dest(&request_send_msg.route, 
+                                 &self.send_price.remote_send_price,
                                  request_send_msg.processing_fee_proposal,
+                                 0,
                                  request_send_msg.max_response_len)
             .ok_or(ProcessMessageError::RoutePricingOverflow);
+        */
 
         // TODO: Calculate the amount of credits to freeze backwards.
         // Start from the amount of credits to freeze at the destination,
