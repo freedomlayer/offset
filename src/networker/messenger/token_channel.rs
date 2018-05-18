@@ -203,6 +203,9 @@ pub fn atomic_process_messages_list(token_channel: TokenChannel, messages: Vec<N
 fn calc_dest_freeze_credits(route: &NeighborsRoute,
                             processing_fee_proposal: u64,
                             max_response_len: u32) -> Option<u64> {
+
+    // TODO: Make this function more generic, to deal with routes of length 2?
+    // Currently this function assumes that rl.len() > 0.
     /*
     processing_fee 
         + {FE}_b + max_response_len * {FE}_r +
