@@ -9,11 +9,27 @@ pub struct PaymentProposals {
     dest_response_pay_props: NetworkerSendPrice,
 }
 
+
+fn calc_request_len(request_content_len: u32, 
+                    route_len: usize, 
+                    nodes_to_dest: usize) -> Option<u32> {
+
+    unreachable!(); // TODO
+}
+
+fn calc_response_len(response_content_len: u32,
+                     route_len: usize,
+                     nodes_to_dest: usize) -> Option<u32> {
+    unreachable!(); // TODO
+}
+
+fn calc_failure_len(nodes_to_reporting_node: usize) -> Option<u32> {
+    unreachable!(); // TODO
+}
+
 /// Amount of credits paid to destination node, upon issuing a signed Response message.
 /// The destination node is the last node along the route of a request.
 /// Upon any overflow (u64) this function will return None.
-///
-/// Where in fact, those values should be distributed as follows:
 ///           req      req      req
 ///           res      res      res      res
 ///    B  --   C   --   D   --   E   --   F   
@@ -25,8 +41,13 @@ pub struct PaymentProposals {
 ///
 pub fn credits_on_success_dest(payment_proposals: &PaymentProposals,
                                processing_fee_proposal: u64,
-                               response_len: u32,
-                               max_response_len: u32) -> Option<u64> {
+                               response_content_len: u32,
+                               max_response_content_len: u32) -> Option<u64> {
+
+    let response_len = calc_response_len(response_content_len,
+                                         payment_proposals.middle_props.len(), 0)?;
+    let max_response_len = calc_response_len(max_response_content_len,
+                                         payment_proposals.middle_props.len(), 0)?;
 
     // Find out how many credits we need to freeze:
     let mut sum_resp_multiplier: u64 = 0;
@@ -68,9 +89,9 @@ pub fn credits_on_success_dest(payment_proposals: &PaymentProposals,
 ///
 pub fn credits_on_success(payment_proposals: &PaymentProposals,
                           processing_fee_proposal: u64,
-                          request_len: u32,
-                          response_len: u32,
-                          max_response_len: u32,
+                          request_content_len: u32,
+                          response_content_len: u32,
+                          max_response_content_len: u32,
                           nodes_to_dest: usize) -> Option<u64> {
     let middle_props = &payment_proposals.middle_props;
 
@@ -78,17 +99,23 @@ pub fn credits_on_success(payment_proposals: &PaymentProposals,
         return None;
     }
 
-    // TODO: calculate max_failure_len.
-    let max_failure_len = 0;
-    unreachable!();
-
     let mut sum_credits: u64 = credits_on_success_dest(payment_proposals,
                                                        processing_fee_proposal,
-                                                       response_len,
-                                                       max_response_len)?;
+                                                       response_content_len,
+                                                       max_response_content_len)?;
 
     for i in (middle_props.len() - nodes_to_dest - 1 .. middle_props.len()).rev() {
         let middle_prop = &middle_props[i];
+
+        // TODO; Check for off by one here:
+        let request_len = calc_request_len(request_content_len,
+                                           middle_props.len(),
+                                           middle_props.len() - i)?;
+        let response_len = calc_request_len(response_content_len,
+                                           middle_props.len(),
+                                           middle_props.len() - i)?;
+        // Maximum failure length occurs when the reporting node is as far as possible.
+        let max_failure_len = calc_failure_len(middle_props.len() - i)?;
 
         let mut credits_earned = 0;
         let credits_earned = middle_prop.request.calc_cost(request_len)?
@@ -98,22 +125,7 @@ pub fn credits_on_success(payment_proposals: &PaymentProposals,
         sum_credits = sum_credits.checked_add(credits_earned)?;
     }
 
-
-    unreachable!();
-
-    /*
-    // (request_len + response_len) * credits_per_byte_proposal * (nodes_to_dest - 1) +
-    //      credits_on_success_dest(...)
-    u64::from(request_len).checked_add(u64::from(response_len))?
-        .checked_mul(credits_per_byte_proposal)?
-        .checked_mul((nodes_to_dest.checked_sub(1)?) as u64)?
-        .checked_add(
-            credits_on_success_dest(processing_fee_proposal, 
-                                    request_len, 
-                                    credits_per_byte_proposal,
-                                    response_len,
-                                    max_response_len)?)
-    */
+    Some(sum_credits)
 }
 
 /// The amount of credits paid to a node in case of failure.
