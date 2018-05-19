@@ -1,7 +1,11 @@
-use std::cmp;
+use std::convert::TryFrom;
+use std::{mem, cmp};
 use crypto::identity::PublicKey;
+use crypto::uid::Uid;
 use proto::indexer::PaymentProposalPair;
 use proto::networker::NetworkerSendPrice;
+use super::messenger_messages::NeighborFreezeLink;
+
 
 
 pub struct PaymentProposals {
@@ -11,19 +15,38 @@ pub struct PaymentProposals {
 
 
 fn calc_request_len(request_content_len: u32, 
-                    route_len: usize, 
-                    nodes_to_dest: usize) -> Option<u32> {
+                    route_len: u32, 
+                    nodes_to_dest: u32) -> Option<u32> {
 
-    unreachable!(); // TODO
+    // TODO: Safer conversion here instead of as:
+    let public_key_len = mem::size_of::<PublicKey>() as u32;
+    let payment_proposal_pair_len = mem::size_of::<PaymentProposalPair>() as u32;
+    let networker_send_price_len = mem::size_of::<NetworkerSendPrice>() as u32;
+    let neighbor_freeze_link_len = mem::size_of::<NetworkerSendPrice>() as u32;
+
+    let route_bytes_count = public_key_len.checked_mul(2)?
+        .checked_add(route_len.checked_mul(public_key_len)?)?
+        .checked_add(payment_proposal_pair_len)?
+        .checked_add(networker_send_price_len)?;
+
+    let freeze_links_len = route_len.checked_sub(nodes_to_dest)?
+        .checked_mul(neighbor_freeze_link_len)?;
+
+    // TODO: Make this calculation safe:
+    let request_overhead = (mem::size_of::<Uid>() 
+                            + mem::size_of::<u32>() 
+                            + mem::size_of::<u64>()) as u32;
+
+    Some(request_overhead.checked_add(route_bytes_count)?.checked_add(freeze_links_len)?)
 }
 
 fn calc_response_len(response_content_len: u32,
-                     route_len: usize,
-                     nodes_to_dest: usize) -> Option<u32> {
+                     route_len: u32,
+                     nodes_to_dest: u32) -> Option<u32> {
     unreachable!(); // TODO
 }
 
-fn calc_failure_len(nodes_to_reporting_node: usize) -> Option<u32> {
+fn calc_failure_len(nodes_to_reporting_node: u32) -> Option<u32> {
     unreachable!(); // TODO
 }
 
@@ -44,10 +67,18 @@ pub fn credits_on_success_dest(payment_proposals: &PaymentProposals,
                                response_content_len: u32,
                                max_response_content_len: u32) -> Option<u64> {
 
+    let middle_props_len = {
+        if payment_proposals.middle_props.len() > u32::max_value() as usize {
+            return None;
+        } else {
+            payment_proposals.middle_props.len() as u32
+        }
+    };
+
     let response_len = calc_response_len(response_content_len,
-                                         payment_proposals.middle_props.len(), 0)?;
+                                            middle_props_len, 0)?;
     let max_response_len = calc_response_len(max_response_content_len,
-                                         payment_proposals.middle_props.len(), 0)?;
+                                            middle_props_len, 0)?;
 
     // Find out how many credits we need to freeze:
     let mut sum_resp_multiplier: u64 = 0;
@@ -92,10 +123,18 @@ pub fn credits_on_success(payment_proposals: &PaymentProposals,
                           request_content_len: u32,
                           response_content_len: u32,
                           max_response_content_len: u32,
-                          nodes_to_dest: usize) -> Option<u64> {
-    let middle_props = &payment_proposals.middle_props;
+                          nodes_to_dest: u32) -> Option<u64> {
 
-    if nodes_to_dest >= middle_props.len() {
+    let middle_props = &payment_proposals.middle_props;
+    let middle_props_len = {
+        if middle_props.len() > u32::max_value() as usize {
+            return None;
+        } else {
+            middle_props.len() as u32
+        }
+    };
+
+    if nodes_to_dest >= middle_props_len {
         return None;
     }
 
@@ -104,18 +143,18 @@ pub fn credits_on_success(payment_proposals: &PaymentProposals,
                                                        response_content_len,
                                                        max_response_content_len)?;
 
-    for i in (middle_props.len() - nodes_to_dest - 1 .. middle_props.len()).rev() {
-        let middle_prop = &middle_props[i];
+    for i in (middle_props_len - nodes_to_dest - 1 .. middle_props_len).rev() {
+        let middle_prop = &middle_props[i as usize];
 
         // TODO; Check for off by one here:
         let request_len = calc_request_len(request_content_len,
-                                           middle_props.len(),
-                                           middle_props.len() - i)?;
+                                           middle_props_len,
+                                           middle_props_len - i)?;
         let response_len = calc_request_len(response_content_len,
-                                           middle_props.len(),
-                                           middle_props.len() - i)?;
+                                           middle_props_len,
+                                           middle_props_len - i)?;
         // Maximum failure length occurs when the reporting node is as far as possible.
-        let max_failure_len = calc_failure_len(middle_props.len() - i)?;
+        let max_failure_len = calc_failure_len(middle_props_len - i)?;
 
         let mut credits_earned = 0;
         let credits_earned = middle_prop.request.calc_cost(request_len)?
