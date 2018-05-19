@@ -4,19 +4,18 @@ use proto::indexer::PaymentProposalPair;
 use proto::networker::NetworkerSendPrice;
 
 
+pub struct PaymentProposals {
+    middle_props: Vec<PaymentProposalPair>,
+    dest_response_pay_props: NetworkerSendPrice,
+}
+
 /// Amount of credits paid to destination node, upon issuing a signed Response message.
 /// The destination node is the last node along the route of a request.
 /// Upon any overflow (u64) this function will return None.
 ///
-/// |source|====== routeLinks =======|destination|
-/// |      |                         |           |
-///           req      req      req
-///           res      res      res
-///    B  --   C   --   D   --   E   --   F   
-///
 /// Where in fact, those values should be distributed as follows:
 ///           req      req      req
-///                    res      res      res
+///           res      res      res      res
 ///    B  --   C   --   D   --   E   --   F   
 ///
 /// credits_on_success_dest = 
@@ -24,31 +23,19 @@ use proto::networker::NetworkerSendPrice;
 ///     + {FE}_b + max_response_len * {FE}_r +
 ///     + (max_response_len - response_len) * ({CB}_r + {DC}_r + {ED}_r) 
 ///
-pub fn credits_on_success_dest(payment_proposals: Vec<PaymentProposalPair>,
+pub fn credits_on_success_dest(payment_proposals: &PaymentProposals,
                                processing_fee_proposal: u64,
                                response_len: u32,
                                max_response_len: u32) -> Option<u64> {
 
     // Find out how many credits we need to freeze:
-    
-    if payment_proposals.is_empty() {
-        // Only source and destination in the route.
-        // We are missing information.
-        return None;
+    let mut sum_resp_multiplier: u64 = 0;
+    for middle_prop in &payment_proposals.middle_props {
+        sum_resp_multiplier = sum_resp_multiplier.checked_add(
+            u64::from(middle_prop.response.0.multiplier))?;
     }
 
-    let (sum_resp_multiplier, resp_prop) = {
-        // Sum of multiplier of responses, not including the response mutliplier of the
-        // destionation
-        let mut sum_resp_multiplier: u64 = 0;
-        for payment_prop in &payment_proposals[0 .. payment_proposals.len() - 1] {
-            sum_resp_multiplier = sum_resp_multiplier.checked_add(
-                u64::from(payment_prop.response_payment_proposal.0.multiplier))?;
-        }
-        (sum_resp_multiplier, &payment_proposals[payment_proposals.len() - 1]
-                                .response_payment_proposal)
-    };
-
+    let resp_prop = &payment_proposals.dest_response_pay_props;
     let credits_freeze_dest = 
             processing_fee_proposal
             .checked_add(u64::from(resp_prop.0.base))?
@@ -65,14 +52,12 @@ pub fn credits_on_success_dest(payment_proposals: Vec<PaymentProposalPair>,
 
 
 /// Amount of credit paid to a node that sent a valid Response (Which closes an open request).
-/// Example:
-/// A -- B -- (C) -- D -- E
-///
+///           req      req      req
+///           res      res      res      res
+///    B  --  (C)  --   D   --   E   --   F   
 ///
 /// Examples: C has 3 nodes to dest.
 /// D has 2 nodes to dest. E has 1 nodes to dest. F has 0 nodes to dest.
-///
-///    B  --   (C)   --   D   --   E   --   F   
 ///
 /// Amount of credits C should earn for a successful delivery of the message:
 ///
@@ -80,11 +65,40 @@ pub fn credits_on_success_dest(payment_proposals: Vec<PaymentProposalPair>,
 ///    + {CB}_b + (response_len + max_failure_len) * {CB}_r 
 ///
 /// Upon any overflow (u64) this function will return None.
-pub fn credits_on_success(payment_proposals: Vec<PaymentProposalPair>,
-                               processing_fee_proposal: u64,
-                               response_len: u32,
-                               max_response_len: u32,
-                               nodes_to_dest: usize) -> Option<u64> {
+///
+pub fn credits_on_success(payment_proposals: &PaymentProposals,
+                          processing_fee_proposal: u64,
+                          request_len: u32,
+                          response_len: u32,
+                          max_response_len: u32,
+                          nodes_to_dest: usize) -> Option<u64> {
+    let middle_props = &payment_proposals.middle_props;
+
+    if nodes_to_dest >= middle_props.len() {
+        return None;
+    }
+
+    // TODO: calculate max_failure_len.
+    let max_failure_len = 0;
+    unreachable!();
+
+    let mut sum_credits: u64 = credits_on_success_dest(payment_proposals,
+                                                       processing_fee_proposal,
+                                                       response_len,
+                                                       max_response_len)?;
+
+    for i in (middle_props.len() - nodes_to_dest - 1 .. middle_props.len()).rev() {
+        let middle_prop = &middle_props[i];
+
+        let mut credits_earned = 0;
+        let credits_earned = middle_prop.request.calc_cost(request_len)?
+            .checked_add(middle_prop.response.calc_cost(
+                response_len.checked_add(max_failure_len)?)?)?;
+
+        sum_credits = sum_credits.checked_add(credits_earned)?;
+    }
+
+
     unreachable!();
 
     /*
