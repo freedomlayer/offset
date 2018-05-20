@@ -1,8 +1,47 @@
+use std::u32;
 
-pub fn checked_as_u32(num: usize) -> Option<u32>{
-    if num > u32::max_value() as usize {
+
+#[cfg(target_pointer_width = "16")]
+pub fn usize_to_u32(num: usize) -> Option<u32> {
+    Some(a as u32)
+}
+
+#[cfg(not(target_pointer_width = "16"))]
+pub fn usize_to_u32(num: usize) -> Option<u32> {
+    if num > u32::MAX as usize {
         None
-    }else{
+    } else {
         Some(num as u32)
     }
+}
+
+#[cfg(any(target_pointer_width = "8", 
+          target_pointer_width = "16", 
+          target_pointer_width = "32",
+          target_pointer_width = "64"))]
+pub fn usize_to_u64(num: usize) -> Option<u64> {
+    Some(num as u64)
+}
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_usize_to_u32() {
+        assert_eq!(usize_to_u32(0_usize), Some(0u32));
+        assert_eq!(usize_to_u32(1_usize), Some(1u32));
+        assert_eq!(usize_to_u32(0xffff_ffff_usize), Some(0xffff_ffffu32));
+        assert_eq!(usize_to_u32(0x1_0000_0000_usize), None);
+    }
+
+    #[test]
+    fn test_usize_to_u64() {
+        assert_eq!(usize_to_u64(0usize), Some(0u64));
+        assert_eq!(usize_to_u64(1usize), Some(1u64));
+        assert_eq!(usize_to_u64(0xffff_ffff_ffff_ffff_usize), Some(0xffff_ffff_ffff_ffffu64));
+    }
+
 }
