@@ -43,6 +43,20 @@ fn calc_request_len(request_content_len: u32,
 fn calc_response_len(response_content_len: u32,
                      route_len: u32,
                      nodes_to_dest: u32) -> Option<u32> {
+
+
+
+    /*
+    struct ResponseSendMessageOp {
+            requestId @0: CustomUInt128;
+            randNonce @1: CustomUInt128;
+            processingFeeCollected @2: UInt64;
+            # The amount of credit actually collected from the proposed
+            # processingFee. This value is at most request.processingFeeProposal.
+            responseContent @3: Data;
+            signature @4: CustomUInt512;
+    */
+
     unreachable!(); // TODO
 }
 
