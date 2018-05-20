@@ -1,7 +1,6 @@
 
 use super::token_channel::ProcessMessageError;
 use super::credit_calculator;
-use utils::convert_int;
 use proto::indexer::NeighborsRoute;
 use crypto::hash::HashResult;
 use crypto::uid::Uid;

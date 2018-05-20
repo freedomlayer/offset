@@ -18,7 +18,6 @@ use proto::funder::InvoiceId;
 use proto::networker::ChannelToken;
 
 use networker::messenger::credit_calculator;
-use utils::convert_int;
 
 
 use super::messenger::pending_neighbor_request::PendingNeighborRequest;

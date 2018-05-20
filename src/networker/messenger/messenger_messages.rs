@@ -2,7 +2,6 @@ use crypto::identity::{PublicKey, verify_signature, Signature};
 use crypto::uid::Uid;
 use crypto::rand_values::RandValue;
 use std::mem;
-use utils::convert_int;
 use crypto::hash;
 use crypto::hash::HashResult;
 use byteorder::LittleEndian;
