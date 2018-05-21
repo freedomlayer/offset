@@ -1,7 +1,7 @@
 use std::io;
 use std::convert::TryFrom;
 
-use bytes::{BigEndian, Buf, BufMut, Bytes, BytesMut};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 use capnp::struct_list;
 
 use crypto::rand_values::RandValue;
@@ -24,8 +24,8 @@ const CUSTOM_UINT512_LEN: usize = 64;
 pub fn read_custom_u_int128(from: &custom_u_int128::Reader) -> Result<Bytes, ProtoError> {
     let mut buffer = BytesMut::with_capacity(CUSTOM_UINT128_LEN);
 
-    buffer.put_u64::<BigEndian>(from.get_x0());
-    buffer.put_u64::<BigEndian>(from.get_x1());
+    buffer.put_u64_be(from.get_x0());
+    buffer.put_u64_be(from.get_x1());
 
     Ok(buffer.freeze())
 }
@@ -42,8 +42,8 @@ pub fn write_custom_u_int128<T: AsRef<[u8]>>(
 ) -> Result<(), ProtoError> {
     let mut reader = io::Cursor::new(from.as_ref());
 
-    to.set_x0(reader.get_u64::<BigEndian>());
-    to.set_x1(reader.get_u64::<BigEndian>());
+    to.set_x0(reader.get_u64_be());
+    to.set_x1(reader.get_u64_be());
 
     Ok(())
 }
@@ -53,10 +53,10 @@ pub fn write_custom_u_int128<T: AsRef<[u8]>>(
 pub fn read_custom_u_int256(from: &custom_u_int256::Reader) -> Result<Bytes, ProtoError> {
     let mut buffer = BytesMut::with_capacity(CUSTOM_UINT256_LEN);
 
-    buffer.put_u64::<BigEndian>(from.get_x0());
-    buffer.put_u64::<BigEndian>(from.get_x1());
-    buffer.put_u64::<BigEndian>(from.get_x2());
-    buffer.put_u64::<BigEndian>(from.get_x3());
+    buffer.put_u64_be(from.get_x0());
+    buffer.put_u64_be(from.get_x1());
+    buffer.put_u64_be(from.get_x2());
+    buffer.put_u64_be(from.get_x3());
 
     Ok(buffer.freeze())
 }
@@ -73,10 +73,10 @@ pub fn write_custom_u_int256<T: AsRef<[u8]>>(
 ) -> Result<(), ProtoError> {
     let mut reader = io::Cursor::new(from.as_ref());
 
-    to.set_x0(reader.get_u64::<BigEndian>());
-    to.set_x1(reader.get_u64::<BigEndian>());
-    to.set_x2(reader.get_u64::<BigEndian>());
-    to.set_x3(reader.get_u64::<BigEndian>());
+    to.set_x0(reader.get_u64_be());
+    to.set_x1(reader.get_u64_be());
+    to.set_x2(reader.get_u64_be());
+    to.set_x3(reader.get_u64_be());
 
     Ok(())
 }
@@ -86,14 +86,14 @@ pub fn write_custom_u_int256<T: AsRef<[u8]>>(
 pub fn read_custom_u_int512(from: &custom_u_int512::Reader) -> Result<Bytes, ProtoError> {
     let mut buffer = BytesMut::with_capacity(CUSTOM_UINT512_LEN);
 
-    buffer.put_u64::<BigEndian>(from.get_x0());
-    buffer.put_u64::<BigEndian>(from.get_x1());
-    buffer.put_u64::<BigEndian>(from.get_x2());
-    buffer.put_u64::<BigEndian>(from.get_x3());
-    buffer.put_u64::<BigEndian>(from.get_x4());
-    buffer.put_u64::<BigEndian>(from.get_x5());
-    buffer.put_u64::<BigEndian>(from.get_x6());
-    buffer.put_u64::<BigEndian>(from.get_x7());
+    buffer.put_u64_be(from.get_x0());
+    buffer.put_u64_be(from.get_x1());
+    buffer.put_u64_be(from.get_x2());
+    buffer.put_u64_be(from.get_x3());
+    buffer.put_u64_be(from.get_x4());
+    buffer.put_u64_be(from.get_x5());
+    buffer.put_u64_be(from.get_x6());
+    buffer.put_u64_be(from.get_x7());
 
     Ok(buffer.freeze())
 }
@@ -110,14 +110,14 @@ pub fn write_custom_u_int512<T: AsRef<[u8]>>(
 ) -> Result<(), ProtoError> {
     let mut reader = io::Cursor::new(from.as_ref());
 
-    to.set_x0(reader.get_u64::<BigEndian>());
-    to.set_x1(reader.get_u64::<BigEndian>());
-    to.set_x2(reader.get_u64::<BigEndian>());
-    to.set_x3(reader.get_u64::<BigEndian>());
-    to.set_x4(reader.get_u64::<BigEndian>());
-    to.set_x5(reader.get_u64::<BigEndian>());
-    to.set_x6(reader.get_u64::<BigEndian>());
-    to.set_x7(reader.get_u64::<BigEndian>());
+    to.set_x0(reader.get_u64_be());
+    to.set_x1(reader.get_u64_be());
+    to.set_x2(reader.get_u64_be());
+    to.set_x3(reader.get_u64_be());
+    to.set_x4(reader.get_u64_be());
+    to.set_x5(reader.get_u64_be());
+    to.set_x6(reader.get_u64_be());
+    to.set_x7(reader.get_u64_be());
 
     Ok(())
 }
