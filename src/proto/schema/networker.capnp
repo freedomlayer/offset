@@ -68,18 +68,19 @@ struct LoadFundsOp {
         receipt @0: Receipt;
 }
 
+struct NetworkerSendPrice {
+        base @0: UInt32;
+        multiplier @1: UInt32;
+}
+
 
 struct NeighborRouteLink {
         nodePublicKey @0: CustomUInt256;
         # Public key of current node
-        requestBaseProposal @1: UInt32;
-        # request base pricing for the current node
-        requestMultiplierProposal @2: UInt32;
-        # request multiplier pricing for the current node.
-        responseBaseProposal @3: UInt32;
-        # response base pricing for the next node.
-        responseMultiplierProposal @4: UInt32;
-        # response multiplier pricing for the next node.
+        requestProposal @1: NetworkerSendPrice;
+        # Payment proposal for sending data to the next node.
+        responseProposal @2: NetworkerSendPrice;
+        # Payment proposal for sendingdata to the previous node.
 }
 
 
@@ -104,11 +105,12 @@ struct NeighborFreezeLink {
 
 struct RequestSendMessageOp {
         requestId @0: CustomUInt128;
-        route @1: NeighborsRoute;
-        requestContent @2: Data;
-        maxResponseLength @3: UInt32;
-        processingFeeProposal @4: UInt64;
-        freezeLinks @5: List(NeighborFreezeLink);
+        maxResponseLength @1: UInt32;
+        processingFeeProposal @2: UInt64;
+        route @3: NeighborsRoute;
+        destResponseProposal @4: NetworkerSendPrice;
+        requestContent @5: Data;
+        freezeLinks @6: List(NeighborFreezeLink);
         # Variable amount of freezing links. This is used for protection
         # against DoS of credit freezing by have exponential decay of available
         # credits freezing according to derived trust.
@@ -127,10 +129,11 @@ struct ResponseSendMessageOp {
         # Signature{key=recipientKey}(
         #   "REQUEST_SUCCESS" ||
         #   requestId ||
-        #   sha512/256(route) ||
-        #   sha512/256(requestContent) ||
         #   maxResponseLength ||
         #   processingFeeProposal ||
+        #   sha512/256(route) ||
+        #   destResponseProposal ||
+        #   sha512/256(requestContent) ||
         #   processingFeeCollected ||
         #   sha512/256(responseContent) ||
         #   randNonce)
@@ -149,9 +152,11 @@ struct FailedSendMessageOp {
         # Signature{key=reportingNodePublicKey}(
         #   "REQUEST_FAILURE" ||
         #   requestId ||
-        #   sha512/256(route) ||
-        #   sha512/256(requestContent) ||
         #   maxResponseLength ||
+        #   processingFeeProposal ||
+        #   sha512/256(route) ||
+        #   destResponseProposal ||
+        #   sha512/256(requestContent) ||
         #   processingFeeProposal ||
         #   prev randNonceSignatures ||
         #   randNonce)
