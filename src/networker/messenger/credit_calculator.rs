@@ -1,7 +1,8 @@
 use std::convert::TryFrom;
 use std::{mem, cmp};
-use crypto::identity::PublicKey;
+use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
+use crypto::rand_values::RandValue;
 use proto::indexer::PaymentProposalPair;
 use proto::networker::NetworkerSendPrice;
 use utils::int_convert::usize_to_u32;
@@ -37,24 +38,12 @@ fn calc_request_len(request_content_len: u32,
     Some(request_overhead.checked_add(route_bytes_count)?.checked_add(freeze_links_len)?)
 }
 
-fn calc_response_len(response_content_len: u32,
-                     route_len: u32,
-                     nodes_to_dest: u32) -> Option<u32> {
-
-
-
-    /*
-    struct ResponseSendMessageOp {
-            requestId @0: CustomUInt128;
-            randNonce @1: CustomUInt128;
-            processingFeeCollected @2: UInt64;
-            # The amount of credit actually collected from the proposed
-            # processingFee. This value is at most request.processingFeeProposal.
-            responseContent @3: Data;
-            signature @4: CustomUInt512;
-    */
-
-    unreachable!(); // TODO
+fn calc_response_len(response_content_len: u32) -> Option<u32> {
+    Some(usize_to_u32(mem::size_of::<Uid>())?
+        .checked_add(usize_to_u32(mem::size_of::<RandValue>())?)?
+        .checked_add(usize_to_u32(mem::size_of::<u64>())?)?
+        .checked_add(response_content_len)?
+        .checked_add(usize_to_u32(mem::size_of::<Signature>())?)?)
 }
 
 fn calc_failure_len(nodes_to_reporting_node: u32) -> Option<u32> {
@@ -86,10 +75,8 @@ pub fn credits_on_success_dest(payment_proposals: &PaymentProposals,
         }
     };
 
-    let response_len = calc_response_len(response_content_len,
-                                            middle_props_len, 0)?;
-    let max_response_len = calc_response_len(max_response_content_len,
-                                            middle_props_len, 0)?;
+    let response_len = calc_response_len(response_content_len)?;
+    let max_response_len = calc_response_len(max_response_content_len)?;
 
     // Find out how many credits we need to freeze:
     let mut sum_resp_multiplier: u64 = 0;
