@@ -10,7 +10,6 @@ use proto::indexer::NeighborsRoute;
 use proto::common::SendFundsReceipt;
 use proto::funder::InvoiceId;
 use proto::networker::NetworkerSendPrice;
-use super::credit_calculator;
 use super::pending_neighbor_request::PendingNeighborRequest;
 
 pub enum NetworkerTCMessage {

@@ -41,7 +41,7 @@ mod invoice_validator;
 pub mod balance_state;
 mod messenger_messages;
 pub mod pending_neighbor_request;
-pub mod credit_calculator;
+pub mod credit_calc;
 
 use self::pending_neighbor_request::PendingNeighborRequest;
 

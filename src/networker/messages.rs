@@ -17,8 +17,6 @@ use proto::indexer::NeighborsRoute;
 use proto::funder::InvoiceId;
 use proto::networker::ChannelToken;
 
-use networker::messenger::credit_calculator;
-
 
 use super::messenger::pending_neighbor_request::PendingNeighborRequest;
 
