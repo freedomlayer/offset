@@ -274,7 +274,7 @@ impl<'a> Proto<'a> for ChannelerMessage {
                 unknown_channel.write(&mut to.reborrow().init_unknown_channel())?;
             }
             ChannelerMessage::Encrypted(ref content) => {
-                let mut dst = to.reborrow().init_encrypted(content.len() as u32);
+                let dst = to.reborrow().init_encrypted(content.len() as u32);
                 dst.copy_from_slice(content.as_ref());
             }
         }
