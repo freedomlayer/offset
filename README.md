@@ -11,7 +11,11 @@ A Credit Switching engine written in Rust.
 Theoretically CSwitch should work anywhere Rust works (Windows, Linux, MacOS).
 
 - [Install Rust](https://www.rust-lang.org/install.html). We currently use
-    nightly Rust.
+    nightly Rust. You should pin to exact nightly Rust version, this could be
+    done using the command: `rustup override set nightly-YYYY-MM-DD`. Note that
+    this command should be run at the root of the repository. The current
+    nightly version could be found in .travis.yml.
+
 - Install libsqlite3-dev. On ubuntu, run `sudo apt install libsqlite3-dev`.
 - [Install capnproto](https://capnproto.org/install.html). On Ubuntu, run `sudo apt install capnproto`
 
