@@ -109,7 +109,7 @@ fn credits_on_success_dest(payment_proposals: &PaymentProposals,
 }
 
 
-/// Amount of credit paid to a node that sent a valid Response (Which closes an open request).
+/// Amount of credit paid to a node that sent a valid Response
 ///
 /// ```text
 ///           req      req      req
@@ -239,10 +239,12 @@ pub fn credits_to_freeze(payment_proposals: &PaymentProposals,
                           max_response_content_len: u32,
                           nodes_to_dest: u32) -> Option<u64> {
     
+    // Maximum is obtained when response_content_len = 0.
+    // TODO: Check this.
     credits_on_success(payment_proposals,
                        processing_fee_proposal,
                        request_content_len,
-                       max_response_content_len,
+                       0,
                        max_response_content_len,
                        nodes_to_dest)
 }
