@@ -205,7 +205,7 @@ pub fn write_public_key_list<'a>(
     debug_assert_eq!(from.len(), to.len() as usize);
 
     for (idx, ref_public_key) in from.iter().enumerate() {
-        let mut public_key_writer = to.borrow().get(idx as u32);
+        let mut public_key_writer = to.reborrow().get(idx as u32);
         write_public_key(ref_public_key, &mut public_key_writer)?;
     }
 
@@ -298,7 +298,7 @@ mod tests {
         let mut num_u128 = message.init_root::<custom_u_int128::Builder>();
         write_custom_u_int128(&in_buf, &mut num_u128).unwrap();
 
-        let out_buf = read_custom_u_int128(&num_u128.borrow_as_reader()).unwrap();
+        let out_buf = read_custom_u_int128(&num_u128.reborrow_as_reader()).unwrap();
 
         assert_eq!(&in_buf, &out_buf);
     }
@@ -317,7 +317,7 @@ mod tests {
         let mut num_u256 = message.init_root::<custom_u_int256::Builder>();
         write_custom_u_int256(&in_buf, &mut num_u256).unwrap();
 
-        let out_buf = read_custom_u_int256(&num_u256.borrow_as_reader()).unwrap();
+        let out_buf = read_custom_u_int256(&num_u256.reborrow_as_reader()).unwrap();
 
         assert_eq!(&in_buf, &out_buf);
     }
@@ -338,7 +338,7 @@ mod tests {
         let mut num_u512 = message.init_root::<custom_u_int512::Builder>();
         write_custom_u_int512(&in_buf, &mut num_u512).unwrap();
 
-        let out_buf = read_custom_u_int512(&num_u512.borrow_as_reader()).unwrap();
+        let out_buf = read_custom_u_int512(&num_u512.reborrow_as_reader()).unwrap();
 
         assert_eq!(&in_buf, &out_buf);
     }
