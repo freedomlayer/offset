@@ -282,7 +282,7 @@ mod test_debt {
         assert_eq!(true, debt.freeze_credits(12));
         assert_eq!(false, debt.freeze_credits(1));
         assert_eq!(true, debt.set_max_debt(0));
-        assert_eq!(false, debt.set_max_debt((1 << 63)));
+        assert_eq!(false, debt.set_max_debt(1 << 63));
     }
 
     #[test]
@@ -310,7 +310,7 @@ mod test_debt {
         let mut debt = Debt::new(1).unwrap();
         assert_eq!(true, debt.increase_debt(20));
         assert_eq!(20, debt.get_debt());
-        assert_eq!(false, debt.increase_debt((1u64<<63)));
+        assert_eq!(false, debt.increase_debt(1u64<<63));
         assert_eq!(20, debt.get_debt());
         assert_eq!(true, debt.increase_debt((1u64<<63) - 21));
         assert_eq!(((1u64<<63) - 1) as i64, debt.get_debt());

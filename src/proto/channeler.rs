@@ -68,6 +68,7 @@ pub enum ChannelerMessage {
 }
 
 impl InitChannel {
+    #[allow(dead_code, unused)]
     #[inline]
     pub fn as_bytes(&self) -> Bytes {
         let mut buffer = BytesMut::with_capacity(RAND_VALUE_LEN + PUBLIC_KEY_LEN);
@@ -80,6 +81,7 @@ impl InitChannel {
 }
 
 impl ExchangePassive {
+    #[allow(dead_code, unused)]
     #[inline]
     pub fn as_bytes(&self) -> Bytes {
         let mut buffer = BytesMut::with_capacity(HASH_RESULT_LEN + RAND_VALUE_LEN + PUBLIC_KEY_LEN +
@@ -97,6 +99,7 @@ impl ExchangePassive {
 
 
 impl ExchangeActive {
+    #[allow(dead_code, unused)]
     #[inline]
     pub fn as_bytes(&self) -> Bytes {
         let mut buffer = BytesMut::with_capacity(HASH_RESULT_LEN + DH_PUBLIC_KEY_LEN + SALT_LEN);
@@ -110,6 +113,7 @@ impl ExchangeActive {
 }
 
 impl ChannelReady {
+    #[allow(dead_code, unused)]
     #[inline]
     pub fn as_bytes(&self) -> Bytes {
         Bytes::from(self.prev_hash.as_ref())
