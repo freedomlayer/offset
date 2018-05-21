@@ -66,7 +66,7 @@ mod tests {
         handle.spawn(sm.then(|_| Ok(())));
 
         // Query the security module twice to check for consistency
-        for i in 0..2 {
+        for _ in 0 .. 2 {
             let rsender = requests_sender.clone();
             let (tx, rx) = oneshot::channel();
             let public_key_from_client = core.run(rsender
@@ -74,7 +74,7 @@ mod tests {
                 .then(|result| {
                     match result {
                         Ok(_) => rx,
-                        Err(_) => panic!("Failed to send public key request (1) !"),
+                        Err(_e) => panic!("Failed to send public key request (1) !"),
                     }
                 })).unwrap().public_key;
 
@@ -106,7 +106,7 @@ mod tests {
                  .then(|result| {
                      match result {
                          Ok(_) => rx,
-                         Err(_) => panic!("Failed to send signature request"),
+                         Err(_e) => panic!("Failed to send signature request"),
                      }
                  })).unwrap().signature;
 
