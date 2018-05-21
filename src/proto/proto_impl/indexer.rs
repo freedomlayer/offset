@@ -40,7 +40,7 @@ impl<'a> Proto<'a> for NeighborsRoute {
 
     inject_default_impl!();
 
-    fn read(from: &Self::Reader) -> Result<Self, ProtoError> {
+    fn read(_from: &Self::Reader) -> Result<Self, ProtoError> {
         // TODO
         unreachable!();
         /*
@@ -50,7 +50,7 @@ impl<'a> Proto<'a> for NeighborsRoute {
         */
     }
 
-    fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
+    fn write(&self, _to: &mut Self::Writer) -> Result<(), ProtoError> {
         // TODO
         unreachable!();
         /*
