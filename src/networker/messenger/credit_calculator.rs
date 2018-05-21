@@ -4,9 +4,8 @@ use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 use proto::indexer::PaymentProposalPair;
 use proto::networker::NetworkerSendPrice;
+use utils::int_convert::usize_to_u32;
 use super::messenger_messages::NeighborFreezeLink;
-
-
 
 pub struct PaymentProposals {
     middle_props: Vec<PaymentProposalPair>,
@@ -18,11 +17,10 @@ fn calc_request_len(request_content_len: u32,
                     route_len: u32, 
                     nodes_to_dest: u32) -> Option<u32> {
 
-    // TODO: Safer conversion here instead of as:
-    let public_key_len = mem::size_of::<PublicKey>() as u32;
-    let payment_proposal_pair_len = mem::size_of::<PaymentProposalPair>() as u32;
-    let networker_send_price_len = mem::size_of::<NetworkerSendPrice>() as u32;
-    let neighbor_freeze_link_len = mem::size_of::<NetworkerSendPrice>() as u32;
+    let public_key_len = usize_to_u32(mem::size_of::<PublicKey>())?;
+    let payment_proposal_pair_len = usize_to_u32(mem::size_of::<PaymentProposalPair>())?;
+    let networker_send_price_len = usize_to_u32(mem::size_of::<NetworkerSendPrice>())?;
+    let neighbor_freeze_link_len = usize_to_u32(mem::size_of::<NetworkerSendPrice>())?;
 
     let route_bytes_count = public_key_len.checked_mul(2)?
         .checked_add(route_len.checked_mul(public_key_len)?)?
@@ -32,10 +30,9 @@ fn calc_request_len(request_content_len: u32,
     let freeze_links_len = route_len.checked_sub(nodes_to_dest)?
         .checked_mul(neighbor_freeze_link_len)?;
 
-    // TODO: Make this calculation safe:
-    let request_overhead = (mem::size_of::<Uid>() 
-                            + mem::size_of::<u32>() 
-                            + mem::size_of::<u64>()) as u32;
+    let request_overhead = usize_to_u32(mem::size_of::<Uid>())?
+        .checked_add(usize_to_u32(mem::size_of::<u32>())?)?
+        .checked_add(usize_to_u32(mem::size_of::<u64>())?)?;
 
     Some(request_overhead.checked_add(route_bytes_count)?.checked_add(freeze_links_len)?)
 }
