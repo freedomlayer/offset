@@ -47,7 +47,14 @@ fn calc_response_len(response_content_len: u32) -> Option<u32> {
 }
 
 fn calc_failure_len(nodes_to_reporting_node: u32) -> Option<u32> {
-    unreachable!(); // TODO
+    let rand_nonce_len = usize_to_u32(mem::size_of::<RandValue>())?
+        .checked_add(usize_to_u32(mem::size_of::<Signature>())?)?;
+
+
+    Some(usize_to_u32(mem::size_of::<Uid>())?
+        .checked_add(usize_to_u32(mem::size_of::<u16>())?)?
+        .checked_add(
+            rand_nonce_len.checked_mul(nodes_to_reporting_node)?)?)
 }
 
 /// Amount of credits paid to destination node, upon issuing a signed Response message.
