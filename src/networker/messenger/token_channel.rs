@@ -18,7 +18,7 @@ use proto::networker::NetworkerSendPrice;
 use super::pending_neighbor_request::PendingNeighborRequest;
 use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, RequestSendMessage,
                                 NetworkerTCMessage, NeighborFreezeLink};
-use super::credit_calculator::credits_on_success_dest;
+// use super::credit_calculator::credits_on_success_dest;
 use utils::trans_hashmap::TransHashMap;
 
 /// The maximum possible networker debt.
