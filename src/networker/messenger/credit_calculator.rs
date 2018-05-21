@@ -14,6 +14,7 @@ pub struct PaymentProposals {
 }
 
 
+/// nodes_to_dest = 0 means we are the dest node.
 fn calc_request_len(request_content_len: u32, 
                     route_len: u32, 
                     nodes_to_dest: u32) -> Option<u32> {
@@ -46,10 +47,10 @@ fn calc_response_len(response_content_len: u32) -> Option<u32> {
         .checked_add(usize_to_u32(mem::size_of::<Signature>())?)?)
 }
 
+/// nodes_to_reporting_node = 0 means we are the reporting node.
 fn calc_failure_len(nodes_to_reporting_node: u32) -> Option<u32> {
     let rand_nonce_len = usize_to_u32(mem::size_of::<RandValue>())?
         .checked_add(usize_to_u32(mem::size_of::<Signature>())?)?;
-
 
     Some(usize_to_u32(mem::size_of::<Uid>())?
         .checked_add(usize_to_u32(mem::size_of::<u16>())?)?
@@ -69,7 +70,7 @@ fn calc_failure_len(nodes_to_reporting_node: u32) -> Option<u32> {
 ///     + {FE}_b + max_response_len * {FE}_r +
 ///     + (max_response_len - response_len) * ({CB}_r + {DC}_r + {ED}_r) 
 ///
-pub fn credits_on_success_dest(payment_proposals: &PaymentProposals,
+fn credits_on_success_dest(payment_proposals: &PaymentProposals,
                                processing_fee_proposal: u64,
                                response_content_len: u32,
                                max_response_content_len: u32) -> Option<u64> {
@@ -109,9 +110,12 @@ pub fn credits_on_success_dest(payment_proposals: &PaymentProposals,
 
 
 /// Amount of credit paid to a node that sent a valid Response (Which closes an open request).
+///
+/// ```text
 ///           req      req      req
 ///           res      res      res      res
 ///    B  --  (C)  --   D   --   E   --   F   
+/// ```
 ///
 /// Examples: C has 3 nodes to dest.
 /// D has 2 nodes to dest. E has 1 nodes to dest. F has 0 nodes to dest.
@@ -131,24 +135,14 @@ pub fn credits_on_success(payment_proposals: &PaymentProposals,
                           nodes_to_dest: u32) -> Option<u64> {
 
     let middle_props = &payment_proposals.middle_props;
-    let middle_props_len = {
-        if middle_props.len() > u32::max_value() as usize {
-            return None;
-        } else {
-            middle_props.len() as u32
-        }
-    };
-
-    if nodes_to_dest >= middle_props_len {
-        return None;
-    }
+    let middle_props_len = usize_to_u32(middle_props.len())?;
 
     let mut sum_credits: u64 = credits_on_success_dest(payment_proposals,
                                                        processing_fee_proposal,
                                                        response_content_len,
                                                        max_response_content_len)?;
 
-    for i in (middle_props_len - nodes_to_dest - 1 .. middle_props_len).rev() {
+    for i in middle_props_len.checked_sub(nodes_to_dest)? .. middle_props_len {
         let middle_prop = &middle_props[i as usize];
 
         // TODO; Check for off by one here:
@@ -173,63 +167,84 @@ pub fn credits_on_success(payment_proposals: &PaymentProposals,
 }
 
 /// The amount of credits paid to a node in case of failure.
-/// This amount depends on the length of the Request message, 
-/// and also on the amount of nodes until the reporting node.
-/// Example:
 ///
-/// A -- B -- C -- D -- E
+/// ```text
+///           req      req      req
+///           res      res      res      res
+///    B  --  (C)  --   D   --   E   --   F   
+/// ```
 ///
-/// Asssume that A sends a Request message along the route in the picture all the way to E.
-/// Assume that D is not willing to pass the message to E for some reason, and therefore he reports
-/// a failure message back to C. In this case, for example:
-///     - D will receive `credits_on_failure(request_len, 1)` credits.
-///     - C will receive `credits_on_failure(request_len, 2)` credits.
-/// In other words,
-///     - The amount of credit transferred on the edge (C, D) is `credits_on_failure(request_len, 1)`
-///     - The amount of credit transferred on the edge (B, C) is `credits_on_failure(request_len, 2)`
-pub fn credits_on_failure(request_len: u32, nodes_to_reporting: usize) -> Option<u64> {
-    // request_len * nodes_to_reporting
-    u64::from(request_len).checked_mul(nodes_to_reporting as u64)
+/// Examples:
+/// Node D (nonreporting) should earn:
+///
+/// ```text
+///     {CD}_b + request_len * {CD}_r 
+///         + {CB}_b + failure_len * {CB}_r 
+/// ```
+///
+/// Node E (reporting) should earn:
+///
+/// ```text
+///     {ED}_b + failure_len * {ED}_r
+/// ```
+///
+/// Because the node E did not pass the message on.
+///
+pub fn credits_on_failure(payment_proposals: &PaymentProposals,
+                          request_content_len: u32, 
+                          reporting_node_index: u32) -> Option<u64> {
+
+    // TODO: Fix all 'as usize' in this function.
+    let middle_props = &payment_proposals.middle_props;
+    let middle_props_len = usize_to_u32(middle_props.len())?;
+
+    if reporting_node_index > middle_props_len {
+        return None;
+    }
+
+    let mut sum_credits: u64 = 0;
+    for i in 0 .. reporting_node_index {
+        let middle_prop = &middle_props[i as usize];
+        // TODO: Check for off by one here:
+        let request_len = calc_request_len(request_content_len,
+                                           middle_props_len,
+                                           middle_props_len - i)?;
+        let failure_len = calc_failure_len(reporting_node_index - i)?;
+
+        let credits_earned = middle_prop.request.calc_cost(request_len)?
+            .checked_add(middle_prop.response.calc_cost(failure_len)?)?;
+
+        sum_credits = sum_credits.checked_add(credits_earned)?;
+    }
+
+    let failure_len_reporting = calc_failure_len(0)?;
+    let reporting_node_credits = middle_props[reporting_node_index as usize].response
+        .calc_cost(failure_len_reporting)?;
+    sum_credits = sum_credits.checked_add(reporting_node_credits)?;
+
+    Some(sum_credits)
 }
 
-/*
-/// Compute the amount of credits we need to freeze on an edge along a request route.
-/// Example:
+/// Compute the amount of credits we need to freeze.
 ///
-/// A -- B -- (C) -- D -- E
+/// ```text
+///           req      req      req
+///           res      res      res      res
+///    B  --  (C)  --   D   --   E   --   F   
+/// ```
 ///
-/// The node A sends a request along the route in the picture, all the way to E.  Here we can
-/// compute for example the amount of credits to freeze between B and C.
-/// This amount is `credits_on_success_dest(..., nodes_to_dest=3)`
-///
-/// Note that when C RECEIVES the request is should freeze
-///     `credits_on_success_dest(..., nodes_to_dest=3)`
-/// but when it SENDS the request, it should freeze
-///     `credits_on_success_dest(..., nodes_to_dest=2)`
-pub fn credits_to_freeze(processing_fee_proposal: u64, request_len: u32,
-                         credits_per_byte_proposal: u64, max_response_len: u32,
-                         nodes_to_dest: usize) -> Option<u64> {
-
-    // Note: Here we take the maximum for credits_on_success for the cases of:  
-    // - resposne_len = 0
-    // - response_len = max_response_len.  
-    // We do this because credits_on_success is linear with respect to the response_len argument,
-    // hence the maximum of credits_on_success must be on one of the edges.
+pub fn credits_to_freeze(payment_proposals: &PaymentProposals,
+                          processing_fee_proposal: u64,
+                          request_content_len: u32,
+                          max_response_content_len: u32,
+                          nodes_to_dest: u32) -> Option<u64> {
     
-    let credits_resp_len_zero = credits_on_success(processing_fee_proposal, 
-                       request_len,
-                       credits_per_byte_proposal, 
-                       max_response_len,
-                       0,               // Minimal response_len
-                       nodes_to_dest)?;
-    let credits_resp_len_max = credits_on_success(processing_fee_proposal, 
-                       request_len,
-                       credits_per_byte_proposal, 
-                       max_response_len,
-                       max_response_len, // Maximum response len
-                       nodes_to_dest)?;
-
-    Some(cmp::max(credits_resp_len_zero, credits_resp_len_max))
+    credits_on_success(payment_proposals,
+                       processing_fee_proposal,
+                       request_content_len,
+                       max_response_content_len,
+                       max_response_content_len,
+                       nodes_to_dest)
 }
 
 
@@ -237,24 +252,9 @@ pub fn credits_to_freeze(processing_fee_proposal: u64, request_len: u32,
 mod tests {
     use super::*;
 
-    // CR(a4vision): Re-think about these tests, it reminds "configuration-testing"
-    //              I think that edge cases (overflow) MUST be checked.
     #[test]
     fn tests_credits_on_success_dest_basic() {
-        let processing_fee_proposal = 5;
-        let request_len = 10;
-        let credits_per_byte_proposal = 2;
-        let response_len = 5;
-        let max_response_len = 10;
-
-        let num_credits = credits_on_success_dest(
-            processing_fee_proposal,
-            request_len,
-            credits_per_byte_proposal,
-            response_len,
-            max_response_len).unwrap();
-
-        assert_eq!(num_credits, 5 + 10 * 2 + (10 - 5));
+        // TODO
     }
 
     #[test]
@@ -273,4 +273,3 @@ mod tests {
     }
 }
 
-*/
