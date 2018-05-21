@@ -136,8 +136,8 @@ mod tests {
 
         // let rng_seed: &[_] = &[1,2,3,4,5,6];
         // let mut rng: StdRng = rand::SeedableRng::from_seed(rng_seed);
-        let mut rng = FixedByteRandom { byte: 0x10 };
-        let enc_nonce_counter = EncryptNonceCounter::new(&mut rng).unwrap();
+        let rng = FixedByteRandom { byte: 0x10 };
+        let enc_nonce_counter = EncryptNonceCounter::new(&rng).unwrap();
         let mut encryptor = Encryptor::new(&symmetric_key, enc_nonce_counter).unwrap();
 
         let decryptor = Decryptor::new(&symmetric_key).unwrap();

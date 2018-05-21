@@ -136,7 +136,7 @@ mod tests {
             .then(|result| {
                 match result {
                     Ok(_) => rx1,
-                    Err(_) => panic!("Failed to send public key request (1) !"),
+                    Err(_e) => panic!("Failed to send public key request (1) !"),
                 }
             })).unwrap().public_key;
 
@@ -148,7 +148,7 @@ mod tests {
                  .then(|result| {
                      match result {
                          Ok(_) => rx2,
-                         Err(_) => panic!("Failed to send signature request"),
+                         Err(_e) => panic!("Failed to send signature request"),
                      }
                  })).unwrap().signature;
 
