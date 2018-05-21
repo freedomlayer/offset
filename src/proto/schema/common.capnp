@@ -50,18 +50,14 @@ struct RandNonceSignature {
 # A receipt for payment to the Funder
 struct Receipt {
         responseHash @0: CustomUInt256;
-        # = sha512/256(requestId || 
-        #       sha512/256(nodeIdPath) || 
-        #       mediatorPaymentProposal)
+        # = sha512/256(requestId || sha512/256(route) || destResponseProposal || randNonce)
         invoiceId @1: CustomUInt256;
         destinationPayment @2: CustomUInt128;
-        randNonce @3: CustomUInt256;
-        signature @4: CustomUInt512;
+        signature @3: CustomUInt512;
         # Signature{key=recipientKey}(
         #   "FUND_SUCCESS" ||
-        #   sha512/256(requestId || sha512/256(nodeIdPath) || mediatorPaymentProposal) ||
+        #   sha512/256(requestId || sha512/256(route) || destResponseProposal || randNonce) ||
         #   invoiceId ||
-        #   destinationPayment ||
-        #   randNonce)
+        #   destinationPayment
+        # )
 }
-

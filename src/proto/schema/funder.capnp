@@ -55,17 +55,18 @@ struct SetRemoteMaxDebtOp {
         remoteMaxDebt @0: UInt64;
 }
 
+struct FunderSendPrice {
+        base @0: UInt64;
+        multiplier @1: UInt64;
+}
+
 struct FriendRouteLink {
         nodePublicKey @0: CustomUInt256;
         # Public key of current node
-        requestBaseProposal @1: UInt32;
-        # request base pricing for the current node
-        requestMultiplierProposal @2: UInt32;
-        # request multiplier pricing for the current node.
-        responseBaseProposal @3: UInt32;
-        # response base pricing for the next node.
-        responseMultiplierProposal @4: UInt32;
-        # response multiplier pricing for the next node.
+        requestProposal @1: FunderSendPrice;
+        # Payment proposal for sending data to the next node.
+        responseProposal @2: FunderSendPrice;
+        # Payment proposal for sendingdata to the previous node.
 }
 
 
@@ -87,12 +88,14 @@ struct FriendFreezeLink {
         # value can not be represented as a u128/u128.
 }
 
+
 struct RequestSendFundOp { 
         requestId @0: CustomUInt128;
-        route @1: FriendsRoute;
-        invoiceId @2: CustomUInt256;
-        destinationPayment @3: CustomUInt128;
-        freezeLinks @4: List(FriendFreezeLink);
+        destinationPayment @1: CustomUInt128;
+        route @2: FriendsRoute;
+        destResponseProposal @3: FunderSendPrice;
+        invoiceId @4: CustomUInt256;
+        freezeLinks @5: List(FriendFreezeLink);
         # Variable amount of freezing links. This is used for protection
         # against DoS of credit freezing by have exponential decay of available
         # credits freezing according to derived trust.
@@ -105,27 +108,35 @@ struct ResponseSendFundOp {
         signature @2: CustomUInt512;
         # Signature{key=recipientKey}(
         #   "FUND_SUCCESS" ||
-        #   sha512/256(requestId || sha512/256(nodeIdPath) || 
+        #   sha512/256(requestId || sha512/256(route) || destResponseProposal || randNonce) ||
         #   invoiceId ||
-        #   destinationPayment ||
-        #   randNonce)
+        #   destinationPayment
+        # )
+        #
+        # Note that the signature contains an inner blob (requestId || ...).
+        # This is done to make the size of the receipt shorter.
+        # See also the Receipt structure.
 }
 
 struct FailedSendFundOp {
         requestId @0: CustomUInt128;
         reportingPublicKeyIndex @1: UInt16;
         # Index of the reporting node in the route of the corresponding request.
-        # The reporting npde cannot be the destination node.
+        # The reporting node cannot be the destination node.
         randNonceSignatures @2: List(RandNonceSignature);
         # Contains a signature for every node in the route, from the reporting
         # node, until the current node.
         # Signature{key=recipientKey}(
         #   "FUND_FAILURE" ||
-        #   sha512/256(requestId || sha512/256(nodeIdPath) || 
-        #   invoiceId ||
+        #   requestId ||
         #   destinationPayment ||
+        #   sha512/256(route) || 
+        #   destResponseProposal ||
+        #   invoiceId ||
+        #   reportingPublicKeyIndex ||
         #   prev randNonceSignatures ||
-        #   randNonce)
+        #   randNonce
+        # )
 }
 
 
