@@ -3,10 +3,10 @@ use std::{mem, cmp};
 use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
 use crypto::rand_values::RandValue;
-use proto::indexer::PaymentProposalPair;
+use proto::indexer::{PaymentProposalPair, NeighborRouteLink};
 use proto::networker::NetworkerSendPrice;
 use utils::int_convert::usize_to_u32;
-use super::messenger_messages::NeighborFreezeLink;
+use super::messenger_messages::NetworkerFreezeLink;
 
 pub struct PaymentProposals {
     middle_props: Vec<PaymentProposalPair>,
@@ -15,22 +15,29 @@ pub struct PaymentProposals {
 
 
 /// nodes_to_dest = 0 means we are the dest node.
+/// Example:
+/// ```text
+///                         r->
+///    B  --   C   --   D   --   E   --   F   
+/// ```
+/// route_len = 5
+/// nodes_to_dest = 2
+///
 fn calc_request_len(request_content_len: u32, 
                     route_len: u32, 
                     nodes_to_dest: u32) -> Option<u32> {
 
     let public_key_len = usize_to_u32(mem::size_of::<PublicKey>())?;
-    let payment_proposal_pair_len = usize_to_u32(mem::size_of::<PaymentProposalPair>())?;
     let networker_send_price_len = usize_to_u32(mem::size_of::<NetworkerSendPrice>())?;
-    let neighbor_freeze_link_len = usize_to_u32(mem::size_of::<NetworkerSendPrice>())?;
+    let networker_freeze_link_len = usize_to_u32(mem::size_of::<NetworkerFreezeLink>())?;
+    let neighbor_route_link_len = usize_to_u32(mem::size_of::<NeighborRouteLink>())?;
 
     let route_bytes_count = public_key_len.checked_mul(2)?
-        .checked_add(route_len.checked_mul(public_key_len)?)?
-        .checked_add(payment_proposal_pair_len)?
+        .checked_add(route_len.checked_mul(neighbor_route_link_len)?)?
         .checked_add(networker_send_price_len)?;
 
     let freeze_links_len = route_len.checked_sub(nodes_to_dest)?
-        .checked_mul(neighbor_freeze_link_len)?;
+        .checked_mul(networker_freeze_link_len)?;
 
     let request_overhead = usize_to_u32(mem::size_of::<Uid>())?
         .checked_add(usize_to_u32(mem::size_of::<u32>())?)?
