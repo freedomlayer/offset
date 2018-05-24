@@ -75,7 +75,7 @@ struct Rational<T> {
     denominator: T,
 }
 
-pub struct NeighborFreezeLink {
+pub struct NetworkerFreezeLink {
     shared_credits: u64,
     usable_ratio: Rational<u64>,
 }
@@ -87,7 +87,7 @@ pub struct RequestSendMessage {
     pub request_content: Vec<u8>,
     pub max_response_len: u32,
     pub processing_fee_proposal: u64,
-    pub freeze_links: Vec<NeighborFreezeLink>,
+    pub freeze_links: Vec<NetworkerFreezeLink>,
 }
 
 impl RequestSendMessage {
@@ -101,7 +101,7 @@ impl RequestSendMessage {
             self.request_content.len() + // number of bytes that represent the array
             mem::size_of_val(&self.max_response_len) +
             mem::size_of_val(&self.processing_fee_proposal) +
-            mem::size_of::<NeighborFreezeLink>() * self.freeze_links.len()
+            mem::size_of::<NetworkerFreezeLink>() * self.freeze_links.len()
 
         // TODO: Test this.
     }
