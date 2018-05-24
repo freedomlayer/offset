@@ -91,6 +91,8 @@ struct NeighborsRoute {
         # A chain of all intermediate nodes.
         destinationPublicKey @2: CustomUInt256;
         # Public key for the message destination.
+        destResponseProposal @3: NetworkerSendPrice;
+        # Payment proposal for sending data from dest backwards
 }
 
 struct NeighborFreezeLink {
@@ -108,9 +110,8 @@ struct RequestSendMessageOp {
         maxResponseLength @1: UInt32;
         processingFeeProposal @2: UInt64;
         route @3: NeighborsRoute;
-        destResponseProposal @4: NetworkerSendPrice;
-        requestContent @5: Data;
-        freezeLinks @6: List(NeighborFreezeLink);
+        requestContent @4: Data;
+        freezeLinks @5: List(NeighborFreezeLink);
         # Variable amount of freezing links. This is used for protection
         # against DoS of credit freezing by have exponential decay of available
         # credits freezing according to derived trust.

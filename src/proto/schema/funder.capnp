@@ -66,7 +66,7 @@ struct FriendRouteLink {
         requestProposal @1: FunderSendPrice;
         # Payment proposal for sending data to the next node.
         responseProposal @2: FunderSendPrice;
-        # Payment proposal for sendingdata to the previous node.
+        # Payment proposal for sending data to the previous node.
 }
 
 
@@ -77,6 +77,8 @@ struct FriendsRoute {
         # A chain of all intermediate nodes.
         destinationPublicKey @2: CustomUInt256;
         # Public key for the message destination.
+        destResponseProposal @3: FunderSendPrice;
+        # Payment proposal for sending data from dest backwards.
 }
 
 struct FriendFreezeLink {
@@ -93,9 +95,8 @@ struct RequestSendFundOp {
         requestId @0: CustomUInt128;
         destinationPayment @1: CustomUInt128;
         route @2: FriendsRoute;
-        destResponseProposal @3: FunderSendPrice;
-        invoiceId @4: CustomUInt256;
-        freezeLinks @5: List(FriendFreezeLink);
+        invoiceId @3: CustomUInt256;
+        freezeLinks @4: List(FriendFreezeLink);
         # Variable amount of freezing links. This is used for protection
         # against DoS of credit freezing by have exponential decay of available
         # credits freezing according to derived trust.
