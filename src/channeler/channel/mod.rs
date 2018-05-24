@@ -76,8 +76,8 @@ pub enum ChannelPoolError {
 
 impl ChannelPool {
     pub fn insert(&mut self, addr: SocketAddr, info: HandshakeResult) {
-        let sending_end = SendingEnd::new(addr, info.sender_id, info.sender_key);
-        let receiving_end = ReceivingEnd::new(info.receiver_id, info.receiver_key);
+        let sending_end = SendingEnd::new(addr, info.sending_channel_id, info.sending_channel_key);
+        let receiving_end = ReceivingEnd::new(info.receiving_channel_id, info.receiving_channel_key);
 
         if let Some(channel) = self.inner.get_mut(&info.remote_public_key) {
             self.index.insert(

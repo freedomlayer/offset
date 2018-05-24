@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 
 use crypto::identity::PublicKey;
 
-pub type NeighborMap = HashMap<PublicKey, ChannelerNeighbor>;
+pub type NeighborTable = HashMap<PublicKey, ChannelerNeighbor>;
 
 #[derive(Clone, Debug)]
 pub struct ChannelerNeighborInfo {

@@ -42,6 +42,20 @@ impl SessionId {
     pub fn new_responder(remote_public_key: PublicKey) -> SessionId {
         SessionId(HandshakeRole::Responder, remote_public_key)
     }
+
+    pub fn is_initiator(&self) -> bool {
+        match self.0 {
+            HandshakeRole::Initiator => true,
+            HandshakeRole::Responder => false,
+        }
+    }
+
+    pub fn is_responder(&self) -> bool {
+        match self.0 {
+            HandshakeRole::Initiator => false,
+            HandshakeRole::Responder => true,
+        }
+    }
 }
 
 impl<S> HandshakeSession<S> {
@@ -50,19 +64,21 @@ impl<S> HandshakeSession<S> {
         HandshakeSession { id, state, last_hash, timeout_counter: SESSION_TIMEOUT }
     }
 
+    /// Returns a reference to the session id.
+    #[inline]
+    pub fn session_id(&self) -> &SessionId {
+        &self.id
+    }
+
     /// Returns a reference to the remote's public key.
     #[inline]
     pub fn remote_public_key(&self) -> &PublicKey {
         &self.id.1
     }
 
-    /// Whether we are the initiator of the handshake session.
     #[inline]
     pub fn is_initiator(&self) -> bool {
-        match self.id.0 {
-            HandshakeRole::Initiator => true,
-            HandshakeRole::Responder => false,
-        }
+        self.session_id().is_initiator()
     }
 }
 
@@ -151,10 +167,10 @@ fn finish(sent_rand_nonce: RandValue,
 
     Ok(HandshakeResult {
         remote_public_key,
-        sender_id: sending_channel_id,
-        sender_key: sending_channel_key,
-        receiver_id: receiving_channel_id,
-        receiver_key: receiving_channel_key
+        sending_channel_id: sending_channel_id,
+        sending_channel_key: sending_channel_key,
+        receiving_channel_id: receiving_channel_id,
+        receiving_channel_key: receiving_channel_key
     })
 }
 
@@ -188,7 +204,6 @@ fn derive_channel_id(
 
     (sender_id, receiver_id)
 }
-
 
 fn derive_key(
     my_private_key: DhPrivateKey,

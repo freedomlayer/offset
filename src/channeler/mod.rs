@@ -24,7 +24,7 @@ use proto::channeler::{ChannelerMessage, RequestNonce,
 
 use self::channel::{ChannelPool, ChannelPoolError};
 use self::handshake::HandshakeService;
-use self::types::{NeighborMap, ChannelerNeighbor, ChannelerNeighborInfo};
+use self::types::{NeighborTable, ChannelerNeighbor, ChannelerNeighborInfo};
 use self::messages::{ChannelEvent, ChannelerToNetworker};
 
 pub mod types;
@@ -45,7 +45,7 @@ pub struct Channeler<I: Stream, O: Sink, SR: SecureRandom> {
     secure_rng: Rc<SR>,
 
     channel_pool: Rc<RefCell<ChannelPool>>,
-    neighbors: Rc<RefCell<NeighborMap>>,
+    neighbors: Rc<RefCell<NeighborTable>>,
 
     handshake_manager: HandshakeService<SR>,
 

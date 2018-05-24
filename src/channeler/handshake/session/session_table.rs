@@ -101,7 +101,7 @@ impl<S> SessionTable<S> {
         let mut idx_timeout = Vec::new();
 
         for (idx, session) in &self.slab {
-            if session.timeout_counter <= 0 {
+            if session.timeout_counter == 0 {
                 idx_timeout.push(idx);
             }
         }

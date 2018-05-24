@@ -11,7 +11,7 @@ use crypto::rand_values::{RandValue, RandValuesStore};
 use crypto::identity::{PublicKey, Signature, SIGNATURE_LEN, verify_signature};
 
 use proto::channeler::*;
-use super::NeighborMap;
+use super::NeighborTable;
 
 mod state;
 mod error;
@@ -22,22 +22,25 @@ pub use self::state::HandshakeState;
 pub use self::session::{SessionId, HandshakeSession};
 pub use self::session::session_table::SessionTable;
 
+const REQUEST_NONCE_TIMEOUT: usize = 100;
+
 const RAND_VALUE_TICKS: usize = 5;
-const CONSTANT_RAND_VALUE_CAPACITY: usize = 3;
-const REQUEST_NONCE_TIMEOUT: usize = 100; // TODO: A proper value
+const RAND_VALUE_STORE_CAPACITY: usize = 3;
 
 pub struct HandshakeResult {
-    pub sender_id: ChannelId,
-    pub sender_key: SealingKey,
-    pub receiver_id: ChannelId,
-    pub receiver_key: OpeningKey,
     pub remote_public_key: PublicKey,
+
+    pub sending_channel_id: ChannelId,
+    pub sending_channel_key: SealingKey,
+    pub receiving_channel_id: ChannelId,
+    pub receiving_channel_key: OpeningKey,
 }
 
 pub struct HandshakeService<SR> {
-    neighbors_map: Rc<RefCell<NeighborMap>>,
+    neighbors_table: Rc<RefCell<NeighborTable>>,
+    my_public_key: PublicKey,
+
     secure_rng: Rc<SR>,
-    self_public_key: PublicKey,
     rand_values_store: RandValuesStore,
 
     pre_handshake: HashMap<RandValue, (usize, PublicKey)>,
@@ -46,44 +49,46 @@ pub struct HandshakeService<SR> {
 
 impl<SR: SecureRandom> HandshakeService<SR> {
     pub fn new(
-        neighbors_map: Rc<RefCell<NeighborMap>>,
-        secure_rng: Rc<SR>,
-        self_public_key: PublicKey,
+        neighbors_table: Rc<RefCell<NeighborTable>>,
+        my_public_key: PublicKey,
+        shared_rng: Rc<SR>
     ) -> HandshakeService<SR> {
         let rand_values_store = RandValuesStore::new(
-            &*secure_rng,
+            &*shared_rng,
             RAND_VALUE_TICKS,
-            CONSTANT_RAND_VALUE_CAPACITY
+            RAND_VALUE_STORE_CAPACITY
         );
 
         HandshakeService {
-            neighbors_map,
-            secure_rng,
-            self_public_key,
+            neighbors_table,
+            my_public_key,
+            secure_rng: shared_rng,
             rand_values_store,
             handshaking: SessionTable::new(),
             pre_handshake: HashMap::new(),
         }
     }
 
-    pub fn initiate_handshake(&mut self, remote_public_key: PublicKey)
+    pub fn initiate_handshake(&mut self, remote_pk: PublicKey)
         -> Result<RequestNonce, HandshakeError>
     {
         for (_, public_key) in self.pre_handshake.values() {
-            if *public_key == remote_public_key {
+            if *public_key == remote_pk {
                 return Err(HandshakeError::AlreadyInProgress);
             }
         }
 
-        let id = SessionId::new_initiator(remote_public_key.clone());
+        let id = SessionId::new_initiator(remote_pk.clone());
         if self.handshaking.contains_session(&id) {
             return Err(HandshakeError::AlreadyInProgress);
         }
 
+        // ===== Passed all check, initiate a new handshake =====
+
         let request_nonce = RequestNonce {
             request_rand_nonce: loop {
-                // We need a unique rand value
                 let new_rand_value = RandValue::new(&*self.secure_rng);
+                // We can not use an exist random value
                 if !self.pre_handshake.contains_key(&new_rand_value) {
                     break new_rand_value;
                 }
@@ -92,7 +97,7 @@ impl<SR: SecureRandom> HandshakeService<SR> {
 
         self.pre_handshake.insert(
             request_nonce.request_rand_nonce.clone(),
-            (REQUEST_NONCE_TIMEOUT, remote_public_key)
+            (REQUEST_NONCE_TIMEOUT, remote_pk)
         );
 
         Ok(request_nonce)
@@ -152,7 +157,7 @@ impl<SR: SecureRandom> HandshakeService<SR> {
 
             responder_rand_nonce: response_nonce.responder_rand_nonce,
             initiator_rand_nonce: RandValue::new(&*self.secure_rng),
-            initiator_public_key: self.self_public_key.clone(),
+            initiator_public_key: self.my_public_key.clone(),
             responder_public_key: remote_public_key.clone(),
             signature: Signature::from(&[0x00; SIGNATURE_LEN]),
         };
@@ -179,7 +184,7 @@ impl<SR: SecureRandom> HandshakeService<SR> {
         let remote_public_key = exchange_active.initiator_public_key.clone();
 
         // The remote can initiate a new handshake?
-        match self.neighbors_map.borrow_mut().get(&remote_public_key) {
+        match self.neighbors_table.borrow_mut().get(&remote_public_key) {
             Some(neighbor) => {
                 if neighbor.info.socket_addr.is_some() {
                     return Err(HandshakeError::NotAllowed);
@@ -352,131 +357,129 @@ impl<SR: SecureRandom> HandshakeService<SR> {
     }
 }
 
-//#[cfg(test)]
-//mod tests {
-//    use super::*;
-//    use tokio_core::reactor::{Core, Timeout};
-//    use channeler::types::{ChannelerNeighborInfo, NeighborMap, ChannelerNeighbor};
-//    use crypto::identity::{Identity, PublicKey};
-//    use crypto::identity::SoftwareEd25519Identity;
-//    use futures::prelude::*;
-//    use futures::sync::mpsc::channel;
-//    use ring::rand::SystemRandom;
-//    use ring::signature::Ed25519KeyPair;
-//    use ring::test::rand::FixedByteRandom;
-//    use security_module::client::SecurityModuleClient;
-//    use security_module::create_security_module;
-//    use std::collections::HashMap;
-//
-//    const TICKS: usize = 100;
-//
-//    #[test]
-//    fn handshake_happy_path() {
-//        let (public_key_a, identity_a) = {
-//            let fixed_rand = FixedByteRandom { byte: 0x00 };
-//            let pkcs8 = Ed25519KeyPair::generate_pkcs8(&fixed_rand).unwrap();
-//            let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
-//            let public_key = identity.get_public_key();
-//
-//            (public_key, identity)
-//        };
-//
-//        let (public_key_b, identity_b) = {
-//            let fixed_rand = FixedByteRandom { byte: 0x01 };
-//            let pkcs8 = Ed25519KeyPair::generate_pkcs8(&fixed_rand).unwrap();
-//            let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
-//            let public_key = identity.get_public_key();
-//
-//            (public_key, identity)
-//        };
-//
-//        let info_a = ChannelerNeighbor {
-//            info: ChannelerNeighborInfo {
-//                public_key: public_key_a.clone(),
-//                socket_addr: None,
-//            },
-//            retry_ticks: TICKS,
-//        };
-//        let info_b = ChannelerNeighbor {
-//            info: ChannelerNeighborInfo {
-//                public_key: public_key_b.clone(),
-//                socket_addr: Some("127.0.0.1:10001".parse().unwrap()),
-//            },
-//            retry_ticks: TICKS,
-//        };
-//
-//        let (neighbors_a, neighbors_b) = {
-//            let mut neighbors_a = HashMap::new();
-//            neighbors_a.insert(info_b.info.public_key.clone(), info_b);
-//
-//            let mut neighbors_b = HashMap::new();
-//            neighbors_b.insert(info_a.info.public_key.clone(), info_a);
-//
-//            (
-//                Rc::new(RefCell::new(neighbors_a)),
-//                Rc::new(RefCell::new(neighbors_b)),
-//            )
-//        };
-//
-//        let shared_secure_rng = Rc::new(SystemRandom::new());
-//
-//        let mut hs_state_machine_a = HandshakeService::new(
-//            neighbors_a,
-//            Rc::clone(&shared_secure_rng),
-//            public_key_a.clone(),
-//        );
-//
-//        let mut hs_state_machine_b = HandshakeService::new(
-//            neighbors_b,
-//            Rc::clone(&shared_secure_rng),
-//            public_key_b.clone(),
-//        );
-//
-//        // A -> B: RequestNonce
-//        let request_nonce_to_b = hs_state_machine_a.initiate_handshake(
-//            public_key_b.clone()
-//        ).unwrap();
-//
-//        // B -> A: RespondNonce
-//        let mut respond_nonce_to_a = hs_state_machine_b.process_request_nonce(
-//            request_nonce_to_b
-//        ).unwrap();
-//        respond_nonce_to_a.signature = identity_b.sign_message(
-//            &respond_nonce_to_a.as_bytes()
-//        );
-//
-//        // A -> B: ExchangeActive
-//        let mut exchange_active_to_b = hs_state_machine_a.process_response_nonce(
-//            respond_nonce_to_a
-//        ).unwrap();
-//        exchange_active_to_b.signature = identity_a.sign_message(
-//            &exchange_active_to_b.as_bytes()
-//        );
-//
-//        // B -> A: ExchangePassive
-//        let mut exchange_passive_to_a = hs_state_machine_b.process_exchange_active(
-//            exchange_active_to_b
-//        ).unwrap();
-//        exchange_passive_to_a.signature = identity_b.sign_message(
-//            &exchange_passive_to_a.as_bytes()
-//        );
-//
-//        // A -> B: ChannelReady (A: Finish)
-//        let (new_channel_info_a, mut channel_ready_to_b) = hs_state_machine_a.process_exchange_passive(
-//            exchange_passive_to_a
-//        ).unwrap();
-//        channel_ready_to_b.signature = identity_a.sign_message(
-//            &channel_ready_to_b.as_bytes()
-//        );
-//
-//        // B: Finish
-//        let new_channel_info_b = hs_state_machine_b.process_channel_ready(
-//            channel_ready_to_b
-//        ).unwrap();
-//
-//        assert_eq!(new_channel_info_a.sender_id, new_channel_info_b.receiver_id);
-//        assert_eq!(new_channel_info_b.receiver_id, new_channel_info_a.sender_id);
-//    }
-//
-//    // TODO: Add test for replay attack!
-//}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::collections::HashMap;
+
+    use crypto::identity::Identity;
+    use crypto::identity::SoftwareEd25519Identity;
+
+    use channeler::types::{ChannelerNeighborInfo, ChannelerNeighbor};
+    use ring::rand::SystemRandom;
+    use ring::signature::Ed25519KeyPair;
+    use ring::test::rand::FixedByteRandom;
+
+    const TICKS: usize = 100;
+
+    // TODO: Add a macro to construct test.
+
+    #[test]
+    fn handshake_happy_path() {
+        let (public_key_a, identity_a) = {
+            let fixed_rand = FixedByteRandom { byte: 0x00 };
+            let pkcs8 = Ed25519KeyPair::generate_pkcs8(&fixed_rand).unwrap();
+            let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+            let public_key = identity.get_public_key();
+
+            (public_key, identity)
+        };
+
+        let (public_key_b, identity_b) = {
+            let fixed_rand = FixedByteRandom { byte: 0x01 };
+            let pkcs8 = Ed25519KeyPair::generate_pkcs8(&fixed_rand).unwrap();
+            let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+            let public_key = identity.get_public_key();
+
+            (public_key, identity)
+        };
+
+        let info_a = ChannelerNeighbor {
+            info: ChannelerNeighborInfo {
+                public_key: public_key_a.clone(),
+                socket_addr: None,
+            },
+            retry_ticks: TICKS,
+        };
+        let info_b = ChannelerNeighbor {
+            info: ChannelerNeighborInfo {
+                public_key: public_key_b.clone(),
+                socket_addr: Some("127.0.0.1:10001".parse().unwrap()),
+            },
+            retry_ticks: TICKS,
+        };
+
+        let (neighbors_a, neighbors_b) = {
+            let mut neighbors_a = HashMap::new();
+            neighbors_a.insert(info_b.info.public_key.clone(), info_b);
+
+            let mut neighbors_b = HashMap::new();
+            neighbors_b.insert(info_a.info.public_key.clone(), info_a);
+
+            (
+                Rc::new(RefCell::new(neighbors_a)),
+                Rc::new(RefCell::new(neighbors_b)),
+            )
+        };
+
+        let shared_secure_rng = Rc::new(SystemRandom::new());
+
+        let mut hs_state_machine_a = HandshakeService::new(
+            neighbors_a,
+            public_key_a.clone(),
+            Rc::clone(&shared_secure_rng),
+        );
+
+        let mut hs_state_machine_b = HandshakeService::new(
+            neighbors_b,
+            public_key_b.clone(),
+            Rc::clone(&shared_secure_rng),
+        );
+
+        // A -> B: RequestNonce
+        let request_nonce_to_b = hs_state_machine_a.initiate_handshake(
+            public_key_b.clone()
+        ).unwrap();
+
+        // B -> A: RespondNonce
+        let mut respond_nonce_to_a = hs_state_machine_b.process_request_nonce(
+            request_nonce_to_b
+        ).unwrap();
+        respond_nonce_to_a.signature = identity_b.sign_message(
+            &respond_nonce_to_a.as_bytes()
+        );
+
+        // A -> B: ExchangeActive
+        let mut exchange_active_to_b = hs_state_machine_a.process_response_nonce(
+            respond_nonce_to_a
+        ).unwrap();
+        exchange_active_to_b.signature = identity_a.sign_message(
+            &exchange_active_to_b.as_bytes()
+        );
+
+        // B -> A: ExchangePassive
+        let mut exchange_passive_to_a = hs_state_machine_b.process_exchange_active(
+            exchange_active_to_b
+        ).unwrap();
+        exchange_passive_to_a.signature = identity_b.sign_message(
+            &exchange_passive_to_a.as_bytes()
+        );
+
+        // A -> B: ChannelReady (A: Finish)
+        let (new_channel_info_a, mut channel_ready_to_b) = hs_state_machine_a.process_exchange_passive(
+            exchange_passive_to_a
+        ).unwrap();
+        channel_ready_to_b.signature = identity_a.sign_message(
+            &channel_ready_to_b.as_bytes()
+        );
+
+        // B: Finish
+        let new_channel_info_b = hs_state_machine_b.process_channel_ready(
+            channel_ready_to_b
+        ).unwrap();
+
+        assert_eq!(new_channel_info_a.sending_channel_id, new_channel_info_b.receiving_channel_id);
+        assert_eq!(new_channel_info_b.sending_channel_id, new_channel_info_a.receiving_channel_id);
+    }
+}
