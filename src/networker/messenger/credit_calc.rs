@@ -260,10 +260,78 @@ pub fn credits_to_freeze(payment_proposals: &PaymentProposals,
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proto::networker::LinearSendPrice;
+
+    fn test_calc_request_len_basic() {
+        /*
+            B   --   C
+        */
+        let request_content_len = 4u32;
+        let route_len = 2;
+        let nodes_to_dest = 1;
+        let opt_request_len = calc_request_len(request_content_len,
+                         route_len,
+                         nodes_to_dest);
+
+        let route_link_len = mem::size_of::<NeighborRouteLink>();
+
+        let neighbors_route_len = 
+            2 * mem::size_of::<PublicKey>()
+            + route_link_len /* * 1 */
+            + mem::size_of::<NetworkerSendPrice>();
+
+        let freeze_link_len = mem::size_of::<NetworkerFreezeLink>();
+
+        let expected_request_len = mem::size_of::<Uid>()  // requestId
+            + mem::size_of::<u32>()  // maxResponseLen
+            + mem::size_of::<u64>()  // processingFeeProposal
+            + neighbors_route_len 
+            + (request_content_len as usize)
+            + freeze_link_len /* * 1 */;
+
+        assert_eq!(opt_request_len, Some(expected_request_len as u32))
+
+    }
+
+
+    // TODO: Test some more general properties of calc_request_len function.
+    // (Linearity, etc).
+
+
+    /// Short function for generating a NetworkerSendPrice (base, multiplier)
+    fn send_price(base: u32, multiplier: u32) -> NetworkerSendPrice {
+        NetworkerSendPrice(LinearSendPrice {
+            base,
+            multiplier,
+        })
+    }
+
+    fn example_payment_proposals() -> PaymentProposals {
+        /*           req      req      
+                     res      res      res
+              B  --   C   --   D   --   E   
+        */
+        PaymentProposals {
+            middle_props: vec![
+                PaymentProposalPair { request: send_price(1,2), response: send_price(4,3) },
+                PaymentProposalPair { request: send_price(2,3), response: send_price(1,5) },
+            ],
+            dest_response_pay_props: send_price(2,3),
+        }
+    }
 
     #[test]
     fn tests_credits_on_success_dest_basic() {
         // TODO
+        let example_payment_proposals = example_payment_proposals();
+        let processing_fee_proposal = 10u64;
+        let response_content_len = 20u32;
+        let max_response_content_len = 40u32;
+        let opt_credits = credits_on_success_dest(&example_payment_proposals,
+                                processing_fee_proposal,
+                                response_content_len,
+                                max_response_content_len);
+        assert!(!opt_credits.is_none());
     }
 
     #[test]
