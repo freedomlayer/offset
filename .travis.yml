@@ -12,7 +12,7 @@ matrix:
   include:
     - env: TARGET=x86_64-unknown-linux-gnu CC=gcc-6 CXX=g++-6 KCOV=1
       os: linux
-      rust: nightly-2018-05-20
+      rust: nightly-2018-05-23
       before_script:
         - travis/trusty/before-script.sh
       addons:
@@ -23,15 +23,15 @@ matrix:
           sources:
             - ubuntu-toolchain-r-test
       script:
-        - cargo test --features=dev --no-run
+        - cargo clean && cargo clippy
       after_success:
         - travis/trusty/after-success.sh
 
     - env: TARGET=x86_64-apple-darwin KCOV=0
       os: osx
-      rust: nightly-2018-05-20
+      rust: nightly-2018-05-23
       osx_image: xcode9.2
       before_script:
         - brew install capnp
       script:
-        - cargo test --features=dev
+        - cargo clean && cargo test
