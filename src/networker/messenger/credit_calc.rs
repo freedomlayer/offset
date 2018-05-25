@@ -371,6 +371,28 @@ mod tests {
     }
 
     #[test]
+    fn test_calc_failure_len_basic() {
+        /*
+                <-f                reporting
+            A   --   B   --   C   --   D   ...
+            
+            We are B, D is the reporting node.
+        */
+        let nodes_to_rep = 2;
+        let opt_failure_len = calc_failure_len(nodes_to_rep);
+
+        let rand_nonce_sig_len = 
+            mem::size_of::<RandValue>() + mem::size_of::<Signature>();
+
+        let expected_failure_len = mem::size_of::<Uid>()
+                + mem::size_of::<u16>()
+                + rand_nonce_sig_len * (nodes_to_rep as usize);
+
+        assert_eq!(opt_failure_len, Some(expected_failure_len as u32));
+
+    }
+
+    #[test]
     fn test_calc_failure_len_linearity() {
         let f = |nodes_to_rep| 
                   calc_failure_len(nodes_to_rep).unwrap();
