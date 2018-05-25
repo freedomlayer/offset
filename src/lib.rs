@@ -1,12 +1,11 @@
 #![crate_type = "lib"]
+
 #![feature(nll)]
 #![feature(try_from)]
-#![feature(refcell_replace_swap)]
 #![feature(iterator_step_by)]
-#![cfg_attr(feature = "dev", feature(plugin))]
-#![cfg_attr(feature = "dev", plugin(clippy))]
-#![cfg_attr(not(feature = "dev"), allow(unknown_lints))]
-#![allow(needless_pass_by_value)]
+#![feature(refcell_replace_swap)]
+#![cfg_attr(not(feature = "cargo-clippy"), allow(unknown_lints))]
+#![cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
 
 extern crate byteorder;
 extern crate bytes;

@@ -10,19 +10,36 @@ A Credit Switching engine written in Rust.
 
 Theoretically CSwitch should work anywhere Rust works (Windows, Linux, MacOS).
 
-- [Install Rust](https://www.rust-lang.org/install.html). We currently use
-    nightly Rust. You should pin to exact nightly Rust version, this could be
-    done using the command: `rustup override set nightly-YYYY-MM-DD`. Note that
-    this command should be run at the root of the repository. The current
-    nightly version could be found in .travis.yml.
+### Requirement
 
-- Install libsqlite3-dev. On ubuntu, run `sudo apt install libsqlite3-dev`.
-- [Install capnproto](https://capnproto.org/install.html). On Ubuntu, run `sudo apt install capnproto`
+- [SQLite3][sqlite], for persistent storage.
+- [Cap'n Proto][capnp], as ser&de protocol.
 
-After all is done, run 
+[sqlite]: https://www.sqlite.org
+[capnp]: https://capnproto.org
 
-```bash
-cargo test
-```
+Also, we need the Rust development toolchain.
 
-to make sure that all tests pass.
+### Install dependencies and toolchain
+
+- Install Rust development toolchain, we recommend [rustup](https://rustup.rs).
+- Install SQLite3:
+    - For Ubuntu user, run `sudo apt install libsqlite3-dev`
+    - For MacOS user, the SQLite3 is part of the system
+- Install capnproto:
+    - For Ubuntu user, run `sudo apt install capnproto`
+    - For MacOS user, it can be installed via Homebrew: `brew install canpnp`
+
+### Note for the toolchain version
+
+Currently we pinned the version of `Rust` and `clippy`, the newest version we used
+can be found in `.travis.yml`.
+
+You can run `rustup override set nightly-YYYY-MM-DD` to pinned Rust toolchain version
+under the root of the project, and `cargo install clippy --rev <commit hash>` to do
+the same for `clippy`.
+
+## Code of conduct
+
+Before you open a PR, all test should passed, also check the output of `clippy`,
+promise error free and make the warning as little as possible.
