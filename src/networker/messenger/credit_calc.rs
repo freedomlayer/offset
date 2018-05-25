@@ -23,6 +23,8 @@ pub struct PaymentProposals {
 /// route_len = 5
 /// nodes_to_dest = 2
 ///
+/// route_len >= 2
+/// nodes_to_dest < route_len
 fn calc_request_len(request_content_len: u32, 
                     route_len: u32, 
                     nodes_to_dest: u32) -> Option<u32> {
@@ -33,7 +35,7 @@ fn calc_request_len(request_content_len: u32,
     let neighbor_route_link_len = usize_to_u32(mem::size_of::<NeighborRouteLink>())?;
 
     let route_bytes_count = public_key_len.checked_mul(2)?
-        .checked_add(route_len.checked_mul(neighbor_route_link_len)?)?
+        .checked_add(route_len.checked_sub(2)?.checked_mul(neighbor_route_link_len)?)?
         .checked_add(networker_send_price_len)?;
 
     let freeze_links_len = route_len.checked_sub(nodes_to_dest)?
@@ -43,7 +45,10 @@ fn calc_request_len(request_content_len: u32,
         .checked_add(usize_to_u32(mem::size_of::<u32>())?)?
         .checked_add(usize_to_u32(mem::size_of::<u64>())?)?;
 
-    Some(request_overhead.checked_add(route_bytes_count)?.checked_add(freeze_links_len)?)
+    Some(request_overhead
+         .checked_add(route_bytes_count)?
+         .checked_add(request_content_len)?
+         .checked_add(freeze_links_len)?)
 }
 
 fn calc_response_len(response_content_len: u32) -> Option<u32> {
@@ -262,6 +267,7 @@ mod tests {
     use super::*;
     use proto::networker::LinearSendPrice;
 
+    #[test]
     fn test_calc_request_len_basic() {
         /*
             B   --   C
@@ -273,11 +279,9 @@ mod tests {
                          route_len,
                          nodes_to_dest);
 
-        let route_link_len = mem::size_of::<NeighborRouteLink>();
-
         let neighbors_route_len = 
             2 * mem::size_of::<PublicKey>()
-            + route_link_len /* * 1 */
+            /* +  0 * mem::size_of::<NeighborRouteLink>() */
             + mem::size_of::<NetworkerSendPrice>();
 
         let freeze_link_len = mem::size_of::<NetworkerFreezeLink>();
@@ -293,9 +297,47 @@ mod tests {
 
     }
 
+    fn is_linear<F>(f: F, begin: u32, end: u32) -> bool
+        where F: Fn(u32) -> u32 {
 
-    // TODO: Test some more general properties of calc_request_len function.
-    // (Linearity, etc).
+        assert!(end >= begin + 2);
+        for x in begin .. end - 2 {
+            if f(x + 2) + f(x) != 2 * f(x + 1) {
+                return false
+            }
+        }
+        true
+    }
+
+    #[test]
+    fn test_calc_request_len_linearity() {
+        let num_iters = 15;
+
+        for nodes_to_dest in 0 .. num_iters {
+            for route_len in cmp::max(2, nodes_to_dest + 1) .. nodes_to_dest + num_iters {
+                let f = |request_content_len| calc_request_len(request_content_len, 
+                                                                route_len, 
+                                                                nodes_to_dest).unwrap();
+                assert!(is_linear(f, 0, num_iters))
+            }
+        }
+        for request_content_len in 0 .. num_iters {
+            for nodes_to_dest in 0 .. num_iters {
+                let f = |route_len| calc_request_len(request_content_len, 
+                                                     route_len, 
+                                                     nodes_to_dest).unwrap();
+                assert!(is_linear(f, cmp::max(2, nodes_to_dest + 1), nodes_to_dest + num_iters + 1))
+            }
+        }
+        for request_content_len in 0 .. num_iters {
+            for route_len in 3 .. num_iters {
+                let f = |nodes_to_dest| calc_request_len(request_content_len, 
+                                                     route_len, 
+                                                     nodes_to_dest).unwrap();
+                assert!(is_linear(f, 0, route_len - 1))
+            }
+        }
+    }
 
 
     /// Short function for generating a NetworkerSendPrice (base, multiplier)
