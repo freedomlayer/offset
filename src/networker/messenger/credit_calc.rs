@@ -339,6 +339,21 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_calc_response_len_basic() {
+        let response_content_len = 5;
+        let opt_response_len = calc_response_len(response_content_len);
+
+        let expected_response_len = 
+            mem::size_of::<Uid>()
+                + mem::size_of::<RandValue>() 
+                + mem::size_of::<u64>()
+                + (response_content_len as usize)
+                + mem::size_of::<Signature>();
+
+        assert_eq!(opt_response_len, Some(expected_response_len as u32));
+    }
+
 
     /// Short function for generating a NetworkerSendPrice (base, multiplier)
     fn send_price(base: u32, multiplier: u32) -> NetworkerSendPrice {
