@@ -356,9 +356,15 @@ mod tests {
 
     #[test]
     fn test_calc_response_len_linearity() {
-
         let f = |response_content_len| 
                   calc_response_len(response_content_len).unwrap();
+        assert!(is_linear(f, 0, 100));
+    }
+
+    #[test]
+    fn test_calc_failure_len_linearity() {
+        let f = |nodes_to_rep| 
+                  calc_failure_len(nodes_to_rep).unwrap();
         assert!(is_linear(f, 0, 100));
     }
 
