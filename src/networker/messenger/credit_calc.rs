@@ -354,6 +354,14 @@ mod tests {
         assert_eq!(opt_response_len, Some(expected_response_len as u32));
     }
 
+    #[test]
+    fn test_calc_response_len_linearity() {
+
+        let f = |response_content_len| 
+                  calc_response_len(response_content_len).unwrap();
+        assert!(is_linear(f, 0, 100));
+    }
+
 
     /// Short function for generating a NetworkerSendPrice (base, multiplier)
     fn send_price(base: u32, multiplier: u32) -> NetworkerSendPrice {
