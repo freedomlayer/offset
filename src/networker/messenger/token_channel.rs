@@ -17,7 +17,7 @@ use proto::networker::NetworkerSendPrice;
 
 use super::pending_neighbor_request::PendingNeighborRequest;
 use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, RequestSendMessage,
-                                NetworkerTCMessage};
+                                NeighborTcOp};
 // use super::credit_calculator::credits_on_success_dest;
 use utils::trans_hashmap::TransHashMap;
 
@@ -91,7 +91,7 @@ struct TCIdents {
 }
 
 #[derive(Clone)]
-struct TCBalance {
+pub struct TCBalance {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
     balance: i64,
@@ -100,13 +100,13 @@ struct TCBalance {
     /// Maximum possible local debt
     local_max_debt: u64,
     /// Frozen credits by our side
-    pending_local_debt: u64,
+    local_pending_debt: u64,
     /// Frozen credits by the remote side
-    pending_remote_debt: u64,
+    local_remote_debt: u64,
 }
 
 #[derive(Clone)]
-struct TCInvoice {
+pub struct TCInvoice {
     /// The invoice id which I randomized locally
     local_invoice_id: Option<InvoiceId>,
     /// The invoice id which the neighbor randomized
@@ -188,7 +188,7 @@ struct TransTokenChannel {
 }
 
 /// If this function returns an error, the token channel becomes incosistent.
-pub fn atomic_process_messages_list(token_channel: TokenChannel, messages: Vec<NetworkerTCMessage>)
+pub fn atomic_process_messages_list(token_channel: TokenChannel, messages: Vec<NeighborTcOp>)
                                     -> (TokenChannel, Result<Vec<ProcessMessageOutput>, ProcessTransListError>) {
 
     let mut trans_token_channel = TransTokenChannel::new(token_channel);
@@ -240,7 +240,7 @@ impl TransTokenChannel {
     }
 
     /// Every error is translated into an inconsistency of the token channel.
-    pub fn process_messages_list(&mut self, messages: Vec<NetworkerTCMessage>) ->
+    pub fn process_messages_list(&mut self, messages: Vec<NeighborTcOp>) ->
         Result<Vec<ProcessMessageOutput>, ProcessTransListError> {
         let mut outputs = Vec::new();
 
@@ -257,24 +257,24 @@ impl TransTokenChannel {
         Ok(outputs)
     }
 
-    fn process_message(&mut self, message: NetworkerTCMessage) ->
+    fn process_message(&mut self, message: NeighborTcOp) ->
         Result<Option<ProcessMessageOutput>, ProcessMessageError> {
         match message {
-            NetworkerTCMessage::EnableRequests(send_price) =>
+            NeighborTcOp::EnableRequests(send_price) =>
                 self.process_enable_requests(send_price),
-            NetworkerTCMessage::DisableRequests =>
+            NeighborTcOp::DisableRequests =>
                 self.process_disable_requests(),
-            NetworkerTCMessage::SetRemoteMaxDebt(proposed_max_debt) =>
+            NeighborTcOp::SetRemoteMaxDebt(proposed_max_debt) =>
                 self.process_set_remote_max_debt(proposed_max_debt),
-            NetworkerTCMessage::SetInvoiceId(rand_nonce) =>
+            NeighborTcOp::SetInvoiceId(rand_nonce) =>
                 self.process_set_invoice_id(rand_nonce),
-            NetworkerTCMessage::LoadFunds(send_funds_receipt) =>
+            NeighborTcOp::LoadFunds(send_funds_receipt) =>
                 self.process_load_funds(send_funds_receipt),
-            NetworkerTCMessage::RequestSendMessage(request_send_msg) =>
+            NeighborTcOp::RequestSendMessage(request_send_msg) =>
                 self.process_request_send_message(request_send_msg),
-            NetworkerTCMessage::ResponseSendMessage(response_send_msg) =>
+            NeighborTcOp::ResponseSendMessage(response_send_msg) =>
                 self.process_response_send_message(response_send_msg),
-            NetworkerTCMessage::FailedSendMessage(failed_send_msg) =>
+            NeighborTcOp::FailedSendMessage(failed_send_msg) =>
                 self.process_failed_send_message(failed_send_msg),
         }
     }

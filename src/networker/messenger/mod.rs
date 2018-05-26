@@ -34,7 +34,8 @@ use proto::funder::InvoiceId;
 use proto::networker::{ChannelToken};
 
 
-mod token_channel;
+pub mod token_channel;
+mod neighbor_tc_logic;
 mod tc_credit;
 mod pending_requests;
 mod invoice_validator;

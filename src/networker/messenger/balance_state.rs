@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use super::token_channel::TokenChannel;
-use super::messenger_messages::NetworkerTCMessage;
+use super::messenger_messages::NeighborTcOp;
 use crypto::identity::PublicKey;
 
 /*
@@ -22,7 +22,7 @@ impl BalanceState{
     pub fn atomic_process_messagess_list(&mut self,
                                          token_channel_index: usize,
                                          remote_public_key: &PublicKey,
-                                         messages: Vec<NetworkerTCMessage>) {
+                                         messages: Vec<NeighborTcOp>) {
 
     }
 

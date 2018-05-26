@@ -12,7 +12,7 @@ use proto::funder::InvoiceId;
 use proto::networker::NetworkerSendPrice;
 use super::pending_neighbor_request::PendingNeighborRequest;
 
-pub enum NetworkerTCMessage {
+pub enum NeighborTcOp {
     EnableRequests(NetworkerSendPrice),
     DisableRequests,
     SetRemoteMaxDebt(u64),
