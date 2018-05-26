@@ -15,7 +15,9 @@ use indexer_client::messages::RequestFriendsRoutes;
 use database::messages::{ResponseLoadNeighbors, ResponseLoadNeighborToken};
 use proto::indexer::NeighborsRoute;
 use proto::funder::InvoiceId;
-use proto::networker::ChannelToken;
+use proto::networker::{ChannelToken, NetworkerSendPrice};
+use networker::messenger::token_channel::{TCBalance, TCInvoice, TCSendPrice};
+
 
 
 use super::messenger::pending_neighbor_request::PendingNeighborRequest;
@@ -159,21 +161,17 @@ pub enum NetworkerToChanneler {
 
 pub struct NeighborTokenCommon {
     pub neighbor_public_key: PublicKey,
-    pub token_channel_index: u32,
     pub move_token_message: Vec<u8>,
     // The move_token_message is opaque. The Database can not read it.
     // This is why we have the external token_channel_index, old_token and new_token,
     // although theoretically they could be deduced from move_token_message.
+    pub token_channel_index: u32,
     pub old_token: ChannelToken,
     pub new_token: ChannelToken,
     // Equals Sha512/256(move_token_message)
-    pub remote_max_debt: u64,
-    pub local_max_debt: u64,
-    pub remote_pending_debt: u64,
-    pub local_pending_debt: u64,
-    pub balance: i64,
-    pub local_invoice_id: Option<InvoiceId>,
-    pub remote_invoice_id: Option<InvoiceId>,
+    balance: TCBalance,
+    invoice: TCInvoice,
+    send_price: TCSendPrice,
 }
 
 pub struct InNeighborToken {
@@ -197,7 +195,11 @@ pub enum NetworkerToDatabase {
     RequestLoadNeighbors {
         response_sender: oneshot::Sender<ResponseLoadNeighbors>,
     },
+    // TODO: StoreInNeighborToken should also create (atomically) relevant operations at the
+    // pending table.
     StoreInNeighborToken(InNeighborToken),
+    // TODO: StoreOutNeighborToken should also erase (atomically) the sent operations from the
+    // pending table.
     StoreOutNeighborToken(OutNeighborToken),
     RequestLoadNeighborToken {
         neighbor_public_key: PublicKey,
