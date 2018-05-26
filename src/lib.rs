@@ -21,6 +21,10 @@ extern crate tokio_core;
 extern crate tokio_io;
 extern crate async_mutex;
 
+#[cfg(test)]
+extern crate num_traits;
+
+
 #[macro_use]
 pub mod utils;
 pub mod crypto;
@@ -34,6 +38,7 @@ pub mod indexer_client;
 pub mod networker;
 pub mod security_module;
 pub mod timer;
+
 
 mod proto;
 // FIXME: The capnpc generated code assumes that we
