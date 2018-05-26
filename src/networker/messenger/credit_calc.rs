@@ -455,6 +455,43 @@ mod tests {
     }
 
     #[test]
+    fn credits_on_success_dest_linearity() {
+        let payment_proposals = example_payment_proposals();
+        for response_content_len in 0 .. 20 {
+            for max_response_content_len in response_content_len .. response_content_len + 20 {
+                let f = |processing_fee_proposal| credits_on_success_dest(
+                                                    &payment_proposals,
+                                                    processing_fee_proposal,
+                                                    response_content_len,
+                                                    max_response_content_len).unwrap();
+                assert!(is_linear(f, 0, 20));
+            }
+        }
+
+        for processing_fee_proposal in 0 .. 20 {
+            for max_response_content_len in 2 .. 20 {
+                let f = |response_content_len| credits_on_success_dest(
+                                                    &payment_proposals,
+                                                    processing_fee_proposal,
+                                                    response_content_len,
+                                                    max_response_content_len).unwrap();
+                assert!(is_linear(f, 0, max_response_content_len));
+            }
+        }
+
+        for processing_fee_proposal in 0 .. 20 {
+            for response_content_len in 0 .. 20 {
+                let f = |max_response_content_len| credits_on_success_dest(
+                                                    &payment_proposals,
+                                                    processing_fee_proposal,
+                                                    response_content_len,
+                                                    max_response_content_len).unwrap();
+                assert!(is_linear(f, response_content_len, response_content_len + 20));
+            }
+        }
+    }
+
+    #[test]
     fn tests_credits_on_success_dest_basic() {
         // TODO
         let example_payment_proposals = example_payment_proposals();
