@@ -275,6 +275,7 @@ pub fn credits_to_freeze(payment_proposals: &PaymentProposals,
 mod tests {
     use super::*;
     use proto::networker::LinearSendPrice;
+    use num_traits::PrimInt;
 
     #[test]
     fn test_calc_request_len_basic() {
@@ -306,14 +307,22 @@ mod tests {
 
     }
 
-    fn is_linear<F>(f: F, begin: u32, end: u32) -> bool
-        where F: Fn(u32) -> u32 {
+    fn is_linear<F,N,M>(f: F, begin: N, end: N) -> bool
+    where 
+        F: Fn(N) -> M,
+        N: PrimInt,
+        M: PrimInt,
+    {
 
-        assert!(end >= begin + 2);
-        for x in begin .. end - 2 {
-            if f(x + 2) + f(x) != 2 * f(x + 1) {
+        let n_one = N::one();
+        let n_two = n_one + n_one;
+        assert!(end >= begin + n_two);
+        let mut x = begin;
+        while x < end - n_two {
+            if f(x + n_two) + f(x) != f(x + n_one) + f(x + n_one) {
                 return false
             }
+            x = x + n_one;
         }
         true
     }
