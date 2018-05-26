@@ -163,6 +163,14 @@ pub fn credits_on_success(payment_proposals: &PaymentProposals,
                                                        response_content_len,
                                                        max_response_content_len)?;
 
+    /*
+                                 middle_props
+                                |-----------|
+                            B -- C -- D -- E -- F
+      nodes_to_dest:        4    3    2    1    0
+
+    */
+
     for i in middle_props_len.checked_sub(nodes_to_dest)? .. middle_props_len {
         let middle_prop = &middle_props[i as usize];
 
@@ -170,9 +178,7 @@ pub fn credits_on_success(payment_proposals: &PaymentProposals,
         let request_len = calc_request_len(request_content_len,
                                            middle_props_len,
                                            middle_props_len - i)?;
-        let response_len = calc_request_len(response_content_len,
-                                           middle_props_len,
-                                           middle_props_len - i)?;
+        let response_len = calc_response_len(response_content_len)?;
         // Maximum failure length occurs when the reporting node is as far as possible.
         let max_failure_len = calc_failure_len(middle_props_len - i)?;
 
@@ -494,15 +500,96 @@ mod tests {
     #[test]
     fn tests_credits_on_success_dest_basic() {
         // TODO
-        let example_payment_proposals = example_payment_proposals();
+        let payment_proposals = example_payment_proposals();
         let processing_fee_proposal = 10u64;
         let response_content_len = 20u32;
         let max_response_content_len = 40u32;
-        let opt_credits = credits_on_success_dest(&example_payment_proposals,
+        let opt_credits = credits_on_success_dest(&payment_proposals,
                                 processing_fee_proposal,
                                 response_content_len,
                                 max_response_content_len);
         assert!(!opt_credits.is_none());
+    }
+
+    #[test]
+    fn credits_on_success_linearity() {
+        let payment_proposals = example_payment_proposals();
+        let route_len = (payment_proposals.middle_props.len() + 2) as u32;
+
+        // ... processing_fee_proposal ...
+        for request_content_len in 0 .. 10 {
+        for max_response_content_len in 2 .. 10 {
+        for response_content_len in 0 .. max_response_content_len {
+        for nodes_to_dest in 0 .. route_len - 1 {
+            let f = |processing_fee_proposal| credits_on_success(
+                                                    &payment_proposals,
+                                                    processing_fee_proposal,
+                                                    request_content_len,
+                                                    response_content_len,
+                                                    max_response_content_len,
+                                                    nodes_to_dest).unwrap();
+            assert!(is_linear(f, 0, 20));
+        }
+        }
+        }
+        }
+
+        for processing_fee_proposal in 0 .. 10 {
+        // ... request_content_len ...
+        for max_response_content_len in 2 .. 10 {
+        for response_content_len in 0 .. max_response_content_len {
+        for nodes_to_dest in 0 .. route_len - 1 {
+            let f = |request_content_len| credits_on_success(
+                                                &payment_proposals,
+                                                processing_fee_proposal,
+                                                request_content_len,
+                                                response_content_len,
+                                                max_response_content_len,
+                                                nodes_to_dest).unwrap();
+            assert!(is_linear(f, 0, 15));
+        }
+        }
+        }
+        }
+
+        for processing_fee_proposal in 0 .. 15 {
+        for request_content_len in 0 .. 15 {
+        // ... response_content_len ...
+        for max_response_content_len in 2 .. 10 {
+        for nodes_to_dest in 0 .. route_len - 1 {
+            let f = |response_content_len| credits_on_success(
+                                                    &payment_proposals,
+                                                    processing_fee_proposal,
+                                                    request_content_len,
+                                                    response_content_len,
+                                                    max_response_content_len,
+                                                    nodes_to_dest).unwrap();
+            assert!(is_linear(f, 0, max_response_content_len));
+        }
+        }
+        }
+        }
+
+        for processing_fee_proposal in 0 .. 15 {
+        for request_content_len in 0 .. 15 {
+        for response_content_len in 0 .. 15 {
+        // ... max_response_content_len ...
+        for nodes_to_dest in 0 .. route_len - 1 {
+            let f = |max_response_content_len| credits_on_success(
+                                                    &payment_proposals,
+                                                    processing_fee_proposal,
+                                                    request_content_len,
+                                                    response_content_len,
+                                                    max_response_content_len,
+                                                    nodes_to_dest).unwrap();
+            assert!(is_linear(f, response_content_len, response_content_len + 15));
+        }
+        }
+        }
+        }
+
+        // credits_on_success is not guaranteed to be linear on nodes_to_dest.
+        // Therefore we don't test for this property here.
     }
 
     #[test]
