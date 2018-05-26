@@ -422,6 +422,29 @@ mod tests {
         }
     }
 
+    /// credits_on_success() with nodes_to_dest = 0 should have the same result as
+    /// credits_on_success_dest().
+    #[test]
+    fn test_credits_on_success_nodes_to_dest_zero() {
+        let payment_proposals = example_payment_proposals();
+        let processing_fee_proposal = 10u64;
+        let request_content_len = 30u32;
+        let response_content_len = 20u32;
+        let max_response_content_len = 40u32;
+        let c_on_success = credits_on_success(&payment_proposals,
+                                      processing_fee_proposal,
+                                      request_content_len,
+                                      response_content_len,
+                                      max_response_content_len,
+                                      0).unwrap();
+
+        let c_on_success_dest = credits_on_success_dest(&payment_proposals,
+                                                        processing_fee_proposal,
+                                                        response_content_len,
+                                                        max_response_content_len).unwrap();
+        assert_eq!(c_on_success, c_on_success_dest);
+    }
+
     #[test]
     fn tests_credits_on_success_dest_basic() {
         // TODO
