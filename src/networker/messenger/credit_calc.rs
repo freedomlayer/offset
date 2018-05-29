@@ -36,7 +36,7 @@ fn calc_request_len(request_content_len: u32,
 
     let route_bytes_count = public_key_len.checked_mul(2)?
         .checked_add(route_len.checked_sub(2)?.checked_mul(neighbor_route_link_len)?)?
-        .checked_add(networker_send_price_len)?;
+        .checked_add(networker_send_price_len.checked_mul(2)?)?;
 
     let freeze_links_len = route_len.checked_sub(nodes_to_dest)?
         .checked_mul(networker_freeze_link_len)?;
@@ -298,7 +298,7 @@ mod tests {
         let neighbors_route_len = 
             2 * mem::size_of::<PublicKey>()
             /* +  0 * mem::size_of::<NeighborRouteLink>() */
-            + mem::size_of::<NetworkerSendPrice>();
+            + 2 * mem::size_of::<NetworkerSendPrice>();
 
         let freeze_link_len = mem::size_of::<NetworkerFreezeLink>();
 
