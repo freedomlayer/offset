@@ -200,6 +200,8 @@ pub fn credits_on_success(payment_proposals: &PaymentProposals,
 ///           req      req      req
 ///           res      res      res      res
 ///    B  --  (C)  --   D   --   E   --   F   
+///                           reporting
+///    0       1        2        3        4
 /// ```
 ///
 /// Examples:
@@ -220,24 +222,27 @@ pub fn credits_on_success(payment_proposals: &PaymentProposals,
 ///
 pub fn credits_on_failure(payment_proposals: &PaymentProposals,
                           request_content_len: u32, 
-                          reporting_node_index: u32) -> Option<u64> {
+                          nodes_to_reporting: u32,
+                          reporting_to_dest: u32) -> Option<u64> {
+
+    // Dest node can never report a failure:
+    assert!(reporting_to_dest > 1);
 
     // TODO: Fix all 'as usize' in this function.
     let middle_props = &payment_proposals.middle_props;
     let middle_props_len = usize_to_u32(middle_props.len())?;
 
-    if reporting_node_index > middle_props_len {
-        return None;
-    }
-
     let mut sum_credits: u64 = 0;
-    for i in 0 .. reporting_node_index {
+    let end_index = middle_props_len.checked_sub(reporting_to_dest)?;
+    let start_index = end_index.checked_sub(nodes_to_reporting)?;
+
+    for i in start_index .. end_index {
         let middle_prop = &middle_props[i as usize];
         // TODO: Check for off by one here:
         let request_len = calc_request_len(request_content_len,
                                            middle_props_len,
-                                           middle_props_len - i)?;
-        let failure_len = calc_failure_len(reporting_node_index - i)?;
+                                           middle_props_len.checked_sub(i)?)?;
+        let failure_len = calc_failure_len(end_index.checked_sub(i)?)?;
 
         let credits_earned = middle_prop.request.calc_cost(request_len)?
             .checked_add(middle_prop.response.calc_cost(failure_len)?)?;
@@ -245,8 +250,10 @@ pub fn credits_on_failure(payment_proposals: &PaymentProposals,
         sum_credits = sum_credits.checked_add(credits_earned)?;
     }
 
+    // Add the payment for the reporting node.
+    // This is the special case of i = end_index :
     let failure_len_reporting = calc_failure_len(0)?;
-    let reporting_node_credits = middle_props[reporting_node_index as usize].response
+    let reporting_node_credits = middle_props[end_index as usize].response
         .calc_cost(failure_len_reporting)?;
     sum_credits = sum_credits.checked_add(reporting_node_credits)?;
 
@@ -592,6 +599,7 @@ mod tests {
         // credits_on_success is not guaranteed to be linear on nodes_to_dest.
         // Therefore we don't test for this property here.
     }
+
 
     #[test]
     fn test_credits_on_success_basic() {
