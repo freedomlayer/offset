@@ -706,6 +706,38 @@ mod tests {
 
 
     #[test]
+    fn test_credits_to_freeze_is_max() {
+        let payment_proposals = example_payment_proposals();
+        let route_len = (payment_proposals.middle_props.len() + 2) as u32;
+
+        let processing_fee_proposal = 10u64;
+        let request_content_len = 70u32;
+        let max_response_content_len = 40u32;
+
+        for nodes_to_dest in 0 .. route_len - 1 {
+            let c_to_freeze = credits_to_freeze(&payment_proposals,
+                                  processing_fee_proposal,
+                                  request_content_len,
+                                  max_response_content_len,
+                                  nodes_to_dest).unwrap();
+
+            for response_content_len in 0 ..= max_response_content_len {
+                let c_on_success = credits_on_success(&payment_proposals,
+                                      processing_fee_proposal,
+                                      request_content_len,
+                                      response_content_len,
+                                      max_response_content_len,
+                                      nodes_to_dest).unwrap();
+
+                // We expect the amount of credits we freeze to be the maximum possible value for
+                // credits obtained.
+                assert!(c_on_success <= c_to_freeze);
+            }
+        }
+    }
+
+
+    #[test]
     fn test_credits_on_success_basic() {
         // TODO
     }
