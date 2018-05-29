@@ -524,8 +524,8 @@ mod tests {
         let route_len = (payment_proposals.middle_props.len() + 2) as u32;
 
         // ... processing_fee_proposal ...
-        for request_content_len in 0 .. 10 {
-        for max_response_content_len in 2 .. 10 {
+        for request_content_len in 0 .. 5 {
+        for max_response_content_len in 2 .. 5 {
         for response_content_len in 0 .. max_response_content_len {
         for nodes_to_dest in 0 .. route_len - 1 {
             let f = |processing_fee_proposal| credits_on_success(
@@ -541,9 +541,9 @@ mod tests {
         }
         }
 
-        for processing_fee_proposal in 0 .. 10 {
+        for processing_fee_proposal in 0 .. 5 {
         // ... request_content_len ...
-        for max_response_content_len in 2 .. 10 {
+        for max_response_content_len in 2 .. 5 {
         for response_content_len in 0 .. max_response_content_len {
         for nodes_to_dest in 0 .. route_len - 1 {
             let f = |request_content_len| credits_on_success(
@@ -559,10 +559,10 @@ mod tests {
         }
         }
 
-        for processing_fee_proposal in 0 .. 15 {
-        for request_content_len in 0 .. 15 {
+        for processing_fee_proposal in 0 .. 8 {
+        for request_content_len in 0 .. 8 {
         // ... response_content_len ...
-        for max_response_content_len in 2 .. 10 {
+        for max_response_content_len in 2 .. 5 {
         for nodes_to_dest in 0 .. route_len - 1 {
             let f = |response_content_len| credits_on_success(
                                                     &payment_proposals,
@@ -577,9 +577,9 @@ mod tests {
         }
         }
 
-        for processing_fee_proposal in 0 .. 15 {
-        for request_content_len in 0 .. 15 {
-        for response_content_len in 0 .. 15 {
+        for processing_fee_proposal in 0 .. 6 {
+        for request_content_len in 0 .. 6 {
+        for response_content_len in 0 .. 6 {
         // ... max_response_content_len ...
         for nodes_to_dest in 0 .. route_len - 1 {
             let f = |max_response_content_len| credits_on_success(
