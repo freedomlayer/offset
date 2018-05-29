@@ -599,6 +599,39 @@ mod tests {
         // Therefore we don't test for this property here.
     }
 
+    #[test]
+    // Make sure that credits on success are always more than credits on failure.
+    fn test_credits_on_success_ge_credits_on_failure() {
+        let payment_proposals = example_payment_proposals();
+        let route_len = (payment_proposals.middle_props.len() + 2) as u32;
+
+        let processing_fee_proposal = 10u64;
+        let request_content_len = 300u32;
+        let response_content_len = 20u32;
+        let max_response_content_len = 40u32;
+
+        let nodes_to_dest = route_len.checked_sub(2).unwrap();
+
+        let c_on_success = credits_on_success(&payment_proposals,
+                                      processing_fee_proposal,
+                                      request_content_len,
+                                      response_content_len,
+                                      max_response_content_len,
+                                      nodes_to_dest).unwrap();
+
+        for nodes_to_reporting in 0 .. nodes_to_dest - 1 {
+            let reporting_to_dest = nodes_to_dest - nodes_to_reporting;
+            let c_on_failure = credits_on_failure(&payment_proposals,
+                                                  request_content_len,
+                                                  nodes_to_reporting,
+                                                  reporting_to_dest).unwrap();
+
+            assert!(c_on_success > c_on_failure);
+        }
+    }
+
+
+
 
     #[test]
     fn test_credits_on_success_basic() {
