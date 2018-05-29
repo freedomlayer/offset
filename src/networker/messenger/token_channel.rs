@@ -381,25 +381,6 @@ impl TransTokenChannel {
         };
 
 
-        /*
-        let credits_freeze_dest = credits_on_success_dest(&request_send_msg.route, 
-                                 &self.send_price.remote_send_price,
-                                 request_send_msg.processing_fee_proposal,
-                                 0,
-                                 request_send_msg.max_response_len)
-            .ok_or(ProcessMessageError::RoutePricingOverflow);
-        */
-
-        // TODO: Calculate the amount of credits to freeze backwards.
-        // Start from the amount of credits to freeze at the destination,
-        // then calculate backwards until we reach how many credits we need to freeze. 
-        // Check if this value is reasonable:
-        // - Avoiding freezing DoS.
-        // - Are enough credits available?
-        // Next, keep calculating backwards and see if all previous nodes can freeze according to
-        // their freezing DoS protection.
-
-
         // TODO
         // - Calculate amount of credits to freeze
         // - Verify previous freezing links.
@@ -407,6 +388,18 @@ impl TransTokenChannel {
         //
         // - Make sure we can freeze the credits
         // - Freeze correct amount of credits
+        //
+        
+        /*
+        // TODO: Create this variable:
+        let payment_proposals = None;
+        let freeze_credits = credits_to_freeze(&payment_proposals,
+                            request_send_msg.processing_fee_proposal,
+                            request_send_msg.request_content.len(),
+                            request_send_msg.max_response_len,
+                            nodes_to_dest)
+            .ok_or(ProcessMessageError::RoutePricingOverflow)?;
+        */
 
         unreachable!();
 
