@@ -2,7 +2,7 @@ use std::io;
 use std::convert::TryFrom;
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use capnp::struct_list;
+// use capnp::struct_list;
 
 use crypto::rand_values::RandValue;
 use crypto::dh::{DhPublicKey, Salt};
@@ -11,7 +11,7 @@ use crypto::identity::{PublicKey, Signature};
 
 use proto::ProtoError;
 use proto::channeler::ChannelId;
-use proto::indexer::{IndexingProviderId, IndexingProviderStateHash};
+// use proto::indexer::{IndexingProviderId, IndexingProviderStateHash};
 
 include_schema!(common_capnp, "common_capnp");
 
@@ -184,6 +184,7 @@ pub fn write_signature(
     write_custom_u_int512(from, to)
 }
 
+/*
 #[inline]
 pub fn read_public_key_list<'a>(
     from: &struct_list::Reader<'a, custom_u_int256::Owned>,
@@ -245,6 +246,7 @@ pub fn write_indexing_provider_state_hash(
 ) -> Result<(), ProtoError> {
     write_custom_u_int256(from, to)
 }
+*/
 
 #[inline]
 pub fn write_hash_result(

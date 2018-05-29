@@ -189,6 +189,7 @@ pub struct ResponseNeighborsRoutes {
     pub routes: Vec<NeighborsRoute>,
 }
 
+#[allow(unused)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RequestFriendsRoutes {
     Direct {
