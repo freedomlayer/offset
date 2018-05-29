@@ -741,21 +741,5 @@ mod tests {
             }
         }
     }
-
-
-    #[test]
-    fn test_credits_on_success_basic() {
-        // TODO
-    }
-
-    #[test]
-    fn test_credits_on_failure_basic() {
-        // TODO
-    }
-
-    #[test]
-    fn credits_to_freeze_basic() {
-        // TODO
-    }
 }
 
