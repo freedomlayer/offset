@@ -29,7 +29,7 @@ pub struct NeighborsRoute {
     source_public_key: PublicKey,
     source_request_proposal: NetworkerSendPrice,
     pub route_links: Vec<NeighborRouteLink>,
-    destination_public_key: PublicKey,
+    dest_public_key: PublicKey,
     dest_response_proposal: NetworkerSendPrice,
 }
 
@@ -71,7 +71,7 @@ impl NeighborsRoute {
         if !seen.insert(self.source_public_key.clone()) { 
             return false
         }
-        if !seen.insert(self.destination_public_key.clone()) {
+        if !seen.insert(self.dest_public_key.clone()) {
             return false
         }
         for route_link in &self.route_links {
@@ -86,7 +86,7 @@ impl NeighborsRoute {
     /// If found, returns information about payment proposals and next node's public key.
     pub fn find_pk_pair(&self, pk1: &PublicKey, pk2: &PublicKey) -> Option<PkPairPosition> {
         if self.route_links.is_empty() {
-            if &self.source_public_key == pk1 && &self.destination_public_key == pk2 {
+            if &self.source_public_key == pk1 && &self.dest_public_key == pk2 {
                 Some(PkPairPosition::Dest(None))
             } else {
                 None
@@ -100,7 +100,7 @@ impl NeighborsRoute {
                         rl[0].payment_proposal_pair.request.clone(),
                     opt_response_payment_proposal: None,
                 })
-            } else if &rl[rl.len() - 1].node_public_key == pk1 && &self.destination_public_key == pk2 {
+            } else if &rl[rl.len() - 1].node_public_key == pk1 && &self.dest_public_key == pk2 {
                 Some(PkPairPosition::Dest(Some(rl[rl.len() - 1]
                                                .payment_proposal_pair
                                                .request.clone())))
@@ -141,7 +141,7 @@ impl NeighborsRoute {
         self.public_keys.iter().position(|k| k == key)
     }
 
-    pub fn get_destination_public_key(&self) -> Option<PublicKey>{
+    pub fn get_dest_public_key(&self) -> Option<PublicKey>{
         let key = self.public_keys.last()?;
         Some(key.clone())
     }
