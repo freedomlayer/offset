@@ -519,7 +519,7 @@ mod tests {
     }
 
     #[test]
-    fn credits_on_success_linearity() {
+    fn test_credits_on_success_linearity() {
         let payment_proposals = example_payment_proposals();
         let route_len = (payment_proposals.middle_props.len() + 2) as u32;
 
