@@ -91,6 +91,7 @@ pub struct RequestSendMessage {
 }
 
 impl RequestSendMessage {
+    /*
     pub fn bytes_count(&self) -> usize {
         // We count the bytes count here and not before deserialization,
         // because we actually charge for the amount of bytes we send, and not for the
@@ -105,6 +106,7 @@ impl RequestSendMessage {
 
         // TODO: Test this.
     }
+    */
 
     fn nodes_to_dest(&self, sender_public_key: &PublicKey) -> Option<usize> {
         // TODO

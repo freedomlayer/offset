@@ -1,4 +1,4 @@
-use std::mem;
+// use std::mem;
 use std::collections::HashSet;
 use crypto::identity::{PublicKey, Signature};
 use proto::networker::NetworkerSendPrice;
@@ -50,18 +50,22 @@ pub enum PkPairPosition {
 }
 
 impl NeighborRouteLink {
+    /*
     pub fn bytes_count() -> usize {
         mem::size_of::<PublicKey>() + 
             NetworkerSendPrice::bytes_count() * 2
     }
+    */
 }
 
 impl NeighborsRoute {
+    /*
     pub fn bytes_count(&self) -> usize {
         mem::size_of::<PublicKey>() * 2 +
             NeighborRouteLink::bytes_count()
                 * self.route_links.len()
     }
+    */
 
     /// Check if every node shows up in the route at most once.
     /// This makes sure no cycles are present
