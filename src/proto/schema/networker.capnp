@@ -87,11 +87,16 @@ struct NeighborRouteLink {
 struct NeighborsRoute {
         sourcePublicKey @0: CustomUInt256;
         # Public key for the message originator.
-        routeLinks @1: List(NeighborRouteLink);
+        sourceResponseProposal @1: NetworkerSendPrice;
+        # Payment proposal for sending data from the source forward.  Note that
+        # this information is not required for calculation of costs for the
+        # current request, however it can be used by the receiver of the
+        # request message to construct a route quickly for sending a request back.
+        routeLinks @2: List(NeighborRouteLink);
         # A chain of all intermediate nodes.
-        destinationPublicKey @2: CustomUInt256;
+        destPublicKey @3: CustomUInt256;
         # Public key for the message destination.
-        destResponseProposal @3: NetworkerSendPrice;
+        destResponseProposal @4: NetworkerSendPrice;
         # Payment proposal for sending data from dest backwards
 }
 

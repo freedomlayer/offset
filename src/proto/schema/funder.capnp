@@ -73,11 +73,16 @@ struct FriendRouteLink {
 struct FriendsRoute {
         sourcePublicKey @0: CustomUInt256;
         # Public key for the message originator.
-        routeLinks @1: List(FriendRouteLink);
+        sourceResponseProposal @1: FunderSendPrice;
+        # Payment proposal for sending data from source forward.
+        # This amount is not used in the calculation of costs for sending the
+        # request, but can be used by the receiver to produce a route back to
+        # the origin of the request.
+        routeLinks @2: List(FriendRouteLink);
         # A chain of all intermediate nodes.
-        destPublicKey @2: CustomUInt256;
+        destPublicKey @3: CustomUInt256;
         # Public key for the message destination.
-        destResponseProposal @3: FunderSendPrice;
+        destResponseProposal @4: FunderSendPrice;
         # Payment proposal for sending data from dest backwards.
 }
 
