@@ -27,8 +27,10 @@ pub struct NeighborRouteLink {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NeighborsRoute {
     source_public_key: PublicKey,
+    source_request_proposal: NetworkerSendPrice,
     pub route_links: Vec<NeighborRouteLink>,
     destination_public_key: PublicKey,
+    dest_response_proposal: NetworkerSendPrice,
 }
 
 
