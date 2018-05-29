@@ -177,10 +177,11 @@ pub fn credits_on_success(payment_proposals: &PaymentProposals,
         // TODO; Check for off by one here:
         let request_len = calc_request_len(request_content_len,
                                            middle_props_len,
-                                           middle_props_len - i)?;
+                                           middle_props_len.checked_sub(i)?)?;
         let response_len = calc_response_len(response_content_len)?;
-        // Maximum failure length occurs when the reporting node is as far as possible.
-        let max_failure_len = calc_failure_len(middle_props_len - i)?;
+        // Maximum failure length occurs when the reporting node is as far as possible.  Note that
+        // here we pick the last node to be the reporting node. This can't really happen.
+        let max_failure_len = calc_failure_len(middle_props_len.checked_sub(i)?)?;
 
         let mut credits_earned = 0;
         let credits_earned = middle_prop.request.calc_cost(request_len)?
