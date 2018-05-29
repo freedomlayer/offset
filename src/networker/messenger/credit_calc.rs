@@ -432,14 +432,13 @@ mod tests {
     }
 
     fn example_payment_proposals() -> PaymentProposals {
-        /*           req      req      
-                     res      res      res
-              B  --   C   --   D   --   E   
-        */
         PaymentProposals {
             middle_props: vec![
                 PaymentProposalPair { request: send_price(1,2), response: send_price(4,3) },
                 PaymentProposalPair { request: send_price(2,3), response: send_price(1,5) },
+                PaymentProposalPair { request: send_price(3,2), response: send_price(2,5) },
+                PaymentProposalPair { request: send_price(6,7), response: send_price(9,6) },
+                PaymentProposalPair { request: send_price(3,4), response: send_price(3,4) },
             ],
             dest_response_proposal: send_price(2,3),
         }
