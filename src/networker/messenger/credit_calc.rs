@@ -115,18 +115,15 @@ fn credits_on_success_dest(payment_proposals: &PaymentProposals,
     }
 
     let resp_prop = &payment_proposals.dest_response_proposal;
-    let credits_freeze_dest = 
+    let credits = 
             processing_fee_proposal
-            .checked_add(u64::from(resp_prop.0.base))?
+            .checked_add(resp_prop.calc_cost(max_response_len)?)?
             .checked_add(
-                u64::from(resp_prop.0.multiplier).checked_mul(
-                    u64::from(max_response_len).checked_sub(u64::from(response_len))?
-                )?
-            )?
-            .checked_add(
-                u64::from(max_response_len).checked_mul(sum_resp_multiplier)?)?;
+                u64::from(max_response_len).checked_sub(u64::from(response_len))?
+                    .checked_mul(sum_resp_multiplier)?
+            )?;
 
-    Some(credits_freeze_dest)
+    Some(credits)
 }
 
 
@@ -597,6 +594,59 @@ mod tests {
 
         // credits_on_success is not guaranteed to be linear on nodes_to_dest.
         // Therefore we don't test for this property here.
+    }
+
+    #[test]
+    fn test_credits_on_success_decreasing_by_response_content_len() {
+        let payment_proposals = example_payment_proposals();
+        let processing_fee_proposal = 10u64;
+        let request_content_len = 10u32;
+        let response_content_len = 20u32;
+        let max_response_content_len = 40u32;
+
+        let route_len = (payment_proposals.middle_props.len() + 2) as u32;
+
+        for nodes_to_dest in 0 .. route_len - 2 {
+            let f = |response_content_len| credits_on_success(&payment_proposals,
+                                            processing_fee_proposal,
+                                            request_content_len,
+                                            response_content_len,
+                                            max_response_content_len,
+                                            nodes_to_dest).unwrap();
+
+            let mut prev_credits = f(0);
+            for response_content_len in 1 ..= max_response_content_len {
+                let cur_credits = f(response_content_len);
+                assert!(cur_credits < prev_credits);
+                prev_credits = cur_credits;
+            }
+        }
+    }
+
+    #[test]
+    fn test_credits_on_success_unaffected_by_response_content_len() {
+        let payment_proposals = example_payment_proposals();
+        let processing_fee_proposal = 10u64;
+        let request_content_len = 10u32;
+        let response_content_len = 20u32;
+        let max_response_content_len = 40u32;
+
+        let route_len = (payment_proposals.middle_props.len() + 2) as u32;
+        let nodes_to_dest = route_len - 2;
+
+        let f = |response_content_len| credits_on_success(&payment_proposals,
+                                        processing_fee_proposal,
+                                        request_content_len,
+                                        response_content_len,
+                                        max_response_content_len,
+                                        nodes_to_dest).unwrap();
+
+        let mut prev_credits = f(0);
+        for response_content_len in 1 ..= max_response_content_len {
+            let cur_credits = f(response_content_len);
+            assert!(cur_credits == prev_credits);
+            prev_credits = cur_credits;
+        }
     }
 
     #[test]
