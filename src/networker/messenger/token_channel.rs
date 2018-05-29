@@ -435,6 +435,10 @@ impl TransTokenChannel {
         // - Make sure that we are on the route somewhere.
         // - Differentiate between the cases of being the last on the route, and being somewhere in
         //      the middle.
+        
+
+        // TODO: Possibly change the return value of find_pk_pair.
+        // Maybe return just the index?
         let opt_pk_pair = request_send_msg.route.find_pk_pair(
             &self.idents.remote_public_key, 
             &self.idents.local_public_key);
