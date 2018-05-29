@@ -257,12 +257,18 @@ pub fn credits_on_failure(payment_proposals: &PaymentProposals,
     Some(sum_credits)
 }
 
-/// Compute the amount of credits we need to freeze.
+/// Compute the amount of credits we need to freeze when sending a request to a node which is
+/// nodes_to_dest nodes from the destination.
 ///
 /// ```text
-///           req      req      req
-///           res      res      res      res
-///    B  --  (C)  --   D   --   E   --   F   
+///                           req      req      req
+///                           res      res      res      res
+///                    B  --   C   --  (D)   --   E   --   F   
+///
+/// nodes_to_dest:     4       3        2        1        0
+///
+/// In the above example, if we plan to send a message from C to D, 
+/// we should have nodes_to_dest = 2 in order to calculate the amount of credits C should freeze.
 /// ```
 ///
 pub fn credits_to_freeze(payment_proposals: &PaymentProposals,
