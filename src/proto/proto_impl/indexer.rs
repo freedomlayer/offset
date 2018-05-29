@@ -1,3 +1,4 @@
+/*
 use std::io;
 
 use bytes::Bytes;
@@ -507,7 +508,6 @@ impl<'a> Proto<'a> for RoutesToIndexer {
     }
 }
 
-/*
 
 #[cfg(test)]
 mod tests {

@@ -57,7 +57,7 @@ struct RoutesToIndexers {
 # Node -> Indexer
 struct RequestNeighborsRoute {
         sourceNodePublicKey @0: CustomUInt256;
-        destinationNodePublicKey @1: CustomUInt256;
+        destNodePublicKey @1: CustomUInt256;
 }
 
 
@@ -72,7 +72,7 @@ struct ResponseNeighborsRoute {
 # node.
 struct DirectRoute {
         sourceNodePublicKey @0: CustomUInt256;
-        destinationNodePublicKey @1: CustomUInt256;
+        destNodePublicKey @1: CustomUInt256;
 }
 
 # A loop from myself through given friend, back to myself.

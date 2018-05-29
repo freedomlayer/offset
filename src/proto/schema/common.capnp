@@ -52,12 +52,12 @@ struct Receipt {
         responseHash @0: CustomUInt256;
         # = sha512/256(requestId || sha512/256(route) || destResponseProposal || randNonce)
         invoiceId @1: CustomUInt256;
-        destinationPayment @2: CustomUInt128;
+        destPayment @2: CustomUInt128;
         signature @3: CustomUInt512;
         # Signature{key=recipientKey}(
         #   "FUND_SUCCESS" ||
         #   sha512/256(requestId || sha512/256(route) || destResponseProposal || randNonce) ||
         #   invoiceId ||
-        #   destinationPayment
+        #   destPayment
         # )
 }

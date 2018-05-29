@@ -75,7 +75,7 @@ struct FriendsRoute {
         # Public key for the message originator.
         routeLinks @1: List(FriendRouteLink);
         # A chain of all intermediate nodes.
-        destinationPublicKey @2: CustomUInt256;
+        destPublicKey @2: CustomUInt256;
         # Public key for the message destination.
         destResponseProposal @3: FunderSendPrice;
         # Payment proposal for sending data from dest backwards.
@@ -93,7 +93,7 @@ struct FriendFreezeLink {
 
 struct RequestSendFundOp { 
         requestId @0: CustomUInt128;
-        destinationPayment @1: CustomUInt128;
+        destPayment @1: CustomUInt128;
         route @2: FriendsRoute;
         invoiceId @3: CustomUInt256;
         freezeLinks @4: List(FriendFreezeLink);
@@ -111,7 +111,7 @@ struct ResponseSendFundOp {
         #   "FUND_SUCCESS" ||
         #   sha512/256(requestId || sha512/256(route) || destResponseProposal || randNonce) ||
         #   invoiceId ||
-        #   destinationPayment
+        #   destPayment
         # )
         #
         # Note that the signature contains an inner blob (requestId || ...).
@@ -130,7 +130,7 @@ struct FailedSendFundOp {
         # Signature{key=recipientKey}(
         #   "FUND_FAILURE" ||
         #   requestId ||
-        #   destinationPayment ||
+        #   destPayment ||
         #   sha512/256(route) || 
         #   destResponseProposal ||
         #   invoiceId ||

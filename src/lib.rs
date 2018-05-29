@@ -44,5 +44,5 @@ mod proto;
 // FIXME: The capnpc generated code assumes that we
 // add it as a module at the top level of the crate.
 use proto::proto_impl::common::common_capnp;
-use proto::proto_impl::indexer::indexer_capnp;
+// use proto::proto_impl::indexer::indexer_capnp;
 use proto::proto_impl::channeler::channeler_capnp;
