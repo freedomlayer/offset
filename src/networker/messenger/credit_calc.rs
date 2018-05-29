@@ -631,6 +631,28 @@ mod tests {
     }
 
 
+    #[test]
+    fn test_credits_on_failure_reporting() {
+        // In the case of nodes_to_reporting = 0, we are the reporting node.
+
+        let payment_proposals = example_payment_proposals();
+        let route_len = (payment_proposals.middle_props.len() + 2) as u32;
+
+        let request_content_len = 300u32;
+        let nodes_to_reporting = 0;
+        let reporting_to_dest = 3;
+
+        let c_on_failure = credits_on_failure(&payment_proposals,
+                                              request_content_len,
+                                              nodes_to_reporting,
+                                              reporting_to_dest).unwrap();
+
+        let end_index = route_len - reporting_to_dest - 2;
+        let expected_credits = payment_proposals.middle_props[end_index as usize]
+            .response.calc_cost(calc_failure_len(0).unwrap()).unwrap();
+
+        assert_eq!(expected_credits, c_on_failure);
+    }
 
 
     #[test]
