@@ -10,7 +10,7 @@ use super::messenger_messages::NetworkerFreezeLink;
 
 pub struct PaymentProposals {
     middle_props: Vec<PaymentProposalPair>,
-    dest_response_pay_props: NetworkerSendPrice,
+    dest_response_proposal: NetworkerSendPrice,
 }
 
 
@@ -114,7 +114,7 @@ fn credits_on_success_dest(payment_proposals: &PaymentProposals,
             u64::from(middle_prop.response.0.multiplier))?;
     }
 
-    let resp_prop = &payment_proposals.dest_response_pay_props;
+    let resp_prop = &payment_proposals.dest_response_proposal;
     let credits_freeze_dest = 
             processing_fee_proposal
             .checked_add(u64::from(resp_prop.0.base))?
@@ -433,7 +433,7 @@ mod tests {
                 PaymentProposalPair { request: send_price(1,2), response: send_price(4,3) },
                 PaymentProposalPair { request: send_price(2,3), response: send_price(1,5) },
             ],
-            dest_response_pay_props: send_price(2,3),
+            dest_response_proposal: send_price(2,3),
         }
     }
 
