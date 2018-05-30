@@ -70,7 +70,6 @@ pub enum ProcessMessageError {
     TooMuchFeeCollected,
     InvalidFailedSignature,
     InvalidFailureReporter,
-    InnerBug,
     RequestsAlreadyDisabled,
     ResponsePaymentProposalTooLow,
     IncomingRequestsDisabled,
