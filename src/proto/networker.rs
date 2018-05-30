@@ -1,5 +1,4 @@
 use std::mem;
-use std::cmp::Ordering;
 
 pub const CHANNEL_TOKEN_LEN: usize = 32;
 
@@ -13,23 +12,23 @@ pub struct LinearSendPrice<T> {
     pub multiplier: T,
 }
 
-impl<T> LinearSendPrice<T> {
+impl<T:PartialOrd> LinearSendPrice<T> {
     pub fn bytes_count() -> usize {
         mem::size_of::<T>() * 2
     }
-}
 
-impl<T:PartialOrd> PartialOrd for LinearSendPrice<T> {
-    fn partial_cmp(&self, other: &LinearSendPrice<T>) -> Option<Ordering> {
-        if (self.base < other.base) && (self.multiplier < other.multiplier) {
-            Some(Ordering::Less)
+    pub fn smaller_than(&self, other: &Self) -> bool {
+        if self.base < other.base {
+            self.multiplier <= other.multiplier
+        } else if self.base == other.base {
+            self.multiplier < other.multiplier
         } else {
-            None
+            false
         }
     }
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct NetworkerSendPrice(pub LinearSendPrice<u32>);
 
 impl NetworkerSendPrice {
@@ -40,6 +39,10 @@ impl NetworkerSendPrice {
     pub fn calc_cost(&self, length: u32) -> Option<u64> {
         u64::from(self.0.multiplier).checked_mul(u64::from(length))?
             .checked_add(u64::from(self.0.base))
+    }
+
+    pub fn smaller_than(&self, other: &Self) -> bool {
+        self.0.smaller_than(&other.0)
     }
 }
 
@@ -66,11 +69,24 @@ mod tests {
             multiplier: 6,
         };
 
-        assert!(lsp1 < lsp2);
-        assert!(lsp1 < lsp3);
+        let lsp4 = LinearSendPrice {
+            base: 4,
+            multiplier: 7,
+        };
 
-        assert!(!(lsp2 < lsp3));
-        assert!(!(lsp3 < lsp2));
+        let lsp5 = LinearSendPrice {
+            base: 5,
+            multiplier: 6,
+        };
+
+        assert!(lsp1.smaller_than(&lsp2));
+        assert!(lsp1.smaller_than(&lsp3));
+
+        assert!(!(lsp2.smaller_than(&lsp3)));
+        assert!(!(lsp3.smaller_than(&lsp2)));
+
+        assert!(lsp3.smaller_than(&lsp4));
+        assert!(lsp3.smaller_than(&lsp5));
     }
 
     #[test]
