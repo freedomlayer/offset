@@ -464,22 +464,18 @@ impl TransTokenChannel {
     fn process_request_send_message(&mut self, request_send_msg: RequestSendMessage)
         -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
 
-        // TODO:
-        // - Make sure that the route does not contains cycles/duplicates:
+        // Make sure that the route does not contains cycles/duplicates:
         if !request_send_msg.route.is_cycle_free() {
             return Err(ProcessMessageError::DuplicateNodesInRoute);
         }
 
-        // - Make sure that we are on the route somewhere.
-        // - Differentiate between the cases of being the last on the route, and being somewhere in
-        //      the middle.
-        
-
-        // TODO: Possibly change the return value of find_pk_pair.
-        // Maybe return just the index?
+        // Find ourselves on the route:
         let opt_pk_pair = request_send_msg.route.find_pk_pair(
             &self.idents.remote_public_key, 
             &self.idents.local_public_key);
+
+        // We differentiate between the cases of being the last on the route, 
+        // and being somewhere in the middle.
         match opt_pk_pair {
             None => Err(ProcessMessageError::PkPairNotInRoute),
             Some(PkPairPosition::NotDest(i)) => 
