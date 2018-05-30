@@ -518,6 +518,10 @@ impl TransTokenChannel {
             &self.idents.local_public_key)
             .ok_or(ProcessMessageError::PkPairNotInRoute)?;
 
+        // TODO: Make sure that freeze_links.len(), route.len() and our location inside the route
+        // (pk_pair) are compatible. Abort if not.
+        assert!(false);
+
         self.verify_local_send_price(&request_send_msg.route, &pk_pair)?;
 
         // We differentiate between the cases of being the last on the route, 
