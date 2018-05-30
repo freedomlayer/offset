@@ -387,23 +387,27 @@ impl TransTokenChannel {
                             nodes_to_dest)
             .ok_or(ProcessMessageError::RoutePricingOverflow)?;
 
-        // 
+        // Make sure we can freeze the credits
+        let new_remote_pending_debt = self.balance.remote_pending_debt
+            .checked_add(freeze_credits).ok_or(ProcessMessageError::CreditsCalcOverflow)?;
 
+        if new_remote_pending_debt > self.balance.remote_max_debt {
+            return Err(ProcessMessageError::InsufficientTrust);
+        }
 
         // TODO:
-        // - Verify previous freezing links.
-        //      - Verify self freezing link?
-        //
-        // - Make sure we can freeze the credits
-        // - Freeze correct amount of credits
-        //
+        // Verify previous freezing links
+        // Note that Verifying self freezing link will be done outside. We don't have enough
+        // information here to check this. In addition, we don't have a way to signal a
+        // problem, because a problem here means inconsistency error.
+        
+
 
         unreachable!();
 
         // - Make sure that we can freeze the credits
         //      - Should consider relative freezing allocations (Avoiding DoS).
         // - Freeze correct amount of credits
-        Err(ProcessMessageError::PendingCreditTooLarge)
     }
 
     /// Process an incoming RequestSendMessage where we are the destination of the route
