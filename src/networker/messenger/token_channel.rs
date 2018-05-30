@@ -356,30 +356,21 @@ impl TransTokenChannel {
     /// Process an incoming RequestSendMessage where we are not the destination of the route.
     fn request_send_message_not_dest(&mut self, 
                                      request_send_msg: RequestSendMessage,
-                                     next_public_key: PublicKey,
-                                     request_payment_proposal: NetworkerSendPrice,
-                                     opt_response_payment_proposal: Option<NetworkerSendPrice>)
+                                     own_index: usize)
         -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
 
-        // If linear payment proposal for returning response is too low, return error
+        // Make sure we are open to accepting new requests:
         let local_send_price = match self.send_price.local_send_price {
             None => return Err(ProcessMessageError::IncomingRequestsDisabled),
             Some(ref local_send_price) => local_send_price.clone(),
         };
 
-        let response_payment_proposal = match opt_response_payment_proposal {
-            None => local_send_price,
-            Some(response_payment_proposal) => {
-                // Beware: This is only partial order.
-                // ">=" and "<" are not complements.
-                if response_payment_proposal >= local_send_price {
-                    response_payment_proposal
-                } else {
-                    return Err(ProcessMessageError::ResponsePaymentProposalTooLow);
-                }
-            }
-        };
+        let route_link = &request_send_msg.route.route_links[own_index];
 
+        // If linear payment proposal for returning response is too low, return error
+        if route_link.payment_proposal_pair.response.smaller_than(&local_send_price) {
+            return Err(ProcessMessageError::ResponsePaymentProposalTooLow);
+        }
 
         // TODO
         // - Calculate amount of credits to freeze
@@ -411,8 +402,7 @@ impl TransTokenChannel {
 
     /// Process an incoming RequestSendMessage where we are the destination of the route
     fn request_send_message_dest(&mut self, 
-                                 request_send_msg: RequestSendMessage,
-                                 opt_response_payment_proposal: Option<NetworkerSendPrice>)
+                                 request_send_msg: RequestSendMessage)
         -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
 
 
@@ -444,16 +434,10 @@ impl TransTokenChannel {
             &self.idents.local_public_key);
         match opt_pk_pair {
             None => Err(ProcessMessageError::PkPairNotInRoute),
-            Some(PkPairPosition::NotDest {next_public_key, 
-                                            request_payment_proposal, 
-                                            opt_response_payment_proposal}) =>
-                self.request_send_message_not_dest(request_send_msg,
-                                                   next_public_key,
-                                                   request_payment_proposal,
-                                                   opt_response_payment_proposal),
-            Some(PkPairPosition::Dest(opt_response_payment_proposal)) => 
-                self.request_send_message_dest(request_send_msg,
-                                               opt_response_payment_proposal),
+            Some(PkPairPosition::NotDest(i)) => 
+                self.request_send_message_not_dest(request_send_msg, i),
+            Some(PkPairPosition::Dest) =>
+                self.request_send_message_dest(request_send_msg),
         }
     }
 
