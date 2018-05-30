@@ -197,6 +197,15 @@ fn verify_freezing_links<F>(freeze_links: &[NetworkerFreezeLink],
                             f_credits_to_freeze: &F) -> Result<(), ProcessMessageError>
     where F: Fn(usize) -> Result<u64,ProcessMessageError> {
 
+    // Make sure that the freeze_links vector is valid:
+    // numerator <= denominator for every link.
+    for freeze_link in freeze_links {
+        let usable_ratio = &freeze_link.usable_ratio;
+        if usable_ratio.numerator > usable_ratio.denominator {
+            return Err(ProcessMessageError::InvalidFreezeLinks);
+        }
+    }
+
     // Verify previous freezing links
     #[allow(needless_range_loop)]
     for node_findex in 0 .. freeze_links.len() {
@@ -435,19 +444,7 @@ impl TransTokenChannel {
             return Err(ProcessMessageError::InsufficientTrust);
         }
 
-
-        let freeze_links = &request_send_msg.freeze_links;
-
-        // Make sure that the freeze_links vector is valid:
-        // numerator <= denominator for every link.
-        for freeze_link in freeze_links {
-            let usable_ratio = &freeze_link.usable_ratio;
-            if usable_ratio.numerator > usable_ratio.denominator {
-                return Err(ProcessMessageError::InvalidFreezeLinks);
-            }
-        }
-
-        verify_freezing_links(freeze_links, &f_credits_to_freeze)?;
+        verify_freezing_links(&request_send_msg.freeze_links, &f_credits_to_freeze)?;
 
         // Note that Verifying self freezing link will be done outside. We don't have enough
         // information here to check this. In addition, we don't have a way to signal a
