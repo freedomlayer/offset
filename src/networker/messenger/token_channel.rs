@@ -375,7 +375,7 @@ impl TransTokenChannel {
 
         let payment_proposals = PaymentProposals {
             middle_props,
-            dest_response_proposal: request_send_msg.dest_response_proposal.clone(),
+            dest_response_proposal: request_send_msg.route.dest_response_proposal.clone(),
         };
 
         let request_content_len = usize_to_u32(request_send_msg.request_content.len())
