@@ -375,17 +375,22 @@ impl TransTokenChannel {
         Ok(None)
     }
 
+    /// Obtain the local price for sending data to the remote side.
+    /// If we are not open to incoming requests, an error will be returned.
+    fn get_local_send_price(&self) -> Result<NetworkerSendPrice, ProcessMessageError>  {
+        match self.send_price.local_send_price {
+            None => Err(ProcessMessageError::IncomingRequestsDisabled),
+            Some(ref local_send_price) => Ok(local_send_price.clone()),
+        }
+    }
+
     /// Process an incoming RequestSendMessage where we are not the destination of the route.
     fn request_send_message_not_dest(&mut self, 
                                      request_send_msg: RequestSendMessage,
                                      own_index: usize)
         -> Result<RequestSendMessage, ProcessMessageError> {
 
-        // Make sure we are open to accepting new requests:
-        let local_send_price = match self.send_price.local_send_price {
-            None => return Err(ProcessMessageError::IncomingRequestsDisabled),
-            Some(ref local_send_price) => local_send_price.clone(),
-        };
+        let local_send_price = self.get_local_send_price()?;
 
         let route_link = &request_send_msg.route.route_links[own_index];
 
