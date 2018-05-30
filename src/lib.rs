@@ -23,6 +23,7 @@ extern crate async_mutex;
 
 #[cfg(test)]
 extern crate num_traits;
+extern crate num_bigint;
 
 
 #[macro_use]
