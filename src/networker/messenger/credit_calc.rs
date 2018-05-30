@@ -9,8 +9,8 @@ use utils::int_convert::usize_to_u32;
 use super::messenger_messages::NetworkerFreezeLink;
 
 pub struct PaymentProposals {
-    middle_props: Vec<PaymentProposalPair>,
-    dest_response_proposal: NetworkerSendPrice,
+    pub middle_props: Vec<PaymentProposalPair>,
+    pub dest_response_proposal: NetworkerSendPrice,
 }
 
 
