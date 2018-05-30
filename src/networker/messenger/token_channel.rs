@@ -445,16 +445,7 @@ impl TransTokenChannel {
         
         // If we are here, we can freeze the credits:
         self.balance.remote_pending_debt = new_remote_pending_debt;
-
-        // TODO:
-        // Return an IncomingResponseSendMessage
-
-
-        unreachable!();
-
-        // - Make sure that we can freeze the credits
-        //      - Should consider relative freezing allocations (Avoiding DoS).
-        // - Freeze correct amount of credits
+        Ok(Some(ProcessMessageOutput::Request(request_send_msg)))
     }
 
     /// Process an incoming RequestSendMessage where we are the destination of the route
