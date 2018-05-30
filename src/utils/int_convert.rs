@@ -26,6 +26,12 @@ pub fn usize_to_u64(num: usize) -> Option<u64> {
 }
 
 
+#[cfg(any(target_pointer_width = "32",
+          target_pointer_width = "64"))]
+pub fn u32_to_usize(num: u32) -> Option<usize> {
+    Some(num as usize)
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -44,5 +50,12 @@ mod tests {
         assert_eq!(usize_to_u64(0usize), Some(0u64));
         assert_eq!(usize_to_u64(1usize), Some(1u64));
         assert_eq!(usize_to_u64(0xffff_ffff_ffff_ffff_usize), Some(0xffff_ffff_ffff_ffffu64));
+    }
+
+    #[test]
+    fn test_u32_to_usize() {
+        assert_eq!(u32_to_usize(0u32), Some(0usize));
+        assert_eq!(u32_to_usize(1u32), Some(1usize));
+        assert_eq!(u32_to_usize(0xffff_ffff_u32), Some(0xffff_ffff_usize));
     }
 }
