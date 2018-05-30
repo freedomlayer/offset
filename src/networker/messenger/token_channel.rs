@@ -293,7 +293,8 @@ impl TransTokenChannel {
             NeighborTcOp::LoadFunds(send_funds_receipt) =>
                 self.process_load_funds(send_funds_receipt),
             NeighborTcOp::RequestSendMessage(request_send_msg) =>
-                self.process_request_send_message(request_send_msg),
+                Ok(Some(ProcessMessageOutput::Request(
+                        self.process_request_send_message(request_send_msg)?))),
             NeighborTcOp::ResponseSendMessage(response_send_msg) =>
                 self.process_response_send_message(response_send_msg),
             NeighborTcOp::FailedSendMessage(failed_send_msg) =>
@@ -463,7 +464,7 @@ impl TransTokenChannel {
     /// Process an incoming RequestSendMessage where we are the destination of the route
     fn request_send_message_dest(&mut self, 
                                  request_send_msg: RequestSendMessage)
-        -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        -> Result<RequestSendMessage, ProcessMessageError> {
 
 
         // TODO
@@ -474,7 +475,7 @@ impl TransTokenChannel {
 
     /// Process an incoming RequestSendMessage
     fn process_request_send_message(&mut self, request_send_msg: RequestSendMessage)
-        -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        -> Result<RequestSendMessage, ProcessMessageError> {
 
         // Make sure that the route does not contains cycles/duplicates:
         if !request_send_msg.route.is_cycle_free() {
@@ -491,10 +492,9 @@ impl TransTokenChannel {
         match opt_pk_pair {
             None => Err(ProcessMessageError::PkPairNotInRoute),
             Some(PkPairPosition::NotDest(i)) => 
-                Ok(Some(ProcessMessageOutput::Request(
-                    self.request_send_message_not_dest(request_send_msg, i)?))),
+                Ok(self.request_send_message_not_dest(request_send_msg, i)?),
             Some(PkPairPosition::Dest) =>
-                self.request_send_message_dest(request_send_msg),
+                Ok(self.request_send_message_dest(request_send_msg)?),
         }
     }
 
