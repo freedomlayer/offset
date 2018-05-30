@@ -4,6 +4,8 @@ use std::convert::TryFrom;
 use std::collections::HashMap;
 use byteorder::{LittleEndian, WriteBytesExt};
 
+use num_bigint::BigUint;
+
 use crypto::identity::{PublicKey, verify_signature, Signature};
 use crypto::uid::Uid;
 use crypto::rand_values::RandValue;
@@ -22,6 +24,7 @@ use super::credit_calc::{credits_to_freeze, credits_on_success,
     credits_on_failure, PaymentProposals};
 use utils::trans_hashmap::TransHashMap;
 use utils::int_convert::usize_to_u32;
+
 
 /// The maximum possible networker debt.
 /// We don't use the full u64 because i64 can not go beyond this value.
@@ -67,7 +70,9 @@ pub enum ProcessMessageError {
     RequestContentTooLong,
     RouteTooLong,
     InsufficientTrust,
+    InsufficientTransitiveTrust,
     CreditsCalcOverflow,
+    InvalidFreezeLinks,
 }
 
 #[derive(Debug)]
@@ -376,31 +381,73 @@ impl TransTokenChannel {
         let request_content_len = usize_to_u32(request_send_msg.request_content.len())
             .ok_or(ProcessMessageError::RequestContentTooLong)?;
 
-        let nodes_to_dest = usize_to_u32(request_send_msg.route.route_links.len()
-                                     .checked_sub(own_index).expect("own_index out of range!"))
-                                     .ok_or(ProcessMessageError::RouteTooLong)?;
+        let f_freeze_index_to_nodes_to_dest = |freeze_index: usize|
+            usize_to_u32(request_send_msg.route.route_links.len()
+                     .checked_sub( 
+                         freeze_index.checked_sub(1).expect("freeze index too small!")
+                      ).expect("index out of range!"))
+                     .ok_or(ProcessMessageError::RouteTooLong);
 
-        let freeze_credits = credits_to_freeze(&payment_proposals,
-                            request_send_msg.processing_fee_proposal,
-                            request_content_len,
-                            request_send_msg.max_response_len,
-                            nodes_to_dest)
-            .ok_or(ProcessMessageError::RoutePricingOverflow)?;
+        // Amount of credits the node with index freeze_index has to freeze.
+        let f_credits_to_freeze = |freeze_index: usize| {
+            let freeze_index_next = freeze_index.checked_add(1)
+                .expect("freeze_index out of range!");
+
+            credits_to_freeze(&payment_proposals,
+                request_send_msg.processing_fee_proposal,
+                request_content_len,
+                request_send_msg.max_response_len,
+                f_freeze_index_to_nodes_to_dest(freeze_index_next)?)
+                .ok_or(ProcessMessageError::RoutePricingOverflow)
+        };
+
+        let own_freeze_index = own_index.checked_add(1)
+            .ok_or(ProcessMessageError::RouteTooLong)?;
+        let own_freeze_credits = f_credits_to_freeze(own_freeze_index)?;
 
         // Make sure we can freeze the credits
         let new_remote_pending_debt = self.balance.remote_pending_debt
-            .checked_add(freeze_credits).ok_or(ProcessMessageError::CreditsCalcOverflow)?;
+            .checked_add(own_freeze_credits).ok_or(ProcessMessageError::CreditsCalcOverflow)?;
 
         if new_remote_pending_debt > self.balance.remote_max_debt {
             return Err(ProcessMessageError::InsufficientTrust);
         }
 
-        // TODO:
+
+        let freeze_links = &request_send_msg.freeze_links;
+
+        // Make sure that the freeze_links vector is valid:
+        for freeze_link in freeze_links {
+            let usable_ratio = &freeze_link.usable_ratio;
+            if usable_ratio.numerator > usable_ratio.denominator {
+                return Err(ProcessMessageError::InvalidFreezeLinks);
+            }
+        }
+
         // Verify previous freezing links
+        #[allow(needless_range_loop)]
+        for node_findex in 0 .. own_freeze_index {
+            let freeze_link = &freeze_links[node_findex];
+            let mut allowed_credits: BigUint = freeze_link.shared_credits.into();
+            for fi in node_findex .. own_freeze_index {
+                allowed_credits *= freeze_link.usable_ratio.numerator;
+                allowed_credits /= freeze_link.usable_ratio.denominator;
+            }
+
+            if allowed_credits < f_credits_to_freeze(node_findex)?.into() {
+                return Err(ProcessMessageError::InsufficientTransitiveTrust);
+            }
+        }
+
         // Note that Verifying self freezing link will be done outside. We don't have enough
         // information here to check this. In addition, we don't have a way to signal a
         // problem, because a problem here means inconsistency error.
         
+        // If we are here, we can freeze the credits:
+        self.balance.remote_pending_debt = new_remote_pending_debt;
+
+        // TODO:
+        // Return an IncomingResponseSendMessage
 
 
         unreachable!();
