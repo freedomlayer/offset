@@ -73,6 +73,7 @@ pub enum ProcessMessageError {
     InsufficientTransitiveTrust,
     CreditsCalcOverflow,
     InvalidFreezeLinks,
+    CreditCalculatorFailure,
 }
 
 #[derive(Debug)]
@@ -193,9 +194,8 @@ pub fn atomic_process_messages_list(token_channel: TokenChannel, messages: Vec<N
 }
 
 
-fn verify_freezing_links<F>(freeze_links: &[NetworkerFreezeLink], 
-                            f_credits_to_freeze: &F) -> Result<(), ProcessMessageError>
-    where F: Fn(usize) -> Result<u64,ProcessMessageError> {
+fn verify_freezing_links(freeze_links: &[NetworkerFreezeLink], 
+                            credit_calc: &CreditCalculator) -> Result<(), ProcessMessageError> {
 
     // Make sure that the freeze_links vector is valid:
     // numerator <= denominator for every link.
@@ -216,11 +216,68 @@ fn verify_freezing_links<F>(freeze_links: &[NetworkerFreezeLink],
             allowed_credits /= freeze_link.usable_ratio.denominator;
         }
 
-        if allowed_credits < f_credits_to_freeze(node_findex)?.into() {
+        let freeze_credits = credit_calc.credits_to_freeze(node_findex)
+            .ok_or(ProcessMessageError::CreditCalculatorFailure)?;
+
+        if allowed_credits < freeze_credits.into() {
             return Err(ProcessMessageError::InsufficientTransitiveTrust);
         }
     }
     Ok(())
+}
+
+struct CreditCalculator {
+    payment_proposals: PaymentProposals,
+    route_len: usize,
+    request_content_len: usize,
+    processing_fee_proposal: u64,
+    max_response_len: u32
+}
+
+impl CreditCalculator {
+    pub fn new(request_send_msg: &RequestSendMessage) -> Option<Self> {
+        // TODO: This might be not very efficient. 
+        // Possibly optimize this in the future, maybe by passing pointers instead of cloning.
+        let middle_props = request_send_msg.route.route_links
+            .iter()
+            .map(|ref route_link| &route_link.payment_proposal_pair)
+            .cloned()
+            .collect::<Vec<_>>();
+
+        let payment_proposals = PaymentProposals {
+            middle_props,
+            dest_response_proposal: request_send_msg.route.dest_response_proposal.clone(),
+        };
+
+        Some(CreditCalculator {
+            payment_proposals,
+            route_len: request_send_msg.freeze_links.len(),
+            request_content_len: request_send_msg.request_content.len(),
+            processing_fee_proposal: request_send_msg.processing_fee_proposal,
+            max_response_len: request_send_msg.max_response_len,
+        })
+    }
+
+    fn freeze_index_to_nodes_to_dest(&self, index: usize) -> Option<u32> {
+        Some(usize_to_u32(self.route_len.checked_sub(index.checked_sub(1)?)?)?)
+    }
+
+
+    /// Calculate the amount of credits to freeze, 
+    /// according to a given node index on the route.
+    /// Note: source node has index 0. dest node has the last index.
+    pub fn credits_to_freeze(&self, index: usize) -> Option<u64> {
+        let request_content_len = usize_to_u32(self.request_content_len)?;
+
+        // Amount of credits the node with index freeze_index has to freeze.
+        let index_next = index.checked_add(1)?;
+
+        Some(credits_to_freeze(&self.payment_proposals,
+            self.processing_fee_proposal,
+            request_content_len,
+            self.max_response_len,
+            self.freeze_index_to_nodes_to_dest(index_next)?)?)
+    }
 }
 
 
@@ -405,47 +462,17 @@ impl TransTokenChannel {
                                      request_send_msg: RequestSendMessage,
                                      own_index: usize)
         -> Result<RequestSendMessage, ProcessMessageError> {
-        // Calculate amount of credits to freeze
         
-        // TODO: This might be not very efficient. 
-        // Possibly optimize this in the future, maybe by passing pointers instead of cloning.
-        let middle_props = request_send_msg.route.route_links
-            .iter()
-            .map(|ref route_link| &route_link.payment_proposal_pair)
-            .cloned()
-            .collect::<Vec<_>>();
+        let credit_calc = CreditCalculator::new(&request_send_msg)
+            .ok_or(ProcessMessageError::CreditCalculatorFailure)?;
 
-        let payment_proposals = PaymentProposals {
-            middle_props,
-            dest_response_proposal: request_send_msg.route.dest_response_proposal.clone(),
-        };
+        verify_freezing_links(&request_send_msg.freeze_links, &credit_calc)?;
 
-        let request_content_len = usize_to_u32(request_send_msg.request_content.len())
-            .ok_or(ProcessMessageError::RequestContentTooLong)?;
-
-        let f_freeze_index_to_nodes_to_dest = |freeze_index: usize|
-            usize_to_u32(request_send_msg.route.route_links.len()
-                     .checked_sub( 
-                         freeze_index.checked_sub(1).expect("freeze index too small!")
-                      ).expect("index out of range!"))
-                     .ok_or(ProcessMessageError::RouteTooLong);
-
-        // Amount of credits the node with index freeze_index has to freeze.
-        let f_credits_to_freeze = |freeze_index: usize| {
-            let freeze_index_next = freeze_index.checked_add(1)
-                .expect("freeze_index out of range!");
-
-            credits_to_freeze(&payment_proposals,
-                request_send_msg.processing_fee_proposal,
-                request_content_len,
-                request_send_msg.max_response_len,
-                f_freeze_index_to_nodes_to_dest(freeze_index_next)?)
-                .ok_or(ProcessMessageError::RoutePricingOverflow)
-        };
-
+        // Calculate amount of credits to freeze
         let own_freeze_index = own_index.checked_add(1)
             .ok_or(ProcessMessageError::RouteTooLong)?;
-        let own_freeze_credits = f_credits_to_freeze(own_freeze_index)?;
+        let own_freeze_credits = credit_calc.credits_to_freeze(own_freeze_index)
+            .ok_or(ProcessMessageError::CreditCalculatorFailure)?;
 
         // Make sure we can freeze the credits
         let new_remote_pending_debt = self.balance.remote_pending_debt
@@ -454,8 +481,6 @@ impl TransTokenChannel {
         if new_remote_pending_debt > self.balance.remote_max_debt {
             return Err(ProcessMessageError::InsufficientTrust);
         }
-
-        verify_freezing_links(&request_send_msg.freeze_links, &f_credits_to_freeze)?;
 
         // Note that Verifying our own freezing link will be done outside. We don't have enough
         // information here to check this. In addition, even if it turns out we can't freeze those
