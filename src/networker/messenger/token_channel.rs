@@ -18,8 +18,10 @@ use proto::networker::NetworkerSendPrice;
 use super::pending_neighbor_request::PendingNeighborRequest;
 use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, RequestSendMessage,
                                 NeighborTcOp};
-// use super::credit_calculator::credits_on_success_dest;
+use super::credit_calc::{credits_to_freeze, credits_on_success, 
+    credits_on_failure, PaymentProposals};
 use utils::trans_hashmap::TransHashMap;
+use utils::int_convert::usize_to_u32;
 
 /// The maximum possible networker debt.
 /// We don't use the full u64 because i64 can not go beyond this value.
@@ -73,6 +75,8 @@ pub enum ProcessMessageError {
     ResponsePaymentProposalTooLow,
     IncomingRequestsDisabled,
     RoutePricingOverflow,
+    RequestContentTooLong,
+    RouteTooLong,
 }
 
 #[derive(Debug)]
@@ -372,25 +376,43 @@ impl TransTokenChannel {
             return Err(ProcessMessageError::ResponsePaymentProposalTooLow);
         }
 
-        // TODO
-        // - Calculate amount of credits to freeze
+        // Calculate amount of credits to freeze
+        
+        // TODO: This might be not very efficient. 
+        // Possibly optimize this in the future, maybe by passing pointers instead of cloning.
+        let middle_props = request_send_msg.route.route_links
+            .iter()
+            .map(|ref route_link| &route_link.payment_proposal_pair)
+            .cloned()
+            .collect::<Vec<_>>();
+
+        let payment_proposals = PaymentProposals {
+            middle_props,
+            dest_response_proposal: request_send_msg.dest_response_proposal.clone(),
+        };
+
+        let request_content_len = usize_to_u32(request_send_msg.request_content.len())
+            .ok_or(ProcessMessageError::RequestContentTooLong)?;
+
+        let nodes_to_dest = usize_to_u32(request_send_msg.route.route_links.len()
+                                     .checked_sub(own_index).expect("own_index out of range!"))
+                                     .ok_or(ProcessMessageError::RouteTooLong)?;
+
+        let freeze_credits = credits_to_freeze(&payment_proposals,
+                            request_send_msg.processing_fee_proposal,
+                            request_content_len,
+                            request_send_msg.max_response_len,
+                            nodes_to_dest)
+            .ok_or(ProcessMessageError::RoutePricingOverflow)?;
+
+
+        // TODO:
         // - Verify previous freezing links.
         //      - Verify self freezing link?
         //
         // - Make sure we can freeze the credits
         // - Freeze correct amount of credits
         //
-        
-        /*
-        // TODO: Create this variable:
-        let payment_proposals = None;
-        let freeze_credits = credits_to_freeze(&payment_proposals,
-                            request_send_msg.processing_fee_proposal,
-                            request_send_msg.request_content.len(),
-                            request_send_msg.max_response_len,
-                            nodes_to_dest)
-            .ok_or(ProcessMessageError::RoutePricingOverflow)?;
-        */
 
         unreachable!();
 
