@@ -19,7 +19,7 @@ use proto::networker::NetworkerSendPrice;
 
 use super::pending_neighbor_request::PendingNeighborRequest;
 use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, RequestSendMessage,
-                                NeighborTcOp};
+                                NeighborTcOp, NetworkerFreezeLink};
 use super::credit_calc::{credits_to_freeze, credits_on_success, 
     credits_on_failure, PaymentProposals};
 use utils::trans_hashmap::TransHashMap;
@@ -190,6 +190,28 @@ pub fn atomic_process_messages_list(token_channel: TokenChannel, messages: Vec<N
         Err(e) => (trans_token_channel.cancel(), Err(e)),
         Ok(output_tasks) => (trans_token_channel.commit(), Ok(output_tasks)),
     }
+}
+
+
+fn verify_freezing_links<F>(freeze_links: &[NetworkerFreezeLink], 
+                            f_credits_to_freeze: &F) -> Result<(), ProcessMessageError>
+    where F: Fn(usize) -> Result<u64,ProcessMessageError> {
+
+    // Verify previous freezing links
+    #[allow(needless_range_loop)]
+    for node_findex in 0 .. freeze_links.len() {
+        let freeze_link = &freeze_links[node_findex];
+        let mut allowed_credits: BigUint = freeze_link.shared_credits.into();
+        for fi in node_findex .. freeze_links.len() {
+            allowed_credits *= freeze_link.usable_ratio.numerator;
+            allowed_credits /= freeze_link.usable_ratio.denominator;
+        }
+
+        if allowed_credits < f_credits_to_freeze(node_findex)?.into() {
+            return Err(ProcessMessageError::InsufficientTransitiveTrust);
+        }
+    }
+    Ok(())
 }
 
 
@@ -417,6 +439,7 @@ impl TransTokenChannel {
         let freeze_links = &request_send_msg.freeze_links;
 
         // Make sure that the freeze_links vector is valid:
+        // numerator <= denominator for every link.
         for freeze_link in freeze_links {
             let usable_ratio = &freeze_link.usable_ratio;
             if usable_ratio.numerator > usable_ratio.denominator {
@@ -424,20 +447,7 @@ impl TransTokenChannel {
             }
         }
 
-        // Verify previous freezing links
-        #[allow(needless_range_loop)]
-        for node_findex in 0 .. own_freeze_index {
-            let freeze_link = &freeze_links[node_findex];
-            let mut allowed_credits: BigUint = freeze_link.shared_credits.into();
-            for fi in node_findex .. own_freeze_index {
-                allowed_credits *= freeze_link.usable_ratio.numerator;
-                allowed_credits /= freeze_link.usable_ratio.denominator;
-            }
-
-            if allowed_credits < f_credits_to_freeze(node_findex)?.into() {
-                return Err(ProcessMessageError::InsufficientTransitiveTrust);
-            }
-        }
+        verify_freezing_links(freeze_links, &f_credits_to_freeze)?;
 
         // Note that Verifying self freezing link will be done outside. We don't have enough
         // information here to check this. In addition, we don't have a way to signal a
