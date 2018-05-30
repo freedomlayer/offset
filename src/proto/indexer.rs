@@ -30,7 +30,7 @@ pub struct NeighborsRoute {
     source_request_proposal: NetworkerSendPrice,
     pub route_links: Vec<NeighborRouteLink>,
     dest_public_key: PublicKey,
-    dest_response_proposal: NetworkerSendPrice,
+    pub dest_response_proposal: NetworkerSendPrice,
 }
 
 
