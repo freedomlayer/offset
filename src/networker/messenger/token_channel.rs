@@ -348,7 +348,7 @@ impl TransTokenChannel {
     fn request_send_message_not_dest(&mut self, 
                                      request_send_msg: RequestSendMessage,
                                      own_index: usize)
-        -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        -> Result<RequestSendMessage, ProcessMessageError> {
 
         // Make sure we are open to accepting new requests:
         let local_send_price = match self.send_price.local_send_price {
@@ -445,7 +445,7 @@ impl TransTokenChannel {
         
         // If we are here, we can freeze the credits:
         self.balance.remote_pending_debt = new_remote_pending_debt;
-        Ok(Some(ProcessMessageOutput::Request(request_send_msg)))
+        Ok(request_send_msg)
     }
 
     /// Process an incoming RequestSendMessage where we are the destination of the route
@@ -483,7 +483,8 @@ impl TransTokenChannel {
         match opt_pk_pair {
             None => Err(ProcessMessageError::PkPairNotInRoute),
             Some(PkPairPosition::NotDest(i)) => 
-                self.request_send_message_not_dest(request_send_msg, i),
+                Ok(Some(ProcessMessageOutput::Request(
+                    self.request_send_message_not_dest(request_send_msg, i)?))),
             Some(PkPairPosition::Dest) =>
                 self.request_send_message_dest(request_send_msg),
         }
