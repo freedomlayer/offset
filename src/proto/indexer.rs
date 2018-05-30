@@ -38,15 +38,11 @@ pub struct NeighborsRoute {
 #[derive(PartialEq, Eq)]
 pub enum PkPairPosition {
     /// Requested pair is the last on the route.
-    /// Included here the payment proposed for response.
-    /// If a None is included, it means that default price is used.
-    Dest(Option<NetworkerSendPrice>),
+    Dest,
     /// Requested pair is not the last on the route.
-    NotDest {
-        next_public_key: PublicKey,
-        request_payment_proposal: NetworkerSendPrice,
-        opt_response_payment_proposal: Option<NetworkerSendPrice>,
-    },
+    /// We return the index of the second PublicKey in the pair
+    /// inside the route_links array.
+    NotDest(usize), 
 }
 
 impl NeighborRouteLink {
@@ -87,39 +83,23 @@ impl NeighborsRoute {
     }
 
     /// Find two consecutive public keys (pk1, pk2) inside a neighbors route.
-    /// If found, returns information about payment proposals and next node's public key.
     pub fn find_pk_pair(&self, pk1: &PublicKey, pk2: &PublicKey) -> Option<PkPairPosition> {
         if self.route_links.is_empty() {
             if &self.source_public_key == pk1 && &self.dest_public_key == pk2 {
-                Some(PkPairPosition::Dest(None))
+                Some(PkPairPosition::Dest)
             } else {
                 None
             }
         } else {
             let rl = &self.route_links;
             if &self.source_public_key == pk1 && &rl[0].node_public_key == pk2 {
-                Some(PkPairPosition::NotDest {
-                    next_public_key: rl[0].node_public_key.clone(),
-                    request_payment_proposal: 
-                        rl[0].payment_proposal_pair.request.clone(),
-                    opt_response_payment_proposal: None,
-                })
+                Some(PkPairPosition::NotDest(0))
             } else if &rl[rl.len() - 1].node_public_key == pk1 && &self.dest_public_key == pk2 {
-                Some(PkPairPosition::Dest(Some(rl[rl.len() - 1]
-                                               .payment_proposal_pair
-                                               .request.clone())))
+                Some(PkPairPosition::NotDest(rl.len() - 1))
             } else {
                 for i in 1 .. rl.len() {
                     if &rl[i-1].node_public_key == pk1 && &rl[i].node_public_key == pk2 {
-                        return Some(PkPairPosition::NotDest {
-                            next_public_key: rl[i].node_public_key.clone(),
-                            request_payment_proposal: rl[i]
-                                .payment_proposal_pair
-                                .request.clone(),
-                            opt_response_payment_proposal: Some(rl[i-1]
-                                                                .payment_proposal_pair
-                                                                .response.clone()),
-                        })
+                        return Some(PkPairPosition::NotDest(i))
                     }
                 }
                 None
