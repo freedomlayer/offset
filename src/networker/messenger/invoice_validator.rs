@@ -1,7 +1,9 @@
+/*
 use crypto::identity::PublicKey;
 use proto::funder::InvoiceId;
 use proto::common::SendFundsReceipt;
 use super::token_channel::ProcessMessageError;
+
 
 #[derive(Clone)]
 pub struct InvoiceValidator{
@@ -44,3 +46,5 @@ impl InvoiceValidator{
         Ok(())
     }
 }
+
+*/
