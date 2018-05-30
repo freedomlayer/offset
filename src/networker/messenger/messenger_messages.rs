@@ -83,7 +83,6 @@ pub struct NetworkerFreezeLink {
 pub struct RequestSendMessage {
     pub request_id: Uid,
     pub route: NeighborsRoute,
-    pub dest_response_proposal: NetworkerSendPrice,
     pub request_content: Vec<u8>,
     pub max_response_len: u32,
     pub processing_fee_proposal: u64,
