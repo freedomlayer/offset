@@ -376,12 +376,27 @@ impl TransTokenChannel {
         Ok(None)
     }
 
-    /// Obtain the local price for sending data to the remote side.
-    /// If we are not open to incoming requests, an error will be returned.
-    fn get_local_send_price(&self) -> Result<NetworkerSendPrice, ProcessMessageError>  {
-        match self.send_price.local_send_price {
+    /// Make sure that we are open to incoming requests, 
+    /// and that the offered response proposal is high enough.
+    fn verify_local_send_price(&self, 
+                               route: &NeighborsRoute, 
+                               pk_pair_position: &PkPairPosition) 
+        -> Result<(), ProcessMessageError>  {
+
+        let local_send_price = match self.send_price.local_send_price {
             None => Err(ProcessMessageError::IncomingRequestsDisabled),
             Some(ref local_send_price) => Ok(local_send_price.clone()),
+        }?;
+
+        let response_proposal = match *pk_pair_position {
+            PkPairPosition::Dest => &route.dest_response_proposal,
+            PkPairPosition::NotDest(i) => &route.route_links[i].payment_proposal_pair.response,
+        };
+        // If linear payment proposal for returning response is too low, return error
+        if response_proposal.smaller_than(&local_send_price) {
+            Err(ProcessMessageError::ResponsePaymentProposalTooLow)
+        } else {
+            Ok(())
         }
     }
 
@@ -390,16 +405,6 @@ impl TransTokenChannel {
                                      request_send_msg: RequestSendMessage,
                                      own_index: usize)
         -> Result<RequestSendMessage, ProcessMessageError> {
-
-        let local_send_price = self.get_local_send_price()?;
-
-        let route_link = &request_send_msg.route.route_links[own_index];
-
-        // If linear payment proposal for returning response is too low, return error
-        if route_link.payment_proposal_pair.response.smaller_than(&local_send_price) {
-            return Err(ProcessMessageError::ResponsePaymentProposalTooLow);
-        }
-
         // Calculate amount of credits to freeze
         
         // TODO: This might be not very efficient. 
@@ -482,18 +487,20 @@ impl TransTokenChannel {
             return Err(ProcessMessageError::DuplicateNodesInRoute);
         }
 
-        // Find ourselves on the route:
-        let opt_pk_pair = request_send_msg.route.find_pk_pair(
+        // Find ourselves on the route. If we are not there, abort.
+        let pk_pair = request_send_msg.route.find_pk_pair(
             &self.idents.remote_public_key, 
-            &self.idents.local_public_key);
+            &self.idents.local_public_key)
+            .ok_or(ProcessMessageError::PkPairNotInRoute)?;
+
+        self.verify_local_send_price(&request_send_msg.route, &pk_pair)?;
 
         // We differentiate between the cases of being the last on the route, 
         // and being somewhere in the middle.
-        match opt_pk_pair {
-            None => Err(ProcessMessageError::PkPairNotInRoute),
-            Some(PkPairPosition::NotDest(i)) => 
+        match pk_pair {
+            PkPairPosition::NotDest(i) => 
                 Ok(self.request_send_message_not_dest(request_send_msg, i)?),
-            Some(PkPairPosition::Dest) =>
+            PkPairPosition::Dest =>
                 Ok(self.request_send_message_dest(request_send_msg)?),
         }
     }
