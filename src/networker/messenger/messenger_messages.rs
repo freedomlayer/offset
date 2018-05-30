@@ -70,14 +70,14 @@ impl ResponseSendMessage{
 
 /// A rational number. 
 /// T is the type of the numerator and the denominator.
-struct Rational<T> {
-    numerator: T,
-    denominator: T,
+pub struct Rational<T> {
+    pub numerator: T,
+    pub denominator: T,
 }
 
 pub struct NetworkerFreezeLink {
-    shared_credits: u64,
-    usable_ratio: Rational<u64>,
+    pub shared_credits: u64,
+    pub usable_ratio: Rational<u64>,
 }
 
 pub struct RequestSendMessage {
