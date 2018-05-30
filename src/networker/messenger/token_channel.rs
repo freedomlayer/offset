@@ -452,9 +452,9 @@ impl TransTokenChannel {
 
         verify_freezing_links(&request_send_msg.freeze_links, &f_credits_to_freeze)?;
 
-        // Note that Verifying self freezing link will be done outside. We don't have enough
-        // information here to check this. In addition, we don't have a way to signal a
-        // problem, because a problem here means inconsistency error.
+        // Note that Verifying our own freezing link will be done outside. We don't have enough
+        // information here to check this. In addition, even if it turns out we can't freeze those
+        // credits, we don't want to create a token channel inconsistency.         
         
         // If we are here, we can freeze the credits:
         self.balance.remote_pending_debt = new_remote_pending_debt;
