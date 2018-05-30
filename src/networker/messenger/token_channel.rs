@@ -102,7 +102,7 @@ pub struct TCBalance {
     /// Frozen credits by our side
     local_pending_debt: u64,
     /// Frozen credits by the remote side
-    local_remote_debt: u64,
+    remote_pending_debt: u64,
 }
 
 #[derive(Clone)]
