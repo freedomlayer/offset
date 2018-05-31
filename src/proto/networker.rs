@@ -1,4 +1,5 @@
 use std::mem;
+use byteorder::{WriteBytesExt, BigEndian};
 
 pub const CHANNEL_TOKEN_LEN: usize = 32;
 
@@ -43,6 +44,13 @@ impl NetworkerSendPrice {
 
     pub fn smaller_than(&self, other: &Self) -> bool {
         self.0.smaller_than(&other.0)
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.write_u32::<BigEndian>(self.0.base).expect("Serialization failure!");
+        res_bytes.write_u32::<BigEndian>(self.0.multiplier).expect("Serialization failure!");
+        res_bytes
     }
 }
 
