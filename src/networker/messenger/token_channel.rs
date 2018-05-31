@@ -72,6 +72,7 @@ pub enum ProcessMessageError {
     InsufficientTrust,
     InsufficientTransitiveTrust,
     CreditsCalcOverflow,
+    IncompatibleFreezeeLinks,
     InvalidFreezeLinks,
     CreditCalculatorFailure,
 }
@@ -457,21 +458,49 @@ impl TransTokenChannel {
         }
     }
 
-    /// Process an incoming RequestSendMessage where we are not the destination of the route.
-    fn request_send_message_not_dest(&mut self, 
-                                     request_send_msg: RequestSendMessage,
-                                     own_index: usize)
+
+    /// Process an incoming RequestSendMessage
+    fn process_request_send_message(&mut self, request_send_msg: RequestSendMessage)
         -> Result<RequestSendMessage, ProcessMessageError> {
-        
+
+        // Make sure that the route does not contains cycles/duplicates:
+        if !request_send_msg.route.is_cycle_free() {
+            return Err(ProcessMessageError::DuplicateNodesInRoute);
+        }
+
+        // Find ourselves on the route. If we are not there, abort.
+        let pk_pair = request_send_msg.route.find_pk_pair(
+            &self.idents.remote_public_key, 
+            &self.idents.local_public_key)
+            .ok_or(ProcessMessageError::PkPairNotInRoute)?;
+
+        // Make sure that freeze_links and route_links are compatible in length:
+        let freeze_links_len = request_send_msg.freeze_links.len();
+        let route_links_len = request_send_msg.route.route_links.len();
+        let is_compat = match pk_pair {
+            PkPairPosition::Dest => freeze_links_len == route_links_len + 2,
+            PkPairPosition::NotDest(i) => freeze_links_len == i
+        };
+        if !is_compat {
+            return Err(ProcessMessageError::InvalidFreezeLinks);
+        }
+
+        self.verify_local_send_price(&request_send_msg.route, &pk_pair)?;
+
+        // We differentiate between the cases of being the last on the route, 
+        // and being somewhere in the middle.
         let credit_calc = CreditCalculator::new(&request_send_msg)
             .ok_or(ProcessMessageError::CreditCalculatorFailure)?;
 
         verify_freezing_links(&request_send_msg.freeze_links, &credit_calc)?;
 
+        let index = match pk_pair {
+            PkPairPosition::Dest => request_send_msg.route.route_links.len().checked_add(1),
+            PkPairPosition::NotDest(i) => i.checked_add(1),
+        }.ok_or(ProcessMessageError::RouteTooLong)?;
+
         // Calculate amount of credits to freeze
-        let own_freeze_index = own_index.checked_add(1)
-            .ok_or(ProcessMessageError::RouteTooLong)?;
-        let own_freeze_credits = credit_calc.credits_to_freeze(own_freeze_index)
+        let own_freeze_credits = credit_calc.credits_to_freeze(index)
             .ok_or(ProcessMessageError::CreditCalculatorFailure)?;
 
         // Make sure we can freeze the credits
@@ -489,49 +518,6 @@ impl TransTokenChannel {
         // If we are here, we can freeze the credits:
         self.balance.remote_pending_debt = new_remote_pending_debt;
         Ok(request_send_msg)
-    }
-
-    /// Process an incoming RequestSendMessage where we are the destination of the route
-    fn request_send_message_dest(&mut self, 
-                                 request_send_msg: RequestSendMessage)
-        -> Result<RequestSendMessage, ProcessMessageError> {
-
-
-        // TODO
-        unreachable!();
-    }
-
-
-
-    /// Process an incoming RequestSendMessage
-    fn process_request_send_message(&mut self, request_send_msg: RequestSendMessage)
-        -> Result<RequestSendMessage, ProcessMessageError> {
-
-        // Make sure that the route does not contains cycles/duplicates:
-        if !request_send_msg.route.is_cycle_free() {
-            return Err(ProcessMessageError::DuplicateNodesInRoute);
-        }
-
-        // Find ourselves on the route. If we are not there, abort.
-        let pk_pair = request_send_msg.route.find_pk_pair(
-            &self.idents.remote_public_key, 
-            &self.idents.local_public_key)
-            .ok_or(ProcessMessageError::PkPairNotInRoute)?;
-
-        // TODO: Make sure that freeze_links.len(), route.len() and our location inside the route
-        // (pk_pair) are compatible. Abort if not.
-        assert!(false);
-
-        self.verify_local_send_price(&request_send_msg.route, &pk_pair)?;
-
-        // We differentiate between the cases of being the last on the route, 
-        // and being somewhere in the middle.
-        match pk_pair {
-            PkPairPosition::NotDest(i) => 
-                Ok(self.request_send_message_not_dest(request_send_msg, i)?),
-            PkPairPosition::Dest =>
-                Ok(self.request_send_message_dest(request_send_msg)?),
-        }
     }
 
     fn process_response_send_message(&mut self, response_send_msg: ResponseSendMessage) ->
