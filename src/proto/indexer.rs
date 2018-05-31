@@ -1,6 +1,8 @@
 // use std::mem;
 use std::collections::HashSet;
 use crypto::identity::{PublicKey, Signature};
+use crypto::hash;
+use crypto::hash::HashResult;
 use proto::networker::NetworkerSendPrice;
 
 pub const INDEXING_PROVIDER_ID_LEN: usize = 16;
@@ -45,6 +47,15 @@ pub enum PkPairPosition {
     NotDest(usize), 
 }
 
+impl PaymentProposalPair {
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.request.to_bytes());
+        res_bytes.extend_from_slice(&self.response.to_bytes());
+        res_bytes
+    }
+}
+
 impl NeighborRouteLink {
     /*
     pub fn bytes_count() -> usize {
@@ -52,6 +63,13 @@ impl NeighborRouteLink {
             NetworkerSendPrice::bytes_count() * 2
     }
     */
+
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.node_public_key);
+        res_bytes.extend_from_slice(&self.payment_proposal_pair.to_bytes());
+        res_bytes
+    }
 }
 
 impl NeighborsRoute {
@@ -105,6 +123,24 @@ impl NeighborsRoute {
                 None
             }
         }
+    }
+
+    /// Produce a cryptographic hash over the contents of the route.
+    pub fn hash(&self) -> HashResult {
+        let mut hbuffer = Vec::new();
+        hbuffer.extend_from_slice(&self.source_public_key);
+        hbuffer.extend_from_slice(&self.source_request_proposal.to_bytes());
+
+        let mut route_links_bytes = Vec::new();
+        for route_link in &self.route_links {
+            route_links_bytes.extend_from_slice(&route_link.to_bytes());
+        }
+        hbuffer.extend_from_slice(&hash::sha_512_256(&route_links_bytes));
+
+        hbuffer.extend_from_slice(&self.dest_public_key);
+        hbuffer.extend_from_slice(&self.dest_response_proposal.to_bytes());
+
+        hash::sha_512_256(&hbuffer)
     }
 }
 /*
