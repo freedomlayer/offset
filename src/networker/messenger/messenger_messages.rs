@@ -27,10 +27,10 @@ pub enum NeighborTcOp {
 
 pub struct ResponseSendMessage {
     pub request_id: Uid,
-    rand_nonce: RandValue,
-    processing_fee_collected: u64,
-    response_content: Vec<u8>,
-    signature: Signature,
+    pub rand_nonce: RandValue,
+    pub processing_fee_collected: u64,
+    pub response_content: Vec<u8>,
+    pub signature: Signature,
 }
 
 impl ResponseSendMessage{
