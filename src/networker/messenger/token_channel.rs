@@ -26,6 +26,7 @@ use utils::trans_hashmap::TransHashMap;
 use utils::int_convert::usize_to_u32;
 
 
+
 /// The maximum possible networker debt.
 /// We don't use the full u64 because i64 can not go beyond this value.
 const MAX_NETWORKER_DEBT: u64 = (1 << 63) - 1;
@@ -75,6 +76,7 @@ pub enum ProcessMessageError {
     IncompatibleFreezeeLinks,
     InvalidFreezeLinks,
     CreditCalculatorFailure,
+    RequestAlreadyExists,
 }
 
 #[derive(Debug)]
@@ -514,6 +516,26 @@ impl TransTokenChannel {
         // Note that Verifying our own freezing link will be done outside. We don't have enough
         // information here to check this. In addition, even if it turns out we can't freeze those
         // credits, we don't want to create a token channel inconsistency.         
+        
+        let p_local_requests = &mut self.trans_pending_requests.trans_pending_local_requests;
+        // Make sure that we don't have this request as a pending request already:
+        if p_local_requests.get_hmap().contains_key(&request_send_msg.request_id) {
+            return Err(ProcessMessageError::RequestAlreadyExists);
+        }
+
+        // Add pending request message:
+        let request_content_len = usize_to_u32(request_send_msg.request_content.len())
+            .ok_or(ProcessMessageError::RequestContentTooLong)?;
+        let pending_neighbor_request = PendingNeighborRequest {
+            request_id: request_send_msg.request_id,
+            route: request_send_msg.route.clone(),
+            request_content_hash: hash::sha_512_256(&request_send_msg.request_content),
+            request_content_len,
+            max_response_len: request_send_msg.max_response_len,
+            processing_fee_proposal: request_send_msg.processing_fee_proposal,
+        };
+        p_local_requests.insert(request_send_msg.request_id,
+                                     pending_neighbor_request);
         
         // If we are here, we can freeze the credits:
         self.balance.remote_pending_debt = new_remote_pending_debt;
