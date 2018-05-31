@@ -138,7 +138,6 @@ struct ResponseSendMessageOp {
         #   maxResponseLength ||
         #   processingFeeProposal ||
         #   sha512/256(route) ||
-        #   destResponseProposal ||
         #   sha512/256(requestContent) ||
         #   processingFeeCollected ||
         #   sha512/256(responseContent) ||
@@ -161,7 +160,6 @@ struct FailedSendMessageOp {
         #   maxResponseLength ||
         #   processingFeeProposal ||
         #   sha512/256(route) ||
-        #   destResponseProposal ||
         #   sha512/256(requestContent) ||
         #   processingFeeProposal ||
         #   prev randNonceSignatures ||

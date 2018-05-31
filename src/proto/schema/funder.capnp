@@ -114,7 +114,7 @@ struct ResponseSendFundOp {
         signature @2: CustomUInt512;
         # Signature{key=recipientKey}(
         #   "FUND_SUCCESS" ||
-        #   sha512/256(requestId || sha512/256(route) || destResponseProposal || randNonce) ||
+        #   sha512/256(requestId || sha512/256(route) || randNonce) ||
         #   invoiceId ||
         #   destPayment
         # )
@@ -137,7 +137,6 @@ struct FailedSendFundOp {
         #   requestId ||
         #   destPayment ||
         #   sha512/256(route) || 
-        #   destResponseProposal ||
         #   invoiceId ||
         #   reportingPublicKeyIndex ||
         #   prev randNonceSignatures ||
