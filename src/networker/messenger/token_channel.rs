@@ -259,7 +259,7 @@ impl CreditCalculator {
 
         Some(CreditCalculator {
             payment_proposals,
-            route_len: request_send_msg.freeze_links.len(),
+            route_len: request_send_msg.route.route_links.len().checked_add(2)?,
             request_content_len: request_send_msg.request_content.len(),
             processing_fee_proposal: request_send_msg.processing_fee_proposal,
             max_response_len: request_send_msg.max_response_len,
