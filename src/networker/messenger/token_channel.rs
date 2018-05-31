@@ -77,6 +77,7 @@ pub enum ProcessMessageError {
     InvalidFreezeLinks,
     CreditCalculatorFailure,
     RequestAlreadyExists,
+    RequestDoesNotExist,
 }
 
 #[derive(Debug)]
@@ -544,7 +545,41 @@ impl TransTokenChannel {
 
     fn process_response_send_message(&mut self, response_send_msg: ResponseSendMessage) ->
         Result<Option<ProcessMessageOutput>, ProcessMessageError> {
-        // TODO
+
+        // Make sure that id exists in remote_pending hashmap, 
+        // and access saved request details.
+        let remote_pending_requests = self.trans_pending_requests
+            .trans_pending_remote_requests.get_hmap();
+
+        // Obtain pending request:
+        let pending_request = remote_pending_requests.get(&response_send_msg.request_id)
+            .ok_or(ProcessMessageError::RequestDoesNotExist)?;
+
+        // TODO:
+        // - Verify signature
+
+        // verify_response_signature(&response_send_msg, pending_request)?;
+
+            /*
+            # Signature{key=recipientKey}(
+            #   "REQUEST_SUCCESS" ||
+            #   requestId ||
+            #   maxResponseLength ||
+            #   processingFeeProposal ||
+            #   sha512/256(route) ||
+            #   destResponseProposal ||
+            #   sha512/256(requestContent) ||
+            #   processingFeeCollected ||
+            #   sha512/256(responseContent) ||
+            #   randNonce)
+            */
+
+        // - Verify that processing_fee_collected is within range.
+        // - Make sure that response_content is not longer than max_response_len.
+        //
+        // - Remove entry from remote_pending hashmap, and increase balance by the correct amount
+        //      of credits.
+        // - 
         unreachable!();
     }
 
