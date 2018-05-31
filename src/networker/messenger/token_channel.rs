@@ -2,7 +2,7 @@ use std::mem;
 use std::cmp;
 use std::convert::TryFrom;
 use std::collections::HashMap;
-use byteorder::{LittleEndian, WriteBytesExt};
+use byteorder::{BigEndian, WriteBytesExt};
 
 use num_bigint::BigUint;
 
@@ -24,6 +24,7 @@ use super::credit_calc::{credits_to_freeze, credits_on_success,
     credits_on_failure, PaymentProposals};
 use utils::trans_hashmap::TransHashMap;
 use utils::int_convert::usize_to_u32;
+
 
 
 
@@ -284,45 +285,26 @@ impl CreditCalculator {
     }
 }
 
-/*
-    pub struct PendingNeighborRequest {
-        pub request_id: Uid,
-        pub route: NeighborsRoute,
-        pub request_content_hash: HashResult,
-        pub request_content_len: u32,
-        pub max_response_len: u32,
-        pub processing_fee_proposal: u64,
-    }
-
-    pub struct ResponseSendMessage {
-        pub request_id: Uid,
-        rand_nonce: RandValue,
-        processing_fee_collected: u64,
-        response_content: Vec<u8>,
-        signature: Signature,
-    }
-
-    /*
-    # Signature{key=recipientKey}(
-    #   "REQUEST_SUCCESS" ||
-    #   requestId ||
-    #   maxResponseLength ||
-    #   processingFeeProposal ||
-    #   sha512/256(route) ||
-    #   destResponseProposal ||
-    #   sha512/256(requestContent) ||
-    #   processingFeeCollected ||
-    #   sha512/256(responseContent) ||
-    #   randNonce)
-    */
-*/
-
+/// Create the buffer we sign over at the Response message.
+/// Note that the signature is not just over the Response message bytes. The signed buffer also
+/// contains information from the Request message.
 fn create_response_signature_buffer(response_send_msg: &ResponseSendMessage,
-                        pending_request: &PendingNeighborRequest) {
+                        pending_request: &PendingNeighborRequest) -> Vec<u8> {
 
+    let mut sbuffer = Vec::new();
 
+    // TODO: Add a const for this:
+    sbuffer.extend_from_slice(&hash::sha_512_256(b"REQUEST_SUCCESS"));
+    sbuffer.extend_from_slice(&pending_request.request_id);
+    sbuffer.write_u32::<BigEndian>(pending_request.max_response_len);
+    sbuffer.write_u64::<BigEndian>(pending_request.processing_fee_proposal);
+    sbuffer.extend_from_slice(&pending_request.route.hash());
+    sbuffer.extend_from_slice(&pending_request.request_content_hash);
+    sbuffer.write_u64::<BigEndian>(response_send_msg.processing_fee_collected);
+    sbuffer.extend_from_slice(&hash::sha_512_256(&response_send_msg.response_content));
+    sbuffer.extend_from_slice(&response_send_msg.rand_nonce);
 
-
+    sbuffer
 }
 
 
