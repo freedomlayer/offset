@@ -517,9 +517,9 @@ impl TransTokenChannel {
         // information here to check this. In addition, even if it turns out we can't freeze those
         // credits, we don't want to create a token channel inconsistency.         
         
-        let p_local_requests = &mut self.trans_pending_requests.trans_pending_local_requests;
+        let p_remote_requests = &mut self.trans_pending_requests.trans_pending_remote_requests;
         // Make sure that we don't have this request as a pending request already:
-        if p_local_requests.get_hmap().contains_key(&request_send_msg.request_id) {
+        if p_remote_requests.get_hmap().contains_key(&request_send_msg.request_id) {
             return Err(ProcessMessageError::RequestAlreadyExists);
         }
 
@@ -534,7 +534,7 @@ impl TransTokenChannel {
             max_response_len: request_send_msg.max_response_len,
             processing_fee_proposal: request_send_msg.processing_fee_proposal,
         };
-        p_local_requests.insert(request_send_msg.request_id,
+        p_remote_requests.insert(request_send_msg.request_id,
                                      pending_neighbor_request);
         
         // If we are here, we can freeze the credits:
