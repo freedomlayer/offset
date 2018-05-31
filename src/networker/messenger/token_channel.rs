@@ -277,7 +277,7 @@ impl CreditCalculator {
     pub fn credits_to_freeze(&self, index: usize) -> Option<u64> {
         let request_content_len = usize_to_u32(self.request_content_len)?;
 
-        // Amount of credits the node with index freeze_index has to freeze.
+        // Amount of credits the node with at index has to freeze.
         let index_next = index.checked_add(1)?;
 
         Some(credits_to_freeze(&self.payment_proposals,
