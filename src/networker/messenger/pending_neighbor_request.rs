@@ -12,12 +12,11 @@ pub struct PendingNeighborRequest {
     pub request_id: Uid,
     pub route: NeighborsRoute,
     pub request_content_hash: HashResult,
-    pub max_response_length: u32,
+    pub request_content_len: u32,
+    pub max_response_len: u32,
     pub processing_fee_proposal: u64,
-    pub credits_per_byte_proposal: u64,
-    pub request_bytes_count: u32,
-    pub nodes_to_dest: usize,
 }
+
 
 /*
 impl PendingNeighborRequest{
