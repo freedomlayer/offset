@@ -79,6 +79,9 @@ pub enum ProcessMessageError {
     CreditCalculatorFailure,
     RequestAlreadyExists,
     RequestDoesNotExist,
+    InvalidResponseSignature,
+    ProcessingFeeCollectedTooHigh,
+    ResponseContentTooLong,
 }
 
 #[derive(Debug)]
@@ -577,18 +580,39 @@ impl TransTokenChannel {
         let pending_request = remote_pending_requests.get(&response_send_msg.request_id)
             .ok_or(ProcessMessageError::RequestDoesNotExist)?;
 
-        // TODO:
-        // - Verify signature
+        let response_signature_buffer = create_response_signature_buffer(
+                                            &response_send_msg,
+                                            &pending_request);
 
-        // verify_response_signature(&response_send_msg, pending_request)?;
+        // Verify response message signature:
+        if !verify_signature(&response_signature_buffer, 
+                                 &self.idents.local_public_key,
+                                 &response_send_msg.signature) {
+            return Err(ProcessMessageError::InvalidResponseSignature);
+        }
 
+        // Verify that processing_fee_collected is within range.
+        if response_send_msg.processing_fee_collected > pending_request.processing_fee_proposal {
+            return Err(ProcessMessageError::ProcessingFeeCollectedTooHigh);
+        }
 
-        // - Verify that processing_fee_collected is within range.
-        // - Make sure that response_content is not longer than max_response_len.
-        //
-        // - Remove entry from remote_pending hashmap, and increase balance by the correct amount
-        //      of credits.
-        // - 
+        // Make sure that response_content is not longer than max_response_len.
+        let response_content_len = usize_to_u32(response_send_msg.response_content.len())
+            .ok_or(ProcessMessageError::ResponseContentTooLong)?;
+        if response_content_len > pending_request.max_response_len {
+            return Err(ProcessMessageError::ResponseContentTooLong)?;
+        }
+
+        // Remove entry from remote_pending hashmap:
+        self.trans_pending_requests.trans_pending_remote_requests.remove(
+            &response_send_msg.request_id);
+
+        // Increase balance
+        // TODO: 
+        // - Calculate the amount of success credits
+        // - Increase balance
+        
+
         unreachable!();
     }
 
