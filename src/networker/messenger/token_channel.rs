@@ -236,15 +236,15 @@ fn verify_freezing_links(freeze_links: &[NetworkerFreezeLink],
 
 struct CreditCalculator {
     payment_proposals: PaymentProposals,
-    route_len: usize,
-    request_content_len: usize,
+    route_len: u32,
+    request_content_len: u32,
     processing_fee_proposal: u64,
     max_response_len: u32
 }
 
 impl CreditCalculator {
     pub fn new(route: &NeighborsRoute, 
-               request_content_len: usize,
+               request_content_len: u32,
                processing_fee_proposal: u64,
                max_response_len: u32) -> Option<Self> {
 
@@ -263,32 +263,41 @@ impl CreditCalculator {
 
         Some(CreditCalculator {
             payment_proposals,
-            route_len: route.route_links.len().checked_add(2)?,
-            request_content_len: request_content_len,
-            processing_fee_proposal: processing_fee_proposal,
-            max_response_len: max_response_len,
+            route_len: usize_to_u32(route.route_links.len().checked_add(2)?)?,
+            request_content_len,
+            processing_fee_proposal,
+            max_response_len,
         })
     }
 
     fn freeze_index_to_nodes_to_dest(&self, index: usize) -> Option<u32> {
-        Some(usize_to_u32(self.route_len.checked_sub(index.checked_sub(1)?)?)?)
+        let index32 = usize_to_u32(index)?;
+        Some(self.route_len.checked_sub(index32.checked_sub(1)?)?)
     }
-
 
     /// Calculate the amount of credits to freeze, 
     /// according to a given node index on the route.
     /// Note: source node has index 0. dest node has the last index.
     pub fn credits_to_freeze(&self, index: usize) -> Option<u64> {
-        let request_content_len = usize_to_u32(self.request_content_len)?;
 
         // Amount of credits the node with at index has to freeze.
         let index_next = index.checked_add(1)?;
 
         Some(credits_to_freeze(&self.payment_proposals,
             self.processing_fee_proposal,
-            request_content_len,
+            self.request_content_len,
             self.max_response_len,
             self.freeze_index_to_nodes_to_dest(index_next)?)?)
+    }
+
+    pub fn credits_on_success(&self, index: usize, 
+                              response_content_len: u32) -> Option<u64> {
+        Some(credits_on_success(&self.payment_proposals,
+                                self.processing_fee_proposal,
+                                self.request_content_len,
+                                response_content_len,
+                                self.max_response_len,
+                                self.freeze_index_to_nodes_to_dest(index)?)?)
     }
 }
 
@@ -519,10 +528,10 @@ impl TransTokenChannel {
 
         self.verify_local_send_price(&request_send_msg.route, &pk_pair)?;
 
-        // We differentiate between the cases of being the last on the route, 
-        // and being somewhere in the middle.
+        let request_content_len = usize_to_u32(request_send_msg.request_content.len())
+            .ok_or(ProcessMessageError::RequestContentTooLong)?;
         let credit_calc = CreditCalculator::new(&request_send_msg.route,
-                                                request_send_msg.request_content.len(),
+                                                request_content_len,
                                                 request_send_msg.processing_fee_proposal,
                                                 request_send_msg.max_response_len)
             .ok_or(ProcessMessageError::CreditCalculatorFailure)?;
@@ -610,12 +619,34 @@ impl TransTokenChannel {
             return Err(ProcessMessageError::ResponseContentTooLong)?;
         }
 
+        let credit_calc = CreditCalculator::new(&pending_request.route,
+                                                pending_request.request_content_len,
+                                                pending_request.processing_fee_proposal,
+                                                pending_request.max_response_len);
+
         // Remove entry from remote_pending hashmap:
         self.trans_pending_requests.trans_pending_remote_requests.remove(
             &response_send_msg.request_id);
 
-        // Increase balance
-        // TODO: 
+        /*
+        // TODO: Find out my index in the route:
+        // let index = ...
+        let success_credits = credit_calc.credits_on_success(index, response_content_len);
+
+        // Decrease frozen credits and increase balance:
+        self.balance.remote_pending_debt = 
+            self.balance.remote_pending_debt
+            .checked_sub(success_credits)
+            .expect("Insufficient frozen credit!");
+
+        self.balance.balance = 
+            self.balance.balance
+            .checked_add(success_credits)
+            .expect("balance overflow");
+
+        // TODO: Implement a checked add for i64 with u64.
+        */
+
         // - Calculate the amount of success credits
         // - Increase balance
         
