@@ -15,7 +15,6 @@ pretty_env_logger = "0.2"
 rand = "0.4"
 ring = "0.13.0-alpha"
 untrusted = "0.6"
-crossbeam = "0.3"
 
 bytes = "0.4"
 futures = "0.1"
@@ -24,6 +23,8 @@ tokio-core = "0.1"
 
 capnp = "0.8"
 rusqlite = "0.13"
+
+async_mutex = { git = "https://github.com/juchiast/async_mutex", tag = "v0.1.0" }
 
 [dependencies.byteorder]
 version = "1.1"

@@ -10,7 +10,6 @@
 extern crate byteorder;
 extern crate bytes;
 extern crate capnp;
-extern crate crossbeam;
 #[macro_use]
 extern crate futures;
 #[macro_use]
@@ -20,6 +19,7 @@ extern crate ring;
 extern crate rusqlite;
 extern crate tokio_core;
 extern crate tokio_io;
+extern crate async_mutex;
 
 #[macro_use]
 pub mod utils;
