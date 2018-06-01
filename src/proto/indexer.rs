@@ -142,6 +142,28 @@ impl NeighborsRoute {
 
         hash::sha_512_256(&hbuffer)
     }
+
+    /*
+    /// Find the index of a public key inside the route.
+    /// source is considered to be index 0.
+    /// dest is considered to be the last index.
+    ///
+    /// Note that the returned index does not map directly to an 
+    /// index of self.route_links vector.
+    pub fn pk_index(&self, pk: &PublicKey) -> Option<usize> {
+        if self.source_public_key == *pk {
+            Some(0usize)
+        } else if self.dest_public_key == *pk {
+            Some(self.route_links.len().checked_add(1)?)
+        } else {
+            self.route_links
+                .iter()
+                .map(|route_link| &route_link.node_public_key)
+                .position(|node_public_key| *node_public_key == *pk)
+                .map(|i| i.checked_add(1))?
+        }
+    }
+    */
 }
 /*
 
