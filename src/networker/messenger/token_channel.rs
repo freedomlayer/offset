@@ -243,10 +243,14 @@ struct CreditCalculator {
 }
 
 impl CreditCalculator {
-    pub fn new(request_send_msg: &RequestSendMessage) -> Option<Self> {
+    pub fn new(route: &NeighborsRoute, 
+               request_content_len: usize,
+               processing_fee_proposal: u64,
+               max_response_len: u32) -> Option<Self> {
+
         // TODO: This might be not very efficient. 
         // Possibly optimize this in the future, maybe by passing pointers instead of cloning.
-        let middle_props = request_send_msg.route.route_links
+        let middle_props = route.route_links
             .iter()
             .map(|ref route_link| &route_link.payment_proposal_pair)
             .cloned()
@@ -254,15 +258,15 @@ impl CreditCalculator {
 
         let payment_proposals = PaymentProposals {
             middle_props,
-            dest_response_proposal: request_send_msg.route.dest_response_proposal.clone(),
+            dest_response_proposal: route.dest_response_proposal.clone(),
         };
 
         Some(CreditCalculator {
             payment_proposals,
-            route_len: request_send_msg.route.route_links.len().checked_add(2)?,
-            request_content_len: request_send_msg.request_content.len(),
-            processing_fee_proposal: request_send_msg.processing_fee_proposal,
-            max_response_len: request_send_msg.max_response_len,
+            route_len: route.route_links.len().checked_add(2)?,
+            request_content_len: request_content_len,
+            processing_fee_proposal: processing_fee_proposal,
+            max_response_len: max_response_len,
         })
     }
 
@@ -517,7 +521,10 @@ impl TransTokenChannel {
 
         // We differentiate between the cases of being the last on the route, 
         // and being somewhere in the middle.
-        let credit_calc = CreditCalculator::new(&request_send_msg)
+        let credit_calc = CreditCalculator::new(&request_send_msg.route,
+                                                request_send_msg.request_content.len(),
+                                                request_send_msg.processing_fee_proposal,
+                                                request_send_msg.max_response_len)
             .ok_or(ProcessMessageError::CreditCalculatorFailure)?;
 
         verify_freezing_links(&request_send_msg.freeze_links, &credit_calc)?;
