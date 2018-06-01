@@ -622,17 +622,27 @@ impl TransTokenChannel {
         let credit_calc = CreditCalculator::new(&pending_request.route,
                                                 pending_request.request_content_len,
                                                 pending_request.processing_fee_proposal,
-                                                pending_request.max_response_len);
+                                                pending_request.max_response_len)
+            .ok_or(ProcessMessageError::CreditCalculatorFailure)?;
+
+        // Find ourselves on the route. If we are not there, abort.
+        let pk_pair = pending_request.route.find_pk_pair(
+            &self.idents.remote_public_key, 
+            &self.idents.local_public_key)
+            .expect("Can not find myself in request's route!");
+
+        let index = match pk_pair {
+            PkPairPosition::Dest => pending_request.route.route_links.len().checked_add(1),
+            PkPairPosition::NotDest(i) => i.checked_add(1),
+        }.expect("Route too long!");
 
         // Remove entry from remote_pending hashmap:
         self.trans_pending_requests.trans_pending_remote_requests.remove(
             &response_send_msg.request_id);
 
-        /*
-        // TODO: Find out my index in the route:
-        // let index = ...
         let success_credits = credit_calc.credits_on_success(index, response_content_len);
 
+        /*
         // Decrease frozen credits and increase balance:
         self.balance.remote_pending_debt = 
             self.balance.remote_pending_debt
