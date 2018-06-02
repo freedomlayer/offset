@@ -89,65 +89,6 @@ pub struct RequestSendMessage {
     pub freeze_links: Vec<NetworkerFreezeLink>,
 }
 
-impl RequestSendMessage {
-    /*
-    pub fn bytes_count(&self) -> usize {
-        // We count the bytes count here and not before deserialization,
-        // because we actually charge for the amount of bytes we send, and not for the
-        // amount of bytes we receive (Those could possibly be encoded in some strange way)
-        
-        mem::size_of::<Uid>() +
-            self.route.bytes_count() +
-            self.request_content.len() + // number of bytes that represent the array
-            mem::size_of_val(&self.max_response_len) +
-            mem::size_of_val(&self.processing_fee_proposal) +
-            mem::size_of::<NetworkerFreezeLink>() * self.freeze_links.len()
-
-        // TODO: Test this.
-    }
-    */
-
-    fn nodes_to_dest(&self, sender_public_key: &PublicKey) -> Option<usize> {
-        // TODO
-        unreachable!();
-        /*
-        let destination = self.route.get_destination_public_key()?;
-        let distance = self.route.distance_between_nodes(sender_public_key, &destination)?;
-        Some(distance)
-        */
-    }
-
-    /*
-    pub fn get_request_id(&self) -> &Uid {
-        &self.request_id
-    }
-
-    pub fn create_pending_request(&self, sender_public_key: &PublicKey) -> Option<PendingNeighborRequest> {
-        Some(PendingNeighborRequest {
-            request_id: self.request_id,
-            route: self.route.clone(),
-            request_bytes_count: convert_int::checked_as_u32(self.bytes_count())?,
-            request_content_hash: hash::sha_512_256(self.request_content.as_ref()),
-            max_response_length: self.max_response_len,
-            processing_fee_proposal: self.processing_fee_proposal,
-            credits_per_byte_proposal: self.credits_per_byte_proposal,
-            nodes_to_dest: self.nodes_to_dest(sender_public_key)?,
-        })
-    }
-
-    pub fn get_route(&self) -> &NeighborsRoute{
-        &self.route
-    }
-
-    pub fn credits_to_freeze_on_destination(&self) -> Option<u64>{
-        credit_calculator::credits_to_freeze(self.processing_fee_proposal,
-                            convert_int::checked_as_u32(self.bytes_count())?,
-                                              self.credits_per_byte_proposal,
-                                              self.max_response_len, 1)
-    }
-    */
-}
-
 
 pub struct FailedSendMessage {
     request_id: Uid,
