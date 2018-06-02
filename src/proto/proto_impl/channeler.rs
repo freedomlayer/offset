@@ -23,8 +23,8 @@ impl<'a> Proto<'a> for InitChannel {
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
-        write_rand_value(&self.rand_nonce, &mut to.reborrow().init_rand_nonce())?;
-        write_public_key(&self.public_key, &mut to.reborrow().init_public_key())?;
+        write_rand_value(&self.rand_nonce, &mut to.borrow().init_rand_nonce())?;
+        write_public_key(&self.public_key, &mut to.borrow().init_public_key())?;
 
         Ok(())
     }
@@ -55,12 +55,12 @@ impl<'a> Proto<'a> for ExchangePassive {
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
-        write_hash_result(&self.prev_hash, &mut to.reborrow().init_prev_hash())?;
-        write_rand_value(&self.rand_nonce, &mut to.reborrow().init_rand_nonce())?;
-        write_public_key(&self.public_key, &mut to.reborrow().init_public_key())?;
-        write_dh_public_key(&self.dh_public_key, &mut to.reborrow().init_dh_public_key())?;
-        write_salt(&self.key_salt, &mut to.reborrow().init_key_salt())?;
-        write_signature(&self.signature, &mut to.reborrow().init_signature())?;
+        write_hash_result(&self.prev_hash, &mut to.borrow().init_prev_hash())?;
+        write_rand_value(&self.rand_nonce, &mut to.borrow().init_rand_nonce())?;
+        write_public_key(&self.public_key, &mut to.borrow().init_public_key())?;
+        write_dh_public_key(&self.dh_public_key, &mut to.borrow().init_dh_public_key())?;
+        write_salt(&self.key_salt, &mut to.borrow().init_key_salt())?;
+        write_signature(&self.signature, &mut to.borrow().init_signature())?;
 
         Ok(())
     }
@@ -87,10 +87,10 @@ impl<'a> Proto<'a> for ExchangeActive {
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
-        write_hash_result(&self.prev_hash, &mut to.reborrow().init_prev_hash())?;
-        write_dh_public_key(&self.dh_public_key, &mut to.reborrow().init_dh_public_key())?;
-        write_salt(&self.key_salt, &mut to.reborrow().init_key_salt())?;
-        write_signature(&self.signature, &mut to.reborrow().init_signature())?;
+        write_hash_result(&self.prev_hash, &mut to.borrow().init_prev_hash())?;
+        write_dh_public_key(&self.dh_public_key, &mut to.borrow().init_dh_public_key())?;
+        write_salt(&self.key_salt, &mut to.borrow().init_key_salt())?;
+        write_signature(&self.signature, &mut to.borrow().init_signature())?;
 
         Ok(())
     }
@@ -113,8 +113,8 @@ impl<'a> Proto<'a> for ChannelReady {
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
-        write_hash_result(&self.prev_hash, &mut to.reborrow().init_prev_hash())?;
-        write_signature(&self.signature, &mut to.reborrow().init_signature())?;
+        write_hash_result(&self.prev_hash, &mut to.borrow().init_prev_hash())?;
+        write_signature(&self.signature, &mut to.borrow().init_signature())?;
 
         Ok(())
     }
@@ -139,9 +139,9 @@ impl<'a> Proto<'a> for UnknownChannel {
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
-        write_channel_id(&self.channel_id, &mut to.reborrow().init_channel_id())?;
-        write_rand_value(&self.rand_nonce, &mut to.reborrow().init_rand_nonce())?;
-        write_signature(&self.signature, &mut to.reborrow().init_signature())?;
+        write_channel_id(&self.channel_id, &mut to.borrow().init_channel_id())?;
+        write_rand_value(&self.rand_nonce, &mut to.borrow().init_rand_nonce())?;
+        write_signature(&self.signature, &mut to.borrow().init_signature())?;
 
         Ok(())
     }
@@ -169,7 +169,7 @@ impl<'a> Proto<'a> for PlainContent {
         match *self {
             PlainContent::KeepAlive => to.set_keep_alive(()),
             PlainContent::User(ref content) => {
-                to.reborrow().init_user(content.len() as u32).copy_from_slice(content)
+                to.borrow().init_user(content.len() as u32).copy_from_slice(content)
             }
         }
 
@@ -194,10 +194,10 @@ impl<'a> Proto<'a> for Plain {
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
-        to.reborrow().init_rand_padding(self.rand_padding.len() as u32)
+        to.borrow().init_rand_padding(self.rand_padding.len() as u32)
             .copy_from_slice(&self.rand_padding);
 
-        self.content.write(&mut to.reborrow().init_content())?;
+        self.content.write(&mut to.borrow().init_content())?;
 
         Ok(())
     }
@@ -259,22 +259,22 @@ impl<'a> Proto<'a> for ChannelerMessage {
     fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         match *self {
             ChannelerMessage::InitChannel(ref init_channel) => {
-                init_channel.write(&mut to.reborrow().init_init_channel())?;
+                init_channel.write(&mut to.borrow().init_init_channel())?;
             }
             ChannelerMessage::ExchangePassive(ref exchange_passive) => {
-                exchange_passive.write(&mut to.reborrow().init_exchange_passive())?;
+                exchange_passive.write(&mut to.borrow().init_exchange_passive())?;
             }
             ChannelerMessage::ExchangeActive(ref exchange_active) => {
-                exchange_active.write(&mut to.reborrow().init_exchange_active())?;
+                exchange_active.write(&mut to.borrow().init_exchange_active())?;
             }
             ChannelerMessage::ChannelReady(ref channel_ready) => {
-                channel_ready.write(&mut to.reborrow().init_channel_ready())?;
+                channel_ready.write(&mut to.borrow().init_channel_ready())?;
             }
             ChannelerMessage::UnknownChannel(ref unknown_channel) => {
-                unknown_channel.write(&mut to.reborrow().init_unknown_channel())?;
+                unknown_channel.write(&mut to.borrow().init_unknown_channel())?;
             }
             ChannelerMessage::Encrypted(ref content) => {
-                let dst = to.reborrow().init_encrypted(content.len() as u32);
+                let dst = to.borrow().init_encrypted(content.len() as u32);
                 dst.copy_from_slice(content.as_ref());
             }
         }
