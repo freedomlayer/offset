@@ -2,7 +2,6 @@ use std::io;
 use std::convert::TryFrom;
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use byteorder::BigEndian;
 use capnp::struct_list;
 
 use crypto::rand_values::RandValue;
@@ -25,8 +24,8 @@ const CUSTOM_UINT512_LEN: usize = 64;
 pub fn read_custom_u_int128(from: &custom_u_int128::Reader) -> Result<Bytes, ProtoError> {
     let mut buffer = BytesMut::with_capacity(CUSTOM_UINT128_LEN);
 
-    buffer.put_u64::<BigEndian>(from.get_x0());
-    buffer.put_u64::<BigEndian>(from.get_x1());
+    buffer.put_u64_be(from.get_x0());
+    buffer.put_u64_be(from.get_x1());
 
     Ok(buffer.freeze())
 }
@@ -43,8 +42,8 @@ pub fn write_custom_u_int128<T: AsRef<[u8]>>(
 ) -> Result<(), ProtoError> {
     let mut reader = io::Cursor::new(from.as_ref());
 
-    to.set_x0(reader.get_u64::<BigEndian>());
-    to.set_x1(reader.get_u64::<BigEndian>());
+    to.set_x0(reader.get_u64_be());
+    to.set_x1(reader.get_u64_be());
 
     Ok(())
 }
@@ -54,10 +53,10 @@ pub fn write_custom_u_int128<T: AsRef<[u8]>>(
 pub fn read_custom_u_int256(from: &custom_u_int256::Reader) -> Result<Bytes, ProtoError> {
     let mut buffer = BytesMut::with_capacity(CUSTOM_UINT256_LEN);
 
-    buffer.put_u64::<BigEndian>(from.get_x0());
-    buffer.put_u64::<BigEndian>(from.get_x1());
-    buffer.put_u64::<BigEndian>(from.get_x2());
-    buffer.put_u64::<BigEndian>(from.get_x3());
+    buffer.put_u64_be(from.get_x0());
+    buffer.put_u64_be(from.get_x1());
+    buffer.put_u64_be(from.get_x2());
+    buffer.put_u64_be(from.get_x3());
 
     Ok(buffer.freeze())
 }
@@ -74,10 +73,10 @@ pub fn write_custom_u_int256<T: AsRef<[u8]>>(
 ) -> Result<(), ProtoError> {
     let mut reader = io::Cursor::new(from.as_ref());
 
-    to.set_x0(reader.get_u64::<BigEndian>());
-    to.set_x1(reader.get_u64::<BigEndian>());
-    to.set_x2(reader.get_u64::<BigEndian>());
-    to.set_x3(reader.get_u64::<BigEndian>());
+    to.set_x0(reader.get_u64_be());
+    to.set_x1(reader.get_u64_be());
+    to.set_x2(reader.get_u64_be());
+    to.set_x3(reader.get_u64_be());
 
     Ok(())
 }
@@ -87,14 +86,14 @@ pub fn write_custom_u_int256<T: AsRef<[u8]>>(
 pub fn read_custom_u_int512(from: &custom_u_int512::Reader) -> Result<Bytes, ProtoError> {
     let mut buffer = BytesMut::with_capacity(CUSTOM_UINT512_LEN);
 
-    buffer.put_u64::<BigEndian>(from.get_x0());
-    buffer.put_u64::<BigEndian>(from.get_x1());
-    buffer.put_u64::<BigEndian>(from.get_x2());
-    buffer.put_u64::<BigEndian>(from.get_x3());
-    buffer.put_u64::<BigEndian>(from.get_x4());
-    buffer.put_u64::<BigEndian>(from.get_x5());
-    buffer.put_u64::<BigEndian>(from.get_x6());
-    buffer.put_u64::<BigEndian>(from.get_x7());
+    buffer.put_u64_be(from.get_x0());
+    buffer.put_u64_be(from.get_x1());
+    buffer.put_u64_be(from.get_x2());
+    buffer.put_u64_be(from.get_x3());
+    buffer.put_u64_be(from.get_x4());
+    buffer.put_u64_be(from.get_x5());
+    buffer.put_u64_be(from.get_x6());
+    buffer.put_u64_be(from.get_x7());
 
     Ok(buffer.freeze())
 }
@@ -111,14 +110,14 @@ pub fn write_custom_u_int512<T: AsRef<[u8]>>(
 ) -> Result<(), ProtoError> {
     let mut reader = io::Cursor::new(from.as_ref());
 
-    to.set_x0(reader.get_u64::<BigEndian>());
-    to.set_x1(reader.get_u64::<BigEndian>());
-    to.set_x2(reader.get_u64::<BigEndian>());
-    to.set_x3(reader.get_u64::<BigEndian>());
-    to.set_x4(reader.get_u64::<BigEndian>());
-    to.set_x5(reader.get_u64::<BigEndian>());
-    to.set_x6(reader.get_u64::<BigEndian>());
-    to.set_x7(reader.get_u64::<BigEndian>());
+    to.set_x0(reader.get_u64_be());
+    to.set_x1(reader.get_u64_be());
+    to.set_x2(reader.get_u64_be());
+    to.set_x3(reader.get_u64_be());
+    to.set_x4(reader.get_u64_be());
+    to.set_x5(reader.get_u64_be());
+    to.set_x6(reader.get_u64_be());
+    to.set_x7(reader.get_u64_be());
 
     Ok(())
 }
@@ -206,7 +205,7 @@ pub fn write_public_key_list<'a>(
     debug_assert_eq!(from.len(), to.len() as usize);
 
     for (idx, ref_public_key) in from.iter().enumerate() {
-        let mut public_key_writer = to.borrow().get(idx as u32);
+        let mut public_key_writer = to.reborrow().get(idx as u32);
         write_public_key(ref_public_key, &mut public_key_writer)?;
     }
 
@@ -299,7 +298,7 @@ mod tests {
         let mut num_u128 = message.init_root::<custom_u_int128::Builder>();
         write_custom_u_int128(&in_buf, &mut num_u128).unwrap();
 
-        let out_buf = read_custom_u_int128(&num_u128.borrow_as_reader()).unwrap();
+        let out_buf = read_custom_u_int128(&num_u128.reborrow_as_reader()).unwrap();
 
         assert_eq!(&in_buf, &out_buf);
     }
@@ -318,7 +317,7 @@ mod tests {
         let mut num_u256 = message.init_root::<custom_u_int256::Builder>();
         write_custom_u_int256(&in_buf, &mut num_u256).unwrap();
 
-        let out_buf = read_custom_u_int256(&num_u256.borrow_as_reader()).unwrap();
+        let out_buf = read_custom_u_int256(&num_u256.reborrow_as_reader()).unwrap();
 
         assert_eq!(&in_buf, &out_buf);
     }
@@ -339,7 +338,7 @@ mod tests {
         let mut num_u512 = message.init_root::<custom_u_int512::Builder>();
         write_custom_u_int512(&in_buf, &mut num_u512).unwrap();
 
-        let out_buf = read_custom_u_int512(&num_u512.borrow_as_reader()).unwrap();
+        let out_buf = read_custom_u_int512(&num_u512.reborrow_as_reader()).unwrap();
 
         assert_eq!(&in_buf, &out_buf);
     }

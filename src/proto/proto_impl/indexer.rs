@@ -49,7 +49,7 @@ impl<'a> Proto<'a> for NeighborsRoute {
     fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         write_public_key_list(
             &self.public_keys,
-            &mut to.borrow().init_public_keys(self.public_keys.len() as u32),
+            &mut to.reborrow().init_public_keys(self.public_keys.len() as u32),
         )?;
 
         Ok(())
@@ -76,7 +76,7 @@ impl<'a> Proto<'a> for FriendsRouteWithCapacity {
     fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         write_public_key_list(
             &self.public_keys,
-            &mut to.borrow().init_public_keys(self.public_keys.len() as u32),
+            &mut to.reborrow().init_public_keys(self.public_keys.len() as u32),
         )?;
 
         to.set_capacity(self.capacity);
@@ -106,12 +106,12 @@ impl<'a> Proto<'a> for RequestNeighborsRoutes {
     fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         write_public_key(
             &self.source_node_public_key,
-            &mut to.borrow().init_source_node_public_key(),
+            &mut to.reborrow().init_source_node_public_key(),
         )?;
 
         write_public_key(
             &self.destination_node_public_key,
-            &mut to.borrow().init_destination_node_public_key(),
+            &mut to.reborrow().init_destination_node_public_key(),
         )?;
 
         Ok(())
@@ -140,10 +140,10 @@ impl<'a> Proto<'a> for ResponseNeighborsRoutes {
     fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         // Write the routes
         {
-            let mut routes_writer = to.borrow().init_routes(self.routes.len() as u32);
+            let mut routes_writer = to.reborrow().init_routes(self.routes.len() as u32);
 
             for (idx, ref_neighbors_route) in self.routes.iter().enumerate() {
-                ref_neighbors_route.write(&mut routes_writer.borrow().get(idx as u32))?;
+                ref_neighbors_route.write(&mut routes_writer.reborrow().get(idx as u32))?;
             }
         }
 
@@ -160,7 +160,7 @@ impl<'a> Proto<'a> for RequestFriendsRoutes {
     fn read(from: &Self::Reader) -> Result<Self, ProtoError> {
         use self::request_friends_route::route_type::Which::*;
 
-        let route_type_reader = from.borrow().get_route_type();
+        let route_type_reader = from.reborrow().get_route_type();
 
         match route_type_reader.which()? {
             Direct(wrapped_direct_reader) => {
@@ -193,45 +193,45 @@ impl<'a> Proto<'a> for RequestFriendsRoutes {
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
-        let mut route_type_writer = to.borrow().init_route_type();
+        let mut route_type_writer = to.reborrow().init_route_type();
 
         match *self {
             RequestFriendsRoutes::Direct {
                 ref source_node_public_key,
                 ref destination_node_public_key,
             } => {
-                let mut direct_writer = route_type_writer.borrow().init_direct();
+                let mut direct_writer = route_type_writer.reborrow().init_direct();
 
                 // Write the sourceNodePublicKey
                 write_public_key(
                     source_node_public_key,
-                    &mut direct_writer.borrow().init_source_node_public_key(),
+                    &mut direct_writer.reborrow().init_source_node_public_key(),
                 )?;
 
                 // Write the destinationNodePublicKey
                 write_public_key(
                     destination_node_public_key,
-                    &mut direct_writer.borrow().init_destination_node_public_key(),
+                    &mut direct_writer.reborrow().init_destination_node_public_key(),
                 )?;
             }
             RequestFriendsRoutes::LoopFromFriend {
                 ref friend_public_key,
             } => {
                 let mut loop_from_friend_writer =
-                    route_type_writer.borrow().init_loop_from_friend();
+                    route_type_writer.reborrow().init_loop_from_friend();
 
                 let mut friend_public_key_writer =
-                    loop_from_friend_writer.borrow().init_friend_public_key();
+                    loop_from_friend_writer.reborrow().init_friend_public_key();
 
                 write_public_key(friend_public_key, &mut friend_public_key_writer)?;
             }
             RequestFriendsRoutes::LoopToFriend {
                 ref friend_public_key,
             } => {
-                let mut loop_to_friend_writer = route_type_writer.borrow().init_loop_to_friend();
+                let mut loop_to_friend_writer = route_type_writer.reborrow().init_loop_to_friend();
 
                 let mut friend_public_key_writer =
-                    loop_to_friend_writer.borrow().init_friend_public_key();
+                    loop_to_friend_writer.reborrow().init_friend_public_key();
 
                 write_public_key(friend_public_key, &mut friend_public_key_writer)?;
             }
@@ -263,10 +263,10 @@ impl<'a> Proto<'a> for ResponseFriendsRoutes {
     fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         // Write the routes
         {
-            let mut routes_writer = to.borrow().init_routes(self.routes.len() as u32);
+            let mut routes_writer = to.reborrow().init_routes(self.routes.len() as u32);
 
             for (idx, ref_neighbors_route) in self.routes.iter().enumerate() {
-                let mut neighbors_route_writer = routes_writer.borrow().get(idx as u32);
+                let mut neighbors_route_writer = routes_writer.reborrow().get(idx as u32);
                 ref_neighbors_route.write(&mut neighbors_route_writer)?;
             }
         }
@@ -314,11 +314,11 @@ impl<'a> Proto<'a> for StateChainLink {
         // Write the previousStateHash
         write_indexing_provider_state_hash(
             &self.previous_state_hash,
-            &mut to.borrow().init_previous_state_hash(),
+            &mut to.reborrow().init_previous_state_hash(),
         )?;
         // Write the newOwnersPublicKeys
         {
-            let mut new_owners_public_keys_writer = to.borrow()
+            let mut new_owners_public_keys_writer = to.reborrow()
                 .init_new_owners_public_keys(self.new_owners_public_keys.len() as u32);
 
             write_public_key_list(
@@ -328,7 +328,7 @@ impl<'a> Proto<'a> for StateChainLink {
         }
         // Write the newIndexersPublicKeys
         {
-            let mut new_indexers_public_keys_writer = to.borrow()
+            let mut new_indexers_public_keys_writer = to.reborrow()
                 .init_new_indexers_public_keys(self.new_indexers_public_keys.len() as u32);
 
             write_public_key_list(
@@ -338,13 +338,13 @@ impl<'a> Proto<'a> for StateChainLink {
         }
         // Write the signaturesByOldOwners
         {
-            let mut signatures_by_old_owners = to.borrow()
+            let mut signatures_by_old_owners = to.reborrow()
                 .init_signatures_by_old_owners(self.signatures_by_old_owners.len() as u32);
 
             for (idx, ref_signature) in self.signatures_by_old_owners.iter().enumerate() {
                 write_signature(
                     ref_signature,
-                    &mut signatures_by_old_owners.borrow().get(idx as u32),
+                    &mut signatures_by_old_owners.reborrow().get(idx as u32),
                 )?;
             }
         }
@@ -383,17 +383,17 @@ impl<'a> Proto<'a> for RequestUpdateState {
         // Write the indexingProviderId
         write_indexing_provider_id(
             &self.indexing_provider_id,
-            &mut to.borrow().init_indexing_provider_id(),
+            &mut to.reborrow().init_indexing_provider_id(),
         )?;
 
         // Writer the indexingProviderStatesChain
         {
-            let mut indexing_provider_states_chain = to.borrow()
+            let mut indexing_provider_states_chain = to.reborrow()
                 .init_indexing_provider_states_chain(self.indexing_provider_states_chain.len()
                     as u32);
 
             for (idx, ref_chain_link) in self.indexing_provider_states_chain.iter().enumerate() {
-                let mut chain_link_writer = indexing_provider_states_chain.borrow().get(idx as u32);
+                let mut chain_link_writer = indexing_provider_states_chain.reborrow().get(idx as u32);
                 ref_chain_link.write(&mut chain_link_writer)?;
             }
         }
@@ -416,7 +416,7 @@ impl<'a> Proto<'a> for ResponseUpdateState {
     }
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
-        write_indexing_provider_state_hash(&self.state_hash, &mut to.borrow().init_state_hash())?;
+        write_indexing_provider_state_hash(&self.state_hash, &mut to.reborrow().init_state_hash())?;
 
         Ok(())
     }
@@ -439,7 +439,7 @@ impl<'a> Proto<'a> for IndexerRoute {
 
     fn write(&self, to: &mut Self::Writer) -> Result<(), ProtoError> {
         self.neighbors_route
-            .write(&mut to.borrow().init_neighbors_route())?;
+            .write(&mut to.reborrow().init_neighbors_route())?;
 
         to.set_app_port(self.app_port);
 
@@ -480,15 +480,15 @@ impl<'a> Proto<'a> for RoutesToIndexer {
         // Write the indexingProviderId
         write_indexing_provider_id(
             &self.indexing_provider_id,
-            &mut to.borrow().init_indexing_provider_id(),
+            &mut to.reborrow().init_indexing_provider_id(),
         )?;
 
         // Write the routes
         {
-            let mut routes = to.borrow().init_routes(self.routes.len() as u32);
+            let mut routes = to.reborrow().init_routes(self.routes.len() as u32);
 
             for (idx, ref_indexer_route) in self.routes.iter().enumerate() {
-                ref_indexer_route.write(&mut routes.borrow().get(idx as u32))?;
+                ref_indexer_route.write(&mut routes.reborrow().get(idx as u32))?;
             }
         }
 
