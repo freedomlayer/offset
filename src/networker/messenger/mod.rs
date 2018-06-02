@@ -38,7 +38,6 @@ pub mod token_channel;
 pub mod neighbor_tc_logic;
 mod tc_credit;
 mod pending_requests;
-mod invoice_validator;
 pub mod balance_state;
 mod messenger_messages;
 pub mod pending_neighbor_request;
