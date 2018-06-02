@@ -103,39 +103,3 @@ impl FailedSendMessage{
 }
 */
 
-
-/*
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::mem;
-    use ring::test::rand::FixedByteRandom;
-    use crypto::uid::Uid;
-    use proto::indexer::NeighborsRoute;
-
-
-    #[test]
-    fn test_request_send_msg_bytes_count() {
-        let rng1 = FixedByteRandom { byte: 0x03 };
-
-        assert_eq!(mem::size_of::<PublicKey>(), 32);
-
-        let rsm = RequestSendMessage {
-            request_id: Uid::new(&rng1),
-            route: NeighborsRoute {
-                public_keys: vec![
-                    PublicKey::from(&[0u8; 32]),
-                    PublicKey::from(&[0u8; 32]),
-                ],
-            },
-            request_content: vec![1,2,3,4,5],
-            max_response_len: 0x200,
-            processing_fee_proposal: 1,
-            credits_per_byte_proposal: 2,
-        };
-
-        let expected = 16 + 32 + 32 + 5 + 4 + 8 + 8;
-        assert_eq!(rsm.bytes_count(), expected);
-    }
-}
-*/
