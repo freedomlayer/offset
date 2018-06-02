@@ -34,18 +34,6 @@ pub struct ResponseSendMessage {
 }
 
 impl ResponseSendMessage{
-    pub fn verify_signature(&self, public_key: &PublicKey, request_hash: &HashResult) -> bool{
-        let mut message = Vec::new();
-        message.extend_from_slice(&self.request_id);
-        message.extend_from_slice(&self.rand_nonce);
-        // Serialize the processing_fee_collected:
-        message.write_u64::<LittleEndian>(self.processing_fee_collected);
-        message.extend_from_slice(&self.response_content);
-        // TODO(a4vision): Change to hash over contents, and see capnp to hash everything.
-        message.extend(request_hash.as_ref());
-        verify_signature(&message, public_key, &self.signature)
-    }
-
     pub fn bytes_count(&self) -> usize{
         mem::size_of_val(&self.request_id) +
         mem::size_of_val(&self.rand_nonce) +
