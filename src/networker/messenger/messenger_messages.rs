@@ -56,6 +56,7 @@ pub struct RequestSendMessage {
 }
 
 
+// TODO: Update this structure to contain updated contents of FailedSendMessage.
 pub struct FailedSendMessage {
     request_id: Uid,
     reporting_public_key: PublicKey,
