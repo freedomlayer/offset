@@ -36,7 +36,6 @@ use proto::networker::{ChannelToken};
 
 pub mod token_channel;
 pub mod neighbor_tc_logic;
-pub mod balance_state;
 mod messenger_messages;
 pub mod pending_neighbor_request;
 pub mod credit_calc;
