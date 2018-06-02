@@ -33,28 +33,6 @@ pub struct ResponseSendMessage {
     pub signature: Signature,
 }
 
-impl ResponseSendMessage{
-    pub fn bytes_count(&self) -> usize{
-        mem::size_of_val(&self.request_id) +
-        mem::size_of_val(&self.rand_nonce) +
-        mem::size_of_val(&self.processing_fee_collected) +
-        self.response_content.len() + // number of bytes that represent the array
-        mem::size_of_val(&self.signature)
-    }
-
-    pub fn response_length(&self) -> usize{
-        self.bytes_count()
-    }
-
-    pub fn get_request_id(&self) -> &Uid{
-        &self.request_id
-    }
-
-    pub fn get_processing_fee(&self) -> u64{
-        self.processing_fee_collected
-    }
-
-}
 
 /// A rational number. 
 /// T is the type of the numerator and the denominator.
