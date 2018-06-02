@@ -3,7 +3,8 @@ use futures::sync::{mpsc, oneshot};
 
 use database::messages::{IndexingProviderInfoFromDB, ResponseLoadIndexingProviders};
 use indexer_client::messages::{IndexerClientToDatabase, IndexingProviderInfo};
-use proto::indexer::{IndexingProviderId, NeighborsRoute};
+use proto::indexer::IndexingProviderId;
+use networker::messenger::messenger_messages::NeighborsRoute;
 
 #[derive(Debug)]
 pub enum DBIndexerClientError {

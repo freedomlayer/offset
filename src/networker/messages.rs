@@ -13,10 +13,11 @@ use funder::messages::{RequestSendFunds};
 
 use indexer_client::messages::RequestFriendsRoutes;
 use database::messages::{ResponseLoadNeighbors, ResponseLoadNeighborToken};
-use proto::indexer::NeighborsRoute;
 use proto::funder::InvoiceId;
 use proto::networker::{ChannelToken, NetworkerSendPrice};
-use networker::messenger::token_channel::{TCBalance, TCInvoice, TCSendPrice};
+
+use super::messenger::token_channel::{TCBalance, TCInvoice, TCSendPrice};
+use super::messenger::messenger_messages::NeighborsRoute;
 
 
 

@@ -13,13 +13,13 @@ use crypto::hash;
 use crypto::hash::HashResult;
 
 use proto::common::SendFundsReceipt;
-use proto::indexer::{NeighborsRoute, PkPairPosition};
 use proto::funder::InvoiceId;
 use proto::networker::NetworkerSendPrice;
 
 use super::pending_neighbor_request::PendingNeighborRequest;
 use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, RequestSendMessage,
-                                NeighborTcOp, NetworkerFreezeLink};
+                                NeighborTcOp, NetworkerFreezeLink,
+                                NeighborsRoute, PkPairPosition};
 use super::credit_calc::{credits_to_freeze, credits_on_success, 
     credits_on_failure, PaymentProposals};
 use utils::trans_hashmap::TransHashMap;

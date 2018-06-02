@@ -1,11 +1,9 @@
-
-use super::token_channel::ProcessMessageError;
-use proto::indexer::NeighborsRoute;
 use crypto::hash::HashResult;
 use crypto::uid::Uid;
 use crypto::identity::PublicKey;
-use super::messenger_messages::ResponseSendMessage;
-use super::messenger_messages::FailedSendMessage;
+
+use super::token_channel::ProcessMessageError;
+use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, NeighborsRoute};
 
 #[derive(Clone)]
 pub struct PendingNeighborRequest {

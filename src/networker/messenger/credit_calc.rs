@@ -1,12 +1,13 @@
 use std::convert::TryFrom;
 use std::{mem, cmp};
+
 use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
 use crypto::rand_values::RandValue;
-use proto::indexer::{PaymentProposalPair, NeighborRouteLink};
+
 use proto::networker::NetworkerSendPrice;
 use utils::int_convert::usize_to_u32;
-use super::messenger_messages::NetworkerFreezeLink;
+use super::messenger_messages::{NetworkerFreezeLink, PaymentProposalPair, NeighborRouteLink};
 
 pub struct PaymentProposals {
     pub middle_props: Vec<PaymentProposalPair>,

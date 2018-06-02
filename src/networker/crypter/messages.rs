@@ -1,7 +1,7 @@
 use futures::sync::oneshot;
 
 use super::super::messages::{RequestSendMessage, ResponseSendMessage};
-use proto::indexer::NeighborsRoute;
+use networker::messenger::messenger_messages::NeighborsRoute;
 
 
 pub struct CrypterRequestSendMessage {
