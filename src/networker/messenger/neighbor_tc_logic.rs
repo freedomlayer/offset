@@ -1,18 +1,6 @@
 use proto::networker::ChannelToken;
 use crypto::rand_values::RandValue;
 use super::messenger_messages::NeighborTcOp;
-/*
-use crypto::identity::PublicKey;
-use super::super::messages::MoveTokenDirection;
-<<<<<<< Updated upstream
-use super::balance_state_old::{BalanceState, NeighborTcOp,
-                               ProcessMessageOutput, ProcessTransListError,
-=======
-use super::token_channel::{BalanceState, NeighborTcOp,
-                               ProcessTransOutput, ProcessTransListError,
->>>>>>> Stashed changes
-                               atomic_process_trans_list};
-*/
 
 pub struct NeighborMoveToken {
     // pub channel_index: u32,
