@@ -1,7 +1,7 @@
 
 #[allow(unused)]
 /// Add u32 to i32. In case of an overflow, return None.
-fn checked_add_i32_u32(a: i32, b: u32) -> Option<i32> {
+pub fn checked_add_i32_u32(a: i32, b: u32) -> Option<i32> {
     let b_half = (b / 2) as i32;
     let b_rem = (b % 2) as i32;
 
@@ -11,7 +11,7 @@ fn checked_add_i32_u32(a: i32, b: u32) -> Option<i32> {
 
 #[allow(unused)]
 /// Add u64 to i64. In case of an overflow, return None.
-fn checked_add_i64_u64(a: i64, b: u64) -> Option<i64> {
+pub fn checked_add_i64_u64(a: i64, b: u64) -> Option<i64> {
     let b_half = (b / 2) as i64;
     let b_rem = (b % 2) as i64;
 
@@ -21,7 +21,7 @@ fn checked_add_i64_u64(a: i64, b: u64) -> Option<i64> {
 
 #[allow(unused)]
 /// Add u128 to i128. In case of an overflow, return None.
-fn checked_add_i128_u128(a: i128, b: u128) -> Option<i128> {
+pub fn checked_add_i128_u128(a: i128, b: u128) -> Option<i128> {
     let b_half = (b / 2) as i128;
     let b_rem = (b % 2) as i128;
 
