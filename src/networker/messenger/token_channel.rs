@@ -323,6 +323,14 @@ impl CreditCalculator {
                                 self.max_response_len,
                                 self.freeze_index_to_nodes_to_dest(index)?)?)
     }
+
+    pub fn credits_on_failure(&self, index: usize, reporting_index: usize) -> Option<u64> {
+        let nodes_to_reporting = usize_to_u32(reporting_index.checked_sub(index)?)?;
+        Some(credits_on_failure(&self.payment_proposals,
+                                self.request_content_len,
+                                nodes_to_reporting,
+                                self.freeze_index_to_nodes_to_dest(reporting_index)?)?)
+    }
 }
 
 /// Create the buffer we sign over at the Response message.
@@ -685,7 +693,7 @@ impl TransTokenChannel {
         let success_credits = credit_calc.credits_on_success(next_index, response_content_len)
             .expect("credits_on_success calculation failed!");
         let freeze_credits = credit_calc.credits_to_freeze(next_index)
-            .expect("credits_on_success calculation failed!");
+            .expect("credits_to_freeze calculation failed!");
 
         // Decrease frozen credits and increase balance:
         self.balance.local_pending_debt = 
@@ -747,15 +755,36 @@ impl TransTokenChannel {
                                  pending_request)
             .ok_or(ProcessMessageError::InvalidFailureSignature)?;
 
-
         // At this point we believe the failure message is valid.
+
+        let credit_calc = CreditCalculator::new(&pending_request.route,
+                                                pending_request.request_content_len,
+                                                pending_request.processing_fee_proposal,
+                                                pending_request.max_response_len)
+            .ok_or(ProcessMessageError::CreditCalculatorFailure)?;
+
+        // Remove entry from local_pending hashmap:
+        self.trans_pending_requests.trans_pending_local_requests.remove(
+            &failure_send_msg.request_id);
+
+        let next_index = index.checked_add(1).expect("Route too long!");
+        let failure_credits = credit_calc.credits_on_failure(next_index, reporting_index)
+            .expect("credits_on_failure calculation failed!");
+        let freeze_credits = credit_calc.credits_to_freeze(next_index)
+            .expect("credits_to_freeze calculation failed!");
+
+        // Decrease frozen credits and increase balance:
+        self.balance.local_pending_debt = 
+            self.balance.local_pending_debt.checked_sub(freeze_credits)
+            .expect("Insufficient frozen credit!");
+
+        // Increase balance
+        self.balance.balance = 
+            checked_add_i64_u64(self.balance.balance, failure_credits)
+            .expect("balance overflow");
         
-        // - Decrease frozen credits 
-        // - Increase balance
-        // - Remove entry from local_pending hashmap.
-        // - Return Failure message.
+        // Return Failure message.
+        Ok(failure_send_msg)
 
-
-        unreachable!();
     }
 }
