@@ -1,5 +1,3 @@
-use std::mem;
-use std::cmp;
 use std::convert::TryFrom;
 use std::collections::HashMap;
 use byteorder::{BigEndian, WriteBytesExt};
@@ -24,7 +22,7 @@ use super::credit_calc::{credits_to_freeze, credits_on_success,
     credits_on_failure, PaymentProposals};
 use utils::trans_hashmap::TransHashMap;
 use utils::int_convert::usize_to_u32;
-
+use utils::safe_arithmetic::checked_add_i64_u64;
 
 
 
@@ -640,28 +638,22 @@ impl TransTokenChannel {
         self.trans_pending_requests.trans_pending_remote_requests.remove(
             &response_send_msg.request_id);
 
-        let success_credits = credit_calc.credits_on_success(index, response_content_len);
+        let success_credits = credit_calc.credits_on_success(index, response_content_len)
+            .expect("credits_on_success calculation failed!");
 
-        /*
         // Decrease frozen credits and increase balance:
         self.balance.remote_pending_debt = 
-            self.balance.remote_pending_debt
-            .checked_sub(success_credits)
+            self.balance.remote_pending_debt.checked_sub(success_credits)
             .expect("Insufficient frozen credit!");
 
+        // Increase balance
         self.balance.balance = 
-            self.balance.balance
-            .checked_add(success_credits)
+            checked_add_i64_u64(self.balance.balance, success_credits)
             .expect("balance overflow");
 
-        // TODO: Implement a checked add for i64 with u64.
-        */
-
-        // - Calculate the amount of success credits
-        // - Increase balance
-        
-
+        // Return a response
         unreachable!();
+
     }
 
     fn process_failed_send_message(&mut self, failed_send_msg: FailedSendMessage) ->
