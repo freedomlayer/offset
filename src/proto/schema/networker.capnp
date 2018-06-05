@@ -148,7 +148,7 @@ struct ResponseSendMessageOp {
 
 struct FailedSendMessageOp {
         requestId @0: CustomUInt128;
-        reportingPublicKeyIndex @1: UInt16;
+        reportingPublicKey @1: CustomUInt256;
         # Index on the route of the public key reporting this failure message.
         # The destination node should not be able to issue this message.
         randNonceSignatures @2: List(RandNonceSignature);
@@ -162,6 +162,7 @@ struct FailedSendMessageOp {
         #   sha512/256(route) ||
         #   sha512/256(requestContent) ||
         #   processingFeeProposal ||
+        #   reportingPublicKey ||
         #   prev randNonceSignatures ||
         #   randNonce)
 }

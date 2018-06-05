@@ -126,7 +126,7 @@ struct ResponseSendFundOp {
 
 struct FailedSendFundOp {
         requestId @0: CustomUInt128;
-        reportingPublicKeyIndex @1: UInt16;
+        reportingPublicKey @1: CustomUInt256;
         # Index of the reporting node in the route of the corresponding request.
         # The reporting node cannot be the destination node.
         randNonceSignatures @2: List(RandNonceSignature);
@@ -138,7 +138,7 @@ struct FailedSendFundOp {
         #   destPayment ||
         #   sha512/256(route) || 
         #   invoiceId ||
-        #   reportingPublicKeyIndex ||
+        #   reportingPublicKey ||
         #   prev randNonceSignatures ||
         #   randNonce
         # )
