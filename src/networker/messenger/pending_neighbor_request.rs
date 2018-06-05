@@ -3,7 +3,7 @@ use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 
 use super::token_channel::ProcessMessageError;
-use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, NeighborsRoute};
+use super::messenger_messages::{ResponseSendMessage, FailureSendMessage, NeighborsRoute};
 
 #[derive(Clone)]
 pub struct PendingNeighborRequest {
@@ -14,4 +14,3 @@ pub struct PendingNeighborRequest {
     pub max_response_len: u32,
     pub processing_fee_proposal: u64,
 }
-

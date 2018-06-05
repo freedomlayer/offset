@@ -21,7 +21,7 @@ pub enum NeighborTcOp {
     LoadFunds(SendFundsReceipt),
     RequestSendMessage(RequestSendMessage),
     ResponseSendMessage(ResponseSendMessage),
-    FailureSendMessage(FailedSendMessage),
+    FailureSendMessage(FailureSendMessage),
     // ResetChannel(i64), // new_balanace
 }
 
@@ -62,7 +62,7 @@ pub struct RandNonceSignature {
 }
 
 
-pub struct FailedSendMessage {
+pub struct FailureSendMessage {
     pub request_id: Uid,
     pub reporting_public_key: PublicKey,
     pub rand_nonce_signatures: Vec<RandNonceSignature>,

@@ -15,7 +15,7 @@ use proto::funder::InvoiceId;
 use proto::networker::NetworkerSendPrice;
 
 use super::pending_neighbor_request::PendingNeighborRequest;
-use super::messenger_messages::{ResponseSendMessage, FailedSendMessage, RequestSendMessage,
+use super::messenger_messages::{ResponseSendMessage, FailureSendMessage, RequestSendMessage,
                                 NeighborTcOp, NetworkerFreezeLink,
                                 NeighborsRoute, PkPairPosition};
 use super::credit_calc::{credits_to_freeze, credits_on_success, 
@@ -47,7 +47,7 @@ pub struct IncomingFailedSendMessage {
 pub enum ProcessMessageOutput {
     Request(RequestSendMessage),
     Response(ResponseSendMessage),
-    Failure(FailedSendMessage),
+    Failure(FailureSendMessage),
 }
 
 
@@ -654,12 +654,8 @@ impl TransTokenChannel {
         Ok(response_send_msg)
     }
 
-    fn process_failure_send_message(&mut self, failure_send_msg: FailedSendMessage) ->
-        Result<FailedSendMessage, ProcessMessageError> {
-
-        // TODO:
-        // - Make sure that id exists in local_pending hashmap.
-        // - Obtain pending request
+    fn process_failure_send_message(&mut self, failure_send_msg: FailureSendMessage) ->
+        Result<FailureSendMessage, ProcessMessageError> {
         
         // Make sure that id exists in local_pending hashmap, 
         // and access saved request details.
