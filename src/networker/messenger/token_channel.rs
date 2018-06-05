@@ -35,12 +35,12 @@ pub struct IncomingResponseSendMessage {
     pending_request: PendingNeighborRequest,
     incoming_response: ResponseSendMessage,
 }
-*/
 
 pub struct IncomingFailedSendMessage {
     pending_request: PendingNeighborRequest,
     incoming_failed: FailedSendMessage,
 }
+*/
 
 
 /// Resulting tasks to perform after processing an incoming message.
@@ -48,7 +48,7 @@ pub struct IncomingFailedSendMessage {
 pub enum ProcessMessageOutput {
     Request(RequestSendMessage),
     Response(ResponseSendMessage),
-    Failure(IncomingFailedSendMessage),
+    Failure(FailedSendMessage),
 }
 
 
@@ -400,7 +400,8 @@ impl TransTokenChannel {
                 Ok(Some(ProcessMessageOutput::Response(
                     self.process_response_send_message(response_send_msg)?))),
             NeighborTcOp::FailedSendMessage(failed_send_msg) =>
-                self.process_failed_send_message(failed_send_msg),
+                Ok(Some(ProcessMessageOutput::Failure(
+                    self.process_failed_send_message(failed_send_msg)?))),
         }
     }
 
@@ -660,7 +661,8 @@ impl TransTokenChannel {
     }
 
     fn process_failed_send_message(&mut self, failed_send_msg: FailedSendMessage) ->
-        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        Result<FailedSendMessage, ProcessMessageError> {
+
         unreachable!();
     }
 }
