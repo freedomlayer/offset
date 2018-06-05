@@ -670,7 +670,6 @@ impl TransTokenChannel {
         let pending_request = local_pending_requests.get(&failure_send_msg.request_id)
             .ok_or(ProcessMessageError::RequestDoesNotExist)?;
 
-        // TODO: rename failure_send_msg -> failure_send_msg
         // TODO: Implement create_failure_signature_buffer()
         /*
         let failure_signature_buffer = create_failure_signature_buffer(
