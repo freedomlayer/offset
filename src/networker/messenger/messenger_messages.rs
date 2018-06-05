@@ -56,13 +56,16 @@ pub struct RequestSendMessage {
     pub freeze_links: Vec<NetworkerFreezeLink>,
 }
 
+struct RandNonceSignature {
+    rand_nonce: RandValue,
+    signature: Signature,
+}
 
-// TODO: Update this structure to contain updated contents of FailedSendMessage.
+
 pub struct FailedSendMessage {
     request_id: Uid,
     reporting_public_key: PublicKey,
-    rand_nonce: RandValue,
-    signature: Signature,
+    rand_nonce_signatures: Vec<RandNonceSignature>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
