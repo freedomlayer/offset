@@ -393,9 +393,10 @@ impl TransTokenChannel {
                 self.process_load_funds(send_funds_receipt),
             NeighborTcOp::RequestSendMessage(request_send_msg) =>
                 Ok(Some(ProcessMessageOutput::Request(
-                        self.process_request_send_message(request_send_msg)?))),
+                    self.process_request_send_message(request_send_msg)?))),
             NeighborTcOp::ResponseSendMessage(response_send_msg) =>
-                self.process_response_send_message(response_send_msg),
+                Ok(Some(ProcessMessageOutput::Response(
+                    self.process_response_send_message(response_send_msg)?))),
             NeighborTcOp::FailedSendMessage(failed_send_msg) =>
                 self.process_failed_send_message(failed_send_msg),
         }
@@ -585,7 +586,7 @@ impl TransTokenChannel {
     }
 
     fn process_response_send_message(&mut self, response_send_msg: ResponseSendMessage) ->
-        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        Result<ResponseSendMessage, ProcessMessageError> {
 
         // Make sure that id exists in remote_pending hashmap, 
         // and access saved request details.
@@ -653,7 +654,7 @@ impl TransTokenChannel {
             checked_add_i64_u64(self.balance.balance, success_credits)
             .expect("balance overflow");
 
-        Ok(Some(ProcessMessageOutput::Response(response_send_msg)))
+        Ok(response_send_msg)
     }
 
     fn process_failed_send_message(&mut self, failed_send_msg: FailedSendMessage) ->
