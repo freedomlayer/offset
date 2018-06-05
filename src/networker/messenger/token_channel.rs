@@ -202,6 +202,7 @@ pub fn atomic_process_messages_list(token_channel: TokenChannel, messages: Vec<N
 }
 
 
+/*
 fn verify_freezing_links(freeze_links: &[NetworkerFreezeLink], 
                             credit_calc: &CreditCalculator) -> Result<(), ProcessMessageError> {
 
@@ -233,6 +234,7 @@ fn verify_freezing_links(freeze_links: &[NetworkerFreezeLink],
     }
     Ok(())
 }
+*/
 
 struct CreditCalculator {
     payment_proposals: PaymentProposals,
@@ -537,7 +539,7 @@ impl TransTokenChannel {
                                                 request_send_msg.max_response_len)
             .ok_or(ProcessMessageError::CreditCalculatorFailure)?;
 
-        verify_freezing_links(&request_send_msg.freeze_links, &credit_calc)?;
+        // verify_freezing_links(&request_send_msg.freeze_links, &credit_calc)?;
 
         let index = match pk_pair {
             PkPairPosition::Dest => request_send_msg.route.route_links.len().checked_add(1),
