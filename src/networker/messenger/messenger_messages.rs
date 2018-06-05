@@ -57,15 +57,15 @@ pub struct RequestSendMessage {
 }
 
 struct RandNonceSignature {
-    rand_nonce: RandValue,
-    signature: Signature,
+    pub rand_nonce: RandValue,
+    pub signature: Signature,
 }
 
 
 pub struct FailedSendMessage {
-    request_id: Uid,
-    reporting_public_key: PublicKey,
-    rand_nonce_signatures: Vec<RandNonceSignature>,
+    pub request_id: Uid,
+    pub reporting_public_key: PublicKey,
+    pub rand_nonce_signatures: Vec<RandNonceSignature>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
