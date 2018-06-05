@@ -83,6 +83,7 @@ pub enum ProcessMessageError {
     ResponseContentTooLong,
     ReportingNodeNonexistent,
     InvalidReportingNode,
+    InvalidFailureSignature,
 }
 
 #[derive(Debug)]
@@ -236,6 +237,29 @@ fn verify_freezing_links(freeze_links: &[NetworkerFreezeLink],
     Ok(())
 }
 */
+
+/// Verify all failure message signature chain
+fn verify_failure_signature(index: usize,
+                            reporting_index: usize,
+                            failure_send_msg: &FailureSendMessage,
+                            pending_request: &PendingNeighborRequest) -> Option<()> {
+
+    let mut failure_signature_buffer = create_failure_signature_buffer(
+                                        &failure_send_msg,
+                                        &pending_request);
+    let next_index = index.checked_add(1)?;
+    for i in (next_index ..= reporting_index).rev() {
+        let sig_index = i.checked_sub(next_index)?;
+        let rand_nonce = &failure_send_msg.rand_nonce_signatures[sig_index].rand_nonce;
+        let signature = &failure_send_msg.rand_nonce_signatures[sig_index].signature;
+        failure_signature_buffer.extend_from_slice(rand_nonce);
+        let public_key = pending_request.route.pk_by_index(i)?;
+        if !verify_signature(&failure_signature_buffer, public_key, signature) {
+            return None;
+        }
+    }
+    Some(())
+}
 
 struct CreditCalculator {
     payment_proposals: PaymentProposals,
@@ -700,10 +724,10 @@ impl TransTokenChannel {
         }.expect("Route too long!");
 
 
-        // - Make sure that reporting node public key is:
-        //      - inside the route
-        //      - After us on the route.
-        //      - Not the destination node
+        // Make sure that reporting node public key is:
+        //  - inside the route
+        //  - After us on the route.
+        //  - Not the destination node
         
         let reporting_index = pending_request.route.pk_index(
             &failure_send_msg.reporting_public_key)
@@ -716,16 +740,20 @@ impl TransTokenChannel {
         if (reporting_index <= index) || (reporting_index >= dest_index) {
             return Err(ProcessMessageError::InvalidReportingNode);
         }
-        
 
-        // - Verify all signatures, starting from the reporting node's signature.
-        let failure_signature_buffer = create_failure_signature_buffer(
-                                            &failure_send_msg,
-                                            &pending_request);
-        // - Remove entry from local_pending hashmap.
+        verify_failure_signature(index,
+                                 reporting_index,
+                                 &failure_send_msg,
+                                 pending_request)
+            .ok_or(ProcessMessageError::InvalidFailureSignature)?;
+
+
+        // At this point we believe the failure message is valid.
+        
         // - Decrease frozen credits 
         // - Increase balance
-
+        // - Remove entry from local_pending hashmap.
+        // - Return Failure message.
 
 
         unreachable!();
