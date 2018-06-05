@@ -161,7 +161,6 @@ struct FailureSendMessageOp {
         #   processingFeeProposal ||
         #   sha512/256(route) ||
         #   sha512/256(requestContent) ||
-        #   processingFeeProposal ||
         #   reportingPublicKey ||
         #   prev randNonceSignatures ||
         #   randNonce)
