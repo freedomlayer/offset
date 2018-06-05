@@ -22,8 +22,7 @@ use super::credit_calc::{credits_to_freeze, credits_on_success,
     credits_on_failure, PaymentProposals};
 use utils::trans_hashmap::TransHashMap;
 use utils::int_convert::usize_to_u32;
-use utils::safe_arithmetic::checked_add_i64_u64;
-
+use utils::safe_arithmetic::{checked_add_i64_u64, saturating_add_i64_u64};
 
 
 /// The maximum possible networker debt.
@@ -468,14 +467,9 @@ impl TransTokenChannel {
         // Add payment to self.balance.balance. We have to be careful because payment u128, and
         // self.balance.balance is of type i64.
         // TODO: Rewrite this part: Possibly simplify or refactor.
-        let payment64 = match u64::try_from(send_funds_receipt.payment) {
-            Ok(value) => value,
-            Err(_) => u64::max_value(), // This case wasted credits for the sender.
-        };
-        let half64 = (payment64 / 2) as i64;
-        self.balance.balance = self.balance.balance.saturating_add(half64);
-        self.balance.balance = self.balance.balance.saturating_add(half64);
-        self.balance.balance = self.balance.balance.saturating_add((payment64 % 2) as i64);
+        let payment = u64::try_from(send_funds_receipt.payment).unwrap_or(u64::max_value());
+        self.balance.balance = saturating_add_i64_u64(self.balance.balance,
+                                                   payment);
         Ok(None)
     }
 
