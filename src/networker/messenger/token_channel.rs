@@ -660,12 +660,34 @@ impl TransTokenChannel {
         // TODO:
         // - Make sure that id exists in local_pending hashmap.
         // - Obtain pending request
+        
+        // Make sure that id exists in local_pending hashmap, 
+        // and access saved request details.
+        let local_pending_requests = self.trans_pending_requests
+            .trans_pending_local_requests.get_hmap();
+
+        // Obtain pending request:
+        let pending_request = local_pending_requests.get(&failed_send_msg.request_id)
+            .ok_or(ProcessMessageError::RequestDoesNotExist)?;
+
+        // TODO: rename failed_send_msg -> failure_send_msg
+        // TODO: Implement create_failure_signature_buffer()
+        /*
+        let failure_signature_buffer = create_failure_signature_buffer(
+                                            &failed_send_msg,
+                                            &pending_request);
+        */
+
+
         // - Make sure that reporting node public key is:
         //      - inside the route
         //      - After us on the route.
         //      - Not the destination node
         // - Verify all signatures, starting from the reporting node's signature.
-        // - 
+        // - Remove entry from local_pending hashmap.
+        // - Decrease frozen credits 
+        // - Increase balance
+
 
 
         unreachable!();
