@@ -197,7 +197,6 @@ impl NeighborsRoute {
         hash::sha_512_256(&hbuffer)
     }
 
-    /*
     /// Find the index of a public key inside the route.
     /// source is considered to be index 0.
     /// dest is considered to be the last index.
@@ -217,7 +216,6 @@ impl NeighborsRoute {
                 .map(|i| i.checked_add(1))?
         }
     }
-    */
 }
 /*
 
