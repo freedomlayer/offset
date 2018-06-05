@@ -9,7 +9,6 @@ pub fn checked_add_i32_u32(a: i32, b: u32) -> Option<i32> {
         .checked_add(b_rem)?)
 }
 
-#[allow(unused)]
 /// Add u64 to i64. In case of an overflow, return None.
 pub fn checked_add_i64_u64(a: i64, b: u64) -> Option<i64> {
     let b_half = (b / 2) as i64;
@@ -28,7 +27,15 @@ pub fn checked_add_i128_u128(a: i128, b: u128) -> Option<i128> {
 
     Some(a.checked_add(b_half)?.checked_add(b_half)?
         .checked_add(b_rem)?)
+}
 
+/// Add u64 to i64. In case of an overflow, return None.
+pub fn saturating_add_i64_u64(a: i64, b: u64) -> i64 {
+    let b_half = (b / 2) as i64;
+    let b_rem = (b % 2) as i64;
+
+    a.saturating_add(b_half).saturating_add(b_half)
+        .saturating_add(b_rem)
 }
 
 #[cfg(test)]
@@ -60,5 +67,13 @@ mod tests {
         assert_eq!(checked_add_i128_u128(0x7fff_ffff_ffff_ffff_ffff_ffff_ffff_ffff,1), None);
         assert_eq!(checked_add_i128_u128(-1,3), Some(2));
         assert_eq!(checked_add_i128_u128(-5,3), Some(-2));
+    }
+
+    #[test]
+    fn test_saturating_add_i64_u64() {
+        assert_eq!(saturating_add_i64_u64(1,1), 2);
+        assert_eq!(saturating_add_i64_u64(0x7fffffff_ffffffff,1), 0x7fffffff_ffffffff);
+        assert_eq!(saturating_add_i64_u64(-5,3), -2);
+        assert_eq!(saturating_add_i64_u64(-1,0xffffffff_ffffffff), 0x7fffffff_ffffffff);
     }
 }
