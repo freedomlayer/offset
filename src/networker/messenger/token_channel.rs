@@ -701,6 +701,8 @@ impl TransTokenChannel {
             .expect("Insufficient frozen credit!");
 
         // Increase balance
+        // TODO: We should decrease here instead of increase:
+        assert!(false);
         self.balance.balance = 
             checked_add_i64_u64(self.balance.balance, success_credits)
             .expect("balance overflow");
@@ -779,6 +781,8 @@ impl TransTokenChannel {
             .expect("Insufficient frozen credit!");
 
         // Increase balance
+        // TODO: We should decrease here instead of increase:
+        assert!(false);
         self.balance.balance = 
             checked_add_i64_u64(self.balance.balance, failure_credits)
             .expect("balance overflow");
