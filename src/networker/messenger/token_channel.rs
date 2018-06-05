@@ -281,14 +281,11 @@ impl CreditCalculator {
     /// Note: source node has index 0. dest node has the last index.
     pub fn credits_to_freeze(&self, index: usize) -> Option<u64> {
 
-        // Amount of credits the node with at index has to freeze.
-        let index_next = index.checked_add(1)?;
-
         Some(credits_to_freeze(&self.payment_proposals,
             self.processing_fee_proposal,
             self.request_content_len,
             self.max_response_len,
-            self.freeze_index_to_nodes_to_dest(index_next)?)?)
+            self.freeze_index_to_nodes_to_dest(index)?)?)
     }
 
     pub fn credits_on_success(&self, index: usize, 
