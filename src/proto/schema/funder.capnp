@@ -113,7 +113,7 @@ struct ResponseSendFundOp {
         randNonce @1: CustomUInt128;
         signature @2: CustomUInt512;
         # Signature{key=recipientKey}(
-        #   "FUND_SUCCESS" ||
+        #   sha512/256("FUND_SUCCESS") ||
         #   sha512/256(requestId || sha512/256(route) || randNonce) ||
         #   invoiceId ||
         #   destPayment
@@ -133,7 +133,7 @@ struct FailedSendFundOp {
         # Contains a signature for every node in the route, from the reporting
         # node, until the current node.
         # Signature{key=recipientKey}(
-        #   "FUND_FAILURE" ||
+        #   sha512/256("FUND_FAILURE") ||
         #   requestId ||
         #   destPayment ||
         #   sha512/256(route) || 

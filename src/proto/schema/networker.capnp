@@ -133,7 +133,7 @@ struct ResponseSendMessageOp {
         responseContent @3: Data;
         signature @4: CustomUInt512;
         # Signature{key=recipientKey}(
-        #   "REQUEST_SUCCESS" ||
+        #   sha512/256("REQUEST_SUCCESS") ||
         #   requestId ||
         #   maxResponseLength ||
         #   processingFeeProposal ||
@@ -155,7 +155,7 @@ struct FailedSendMessageOp {
         # Contains a signature for every node in the route, from the reporting
         # node, until the current node.
         # Signature{key=reportingNodePublicKey}(
-        #   "REQUEST_FAILURE" ||
+        #   sha512/256("REQUEST_FAILURE") ||
         #   requestId ||
         #   maxResponseLength ||
         #   processingFeeProposal ||
