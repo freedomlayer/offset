@@ -22,7 +22,7 @@ use super::credit_calc::{credits_to_freeze, credits_on_success,
     credits_on_failure, PaymentProposals};
 use utils::trans_hashmap::TransHashMap;
 use utils::int_convert::usize_to_u32;
-use utils::safe_arithmetic::{checked_add_i64_u64, saturating_add_i64_u64};
+use utils::safe_arithmetic::SafeArithmetic;
 
 
 /// The maximum possible networker debt.
@@ -519,8 +519,7 @@ impl TransTokenChannel {
         // self.balance.balance is of type i64.
         // TODO: Rewrite this part: Possibly simplify or refactor.
         let payment = u64::try_from(send_funds_receipt.payment).unwrap_or(u64::max_value());
-        self.balance.balance = saturating_add_i64_u64(self.balance.balance,
-                                                   payment);
+        self.balance.balance = self.balance.balance.saturating_add_unsigned(payment);
         Ok(None)
     }
 
@@ -704,7 +703,7 @@ impl TransTokenChannel {
         // TODO: We should decrease here instead of increase:
         assert!(false);
         self.balance.balance = 
-            checked_add_i64_u64(self.balance.balance, success_credits)
+            self.balance.balance.checked_add_unsigned(success_credits)
             .expect("balance overflow");
 
         Ok(response_send_msg)
@@ -784,7 +783,7 @@ impl TransTokenChannel {
         // TODO: We should decrease here instead of increase:
         assert!(false);
         self.balance.balance = 
-            checked_add_i64_u64(self.balance.balance, failure_credits)
+            self.balance.balance.checked_add_unsigned(failure_credits)
             .expect("balance overflow");
         
         // Return Failure message.

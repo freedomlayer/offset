@@ -1,79 +1,73 @@
 
-#[allow(unused)]
-/// Add u32 to i32. In case of an overflow, return None.
-pub fn checked_add_i32_u32(a: i32, b: u32) -> Option<i32> {
-    let b_half = (b / 2) as i32;
-    let b_rem = (b % 2) as i32;
+pub trait SafeArithmetic: Copy {
+    type Unsigned;
 
-    Some(a.checked_add(b_half)?.checked_add(b_half)?
-        .checked_add(b_rem)?)
+    fn checked_add_unsigned(self, u: Self::Unsigned) -> Option<Self>;
+    fn checked_sub_unsigned(self, u: Self::Unsigned) -> Option<Self>;
+    fn saturating_add_unsigned(self, u: Self::Unsigned) -> Self;
+    fn saturating_sub_unsigned(self, u: Self::Unsigned) -> Self;
 }
 
-/// Add u64 to i64. In case of an overflow, return None.
-pub fn checked_add_i64_u64(a: i64, b: u64) -> Option<i64> {
-    let b_half = (b / 2) as i64;
-    let b_rem = (b % 2) as i64;
+macro_rules! impl_safe_arithmetic {
+    ( $i:ty, $u:ty ) => {
+        impl SafeArithmetic for $i {
+            type Unsigned = $u;
+            fn checked_add_unsigned(self, u: $u) -> Option<$i> {
+                let u_half = (u / 2) as $i;
+                let u_rem = (u % 2) as $i;
 
-    Some(a.checked_add(b_half)?.checked_add(b_half)?
-        .checked_add(b_rem)?)
+                self.checked_add(u_half)?.checked_add(u_half)?
+                    .checked_add(u_rem)
+            }
+
+            fn checked_sub_unsigned(self, u: $u) -> Option<$i> {
+                let u_half = (u / 2) as $i;
+                let u_rem = (u % 2) as $i;
+                self.checked_sub(u_half)?.checked_sub(u_half)?
+                    .checked_sub(u_rem)
+            }
+            fn saturating_add_unsigned(self, u: $u) -> $i {
+                let u_half = (u / 2) as $i;
+                let u_rem = (u % 2) as $i;
+
+                self.saturating_add(u_half).saturating_add(u_half)
+                    .saturating_add(u_rem)
+            }
+            fn saturating_sub_unsigned(self, u: $u) -> $i {
+                let u_half = (u / 2) as $i;
+                let u_rem = (u % 2) as $i;
+
+                self.saturating_sub(u_half).saturating_sub(u_half)
+                    .saturating_sub(u_rem)
+            }
+        }
+    }
 }
 
-#[allow(unused)]
-/// Add u128 to i128. In case of an overflow, return None.
-pub fn checked_add_i128_u128(a: i128, b: u128) -> Option<i128> {
-    let b_half = (b / 2) as i128;
-    let b_rem = (b % 2) as i128;
-
-
-    Some(a.checked_add(b_half)?.checked_add(b_half)?
-        .checked_add(b_rem)?)
-}
-
-/// Add u64 to i64. In case of an overflow, return None.
-pub fn saturating_add_i64_u64(a: i64, b: u64) -> i64 {
-    let b_half = (b / 2) as i64;
-    let b_rem = (b % 2) as i64;
-
-    a.saturating_add(b_half).saturating_add(b_half)
-        .saturating_add(b_rem)
-}
+impl_safe_arithmetic!(i8, u8);
+impl_safe_arithmetic!(i16, u16);
+impl_safe_arithmetic!(i32, u32);
+impl_safe_arithmetic!(i64, u64);
+impl_safe_arithmetic!(i128, u128);
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_checked_add_i32_u32() {
-        assert_eq!(checked_add_i32_u32(1,1), Some(2));
-        assert_eq!(checked_add_i32_u32(0x7fffffff,1), None);
-        assert_eq!(checked_add_i32_u32(0x7ffffffe,2), None);
-        assert_eq!(checked_add_i32_u32(0x7ffffffe,3), None);
-        assert_eq!(checked_add_i32_u32(0x7ffffffe,1), Some(0x7fffffff));
-        assert_eq!(checked_add_i32_u32(-1,3), Some(2));
-        assert_eq!(checked_add_i32_u32(-5,3), Some(-2));
-    }
+    fn test_safe_arithmetic_u8() {
+        assert_eq!(8_i8.checked_add_unsigned(1_u8), Some(9_i8));
+        assert_eq!((-3_i8).checked_add_unsigned(1_u8), Some(-2_i8));
+        assert_eq!((-3_i8).checked_add_unsigned(5_u8), Some(2_i8));
+        assert_eq!(127_i8.checked_add_unsigned(1_u8), None);
+        assert_eq!((-2_i8).checked_add_unsigned(255_u8), None);
+        assert_eq!(126_i8.checked_add_unsigned(1_u8), Some(127_i8));
 
-    #[test]
-    fn test_checked_add_i64_u64() {
-        assert_eq!(checked_add_i64_u64(1,1), Some(2));
-        assert_eq!(checked_add_i64_u64(0x7fff_ffff_ffff_ffff,1), None);
-        assert_eq!(checked_add_i64_u64(-1,3), Some(2));
-        assert_eq!(checked_add_i64_u64(-5,3), Some(-2));
-    }
-
-    #[test]
-    fn test_checked_add_i128_u128() {
-        assert_eq!(checked_add_i128_u128(1,1), Some(2));
-        assert_eq!(checked_add_i128_u128(0x7fff_ffff_ffff_ffff_ffff_ffff_ffff_ffff,1), None);
-        assert_eq!(checked_add_i128_u128(-1,3), Some(2));
-        assert_eq!(checked_add_i128_u128(-5,3), Some(-2));
-    }
-
-    #[test]
-    fn test_saturating_add_i64_u64() {
-        assert_eq!(saturating_add_i64_u64(1,1), 2);
-        assert_eq!(saturating_add_i64_u64(0x7fffffff_ffffffff,1), 0x7fffffff_ffffffff);
-        assert_eq!(saturating_add_i64_u64(-5,3), -2);
-        assert_eq!(saturating_add_i64_u64(-1,0xffffffff_ffffffff), 0x7fffffff_ffffffff);
+        assert_eq!(0_i8.checked_sub_unsigned(1_u8), Some(-1_i8));
+        assert_eq!((-1_i8).checked_sub_unsigned(1_u8), Some(-2_i8));
+        assert_eq!((-127_i8).checked_sub_unsigned(1_u8), Some(-128_i8));
+        assert_eq!((-128_i8).checked_sub_unsigned(1_u8), None);
+        assert_eq!(3_i8.checked_sub_unsigned(255_u8), None);
     }
 }
+
