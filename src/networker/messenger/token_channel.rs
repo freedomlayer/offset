@@ -663,6 +663,17 @@ impl TransTokenChannel {
     fn process_failed_send_message(&mut self, failed_send_msg: FailedSendMessage) ->
         Result<FailedSendMessage, ProcessMessageError> {
 
+        // TODO:
+        // - Make sure that id exists in remote_pending hashmap.
+        // - Obtain pending request
+        // - Make sure that reporting node public key is:
+        //      - inside the route
+        //      - After us on the route.
+        //      - Not the destination node
+        // - Verify all signatures, starting from the reporting node's signature.
+        // - 
+
+
         unreachable!();
     }
 }
