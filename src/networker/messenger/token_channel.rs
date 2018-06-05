@@ -585,13 +585,13 @@ impl TransTokenChannel {
     fn process_response_send_message(&mut self, response_send_msg: ResponseSendMessage) ->
         Result<ResponseSendMessage, ProcessMessageError> {
 
-        // Make sure that id exists in remote_pending hashmap, 
+        // Make sure that id exists in local_pending hashmap, 
         // and access saved request details.
-        let remote_pending_requests = self.trans_pending_requests
-            .trans_pending_remote_requests.get_hmap();
+        let local_pending_requests = self.trans_pending_requests
+            .trans_pending_local_requests.get_hmap();
 
         // Obtain pending request:
-        let pending_request = remote_pending_requests.get(&response_send_msg.request_id)
+        let pending_request = local_pending_requests.get(&response_send_msg.request_id)
             .ok_or(ProcessMessageError::RequestDoesNotExist)?;
 
         let response_signature_buffer = create_response_signature_buffer(
@@ -634,16 +634,19 @@ impl TransTokenChannel {
             PkPairPosition::NotDest(i) => i.checked_add(1),
         }.expect("Route too long!");
 
-        // Remove entry from remote_pending hashmap:
-        self.trans_pending_requests.trans_pending_remote_requests.remove(
+        // Remove entry from local_pending hashmap:
+        self.trans_pending_requests.trans_pending_local_requests.remove(
             &response_send_msg.request_id);
 
         let success_credits = credit_calc.credits_on_success(index, response_content_len)
             .expect("credits_on_success calculation failed!");
 
+        let freeze_credits = credit_calc.credits_to_freeze(index)
+            .expect("credits_on_success calculation failed!");
+
         // Decrease frozen credits and increase balance:
-        self.balance.remote_pending_debt = 
-            self.balance.remote_pending_debt.checked_sub(success_credits)
+        self.balance.local_pending_debt = 
+            self.balance.local_pending_debt.checked_sub(freeze_credits)
             .expect("Insufficient frozen credit!");
 
         // Increase balance
@@ -658,7 +661,7 @@ impl TransTokenChannel {
         Result<FailedSendMessage, ProcessMessageError> {
 
         // TODO:
-        // - Make sure that id exists in remote_pending hashmap.
+        // - Make sure that id exists in local_pending hashmap.
         // - Obtain pending request
         // - Make sure that reporting node public key is:
         //      - inside the route
