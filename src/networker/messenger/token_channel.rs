@@ -81,6 +81,8 @@ pub enum ProcessMessageError {
     InvalidResponseSignature,
     ProcessingFeeCollectedTooHigh,
     ResponseContentTooLong,
+    ReportingNodeNonexistent,
+    InvalidReportingNode,
 }
 
 #[derive(Debug)]
@@ -686,19 +688,40 @@ impl TransTokenChannel {
         let pending_request = local_pending_requests.get(&failure_send_msg.request_id)
             .ok_or(ProcessMessageError::RequestDoesNotExist)?;
 
-        // TODO: Implement create_failure_signature_buffer()
-        /*
-        let failure_signature_buffer = create_failure_signature_buffer(
-                                            &failure_send_msg,
-                                            &pending_request);
-        */
+        // Find ourselves on the route. If we are not there, abort.
+        let pk_pair = pending_request.route.find_pk_pair(
+            &self.idents.remote_public_key, 
+            &self.idents.local_public_key)
+            .expect("Can not find myself in request's route!");
+
+        let index = match pk_pair {
+            PkPairPosition::Dest => pending_request.route.route_links.len().checked_add(1),
+            PkPairPosition::NotDest(i) => i.checked_add(1),
+        }.expect("Route too long!");
 
 
         // - Make sure that reporting node public key is:
         //      - inside the route
         //      - After us on the route.
         //      - Not the destination node
+        
+        let reporting_index = pending_request.route.pk_index(
+            &failure_send_msg.reporting_public_key)
+            .ok_or(ProcessMessageError::ReportingNodeNonexistent)?;
+
+        let dest_index = pending_request.route.route_links.len()
+            .checked_add(1)
+            .ok_or(ProcessMessageError::RouteTooLong)?;
+
+        if (reporting_index <= index) || (reporting_index >= dest_index) {
+            return Err(ProcessMessageError::InvalidReportingNode);
+        }
+        
+
         // - Verify all signatures, starting from the reporting node's signature.
+        let failure_signature_buffer = create_failure_signature_buffer(
+                                            &failure_send_msg,
+                                            &pending_request);
         // - Remove entry from local_pending hashmap.
         // - Decrease frozen credits 
         // - Increase balance
