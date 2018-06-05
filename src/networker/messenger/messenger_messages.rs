@@ -216,6 +216,18 @@ impl NeighborsRoute {
                 .map(|i| i.checked_add(1))?
         }
     }
+
+    /// Get the public key of a node according to its index.
+    pub fn pk_by_index(&self, index: usize) -> Option<&PublicKey> {
+        if index == 0 {
+            Some(&self.source_public_key)
+        } else if index == self.route_links.len().checked_add(2)? {
+            Some(&self.dest_public_key)
+        } else {
+            let link_index = index.checked_sub(1)?;
+            Some(&self.route_links[link_index].node_public_key)
+        }
+    }
 }
 /*
 
