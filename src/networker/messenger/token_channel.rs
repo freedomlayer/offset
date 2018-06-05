@@ -699,11 +699,8 @@ impl TransTokenChannel {
             self.balance.local_pending_debt.checked_sub(freeze_credits)
             .expect("Insufficient frozen credit!");
 
-        // Increase balance
-        // TODO: We should decrease here instead of increase:
-        assert!(false);
         self.balance.balance = 
-            self.balance.balance.checked_add_unsigned(success_credits)
+            self.balance.balance.checked_sub_unsigned(success_credits)
             .expect("balance overflow");
 
         Ok(response_send_msg)
@@ -779,11 +776,8 @@ impl TransTokenChannel {
             self.balance.local_pending_debt.checked_sub(freeze_credits)
             .expect("Insufficient frozen credit!");
 
-        // Increase balance
-        // TODO: We should decrease here instead of increase:
-        assert!(false);
         self.balance.balance = 
-            self.balance.balance.checked_add_unsigned(failure_credits)
+            self.balance.balance.checked_sub_unsigned(failure_credits)
             .expect("balance overflow");
         
         // Return Failure message.
