@@ -30,10 +30,12 @@ use utils::safe_arithmetic::checked_add_i64_u64;
 /// We don't use the full u64 because i64 can not go beyond this value.
 const MAX_NETWORKER_DEBT: u64 = (1 << 63) - 1;
 
+/*
 pub struct IncomingResponseSendMessage {
     pending_request: PendingNeighborRequest,
     incoming_response: ResponseSendMessage,
 }
+*/
 
 pub struct IncomingFailedSendMessage {
     pending_request: PendingNeighborRequest,
@@ -45,7 +47,7 @@ pub struct IncomingFailedSendMessage {
 /// Note that
 pub enum ProcessMessageOutput {
     Request(RequestSendMessage),
-    Response(IncomingResponseSendMessage),
+    Response(ResponseSendMessage),
     Failure(IncomingFailedSendMessage),
 }
 
@@ -651,9 +653,7 @@ impl TransTokenChannel {
             checked_add_i64_u64(self.balance.balance, success_credits)
             .expect("balance overflow");
 
-        // Return a response
-        unreachable!();
-
+        Ok(Some(ProcessMessageOutput::Response(response_send_msg)))
     }
 
     fn process_failed_send_message(&mut self, failed_send_msg: FailedSendMessage) ->
