@@ -146,7 +146,7 @@ struct ResponseSendMessageOp {
 
 
 
-struct FailedSendMessageOp {
+struct FailureSendMessageOp {
         requestId @0: CustomUInt128;
         reportingPublicKey @1: CustomUInt256;
         # Index on the route of the public key reporting this failure message.
@@ -177,7 +177,7 @@ struct NeighborOperation {
                 loadFunds @4: LoadFundsOp;
                 requestSendMessage @5: RequestSendMessageOp;
                 responseSendMessage @6: ResponseSendMessageOp;
-                failedSendMessage @7: FailedSendMessageOp;
+                failedSendMessage @7: FailureSendMessageOp;
         }
 }
 

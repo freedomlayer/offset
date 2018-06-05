@@ -124,7 +124,7 @@ struct ResponseSendFundOp {
         # See also the Receipt structure.
 }
 
-struct FailedSendFundOp {
+struct FailureSendFundOp {
         requestId @0: CustomUInt128;
         reportingPublicKey @1: CustomUInt256;
         # Index of the reporting node in the route of the corresponding request.
@@ -152,7 +152,7 @@ struct FriendOperation {
                 setRemoteMaxDebt @2: SetRemoteMaxDebtOp;
                 requestSendFund @3: RequestSendFundOp;
                 responseSendFund @4: ResponseSendFundOp;
-                failedSendFund @5: FailedSendFundOp;
+                failedSendFund @5: FailureSendFundOp;
         }
 }
 

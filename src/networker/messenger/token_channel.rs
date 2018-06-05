@@ -395,9 +395,9 @@ impl TransTokenChannel {
             NeighborTcOp::ResponseSendMessage(response_send_msg) =>
                 Ok(Some(ProcessMessageOutput::Response(
                     self.process_response_send_message(response_send_msg)?))),
-            NeighborTcOp::FailedSendMessage(failed_send_msg) =>
+            NeighborTcOp::FailureSendMessage(failure_send_msg) =>
                 Ok(Some(ProcessMessageOutput::Failure(
-                    self.process_failed_send_message(failed_send_msg)?))),
+                    self.process_failure_send_message(failure_send_msg)?))),
         }
     }
 
@@ -654,7 +654,7 @@ impl TransTokenChannel {
         Ok(response_send_msg)
     }
 
-    fn process_failed_send_message(&mut self, failed_send_msg: FailedSendMessage) ->
+    fn process_failure_send_message(&mut self, failure_send_msg: FailedSendMessage) ->
         Result<FailedSendMessage, ProcessMessageError> {
 
         // TODO:
@@ -667,14 +667,14 @@ impl TransTokenChannel {
             .trans_pending_local_requests.get_hmap();
 
         // Obtain pending request:
-        let pending_request = local_pending_requests.get(&failed_send_msg.request_id)
+        let pending_request = local_pending_requests.get(&failure_send_msg.request_id)
             .ok_or(ProcessMessageError::RequestDoesNotExist)?;
 
-        // TODO: rename failed_send_msg -> failure_send_msg
+        // TODO: rename failure_send_msg -> failure_send_msg
         // TODO: Implement create_failure_signature_buffer()
         /*
         let failure_signature_buffer = create_failure_signature_buffer(
-                                            &failed_send_msg,
+                                            &failure_send_msg,
                                             &pending_request);
         */
 
@@ -693,4 +693,3 @@ impl TransTokenChannel {
         unreachable!();
     }
 }
-

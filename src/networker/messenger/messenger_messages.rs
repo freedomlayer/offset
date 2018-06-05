@@ -21,7 +21,7 @@ pub enum NeighborTcOp {
     LoadFunds(SendFundsReceipt),
     RequestSendMessage(RequestSendMessage),
     ResponseSendMessage(ResponseSendMessage),
-    FailedSendMessage(FailedSendMessage),
+    FailureSendMessage(FailedSendMessage),
     // ResetChannel(i64), // new_balanace
 }
 
