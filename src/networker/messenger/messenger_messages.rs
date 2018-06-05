@@ -56,7 +56,7 @@ pub struct RequestSendMessage {
     pub freeze_links: Vec<NetworkerFreezeLink>,
 }
 
-struct RandNonceSignature {
+pub struct RandNonceSignature {
     pub rand_nonce: RandValue,
     pub signature: Signature,
 }
