@@ -38,7 +38,8 @@ pub mod token_channel;
 pub mod neighbor_tc_logic;
 pub mod messenger_messages;
 pub mod pending_neighbor_request;
-pub mod credit_calc;
+mod credit_calc;
+mod signature_buff;
 
 use self::pending_neighbor_request::PendingNeighborRequest;
 
