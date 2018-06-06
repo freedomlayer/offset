@@ -225,38 +225,3 @@ impl NeighborsRoute {
         }
     }
 }
-/*
-
-    pub fn is_unique(&self) -> bool {
-        let public_keys = &self.public_keys;
-        for i in 0 .. public_keys.len() {
-            for j in i + 1.. public_keys.len() {
-                if public_keys[i] == public_keys[j]{
-                    return false
-                }
-            }
-        }
-        true
-    }
-
-    fn index_of(&self, key: &PublicKey) -> Option<usize>{
-        self.public_keys.iter().position(|k| k == key)
-    }
-
-    pub fn get_dest_public_key(&self) -> Option<PublicKey>{
-        let key = self.public_keys.last()?;
-        Some(key.clone())
-    }
-
-    pub fn distance_between_nodes(&self, first_node: &PublicKey, second_node: &PublicKey)
-        -> Option<usize>{
-        let index_first = self.index_of(first_node)?;
-        let index_second = self.index_of(second_node)?;
-        if index_first > index_second{
-            None
-        }else{
-            Some(index_second - index_first)
-        }
-    }
-}
-*/
