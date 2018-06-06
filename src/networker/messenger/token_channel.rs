@@ -1,14 +1,11 @@
 use std::convert::TryFrom;
 use std::collections::HashMap;
-use byteorder::{BigEndian, WriteBytesExt};
 
-use num_bigint::BigUint;
+// use num_bigint::BigUint;
 
-use crypto::identity::{PublicKey, verify_signature, Signature};
+use crypto::identity::{PublicKey, verify_signature};
 use crypto::uid::Uid;
-use crypto::rand_values::RandValue;
 use crypto::hash;
-use crypto::hash::HashResult;
 
 use proto::common::SendFundsReceipt;
 use proto::funder::InvoiceId;
@@ -16,8 +13,7 @@ use proto::networker::NetworkerSendPrice;
 
 use super::pending_neighbor_request::PendingNeighborRequest;
 use super::messenger_messages::{ResponseSendMessage, FailureSendMessage, RequestSendMessage,
-                                NeighborTcOp, NetworkerFreezeLink,
-                                NeighborsRoute, PkPairPosition};
+                                NeighborTcOp, NeighborsRoute, PkPairPosition};
 use super::credit_calc::CreditCalculator;
 use utils::trans_hashmap::TransHashMap;
 use utils::int_convert::usize_to_u32;
