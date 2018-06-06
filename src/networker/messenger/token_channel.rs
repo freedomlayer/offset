@@ -351,7 +351,7 @@ impl TransTokenChannel {
         Result<Option<ProcessMessageOutput>, ProcessMessageError> {
 
         self.send_price.remote_send_price = match self.send_price.remote_send_price {
-            Some(ref send_price) => None,
+            Some(ref _send_price) => None,
             None => return Err(ProcessMessageError::RequestsAlreadyDisabled),
         };
         // TODO: Should this event be reported somehow?
