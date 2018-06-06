@@ -1,4 +1,4 @@
-#![allow(unused)]
+#![warn(unused)]
 
 use std::rc::Rc;
 use std::collections::HashMap;
@@ -9,12 +9,10 @@ use tokio_core::reactor::Handle;
 
 use ring::rand::SecureRandom;
 
-use crypto::uid::Uid;
-use crypto::rand_values::RandValue;
 use timer::messages::FromTimer;
 
 use super::messages::{NetworkerToChanneler, NetworkerToDatabase, 
-    NetworkerToAppManager, MessageReceived, MoveTokenDirection,
+    NetworkerToAppManager, MessageReceived, 
     NeighborStatus};
 
 use super::crypter::messages::CrypterRequestSendMessage;
@@ -30,8 +28,6 @@ use database::clients::networker_client::DBNetworkerClient;
 
 use channeler::messages::ChannelerToNetworker;
 
-use proto::funder::InvoiceId;
-use proto::networker::{ChannelToken};
 
 
 pub mod token_channel;
@@ -43,6 +39,7 @@ mod signature_buff;
 use self::neighbor_tc_logic::NeighborTCState;
 
 
+#[allow(unused)]
 struct NeighborState {
     neighbor_socket_addr: Option<SocketAddr>, 
     wanted_remote_max_debt: u64,
