@@ -52,7 +52,7 @@ pub enum ProcessMessageOutput {
 
 
 #[derive(Debug)]
-pub enum ProcessMessageError {
+pub enum ProcessOperationError {
     RemoteMaxDebtTooLarge(u64),
     /// Trying to set the invoiceId, while already expecting another invoice id.
     InvoiceIdExists,
@@ -89,7 +89,7 @@ pub enum ProcessMessageError {
 #[derive(Debug)]
 pub struct ProcessTransListError {
     index: usize,
-    process_trans_error: ProcessMessageError,
+    process_trans_error: ProcessOperationError,
 }
 
 
@@ -206,14 +206,14 @@ pub fn atomic_process_operations_list(token_channel: TokenChannel, operations: V
 
 /*
 fn verify_freezing_links(freeze_links: &[NetworkerFreezeLink], 
-                            credit_calc: &CreditCalculator) -> Result<(), ProcessMessageError> {
+                            credit_calc: &CreditCalculator) -> Result<(), ProcessOperationError> {
 
     // Make sure that the freeze_links vector is valid:
     // numerator <= denominator for every link.
     for freeze_link in freeze_links {
         let usable_ratio = &freeze_link.usable_ratio;
         if usable_ratio.numerator > usable_ratio.denominator {
-            return Err(ProcessMessageError::InvalidFreezeLinks);
+            return Err(ProcessOperationError::InvalidFreezeLinks);
         }
     }
 
@@ -228,10 +228,10 @@ fn verify_freezing_links(freeze_links: &[NetworkerFreezeLink],
         }
 
         let freeze_credits = credit_calc.credits_to_freeze(node_findex)
-            .ok_or(ProcessMessageError::CreditCalculatorFailure)?;
+            .ok_or(ProcessOperationError::CreditCalculatorFailure)?;
 
         if allowed_credits < freeze_credits.into() {
-            return Err(ProcessMessageError::InsufficientTransitiveTrust);
+            return Err(ProcessOperationError::InsufficientTransitiveTrust);
         }
     }
     Ok(())
@@ -317,7 +317,7 @@ impl TransTokenChannel {
     }
 
     fn process_operation(&mut self, message: NeighborTcOp) ->
-        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        Result<Option<ProcessMessageOutput>, ProcessOperationError> {
         match message {
             NeighborTcOp::EnableRequests(send_price) =>
                 self.process_enable_requests(send_price),
@@ -342,7 +342,7 @@ impl TransTokenChannel {
     }
 
     fn process_enable_requests(&mut self, send_price: NetworkerSendPrice) ->
-        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        Result<Option<ProcessMessageOutput>, ProcessOperationError> {
 
         self.send_price.remote_send_price = Some(send_price);
         // TODO: Should the price change be reported somewhere?
@@ -350,21 +350,21 @@ impl TransTokenChannel {
     }
 
     fn process_disable_requests(&mut self) ->
-        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        Result<Option<ProcessMessageOutput>, ProcessOperationError> {
 
         self.send_price.remote_send_price = match self.send_price.remote_send_price {
             Some(ref _send_price) => None,
-            None => return Err(ProcessMessageError::RequestsAlreadyDisabled),
+            None => return Err(ProcessOperationError::RequestsAlreadyDisabled),
         };
         // TODO: Should this event be reported somehow?
         Ok(None)
     }
 
     fn process_set_remote_max_debt(&mut self, proposed_max_debt: u64) -> 
-        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        Result<Option<ProcessMessageOutput>, ProcessOperationError> {
 
         if proposed_max_debt > MAX_NETWORKER_DEBT {
-            Err(ProcessMessageError::RemoteMaxDebtTooLarge(proposed_max_debt))
+            Err(ProcessOperationError::RemoteMaxDebtTooLarge(proposed_max_debt))
         } else {
             self.balance.remote_max_debt = proposed_max_debt;
             Ok(None)
@@ -372,31 +372,31 @@ impl TransTokenChannel {
     }
 
     fn process_set_invoice_id(&mut self, invoice_id: InvoiceId)
-                              -> Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+                              -> Result<Option<ProcessMessageOutput>, ProcessOperationError> {
         if self.invoice.remote_invoice_id.is_none() {
             self.invoice.remote_invoice_id = Some(invoice_id);
             Ok(None)
         } else {
-            Err(ProcessMessageError::InvoiceIdExists)
+            Err(ProcessOperationError::InvoiceIdExists)
         }
     }
 
     fn process_load_funds(&mut self, send_funds_receipt: SendFundsReceipt) -> 
-        Result<Option<ProcessMessageOutput>, ProcessMessageError> {
+        Result<Option<ProcessMessageOutput>, ProcessOperationError> {
 
         // Check if the SendFundsReceipt is signed properly by us. 
         //      Could we somehow abstract this, for easier testing?
         if !send_funds_receipt.verify_signature(&self.idents.local_public_key) {
-            return Err(ProcessMessageError::InvalidSendFundsReceiptSignature);
+            return Err(ProcessOperationError::InvalidSendFundsReceiptSignature);
         }
 
         // Check if invoice_id matches. If so, we remove the remote invoice.
         match self.invoice.remote_invoice_id.take() {
-            None => return Err(ProcessMessageError::MissingInvoiceId),
+            None => return Err(ProcessOperationError::MissingInvoiceId),
             Some(invoice_id) => {
                 if invoice_id != send_funds_receipt.invoice_id {
                     self.invoice.remote_invoice_id = Some(invoice_id);
-                    return Err(ProcessMessageError::InvalidInvoiceId);
+                    return Err(ProcessOperationError::InvalidInvoiceId);
                 }
             }
         };
@@ -413,10 +413,10 @@ impl TransTokenChannel {
     fn verify_local_send_price(&self, 
                                route: &NeighborsRoute, 
                                pk_pair_position: &PkPairPosition) 
-        -> Result<(), ProcessMessageError>  {
+        -> Result<(), ProcessOperationError>  {
 
         let local_send_price = match self.send_price.local_send_price {
-            None => Err(ProcessMessageError::IncomingRequestsDisabled),
+            None => Err(ProcessOperationError::IncomingRequestsDisabled),
             Some(ref local_send_price) => Ok(local_send_price.clone()),
         }?;
 
@@ -426,7 +426,7 @@ impl TransTokenChannel {
         };
         // If linear payment proposal for returning response is too low, return error
         if response_proposal.smaller_than(&local_send_price) {
-            Err(ProcessMessageError::ResponsePaymentProposalTooLow)
+            Err(ProcessOperationError::ResponsePaymentProposalTooLow)
         } else {
             Ok(())
         }
@@ -435,18 +435,18 @@ impl TransTokenChannel {
 
     /// Process an incoming RequestSendMessage
     fn process_request_send_message(&mut self, request_send_msg: RequestSendMessage)
-        -> Result<RequestSendMessage, ProcessMessageError> {
+        -> Result<RequestSendMessage, ProcessOperationError> {
 
         // Make sure that the route does not contains cycles/duplicates:
         if !request_send_msg.route.is_cycle_free() {
-            return Err(ProcessMessageError::DuplicateNodesInRoute);
+            return Err(ProcessOperationError::DuplicateNodesInRoute);
         }
 
         // Find ourselves on the route. If we are not there, abort.
         let pk_pair = request_send_msg.route.find_pk_pair(
             &self.idents.remote_public_key, 
             &self.idents.local_public_key)
-            .ok_or(ProcessMessageError::PkPairNotInRoute)?;
+            .ok_or(ProcessOperationError::PkPairNotInRoute)?;
 
         // Make sure that freeze_links and route_links are compatible in length:
         let freeze_links_len = request_send_msg.freeze_links.len();
@@ -456,36 +456,36 @@ impl TransTokenChannel {
             PkPairPosition::NotDest(i) => freeze_links_len == i
         };
         if !is_compat {
-            return Err(ProcessMessageError::InvalidFreezeLinks);
+            return Err(ProcessOperationError::InvalidFreezeLinks);
         }
 
         self.verify_local_send_price(&request_send_msg.route, &pk_pair)?;
 
         let request_content_len = usize_to_u32(request_send_msg.request_content.len())
-            .ok_or(ProcessMessageError::RequestContentTooLong)?;
+            .ok_or(ProcessOperationError::RequestContentTooLong)?;
         let credit_calc = CreditCalculator::new(&request_send_msg.route,
                                                 request_content_len,
                                                 request_send_msg.processing_fee_proposal,
                                                 request_send_msg.max_response_len)
-            .ok_or(ProcessMessageError::CreditCalculatorFailure)?;
+            .ok_or(ProcessOperationError::CreditCalculatorFailure)?;
 
         // verify_freezing_links(&request_send_msg.freeze_links, &credit_calc)?;
 
         let index = match pk_pair {
             PkPairPosition::Dest => request_send_msg.route.route_links.len().checked_add(1),
             PkPairPosition::NotDest(i) => i.checked_add(1),
-        }.ok_or(ProcessMessageError::RouteTooLong)?;
+        }.ok_or(ProcessOperationError::RouteTooLong)?;
 
         // Calculate amount of credits to freeze
         let own_freeze_credits = credit_calc.credits_to_freeze(index)
-            .ok_or(ProcessMessageError::CreditCalculatorFailure)?;
+            .ok_or(ProcessOperationError::CreditCalculatorFailure)?;
 
         // Make sure we can freeze the credits
         let new_remote_pending_debt = self.balance.remote_pending_debt
-            .checked_add(own_freeze_credits).ok_or(ProcessMessageError::CreditsCalcOverflow)?;
+            .checked_add(own_freeze_credits).ok_or(ProcessOperationError::CreditsCalcOverflow)?;
 
         if new_remote_pending_debt > self.balance.remote_max_debt {
-            return Err(ProcessMessageError::InsufficientTrust);
+            return Err(ProcessOperationError::InsufficientTrust);
         }
 
         // Note that Verifying our own freezing link will be done outside. We don't have enough
@@ -495,12 +495,12 @@ impl TransTokenChannel {
         let p_remote_requests = &mut self.trans_pending_requests.trans_pending_remote_requests;
         // Make sure that we don't have this request as a pending request already:
         if p_remote_requests.get_hmap().contains_key(&request_send_msg.request_id) {
-            return Err(ProcessMessageError::RequestAlreadyExists);
+            return Err(ProcessOperationError::RequestAlreadyExists);
         }
 
         // Add pending request message:
         let request_content_len = usize_to_u32(request_send_msg.request_content.len())
-            .ok_or(ProcessMessageError::RequestContentTooLong)?;
+            .ok_or(ProcessOperationError::RequestContentTooLong)?;
         let pending_neighbor_request = PendingNeighborRequest {
             request_id: request_send_msg.request_id,
             route: request_send_msg.route.clone(),
@@ -518,7 +518,7 @@ impl TransTokenChannel {
     }
 
     fn process_response_send_message(&mut self, response_send_msg: ResponseSendMessage) ->
-        Result<ResponseSendMessage, ProcessMessageError> {
+        Result<ResponseSendMessage, ProcessOperationError> {
 
         // Make sure that id exists in local_pending hashmap, 
         // and access saved request details.
@@ -527,7 +527,7 @@ impl TransTokenChannel {
 
         // Obtain pending request:
         let pending_request = local_pending_requests.get(&response_send_msg.request_id)
-            .ok_or(ProcessMessageError::RequestDoesNotExist)?;
+            .ok_or(ProcessOperationError::RequestDoesNotExist)?;
 
         let response_signature_buffer = create_response_signature_buffer(
                                             &response_send_msg,
@@ -537,26 +537,26 @@ impl TransTokenChannel {
         if !verify_signature(&response_signature_buffer, 
                                  &self.idents.local_public_key,
                                  &response_send_msg.signature) {
-            return Err(ProcessMessageError::InvalidResponseSignature);
+            return Err(ProcessOperationError::InvalidResponseSignature);
         }
 
         // Verify that processing_fee_collected is within range.
         if response_send_msg.processing_fee_collected > pending_request.processing_fee_proposal {
-            return Err(ProcessMessageError::ProcessingFeeCollectedTooHigh);
+            return Err(ProcessOperationError::ProcessingFeeCollectedTooHigh);
         }
 
         // Make sure that response_content is not longer than max_response_len.
         let response_content_len = usize_to_u32(response_send_msg.response_content.len())
-            .ok_or(ProcessMessageError::ResponseContentTooLong)?;
+            .ok_or(ProcessOperationError::ResponseContentTooLong)?;
         if response_content_len > pending_request.max_response_len {
-            return Err(ProcessMessageError::ResponseContentTooLong)?;
+            return Err(ProcessOperationError::ResponseContentTooLong)?;
         }
 
         let credit_calc = CreditCalculator::new(&pending_request.route,
                                                 pending_request.request_content_len,
                                                 pending_request.processing_fee_proposal,
                                                 pending_request.max_response_len)
-            .ok_or(ProcessMessageError::CreditCalculatorFailure)?;
+            .ok_or(ProcessOperationError::CreditCalculatorFailure)?;
 
         // Find ourselves on the route. If we are not there, abort.
         let pk_pair = pending_request.route.find_pk_pair(
@@ -592,7 +592,7 @@ impl TransTokenChannel {
     }
 
     fn process_failure_send_message(&mut self, failure_send_msg: FailureSendMessage) ->
-        Result<FailureSendMessage, ProcessMessageError> {
+        Result<FailureSendMessage, ProcessOperationError> {
         
         // Make sure that id exists in local_pending hashmap, 
         // and access saved request details.
@@ -601,7 +601,7 @@ impl TransTokenChannel {
 
         // Obtain pending request:
         let pending_request = local_pending_requests.get(&failure_send_msg.request_id)
-            .ok_or(ProcessMessageError::RequestDoesNotExist)?;
+            .ok_or(ProcessOperationError::RequestDoesNotExist)?;
 
         // Find ourselves on the route. If we are not there, abort.
         let pk_pair = pending_request.route.find_pk_pair(
@@ -622,21 +622,21 @@ impl TransTokenChannel {
         
         let reporting_index = pending_request.route.pk_index(
             &failure_send_msg.reporting_public_key)
-            .ok_or(ProcessMessageError::ReportingNodeNonexistent)?;
+            .ok_or(ProcessOperationError::ReportingNodeNonexistent)?;
 
         let dest_index = pending_request.route.route_links.len()
             .checked_add(1)
-            .ok_or(ProcessMessageError::RouteTooLong)?;
+            .ok_or(ProcessOperationError::RouteTooLong)?;
 
         if (reporting_index <= index) || (reporting_index >= dest_index) {
-            return Err(ProcessMessageError::InvalidReportingNode);
+            return Err(ProcessOperationError::InvalidReportingNode);
         }
 
         verify_failure_signature(index,
                                  reporting_index,
                                  &failure_send_msg,
                                  pending_request)
-            .ok_or(ProcessMessageError::InvalidFailureSignature)?;
+            .ok_or(ProcessOperationError::InvalidFailureSignature)?;
 
         // At this point we believe the failure message is valid.
 
@@ -644,7 +644,7 @@ impl TransTokenChannel {
                                                 pending_request.request_content_len,
                                                 pending_request.processing_fee_proposal,
                                                 pending_request.max_response_len)
-            .ok_or(ProcessMessageError::CreditCalculatorFailure)?;
+            .ok_or(ProcessOperationError::CreditCalculatorFailure)?;
 
         // Remove entry from local_pending hashmap:
         self.trans_pending_requests.trans_pending_local_requests.remove(
