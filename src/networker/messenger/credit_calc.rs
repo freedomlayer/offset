@@ -362,6 +362,9 @@ mod tests {
     use num_traits::PrimInt;
     use std::cmp;
 
+
+    // TODO: Add tests for CreditCalculator.
+
     #[test]
     fn test_calc_request_len_basic() {
         /*
