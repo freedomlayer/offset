@@ -1,6 +1,6 @@
-use std::convert::TryFrom;
-use std::{mem, cmp};
+#![warn(unused)]
 
+use std::mem;
 use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
 use crypto::rand_values::RandValue;
@@ -97,14 +97,6 @@ fn credits_on_success_dest(payment_proposals: &PaymentProposals,
                                response_content_len: u32,
                                max_response_content_len: u32) -> Option<u64> {
 
-    let middle_props_len = {
-        if payment_proposals.middle_props.len() > u32::max_value() as usize {
-            return None;
-        } else {
-            payment_proposals.middle_props.len() as u32
-        }
-    };
-
     let response_len = calc_response_len(response_content_len)?;
     let max_response_len = calc_response_len(max_response_content_len)?;
 
@@ -181,7 +173,6 @@ pub fn credits_on_success(payment_proposals: &PaymentProposals,
         // here we pick the last node to be the reporting node. This can't really happen.
         let max_failure_len = calc_failure_len(middle_props_len.checked_sub(i)?)?;
 
-        let mut credits_earned = 0;
         let credits_earned = middle_prop.request.calc_cost(request_len)?
             .checked_add(middle_prop.response.calc_cost(
                 response_len.checked_add(max_failure_len)?)?)?;
@@ -306,6 +297,7 @@ impl CreditCalculator {
 
         // TODO: This might be not very efficient. 
         // Possibly optimize this in the future, maybe by passing pointers instead of cloning.
+        #[allow(unused_mut)]
         let middle_props = route.route_links
             .iter()
             .map(|ref route_link| &route_link.payment_proposal_pair)
@@ -368,6 +360,7 @@ mod tests {
     use super::*;
     use proto::networker::LinearSendPrice;
     use num_traits::PrimInt;
+    use std::cmp;
 
     #[test]
     fn test_calc_request_len_basic() {
@@ -682,7 +675,6 @@ mod tests {
         let payment_proposals = example_payment_proposals();
         let processing_fee_proposal = 10u64;
         let request_content_len = 10u32;
-        let response_content_len = 20u32;
         let max_response_content_len = 40u32;
 
         let route_len = (payment_proposals.middle_props.len() + 2) as u32;
@@ -709,7 +701,6 @@ mod tests {
         let payment_proposals = example_payment_proposals();
         let processing_fee_proposal = 10u64;
         let request_content_len = 10u32;
-        let response_content_len = 20u32;
         let max_response_content_len = 40u32;
 
         let route_len = (payment_proposals.middle_props.len() + 2) as u32;
