@@ -68,6 +68,17 @@ mod tests {
         assert_eq!((-127_i8).checked_sub_unsigned(1_u8), Some(-128_i8));
         assert_eq!((-128_i8).checked_sub_unsigned(1_u8), None);
         assert_eq!(3_i8.checked_sub_unsigned(255_u8), None);
+
+        assert_eq!(1_i8.saturating_add_unsigned(1_u8), 2_i8);
+        assert_eq!(3_i8.saturating_add_unsigned(255_u8), 127_i8);
+        assert_eq!((-2_i8).saturating_add_unsigned(255_u8), 127_i8);
+        assert_eq!((-2_i8).saturating_add_unsigned(255_u8), 127_i8);
+        assert_eq!((-3_i8).saturating_add_unsigned(1_u8), -2_i8);
+
+        assert_eq!((-3_i8).saturating_sub_unsigned(1_u8), -4_i8);
+        assert_eq!(1_i8.saturating_sub_unsigned(1_u8), 0_i8);
+        assert_eq!(1_i8.saturating_sub_unsigned(255_u8), -128_i8);
+        assert_eq!(1_i8.saturating_sub_unsigned(128_u8), -127_i8);
     }
 }
 
