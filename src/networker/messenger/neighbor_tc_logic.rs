@@ -1,6 +1,6 @@
 use proto::networker::ChannelToken;
 use crypto::rand_values::RandValue;
-use super::messenger_messages::NeighborTcOp;
+use super::types::NeighborTcOp;
 
 pub struct NeighborMoveToken {
     // pub channel_index: u32,

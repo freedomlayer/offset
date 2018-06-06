@@ -7,7 +7,7 @@ use crypto::rand_values::RandValue;
 
 use proto::networker::NetworkerSendPrice;
 use utils::int_convert::usize_to_u32;
-use super::messenger_messages::{NetworkerFreezeLink, PaymentProposalPair, NeighborRouteLink, NeighborsRoute};
+use super::types::{NetworkerFreezeLink, PaymentProposalPair, NeighborRouteLink, NeighborsRoute};
 
 pub struct PaymentProposals {
     pub middle_props: Vec<PaymentProposalPair>,

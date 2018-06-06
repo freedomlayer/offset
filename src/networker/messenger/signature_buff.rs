@@ -4,7 +4,7 @@ use byteorder::{BigEndian, WriteBytesExt};
 
 use crypto::hash;
 
-use super::messenger_messages::{ResponseSendMessage, FailureSendMessage};
+use super::types::{ResponseSendMessage, FailureSendMessage};
 use super::pending_neighbor_request::PendingNeighborRequest;
 
 /// Create the buffer we sign over at the Response message.

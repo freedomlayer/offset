@@ -1,5 +1,5 @@
 use crypto::identity::{PublicKey, Signature};
-use networker::messenger::messenger_messages::NeighborsRoute;
+use networker::messenger::types::NeighborsRoute;
 
 pub const INDEXING_PROVIDER_ID_LEN: usize = 16;
 pub const INDEXING_PROVIDER_STATE_HASH_LEN: usize = 32;

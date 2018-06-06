@@ -7,7 +7,7 @@ use funder::messages::{PendingFriendRequest, FriendInfo, FriendTokenCommon};
 
 use indexer_client::messages::IndexingProviderStatus;
 use proto::indexer::{IndexingProviderId, StateChainLink};
-use networker::messenger::messenger_messages::NeighborsRoute;
+use networker::messenger::types::NeighborsRoute;
 
 /// The indexing provider's information from database.
 pub struct IndexingProviderInfoFromDB {

@@ -17,7 +17,7 @@ use database::messages::{ResponseLoadNeighbors, ResponseLoadNeighborToken};
 use proto::networker::ChannelToken;
 
 use super::messenger::token_channel::{TCBalance, TCInvoice, TCSendPrice};
-use super::messenger::messenger_messages::NeighborsRoute;
+use super::messenger::types::NeighborsRoute;
 
 
 

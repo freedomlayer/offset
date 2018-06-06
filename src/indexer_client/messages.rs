@@ -4,7 +4,7 @@ use proto::indexer::{IndexingProviderId, StateChainLink};
 use crypto::identity::PublicKey;
 
 use networker::messages::RequestPath;
-use networker::messenger::messenger_messages::NeighborsRoute;
+use networker::messenger::types::NeighborsRoute;
 use database::messages::ResponseLoadIndexingProviders;
 
 /// Indexing provider status.

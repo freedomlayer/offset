@@ -14,7 +14,7 @@ use proto::funder::InvoiceId;
 use proto::networker::NetworkerSendPrice;
 
 use super::pending_neighbor_request::PendingNeighborRequest;
-use super::messenger_messages::{ResponseSendMessage, FailureSendMessage, RequestSendMessage,
+use super::types::{ResponseSendMessage, FailureSendMessage, RequestSendMessage,
                                 NeighborTcOp, NeighborsRoute, PkPairPosition};
 use super::credit_calc::CreditCalculator;
 use utils::trans_hashmap::TransHashMap;
