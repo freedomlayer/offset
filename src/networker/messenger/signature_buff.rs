@@ -1,9 +1,7 @@
 #![warn(unused)]
 
 use byteorder::{BigEndian, WriteBytesExt};
-
 use crypto::hash;
-
 use super::types::{ResponseSendMessage, FailureSendMessage, PendingNeighborRequest};
 
 const REQUEST_SUCCESS_PREFIX: &[u8] = b"REQUEST_SUCCESS";
