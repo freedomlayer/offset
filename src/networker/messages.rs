@@ -17,11 +17,8 @@ use database::messages::{ResponseLoadNeighbors, ResponseLoadNeighborToken};
 use proto::networker::ChannelToken;
 
 use super::messenger::token_channel::{TCBalance, TCInvoice, TCSendPrice};
-use super::messenger::types::NeighborsRoute;
+use super::messenger::types::{NeighborsRoute, PendingNeighborRequest};
 
-
-
-use super::messenger::pending_neighbor_request::PendingNeighborRequest;
 
 /// Indicate the direction of the move token message.
 #[derive(Clone, Copy, Debug)]

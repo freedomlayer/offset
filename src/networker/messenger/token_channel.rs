@@ -17,9 +17,9 @@ use utils::trans_hashmap::TransHashMap;
 use utils::int_convert::usize_to_u32;
 use utils::safe_arithmetic::SafeArithmetic;
 
-use super::pending_neighbor_request::PendingNeighborRequest;
 use super::types::{ResponseSendMessage, FailureSendMessage, RequestSendMessage,
-                                NeighborTcOp, NeighborsRoute, PkPairPosition};
+                                NeighborTcOp, NeighborsRoute, PkPairPosition,
+                                PendingNeighborRequest};
 use super::credit_calc::CreditCalculator;
 use super::signature_buff::{create_failure_signature_buffer, 
     create_response_signature_buffer};

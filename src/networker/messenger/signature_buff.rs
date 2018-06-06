@@ -4,8 +4,7 @@ use byteorder::{BigEndian, WriteBytesExt};
 
 use crypto::hash;
 
-use super::types::{ResponseSendMessage, FailureSendMessage};
-use super::pending_neighbor_request::PendingNeighborRequest;
+use super::types::{ResponseSendMessage, FailureSendMessage, PendingNeighborRequest};
 
 /// Create the buffer we sign over at the Response message.
 /// Note that the signature is not just over the Response message bytes. The signed buffer also

@@ -21,6 +21,16 @@ pub enum NeighborTcOp {
     // ResetChannel(i64), // new_balanace
 }
 
+#[derive(Clone)]
+pub struct PendingNeighborRequest {
+    pub request_id: Uid,
+    pub route: NeighborsRoute,
+    pub request_content_hash: HashResult,
+    pub request_content_len: u32,
+    pub max_response_len: u32,
+    pub processing_fee_proposal: u64,
+}
+
 
 pub struct ResponseSendMessage {
     pub request_id: Uid,
