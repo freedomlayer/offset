@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+#![allow(unused)]
 
 use std::rc::Rc;
 use std::collections::HashMap;
