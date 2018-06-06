@@ -6,7 +6,6 @@ use super::token_channel::{TokenChannel, ProcessMessageOutput,
 use super::types::NeighborTcOp;
 
 pub struct NeighborMoveToken {
-    // pub channel_index: u32,
     pub operations: Vec<NeighborTcOp>,
     pub old_token: ChannelToken,
     pub rand_nonce: RandValue,
