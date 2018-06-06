@@ -35,33 +35,13 @@ use proto::networker::{ChannelToken};
 
 
 pub mod token_channel;
-pub mod neighbor_tc_logic;
+mod neighbor_tc_logic;
 pub mod types;
 mod credit_calc;
 mod signature_buff;
 
-use self::types::PendingNeighborRequest;
+use self::neighbor_tc_logic::NeighborTCState;
 
-
-/// Full state of a Neighbor token channel.
-struct NeighborTokenChannel {
-    pub move_token_direction: MoveTokenDirection,
-    pub move_token_message: Vec<u8>,
-    // Raw bytes of last incoming/outgoing Move Token Message.
-    // We already processed this message.
-    pub old_token: ChannelToken,
-    pub new_token: ChannelToken,
-    // Equals Sha512/256(move_token_message)
-    pub remote_max_debt: u64,
-    pub local_max_debt: u64,
-    pub remote_pending_debt: u64,
-    pub local_pending_debt: u64,
-    pub balance: i64,
-    pub local_invoice_id: Option<InvoiceId>,
-    pub remote_invoice_id: Option<InvoiceId>,
-    pub pending_local_requests: HashMap<Uid, PendingNeighborRequest>,
-    pub pending_remote_requests: HashMap<Uid, PendingNeighborRequest>,
-}
 
 struct NeighborState {
     neighbor_socket_addr: Option<SocketAddr>, 
@@ -69,7 +49,7 @@ struct NeighborState {
     wanted_max_channels: u32,
     status: NeighborStatus,
     // Enabled or disabled?
-    token_channels: HashMap<u32, NeighborTokenChannel>,
+    token_channels: HashMap<u32, NeighborTCState>,
     ticks_since_last_incoming: usize,
     // Number of time ticks since last incoming message
     ticks_since_last_outgoing: usize,
@@ -77,6 +57,7 @@ struct NeighborState {
 }
 
 
+#[allow(unused)]
 #[allow(too_many_arguments)]
 pub fn create_messenger<SR: SecureRandom>(handle: &Handle,
                         secure_rng: Rc<SR>,
