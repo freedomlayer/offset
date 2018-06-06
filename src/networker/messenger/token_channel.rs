@@ -18,8 +18,7 @@ use super::pending_neighbor_request::PendingNeighborRequest;
 use super::messenger_messages::{ResponseSendMessage, FailureSendMessage, RequestSendMessage,
                                 NeighborTcOp, NetworkerFreezeLink,
                                 NeighborsRoute, PkPairPosition};
-use super::credit_calc::{credits_to_freeze, credits_on_success, 
-    credits_on_failure, PaymentProposals};
+use super::credit_calc::CreditCalculator;
 use utils::trans_hashmap::TransHashMap;
 use utils::int_convert::usize_to_u32;
 use utils::safe_arithmetic::SafeArithmetic;
@@ -261,77 +260,6 @@ fn verify_failure_signature(index: usize,
     Some(())
 }
 
-struct CreditCalculator {
-    payment_proposals: PaymentProposals,
-    route_len: u32,
-    request_content_len: u32,
-    processing_fee_proposal: u64,
-    max_response_len: u32
-}
-
-impl CreditCalculator {
-    pub fn new(route: &NeighborsRoute, 
-               request_content_len: u32,
-               processing_fee_proposal: u64,
-               max_response_len: u32) -> Option<Self> {
-
-        // TODO: This might be not very efficient. 
-        // Possibly optimize this in the future, maybe by passing pointers instead of cloning.
-        let middle_props = route.route_links
-            .iter()
-            .map(|ref route_link| &route_link.payment_proposal_pair)
-            .cloned()
-            .collect::<Vec<_>>();
-
-        let payment_proposals = PaymentProposals {
-            middle_props,
-            dest_response_proposal: route.dest_response_proposal.clone(),
-        };
-
-        Some(CreditCalculator {
-            payment_proposals,
-            route_len: usize_to_u32(route.route_links.len().checked_add(2)?)?,
-            request_content_len,
-            processing_fee_proposal,
-            max_response_len,
-        })
-    }
-
-    fn freeze_index_to_nodes_to_dest(&self, index: usize) -> Option<u32> {
-        let index32 = usize_to_u32(index)?;
-        Some(self.route_len.checked_sub(index32.checked_sub(1)?)?)
-    }
-
-    /// Calculate the amount of credits to freeze, 
-    /// according to a given node index on the route.
-    /// Note: source node has index 0. dest node has the last index.
-    pub fn credits_to_freeze(&self, index: usize) -> Option<u64> {
-
-        Some(credits_to_freeze(&self.payment_proposals,
-            self.processing_fee_proposal,
-            self.request_content_len,
-            self.max_response_len,
-            self.freeze_index_to_nodes_to_dest(index)?)?)
-    }
-
-    pub fn credits_on_success(&self, index: usize, 
-                              response_content_len: u32) -> Option<u64> {
-        Some(credits_on_success(&self.payment_proposals,
-                                self.processing_fee_proposal,
-                                self.request_content_len,
-                                response_content_len,
-                                self.max_response_len,
-                                self.freeze_index_to_nodes_to_dest(index)?)?)
-    }
-
-    pub fn credits_on_failure(&self, index: usize, reporting_index: usize) -> Option<u64> {
-        let nodes_to_reporting = usize_to_u32(reporting_index.checked_sub(index)?)?;
-        Some(credits_on_failure(&self.payment_proposals,
-                                self.request_content_len,
-                                nodes_to_reporting,
-                                self.freeze_index_to_nodes_to_dest(reporting_index)?)?)
-    }
-}
 
 /// Create the buffer we sign over at the Response message.
 /// Note that the signature is not just over the Response message bytes. The signed buffer also
@@ -517,7 +445,6 @@ impl TransTokenChannel {
 
         // Add payment to self.balance.balance. We have to be careful because payment u128, and
         // self.balance.balance is of type i64.
-        // TODO: Rewrite this part: Possibly simplify or refactor.
         let payment = u64::try_from(send_funds_receipt.payment).unwrap_or(u64::max_value());
         self.balance.balance = self.balance.balance.saturating_add_unsigned(payment);
         Ok(None)
