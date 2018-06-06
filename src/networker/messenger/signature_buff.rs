@@ -1,3 +1,5 @@
+#![warn(unused)]
+
 use byteorder::{BigEndian, WriteBytesExt};
 
 use crypto::hash;
@@ -16,11 +18,11 @@ pub fn create_response_signature_buffer(response_send_msg: &ResponseSendMessage,
     // TODO: Add a const for this:
     sbuffer.extend_from_slice(&hash::sha_512_256(b"REQUEST_SUCCESS"));
     sbuffer.extend_from_slice(&pending_request.request_id);
-    sbuffer.write_u32::<BigEndian>(pending_request.max_response_len);
-    sbuffer.write_u64::<BigEndian>(pending_request.processing_fee_proposal);
+    sbuffer.write_u32::<BigEndian>(pending_request.max_response_len).expect("Serialization failure!");
+    sbuffer.write_u64::<BigEndian>(pending_request.processing_fee_proposal).expect("Serialization failure!");
     sbuffer.extend_from_slice(&pending_request.route.hash());
     sbuffer.extend_from_slice(&pending_request.request_content_hash);
-    sbuffer.write_u64::<BigEndian>(response_send_msg.processing_fee_collected);
+    sbuffer.write_u64::<BigEndian>(response_send_msg.processing_fee_collected).expect("Serialization failure!");
     sbuffer.extend_from_slice(&hash::sha_512_256(&response_send_msg.response_content));
     sbuffer.extend_from_slice(&response_send_msg.rand_nonce);
 
@@ -38,8 +40,8 @@ pub fn create_failure_signature_buffer(failure_send_msg: &FailureSendMessage,
     // TODO: Add a const for this:
     sbuffer.extend_from_slice(&hash::sha_512_256(b"REQUEST_FAILURE"));
     sbuffer.extend_from_slice(&pending_request.request_id);
-    sbuffer.write_u32::<BigEndian>(pending_request.max_response_len);
-    sbuffer.write_u64::<BigEndian>(pending_request.processing_fee_proposal);
+    sbuffer.write_u32::<BigEndian>(pending_request.max_response_len).expect("Serialization failure!");
+    sbuffer.write_u64::<BigEndian>(pending_request.processing_fee_proposal).expect("Serialization failure!");
     sbuffer.extend_from_slice(&pending_request.route.hash());
     sbuffer.extend_from_slice(&pending_request.request_content_hash);
     sbuffer.extend_from_slice(&failure_send_msg.reporting_public_key);
