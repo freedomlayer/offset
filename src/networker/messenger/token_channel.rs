@@ -193,11 +193,11 @@ struct TransTokenChannel {
 }
 
 /// If this function returns an error, the token channel becomes incosistent.
-pub fn atomic_process_messages_list(token_channel: TokenChannel, messages: Vec<NeighborTcOp>)
+pub fn atomic_process_operations_list(token_channel: TokenChannel, operations: Vec<NeighborTcOp>)
                                     -> (TokenChannel, Result<Vec<ProcessMessageOutput>, ProcessTransListError>) {
 
     let mut trans_token_channel = TransTokenChannel::new(token_channel);
-    match trans_token_channel.process_messages_list(messages) {
+    match trans_token_channel.process_operations_list(operations) {
         Err(e) => (trans_token_channel.cancel(), Err(e)),
         Ok(output_tasks) => (trans_token_channel.commit(), Ok(output_tasks)),
     }
@@ -299,12 +299,12 @@ impl TransTokenChannel {
     }
 
     /// Every error is translated into an inconsistency of the token channel.
-    pub fn process_messages_list(&mut self, messages: Vec<NeighborTcOp>) ->
+    pub fn process_operations_list(&mut self, operations: Vec<NeighborTcOp>) ->
         Result<Vec<ProcessMessageOutput>, ProcessTransListError> {
         let mut outputs = Vec::new();
 
-        for (index, message) in messages.into_iter().enumerate() {
-            match self.process_message(message) {
+        for (index, message) in operations.into_iter().enumerate() {
+            match self.process_operation(message) {
                 Err(e) => return Err(ProcessTransListError {
                     index,
                     process_trans_error: e
@@ -316,7 +316,7 @@ impl TransTokenChannel {
         Ok(outputs)
     }
 
-    fn process_message(&mut self, message: NeighborTcOp) ->
+    fn process_operation(&mut self, message: NeighborTcOp) ->
         Result<Option<ProcessMessageOutput>, ProcessMessageError> {
         match message {
             NeighborTcOp::EnableRequests(send_price) =>
