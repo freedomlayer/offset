@@ -40,6 +40,7 @@ pub enum ReceiveTokenOutput {
 }
 
 
+#[allow(unused)]
 pub fn receive_move_token(neighbor_tc_state: NeighborTCState, 
                           move_token_message: NeighborMoveToken, 
                           new_token: ChannelToken) 
