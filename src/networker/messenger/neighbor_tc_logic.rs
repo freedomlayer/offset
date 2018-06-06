@@ -92,6 +92,8 @@ pub fn receive_move_token(neighbor_tc_state: NeighborTCState,
 
 pub fn send_move_token(neighbor_tc_state: NeighborTCState, move_token_message: &NeighborMoveToken, new_token: ChannelToken) -> 
     (NeighborTCState, Result<(), ()>) {
+    
+    // TODO:
 
     (neighbor_tc_state, Ok(()))
 }
