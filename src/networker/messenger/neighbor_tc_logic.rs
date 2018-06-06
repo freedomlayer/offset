@@ -1,3 +1,5 @@
+#![warn(unused)]
+
 use proto::networker::ChannelToken;
 use crypto::rand_values::RandValue;
 use networker::messages::MoveTokenDirection;
@@ -89,6 +91,7 @@ pub fn receive_move_token(neighbor_tc_state: NeighborTCState,
     }
 }
 
+#[allow(unused)]
 pub fn send_move_token(neighbor_tc_state: NeighborTCState, move_token_message: &NeighborMoveToken, new_token: ChannelToken) -> 
     (NeighborTCState, Result<(), ()>) {
     
