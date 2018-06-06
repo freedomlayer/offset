@@ -42,9 +42,9 @@ pub struct IncomingFailedSendMessage {
 */
 
 
-/// Resulting tasks to perform after processing an incoming message.
+/// Resulting tasks to perform after processing an incoming operation.
 /// Note that
-pub enum ProcessMessageOutput {
+pub enum ProcessOperationOutput {
     Request(RequestSendMessage),
     Response(ResponseSendMessage),
     Failure(FailureSendMessage),
@@ -194,7 +194,7 @@ struct TransTokenChannel {
 
 /// If this function returns an error, the token channel becomes incosistent.
 pub fn atomic_process_operations_list(token_channel: TokenChannel, operations: Vec<NeighborTcOp>)
-                                    -> (TokenChannel, Result<Vec<ProcessMessageOutput>, ProcessTransListError>) {
+                                    -> (TokenChannel, Result<Vec<ProcessOperationOutput>, ProcessTransListError>) {
 
     let mut trans_token_channel = TransTokenChannel::new(token_channel);
     match trans_token_channel.process_operations_list(operations) {
@@ -300,7 +300,7 @@ impl TransTokenChannel {
 
     /// Every error is translated into an inconsistency of the token channel.
     pub fn process_operations_list(&mut self, operations: Vec<NeighborTcOp>) ->
-        Result<Vec<ProcessMessageOutput>, ProcessTransListError> {
+        Result<Vec<ProcessOperationOutput>, ProcessTransListError> {
         let mut outputs = Vec::new();
 
         for (index, message) in operations.into_iter().enumerate() {
@@ -317,7 +317,7 @@ impl TransTokenChannel {
     }
 
     fn process_operation(&mut self, message: NeighborTcOp) ->
-        Result<Option<ProcessMessageOutput>, ProcessOperationError> {
+        Result<Option<ProcessOperationOutput>, ProcessOperationError> {
         match message {
             NeighborTcOp::EnableRequests(send_price) =>
                 self.process_enable_requests(send_price),
@@ -330,19 +330,19 @@ impl TransTokenChannel {
             NeighborTcOp::LoadFunds(send_funds_receipt) =>
                 self.process_load_funds(send_funds_receipt),
             NeighborTcOp::RequestSendMessage(request_send_msg) =>
-                Ok(Some(ProcessMessageOutput::Request(
+                Ok(Some(ProcessOperationOutput::Request(
                     self.process_request_send_message(request_send_msg)?))),
             NeighborTcOp::ResponseSendMessage(response_send_msg) =>
-                Ok(Some(ProcessMessageOutput::Response(
+                Ok(Some(ProcessOperationOutput::Response(
                     self.process_response_send_message(response_send_msg)?))),
             NeighborTcOp::FailureSendMessage(failure_send_msg) =>
-                Ok(Some(ProcessMessageOutput::Failure(
+                Ok(Some(ProcessOperationOutput::Failure(
                     self.process_failure_send_message(failure_send_msg)?))),
         }
     }
 
     fn process_enable_requests(&mut self, send_price: NetworkerSendPrice) ->
-        Result<Option<ProcessMessageOutput>, ProcessOperationError> {
+        Result<Option<ProcessOperationOutput>, ProcessOperationError> {
 
         self.send_price.remote_send_price = Some(send_price);
         // TODO: Should the price change be reported somewhere?
@@ -350,7 +350,7 @@ impl TransTokenChannel {
     }
 
     fn process_disable_requests(&mut self) ->
-        Result<Option<ProcessMessageOutput>, ProcessOperationError> {
+        Result<Option<ProcessOperationOutput>, ProcessOperationError> {
 
         self.send_price.remote_send_price = match self.send_price.remote_send_price {
             Some(ref _send_price) => None,
@@ -361,7 +361,7 @@ impl TransTokenChannel {
     }
 
     fn process_set_remote_max_debt(&mut self, proposed_max_debt: u64) -> 
-        Result<Option<ProcessMessageOutput>, ProcessOperationError> {
+        Result<Option<ProcessOperationOutput>, ProcessOperationError> {
 
         if proposed_max_debt > MAX_NETWORKER_DEBT {
             Err(ProcessOperationError::RemoteMaxDebtTooLarge(proposed_max_debt))
@@ -372,7 +372,7 @@ impl TransTokenChannel {
     }
 
     fn process_set_invoice_id(&mut self, invoice_id: InvoiceId)
-                              -> Result<Option<ProcessMessageOutput>, ProcessOperationError> {
+                              -> Result<Option<ProcessOperationOutput>, ProcessOperationError> {
         if self.invoice.remote_invoice_id.is_none() {
             self.invoice.remote_invoice_id = Some(invoice_id);
             Ok(None)
@@ -382,7 +382,7 @@ impl TransTokenChannel {
     }
 
     fn process_load_funds(&mut self, send_funds_receipt: SendFundsReceipt) -> 
-        Result<Option<ProcessMessageOutput>, ProcessOperationError> {
+        Result<Option<ProcessOperationOutput>, ProcessOperationError> {
 
         // Check if the SendFundsReceipt is signed properly by us. 
         //      Could we somehow abstract this, for easier testing?

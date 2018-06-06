@@ -3,7 +3,7 @@
 use proto::networker::ChannelToken;
 use crypto::rand_values::RandValue;
 use networker::messages::MoveTokenDirection;
-use super::token_channel::{TokenChannel, ProcessMessageOutput, 
+use super::token_channel::{TokenChannel, ProcessOperationOutput, 
     ProcessTransListError, atomic_process_operations_list};
 use super::types::NeighborTcOp;
 
@@ -36,7 +36,7 @@ pub enum NeighborTCStateError {
 pub enum ReceiveTokenOutput {
     Duplicate,
     RetransmitOutgoing,
-    ProcessTransListOutput(Vec<ProcessMessageOutput>),
+    ProcessTransListOutput(Vec<ProcessOperationOutput>),
 }
 
 
@@ -99,4 +99,3 @@ pub fn send_move_token(neighbor_tc_state: NeighborTCState, move_token_message: &
 
     (neighbor_tc_state, Ok(()))
 }
-
