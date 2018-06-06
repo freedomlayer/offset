@@ -1,16 +1,12 @@
-use std::mem;
 use std::collections::hash_set::HashSet;
-use crypto::identity::{PublicKey, verify_signature, Signature};
+use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
 use crypto::rand_values::RandValue;
 use crypto::hash;
 use crypto::hash::HashResult;
-use byteorder::LittleEndian;
-use byteorder::WriteBytesExt;
 use proto::common::SendFundsReceipt;
 use proto::funder::InvoiceId;
 use proto::networker::NetworkerSendPrice;
-use super::pending_neighbor_request::PendingNeighborRequest;
 
 
 pub enum NeighborTcOp {
