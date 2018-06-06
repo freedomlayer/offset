@@ -1,3 +1,5 @@
+#![warn(unused)]
+
 use std::convert::TryFrom;
 use std::collections::HashMap;
 
