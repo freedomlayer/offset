@@ -17,7 +17,7 @@ struct ChainState {
     pub direction: MoveTokenDirection,
     pub old_token: ChannelToken,
     pub new_token: ChannelToken,
-    // Equals Sha512/256(move_token_message)
+    // Equals Sha512/256(NeighborMoveToken)
 }
 
 
