@@ -52,6 +52,35 @@ impl MessengerState {
     }
     fn config(&mut self, networker_config: &NetworkerConfig) -> Vec<MessengerTask> {
         // TODO
+        
+        match networker_config {
+            NetworkerConfig::SetNeighborRemoteMaxDebt {
+                neighbor_public_key, 
+                remote_max_debt
+            } => {},
+            NetworkerConfig::ResetNeighborChannel {
+                neighbor_public_key,
+                channel_index,
+                current_token,
+                balance_for_reset,
+            } => {},
+            NetworkerConfig::SetNeighborMaxChannels {
+                neighbor_public_key,
+                max_channels
+            } => {},
+            NetworkerConfig::AddNeighbor {
+                neighbor_public_key,
+                neighbor_socket_addr,
+                max_channels,
+                remote_max_debt,
+            } => {},
+            NetworkerConfig::RemoveNeighbor {
+                neighbor_public_key
+            } => {},
+            NetworkerConfig::SetNeighborStatus {
+                neighbor_public_key, status
+            } => {},
+        }
         unreachable!();
     }
 
