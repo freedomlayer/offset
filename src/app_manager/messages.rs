@@ -5,13 +5,13 @@ use crypto::identity::PublicKey;
 use networker::messages::{NeighborStatus, RequestPath};
 
 use funder::messages::{FriendInfo, FriendRequestsStatus, FriendStatus, RequestSendFunds};
-
 use proto::indexer::IndexingProviderId;
+use proto::networker::ChannelToken;
+
 use indexer_client::messages::{IndexingProviderInfo, IndexingProviderStatus, 
     RequestFriendsRoutes, RequestNeighborsRoutes};
 
-pub enum AppManagerToNetworker {
-    RequestPath(RequestPath),
+pub enum NetworkerConfig {
     SetNeighborRemoteMaxDebt {
         neighbor_public_key: PublicKey,
         remote_max_debt: u64,
@@ -19,9 +19,8 @@ pub enum AppManagerToNetworker {
     ResetNeighborChannel {
         neighbor_public_key: PublicKey,
         channel_index: u32,
-        // TODO: Should we add wanted parameters for the ChannelReset,
-        // or let the Networker use the last Inconsistency message information
-        // to perform Reset?
+        current_token: ChannelToken,
+        balance_for_reset: i64,
     },
     SetNeighborMaxChannels {
         neighbor_public_key: PublicKey,
@@ -40,6 +39,11 @@ pub enum AppManagerToNetworker {
         neighbor_public_key: PublicKey,
         status: NeighborStatus,
     },
+}
+
+pub enum AppManagerToNetworker {
+    RequestPath(RequestPath),
+    NetworkerConfig(NetworkerConfig),
 }
 
 pub enum AppManagerToIndexerClient {
