@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
-use app_manager::messages::{NetworkerConfig, AddNeighbor};
+use app_manager::messages::{NetworkerConfig, AddNeighbor, 
+    RemoveNeighbor, SetNeighborStatus};
 use crypto::identity::PublicKey;
 
 use proto::networker::ChannelToken;
@@ -72,6 +73,14 @@ impl MessengerState {
         unreachable!();
     }
 
+    fn app_manager_remove_neighbor(&mut self, remove_neighbor: RemoveNeighbor) -> Vec<MessengerTask> {
+        unreachable!();
+    }
+
+    fn app_manager_set_neighbor_status(&mut self, set_neighbor_status: SetNeighborStatus) -> Vec<MessengerTask> {
+        unreachable!();
+    }
+
     pub fn handle_app_manager_message(&mut self, 
                                       networker_config: NetworkerConfig) -> Vec<MessengerTask> {
         // TODO
@@ -79,11 +88,13 @@ impl MessengerState {
         match networker_config {
             NetworkerConfig::SetNeighborRemoteMaxDebt(_set_neighbor_remote_max_debt) => unreachable!(),
             NetworkerConfig::ResetNeighborChannel(_reset_neighbor_channel) => unreachable!(),
-            NetworkerConfig::SetNeighborMaxChannels(set_neighbor_max_channels) => unreachable!(),
+            NetworkerConfig::SetNeighborMaxChannels(_set_neighbor_max_channels) => unreachable!(),
             NetworkerConfig::AddNeighbor(add_neighbor) => 
                 self.app_manager_add_neighbor(add_neighbor),
-            NetworkerConfig::RemoveNeighbor(_remove_neighbor) => unreachable!(),
-            NetworkerConfig::SetNeighborStatus(_set_neighbor_status) => unreachable!(),
+            NetworkerConfig::RemoveNeighbor(remove_neighbor) => 
+                self.app_manager_remove_neighbor(remove_neighbor),
+            NetworkerConfig::SetNeighborStatus(set_neighbor_status) => 
+                self.app_manager_set_neighbor_status(set_neighbor_status),
         };
         unreachable!();
     }
