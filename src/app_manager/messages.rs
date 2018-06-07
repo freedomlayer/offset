@@ -14,7 +14,7 @@ pub enum AppManagerToNetworker {
     RequestPath(RequestPath),
     SetNeighborRemoteMaxDebt {
         neighbor_public_key: PublicKey,
-        wanted_remote_max_debt: u64,
+        remote_max_debt: u64,
     },
     ResetNeighborChannel {
         neighbor_public_key: PublicKey,
@@ -31,7 +31,7 @@ pub enum AppManagerToNetworker {
         neighbor_public_key: PublicKey,
         neighbor_socket_addr: Option<SocketAddr>,
         max_channels: u32, // Maximum amount of token channels
-        wanted_remote_max_debt: u64,
+        remote_max_debt: u64,
     },
     RemoveNeighbor {
         neighbor_public_key: PublicKey,
@@ -73,6 +73,6 @@ pub enum AppManagerToFunder {
     },
     SetFriendRemoteMaxDebt {
         friend_public_key: PublicKey,
-        wanted_remote_max_debt: u128,
+        remote_max_debt: u128,
     },
 }
