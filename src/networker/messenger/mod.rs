@@ -38,6 +38,7 @@ mod handle_app_manager;
 mod handle_channeler;
 mod handle_funder;
 mod handle_crypter;
+mod handle_database;
 
 
 
