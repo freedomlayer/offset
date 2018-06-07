@@ -11,34 +11,53 @@ use proto::networker::ChannelToken;
 use indexer_client::messages::{IndexingProviderInfo, IndexingProviderStatus, 
     RequestFriendsRoutes, RequestNeighborsRoutes};
 
+#[allow(dead_code)]
+pub struct SetNeighborRemoteMaxDebt {
+    pub neighbor_public_key: PublicKey,
+    pub remote_max_debt: u64,
+}
+
+#[allow(dead_code)]
+pub struct ResetNeighborChannel {
+    pub neighbor_public_key: PublicKey,
+    pub channel_index: u32,
+    pub current_token: ChannelToken,
+    pub balance_for_reset: i64,
+}
+
+#[allow(dead_code)]
+pub struct SetNeighborMaxChannels {
+    pub neighbor_public_key: PublicKey,
+    pub max_channels: u32,
+}
+
+#[allow(dead_code)]
+pub struct AddNeighbor {
+    neighbor_public_key: PublicKey,
+    neighbor_socket_addr: Option<SocketAddr>,
+    max_channels: u32, // Maximum amount of token channels
+    remote_max_debt: u64,
+}
+
+#[allow(dead_code)]
+pub struct RemoveNeighbor {
+    neighbor_public_key: PublicKey,
+}
+
+#[allow(dead_code)]
+pub struct SetNeighborStatus {
+    neighbor_public_key: PublicKey,
+    status: NeighborStatus,
+}
+
+#[allow(dead_code)]
 pub enum NetworkerConfig {
-    SetNeighborRemoteMaxDebt {
-        neighbor_public_key: PublicKey,
-        remote_max_debt: u64,
-    },
-    ResetNeighborChannel {
-        neighbor_public_key: PublicKey,
-        channel_index: u32,
-        current_token: ChannelToken,
-        balance_for_reset: i64,
-    },
-    SetNeighborMaxChannels {
-        neighbor_public_key: PublicKey,
-        max_channels: u32,
-    },
-    AddNeighbor {
-        neighbor_public_key: PublicKey,
-        neighbor_socket_addr: Option<SocketAddr>,
-        max_channels: u32, // Maximum amount of token channels
-        remote_max_debt: u64,
-    },
-    RemoveNeighbor {
-        neighbor_public_key: PublicKey,
-    },
-    SetNeighborStatus {
-        neighbor_public_key: PublicKey,
-        status: NeighborStatus,
-    },
+    SetNeighborRemoteMaxDebt(SetNeighborRemoteMaxDebt),
+    ResetNeighborChannel(ResetNeighborChannel),
+    SetNeighborMaxChannels(SetNeighborMaxChannels),
+    AddNeighbor(AddNeighbor),
+    RemoveNeighbor(RemoveNeighbor),
+    SetNeighborStatus(SetNeighborStatus),
 }
 
 pub enum AppManagerToNetworker {

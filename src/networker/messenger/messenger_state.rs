@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
-use app_manager::messages::NetworkerConfig;
+use app_manager::messages::{NetworkerConfig, AddNeighbor};
 use crypto::identity::PublicKey;
 
 use proto::networker::ChannelToken;
@@ -67,39 +67,24 @@ impl MessengerState {
         // TODO: Initialize from database somehow.
         unreachable!();
     }
+
+    fn app_manager_add_neighbor(&mut self, add_neighbor: AddNeighbor) -> Vec<MessengerTask> {
+        unreachable!();
+    }
+
     pub fn handle_app_manager_message(&mut self, 
-                                      networker_config: &NetworkerConfig) -> Vec<MessengerTask> {
+                                      networker_config: NetworkerConfig) -> Vec<MessengerTask> {
         // TODO
         
         match networker_config {
-            NetworkerConfig::SetNeighborRemoteMaxDebt {
-                neighbor_public_key, 
-                remote_max_debt
-            } => {},
-            NetworkerConfig::ResetNeighborChannel {
-                neighbor_public_key,
-                channel_index,
-                current_token,
-                balance_for_reset,
-            } => {},
-            NetworkerConfig::SetNeighborMaxChannels {
-                neighbor_public_key,
-                max_channels
-            } => {},
-            NetworkerConfig::AddNeighbor {
-                neighbor_public_key,
-                neighbor_socket_addr,
-                max_channels,
-                remote_max_debt,
-            } => {},
-            NetworkerConfig::RemoveNeighbor {
-                neighbor_public_key
-            } => {},
-            NetworkerConfig::SetNeighborStatus {
-                neighbor_public_key, 
-                status,
-            } => {},
-        }
+            NetworkerConfig::SetNeighborRemoteMaxDebt(_set_neighbor_remote_max_debt) => unreachable!(),
+            NetworkerConfig::ResetNeighborChannel(_reset_neighbor_channel) => unreachable!(),
+            NetworkerConfig::SetNeighborMaxChannels(set_neighbor_max_channels) => unreachable!(),
+            NetworkerConfig::AddNeighbor(add_neighbor) => 
+                self.app_manager_add_neighbor(add_neighbor),
+            NetworkerConfig::RemoveNeighbor(_remove_neighbor) => unreachable!(),
+            NetworkerConfig::SetNeighborStatus(_set_neighbor_status) => unreachable!(),
+        };
         unreachable!();
     }
 
