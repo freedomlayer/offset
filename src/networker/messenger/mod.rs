@@ -42,8 +42,8 @@ use self::neighbor_tc_logic::NeighborTCState;
 #[allow(unused)]
 struct NeighborState {
     neighbor_socket_addr: Option<SocketAddr>, 
-    wanted_remote_max_debt: u64,
-    wanted_max_channels: u32,
+    remote_max_debt: u64,
+    max_channels: u32,
     status: NeighborStatus,
     // Enabled or disabled?
     token_channels: HashMap<u32, NeighborTCState>,
