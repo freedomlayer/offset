@@ -13,7 +13,7 @@ using import "common.capnp".RandNonceSignature;
 struct NeighborMoveToken {
         tokenChannelIndex @0: UInt8;
         union {
-                transactions @1: List(NeighborOperation);
+                operations @1: List(NeighborOperation);
                 resetChannel @2: Int64;
         }
         oldToken @3: CustomUInt256;

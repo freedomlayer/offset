@@ -12,7 +12,7 @@ using import "common.capnp".RandNonceSignature;
 
 struct FriendMoveToken {
         union {
-                transactions @0: List(FriendOperation);
+                operations @0: List(FriendOperation);
                 resetChannel @1: CustomUInt128;
                 # Note that this is actually a signed number (Highest bit is the sign
                 # bit, Two's complement method). TODO: Should we have a separate type,
