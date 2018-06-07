@@ -63,11 +63,12 @@ enum MessengerTask {
 
 #[allow(unused)]
 impl MessengerState {
-    fn new() -> MessengerState {
+    pub fn new() -> MessengerState {
         // TODO: Initialize from database somehow.
         unreachable!();
     }
-    fn config(&mut self, networker_config: &NetworkerConfig) -> Vec<MessengerTask> {
+    pub fn handle_app_manager_message(&mut self, 
+                                      networker_config: &NetworkerConfig) -> Vec<MessengerTask> {
         // TODO
         
         match networker_config {
@@ -95,28 +96,29 @@ impl MessengerState {
                 neighbor_public_key
             } => {},
             NetworkerConfig::SetNeighborStatus {
-                neighbor_public_key, status
+                neighbor_public_key, 
+                status,
             } => {},
         }
         unreachable!();
     }
 
-    fn channeler_message(&mut self) -> Vec<MessengerTask> {
+    pub fn handle_channeler_message(&mut self) -> Vec<MessengerTask> {
         // TODO
         unreachable!();
     }
 
-    fn funder_message(&mut self) -> Vec<MessengerTask> {
+    pub fn handle_funder_message(&mut self) -> Vec<MessengerTask> {
         // TODO
         unreachable!();
     }
 
-    fn crypter_message(&mut self) -> Vec<MessengerTask> {
+    pub fn handle_crypter_message(&mut self) -> Vec<MessengerTask> {
         // TODO
         unreachable!();
     }
 
-    fn timer_tick(&mut self) -> Vec<MessengerTask> {
+    pub fn handle_timer_tick(&mut self) -> Vec<MessengerTask> {
         // TODO
         unreachable!();
     }
