@@ -12,12 +12,9 @@ using import "common.capnp".RandNonceSignature;
 
 struct NeighborMoveToken {
         tokenChannelIndex @0: UInt8;
-        union {
-                operations @1: List(NeighborOperation);
-                resetChannel @2: Int64;
-        }
-        oldToken @3: CustomUInt256;
-        randNonce @4: CustomUInt128;
+        operations @1: List(NeighborOperation);
+        oldToken @2: CustomUInt256;
+        randNonce @3: CustomUInt128;
 }
 
 struct NeighborInconsistencyError {
