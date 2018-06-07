@@ -33,7 +33,11 @@ pub mod types;
 mod credit_calc;
 mod signature_buff;
 mod messenger_state;
+
 mod handle_app_manager;
+mod handle_channeler;
+mod handle_funder;
+mod handle_crypter;
 
 
 

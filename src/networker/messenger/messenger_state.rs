@@ -67,21 +67,6 @@ impl MessengerState {
         unreachable!();
     }
 
-    pub fn handle_channeler_message(&mut self) -> Vec<MessengerTask> {
-        // TODO
-        unreachable!();
-    }
-
-    pub fn handle_funder_message(&mut self) -> Vec<MessengerTask> {
-        // TODO
-        unreachable!();
-    }
-
-    pub fn handle_crypter_message(&mut self) -> Vec<MessengerTask> {
-        // TODO
-        unreachable!();
-    }
-
     pub fn handle_timer_tick(&mut self) -> Vec<MessengerTask> {
         // TODO
         unreachable!();
