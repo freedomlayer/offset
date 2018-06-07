@@ -53,7 +53,12 @@ struct MessengerState {
     neighbors: HashMap<PublicKey, NeighborState>,
 }
 
+#[allow(unused)]
 enum MessengerTask {
+    SendAppManagerMessage,
+    SendFunderMessage,
+    SendChannelerMessage,
+    SendCrypterMessage,
 }
 
 #[allow(unused)]
