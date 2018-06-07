@@ -20,6 +20,7 @@ struct NeighborMoveToken {
 struct NeighborInconsistencyError {
         tokenChannelIndex @0: UInt8;
         currentToken @1: CustomUInt256;
+        # In the next message, this will be used as old_token.
         balanceForReset @2: Int64;
 }
 
