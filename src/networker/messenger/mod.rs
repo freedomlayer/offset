@@ -1,8 +1,6 @@
 #![warn(unused)]
 
 use std::rc::Rc;
-use std::collections::HashMap;
-use std::net::SocketAddr;
 
 use futures::sync::mpsc;
 use tokio_core::reactor::Handle;
@@ -12,8 +10,7 @@ use ring::rand::SecureRandom;
 use timer::messages::FromTimer;
 
 use super::messages::{NetworkerToChanneler, NetworkerToDatabase, 
-    NetworkerToAppManager, MessageReceived, 
-    NeighborStatus};
+    NetworkerToAppManager, MessageReceived};
 
 use super::crypter::messages::CrypterRequestSendMessage;
 
@@ -35,23 +32,8 @@ mod neighbor_tc_logic;
 pub mod types;
 mod credit_calc;
 mod signature_buff;
+mod messenger_state;
 
-use self::neighbor_tc_logic::NeighborTCState;
-
-
-#[allow(unused)]
-struct NeighborState {
-    neighbor_socket_addr: Option<SocketAddr>, 
-    remote_max_debt: u64,
-    max_channels: u32,
-    status: NeighborStatus,
-    // Enabled or disabled?
-    token_channels: HashMap<u32, NeighborTCState>,
-    ticks_since_last_incoming: usize,
-    // Number of time ticks since last incoming message
-    ticks_since_last_outgoing: usize,
-    // Number of time ticks since last outgoing message
-}
 
 
 #[allow(unused)]
