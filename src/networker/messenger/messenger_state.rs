@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 
 use app_manager::messages::{NetworkerConfig, AddNeighbor, 
-    RemoveNeighbor, SetNeighborStatus};
+    RemoveNeighbor, SetNeighborStatus,  SetNeighborRemoteMaxDebt,
+    ResetNeighborChannel, SetNeighborMaxChannels};
 use crypto::identity::PublicKey;
 
 use proto::networker::ChannelToken;
@@ -69,6 +70,27 @@ impl MessengerState {
         unreachable!();
     }
 
+    fn app_manager_set_neighbor_remote_max_debt(&mut self, 
+                                                set_neighbor_remote_max_debt: SetNeighborRemoteMaxDebt) 
+        -> Vec<MessengerTask> {
+
+        unreachable!();
+    }
+
+    fn app_manager_reset_neighbor_channel(&mut self, 
+                                          reset_neighbor_channel: ResetNeighborChannel) 
+        -> Vec<MessengerTask> {
+
+        unreachable!();
+    }
+
+    fn app_manager_set_neighbor_max_channels(&mut self, 
+                                          set_neighbor_max_channels: SetNeighborMaxChannels) 
+        -> Vec<MessengerTask> {
+
+        unreachable!();
+    }
+
     fn app_manager_add_neighbor(&mut self, add_neighbor: AddNeighbor) -> Vec<MessengerTask> {
         unreachable!();
     }
@@ -86,9 +108,12 @@ impl MessengerState {
         // TODO
         
         match networker_config {
-            NetworkerConfig::SetNeighborRemoteMaxDebt(_set_neighbor_remote_max_debt) => unreachable!(),
-            NetworkerConfig::ResetNeighborChannel(_reset_neighbor_channel) => unreachable!(),
-            NetworkerConfig::SetNeighborMaxChannels(_set_neighbor_max_channels) => unreachable!(),
+            NetworkerConfig::SetNeighborRemoteMaxDebt(set_neighbor_remote_max_debt) => 
+                self.app_manager_set_neighbor_remote_max_debt(set_neighbor_remote_max_debt),
+            NetworkerConfig::ResetNeighborChannel(reset_neighbor_channel) => 
+                self.app_manager_reset_neighbor_channel(reset_neighbor_channel),
+            NetworkerConfig::SetNeighborMaxChannels(set_neighbor_max_channels) => 
+                self.app_manager_set_neighbor_max_channels(set_neighbor_max_channels),
             NetworkerConfig::AddNeighbor(add_neighbor) => 
                 self.app_manager_add_neighbor(add_neighbor),
             NetworkerConfig::RemoveNeighbor(remove_neighbor) => 
