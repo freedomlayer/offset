@@ -4,13 +4,25 @@ use std::net::SocketAddr;
 use app_manager::messages::NetworkerConfig;
 use crypto::identity::PublicKey;
 
+use proto::networker::ChannelToken;
+
 use super::neighbor_tc_logic::NeighborTCState;
 use super::types::NeighborTcOp;
 use super::super::messages::{NeighborStatus};
 
+#[allow(dead_code)]
+enum TokenChannelStatus {
+    Valid,
+    Inconsistent {
+        current_token: ChannelToken,
+        balance_for_reset: i64,
+    },
+}
+
 #[allow(unused)]
 struct TokenChannelSlot {
     tc_state: NeighborTCState,
+    tc_status: TokenChannelStatus,
     pending_operations: Vec<NeighborTcOp>,
     // Pending operations to be sent to the token channel.
 }
