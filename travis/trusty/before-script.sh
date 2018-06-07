@@ -14,7 +14,7 @@ echo "[target.$TARGET]" > .cargo/config
 echo "linker= \"$CC\"" >> .cargo/config
 
 if [[ -f "$HOME/.cargo/bin/cargo-clippy" ]]; then
-    if [[ "$(cargo clippy --version)" -ne "$CLIPPY_VERSION" ]]; then
+    if [[ "$(cargo clippy --version)" == "$CLIPPY_VERSION" ]]; then
         cargo install --force clippy --vers "=$CLIPPY_VERSION"
     fi
 else
