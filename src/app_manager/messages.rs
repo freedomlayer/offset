@@ -12,7 +12,7 @@ use indexer_client::messages::{IndexingProviderInfo, IndexingProviderStatus,
 
 pub enum AppManagerToNetworker {
     RequestPath(RequestPath),
-    SetNeighborWantedRemoteMaxDebt {
+    SetNeighborRemoteMaxDebt {
         neighbor_public_key: PublicKey,
         wanted_remote_max_debt: u64,
     },
@@ -71,7 +71,7 @@ pub enum AppManagerToFunder {
         status: FriendStatus,
         requests_status: FriendRequestsStatus,
     },
-    SetFriendWantedRemoteMaxDebt {
+    SetFriendRemoteMaxDebt {
         friend_public_key: PublicKey,
         wanted_remote_max_debt: u128,
     },
