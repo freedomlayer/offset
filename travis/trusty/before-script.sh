@@ -10,6 +10,9 @@ elif [[ ! -d ".cargo" ]]; then
     mkdir .cargo
 fi
 
+# Clean any cache from cargo registry:
+rm -rf $HOME/.cargo/registry
+
 echo "[target.$TARGET]" > .cargo/config
 echo "linker= \"$CC\"" >> .cargo/config
 
