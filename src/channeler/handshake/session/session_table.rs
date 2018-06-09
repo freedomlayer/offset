@@ -14,14 +14,20 @@ pub struct SessionTable<S> {
     idx_session_id: HashMap<SessionId, usize>,
 }
 
-impl<S> SessionTable<S> {
-    /// Creates a empty `SessionTable`.
-    pub fn new() -> SessionTable<S> {
+impl<S> Default for SessionTable<S> {
+    fn default() -> SessionTable<S> {
         SessionTable {
             slab: Slab::new(),
             idx_last_hash: HashMap::new(),
             idx_session_id: HashMap::new(),
         }
+    }
+}
+
+impl<S> SessionTable<S> {
+    /// Creates a empty `SessionTable`.
+    pub fn new() -> SessionTable<S> {
+        SessionTable::default()
     }
 
     /// Add a new `HandshakeSession` into the table.
@@ -119,7 +125,7 @@ impl<S> SessionTable<S> {
 mod tests {
     use super::*;
     use channeler::handshake::SessionId;
-    use channeler::handshake::session::SESSION_TIMEOUT;
+    use channeler::config::HANDSHAKE_SESSION_TIMEOUT;
 
 
     use crypto::hash::HASH_RESULT_LEN;
@@ -154,7 +160,7 @@ mod tests {
 
         assert!(session_table.add_session(new_session).is_none());
 
-        for _ in 0..SESSION_TIMEOUT - 1 {
+        for _ in 0..HANDSHAKE_SESSION_TIMEOUT - 1 {
             session_table.time_tick();
             assert!(session_table.contains_session(&session_id));
         }

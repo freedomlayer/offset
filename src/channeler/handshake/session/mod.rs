@@ -6,6 +6,7 @@ use crypto::identity::PublicKey;
 use crypto::rand_values::RandValue;
 use crypto::hash::{sha_512_256, HashResult};
 use crypto::dh::{DhPublicKey, DhPrivateKey, Salt};
+use channeler::config::HANDSHAKE_SESSION_TIMEOUT;
 use proto::channeler::{ChannelId, CHANNEL_ID_LEN};
 
 pub(super) mod session_table;
@@ -13,8 +14,6 @@ pub(super) mod session_table;
 use super::HandshakeResult;
 use super::state::HandshakeState;
 use super::error::HandshakeError;
-
-pub const SESSION_TIMEOUT: usize = 100;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum HandshakeRole {
@@ -61,7 +60,7 @@ impl SessionId {
 impl<S> HandshakeSession<S> {
     /// Creates a new handshake session.
     pub fn new(id: SessionId, state: S, last_hash: HashResult) -> HandshakeSession<S> {
-        HandshakeSession { id, state, last_hash, timeout_counter: SESSION_TIMEOUT }
+        HandshakeSession { id, state, last_hash, timeout_counter: HANDSHAKE_SESSION_TIMEOUT }
     }
 
     /// Returns a reference to the session id.
@@ -167,10 +166,10 @@ fn finish(sent_rand_nonce: RandValue,
 
     Ok(HandshakeResult {
         remote_public_key,
-        sending_channel_id: sending_channel_id,
-        sending_channel_key: sending_channel_key,
-        receiving_channel_id: receiving_channel_id,
-        receiving_channel_key: receiving_channel_key
+        channel_tx_id: sending_channel_id,
+        channel_tx_key: sending_channel_key,
+        channel_rx_id: receiving_channel_id,
+        channel_rx_key: receiving_channel_key
     })
 }
 

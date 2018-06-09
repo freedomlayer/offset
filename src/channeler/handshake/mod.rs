@@ -9,6 +9,7 @@ use crypto::hash::sha_512_256;
 use crypto::dh::{DhPrivateKey, Salt};
 use crypto::rand_values::{RandValue, RandValuesStore};
 use crypto::identity::{PublicKey, Signature, SIGNATURE_LEN, verify_signature};
+use channeler::config::REQUEST_NONCE_TIMEOUT;
 
 use proto::channeler::*;
 use super::NeighborTable;
@@ -22,18 +23,17 @@ pub use self::state::HandshakeState;
 pub use self::session::{SessionId, HandshakeSession};
 pub use self::session::session_table::SessionTable;
 
-const REQUEST_NONCE_TIMEOUT: usize = 100;
-
 const RAND_VALUE_TICKS: usize = 5;
 const RAND_VALUE_STORE_CAPACITY: usize = 3;
 
 pub struct HandshakeResult {
     pub remote_public_key: PublicKey,
 
-    pub sending_channel_id: ChannelId,
-    pub sending_channel_key: SealingKey,
-    pub receiving_channel_id: ChannelId,
-    pub receiving_channel_key: OpeningKey,
+    pub channel_tx_id: ChannelId,
+    pub channel_tx_key: SealingKey,
+
+    pub channel_rx_id: ChannelId,
+    pub channel_rx_key: OpeningKey,
 }
 
 pub struct HandshakeService<SR> {
@@ -479,7 +479,7 @@ mod tests {
             channel_ready_to_b
         ).unwrap();
 
-        assert_eq!(new_channel_info_a.sending_channel_id, new_channel_info_b.receiving_channel_id);
-        assert_eq!(new_channel_info_b.sending_channel_id, new_channel_info_a.receiving_channel_id);
+        assert_eq!(new_channel_info_a.channel_tx_id, new_channel_info_b.channel_rx_id);
+        assert_eq!(new_channel_info_b.channel_tx_id, new_channel_info_a.channel_rx_id);
     }
 }

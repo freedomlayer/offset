@@ -11,7 +11,6 @@ use futures::sync::mpsc;
 use ring::rand::SecureRandom;
 use tokio_core::reactor::Handle;
 
-// FIXME
 use crypto::identity::PublicKey;
 use security_module::client::SecurityModuleClient;
 use timer::messages::FromTimer;
@@ -22,12 +21,13 @@ use networker::messages::NetworkerToChanneler;
 use proto::channeler::{ChannelerMessage, RequestNonce,
     ResponseNonce, ExchangeActive, ExchangePassive, ChannelReady, PlainContent, Plain};
 
-use self::channel::{ChannelPool, ChannelPoolError};
+use self::channel::{ChannelPool, ChannelError};
 use self::handshake::HandshakeService;
 use self::types::{NeighborTable, ChannelerNeighbor, ChannelerNeighborInfo};
 use self::messages::{ChannelEvent, ChannelerToNetworker};
 
 pub mod types;
+pub mod config;
 pub mod channel;
 pub mod messages;
 pub mod handshake;
@@ -86,15 +86,15 @@ pub enum ChannelerError {
     SecureRandomError,
     PrepareSendError,
 
-    ChannelPool(ChannelPoolError),
+    ChannelPool(ChannelError),
 
     SendToHandshakeManagerError, // fatal error
 
     HandshakeManagerError,
 }
 
-impl From<ChannelPoolError> for ChannelerError {
-    fn from(e: ChannelPoolError) -> ChannelerError {
+impl From<ChannelError> for ChannelerError {
+    fn from(e: ChannelError) -> ChannelerError {
         ChannelerError::ChannelPool(e)
     }
 }
@@ -181,7 +181,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
                 match channeler_message {
                     ChannelerMessage::Encrypted(encrypted) => {
                         let opt_message =
-                            self.channel_pool.borrow_mut().decrypt_incoming(encrypted)?;
+                            self.channel_pool.borrow_mut().decrypt_message(encrypted)?;
 
                         if let (pk, Some(message)) = opt_message {
                             let message_to_networker = ChannelerToNetworker {
@@ -244,7 +244,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
     fn remove_neighbor(&mut self, public_key: PublicKey) {
         trace!("request to remove neighbor: {:?}", public_key);
 
-        self.channel_pool.borrow_mut().remove(&public_key);
+        self.channel_pool.borrow_mut().remove_neighbor(&public_key);
         self.neighbors.borrow_mut().remove(&public_key);
     }
 
@@ -257,7 +257,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
             content: PlainContent::Application(content)
         };
 
-        let item = self.channel_pool.borrow_mut().encrypt_outgoing(&public_key, plain)?;
+        let item = self.channel_pool.borrow_mut().encrypt_message(&public_key, plain)?;
 
         self.start_send_outgoing(item)
     }
@@ -367,7 +367,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
         let channel_pool = Rc::clone(&self.channel_pool);
 
         match self.handshake_manager.process_channel_ready(channel_ready) {
-            Ok(handshake_res) => channel_pool.borrow_mut().insert(remote_addr, handshake_res),
+            Ok(handshake_res) => channel_pool.borrow_mut().add_channel(remote_addr, handshake_res),
             Err(e) => {
                 error!("handshake manager error: {:?}", e);
             }
@@ -444,7 +444,7 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
                     })
             })
             .and_then(move |handshake_res| {
-                channel_pool.borrow_mut().insert(remote_addr, handshake_res);
+                channel_pool.borrow_mut().add_channel(remote_addr, handshake_res);
                 Ok(())
             });
 
