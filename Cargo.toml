@@ -13,7 +13,7 @@ log = "0.4"
 pretty_env_logger = "0.2"
 
 rand = "0.4"
-ring = "0.13.0-alpha"
+ring = "=0.13.0-alpha"
 untrusted = "0.6"
 
 bytes = "0.4"
