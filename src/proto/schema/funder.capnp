@@ -3,6 +3,7 @@
 using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomUInt256;
 using import "common.capnp".CustomUInt512;
+using import "common.capnp".Rational128;
 using import "common.capnp".RandNonceSignature;
 
 
@@ -10,15 +11,9 @@ using import "common.capnp".RandNonceSignature;
 # ----------------------
 
 struct FriendMoveToken {
-        union {
-                transactions @0: List(FriendTransaction);
-                resetChannel @1: CustomUInt128;
-                # Note that this is actually a signed number (Highest bit is the sign
-                # bit, Two's complement method). TODO: Should we have a separate type,
-                # like CustomInt128?
-        }
-        oldToken @2: CustomUInt256;
-        randNonce @3: CustomUInt128;
+        operations @0: List(FriendOperation);
+        oldToken @1: CustomUInt256;
+        randNonce @2: CustomUInt128;
 }
 
 
@@ -31,10 +26,10 @@ struct FriendInconsistencyError {
 }
 
 
-# Token Transactions
+# Token Operations
 # ------------------
 
-struct EnableRequests {
+struct EnableRequestsOp {
         base @0: UInt64;
         multiplier @1: UInt64;
         # The sender of this message declares that
@@ -50,79 +45,108 @@ struct EnableRequests {
 # Set the maximum possible debt for the remote party.
 # Note: It is not possible to set a maximum debt smaller than the current debt
 # This will cause an inconsistency.
-struct SetRemoteMaxDebtTran {
+struct SetRemoteMaxDebtOp {
         remoteMaxDebt @0: UInt64;
+}
+
+struct FunderSendPrice {
+        base @0: UInt64;
+        multiplier @1: UInt64;
 }
 
 struct FriendRouteLink {
         nodePublicKey @0: CustomUInt256;
         # Public key of current node
-        requestBaseProposal @1: UInt32;
-        # request base pricing for the current node
-        requestMultiplierProposal @2: UInt32;
-        # request multiplier pricing for the current node.
-        responseBaseProposal @3: UInt32;
-        # response base pricing for the next node.
-        responseMultiplierProposal @4: UInt32;
-        # response multiplier pricing for the next node.
+        requestProposal @1: FunderSendPrice;
+        # Payment proposal for sending data to the next node.
+        responseProposal @2: FunderSendPrice;
+        # Payment proposal for sending data to the previous node.
 }
 
 
 struct FriendsRoute {
         sourcePublicKey @0: CustomUInt256;
         # Public key for the message originator.
-        routeLinks @1: List(FriendRouteLink);
+        sourceResponseProposal @1: FunderSendPrice;
+        # Payment proposal for sending data from source forward.
+        # This amount is not used in the calculation of costs for sending the
+        # request, but can be used by the receiver to produce a route back to
+        # the origin of the request.
+        routeLinks @2: List(FriendRouteLink);
         # A chain of all intermediate nodes.
-        destinationPublicKey @2: CustomUInt256;
+        destPublicKey @3: CustomUInt256;
         # Public key for the message destination.
+        destResponseProposal @4: FunderSendPrice;
+        # Payment proposal for sending data from dest backwards.
 }
 
-struct RequestSendFundTran { 
+struct FriendFreezeLink {
+        sharedCredits @0: UInt64;
+        # Credits shared for freezing through previous edge.
+        usableRatio @1: Rational128;
+        # Ratio of credits that can be used for freezing from the previous
+        # edge. Ratio might only be an approximation to real value, if the real
+        # value can not be represented as a u128/u128.
+}
+
+
+struct RequestSendFundOp { 
         requestId @0: CustomUInt128;
-        route @1: FriendsRoute;
-        mediatorPaymentProposal @2: UInt64;
+        destPayment @1: CustomUInt128;
+        route @2: FriendsRoute;
         invoiceId @3: CustomUInt256;
-        destinationPayment @4: CustomUInt128;
+        freezeLinks @4: List(FriendFreezeLink);
+        # Variable amount of freezing links. This is used for protection
+        # against DoS of credit freezing by have exponential decay of available
+        # credits freezing according to derived trust.
+        # This part should not be signed in the Response message.
 }
 
-struct ResponseSendFundTran {
+struct ResponseSendFundOp {
         requestId @0: CustomUInt128;
         randNonce @1: CustomUInt128;
         signature @2: CustomUInt512;
         # Signature{key=recipientKey}(
-        #   "FUND_SUCCESS" ||
-        #   sha512/256(requestId || sha512/256(nodeIdPath) || mediatorPaymentProposal) ||
+        #   sha512/256("FUND_SUCCESS") ||
+        #   sha512/256(requestId || sha512/256(route) || randNonce) ||
         #   invoiceId ||
-        #   destinationPayment ||
-        #   randNonce)
+        #   destPayment
+        # )
+        #
+        # Note that the signature contains an inner blob (requestId || ...).
+        # This is done to make the size of the receipt shorter.
+        # See also the Receipt structure.
 }
 
-struct FailedSendFundTran {
+struct FailureSendFundOp {
         requestId @0: CustomUInt128;
-        reportingPublicKeyIndex @1: UInt16;
+        reportingPublicKey @1: CustomUInt256;
         # Index of the reporting node in the route of the corresponding request.
-        # The reporting npde cannot be the destination node.
+        # The reporting node cannot be the destination node.
         randNonceSignatures @2: List(RandNonceSignature);
         # Contains a signature for every node in the route, from the reporting
         # node, until the current node.
         # Signature{key=recipientKey}(
-        #   "FUND_FAILURE" ||
-        #   sha512/256(requestId || sha512/256(nodeIdPath) || mediatorPaymentProposal) ||
+        #   sha512/256("FUND_FAILURE") ||
+        #   requestId ||
+        #   destPayment ||
+        #   sha512/256(route) || 
         #   invoiceId ||
-        #   destinationPayment ||
+        #   reportingPublicKey ||
         #   prev randNonceSignatures ||
-        #   randNonce)
+        #   randNonce
+        # )
 }
 
 
-struct FriendTransaction {
+struct FriendOperation {
         union {
-                enableRequests @0: EnableRequests;
+                enableRequests @0: EnableRequestsOp;
                 disableRequests @1: Void;
-                setRemoteMaxDebt @2: SetRemoteMaxDebtTran;
-                requestSendFund @3: RequestSendFundTran;
-                responseSendFund @4: ResponseSendFundTran;
-                failedSendFund @5: FailedSendFundTran;
+                setRemoteMaxDebt @2: SetRemoteMaxDebtOp;
+                requestSendFund @3: RequestSendFundOp;
+                responseSendFund @4: ResponseSendFundOp;
+                failedSendFund @5: FailureSendFundOp;
         }
 }
 

@@ -3,6 +3,7 @@
 using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomUInt256;
 using import "common.capnp".CustomUInt512;
+using import "common.capnp".Rational64;
 using import "common.capnp".Receipt;
 using import "common.capnp".RandNonceSignature;
 
@@ -11,25 +12,23 @@ using import "common.capnp".RandNonceSignature;
 
 struct NeighborMoveToken {
         tokenChannelIndex @0: UInt8;
-        union {
-                transactions @1: List(NeighborTransaction);
-                resetChannel @2: Int64;
-        }
-        oldToken @3: CustomUInt256;
-        randNonce @4: CustomUInt128;
+        operations @1: List(NeighborOperation);
+        oldToken @2: CustomUInt256;
+        randNonce @3: CustomUInt128;
 }
 
 struct NeighborInconsistencyError {
         tokenChannelIndex @0: UInt8;
         currentToken @1: CustomUInt256;
+        # In the next message, this will be used as old_token.
         balanceForReset @2: Int64;
 }
 
 
-# Token Transactions
+# Token Operations
 # ------------------
 
-struct EnableRequestsTran {
+struct EnableRequestsOp {
         base @0: UInt32;
         multiplier @1: UInt32;
         # The sender of this message declares that
@@ -39,58 +38,91 @@ struct EnableRequestsTran {
 # This message may be sent more than once, to update the values of base and multiplier.
 
 
-# struct DisableRequestsTran {
+# struct DisableRequestsOp {
 # }
 
-struct SetRemoteMaxDebtTran {
+struct SetRemoteMaxDebtOp {
         remoteMaxDebt @0: UInt64;
 }
 
 
-struct SetInvoiceIdTran {
+# TODO:
+# Find out relation between freezing amounts
+# and remoteMaxDebt. Possibly put all of those in one message (SetRemoteMaxDebtOp).
+#       struct SetRemoteMaxFreezeOp {
+#               maxFreezes @0: List(MaxFreezeItem);
+#               struct MaxFreezeItem {
+#                       publicKey @0: CustomUInt256;
+#                       maxFreeze @1: UInt64;
+#               }
+#       }
+
+
+struct SetInvoiceIdOp {
         invoiceId @0: CustomUInt256;
 }
 
-struct LoadFundsTran {
+struct LoadFundsOp {
         receipt @0: Receipt;
+}
+
+struct NetworkerSendPrice {
+        base @0: UInt32;
+        multiplier @1: UInt32;
 }
 
 
 struct NeighborRouteLink {
         nodePublicKey @0: CustomUInt256;
         # Public key of current node
-        requestBaseProposal @1: UInt32;
-        # request base pricing for the current node
-        requestMultiplierProposal @2: UInt32;
-        # request multiplier pricing for the current node.
-        responseBaseProposal @3: UInt32;
-        # response base pricing for the next node.
-        responseMultiplierProposal @4: UInt32;
-        # response multiplier pricing for the next node.
+        requestProposal @1: NetworkerSendPrice;
+        # Payment proposal for sending data to the next node.
+        responseProposal @2: NetworkerSendPrice;
+        # Payment proposal for sendingdata to the previous node.
 }
 
 
 struct NeighborsRoute {
         sourcePublicKey @0: CustomUInt256;
         # Public key for the message originator.
-        routeLinks @1: List(NeighborRouteLink);
+        sourceResponseProposal @1: NetworkerSendPrice;
+        # Payment proposal for sending data from the source forward.  Note that
+        # this information is not required for calculation of costs for the
+        # current request, however it can be used by the receiver of the
+        # request message to construct a route quickly for sending a request back.
+        routeLinks @2: List(NeighborRouteLink);
         # A chain of all intermediate nodes.
-        destinationPublicKey @2: CustomUInt256;
+        destPublicKey @3: CustomUInt256;
         # Public key for the message destination.
+        destResponseProposal @4: NetworkerSendPrice;
+        # Payment proposal for sending data from dest backwards
+}
+
+struct NeighborFreezeLink {
+        sharedCredits @0: UInt64;
+        # Credits shared for freezing through previous edge.
+        usableRatio @1: Rational64;
+        # Ratio of credits that can be used for freezing from the previous
+        # edge. Ratio might only be an approximation to real value, if the real
+        # value can not be represented as a u64/u64.
 }
 
 
-struct RequestSendMessageTran {
+struct RequestSendMessageOp {
         requestId @0: CustomUInt128;
-        route @1: NeighborsRoute;
-        requestContent @2: Data;
-        maxResponseLength @3: UInt32;
-        processingFeeProposal @4: UInt64;
-        creditsPerByteProposal @5: UInt64;
+        maxResponseLength @1: UInt32;
+        processingFeeProposal @2: UInt64;
+        route @3: NeighborsRoute;
+        requestContent @4: Data;
+        freezeLinks @5: List(NeighborFreezeLink);
+        # Variable amount of freezing links. This is used for protection
+        # against DoS of credit freezing by have exponential decay of available
+        # credits freezing according to derived trust.
+        # This part should not be signed in the Response message.
 }
 
 
-struct ResponseSendMessageTran {
+struct ResponseSendMessageOp {
         requestId @0: CustomUInt128;
         randNonce @1: CustomUInt128;
         processingFeeCollected @2: UInt64;
@@ -99,13 +131,12 @@ struct ResponseSendMessageTran {
         responseContent @3: Data;
         signature @4: CustomUInt512;
         # Signature{key=recipientKey}(
-        #   "REQUEST_SUCCESS" ||
+        #   sha512/256("REQUEST_SUCCESS") ||
         #   requestId ||
-        #   sha512/256(route) ||
-        #   sha512/256(requestContent) ||
         #   maxResponseLength ||
         #   processingFeeProposal ||
-        #   creditsPerByteProposal || 
+        #   sha512/256(route) ||
+        #   sha512/256(requestContent) ||
         #   processingFeeCollected ||
         #   sha512/256(responseContent) ||
         #   randNonce)
@@ -113,37 +144,37 @@ struct ResponseSendMessageTran {
 
 
 
-struct FailedSendMessageTran {
+struct FailureSendMessageOp {
         requestId @0: CustomUInt128;
-        reportingPublicKeyIndex @1: UInt16;
+        reportingPublicKey @1: CustomUInt256;
         # Index on the route of the public key reporting this failure message.
         # The destination node should not be able to issue this message.
         randNonceSignatures @2: List(RandNonceSignature);
         # Contains a signature for every node in the route, from the reporting
         # node, until the current node.
         # Signature{key=reportingNodePublicKey}(
-        #   "REQUEST_FAILURE" ||
+        #   sha512/256("REQUEST_FAILURE") ||
         #   requestId ||
-        #   sha512/256(route) ||
-        #   sha512/256(requestContent) ||
         #   maxResponseLength ||
         #   processingFeeProposal ||
-        #   creditsPerByteProposal || 
+        #   sha512/256(route) ||
+        #   sha512/256(requestContent) ||
+        #   reportingPublicKey ||
         #   prev randNonceSignatures ||
         #   randNonce)
 }
 
 
-struct NeighborTransaction {
+struct NeighborOperation {
         union {
-                enableRequests @0: EnableRequestsTran;
+                enableRequests @0: EnableRequestsOp;
                 disableRequests @1: Void;
-                setRemoteMaxDebt @2: SetRemoteMaxDebtTran;
-                setInvoiceId @3: SetInvoiceIdTran;
-                loadFunds @4: LoadFundsTran;
-                requestSendMessage @5: RequestSendMessageTran;
-                responseSendMessage @6: ResponseSendMessageTran;
-                failedSendMessage @7: FailedSendMessageTran;
+                setRemoteMaxDebt @2: SetRemoteMaxDebtOp;
+                setInvoiceId @3: SetInvoiceIdOp;
+                loadFunds @4: LoadFundsOp;
+                requestSendMessage @5: RequestSendMessageOp;
+                responseSendMessage @6: ResponseSendMessageOp;
+                failedSendMessage @7: FailureSendMessageOp;
         }
 }
 

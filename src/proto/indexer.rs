@@ -1,4 +1,5 @@
 use crypto::identity::{PublicKey, Signature};
+use networker::messenger::types::NeighborsRoute;
 
 pub const INDEXING_PROVIDER_ID_LEN: usize = 16;
 pub const INDEXING_PROVIDER_STATE_HASH_LEN: usize = 32;
@@ -9,67 +10,6 @@ define_fixed_bytes!(IndexingProviderId, INDEXING_PROVIDER_ID_LEN);
 /// A hash of a full link in an indexing provider chain
 define_fixed_bytes!(IndexingProviderStateHash, INDEXING_PROVIDER_STATE_HASH_LEN);
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct NeighborsRoute {
-    pub public_keys: Vec<PublicKey>,
-}
-
-#[derive(PartialEq, Eq)]
-pub enum PkPairPosition {
-    NotFound,
-    NotLast,
-    IsLast,
-}
-
-impl NeighborsRoute {
-    /// Find two consecutive public keys (pk1, pk2) inside a neighbors route.
-    /// If found, returns the index of the first of them.
-    pub fn find_pk_pair(&self, pk1: &PublicKey, pk2: &PublicKey) -> PkPairPosition {
-        let public_keys = &self.public_keys;
-        for i in 1 .. public_keys.len() {
-            if &public_keys[i] == pk2 && &public_keys[i-1] == pk1 {
-                if i == public_keys.len() - 1 {
-                    return PkPairPosition::IsLast;
-                } else {
-                    return PkPairPosition::NotLast;
-                }
-            }
-        }
-        PkPairPosition::NotFound
-    }
-
-    pub fn is_unique(&self) -> bool {
-        let public_keys = &self.public_keys;
-        for i in 0 .. public_keys.len() {
-            for j in i + 1.. public_keys.len() {
-                if public_keys[i] == public_keys[j]{
-                    return false
-                }
-            }
-        }
-        true
-    }
-
-    fn index_of(&self, key: &PublicKey) -> Option<usize>{
-        self.public_keys.iter().position(|k| k == key)
-    }
-
-    pub fn get_destination_public_key(&self) -> Option<PublicKey>{
-        let key = self.public_keys.last()?;
-        Some(key.clone())
-    }
-
-    pub fn distance_between_nodes(&self, first_node: &PublicKey, second_node: &PublicKey)
-        -> Option<usize>{
-        let index_first = self.index_of(first_node)?;
-        let index_second = self.index_of(second_node)?;
-        if index_first > index_second{
-            None
-        }else{
-            Some(index_second - index_first)
-        }
-    }
-}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IndexerRoute {
@@ -103,6 +43,7 @@ pub struct ResponseNeighborsRoutes {
     pub routes: Vec<NeighborsRoute>,
 }
 
+#[allow(unused)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RequestFriendsRoutes {
     Direct {

@@ -26,6 +26,18 @@ struct CustomUInt512 {
         x7 @7: UInt64;
 }
 
+# A custom type for a rational 64 bit number.
+struct Rational64 {
+        numerator @0: UInt64;
+        denominator @1: UInt64;
+}
+
+# A custom type for a rational 128 bit number.
+struct Rational128 {
+        numerator @0: CustomUInt128;
+        denominator @1: CustomUInt128;
+}
+
 # A pair of a nonce and a signature used to sign a FailedSendXXXTran.
 # Every party on the route back to the originator of the request message add his 
 # signature over the failure message. This is important to avoid the hollow failure route attack.
@@ -38,18 +50,14 @@ struct RandNonceSignature {
 # A receipt for payment to the Funder
 struct Receipt {
         responseHash @0: CustomUInt256;
-        # = sha512/256(requestId || 
-        #       sha512/256(nodeIdPath) || 
-        #       mediatorPaymentProposal)
+        # = sha512/256(requestId || sha512/256(route) || destResponseProposal || randNonce)
         invoiceId @1: CustomUInt256;
-        destinationPayment @2: CustomUInt128;
-        randNonce @3: CustomUInt256;
-        signature @4: CustomUInt512;
+        destPayment @2: CustomUInt128;
+        signature @3: CustomUInt512;
         # Signature{key=recipientKey}(
         #   "FUND_SUCCESS" ||
-        #   sha512/256(requestId || sha512/256(nodeIdPath) || mediatorPaymentProposal) ||
+        #   sha512/256(requestId || sha512/256(route) || destResponseProposal || randNonce) ||
         #   invoiceId ||
-        #   destinationPayment ||
-        #   randNonce)
+        #   destPayment
+        # )
 }
-

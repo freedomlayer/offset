@@ -1,12 +1,11 @@
 //! The messages sent by database to other components.
 
 use networker::messages::{MoveTokenDirection, NeighborInfo, NeighborTokenCommon};
-use networker::messenger::pending_neighbor_request::PendingNeighborRequest;
-
 use funder::messages::{PendingFriendRequest, FriendInfo, FriendTokenCommon};
-
 use indexer_client::messages::IndexingProviderStatus;
-use proto::indexer::{IndexingProviderId, NeighborsRoute, StateChainLink};
+
+use proto::indexer::{IndexingProviderId, StateChainLink};
+use networker::messenger::types::{NeighborsRoute, PendingNeighborRequest};
 
 /// The indexing provider's information from database.
 pub struct IndexingProviderInfoFromDB {

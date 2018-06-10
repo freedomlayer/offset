@@ -1,21 +1,16 @@
-#![allow(dead_code)]
+#![warn(unused)]
 
 use std::rc::Rc;
-use std::collections::HashMap;
-use std::net::SocketAddr;
 
 use futures::sync::mpsc;
 use tokio_core::reactor::Handle;
 
 use ring::rand::SecureRandom;
 
-use crypto::uid::Uid;
-use crypto::rand_values::RandValue;
 use timer::messages::FromTimer;
 
 use super::messages::{NetworkerToChanneler, NetworkerToDatabase, 
-    NetworkerToAppManager, MessageReceived, MoveTokenDirection,
-    NeighborStatus};
+    NetworkerToAppManager, MessageReceived};
 
 use super::crypter::messages::CrypterRequestSendMessage;
 
@@ -30,56 +25,24 @@ use database::clients::networker_client::DBNetworkerClient;
 
 use channeler::messages::ChannelerToNetworker;
 
-use proto::funder::InvoiceId;
-use proto::networker::{ChannelToken};
 
 
-mod token_channel;
-mod tc_credit;
-mod pending_requests;
-mod invoice_validator;
-pub mod balance_state;
-mod messenger_messages;
-pub mod pending_neighbor_request;
-pub mod credit_calculator;
+pub mod token_channel;
+mod neighbor_tc_logic;
+pub mod types;
+mod credit_calc;
+mod signature_buff;
+mod messenger_state;
 
-use self::pending_neighbor_request::PendingNeighborRequest;
-
-
-/// Full state of a Neighbor token channel.
-struct NeighborTokenChannel {
-    pub move_token_direction: MoveTokenDirection,
-    pub move_token_message: Vec<u8>,
-    // Raw bytes of last incoming/outgoing Move Token Message.
-    // We already processed this message.
-    pub old_token: ChannelToken,
-    pub new_token: ChannelToken,
-    // Equals Sha512/256(move_token_message)
-    pub remote_max_debt: u64,
-    pub local_max_debt: u64,
-    pub remote_pending_debt: u64,
-    pub local_pending_debt: u64,
-    pub balance: i64,
-    pub local_invoice_id: Option<InvoiceId>,
-    pub remote_invoice_id: Option<InvoiceId>,
-    pub pending_local_requests: HashMap<Uid, PendingNeighborRequest>,
-    pub pending_remote_requests: HashMap<Uid, PendingNeighborRequest>,
-}
-
-struct NeighborState {
-    neighbor_socket_addr: Option<SocketAddr>, 
-    wanted_remote_max_debt: u64,
-    wanted_max_channels: u32,
-    status: NeighborStatus,
-    // Enabled or disabled?
-    token_channels: HashMap<u32, NeighborTokenChannel>,
-    ticks_since_last_incoming: usize,
-    // Number of time ticks since last incoming message
-    ticks_since_last_outgoing: usize,
-    // Number of time ticks since last outgoing message
-}
+mod handle_app_manager;
+mod handle_channeler;
+mod handle_funder;
+mod handle_crypter;
+mod handle_database;
 
 
+
+#[allow(unused)]
 #[allow(too_many_arguments)]
 pub fn create_messenger<SR: SecureRandom>(handle: &Handle,
                         secure_rng: Rc<SR>,

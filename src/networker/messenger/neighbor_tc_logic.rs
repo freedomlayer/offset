@@ -1,35 +1,30 @@
-/*
+#![warn(unused)]
+
 use proto::networker::ChannelToken;
 use crypto::rand_values::RandValue;
-use crypto::identity::PublicKey;
-use super::super::messages::MoveTokenDirection;
-<<<<<<< Updated upstream
-use super::balance_state_old::{BalanceState, NetworkerTCMessage,
-                               ProcessMessageOutput, ProcessTransListError,
-=======
-use super::token_channel::{BalanceState, NetworkerTCMessage,
-                               ProcessTransOutput, ProcessTransListError,
->>>>>>> Stashed changes
-                               atomic_process_trans_list};
+use networker::messages::MoveTokenDirection;
+use super::token_channel::{TokenChannel, ProcessOperationOutput, 
+    ProcessTransListError, atomic_process_operations_list};
+use super::types::NeighborTcOp;
 
 pub struct NeighborMoveToken {
-    // pub channel_index: u32,
-    pub transactions: Vec<NetworkerTCMessage>,
+    pub operations: Vec<NeighborTcOp>,
     pub old_token: ChannelToken,
     pub rand_nonce: RandValue,
 }
+
 
 struct ChainState {
     pub direction: MoveTokenDirection,
     pub old_token: ChannelToken,
     pub new_token: ChannelToken,
-    // Equals Sha512/256(move_token_message)
+    // Equals Sha512/256(NeighborMoveToken)
 }
 
 
 pub struct NeighborTCState {
     chain_state: ChainState,
-    balance_state: BalanceState,
+    token_channel: TokenChannel,
 }
 
 #[derive(Debug)]
@@ -41,13 +36,12 @@ pub enum NeighborTCStateError {
 pub enum ReceiveTokenOutput {
     Duplicate,
     RetransmitOutgoing,
-    ProcessTransListOutput(Vec<ProcessMessageOutput>),
+    ProcessTransListOutput(Vec<ProcessOperationOutput>),
 }
 
 
+#[allow(unused)]
 pub fn receive_move_token(neighbor_tc_state: NeighborTCState, 
-                          local_public_key: &PublicKey,
-                          remote_public_key: &PublicKey,
                           move_token_message: NeighborMoveToken, 
                           new_token: ChannelToken) 
     -> (NeighborTCState, Result<ReceiveTokenOutput, NeighborTCStateError>) {
@@ -65,11 +59,9 @@ pub fn receive_move_token(neighbor_tc_state: NeighborTCState,
         },
         MoveTokenDirection::Outgoing => {
             if move_token_message.old_token == neighbor_tc_state.chain_state.new_token {
-                match atomic_process_trans_list(neighbor_tc_state.balance_state, 
-                                                local_public_key,
-                                                remote_public_key,
-                                                move_token_message.transactions) {
-                    (balance_state, Ok(output)) => {
+                match atomic_process_operations_list(neighbor_tc_state.token_channel, 
+                                                move_token_message.operations) {
+                    (token_channel, Ok(output)) => {
                         // If processing the transactions was successful, we 
                         // set old_token, new_token and direction:
                         let neighbor_tc_state = NeighborTCState {
@@ -78,14 +70,14 @@ pub fn receive_move_token(neighbor_tc_state: NeighborTCState,
                                 new_token,
                                 direction: MoveTokenDirection::Incoming,
                             },
-                            balance_state,
+                            token_channel,
                         };
                         (neighbor_tc_state, Ok(ReceiveTokenOutput::ProcessTransListOutput(output)))
                     },
-                    (balance_state, Err(e)) => {
+                    (token_channel, Err(e)) => {
                         let neighbor_tc_state = NeighborTCState {
                             chain_state: neighbor_tc_state.chain_state,
-                            balance_state,
+                            token_channel,
                         };
                         (neighbor_tc_state, Err(NeighborTCStateError::InvalidTransaction(e)))
                     },
@@ -100,10 +92,12 @@ pub fn receive_move_token(neighbor_tc_state: NeighborTCState,
     }
 }
 
-pub fn send_move_token(neighbor_tc_state: NeighborTCState, move_token_message: &NeighborMoveToken, new_token: ChannelToken) -> 
-    (NeighborTCState, Result<(), ()>) {
+#[allow(unused)]
+pub fn send_move_token(neighbor_tc_state: NeighborTCState, 
+                       move_token_message: &NeighborMoveToken, 
+                       new_token: ChannelToken) -> (NeighborTCState, Result<(), ()>) {
+    
+    // TODO:
 
     (neighbor_tc_state, Ok(()))
 }
-
-*/
