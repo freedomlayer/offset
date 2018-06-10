@@ -59,8 +59,15 @@ impl SessionId {
 
 impl<S> HandshakeSession<S> {
     /// Creates a new handshake session.
-    pub fn new(id: SessionId, state: S, last_hash: HashResult) -> HandshakeSession<S> {
-        HandshakeSession { id, state, last_hash, timeout_counter: HANDSHAKE_SESSION_TIMEOUT }
+    pub fn new(id: SessionId, state: S, last_hash: HashResult)
+        -> HandshakeSession<S>
+    {
+        HandshakeSession {
+            id,
+            state,
+            last_hash,
+            timeout_counter: HANDSHAKE_SESSION_TIMEOUT
+        }
     }
 
     /// Returns a reference to the session id.
@@ -98,9 +105,11 @@ impl HandshakeSession {
         self.state().is_after_responder_exchange_passive()
     }
 
-    pub fn initiator_finish(self, recv_key_salt: Salt, peer_dh_public_key: DhPublicKey)
-        -> Result<HandshakeResult, HandshakeError>
-    {
+    pub fn initiator_finish(
+        self,
+        recv_key_salt: Salt,
+        peer_dh_public_key: DhPublicKey
+    ) -> Result<HandshakeResult, HandshakeError> {
         match self.state {
             HandshakeState::AfterInitiatorExchangeActive {
                 recv_rand_nonce,
@@ -151,18 +160,26 @@ impl HandshakeSession {
 
 // ===== utils =====
 
-fn finish(sent_rand_nonce: RandValue,
-          recv_rand_nonce: RandValue,
-          sent_key_salt: Salt,
-          recv_key_salt: Salt,
-          remote_dh_public_key: DhPublicKey,
-          my_private_key: DhPrivateKey,
-          remote_public_key: PublicKey,
+fn finish(
+    sent_rand_nonce: RandValue,
+    recv_rand_nonce: RandValue,
+    sent_key_salt: Salt,
+    recv_key_salt: Salt,
+    remote_dh_public_key: DhPublicKey,
+    my_private_key: DhPrivateKey,
+    remote_public_key: PublicKey,
 ) -> Result<HandshakeResult, HandshakeError> {
-    let (sending_channel_id, receiving_channel_id) =
-        derive_channel_id(&sent_rand_nonce, &recv_rand_nonce, &my_private_key.compute_public_key().unwrap(), &remote_dh_public_key);
-    let (sending_channel_key, receiving_channel_key) =
-        derive_key(my_private_key, remote_dh_public_key, sent_key_salt, recv_key_salt)?;
+    let (sending_channel_id, receiving_channel_id) = derive_channel_id(
+        &sent_rand_nonce,
+        &recv_rand_nonce,
+        &my_private_key.compute_public_key().unwrap(),
+        &remote_dh_public_key
+    );
+    let (sending_channel_key, receiving_channel_key) = derive_key(
+        my_private_key,
+        remote_dh_public_key,
+        sent_key_salt, recv_key_salt
+    )?;
 
     Ok(HandshakeResult {
         remote_public_key,

@@ -18,8 +18,16 @@ use timer::messages::FromTimer;
 use proto::{Proto, ProtoError};
 use networker::messages::NetworkerToChanneler;
 
-use proto::channeler::{ChannelerMessage, RequestNonce,
-    ResponseNonce, ExchangeActive, ExchangePassive, ChannelReady, PlainContent, Plain};
+use proto::channeler::{
+    ChannelerMessage,
+    RequestNonce,
+    ResponseNonce,
+    ExchangeActive,
+    ExchangePassive,
+    ChannelReady,
+    PlainContent,
+    Plain
+};
 
 use self::channel::{ChannelPool, ChannelError};
 use self::handshake::HandshakeService;
@@ -67,26 +75,22 @@ pub struct Channeler<I: Stream, O: Sink, SR: SecureRandom> {
 #[derive(Debug)]
 pub enum ChannelerError {
     Io(io::Error),
-
     Proto(ProtoError),
+    Channel(ChannelError),
 
     PollTimerError,
     TimerTerminated,      // fatal error
 
     PollNetworkerError,
     SendToNetworkerError,
-    // fatal error
     NetworkerTerminated,  // fatal error
 
     PollIncomingError,
     SendOutgoingError,
-    // fatal error
     IncomingTerminated,   // fatal error
 
     SecureRandomError,
     PrepareSendError,
-
-    ChannelPool(ChannelError),
 
     SendToHandshakeManagerError, // fatal error
 
@@ -95,7 +99,7 @@ pub enum ChannelerError {
 
 impl From<ChannelError> for ChannelerError {
     fn from(e: ChannelError) -> ChannelerError {
-        ChannelerError::ChannelPool(e)
+        ChannelerError::Channel(e)
     }
 }
 
@@ -108,33 +112,39 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
         TE: Into<ChannelerError>,
 {
     fn process_timer_next(&mut self) -> Poll<(), ChannelerError> {
-        let poll_result = self.timer_receiver.poll()
+        let polled_timer_msg = self.timer_receiver.poll()
             .map_err(|_| ChannelerError::PollTimerError);
 
-        match try_ready!(poll_result) {
+        match try_ready!(polled_timer_msg) {
             None => Err(ChannelerError::TimerTerminated),
             Some(FromTimer::TimeTick) => {
-                // Decrease the retry ticks of all neighbor, initiate a new handshake
-                // if the counter reach ZERO
-                let mut pks = Vec::new();
+                let mut reconnect = Vec::new();
                 for neighbor in self.neighbors.borrow_mut().values_mut() {
                     if let Some(remote_addr) = neighbor.info.socket_addr {
-                        if neighbor.retry_ticks <= 1 {
-                            neighbor.retry_ticks = RETRY_TICKS;
-                            pks.push((remote_addr, neighbor.info.public_key.clone()));
-                        } else {
-                            neighbor.retry_ticks -= 1;
+                        if !self.channel_pool.borrow().is_connected_to(
+                            &neighbor.info.public_key
+                        ) {
+                            if neighbor.retry_ticks <= 1 {
+                                neighbor.retry_ticks = RETRY_TICKS;
+                                reconnect.push((
+                                    remote_addr,
+                                    neighbor.info.public_key.clone()
+                                ));
+                            } else {
+                                neighbor.retry_ticks -= 1;
+                            }
                         }
                     }
                 }
-
-                for (remote_addr, pk) in pks {
-                    self.process_new_handshake(remote_addr, pk);
+                for (addr, pk) in reconnect {
+                    self.process_new_handshake(addr, pk);
                 }
 
-                // TODO: Notify the handshake manager
+                self.handshake_manager.time_tick();
 
-                // TODO: Notify the channel pool and sent the keepalive message, if any.
+                let _should_send_keepalive =
+                    self.channel_pool.borrow_mut().time_tick();
+                // TODO: Send keepalive message
 
                 Ok(Async::Ready(()))
             }
@@ -142,17 +152,19 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
     }
 
     fn process_networker_next(&mut self) -> Poll<(), ChannelerError> {
-        let poll_result = self.networker_receiver.poll()
+        let polled_networker_msg = self.networker_receiver.poll()
             .map_err(|_| ChannelerError::PollNetworkerError);
 
-        match try_ready!(poll_result) {
+        match try_ready!(polled_networker_msg) {
             None => Err(ChannelerError::NetworkerTerminated),
             Some(networker_message) => {
                 match networker_message {
                     NetworkerToChanneler::AddNeighbor { info } => {
                         self.add_neighbor(info);
                     },
-                    NetworkerToChanneler::RemoveNeighbor { neighbor_public_key } => {
+                    NetworkerToChanneler::RemoveNeighbor {
+                        neighbor_public_key
+                    } => {
                         self.remove_neighbor(neighbor_public_key);
                     },
                     NetworkerToChanneler::SendChannelMessage {
@@ -169,10 +181,10 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
     }
 
     fn process_incoming_next(&mut self) -> Poll<(), ChannelerError> {
-        let poll_result = self.incoming_receiver.poll()
+        let polled_incoming_msg = self.incoming_receiver.poll()
             .map_err(|_| ChannelerError::PollIncomingError);
 
-        match try_ready!(poll_result) {
+        match try_ready!(polled_incoming_msg) {
             None => Err(ChannelerError::IncomingTerminated),
             Some((remote_addr, plain)) => {
                 let channeler_message = ChannelerMessage::decode(&plain)
@@ -244,12 +256,14 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
     fn remove_neighbor(&mut self, public_key: PublicKey) {
         trace!("request to remove neighbor: {:?}", public_key);
 
-        self.channel_pool.borrow_mut().remove_neighbor(&public_key);
+        self.channel_pool.borrow_mut().remove_channel(&public_key);
         self.neighbors.borrow_mut().remove(&public_key);
     }
 
-    fn do_send_channel_message(&mut self, public_key: PublicKey, content: Bytes) -> Poll<(), ChannelerError> {
-        let rand_padding = generate_random_bytes(MAX_RAND_PADDING_LEN, &*self.secure_rng)
+    fn do_send_channel_message(&mut self, public_key: PublicKey, content: Bytes)
+        -> Poll<(), ChannelerError>
+    {
+        let rand_padding = gen_random_bytes(MAX_RAND_PADDING_LEN, &*self.secure_rng)
             .map_err(|_| ChannelerError::SecureRandomError)?;
 
         let plain = Plain {
@@ -262,10 +276,15 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
         self.start_send_outgoing(item)
     }
 
-    fn process_new_handshake(&mut self, remote_addr: SocketAddr, neighbor_public_key: PublicKey) {
+    fn process_new_handshake(
+        &mut self,
+        remote_addr: SocketAddr,
+        neighbor_public_key: PublicKey
+    ) {
         let outgoing_sender = self.outgoing_sender.clone();
 
-        let new_handshake_task = self.handshake_manager.initiate_handshake(neighbor_public_key)
+        let new_handshake_task = self.handshake_manager
+            .initiate_handshake(neighbor_public_key)
             .into_future()
             .map_err(|e| {
                 error!("handshake manager error: {:?}", e);
@@ -289,11 +308,16 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
         }));
     }
 
-    fn process_request_nonce(&mut self, remote_addr: SocketAddr, request_nonce: RequestNonce) {
+    fn process_request_nonce(
+        &mut self,
+        remote_addr: SocketAddr,
+        request_nonce: RequestNonce
+    ) {
         let sm_client = self.sm_client.clone();
         let outgoing_sender = self.outgoing_sender.clone();
 
-        let process_request_nonce_task = self.handshake_manager.process_request_nonce(request_nonce)
+        let process_request_nonce_task = self.handshake_manager
+            .process_request_nonce(request_nonce)
             .into_future()
             .map_err(|e| {
                 error!("handshake manager error: {:?}", e);
@@ -326,11 +350,16 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
         }));
     }
 
-    fn process_respond_nonce(&mut self, remote_addr: SocketAddr, respond_nonce: ResponseNonce) {
+    fn process_respond_nonce(
+        &mut self,
+        remote_addr: SocketAddr,
+        respond_nonce: ResponseNonce
+    ) {
         let sm_client = self.sm_client.clone();
         let outgoing_sender = self.outgoing_sender.clone();
 
-        let process_respond_nonce_task = self.handshake_manager.process_response_nonce(respond_nonce)
+        let process_respond_nonce_task = self.handshake_manager
+            .process_response_nonce(respond_nonce)
             .into_future()
             .map_err(|e| {
                 error!("handshake manager error: {:?}", e);
@@ -363,22 +392,33 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
         }));
     }
 
-    fn process_channel_ready(&mut self, remote_addr: SocketAddr, channel_ready: ChannelReady) {
+    fn process_channel_ready(
+        &mut self,
+        remote_addr: SocketAddr,
+        channel_ready: ChannelReady
+    ) {
         let channel_pool = Rc::clone(&self.channel_pool);
 
         match self.handshake_manager.process_channel_ready(channel_ready) {
-            Ok(handshake_res) => channel_pool.borrow_mut().add_channel(remote_addr, handshake_res),
+            Ok(handshake_res) => {
+                channel_pool.borrow_mut().add_channel(remote_addr, handshake_res)
+            },
             Err(e) => {
                 error!("handshake manager error: {:?}", e);
             }
         }
     }
 
-    fn process_exchange_active(&mut self, remote_addr: SocketAddr, exchange_active: ExchangeActive) {
+    fn process_exchange_active(
+        &mut self,
+        remote_addr: SocketAddr,
+        exchange_active: ExchangeActive
+    ) {
         let sm_client = self.sm_client.clone();
         let outgoing_sender = self.outgoing_sender.clone();
 
-        let process_exchange_active_task = self.handshake_manager.process_exchange_active(exchange_active)
+        let process_exchange_active_task = self.handshake_manager
+            .process_exchange_active(exchange_active)
             .into_future()
             .map_err(|e| {
                 error!("handshake manager error: {:?}", e);
@@ -411,12 +451,17 @@ impl<I, O, SR, TE, RE> Channeler<I, O, SR>
         }));
     }
 
-    fn process_exchange_passive(&mut self, remote_addr: SocketAddr, exchange_passive: ExchangePassive) {
+    fn process_exchange_passive(
+        &mut self,
+        remote_addr: SocketAddr,
+        exchange_passive: ExchangePassive
+    ) {
         let sm_client = self.sm_client.clone();
         let channel_pool = Rc::clone(&self.channel_pool);
         let outgoing_sender = self.outgoing_sender.clone();
 
-        let process_exchange_passive_task = self.handshake_manager.process_exchange_passive(exchange_passive)
+        let process_exchange_passive_task = self.handshake_manager
+            .process_exchange_passive(exchange_passive)
             .into_future()
             .map_err(|e| {
                 error!("handshake manager error: {:?}", e);
@@ -495,15 +540,13 @@ impl<I, O, SR, TE, RE> Future for Channeler<I, O, SR>
 
     fn poll(&mut self) -> Poll<(), ChannelerError> {
         loop {
-            if let Some(outgoing_item) = self.outgoing_buffered.take() {
-                try_ready!( self.start_send_outgoing(outgoing_item));
+            if let Some(outgoing_msg) = self.outgoing_buffered.take() {
+                try_ready!(self.start_send_outgoing(outgoing_msg));
             }
 
-            if let Some(networker_item) = self.networker_buffered.take() {
-                try_ready!( self.start_send_networker(networker_item));
+            if let Some(networker_msg) = self.networker_buffered.take() {
+                try_ready!(self.start_send_networker(networker_msg));
             }
-
-// FIXME: Only terminated Channeler when encountered a fatal error!
             if let Async::NotReady = self.process_timer_next()? {
                 if let Async::NotReady = self.process_networker_next()? {
                     if let Async::NotReady = self.process_incoming_next()? {
@@ -519,7 +562,7 @@ impl<I, O, SR, TE, RE> Future for Channeler<I, O, SR>
 // =============================== Helpers =============================
 
 #[inline]
-pub fn generate_random_bytes(max_len: usize, rng: &SecureRandom) -> Result<Bytes, ()> {
+pub fn gen_random_bytes(max_len: usize, rng: &SecureRandom) -> Result<Bytes, ()> {
     if (u16::max_value() as usize + 1) % max_len != 0 {
         return Err(());
     }
@@ -542,7 +585,7 @@ mod tests {
     #[test]
     fn test_gen_random_bytes() {
         let fixed = FixedByteRandom { byte: 0x01 };
-        let bytes = generate_random_bytes(32, &fixed).unwrap();
+        let bytes = gen_random_bytes(32, &fixed).unwrap();
 
         assert_eq!(bytes.len(), 2);
         assert!(bytes.iter().all(|x| *x == 0x01));

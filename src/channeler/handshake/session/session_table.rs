@@ -37,7 +37,9 @@ impl<S> SessionTable<S> {
     ///
     /// - If the table did have the given `SessionId` OR `HashResult`,
     /// this method do nothing and returns `Some(HandshakeSession)`.
-    pub fn add_session(&mut self, s: HandshakeSession<S>) -> Option<HandshakeSession<S>> {
+    pub fn add_session(&mut self, s: HandshakeSession<S>)
+        -> Option<HandshakeSession<S>>
+    {
         if self.idx_last_hash.contains_key(&s.last_hash) ||
             self.idx_session_id.contains_key(&s.id) {
             return Some(s);
@@ -55,7 +57,9 @@ impl<S> SessionTable<S> {
     }
 
     /// Returns a reference to the `HandshakeSession` corresponding to the hash.
-    pub fn get_session(&self, hash: &HashResult) -> Option<&HandshakeSession<S>> {
+    pub fn get_session(&self, hash: &HashResult)
+        -> Option<&HandshakeSession<S>>
+    {
         if let Some(idx) = self.idx_last_hash.get(hash) {
             Some(self.slab.get(*idx).expect("session table index broken"))
         } else {
@@ -68,8 +72,10 @@ impl<S> SessionTable<S> {
         self.idx_session_id.contains_key(&id)
     }
 
-    /// Removes and returns the `HandshakeSession` associated with the given `HashResult`.
-    pub fn remove_by_last_hash(&mut self, hash: &HashResult) -> Option<HandshakeSession<S>> {
+    /// Removes and returns the `HandshakeSession` relevant to the `HashResult`.
+    pub fn remove_by_last_hash(&mut self, hash: &HashResult)
+        -> Option<HandshakeSession<S>>
+    {
         if let Some(idx) = self.idx_last_hash.remove(hash) {
             let session = self.slab.remove(idx);
             self.idx_session_id.remove(&session.id);
@@ -79,7 +85,7 @@ impl<S> SessionTable<S> {
         }
     }
 
-    /// Removes and returns the `HandshakeSession` associated with the given `PublicKey`.
+    /// Removes and returns the `HandshakeSession` relevant to the `PublicKey`.
     pub fn remove_by_public_key(&mut self, pk: &PublicKey) {
         // A public key associated with TWO session at most.
         let i_session_id = SessionId::new_initiator(pk.clone());
@@ -140,7 +146,8 @@ mod tests {
         let session_id = SessionId::new_responder(neighbor_pk);
         let last_hash = HashResult::from(&[0x01; HASH_RESULT_LEN]);
 
-        let new_session = HandshakeSession::new(session_id.clone(), (), last_hash.clone());
+        let new_session =
+            HandshakeSession::new(session_id.clone(), (), last_hash.clone());
 
         assert!(session_table.add_session(new_session).is_none());
 
@@ -156,7 +163,8 @@ mod tests {
         let neighbor_pk = PublicKey::from(&[0x00; PUBLIC_KEY_LEN]);
         let session_id = SessionId::new_responder(neighbor_pk);
         let last_hash = HashResult::from(&[0x01; HASH_RESULT_LEN]);
-        let new_session = HandshakeSession::new(session_id.clone(), (), last_hash.clone());
+        let new_session =
+            HandshakeSession::new(session_id.clone(), (), last_hash.clone());
 
         assert!(session_table.add_session(new_session).is_none());
 
@@ -168,89 +176,4 @@ mod tests {
         session_table.time_tick();
         assert!(!session_table.contains_session(&session_id));
     }
-
-//    #[test]
-//    fn session_map_insert_same_hash() {
-//        let mut sessions = HandshakeSessionMap::new();
-//
-//        let remote_public_key1 = PublicKey::from(&[0x00; PUBLIC_KEY_LEN]);
-//        let handshake_id1 = SessionId::new(HandshakeRole::Responder, remote_public_key1);
-//        let new_session1 = HandshakeSession {
-//            id: handshake_id1.clone(),
-//            state: HandshakeState::AfterInitiatorRequestNonce,
-//            session_timeout: TIMEOUT_TICKS,
-//        };
-//
-//        let last_hash1 = HashResult::from(&[0x01; HASH_RESULT_LEN]);
-//
-//        let remote_public_key2 = PublicKey::from(&[0x02; PUBLIC_KEY_LEN]);
-//        let handshake_id2 = SessionId::new(HandshakeRole::Responder, remote_public_key2);
-//        let new_session2 = HandshakeSession {
-//            id: handshake_id2.clone(),
-//            state: HandshakeState::AfterInitiatorRequestNonce,
-//            session_timeout: TIMEOUT_TICKS + 1,
-//        };
-//
-//        assert!(sessions.insert(last_hash1.clone(), new_session1).is_none());
-//        assert!(sessions.insert(last_hash1.clone(), new_session2).is_some());
-//    }
-//
-//    #[test]
-//    fn session_map_insert_same_id() {
-//        let mut sessions = HandshakeSessionMap::new();
-//
-//        let remote_public_key = PublicKey::from(&[0x00; PUBLIC_KEY_LEN]);
-//        let handshake_id1 = SessionId::new(HandshakeRole::Responder, remote_public_key.clone());
-//        let new_session1 = HandshakeSession {
-//            id: handshake_id1.clone(),
-//            state: HandshakeState::AfterInitiatorRequestNonce,
-//            session_timeout: TIMEOUT_TICKS,
-//        };
-//        let last_hash1 = HashResult::from(&[0x01; HASH_RESULT_LEN]);
-//
-//        let handshake_id2 = SessionId::new(HandshakeRole::Responder, remote_public_key);
-//        let new_session2 = HandshakeSession {
-//            id: handshake_id2.clone(),
-//            state: HandshakeState::AfterInitiatorRequestNonce,
-//            session_timeout: TIMEOUT_TICKS + 1,
-//        };
-//        let last_hash2 = HashResult::from(&[0x03; HASH_RESULT_LEN]);
-//
-//        assert!(sessions.insert(last_hash1, new_session1).is_none());
-//
-//        let last_hash2 = HashResult::from(&[0x06; HASH_RESULT_LEN]);
-//
-//        assert!(sessions.insert(last_hash2, new_session2).is_some());
-//    }
-//
-//    #[test]
-//    fn session_map_remove_pk() {
-//        let mut sessions = HandshakeSessionMap::new();
-//
-//        let remote_public_key = PublicKey::from(&[0x00; PUBLIC_KEY_LEN]);
-//        let handshake_id1 = SessionId::new(HandshakeRole::Responder, remote_public_key.clone());
-//        let new_session1 = HandshakeSession {
-//            id: handshake_id1.clone(),
-//            state: HandshakeState::AfterInitiatorRequestNonce,
-//            session_timeout: TIMEOUT_TICKS,
-//        };
-//        let last_hash1 = HashResult::from(&[0x01; HASH_RESULT_LEN]);
-//
-//        let handshake_id2 = SessionId::new(HandshakeRole::Initiator, remote_public_key.clone());
-//        let new_session2 = HandshakeSession {
-//            id: handshake_id2.clone(),
-//            state: HandshakeState::AfterInitiatorRequestNonce,
-//            session_timeout: TIMEOUT_TICKS + 1,
-//        };
-//        let last_hash2 = HashResult::from(&[0x03; HASH_RESULT_LEN]);
-//
-//        assert!(sessions.insert(last_hash1, new_session1).is_none());
-//        assert!(sessions.insert(last_hash2, new_session2).is_none());
-//
-//        assert_eq!(sessions.len(), 2);
-//
-//        sessions.remove_by_public_key(&remote_public_key);
-//
-//        assert_eq!(sessions.len(), 0);
-//    }
 }

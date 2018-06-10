@@ -7,7 +7,7 @@ use crypto::increase_nonce;
 use channeler::config::CHANNEL_KEEPALIVE_TIMEOUT;
 use proto::{Proto, channeler::{ChannelId, CHANNEL_ID_LEN, Plain}};
 
-use super::{ChannelError, Nonce, NONCE_LEN, TAG_LEN};
+use super::{Error, Nonce, NONCE_LEN, TAG_LEN};
 
 pub struct Tx {
     remote_addr: SocketAddr,
@@ -19,15 +19,11 @@ pub struct Tx {
 }
 
 impl Tx {
-    pub fn new(
-        remote_addr: SocketAddr,
-        channel_id: ChannelId,
-        sealing_key: SealingKey
-    ) -> Tx {
+    pub fn new(addr: SocketAddr, tx_cid: ChannelId, tx_key: SealingKey) -> Tx {
         Tx {
-            remote_addr,
-            channel_id,
-            sealing_key,
+            remote_addr: addr,
+            channel_id: tx_cid,
+            sealing_key: tx_key,
             next_nonce: Nonce::default(),
             keepalive_timeout: CHANNEL_KEEPALIVE_TIMEOUT,
         }
@@ -43,10 +39,10 @@ impl Tx {
         self.remote_addr
     }
 
-    pub fn encrypt(&mut self, plain: Plain) -> Result<Bytes, ChannelError> {
+    pub fn encrypt(&mut self, plain: Plain) -> Result<Bytes, Error> {
         static PREFIX_LEN: usize = CHANNEL_ID_LEN + NONCE_LEN;
 
-        let encoded_message = plain.encode().map_err(ChannelError::Proto)?;
+        let encoded_message = plain.encode().map_err(Error::Proto)?;
 
         let buf_len = PREFIX_LEN + encoded_message.len() + TAG_LEN;
         let mut buf = BytesMut::with_capacity(buf_len);
@@ -62,7 +58,7 @@ impl Tx {
             &self.channel_id,
             &mut buf[PREFIX_LEN..], TAG_LEN
         )
-        .map_err(|_e| ChannelError::EncryptFailed)
+        .map_err(|_e| Error::EncryptFailed)
         .and_then(|out_len| {
             increase_nonce(&mut self.next_nonce);
             Ok(buf.split_to(PREFIX_LEN + out_len).freeze())
