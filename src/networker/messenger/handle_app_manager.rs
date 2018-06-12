@@ -96,8 +96,7 @@ impl MessengerState {
 
     pub fn handle_app_manager_message(&mut self, 
                                       networker_config: NetworkerConfig) -> Result<Vec<MessengerTask>, HandleAppManagerError> {
-        // TODO
-        
+
         match networker_config {
             NetworkerConfig::SetNeighborRemoteMaxDebt(set_neighbor_remote_max_debt) => 
                 self.app_manager_set_neighbor_remote_max_debt(set_neighbor_remote_max_debt),
@@ -111,8 +110,7 @@ impl MessengerState {
                 self.app_manager_remove_neighbor(remove_neighbor),
             NetworkerConfig::SetNeighborStatus(set_neighbor_status) => 
                 self.app_manager_set_neighbor_status(set_neighbor_status),
-        };
-        unreachable!();
+        }
     }
 
 }
