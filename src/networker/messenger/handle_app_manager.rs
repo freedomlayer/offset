@@ -6,6 +6,7 @@ use app_manager::messages::{NetworkerConfig, AddNeighbor,
 
 pub enum HandleAppManagerError {
     NeighborDoesNotExist,
+    TokenChannelDoesNotExist,
 }
 
 #[allow(unused)]
@@ -19,13 +20,16 @@ impl MessengerState {
             Some(neighbor_state) => Ok(neighbor_state),
             None => Err(HandleAppManagerError::NeighborDoesNotExist),
         }?;
+        
+        // Find the token channel slot:
+        let token_channel_slot = match neighbor_state.token_channel_slots.get_mut(&set_neighbor_remote_max_debt.channel_index) {
+            Some(token_channel_slot) => Ok(token_channel_slot),
+            None => Err(HandleAppManagerError::TokenChannelDoesNotExist),
+        }?;
 
-        // Add a request to change neighbor max debt to the waiting queue of all the token
-        // channels.  
-        for (_, token_channel_slot) in &mut neighbor_state.token_channel_slots {
-            token_channel_slot.pending_operations.push(
-                NeighborTcOp::SetRemoteMaxDebt(set_neighbor_remote_max_debt.remote_max_debt))
-        }
+        // Add a request to change neighbor max debt to the waiting queue of the token channel:
+        token_channel_slot.pending_operations.push(
+                NeighborTcOp::SetRemoteMaxDebt(set_neighbor_remote_max_debt.remote_max_debt));
 
         Ok(Vec::new())
     }
