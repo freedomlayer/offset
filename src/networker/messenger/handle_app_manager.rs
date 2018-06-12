@@ -79,10 +79,8 @@ impl MessengerState {
     }
 
     fn app_manager_remove_neighbor(&mut self, remove_neighbor: RemoveNeighbor) -> Result<Vec<MessengerTask>, HandleAppManagerError> {
-        if !self.neighbors.contains_key(&remove_neighbor.neighbor_public_key) {
-            return Err(HandleAppManagerError::NeighborDoesNotExist);
-        }
-
+        let _ = self.neighbors.get_mut(&remove_neighbor.neighbor_public_key)
+            .ok_or(HandleAppManagerError::NeighborDoesNotExist)?;
         let mut res_tasks = Vec::new();
         res_tasks.push(MessengerTask::DatabaseMessage(DatabaseMessage::RemoveNeighbor(remove_neighbor)));
         Ok(res_tasks)
