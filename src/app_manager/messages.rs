@@ -39,7 +39,7 @@ pub struct AddNeighbor {
 
 #[allow(dead_code)]
 pub struct RemoveNeighbor {
-    neighbor_public_key: PublicKey,
+    pub neighbor_public_key: PublicKey,
 }
 
 #[allow(dead_code)]
