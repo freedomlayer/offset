@@ -26,14 +26,14 @@ pub use self::session::session_table::SessionTable;
 const RAND_VALUE_TICKS: usize = 5;
 const RAND_VALUE_STORE_CAPACITY: usize = 3;
 
-pub struct HandshakeResult {
-    pub remote_public_key: PublicKey,
+pub struct ChannelMetadata {
+    pub public_key: PublicKey,
 
-    pub channel_tx_id: ChannelId,
-    pub channel_tx_key: SealingKey,
+    pub tx_cid: ChannelId,
+    pub tx_key: SealingKey,
 
-    pub channel_rx_id: ChannelId,
-    pub channel_rx_key: OpeningKey,
+    pub rx_cid: ChannelId,
+    pub rx_key: OpeningKey,
 }
 
 pub struct HandshakeService<SR> {
@@ -281,7 +281,7 @@ impl<SR: SecureRandom> HandshakeService<SR> {
     }
 
     pub fn process_exchange_passive(&mut self, exchange_passive: ExchangePassive)
-        -> Result<(HandshakeResult, ChannelReady), HandshakeError>
+        -> Result<(ChannelMetadata, ChannelReady), HandshakeError>
     {
         self.verify_exchange_passive(&exchange_passive)?;
 
@@ -291,7 +291,7 @@ impl<SR: SecureRandom> HandshakeService<SR> {
         };
 
         let old_session = self.handshaking
-            .remove_by_last_hash(&exchange_passive.prev_hash)
+            .remove_session_by_hash(&exchange_passive.prev_hash)
             .expect("invalid message passed the verification!");
 
         let handshake_result = old_session.initiator_finish(
@@ -331,12 +331,12 @@ impl<SR: SecureRandom> HandshakeService<SR> {
     }
 
     pub fn process_channel_ready(&mut self, channel_ready: ChannelReady)
-        -> Result<HandshakeResult, HandshakeError>
+        -> Result<ChannelMetadata, HandshakeError>
     {
         self.verify_channel_ready(&channel_ready)?;
 
         let old_session = self.handshaking
-            .remove_by_last_hash(&channel_ready.prev_hash)
+            .remove_session_by_hash(&channel_ready.prev_hash)
             .expect("invalid message passed the verification!");
 
         old_session.responder_finish()
@@ -479,7 +479,7 @@ mod tests {
             channel_ready_to_b
         ).unwrap();
 
-        assert_eq!(new_channel_info_a.channel_tx_id, new_channel_info_b.channel_rx_id);
-        assert_eq!(new_channel_info_b.channel_tx_id, new_channel_info_a.channel_rx_id);
+        assert_eq!(new_channel_info_a.tx_cid, new_channel_info_b.rx_cid);
+        assert_eq!(new_channel_info_b.tx_cid, new_channel_info_a.rx_cid);
     }
 }

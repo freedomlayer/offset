@@ -11,7 +11,7 @@ use proto::channeler::{ChannelId, CHANNEL_ID_LEN};
 
 pub(super) mod session_table;
 
-use super::HandshakeResult;
+use super::ChannelMetadata;
 use super::state::HandshakeState;
 use super::error::HandshakeError;
 
@@ -32,16 +32,15 @@ pub struct HandshakeSession<S = HandshakeState> {
 }
 
 impl SessionId {
-    /// Creates a new `HandshakeId` with "initiator" role.
     pub fn new_initiator(remote_public_key: PublicKey) -> SessionId {
         SessionId(HandshakeRole::Initiator, remote_public_key)
     }
 
-    /// Creates a new `HandshakeId` with "responder" role.
     pub fn new_responder(remote_public_key: PublicKey) -> SessionId {
         SessionId(HandshakeRole::Responder, remote_public_key)
     }
 
+    #[inline]
     pub fn is_initiator(&self) -> bool {
         match self.0 {
             HandshakeRole::Initiator => true,
@@ -49,6 +48,7 @@ impl SessionId {
         }
     }
 
+    #[inline]
     pub fn is_responder(&self) -> bool {
         match self.0 {
             HandshakeRole::Initiator => false,
@@ -109,7 +109,7 @@ impl HandshakeSession {
         self,
         recv_key_salt: Salt,
         peer_dh_public_key: DhPublicKey
-    ) -> Result<HandshakeResult, HandshakeError> {
+    ) -> Result<ChannelMetadata, HandshakeError> {
         match self.state {
             HandshakeState::AfterInitiatorExchangeActive {
                 recv_rand_nonce,
@@ -132,7 +132,7 @@ impl HandshakeSession {
         }
     }
 
-    pub fn responder_finish(self) -> Result<HandshakeResult, HandshakeError> {
+    pub fn responder_finish(self) -> Result<ChannelMetadata, HandshakeError> {
         match self.state {
             HandshakeState::AfterResponderExchangePassive {
                 sent_rand_nonce,
@@ -168,7 +168,7 @@ fn finish(
     remote_dh_public_key: DhPublicKey,
     my_private_key: DhPrivateKey,
     remote_public_key: PublicKey,
-) -> Result<HandshakeResult, HandshakeError> {
+) -> Result<ChannelMetadata, HandshakeError> {
     let (sending_channel_id, receiving_channel_id) = derive_channel_id(
         &sent_rand_nonce,
         &recv_rand_nonce,
@@ -181,12 +181,12 @@ fn finish(
         sent_key_salt, recv_key_salt
     )?;
 
-    Ok(HandshakeResult {
-        remote_public_key,
-        channel_tx_id: sending_channel_id,
-        channel_tx_key: sending_channel_key,
-        channel_rx_id: receiving_channel_id,
-        channel_rx_key: receiving_channel_key
+    Ok(ChannelMetadata {
+        public_key: remote_public_key,
+        tx_cid: sending_channel_id,
+        tx_key: sending_channel_key,
+        rx_cid: receiving_channel_id,
+        rx_key: receiving_channel_key
     })
 }
 

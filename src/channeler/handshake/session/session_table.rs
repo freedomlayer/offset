@@ -73,7 +73,7 @@ impl<S> SessionTable<S> {
     }
 
     /// Removes and returns the `HandshakeSession` relevant to the `HashResult`.
-    pub fn remove_by_last_hash(&mut self, hash: &HashResult)
+    pub fn remove_session_by_hash(&mut self, hash: &HashResult)
         -> Option<HandshakeSession<S>>
     {
         if let Some(idx) = self.idx_last_hash.remove(hash) {
@@ -85,8 +85,8 @@ impl<S> SessionTable<S> {
         }
     }
 
-    /// Removes and returns the `HandshakeSession` relevant to the `PublicKey`.
-    pub fn remove_by_public_key(&mut self, pk: &PublicKey) {
+    /// Removes `HandshakeSession`s relevant to the `PublicKey`.
+    pub fn remove_session_by_pk(&mut self, pk: &PublicKey) {
         // A public key associated with TWO session at most.
         let i_session_id = SessionId::new_initiator(pk.clone());
         let r_session_id = SessionId::new_responder(pk.clone());
@@ -122,7 +122,7 @@ impl<S> SessionTable<S> {
             let last_hash = self.slab.get(idx)
                 .and_then(|s| Some(s.last_hash.clone()))
                 .expect("session table index broken");
-            self.remove_by_last_hash(&last_hash);
+            self.remove_session_by_hash(&last_hash);
         }
     }
 }
@@ -152,7 +152,7 @@ mod tests {
         assert!(session_table.add_session(new_session).is_none());
 
         assert!(session_table.contains_session(&session_id));
-        assert!(session_table.remove_by_last_hash(&last_hash).is_some());
+        assert!(session_table.remove_session_by_hash(&last_hash).is_some());
         assert!(!session_table.contains_session(&session_id));
     }
 
