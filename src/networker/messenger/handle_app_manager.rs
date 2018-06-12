@@ -1,7 +1,7 @@
 use super::types::NeighborTcOp;
 use super::messenger_state::{MessengerState, MessengerTask, DatabaseMessage};
 use app_manager::messages::{NetworkerConfig, AddNeighbor, 
-    RemoveNeighbor, SetNeighborStatus,  SetNeighborRemoteMaxDebt,
+    RemoveNeighbor, SetNeighborStatus, SetNeighborRemoteMaxDebt,
     ResetNeighborChannel, SetNeighborMaxChannels};
 
 pub enum HandleAppManagerError {
