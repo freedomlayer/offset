@@ -3,7 +3,6 @@ use futures::sync::oneshot;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
-use indexer_client::messages::{FriendsRouteWithCapacity, RequestNeighborsRoutes};
 use networker::messages::{RequestPath};
 use database::messages::{ResponseLoadFriends, ResponseLoadFriendToken};
 
@@ -62,7 +61,7 @@ pub struct FriendInfo {
 
 pub struct PendingFriendRequest {
     pub request_id: Uid,
-    pub route: FriendsRouteWithCapacity,
+    // pub route: FriendsRouteWithCapacity, // TODO: Fill in later
     pub mediator_payment_proposal: u64,
     pub invoice_id: InvoiceId,
     pub destination_payment: u128,
@@ -136,6 +135,8 @@ pub enum FunderToNetworker {
     RequestPath(RequestPath),
 }
 
+/*
 pub enum FunderToIndexerClient {
     RequestNeighborsRoute(RequestNeighborsRoutes),
 }
+*/

@@ -1,19 +1,10 @@
 //! The messages sent by database to other components.
 
 use networker::messages::{MoveTokenDirection, NeighborInfo, NeighborTokenCommon};
+use networker::messenger::types::PendingNeighborRequest;
+
 use funder::messages::{PendingFriendRequest, FriendInfo, FriendTokenCommon};
-use indexer_client::messages::IndexingProviderStatus;
 
-use proto::indexer::{IndexingProviderId, StateChainLink};
-use networker::messenger::types::{NeighborsRoute, PendingNeighborRequest};
-
-/// The indexing provider's information from database.
-pub struct IndexingProviderInfoFromDB {
-    pub id: IndexingProviderId,
-    pub state_chain_link: StateChainLink,
-    pub last_routes: Vec<NeighborsRoute>,
-    pub status: IndexingProviderStatus,
-}
 
 /*
 /// The friend's information from database.
@@ -36,7 +27,6 @@ pub struct ResponseLoadFriends {
 }
 
 
-pub struct ResponseLoadIndexingProviders(pub Vec<IndexingProviderInfoFromDB>);
 
 pub struct ResponseLoadNeighbors {
     pub neighbors: Vec<NeighborInfo>,

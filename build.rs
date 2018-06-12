@@ -15,7 +15,6 @@ fn main() {
         "src/proto/schema/channeler.capnp",
         "src/proto/schema/common.capnp",
         "src/proto/schema/funder.capnp",
-        "src/proto/schema/indexer.capnp",
         "src/proto/schema/networker.capnp",
         "src/proto/schema/networker_crypter.capnp"
     }

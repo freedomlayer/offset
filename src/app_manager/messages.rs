@@ -5,11 +5,8 @@ use crypto::identity::PublicKey;
 use networker::messages::{NeighborStatus, RequestPath};
 
 use funder::messages::{FriendInfo, FriendRequestsStatus, FriendStatus, RequestSendFunds};
-use proto::indexer::IndexingProviderId;
 use proto::networker::ChannelToken;
 
-use indexer_client::messages::{IndexingProviderInfo, IndexingProviderStatus, 
-    RequestFriendsRoutes, RequestNeighborsRoutes};
 
 #[allow(dead_code)]
 pub struct SetNeighborRemoteMaxDebt {
@@ -65,6 +62,7 @@ pub enum AppManagerToNetworker {
     NetworkerConfig(NetworkerConfig),
 }
 
+/*
 pub enum AppManagerToIndexerClient {
     AddIndexingProvider(IndexingProviderInfo),
     SetIndexingProviderStatus {
@@ -77,6 +75,7 @@ pub enum AppManagerToIndexerClient {
     RequestNeighborsRoutes(RequestNeighborsRoutes),
     RequestFriendsRoutes(RequestFriendsRoutes),
 }
+*/
 
 pub enum AppManagerToFunder {
     RequestSendFunds(RequestSendFunds),
