@@ -46,8 +46,13 @@ impl MessengerState {
     fn app_manager_reset_neighbor_channel(&mut self, 
                                           reset_neighbor_channel: ResetNeighborChannel) 
         -> Result<Vec<MessengerTask>, HandleAppManagerError> {
-
-        unreachable!();
+        // Check if we have the requested neighbor:
+        let _ = self.get_neighbor_state(&reset_neighbor_channel.neighbor_public_key)?;
+        let mut res_tasks = Vec::new();
+        // Save in database:
+        res_tasks.push(MessengerTask::DatabaseMessage(DatabaseMessage::ResetNeighborChannel(
+                    reset_neighbor_channel)));
+        Ok(res_tasks)
     }
 
     fn app_manager_set_neighbor_max_channels(&mut self, 
