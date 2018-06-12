@@ -52,12 +52,37 @@ pub struct MessengerState {
     pub neighbors: HashMap<PublicKey, NeighborState>,
 }
 
+pub enum AppManagerMessage {
+
+}
+
+pub enum FunderMessage {
+
+}
+
+pub enum ChannelerMessage {
+
+}
+
+pub enum CrypterMessage {
+
+}
+
+pub enum DatabaseMessage {
+    SetNeighborMaxChannels {
+        neighbor_public_key: PublicKey,
+        max_channels: u32,
+    },
+}
+
+
 #[allow(unused)]
 pub enum MessengerTask {
-    SendAppManagerMessage,
-    SendFunderMessage,
-    SendChannelerMessage,
-    SendCrypterMessage,
+    AppManagerMessage(AppManagerMessage),
+    FunderMessage(FunderMessage),
+    ChannelerMessage(ChannelerMessage),
+    CrypterMessage(CrypterMessage),
+    DatabaseMessage(DatabaseMessage),
 }
 
 #[allow(unused)]
