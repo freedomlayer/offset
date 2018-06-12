@@ -1,45 +1,63 @@
+use super::types::NeighborTcOp;
 use super::messenger_state::{MessengerState, MessengerTask};
 use app_manager::messages::{NetworkerConfig, AddNeighbor, 
     RemoveNeighbor, SetNeighborStatus,  SetNeighborRemoteMaxDebt,
     ResetNeighborChannel, SetNeighborMaxChannels};
 
+pub enum HandleAppManagerError {
+    NeighborDoesNotExist,
+}
+
 #[allow(unused)]
 impl MessengerState {
     fn app_manager_set_neighbor_remote_max_debt(&mut self, 
                                                 set_neighbor_remote_max_debt: SetNeighborRemoteMaxDebt) 
-        -> Vec<MessengerTask> {
+        -> Result<Vec<MessengerTask>, HandleAppManagerError> {
 
-        unreachable!();
+        // Check if we have the requested neighbor:
+        let neighbor_state = match self.neighbors.get_mut(&set_neighbor_remote_max_debt.neighbor_public_key) {
+            Some(neighbor_state) => Ok(neighbor_state),
+            None => Err(HandleAppManagerError::NeighborDoesNotExist),
+        }?;
+
+        // Add a request to change neighbor max debt to the waiting queue of all the token
+        // channels.  
+        for (_, token_channel_slot) in &mut neighbor_state.token_channel_slots {
+            token_channel_slot.pending_operations.push(
+                NeighborTcOp::SetRemoteMaxDebt(set_neighbor_remote_max_debt.remote_max_debt))
+        }
+
+        Ok(Vec::new())
     }
 
     fn app_manager_reset_neighbor_channel(&mut self, 
                                           reset_neighbor_channel: ResetNeighborChannel) 
-        -> Vec<MessengerTask> {
+        -> Result<Vec<MessengerTask>, HandleAppManagerError> {
 
         unreachable!();
     }
 
     fn app_manager_set_neighbor_max_channels(&mut self, 
                                           set_neighbor_max_channels: SetNeighborMaxChannels) 
-        -> Vec<MessengerTask> {
+        -> Result<Vec<MessengerTask>, HandleAppManagerError> {
 
         unreachable!();
     }
 
-    fn app_manager_add_neighbor(&mut self, add_neighbor: AddNeighbor) -> Vec<MessengerTask> {
+    fn app_manager_add_neighbor(&mut self, add_neighbor: AddNeighbor) -> Result<Vec<MessengerTask>, HandleAppManagerError> {
         unreachable!();
     }
 
-    fn app_manager_remove_neighbor(&mut self, remove_neighbor: RemoveNeighbor) -> Vec<MessengerTask> {
+    fn app_manager_remove_neighbor(&mut self, remove_neighbor: RemoveNeighbor) -> Result<Vec<MessengerTask>, HandleAppManagerError> {
         unreachable!();
     }
 
-    fn app_manager_set_neighbor_status(&mut self, set_neighbor_status: SetNeighborStatus) -> Vec<MessengerTask> {
+    fn app_manager_set_neighbor_status(&mut self, set_neighbor_status: SetNeighborStatus) -> Result<Vec<MessengerTask>, HandleAppManagerError> {
         unreachable!();
     }
 
     pub fn handle_app_manager_message(&mut self, 
-                                      networker_config: NetworkerConfig) -> Vec<MessengerTask> {
+                                      networker_config: NetworkerConfig) -> Result<Vec<MessengerTask>, HandleAppManagerError> {
         // TODO
         
         match networker_config {

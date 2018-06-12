@@ -19,21 +19,21 @@ enum TokenChannelStatus {
 }
 
 #[allow(unused)]
-struct TokenChannelSlot {
+pub struct TokenChannelSlot {
     tc_state: NeighborTCState,
     tc_status: TokenChannelStatus,
-    pending_operations: Vec<NeighborTcOp>,
+    pub pending_operations: Vec<NeighborTcOp>,
     // Pending operations to be sent to the token channel.
 }
 
 #[allow(unused)]
-struct NeighborState {
+pub struct NeighborState {
     neighbor_socket_addr: Option<SocketAddr>, 
     remote_max_debt: u64,
     max_channels: u32,
     status: NeighborStatus,
     // Enabled or disabled?
-    token_channels: HashMap<u32, TokenChannelSlot>,
+    pub token_channel_slots: HashMap<u32, TokenChannelSlot>,
     neighbor_pending_operations: Vec<NeighborTcOp>,
     // Pending operations that could be sent through any token channel.
     ticks_since_last_incoming: usize,
@@ -49,7 +49,7 @@ struct NeighborState {
 
 #[allow(unused)]
 pub struct MessengerState {
-    neighbors: HashMap<PublicKey, NeighborState>,
+    pub neighbors: HashMap<PublicKey, NeighborState>,
 }
 
 #[allow(unused)]
