@@ -87,7 +87,11 @@ impl MessengerState {
     }
 
     fn app_manager_set_neighbor_status(&mut self, set_neighbor_status: SetNeighborStatus) -> Result<Vec<MessengerTask>, HandleAppManagerError> {
-        unreachable!();
+        let _ = self.neighbors.get_mut(&set_neighbor_status.neighbor_public_key)
+            .ok_or(HandleAppManagerError::NeighborDoesNotExist)?;
+        let mut res_tasks = Vec::new();
+        res_tasks.push(MessengerTask::DatabaseMessage(DatabaseMessage::SetNeighborStatus(set_neighbor_status)));
+        Ok(res_tasks)
     }
 
     pub fn handle_app_manager_message(&mut self, 
