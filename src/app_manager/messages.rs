@@ -44,8 +44,8 @@ pub struct RemoveNeighbor {
 
 #[allow(dead_code)]
 pub struct SetNeighborStatus {
-    neighbor_public_key: PublicKey,
-    status: NeighborStatus,
+    pub neighbor_public_key: PublicKey,
+    pub status: NeighborStatus,
 }
 
 #[allow(dead_code)]
