@@ -36,6 +36,8 @@ impl MessengerState {
         // Add a request to change neighbor max debt to the waiting queue of the token channel:
         token_channel_slot.pending_operations.push(
                 NeighborTcOp::SetRemoteMaxDebt(set_neighbor_remote_max_debt.remote_max_debt));
+        // After this request is completed, we will update database and finally update the value of
+        // remote_max_debt kept in RAM.
 
         Ok(Vec::new())
     }
