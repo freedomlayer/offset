@@ -1,6 +1,6 @@
 use crypto::identity::PublicKey;
 use super::types::NeighborTcOp;
-use super::messenger_state::{MessengerState, MessengerTask};
+use super::messenger_state::{MessengerState, NeighborState, MessengerTask, DatabaseMessage};
 use app_manager::messages::{NetworkerConfig, AddNeighbor, 
     RemoveNeighbor, SetNeighborStatus,  SetNeighborRemoteMaxDebt,
     ResetNeighborChannel, SetNeighborMaxChannels};
@@ -53,13 +53,20 @@ impl MessengerState {
                                           set_neighbor_max_channels: SetNeighborMaxChannels) 
         -> Result<Vec<MessengerTask>, HandleAppManagerError> {
 
-        // TODO:
-        // - Save in database (MessengerTask).
-        // - Add a pending Close Requests operation for all token channels that are of index higher
-        //      than maximum amount of channels.
-        //
+        let mut res_tasks = Vec::new();
 
-        unreachable!();
+        // Check if we have the requested neighbor:
+        let _ = self.get_neighbor_state(&set_neighbor_max_channels.neighbor_public_key)?;
+
+        // Save in database:
+        res_tasks.push(MessengerTask::DatabaseMessage(DatabaseMessage::SetNeighborMaxChannels {
+            neighbor_public_key: set_neighbor_max_channels.neighbor_public_key.clone(),
+            max_channels: set_neighbor_max_channels.max_channels,
+        }));
+        // After successfuly saved in database, we will update the value of neighbor_max_channels
+        // kept in RAM.
+        
+        Ok(res_tasks)
     }
 
     fn app_manager_add_neighbor(&mut self, add_neighbor: AddNeighbor) -> Result<Vec<MessengerTask>, HandleAppManagerError> {
