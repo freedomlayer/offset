@@ -35,7 +35,6 @@ pub mod app_manager;
 pub mod channeler;
 pub mod database;
 pub mod funder;
-pub mod indexer_client;
 pub mod networker;
 pub mod security_module;
 pub mod timer;

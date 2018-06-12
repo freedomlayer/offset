@@ -12,7 +12,6 @@ use futures::sync::{mpsc, oneshot};
 use channeler::types::ChannelerNeighborInfo;
 use funder::messages::{RequestSendFunds};
 
-use indexer_client::messages::RequestFriendsRoutes;
 use database::messages::{ResponseLoadNeighbors, ResponseLoadNeighborToken};
 use proto::networker::ChannelToken;
 
@@ -211,7 +210,9 @@ pub enum NetworkerToFunder {
     RequestSendFunds(RequestSendFunds),
 }
 
+/*
 pub enum NetworkerToIndexerClient {
     MessageReceived(MessageReceived),
     RequestFriendsRoutes(RequestFriendsRoutes),
 }
+*/
