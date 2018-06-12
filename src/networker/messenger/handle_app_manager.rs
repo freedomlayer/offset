@@ -74,8 +74,6 @@ impl MessengerState {
         // Send message to database to add the neighbor.
         //      After done adding to database, add neighbor to RAM.
         let mut res_tasks = Vec::new();
-
-        // Save in database:
         res_tasks.push(MessengerTask::DatabaseMessage(DatabaseMessage::AddNeighbor(add_neighbor)));
         Ok(res_tasks)
     }
