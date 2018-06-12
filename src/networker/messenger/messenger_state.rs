@@ -9,6 +9,8 @@ use super::neighbor_tc_logic::NeighborTCState;
 use super::types::NeighborTcOp;
 use super::super::messages::{NeighborStatus};
 
+use app_manager::messages::{SetNeighborMaxChannels, AddNeighbor};
+
 #[allow(dead_code)]
 enum TokenChannelStatus {
     Valid,
@@ -69,10 +71,8 @@ pub enum CrypterMessage {
 }
 
 pub enum DatabaseMessage {
-    SetNeighborMaxChannels {
-        neighbor_public_key: PublicKey,
-        max_channels: u32,
-    },
+    SetNeighborMaxChannels(SetNeighborMaxChannels),
+    AddNeighbor(AddNeighbor),
 }
 
 

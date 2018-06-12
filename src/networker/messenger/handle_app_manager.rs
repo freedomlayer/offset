@@ -53,16 +53,13 @@ impl MessengerState {
                                           set_neighbor_max_channels: SetNeighborMaxChannels) 
         -> Result<Vec<MessengerTask>, HandleAppManagerError> {
 
-        let mut res_tasks = Vec::new();
-
         // Check if we have the requested neighbor:
         let _ = self.get_neighbor_state(&set_neighbor_max_channels.neighbor_public_key)?;
+        let mut res_tasks = Vec::new();
 
         // Save in database:
-        res_tasks.push(MessengerTask::DatabaseMessage(DatabaseMessage::SetNeighborMaxChannels {
-            neighbor_public_key: set_neighbor_max_channels.neighbor_public_key.clone(),
-            max_channels: set_neighbor_max_channels.max_channels,
-        }));
+        res_tasks.push(MessengerTask::DatabaseMessage(DatabaseMessage::SetNeighborMaxChannels(
+                    set_neighbor_max_channels)));
         // After successfuly saved in database, we will update the value of neighbor_max_channels
         // kept in RAM.
         
