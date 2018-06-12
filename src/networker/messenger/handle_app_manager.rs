@@ -73,17 +73,17 @@ impl MessengerState {
     }
 
     fn app_manager_add_neighbor(&mut self, add_neighbor: AddNeighbor) -> Result<Vec<MessengerTask>, HandleAppManagerError> {
-        // - If we already have the neighbor: return error.
+        // If we already have the neighbor: return error.
         if self.neighbors.contains_key(&add_neighbor.neighbor_public_key) {
             return Err(HandleAppManagerError::NeighborAlreadyExists);
         }
-        // - Send message to database to add the neighbor.
+
+        // Send message to database to add the neighbor.
         //      After done adding to database, add neighbor to RAM.
         let mut res_tasks = Vec::new();
 
         // Save in database:
         res_tasks.push(MessengerTask::DatabaseMessage(DatabaseMessage::AddNeighbor(add_neighbor)));
-
         Ok(res_tasks)
     }
 
