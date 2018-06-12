@@ -11,6 +11,7 @@ use proto::networker::ChannelToken;
 #[allow(dead_code)]
 pub struct SetNeighborRemoteMaxDebt {
     pub neighbor_public_key: PublicKey,
+    pub channel_index: u32,
     pub remote_max_debt: u64,
 }
 
