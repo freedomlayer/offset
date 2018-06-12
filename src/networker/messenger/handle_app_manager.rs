@@ -13,26 +13,17 @@ pub enum HandleAppManagerError {
 
 #[allow(unused)]
 impl MessengerState {
-    fn get_neighbor_state(&mut self, neighbor_public_key: &PublicKey) -> Result<&mut NeighborState, HandleAppManagerError> {
-        // Check if we have the requested neighbor:
-        match self.neighbors.get_mut(neighbor_public_key) {
-            Some(neighbor_state) => Ok(neighbor_state),
-            None => Err(HandleAppManagerError::NeighborDoesNotExist),
-        }
-    }
-
     fn app_manager_set_neighbor_remote_max_debt(&mut self, 
                                                 set_neighbor_remote_max_debt: SetNeighborRemoteMaxDebt) 
         -> Result<Vec<MessengerTask>, HandleAppManagerError> {
 
         // Check if we have the requested neighbor:
-        let neighbor_state = self.get_neighbor_state(&set_neighbor_remote_max_debt.neighbor_public_key)?;
+        let neighbor_state = self.neighbors.get_mut(&set_neighbor_remote_max_debt.neighbor_public_key)
+            .ok_or(HandleAppManagerError::NeighborDoesNotExist)?;
         
         // Find the token channel slot:
-        let token_channel_slot = match neighbor_state.token_channel_slots.get_mut(&set_neighbor_remote_max_debt.channel_index) {
-            Some(token_channel_slot) => Ok(token_channel_slot),
-            None => Err(HandleAppManagerError::TokenChannelDoesNotExist),
-        }?;
+        let token_channel_slot = neighbor_state.token_channel_slots.get_mut(&set_neighbor_remote_max_debt.channel_index)
+            .ok_or(HandleAppManagerError::TokenChannelDoesNotExist)?;
 
         // Add a request to change neighbor max debt to the waiting queue of the token channel:
         token_channel_slot.pending_operations.push(
@@ -47,7 +38,9 @@ impl MessengerState {
                                           reset_neighbor_channel: ResetNeighborChannel) 
         -> Result<Vec<MessengerTask>, HandleAppManagerError> {
         // Check if we have the requested neighbor:
-        let _ = self.get_neighbor_state(&reset_neighbor_channel.neighbor_public_key)?;
+        
+        let _ = self.neighbors.get_mut(&reset_neighbor_channel.neighbor_public_key)
+            .ok_or(HandleAppManagerError::NeighborDoesNotExist)?;
         let mut res_tasks = Vec::new();
         // Save in database:
         res_tasks.push(MessengerTask::DatabaseMessage(DatabaseMessage::ResetNeighborChannel(
@@ -60,7 +53,8 @@ impl MessengerState {
         -> Result<Vec<MessengerTask>, HandleAppManagerError> {
 
         // Check if we have the requested neighbor:
-        let _ = self.get_neighbor_state(&set_neighbor_max_channels.neighbor_public_key)?;
+        let _ = self.neighbors.get_mut(&set_neighbor_max_channels.neighbor_public_key)
+            .ok_or(HandleAppManagerError::NeighborDoesNotExist)?;
         let mut res_tasks = Vec::new();
 
         // Save in database:
