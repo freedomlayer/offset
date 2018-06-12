@@ -45,6 +45,12 @@ impl MessengerState {
                                           set_neighbor_max_channels: SetNeighborMaxChannels) 
         -> Result<Vec<MessengerTask>, HandleAppManagerError> {
 
+        // TODO:
+        // - Save in database (MessengerTask).
+        // - Add a pending Close Requests operation for all token channels that are of index higher
+        //      than maximum amount of channels.
+        //
+
         unreachable!();
     }
 
