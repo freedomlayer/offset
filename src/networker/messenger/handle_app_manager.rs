@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 use super::types::NeighborTcOp;
-use super::messenger_state::{MessengerState, MessengerTask, DatabaseMessage};
+use super::messenger_state::{MessengerState, TokenChannelSlot, MessengerTask, DatabaseMessage};
 use app_manager::messages::{NetworkerConfig, AddNeighbor, 
     RemoveNeighbor, SetNeighborStatus, SetNeighborRemoteMaxDebt,
     ResetNeighborChannel, SetNeighborMaxChannels};
@@ -34,7 +34,22 @@ impl MessengerState {
                                           reset_neighbor_channel: ResetNeighborChannel) 
         -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
+
+        // Check if we have the requested neighbor:
+        let neighbor_state = self.neighbors.get_mut(&reset_neighbor_channel.neighbor_public_key)
+            .ok_or(HandleAppManagerError::NeighborDoesNotExist)?;
+
+        let new_token_channel_slot = TokenChannelSlot::new(
+            &self.local_public_key,
+            &reset_neighbor_channel.neighbor_public_key,
+            &reset_neighbor_channel.current_token,
+            reset_neighbor_channel.balance_for_reset);
+
+        // TODO: Replace the token channel slot:
+
+
         unreachable!();
+
 
         /*
 
