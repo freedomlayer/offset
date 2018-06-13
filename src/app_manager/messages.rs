@@ -34,7 +34,6 @@ pub struct AddNeighbor {
     pub neighbor_public_key: PublicKey,
     pub neighbor_socket_addr: Option<SocketAddr>,
     pub max_channels: u32, // Maximum amount of token channels
-    pub remote_max_debt: u64,
 }
 
 #[allow(dead_code)]
