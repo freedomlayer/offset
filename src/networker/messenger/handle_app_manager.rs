@@ -94,15 +94,12 @@ impl MessengerState {
     fn app_manager_remove_neighbor(&mut self, remove_neighbor: RemoveNeighbor) 
         -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
-        unreachable!();
-
-        /*
-        let _ = self.neighbors.get_mut(&remove_neighbor.neighbor_public_key)
+        let _ = self.neighbors.remove(&remove_neighbor.neighbor_public_key)
             .ok_or(HandleAppManagerError::NeighborDoesNotExist)?;
-        let mut res_tasks = Vec::new();
-        res_tasks.push(MessengerTask::DatabaseMessage(DatabaseMessage::RemoveNeighbor(remove_neighbor)));
-        Ok(res_tasks)
-        */
+
+        Ok((Some(DatabaseMessage::RemoveNeighbor(remove_neighbor)), 
+            Vec::new()))
+
     }
 
     fn app_manager_set_neighbor_status(&mut self, set_neighbor_status: SetNeighborStatus) 
