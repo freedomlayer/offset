@@ -58,7 +58,7 @@ impl TokenChannelSlot {
 #[allow(unused)]
 pub struct NeighborState {
     neighbor_socket_addr: Option<SocketAddr>, 
-    max_channels: u32,
+    pub max_channels: u32,
     status: NeighborStatus,
     // Enabled or disabled?
     pub token_channel_slots: HashMap<u32, TokenChannelSlot>,
