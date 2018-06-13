@@ -1,5 +1,6 @@
 #![warn(unused)]
 
+use std::cmp;
 use std::convert::TryFrom;
 use std::collections::HashMap;
 
@@ -116,12 +117,34 @@ pub struct TCBalance {
     remote_pending_debt: u64,
 }
 
+impl TCBalance {
+    fn new(balance: i64) -> TCBalance {
+        TCBalance {
+            balance,
+            remote_max_debt: cmp::max(balance, 0) as u64,
+            local_max_debt: cmp::min(-balance, 0) as u64,
+            local_pending_debt: 0,
+            remote_pending_debt: 0,
+        }
+    }
+}
+
+
 #[derive(Clone)]
 pub struct TCInvoice {
     /// The invoice id which I randomized locally
     local_invoice_id: Option<InvoiceId>,
     /// The invoice id which the neighbor randomized
     remote_invoice_id: Option<InvoiceId>,
+}
+
+impl TCInvoice {
+    fn new() -> TCInvoice {
+        TCInvoice {
+            local_invoice_id: None,
+            remote_invoice_id: None,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -134,11 +157,29 @@ pub struct TCSendPrice {
     pub remote_send_price: Option<NetworkerSendPrice>,
 }
 
+impl TCSendPrice {
+    fn new() -> TCSendPrice {
+        TCSendPrice {
+            local_send_price: None,
+            remote_send_price: None,
+        }
+    }
+}
+
 struct TCPendingRequests {
     /// Pending requests that were opened locally and not yet completed
     pending_local_requests: HashMap<Uid, PendingNeighborRequest>,
     /// Pending requests that were opened remotely and not yet completed
     pending_remote_requests: HashMap<Uid, PendingNeighborRequest>,
+}
+
+impl TCPendingRequests {
+    fn new() -> TCPendingRequests {
+        TCPendingRequests {
+            pending_local_requests: HashMap::new(),
+            pending_remote_requests: HashMap::new(),
+        }
+    }
 }
 
 struct TransTCPendingRequests {
@@ -176,6 +217,25 @@ pub struct TokenChannel {
     invoice: TCInvoice,
     send_price: TCSendPrice,
     pending_requests: TCPendingRequests,
+}
+
+
+impl TokenChannel {
+    pub fn new(local_public_key: &PublicKey, 
+           remote_public_key: &PublicKey, 
+           balance: i64) -> TokenChannel {
+
+        TokenChannel {
+            idents: TCIdents {
+                local_public_key: local_public_key.clone(),
+                remote_public_key: remote_public_key.clone(),
+            },
+            balance: TCBalance::new(balance),
+            invoice: TCInvoice::new(),
+            send_price: TCSendPrice::new(),
+            pending_requests: TCPendingRequests::new(),
+        }
+    }
 }
 
 
