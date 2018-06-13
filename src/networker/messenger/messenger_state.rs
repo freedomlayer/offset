@@ -60,7 +60,7 @@ pub struct NeighborState {
     neighbor_socket_addr: Option<SocketAddr>, 
     pub local_max_channels: u32,
     pub remote_max_channels: u32,
-    status: NeighborStatus,
+    pub status: NeighborStatus,
     // Enabled or disabled?
     pub token_channel_slots: HashMap<u32, TokenChannelSlot>,
     neighbor_pending_operations: VecDeque<NeighborTcOp>,
