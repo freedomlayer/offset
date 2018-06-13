@@ -22,7 +22,7 @@ pub struct NeighborInconsistencyError {
 
 #[allow(unused)]
 pub struct NeighborSetMaxTokenChannels {
-    max_token_channels: u64,
+    max_token_channels: u16,
 }
 
 #[allow(unused)]
