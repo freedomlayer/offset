@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
 
 use crypto::identity::PublicKey;
@@ -26,8 +26,33 @@ pub struct TokenChannelSlot {
     tc_state: NeighborTCState,
     tc_status: TokenChannelStatus,
     pub wanted_remote_max_debt: u64,
-    pub pending_operations: Vec<NeighborTcOp>,
+    pub pending_operations: VecDeque<NeighborTcOp>,
     // Pending operations to be sent to the token channel.
+}
+
+/*
+    fn new_from_reset(local_public_key: &PublicKey, 
+                      remote_public_key: &PublicKey, 
+                      current_token: &ChannelToken, 
+                      balance: i64) -> NeighborTCState {
+                      */
+
+impl TokenChannelSlot {
+    pub fn new(local_public_key: &PublicKey,
+           remote_public_key: &PublicKey,
+           current_token: &ChannelToken,
+           balance: i64) -> TokenChannelSlot {
+
+        TokenChannelSlot {
+            tc_state: NeighborTCState::new_from_reset(local_public_key,
+                                                      remote_public_key,
+                                                      current_token,
+                                                      balance),
+            tc_status: TokenChannelStatus::Valid,
+            wanted_remote_max_debt: 0,
+            pending_operations: VecDeque::new(),
+        }
+    }
 }
 
 #[allow(unused)]
@@ -52,6 +77,7 @@ pub struct NeighborState {
 
 #[allow(unused)]
 pub struct MessengerState {
+    pub local_public_key: PublicKey,
     pub neighbors: HashMap<PublicKey, NeighborState>,
 }
 
