@@ -34,7 +34,6 @@ impl MessengerState {
                                           reset_neighbor_channel: ResetNeighborChannel) 
         -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
-
         // Check if we have the requested neighbor:
         let neighbor_state = self.neighbors.get_mut(&reset_neighbor_channel.neighbor_public_key)
             .ok_or(HandleAppManagerError::NeighborDoesNotExist)?;
@@ -61,22 +60,14 @@ impl MessengerState {
                                           set_neighbor_max_channels: SetNeighborMaxChannels) 
         -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
-        unreachable!();
-
-        /*
         // Check if we have the requested neighbor:
-        let _ = self.neighbors.get_mut(&set_neighbor_max_channels.neighbor_public_key)
+        let neighbor_state = self.neighbors.get_mut(&set_neighbor_max_channels.neighbor_public_key)
             .ok_or(HandleAppManagerError::NeighborDoesNotExist)?;
-        let mut res_tasks = Vec::new();
 
-        // Save in database:
-        res_tasks.push(MessengerTask::DatabaseMessage(DatabaseMessage::SetNeighborMaxChannels(
-                    set_neighbor_max_channels)));
-        // After successfuly saved in database, we will update the value of neighbor_max_channels
-        // kept in RAM.
-        
-        Ok(res_tasks)
-        */
+        neighbor_state.max_channels = set_neighbor_max_channels.max_channels;
+
+        Ok((Some(DatabaseMessage::SetNeighborMaxChannels(set_neighbor_max_channels)), 
+            Vec::new()))
     }
 
     fn app_manager_add_neighbor(&mut self, add_neighbor: AddNeighbor) 
