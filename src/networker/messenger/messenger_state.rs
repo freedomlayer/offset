@@ -62,7 +62,7 @@ pub struct NeighborState {
     status: NeighborStatus,
     // Enabled or disabled?
     pub token_channel_slots: HashMap<u32, TokenChannelSlot>,
-    neighbor_pending_operations: Vec<NeighborTcOp>,
+    neighbor_pending_operations: VecDeque<NeighborTcOp>,
     // Pending operations that could be sent through any token channel.
     ticks_since_last_incoming: usize,
     // Number of time ticks since last incoming message
@@ -73,6 +73,23 @@ pub struct NeighborState {
     
     // TODO: Keep state of requests to database? Only write to RAM after getting acknowledgement
     // from database.
+}
+
+impl NeighborState {
+    pub fn new(neighbor_public_key: &PublicKey,
+               neighbor_socket_addr: Option<SocketAddr>,
+               max_channels: u32) -> NeighborState {
+
+        NeighborState {
+            neighbor_socket_addr,
+            max_channels,
+            status: NeighborStatus::Disable,
+            token_channel_slots: HashMap::new(),
+            neighbor_pending_operations: VecDeque::new(),
+            ticks_since_last_incoming: 0,
+            ticks_since_last_outgoing: 0,
+        }
+    }
 }
 
 #[allow(unused)]
