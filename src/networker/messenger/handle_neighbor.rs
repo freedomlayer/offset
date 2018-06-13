@@ -40,8 +40,8 @@ pub enum HandleNeighborMessageError {
 #[allow(unused)]
 impl MessengerState {
     pub fn handle_neighbor_message(&mut self, 
-                                    remote_public_key: &PublicKey, 
-                                    neighbor_message: NeighborMessage)
+                                   remote_public_key: &PublicKey, 
+                                   neighbor_message: NeighborMessage)
         -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
 
         // TODO
