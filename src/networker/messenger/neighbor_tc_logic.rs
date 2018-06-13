@@ -1,6 +1,7 @@
 #![warn(unused)]
 
 use proto::networker::ChannelToken;
+use crypto::identity::PublicKey;
 use crypto::rand_values::RandValue;
 use networker::messages::MoveTokenDirection;
 use super::token_channel::{TokenChannel, ProcessOperationOutput, 
@@ -26,6 +27,23 @@ pub struct NeighborTCState {
     chain_state: ChainState,
     token_channel: TokenChannel,
 }
+
+impl NeighborTCState {
+    pub fn new_from_reset(local_public_key: &PublicKey, 
+                      remote_public_key: &PublicKey, 
+                      current_token: &ChannelToken, 
+                      balance: i64) -> NeighborTCState {
+        NeighborTCState {
+            chain_state: ChainState {
+                direction: MoveTokenDirection::Incoming,
+                old_token: current_token.clone(), // TODO: What to put here?
+                new_token: current_token.clone(),
+            },
+            token_channel: TokenChannel::new(local_public_key, remote_public_key, balance),
+        }
+    }
+}
+
 
 #[derive(Debug)]
 pub enum NeighborTCStateError {
