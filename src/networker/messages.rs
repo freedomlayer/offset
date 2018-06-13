@@ -38,14 +38,14 @@ pub struct NeighborInfo {
     pub neighbor_public_key: PublicKey,
     pub neighbor_socket_addr: Option<SocketAddr>,
     pub wanted_remote_max_debt: u64,
-    pub wanted_max_channels: u32,
+    pub wanted_max_channels: u16,
     pub status: NeighborStatus,
 }
 
 // ======== Internal Interfaces ========
 
 struct NeighborTokenChannelLoaded {
-    channel_index: u32,
+    channel_index: u16,
     local_max_debt: u64,
     remote_max_debt: u64,
     balance: i64,
@@ -63,7 +63,7 @@ pub enum NeighborTokenChannelEventInner {
 pub struct NeighborLoaded {
     neighbor_public_key: PublicKey,
     neighbor_socket_addr: Option<SocketAddr>,
-    max_channels: u32,
+    max_channels: u16,
     wanted_remote_max_debt: u64,
     status: NeighborStatus,
     token_channels: Vec<NeighborTokenChannelLoaded>,
@@ -71,7 +71,7 @@ pub struct NeighborLoaded {
 }
 
 pub struct NeighborTokenChannelEvent {
-    channel_index: u32,
+    channel_index: u16,
     event: NeighborTokenChannelEventInner,
 }
 
@@ -163,7 +163,7 @@ pub struct NeighborTokenCommon {
     // The move_token_message is opaque. The Database can not read it.
     // This is why we have the external token_channel_index, old_token and new_token,
     // although theoretically they could be deduced from move_token_message.
-    pub token_channel_index: u32,
+    pub token_channel_index: u16,
     pub old_token: ChannelToken,
     pub new_token: ChannelToken,
     // Equals Sha512/256(move_token_message)
@@ -201,7 +201,7 @@ pub enum NetworkerToDatabase {
     StoreOutNeighborToken(OutNeighborToken),
     RequestLoadNeighborToken {
         neighbor_public_key: PublicKey,
-        token_channel_index: u32,
+        token_channel_index: u16,
         response_sender: oneshot::Sender<Option<ResponseLoadNeighborToken>>,
     },
 }

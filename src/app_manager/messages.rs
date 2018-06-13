@@ -11,14 +11,14 @@ use proto::networker::ChannelToken;
 #[allow(dead_code)]
 pub struct SetNeighborRemoteMaxDebt {
     pub neighbor_public_key: PublicKey,
-    pub channel_index: u32,
+    pub channel_index: u16,
     pub remote_max_debt: u64,
 }
 
 #[allow(dead_code)]
 pub struct ResetNeighborChannel {
     pub neighbor_public_key: PublicKey,
-    pub channel_index: u32,
+    pub channel_index: u16,
     pub current_token: ChannelToken,
     pub balance_for_reset: i64,
 }
@@ -26,14 +26,14 @@ pub struct ResetNeighborChannel {
 #[allow(dead_code)]
 pub struct SetNeighborMaxChannels {
     pub neighbor_public_key: PublicKey,
-    pub max_channels: u32,
+    pub max_channels: u16,
 }
 
 #[allow(dead_code)]
 pub struct AddNeighbor {
     pub neighbor_public_key: PublicKey,
     pub neighbor_socket_addr: Option<SocketAddr>,
-    pub max_channels: u32, // Maximum amount of token channels
+    pub max_channels: u16, // Maximum amount of token channels
 }
 
 #[allow(dead_code)]

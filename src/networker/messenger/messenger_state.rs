@@ -58,11 +58,11 @@ impl TokenChannelSlot {
 #[allow(unused)]
 pub struct NeighborState {
     neighbor_socket_addr: Option<SocketAddr>, 
-    pub local_max_channels: u32,
-    pub remote_max_channels: u32,
+    pub local_max_channels: u16,
+    pub remote_max_channels: u16,
     pub status: NeighborStatus,
     // Enabled or disabled?
-    pub token_channel_slots: HashMap<u32, TokenChannelSlot>,
+    pub token_channel_slots: HashMap<u16, TokenChannelSlot>,
     neighbor_pending_operations: VecDeque<NeighborTcOp>,
     // Pending operations that could be sent through any token channel.
     ticks_since_last_incoming: usize,
@@ -78,7 +78,7 @@ pub struct NeighborState {
 
 impl NeighborState {
     pub fn new(neighbor_socket_addr: Option<SocketAddr>,
-               local_max_channels: u32) -> NeighborState {
+               local_max_channels: u16) -> NeighborState {
 
         NeighborState {
             neighbor_socket_addr,
