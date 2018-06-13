@@ -24,6 +24,10 @@ struct NeighborInconsistencyError {
         balanceForReset @2: Int64;
 }
 
+struct NeighborSetMaxTokenChannels {
+        maxTokenChannels @0: UInt32,
+}
+
 
 # Token Operations
 # ------------------
