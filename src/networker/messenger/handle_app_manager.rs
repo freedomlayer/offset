@@ -28,7 +28,8 @@ impl MessengerState {
             .ok_or(HandleAppManagerError::TokenChannelDoesNotExist)?;
 
         token_channel_slot.wanted_remote_max_debt = set_neighbor_remote_max_debt.remote_max_debt;
-        Ok((Some(DatabaseMessage::SetNeighborRemoteMaxDebt(set_neighbor_remote_max_debt)), Vec::new()))
+        Ok((Some(DatabaseMessage::SetNeighborRemoteMaxDebt(set_neighbor_remote_max_debt)), 
+            Vec::new()))
     }
 
     fn app_manager_reset_neighbor_channel(&mut self, 
