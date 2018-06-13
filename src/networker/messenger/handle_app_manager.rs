@@ -1,7 +1,8 @@
 #![allow(unused)]
 
 use super::types::NeighborTcOp;
-use super::messenger_state::{MessengerState, TokenChannelSlot, MessengerTask, DatabaseMessage};
+use super::messenger_state::{MessengerState, NeighborState, 
+    TokenChannelSlot, MessengerTask, DatabaseMessage};
 use app_manager::messages::{NetworkerConfig, AddNeighbor, 
     RemoveNeighbor, SetNeighborStatus, SetNeighborRemoteMaxDebt,
     ResetNeighborChannel, SetNeighborMaxChannels};
@@ -73,20 +74,22 @@ impl MessengerState {
     fn app_manager_add_neighbor(&mut self, add_neighbor: AddNeighbor) 
         -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
-        unreachable!();
-
-        /*
         // If we already have the neighbor: return error.
         if self.neighbors.contains_key(&add_neighbor.neighbor_public_key) {
             return Err(HandleAppManagerError::NeighborAlreadyExists);
         }
 
-        // Send message to database to add the neighbor.
-        //      After done adding to database, add neighbor to RAM.
-        let mut res_tasks = Vec::new();
-        res_tasks.push(MessengerTask::DatabaseMessage(DatabaseMessage::AddNeighbor(add_neighbor)));
-        Ok(res_tasks)
-        */
+        // Otherwise, we add a new neighbor:
+        let neighbor_state = NeighborState::new(
+                &add_neighbor.neighbor_public_key,
+                add_neighbor.neighbor_socket_addr,
+                add_neighbor.max_channels);
+
+        self.neighbors.insert(add_neighbor.neighbor_public_key.clone(), neighbor_state);
+
+        Ok((Some(DatabaseMessage::AddNeighbor(add_neighbor)), 
+            Vec::new()))
+
     }
 
     fn app_manager_remove_neighbor(&mut self, remove_neighbor: RemoveNeighbor) 
