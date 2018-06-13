@@ -58,7 +58,8 @@ impl TokenChannelSlot {
 #[allow(unused)]
 pub struct NeighborState {
     neighbor_socket_addr: Option<SocketAddr>, 
-    pub max_channels: u32,
+    pub local_max_channels: u32,
+    pub remote_max_channels: u32,
     status: NeighborStatus,
     // Enabled or disabled?
     pub token_channel_slots: HashMap<u32, TokenChannelSlot>,
@@ -81,7 +82,9 @@ impl NeighborState {
 
         NeighborState {
             neighbor_socket_addr,
-            max_channels,
+            local_max_channels,
+            remote_max_channels: local_max_channels,    
+            // Initially we assume that the remote side has the same amount of channels as we do.
             status: NeighborStatus::Disable,
             token_channel_slots: HashMap::new(),
             neighbor_pending_operations: VecDeque::new(),
