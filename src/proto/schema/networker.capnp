@@ -25,7 +25,7 @@ struct NeighborInconsistencyError {
 }
 
 struct NeighborSetMaxTokenChannels {
-        maxTokenChannels @0: UInt32,
+        maxTokenChannels @0: UInt32;
 }
 
 
