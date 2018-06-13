@@ -45,24 +45,16 @@ impl MessengerState {
             &reset_neighbor_channel.current_token,
             reset_neighbor_channel.balance_for_reset);
 
-        // TODO: Replace the token channel slot:
+        // Replace the old token channel slot with the new one:
+        if !neighbor_state.token_channel_slots.contains_key(&reset_neighbor_channel.channel_index) {
+            return Err(HandleAppManagerError::TokenChannelDoesNotExist);
+        }
+        
+        neighbor_state.token_channel_slots.insert(reset_neighbor_channel.channel_index, 
+                                                  new_token_channel_slot);
 
-
-        unreachable!();
-
-
-        /*
-
-        // Check if we have the requested neighbor:
-        let _ = self.neighbors.get_mut(&reset_neighbor_channel.neighbor_public_key)
-            .ok_or(HandleAppManagerError::NeighborDoesNotExist)?;
-        let mut res_tasks = Vec::new();
-
-        // Save in database:
-        res_tasks.push(MessengerTask::DatabaseMessage(DatabaseMessage::ResetNeighborChannel(
-                    reset_neighbor_channel)));
-        Ok(res_tasks)
-        */
+        Ok((Some(DatabaseMessage::ResetNeighborChannel(reset_neighbor_channel)), 
+            Vec::new()))
     }
 
     fn app_manager_set_neighbor_max_channels(&mut self, 
