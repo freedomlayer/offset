@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use super::types::NeighborTcOp;
 use super::messenger_state::{MessengerState, MessengerTask, DatabaseMessage};
 use app_manager::messages::{NetworkerConfig, AddNeighbor, 
@@ -14,7 +16,7 @@ pub enum HandleAppManagerError {
 impl MessengerState {
     fn app_manager_set_neighbor_remote_max_debt(&mut self, 
                                                 set_neighbor_remote_max_debt: SetNeighborRemoteMaxDebt) 
-        -> Result<Vec<MessengerTask>, HandleAppManagerError> {
+        -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
         // Check if we have the requested neighbor:
         let neighbor_state = self.neighbors.get_mut(&set_neighbor_remote_max_debt.neighbor_public_key)
@@ -24,33 +26,37 @@ impl MessengerState {
         let token_channel_slot = neighbor_state.token_channel_slots.get_mut(&set_neighbor_remote_max_debt.channel_index)
             .ok_or(HandleAppManagerError::TokenChannelDoesNotExist)?;
 
-        // Add a request to change neighbor max debt to the waiting queue of the token channel:
-        token_channel_slot.pending_operations.push(
-                NeighborTcOp::SetRemoteMaxDebt(set_neighbor_remote_max_debt.remote_max_debt));
-        // After this request is applied to the token channel, we will update database and finally
-        // update the value of remote_max_debt kept in RAM.
-
-        Ok(Vec::new())
+        token_channel_slot.wanted_remote_max_debt = set_neighbor_remote_max_debt.remote_max_debt;
+        Ok((Some(DatabaseMessage::SetNeighborRemoteMaxDebt(set_neighbor_remote_max_debt)), Vec::new()))
     }
 
     fn app_manager_reset_neighbor_channel(&mut self, 
                                           reset_neighbor_channel: ResetNeighborChannel) 
-        -> Result<Vec<MessengerTask>, HandleAppManagerError> {
+        -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
+
+        unreachable!();
+
+        /*
+
         // Check if we have the requested neighbor:
-        
         let _ = self.neighbors.get_mut(&reset_neighbor_channel.neighbor_public_key)
             .ok_or(HandleAppManagerError::NeighborDoesNotExist)?;
         let mut res_tasks = Vec::new();
+
         // Save in database:
         res_tasks.push(MessengerTask::DatabaseMessage(DatabaseMessage::ResetNeighborChannel(
                     reset_neighbor_channel)));
         Ok(res_tasks)
+        */
     }
 
     fn app_manager_set_neighbor_max_channels(&mut self, 
                                           set_neighbor_max_channels: SetNeighborMaxChannels) 
-        -> Result<Vec<MessengerTask>, HandleAppManagerError> {
+        -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
+        unreachable!();
+
+        /*
         // Check if we have the requested neighbor:
         let _ = self.neighbors.get_mut(&set_neighbor_max_channels.neighbor_public_key)
             .ok_or(HandleAppManagerError::NeighborDoesNotExist)?;
@@ -63,9 +69,15 @@ impl MessengerState {
         // kept in RAM.
         
         Ok(res_tasks)
+        */
     }
 
-    fn app_manager_add_neighbor(&mut self, add_neighbor: AddNeighbor) -> Result<Vec<MessengerTask>, HandleAppManagerError> {
+    fn app_manager_add_neighbor(&mut self, add_neighbor: AddNeighbor) 
+        -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
+
+        unreachable!();
+
+        /*
         // If we already have the neighbor: return error.
         if self.neighbors.contains_key(&add_neighbor.neighbor_public_key) {
             return Err(HandleAppManagerError::NeighborAlreadyExists);
@@ -76,26 +88,41 @@ impl MessengerState {
         let mut res_tasks = Vec::new();
         res_tasks.push(MessengerTask::DatabaseMessage(DatabaseMessage::AddNeighbor(add_neighbor)));
         Ok(res_tasks)
+        */
     }
 
-    fn app_manager_remove_neighbor(&mut self, remove_neighbor: RemoveNeighbor) -> Result<Vec<MessengerTask>, HandleAppManagerError> {
+    fn app_manager_remove_neighbor(&mut self, remove_neighbor: RemoveNeighbor) 
+        -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
+
+        unreachable!();
+
+        /*
         let _ = self.neighbors.get_mut(&remove_neighbor.neighbor_public_key)
             .ok_or(HandleAppManagerError::NeighborDoesNotExist)?;
         let mut res_tasks = Vec::new();
         res_tasks.push(MessengerTask::DatabaseMessage(DatabaseMessage::RemoveNeighbor(remove_neighbor)));
         Ok(res_tasks)
+        */
     }
 
-    fn app_manager_set_neighbor_status(&mut self, set_neighbor_status: SetNeighborStatus) -> Result<Vec<MessengerTask>, HandleAppManagerError> {
+    fn app_manager_set_neighbor_status(&mut self, set_neighbor_status: SetNeighborStatus) 
+        -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
+
+        unreachable!();
+
+        /*
         let _ = self.neighbors.get_mut(&set_neighbor_status.neighbor_public_key)
             .ok_or(HandleAppManagerError::NeighborDoesNotExist)?;
         let mut res_tasks = Vec::new();
         res_tasks.push(MessengerTask::DatabaseMessage(DatabaseMessage::SetNeighborStatus(set_neighbor_status)));
         Ok(res_tasks)
+        */
     }
 
     pub fn handle_app_manager_message(&mut self, 
-                                      networker_config: NetworkerConfig) -> Result<Vec<MessengerTask>, HandleAppManagerError> {
+                                      networker_config: NetworkerConfig) 
+        -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
+
 
         match networker_config {
             NetworkerConfig::SetNeighborRemoteMaxDebt(set_neighbor_remote_max_debt) => 

@@ -9,7 +9,7 @@ use super::neighbor_tc_logic::NeighborTCState;
 use super::types::NeighborTcOp;
 use super::super::messages::{NeighborStatus};
 
-use app_manager::messages::{SetNeighborMaxChannels, AddNeighbor, RemoveNeighbor, 
+use app_manager::messages::{SetNeighborRemoteMaxDebt, SetNeighborMaxChannels, AddNeighbor, RemoveNeighbor, 
     ResetNeighborChannel, SetNeighborStatus};
 
 #[allow(dead_code)]
@@ -25,6 +25,7 @@ enum TokenChannelStatus {
 pub struct TokenChannelSlot {
     tc_state: NeighborTCState,
     tc_status: TokenChannelStatus,
+    pub wanted_remote_max_debt: u64,
     pub pending_operations: Vec<NeighborTcOp>,
     // Pending operations to be sent to the token channel.
 }
@@ -32,7 +33,6 @@ pub struct TokenChannelSlot {
 #[allow(unused)]
 pub struct NeighborState {
     neighbor_socket_addr: Option<SocketAddr>, 
-    remote_max_debt: u64,
     max_channels: u32,
     status: NeighborStatus,
     // Enabled or disabled?
@@ -71,7 +71,9 @@ pub enum CrypterMessage {
 
 }
 
+#[allow(unused)]
 pub enum DatabaseMessage {
+    SetNeighborRemoteMaxDebt(SetNeighborRemoteMaxDebt),
     SetNeighborMaxChannels(SetNeighborMaxChannels),
     ResetNeighborChannel(ResetNeighborChannel),
     AddNeighbor(AddNeighbor),
@@ -86,7 +88,6 @@ pub enum MessengerTask {
     FunderMessage(FunderMessage),
     ChannelerMessage(ChannelerMessage),
     CrypterMessage(CrypterMessage),
-    DatabaseMessage(DatabaseMessage),
 }
 
 #[allow(unused)]
