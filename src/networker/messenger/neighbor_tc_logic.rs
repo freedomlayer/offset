@@ -8,7 +8,7 @@ use super::token_channel::{TokenChannel, ProcessOperationOutput,
     ProcessTransListError, atomic_process_operations_list};
 use super::types::NeighborTcOp;
 
-pub struct NeighborMoveToken {
+pub struct NeighborMoveTokenInner {
     pub operations: Vec<NeighborTcOp>,
     pub old_token: ChannelToken,
     pub rand_nonce: RandValue,
@@ -60,7 +60,7 @@ pub enum ReceiveTokenOutput {
 
 #[allow(unused)]
 pub fn receive_move_token(neighbor_tc_state: NeighborTCState, 
-                          move_token_message: NeighborMoveToken, 
+                          move_token_message: NeighborMoveTokenInner, 
                           new_token: ChannelToken) 
     -> (NeighborTCState, Result<ReceiveTokenOutput, NeighborTCStateError>) {
 
@@ -112,7 +112,7 @@ pub fn receive_move_token(neighbor_tc_state: NeighborTCState,
 
 #[allow(unused)]
 pub fn send_move_token(neighbor_tc_state: NeighborTCState, 
-                       move_token_message: &NeighborMoveToken, 
+                       move_token_message: &NeighborMoveTokenInner, 
                        new_token: ChannelToken) -> (NeighborTCState, Result<(), ()>) {
     
     // TODO:
