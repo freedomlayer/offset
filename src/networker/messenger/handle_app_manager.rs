@@ -1,6 +1,3 @@
-#![allow(unused)]
-
-use super::types::NeighborTcOp;
 use super::messenger_state::{MessengerState, NeighborState, 
     TokenChannelSlot, MessengerTask, DatabaseMessage};
 use app_manager::messages::{NetworkerConfig, AddNeighbor, 
