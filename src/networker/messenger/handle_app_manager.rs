@@ -65,7 +65,7 @@ impl MessengerState {
         let neighbor_state = self.neighbors.get_mut(&set_neighbor_max_channels.neighbor_public_key)
             .ok_or(HandleAppManagerError::NeighborDoesNotExist)?;
 
-        neighbor_state.max_channels = set_neighbor_max_channels.max_channels;
+        neighbor_state.local_max_channels = set_neighbor_max_channels.max_channels;
 
         Ok((Some(DatabaseMessage::SetNeighborMaxChannels(set_neighbor_max_channels)), 
             Vec::new()))
@@ -81,7 +81,6 @@ impl MessengerState {
 
         // Otherwise, we add a new neighbor:
         let neighbor_state = NeighborState::new(
-                &add_neighbor.neighbor_public_key,
                 add_neighbor.neighbor_socket_addr,
                 add_neighbor.max_channels);
 

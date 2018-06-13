@@ -76,9 +76,8 @@ pub struct NeighborState {
 }
 
 impl NeighborState {
-    pub fn new(neighbor_public_key: &PublicKey,
-               neighbor_socket_addr: Option<SocketAddr>,
-               max_channels: u32) -> NeighborState {
+    pub fn new(neighbor_socket_addr: Option<SocketAddr>,
+               local_max_channels: u32) -> NeighborState {
 
         NeighborState {
             neighbor_socket_addr,
