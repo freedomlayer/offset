@@ -26,6 +26,7 @@ pub enum MoveTokenDirection {
     Outgoing = 1,
 }
 
+#[derive(Clone, Copy)]
 pub enum NeighborStatus {
     Enable = 1,
     Disable = 0,
