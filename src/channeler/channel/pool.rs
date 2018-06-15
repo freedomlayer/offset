@@ -16,7 +16,7 @@ use super::{Tx, Rx, Channel, Error, MINIMUM_MESSAGE_LEN};
 
 pub struct ChannelPool {
     channels: HashMap<PublicKey, Channel>,
-    idx_cid: HashMap<ChannelId, PublicKey>,
+    cid_to_pk: HashMap<ChannelId, PublicKey>,
 }
 
 impl ChannelPool {
@@ -25,14 +25,17 @@ impl ChannelPool {
         let rx = Rx::new(meta.rx_cid, meta.rx_key);
 
         if let Some(cur_channel) = self.channels.get_mut(&meta.public_key) {
-            self.idx_cid.insert(rx.channel_id().clone(), meta.public_key);
-            let expired_rx = cur_channel.replace(tx, rx);
+            self.cid_to_pk.insert(
+                rx.channel_id().clone(),
+                meta.public_key
+            );
+            let expired_rx = cur_channel.update_channel(tx, rx);
 
             if let Some(rx) = expired_rx {
-                self.idx_cid.remove(rx.channel_id());
+                self.cid_to_pk.remove(rx.channel_id());
             }
         } else {
-            self.idx_cid.insert(
+            self.cid_to_pk.insert(
                 rx.channel_id().clone(),
                 meta.public_key.clone()
             );
@@ -45,7 +48,7 @@ impl ChannelPool {
     pub fn remove_channel(&mut self, pk: &PublicKey) {
         if let Some(channel) = self.channels.remove(pk) {
             for rx in channel.carousel_rx {
-                let _ = self.idx_cid.remove(rx.channel_id());
+                let _ = self.cid_to_pk.remove(rx.channel_id());
             }
         }
     }
@@ -81,7 +84,9 @@ impl ChannelPool {
 
         let cid = ChannelId::try_from(&encrypted.split_to(CHANNEL_ID_LEN)).unwrap();
 
-        match self.idx_cid.get(&cid) {
+        // XXX: Just make borrow checker happy, can
+        // we use combinator instead of match expr
+        match self.cid_to_pk.get(&cid) {
             None => Err(Error::UnknownChannel(cid)),
             Some(pk) => {
                 self.channels.get_mut(pk)
@@ -100,7 +105,7 @@ impl ChannelPool {
                 if rx.keepalive_timeout > 0 {
                     rx.keepalive_timeout -= 1;
                 } else {
-                    self.idx_cid.remove(rx.channel_id());
+                    self.cid_to_pk.remove(rx.channel_id());
                 }
             }
 

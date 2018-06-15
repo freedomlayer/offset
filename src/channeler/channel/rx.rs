@@ -38,7 +38,8 @@ impl Rx {
     }
 
     pub fn decrypt(&mut self, mut encrypted: Bytes) -> Result<Plain, Error> {
-        let nonce = Nonce::try_from(&encrypted.split_to(NONCE_LEN)).unwrap();
+        let nonce = Nonce::try_from(&encrypted.split_to(NONCE_LEN))
+            .expect("message too short");
 
         let plain = open_in_place(
             &self.opening_key,

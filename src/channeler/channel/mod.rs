@@ -86,17 +86,12 @@ impl Channel {
     fn decrypt_msg(&mut self, cid: ChannelId, msg: Bytes) -> Result<Option<Bytes>, Error> {
         let rx = self.rx_mut(cid)?;
 
-        match rx.decrypt(msg) {
-            Err(e) => Err(e),
-            Ok(plain) => {
-                match plain.content {
-                    PlainContent::KeepAlive => {
-                        rx.reset_keepalive_timeout();
-                        Ok(None)
-                    }
-                    PlainContent::Application(app) => Ok(Some(app)),
-                }
-            }
+        match rx.decrypt(msg)?.content {
+            PlainContent::KeepAlive => {
+                rx.reset_keepalive_timeout();
+                Ok(None)
+            },
+            PlainContent::Application(app) => Ok(Some(app))
         }
     }
 
@@ -121,7 +116,7 @@ impl Channel {
         self.tx.is_some()
     }
 
-    fn replace(&mut self, tx: Tx, rx: Rx) -> Option<Rx> {
+    fn update_channel(&mut self, tx: Tx, rx: Rx) -> Option<Rx> {
         self.tx = Some(tx);
         self.carousel_rx.push_back(rx);
 
