@@ -43,6 +43,15 @@ pub enum ReceiveMoveTokenOutput {
 
 
 impl NeighborTCState {
+    #[allow(unused)]
+    pub fn new(local_public_key: &PublicKey, 
+               remote_public_key: &PublicKey) -> NeighborTCState {
+        // TODO:
+        // - balance should be 0.
+        // - The current tokens for both sides should be calculated deterministically.
+        // - One side should be the initial sender, and one side should be the initial receiver.
+        unreachable!();
+    }
     pub fn new_from_reset(local_public_key: &PublicKey, 
                       remote_public_key: &PublicKey, 
                       current_token: &ChannelToken, 
