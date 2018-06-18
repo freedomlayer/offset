@@ -37,7 +37,7 @@ impl MessengerState {
         let neighbor_state = self.neighbors.get_mut(&reset_neighbor_channel.neighbor_public_key)
             .ok_or(HandleAppManagerError::NeighborDoesNotExist)?;
 
-        let new_token_channel_slot = TokenChannelSlot::new(
+        let new_token_channel_slot = TokenChannelSlot::new_from_reset(
             &self.local_public_key,
             &reset_neighbor_channel.neighbor_public_key,
             &reset_neighbor_channel.current_token,

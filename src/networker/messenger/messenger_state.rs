@@ -38,7 +38,7 @@ pub struct TokenChannelSlot {
                       */
 
 impl TokenChannelSlot {
-    pub fn new(local_public_key: &PublicKey,
+    pub fn new_from_reset(local_public_key: &PublicKey,
            remote_public_key: &PublicKey,
            current_token: &ChannelToken,
            balance: i64) -> TokenChannelSlot {
