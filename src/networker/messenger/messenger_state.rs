@@ -15,7 +15,7 @@ use app_manager::messages::{SetNeighborRemoteMaxDebt, SetNeighborMaxChannels, Ad
 use super::handle_neighbor::NeighborSetMaxTokenChannels;
 
 #[allow(dead_code)]
-enum TokenChannelStatus {
+pub enum TokenChannelStatus {
     Valid,
     Inconsistent {
         current_token: ChannelToken,
@@ -26,7 +26,7 @@ enum TokenChannelStatus {
 #[allow(unused)]
 pub struct TokenChannelSlot {
     tc_state: NeighborTCState,
-    tc_status: TokenChannelStatus,
+    pub tc_status: TokenChannelStatus,
     pub wanted_remote_max_debt: u64,
     pub pending_operations: VecDeque<NeighborTcOp>,
     // Pending operations to be sent to the token channel.
@@ -34,7 +34,6 @@ pub struct TokenChannelSlot {
 
 
 impl TokenChannelSlot {
-    #[allow(unused)]
     pub fn new(local_public_key: &PublicKey,
                remote_public_key: &PublicKey,
                token_channel_index: u16) -> TokenChannelSlot {

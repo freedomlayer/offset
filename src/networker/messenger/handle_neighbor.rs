@@ -2,7 +2,8 @@ use crypto::rand_values::RandValue;
 use crypto::identity::PublicKey;
 use proto::networker::ChannelToken;
 
-use super::messenger_state::{MessengerState, MessengerTask, DatabaseMessage, NeighborMessage};
+use super::messenger_state::{MessengerState, MessengerTask, TokenChannelSlot, 
+    TokenChannelStatus, DatabaseMessage, NeighborMessage};
 use super::types::NeighborTcOp;
 
 #[allow(unused)]
@@ -66,21 +67,17 @@ impl MessengerState {
         }
 
         
-        /*
-        neighbor.token_channel_slots
+        // Obtain existing token channel slot, or create a new one:
+        let token_channel_slot = neighbor.token_channel_slots
             .entry(channel_index)
-            .or_insert(TokenChannelSlot::
+            .or_insert(TokenChannelSlot::new(&self.local_public_key,
+                                             &remote_public_key,
+                                             channel_index));
 
-        // Find token channel slot:
-        let token_channel_slot = match neighbor
-            .token_channel_slots
-            .get_mut(&neighbor_move_token.token_channel_index) {
-
-            None => {},
-            Some(token_channel_slot) => {}
-        };
-        */
-
+        // Make sure that the token channel is consistent:
+        if let TokenChannelStatus::Inconsistent {..} = token_channel_slot.tc_status {
+            //  TODO: If token channel is not consistent, send inconsistency message.
+        }
         // TODO:
         // - Attempt to receieve the neighbor_move_token transaction.
         //      - On failure: Report inconsistency to AppManager
