@@ -12,6 +12,7 @@ pub struct NeighborMoveToken {
     operations: Vec<NeighborTcOp>,
     old_token: ChannelToken,
     rand_nonce: RandValue,
+    new_token: ChannelToken,
 }
 
 #[allow(unused)]
@@ -83,6 +84,17 @@ impl MessengerState {
                     = token_channel_slot.tc_status {
             return Err(HandleNeighborMessageError::ChannelIsInconsistent);
         };
+
+        // TODO:
+        // Check if incoming message is an attempt to reset channel.
+        // We can know this by checking if new_token is a special value.
+        
+        // let reset_new_token = 
+
+        // if neighbor_move_token.new_token == 
+
+
+
         // TODO:
         // - Attempt to receieve the neighbor_move_token transaction.
         //      - On failure: Report inconsistency to AppManager
