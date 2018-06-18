@@ -1,10 +1,11 @@
 #![warn(unused)]
 
+use std::convert::TryFrom;
 use byteorder::{BigEndian, WriteBytesExt};
 
 use proto::networker::ChannelToken;
 use crypto::identity::PublicKey;
-use crypto::rand_values::RandValue;
+use crypto::rand_values::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
 use networker::messages::MoveTokenDirection;
 use super::token_channel::{TokenChannel, ProcessOperationOutput, 
@@ -43,6 +44,20 @@ pub enum ReceiveMoveTokenOutput {
     ProcessTransListOutput(Vec<ProcessOperationOutput>),
 }
 
+/// Calculate the next token channel, given values of previous NeighborMoveToken message.
+fn calc_channel_token(token_channel_index: u16, 
+                      contents: &[u8], 
+                      old_token: &ChannelToken,
+                      rand_nonce: &RandValue) -> ChannelToken {
+
+    let mut hash_buffer = Vec::new();
+    hash_buffer.write_u16::<BigEndian>(token_channel_index).expect("Error serializing u16");
+    hash_buffer.extend_from_slice(contents);
+    hash_buffer.extend_from_slice(old_token);
+    hash_buffer.extend_from_slice(rand_nonce);
+    let hash_result = sha_512_256(&hash_buffer);
+    ChannelToken::from(hash_result.as_array_ref())
+}
 
 
 impl NeighborTCState {
@@ -70,16 +85,18 @@ impl NeighborTCState {
         } else {
             // We are the second sender
             // Calculate hash(FirstMoveTokenLower):
-            hash_buffer.write_u16::<BigEndian>(token_channel_index);
-            hash_buffer.extend_from_slice(&local_pk_hash);
-            hash_buffer.extend_from_slice(&remote_pk_hash);
-            let first_move_token_lower_hash = sha_512_256(&hash_buffer);
+            let rand_value = RandValue::try_from(&remote_pk_hash.as_ref()[.. RAND_VALUE_LEN])
+                .expect("Failed to trim a public key hash into the size of random value!");
+            let new_token = calc_channel_token(token_channel_index,
+                                               &[],
+                                               &ChannelToken::from(local_pk_hash.as_array_ref()),
+                                               &rand_value);
 
             NeighborTCState {
                 chain_state: ChainState {
                     direction: MoveTokenDirection::Incoming,
-                    old_token: ChannelToken::from(first_move_token_lower_hash.as_array_ref()),    // TODO: What to put here?
-                    new_token: ChannelToken::from(first_move_token_lower_hash.as_array_ref()),
+                    old_token: new_token.clone(), // TODO: What to put here?
+                    new_token,
                 },
                 token_channel: Some(new_token_channel),
             }
