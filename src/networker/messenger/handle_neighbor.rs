@@ -79,7 +79,7 @@ impl MessengerState {
         // This means that the remote side has sent an InconsistencyError message in the past.
         // In this case, we are not willing to accept new messages from the remote side until the
         // inconsistency is resolved.
-        if let TokenChannelStatus::Inconsistent { current_token, balance_for_reset} 
+        if let TokenChannelStatus::Inconsistent { .. } 
                     = token_channel_slot.tc_status {
             return Err(HandleNeighborMessageError::ChannelIsInconsistent);
         };
