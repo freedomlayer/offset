@@ -22,9 +22,16 @@ impl ::std::error::Error for TryFromBytesError {
 #[macro_export]
 macro_rules! define_fixed_bytes {
     ($name:ident, $len:expr) => {
-        #[derive(Default, Debug, Clone, Eq, PartialEq, Hash)]
+        #[derive(Default, Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
         pub struct $name([u8; $len]);
 
+        impl $name {
+            #[allow(unused)]
+            #[inline]
+            pub fn as_array_ref(&self) -> &[u8; $len] {
+                &self.0
+            }
+        }
         impl AsRef<[u8]> for $name {
             #[inline]
             fn as_ref(&self) -> &[u8] {

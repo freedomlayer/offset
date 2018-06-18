@@ -1,8 +1,11 @@
 #![warn(unused)]
 
+use byteorder::{BigEndian, WriteBytesExt};
+
 use proto::networker::ChannelToken;
 use crypto::identity::PublicKey;
 use crypto::rand_values::RandValue;
+use crypto::hash::sha_512_256;
 use networker::messages::MoveTokenDirection;
 use super::token_channel::{TokenChannel, ProcessOperationOutput, 
     ProcessTransListError, atomic_process_operations_list};
@@ -45,13 +48,44 @@ pub enum ReceiveMoveTokenOutput {
 impl NeighborTCState {
     #[allow(unused)]
     pub fn new(local_public_key: &PublicKey, 
-               remote_public_key: &PublicKey) -> NeighborTCState {
-        // TODO:
-        // - balance should be 0.
-        // - The current tokens for both sides should be calculated deterministically.
-        // - One side should be the initial sender, and one side should be the initial receiver.
-        unreachable!();
+               remote_public_key: &PublicKey,
+               token_channel_index: u16) -> NeighborTCState {
+
+        let mut hash_buffer: Vec<u8> = Vec::new();
+
+        let local_pk_hash = sha_512_256(local_public_key);
+        let remote_pk_hash = sha_512_256(remote_public_key);
+        let new_token_channel = TokenChannel::new(local_public_key, remote_public_key, 0);
+
+        if local_pk_hash < remote_pk_hash {
+            // We are the first sender
+            NeighborTCState {
+                chain_state: ChainState {
+                    direction: MoveTokenDirection::Outgoing,
+                    old_token: ChannelToken::from(local_pk_hash.as_array_ref()),
+                    new_token: ChannelToken::from(remote_pk_hash.as_array_ref()),
+                },
+                token_channel: Some(new_token_channel),
+            }
+        } else {
+            // We are the second sender
+            // Calculate hash(FirstMoveTokenLower):
+            hash_buffer.write_u16::<BigEndian>(token_channel_index);
+            hash_buffer.extend_from_slice(&local_pk_hash);
+            hash_buffer.extend_from_slice(&remote_pk_hash);
+            let first_move_token_lower_hash = sha_512_256(&hash_buffer);
+
+            NeighborTCState {
+                chain_state: ChainState {
+                    direction: MoveTokenDirection::Incoming,
+                    old_token: ChannelToken::from(first_move_token_lower_hash.as_array_ref()),    // TODO: What to put here?
+                    new_token: ChannelToken::from(first_move_token_lower_hash.as_array_ref()),
+                },
+                token_channel: Some(new_token_channel),
+            }
+        }
     }
+
     pub fn new_from_reset(local_public_key: &PublicKey, 
                       remote_public_key: &PublicKey, 
                       current_token: &ChannelToken, 
