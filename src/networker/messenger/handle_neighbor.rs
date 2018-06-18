@@ -81,8 +81,7 @@ impl MessengerState {
         // inconsistency is resolved.
         if let TokenChannelStatus::Inconsistent { current_token, balance_for_reset} 
                     = token_channel_slot.tc_status {
-                return Err(HandleNeighborMessageError::ChannelIsInconsistent);
-            },
+            return Err(HandleNeighborMessageError::ChannelIsInconsistent);
         };
         // TODO:
         // - Attempt to receieve the neighbor_move_token transaction.
