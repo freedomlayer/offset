@@ -118,6 +118,7 @@ pub enum FunderMessage {
 
 }
 
+#[allow(unused)]
 pub enum NeighborMessage {
     MoveToken(NeighborMoveToken),
     InconsistencyError(NeighborInconsistencyError),
