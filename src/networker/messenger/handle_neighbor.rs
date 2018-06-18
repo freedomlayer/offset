@@ -2,7 +2,7 @@ use crypto::rand_values::RandValue;
 use crypto::identity::PublicKey;
 use proto::networker::ChannelToken;
 
-use super::messenger_state::{MessengerState, MessengerTask, DatabaseMessage};
+use super::messenger_state::{MessengerState, MessengerTask, DatabaseMessage, NeighborMessage};
 use super::types::NeighborTcOp;
 
 #[allow(unused)]
@@ -26,7 +26,7 @@ pub struct NeighborSetMaxTokenChannels {
 }
 
 #[allow(unused)]
-pub enum NeighborMessage {
+pub enum IncomingNeighborMessage {
     MoveToken(NeighborMoveToken),
     InconsistencyError(NeighborInconsistencyError),
     SetMaxTokenChannels(NeighborSetMaxTokenChannels),
@@ -62,15 +62,15 @@ impl MessengerState {
 
     pub fn handle_neighbor_message(&mut self, 
                                    remote_public_key: &PublicKey, 
-                                   neighbor_message: NeighborMessage)
+                                   neighbor_message: IncomingNeighborMessage)
         -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
 
         match neighbor_message {
-            NeighborMessage::MoveToken(neighbor_move_token) =>
+            IncomingNeighborMessage::MoveToken(neighbor_move_token) =>
                 self.handle_move_token(remote_public_key, neighbor_move_token),
-            NeighborMessage::InconsistencyError(neighbor_inconsistency_error) =>
+            IncomingNeighborMessage::InconsistencyError(neighbor_inconsistency_error) =>
                 self.handle_inconsistency_error(remote_public_key, neighbor_inconsistency_error),
-            NeighborMessage::SetMaxTokenChannels(neighbor_set_max_token_channels) =>
+            IncomingNeighborMessage::SetMaxTokenChannels(neighbor_set_max_token_channels) =>
                 self.handle_set_max_token_channels(remote_public_key, neighbor_set_max_token_channels),
         }
     }
