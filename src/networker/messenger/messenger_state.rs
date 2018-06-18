@@ -32,18 +32,26 @@ pub struct TokenChannelSlot {
     // Pending operations to be sent to the token channel.
 }
 
-/*
-    fn new_from_reset(local_public_key: &PublicKey, 
-                      remote_public_key: &PublicKey, 
-                      current_token: &ChannelToken, 
-                      balance: i64) -> NeighborTCState {
-                      */
 
 impl TokenChannelSlot {
+    #[allow(unused)]
+    pub fn new(local_public_key: &PublicKey,
+               remote_public_key: &PublicKey,
+               token_channel_index: u16) -> TokenChannelSlot {
+        TokenChannelSlot {
+            tc_state: NeighborTCState::new(local_public_key,
+                                           remote_public_key,
+                                           token_channel_index),
+            tc_status: TokenChannelStatus::Valid,
+            wanted_remote_max_debt: 0,
+            pending_operations: VecDeque::new(),
+        }
+    }
+
     pub fn new_from_reset(local_public_key: &PublicKey,
-           remote_public_key: &PublicKey,
-           current_token: &ChannelToken,
-           balance: i64) -> TokenChannelSlot {
+                           remote_public_key: &PublicKey,
+                           current_token: &ChannelToken,
+                           balance: i64) -> TokenChannelSlot {
 
         TokenChannelSlot {
             tc_state: NeighborTCState::new_from_reset(local_public_key,
