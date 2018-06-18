@@ -12,7 +12,8 @@ use super::super::messages::{NeighborStatus};
 use app_manager::messages::{SetNeighborRemoteMaxDebt, SetNeighborMaxChannels, AddNeighbor, RemoveNeighbor, 
     ResetNeighborChannel, SetNeighborStatus};
 
-use super::handle_neighbor::NeighborSetMaxTokenChannels;
+use super::handle_neighbor::{NeighborMoveToken, NeighborInconsistencyError, 
+    NeighborSetMaxTokenChannels};
 
 #[allow(dead_code)]
 pub enum TokenChannelStatus {
@@ -118,6 +119,8 @@ pub enum FunderMessage {
 }
 
 pub enum NeighborMessage {
+    MoveToken(NeighborMoveToken),
+    InconsistencyError(NeighborInconsistencyError),
     SetMaxTokenChannels(NeighborSetMaxTokenChannels),
 }
 
