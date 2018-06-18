@@ -29,12 +29,12 @@ pub struct NeighborTCState {
 }
 
 #[derive(Debug)]
-pub enum NeighborTCStateError {
+pub enum ReceiveMoveTokenError {
     ChainInconsistency,
     InvalidTransaction(ProcessTransListError),
 }
 
-pub enum ReceiveTokenOutput {
+pub enum ReceiveMoveTokenOutput {
     Duplicate,
     RetransmitOutgoing,
     ProcessTransListOutput(Vec<ProcessOperationOutput>),
@@ -61,16 +61,16 @@ impl NeighborTCState {
     pub fn receive_move_token(&mut self, 
                               move_token_message: NeighborMoveTokenInner, 
                               new_token: ChannelToken) 
-        -> Result<ReceiveTokenOutput, NeighborTCStateError> {
+        -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
 
         match self.chain_state.direction {
             MoveTokenDirection::Incoming => {
                 if new_token == self.chain_state.new_token {
                     // Duplicate
-                    Ok(ReceiveTokenOutput::Duplicate)
+                    Ok(ReceiveMoveTokenOutput::Duplicate)
                 } else {
                     // Inconsistency
-                    Err(NeighborTCStateError::ChainInconsistency)
+                    Err(ReceiveMoveTokenError::ChainInconsistency)
                 }
             },
             MoveTokenDirection::Outgoing => {
@@ -87,18 +87,18 @@ impl NeighborTCState {
                                 new_token,
                                 direction: MoveTokenDirection::Incoming,
                             };
-                            Ok(ReceiveTokenOutput::ProcessTransListOutput(output))
+                            Ok(ReceiveMoveTokenOutput::ProcessTransListOutput(output))
                         },
                         (token_channel, Err(e)) => {
                             self.token_channel = Some(token_channel);
-                            Err(NeighborTCStateError::InvalidTransaction(e))
+                            Err(ReceiveMoveTokenError::InvalidTransaction(e))
                         },
                     }
                 } else if self.chain_state.old_token == new_token {
                     // We should retransmit send our message to the remote side.
-                    Ok(ReceiveTokenOutput::RetransmitOutgoing)
+                    Ok(ReceiveMoveTokenOutput::RetransmitOutgoing)
                 } else {
-                    Err(NeighborTCStateError::ChainInconsistency)
+                    Err(ReceiveMoveTokenError::ChainInconsistency)
                 }
             },
         }
@@ -113,5 +113,3 @@ impl NeighborTCState {
         Ok(())
     }
 }
-
-
