@@ -12,6 +12,8 @@ use super::super::messages::{NeighborStatus};
 use app_manager::messages::{SetNeighborRemoteMaxDebt, SetNeighborMaxChannels, AddNeighbor, RemoveNeighbor, 
     ResetNeighborChannel, SetNeighborStatus};
 
+use super::handle_neighbor::NeighborSetMaxTokenChannels;
+
 #[allow(dead_code)]
 enum TokenChannelStatus {
     Valid,
@@ -108,8 +110,8 @@ pub enum FunderMessage {
 
 }
 
-pub enum ChannelerMessage {
-
+pub enum NeighborMessage {
+    SetMaxTokenChannels(NeighborSetMaxTokenChannels),
 }
 
 pub enum CrypterMessage {
@@ -131,7 +133,7 @@ pub enum DatabaseMessage {
 pub enum MessengerTask {
     AppManagerMessage(AppManagerMessage),
     FunderMessage(FunderMessage),
-    ChannelerMessage(ChannelerMessage),
+    NeighborMessage(NeighborMessage),
     CrypterMessage(CrypterMessage),
 }
 
@@ -148,4 +150,3 @@ impl MessengerState {
     }
 
 }
-
