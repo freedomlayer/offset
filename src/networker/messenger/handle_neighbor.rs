@@ -88,6 +88,11 @@ impl MessengerState {
         // TODO:
         // Check if incoming message is an attempt to reset channel.
         // We can know this by checking if new_token is a special value.
+
+        // - Create a function that generates the special hash. Should take into consideration:
+        //      - Prefix of RESET
+        //      - Current old_token and new_token.
+        //      - Direction of last move token message.
         
         // let reset_new_token = 
 
