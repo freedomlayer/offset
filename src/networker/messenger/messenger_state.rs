@@ -26,7 +26,7 @@ pub enum TokenChannelStatus {
 
 #[allow(unused)]
 pub struct TokenChannelSlot {
-    tc_state: NeighborTCState,
+    pub tc_state: NeighborTCState,
     pub tc_status: TokenChannelStatus,
     pub wanted_remote_max_debt: u64,
     pub pending_operations: VecDeque<NeighborTcOp>,
