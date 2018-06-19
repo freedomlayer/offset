@@ -67,8 +67,9 @@ fn calc_channel_next_token(token_channel_index: u16,
     ChannelToken::from(hash_result.as_array_ref())
 }
 
+/// Calculate the token to be used for resetting the channel.
 #[allow(unused)]
-fn calc_channel_reset_token(token_channel_index: u16,
+pub fn calc_channel_reset_token(token_channel_index: u16,
                       new_token: &ChannelToken,
                       balance_for_reset: i64) -> ChannelToken {
 
@@ -138,6 +139,28 @@ impl NeighborTCState {
             opt_token_channel: Some(TokenChannel::new(local_public_key, remote_public_key, balance)),
         }
     }
+
+    /// Get a reference to internal token_channel.
+    pub fn get_token_channel(&self) -> &TokenChannel {
+        if let Some(ref token_channel) = self.opt_token_channel {
+            token_channel
+        } else {
+            panic!("token_channel is not present!");
+        }
+    }
+
+    #[allow(unused)]
+    pub fn balance_for_reset(&self) -> i64 {
+        self.get_token_channel().balance_for_reset()
+    }
+
+    #[allow(unused)]
+    pub fn calc_channel_reset_token(&self, token_channel_index: u16) -> ChannelToken {
+        calc_channel_reset_token(token_channel_index,
+                                     &self.chain_state.new_token,
+                                     self.get_token_channel().balance_for_reset())
+    }
+
 
     #[allow(unused)]
     pub fn receive_move_token(&mut self, 
