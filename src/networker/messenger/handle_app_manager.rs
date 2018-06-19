@@ -56,17 +56,17 @@ impl MessengerHandler {
 
         Ok((db_messages, Vec::new()))
     }
-    /*
 
     fn app_manager_remove_neighbor(&mut self, remove_neighbor: RemoveNeighbor) 
-        -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
+        -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
-        let _ = self.neighbors.remove(&remove_neighbor.neighbor_public_key)
-            .ok_or(HandleAppManagerError::NeighborDoesNotExist)?;
+        let db_messages = self.state.remove_neighbor(remove_neighbor)
+            .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
 
-        Ok((Some(DatabaseMessage::RemoveNeighbor(remove_neighbor)), 
-            Vec::new()))
+        Ok((db_messages, Vec::new()))
     }
+
+    /*
 
     fn app_manager_set_neighbor_status(&mut self, set_neighbor_status: SetNeighborStatus) 
         -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {

@@ -216,4 +216,14 @@ impl MessengerState {
 
         Ok(vec![DatabaseMessage::AddNeighbor(add_neighbor)])
     }
+
+    pub fn remove_neighbor(&mut self, 
+                        remove_neighbor: RemoveNeighbor) 
+                        -> Result<Vec<DatabaseMessage>, MessengerStateError> {
+
+        let _ = self.neighbors.remove(&remove_neighbor.neighbor_public_key)
+            .ok_or(MessengerStateError::NeighborDoesNotExist)?;
+
+        Ok(vec![DatabaseMessage::RemoveNeighbor(remove_neighbor)])
+    }
 }
