@@ -21,10 +21,7 @@ impl MessengerHandler {
                                                 set_neighbor_remote_max_debt: SetNeighborRemoteMaxDebt) 
         -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
-        let db_messages = self.state.set_neighbor_remote_max_debt(
-                                                &set_neighbor_remote_max_debt.neighbor_public_key,
-                                                set_neighbor_remote_max_debt.channel_index,
-                                                set_neighbor_remote_max_debt.remote_max_debt)
+        let db_messages = self.state.set_neighbor_remote_max_debt(set_neighbor_remote_max_debt)
             .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
 
         Ok((db_messages, Vec::new()))

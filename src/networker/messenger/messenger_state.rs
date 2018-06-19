@@ -140,22 +140,18 @@ impl MessengerState {
     }
 
     pub fn set_neighbor_remote_max_debt(&mut self, 
-                                        neighbor_public_key: &PublicKey,
-                                        channel_index: u16,
-                                        remote_max_debt: u64) -> Result<Vec<DatabaseMessage>, MessengerStateError> {
+                                        set_neighbor_remote_max_debt: SetNeighborRemoteMaxDebt)
+                                        -> Result<Vec<DatabaseMessage>, MessengerStateError> {
 
-        let neighbor_state = self.neighbors.get_mut(neighbor_public_key)
+        let neighbor_state = self.neighbors.get_mut(&set_neighbor_remote_max_debt.neighbor_public_key)
             .ok_or(MessengerStateError::NeighborDoesNotExist)?;
         
         // Find the token channel slot:
-        let token_channel_slot = neighbor_state.token_channel_slots.get_mut(&channel_index)
+        let token_channel_slot = neighbor_state.token_channel_slots
+            .get_mut(&set_neighbor_remote_max_debt.channel_index)
             .ok_or(MessengerStateError::TokenChannelDoesNotExist)?;
 
-        token_channel_slot.wanted_remote_max_debt = remote_max_debt;
-        Ok(vec![DatabaseMessage::SetNeighborRemoteMaxDebt(SetNeighborRemoteMaxDebt {
-            neighbor_public_key: neighbor_public_key.clone(),
-            channel_index,
-            remote_max_debt,
-        })])
+        token_channel_slot.wanted_remote_max_debt = set_neighbor_remote_max_debt.remote_max_debt;
+        Ok(vec![DatabaseMessage::SetNeighborRemoteMaxDebt(set_neighbor_remote_max_debt)])
     }
 }
