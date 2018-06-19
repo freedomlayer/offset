@@ -184,4 +184,17 @@ impl MessengerState {
 
         Ok(vec![DatabaseMessage::ResetNeighborChannel(reset_neighbor_channel)])
     }
+
+    pub fn set_neighbor_max_channels(&mut self, 
+                                    set_neighbor_max_channels: SetNeighborMaxChannels) 
+                                    -> Result<Vec<DatabaseMessage>, MessengerStateError> {
+
+        // Check if we have the requested neighbor:
+        let neighbor_state = self.neighbors.get_mut(&set_neighbor_max_channels.neighbor_public_key)
+            .ok_or(MessengerStateError::NeighborDoesNotExist)?;
+
+        neighbor_state.local_max_channels = set_neighbor_max_channels.max_channels;
+
+        Ok(vec![DatabaseMessage::SetNeighborMaxChannels(set_neighbor_max_channels)])
+    }
 }

@@ -37,21 +37,17 @@ impl MessengerHandler {
         Ok((db_messages, Vec::new()))
     }
 
-    /*
     fn app_manager_set_neighbor_max_channels(&mut self, 
                                           set_neighbor_max_channels: SetNeighborMaxChannels) 
-        -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
+        -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
-        // Check if we have the requested neighbor:
-        let neighbor_state = self.neighbors.get_mut(&set_neighbor_max_channels.neighbor_public_key)
-            .ok_or(HandleAppManagerError::NeighborDoesNotExist)?;
+        let db_messages = self.state.set_neighbor_max_channels(set_neighbor_max_channels)
+            .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
 
-        neighbor_state.local_max_channels = set_neighbor_max_channels.max_channels;
-
-        Ok((Some(DatabaseMessage::SetNeighborMaxChannels(set_neighbor_max_channels)), 
-            Vec::new()))
+        Ok((db_messages, Vec::new()))
     }
 
+    /*
     fn app_manager_add_neighbor(&mut self, add_neighbor: AddNeighbor) 
         -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
