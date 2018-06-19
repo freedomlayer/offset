@@ -135,7 +135,7 @@ impl NeighborTCState {
                 old_token: current_token.clone(), // TODO: What to put here?
                 new_token: current_token.clone(),
             },
-            token_channel: Some(TokenChannel::new(local_public_key, remote_public_key, balance)),
+            opt_token_channel: Some(TokenChannel::new(local_public_key, remote_public_key, balance)),
         }
     }
 
