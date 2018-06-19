@@ -75,11 +75,10 @@ impl MessengerHandler {
 
         Ok((db_messages, Vec::new()))
     }
-    /*
 
     pub fn handle_app_manager_message(&mut self, 
                                       networker_config: NetworkerConfig) 
-        -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
+        -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
 
         match networker_config {
@@ -97,6 +96,5 @@ impl MessengerHandler {
                 self.app_manager_set_neighbor_status(set_neighbor_status),
         }
     }
-    */
 
 }
