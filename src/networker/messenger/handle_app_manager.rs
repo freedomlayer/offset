@@ -66,20 +66,16 @@ impl MessengerHandler {
         Ok((db_messages, Vec::new()))
     }
 
-    /*
 
     fn app_manager_set_neighbor_status(&mut self, set_neighbor_status: SetNeighborStatus) 
-        -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
+        -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
-        // Check if we have the requested neighbor:
-        let neighbor_state = self.neighbors.get_mut(&set_neighbor_status.neighbor_public_key)
-            .ok_or(HandleAppManagerError::NeighborDoesNotExist)?;
+        let db_messages = self.state.set_neighbor_status(set_neighbor_status)
+            .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
 
-        neighbor_state.status = set_neighbor_status.status;
-
-        Ok((Some(DatabaseMessage::SetNeighborStatus(set_neighbor_status)), 
-            Vec::new()))
+        Ok((db_messages, Vec::new()))
     }
+    /*
 
     pub fn handle_app_manager_message(&mut self, 
                                       networker_config: NetworkerConfig) 

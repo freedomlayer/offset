@@ -226,4 +226,17 @@ impl MessengerState {
 
         Ok(vec![DatabaseMessage::RemoveNeighbor(remove_neighbor)])
     }
+
+    pub fn set_neighbor_status(&mut self, 
+                        set_neighbor_status: SetNeighborStatus) 
+                        -> Result<Vec<DatabaseMessage>, MessengerStateError> {
+
+        // Check if we have the requested neighbor:
+        let neighbor_state = self.neighbors.get_mut(&set_neighbor_status.neighbor_public_key)
+            .ok_or(MessengerStateError::NeighborDoesNotExist)?;
+
+        neighbor_state.status = set_neighbor_status.status;
+
+        Ok(vec![DatabaseMessage::SetNeighborStatus(set_neighbor_status)])
+    }
 }
