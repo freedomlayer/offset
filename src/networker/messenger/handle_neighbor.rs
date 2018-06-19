@@ -1,10 +1,11 @@
 use crypto::rand_values::RandValue;
 use crypto::identity::PublicKey;
+use crypto::uid::Uid;
 use proto::networker::ChannelToken;
 
 use super::messenger_state::{MessengerState, MessengerTask, TokenChannelSlot, 
-    TokenChannelStatus, DatabaseMessage, NeighborMessage};
-use super::types::NeighborTcOp;
+    TokenChannelStatus, DatabaseMessage, NeighborMessage, NeighborState};
+use super::types::{NeighborTcOp, PendingNeighborRequest, FailureSendMessage};
 
 #[allow(unused)]
 pub struct NeighborMoveToken {
@@ -43,13 +44,52 @@ pub enum HandleNeighborMessageError {
 
 #[allow(unused)]
 impl MessengerState {
+
+    /// Find the token channel in which a remote pending request resides
+    /// Returns the index of the found token channel, or None if not found.
+    fn find_token_channel_by_request_id(&self, 
+                                        neighbor: &NeighborState, 
+                                        request_id: &Uid) -> Option<u16> {
+
+        for (&channel_index, token_channel_slot) in &neighbor.token_channel_slots {
+            let pending_remote_requests = token_channel_slot.tc_state
+                .get_token_channel()
+                .pending_remote_requests();
+            if pending_remote_requests.get(request_id).is_none() {
+                return Some(channel_index)
+            }
+        }
+        None
+    }
+
+
+    /// Find the originator of a pending local request.
+    /// This should be a pending remote request at some other neighbor.
+    /// Returns the public key of a neighbor together with the channel_index of a
+    /// token channel. If we are the origin of this request, the function return None.
+    fn find_request_origin(&self, pending_local_request: &PendingNeighborRequest) -> Option<(PublicKey, u16)> {
+        let local_index = pending_local_request.route.pk_index(&self.local_public_key)
+            .expect("Can not find local public key inside route!");
+        let prev_index = local_index.checked_sub(1)?;
+        let prev_pk = pending_local_request.route.pk_by_index(prev_index)
+            .expect("Index was not found!");
+        let orig_neighbor = self.neighbors
+            .get(&prev_pk)
+            .expect("Originator neighbor is missing!");
+
+        let channel_index = self.find_token_channel_by_request_id(&orig_neighbor, 
+                                              &pending_local_request.request_id)
+                                                .expect("request can not be found!");
+        Some((prev_pk.clone(), channel_index))
+    }
+
     fn handle_move_token(&mut self, 
                          remote_public_key: &PublicKey,
                          neighbor_move_token: NeighborMoveToken) 
          -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
 
         // Find neighbor:
-        let neighbor = self.neighbors.get_mut(remote_public_key)
+        let neighbor = self.neighbors.get(remote_public_key)
             .ok_or(HandleNeighborMessageError::NeighborNotFound)?;
 
 
@@ -68,14 +108,24 @@ impl MessengerState {
             return Ok((None, messenger_tasks));
         }
 
-        
-        // Obtain existing token channel slot, or create a new one:
-        let token_channel_slot = neighbor.token_channel_slots
+
+        let mut neighbor = self.neighbors.remove(remote_public_key)
+            .expect("Neighbor was not found!");
+
+
+        // Create token_channel_slot if nonexistent:
+        neighbor.token_channel_slots
             .entry(channel_index)
             .or_insert(TokenChannelSlot::new(&self.local_public_key,
                                              &remote_public_key,
                                              channel_index));
-        // TODO: Database should be informed about the creation of a new token channel.
+
+        let token_channel_slot = neighbor.token_channel_slots
+            .get(&channel_index)
+            .expect("token_channel_slot not found!");
+
+        // QUESTION: Should Database be informed about the creation of a new token channel?
+        // This is not really a creation of anything new, as we create the default new channel.
 
         // Check if the channel is inconsistent.
         // This means that the remote side has sent an InconsistencyError message in the past.
@@ -83,6 +133,7 @@ impl MessengerState {
         // inconsistency is resolved.
         if let TokenChannelStatus::Inconsistent { .. } 
                     = token_channel_slot.tc_status {
+            self.neighbors.insert(remote_public_key.clone(), neighbor);
             return Err(HandleNeighborMessageError::ChannelIsInconsistent);
         };
 
@@ -93,22 +144,46 @@ impl MessengerState {
         if neighbor_move_token.new_token == reset_token {
             // This is a reset message. We reset the token channel:
             
-            // TODO: Mark all pending requests to this neighbor as errors.
-            // We will never get a response.
-            // This is done by queueing error messages to all the relevant neighbors.
-
+            // Mark all pending requests to this neighbor as errors.
+            // As the token channel is being reset, we can be sure we will never obtain a response
+            // for those requests.
             let pending_local_requests = token_channel_slot.tc_state
                 .get_token_channel()
                 .pending_local_requests();
             
-            for (request_id, pending_request) in pending_local_requests {
-                // TODO:
-                // - Find originating node for each request. (If this is us, we do nothing).
-                // - Go the originating node relevant token channel (How to find?) and queue an
-                //   Error message. 
-                //
-                //   The TokenChannel will be responsible for eliminating 
+            for (local_request_id, pending_local_request) in pending_local_requests {
+
+                // Find the originating neighbor for this request:
+                let origin = self.find_request_origin(pending_local_request);
+                let (origin_public_key, origin_channel_index) = match origin {
+                    Some((public_key, channel_index)) => (public_key, channel_index),
+                    None => continue,
+                };
+
+                let orig_neighbor = self.neighbors
+                    .get_mut(&origin_public_key)
+                    .expect("Neighbor does not exist!");
+
+                let orig_token_channel_slot = orig_neighbor.token_channel_slots
+                    .get_mut(&origin_channel_index)
+                    .expect("Token Channel does not exist!");
+
+                // Queue a failure message to the originating token channel:
+                orig_token_channel_slot.pending_operations.push_back(
+                    NeighborTcOp::FailureSendMessage(FailureSendMessage {
+                        request_id: local_request_id.clone(),
+                        reporting_public_key: self.local_public_key.clone(),
+                        rand_nonce_signatures: Vec::new(), // TODO
+                    })
+                );
+                unreachable!(); // TODO: construct rand_nonce_signatures
             }
+
+            // TODO: 
+            // - Construct rand_nonce_signatures (Possibly require adding a random generator
+            //      argument, to generate the rand nonce).
+            // - Add database messages for all state mutations (How to do this well?)
+            // - Continue processing the MoveToken message.
 
             // Replace slot with a new one:
             let token_channel_slot = TokenChannelSlot::new_from_reset(&self.local_public_key,
@@ -118,19 +193,13 @@ impl MessengerState {
             neighbor.token_channel_slots.insert(channel_index, token_channel_slot);
         }
 
-        // - Create a function that generates the special hash. Should take into consideration:
-        //      - Prefix of RESET
-        //      - Current old_token and new_token.
-        //      - Direction of last move token message.
-        
-        // let reset_new_token = 
-
-        // if neighbor_move_token.new_token == 
+        // Insert back neighbor into the neighbors hashmap:
+        self.neighbors.insert(remote_public_key.clone(), neighbor);
 
 
 
         // TODO:
-        // - Attempt to receieve the neighbor_move_token transaction.
+        // - Attempt to receive the neighbor_move_token transaction.
         //      - On failure: Report inconsistency to AppManager
         //      - On success: 
         //          - Ignore? (If duplicate)
