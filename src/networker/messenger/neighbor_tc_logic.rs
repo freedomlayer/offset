@@ -17,7 +17,7 @@ use super::types::NeighborTcOp;
 // RESET is used for resetting the token channel.
 // The prefix allows the receiver to distinguish between the two cases.
 const TOKEN_NEXT: &[u8] = b"NEXT";
-// const TOKEN_RESET: &[u8] = b"RESET";
+const TOKEN_RESET: &[u8] = b"RESET";
 
 pub struct NeighborMoveTokenInner {
     pub operations: Vec<NeighborTcOp>,
@@ -63,6 +63,20 @@ fn calc_channel_next_token(token_channel_index: u16,
     hash_buffer.extend_from_slice(contents);
     hash_buffer.extend_from_slice(old_token);
     hash_buffer.extend_from_slice(rand_nonce);
+    let hash_result = sha_512_256(&hash_buffer);
+    ChannelToken::from(hash_result.as_array_ref())
+}
+
+#[allow(unused)]
+fn calc_channel_reset_token(token_channel_index: u16,
+                      new_token: &ChannelToken,
+                      balance_for_reset: i64) -> ChannelToken {
+
+    let mut hash_buffer = Vec::new();
+    hash_buffer.extend_from_slice(&sha_512_256(TOKEN_RESET));
+    hash_buffer.write_u16::<BigEndian>(token_channel_index).expect("Error serializing u16");
+    hash_buffer.extend_from_slice(&new_token);
+    hash_buffer.write_i64::<BigEndian>(balance_for_reset).expect("Error serializing i64");
     let hash_result = sha_512_256(&hash_buffer);
     ChannelToken::from(hash_result.as_array_ref())
 }
