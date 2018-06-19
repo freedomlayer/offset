@@ -236,6 +236,18 @@ impl TokenChannel {
             pending_requests: TCPendingRequests::new(),
         }
     }
+
+    /// Calculate required balance for reset.
+    /// This would be current balance plus additional future profits.
+    pub fn balance_for_reset(&self) -> i64 {
+        self.balance.balance
+            .checked_add_unsigned(self.balance.remote_pending_debt)
+            .expect("Overflow when calculating balance_for_reset")
+    }
+
+    pub fn pending_local_requests(&self) -> &HashMap<Uid, PendingNeighborRequest> {
+        &self.pending_requests.pending_local_requests
+    }
 }
 
 
