@@ -47,26 +47,16 @@ impl MessengerHandler {
         Ok((db_messages, Vec::new()))
     }
 
-    /*
-    fn app_manager_add_neighbor(&mut self, add_neighbor: AddNeighbor) 
-        -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
+    fn app_manager_add_neighbor(&mut self, 
+                                add_neighbor: AddNeighbor) 
+        -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
-        // If we already have the neighbor: return error.
-        if self.neighbors.contains_key(&add_neighbor.neighbor_public_key) {
-            return Err(HandleAppManagerError::NeighborAlreadyExists);
-        }
+        let db_messages = self.state.add_neighbor(add_neighbor)
+            .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
 
-        // Otherwise, we add a new neighbor:
-        let neighbor_state = NeighborState::new(
-                add_neighbor.neighbor_socket_addr,
-                add_neighbor.max_channels);
-
-        self.neighbors.insert(add_neighbor.neighbor_public_key.clone(), neighbor_state);
-
-        Ok((Some(DatabaseMessage::AddNeighbor(add_neighbor)), 
-            Vec::new()))
-
+        Ok((db_messages, Vec::new()))
     }
+    /*
 
     fn app_manager_remove_neighbor(&mut self, remove_neighbor: RemoveNeighbor) 
         -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {

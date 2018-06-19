@@ -197,4 +197,23 @@ impl MessengerState {
 
         Ok(vec![DatabaseMessage::SetNeighborMaxChannels(set_neighbor_max_channels)])
     }
+
+    pub fn add_neighbor(&mut self, 
+                        add_neighbor: AddNeighbor) 
+                        -> Result<Vec<DatabaseMessage>, MessengerStateError> {
+
+        // If we already have the neighbor: return error.
+        if self.neighbors.contains_key(&add_neighbor.neighbor_public_key) {
+            return Err(MessengerStateError::NeighborAlreadyExists);
+        }
+
+        // Otherwise, we add a new neighbor:
+        let neighbor_state = NeighborState::new(
+                add_neighbor.neighbor_socket_addr,
+                add_neighbor.max_channels);
+
+        self.neighbors.insert(add_neighbor.neighbor_public_key.clone(), neighbor_state);
+
+        Ok(vec![DatabaseMessage::AddNeighbor(add_neighbor)])
+    }
 }
