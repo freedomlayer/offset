@@ -75,6 +75,7 @@ impl MessengerState {
             .or_insert(TokenChannelSlot::new(&self.local_public_key,
                                              &remote_public_key,
                                              channel_index));
+        // TODO: Database should be informed about the creation of a new token channel.
 
         // Check if the channel is inconsistent.
         // This means that the remote side has sent an InconsistencyError message in the past.
@@ -85,9 +86,37 @@ impl MessengerState {
             return Err(HandleNeighborMessageError::ChannelIsInconsistent);
         };
 
-        // TODO:
         // Check if incoming message is an attempt to reset channel.
         // We can know this by checking if new_token is a special value.
+        let reset_token = token_channel_slot.tc_state.calc_channel_reset_token(channel_index);
+        let balance_for_reset = token_channel_slot.tc_state.balance_for_reset();
+        if neighbor_move_token.new_token == reset_token {
+            // This is a reset message. We reset the token channel:
+            
+            // TODO: Mark all pending requests to this neighbor as errors.
+            // We will never get a response.
+            // This is done by queueing error messages to all the relevant neighbors.
+
+            let pending_local_requests = token_channel_slot.tc_state
+                .get_token_channel()
+                .pending_local_requests();
+            
+            for (request_id, pending_request) in pending_local_requests {
+                // TODO:
+                // - Find originating node for each request. (If this is us, we do nothing).
+                // - Go the originating node relevant token channel (How to find?) and queue an
+                //   Error message. 
+                //
+                //   The TokenChannel will be responsible for eliminating 
+            }
+
+            // Replace slot with a new one:
+            let token_channel_slot = TokenChannelSlot::new_from_reset(&self.local_public_key,
+                                                                        remote_public_key,
+                                                                        &reset_token,
+                                                                        balance_for_reset);
+            neighbor.token_channel_slots.insert(channel_index, token_channel_slot);
+        }
 
         // - Create a function that generates the special hash. Should take into consideration:
         //      - Prefix of RESET
@@ -107,6 +136,9 @@ impl MessengerState {
         //          - Ignore? (If duplicate)
         //          - Retransmit outgoing?
         //          - Handle incoming messages
+        //
+        // - Possibly send any pending messages through this token channel (But first - write to
+        //  database).
         unreachable!();
     }
 
