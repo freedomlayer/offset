@@ -1,4 +1,3 @@
-use crypto::identity::PublicKey;
 use super::messenger_state::MessengerState;
 // use super::handle_neighbor::{NeighborMoveToken, NeighborInconsistencyError, NeighborSetMaxTokenChannels};
 
@@ -35,7 +34,6 @@ pub enum MessengerTask {
 
 #[allow(unused)]
 pub struct MessengerHandler {
-    local_public_key: PublicKey,
     pub state: MessengerState,
 }
 

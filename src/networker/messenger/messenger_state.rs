@@ -107,6 +107,7 @@ impl NeighborState {
 
 #[allow(unused)]
 pub struct MessengerState {
+    local_public_key: PublicKey,
     neighbors: HashMap<PublicKey, NeighborState>,
 }
 
@@ -139,6 +140,10 @@ impl MessengerState {
         &self.neighbors
     }
 
+    pub fn get_local_public_key(&self) -> &PublicKey {
+        &self.local_public_key
+    }
+
     pub fn set_neighbor_remote_max_debt(&mut self, 
                                         set_neighbor_remote_max_debt: SetNeighborRemoteMaxDebt)
                                         -> Result<Vec<DatabaseMessage>, MessengerStateError> {
@@ -154,4 +159,28 @@ impl MessengerState {
         token_channel_slot.wanted_remote_max_debt = set_neighbor_remote_max_debt.remote_max_debt;
         Ok(vec![DatabaseMessage::SetNeighborRemoteMaxDebt(set_neighbor_remote_max_debt)])
     }
+
+    /*
+    pub fn reset_neighbor_channel(&mut self, 
+                                        reset_neighbor_channel: ResetNeighborChannel) 
+                                        -> Result<Vec<DatabaseMessage>, MessengerStateError> {
+                                        
+        let neighbor_state = self.neighbors.get_mut(&reset_neighbor_channel.neighbor_public_key)
+            .ok_or(MessengerStateError::NeighborDoesNotExist)?;
+
+        let new_token_channel_slot = TokenChannelSlot::new_from_reset(
+            &self.local_public_key,
+            &reset_neighbor_channel.neighbor_public_key,
+            &reset_neighbor_channel.current_token,
+            reset_neighbor_channel.balance_for_reset);
+
+        // Replace the old token channel slot with the new one:
+        if !neighbor_state.token_channel_slots.contains_key(&reset_neighbor_channel.channel_index) {
+            return Err(HandleAppManagerError::TokenChannelDoesNotExist);
+        }
+        
+        neighbor_state.token_channel_slots.insert(reset_neighbor_channel.channel_index, 
+                                                  new_token_channel_slot);
+    }
+    */
 }
