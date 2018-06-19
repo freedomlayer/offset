@@ -33,6 +33,7 @@ pub struct TokenChannelSlot {
 }
 
 
+#[allow(unused)]
 impl TokenChannelSlot {
     pub fn new(local_public_key: &PublicKey,
                remote_public_key: &PublicKey,
@@ -85,6 +86,7 @@ pub struct NeighborState {
     // from database.
 }
 
+#[allow(unused)]
 impl NeighborState {
     pub fn new(neighbor_socket_addr: Option<SocketAddr>,
                local_max_channels: u16) -> NeighborState {
@@ -119,6 +121,7 @@ pub enum DatabaseMessage {
 }
 
 
+#[allow(unused)]
 pub enum MessengerStateError {
     NeighborDoesNotExist,
     TokenChannelDoesNotExist,

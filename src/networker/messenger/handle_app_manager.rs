@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use super::messenger_state::{MessengerState, NeighborState, 
     TokenChannelSlot, DatabaseMessage, MessengerStateError};
 use super::messenger_handler::{MessengerHandler, MessengerTask};
@@ -5,6 +7,7 @@ use app_manager::messages::{NetworkerConfig, AddNeighbor,
     RemoveNeighbor, SetNeighborStatus, SetNeighborRemoteMaxDebt,
     ResetNeighborChannel, SetNeighborMaxChannels};
 
+#[allow(unused)]
 pub enum HandleAppManagerError {
     NeighborDoesNotExist,
     TokenChannelDoesNotExist,

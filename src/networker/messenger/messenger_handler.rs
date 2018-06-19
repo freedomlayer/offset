@@ -38,6 +38,7 @@ pub struct MessengerHandler {
 }
 
 impl MessengerHandler {
+    #[allow(unused)]
     pub fn handle_timer_tick(&mut self) -> Vec<MessengerTask> {
         // TODO
         unreachable!();
