@@ -248,6 +248,10 @@ impl TokenChannel {
     pub fn pending_local_requests(&self) -> &HashMap<Uid, PendingNeighborRequest> {
         &self.pending_requests.pending_local_requests
     }
+
+    pub fn pending_remote_requests(&self) -> &HashMap<Uid, PendingNeighborRequest> {
+        &self.pending_requests.pending_remote_requests
+    }
 }
 
 
