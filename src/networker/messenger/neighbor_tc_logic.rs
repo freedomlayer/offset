@@ -52,7 +52,7 @@ pub enum ReceiveMoveTokenOutput {
 }
 
 /// Calculate the next token channel, given values of previous NeighborMoveToken message.
-fn calc_channel_token(token_channel_index: u16, 
+fn calc_channel_next_token(token_channel_index: u16, 
                       contents: &[u8], 
                       old_token: &ChannelToken,
                       rand_nonce: &RandValue) -> ChannelToken {
@@ -95,7 +95,7 @@ impl NeighborTCState {
             // Calculate hash(FirstMoveTokenLower):
             let rand_value = RandValue::try_from(&remote_pk_hash.as_ref()[.. RAND_VALUE_LEN])
                 .expect("Failed to trim a public key hash into the size of random value!");
-            let new_token = calc_channel_token(token_channel_index,
+            let new_token = calc_channel_next_token(token_channel_index,
                                                &[],
                                                &ChannelToken::from(local_pk_hash.as_array_ref()),
                                                &rand_value);
