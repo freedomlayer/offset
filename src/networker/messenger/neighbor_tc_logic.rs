@@ -36,7 +36,7 @@ struct ChainState {
 
 pub struct NeighborTCState {
     chain_state: ChainState,
-    token_channel: Option<TokenChannel>,
+    opt_token_channel: Option<TokenChannel>,
 }
 
 #[derive(Debug)]
@@ -102,7 +102,7 @@ impl NeighborTCState {
                     old_token: ChannelToken::from(local_pk_hash.as_array_ref()),
                     new_token: ChannelToken::from(remote_pk_hash.as_array_ref()),
                 },
-                token_channel: Some(new_token_channel),
+                opt_token_channel: Some(new_token_channel),
             }
         } else {
             // We are the second sender
@@ -120,7 +120,7 @@ impl NeighborTCState {
                     old_token: new_token.clone(), // TODO: What to put here?
                     new_token,
                 },
-                token_channel: Some(new_token_channel),
+                opt_token_channel: Some(new_token_channel),
             }
         }
     }
@@ -157,13 +157,15 @@ impl NeighborTCState {
             },
             MoveTokenDirection::Outgoing => {
                 if move_token_message.old_token == self.chain_state.new_token {
-                    let token_channel = self.token_channel.take().expect("TokenChannel not present!");
+                    let token_channel = self.opt_token_channel
+                        .take()
+                        .expect("TokenChannel not present!");
                     match atomic_process_operations_list(token_channel, 
                                                     move_token_message.operations) {
                         (token_channel, Ok(output)) => {
                             // If processing the transactions was successful, we 
                             // set old_token, new_token and direction:
-                            self.token_channel = Some(token_channel);
+                            self.opt_token_channel = Some(token_channel);
                             self.chain_state = ChainState {
                                 old_token: self.chain_state.new_token.clone(),
                                 new_token,
@@ -172,7 +174,7 @@ impl NeighborTCState {
                             Ok(ReceiveMoveTokenOutput::ProcessTransListOutput(output))
                         },
                         (token_channel, Err(e)) => {
-                            self.token_channel = Some(token_channel);
+                            self.opt_token_channel = Some(token_channel);
                             Err(ReceiveMoveTokenError::InvalidTransaction(e))
                         },
                     }
