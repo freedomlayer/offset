@@ -1,5 +1,6 @@
 use super::messenger_state::{MessengerState, NeighborState, 
-    TokenChannelSlot, MessengerTask, DatabaseMessage};
+    TokenChannelSlot, DatabaseMessage, MessengerStateError};
+use super::messenger_handler::{MessengerHandler, MessengerTask};
 use app_manager::messages::{NetworkerConfig, AddNeighbor, 
     RemoveNeighbor, SetNeighborStatus, SetNeighborRemoteMaxDebt,
     ResetNeighborChannel, SetNeighborMaxChannels};
@@ -8,27 +9,27 @@ pub enum HandleAppManagerError {
     NeighborDoesNotExist,
     TokenChannelDoesNotExist,
     NeighborAlreadyExists,
+    MessengerStateError(MessengerStateError),
 }
 
 #[allow(unused)]
-impl MessengerState {
+impl MessengerHandler {
     fn app_manager_set_neighbor_remote_max_debt(&mut self, 
                                                 set_neighbor_remote_max_debt: SetNeighborRemoteMaxDebt) 
-        -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
+        -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
-        // Check if we have the requested neighbor:
-        let neighbor_state = self.neighbors.get_mut(&set_neighbor_remote_max_debt.neighbor_public_key)
-            .ok_or(HandleAppManagerError::NeighborDoesNotExist)?;
-        
-        // Find the token channel slot:
-        let token_channel_slot = neighbor_state.token_channel_slots.get_mut(&set_neighbor_remote_max_debt.channel_index)
-            .ok_or(HandleAppManagerError::TokenChannelDoesNotExist)?;
+        let mut db_messages = Vec::new();
 
-        token_channel_slot.wanted_remote_max_debt = set_neighbor_remote_max_debt.remote_max_debt;
-        Ok((Some(DatabaseMessage::SetNeighborRemoteMaxDebt(set_neighbor_remote_max_debt)), 
-            Vec::new()))
+        self.state.set_neighbor_remote_max_debt(&mut db_messages,
+                                                &set_neighbor_remote_max_debt.neighbor_public_key,
+                                                set_neighbor_remote_max_debt.channel_index,
+                                                set_neighbor_remote_max_debt.remote_max_debt)
+            .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
+
+        Ok((db_messages, Vec::new()))
     }
 
+    /*
     fn app_manager_reset_neighbor_channel(&mut self, 
                                           reset_neighbor_channel: ResetNeighborChannel) 
         -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
@@ -132,5 +133,6 @@ impl MessengerState {
                 self.app_manager_set_neighbor_status(set_neighbor_status),
         }
     }
+    */
 
 }

@@ -12,8 +12,7 @@ use super::super::messages::{NeighborStatus};
 use app_manager::messages::{SetNeighborRemoteMaxDebt, SetNeighborMaxChannels, AddNeighbor, RemoveNeighbor, 
     ResetNeighborChannel, SetNeighborStatus};
 
-use super::handle_neighbor::{NeighborMoveToken, NeighborInconsistencyError, 
-    NeighborSetMaxTokenChannels};
+// use super::handle_neighbor::{NeighborMoveToken, NeighborInconsistencyError, NeighborSetMaxTokenChannels};
 
 #[allow(dead_code)]
 pub enum TokenChannelStatus {
@@ -106,27 +105,7 @@ impl NeighborState {
 
 #[allow(unused)]
 pub struct MessengerState {
-    pub local_public_key: PublicKey,
-    pub neighbors: HashMap<PublicKey, NeighborState>,
-}
-
-pub enum AppManagerMessage {
-
-}
-
-pub enum FunderMessage {
-
-}
-
-#[allow(unused)]
-pub enum NeighborMessage {
-    MoveToken(NeighborMoveToken),
-    InconsistencyError(NeighborInconsistencyError),
-    SetMaxTokenChannels(NeighborSetMaxTokenChannels),
-}
-
-pub enum CrypterMessage {
-
+    neighbors: HashMap<PublicKey, NeighborState>,
 }
 
 #[allow(unused)]
@@ -140,12 +119,10 @@ pub enum DatabaseMessage {
 }
 
 
-#[allow(unused)]
-pub enum MessengerTask {
-    AppManagerMessage(AppManagerMessage),
-    FunderMessage(FunderMessage),
-    NeighborMessage(NeighborMessage),
-    CrypterMessage(CrypterMessage),
+pub enum MessengerStateError {
+    NeighborDoesNotExist,
+    TokenChannelDoesNotExist,
+    NeighborAlreadyExists,
 }
 
 #[allow(unused)]
@@ -155,9 +132,30 @@ impl MessengerState {
         unreachable!();
     }
 
-    pub fn handle_timer_tick(&mut self) -> Vec<MessengerTask> {
-        // TODO
-        unreachable!();
+    pub fn get_neighbors(&self) -> &HashMap<PublicKey, NeighborState> {
+        &self.neighbors
     }
 
+    pub fn set_neighbor_remote_max_debt(&mut self, 
+                                        db_messages: &mut Vec<DatabaseMessage>,
+                                        neighbor_public_key: &PublicKey,
+                                        channel_index: u16,
+                                        remote_max_debt: u64) -> Result<(), MessengerStateError> {
+
+        let neighbor_state = self.neighbors.get_mut(neighbor_public_key)
+            .ok_or(MessengerStateError::NeighborDoesNotExist)?;
+        
+        // Find the token channel slot:
+        let token_channel_slot = neighbor_state.token_channel_slots.get_mut(&channel_index)
+            .ok_or(MessengerStateError::TokenChannelDoesNotExist)?;
+
+        token_channel_slot.wanted_remote_max_debt = remote_max_debt;
+        db_messages.push(DatabaseMessage::SetNeighborRemoteMaxDebt(SetNeighborRemoteMaxDebt {
+            neighbor_public_key: neighbor_public_key.clone(),
+            channel_index,
+            remote_max_debt,
+        }));
+
+        Ok(())
+    }
 }

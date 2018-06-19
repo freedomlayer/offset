@@ -1,7 +1,7 @@
-use super::messenger_state::{MessengerState, MessengerTask};
+use super::messenger_handler::{MessengerHandler, MessengerTask};
 
 #[allow(unused)]
-impl MessengerState {
+impl MessengerHandler {
     pub fn handle_crypter(&mut self) -> Vec<MessengerTask> {
         // TODO
         unreachable!();
