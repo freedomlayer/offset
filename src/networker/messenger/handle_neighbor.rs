@@ -6,7 +6,8 @@ use proto::networker::ChannelToken;
 use super::messenger_handler::{MessengerHandler, MessengerTask, NeighborMessage};
 use super::types::{NeighborTcOp, PendingNeighborRequest, FailureSendMessage};
 use super::messenger_state::{NeighborState, DatabaseMessage, 
-    MessengerStateError, TokenChannelStatus, TokenChannelSlot};
+    MessengerStateError, TokenChannelStatus, TokenChannelSlot,
+    DbInitTokenChannel, DbTokenChannelPushOp};
 
 #[allow(unused)]
 pub struct NeighborMoveToken {
@@ -114,8 +115,10 @@ impl MessengerHandler {
         let mut db_messages = Vec::new();
 
         if !neighbor.token_channel_slots.contains_key(&channel_index) {
-            let mut new_db_messages = self.state.init_token_channel(&remote_public_key, channel_index)
-                .map_err(|e| HandleNeighborMessageError::MessengerStateError(e))?;
+            let mut new_db_messages = self.state.init_token_channel(DbInitTokenChannel {
+                neighbor_public_key: remote_public_key.clone(),
+                channel_index,
+            }).map_err(|e| HandleNeighborMessageError::MessengerStateError(e))?;
             db_messages.append(&mut new_db_messages);
         }
 
@@ -167,7 +170,12 @@ impl MessengerHandler {
                     reporting_public_key: self.state.get_local_public_key().clone(),
                     rand_nonce_signatures: Vec::new(), // TODO
                 });
-                self.state.token_channel_push_op(&origin_public_key, origin_channel_index, failure_op);
+                self.state.token_channel_push_op(DbTokenChannelPushOp {
+                    neighbor_public_key: origin_public_key.clone(),
+                    channel_index: origin_channel_index,
+                    neighbor_op: failure_op,
+                }).map_err(|e| HandleNeighborMessageError::MessengerStateError(e))?;
+
                 unreachable!(); // TODO: construct rand_nonce_signatures
             }
 
