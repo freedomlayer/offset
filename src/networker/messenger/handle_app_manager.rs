@@ -21,59 +21,59 @@ impl MessengerHandler {
                                                 set_neighbor_remote_max_debt: SetNeighborRemoteMaxDebt) 
         -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
-        let db_messages = self.state.set_neighbor_remote_max_debt(set_neighbor_remote_max_debt)
+        let sm_msg = StateMutateMessage::SetNeighborRemoteMaxDebt(set_neighbor_remote_max_debt);
+        self.state.mutate(sm_msg.clone())
             .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
-
-        Ok((db_messages, Vec::new()))
+        Ok((vec![sm_msg], vec![]))
     }
 
     fn app_manager_reset_neighbor_channel(&mut self, 
                                           reset_neighbor_channel: ResetNeighborChannel) 
         -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
-        let db_messages = self.state.reset_neighbor_channel(reset_neighbor_channel)
+        let sm_msg = StateMutateMessage::ResetNeighborChannel(reset_neighbor_channel);
+        self.state.mutate(sm_msg.clone())
             .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
-
-        Ok((db_messages, Vec::new()))
+        Ok((vec![sm_msg], vec![]))
     }
 
     fn app_manager_set_neighbor_max_channels(&mut self, 
                                           set_neighbor_max_channels: SetNeighborMaxChannels) 
         -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
-        let db_messages = self.state.set_neighbor_max_channels(set_neighbor_max_channels)
+        let sm_msg = StateMutateMessage::SetNeighborMaxChannels(set_neighbor_max_channels);
+        self.state.mutate(sm_msg.clone())
             .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
-
-        Ok((db_messages, Vec::new()))
+        Ok((vec![sm_msg], vec![]))
     }
 
     fn app_manager_add_neighbor(&mut self, 
                                 add_neighbor: AddNeighbor) 
         -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
-        let db_messages = self.state.add_neighbor(add_neighbor)
+        let sm_msg = StateMutateMessage::AddNeighbor(add_neighbor);
+        self.state.mutate(sm_msg.clone())
             .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
-
-        Ok((db_messages, Vec::new()))
+        Ok((vec![sm_msg], vec![]))
     }
 
     fn app_manager_remove_neighbor(&mut self, remove_neighbor: RemoveNeighbor) 
         -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
-        let db_messages = self.state.remove_neighbor(remove_neighbor)
+        let sm_msg = StateMutateMessage::RemoveNeighbor(remove_neighbor);
+        self.state.mutate(sm_msg.clone())
             .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
-
-        Ok((db_messages, Vec::new()))
+        Ok((vec![sm_msg], vec![]))
     }
 
 
     fn app_manager_set_neighbor_status(&mut self, set_neighbor_status: SetNeighborStatus) 
         -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
-        let db_messages = self.state.set_neighbor_status(set_neighbor_status)
+        let sm_msg = StateMutateMessage::SetNeighborStatus(set_neighbor_status);
+        self.state.mutate(sm_msg.clone())
             .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
-
-        Ok((db_messages, Vec::new()))
+        Ok((vec![sm_msg], vec![]))
     }
 
     pub fn handle_app_manager_message(&mut self, 

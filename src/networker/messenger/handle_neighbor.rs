@@ -115,10 +115,10 @@ impl MessengerHandler {
         let mut db_messages = Vec::new();
 
         if !neighbor.token_channel_slots.contains_key(&channel_index) {
-            let mut new_db_messages = self.state.init_token_channel(SmInitTokenChannel {
+            let mut new_db_messages = self.state.mutate(StateMutateMessage::InitTokenChannel(SmInitTokenChannel {
                 neighbor_public_key: remote_public_key.clone(),
                 channel_index,
-            }).map_err(|e| HandleNeighborMessageError::MessengerStateError(e))?;
+            })).map_err(|e| HandleNeighborMessageError::MessengerStateError(e))?;
             db_messages.append(&mut new_db_messages);
         }
 
@@ -170,11 +170,11 @@ impl MessengerHandler {
                     reporting_public_key: self.state.get_local_public_key().clone(),
                     rand_nonce_signatures: Vec::new(), // TODO
                 });
-                self.state.token_channel_push_op(SmTokenChannelPushOp {
+                self.state.mutate(StateMutateMessage::TokenChannelPushOp(SmTokenChannelPushOp {
                     neighbor_public_key: origin_public_key.clone(),
                     channel_index: origin_channel_index,
                     neighbor_op: failure_op,
-                }).map_err(|e| HandleNeighborMessageError::MessengerStateError(e))?;
+                })).map_err(|e| HandleNeighborMessageError::MessengerStateError(e))?;
 
                 unreachable!(); // TODO: construct rand_nonce_signatures
             }

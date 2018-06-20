@@ -110,12 +110,14 @@ pub struct MessengerState {
 }
 
 #[allow(unused)]
+#[derive(Clone)]
 pub struct SmInitTokenChannel {
     pub neighbor_public_key: PublicKey,
     pub channel_index: u16,
 }
 
 #[allow(unused)]
+#[derive(Clone)]
 pub struct SmTokenChannelPushOp {
     pub neighbor_public_key: PublicKey, 
     pub channel_index: u16, 
@@ -123,6 +125,7 @@ pub struct SmTokenChannelPushOp {
 }
 
 #[allow(unused)]
+#[derive(Clone)]
 pub enum StateMutateMessage {
     SetNeighborRemoteMaxDebt(SetNeighborRemoteMaxDebt),
     SetNeighborMaxChannels(SetNeighborMaxChannels),
@@ -158,7 +161,30 @@ impl MessengerState {
         &self.local_public_key
     }
 
-    pub fn set_neighbor_remote_max_debt(&mut self, 
+    pub fn mutate(&mut self, sm_message: StateMutateMessage)
+            -> Result<Vec<StateMutateMessage>, MessengerStateError> {
+
+        match sm_message {
+            StateMutateMessage::SetNeighborRemoteMaxDebt(msg) =>
+                self.set_neighbor_remote_max_debt(msg),
+            StateMutateMessage::ResetNeighborChannel(msg) => 
+                self.reset_neighbor_channel(msg),
+            StateMutateMessage::SetNeighborMaxChannels(msg) =>
+                self.set_neighbor_max_channels(msg),
+            StateMutateMessage::AddNeighbor(msg) =>
+                self.add_neighbor(msg),
+            StateMutateMessage::RemoveNeighbor(msg) =>
+                self.remove_neighbor(msg),
+            StateMutateMessage::SetNeighborStatus(msg) =>
+                self.set_neighbor_status(msg),
+            StateMutateMessage::InitTokenChannel(msg) =>
+                self.init_token_channel(msg),
+            StateMutateMessage::TokenChannelPushOp(msg) =>
+                self.token_channel_push_op(msg),
+        }
+    }
+
+    fn set_neighbor_remote_max_debt(&mut self, 
                                         set_neighbor_remote_max_debt: SetNeighborRemoteMaxDebt)
                                         -> Result<Vec<StateMutateMessage>, MessengerStateError> {
 
@@ -175,7 +201,7 @@ impl MessengerState {
     }
 
 
-    pub fn reset_neighbor_channel(&mut self, 
+    fn reset_neighbor_channel(&mut self, 
                                     reset_neighbor_channel: ResetNeighborChannel) 
                                     -> Result<Vec<StateMutateMessage>, MessengerStateError> {
                                         
@@ -199,7 +225,7 @@ impl MessengerState {
         Ok(vec![StateMutateMessage::ResetNeighborChannel(reset_neighbor_channel)])
     }
 
-    pub fn set_neighbor_max_channels(&mut self, 
+    fn set_neighbor_max_channels(&mut self, 
                                     set_neighbor_max_channels: SetNeighborMaxChannels) 
                                     -> Result<Vec<StateMutateMessage>, MessengerStateError> {
 
@@ -212,7 +238,7 @@ impl MessengerState {
         Ok(vec![StateMutateMessage::SetNeighborMaxChannels(set_neighbor_max_channels)])
     }
 
-    pub fn add_neighbor(&mut self, 
+    fn add_neighbor(&mut self, 
                         add_neighbor: AddNeighbor) 
                         -> Result<Vec<StateMutateMessage>, MessengerStateError> {
 
@@ -238,7 +264,7 @@ impl MessengerState {
             .ok_or(MessengerStateError::NeighborDoesNotExist)
     }
 
-    pub fn remove_neighbor(&mut self, 
+    fn remove_neighbor(&mut self, 
                         remove_neighbor: RemoveNeighbor) 
                         -> Result<Vec<StateMutateMessage>, MessengerStateError> {
 
@@ -248,7 +274,7 @@ impl MessengerState {
         Ok(vec![StateMutateMessage::RemoveNeighbor(remove_neighbor)])
     }
 
-    pub fn set_neighbor_status(&mut self, 
+    fn set_neighbor_status(&mut self, 
                         set_neighbor_status: SetNeighborStatus) 
                         -> Result<Vec<StateMutateMessage>, MessengerStateError> {
 
@@ -262,7 +288,7 @@ impl MessengerState {
     }
 
 
-    pub fn init_token_channel(&mut self, init_token_channel: SmInitTokenChannel)
+    fn init_token_channel(&mut self, init_token_channel: SmInitTokenChannel)
         -> Result<Vec<StateMutateMessage>, MessengerStateError> {
 
         if self.get_neighbor(&init_token_channel.neighbor_public_key)?
@@ -283,7 +309,7 @@ impl MessengerState {
         Ok(vec![db_message])
     }
 
-    pub fn token_channel_push_op(&mut self, 
+    fn token_channel_push_op(&mut self, 
                                  token_channel_push_op: SmTokenChannelPushOp) 
         -> Result<Vec<StateMutateMessage>, MessengerStateError> {
 
