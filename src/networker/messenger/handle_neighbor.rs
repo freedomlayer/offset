@@ -5,7 +5,7 @@ use proto::networker::ChannelToken;
 
 use super::messenger_handler::{MessengerHandler, MessengerTask, NeighborMessage};
 use super::types::{NeighborTcOp, PendingNeighborRequest, FailureSendMessage};
-use super::messenger_state::{NeighborState, DatabaseMessage, 
+use super::messenger_state::{NeighborState, StateMutateMessage, 
     MessengerStateError, TokenChannelStatus, TokenChannelSlot,
     DbInitTokenChannel, DbTokenChannelPushOp};
 
@@ -90,7 +90,7 @@ impl MessengerHandler {
     fn handle_move_token(&mut self, 
                          remote_public_key: &PublicKey,
                          neighbor_move_token: NeighborMoveToken) 
-         -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
+         -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
 
         // Find neighbor:
         let neighbor = self.state.get_neighbors().get(remote_public_key)
@@ -214,21 +214,21 @@ impl MessengerHandler {
     fn handle_inconsistency_error(&mut self, 
                                   remote_public_key: &PublicKey,
                                   neighbor_inconsistency_error: NeighborInconsistencyError)
-         -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
+         -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
         unreachable!();
     }
 
     fn handle_set_max_token_channels(&mut self, 
                                      remote_public_key: &PublicKey,
                                      neighbor_set_max_token_channels: NeighborSetMaxTokenChannels)
-         -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
+         -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
         unreachable!();
     }
 
     pub fn handle_neighbor_message(&mut self, 
                                    remote_public_key: &PublicKey, 
                                    neighbor_message: IncomingNeighborMessage)
-        -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
+        -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
 
         match neighbor_message {
             IncomingNeighborMessage::MoveToken(neighbor_move_token) =>

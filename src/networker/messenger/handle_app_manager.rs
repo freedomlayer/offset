@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 use super::messenger_state::{MessengerState, NeighborState, 
-    TokenChannelSlot, DatabaseMessage, MessengerStateError};
+    TokenChannelSlot, StateMutateMessage, MessengerStateError};
 use super::messenger_handler::{MessengerHandler, MessengerTask};
 use app_manager::messages::{NetworkerConfig, AddNeighbor, 
     RemoveNeighbor, SetNeighborStatus, SetNeighborRemoteMaxDebt,
@@ -19,7 +19,7 @@ pub enum HandleAppManagerError {
 impl MessengerHandler {
     fn app_manager_set_neighbor_remote_max_debt(&mut self, 
                                                 set_neighbor_remote_max_debt: SetNeighborRemoteMaxDebt) 
-        -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
+        -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
         let db_messages = self.state.set_neighbor_remote_max_debt(set_neighbor_remote_max_debt)
             .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
@@ -29,7 +29,7 @@ impl MessengerHandler {
 
     fn app_manager_reset_neighbor_channel(&mut self, 
                                           reset_neighbor_channel: ResetNeighborChannel) 
-        -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
+        -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
         let db_messages = self.state.reset_neighbor_channel(reset_neighbor_channel)
             .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
@@ -39,7 +39,7 @@ impl MessengerHandler {
 
     fn app_manager_set_neighbor_max_channels(&mut self, 
                                           set_neighbor_max_channels: SetNeighborMaxChannels) 
-        -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
+        -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
         let db_messages = self.state.set_neighbor_max_channels(set_neighbor_max_channels)
             .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
@@ -49,7 +49,7 @@ impl MessengerHandler {
 
     fn app_manager_add_neighbor(&mut self, 
                                 add_neighbor: AddNeighbor) 
-        -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
+        -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
         let db_messages = self.state.add_neighbor(add_neighbor)
             .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
@@ -58,7 +58,7 @@ impl MessengerHandler {
     }
 
     fn app_manager_remove_neighbor(&mut self, remove_neighbor: RemoveNeighbor) 
-        -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
+        -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
         let db_messages = self.state.remove_neighbor(remove_neighbor)
             .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
@@ -68,7 +68,7 @@ impl MessengerHandler {
 
 
     fn app_manager_set_neighbor_status(&mut self, set_neighbor_status: SetNeighborStatus) 
-        -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
+        -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
         let db_messages = self.state.set_neighbor_status(set_neighbor_status)
             .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
@@ -78,7 +78,7 @@ impl MessengerHandler {
 
     pub fn handle_app_manager_message(&mut self, 
                                       networker_config: NetworkerConfig) 
-        -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleAppManagerError> {
+        -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleAppManagerError> {
 
 
         match networker_config {

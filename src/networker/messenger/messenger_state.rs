@@ -123,7 +123,7 @@ pub struct DbTokenChannelPushOp {
 }
 
 #[allow(unused)]
-pub enum DatabaseMessage {
+pub enum StateMutateMessage {
     SetNeighborRemoteMaxDebt(SetNeighborRemoteMaxDebt),
     SetNeighborMaxChannels(SetNeighborMaxChannels),
     ResetNeighborChannel(ResetNeighborChannel),
@@ -160,7 +160,7 @@ impl MessengerState {
 
     pub fn set_neighbor_remote_max_debt(&mut self, 
                                         set_neighbor_remote_max_debt: SetNeighborRemoteMaxDebt)
-                                        -> Result<Vec<DatabaseMessage>, MessengerStateError> {
+                                        -> Result<Vec<StateMutateMessage>, MessengerStateError> {
 
         let neighbor_state = self.neighbors.get_mut(&set_neighbor_remote_max_debt.neighbor_public_key)
             .ok_or(MessengerStateError::NeighborDoesNotExist)?;
@@ -171,13 +171,13 @@ impl MessengerState {
             .ok_or(MessengerStateError::TokenChannelDoesNotExist)?;
 
         token_channel_slot.wanted_remote_max_debt = set_neighbor_remote_max_debt.remote_max_debt;
-        Ok(vec![DatabaseMessage::SetNeighborRemoteMaxDebt(set_neighbor_remote_max_debt)])
+        Ok(vec![StateMutateMessage::SetNeighborRemoteMaxDebt(set_neighbor_remote_max_debt)])
     }
 
 
     pub fn reset_neighbor_channel(&mut self, 
                                     reset_neighbor_channel: ResetNeighborChannel) 
-                                    -> Result<Vec<DatabaseMessage>, MessengerStateError> {
+                                    -> Result<Vec<StateMutateMessage>, MessengerStateError> {
                                         
         let neighbor_state = self.neighbors.get_mut(&reset_neighbor_channel.neighbor_public_key)
             .ok_or(MessengerStateError::NeighborDoesNotExist)?;
@@ -196,12 +196,12 @@ impl MessengerState {
         neighbor_state.token_channel_slots.insert(reset_neighbor_channel.channel_index, 
                                                   new_token_channel_slot);
 
-        Ok(vec![DatabaseMessage::ResetNeighborChannel(reset_neighbor_channel)])
+        Ok(vec![StateMutateMessage::ResetNeighborChannel(reset_neighbor_channel)])
     }
 
     pub fn set_neighbor_max_channels(&mut self, 
                                     set_neighbor_max_channels: SetNeighborMaxChannels) 
-                                    -> Result<Vec<DatabaseMessage>, MessengerStateError> {
+                                    -> Result<Vec<StateMutateMessage>, MessengerStateError> {
 
         // Check if we have the requested neighbor:
         let neighbor_state = self.neighbors.get_mut(&set_neighbor_max_channels.neighbor_public_key)
@@ -209,12 +209,12 @@ impl MessengerState {
 
         neighbor_state.local_max_channels = set_neighbor_max_channels.max_channels;
 
-        Ok(vec![DatabaseMessage::SetNeighborMaxChannels(set_neighbor_max_channels)])
+        Ok(vec![StateMutateMessage::SetNeighborMaxChannels(set_neighbor_max_channels)])
     }
 
     pub fn add_neighbor(&mut self, 
                         add_neighbor: AddNeighbor) 
-                        -> Result<Vec<DatabaseMessage>, MessengerStateError> {
+                        -> Result<Vec<StateMutateMessage>, MessengerStateError> {
 
         // If we already have the neighbor: return error.
         if self.neighbors.contains_key(&add_neighbor.neighbor_public_key) {
@@ -228,7 +228,7 @@ impl MessengerState {
 
         self.neighbors.insert(add_neighbor.neighbor_public_key.clone(), neighbor_state);
 
-        Ok(vec![DatabaseMessage::AddNeighbor(add_neighbor)])
+        Ok(vec![StateMutateMessage::AddNeighbor(add_neighbor)])
     }
 
     fn get_neighbor(&mut self, neighbor_public_key: &PublicKey) 
@@ -240,17 +240,17 @@ impl MessengerState {
 
     pub fn remove_neighbor(&mut self, 
                         remove_neighbor: RemoveNeighbor) 
-                        -> Result<Vec<DatabaseMessage>, MessengerStateError> {
+                        -> Result<Vec<StateMutateMessage>, MessengerStateError> {
 
         let _ = self.neighbors.remove(&remove_neighbor.neighbor_public_key)
             .ok_or(MessengerStateError::NeighborDoesNotExist)?;
 
-        Ok(vec![DatabaseMessage::RemoveNeighbor(remove_neighbor)])
+        Ok(vec![StateMutateMessage::RemoveNeighbor(remove_neighbor)])
     }
 
     pub fn set_neighbor_status(&mut self, 
                         set_neighbor_status: SetNeighborStatus) 
-                        -> Result<Vec<DatabaseMessage>, MessengerStateError> {
+                        -> Result<Vec<StateMutateMessage>, MessengerStateError> {
 
         // Check if we have the requested neighbor:
         let neighbor_state = self.neighbors.get_mut(&set_neighbor_status.neighbor_public_key)
@@ -258,12 +258,12 @@ impl MessengerState {
 
         neighbor_state.status = set_neighbor_status.status;
 
-        Ok(vec![DatabaseMessage::SetNeighborStatus(set_neighbor_status)])
+        Ok(vec![StateMutateMessage::SetNeighborStatus(set_neighbor_status)])
     }
 
 
     pub fn init_token_channel(&mut self, init_token_channel: DbInitTokenChannel)
-        -> Result<Vec<DatabaseMessage>, MessengerStateError> {
+        -> Result<Vec<StateMutateMessage>, MessengerStateError> {
 
         if self.get_neighbor(&init_token_channel.neighbor_public_key)?
             .token_channel_slots.contains_key(&init_token_channel.channel_index) {
@@ -279,13 +279,13 @@ impl MessengerState {
                                      &init_token_channel.neighbor_public_key,
                                      init_token_channel.channel_index));
 
-        let db_message = DatabaseMessage::InitTokenChannel(init_token_channel);
+        let db_message = StateMutateMessage::InitTokenChannel(init_token_channel);
         Ok(vec![db_message])
     }
 
     pub fn token_channel_push_op(&mut self, 
                                  token_channel_push_op: DbTokenChannelPushOp) 
-        -> Result<Vec<DatabaseMessage>, MessengerStateError> {
+        -> Result<Vec<StateMutateMessage>, MessengerStateError> {
 
         let neighbor = self.neighbors.get_mut(&token_channel_push_op.neighbor_public_key)
             .ok_or(MessengerStateError::NeighborDoesNotExist)?;
@@ -296,7 +296,7 @@ impl MessengerState {
 
         token_channel_slot.pending_operations.push_back(token_channel_push_op.neighbor_op.clone());
 
-        let db_message = DatabaseMessage::TokenChannelPushOp(token_channel_push_op);
+        let db_message = StateMutateMessage::TokenChannelPushOp(token_channel_push_op);
         Ok(vec![db_message])
     }
 }
