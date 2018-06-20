@@ -41,7 +41,6 @@ mod handle_funder;
 mod handle_crypter;
 
 
-
 #[allow(unused)]
 #[allow(too_many_arguments)]
 pub fn create_messenger<SR: SecureRandom>(handle: &Handle,

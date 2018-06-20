@@ -1,4 +1,5 @@
 #![allow(unused)]
+use ring::rand::SecureRandom;
 
 use super::messenger_state::{MessengerState, NeighborState, 
     TokenChannelSlot, StateMutateMessage, MessengerStateError};
@@ -17,7 +18,7 @@ pub enum HandleAppManagerError {
 */
 
 #[allow(unused)]
-impl MessengerHandler {
+impl<R: SecureRandom> MessengerHandler<R> {
     fn app_manager_set_neighbor_remote_max_debt(&mut self, 
                                                 set_neighbor_remote_max_debt: SetNeighborRemoteMaxDebt) 
         -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {

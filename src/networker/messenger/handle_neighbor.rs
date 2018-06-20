@@ -1,6 +1,11 @@
+use futures::{Future, future};
+
+use ring::rand::SecureRandom;
+
 use crypto::rand_values::RandValue;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
+
 use proto::networker::ChannelToken;
 
 use super::messenger_handler::{MessengerHandler, MessengerTask, NeighborMessage};
@@ -40,7 +45,7 @@ pub enum IncomingNeighborMessage {
 
 
 #[allow(unused)]
-impl MessengerHandler {
+impl<R: SecureRandom + 'static> MessengerHandler<R> {
 
     /// Find the token channel in which a remote pending request resides
     /// Returns the index of the found token channel, or None if not found.
@@ -81,10 +86,10 @@ impl MessengerHandler {
         Some((prev_pk.clone(), channel_index))
     }
 
-    fn handle_move_token(&mut self, 
+    fn handle_move_token(mut self, 
                          remote_public_key: &PublicKey,
                          neighbor_move_token: NeighborMoveToken) 
-         -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
+         -> Box<Future<Item=(Self, Vec<StateMutateMessage>, Vec<MessengerTask>), Error=()>> {
 
         let mut db_messages = Vec::new();
         let mut messenger_tasks = Vec::new();
@@ -92,7 +97,7 @@ impl MessengerHandler {
         // Find neighbor:
         let neighbor = match self.state.get_neighbors().get(remote_public_key) {
             Some(neighbor) => neighbor,
-            None => return (db_messages, messenger_tasks),
+            None => return Box::new(future::ok((self, db_messages, messenger_tasks))),
         };
 
         let channel_index = neighbor_move_token.token_channel_index;
@@ -107,7 +112,7 @@ impl MessengerHandler {
                     )
                 )
             );
-            return (db_messages, messenger_tasks);
+            return Box::new(future::ok((self, db_messages, messenger_tasks)));
         }
 
 
@@ -136,7 +141,7 @@ impl MessengerHandler {
         // inconsistency is resolved.
         if let TokenChannelStatus::Inconsistent { .. } 
                     = token_channel_slot.tc_status {
-            return (db_messages, messenger_tasks);
+            return Box::new(future::ok((self, db_messages, messenger_tasks)));
         };
 
         // Check if incoming message is an attempt to reset channel.
@@ -214,24 +219,32 @@ impl MessengerHandler {
         unreachable!();
     }
 
-    fn handle_inconsistency_error(&mut self, 
+    fn handle_inconsistency_error(self, 
                                   remote_public_key: &PublicKey,
                                   neighbor_inconsistency_error: NeighborInconsistencyError)
-         -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
+         -> Box<Future<Item=(Self, Vec<StateMutateMessage>, Vec<MessengerTask>), Error=()>> {
+
+        let mut db_messages = Vec::new();
+        let mut messenger_tasks = Vec::new();
         unreachable!();
+        return Box::new(future::ok((self, db_messages, messenger_tasks)));
     }
 
-    fn handle_set_max_token_channels(&mut self, 
+    fn handle_set_max_token_channels(self, 
                                      remote_public_key: &PublicKey,
                                      neighbor_set_max_token_channels: NeighborSetMaxTokenChannels)
-         -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
+         -> Box<Future<Item=(Self, Vec<StateMutateMessage>, Vec<MessengerTask>), Error=()>> {
+        let mut db_messages = Vec::new();
+        let mut messenger_tasks = Vec::new();
         unreachable!();
+        return Box::new(future::ok((self, db_messages, messenger_tasks)));
+
     }
 
-    pub fn handle_neighbor_message(&mut self, 
+    pub fn handle_neighbor_message(self, 
                                    remote_public_key: &PublicKey, 
                                    neighbor_message: IncomingNeighborMessage)
-        -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
+         -> Box<Future<Item=(Self, Vec<StateMutateMessage>, Vec<MessengerTask>), Error=()>> {
 
         match neighbor_message {
             IncomingNeighborMessage::MoveToken(neighbor_move_token) =>
