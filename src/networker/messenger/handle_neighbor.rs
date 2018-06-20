@@ -153,17 +153,19 @@ impl MessengerHandler {
                 .get_token_channel()
                 .pending_local_requests();
 
-            let mut entries = Vec::new();
+            // Prepare a list of all remote requests that we need to cancel:
+            let mut requests_to_cancel = Vec::new();
             for (local_request_id, pending_local_request) in pending_local_requests {
                 let origin = self.find_request_origin(pending_local_request);
                 let (origin_public_key, origin_channel_index) = match origin {
                     Some((public_key, channel_index)) => (public_key, channel_index),
                     None => continue,
                 };
-                entries.push((origin_public_key.clone(), origin_channel_index, pending_local_request.clone()));
+                requests_to_cancel.push((origin_public_key.clone(), origin_channel_index, pending_local_request.clone()));
             }
 
-            for (origin_public_key, origin_channel_index, pending_local_request) in entries {
+            // Queue a failure messages for all the pending requests we want to cancel:
+            for (origin_public_key, origin_channel_index, pending_local_request) in requests_to_cancel {
                 let failure_op = NeighborTcOp::FailureSendMessage(FailureSendMessage {
                     request_id: pending_local_request.request_id,
                     reporting_public_key: self.state.get_local_public_key().clone(),
