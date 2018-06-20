@@ -3,9 +3,10 @@ use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 use proto::networker::ChannelToken;
 
-use super::messenger_state::{MessengerState, MessengerTask, TokenChannelSlot, 
-    TokenChannelStatus, DatabaseMessage, NeighborMessage, NeighborState};
+use super::messenger_handler::{MessengerHandler, MessengerTask, NeighborMessage};
 use super::types::{NeighborTcOp, PendingNeighborRequest, FailureSendMessage};
+use super::messenger_state::{NeighborState, DatabaseMessage, 
+    MessengerStateError, TokenChannelStatus, TokenChannelSlot};
 
 #[allow(unused)]
 pub struct NeighborMoveToken {
@@ -39,11 +40,12 @@ pub enum IncomingNeighborMessage {
 pub enum HandleNeighborMessageError {
     NeighborNotFound,
     ChannelIsInconsistent,
+    MessengerStateError(MessengerStateError),
 }
 
 
 #[allow(unused)]
-impl MessengerState {
+impl MessengerHandler {
 
     /// Find the token channel in which a remote pending request resides
     /// Returns the index of the found token channel, or None if not found.
@@ -68,12 +70,13 @@ impl MessengerState {
     /// Returns the public key of a neighbor together with the channel_index of a
     /// token channel. If we are the origin of this request, the function return None.
     fn find_request_origin(&self, pending_local_request: &PendingNeighborRequest) -> Option<(PublicKey, u16)> {
-        let local_index = pending_local_request.route.pk_index(&self.local_public_key)
+
+        let local_index = pending_local_request.route.pk_index(self.state.get_local_public_key())
             .expect("Can not find local public key inside route!");
         let prev_index = local_index.checked_sub(1)?;
         let prev_pk = pending_local_request.route.pk_by_index(prev_index)
             .expect("Index was not found!");
-        let orig_neighbor = self.neighbors
+        let orig_neighbor = self.state.get_neighbors()
             .get(&prev_pk)
             .expect("Originator neighbor is missing!");
 
@@ -86,10 +89,10 @@ impl MessengerState {
     fn handle_move_token(&mut self, 
                          remote_public_key: &PublicKey,
                          neighbor_move_token: NeighborMoveToken) 
-         -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
+         -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
 
         // Find neighbor:
-        let neighbor = self.neighbors.get(remote_public_key)
+        let neighbor = self.state.get_neighbors().get(remote_public_key)
             .ok_or(HandleNeighborMessageError::NeighborNotFound)?;
 
 
@@ -105,21 +108,19 @@ impl MessengerState {
                     )
                 )
             );
-            return Ok((None, messenger_tasks));
+            return Ok((Vec::new(), messenger_tasks));
         }
 
+        let mut db_messages = Vec::new();
 
-        let mut neighbor = self.neighbors.remove(remote_public_key)
-            .expect("Neighbor was not found!");
+        if !neighbor.token_channel_slots.contains_key(&channel_index) {
+            let mut new_db_messages = self.state.init_token_channel(&remote_public_key, channel_index)
+                .map_err(|e| HandleNeighborMessageError::MessengerStateError(e))?;
+            db_messages.append(&mut new_db_messages);
+        }
 
-
-        // Create token_channel_slot if nonexistent:
-        neighbor.token_channel_slots
-            .entry(channel_index)
-            .or_insert(TokenChannelSlot::new(&self.local_public_key,
-                                             &remote_public_key,
-                                             channel_index));
-
+        let neighbor = self.state.get_neighbors().get(remote_public_key)
+            .expect("Neighbor not found!");
         let token_channel_slot = neighbor.token_channel_slots
             .get(&channel_index)
             .expect("token_channel_slot not found!");
@@ -133,7 +134,6 @@ impl MessengerState {
         // inconsistency is resolved.
         if let TokenChannelStatus::Inconsistent { .. } 
                     = token_channel_slot.tc_status {
-            self.neighbors.insert(remote_public_key.clone(), neighbor);
             return Err(HandleNeighborMessageError::ChannelIsInconsistent);
         };
 
@@ -150,32 +150,24 @@ impl MessengerState {
             let pending_local_requests = token_channel_slot.tc_state
                 .get_token_channel()
                 .pending_local_requests();
-            
-            for (local_request_id, pending_local_request) in pending_local_requests {
 
-                // Find the originating neighbor for this request:
+            let mut entries = Vec::new();
+            for (local_request_id, pending_local_request) in pending_local_requests {
                 let origin = self.find_request_origin(pending_local_request);
                 let (origin_public_key, origin_channel_index) = match origin {
                     Some((public_key, channel_index)) => (public_key, channel_index),
                     None => continue,
                 };
+                entries.push((origin_public_key.clone(), origin_channel_index, pending_local_request.clone()));
+            }
 
-                let orig_neighbor = self.neighbors
-                    .get_mut(&origin_public_key)
-                    .expect("Neighbor does not exist!");
-
-                let orig_token_channel_slot = orig_neighbor.token_channel_slots
-                    .get_mut(&origin_channel_index)
-                    .expect("Token Channel does not exist!");
-
-                // Queue a failure message to the originating token channel:
-                orig_token_channel_slot.pending_operations.push_back(
-                    NeighborTcOp::FailureSendMessage(FailureSendMessage {
-                        request_id: local_request_id.clone(),
-                        reporting_public_key: self.local_public_key.clone(),
-                        rand_nonce_signatures: Vec::new(), // TODO
-                    })
-                );
+            for (origin_public_key, origin_channel_index, pending_local_request) in entries.into_iter() {
+                let failure_op = NeighborTcOp::FailureSendMessage(FailureSendMessage {
+                    request_id: pending_local_request.request_id.clone(),
+                    reporting_public_key: self.state.get_local_public_key().clone(),
+                    rand_nonce_signatures: Vec::new(), // TODO
+                });
+                self.state.token_channel_push_op(&origin_public_key, origin_channel_index, failure_op);
                 unreachable!(); // TODO: construct rand_nonce_signatures
             }
 
@@ -186,15 +178,15 @@ impl MessengerState {
             // - Continue processing the MoveToken message.
 
             // Replace slot with a new one:
-            let token_channel_slot = TokenChannelSlot::new_from_reset(&self.local_public_key,
+            let token_channel_slot = TokenChannelSlot::new_from_reset(self.state.get_local_public_key(),
                                                                         remote_public_key,
                                                                         &reset_token,
                                                                         balance_for_reset);
-            neighbor.token_channel_slots.insert(channel_index, token_channel_slot);
+
+
+            // neighbor.token_channel_slots.insert(channel_index, token_channel_slot);
         }
 
-        // Insert back neighbor into the neighbors hashmap:
-        self.neighbors.insert(remote_public_key.clone(), neighbor);
 
 
 
@@ -214,21 +206,21 @@ impl MessengerState {
     fn handle_inconsistency_error(&mut self, 
                                   remote_public_key: &PublicKey,
                                   neighbor_inconsistency_error: NeighborInconsistencyError)
-         -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
+         -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
         unreachable!();
     }
 
     fn handle_set_max_token_channels(&mut self, 
                                      remote_public_key: &PublicKey,
                                      neighbor_set_max_token_channels: NeighborSetMaxTokenChannels)
-         -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
+         -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
         unreachable!();
     }
 
     pub fn handle_neighbor_message(&mut self, 
                                    remote_public_key: &PublicKey, 
                                    neighbor_message: IncomingNeighborMessage)
-        -> Result<(Option<DatabaseMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
+        -> Result<(Vec<DatabaseMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
 
         match neighbor_message {
             IncomingNeighborMessage::MoveToken(neighbor_move_token) =>

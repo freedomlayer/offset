@@ -36,7 +36,7 @@ mod messenger_state;
 mod messenger_handler;
 
 mod handle_app_manager;
-// mod handle_neighbor;
+mod handle_neighbor;
 mod handle_funder;
 mod handle_crypter;
 

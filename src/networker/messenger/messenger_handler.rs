@@ -1,5 +1,6 @@
 use super::messenger_state::MessengerState;
-// use super::handle_neighbor::{NeighborMoveToken, NeighborInconsistencyError, NeighborSetMaxTokenChannels};
+use super::handle_neighbor::{NeighborMoveToken, NeighborInconsistencyError, 
+    NeighborSetMaxTokenChannels};
 
 pub enum AppManagerMessage {
 
@@ -9,26 +10,24 @@ pub enum FunderMessage {
 
 }
 
-/*
+
 #[allow(unused)]
 pub enum NeighborMessage {
     MoveToken(NeighborMoveToken),
     InconsistencyError(NeighborInconsistencyError),
     SetMaxTokenChannels(NeighborSetMaxTokenChannels),
 }
-*/
 
 pub enum CrypterMessage {
 
 }
 
 
-
 #[allow(unused)]
 pub enum MessengerTask {
     AppManagerMessage(AppManagerMessage),
     FunderMessage(FunderMessage),
-    // NeighborMessage(NeighborMessage),
+    NeighborMessage(NeighborMessage),
     CrypterMessage(CrypterMessage),
 }
 
