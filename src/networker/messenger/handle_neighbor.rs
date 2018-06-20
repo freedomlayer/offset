@@ -86,19 +86,74 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         Some((prev_pk.clone(), channel_index))
     }
 
+    fn cancel_local_pending_requests(mut self, 
+                                     neighbor_public_key: PublicKey, 
+                                     channel_index: u16)
+            -> Box<Future<Item=(Self, Vec<StateMutateMessage>), Error=()>> {
+
+        let mut sm_messages = Vec::new();
+
+        let neighbor = self.state.get_neighbors().get(&neighbor_public_key)
+            .expect("Neighbor not found!");
+        let token_channel_slot = neighbor.token_channel_slots
+            .get(&channel_index)
+            .expect("token_channel_slot not found!");
+
+        // Mark all pending requests to this neighbor as errors.
+        // As the token channel is being reset, we can be sure we will never obtain a response
+        // for those requests.
+        let pending_local_requests = token_channel_slot.tc_state
+            .get_token_channel()
+            .pending_local_requests();
+
+        // Prepare a list of all remote requests that we need to cancel:
+        let mut requests_to_cancel = Vec::new();
+        for (local_request_id, pending_local_request) in pending_local_requests {
+            let origin = self.find_request_origin(pending_local_request);
+            let (origin_public_key, origin_channel_index) = match origin {
+                Some((public_key, channel_index)) => (public_key, channel_index),
+                None => continue,
+            };
+            requests_to_cancel.push((origin_public_key.clone(), 
+                                     origin_channel_index, pending_local_request.clone()));
+        }
+
+        // Queue a failure messages for all the pending requests we want to cancel:
+        for (origin_public_key, origin_channel_index, 
+             pending_local_request) in requests_to_cancel {
+
+            let failure_op = NeighborTcOp::FailureSendMessage(FailureSendMessage {
+                request_id: pending_local_request.request_id,
+                reporting_public_key: self.state.get_local_public_key().clone(),
+                rand_nonce_signatures: Vec::new(), // TODO
+            });
+            let sm_msg = StateMutateMessage::TokenChannelPushOp(SmTokenChannelPushOp {
+                neighbor_public_key: origin_public_key.clone(),
+                channel_index: origin_channel_index,
+                neighbor_op: failure_op,
+            });
+            self.state.mutate(sm_msg.clone())
+                .expect("Could not push neighbor operation into channel!");
+            sm_messages.push(sm_msg);
+            unreachable!(); // TODO: construct rand_nonce_signatures
+        }
+
+        Box::new(future::ok((self, sm_messages)))
+    }
+
     #[allow(type_complexity)]
     fn handle_move_token(mut self, 
-                         remote_public_key: &PublicKey,
+                         remote_public_key: PublicKey,
                          neighbor_move_token: NeighborMoveToken) 
          -> Box<Future<Item=(Self, Vec<StateMutateMessage>, Vec<MessengerTask>), Error=()>> {
 
-        let mut db_messages = Vec::new();
+        let mut sm_messages = Vec::new();
         let mut messenger_tasks = Vec::new();
 
         // Find neighbor:
-        let neighbor = match self.state.get_neighbors().get(remote_public_key) {
+        let neighbor = match self.state.get_neighbors().get(&remote_public_key) {
             Some(neighbor) => neighbor,
-            None => return Box::new(future::ok((self, db_messages, messenger_tasks))),
+            None => return Box::new(future::ok((self, sm_messages, messenger_tasks))),
         };
 
         let channel_index = neighbor_move_token.token_channel_index;
@@ -113,7 +168,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                     )
                 )
             );
-            return Box::new(future::ok((self, db_messages, messenger_tasks)));
+            return Box::new(future::ok((self, sm_messages, messenger_tasks)));
         }
 
 
@@ -124,10 +179,10 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             });
             self.state.mutate(sm_msg.clone())
                 .expect("Failed to initialize token channel!");
-            db_messages.push(sm_msg);
+            sm_messages.push(sm_msg);
         }
 
-        let neighbor = self.state.get_neighbors().get(remote_public_key)
+        let neighbor = self.state.get_neighbors().get(&remote_public_key)
             .expect("Neighbor not found!");
         let token_channel_slot = neighbor.token_channel_slots
             .get(&channel_index)
@@ -142,70 +197,51 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         // inconsistency is resolved.
         if let TokenChannelStatus::Inconsistent { .. } 
                     = token_channel_slot.tc_status {
-            return Box::new(future::ok((self, db_messages, messenger_tasks)));
+            return Box::new(future::ok((self, sm_messages, messenger_tasks)));
         };
+
 
         // Check if incoming message is an attempt to reset channel.
         // We can know this by checking if new_token is a special value.
         let reset_token = token_channel_slot.tc_state.calc_channel_reset_token(channel_index);
         let balance_for_reset = token_channel_slot.tc_state.balance_for_reset();
-        if neighbor_move_token.new_token == reset_token {
+
+        let fself = if neighbor_move_token.new_token == reset_token {
             // This is a reset message. We reset the token channel:
             
             // Mark all pending requests to this neighbor as errors.
             // As the token channel is being reset, we can be sure we will never obtain a response
             // for those requests.
-            let pending_local_requests = token_channel_slot.tc_state
-                .get_token_channel()
-                .pending_local_requests();
 
-            // Prepare a list of all remote requests that we need to cancel:
-            let mut requests_to_cancel = Vec::new();
-            for (local_request_id, pending_local_request) in pending_local_requests {
-                let origin = self.find_request_origin(pending_local_request);
-                let (origin_public_key, origin_channel_index) = match origin {
-                    Some((public_key, channel_index)) => (public_key, channel_index),
-                    None => continue,
-                };
-                requests_to_cancel.push((origin_public_key.clone(), origin_channel_index, pending_local_request.clone()));
-            }
+            let fut = self.cancel_local_pending_requests(
+                remote_public_key.clone(), channel_index)
+            .and_then(|(fself, mut res_sm_messages)| {
 
-            // Queue a failure messages for all the pending requests we want to cancel:
-            for (origin_public_key, origin_channel_index, pending_local_request) in requests_to_cancel {
-                let failure_op = NeighborTcOp::FailureSendMessage(FailureSendMessage {
-                    request_id: pending_local_request.request_id,
-                    reporting_public_key: self.state.get_local_public_key().clone(),
-                    rand_nonce_signatures: Vec::new(), // TODO
-                });
-                let sm_msg = StateMutateMessage::TokenChannelPushOp(SmTokenChannelPushOp {
-                    neighbor_public_key: origin_public_key.clone(),
-                    channel_index: origin_channel_index,
-                    neighbor_op: failure_op,
-                });
-                self.state.mutate(sm_msg.clone())
-                    .expect("Could not push neighbor operation into channel!");
-                db_messages.push(sm_msg);
-                unreachable!(); // TODO: construct rand_nonce_signatures
-            }
+                // TODO: 
+                // - Construct rand_nonce_signatures (Possibly require adding a random generator
+                //      argument, to generate the rand nonce).
+                // - Add database messages for all state mutations (How to do this well?)
+                // - Continue processing the MoveToken message.
 
-            // TODO: 
-            // - Construct rand_nonce_signatures (Possibly require adding a random generator
-            //      argument, to generate the rand nonce).
-            // - Add database messages for all state mutations (How to do this well?)
-            // - Continue processing the MoveToken message.
+                sm_messages.append(&mut res_sm_messages);
 
-            // Replace slot with a new one:
-            let token_channel_slot = TokenChannelSlot::new_from_reset(self.state.get_local_public_key(),
-                                                                        remote_public_key,
-                                                                        &reset_token,
-                                                                        balance_for_reset);
+                // Replace slot with a new one:
+                let token_channel_slot = TokenChannelSlot::new_from_reset(
+                    fself.state.get_local_public_key(),
+                    &remote_public_key,
+                    &reset_token,
+                    balance_for_reset);
 
+                // neighbor.token_channel_slots.insert(channel_index, token_channel_slot);
 
-            // neighbor.token_channel_slots.insert(channel_index, token_channel_slot);
-        }
-
-
-
+                Ok(fself)
+            });
+            let b: Box<Future<Item=Self, Error=()>> = Box::new(fut);
+            b
+        } else {
+            let b: Box<Future<Item=Self, Error=()>> = Box::new(future::ok(self));
+            b
+        };
 
         // TODO:
         // - Attempt to receive the neighbor_move_token transaction.
@@ -222,7 +258,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
 
     #[allow(type_complexity)]
     fn handle_inconsistency_error(self, 
-                                  remote_public_key: &PublicKey,
+                                  remote_public_key: PublicKey,
                                   neighbor_inconsistency_error: NeighborInconsistencyError)
          -> Box<Future<Item=(Self, Vec<StateMutateMessage>, Vec<MessengerTask>), Error=()>> {
 
@@ -234,7 +270,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
 
     #[allow(type_complexity)]
     fn handle_set_max_token_channels(self, 
-                                     remote_public_key: &PublicKey,
+                                     remote_public_key: PublicKey,
                                      neighbor_set_max_token_channels: NeighborSetMaxTokenChannels)
          -> Box<Future<Item=(Self, Vec<StateMutateMessage>, Vec<MessengerTask>), Error=()>> {
         let mut db_messages = Vec::new();
@@ -246,7 +282,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
 
     #[allow(type_complexity)]
     pub fn handle_neighbor_message(self, 
-                                   remote_public_key: &PublicKey, 
+                                   remote_public_key: PublicKey, 
                                    neighbor_message: IncomingNeighborMessage)
          -> Box<Future<Item=(Self, Vec<StateMutateMessage>, Vec<MessengerTask>), Error=()>> {
 
