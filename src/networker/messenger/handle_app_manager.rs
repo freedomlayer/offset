@@ -23,7 +23,7 @@ impl MessengerHandler {
 
         let sm_msg = StateMutateMessage::SetNeighborRemoteMaxDebt(set_neighbor_remote_max_debt);
         self.state.mutate(sm_msg.clone())
-            .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
+            .map_err(HandleAppManagerError::MessengerStateError)?;
         Ok((vec![sm_msg], vec![]))
     }
 
@@ -33,7 +33,7 @@ impl MessengerHandler {
 
         let sm_msg = StateMutateMessage::ResetNeighborChannel(reset_neighbor_channel);
         self.state.mutate(sm_msg.clone())
-            .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
+            .map_err(HandleAppManagerError::MessengerStateError)?;
         Ok((vec![sm_msg], vec![]))
     }
 
@@ -43,7 +43,7 @@ impl MessengerHandler {
 
         let sm_msg = StateMutateMessage::SetNeighborMaxChannels(set_neighbor_max_channels);
         self.state.mutate(sm_msg.clone())
-            .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
+            .map_err(HandleAppManagerError::MessengerStateError)?;
         Ok((vec![sm_msg], vec![]))
     }
 
@@ -53,7 +53,7 @@ impl MessengerHandler {
 
         let sm_msg = StateMutateMessage::AddNeighbor(add_neighbor);
         self.state.mutate(sm_msg.clone())
-            .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
+            .map_err(HandleAppManagerError::MessengerStateError)?;
         Ok((vec![sm_msg], vec![]))
     }
 
@@ -62,7 +62,7 @@ impl MessengerHandler {
 
         let sm_msg = StateMutateMessage::RemoveNeighbor(remove_neighbor);
         self.state.mutate(sm_msg.clone())
-            .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
+            .map_err(HandleAppManagerError::MessengerStateError)?;
         Ok((vec![sm_msg], vec![]))
     }
 
@@ -72,7 +72,7 @@ impl MessengerHandler {
 
         let sm_msg = StateMutateMessage::SetNeighborStatus(set_neighbor_status);
         self.state.mutate(sm_msg.clone())
-            .map_err(|e| HandleAppManagerError::MessengerStateError(e))?;
+            .map_err(HandleAppManagerError::MessengerStateError)?;
         Ok((vec![sm_msg], vec![]))
     }
 

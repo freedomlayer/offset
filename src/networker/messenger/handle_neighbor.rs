@@ -118,7 +118,7 @@ impl MessengerHandler {
             let mut new_db_messages = self.state.mutate(StateMutateMessage::InitTokenChannel(SmInitTokenChannel {
                 neighbor_public_key: remote_public_key.clone(),
                 channel_index,
-            })).map_err(|e| HandleNeighborMessageError::MessengerStateError(e))?;
+            })).map_err(HandleNeighborMessageError::MessengerStateError)?;
             db_messages.append(&mut new_db_messages);
         }
 
@@ -174,7 +174,7 @@ impl MessengerHandler {
                     neighbor_public_key: origin_public_key.clone(),
                     channel_index: origin_channel_index,
                     neighbor_op: failure_op,
-                })).map_err(|e| HandleNeighborMessageError::MessengerStateError(e))?;
+                })).map_err(HandleNeighborMessageError::MessengerStateError)?;
 
                 unreachable!(); // TODO: construct rand_nonce_signatures
             }
