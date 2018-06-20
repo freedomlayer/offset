@@ -6,7 +6,7 @@ use proto::networker::ChannelToken;
 use super::messenger_handler::{MessengerHandler, MessengerTask, NeighborMessage};
 use super::types::{NeighborTcOp, PendingNeighborRequest, FailureSendMessage};
 use super::messenger_state::{NeighborState, StateMutateMessage, 
-    MessengerStateError, TokenChannelStatus, TokenChannelSlot,
+    /* MessengerStateError, */TokenChannelStatus, TokenChannelSlot,
     SmInitTokenChannel, SmTokenChannelPushOp};
 
 #[allow(unused)]
@@ -41,7 +41,7 @@ pub enum IncomingNeighborMessage {
 pub enum HandleNeighborMessageError {
     NeighborNotFound,
     ChannelIsInconsistent,
-    MessengerStateError(MessengerStateError),
+    // MessengerStateError(MessengerStateError),
 }
 
 
@@ -119,8 +119,8 @@ impl MessengerHandler {
                 neighbor_public_key: remote_public_key.clone(),
                 channel_index,
             });
-            let mut new_db_messages = self.state.mutate(sm_msg.clone())
-                .map_err(HandleNeighborMessageError::MessengerStateError)?;
+            self.state.mutate(sm_msg.clone())
+                .expect("Failed to initialize token channel!");
             db_messages.push(sm_msg);
         }
 
@@ -178,7 +178,7 @@ impl MessengerHandler {
                     neighbor_op: failure_op,
                 });
                 self.state.mutate(sm_msg.clone())
-                    .map_err(HandleNeighborMessageError::MessengerStateError)?;
+                    .expect("Could not push neighbor operation into channel!");
                 db_messages.push(sm_msg);
                 unreachable!(); // TODO: construct rand_nonce_signatures
             }

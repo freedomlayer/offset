@@ -139,6 +139,7 @@ pub enum StateMutateMessage {
 
 
 #[allow(unused)]
+#[derive(Debug)]
 pub enum MessengerStateError {
     NeighborDoesNotExist,
     TokenChannelDoesNotExist,
