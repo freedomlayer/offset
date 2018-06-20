@@ -38,12 +38,6 @@ pub enum IncomingNeighborMessage {
 }
 
 
-pub enum HandleNeighborMessageError {
-    NeighborNotFound,
-    ChannelIsInconsistent,
-    // MessengerStateError(MessengerStateError),
-}
-
 
 #[allow(unused)]
 impl MessengerHandler {
@@ -90,17 +84,21 @@ impl MessengerHandler {
     fn handle_move_token(&mut self, 
                          remote_public_key: &PublicKey,
                          neighbor_move_token: NeighborMoveToken) 
-         -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
+         -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
+
+        let mut db_messages = Vec::new();
+        let mut messenger_tasks = Vec::new();
 
         // Find neighbor:
-        let neighbor = self.state.get_neighbors().get(remote_public_key)
-            .ok_or(HandleNeighborMessageError::NeighborNotFound)?;
-
+        let neighbor = match self.state.get_neighbors().get(remote_public_key) {
+            Some(neighbor) => neighbor,
+            None => return (db_messages, messenger_tasks),
+        };
 
         let channel_index = neighbor_move_token.token_channel_index;
         if channel_index >= neighbor.local_max_channels {
             // Tell remote side that we don't support such a high token channel index:
-            let messenger_tasks = vec!(
+            messenger_tasks.push(
                 MessengerTask::NeighborMessage(
                     NeighborMessage::SetMaxTokenChannels(
                         NeighborSetMaxTokenChannels {
@@ -109,10 +107,9 @@ impl MessengerHandler {
                     )
                 )
             );
-            return Ok((Vec::new(), messenger_tasks));
+            return (db_messages, messenger_tasks);
         }
 
-        let mut db_messages = Vec::new();
 
         if !neighbor.token_channel_slots.contains_key(&channel_index) {
             let sm_msg = StateMutateMessage::InitTokenChannel(SmInitTokenChannel {
@@ -139,7 +136,7 @@ impl MessengerHandler {
         // inconsistency is resolved.
         if let TokenChannelStatus::Inconsistent { .. } 
                     = token_channel_slot.tc_status {
-            return Err(HandleNeighborMessageError::ChannelIsInconsistent);
+            return (db_messages, messenger_tasks);
         };
 
         // Check if incoming message is an attempt to reset channel.
@@ -218,21 +215,21 @@ impl MessengerHandler {
     fn handle_inconsistency_error(&mut self, 
                                   remote_public_key: &PublicKey,
                                   neighbor_inconsistency_error: NeighborInconsistencyError)
-         -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
+         -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
         unreachable!();
     }
 
     fn handle_set_max_token_channels(&mut self, 
                                      remote_public_key: &PublicKey,
                                      neighbor_set_max_token_channels: NeighborSetMaxTokenChannels)
-         -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
+         -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
         unreachable!();
     }
 
     pub fn handle_neighbor_message(&mut self, 
                                    remote_public_key: &PublicKey, 
                                    neighbor_message: IncomingNeighborMessage)
-        -> Result<(Vec<StateMutateMessage>, Vec<MessengerTask>), HandleNeighborMessageError> {
+        -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
 
         match neighbor_message {
             IncomingNeighborMessage::MoveToken(neighbor_move_token) =>
