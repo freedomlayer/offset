@@ -164,7 +164,7 @@ impl MessengerHandler {
                 entries.push((origin_public_key.clone(), origin_channel_index, pending_local_request.clone()));
             }
 
-            for (origin_public_key, origin_channel_index, pending_local_request) in entries.into_iter() {
+            for (origin_public_key, origin_channel_index, pending_local_request) in entries {
                 let failure_op = NeighborTcOp::FailureSendMessage(FailureSendMessage {
                     request_id: pending_local_request.request_id.clone(),
                     reporting_public_key: self.state.get_local_public_key().clone(),
