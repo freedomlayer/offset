@@ -110,13 +110,13 @@ pub struct MessengerState {
 }
 
 #[allow(unused)]
-pub struct DbInitTokenChannel {
+pub struct SmInitTokenChannel {
     pub neighbor_public_key: PublicKey,
     pub channel_index: u16,
 }
 
 #[allow(unused)]
-pub struct DbTokenChannelPushOp {
+pub struct SmTokenChannelPushOp {
     pub neighbor_public_key: PublicKey, 
     pub channel_index: u16, 
     pub neighbor_op: NeighborTcOp
@@ -130,8 +130,8 @@ pub enum StateMutateMessage {
     AddNeighbor(AddNeighbor),
     RemoveNeighbor(RemoveNeighbor),
     SetNeighborStatus(SetNeighborStatus),
-    InitTokenChannel(DbInitTokenChannel),
-    TokenChannelPushOp(DbTokenChannelPushOp),
+    InitTokenChannel(SmInitTokenChannel),
+    TokenChannelPushOp(SmTokenChannelPushOp),
 }
 
 
@@ -262,7 +262,7 @@ impl MessengerState {
     }
 
 
-    pub fn init_token_channel(&mut self, init_token_channel: DbInitTokenChannel)
+    pub fn init_token_channel(&mut self, init_token_channel: SmInitTokenChannel)
         -> Result<Vec<StateMutateMessage>, MessengerStateError> {
 
         if self.get_neighbor(&init_token_channel.neighbor_public_key)?
@@ -284,7 +284,7 @@ impl MessengerState {
     }
 
     pub fn token_channel_push_op(&mut self, 
-                                 token_channel_push_op: DbTokenChannelPushOp) 
+                                 token_channel_push_op: SmTokenChannelPushOp) 
         -> Result<Vec<StateMutateMessage>, MessengerStateError> {
 
         let neighbor = self.neighbors.get_mut(&token_channel_push_op.neighbor_public_key)

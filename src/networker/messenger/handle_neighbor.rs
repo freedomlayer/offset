@@ -7,7 +7,7 @@ use super::messenger_handler::{MessengerHandler, MessengerTask, NeighborMessage}
 use super::types::{NeighborTcOp, PendingNeighborRequest, FailureSendMessage};
 use super::messenger_state::{NeighborState, StateMutateMessage, 
     MessengerStateError, TokenChannelStatus, TokenChannelSlot,
-    DbInitTokenChannel, DbTokenChannelPushOp};
+    SmInitTokenChannel, SmTokenChannelPushOp};
 
 #[allow(unused)]
 pub struct NeighborMoveToken {
@@ -115,7 +115,7 @@ impl MessengerHandler {
         let mut db_messages = Vec::new();
 
         if !neighbor.token_channel_slots.contains_key(&channel_index) {
-            let mut new_db_messages = self.state.init_token_channel(DbInitTokenChannel {
+            let mut new_db_messages = self.state.init_token_channel(SmInitTokenChannel {
                 neighbor_public_key: remote_public_key.clone(),
                 channel_index,
             }).map_err(|e| HandleNeighborMessageError::MessengerStateError(e))?;
@@ -170,7 +170,7 @@ impl MessengerHandler {
                     reporting_public_key: self.state.get_local_public_key().clone(),
                     rand_nonce_signatures: Vec::new(), // TODO
                 });
-                self.state.token_channel_push_op(DbTokenChannelPushOp {
+                self.state.token_channel_push_op(SmTokenChannelPushOp {
                     neighbor_public_key: origin_public_key.clone(),
                     channel_index: origin_channel_index,
                     neighbor_op: failure_op,
