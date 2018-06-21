@@ -208,7 +208,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             .and_then(move |mut fself| {
                 let sm_msg = StateMutateMessage::ResetTokenChannel(SmResetTokenChannel {
                     neighbor_public_key: neighbor_public_key.clone(),
-                    channel_index: channel_index, 
+                    channel_index, 
                     reset_token,
                     balance_for_reset,
                 });
