@@ -1,3 +1,6 @@
+use std::rc::Rc;
+
+use futures;
 use futures::{Future, future};
 
 use ring::rand::SecureRandom;
@@ -9,10 +12,12 @@ use crypto::uid::Uid;
 use proto::networker::ChannelToken;
 
 use super::messenger_handler::{MessengerHandler, MessengerTask, NeighborMessage};
-use super::types::{NeighborTcOp, PendingNeighborRequest, FailureSendMessage};
+use super::types::{NeighborTcOp, PendingNeighborRequest, FailureSendMessage, RandNonceSignature};
 use super::messenger_state::{NeighborState, StateMutateMessage, 
     /* MessengerStateError, */TokenChannelStatus, TokenChannelSlot,
     SmInitTokenChannel, SmTokenChannelPushOp};
+
+use super::signature_buff::create_failure_signature_buffer;
 
 #[allow(unused)]
 pub struct NeighborMoveToken {
@@ -44,6 +49,19 @@ pub enum IncomingNeighborMessage {
 
 #[allow(unused)]
 impl<R: SecureRandom + 'static> MessengerHandler<R> {
+
+    fn get_token_channel_slot(&self, 
+                              neighbor_public_key: &PublicKey,
+                              channel_index: u16) -> &TokenChannelSlot {
+
+        let neighbor = self.state.get_neighbors().get(&neighbor_public_key)
+            .expect("Neighbor not found!");
+        let token_channel_slot = neighbor.token_channel_slots
+            .get(&channel_index)
+            .expect("token_channel_slot not found!");
+
+        token_channel_slot
+    }
 
     /// Find the token channel in which a remote pending request resides
     /// Returns the index of the found token channel, or None if not found.
@@ -115,28 +133,110 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                                      origin_channel_index, pending_local_request.clone()));
         }
 
-        // Queue a failure messages for all the pending requests we want to cancel:
-        for (origin_public_key, origin_channel_index, 
-             pending_local_request) in requests_to_cancel {
+        let local_public_key = self.state.get_local_public_key().clone();
+        let rng = Rc::clone(&self.rng);
+        let security_module_client = self.security_module_client.clone();
 
-            let failure_op = NeighborTcOp::FailureSendMessage(FailureSendMessage {
-                request_id: pending_local_request.request_id,
-                reporting_public_key: self.state.get_local_public_key().clone(),
-                rand_nonce_signatures: Vec::new(), // TODO
-            });
-            let sm_msg = StateMutateMessage::TokenChannelPushOp(SmTokenChannelPushOp {
-                neighbor_public_key: origin_public_key.clone(),
-                channel_index: origin_channel_index,
-                neighbor_op: failure_op,
-            });
-            self.state.mutate(sm_msg.clone())
-                .expect("Could not push neighbor operation into channel!");
-            self.sm_messages.push(sm_msg);
-            unreachable!(); // TODO: construct rand_nonce_signatures
-        }
+        // Create a future that will resolve to all the mutation messages.
+        // We use futures here because the calculation of signature is futuristic.
+        let fut_mutate_messages = 
+            requests_to_cancel.into_iter()
+            .map(move |(origin_public_key, origin_channel_index, pending_local_request)| {
+                let failure_send_msg = FailureSendMessage {
+                    request_id: pending_local_request.request_id,
+                    reporting_public_key: local_public_key.clone(),
+                    rand_nonce_signatures: Vec::new(), 
+                };
+                let mut failure_signature_buffer = create_failure_signature_buffer(
+                                                    &failure_send_msg,
+                                                    &pending_local_request);
+                let rand_nonce = RandValue::new(&*rng);
+                failure_signature_buffer.extend_from_slice(&rand_nonce);
 
-        Box::new(future::ok(self))
+                let local_public_key_cloned = local_public_key.clone();
+                security_module_client
+                    .request_signature(failure_signature_buffer)
+                    .map_err(|e| -> () {panic!("Failed to create signature!")})
+                    .and_then(move |signature| {
+                        let rand_nonce_signature = RandNonceSignature {
+                            rand_nonce,
+                            signature,
+                        };
+                        let failure_send_msg = FailureSendMessage {
+                            request_id: pending_local_request.request_id,
+                            reporting_public_key: local_public_key_cloned,
+                            rand_nonce_signatures: vec![rand_nonce_signature],
+                        };
+                        let failure_op = NeighborTcOp::FailureSendMessage(failure_send_msg);
+                        Ok(StateMutateMessage::TokenChannelPushOp(SmTokenChannelPushOp {
+                            neighbor_public_key: origin_public_key.clone(),
+                            channel_index: origin_channel_index,
+                            neighbor_op: failure_op,
+                        }))
+                    })
+                });
+
+        Box::new(futures::collect(fut_mutate_messages)
+            .and_then(|mutate_messages| {
+                for sm_msg in mutate_messages {
+                    self.state.mutate(sm_msg.clone())
+                        .expect("Could not push neighbor operation into channel!");
+                    self.sm_messages.push(sm_msg);
+                }
+                Ok(self)
+            })
+        )
     }
+
+
+    /// Check if channel reset is required (Remove side used the RESET token)
+    /// If so, reset the channel.
+    fn check_reset_channel(mut self, 
+                           neighbor_public_key: PublicKey,
+                           channel_index: u16,
+                           new_token: ChannelToken)
+            -> Box<Future<Item=Self, Error=()>> {
+        // Check if incoming message is an attempt to reset channel.
+        // We can know this by checking if new_token is a special value.
+        let token_channel_slot = self.get_token_channel_slot(&neighbor_public_key,
+                                                             channel_index);
+        let reset_token = token_channel_slot.tc_state.calc_channel_reset_token(channel_index);
+        let balance_for_reset = token_channel_slot.tc_state.balance_for_reset();
+
+        if new_token == reset_token {
+            // This is a reset message. We reset the token channel:
+            
+            // Mark all pending requests to this neighbor as errors.
+            // As the token channel is being reset, we can be sure we will never obtain a response
+            // for those requests.
+
+            let fut = self.cancel_local_pending_requests(
+                neighbor_public_key.clone(), channel_index)
+            .and_then(move |fself| {
+
+                // TODO: 
+                // - Construct rand_nonce_signatures (Possibly require adding a random generator
+                //      argument, to generate the rand nonce).
+                // - Add database messages for all state mutations (How to do this well?)
+                // - Continue processing the MoveToken message.
+
+                // Replace slot with a new one:
+                let token_channel_slot = TokenChannelSlot::new_from_reset(
+                    fself.state.get_local_public_key(),
+                    &neighbor_public_key,
+                    &reset_token,
+                    balance_for_reset);
+
+                // neighbor.token_channel_slots.insert(channel_index, token_channel_slot);
+
+                Ok(fself)
+            });
+            Box::new(fut) as Box<Future<Item=Self, Error=()>>
+        } else {
+            Box::new(future::ok(self)) as Box<Future<Item=Self, Error=()>>
+        }
+    }
+
 
     #[allow(type_complexity)]
     fn handle_move_token(mut self, 
@@ -194,44 +294,12 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             return Box::new(future::ok(self));
         };
 
+        let fut = self.check_reset_channel(remote_public_key.clone(), 
+                                           channel_index, 
+                                           neighbor_move_token.new_token);
 
-        // Check if incoming message is an attempt to reset channel.
-        // We can know this by checking if new_token is a special value.
-        let reset_token = token_channel_slot.tc_state.calc_channel_reset_token(channel_index);
-        let balance_for_reset = token_channel_slot.tc_state.balance_for_reset();
 
-        let fself = if neighbor_move_token.new_token == reset_token {
-            // This is a reset message. We reset the token channel:
-            
-            // Mark all pending requests to this neighbor as errors.
-            // As the token channel is being reset, we can be sure we will never obtain a response
-            // for those requests.
 
-            let fut = self.cancel_local_pending_requests(
-                remote_public_key.clone(), channel_index)
-            .and_then(|fself| {
-
-                // TODO: 
-                // - Construct rand_nonce_signatures (Possibly require adding a random generator
-                //      argument, to generate the rand nonce).
-                // - Add database messages for all state mutations (How to do this well?)
-                // - Continue processing the MoveToken message.
-
-                // Replace slot with a new one:
-                let token_channel_slot = TokenChannelSlot::new_from_reset(
-                    fself.state.get_local_public_key(),
-                    &remote_public_key,
-                    &reset_token,
-                    balance_for_reset);
-
-                // neighbor.token_channel_slots.insert(channel_index, token_channel_slot);
-
-                Ok(fself)
-            });
-            Box::new(fut) as Box<Future<Item=Self, Error=()>>
-        } else {
-            Box::new(future::ok(self)) as Box<Future<Item=Self, Error=()>>
-        };
 
         // TODO:
         // - Attempt to receive the neighbor_move_token transaction.
