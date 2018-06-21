@@ -212,13 +212,12 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                 neighbor_public_key.clone(), channel_index)
             .and_then(move |fself| {
 
-                // TODO: 
-                // - Construct rand_nonce_signatures (Possibly require adding a random generator
-                //      argument, to generate the rand nonce).
-                // - Add database messages for all state mutations (How to do this well?)
-                // - Continue processing the MoveToken message.
 
+                // TODO:
                 // Replace slot with a new one:
+                // Should be done using a mutate message.
+                unreachable!();
+
                 let token_channel_slot = TokenChannelSlot::new_from_reset(
                     fself.state.get_local_public_key(),
                     &neighbor_public_key,
