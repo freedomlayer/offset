@@ -69,7 +69,8 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     /// This should be a pending remote request at some other neighbor.
     /// Returns the public key of a neighbor together with the channel_index of a
     /// token channel. If we are the origin of this request, the function return None.
-    fn find_request_origin(&self, pending_local_request: &PendingNeighborRequest) -> Option<(PublicKey, u16)> {
+    fn find_request_origin(&self, pending_local_request: &PendingNeighborRequest) 
+        -> Option<(PublicKey, u16)> {
 
         let local_index = pending_local_request.route.pk_index(self.state.get_local_public_key())
             .expect("Can not find local public key inside route!");
