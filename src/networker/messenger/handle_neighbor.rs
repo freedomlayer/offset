@@ -15,11 +15,13 @@ use super::messenger_handler::{MessengerHandler, MessengerTask, NeighborMessage}
 use super::types::{NeighborTcOp, PendingNeighborRequest, FailureSendMessage, RandNonceSignature};
 use super::messenger_state::{NeighborState, StateMutateMessage, 
     /* MessengerStateError, */TokenChannelStatus, TokenChannelSlot,
-    SmInitTokenChannel, SmTokenChannelPushOp, SmResetTokenChannel};
+    SmInitTokenChannel, SmTokenChannelPushOp, SmResetTokenChannel, 
+    SmApplyNeighborMoveToken};
 
 use super::signature_buff::create_failure_signature_buffer;
 
 #[allow(unused)]
+#[derive(Clone)]
 pub struct NeighborMoveToken {
     token_channel_index: u16,
     operations: Vec<NeighborTcOp>,
@@ -278,8 +280,21 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
 
         let fut = self.check_reset_channel(remote_public_key.clone(), 
                                            channel_index, 
-                                           neighbor_move_token.new_token);
+                                           neighbor_move_token.new_token.clone());
 
+        let fut = fut.and_then(|mut fself| {
+            let sm_msg = StateMutateMessage::ApplyNeighborMoveToken(SmApplyNeighborMoveToken {
+                neighbor_public_key: remote_public_key.clone(),
+                neighbor_move_token,
+            });
+            match fself.state.mutate(sm_msg.clone()) {
+                Ok(()) => fself.sm_messages.push(sm_msg),
+                Err(_) => {},
+            };
+            // TODO: Continue here.
+            unreachable!();
+            Ok(())
+        });
 
 
         // TODO:

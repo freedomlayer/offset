@@ -5,8 +5,9 @@ use crypto::identity::PublicKey;
 
 use proto::networker::ChannelToken;
 
-use super::neighbor_tc_logic::NeighborTCState;
 use super::types::NeighborTcOp;
+use super::neighbor_tc_logic::NeighborTCState;
+use super::handle_neighbor::NeighborMoveToken;
 use super::super::messages::{NeighborStatus};
 
 use app_manager::messages::{SetNeighborRemoteMaxDebt, SetNeighborMaxChannels, AddNeighbor, RemoveNeighbor, 
@@ -137,6 +138,13 @@ pub struct SmResetTokenChannel {
 
 #[allow(unused)]
 #[derive(Clone)]
+pub struct SmApplyNeighborMoveToken {
+    pub neighbor_public_key: PublicKey, 
+    pub neighbor_move_token: NeighborMoveToken,
+}
+
+#[allow(unused)]
+#[derive(Clone)]
 pub enum StateMutateMessage {
     SetNeighborRemoteMaxDebt(SetNeighborRemoteMaxDebt),
     SetNeighborMaxChannels(SetNeighborMaxChannels),
@@ -147,6 +155,7 @@ pub enum StateMutateMessage {
     InitTokenChannel(SmInitTokenChannel),
     TokenChannelPushOp(SmTokenChannelPushOp),
     ResetTokenChannel(SmResetTokenChannel),
+    ApplyNeighborMoveToken(SmApplyNeighborMoveToken),
 }
 
 
@@ -196,6 +205,8 @@ impl MessengerState {
                 self.token_channel_push_op(msg),
             StateMutateMessage::ResetTokenChannel(msg) =>
                 self.reset_token_channel(msg),
+            StateMutateMessage::ApplyNeighborMoveToken(msg) =>
+                self.apply_neighbor_move_token(msg),
         }
     }
 
@@ -354,6 +365,16 @@ impl MessengerState {
         let _ = neighbor.token_channel_slots.insert(
             reset_token_channel.channel_index, 
             token_channel_slot);
+
+        Ok(())
+    }
+
+    fn apply_neighbor_move_token(&mut self, 
+                                 apply_neighbor_move_token: SmApplyNeighborMoveToken) 
+        -> Result<(), MessengerStateError> {
+
+        // TODO:
+        unreachable!();
 
         Ok(())
     }
