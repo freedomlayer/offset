@@ -56,11 +56,9 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
 
         let neighbor = self.state.get_neighbors().get(&neighbor_public_key)
             .expect("Neighbor not found!");
-        let token_channel_slot = neighbor.token_channel_slots
+        neighbor.token_channel_slots
             .get(&channel_index)
-            .expect("token_channel_slot not found!");
-
-        token_channel_slot
+            .expect("token_channel_slot not found!")
     }
 
     /// Find the token channel in which a remote pending request resides
