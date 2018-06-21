@@ -126,6 +126,15 @@ pub struct SmTokenChannelPushOp {
 
 #[allow(unused)]
 #[derive(Clone)]
+pub struct SmResetTokenChannel {
+    pub neighbor_public_key: PublicKey, 
+    pub channel_index: u16, 
+    pub reset_token: ChannelToken,
+    pub balance_for_reset: i64,
+}
+
+#[allow(unused)]
+#[derive(Clone)]
 pub enum StateMutateMessage {
     SetNeighborRemoteMaxDebt(SetNeighborRemoteMaxDebt),
     SetNeighborMaxChannels(SetNeighborMaxChannels),
@@ -135,6 +144,7 @@ pub enum StateMutateMessage {
     SetNeighborStatus(SetNeighborStatus),
     InitTokenChannel(SmInitTokenChannel),
     TokenChannelPushOp(SmTokenChannelPushOp),
+    ResetTokenChannel(SmResetTokenChannel),
 }
 
 
@@ -182,6 +192,8 @@ impl MessengerState {
                 self.init_token_channel(msg),
             StateMutateMessage::TokenChannelPushOp(msg) =>
                 self.token_channel_push_op(msg),
+            StateMutateMessage::ResetTokenChannel(msg) =>
+                self.reset_token_channel(msg),
         }
     }
 
@@ -320,6 +332,26 @@ impl MessengerState {
             .ok_or(MessengerStateError::TokenChannelDoesNotExist)?;
 
         token_channel_slot.pending_operations.push_back(token_channel_push_op.neighbor_op.clone());
+
+        Ok(())
+    }
+
+    fn reset_token_channel(&mut self, 
+                                 reset_token_channel: SmResetTokenChannel) 
+        -> Result<(), MessengerStateError> {
+
+        let neighbor = self.neighbors.get_mut(&reset_token_channel.neighbor_public_key)
+            .ok_or(MessengerStateError::NeighborDoesNotExist)?;
+
+        let token_channel_slot = TokenChannelSlot::new_from_reset(
+            &self.local_public_key,
+            &reset_token_channel.neighbor_public_key,
+            &reset_token_channel.reset_token,
+            reset_token_channel.balance_for_reset);
+
+        let _ = neighbor.token_channel_slots.insert(
+            reset_token_channel.channel_index, 
+            token_channel_slot);
 
         Ok(())
     }

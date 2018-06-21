@@ -15,7 +15,7 @@ use super::messenger_handler::{MessengerHandler, MessengerTask, NeighborMessage}
 use super::types::{NeighborTcOp, PendingNeighborRequest, FailureSendMessage, RandNonceSignature};
 use super::messenger_state::{NeighborState, StateMutateMessage, 
     /* MessengerStateError, */TokenChannelStatus, TokenChannelSlot,
-    SmInitTokenChannel, SmTokenChannelPushOp};
+    SmInitTokenChannel, SmTokenChannelPushOp, SmResetTokenChannel};
 
 use super::signature_buff::create_failure_signature_buffer;
 
@@ -203,29 +203,17 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
 
         if new_token == reset_token {
             // This is a reset message. We reset the token channel:
-            
-            // Mark all pending requests to this neighbor as errors.
-            // As the token channel is being reset, we can be sure we will never obtain a response
-            // for those requests.
-
             let fut = self.cancel_local_pending_requests(
                 neighbor_public_key.clone(), channel_index)
-            .and_then(move |fself| {
-
-
-                // TODO:
-                // Replace slot with a new one:
-                // Should be done using a mutate message.
-                unreachable!();
-
-                let token_channel_slot = TokenChannelSlot::new_from_reset(
-                    fself.state.get_local_public_key(),
-                    &neighbor_public_key,
-                    &reset_token,
-                    balance_for_reset);
-
-                // neighbor.token_channel_slots.insert(channel_index, token_channel_slot);
-
+            .and_then(move |mut fself| {
+                let sm_msg = StateMutateMessage::ResetTokenChannel(SmResetTokenChannel {
+                    neighbor_public_key: neighbor_public_key.clone(),
+                    channel_index: channel_index, 
+                    reset_token,
+                    balance_for_reset,
+                });
+                fself.state.mutate(sm_msg.clone());
+                fself.sm_messages.push(sm_msg);
                 Ok(fself)
             });
             Box::new(fut) as Box<Future<Item=Self, Error=()>>
@@ -291,7 +279,6 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         let fut = self.check_reset_channel(remote_public_key.clone(), 
                                            channel_index, 
                                            neighbor_move_token.new_token);
-
 
 
 
