@@ -273,11 +273,8 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             self.sm_messages.push(sm_msg);
         }
 
-        let neighbor = self.state.get_neighbors().get(&remote_public_key)
-            .expect("Neighbor not found!");
-        let token_channel_slot = neighbor.token_channel_slots
-            .get(&channel_index)
-            .expect("token_channel_slot not found!");
+        let token_channel_slot = self.get_token_channel_slot(&remote_public_key, 
+                                                             channel_index);
 
         // QUESTION: Should Database be informed about the creation of a new token channel?
         // This is not really a creation of anything new, as we create the default new channel.
