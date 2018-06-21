@@ -42,8 +42,6 @@ pub enum IncomingNeighborMessage {
     SetMaxTokenChannels(NeighborSetMaxTokenChannels),
 }
 
-
-
 #[allow(unused)]
 impl<R: SecureRandom + 'static> MessengerHandler<R> {
 
@@ -90,9 +88,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     fn cancel_local_pending_requests(mut self, 
                                      neighbor_public_key: PublicKey, 
                                      channel_index: u16)
-            -> Box<Future<Item=(Self, Vec<StateMutateMessage>), Error=()>> {
-
-        let mut sm_messages = Vec::new();
+            -> Box<Future<Item=Self, Error=()>> {
 
         let neighbor = self.state.get_neighbors().get(&neighbor_public_key)
             .expect("Neighbor not found!");
@@ -135,32 +131,29 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             });
             self.state.mutate(sm_msg.clone())
                 .expect("Could not push neighbor operation into channel!");
-            sm_messages.push(sm_msg);
+            self.sm_messages.push(sm_msg);
             unreachable!(); // TODO: construct rand_nonce_signatures
         }
 
-        Box::new(future::ok((self, sm_messages)))
+        Box::new(future::ok(self))
     }
 
     #[allow(type_complexity)]
     fn handle_move_token(mut self, 
                          remote_public_key: PublicKey,
                          neighbor_move_token: NeighborMoveToken) 
-         -> Box<Future<Item=(Self, Vec<StateMutateMessage>, Vec<MessengerTask>), Error=()>> {
-
-        let mut sm_messages = Vec::new();
-        let mut messenger_tasks = Vec::new();
+         -> Box<Future<Item=Self, Error=()>> {
 
         // Find neighbor:
         let neighbor = match self.state.get_neighbors().get(&remote_public_key) {
             Some(neighbor) => neighbor,
-            None => return Box::new(future::ok((self, sm_messages, messenger_tasks))),
+            None => return Box::new(future::ok(self)),
         };
 
         let channel_index = neighbor_move_token.token_channel_index;
         if channel_index >= neighbor.local_max_channels {
             // Tell remote side that we don't support such a high token channel index:
-            messenger_tasks.push(
+            self.messenger_tasks.push(
                 MessengerTask::NeighborMessage(
                     NeighborMessage::SetMaxTokenChannels(
                         NeighborSetMaxTokenChannels {
@@ -169,7 +162,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                     )
                 )
             );
-            return Box::new(future::ok((self, sm_messages, messenger_tasks)));
+            return Box::new(future::ok(self));
         }
 
 
@@ -180,7 +173,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             });
             self.state.mutate(sm_msg.clone())
                 .expect("Failed to initialize token channel!");
-            sm_messages.push(sm_msg);
+            self.sm_messages.push(sm_msg);
         }
 
         let neighbor = self.state.get_neighbors().get(&remote_public_key)
@@ -198,7 +191,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         // inconsistency is resolved.
         if let TokenChannelStatus::Inconsistent { .. } 
                     = token_channel_slot.tc_status {
-            return Box::new(future::ok((self, sm_messages, messenger_tasks)));
+            return Box::new(future::ok(self));
         };
 
 
@@ -216,15 +209,13 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
 
             let fut = self.cancel_local_pending_requests(
                 remote_public_key.clone(), channel_index)
-            .and_then(|(fself, mut res_sm_messages)| {
+            .and_then(|fself| {
 
                 // TODO: 
                 // - Construct rand_nonce_signatures (Possibly require adding a random generator
                 //      argument, to generate the rand nonce).
                 // - Add database messages for all state mutations (How to do this well?)
                 // - Continue processing the MoveToken message.
-
-                sm_messages.append(&mut res_sm_messages);
 
                 // Replace slot with a new one:
                 let token_channel_slot = TokenChannelSlot::new_from_reset(
@@ -237,11 +228,9 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
 
                 Ok(fself)
             });
-            let b: Box<Future<Item=Self, Error=()>> = Box::new(fut);
-            b
+            Box::new(fut) as Box<Future<Item=Self, Error=()>>
         } else {
-            let b: Box<Future<Item=Self, Error=()>> = Box::new(future::ok(self));
-            b
+            Box::new(future::ok(self)) as Box<Future<Item=Self, Error=()>>
         };
 
         // TODO:
@@ -261,31 +250,26 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     fn handle_inconsistency_error(self, 
                                   remote_public_key: PublicKey,
                                   neighbor_inconsistency_error: NeighborInconsistencyError)
-         -> Box<Future<Item=(Self, Vec<StateMutateMessage>, Vec<MessengerTask>), Error=()>> {
+         -> Box<Future<Item=Self, Error=()>> {
 
-        let mut db_messages = Vec::new();
-        let mut messenger_tasks = Vec::new();
         unreachable!();
-        Box::new(future::ok((self, db_messages, messenger_tasks)))
+        Box::new(future::ok(self))
     }
 
     #[allow(type_complexity)]
     fn handle_set_max_token_channels(self, 
                                      remote_public_key: PublicKey,
                                      neighbor_set_max_token_channels: NeighborSetMaxTokenChannels)
-         -> Box<Future<Item=(Self, Vec<StateMutateMessage>, Vec<MessengerTask>), Error=()>> {
-        let mut db_messages = Vec::new();
-        let mut messenger_tasks = Vec::new();
+         -> Box<Future<Item=Self, Error=()>> {
         unreachable!();
-        Box::new(future::ok((self, db_messages, messenger_tasks)))
-
+        Box::new(future::ok(self))
     }
 
     #[allow(type_complexity)]
     pub fn handle_neighbor_message(self, 
                                    remote_public_key: PublicKey, 
                                    neighbor_message: IncomingNeighborMessage)
-         -> Box<Future<Item=(Self, Vec<StateMutateMessage>, Vec<MessengerTask>), Error=()>> {
+         -> Box<Future<Item=Self, Error=()>> {
 
         match neighbor_message {
             IncomingNeighborMessage::MoveToken(neighbor_move_token) =>
