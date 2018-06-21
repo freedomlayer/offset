@@ -15,6 +15,8 @@ use app_manager::messages::{SetNeighborRemoteMaxDebt, SetNeighborMaxChannels, Ad
 #[allow(dead_code)]
 pub enum TokenChannelStatus {
     Valid,
+    /// Inconsistent means that the remote side showed disagreement about the 
+    /// token channel, and this channel is waiting for a local human intervention.
     Inconsistent {
         current_token: ChannelToken,
         balance_for_reset: i64,
