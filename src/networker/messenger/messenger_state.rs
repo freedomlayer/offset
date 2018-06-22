@@ -9,9 +9,11 @@ use super::types::NeighborTcOp;
 use super::neighbor_tc_logic::NeighborTCState;
 use super::handle_neighbor::NeighborMoveToken;
 use super::super::messages::{NeighborStatus};
+use super::neighbor_tc_logic::NeighborMoveTokenInner;
 
-use app_manager::messages::{SetNeighborRemoteMaxDebt, SetNeighborMaxChannels, AddNeighbor, RemoveNeighbor, 
-    ResetNeighborChannel, SetNeighborStatus};
+use app_manager::messages::{SetNeighborRemoteMaxDebt, SetNeighborMaxChannels, 
+    AddNeighbor, RemoveNeighbor, ResetNeighborChannel, SetNeighborStatus};
+
 
 #[allow(dead_code)]
 pub enum TokenChannelStatus {
@@ -373,7 +375,35 @@ impl MessengerState {
                                  apply_neighbor_move_token: SmApplyNeighborMoveToken) 
         -> Result<(), MessengerStateError> {
 
-        // TODO:
+
+        let neighbor = self.neighbors.get_mut(&apply_neighbor_move_token.neighbor_public_key)
+            .ok_or(MessengerStateError::NeighborDoesNotExist)?;
+
+        let channel_index = apply_neighbor_move_token
+            .neighbor_move_token
+            .token_channel_index;
+
+        let token_channel_slot = neighbor.token_channel_slots
+            .get_mut(&channel_index)
+            .ok_or(MessengerStateError::TokenChannelDoesNotExist)?;
+
+        let NeighborMoveToken { operations, old_token, rand_nonce, .. } = 
+            apply_neighbor_move_token.neighbor_move_token;
+
+        let inner_move_token = NeighborMoveTokenInner {
+            operations,
+            old_token,
+            rand_nonce,
+        };
+
+        let new_token = apply_neighbor_move_token.neighbor_move_token.new_token;
+
+        let res = token_channel_slot.tc_state.receive_move_token(inner_move_token, 
+                                                       new_token);
+
+        // TODO: We somehow need to return the result to the outside, but the wrapper, mutate(),
+        // does not allow to return a value. How to solve this?
+
         unreachable!();
 
         Ok(())
