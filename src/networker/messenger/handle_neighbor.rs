@@ -23,11 +23,11 @@ use super::signature_buff::create_failure_signature_buffer;
 #[allow(unused)]
 #[derive(Clone)]
 pub struct NeighborMoveToken {
-    token_channel_index: u16,
-    operations: Vec<NeighborTcOp>,
-    old_token: ChannelToken,
-    rand_nonce: RandValue,
-    new_token: ChannelToken,
+    pub token_channel_index: u16,
+    pub operations: Vec<NeighborTcOp>,
+    pub old_token: ChannelToken,
+    pub rand_nonce: RandValue,
+    pub new_token: ChannelToken,
 }
 
 #[allow(unused)]
