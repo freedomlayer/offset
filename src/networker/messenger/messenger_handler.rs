@@ -5,9 +5,10 @@ use ring::rand::SecureRandom;
 use super::messenger_state::{MessengerState, StateMutateMessage};
 use super::handle_neighbor::{NeighborMoveToken, NeighborInconsistencyError, 
     NeighborSetMaxTokenChannels};
+use super::neighbor_tc_logic::ReceiveMoveTokenError;
 
 pub enum AppManagerMessage {
-
+    ReceiveMoveTokenError(ReceiveMoveTokenError),
 }
 
 pub enum FunderMessage {
