@@ -139,7 +139,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
 
         // Create a future that will resolve to all the mutation messages.
         // We use futures here because the calculation of signature is futuristic.
-        let fut_mutate_messages = 
+        let fut_push_ops = 
             requests_to_cancel.into_iter()
             .map(move |(origin_public_key, origin_channel_index, pending_local_request)| {
                 let failure_send_msg = FailureSendMessage {
@@ -168,18 +168,19 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                             rand_nonce_signatures: vec![rand_nonce_signature],
                         };
                         let failure_op = NeighborTcOp::FailureSendMessage(failure_send_msg);
-                        Ok(StateMutateMessage::TokenChannelPushOp(SmTokenChannelPushOp {
+                        Ok(SmTokenChannelPushOp {
                             neighbor_public_key: origin_public_key.clone(),
                             channel_index: origin_channel_index,
                             neighbor_op: failure_op,
-                        }))
+                        })
                     })
                 });
 
-        Box::new(futures::collect(fut_mutate_messages)
-            .and_then(|mutate_messages| {
-                for sm_msg in mutate_messages {
-                    self.state.mutate(sm_msg.clone())
+        Box::new(futures::collect(fut_push_ops)
+            .and_then(|push_ops| {
+                for token_channel_push_op in push_ops {
+                    let sm_msg = StateMutateMessage::TokenChannelPushOp(token_channel_push_op.clone());
+                    self.state.token_channel_push_op(token_channel_push_op)
                         .expect("Could not push neighbor operation into channel!");
                     self.sm_messages.push(sm_msg);
                 }
@@ -208,13 +209,14 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             let fut = self.cancel_local_pending_requests(
                 neighbor_public_key.clone(), channel_index)
             .and_then(move |mut fself| {
-                let sm_msg = StateMutateMessage::ResetTokenChannel(SmResetTokenChannel {
+                let reset_token_channel = SmResetTokenChannel {
                     neighbor_public_key: neighbor_public_key.clone(),
                     channel_index, 
                     reset_token,
                     balance_for_reset,
-                });
-                fself.state.mutate(sm_msg.clone());
+                };
+                let sm_msg = StateMutateMessage::ResetTokenChannel(reset_token_channel.clone());
+                fself.state.reset_token_channel(reset_token_channel);
                 fself.sm_messages.push(sm_msg);
                 Ok(fself)
             });
@@ -254,11 +256,12 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
 
 
         if !neighbor.token_channel_slots.contains_key(&channel_index) {
-            let sm_msg = StateMutateMessage::InitTokenChannel(SmInitTokenChannel {
+            let init_token_channel = SmInitTokenChannel {
                 neighbor_public_key: remote_public_key.clone(),
                 channel_index,
-            });
-            self.state.mutate(sm_msg.clone())
+            };
+            let sm_msg = StateMutateMessage::InitTokenChannel(init_token_channel.clone());
+            self.state.init_token_channel(init_token_channel)
                 .expect("Failed to initialize token channel!");
             self.sm_messages.push(sm_msg);
         }
@@ -283,11 +286,12 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                                            neighbor_move_token.new_token.clone());
 
         let fut = fut.and_then(|mut fself| {
-            let sm_msg = StateMutateMessage::ApplyNeighborMoveToken(SmApplyNeighborMoveToken {
+            let apply_neighbor_move_token = SmApplyNeighborMoveToken {
                 neighbor_public_key: remote_public_key.clone(),
                 neighbor_move_token,
-            });
-            match fself.state.mutate(sm_msg.clone()) {
+            };
+            let sm_msg = StateMutateMessage::ApplyNeighborMoveToken(apply_neighbor_move_token.clone());
+            match fself.state.apply_neighbor_move_token(apply_neighbor_move_token) {
                 Ok(()) => fself.sm_messages.push(sm_msg),
                 Err(_) => {},
             };

@@ -23,8 +23,9 @@ impl<R: SecureRandom> MessengerHandler<R> {
                                                 set_neighbor_remote_max_debt: SetNeighborRemoteMaxDebt) 
         -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
 
-        let sm_msg = StateMutateMessage::SetNeighborRemoteMaxDebt(set_neighbor_remote_max_debt);
-        match self.state.mutate(sm_msg.clone()) {
+
+        let sm_msg = StateMutateMessage::SetNeighborRemoteMaxDebt(set_neighbor_remote_max_debt.clone());
+        match self.state.set_neighbor_remote_max_debt(set_neighbor_remote_max_debt) {
             Ok(()) => (vec![sm_msg], vec![]),
             Err(_) => (vec![], vec![]),
         }
@@ -34,8 +35,8 @@ impl<R: SecureRandom> MessengerHandler<R> {
                                           reset_neighbor_channel: ResetNeighborChannel) 
         -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
 
-        let sm_msg = StateMutateMessage::ResetNeighborChannel(reset_neighbor_channel);
-        match self.state.mutate(sm_msg.clone()) {
+        let sm_msg = StateMutateMessage::ResetNeighborChannel(reset_neighbor_channel.clone());
+        match self.state.reset_neighbor_channel(reset_neighbor_channel) {
             Ok(()) => (vec![sm_msg], vec![]),
             Err(_) => (vec![], vec![]),
         }
@@ -45,8 +46,8 @@ impl<R: SecureRandom> MessengerHandler<R> {
                                           set_neighbor_max_channels: SetNeighborMaxChannels) 
         -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
 
-        let sm_msg = StateMutateMessage::SetNeighborMaxChannels(set_neighbor_max_channels);
-        match self.state.mutate(sm_msg.clone()) {
+        let sm_msg = StateMutateMessage::SetNeighborMaxChannels(set_neighbor_max_channels.clone());
+        match self.state.set_neighbor_max_channels(set_neighbor_max_channels) {
             Ok(()) => (vec![sm_msg], vec![]),
             Err(_) => (vec![], vec![]),
         }
@@ -56,8 +57,8 @@ impl<R: SecureRandom> MessengerHandler<R> {
                                 add_neighbor: AddNeighbor) 
         -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
 
-        let sm_msg = StateMutateMessage::AddNeighbor(add_neighbor);
-        match self.state.mutate(sm_msg.clone()) {
+        let sm_msg = StateMutateMessage::AddNeighbor(add_neighbor.clone());
+        match self.state.add_neighbor(add_neighbor) {
             Ok(()) => (vec![sm_msg], vec![]),
             Err(_) => (vec![], vec![]),
         }
@@ -66,8 +67,8 @@ impl<R: SecureRandom> MessengerHandler<R> {
     fn app_manager_remove_neighbor(&mut self, remove_neighbor: RemoveNeighbor) 
         -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
 
-        let sm_msg = StateMutateMessage::RemoveNeighbor(remove_neighbor);
-        match self.state.mutate(sm_msg.clone()) {
+        let sm_msg = StateMutateMessage::RemoveNeighbor(remove_neighbor.clone());
+        match self.state.remove_neighbor(remove_neighbor) {
             Ok(()) => (vec![sm_msg], vec![]),
             Err(_) => (vec![], vec![]),
         }
@@ -77,8 +78,8 @@ impl<R: SecureRandom> MessengerHandler<R> {
     fn app_manager_set_neighbor_status(&mut self, set_neighbor_status: SetNeighborStatus) 
         -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
 
-        let sm_msg = StateMutateMessage::SetNeighborStatus(set_neighbor_status);
-        match self.state.mutate(sm_msg.clone()) {
+        let sm_msg = StateMutateMessage::SetNeighborStatus(set_neighbor_status.clone());
+        match self.state.set_neighbor_status(set_neighbor_status) {
             Ok(()) => (vec![sm_msg], vec![]),
             Err(_) => (vec![], vec![]),
         }

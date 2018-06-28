@@ -185,34 +185,7 @@ impl MessengerState {
         &self.local_public_key
     }
 
-    pub fn mutate(&mut self, sm_message: StateMutateMessage)
-            -> Result<(), MessengerStateError> {
-
-        match sm_message {
-            StateMutateMessage::SetNeighborRemoteMaxDebt(msg) =>
-                self.set_neighbor_remote_max_debt(msg),
-            StateMutateMessage::ResetNeighborChannel(msg) => 
-                self.reset_neighbor_channel(msg),
-            StateMutateMessage::SetNeighborMaxChannels(msg) =>
-                self.set_neighbor_max_channels(msg),
-            StateMutateMessage::AddNeighbor(msg) =>
-                self.add_neighbor(msg),
-            StateMutateMessage::RemoveNeighbor(msg) =>
-                self.remove_neighbor(msg),
-            StateMutateMessage::SetNeighborStatus(msg) =>
-                self.set_neighbor_status(msg),
-            StateMutateMessage::InitTokenChannel(msg) =>
-                self.init_token_channel(msg),
-            StateMutateMessage::TokenChannelPushOp(msg) =>
-                self.token_channel_push_op(msg),
-            StateMutateMessage::ResetTokenChannel(msg) =>
-                self.reset_token_channel(msg),
-            StateMutateMessage::ApplyNeighborMoveToken(msg) =>
-                self.apply_neighbor_move_token(msg),
-        }
-    }
-
-    fn set_neighbor_remote_max_debt(&mut self, 
+    pub fn set_neighbor_remote_max_debt(&mut self, 
                                         set_neighbor_remote_max_debt: SetNeighborRemoteMaxDebt)
                                         -> Result<(), MessengerStateError> {
 
@@ -229,7 +202,7 @@ impl MessengerState {
     }
 
 
-    fn reset_neighbor_channel(&mut self, 
+    pub fn reset_neighbor_channel(&mut self, 
                                     reset_neighbor_channel: ResetNeighborChannel) 
                                     -> Result<(), MessengerStateError> {
                                         
@@ -253,7 +226,7 @@ impl MessengerState {
         Ok(())
     }
 
-    fn set_neighbor_max_channels(&mut self, 
+    pub fn set_neighbor_max_channels(&mut self, 
                                     set_neighbor_max_channels: SetNeighborMaxChannels) 
                                     -> Result<(), MessengerStateError> {
 
@@ -266,7 +239,7 @@ impl MessengerState {
         Ok(())
     }
 
-    fn add_neighbor(&mut self, 
+    pub fn add_neighbor(&mut self, 
                         add_neighbor: AddNeighbor) 
                         -> Result<(), MessengerStateError> {
 
@@ -292,7 +265,7 @@ impl MessengerState {
             .ok_or(MessengerStateError::NeighborDoesNotExist)
     }
 
-    fn remove_neighbor(&mut self, 
+    pub fn remove_neighbor(&mut self, 
                         remove_neighbor: RemoveNeighbor) 
                         -> Result<(), MessengerStateError> {
 
@@ -302,7 +275,7 @@ impl MessengerState {
         Ok(())
     }
 
-    fn set_neighbor_status(&mut self, 
+    pub fn set_neighbor_status(&mut self, 
                         set_neighbor_status: SetNeighborStatus) 
                         -> Result<(), MessengerStateError> {
 
@@ -316,7 +289,7 @@ impl MessengerState {
     }
 
 
-    fn init_token_channel(&mut self, init_token_channel: SmInitTokenChannel)
+    pub fn init_token_channel(&mut self, init_token_channel: SmInitTokenChannel)
         -> Result<(), MessengerStateError> {
 
         if self.get_neighbor(&init_token_channel.neighbor_public_key)?
@@ -335,7 +308,7 @@ impl MessengerState {
         Ok(())
     }
 
-    fn token_channel_push_op(&mut self, 
+    pub fn token_channel_push_op(&mut self, 
                                  token_channel_push_op: SmTokenChannelPushOp) 
         -> Result<(), MessengerStateError> {
 
@@ -351,7 +324,7 @@ impl MessengerState {
         Ok(())
     }
 
-    fn reset_token_channel(&mut self, 
+    pub fn reset_token_channel(&mut self, 
                                  reset_token_channel: SmResetTokenChannel) 
         -> Result<(), MessengerStateError> {
 
@@ -371,7 +344,7 @@ impl MessengerState {
         Ok(())
     }
 
-    fn apply_neighbor_move_token(&mut self, 
+    pub fn apply_neighbor_move_token(&mut self, 
                                  apply_neighbor_move_token: SmApplyNeighborMoveToken) 
         -> Result<(), MessengerStateError> {
 
