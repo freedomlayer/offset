@@ -285,7 +285,7 @@ impl MessengerState {
         Ok(())
     }
 
-    fn get_neighbor(&mut self, neighbor_public_key: &PublicKey) 
+    fn get_neighbor(&self, neighbor_public_key: &PublicKey) 
         -> Result<&NeighborState, MessengerStateError> {
 
         self.neighbors.get(neighbor_public_key)
