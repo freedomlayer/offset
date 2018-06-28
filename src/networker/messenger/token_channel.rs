@@ -31,6 +31,11 @@ use super::signature_buff::{create_failure_signature_buffer,
 const MAX_NETWORKER_DEBT: u64 = (1 << 63) - 1;
 
 /*
+pub struct IncomingRequestSendMessage {
+    request: RequestSendMessage,
+    incoming_response: ResponseSendMessage,
+}
+
 pub struct IncomingResponseSendMessage {
     pending_request: PendingNeighborRequest,
     incoming_response: ResponseSendMessage,
@@ -44,7 +49,6 @@ pub struct IncomingFailedSendMessage {
 
 
 /// Resulting tasks to perform after processing an incoming operation.
-/// Note that
 pub enum ProcessOperationOutput {
     Request(RequestSendMessage),
     Response(ResponseSendMessage),
