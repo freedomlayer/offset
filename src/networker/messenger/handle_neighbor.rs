@@ -14,7 +14,7 @@ use proto::networker::ChannelToken;
 use super::messenger_handler::{MessengerHandler, MessengerTask, NeighborMessage};
 use super::types::{NeighborTcOp, PendingNeighborRequest, FailureSendMessage, RandNonceSignature};
 use super::messenger_state::{NeighborState, StateMutateMessage, 
-    /* MessengerStateError, */TokenChannelStatus, TokenChannelSlot,
+    MessengerStateError, TokenChannelStatus, TokenChannelSlot,
     SmInitTokenChannel, SmTokenChannelPushOp, SmResetTokenChannel, 
     SmApplyNeighborMoveToken};
 
@@ -292,8 +292,9 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             };
             let sm_msg = StateMutateMessage::ApplyNeighborMoveToken(apply_neighbor_move_token.clone());
             match fself.state.apply_neighbor_move_token(apply_neighbor_move_token) {
-                Ok(()) => fself.sm_messages.push(sm_msg),
-                Err(_) => {},
+                Ok(move_token_output) => {},
+                Err(MessengerStateError::ReceiveMoveTokenError(e)) => {},
+                Err(_) => panic!("Failure when applying neighbor move token!"),
             };
             // TODO: Continue here.
             unreachable!();

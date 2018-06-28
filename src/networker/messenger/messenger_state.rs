@@ -9,7 +9,8 @@ use super::types::NeighborTcOp;
 use super::neighbor_tc_logic::NeighborTCState;
 use super::handle_neighbor::NeighborMoveToken;
 use super::super::messages::{NeighborStatus};
-use super::neighbor_tc_logic::NeighborMoveTokenInner;
+use super::neighbor_tc_logic::{NeighborMoveTokenInner, 
+    ReceiveMoveTokenOutput, ReceiveMoveTokenError};
 
 use app_manager::messages::{SetNeighborRemoteMaxDebt, SetNeighborMaxChannels, 
     AddNeighbor, RemoveNeighbor, ResetNeighborChannel, SetNeighborStatus};
@@ -168,6 +169,7 @@ pub enum MessengerStateError {
     TokenChannelDoesNotExist,
     NeighborAlreadyExists,
     TokenChannelAlreadyExists,
+    ReceiveMoveTokenError(ReceiveMoveTokenError),
 }
 
 #[allow(unused)]
@@ -346,7 +348,7 @@ impl MessengerState {
 
     pub fn apply_neighbor_move_token(&mut self, 
                                  apply_neighbor_move_token: SmApplyNeighborMoveToken) 
-        -> Result<(), MessengerStateError> {
+        -> Result<ReceiveMoveTokenOutput, MessengerStateError> {
 
 
         let neighbor = self.neighbors.get_mut(&apply_neighbor_move_token.neighbor_public_key)
@@ -371,14 +373,8 @@ impl MessengerState {
 
         let new_token = apply_neighbor_move_token.neighbor_move_token.new_token;
 
-        let res = token_channel_slot.tc_state.receive_move_token(inner_move_token, 
-                                                       new_token);
+        token_channel_slot.tc_state.receive_move_token(inner_move_token, new_token)
+            .map_err(MessengerStateError::ReceiveMoveTokenError)
 
-        // TODO: We somehow need to return the result to the outside, but the wrapper, mutate(),
-        // does not allow to return a value. How to solve this?
-
-        unreachable!();
-
-        Ok(())
     }
 }
