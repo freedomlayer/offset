@@ -11,7 +11,7 @@ use crypto::uid::Uid;
 
 use proto::networker::ChannelToken;
 
-use super::messenger_handler::{MessengerHandler, MessengerTask, NeighborMessage};
+use super::messenger_handler::{MessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage};
 use super::types::{NeighborTcOp, PendingNeighborRequest, FailureSendMessage, RandNonceSignature};
 use super::messenger_state::{NeighborState, StateMutateMessage, 
     MessengerStateError, TokenChannelStatus, TokenChannelSlot,
@@ -292,8 +292,45 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             };
             let sm_msg = StateMutateMessage::ApplyNeighborMoveToken(apply_neighbor_move_token.clone());
             match fself.state.apply_neighbor_move_token(apply_neighbor_move_token) {
-                Ok(move_token_output) => {},
-                Err(MessengerStateError::ReceiveMoveTokenError(e)) => {},
+                Ok(move_token_output) => {
+                    // TODO: Handle the output of move token.
+                    // - Queue requests/failures/responses into other token channels.
+                    // - Make sure that freezing overflow is not possible with incoming requests.
+                    // - Send any ready to be sent operations to remote side (As we have obtained
+                    //      the token).
+                    //
+                    // Put this into a separate function.
+                    unreachable!();
+                    Ok(())
+                },
+                Err(MessengerStateError::ReceiveMoveTokenError(e)) => {
+                    // TODO: Possibly refactor this into a function:
+                    
+                    // Send a message about inconsistency problem to AppManager:
+                    fself.messenger_tasks.push(
+                        MessengerTask::AppManagerMessage(
+                            AppManagerMessage::ReceiveMoveTokenError(e)));
+
+                    let token_channel_slot = fself.get_token_channel_slot(&remote_public_key, 
+                                                                          channel_index);
+                    // Send an InconsistencyError message to remote side.
+                    let current_token = token_channel_slot.tc_state
+                        .calc_channel_reset_token(channel_index);
+                    let balance_for_reset = token_channel_slot.tc_state
+                        .balance_for_reset();
+
+                    let inconsistency_error = NeighborInconsistencyError {
+                        token_channel_index: channel_index,
+                        current_token,
+                        balance_for_reset,
+                    };
+
+                    fself.messenger_tasks.push(
+                        MessengerTask::NeighborMessage(
+                            NeighborMessage::InconsistencyError(inconsistency_error)));
+
+                    Err(())
+                },
                 Err(_) => panic!("Failure when applying neighbor move token!"),
             };
             // TODO: Continue here.
