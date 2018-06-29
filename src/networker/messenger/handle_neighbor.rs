@@ -259,7 +259,6 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     }
 
 
-    #[allow(type_complexity)]
     fn handle_move_token(mut self, 
                          remote_public_key: PublicKey,
                          neighbor_move_token: NeighborMoveToken) 
@@ -377,7 +376,6 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         })) as Box<Future<Item=Self,Error=()>>
     }
 
-    #[allow(type_complexity)]
     fn handle_inconsistency_error(self, 
                                   remote_public_key: PublicKey,
                                   neighbor_inconsistency_error: NeighborInconsistencyError)
@@ -387,7 +385,6 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         Box::new(future::ok(self))
     }
 
-    #[allow(type_complexity)]
     fn handle_set_max_token_channels(self, 
                                      remote_public_key: PublicKey,
                                      neighbor_set_max_token_channels: NeighborSetMaxTokenChannels)
@@ -396,7 +393,6 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         Box::new(future::ok(self))
     }
 
-    #[allow(type_complexity)]
     pub fn handle_neighbor_message(self, 
                                    remote_public_key: PublicKey, 
                                    neighbor_message: IncomingNeighborMessage)
