@@ -48,7 +48,7 @@ pub enum ReceiveMoveTokenError {
 pub enum ReceiveMoveTokenOutput {
     Duplicate,
     RetransmitOutgoing,
-    ProcessTransListOutput(Vec<ProcessOperationOutput>),
+    ProcessOpsListOutput(Vec<ProcessOperationOutput>),
 }
 
 /// Calculate the next token channel, given values of previous NeighborMoveToken message.
@@ -194,7 +194,7 @@ impl NeighborTCState {
                                 new_token,
                                 direction: MoveTokenDirection::Incoming,
                             };
-                            Ok(ReceiveMoveTokenOutput::ProcessTransListOutput(output))
+                            Ok(ReceiveMoveTokenOutput::ProcessOpsListOutput(output))
                         },
                         (token_channel, Err(e)) => {
                             self.opt_token_channel = Some(token_channel);
