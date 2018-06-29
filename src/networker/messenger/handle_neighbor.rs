@@ -359,15 +359,10 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                     unreachable!();
                 },
                 Ok(ReceiveMoveTokenOutput::ProcessOpsListOutput(ops_list_output)) => {
-                    // - Queue requests/failures/responses into other token channels.
-                    //      - Make sure that freezing overflow is not possible with incoming requests.
                     Box::new(fself.handle_move_token_output(remote_public_key.clone(),
                                                    channel_index,
                                                    ops_list_output)
                     .and_then(move |mut fself| {
-                        // - Possibly handle messages that are targeted at us (Send to Crypter).
-                        // - Send any ready to be sent operations to remote side (As we have obtained
-                        //      the token).
                         fself.send_through_token_channel(&remote_public_key,
                                                          channel_index);
                         Ok(fself)
