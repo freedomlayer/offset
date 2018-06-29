@@ -11,6 +11,8 @@ use crypto::uid::Uid;
 
 use proto::networker::ChannelToken;
 
+use super::token_channel::ProcessOperationOutput;
+use super::neighbor_tc_logic::ReceiveMoveTokenOutput;
 use super::messenger_handler::{MessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage};
 use super::types::{NeighborTcOp, PendingNeighborRequest, FailureSendMessage, RandNonceSignature};
 use super::messenger_state::{NeighborState, StateMutateMessage, 
@@ -226,6 +228,36 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         }
     }
 
+    /// Process incoming operations from remote side.
+    /// - Handle configuration messages?
+    /// - Queue messages to other token channels.
+    ///     - Make sure that freezing DoS can not occur.
+    fn handle_move_token_output(mut self, 
+                                remote_public_key: PublicKey,
+                                channel_index: u16,
+                                ops_list_output: Vec<ProcessOperationOutput> )
+                        -> Box<Future<Item=Self, Error=()>> {
+
+        // TODO
+        unreachable!();
+        Box::new(future::ok(self))
+    }
+
+    /// Compose a large as possible message to send through the token channel to the remote side.
+    /// The message should contain various operations, collected from:
+    /// - Generic pending requests (Might be sent through any token channel).
+    /// - Token channel specific pending responses/failures.
+    /// - Commands that were initialized through AppManager.
+    ///
+    /// Any operations that will enter the message should be applied. For example, a failure
+    /// message should cause the pending request to be removed.
+    fn send_through_token_channel(&mut self, 
+                                  remote_public_key: &PublicKey,
+                                  channel_index: u16) {
+        // TODO
+        unreachable!();
+    }
+
 
     #[allow(type_complexity)]
     fn handle_move_token(mut self, 
@@ -285,23 +317,32 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                                            channel_index, 
                                            neighbor_move_token.new_token.clone());
 
-        let fut = fut.and_then(|mut fself| {
+        Box::new(fut.and_then(move |mut fself| {
             let apply_neighbor_move_token = SmApplyNeighborMoveToken {
                 neighbor_public_key: remote_public_key.clone(),
                 neighbor_move_token,
             };
             let sm_msg = StateMutateMessage::ApplyNeighborMoveToken(apply_neighbor_move_token.clone());
             match fself.state.apply_neighbor_move_token(apply_neighbor_move_token) {
-                Ok(move_token_output) => {
-                    // TODO: Handle the output of move token.
-                    // - Queue requests/failures/responses into other token channels.
-                    // - Make sure that freezing overflow is not possible with incoming requests.
-                    // - Send any ready to be sent operations to remote side (As we have obtained
-                    //      the token).
-                    //
-                    // Put this into a separate function.
+                Ok(ReceiveMoveTokenOutput::Duplicate) => Box::new(future::ok(fself)),
+                Ok(ReceiveMoveTokenOutput::RetransmitOutgoing) => {
+                    // TODO: Retransmit last sent token channel message.
                     unreachable!();
-                    Ok(())
+                },
+                Ok(ReceiveMoveTokenOutput::ProcessOpsListOutput(ops_list_output)) => {
+                    // - Queue requests/failures/responses into other token channels.
+                    //      - Make sure that freezing overflow is not possible with incoming requests.
+                    Box::new(fself.handle_move_token_output(remote_public_key.clone(),
+                                                   channel_index,
+                                                   ops_list_output)
+                    .and_then(move |mut fself| {
+                        // - Possibly handle messages that are targeted at us (Send to Crypter).
+                        // - Send any ready to be sent operations to remote side (As we have obtained
+                        //      the token).
+                        fself.send_through_token_channel(&remote_public_key,
+                                                         channel_index);
+                        Ok(fself)
+                    })) as Box<Future<Item=Self,Error=()>>
                 },
                 Err(MessengerStateError::ReceiveMoveTokenError(e)) => {
                     // TODO: Possibly refactor this into a function:
@@ -329,27 +370,11 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                         MessengerTask::NeighborMessage(
                             NeighborMessage::InconsistencyError(inconsistency_error)));
 
-                    Err(())
+                    Box::new(future::ok(fself))
                 },
-                Err(_) => panic!("Failure when applying neighbor move token!"),
-            };
-            // TODO: Continue here.
-            unreachable!();
-            Ok(())
-        });
-
-
-        // TODO:
-        // - Attempt to receive the neighbor_move_token transaction.
-        //      - On failure: Report inconsistency to AppManager
-        //      - On success: 
-        //          - Ignore? (If duplicate)
-        //          - Retransmit outgoing?
-        //          - Handle incoming messages
-        //
-        // - Possibly send any pending messages through this token channel (But first - write to
-        //  database).
-        unreachable!();
+                Err(_) => unreachable!(),
+            }
+        })) as Box<Future<Item=Self,Error=()>>
     }
 
     #[allow(type_complexity)]
