@@ -12,7 +12,7 @@ use crypto::uid::Uid;
 use proto::networker::ChannelToken;
 
 use super::token_channel::ProcessOperationOutput;
-use super::neighbor_tc_logic::ReceiveMoveTokenOutput;
+use super::neighbor_tc_logic::{ReceiveMoveTokenOutput, ReceiveMoveTokenError};
 use super::messenger_handler::{MessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage};
 use super::types::{NeighborTcOp, PendingNeighborRequest, FailureSendMessage, RandNonceSignature};
 use super::messenger_state::{NeighborState, StateMutateMessage, 
@@ -243,6 +243,36 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         Box::new(future::ok(self))
     }
 
+    /// Handle an error with incoming move token.
+    fn handle_move_token_error(&mut self,
+                               remote_public_key: &PublicKey,
+                               channel_index: u16,
+                               receive_move_token_error: ReceiveMoveTokenError) {
+        // Send a message about inconsistency problem to AppManager:
+        self.messenger_tasks.push(
+            MessengerTask::AppManagerMessage(
+                AppManagerMessage::ReceiveMoveTokenError(receive_move_token_error)));
+
+        let token_channel_slot = self.get_token_channel_slot(&remote_public_key, 
+                                                              channel_index);
+        // Send an InconsistencyError message to remote side:
+        let current_token = token_channel_slot.tc_state
+            .calc_channel_reset_token(channel_index);
+        let balance_for_reset = token_channel_slot.tc_state
+            .balance_for_reset();
+
+        let inconsistency_error = NeighborInconsistencyError {
+            token_channel_index: channel_index,
+            current_token,
+            balance_for_reset,
+        };
+
+        self.messenger_tasks.push(
+            MessengerTask::NeighborMessage(
+                NeighborMessage::InconsistencyError(inconsistency_error)));
+    }
+
+
     /// Compose a large as possible message to send through the token channel to the remote side.
     /// The message should contain various operations, collected from:
     /// - Generic pending requests (Might be sent through any token channel).
@@ -343,32 +373,10 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                         Ok(fself)
                     })) as Box<Future<Item=Self,Error=()>>
                 },
-                Err(MessengerStateError::ReceiveMoveTokenError(e)) => {
-                    // TODO: Possibly refactor this into a function:
-                    
-                    // Send a message about inconsistency problem to AppManager:
-                    fself.messenger_tasks.push(
-                        MessengerTask::AppManagerMessage(
-                            AppManagerMessage::ReceiveMoveTokenError(e)));
-
-                    let token_channel_slot = fself.get_token_channel_slot(&remote_public_key, 
-                                                                          channel_index);
-                    // Send an InconsistencyError message to remote side.
-                    let current_token = token_channel_slot.tc_state
-                        .calc_channel_reset_token(channel_index);
-                    let balance_for_reset = token_channel_slot.tc_state
-                        .balance_for_reset();
-
-                    let inconsistency_error = NeighborInconsistencyError {
-                        token_channel_index: channel_index,
-                        current_token,
-                        balance_for_reset,
-                    };
-
-                    fself.messenger_tasks.push(
-                        MessengerTask::NeighborMessage(
-                            NeighborMessage::InconsistencyError(inconsistency_error)));
-
+                Err(MessengerStateError::ReceiveMoveTokenError(receive_move_token_error)) => {
+                    fself.handle_move_token_error(&remote_public_key,
+                                                 channel_index,
+                                                 receive_move_token_error);
                     Box::new(future::ok(fself))
                 },
                 Err(_) => unreachable!(),
