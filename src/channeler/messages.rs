@@ -1,18 +1,5 @@
 use bytes::Bytes;
-
 use crypto::identity::PublicKey;
-
-pub const MAX_PADDING_LEN: usize = 32;
-
-/// The internal message expected to be send to a `Channel`.
-#[derive(Debug)]
-pub enum ToChannel {
-    /// A time tick event.
-    TimeTick,
-
-    /// Request the `Channel` to send a message.
-    SendMessage(Bytes),
-}
 
 /// The channel event expected to be sent to `Networker`.
 pub enum ChannelEvent {

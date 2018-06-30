@@ -24,10 +24,10 @@ impl ChannelPool {
         let tx = Tx::new(addr, meta.tx_cid, meta.tx_key);
         let rx = Rx::new(meta.rx_cid, meta.rx_key);
 
-        if let Some(cur_channel) = self.channels.get_mut(&meta.public_key) {
+        if let Some(cur_channel) = self.channels.get_mut(&meta.remote_public_key) {
             self.cid_to_pk.insert(
                 rx.channel_id().clone(),
-                meta.public_key
+                meta.remote_public_key
             );
             let expired_rx = cur_channel.update_channel(tx, rx);
 
@@ -37,11 +37,11 @@ impl ChannelPool {
         } else {
             self.cid_to_pk.insert(
                 rx.channel_id().clone(),
-                meta.public_key.clone()
+                meta.remote_public_key.clone()
             );
 
             let new_channel = Channel::new(tx, rx);
-            self.channels.insert(meta.public_key, new_channel);
+            self.channels.insert(meta.remote_public_key, new_channel);
         }
     }
 
@@ -54,7 +54,7 @@ impl ChannelPool {
     }
 
     #[inline]
-    pub fn is_connected_to(&self, pk: &PublicKey) -> bool {
+    pub fn is_connected(&self, pk: &PublicKey) -> bool {
         if let Some(channel) = self.channels.get(pk) {
             channel.can_send_msg()
         } else {
@@ -98,6 +98,7 @@ impl ChannelPool {
     }
 
     pub fn time_tick(&mut self) -> Vec<PublicKey> {
+        // FIXME: https://github.com/realcr/cswitch/pull/54#issuecomment-396855438
         let mut keepalive_fired = Vec::new();
 
         for (public_key, channel) in &mut self.channels {

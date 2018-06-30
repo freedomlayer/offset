@@ -157,20 +157,6 @@ impl UnknownChannel {
     }
 }
 
-impl ChannelerMessage {
-    #[inline]
-    pub fn is_handshake_message(&self) -> bool {
-        match *self {
-            ChannelerMessage::RequestNonce(_)
-            | ChannelerMessage::ResponseNonce(_)
-            | ChannelerMessage::ExchangeActive(_)
-            | ChannelerMessage::ExchangePassive(_)
-            | ChannelerMessage::ChannelReady(_) => true,
-            _ => false,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

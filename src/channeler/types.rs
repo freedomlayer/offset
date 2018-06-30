@@ -13,6 +13,22 @@ pub struct ChannelerNeighborInfo {
 
 #[derive(Debug)]
 pub struct ChannelerNeighbor {
-    pub info: ChannelerNeighborInfo,
-    pub retry_ticks: usize,
+    info: ChannelerNeighborInfo,
+    pub reconnect_timeout: usize,
+}
+
+impl ChannelerNeighbor {
+    pub fn new(info: ChannelerNeighborInfo) -> ChannelerNeighbor {
+        ChannelerNeighbor { info, reconnect_timeout: 0 }
+    }
+
+    #[inline]
+    pub fn remote_addr(&self) -> Option<SocketAddr> {
+        self.info.socket_addr
+    }
+
+    #[inline]
+    pub fn remote_public_key(&self) -> &PublicKey {
+        &self.info.public_key
+    }
 }
