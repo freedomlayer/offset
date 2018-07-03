@@ -207,7 +207,7 @@ impl NeighborTCState {
                         },
                     }
                 } else if move_token_inner.old_token == new_token {
-                    // We should retransmit send our message to the remote side.
+                    // We should retransmit our message to the remote side.
                     Ok(ReceiveMoveTokenOutput::RetransmitOutgoing)
                 } else {
                     Err(ReceiveMoveTokenError::ChainInconsistency)
