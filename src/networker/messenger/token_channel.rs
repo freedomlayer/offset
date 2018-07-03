@@ -1,5 +1,6 @@
 #![warn(unused)]
 
+use std::cmp;
 use std::convert::TryFrom;
 use std::collections::HashMap;
 
@@ -30,6 +31,11 @@ use super::signature_buff::{create_failure_signature_buffer,
 const MAX_NETWORKER_DEBT: u64 = (1 << 63) - 1;
 
 /*
+pub struct IncomingRequestSendMessage {
+    request: RequestSendMessage,
+    incoming_response: ResponseSendMessage,
+}
+
 pub struct IncomingResponseSendMessage {
     pending_request: PendingNeighborRequest,
     incoming_response: ResponseSendMessage,
@@ -43,7 +49,6 @@ pub struct IncomingFailedSendMessage {
 
 
 /// Resulting tasks to perform after processing an incoming operation.
-/// Note that
 pub enum ProcessOperationOutput {
     Request(RequestSendMessage),
     Response(ResponseSendMessage),
@@ -116,12 +121,34 @@ pub struct TCBalance {
     remote_pending_debt: u64,
 }
 
+impl TCBalance {
+    fn new(balance: i64) -> TCBalance {
+        TCBalance {
+            balance,
+            remote_max_debt: cmp::max(balance, 0) as u64,
+            local_max_debt: cmp::min(-balance, 0) as u64,
+            local_pending_debt: 0,
+            remote_pending_debt: 0,
+        }
+    }
+}
+
+
 #[derive(Clone)]
 pub struct TCInvoice {
     /// The invoice id which I randomized locally
     local_invoice_id: Option<InvoiceId>,
     /// The invoice id which the neighbor randomized
     remote_invoice_id: Option<InvoiceId>,
+}
+
+impl TCInvoice {
+    fn new() -> TCInvoice {
+        TCInvoice {
+            local_invoice_id: None,
+            remote_invoice_id: None,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -134,11 +161,29 @@ pub struct TCSendPrice {
     pub remote_send_price: Option<NetworkerSendPrice>,
 }
 
+impl TCSendPrice {
+    fn new() -> TCSendPrice {
+        TCSendPrice {
+            local_send_price: None,
+            remote_send_price: None,
+        }
+    }
+}
+
 struct TCPendingRequests {
     /// Pending requests that were opened locally and not yet completed
     pending_local_requests: HashMap<Uid, PendingNeighborRequest>,
     /// Pending requests that were opened remotely and not yet completed
     pending_remote_requests: HashMap<Uid, PendingNeighborRequest>,
+}
+
+impl TCPendingRequests {
+    fn new() -> TCPendingRequests {
+        TCPendingRequests {
+            pending_local_requests: HashMap::new(),
+            pending_remote_requests: HashMap::new(),
+        }
+    }
 }
 
 struct TransTCPendingRequests {
@@ -176,6 +221,41 @@ pub struct TokenChannel {
     invoice: TCInvoice,
     send_price: TCSendPrice,
     pending_requests: TCPendingRequests,
+}
+
+
+impl TokenChannel {
+    pub fn new(local_public_key: &PublicKey, 
+           remote_public_key: &PublicKey, 
+           balance: i64) -> TokenChannel {
+
+        TokenChannel {
+            idents: TCIdents {
+                local_public_key: local_public_key.clone(),
+                remote_public_key: remote_public_key.clone(),
+            },
+            balance: TCBalance::new(balance),
+            invoice: TCInvoice::new(),
+            send_price: TCSendPrice::new(),
+            pending_requests: TCPendingRequests::new(),
+        }
+    }
+
+    /// Calculate required balance for reset.
+    /// This would be current balance plus additional future profits.
+    pub fn balance_for_reset(&self) -> i64 {
+        self.balance.balance
+            .checked_add_unsigned(self.balance.remote_pending_debt)
+            .expect("Overflow when calculating balance_for_reset")
+    }
+
+    pub fn pending_local_requests(&self) -> &HashMap<Uid, PendingNeighborRequest> {
+        &self.pending_requests.pending_local_requests
+    }
+
+    pub fn pending_remote_requests(&self) -> &HashMap<Uid, PendingNeighborRequest> {
+        &self.pending_requests.pending_remote_requests
+    }
 }
 
 

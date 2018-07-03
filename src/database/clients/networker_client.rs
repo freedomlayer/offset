@@ -96,7 +96,7 @@ impl DBNetworkerClient {
     /// This method usually be called only once, on the startup of the Networker.
     pub fn request_load_neighbor_token(&self, 
                                        neighbor_public_key: PublicKey, 
-                                       token_channel_index: u32)
+                                       token_channel_index: u16)
         -> impl Future<Item=Option<ResponseLoadNeighborToken>, Error=DBNetworkerClientError> {
 
         let (tx, rx) = oneshot::channel();

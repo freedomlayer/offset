@@ -9,6 +9,7 @@ use proto::funder::InvoiceId;
 use proto::networker::NetworkerSendPrice;
 
 
+#[derive(Clone)]
 pub enum NeighborTcOp {
     EnableRequests(NetworkerSendPrice),
     DisableRequests,
@@ -32,6 +33,7 @@ pub struct PendingNeighborRequest {
 }
 
 
+#[derive(Clone)]
 pub struct ResponseSendMessage {
     pub request_id: Uid,
     pub rand_nonce: RandValue,
@@ -43,16 +45,19 @@ pub struct ResponseSendMessage {
 
 /// A rational number. 
 /// T is the type of the numerator and the denominator.
+#[derive(Clone)]
 pub struct Rational<T> {
     pub numerator: T,
     pub denominator: T,
 }
 
+#[derive(Clone)]
 pub struct NetworkerFreezeLink {
     pub shared_credits: u64,
     pub usable_ratio: Rational<u64>,
 }
 
+#[derive(Clone)]
 pub struct RequestSendMessage {
     pub request_id: Uid,
     pub route: NeighborsRoute,
@@ -62,12 +67,14 @@ pub struct RequestSendMessage {
     pub freeze_links: Vec<NetworkerFreezeLink>,
 }
 
+#[derive(Clone)]
 pub struct RandNonceSignature {
     pub rand_nonce: RandValue,
     pub signature: Signature,
 }
 
 
+#[derive(Clone)]
 pub struct FailureSendMessage {
     pub request_id: Uid,
     pub reporting_public_key: PublicKey,

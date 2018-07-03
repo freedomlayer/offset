@@ -11,17 +11,21 @@ using import "common.capnp".RandNonceSignature;
 # ----------------------
 
 struct NeighborMoveToken {
-        tokenChannelIndex @0: UInt8;
+        tokenChannelIndex @0: UInt16;
         operations @1: List(NeighborOperation);
         oldToken @2: CustomUInt256;
         randNonce @3: CustomUInt128;
 }
 
 struct NeighborInconsistencyError {
-        tokenChannelIndex @0: UInt8;
+        tokenChannelIndex @0: UInt16;
         currentToken @1: CustomUInt256;
         # In the next message, this will be used as old_token.
         balanceForReset @2: Int64;
+}
+
+struct NeighborSetMaxTokenChannels {
+        maxTokenChannels @0: UInt16;
 }
 
 
