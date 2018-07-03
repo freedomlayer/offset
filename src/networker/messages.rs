@@ -19,12 +19,6 @@ use super::messenger::token_channel::{TCBalance, TCInvoice, TCSendPrice};
 use super::messenger::types::{NeighborsRoute, PendingNeighborRequest};
 
 
-/// Indicate the direction of the move token message.
-#[derive(Clone, Copy, Debug)]
-pub enum MoveTokenDirection {
-    Incoming = 0,
-    Outgoing = 1,
-}
 
 #[derive(Clone, Copy)]
 pub enum NeighborStatus {

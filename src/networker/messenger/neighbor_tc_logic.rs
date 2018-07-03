@@ -7,7 +7,6 @@ use proto::networker::ChannelToken;
 use crypto::identity::PublicKey;
 use crypto::rand_values::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
-use networker::messages::MoveTokenDirection;
 use super::token_channel::{TokenChannel, ProcessOperationOutput, 
     ProcessTransListError, atomic_process_operations_list};
 use super::types::NeighborTcOp;
@@ -25,10 +24,15 @@ pub struct NeighborMoveTokenInner {
     pub rand_nonce: RandValue,
 }
 
+/// Indicate the direction of the move token message.
+pub enum MoveTokenDirection {
+    Incoming,
+    Outgoing(NeighborMoveTokenInner),
+}
+
 
 struct ChainState {
     pub direction: MoveTokenDirection,
-    pub old_token: ChannelToken,
     pub new_token: ChannelToken,
     // Equals Sha512/256(NeighborMoveToken)
 }
@@ -95,30 +99,33 @@ impl NeighborTCState {
         let remote_pk_hash = sha_512_256(remote_public_key);
         let new_token_channel = TokenChannel::new(local_public_key, remote_public_key, 0);
 
+        let rand_nonce = RandValue::try_from(&remote_pk_hash.as_ref()[.. RAND_VALUE_LEN])
+                    .expect("Failed to trim a public key hash into the size of random value!");
+
+        // Calculate hash(FirstMoveTokenLower):
+        let new_token = calc_channel_next_token(token_channel_index,
+                                           &[],
+                                           &ChannelToken::from(local_pk_hash.as_array_ref()),
+                                           &rand_nonce);
+
         if local_pk_hash < remote_pk_hash {
             // We are the first sender
             NeighborTCState {
                 chain_state: ChainState {
-                    direction: MoveTokenDirection::Outgoing,
-                    old_token: ChannelToken::from(local_pk_hash.as_array_ref()),
-                    new_token: ChannelToken::from(remote_pk_hash.as_array_ref()),
+                    direction: MoveTokenDirection::Outgoing(NeighborMoveTokenInner {
+                        operations: Vec::new(),
+                        old_token: ChannelToken::from(local_pk_hash.as_array_ref()),
+                        rand_nonce,
+                    }),
+                    new_token,
                 },
                 opt_token_channel: Some(new_token_channel),
             }
         } else {
             // We are the second sender
-            // Calculate hash(FirstMoveTokenLower):
-            let rand_value = RandValue::try_from(&remote_pk_hash.as_ref()[.. RAND_VALUE_LEN])
-                .expect("Failed to trim a public key hash into the size of random value!");
-            let new_token = calc_channel_next_token(token_channel_index,
-                                               &[],
-                                               &ChannelToken::from(local_pk_hash.as_array_ref()),
-                                               &rand_value);
-
             NeighborTCState {
                 chain_state: ChainState {
                     direction: MoveTokenDirection::Incoming,
-                    old_token: new_token.clone(), // TODO: What to put here?
                     new_token,
                 },
                 opt_token_channel: Some(new_token_channel),
@@ -133,7 +140,6 @@ impl NeighborTCState {
         NeighborTCState {
             chain_state: ChainState {
                 direction: MoveTokenDirection::Incoming,
-                old_token: current_token.clone(), // TODO: What to put here?
                 new_token: current_token.clone(),
             },
             opt_token_channel: Some(TokenChannel::new(local_public_key, remote_public_key, balance)),
@@ -178,7 +184,7 @@ impl NeighborTCState {
                     Err(ReceiveMoveTokenError::ChainInconsistency)
                 }
             },
-            MoveTokenDirection::Outgoing => {
+            MoveTokenDirection::Outgoing(ref move_token_inner) => {
                 if move_token_message.old_token == self.chain_state.new_token {
                     let token_channel = self.opt_token_channel
                         .take()
@@ -190,9 +196,8 @@ impl NeighborTCState {
                             // set old_token, new_token and direction:
                             self.opt_token_channel = Some(token_channel);
                             self.chain_state = ChainState {
-                                old_token: self.chain_state.new_token.clone(),
-                                new_token,
                                 direction: MoveTokenDirection::Incoming,
+                                new_token,
                             };
                             Ok(ReceiveMoveTokenOutput::ProcessOpsListOutput(output))
                         },
@@ -201,7 +206,7 @@ impl NeighborTCState {
                             Err(ReceiveMoveTokenError::InvalidTransaction(e))
                         },
                     }
-                } else if self.chain_state.old_token == new_token {
+                } else if move_token_inner.old_token == new_token {
                     // We should retransmit send our message to the remote side.
                     Ok(ReceiveMoveTokenOutput::RetransmitOutgoing)
                 } else {
