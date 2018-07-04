@@ -15,7 +15,7 @@ use funder::messages::{RequestSendFunds};
 use database::messages::{ResponseLoadNeighbors, ResponseLoadNeighborToken};
 use proto::networker::ChannelToken;
 
-use super::messenger::token_channel::types::{TCBalance, TCInvoice, TCSendPrice};
+use super::messenger::token_channel::types::{TcBalance, TcInvoice, TcSendPrice};
 use super::messenger::types::{NeighborsRoute, PendingNeighborRequest};
 
 
@@ -161,9 +161,9 @@ pub struct NeighborTokenCommon {
     pub old_token: ChannelToken,
     pub new_token: ChannelToken,
     // Equals Sha512/256(move_token_message)
-    balance: TCBalance,
-    invoice: TCInvoice,
-    send_price: TCSendPrice,
+    balance: TcBalance,
+    invoice: TcInvoice,
+    send_price: TcSendPrice,
 }
 
 pub struct InNeighborToken {

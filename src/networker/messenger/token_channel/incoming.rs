@@ -18,8 +18,8 @@ use super::super::credit_calc::CreditCalculator;
 use super::super::signature_buff::{create_failure_signature_buffer, 
     create_response_signature_buffer};
 
-use super::types::{TokenChannel, TCBalance, TCInvoice, TCSendPrice, TCIdents,
-    TransTCPendingRequests};
+use super::types::{TokenChannel, TcBalance, TcInvoice, TcSendPrice, TcIdents,
+    TransTcPendingRequests};
 
 /// The maximum possible networker debt.
 /// We don't use the full u64 because i64 can not go beyond this value.
@@ -94,14 +94,14 @@ pub struct ProcessTransListError {
 
 /// Processes incoming messages, acts upon an underlying `TokenChannel`.
 struct IncomingTokenChannel {
-    orig_balance: TCBalance,
-    orig_invoice: TCInvoice,
-    orig_send_price: TCSendPrice,
-    idents: TCIdents,
-    balance: TCBalance,
-    invoice: TCInvoice,
-    send_price: TCSendPrice,
-    trans_pending_requests: TransTCPendingRequests,
+    orig_balance: TcBalance,
+    orig_invoice: TcInvoice,
+    orig_send_price: TcSendPrice,
+    idents: TcIdents,
+    balance: TcBalance,
+    invoice: TcInvoice,
+    send_price: TcSendPrice,
+    trans_pending_requests: TransTcPendingRequests,
 }
 
 /// If this function returns an error, the token channel becomes incosistent.
@@ -186,7 +186,7 @@ impl IncomingTokenChannel {
             balance: token_channel.balance,
             invoice: token_channel.invoice,
             send_price: token_channel.send_price,
-            trans_pending_requests: TransTCPendingRequests::new(token_channel.pending_requests),
+            trans_pending_requests: TransTcPendingRequests::new(token_channel.pending_requests),
         }
     }
 

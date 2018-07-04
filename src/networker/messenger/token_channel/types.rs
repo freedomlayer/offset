@@ -16,7 +16,7 @@ use super::super::types::{PendingNeighborRequest};
 
 
 #[derive(Clone)]
-pub struct TCIdents {
+pub struct TcIdents {
     /// My public key
     pub(super) local_public_key: PublicKey,
     /// Neighbor's public key
@@ -24,7 +24,7 @@ pub struct TCIdents {
 }
 
 #[derive(Clone)]
-pub struct TCBalance {
+pub struct TcBalance {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
     pub(super) balance: i64,
@@ -38,9 +38,9 @@ pub struct TCBalance {
     pub(super) remote_pending_debt: u64,
 }
 
-impl TCBalance {
-    fn new(balance: i64) -> TCBalance {
-        TCBalance {
+impl TcBalance {
+    fn new(balance: i64) -> TcBalance {
+        TcBalance {
             balance,
             remote_max_debt: cmp::max(balance, 0) as u64,
             local_max_debt: cmp::min(-balance, 0) as u64,
@@ -52,16 +52,16 @@ impl TCBalance {
 
 
 #[derive(Clone)]
-pub struct TCInvoice {
+pub struct TcInvoice {
     /// The invoice id which I randomized locally
     pub(super) local_invoice_id: Option<InvoiceId>,
     /// The invoice id which the neighbor randomized
     pub(super) remote_invoice_id: Option<InvoiceId>,
 }
 
-impl TCInvoice {
-    fn new() -> TCInvoice {
-        TCInvoice {
+impl TcInvoice {
+    fn new() -> TcInvoice {
+        TcInvoice {
             local_invoice_id: None,
             remote_invoice_id: None,
         }
@@ -69,7 +69,7 @@ impl TCInvoice {
 }
 
 #[derive(Clone)]
-pub struct TCSendPrice {
+pub struct TcSendPrice {
     /// Price for us to send message to the remote side
     /// Knowns only if we enabled requests
     pub(super) local_send_price: Option<NetworkerSendPrice>,
@@ -78,53 +78,53 @@ pub struct TCSendPrice {
     pub(super) remote_send_price: Option<NetworkerSendPrice>,
 }
 
-impl TCSendPrice {
-    fn new() -> TCSendPrice {
-        TCSendPrice {
+impl TcSendPrice {
+    fn new() -> TcSendPrice {
+        TcSendPrice {
             local_send_price: None,
             remote_send_price: None,
         }
     }
 }
 
-pub struct TCPendingRequests {
+pub struct TcPendingRequests {
     /// Pending requests that were opened locally and not yet completed
     pending_local_requests: HashMap<Uid, PendingNeighborRequest>,
     /// Pending requests that were opened remotely and not yet completed
     pending_remote_requests: HashMap<Uid, PendingNeighborRequest>,
 }
 
-impl TCPendingRequests {
-    fn new() -> TCPendingRequests {
-        TCPendingRequests {
+impl TcPendingRequests {
+    fn new() -> TcPendingRequests {
+        TcPendingRequests {
             pending_local_requests: HashMap::new(),
             pending_remote_requests: HashMap::new(),
         }
     }
 }
 
-pub struct TransTCPendingRequests {
+pub struct TransTcPendingRequests {
     pub(super) trans_pending_local_requests: TransHashMap<Uid, PendingNeighborRequest>,
     pub(super) trans_pending_remote_requests: TransHashMap<Uid, PendingNeighborRequest>,
 }
 
-impl TransTCPendingRequests {
-    pub fn new(pending_requests: TCPendingRequests) -> TransTCPendingRequests {
-        TransTCPendingRequests {
+impl TransTcPendingRequests {
+    pub fn new(pending_requests: TcPendingRequests) -> TransTcPendingRequests {
+        TransTcPendingRequests {
             trans_pending_local_requests: TransHashMap::new(pending_requests.pending_local_requests),
             trans_pending_remote_requests: TransHashMap::new(pending_requests.pending_remote_requests),
         }
     }
 
-    pub fn commit(self) -> TCPendingRequests {
-        TCPendingRequests {
+    pub fn commit(self) -> TcPendingRequests {
+        TcPendingRequests {
             pending_local_requests: self.trans_pending_local_requests.commit(),
             pending_remote_requests: self.trans_pending_remote_requests.commit(),
         }
     }
 
-    pub fn cancel(self) -> TCPendingRequests {
-        TCPendingRequests {
+    pub fn cancel(self) -> TcPendingRequests {
+        TcPendingRequests {
             pending_local_requests: self.trans_pending_local_requests.cancel(),
             pending_remote_requests: self.trans_pending_remote_requests.cancel(),
         }
@@ -133,11 +133,11 @@ impl TransTCPendingRequests {
 
 
 pub struct TokenChannel {
-    pub(super) idents: TCIdents,
-    pub(super) balance: TCBalance,
-    pub(super) invoice: TCInvoice,
-    pub(super) send_price: TCSendPrice,
-    pub(super) pending_requests: TCPendingRequests,
+    pub(super) idents: TcIdents,
+    pub(super) balance: TcBalance,
+    pub(super) invoice: TcInvoice,
+    pub(super) send_price: TcSendPrice,
+    pub(super) pending_requests: TcPendingRequests,
 }
 
 impl TokenChannel {
@@ -146,14 +146,14 @@ impl TokenChannel {
            balance: i64) -> TokenChannel {
 
         TokenChannel {
-            idents: TCIdents {
+            idents: TcIdents {
                 local_public_key: local_public_key.clone(),
                 remote_public_key: remote_public_key.clone(),
             },
-            balance: TCBalance::new(balance),
-            invoice: TCInvoice::new(),
-            send_price: TCSendPrice::new(),
-            pending_requests: TCPendingRequests::new(),
+            balance: TcBalance::new(balance),
+            invoice: TcInvoice::new(),
+            send_price: TcSendPrice::new(),
+            pending_requests: TcPendingRequests::new(),
         }
     }
 
