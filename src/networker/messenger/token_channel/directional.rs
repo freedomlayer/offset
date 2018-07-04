@@ -32,15 +32,10 @@ pub enum MoveTokenDirection {
 }
 
 
-struct ChainState {
-    pub direction: MoveTokenDirection,
-    pub new_token: ChannelToken,
-    // Equals Sha512/256(NeighborMoveToken)
-}
-
-
 pub struct DirectionalTokenChannel {
-    chain_state: ChainState,
+    direction: MoveTokenDirection,
+    new_token: ChannelToken,
+    // Equals Sha512/256(NeighborMoveToken)
     opt_token_channel: Option<TokenChannel>,
 }
 
@@ -112,23 +107,19 @@ impl DirectionalTokenChannel {
         if local_pk_hash < remote_pk_hash {
             // We are the first sender
             DirectionalTokenChannel {
-                chain_state: ChainState {
-                    direction: MoveTokenDirection::Outgoing(NeighborMoveTokenInner {
-                        operations: Vec::new(),
-                        old_token: ChannelToken::from(local_pk_hash.as_array_ref()),
-                        rand_nonce,
-                    }),
-                    new_token,
-                },
+                direction: MoveTokenDirection::Outgoing(NeighborMoveTokenInner {
+                    operations: Vec::new(),
+                    old_token: ChannelToken::from(local_pk_hash.as_array_ref()),
+                    rand_nonce,
+                }),
+                new_token,
                 opt_token_channel: Some(new_token_channel),
             }
         } else {
             // We are the second sender
             DirectionalTokenChannel {
-                chain_state: ChainState {
-                    direction: MoveTokenDirection::Incoming,
-                    new_token,
-                },
+                direction: MoveTokenDirection::Incoming,
+                new_token,
                 opt_token_channel: Some(new_token_channel),
             }
         }
@@ -139,10 +130,8 @@ impl DirectionalTokenChannel {
                       current_token: &ChannelToken, 
                       balance: i64) -> DirectionalTokenChannel {
         DirectionalTokenChannel {
-            chain_state: ChainState {
-                direction: MoveTokenDirection::Incoming,
-                new_token: current_token.clone(),
-            },
+            direction: MoveTokenDirection::Incoming,
+            new_token: current_token.clone(),
             opt_token_channel: Some(TokenChannel::new(local_public_key, remote_public_key, balance)),
         }
     }
@@ -164,7 +153,7 @@ impl DirectionalTokenChannel {
     #[allow(unused)]
     pub fn calc_channel_reset_token(&self, token_channel_index: u16) -> ChannelToken {
         calc_channel_reset_token(token_channel_index,
-                                     &self.chain_state.new_token,
+                                     &self.new_token,
                                      self.get_token_channel().balance_for_reset())
     }
 
@@ -175,9 +164,9 @@ impl DirectionalTokenChannel {
                               new_token: ChannelToken) 
         -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
 
-        match self.chain_state.direction {
+        match self.direction {
             MoveTokenDirection::Incoming => {
-                if new_token == self.chain_state.new_token {
+                if new_token == self.new_token {
                     // Duplicate
                     Ok(ReceiveMoveTokenOutput::Duplicate)
                 } else {
@@ -186,7 +175,7 @@ impl DirectionalTokenChannel {
                 }
             },
             MoveTokenDirection::Outgoing(ref move_token_inner) => {
-                if move_token_message.old_token == self.chain_state.new_token {
+                if move_token_message.old_token == self.new_token {
                     let token_channel = self.opt_token_channel
                         .take()
                         .expect("TokenChannel not present!");
@@ -196,10 +185,8 @@ impl DirectionalTokenChannel {
                             // If processing the transactions was successful, we 
                             // set old_token, new_token and direction:
                             self.opt_token_channel = Some(token_channel);
-                            self.chain_state = ChainState {
-                                direction: MoveTokenDirection::Incoming,
-                                new_token,
-                            };
+                            self.direction = MoveTokenDirection::Incoming;
+                            self.new_token = new_token;
                             Ok(ReceiveMoveTokenOutput::ProcessOpsListOutput(output))
                         },
                         (token_channel, Err(e)) => {
