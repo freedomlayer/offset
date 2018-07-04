@@ -7,10 +7,10 @@ use proto::networker::ChannelToken;
 use crypto::identity::PublicKey;
 use crypto::rand_values::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
-use super::token_channel::types::TokenChannel;
-use super::token_channel::incoming::{atomic_process_operations_list, 
+use super::types::TokenChannel;
+use super::incoming::{atomic_process_operations_list, 
     ProcessOperationOutput, ProcessTransListError};
-use super::types::NeighborTcOp;
+use super::super::types::NeighborTcOp;
 
 // Prefix used for chain hashing of token channel messages.
 // NEXT is used for hashing for the next move token message.

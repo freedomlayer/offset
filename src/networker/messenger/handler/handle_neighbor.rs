@@ -12,7 +12,7 @@ use crypto::uid::Uid;
 use proto::networker::ChannelToken;
 
 use super::super::token_channel::incoming::ProcessOperationOutput;
-use super::super::neighbor_tc_logic::{ReceiveMoveTokenOutput, ReceiveMoveTokenError};
+use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError};
 use super::{MessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage};
 use super::super::types::{NeighborTcOp, PendingNeighborRequest, FailureSendMessage, RandNonceSignature};
 use super::super::messenger_state::{NeighborState, StateMutateMessage, 

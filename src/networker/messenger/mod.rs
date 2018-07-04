@@ -25,16 +25,12 @@ use database::clients::networker_client::DBNetworkerClient;
 
 use channeler::messages::ChannelerToNetworker;
 
-
-
 pub mod token_channel;
 mod handler;
-mod neighbor_tc_logic;
 pub mod types;
 mod credit_calc;
 mod signature_buff;
 mod messenger_state;
-
 
 
 #[allow(unused)]

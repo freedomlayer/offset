@@ -6,10 +6,10 @@ use crypto::identity::PublicKey;
 use proto::networker::ChannelToken;
 
 use super::types::NeighborTcOp;
-use super::neighbor_tc_logic::NeighborTCState;
 use super::handler::handle_neighbor::NeighborMoveToken;
 use super::super::messages::{NeighborStatus};
-use super::neighbor_tc_logic::{NeighborMoveTokenInner, 
+
+use super::token_channel::directional::{NeighborTCState,NeighborMoveTokenInner, 
     ReceiveMoveTokenOutput, ReceiveMoveTokenError};
 
 use app_manager::messages::{SetNeighborRemoteMaxDebt, SetNeighborMaxChannels, 
