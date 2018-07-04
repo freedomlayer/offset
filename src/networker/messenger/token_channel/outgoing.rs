@@ -1,5 +1,7 @@
 #![allow(unused)]
 
+use std::collections::VecDeque;
+
 use proto::funder::InvoiceId;
 use proto::common::SendFundsReceipt;
 use proto::networker::NetworkerSendPrice;
@@ -18,6 +20,8 @@ struct OutgoingTokenChannel {
     invoice: TcInvoice,
     send_price: TcSendPrice,
     pending_requests: TcPendingRequests,
+    /// Accumulated operations waiting to be sent:
+    operations: VecDeque<NeighborTcOp>,
 }
 
 enum QueueOperationError {
@@ -37,6 +41,7 @@ impl OutgoingTokenChannel {
             invoice: token_channel.invoice,
             send_price: token_channel.send_price,
             pending_requests: token_channel.pending_requests,
+            operations: VecDeque::new(),
         }
     }
 
@@ -47,7 +52,7 @@ impl OutgoingTokenChannel {
 
     pub fn queue_operation(&mut self, operation: NeighborTcOp) ->
         Result<(), QueueOperationFailure> {
-        match operation {
+        let res = match operation.clone() {
             NeighborTcOp::EnableRequests(send_price) =>
                 self.queue_enable_requests(send_price),
             NeighborTcOp::DisableRequests =>
@@ -64,8 +69,13 @@ impl OutgoingTokenChannel {
                 self.queue_response_send_message(response_send_msg),
             NeighborTcOp::FailureSendMessage(failure_send_msg) =>
                 self.queue_failure_send_message(failure_send_msg),
+        };
+        if res.is_ok() {
+            self.operations.push_back(operation);
         }
+        res
     }
+
     fn queue_enable_requests(&mut self, send_price: NetworkerSendPrice) ->
         Result<(), QueueOperationFailure> {
         // TODO
