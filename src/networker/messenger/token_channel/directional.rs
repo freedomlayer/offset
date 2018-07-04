@@ -39,7 +39,7 @@ struct ChainState {
 }
 
 
-pub struct NeighborTCState {
+pub struct DirectionalTokenChannel {
     chain_state: ChainState,
     opt_token_channel: Option<TokenChannel>,
 }
@@ -88,11 +88,11 @@ pub fn calc_channel_reset_token(token_channel_index: u16,
 }
 
 
-impl NeighborTCState {
+impl DirectionalTokenChannel {
     #[allow(unused)]
     pub fn new(local_public_key: &PublicKey, 
                remote_public_key: &PublicKey,
-               token_channel_index: u16) -> NeighborTCState {
+               token_channel_index: u16) -> DirectionalTokenChannel {
 
         let mut hash_buffer: Vec<u8> = Vec::new();
 
@@ -111,7 +111,7 @@ impl NeighborTCState {
 
         if local_pk_hash < remote_pk_hash {
             // We are the first sender
-            NeighborTCState {
+            DirectionalTokenChannel {
                 chain_state: ChainState {
                     direction: MoveTokenDirection::Outgoing(NeighborMoveTokenInner {
                         operations: Vec::new(),
@@ -124,7 +124,7 @@ impl NeighborTCState {
             }
         } else {
             // We are the second sender
-            NeighborTCState {
+            DirectionalTokenChannel {
                 chain_state: ChainState {
                     direction: MoveTokenDirection::Incoming,
                     new_token,
@@ -137,8 +137,8 @@ impl NeighborTCState {
     pub fn new_from_reset(local_public_key: &PublicKey, 
                       remote_public_key: &PublicKey, 
                       current_token: &ChannelToken, 
-                      balance: i64) -> NeighborTCState {
-        NeighborTCState {
+                      balance: i64) -> DirectionalTokenChannel {
+        DirectionalTokenChannel {
             chain_state: ChainState {
                 direction: MoveTokenDirection::Incoming,
                 new_token: current_token.clone(),

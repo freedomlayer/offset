@@ -9,7 +9,7 @@ use super::types::NeighborTcOp;
 use super::handler::handle_neighbor::NeighborMoveToken;
 use super::super::messages::{NeighborStatus};
 
-use super::token_channel::directional::{NeighborTCState,NeighborMoveTokenInner, 
+use super::token_channel::directional::{DirectionalTokenChannel,NeighborMoveTokenInner, 
     ReceiveMoveTokenOutput, ReceiveMoveTokenError};
 
 use app_manager::messages::{SetNeighborRemoteMaxDebt, SetNeighborMaxChannels, 
@@ -29,7 +29,7 @@ pub enum TokenChannelStatus {
 
 #[allow(unused)]
 pub struct TokenChannelSlot {
-    pub tc_state: NeighborTCState,
+    pub tc_state: DirectionalTokenChannel,
     pub tc_status: TokenChannelStatus,
     pub wanted_remote_max_debt: u64,
     pub pending_operations: VecDeque<NeighborTcOp>,
@@ -43,7 +43,7 @@ impl TokenChannelSlot {
                remote_public_key: &PublicKey,
                token_channel_index: u16) -> TokenChannelSlot {
         TokenChannelSlot {
-            tc_state: NeighborTCState::new(local_public_key,
+            tc_state: DirectionalTokenChannel::new(local_public_key,
                                            remote_public_key,
                                            token_channel_index),
             tc_status: TokenChannelStatus::Valid,
@@ -58,7 +58,7 @@ impl TokenChannelSlot {
                            balance: i64) -> TokenChannelSlot {
 
         TokenChannelSlot {
-            tc_state: NeighborTCState::new_from_reset(local_public_key,
+            tc_state: DirectionalTokenChannel::new_from_reset(local_public_key,
                                                       remote_public_key,
                                                       current_token,
                                                       balance),
