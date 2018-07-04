@@ -28,17 +28,13 @@ use channeler::messages::ChannelerToNetworker;
 
 
 pub mod token_channel;
+mod handler;
 mod neighbor_tc_logic;
 pub mod types;
 mod credit_calc;
 mod signature_buff;
 mod messenger_state;
-mod messenger_handler;
 
-mod handle_app_manager;
-mod handle_neighbor;
-mod handle_funder;
-mod handle_crypter;
 
 
 #[allow(unused)]

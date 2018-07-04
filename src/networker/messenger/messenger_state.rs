@@ -7,7 +7,7 @@ use proto::networker::ChannelToken;
 
 use super::types::NeighborTcOp;
 use super::neighbor_tc_logic::NeighborTCState;
-use super::handle_neighbor::NeighborMoveToken;
+use super::handler::handle_neighbor::NeighborMoveToken;
 use super::super::messages::{NeighborStatus};
 use super::neighbor_tc_logic::{NeighborMoveTokenInner, 
     ReceiveMoveTokenOutput, ReceiveMoveTokenError};

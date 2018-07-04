@@ -11,16 +11,16 @@ use crypto::uid::Uid;
 
 use proto::networker::ChannelToken;
 
-use super::token_channel::incoming::ProcessOperationOutput;
-use super::neighbor_tc_logic::{ReceiveMoveTokenOutput, ReceiveMoveTokenError};
-use super::messenger_handler::{MessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage};
-use super::types::{NeighborTcOp, PendingNeighborRequest, FailureSendMessage, RandNonceSignature};
-use super::messenger_state::{NeighborState, StateMutateMessage, 
+use super::super::token_channel::incoming::ProcessOperationOutput;
+use super::super::neighbor_tc_logic::{ReceiveMoveTokenOutput, ReceiveMoveTokenError};
+use super::{MessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage};
+use super::super::types::{NeighborTcOp, PendingNeighborRequest, FailureSendMessage, RandNonceSignature};
+use super::super::messenger_state::{NeighborState, StateMutateMessage, 
     MessengerStateError, TokenChannelStatus, TokenChannelSlot,
     SmInitTokenChannel, SmTokenChannelPushOp, SmResetTokenChannel, 
     SmApplyNeighborMoveToken};
 
-use super::signature_buff::create_failure_signature_buffer;
+use super::super::signature_buff::create_failure_signature_buffer;
 
 #[allow(unused)]
 #[derive(Clone)]

@@ -1,9 +1,14 @@
+mod handle_app_manager;
+pub mod handle_neighbor;
+mod handle_funder;
+mod handle_crypter;
+
 use std::rc::Rc;
 use security_module::client::SecurityModuleClient;
 use ring::rand::SecureRandom;
 
 use super::messenger_state::{MessengerState, StateMutateMessage};
-use super::handle_neighbor::{NeighborMoveToken, NeighborInconsistencyError, 
+use self::handle_neighbor::{NeighborMoveToken, NeighborInconsistencyError, 
     NeighborSetMaxTokenChannels};
 use super::neighbor_tc_logic::ReceiveMoveTokenError;
 
