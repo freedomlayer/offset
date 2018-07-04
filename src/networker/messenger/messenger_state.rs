@@ -9,8 +9,9 @@ use super::types::NeighborTcOp;
 use super::handler::handle_neighbor::NeighborMoveToken;
 use super::super::messages::{NeighborStatus};
 
-use super::token_channel::directional::{DirectionalTokenChannel,NeighborMoveTokenInner, 
+use super::token_channel::directional::{DirectionalTokenChannel, 
     ReceiveMoveTokenOutput, ReceiveMoveTokenError};
+use super::token_channel::types::NeighborMoveTokenInner;
 
 use app_manager::messages::{SetNeighborRemoteMaxDebt, SetNeighborMaxChannels, 
     AddNeighbor, RemoveNeighbor, ResetNeighborChannel, SetNeighborStatus};

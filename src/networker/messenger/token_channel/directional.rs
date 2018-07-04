@@ -7,10 +7,9 @@ use proto::networker::ChannelToken;
 use crypto::identity::PublicKey;
 use crypto::rand_values::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
-use super::types::TokenChannel;
+use super::types::{TokenChannel, NeighborMoveTokenInner};
 use super::incoming::{atomic_process_operations_list, 
     ProcessOperationOutput, ProcessTransListError};
-use super::super::types::NeighborTcOp;
 
 // Prefix used for chain hashing of token channel messages.
 // NEXT is used for hashing for the next move token message.
@@ -19,11 +18,6 @@ use super::super::types::NeighborTcOp;
 const TOKEN_NEXT: &[u8] = b"NEXT";
 const TOKEN_RESET: &[u8] = b"RESET";
 
-pub struct NeighborMoveTokenInner {
-    pub operations: Vec<NeighborTcOp>,
-    pub old_token: ChannelToken,
-    pub rand_nonce: RandValue,
-}
 
 /// Indicate the direction of the move token message.
 pub enum MoveTokenDirection {

@@ -5,15 +5,21 @@ use std::collections::HashMap;
 
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
+use crypto::rand_values::{RandValue};
 
 use proto::funder::InvoiceId;
-use proto::networker::NetworkerSendPrice;
+use proto::networker::{NetworkerSendPrice, ChannelToken};
 
 use utils::trans_hashmap::TransHashMap;
 use utils::safe_arithmetic::SafeArithmetic;
 
-use super::super::types::{PendingNeighborRequest};
+use super::super::types::{PendingNeighborRequest, NeighborTcOp};
 
+pub struct NeighborMoveTokenInner {
+    pub operations: Vec<NeighborTcOp>,
+    pub old_token: ChannelToken,
+    pub rand_nonce: RandValue,
+}
 
 #[derive(Clone)]
 pub struct TcIdents {
