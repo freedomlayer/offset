@@ -45,9 +45,17 @@ impl OutgoingTokenChannel {
         }
     }
 
+    /// Commit to send all the pending operations
     pub fn commit(self) -> (TokenChannel, Vec<NeighborTcOp>) {
-        // TODO
-        unreachable!();
+        let token_channel = TokenChannel {
+            idents: self.idents,
+            balance: self.balance,
+            invoice: self.invoice,
+            send_price: self.send_price,
+            pending_requests: self.pending_requests,
+        };
+
+        (token_channel, self.operations.into_iter().collect())
     }
 
     pub fn queue_operation(&mut self, operation: NeighborTcOp) ->
