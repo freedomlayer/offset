@@ -1,5 +1,3 @@
-#![warn(unused)]
-
 use std::cmp;
 use std::collections::HashMap;
 
@@ -14,16 +12,15 @@ use proto::networker::NetworkerSendPrice;
 use utils::trans_hashmap::TransHashMap;
 use utils::safe_arithmetic::SafeArithmetic;
 
-use super::types::{PendingNeighborRequest};
-
+use super::super::types::{PendingNeighborRequest};
 
 
 #[derive(Clone)]
 pub struct TCIdents {
     /// My public key
-    pub local_public_key: PublicKey,
+    pub(super) local_public_key: PublicKey,
     /// Neighbor's public key
-    pub remote_public_key: PublicKey,
+    pub(super) remote_public_key: PublicKey,
 }
 
 #[derive(Clone)]
@@ -75,10 +72,10 @@ impl TCInvoice {
 pub struct TCSendPrice {
     /// Price for us to send message to the remote side
     /// Knowns only if we enabled requests
-    pub local_send_price: Option<NetworkerSendPrice>,
+    pub(super) local_send_price: Option<NetworkerSendPrice>,
     /// Price for the remote side to send messages to us
     /// Knowns only if remote side enabled requests
-    pub remote_send_price: Option<NetworkerSendPrice>,
+    pub(super) remote_send_price: Option<NetworkerSendPrice>,
 }
 
 impl TCSendPrice {
@@ -136,13 +133,12 @@ impl TransTCPendingRequests {
 
 
 pub struct TokenChannel {
-    pub (super) idents: TCIdents,
-    pub (super) balance: TCBalance,
-    pub (super) invoice: TCInvoice,
-    pub (super) send_price: TCSendPrice,
-    pub (super) pending_requests: TCPendingRequests,
+    pub(super) idents: TCIdents,
+    pub(super) balance: TCBalance,
+    pub(super) invoice: TCInvoice,
+    pub(super) send_price: TCSendPrice,
+    pub(super) pending_requests: TCPendingRequests,
 }
-
 
 impl TokenChannel {
     pub fn new(local_public_key: &PublicKey, 

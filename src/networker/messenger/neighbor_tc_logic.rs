@@ -7,8 +7,8 @@ use proto::networker::ChannelToken;
 use crypto::identity::PublicKey;
 use crypto::rand_values::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
-use super::token_channel::{TokenChannel};
-use super::incoming_token_channel::{atomic_process_operations_list, 
+use super::token_channel::types::TokenChannel;
+use super::token_channel::incoming::{atomic_process_operations_list, 
     ProcessOperationOutput, ProcessTransListError};
 use super::types::NeighborTcOp;
 

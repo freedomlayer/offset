@@ -28,7 +28,6 @@ use channeler::messages::ChannelerToNetworker;
 
 
 pub mod token_channel;
-pub mod incoming_token_channel;
 mod neighbor_tc_logic;
 pub mod types;
 mod credit_calc;

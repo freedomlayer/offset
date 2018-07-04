@@ -10,14 +10,15 @@ use proto::networker::NetworkerSendPrice;
 use utils::int_convert::usize_to_u32;
 use utils::safe_arithmetic::SafeArithmetic;
 
-use super::types::{ResponseSendMessage, FailureSendMessage, RequestSendMessage,
+use super::super::types::{ResponseSendMessage, FailureSendMessage, RequestSendMessage,
                                 NeighborTcOp, NeighborsRoute, PkPairPosition,
                                 PendingNeighborRequest};
-use super::credit_calc::CreditCalculator;
-use super::signature_buff::{create_failure_signature_buffer, 
+
+use super::super::credit_calc::CreditCalculator;
+use super::super::signature_buff::{create_failure_signature_buffer, 
     create_response_signature_buffer};
 
-use super::token_channel::{TokenChannel, TCBalance, TCInvoice, TCSendPrice, TCIdents,
+use super::types::{TokenChannel, TCBalance, TCInvoice, TCSendPrice, TCIdents,
     TransTCPendingRequests};
 
 /// The maximum possible networker debt.
