@@ -14,7 +14,7 @@ use super::super::types::{NeighborTcOp, RequestSendMessage,
 
 /// Processes outgoing messages for a token channel.
 /// Used to batch as many messages as possible.
-struct OutgoingTokenChannel {
+pub struct OutgoingTokenChannel {
     idents: TcIdents,
     balance: TcBalance,
     invoice: TcInvoice,
@@ -24,10 +24,10 @@ struct OutgoingTokenChannel {
     operations: VecDeque<NeighborTcOp>,
 }
 
-enum QueueOperationError {
+pub enum QueueOperationError {
 }
 
-struct QueueOperationFailure {
+pub struct QueueOperationFailure {
     operation: NeighborTcOp,
     error: QueueOperationError,
 }
