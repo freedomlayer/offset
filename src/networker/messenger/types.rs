@@ -1,9 +1,15 @@
 use std::collections::hash_set::HashSet;
+
+use byteorder::{WriteBytesExt, BigEndian};
+
+use utils::int_convert::usize_to_u64;
+
 use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
 use crypto::rand_values::RandValue;
 use crypto::hash;
 use crypto::hash::HashResult;
+
 use proto::common::SendFundsReceipt;
 use proto::funder::InvoiceId;
 use proto::networker::NetworkerSendPrice;
@@ -192,22 +198,27 @@ impl NeighborsRoute {
         }
     }
 
-    /// Produce a cryptographic hash over the contents of the route.
-    pub fn hash(&self) -> HashResult {
-        let mut hbuffer = Vec::new();
-        hbuffer.extend_from_slice(&self.source_public_key);
-        hbuffer.extend_from_slice(&self.source_request_proposal.to_bytes());
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.source_public_key);
+        res_bytes.extend_from_slice(&self.source_request_proposal.to_bytes());
 
         let mut route_links_bytes = Vec::new();
+        res_bytes.write_u64::<BigEndian>(
+            usize_to_u64(self.route_links.len()).unwrap()).unwrap();
         for route_link in &self.route_links {
             route_links_bytes.extend_from_slice(&route_link.to_bytes());
         }
-        hbuffer.extend_from_slice(&hash::sha_512_256(&route_links_bytes));
+        res_bytes.extend_from_slice(&hash::sha_512_256(&route_links_bytes));
 
-        hbuffer.extend_from_slice(&self.dest_public_key);
-        hbuffer.extend_from_slice(&self.dest_response_proposal.to_bytes());
+        res_bytes.extend_from_slice(&self.dest_public_key);
+        res_bytes.extend_from_slice(&self.dest_response_proposal.to_bytes());
+        res_bytes
+    }
 
-        hash::sha_512_256(&hbuffer)
+    /// Produce a cryptographic hash over the contents of the route.
+    pub fn hash(&self) -> HashResult {
+        hash::sha_512_256(&self.to_bytes())
     }
 
     /// Find the index of a public key inside the route.
@@ -240,5 +251,125 @@ impl NeighborsRoute {
             let link_index = index.checked_sub(1)?;
             Some(&self.route_links[link_index].node_public_key)
         }
+    }
+}
+
+impl RandNonceSignature {
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.rand_nonce);
+        res_bytes.extend_from_slice(&self.signature);
+        res_bytes
+    }
+}
+
+impl Rational<u64> {
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.write_u64::<BigEndian>(self.numerator)
+            .expect("Could not serialize u64!");
+        res_bytes.write_u64::<BigEndian>(self.denominator)
+            .expect("Could not serialize u64!");
+        res_bytes
+    }
+}
+
+impl NetworkerFreezeLink {
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.write_u64::<BigEndian>(self.shared_credits)
+            .expect("Could not serialize u64!");
+        res_bytes.extend_from_slice(&self.usable_ratio.to_bytes());
+        res_bytes
+    }
+}
+
+impl RequestSendMessage {
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.request_id);
+        res_bytes.extend_from_slice(&self.route.to_bytes());
+        res_bytes.extend_from_slice(&self.request_content);
+        res_bytes.write_u32::<BigEndian>(self.max_response_len)
+            .expect("Failed to serialize max_response_len (u32)");
+        res_bytes.write_u64::<BigEndian>(self.processing_fee_proposal)
+            .expect("Failed to serialize processing_fee_proposal (u64)");
+        for freeze_link in &self.freeze_links {
+            res_bytes.extend_from_slice(&freeze_link.to_bytes());
+        }
+        res_bytes
+    }
+}
+
+impl ResponseSendMessage {
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.request_id);
+        res_bytes.extend_from_slice(&self.rand_nonce);
+        res_bytes.write_u64::<BigEndian>(self.processing_fee_collected)
+            .expect("Failed to serialize processing_fee_collected (u64)");
+        res_bytes.write_u64::<BigEndian>(usize_to_u64(
+                self.response_content.len()).unwrap()).unwrap();
+        res_bytes.extend_from_slice(&self.response_content);
+        res_bytes.extend_from_slice(&self.signature);
+        res_bytes
+    }
+}
+
+
+impl FailureSendMessage {
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.request_id);
+        res_bytes.extend_from_slice(&self.reporting_public_key);
+        res_bytes.write_u64::<BigEndian>(usize_to_u64(
+                self.rand_nonce_signatures.len()).unwrap()).unwrap();
+        for rand_nonce_sig in &self.rand_nonce_signatures {
+            res_bytes.extend_from_slice(&rand_nonce_sig.to_bytes());
+        }
+        res_bytes
+    }
+}
+
+#[allow(unused)]
+impl NeighborTcOp {
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        match self {
+            NeighborTcOp::EnableRequests(networker_send_price) => {
+                res_bytes.push(0u8);
+                res_bytes.append(&mut networker_send_price.to_bytes());
+            },
+            NeighborTcOp::DisableRequests => {
+                res_bytes.push(1u8);
+            }
+            NeighborTcOp::SetRemoteMaxDebt(remote_max_debt) => {
+                res_bytes.push(2u8);
+                res_bytes.write_u64::<BigEndian>(*remote_max_debt)
+                    .expect("Failed to serialize u64 (remote_max_debt)");
+            }
+            NeighborTcOp::SetInvoiceId(invoice_id) => {
+                res_bytes.push(3u8);
+                res_bytes.extend_from_slice(&invoice_id)
+            }
+            NeighborTcOp::LoadFunds(send_funds_receipt) => {
+                res_bytes.push(4u8);
+                res_bytes.append(&mut send_funds_receipt.to_bytes())
+            }
+            NeighborTcOp::RequestSendMessage(request_send_message) => {
+                res_bytes.push(5u8);
+                res_bytes.append(&mut request_send_message.to_bytes())
+            }
+            NeighborTcOp::ResponseSendMessage(response_send_message) => {
+                res_bytes.push(6u8);
+                res_bytes.append(&mut response_send_message.to_bytes())
+            }
+            NeighborTcOp::FailureSendMessage(failure_send_message) => {
+                res_bytes.push(7u8);
+                res_bytes.append(&mut failure_send_message.to_bytes())
+            }
+            
+        }
+        res_bytes
     }
 }

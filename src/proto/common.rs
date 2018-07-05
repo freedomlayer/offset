@@ -42,4 +42,15 @@ impl SendFundsReceipt {
 
         verify_signature(&data, public_key, &self.signature)
     }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.response_hash);
+        res_bytes.extend_from_slice(&self.invoice_id);
+        res_bytes.write_u128::<BigEndian>(self.payment)
+            .expect("Could not serialize u128!");
+        res_bytes.extend_from_slice(&self.rand_nonce);
+        res_bytes.extend_from_slice(&self.signature);
+        res_bytes
+    }
 }
