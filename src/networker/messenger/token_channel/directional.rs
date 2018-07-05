@@ -278,7 +278,7 @@ impl DirectionalTokenChannel {
     }
 
     #[allow(unused)]
-    fn get_outgoing_move_token(&self) -> Option<NeighborMoveToken> {
+    pub fn get_outgoing_move_token(&self) -> Option<NeighborMoveToken> {
         match self.direction {
             MoveTokenDirection::Incoming => None,
             MoveTokenDirection::Outgoing(ref move_token_inner) => {
