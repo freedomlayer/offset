@@ -12,8 +12,7 @@ use crypto::hash::HashResult;
 
 use proto::common::SendFundsReceipt;
 use proto::funder::InvoiceId;
-use proto::networker::NetworkerSendPrice;
-
+use proto::networker::{NetworkerSendPrice, ChannelToken};
 
 #[derive(Clone)]
 pub enum NeighborTcOp {
@@ -108,6 +107,16 @@ pub struct NeighborsRoute {
     pub dest_response_proposal: NetworkerSendPrice,
 }
 
+
+#[allow(unused)]
+#[derive(Clone)]
+pub struct NeighborMoveToken {
+    pub token_channel_index: u16,
+    pub operations: Vec<NeighborTcOp>,
+    pub old_token: ChannelToken,
+    pub rand_nonce: RandValue,
+    pub new_token: ChannelToken,
+}
 
 
 #[derive(PartialEq, Eq)]

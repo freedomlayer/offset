@@ -14,7 +14,8 @@ use proto::networker::ChannelToken;
 use super::super::token_channel::incoming::ProcessOperationOutput;
 use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError};
 use super::{MessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage};
-use super::super::types::{NeighborTcOp, PendingNeighborRequest, FailureSendMessage, RandNonceSignature};
+use super::super::types::{NeighborTcOp, PendingNeighborRequest, 
+    FailureSendMessage, RandNonceSignature, NeighborMoveToken};
 use super::super::messenger_state::{NeighborState, StateMutateMessage, 
     MessengerStateError, TokenChannelStatus, TokenChannelSlot,
     SmInitTokenChannel, SmTokenChannelPushOp, SmResetTokenChannel, 
@@ -22,15 +23,6 @@ use super::super::messenger_state::{NeighborState, StateMutateMessage,
 
 use super::super::signature_buff::create_failure_signature_buffer;
 
-#[allow(unused)]
-#[derive(Clone)]
-pub struct NeighborMoveToken {
-    pub token_channel_index: u16,
-    pub operations: Vec<NeighborTcOp>,
-    pub old_token: ChannelToken,
-    pub rand_nonce: RandValue,
-    pub new_token: ChannelToken,
-}
 
 #[allow(unused)]
 pub struct NeighborInconsistencyError {

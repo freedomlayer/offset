@@ -8,9 +8,10 @@ use security_module::client::SecurityModuleClient;
 use ring::rand::SecureRandom;
 
 use super::messenger_state::{MessengerState, StateMutateMessage};
-use self::handle_neighbor::{NeighborMoveToken, NeighborInconsistencyError, 
+use self::handle_neighbor::{NeighborInconsistencyError, 
     NeighborSetMaxTokenChannels};
 use super::token_channel::directional::ReceiveMoveTokenError;
+use super::types::NeighborMoveToken;
 
 pub enum AppManagerMessage {
     ReceiveMoveTokenError(ReceiveMoveTokenError),
