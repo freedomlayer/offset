@@ -237,6 +237,9 @@ impl DirectionalTokenChannel {
                     }
                 } else if move_token_inner.old_token == new_token {
                     // We should retransmit our message to the remote side.
+                    
+                    // TODO: Return the message to retransmit inside RetransmitOutgoing error.
+                    // Use get_outgoing_move_token to do that.
                     Ok(ReceiveMoveTokenOutput::RetransmitOutgoing)
                 } else {
                     Err(ReceiveMoveTokenError::ChainInconsistency)
