@@ -198,6 +198,13 @@ impl DirectionalTokenChannel {
                               new_token: ChannelToken) 
         -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
 
+        // Make sure that the given new_token is valid:
+        let expected_new_token = calc_channel_next_token(self.token_channel_index,
+                                                &move_token_message);
+        if expected_new_token != new_token {
+            return Err(ReceiveMoveTokenError::ChainInconsistency);
+        }
+
         match self.direction {
             MoveTokenDirection::Incoming => {
                 if new_token == self.new_token {
