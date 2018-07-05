@@ -222,7 +222,7 @@ impl DirectionalTokenChannel {
     }
 
     #[allow(unused)]
-    fn send_move_token_transact_inner<F,R>(&mut self, f: F, rand_nonce: RandValue) 
+    fn send_move_token_transact<F,R>(&mut self, f: F, rand_nonce: RandValue) 
     where F: FnOnce(&mut TokenChannelSender) {
 
         match self.direction {
