@@ -15,7 +15,7 @@ use super::incoming::{atomic_process_operations_list,
     ProcessOperationOutput, ProcessTransListError};
 use super::outgoing::{OutgoingTokenChannel, QueueOperationFailure};
 
-use super::super::types::NeighborTcOp;
+use super::super::types::{NeighborTcOp, NeighborMoveToken};
 
 
 // Prefix used for chain hashing of token channel messages.
@@ -275,5 +275,21 @@ impl DirectionalTokenChannel {
                                 &neighbor_move_token_inner);
         self.direction = MoveTokenDirection::Outgoing(
             neighbor_move_token_inner);
+    }
+
+    #[allow(unused)]
+    fn get_outgoing_move_token(&self) -> Option<NeighborMoveToken> {
+        match self.direction {
+            MoveTokenDirection::Incoming => None,
+            MoveTokenDirection::Outgoing(ref move_token_inner) => {
+                Some(NeighborMoveToken {
+                    token_channel_index: self.token_channel_index,
+                    operations: move_token_inner.operations.clone(),
+                    old_token: move_token_inner.old_token.clone(),
+                    rand_nonce: move_token_inner.rand_nonce.clone(),
+                    new_token: self.new_token.clone(),
+                })
+            }
+        }
     }
 }
