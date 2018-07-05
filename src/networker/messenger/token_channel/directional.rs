@@ -8,6 +8,8 @@ use crypto::identity::PublicKey;
 use crypto::rand_values::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
 
+use utils::int_convert::usize_to_u64;
+
 use super::types::{TokenChannel, NeighborMoveTokenInner};
 use super::incoming::{atomic_process_operations_list, 
     ProcessOperationOutput, ProcessTransListError};
@@ -32,6 +34,7 @@ pub enum MoveTokenDirection {
 
 
 pub struct DirectionalTokenChannel {
+    token_channel_index: u16,
     direction: MoveTokenDirection,
     new_token: ChannelToken,
     // Equals Sha512/256(NeighborMoveToken)
@@ -124,6 +127,7 @@ impl DirectionalTokenChannel {
         if local_pk_hash < remote_pk_hash {
             // We are the first sender
             DirectionalTokenChannel {
+                token_channel_index,
                 direction: MoveTokenDirection::Outgoing(NeighborMoveTokenInner {
                     operations: Vec::new(),
                     old_token: ChannelToken::from(local_pk_hash.as_array_ref()),
@@ -135,6 +139,7 @@ impl DirectionalTokenChannel {
         } else {
             // We are the second sender
             DirectionalTokenChannel {
+                token_channel_index,
                 direction: MoveTokenDirection::Incoming,
                 new_token,
                 opt_token_channel: Some(new_token_channel),
@@ -144,9 +149,11 @@ impl DirectionalTokenChannel {
 
     pub fn new_from_reset(local_public_key: &PublicKey, 
                       remote_public_key: &PublicKey, 
+                      token_channel_index: u16,
                       current_token: &ChannelToken, 
                       balance: i64) -> DirectionalTokenChannel {
         DirectionalTokenChannel {
+            token_channel_index,
             direction: MoveTokenDirection::Incoming,
             new_token: current_token.clone(),
             opt_token_channel: Some(TokenChannel::new(local_public_key, remote_public_key, balance)),
@@ -241,18 +248,23 @@ impl DirectionalTokenChannel {
         let (token_channel, operations) = outgoing_tc.commit();
         self.opt_token_channel = Some(token_channel);
 
+        // Calculate new token:
+        let mut contents = Vec::new();
+        contents.write_u64::<BigEndian>(usize_to_u64(operations.len()).unwrap()).unwrap();
+        for op in &operations {
+            contents.extend_from_slice(&op.to_bytes());
+        }
+        self.new_token = calc_channel_next_token(self.token_channel_index,
+                                &contents,
+                                &self.new_token,
+                                &rand_nonce);
+
         let neighbor_move_token_inner = NeighborMoveTokenInner {
             operations,
             old_token: self.new_token.clone(),
-            rand_nonce,
+            rand_nonce: rand_nonce.clone(),
         };
         self.direction = MoveTokenDirection::Outgoing(
             neighbor_move_token_inner);
-
-        // TODO: Calculate new value for self.new_token:
-        // Required: A way to serialize all operations, to obtain the value for contents argument.
-        // self.new_token = 
-        unreachable!();
-
     }
 }

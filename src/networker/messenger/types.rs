@@ -333,7 +333,7 @@ impl FailureSendMessage {
 
 #[allow(unused)]
 impl NeighborTcOp {
-    fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         match self {
             NeighborTcOp::EnableRequests(networker_send_price) => {

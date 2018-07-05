@@ -55,12 +55,14 @@ impl TokenChannelSlot {
 
     pub fn new_from_reset(local_public_key: &PublicKey,
                            remote_public_key: &PublicKey,
+                           token_channel_index: u16,
                            current_token: &ChannelToken,
                            balance: i64) -> TokenChannelSlot {
 
         TokenChannelSlot {
             tc_state: DirectionalTokenChannel::new_from_reset(local_public_key,
                                                       remote_public_key,
+                                                      token_channel_index,
                                                       current_token,
                                                       balance),
             tc_status: TokenChannelStatus::Valid,
@@ -215,6 +217,7 @@ impl MessengerState {
         let new_token_channel_slot = TokenChannelSlot::new_from_reset(
             &self.local_public_key,
             &reset_neighbor_channel.neighbor_public_key,
+            reset_neighbor_channel.channel_index,
             &reset_neighbor_channel.current_token,
             reset_neighbor_channel.balance_for_reset);
 
@@ -337,6 +340,7 @@ impl MessengerState {
         let token_channel_slot = TokenChannelSlot::new_from_reset(
             &self.local_public_key,
             &reset_token_channel.neighbor_public_key,
+            reset_token_channel.channel_index,
             &reset_token_channel.reset_token,
             reset_token_channel.balance_for_reset);
 
