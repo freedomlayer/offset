@@ -207,6 +207,7 @@ impl MessengerState {
     }
 
 
+    // TODO: This method is very similar to reset_token_channel. Could/Should we unite them?
     pub fn reset_neighbor_channel(&mut self, 
                                     reset_neighbor_channel: ResetNeighborChannel) 
                                     -> Result<(), MessengerStateError> {
