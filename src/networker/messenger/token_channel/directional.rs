@@ -222,9 +222,16 @@ impl DirectionalTokenChannel {
     }
 
     #[allow(unused)]
-    pub fn send_move_token_transact<F,R>(&mut self, f: F, rand_nonce: RandValue) 
+    fn send_move_token_transact_inner<F,R>(&mut self, f: F, rand_nonce: RandValue) 
     where F: FnOnce(&mut TokenChannelSender) {
-        let mut outgoing_tc = OutgoingTokenChannel::new(
+
+        match self.direction {
+            MoveTokenDirection::Incoming => {},
+            MoveTokenDirection::Outgoing(_) => 
+                panic!("Direction of token channel is already Outgoing!"),
+        };
+
+        let outgoing_tc = OutgoingTokenChannel::new(
             self.opt_token_channel.take().expect("token channel not present!"));
 
         let mut tc_sender = TokenChannelSender::new(outgoing_tc);
