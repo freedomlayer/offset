@@ -3,8 +3,6 @@
 use std::convert::TryFrom;
 use byteorder::{BigEndian, WriteBytesExt};
 
-use ring::rand::SecureRandom;
-
 use proto::networker::ChannelToken;
 use crypto::identity::PublicKey;
 use crypto::rand_values::{RandValue, RAND_VALUE_LEN};
@@ -16,6 +14,7 @@ use super::incoming::{atomic_process_operations_list,
 use super::outgoing::{OutgoingTokenChannel, QueueOperationFailure};
 
 use super::super::types::NeighborTcOp;
+
 
 // Prefix used for chain hashing of token channel messages.
 // NEXT is used for hashing for the next move token message.
@@ -51,6 +50,10 @@ pub enum ReceiveMoveTokenOutput {
     ProcessOpsListOutput(Vec<ProcessOperationOutput>),
 }
 
+pub struct TokenChannelSender {
+    outgoing_tc: OutgoingTokenChannel,
+}
+
 /// Calculate the next token channel, given values of previous NeighborMoveToken message.
 fn calc_channel_next_token(token_channel_index: u16, 
                       contents: &[u8], 
@@ -82,62 +85,19 @@ pub fn calc_channel_reset_token(token_channel_index: u16,
     ChannelToken::from(hash_result.as_array_ref())
 }
 
-#[allow(unused)]
-struct TokenChannelSender<'a> {
-    directional_tc: &'a mut DirectionalTokenChannel,
-    outgoing_tc: OutgoingTokenChannel,
-}
-
-
-#[allow(unused)]
-impl<'a> TokenChannelSender<'a> {
-    pub fn new(directional_tc: &'a mut DirectionalTokenChannel) -> Self {
-        let outgoing_tc = OutgoingTokenChannel::new(
-            directional_tc.opt_token_channel.take().expect("token channel not present!"));
+impl TokenChannelSender {
+    pub fn new(outgoing_tc: OutgoingTokenChannel) -> Self {
         TokenChannelSender {
-            directional_tc, 
             outgoing_tc,
         }
     }
 
     pub fn queue_operation(&mut self, operation: NeighborTcOp) ->
         Result<(), QueueOperationFailure> {
-        
         self.outgoing_tc.queue_operation(operation)
     }
-
-    pub fn commit<R: SecureRandom>(self, rng: &R) {
-        let Self {mut directional_tc, outgoing_tc} = self;
-
-        let (token_channel, operations) = outgoing_tc.commit();
-        directional_tc.opt_token_channel = Some(token_channel);
-
-        let neighbor_move_token_inner = NeighborMoveTokenInner {
-            operations,
-            old_token: directional_tc.new_token.clone(),
-            rand_nonce: RandValue::new(rng),
-        };
-
-        directional_tc.direction = MoveTokenDirection::Outgoing(
-            neighbor_move_token_inner);
-
-
-        // TODO: Calculate new value for directional_tc.new_token:
-        // Required: A way to serialize all operations, to obtain the value for contents argument.
-        // directional_tc.new_token = 
-        unreachable!();
-        
-    }
 }
 
-/*
-impl<'a> Drop for TokenChannelSender<'a> {
-    fn drop(&mut self) {
-        self.directional_tc.opt_token_channel 
-            = Some(self.opt_outgoing_tc.take().commit());
-    }
-}
-*/
 
 
 impl DirectionalTokenChannel {
@@ -262,11 +222,30 @@ impl DirectionalTokenChannel {
     }
 
     #[allow(unused)]
-    pub fn send_move_token(&mut self, 
-                           move_token_message: &NeighborMoveTokenInner, 
-                           new_token: ChannelToken) -> Result<(), ()> {
-        
-        // TODO:
-        Ok(())
+    pub fn send_move_token_transact<F,R>(&mut self, f: F, rand_nonce: RandValue) 
+    where F: FnOnce(&mut TokenChannelSender) {
+        let mut outgoing_tc = OutgoingTokenChannel::new(
+            self.opt_token_channel.take().expect("token channel not present!"));
+
+        let mut tc_sender = TokenChannelSender::new(outgoing_tc);
+        f(&mut tc_sender);
+        let TokenChannelSender {outgoing_tc} = tc_sender;
+
+        let (token_channel, operations) = outgoing_tc.commit();
+        self.opt_token_channel = Some(token_channel);
+
+        let neighbor_move_token_inner = NeighborMoveTokenInner {
+            operations,
+            old_token: self.new_token.clone(),
+            rand_nonce,
+        };
+        self.direction = MoveTokenDirection::Outgoing(
+            neighbor_move_token_inner);
+
+        // TODO: Calculate new value for self.new_token:
+        // Required: A way to serialize all operations, to obtain the value for contents argument.
+        // self.new_token = 
+        unreachable!();
+
     }
 }
