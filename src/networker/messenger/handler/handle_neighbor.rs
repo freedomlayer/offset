@@ -87,9 +87,9 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     fn find_request_origin(&self, request_id: &Uid) -> Option<(PublicKey, u16)> {
 
         for (neighbor_public_key, neighbor) in self.state.get_neighbors() {
-            match self.find_token_channel_by_request_id(&neighbor, request_id) {
-                Some(channel_index) => return Some((neighbor_public_key.clone(), channel_index)),
-                None => {},
+            if let Some(channel_index) = self.find_token_channel_by_request_id(
+                &neighbor, request_id) {
+                return Some((neighbor_public_key.clone(), channel_index));
             }
         }
         None
