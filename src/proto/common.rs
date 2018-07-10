@@ -8,8 +8,6 @@ use crypto::rand_values::RandValue;
 use proto::funder::InvoiceId;
 use crypto::identity::{verify_signature, PublicKey};
 
-// TODO: impl Receipt
-
 /// A `SendFundsReceipt` is received if a `RequestSendFunds` is successful.
 /// It can be used a proof of payment for a specific `invoice_id`.
 #[derive(Clone)]
