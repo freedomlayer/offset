@@ -340,12 +340,9 @@ impl OutgoingTokenChannel {
         self.pending_requests.pending_remote_requests.remove(
             &response_send_msg.request_id);
 
-        // TODO: Why do we have next_index here?
-        unreachable!();
-        let next_index = index.checked_add(1).expect("Route too long!");
-        let success_credits = credit_calc.credits_on_success(next_index, response_content_len)
+        let success_credits = credit_calc.credits_on_success(index, response_content_len)
             .expect("credits_on_success calculation failed!");
-        let freeze_credits = credit_calc.credits_to_freeze(next_index)
+        let freeze_credits = credit_calc.credits_to_freeze(index)
             .expect("credits_to_freeze calculation failed!");
 
         // Decrease frozen credits and increase balance:
