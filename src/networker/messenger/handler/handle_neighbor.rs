@@ -222,6 +222,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                                channel_index: u16,
                                request_send_msg: RequestSendMessage) {
         // TODO
+        //  - If we are the last on the route, punt to the Crypter.
         //  - Perform DoS protection check.
         //      - If valid, Queue to correct token channel.
         //      - If invalid, Queue a failure message to this token channel.
