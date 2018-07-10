@@ -230,7 +230,14 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                                 ops_list_output: Vec<ProcessOperationOutput> )
                         -> Box<Future<Item=Self, Error=()>> {
 
-        // TODO
+        // TODO:
+        // - For every ProcessOperationOutput received:
+        //      - For responses or failures: Queue to correct token channel.
+        //      - For requests: 
+        //          - Perform DoS protection check.
+        //              - If valid, Queue to correct token channel.
+        //              - If invalid, Queue a failure message to this token channel.
+        //
         unreachable!();
         Box::new(future::ok(self))
     }
@@ -276,6 +283,12 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     fn send_through_token_channel(&mut self, 
                                   remote_public_key: &PublicKey,
                                   channel_index: u16) {
+
+        // - If any messages are pending for this token channel, batch as many as possible into one
+        //   move token message and add a task to send it. 
+        //   - The first messages in the batch should be pending configuration requests:
+        //      - Set remote max debt
+        //      - Open, Close neighbor for requests.
         // TODO
         unreachable!();
     }
