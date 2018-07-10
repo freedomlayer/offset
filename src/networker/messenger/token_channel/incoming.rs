@@ -486,7 +486,7 @@ impl IncomingTokenChannel {
         let freeze_credits = credit_calc.credits_to_freeze(next_index)
             .expect("credits_to_freeze calculation failed!");
 
-        // Decrease frozen credits and increase balance:
+        // Decrease frozen credits and decrease balance:
         self.balance.local_pending_debt = 
             self.balance.local_pending_debt.checked_sub(freeze_credits)
             .expect("Insufficient frozen credit!");
