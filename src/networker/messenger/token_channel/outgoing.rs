@@ -25,6 +25,8 @@ pub struct OutgoingTokenChannel {
 }
 
 pub enum QueueOperationError {
+    RemoteMaxDebtTooLarge,
+    InvoiceIdAlreadyExists,
 }
 
 pub struct QueueOperationFailure {
@@ -108,22 +110,21 @@ impl OutgoingTokenChannel {
     fn queue_set_remote_max_debt(&mut self, proposed_max_debt: u64) -> 
         Result<(), QueueOperationError> {
 
-        /*
         if proposed_max_debt > MAX_NETWORKER_DEBT {
-            return Err(QueueOperationError::
+            return Err(QueueOperationError::RemoteMaxDebtTooLarge);
         }
-        */
 
         self.balance.remote_max_debt = proposed_max_debt;
-        // TODO
-        unreachable!();
         Ok(())
     }
 
     fn queue_set_invoice_id(&mut self, invoice_id: InvoiceId) ->
         Result<(), QueueOperationError> {
-        // TODO
-        unreachable!();
+
+        self.invoice.local_invoice_id = match self.invoice.local_invoice_id {
+            Some(_) => return Err(QueueOperationError::InvoiceIdAlreadyExists),
+            None => Some(invoice_id),
+        };
         Ok(())
     }
 
