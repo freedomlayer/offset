@@ -19,11 +19,9 @@ use super::super::signature_buff::{create_failure_signature_buffer,
     create_response_signature_buffer};
 
 use super::types::{TokenChannel, TcBalance, TcInvoice, TcSendPrice, TcIdents,
-    TransTcPendingRequests};
+    TransTcPendingRequests, MAX_NETWORKER_DEBT};
 
-/// The maximum possible networker debt.
-/// We don't use the full u64 because i64 can not go beyond this value.
-const MAX_NETWORKER_DEBT: u64 = (1 << 63) - 1;
+
 
 /*
 pub struct IncomingRequestSendMessage {
@@ -343,7 +341,6 @@ impl IncomingTokenChannel {
             Ok(())
         }
     }
-
 
     /// Process an incoming RequestSendMessage
     fn process_request_send_message(&mut self, request_send_msg: RequestSendMessage)

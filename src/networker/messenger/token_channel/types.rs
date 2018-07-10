@@ -15,6 +15,10 @@ use utils::safe_arithmetic::SafeArithmetic;
 
 use super::super::types::{PendingNeighborRequest, NeighborTcOp};
 
+/// The maximum possible networker debt.
+/// We don't use the full u64 because i64 can not go beyond this value.
+pub const MAX_NETWORKER_DEBT: u64 = (1 << 63) - 1;
+
 pub struct NeighborMoveTokenInner {
     pub operations: Vec<NeighborTcOp>,
     pub old_token: ChannelToken,
