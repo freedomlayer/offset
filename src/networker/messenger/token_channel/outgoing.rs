@@ -1,6 +1,9 @@
 #![allow(unused)]
 
+use std::convert::TryFrom;
 use std::collections::VecDeque;
+
+use crypto::identity::verify_signature;
 
 use proto::funder::InvoiceId;
 use proto::common::SendFundsReceipt;
@@ -10,6 +13,8 @@ use super::types::{TokenChannel, TcBalance, TcInvoice, TcSendPrice, TcIdents,
     TcPendingRequests, NeighborMoveTokenInner, MAX_NETWORKER_DEBT};
 use super::super::types::{NeighborTcOp, RequestSendMessage, 
     ResponseSendMessage, FailureSendMessage};
+
+use utils::safe_arithmetic::SafeArithmetic;
 
 
 /// Processes outgoing messages for a token channel.
@@ -27,6 +32,9 @@ pub struct OutgoingTokenChannel {
 pub enum QueueOperationError {
     RemoteMaxDebtTooLarge,
     InvoiceIdAlreadyExists,
+    InvalidSendFundsReceiptSignature,
+    MissingRemoteInvoiceId,
+    InvoiceIdMismatch,
 }
 
 pub struct QueueOperationFailure {
@@ -130,8 +138,26 @@ impl OutgoingTokenChannel {
 
     fn queue_load_funds(&mut self, send_funds_receipt: SendFundsReceipt) -> 
         Result<(), QueueOperationError> {
-        // TODO
-        unreachable!();
+
+        // Verify signature:
+        if !send_funds_receipt.verify_signature(&self.idents.remote_public_key) {
+            return Err(QueueOperationError::InvalidSendFundsReceiptSignature);
+        }
+
+        // Make sure that the invoice id matches:
+        match self.invoice.remote_invoice_id.take() {
+            None => return Err(QueueOperationError::MissingRemoteInvoiceId),
+            Some(invoice_id) => {
+                if invoice_id != send_funds_receipt.invoice_id {
+                    self.invoice.remote_invoice_id = Some(invoice_id);
+                    return Err(QueueOperationError::InvoiceIdMismatch);
+                }
+            }
+        }
+
+        // Update balance according to payment:
+        let payment = u64::try_from(send_funds_receipt.payment).unwrap_or(u64::max_value());
+        self.balance.balance = self.balance.balance.saturating_add_unsigned(payment);
         Ok(())
     }
 
