@@ -408,8 +408,6 @@ impl IncomingTokenChannel {
         }
 
         // Add pending request message:
-        let request_content_len = usize_to_u32(request_send_msg.request_content.len())
-            .ok_or(ProcessOperationError::RequestContentTooLong)?;
         let pending_neighbor_request = PendingNeighborRequest {
             request_id: request_send_msg.request_id,
             route: request_send_msg.route.clone(),
