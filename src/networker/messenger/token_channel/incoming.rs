@@ -480,8 +480,6 @@ impl IncomingTokenChannel {
         self.trans_pending_requests.trans_pending_local_requests.remove(
             &response_send_msg.request_id);
 
-        // TODO: Why checked_add(1) here?
-        unreachable!();
         let next_index = index.checked_add(1).expect("Route too long!");
         let success_credits = credit_calc.credits_on_success(next_index, response_content_len)
             .expect("credits_on_success calculation failed!");
