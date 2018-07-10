@@ -13,7 +13,8 @@ use proto::networker::ChannelToken;
 
 use super::super::token_channel::incoming::ProcessOperationOutput;
 use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError};
-use super::{MessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage};
+use super::{MessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage,
+            CrypterMessage, ResponseReceived};
 use super::super::types::{NeighborTcOp, 
     RequestSendMessage, ResponseSendMessage, FailureSendMessage, RandNonceSignature, NeighborMoveToken};
 use super::super::messenger_state::{NeighborState, StateMutateMessage, 
@@ -231,9 +232,36 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                                remote_public_key: &PublicKey,
                                channel_index: u16,
                                response_send_msg: ResponseSendMessage) {
-        // TODO
-        // - Queue to correct token channel.
-        unreachable!();
+
+        match self.find_request_origin(&response_send_msg.request_id) {
+            None => {
+                // We are the origin of this request, and we got a response.
+                // We should pass it back to crypter.
+                self.messenger_tasks.push(
+                    MessengerTask::CrypterMessage(
+                        CrypterMessage::ResponseReceived(ResponseReceived {
+                            request_id: response_send_msg.request_id,
+                            processing_fee_collected: response_send_msg.processing_fee_collected,
+                            response_content: response_send_msg.response_content,
+                        })
+                    )
+                );
+            },
+            Some((neighbor_public_key, channel_index)) => {
+                // Queue this response message to another token channel:
+                let response_op = NeighborTcOp::ResponseSendMessage(response_send_msg);
+                let push_op = SmTokenChannelPushOp {
+                    neighbor_public_key,
+                    channel_index,
+                    neighbor_op: response_op,
+                };
+
+                let sm_msg = StateMutateMessage::TokenChannelPushOp(push_op.clone());
+                self.state.token_channel_push_op(push_op)
+                    .expect("Could not push neighbor operation into channel!");
+                self.sm_messages.push(sm_msg);
+            },
+        }
     }
 
     fn handle_failure_send_msg(&mut self, 

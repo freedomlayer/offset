@@ -7,6 +7,9 @@ use std::rc::Rc;
 use security_module::client::SecurityModuleClient;
 use ring::rand::SecureRandom;
 
+use crypto::uid::Uid;
+use crypto::identity::PublicKey;
+
 use super::messenger_state::{MessengerState, StateMutateMessage};
 use self::handle_neighbor::{NeighborInconsistencyError, 
     NeighborSetMaxTokenChannels};
@@ -29,8 +32,23 @@ pub enum NeighborMessage {
     SetMaxTokenChannels(NeighborSetMaxTokenChannels),
 }
 
-pub enum CrypterMessage {
+pub struct ResponseReceived {
+    pub request_id: Uid,
+    pub processing_fee_collected: u64,
+    pub response_content: Vec<u8>,
+}
 
+#[allow(unused)]
+pub struct FailureReceived {
+    pub request_id: Uid,
+    pub reporting_public_key: PublicKey,
+}
+
+
+#[allow(unused)]
+pub enum CrypterMessage {
+    ResponseReceived(ResponseReceived),
+    FailureReceived(FailureReceived),
 }
 
 
