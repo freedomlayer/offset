@@ -346,16 +346,11 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             let sm_msg = StateMutateMessage::ApplyNeighborMoveToken(apply_neighbor_move_token.clone());
             match fself.state.apply_neighbor_move_token(apply_neighbor_move_token) {
                 Ok(ReceiveMoveTokenOutput::Duplicate) => Box::new(future::ok(fself)),
-                Ok(ReceiveMoveTokenOutput::RetransmitOutgoing) => {
+                Ok(ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token)) => {
                     // Retransmit last sent token channel message:
-                    let token_channel_slot = fself.get_token_channel_slot(&remote_public_key, 
-                                                channel_index);
-                    let neighbor_move_token = token_channel_slot.tc_state
-                        .get_outgoing_move_token()
-                        .expect("No outgoing move token!");
                     fself.messenger_tasks.push(
                         MessengerTask::NeighborMessage(
-                            NeighborMessage::MoveToken(neighbor_move_token)));
+                            NeighborMessage::MoveToken(outgoing_move_token)));
                     Box::new(future::ok(fself))
                 },
                 Ok(ReceiveMoveTokenOutput::ProcessOpsListOutput(ops_list_output)) => {
