@@ -15,8 +15,9 @@ use super::super::token_channel::incoming::ProcessOperationOutput;
 use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError};
 use super::{MessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage,
             CrypterMessage, ResponseReceived};
-use super::super::types::{NeighborTcOp, 
-    RequestSendMessage, ResponseSendMessage, FailureSendMessage, RandNonceSignature, NeighborMoveToken};
+use super::super::types::{NeighborTcOp, RequestSendMessage, 
+    ResponseSendMessage, FailureSendMessage, RandNonceSignature, 
+    NeighborMoveToken};
 use super::super::messenger_state::{NeighborState, StateMutateMessage, 
     MessengerStateError, TokenChannelStatus, TokenChannelSlot,
     SmInitTokenChannel, SmTokenChannelPushOp, SmResetTokenChannel, 
@@ -284,11 +285,14 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         for op_output in ops_list_output {
             match op_output {
                 ProcessOperationOutput::Request(request_send_msg) => 
-                    self.handle_request_send_msg(&remote_public_key, channel_index, request_send_msg),
+                    self.handle_request_send_msg(&remote_public_key, channel_index, 
+                                                 request_send_msg),
                 ProcessOperationOutput::Response(response_send_msg) => 
-                    self.handle_response_send_msg(&remote_public_key, channel_index, response_send_msg),
+                    self.handle_response_send_msg(&remote_public_key, channel_index, 
+                                                  response_send_msg),
                 ProcessOperationOutput::Failure(failure_send_msg) =>
-                    self.handle_failure_send_msg(&remote_public_key, channel_index, failure_send_msg),
+                    self.handle_failure_send_msg(&remote_public_key, channel_index, 
+                                                 failure_send_msg),
             }
         }
         Box::new(future::ok(self))
