@@ -14,7 +14,7 @@ use proto::networker::ChannelToken;
 use super::super::token_channel::incoming::ProcessOperationOutput;
 use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError};
 use super::{MessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage};
-use super::super::types::{NeighborTcOp, PendingNeighborRequest, 
+use super::super::types::{NeighborTcOp, 
     RequestSendMessage, ResponseSendMessage, FailureSendMessage, RandNonceSignature, NeighborMoveToken};
 use super::super::messenger_state::{NeighborState, StateMutateMessage, 
     MessengerStateError, TokenChannelStatus, TokenChannelSlot,
@@ -79,22 +79,18 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     /// This should be a pending remote request at some other neighbor.
     /// Returns the public key of a neighbor together with the channel_index of a
     /// token channel. If we are the origin of this request, the function return None.
-    fn find_request_origin(&self, pending_local_request: &PendingNeighborRequest) 
-        -> Option<(PublicKey, u16)> {
+    ///
+    /// TODO: We need to change this search to be O(1) in the future. Possibly by maintaining a map
+    /// between request_id and (neighbor_public_key, neighbor).
+    fn find_request_origin(&self, request_id: &Uid) -> Option<(PublicKey, u16)> {
 
-        let local_index = pending_local_request.route.pk_index(self.state.get_local_public_key())
-            .expect("Can not find local public key inside route!");
-        let prev_index = local_index.checked_sub(1)?;
-        let prev_pk = pending_local_request.route.pk_by_index(prev_index)
-            .expect("Index was not found!");
-        let orig_neighbor = self.state.get_neighbors()
-            .get(&prev_pk)
-            .expect("Originator neighbor is missing!");
-
-        let channel_index = self.find_token_channel_by_request_id(&orig_neighbor, 
-                                              &pending_local_request.request_id)
-                                                .expect("request can not be found!");
-        Some((prev_pk.clone(), channel_index))
+        for (neighbor_public_key, neighbor) in self.state.get_neighbors() {
+            match self.find_token_channel_by_request_id(&neighbor, request_id) {
+                Some(channel_index) => return Some((neighbor_public_key.clone(), channel_index)),
+                None => {},
+            }
+        }
+        None
     }
 
     fn cancel_local_pending_requests(mut self, 
@@ -118,7 +114,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         // Prepare a list of all remote requests that we need to cancel:
         let mut requests_to_cancel = Vec::new();
         for (local_request_id, pending_local_request) in pending_local_requests {
-            let origin = self.find_request_origin(pending_local_request);
+            let origin = self.find_request_origin(&local_request_id);
             let (origin_public_key, origin_channel_index) = match origin {
                 Some((public_key, channel_index)) => (public_key, channel_index),
                 None => continue,
