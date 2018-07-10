@@ -287,7 +287,6 @@ impl OutgoingTokenChannel {
 
     fn queue_response_send_message(&mut self, response_send_msg: ResponseSendMessage) ->
         Result<(), QueueOperationError> {
-        // TODO:
         // Make sure that id exists in remote_pending hashmap, 
         // and access saved request details.
         let remote_pending_requests = &self.pending_requests.pending_remote_requests;
