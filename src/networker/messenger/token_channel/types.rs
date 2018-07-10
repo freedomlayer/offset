@@ -77,10 +77,10 @@ impl TcInvoice {
 #[derive(Clone)]
 pub struct TcSendPrice {
     /// Price for us to send message to the remote side
-    /// Knowns only if we enabled requests
+    /// Known only if we enabled requests
     pub(super) local_send_price: Option<NetworkerSendPrice>,
     /// Price for the remote side to send messages to us
-    /// Knowns only if remote side enabled requests
+    /// Known only if remote side enabled requests
     pub(super) remote_send_price: Option<NetworkerSendPrice>,
 }
 
