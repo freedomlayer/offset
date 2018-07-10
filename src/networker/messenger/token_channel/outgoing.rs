@@ -4,17 +4,21 @@ use std::convert::TryFrom;
 use std::collections::VecDeque;
 
 use crypto::identity::verify_signature;
+use crypto::hash;
 
 use proto::funder::InvoiceId;
 use proto::common::SendFundsReceipt;
 use proto::networker::NetworkerSendPrice;
 
+use utils::safe_arithmetic::SafeArithmetic;
+use utils::int_convert::usize_to_u32;
+
 use super::types::{TokenChannel, TcBalance, TcInvoice, TcSendPrice, TcIdents,
     TcPendingRequests, NeighborMoveTokenInner, MAX_NETWORKER_DEBT};
+use super::super::credit_calc::CreditCalculator;
 use super::super::types::{NeighborTcOp, RequestSendMessage, 
-    ResponseSendMessage, FailureSendMessage};
-
-use utils::safe_arithmetic::SafeArithmetic;
+    ResponseSendMessage, FailureSendMessage, PkPairPosition,
+    PendingNeighborRequest, NeighborsRoute};
 
 
 /// Processes outgoing messages for a token channel.
@@ -35,6 +39,17 @@ pub enum QueueOperationError {
     InvalidSendFundsReceiptSignature,
     MissingRemoteInvoiceId,
     InvoiceIdMismatch,
+    DuplicateNodesInRoute,
+    PkPairNotInRoute,
+    InvalidFreezeLinks,
+    RemoteIncomingRequestsDisabled,
+    ResponsePaymentProposalTooLow,
+    RouteTooLong,
+    RequestContentTooLong,
+    CreditCalculatorFailure,
+    CreditsCalcOverflow,
+    InsufficientTrust,
+    RequestAlreadyExists,
 }
 
 pub struct QueueOperationFailure {
@@ -161,10 +176,108 @@ impl OutgoingTokenChannel {
         Ok(())
     }
 
+    /// Make sure that the remote side is open to incoming request
+    /// and that the offered response proposal is high enough.
+    fn verify_remote_send_price(&self, 
+                               route: &NeighborsRoute, 
+                               pk_pair_position: &PkPairPosition) 
+        -> Result<(), QueueOperationError>  {
+
+        let remote_send_price = match self.send_price.remote_send_price {
+            None => Err(QueueOperationError::RemoteIncomingRequestsDisabled),
+            Some(ref remote_send_price) => Ok(remote_send_price.clone()),
+        }?;
+
+        let response_proposal = match *pk_pair_position {
+            PkPairPosition::Dest => &route.dest_response_proposal,
+            PkPairPosition::NotDest(i) => &route.route_links[i].payment_proposal_pair.response,
+        };
+        // If linear payment proposal for returning response is too low, return error
+        if response_proposal.smaller_than(&remote_send_price) {
+            Err(QueueOperationError::ResponsePaymentProposalTooLow)
+        } else {
+            Ok(())
+        }
+    }
+
     fn queue_request_send_message(&mut self, request_send_msg: RequestSendMessage) ->
         Result<(), QueueOperationError> {
-        // TODO
-        unreachable!();
+        // TODO:
+        // - Make sure that route is valid. (No repeats, not too long?, we are in the route)
+
+        // Make sure that the route does not contains cycles/duplicates:
+        if !request_send_msg.route.is_cycle_free() {
+            return Err(QueueOperationError::DuplicateNodesInRoute);
+        }
+
+        // Find ourselves on the route. If we are not there, abort.
+        let pk_pair = request_send_msg.route.find_pk_pair(
+            &self.idents.local_public_key,
+            &self.idents.remote_public_key)
+            .ok_or(QueueOperationError::PkPairNotInRoute)?;
+
+        // Make sure that freeze_links and route_links are compatible in length:
+        let freeze_links_len = request_send_msg.freeze_links.len();
+        let route_links_len = request_send_msg.route.route_links.len();
+        let is_compat = match pk_pair {
+            PkPairPosition::Dest => freeze_links_len == route_links_len + 2,
+            PkPairPosition::NotDest(i) => freeze_links_len == i
+        };
+        if !is_compat {
+            return Err(QueueOperationError::InvalidFreezeLinks);
+        }
+
+        // Make sure that we have a large enough proposal for response free from the remote
+        // neighbor:
+        self.verify_remote_send_price(&request_send_msg.route, &pk_pair)?;
+
+        // Calculate amount of credits to freeze.
+        let request_content_len = usize_to_u32(request_send_msg.request_content.len())
+            .ok_or(QueueOperationError::RequestContentTooLong)?;
+        let credit_calc = CreditCalculator::new(&request_send_msg.route,
+                                                request_content_len,
+                                                request_send_msg.processing_fee_proposal,
+                                                request_send_msg.max_response_len)
+            .ok_or(QueueOperationError::CreditCalculatorFailure)?;
+
+        // Get index of remote neighbor on the route:
+        let index = match pk_pair {
+            PkPairPosition::Dest => request_send_msg.route.route_links.len().checked_add(1),
+            PkPairPosition::NotDest(i) => i.checked_add(1),
+        }.ok_or(QueueOperationError::RouteTooLong)?;
+
+        // Calculate amount of credits to freeze
+        let own_freeze_credits = credit_calc.credits_to_freeze(index)
+            .ok_or(QueueOperationError::CreditCalculatorFailure)?;
+
+        // Make sure we can freeze the credits
+        let new_local_pending_debt = self.balance.local_pending_debt
+            .checked_add(own_freeze_credits).ok_or(QueueOperationError::CreditsCalcOverflow)?;
+
+        if new_local_pending_debt > self.balance.local_max_debt {
+            return Err(QueueOperationError::InsufficientTrust);
+        }
+
+        let p_local_requests = &mut self.pending_requests.pending_local_requests;
+        // Make sure that we don't have this request as a pending request already:
+        if p_local_requests.contains_key(&request_send_msg.request_id) {
+            return Err(QueueOperationError::RequestAlreadyExists);
+        }
+
+        // Add pending request message:
+        let pending_neighbor_request = PendingNeighborRequest {
+            request_id: request_send_msg.request_id,
+            route: request_send_msg.route.clone(),
+            request_content_hash: hash::sha_512_256(&request_send_msg.request_content),
+            request_content_len,
+            max_response_len: request_send_msg.max_response_len,
+            processing_fee_proposal: request_send_msg.processing_fee_proposal,
+        };
+        p_local_requests.insert(request_send_msg.request_id,
+                                     pending_neighbor_request);
+        
+        // If we are here, we can freeze the credits:
+        self.balance.local_pending_debt = new_local_pending_debt;
         Ok(())
     }
 
