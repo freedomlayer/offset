@@ -15,7 +15,7 @@ use super::super::token_channel::incoming::ProcessOperationOutput;
 use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError};
 use super::{MessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage};
 use super::super::types::{NeighborTcOp, PendingNeighborRequest, 
-    FailureSendMessage, RandNonceSignature, NeighborMoveToken};
+    RequestSendMessage, ResponseSendMessage, FailureSendMessage, RandNonceSignature, NeighborMoveToken};
 use super::super::messenger_state::{NeighborState, StateMutateMessage, 
     MessengerStateError, TokenChannelStatus, TokenChannelSlot,
     SmInitTokenChannel, SmTokenChannelPushOp, SmResetTokenChannel, 
@@ -220,25 +220,52 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         }
     }
 
-    /// Process incoming operations from remote side.
-    /// - Handle configuration messages?
-    /// - Queue messages to other token channels.
-    ///     - Make sure that freezing DoS can not occur.
+    fn handle_request_send_msg(&mut self, 
+                               remote_public_key: &PublicKey,
+                               channel_index: u16,
+                               request_send_msg: RequestSendMessage) {
+        // TODO
+        //  - Perform DoS protection check.
+        //      - If valid, Queue to correct token channel.
+        //      - If invalid, Queue a failure message to this token channel.
+        unreachable!();
+    }
+
+    fn handle_response_send_msg(&mut self, 
+                               remote_public_key: &PublicKey,
+                               channel_index: u16,
+                               response_send_msg: ResponseSendMessage) {
+        // TODO
+        // - Queue to correct token channel.
+        unreachable!();
+    }
+
+    fn handle_failure_send_msg(&mut self, 
+                               remote_public_key: &PublicKey,
+                               channel_index: u16,
+                               failure_send_msg: FailureSendMessage) {
+        // TODO
+        // - Queue to correct token channel.
+        unreachable!();
+    }
+
+    /// Process valid incoming operations from remote side.
     fn handle_move_token_output(mut self, 
                                 remote_public_key: PublicKey,
                                 channel_index: u16,
                                 ops_list_output: Vec<ProcessOperationOutput> )
                         -> Box<Future<Item=Self, Error=()>> {
 
-        // TODO:
-        // - For every ProcessOperationOutput received:
-        //      - For responses or failures: Queue to correct token channel.
-        //      - For requests: 
-        //          - Perform DoS protection check.
-        //              - If valid, Queue to correct token channel.
-        //              - If invalid, Queue a failure message to this token channel.
-        //
-        unreachable!();
+        for op_output in ops_list_output {
+            match op_output {
+                ProcessOperationOutput::Request(request_send_msg) => 
+                    self.handle_request_send_msg(&remote_public_key, channel_index, request_send_msg),
+                ProcessOperationOutput::Response(response_send_msg) => 
+                    self.handle_response_send_msg(&remote_public_key, channel_index, response_send_msg),
+                ProcessOperationOutput::Failure(failure_send_msg) =>
+                    self.handle_failure_send_msg(&remote_public_key, channel_index, failure_send_msg),
+            }
+        }
         Box::new(future::ok(self))
     }
 
