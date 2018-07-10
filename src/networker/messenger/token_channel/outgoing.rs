@@ -208,8 +208,6 @@ impl OutgoingTokenChannel {
 
     fn queue_request_send_message(&mut self, request_send_msg: RequestSendMessage) ->
         Result<(), QueueOperationError> {
-        // TODO:
-        // - Make sure that route is valid. (No repeats, not too long?, we are in the route)
 
         // Make sure that the route does not contains cycles/duplicates:
         if !request_send_msg.route.is_cycle_free() {
