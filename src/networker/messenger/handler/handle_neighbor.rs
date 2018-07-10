@@ -446,7 +446,8 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                 neighbor_public_key: remote_public_key.clone(),
                 neighbor_move_token,
             };
-            let sm_msg = StateMutateMessage::ApplyNeighborMoveToken(apply_neighbor_move_token.clone());
+            let sm_msg = StateMutateMessage::ApplyNeighborMoveToken(
+                apply_neighbor_move_token.clone());
             match fself.state.apply_neighbor_move_token(apply_neighbor_move_token) {
                 Ok(ReceiveMoveTokenOutput::Duplicate) => Box::new(future::ok(fself)),
                 Ok(ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token)) => {
