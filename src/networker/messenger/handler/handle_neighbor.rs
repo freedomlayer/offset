@@ -293,6 +293,14 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         unreachable!();
     }
 
+    /// Initialte loading funds (Using a funder message) for token channel, if needed.
+    fn initiate_load_funds(&mut self,
+                           remote_public_key: &PublicKey,
+                           channel_index: u16) {
+        // TODO
+        unreachable!();
+    }
+
 
     fn handle_move_token(mut self, 
                          remote_public_key: PublicKey,
@@ -373,6 +381,8 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                     .and_then(move |mut fself| {
                         fself.send_through_token_channel(&remote_public_key,
                                                          channel_index);
+                        fself.initiate_load_funds(&remote_public_key,
+                                                  channel_index);
                         Ok(fself)
                     })) as Box<Future<Item=Self,Error=()>>
                 },
