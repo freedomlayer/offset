@@ -14,7 +14,7 @@ use proto::networker::ChannelToken;
 use super::super::token_channel::incoming::ProcessOperationOutput;
 use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError};
 use super::{MessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage,
-            CrypterMessage, ResponseReceived};
+            CrypterMessage, ResponseReceived, FailureReceived};
 use super::super::types::{NeighborTcOp, RequestSendMessage, 
     ResponseSendMessage, FailureSendMessage, RandNonceSignature, 
     NeighborMoveToken};
@@ -270,9 +270,35 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                                remote_public_key: &PublicKey,
                                channel_index: u16,
                                failure_send_msg: FailureSendMessage) {
-        // TODO
-        // - Queue to correct token channel.
-        unreachable!();
+
+        match self.find_request_origin(&failure_send_msg.request_id) {
+            None => {
+                // We are the origin of this request, and we got a failure
+                // We should pass it back to crypter.
+                self.messenger_tasks.push(
+                    MessengerTask::CrypterMessage(
+                        CrypterMessage::FailureReceived(FailureReceived {
+                            request_id: failure_send_msg.request_id,
+                            reporting_public_key: failure_send_msg.reporting_public_key,
+                        })
+                    )
+                );
+            },
+            Some((neighbor_public_key, channel_index)) => {
+                // Queue this failure message to another token channel:
+                let failure_op = NeighborTcOp::FailureSendMessage(failure_send_msg);
+                let push_op = SmTokenChannelPushOp {
+                    neighbor_public_key,
+                    channel_index,
+                    neighbor_op: failure_op,
+                };
+
+                let sm_msg = StateMutateMessage::TokenChannelPushOp(push_op.clone());
+                self.state.token_channel_push_op(push_op)
+                    .expect("Could not push neighbor operation into channel!");
+                self.sm_messages.push(sm_msg);
+            },
+        }
     }
 
     /// Process valid incoming operations from remote side.
