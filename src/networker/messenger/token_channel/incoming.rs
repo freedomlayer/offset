@@ -54,7 +54,7 @@ pub enum ProcessOperationError {
     /// Trying to set the invoiceId, while already expecting another invoice id.
     InvoiceIdExists,
     MissingInvoiceId,
-    InvalidInvoiceId,
+    InvoiceIdMismatch,
     InvalidSendFundsReceiptSignature,
     PkPairNotInRoute,
     PendingCreditTooLarge,
@@ -301,12 +301,12 @@ impl IncomingTokenChannel {
         }
 
         // Check if invoice_id matches. If so, we remove the remote invoice.
-        match self.invoice.remote_invoice_id.take() {
+        match self.invoice.local_invoice_id.take() {
             None => return Err(ProcessOperationError::MissingInvoiceId),
             Some(invoice_id) => {
                 if invoice_id != send_funds_receipt.invoice_id {
-                    self.invoice.remote_invoice_id = Some(invoice_id);
-                    return Err(ProcessOperationError::InvalidInvoiceId);
+                    self.invoice.local_invoice_id = Some(invoice_id);
+                    return Err(ProcessOperationError::InvoiceIdMismatch);
                 }
             }
         };
@@ -314,7 +314,7 @@ impl IncomingTokenChannel {
         // Add payment to self.balance.balance. We have to be careful because payment u128, and
         // self.balance.balance is of type i64.
         let payment = u64::try_from(send_funds_receipt.payment).unwrap_or(u64::max_value());
-        self.balance.balance = self.balance.balance.saturating_add_unsigned(payment);
+        self.balance.balance = self.balance.balance.saturating_sub_unsigned(payment);
         Ok(None)
     }
 
