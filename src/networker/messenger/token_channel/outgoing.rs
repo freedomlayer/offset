@@ -7,7 +7,7 @@ use proto::common::SendFundsReceipt;
 use proto::networker::NetworkerSendPrice;
 
 use super::types::{TokenChannel, TcBalance, TcInvoice, TcSendPrice, TcIdents,
-    TcPendingRequests, NeighborMoveTokenInner};
+    TcPendingRequests, NeighborMoveTokenInner, MAX_NETWORKER_DEBT};
 use super::super::types::{NeighborTcOp, RequestSendMessage, 
     ResponseSendMessage, FailureSendMessage};
 
@@ -78,63 +78,78 @@ impl OutgoingTokenChannel {
             NeighborTcOp::FailureSendMessage(failure_send_msg) =>
                 self.queue_failure_send_message(failure_send_msg),
         };
-        if res.is_ok() {
-            self.operations.push_back(operation);
+        match res {
+            Ok(()) => {
+                self.operations.push_back(operation);
+                Ok(())
+            },
+            Err(error) => Err(QueueOperationFailure {
+                operation,
+                error,
+            }),
         }
-        res
     }
 
     fn queue_enable_requests(&mut self, send_price: NetworkerSendPrice) ->
-        Result<(), QueueOperationFailure> {
-        // TODO
-        unreachable!();
+        Result<(), QueueOperationError> {
+
+        // TODO: Should we check first if there is an existing send_price?
+        // Currently this method is used both for enabling requests and updating the send_price.
+        self.send_price.local_send_price = Some(send_price);
         Ok(())
     }
 
     fn queue_disable_requests(&mut self) ->
-        Result<(), QueueOperationFailure> {
-        // TODO
-        unreachable!();
+        Result<(), QueueOperationError> {
+        self.send_price.local_send_price = None;
         Ok(())
     }
 
     fn queue_set_remote_max_debt(&mut self, proposed_max_debt: u64) -> 
-        Result<(), QueueOperationFailure> {
+        Result<(), QueueOperationError> {
+
+        /*
+        if proposed_max_debt > MAX_NETWORKER_DEBT {
+            return Err(QueueOperationError::
+        }
+        */
+
+        self.balance.remote_max_debt = proposed_max_debt;
         // TODO
         unreachable!();
         Ok(())
     }
 
     fn queue_set_invoice_id(&mut self, invoice_id: InvoiceId) ->
-        Result<(), QueueOperationFailure> {
+        Result<(), QueueOperationError> {
         // TODO
         unreachable!();
         Ok(())
     }
 
     fn queue_load_funds(&mut self, send_funds_receipt: SendFundsReceipt) -> 
-        Result<(), QueueOperationFailure> {
+        Result<(), QueueOperationError> {
         // TODO
         unreachable!();
         Ok(())
     }
 
     fn queue_request_send_message(&mut self, request_send_msg: RequestSendMessage) ->
-        Result<(), QueueOperationFailure> {
+        Result<(), QueueOperationError> {
         // TODO
         unreachable!();
         Ok(())
     }
 
     fn queue_response_send_message(&mut self, response_send_msg: ResponseSendMessage) ->
-        Result<(), QueueOperationFailure> {
+        Result<(), QueueOperationError> {
         // TODO
         unreachable!();
         Ok(())
     }
 
     fn queue_failure_send_message(&mut self, failure_send_msg: FailureSendMessage) ->
-        Result<(), QueueOperationFailure> {
+        Result<(), QueueOperationError> {
         // TODO
         unreachable!();
         Ok(())
