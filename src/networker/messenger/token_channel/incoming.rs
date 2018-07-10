@@ -442,7 +442,7 @@ impl IncomingTokenChannel {
 
         // Verify response message signature:
         if !verify_signature(&response_signature_buffer, 
-                                 &self.idents.local_public_key,
+                                 &self.idents.remote_public_key,
                                  &response_send_msg.signature) {
             return Err(ProcessOperationError::InvalidResponseSignature);
         }
