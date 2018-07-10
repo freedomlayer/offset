@@ -19,6 +19,8 @@ use super::super::credit_calc::CreditCalculator;
 use super::super::types::{NeighborTcOp, RequestSendMessage, 
     ResponseSendMessage, FailureSendMessage, PkPairPosition,
     PendingNeighborRequest, NeighborsRoute};
+use super::super::signature_buff::{create_failure_signature_buffer, 
+    create_response_signature_buffer};
 
 
 /// Processes outgoing messages for a token channel.
@@ -50,6 +52,10 @@ pub enum QueueOperationError {
     CreditsCalcOverflow,
     InsufficientTrust,
     RequestAlreadyExists,
+    RequestDoesNotExist,
+    InvalidResponseSignature,
+    ProcessingFeeCollectedTooHigh,
+    ResponseContentTooLong,
 }
 
 pub struct QueueOperationFailure {
@@ -283,8 +289,77 @@ impl OutgoingTokenChannel {
 
     fn queue_response_send_message(&mut self, response_send_msg: ResponseSendMessage) ->
         Result<(), QueueOperationError> {
-        // TODO
+        // TODO:
+        // Make sure that id exists in remote_pending hashmap, 
+        // and access saved request details.
+        let remote_pending_requests = &self.pending_requests.pending_remote_requests;
+
+        // Obtain pending request:
+        let pending_request = remote_pending_requests.get(&response_send_msg.request_id)
+            .ok_or(QueueOperationError::RequestDoesNotExist)?;
+
+        // verify signature:
+        let response_signature_buffer = create_response_signature_buffer(
+                                            &response_send_msg,
+                                            &pending_request);
+
+        // Verify response message signature:
+        if !verify_signature(&response_signature_buffer, 
+                                 &self.idents.local_public_key,
+                                 &response_send_msg.signature) {
+            return Err(QueueOperationError::InvalidResponseSignature);
+        }
+
+        // Verify that processing_fee_collected is within range.
+        if response_send_msg.processing_fee_collected > pending_request.processing_fee_proposal {
+            return Err(QueueOperationError::ProcessingFeeCollectedTooHigh);
+        }
+
+        // Make sure that response_content is not longer than max_response_len.
+        let response_content_len = usize_to_u32(response_send_msg.response_content.len())
+            .ok_or(QueueOperationError::ResponseContentTooLong)?;
+        if response_content_len > pending_request.max_response_len {
+            return Err(QueueOperationError::ResponseContentTooLong)?;
+        }
+
+        let credit_calc = CreditCalculator::new(&pending_request.route,
+                                                pending_request.request_content_len,
+                                                pending_request.processing_fee_proposal,
+                                                pending_request.max_response_len)
+            .ok_or(QueueOperationError::CreditCalculatorFailure)?;
+
+        // Find ourselves on the route. If we are not there, abort.
+        let pk_pair = pending_request.route.find_pk_pair(
+            &self.idents.remote_public_key, 
+            &self.idents.local_public_key)
+            .expect("Can not find myself in request's route!");
+
+        let index = match pk_pair {
+            PkPairPosition::Dest => pending_request.route.route_links.len().checked_add(1),
+            PkPairPosition::NotDest(i) => i.checked_add(1),
+        }.expect("Route too long!");
+
+        // Remove entry from local_pending hashmap:
+        self.pending_requests.pending_remote_requests.remove(
+            &response_send_msg.request_id);
+
+        // TODO: Why do we have next_index here?
         unreachable!();
+        let next_index = index.checked_add(1).expect("Route too long!");
+        let success_credits = credit_calc.credits_on_success(next_index, response_content_len)
+            .expect("credits_on_success calculation failed!");
+        let freeze_credits = credit_calc.credits_to_freeze(next_index)
+            .expect("credits_to_freeze calculation failed!");
+
+        // Decrease frozen credits and increase balance:
+        self.balance.remote_pending_debt = 
+            self.balance.remote_pending_debt.checked_sub(freeze_credits)
+            .expect("Insufficient frozen credit!");
+
+        self.balance.balance = 
+            self.balance.balance.checked_add_unsigned(success_credits)
+            .expect("balance overflow");
+
         Ok(())
     }
 
