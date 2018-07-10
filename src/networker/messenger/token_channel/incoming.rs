@@ -15,8 +15,7 @@ use super::super::types::{ResponseSendMessage, FailureSendMessage, RequestSendMe
                                 PendingNeighborRequest};
 
 use super::super::credit_calc::CreditCalculator;
-use super::super::signature_buff::{create_failure_signature_buffer, 
-    create_response_signature_buffer};
+use super::super::signature_buff::{create_response_signature_buffer, verify_failure_signature};
 
 use super::types::{TokenChannel, TcBalance, TcInvoice, TcSendPrice, TcIdents,
     TransTcPendingRequests, MAX_NETWORKER_DEBT};
@@ -148,28 +147,6 @@ fn verify_freezing_links(freeze_links: &[NetworkerFreezeLink],
 }
 */
 
-/// Verify all failure message signature chain
-fn verify_failure_signature(index: usize,
-                            reporting_index: usize,
-                            failure_send_msg: &FailureSendMessage,
-                            pending_request: &PendingNeighborRequest) -> Option<()> {
-
-    let mut failure_signature_buffer = create_failure_signature_buffer(
-                                        &failure_send_msg,
-                                        &pending_request);
-    let next_index = index.checked_add(1)?;
-    for i in (next_index ..= reporting_index).rev() {
-        let sig_index = i.checked_sub(next_index)?;
-        let rand_nonce = &failure_send_msg.rand_nonce_signatures[sig_index].rand_nonce;
-        let signature = &failure_send_msg.rand_nonce_signatures[sig_index].signature;
-        failure_signature_buffer.extend_from_slice(rand_nonce);
-        let public_key = pending_request.route.pk_by_index(i)?;
-        if !verify_signature(&failure_signature_buffer, public_key, signature) {
-            return None;
-        }
-    }
-    Some(())
-}
 
 
 /// Transactional state of the token channel.
