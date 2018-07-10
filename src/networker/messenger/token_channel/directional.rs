@@ -237,6 +237,8 @@ impl DirectionalTokenChannel {
                     }
                 } else if move_token_inner.old_token == new_token {
                     // We should retransmit our message to the remote side.
+                    
+                    // TODO: Remove this expect somehow:
                     let outgoing_move_token = self.get_outgoing_move_token()
                         .expect("Can not obtain outgoing move token");
                     Ok(ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token))
