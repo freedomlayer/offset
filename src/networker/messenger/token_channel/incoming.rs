@@ -467,8 +467,8 @@ impl IncomingTokenChannel {
 
         // Find ourselves on the route. If we are not there, abort.
         let pk_pair = pending_request.route.find_pk_pair(
-            &self.idents.remote_public_key, 
-            &self.idents.local_public_key)
+            &self.idents.local_public_key, 
+            &self.idents.remote_public_key)
             .expect("Can not find myself in request's route!");
 
         let index = match pk_pair {
@@ -512,8 +512,8 @@ impl IncomingTokenChannel {
 
         // Find ourselves on the route. If we are not there, abort.
         let pk_pair = pending_request.route.find_pk_pair(
-            &self.idents.remote_public_key, 
-            &self.idents.local_public_key)
+            &self.idents.local_public_key, 
+            &self.idents.remote_public_key)
             .expect("Can not find myself in request's route!");
 
         let index = match pk_pair {
