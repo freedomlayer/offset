@@ -99,9 +99,9 @@ impl TcSendPrice {
 
 pub struct TcPendingRequests {
     /// Pending requests that were opened locally and not yet completed
-    pending_local_requests: HashMap<Uid, PendingNeighborRequest>,
+    pub(super) pending_local_requests: HashMap<Uid, PendingNeighborRequest>,
     /// Pending requests that were opened remotely and not yet completed
-    pending_remote_requests: HashMap<Uid, PendingNeighborRequest>,
+    pub(super) pending_remote_requests: HashMap<Uid, PendingNeighborRequest>,
 }
 
 impl TcPendingRequests {
