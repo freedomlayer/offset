@@ -1,7 +1,6 @@
 use std::convert::TryFrom;
 
 use crypto::identity::{verify_signature};
-use crypto::hash;
 
 use proto::funder::InvoiceId;
 use proto::common::SendFundsReceipt;
@@ -11,8 +10,7 @@ use utils::int_convert::usize_to_u32;
 use utils::safe_arithmetic::SafeArithmetic;
 
 use super::super::types::{ResponseSendMessage, FailureSendMessage, RequestSendMessage,
-                                NeighborTcOp, NeighborsRoute, PkPairPosition,
-                                PendingNeighborRequest};
+                                NeighborTcOp, NeighborsRoute, PkPairPosition /*, PendingNeighborRequest */};
 
 use super::super::credit_calc::CreditCalculator;
 use super::super::signature_buff::{create_response_signature_buffer, verify_failure_signature};
@@ -350,14 +348,8 @@ impl IncomingTokenChannel {
         }
 
         // Add pending request message:
-        let pending_neighbor_request = PendingNeighborRequest {
-            request_id: request_send_msg.request_id,
-            route: request_send_msg.route.clone(),
-            request_content_hash: hash::sha_512_256(&request_send_msg.request_content),
-            request_content_len,
-            max_response_len: request_send_msg.max_response_len,
-            processing_fee_proposal: request_send_msg.processing_fee_proposal,
-        };
+        let pending_neighbor_request = request_send_msg.create_pending_request()
+            .ok_or(ProcessOperationError::RequestContentTooLong)?;
         p_remote_requests.insert(request_send_msg.request_id,
                                      pending_neighbor_request);
         

@@ -2,7 +2,7 @@ use std::collections::hash_set::HashSet;
 
 use byteorder::{WriteBytesExt, BigEndian};
 
-use utils::int_convert::usize_to_u64;
+use utils::int_convert::{usize_to_u64, usize_to_u32};
 
 use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
@@ -307,6 +307,18 @@ impl RequestSendMessage {
             res_bytes.extend_from_slice(&freeze_link.to_bytes());
         }
         res_bytes
+    }
+
+    pub fn create_pending_request(&self) -> Option<PendingNeighborRequest> {
+        let request_content_len = usize_to_u32(self.request_content.len())?;
+        Some(PendingNeighborRequest {
+            request_id: self.request_id,
+            route: self.route.clone(),
+            request_content_hash: hash::sha_512_256(&self.request_content),
+            request_content_len,
+            max_response_len: self.max_response_len,
+            processing_fee_proposal: self.processing_fee_proposal,
+        })
     }
 }
 

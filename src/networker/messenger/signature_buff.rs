@@ -30,7 +30,7 @@ pub fn create_response_signature_buffer(response_send_msg: &ResponseSendMessage,
     sbuffer
 }
 
-/// Create the buffer we sign over at the Response message.
+/// Create the buffer we sign over at the Failure message.
 /// Note that the signature is not just over the Response message bytes. The signed buffer also
 /// contains information from the Request message.
 pub fn create_failure_signature_buffer(failure_send_msg: &FailureSendMessage,
