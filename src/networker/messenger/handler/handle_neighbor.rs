@@ -299,6 +299,9 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     /// Forward a request message to the relevant neighbor and token channel.
     fn forward_request(&mut self, request_send_msg: RequestSendMessage) {
         // TODO
+        // - Add our freeze link
+        // - Queue message to the relevant neighbor (Note that there will not be a specific token
+        //   channel, as a request can go through any available token channel).
         unreachable!();
     }
 
