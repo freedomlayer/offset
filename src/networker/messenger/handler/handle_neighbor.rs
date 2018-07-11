@@ -2,6 +2,7 @@ use std::rc::Rc;
 
 use futures;
 use futures::{Future, future};
+use futures::prelude::*;
 
 use num_bigint::BigUint;
 
@@ -28,7 +29,7 @@ use super::super::messenger_state::{NeighborState, StateMutateMessage,
     SmApplyNeighborMoveToken};
 
 use super::super::signature_buff::create_failure_signature_buffer;
-use super::super::types::{NetworkerFreezeLink,  PkPairPosition};
+use super::super::types::{/*NetworkerFreezeLink,*/  PkPairPosition};
 use super::super::credit_calc::CreditCalculator;
 
 
@@ -413,11 +414,12 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     }
 
     /// Process valid incoming operations from remote side.
+    #[async]
     fn handle_move_token_output(mut self, 
                                 remote_public_key: PublicKey,
                                 channel_index: u16,
                                 ops_list_output: Vec<ProcessOperationOutput> )
-                        -> Box<Future<Item=Self, Error=()>> {
+                        -> Result<Self, ()> {
 
         for op_output in ops_list_output {
             match op_output {
@@ -432,7 +434,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                                                  failure_send_msg),
             }
         }
-        Box::new(future::ok(self))
+        Ok(self)
     }
 
     /// Handle an error with incoming move token.
@@ -495,15 +497,15 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     }
 
 
+    #[async]
     fn handle_move_token(mut self, 
                          remote_public_key: PublicKey,
-                         neighbor_move_token: NeighborMoveToken) 
-         -> Box<Future<Item=Self, Error=()>> {
+                         neighbor_move_token: NeighborMoveToken) -> Result<Self,()> {
 
         // Find neighbor:
         let neighbor = match self.state.get_neighbors().get(&remote_public_key) {
             Some(neighbor) => neighbor,
-            None => return Box::new(future::ok(self)),
+            None => return Ok(self),
         };
 
         let channel_index = neighbor_move_token.token_channel_index;
@@ -518,7 +520,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                     )
                 )
             );
-            return Box::new(future::ok(self));
+            return Ok(self)
         }
 
 
@@ -545,81 +547,86 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         // inconsistency is resolved.
         if let TokenChannelStatus::Inconsistent { .. } 
                     = token_channel_slot.tc_status {
-            return Box::new(future::ok(self));
+            return Ok(self);
         };
 
-        let fut = self.check_reset_channel(remote_public_key.clone(), 
+
+        let mut fself = await!(self.check_reset_channel(remote_public_key.clone(), 
                                            channel_index, 
-                                           neighbor_move_token.new_token.clone());
+                                           neighbor_move_token.new_token.clone()))?;
 
-        Box::new(fut.and_then(move |mut fself| {
-            let apply_neighbor_move_token = SmApplyNeighborMoveToken {
-                neighbor_public_key: remote_public_key.clone(),
-                neighbor_move_token,
-            };
-            let sm_msg = StateMutateMessage::ApplyNeighborMoveToken(
-                apply_neighbor_move_token.clone());
-            match fself.state.apply_neighbor_move_token(apply_neighbor_move_token) {
-                Ok(ReceiveMoveTokenOutput::Duplicate) => Box::new(future::ok(fself)),
-                Ok(ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token)) => {
-                    // Retransmit last sent token channel message:
-                    fself.messenger_tasks.push(
-                        MessengerTask::NeighborMessage(
-                            NeighborMessage::MoveToken(outgoing_move_token)));
-                    Box::new(future::ok(fself))
-                },
-                Ok(ReceiveMoveTokenOutput::ProcessOpsListOutput(ops_list_output)) => {
-                    Box::new(fself.handle_move_token_output(remote_public_key.clone(),
-                                                   channel_index,
-                                                   ops_list_output)
-                    .and_then(move |mut fself| {
-                        fself.send_through_token_channel(&remote_public_key,
-                                                         channel_index);
-                        fself.initiate_load_funds(&remote_public_key,
-                                                  channel_index);
-                        Ok(fself)
-                    })) as Box<Future<Item=Self,Error=()>>
-                },
-                Err(MessengerStateError::ReceiveMoveTokenError(receive_move_token_error)) => {
-                    fself.handle_move_token_error(&remote_public_key,
-                                                 channel_index,
-                                                 receive_move_token_error);
-                    Box::new(future::ok(fself))
-                },
-                Err(_) => unreachable!(),
-            }
-        })) as Box<Future<Item=Self,Error=()>>
+
+
+        let apply_neighbor_move_token = SmApplyNeighborMoveToken {
+            neighbor_public_key: remote_public_key.clone(),
+            neighbor_move_token,
+        };
+
+        
+        let sm_msg = StateMutateMessage::ApplyNeighborMoveToken(
+            apply_neighbor_move_token.clone());
+
+
+        let receive_move_token_output = 
+            fself.state.apply_neighbor_move_token(apply_neighbor_move_token);
+        Ok(match receive_move_token_output {
+            Ok(ReceiveMoveTokenOutput::Duplicate) => fself,
+            Ok(ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token)) => {
+                // Retransmit last sent token channel message:
+                fself.messenger_tasks.push(
+                    MessengerTask::NeighborMessage(
+                        NeighborMessage::MoveToken(outgoing_move_token)));
+                fself
+            },
+            Ok(ReceiveMoveTokenOutput::ProcessOpsListOutput(ops_list_output)) => {
+                let mut fself = await!(fself.handle_move_token_output(remote_public_key.clone(),
+                                               channel_index,
+                                               ops_list_output))?;
+                fself.send_through_token_channel(&remote_public_key,
+                                                 channel_index);
+                fself.initiate_load_funds(&remote_public_key,
+                                          channel_index);
+                fself
+            },
+            Err(MessengerStateError::ReceiveMoveTokenError(receive_move_token_error)) => {
+                fself.handle_move_token_error(&remote_public_key,
+                                             channel_index,
+                                             receive_move_token_error);
+                fself
+            },
+            Err(_) => unreachable!(),
+        })
     }
 
-    fn handle_inconsistency_error(self, 
+    fn handle_inconsistency_error(&mut self, 
                                   remote_public_key: PublicKey,
-                                  neighbor_inconsistency_error: NeighborInconsistencyError)
-         -> Box<Future<Item=Self, Error=()>> {
-
+                                  neighbor_inconsistency_error: NeighborInconsistencyError) {
         unreachable!();
-        Box::new(future::ok(self))
     }
 
-    fn handle_set_max_token_channels(self, 
+    fn handle_set_max_token_channels(&mut self, 
                                      remote_public_key: PublicKey,
-                                     neighbor_set_max_token_channels: NeighborSetMaxTokenChannels)
-         -> Box<Future<Item=Self, Error=()>> {
+                                     neighbor_set_max_token_channels: NeighborSetMaxTokenChannels) {
         unreachable!();
-        Box::new(future::ok(self))
     }
 
+    #[async]
     pub fn handle_neighbor_message(self, 
                                    remote_public_key: PublicKey, 
-                                   neighbor_message: IncomingNeighborMessage)
-         -> Box<Future<Item=Self, Error=()>> {
+                                   neighbor_message: IncomingNeighborMessage) 
+        -> Result<Self, ()> {
 
         match neighbor_message {
             IncomingNeighborMessage::MoveToken(neighbor_move_token) =>
-                self.handle_move_token(remote_public_key, neighbor_move_token),
-            IncomingNeighborMessage::InconsistencyError(neighbor_inconsistency_error) =>
-                self.handle_inconsistency_error(remote_public_key, neighbor_inconsistency_error),
-            IncomingNeighborMessage::SetMaxTokenChannels(neighbor_set_max_token_channels) =>
-                self.handle_set_max_token_channels(remote_public_key, neighbor_set_max_token_channels),
+                await!(self.handle_move_token(remote_public_key, neighbor_move_token)),
+            IncomingNeighborMessage::InconsistencyError(neighbor_inconsistency_error) => {
+                self.handle_inconsistency_error(remote_public_key, neighbor_inconsistency_error);
+                Ok(self)
+            }
+            IncomingNeighborMessage::SetMaxTokenChannels(neighbor_set_max_token_channels) => {
+                self.handle_set_max_token_channels(remote_public_key, neighbor_set_max_token_channels);
+                Ok(self)
+            }
         }
     }
 }
