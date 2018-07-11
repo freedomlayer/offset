@@ -188,7 +188,8 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             .get(&channel_index)
             .expect("token_channel_slot not found!");
 
-        // Mark all pending requests to this neighbor as errors.  As the token channel is being reset, we can be sure we will never obtain a response
+        // Mark all pending requests to this neighbor as errors.  
+        // As the token channel is being reset, we can be sure we will never obtain a response
         // for those requests.
         let pending_local_requests = token_channel_slot.tc_state
             .get_token_channel()
