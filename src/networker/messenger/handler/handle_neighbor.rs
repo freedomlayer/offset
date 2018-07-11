@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use futures;
 use futures::{Future, future};
-use futures::prelude::*;
+use futures::prelude::{async, await};
 
 use num_bigint::BigUint;
 
@@ -146,10 +146,10 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         None
     }
 
+    #[async]
     fn cancel_local_pending_requests(mut self, 
                                      neighbor_public_key: PublicKey, 
-                                     channel_index: u16)
-            -> Box<Future<Item=Self, Error=()>> {
+                                     channel_index: u16) -> Result<Self, ()> {
 
         let neighbor = self.state.get_neighbors().get(&neighbor_public_key)
             .expect("Neighbor not found!");
@@ -157,80 +157,60 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             .get(&channel_index)
             .expect("token_channel_slot not found!");
 
-        // Mark all pending requests to this neighbor as errors.
-        // As the token channel is being reset, we can be sure we will never obtain a response
+        // Mark all pending requests to this neighbor as errors.  As the token channel is being reset, we can be sure we will never obtain a response
         // for those requests.
         let pending_local_requests = token_channel_slot.tc_state
             .get_token_channel()
-            .pending_local_requests();
+            .pending_local_requests()
+            .clone();
 
+        let local_public_key = self.state.get_local_public_key().clone();
         // Prepare a list of all remote requests that we need to cancel:
-        let mut requests_to_cancel = Vec::new();
         for (local_request_id, pending_local_request) in pending_local_requests {
             let origin = self.find_request_origin(&local_request_id);
             let (origin_public_key, origin_channel_index) = match origin {
                 Some((public_key, channel_index)) => (public_key, channel_index),
                 None => continue,
             };
-            requests_to_cancel.push((origin_public_key.clone(), 
-                                     origin_channel_index, pending_local_request.clone()));
+
+            let failure_send_msg = FailureSendMessage {
+                request_id: pending_local_request.request_id,
+                reporting_public_key: local_public_key.clone(),
+                rand_nonce_signatures: Vec::new(), 
+            };
+            let mut failure_signature_buffer = create_failure_signature_buffer(
+                                                &failure_send_msg,
+                                                &pending_local_request);
+            let rand_nonce = RandValue::new(&*self.rng);
+            failure_signature_buffer.extend_from_slice(&rand_nonce);
+
+            let local_public_key_cloned = local_public_key.clone();
+            let signature = await!(self.security_module_client.request_signature(failure_signature_buffer))
+                .expect("Failed to create a signature!");
+
+            let rand_nonce_signature = RandNonceSignature {
+                rand_nonce,
+                signature,
+            };
+            let failure_send_msg = FailureSendMessage {
+                request_id: pending_local_request.request_id,
+                reporting_public_key: local_public_key_cloned,
+                rand_nonce_signatures: vec![rand_nonce_signature],
+            };
+            let failure_op = NeighborTcOp::FailureSendMessage(failure_send_msg);
+            let token_channel_push_op = SmTokenChannelPushOp {
+                neighbor_public_key: origin_public_key.clone(),
+                channel_index: origin_channel_index,
+                neighbor_op: failure_op,
+            };
+
+            let sm_msg = StateMutateMessage::TokenChannelPushOp(token_channel_push_op.clone());
+            self.state.token_channel_push_op(token_channel_push_op)
+                .expect("Could not push neighbor operation into channel!");
+            self.sm_messages.push(sm_msg);
         }
-
-        let local_public_key = self.state.get_local_public_key().clone();
-        let rng = Rc::clone(&self.rng);
-        let security_module_client = self.security_module_client.clone();
-
-        // Create a future that will resolve to all the mutation messages.
-        // We use futures here because the calculation of signature is futuristic.
-        let fut_push_ops = 
-            requests_to_cancel.into_iter()
-            .map(move |(origin_public_key, origin_channel_index, pending_local_request)| {
-                let failure_send_msg = FailureSendMessage {
-                    request_id: pending_local_request.request_id,
-                    reporting_public_key: local_public_key.clone(),
-                    rand_nonce_signatures: Vec::new(), 
-                };
-                let mut failure_signature_buffer = create_failure_signature_buffer(
-                                                    &failure_send_msg,
-                                                    &pending_local_request);
-                let rand_nonce = RandValue::new(&*rng);
-                failure_signature_buffer.extend_from_slice(&rand_nonce);
-
-                let local_public_key_cloned = local_public_key.clone();
-                security_module_client
-                    .request_signature(failure_signature_buffer)
-                    .map_err(|e| -> () {panic!("Failed to create signature!")})
-                    .and_then(move |signature| {
-                        let rand_nonce_signature = RandNonceSignature {
-                            rand_nonce,
-                            signature,
-                        };
-                        let failure_send_msg = FailureSendMessage {
-                            request_id: pending_local_request.request_id,
-                            reporting_public_key: local_public_key_cloned,
-                            rand_nonce_signatures: vec![rand_nonce_signature],
-                        };
-                        let failure_op = NeighborTcOp::FailureSendMessage(failure_send_msg);
-                        Ok(SmTokenChannelPushOp {
-                            neighbor_public_key: origin_public_key.clone(),
-                            channel_index: origin_channel_index,
-                            neighbor_op: failure_op,
-                        })
-                    })
-                });
-
-        Box::new(futures::collect(fut_push_ops)
-            .and_then(|push_ops| {
-                for token_channel_push_op in push_ops {
-                    let sm_msg = StateMutateMessage::TokenChannelPushOp(token_channel_push_op.clone());
-                    self.state.token_channel_push_op(token_channel_push_op)
-                        .expect("Could not push neighbor operation into channel!");
-                    self.sm_messages.push(sm_msg);
-                }
-                Ok(self)
-            })
-        )
-    }
+        Ok(self)
+   }
 
 
     /// Check if channel reset is required (Remove side used the RESET token)
