@@ -277,9 +277,23 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                           remote_public_key: PublicKey,
                           channel_index: u16,
                           request_send_msg: RequestSendMessage) -> Result<Self, ()> {
-        // TODO
-        unreachable!();
-        Ok(self)
+
+        let pending_request = request_send_msg.create_pending_request()
+            .expect("Could not create pending_request");
+        let (mut fself, failure_send_msg) = await!(self.create_failure_message(pending_request))?;
+
+        let failure_op = NeighborTcOp::FailureSendMessage(failure_send_msg);
+        let push_op = SmTokenChannelPushOp {
+            neighbor_public_key: remote_public_key,
+            channel_index,
+            neighbor_op: failure_op,
+        };
+
+        let sm_msg = StateMutateMessage::TokenChannelPushOp(push_op.clone());
+        fself.state.token_channel_push_op(push_op)
+            .expect("Could not push neighbor operation into channel!");
+        fself.sm_messages.push(sm_msg);
+        Ok(fself)
     }
 
     /// Forward a request message to the relevant neighbor and token channel.
