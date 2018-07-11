@@ -12,7 +12,8 @@ use utils::int_convert::usize_to_u32;
 
 use proto::networker::ChannelToken;
 
-use super::super::token_channel::incoming::ProcessOperationOutput;
+use super::super::token_channel::incoming::{ProcessOperationOutput, 
+    IncomingResponseSendMessage, IncomingFailureSendMessage};
 use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError};
 use super::{MessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage,
             CrypterMessage, RequestReceived, ResponseReceived, FailureReceived};
@@ -343,7 +344,8 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     fn handle_response_send_msg(&mut self, 
                                remote_public_key: &PublicKey,
                                channel_index: u16,
-                               response_send_msg: ResponseSendMessage) {
+                               response_send_msg: ResponseSendMessage,
+                               pending_request: PendingNeighborRequest) {
 
         match self.find_request_origin(&response_send_msg.request_id) {
             None => {
@@ -379,7 +381,8 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     fn handle_failure_send_msg(&mut self, 
                                remote_public_key: &PublicKey,
                                channel_index: u16,
-                               failure_send_msg: FailureSendMessage) {
+                               failure_send_msg: FailureSendMessage,
+                               pending_request: PendingNeighborRequest) {
 
 
         // TODO: We need to add our signature here:
@@ -429,14 +432,16 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                 ProcessOperationOutput::Request(request_send_msg) => 
                     await!(fself.handle_request_send_msg(remote_public_key.clone(), channel_index, 
                                                  request_send_msg))?,
-                ProcessOperationOutput::Response(response_send_msg) => {
+                ProcessOperationOutput::Response(IncomingResponseSendMessage {
+                                                pending_request, incoming_response}) => {
                     fself.handle_response_send_msg(&remote_public_key, channel_index, 
-                                                  response_send_msg);
+                                                  incoming_response, pending_request);
                     fself
                 },
-                ProcessOperationOutput::Failure(failure_send_msg) => {
+                ProcessOperationOutput::Failure(IncomingFailureSendMessage {
+                                                pending_request, incoming_failure}) => {
                     fself.handle_failure_send_msg(&remote_public_key, channel_index, 
-                                                 failure_send_msg);
+                                                 incoming_failure, pending_request);
                     fself
                 },
             }

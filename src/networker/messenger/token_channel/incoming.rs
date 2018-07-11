@@ -10,7 +10,8 @@ use utils::int_convert::usize_to_u32;
 use utils::safe_arithmetic::SafeArithmetic;
 
 use super::super::types::{ResponseSendMessage, FailureSendMessage, RequestSendMessage,
-                                NeighborTcOp, NeighborsRoute, PkPairPosition /*, PendingNeighborRequest */};
+                          NeighborTcOp, NeighborsRoute, PkPairPosition,
+                          PendingNeighborRequest };
 
 use super::super::credit_calc::CreditCalculator;
 use super::super::signature_buff::{create_response_signature_buffer, verify_failure_signature};
@@ -25,23 +26,23 @@ pub struct IncomingRequestSendMessage {
     request: RequestSendMessage,
     incoming_response: ResponseSendMessage,
 }
+*/
 
 pub struct IncomingResponseSendMessage {
-    pending_request: PendingNeighborRequest,
-    incoming_response: ResponseSendMessage,
+    pub pending_request: PendingNeighborRequest,
+    pub incoming_response: ResponseSendMessage,
 }
 
-pub struct IncomingFailedSendMessage {
-    pending_request: PendingNeighborRequest,
-    incoming_failed: FailedSendMessage,
+pub struct IncomingFailureSendMessage {
+    pub pending_request: PendingNeighborRequest,
+    pub incoming_failure: FailureSendMessage,
 }
-*/
 
 /// Resulting tasks to perform after processing an incoming operation.
 pub enum ProcessOperationOutput {
     Request(RequestSendMessage),
-    Response(ResponseSendMessage),
-    Failure(FailureSendMessage),
+    Response(IncomingResponseSendMessage),
+    Failure(IncomingFailureSendMessage),
 }
 
 
@@ -359,7 +360,7 @@ impl IncomingTokenChannel {
     }
 
     fn process_response_send_message(&mut self, response_send_msg: ResponseSendMessage) ->
-        Result<ResponseSendMessage, ProcessOperationError> {
+        Result<IncomingResponseSendMessage, ProcessOperationError> {
 
         // Make sure that id exists in local_pending hashmap, 
         // and access saved request details.
@@ -411,8 +412,8 @@ impl IncomingTokenChannel {
         }.expect("Route too long!");
 
         // Remove entry from local_pending hashmap:
-        self.trans_pending_requests.trans_pending_local_requests.remove(
-            &response_send_msg.request_id);
+        let pending_request = self.trans_pending_requests.trans_pending_local_requests.remove(
+            &response_send_msg.request_id).expect("pending_request not present!");
 
         let next_index = index.checked_add(1).expect("Route too long!");
         let success_credits = credit_calc.credits_on_success(next_index, response_content_len)
@@ -429,11 +430,14 @@ impl IncomingTokenChannel {
             self.balance.balance.checked_sub_unsigned(success_credits)
             .expect("balance overflow");
 
-        Ok(response_send_msg)
+        Ok(IncomingResponseSendMessage {
+            pending_request,
+            incoming_response: response_send_msg,
+        })
     }
 
     fn process_failure_send_message(&mut self, failure_send_msg: FailureSendMessage) ->
-        Result<FailureSendMessage, ProcessOperationError> {
+        Result<IncomingFailureSendMessage, ProcessOperationError> {
         
         // Make sure that id exists in local_pending hashmap, 
         // and access saved request details.
@@ -488,8 +492,8 @@ impl IncomingTokenChannel {
             .ok_or(ProcessOperationError::CreditCalculatorFailure)?;
 
         // Remove entry from local_pending hashmap:
-        self.trans_pending_requests.trans_pending_local_requests.remove(
-            &failure_send_msg.request_id);
+        let pending_request = self.trans_pending_requests.trans_pending_local_requests.remove(
+            &failure_send_msg.request_id).expect("pending_request not present!");
 
         let next_index = index.checked_add(1).expect("Route too long!");
         let failure_credits = credit_calc.credits_on_failure(next_index, reporting_index)
@@ -507,7 +511,10 @@ impl IncomingTokenChannel {
             .expect("balance overflow");
         
         // Return Failure message.
-        Ok(failure_send_msg)
+        Ok(IncomingFailureSendMessage {
+            pending_request,
+            incoming_failure: failure_send_msg,
+        })
 
     }
 }
