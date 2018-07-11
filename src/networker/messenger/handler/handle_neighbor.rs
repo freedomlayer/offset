@@ -1,7 +1,3 @@
-use std::rc::Rc;
-
-use futures;
-use futures::{Future, future};
 use futures::prelude::{async, await};
 
 use num_bigint::BigUint;
