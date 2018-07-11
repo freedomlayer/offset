@@ -113,41 +113,6 @@ pub fn atomic_process_operations_list(token_channel: TokenChannel, operations: V
 }
 
 
-/*
-fn verify_freezing_links(freeze_links: &[NetworkerFreezeLink], 
-                            credit_calc: &CreditCalculator) -> Result<(), ProcessOperationError> {
-
-    // Make sure that the freeze_links vector is valid:
-    // numerator <= denominator for every link.
-    for freeze_link in freeze_links {
-        let usable_ratio = &freeze_link.usable_ratio;
-        if usable_ratio.numerator > usable_ratio.denominator {
-            return Err(ProcessOperationError::InvalidFreezeLinks);
-        }
-    }
-
-    // Verify previous freezing links
-    #[allow(needless_range_loop)]
-    for node_findex in 0 .. freeze_links.len() {
-        let freeze_link = &freeze_links[node_findex];
-        let mut allowed_credits: BigUint = freeze_link.shared_credits.into();
-        for fi in node_findex .. freeze_links.len() {
-            allowed_credits *= freeze_link.usable_ratio.numerator;
-            allowed_credits /= freeze_link.usable_ratio.denominator;
-        }
-
-        let freeze_credits = credit_calc.credits_to_freeze(node_findex)
-            .ok_or(ProcessOperationError::CreditCalculatorFailure)?;
-
-        if allowed_credits < freeze_credits.into() {
-            return Err(ProcessOperationError::InsufficientTransitiveTrust);
-        }
-    }
-    Ok(())
-}
-*/
-
-
 
 /// Transactional state of the token channel.
 impl IncomingTokenChannel {

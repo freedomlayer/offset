@@ -3,18 +3,22 @@ use std::rc::Rc;
 use futures;
 use futures::{Future, future};
 
+use num_bigint::BigUint;
+
 use ring::rand::SecureRandom;
 
 use crypto::rand_values::RandValue;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
+use utils::int_convert::usize_to_u32;
+
 use proto::networker::ChannelToken;
 
 use super::super::token_channel::incoming::ProcessOperationOutput;
 use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError};
 use super::{MessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage,
-            CrypterMessage, ResponseReceived, FailureReceived};
+            CrypterMessage, RequestReceived, ResponseReceived, FailureReceived};
 use super::super::types::{NeighborTcOp, RequestSendMessage, 
     ResponseSendMessage, FailureSendMessage, RandNonceSignature, 
     NeighborMoveToken};
@@ -24,6 +28,9 @@ use super::super::messenger_state::{NeighborState, StateMutateMessage,
     SmApplyNeighborMoveToken};
 
 use super::super::signature_buff::create_failure_signature_buffer;
+use super::super::types::{NetworkerFreezeLink,  PkPairPosition};
+use super::super::credit_calc::CreditCalculator;
+
 
 
 #[allow(unused)]
@@ -44,6 +51,49 @@ pub enum IncomingNeighborMessage {
     InconsistencyError(NeighborInconsistencyError),
     SetMaxTokenChannels(NeighborSetMaxTokenChannels),
 }
+
+
+/// Make sure that freezing credits along the route never exceeds the allowed amount.
+fn verify_freezing_links(request_send_msg: &RequestSendMessage) -> Option<()> {
+
+    // Perform DoS protection check:
+    let request_content_len = usize_to_u32(request_send_msg.request_content.len())
+        .expect("Invalid request_content.len())");
+    let credit_calc = CreditCalculator::new(&request_send_msg.route,
+                                            request_content_len,
+                                            request_send_msg.processing_fee_proposal,
+                                            request_send_msg.max_response_len)
+        .expect("Could not construct credit_calc");
+
+    // Make sure that the freeze_links vector is valid:
+    // numerator <= denominator for every link.
+    for freeze_link in &request_send_msg.freeze_links {
+        let usable_ratio = &freeze_link.usable_ratio;
+        if usable_ratio.numerator > usable_ratio.denominator {
+            return None;
+        }
+    }
+
+    // Verify previous freezing links
+    #[allow(needless_range_loop)]
+    for node_findex in 0 .. request_send_msg.freeze_links.len() {
+        let freeze_link = &request_send_msg.freeze_links[node_findex];
+        let mut allowed_credits: BigUint = freeze_link.shared_credits.into();
+        for _fi in node_findex .. request_send_msg.freeze_links.len() {
+            allowed_credits *= freeze_link.usable_ratio.numerator;
+            allowed_credits /= freeze_link.usable_ratio.denominator;
+        }
+
+        let freeze_credits = credit_calc.credits_to_freeze(node_findex)?;
+
+        if allowed_credits < freeze_credits.into() {
+            return None;
+        }
+    }
+    Some(())
+}
+
+
 
 #[allow(unused)]
 impl<R: SecureRandom + 'static> MessengerHandler<R> {
@@ -218,12 +268,69 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         }
     }
 
+    fn punt_request_to_crypter(&mut self, request_send_msg: RequestSendMessage) {
+        self.messenger_tasks.push(
+            MessengerTask::CrypterMessage(
+                CrypterMessage::RequestReceived(RequestReceived {
+                    request_id: request_send_msg.request_id,
+                    route: request_send_msg.route,
+                    request_content: request_send_msg.request_content,
+                    max_response_len: request_send_msg.max_response_len,
+                    processing_fee_proposal: request_send_msg.processing_fee_proposal,
+                })
+            )
+        );
+    }
+
     fn handle_request_send_msg(&mut self, 
                                remote_public_key: &PublicKey,
                                channel_index: u16,
                                request_send_msg: RequestSendMessage) {
+
+        // Find ourselves on the route. If we are not there, abort.
+        let pk_pair = request_send_msg.route.find_pk_pair(
+            &remote_public_key, 
+            self.state.get_local_public_key())
+            .expect("Could not find pair in request_send_msg route!");
+
+        let index = match pk_pair {
+            PkPairPosition::Dest => {
+                self.punt_request_to_crypter(request_send_msg);
+                return;
+            }
+            PkPairPosition::NotDest(i) => {
+                i.checked_add(1).expect("Route too long!")
+            }
+        };
+
+        // The node on the route has to be one of our neighbors:
+        let next_index = index.checked_add(1).expect("Route too long!");
+        let next_public_key = request_send_msg.route.pk_by_index(next_index)
+            .expect("index out of range!");
+        if !self.state.get_neighbors().contains_key(next_public_key) {
+            /*
+            self.reply_with_failure(remote_public_key, 
+                                    channel_index,
+                                    request_send_msg);
+            */
+            unreachable!();
+        }
+
+        // Perform DoS protection check:
+        match verify_freezing_links(&request_send_msg) {
+            Some(()) => {
+                // TODO:
+                // Add our freezing link, and queue message to the next node.
+                unreachable!();
+            },
+            None => {
+                // TODO: 
+                // Queue a failure message to this token channel:
+                unreachable!();
+            },
+        }
+
         // TODO
-        //  - If we are the last on the route, punt to the Crypter.
         //  - Perform DoS protection check.
         //      - If valid, Queue to correct token channel.
         //      - If invalid, Queue a failure message to this token channel.
@@ -270,6 +377,10 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                                remote_public_key: &PublicKey,
                                channel_index: u16,
                                failure_send_msg: FailureSendMessage) {
+
+
+        // TODO: We need to add our signature here:
+        unreachable!();
 
         match self.find_request_origin(&failure_send_msg.request_id) {
             None => {
