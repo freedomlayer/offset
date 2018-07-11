@@ -25,7 +25,7 @@ use super::super::messenger_state::{NeighborState, StateMutateMessage,
     SmApplyNeighborMoveToken};
 
 use super::super::signature_buff::create_failure_signature_buffer;
-use super::super::types::{/*NetworkerFreezeLink,*/  PkPairPosition};
+use super::super::types::{/*NetworkerFreezeLink,*/  PkPairPosition, PendingNeighborRequest};
 use super::super::credit_calc::CreditCalculator;
 
 
@@ -142,6 +142,40 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         None
     }
 
+    /// Create a (signed) failure message for a given request_id.
+    /// We are the reporting_public_key for this failure message.
+    #[async]
+    fn create_failure_message(mut self, pending_local_request: PendingNeighborRequest) 
+        -> Result<(Self, FailureSendMessage), ()> {
+
+        let local_public_key = self.state.get_local_public_key().clone();
+        let failure_send_msg = FailureSendMessage {
+            request_id: pending_local_request.request_id,
+            reporting_public_key: local_public_key.clone(),
+            rand_nonce_signatures: Vec::new(), 
+        };
+        let mut failure_signature_buffer = create_failure_signature_buffer(
+                                            &failure_send_msg,
+                                            &pending_local_request);
+        let rand_nonce = RandValue::new(&*self.rng);
+        failure_signature_buffer.extend_from_slice(&rand_nonce);
+
+        let signature = await!(self.security_module_client.request_signature(failure_signature_buffer))
+            .expect("Failed to create a signature!");
+
+        let rand_nonce_signature = RandNonceSignature {
+            rand_nonce,
+            signature,
+        };
+
+        Ok((self, FailureSendMessage {
+            request_id: pending_local_request.request_id,
+            reporting_public_key: local_public_key,
+            rand_nonce_signatures: vec![rand_nonce_signature],
+        }))
+    }
+
+
     #[async]
     fn cancel_local_pending_requests(mut self, 
                                      neighbor_public_key: PublicKey, 
@@ -161,38 +195,18 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             .clone();
 
         let local_public_key = self.state.get_local_public_key().clone();
+        let mut fself = self;
         // Prepare a list of all remote requests that we need to cancel:
         for (local_request_id, pending_local_request) in pending_local_requests {
-            let origin = self.find_request_origin(&local_request_id);
+            let origin = fself.find_request_origin(&local_request_id);
             let (origin_public_key, origin_channel_index) = match origin {
                 Some((public_key, channel_index)) => (public_key, channel_index),
                 None => continue,
             };
 
-            let failure_send_msg = FailureSendMessage {
-                request_id: pending_local_request.request_id,
-                reporting_public_key: local_public_key.clone(),
-                rand_nonce_signatures: Vec::new(), 
-            };
-            let mut failure_signature_buffer = create_failure_signature_buffer(
-                                                &failure_send_msg,
-                                                &pending_local_request);
-            let rand_nonce = RandValue::new(&*self.rng);
-            failure_signature_buffer.extend_from_slice(&rand_nonce);
+            let (new_fself, failure_send_msg) = await!(fself.create_failure_message(pending_local_request))?;
+            fself = new_fself;
 
-            let local_public_key_cloned = local_public_key.clone();
-            let signature = await!(self.security_module_client.request_signature(failure_signature_buffer))
-                .expect("Failed to create a signature!");
-
-            let rand_nonce_signature = RandNonceSignature {
-                rand_nonce,
-                signature,
-            };
-            let failure_send_msg = FailureSendMessage {
-                request_id: pending_local_request.request_id,
-                reporting_public_key: local_public_key_cloned,
-                rand_nonce_signatures: vec![rand_nonce_signature],
-            };
             let failure_op = NeighborTcOp::FailureSendMessage(failure_send_msg);
             let token_channel_push_op = SmTokenChannelPushOp {
                 neighbor_public_key: origin_public_key.clone(),
@@ -201,11 +215,11 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             };
 
             let sm_msg = StateMutateMessage::TokenChannelPushOp(token_channel_push_op.clone());
-            self.state.token_channel_push_op(token_channel_push_op)
+            fself.state.token_channel_push_op(token_channel_push_op)
                 .expect("Could not push neighbor operation into channel!");
-            self.sm_messages.push(sm_msg);
+            fself.sm_messages.push(sm_msg);
         }
-        Ok(self)
+        Ok(fself)
    }
 
 
