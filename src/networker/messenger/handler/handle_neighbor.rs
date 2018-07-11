@@ -256,10 +256,28 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         );
     }
 
-    fn handle_request_send_msg(&mut self, 
-                               remote_public_key: &PublicKey,
+    /// Reply to a request message with failure.
+    #[async]
+    fn reply_with_failure(self, 
+                          remote_public_key: PublicKey,
+                          channel_index: u16,
+                          request_send_msg: RequestSendMessage) -> Result<Self, ()> {
+        // TODO
+        unreachable!();
+        Ok(self)
+    }
+
+    /// Forward a request message to the relevant neighbor and token channel.
+    fn forward_request(&mut self, request_send_msg: RequestSendMessage) {
+        // TODO
+        unreachable!();
+    }
+
+    #[async]
+    fn handle_request_send_msg(mut self, 
+                               remote_public_key: PublicKey,
                                channel_index: u16,
-                               request_send_msg: RequestSendMessage) {
+                               request_send_msg: RequestSendMessage) -> Result<Self, ()> {
 
         // Find ourselves on the route. If we are not there, abort.
         let pk_pair = request_send_msg.route.find_pk_pair(
@@ -270,45 +288,42 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         let index = match pk_pair {
             PkPairPosition::Dest => {
                 self.punt_request_to_crypter(request_send_msg);
-                return;
+                return Ok(self);
             }
             PkPairPosition::NotDest(i) => {
                 i.checked_add(1).expect("Route too long!")
             }
         };
 
+
+
         // The node on the route has to be one of our neighbors:
         let next_index = index.checked_add(1).expect("Route too long!");
         let next_public_key = request_send_msg.route.pk_by_index(next_index)
             .expect("index out of range!");
-        if !self.state.get_neighbors().contains_key(next_public_key) {
-            /*
-            self.reply_with_failure(remote_public_key, 
-                                    channel_index,
-                                    request_send_msg);
-            */
-            unreachable!();
-        }
+        let mut fself = if !self.state.get_neighbors().contains_key(next_public_key) {
+            await!(self.reply_with_failure(remote_public_key.clone(), 
+                                           channel_index,
+                                           request_send_msg.clone()))?
+        } else {
+            self
+        };
+
 
         // Perform DoS protection check:
-        match verify_freezing_links(&request_send_msg) {
+        Ok(match verify_freezing_links(&request_send_msg) {
             Some(()) => {
-                // TODO:
                 // Add our freezing link, and queue message to the next node.
-                unreachable!();
+                fself.forward_request(request_send_msg);
+                fself
             },
             None => {
-                // TODO: 
                 // Queue a failure message to this token channel:
-                unreachable!();
+                await!(fself.reply_with_failure(remote_public_key, 
+                                               channel_index,
+                                               request_send_msg))?
             },
-        }
-
-        // TODO
-        //  - Perform DoS protection check.
-        //      - If valid, Queue to correct token channel.
-        //      - If invalid, Queue a failure message to this token channel.
-        unreachable!();
+        })
     }
 
     fn handle_response_send_msg(&mut self, 
@@ -394,20 +409,25 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                                 ops_list_output: Vec<ProcessOperationOutput> )
                         -> Result<Self, ()> {
 
+        let mut fself = self;
         for op_output in ops_list_output {
-            match op_output {
+            fself = match op_output {
                 ProcessOperationOutput::Request(request_send_msg) => 
-                    self.handle_request_send_msg(&remote_public_key, channel_index, 
-                                                 request_send_msg),
-                ProcessOperationOutput::Response(response_send_msg) => 
-                    self.handle_response_send_msg(&remote_public_key, channel_index, 
-                                                  response_send_msg),
-                ProcessOperationOutput::Failure(failure_send_msg) =>
-                    self.handle_failure_send_msg(&remote_public_key, channel_index, 
-                                                 failure_send_msg),
+                    await!(fself.handle_request_send_msg(remote_public_key.clone(), channel_index, 
+                                                 request_send_msg))?,
+                ProcessOperationOutput::Response(response_send_msg) => {
+                    fself.handle_response_send_msg(&remote_public_key, channel_index, 
+                                                  response_send_msg);
+                    fself
+                },
+                ProcessOperationOutput::Failure(failure_send_msg) => {
+                    fself.handle_failure_send_msg(&remote_public_key, channel_index, 
+                                                 failure_send_msg);
+                    fself
+                },
             }
         }
-        Ok(self)
+        Ok(fself)
     }
 
     /// Handle an error with incoming move token.
@@ -584,7 +604,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     }
 
     #[async]
-    pub fn handle_neighbor_message(self, 
+    pub fn handle_neighbor_message(mut self, 
                                    remote_public_key: PublicKey, 
                                    neighbor_message: IncomingNeighborMessage) 
         -> Result<Self, ()> {
