@@ -215,11 +215,11 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
 
     /// Check if channel reset is required (Remove side used the RESET token)
     /// If so, reset the channel.
+    #[async]
     fn check_reset_channel(mut self, 
                            neighbor_public_key: PublicKey,
                            channel_index: u16,
-                           new_token: ChannelToken)
-            -> Box<Future<Item=Self, Error=()>> {
+                           new_token: ChannelToken) -> Result<Self, ()> {
         // Check if incoming message is an attempt to reset channel.
         // We can know this by checking if new_token is a special value.
         let token_channel_slot = self.get_token_channel_slot(&neighbor_public_key,
@@ -229,23 +229,20 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
 
         if new_token == reset_token {
             // This is a reset message. We reset the token channel:
-            let fut = self.cancel_local_pending_requests(
-                neighbor_public_key.clone(), channel_index)
-            .and_then(move |mut fself| {
-                let reset_token_channel = SmResetTokenChannel {
-                    neighbor_public_key: neighbor_public_key.clone(),
-                    channel_index, 
-                    reset_token,
-                    balance_for_reset,
-                };
-                let sm_msg = StateMutateMessage::ResetTokenChannel(reset_token_channel.clone());
-                fself.state.reset_token_channel(reset_token_channel);
-                fself.sm_messages.push(sm_msg);
-                Ok(fself)
-            });
-            Box::new(fut) as Box<Future<Item=Self, Error=()>>
+            let mut fself = await!(self.cancel_local_pending_requests(
+                neighbor_public_key.clone(), channel_index))?;
+            let reset_token_channel = SmResetTokenChannel {
+                neighbor_public_key: neighbor_public_key.clone(),
+                channel_index, 
+                reset_token,
+                balance_for_reset,
+            };
+            let sm_msg = StateMutateMessage::ResetTokenChannel(reset_token_channel.clone());
+            fself.state.reset_token_channel(reset_token_channel);
+            fself.sm_messages.push(sm_msg);
+            Ok(fself)
         } else {
-            Box::new(future::ok(self)) as Box<Future<Item=Self, Error=()>>
+            Ok(self)
         }
     }
 
