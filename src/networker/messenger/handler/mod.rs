@@ -14,7 +14,7 @@ use super::messenger_state::{MessengerState, StateMutateMessage};
 use self::handle_neighbor::{NeighborInconsistencyError, 
     NeighborSetMaxTokenChannels};
 use super::token_channel::directional::ReceiveMoveTokenError;
-use super::types::NeighborMoveToken;
+use super::types::{NeighborMoveToken, NeighborsRoute};
 
 pub enum AppManagerMessage {
     ReceiveMoveTokenError(ReceiveMoveTokenError),
@@ -32,6 +32,14 @@ pub enum NeighborMessage {
     SetMaxTokenChannels(NeighborSetMaxTokenChannels),
 }
 
+pub struct RequestReceived {
+    pub request_id: Uid,
+    pub route: NeighborsRoute,
+    pub request_content: Vec<u8>,
+    pub max_response_len: u32,
+    pub processing_fee_proposal: u64,
+}
+
 pub struct ResponseReceived {
     pub request_id: Uid,
     pub processing_fee_collected: u64,
@@ -47,6 +55,7 @@ pub struct FailureReceived {
 
 #[allow(unused)]
 pub enum CrypterMessage {
+    RequestReceived(RequestReceived),
     ResponseReceived(ResponseReceived),
     FailureReceived(FailureReceived),
 }
