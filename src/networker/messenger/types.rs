@@ -100,11 +100,11 @@ pub struct NeighborRouteLink {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NeighborsRoute {
-    source_public_key: PublicKey,
-    source_request_proposal: NetworkerSendPrice,
-    pub route_links: Vec<NeighborRouteLink>,
-    dest_public_key: PublicKey,
-    pub dest_response_proposal: NetworkerSendPrice,
+    pub (super) source_public_key: PublicKey,
+    pub (super) source_request_proposal: NetworkerSendPrice,
+    pub (super) route_links: Vec<NeighborRouteLink>,
+    pub (super) dest_public_key: PublicKey,
+    pub (super) dest_response_proposal: NetworkerSendPrice,
 }
 
 
