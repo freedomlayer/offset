@@ -23,7 +23,7 @@ use super::super::types::{NeighborTcOp, RequestSendMessage,
     NeighborMoveToken};
 use super::super::messenger_state::{NeighborState, StateMutateMessage, 
     MessengerStateError, TokenChannelStatus, TokenChannelSlot,
-    SmInitTokenChannel, SmTokenChannelPushOp, SmResetTokenChannel, 
+    SmInitTokenChannel, SmTokenChannelPushOp, SmNeighborPushRequest, SmResetTokenChannel, 
     SmApplyNeighborMoveToken};
 
 use super::super::signature_buff::create_failure_signature_buffer;
@@ -335,10 +335,17 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             usable_ratio,
         });
 
-        
-        // - Queue message to the relevant neighbor (Note that there will not be a specific token
-        //   channel, as a request can go through any available token channel).
-        unreachable!();
+        // Queue message to the relevant neighbor. Later this message will be queued to a specific
+        // available token channel:
+        let push_op = SmNeighborPushRequest {
+            neighbor_public_key: next_pk.clone(),
+            request: request_send_msg,
+        };
+
+        let sm_msg = StateMutateMessage::NeighborPushRequest(push_op.clone());
+        self.state.neighbor_push_request(push_op)
+            .expect("Could not push neighbor operation into channel!");
+        self.sm_messages.push(sm_msg);
     }
 
     #[async]
