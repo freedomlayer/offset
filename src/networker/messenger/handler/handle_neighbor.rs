@@ -574,12 +574,19 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                                   remote_public_key: &PublicKey,
                                   channel_index: u16) {
 
+        // TODO
         // - If any messages are pending for this token channel, batch as many as possible into one
         //   move token message and add a task to send it. 
         //   - The first messages in the batch should be pending configuration requests:
-        //      - Set remote max debt
+        //      - Set remote max debt (If wanted max debt is different than current max debt).
         //      - Open, Close neighbor for requests.
-        // TODO
+        //
+        // - If there is nothing to send, and the transaction we have received contains real
+        //   messages, send an empty message back as ack.
+        //
+        // - If the message received is empty and there is nothing to send, we do nothing. (There
+        //   is not reason to send ack for an empty message).
+        //
         unreachable!();
     }
 
