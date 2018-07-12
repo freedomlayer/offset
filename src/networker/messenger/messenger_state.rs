@@ -1,6 +1,9 @@
 use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
 
+use num_bigint::BigUint;
+use num_traits::identities::Zero;
+
 use crypto::identity::PublicKey;
 
 use proto::networker::ChannelToken;
@@ -109,6 +112,19 @@ impl NeighborState {
             ticks_since_last_outgoing: 0,
         }
     }
+
+    /// Get the total trust we have in this neighbor.
+    /// This is the total sum of all remote_max_debt for all the token channels we have with this
+    /// neighbor. In other words, this is the total amount of money we can lose if this neighbor
+    /// leaves and never returns.
+    pub fn get_trust(&self) -> BigUint {
+        let mut sum: BigUint = BigUint::zero();
+        for (_slot_num, token_channel_slot) in &self.token_channel_slots {
+            let remote_max_debt: BigUint = token_channel_slot.wanted_remote_max_debt.into();
+            sum += remote_max_debt;
+        }
+        sum
+    }
 }
 
 #[allow(unused)]
@@ -179,6 +195,15 @@ impl MessengerState {
     pub fn new() -> MessengerState {
         // TODO: Initialize from database somehow.
         unreachable!();
+    }
+
+    /// Get total trust (in credits) we put on all the neighbors together.
+    pub fn get_total_trust(&self) -> BigUint {
+        let mut sum: BigUint = BigUint::zero();
+        for (_public_key, neighbor) in  &self.neighbors {
+            sum += neighbor.get_trust();
+        }
+        sum
     }
 
     pub fn get_neighbors(&self) -> &HashMap<PublicKey, NeighborState> {
