@@ -15,7 +15,9 @@ use proto::networker::ChannelToken;
 
 use super::super::token_channel::incoming::{ProcessOperationOutput, 
     IncomingResponseSendMessage, IncomingFailureSendMessage};
-use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError};
+use super::super::token_channel::outgoing::QueueOperationFailure;
+use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
+    TokenChannelSender};
 use super::{MessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage,
             CrypterMessage, RequestReceived, ResponseReceived, FailureReceived};
 use super::super::types::{NeighborTcOp, RequestSendMessage, 
@@ -24,7 +26,7 @@ use super::super::types::{NeighborTcOp, RequestSendMessage,
 use super::super::messenger_state::{NeighborState, StateMutateMessage, 
     MessengerStateError, TokenChannelStatus, TokenChannelSlot,
     SmInitTokenChannel, SmTokenChannelPushOp, SmNeighborPushRequest, SmResetTokenChannel, 
-    SmApplyNeighborMoveToken};
+    SmApplyNeighborMoveToken, SmOutgoingNeighborMoveToken};
 
 use super::super::signature_buff::create_failure_signature_buffer;
 use super::super::types::{NetworkerFreezeLink, PkPairPosition, PendingNeighborRequest, Ratio};
@@ -561,6 +563,35 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                 NeighborMessage::InconsistencyError(inconsistency_error)));
     }
 
+    /// Queue as many messages as possible into available token channel.
+    fn queue_outgoing_operations(&mut self,
+                           remote_public_key: &PublicKey,
+                           channel_index: u16,
+                           tc_sender: &mut TokenChannelSender) -> Result<(), QueueOperationFailure> {
+
+        // TODO
+        // - If any messages are pending for this token channel, batch as many as possible into one
+        //   move token message and add a task to send it. 
+        //   - The first messages in the batch should be pending configuration requests:
+        //      - Set remote max debt (If wanted max debt is different than current max debt).
+        //      - Open, Close neighbor for requests.
+
+        let token_channel_slot = self.get_token_channel_slot(&remote_public_key, 
+                                                             channel_index);
+        let remote_max_debt = token_channel_slot
+            .tc_state
+            .remote_max_debt();
+
+        if token_channel_slot.wanted_remote_max_debt != remote_max_debt {
+            tc_sender.queue_operation(NeighborTcOp::SetRemoteMaxDebt(token_channel_slot.wanted_remote_max_debt))?;
+        }
+
+        // TODO
+        unreachable!();
+
+        Ok(())
+
+    }
 
     /// Compose a large as possible message to send through the token channel to the remote side.
     /// The message should contain various operations, collected from:
@@ -571,36 +602,52 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     /// Any operations that will enter the message should be applied. For example, a failure
     /// message should cause the pending request to be removed.
     ///
-    /// is_empty -- is the move token message we have just received empty?
+    /// received_empty -- is the move token message we have just received empty?
     fn send_through_token_channel(&mut self, 
                                   remote_public_key: &PublicKey,
                                   channel_index: u16,
-                                  is_empty: bool) {
+                                  received_empty: bool) {
 
-        let token_channel_slot = self.get_token_channel_slot(&remote_public_key, 
-                                                             channel_index);
-        let remote_max_debt = token_channel_slot
-            .tc_state
-            .remote_max_debt();
+        let mut tc_sender = self.state.begin_outgoing_move_token(remote_public_key, channel_index)
+            .expect("Token Channel already outgoing!");
 
-        if token_channel_slot.wanted_remote_max_debt != remote_max_debt {
-            // TODO: Queue a SetRemoteMaxDebt message
 
+        let _ = self.queue_outgoing_operations(remote_public_key,
+                                       channel_index,
+                                       &mut tc_sender);
+
+        let rand_nonce = RandValue::new(&*self.rng);
+        let no_ops = tc_sender.is_empty();
+        let outgoing_move_token = self.state.commit_outgoing_move_token(remote_public_key,
+                                          channel_index,
+                                          tc_sender,
+                                          rand_nonce)
+            .expect("Could not commit operations");
+
+        // If there is nothing to send, and the transaction we have received is nonempty, send an empty message back as ack.
+        //
+        // If the message received is empty and there is nothing to send, we do nothing. (There
+        // is no reason to send an ack for an empty message).
+
+        // If we received an empty move token message, and we have nothing to send, 
+        // we do nothing:
+        if received_empty && no_ops {
+            return;
         }
 
-        // TODO
-        // - If any messages are pending for this token channel, batch as many as possible into one
-        //   move token message and add a task to send it. 
-        //   - The first messages in the batch should be pending configuration requests:
-        //      - Set remote max debt (If wanted max debt is different than current max debt).
-        //      - Open, Close neighbor for requests.
-        //
-        // - If there is nothing to send, and the transaction we have received is nonempty, send an empty message back as ack.
-        //
-        // - If the message received is empty and there is nothing to send, we do nothing. (There
-        //   is not reason to send ack for an empty message).
-        //
-        unreachable!();
+        // Add a state mutate message about sending outgoing move token:
+        let sm_msg = StateMutateMessage::OutgoingNeighborMoveToken(
+            SmOutgoingNeighborMoveToken {
+                neighbor_public_key: remote_public_key.clone(),
+                neighbor_move_token: outgoing_move_token.clone(),
+            });
+        self.sm_messages.push(sm_msg);
+
+
+        // Add a task for sending the outgoing move token:
+        self.messenger_tasks.push(
+            MessengerTask::NeighborMessage(
+                NeighborMessage::MoveToken(outgoing_move_token)));
     }
 
     /// Initialte loading funds (Using a funder message) for token channel, if needed.
