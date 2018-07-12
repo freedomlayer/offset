@@ -184,6 +184,10 @@ impl DirectionalTokenChannel {
         self.get_token_channel().balance_for_reset()
     }
 
+    pub fn remote_max_debt(&self) -> u64 {
+        self.get_token_channel().balance.remote_max_debt
+    }
+
     #[allow(unused)]
     pub fn calc_channel_reset_token(&self, token_channel_index: u16) -> ChannelToken {
         calc_channel_reset_token(token_channel_index,
