@@ -254,7 +254,47 @@ impl DirectionalTokenChannel {
     }
 
     #[allow(unused)]
-    fn send_move_token_transact<F,R>(&mut self, f: F, rand_nonce: RandValue) 
+    pub fn begin_outgoing_move_token(&mut self) -> Option<TokenChannelSender> {
+        if let MoveTokenDirection::Outgoing(_) = self.direction {
+            return None;
+        }
+
+        let outgoing_tc = OutgoingTokenChannel::new(
+            self.opt_token_channel.take()?);
+    
+        Some(TokenChannelSender::new(outgoing_tc))
+    }
+
+    #[allow(unused)]
+    pub fn commit_outgoing_move_token(&mut self, 
+                                  tc_sender: TokenChannelSender,
+                                  rand_nonce: RandValue) -> NeighborMoveToken {
+        if let MoveTokenDirection::Outgoing(_) = self.direction {
+            panic!("Already in outgoing message state!");
+        }
+        let TokenChannelSender {outgoing_tc} = tc_sender;
+        let (token_channel, operations) = outgoing_tc.commit();
+        self.opt_token_channel = Some(token_channel);
+        let neighbor_move_token_inner = NeighborMoveTokenInner {
+            operations: operations,
+            old_token: self.new_token.clone(),
+            rand_nonce,
+        };
+
+        self.new_token = calc_channel_next_token(self.token_channel_index,
+                                &neighbor_move_token_inner);
+        self.direction = MoveTokenDirection::Outgoing(
+            neighbor_move_token_inner);
+
+
+        self.get_outgoing_move_token()
+            .expect("Could not obtain outgoing move token!")
+    }
+
+    /*
+
+    #[allow(unused)]
+    fn send_move_token_transact<F>(&mut self, f: F, rand_nonce: RandValue) 
     where F: FnOnce(&mut TokenChannelSender) {
 
         match self.direction {
@@ -284,6 +324,7 @@ impl DirectionalTokenChannel {
         self.direction = MoveTokenDirection::Outgoing(
             neighbor_move_token_inner);
     }
+    */
 
     #[allow(unused)]
     pub fn get_outgoing_move_token(&self) -> Option<NeighborMoveToken> {

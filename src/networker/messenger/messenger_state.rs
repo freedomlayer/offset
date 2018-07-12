@@ -5,6 +5,7 @@ use num_bigint::BigUint;
 use num_traits::identities::Zero;
 
 use crypto::identity::PublicKey;
+use crypto::rand_values::RandValue;
 
 use proto::networker::ChannelToken;
 
@@ -12,7 +13,7 @@ use super::types::{NeighborTcOp, NeighborMoveToken, RequestSendMessage};
 use super::super::messages::{NeighborStatus};
 
 use super::token_channel::directional::{DirectionalTokenChannel, 
-    ReceiveMoveTokenOutput, ReceiveMoveTokenError};
+    ReceiveMoveTokenOutput, ReceiveMoveTokenError, TokenChannelSender};
 use super::token_channel::types::NeighborMoveTokenInner;
 
 use app_manager::messages::{SetNeighborRemoteMaxDebt, SetNeighborMaxChannels, 
@@ -148,6 +149,12 @@ pub struct SmTokenChannelPushOp {
     pub neighbor_op: NeighborTcOp
 }
 
+#[derive(Clone)]
+pub struct SmNeighborPushRequest {
+    pub neighbor_public_key: PublicKey,
+    pub request: RequestSendMessage,
+}
+
 #[allow(unused)]
 #[derive(Clone)]
 pub struct SmResetTokenChannel {
@@ -159,16 +166,19 @@ pub struct SmResetTokenChannel {
 
 #[allow(unused)]
 #[derive(Clone)]
+// TODO: Possibly change name to SmIncomingNeighborMoveToken.
 pub struct SmApplyNeighborMoveToken {
     pub neighbor_public_key: PublicKey, 
     pub neighbor_move_token: NeighborMoveToken,
 }
 
+#[allow(unused)]
 #[derive(Clone)]
-pub struct SmNeighborPushRequest {
-    pub neighbor_public_key: PublicKey,
-    pub request: RequestSendMessage,
+pub struct SmOutgoingNeighborMoveToken {
+    pub neighbor_public_key: PublicKey, 
+    pub neighbor_move_token: NeighborMoveToken,
 }
+
 
 #[allow(unused)]
 #[derive(Clone)]
@@ -184,6 +194,7 @@ pub enum StateMutateMessage {
     NeighborPushRequest(SmNeighborPushRequest),
     ResetTokenChannel(SmResetTokenChannel),
     ApplyNeighborMoveToken(SmApplyNeighborMoveToken),
+    OutgoingNeighborMoveToken(SmOutgoingNeighborMoveToken),
 }
 
 
@@ -195,6 +206,7 @@ pub enum MessengerStateError {
     NeighborAlreadyExists,
     TokenChannelAlreadyExists,
     ReceiveMoveTokenError(ReceiveMoveTokenError),
+    TokenChannelAlreadyOutgoing,
 }
 
 #[allow(unused)]
@@ -425,5 +437,43 @@ impl MessengerState {
         token_channel_slot.tc_state.receive_move_token(inner_move_token, new_token)
             .map_err(MessengerStateError::ReceiveMoveTokenError)
 
+    }
+
+    pub fn begin_outgoing_move_token(&mut self, 
+                                     neighbor_public_key: &PublicKey,
+                                     channel_index: u16) 
+                            -> Result<TokenChannelSender, MessengerStateError> {
+
+        let neighbor = self.neighbors.get_mut(neighbor_public_key)
+            .ok_or(MessengerStateError::NeighborDoesNotExist)?;
+        let token_channel_slot = neighbor.token_channel_slots
+            .get_mut(&channel_index)
+            .ok_or(MessengerStateError::TokenChannelDoesNotExist)?;
+
+        let tc_sender = token_channel_slot.tc_state.begin_outgoing_move_token()
+            .ok_or(MessengerStateError::TokenChannelAlreadyOutgoing)?;
+
+        Ok(tc_sender)
+    }
+
+    pub fn commit_outgoing_move_token(&mut self, 
+                                      neighbor_public_key: &PublicKey, 
+                                      channel_index: u16,
+                                      tc_sender: TokenChannelSender,
+                                      rand_nonce: RandValue) 
+                            -> Result<SmOutgoingNeighborMoveToken , MessengerStateError>  {
+
+        let neighbor = self.neighbors.get_mut(neighbor_public_key)
+            .ok_or(MessengerStateError::NeighborDoesNotExist)?;
+        let token_channel_slot = neighbor.token_channel_slots
+            .get_mut(&channel_index)
+            .ok_or(MessengerStateError::TokenChannelDoesNotExist)?;
+
+        let neighbor_move_token = token_channel_slot.tc_state
+            .commit_outgoing_move_token(tc_sender, rand_nonce);
+        Ok(SmOutgoingNeighborMoveToken {
+            neighbor_public_key: neighbor_public_key.clone(),
+            neighbor_move_token,
+        })
     }
 }
