@@ -48,18 +48,17 @@ pub struct ResponseSendMessage {
 }
 
 
-/// A rational number. 
-/// T is the type of the numerator and the denominator.
+/// The ratio can be numeration / T::max_value(), or 1
 #[derive(Clone)]
-pub struct Rational<T> {
-    pub numerator: T,
-    pub denominator: T,
+pub enum Ratio<T> {
+    One,
+    Numerator(T),
 }
 
 #[derive(Clone)]
 pub struct NetworkerFreezeLink {
     pub shared_credits: u64,
-    pub usable_ratio: Rational<u64>,
+    pub usable_ratio: Ratio<u64>
 }
 
 #[derive(Clone)]
@@ -272,13 +271,21 @@ impl RandNonceSignature {
     }
 }
 
-impl Rational<u64> {
+impl Ratio<u64> {
     fn to_bytes(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
-        res_bytes.write_u64::<BigEndian>(self.numerator)
-            .expect("Could not serialize u64!");
-        res_bytes.write_u64::<BigEndian>(self.denominator)
-            .expect("Could not serialize u64!");
+        match *self {
+            Ratio::One => {
+                res_bytes.write_u8(0)
+                    .expect("Could not serialize a byte!");
+            },
+            Ratio::Numerator(num) => {
+                res_bytes.write_u8(1)
+                    .expect("Could not serialize a byte!");
+                res_bytes.write_u64::<BigEndian>(num)
+                    .expect("Could not serialize u64!");
+            },
+        }
         res_bytes
     }
 }

@@ -1,6 +1,7 @@
 use futures::prelude::{async, await};
 
 use num_bigint::BigUint;
+use num_traits::ToPrimitive;
 
 use ring::rand::SecureRandom;
 
@@ -26,7 +27,7 @@ use super::super::messenger_state::{NeighborState, StateMutateMessage,
     SmApplyNeighborMoveToken};
 
 use super::super::signature_buff::create_failure_signature_buffer;
-use super::super::types::{/*NetworkerFreezeLink,*/  PkPairPosition, PendingNeighborRequest};
+use super::super::types::{NetworkerFreezeLink, PkPairPosition, PendingNeighborRequest, Ratio};
 use super::super::credit_calc::CreditCalculator;
 
 
@@ -65,25 +66,23 @@ fn verify_freezing_links(request_send_msg: &RequestSendMessage) -> Option<()> {
 
     // Make sure that the freeze_links vector is valid:
     // numerator <= denominator for every link.
-    for freeze_link in &request_send_msg.freeze_links {
-        let usable_ratio = &freeze_link.usable_ratio;
-        if usable_ratio.numerator > usable_ratio.denominator {
-            return None;
-        }
-    }
+    let two_pow_64 = BigUint::new(vec![0x1, 0x0, 0x0]);
 
     // Verify previous freezing links
     #[allow(needless_range_loop)]
     for node_findex in 0 .. request_send_msg.freeze_links.len() {
-        let freeze_link = &request_send_msg.freeze_links[node_findex];
-        let mut allowed_credits: BigUint = freeze_link.shared_credits.into();
-        for _fi in node_findex .. request_send_msg.freeze_links.len() {
-            allowed_credits *= freeze_link.usable_ratio.numerator;
-            allowed_credits /= freeze_link.usable_ratio.denominator;
+        let first_freeze_link = &request_send_msg.freeze_links[node_findex];
+        let mut allowed_credits: BigUint = first_freeze_link.shared_credits.into();
+        for freeze_link in &request_send_msg.freeze_links[
+            node_findex .. request_send_msg.freeze_links.len()] {
+            
+            allowed_credits = match freeze_link.usable_ratio {
+                Ratio::One => allowed_credits,
+                Ratio::Numerator(num) => allowed_credits * num / &two_pow_64,
+            };
         }
 
         let freeze_credits = credit_calc.credits_to_freeze(node_findex)?;
-
         if allowed_credits < freeze_credits.into() {
             return None;
         }
@@ -298,9 +297,45 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     }
 
     /// Forward a request message to the relevant neighbor and token channel.
-    fn forward_request(&mut self, request_send_msg: RequestSendMessage) {
+    fn forward_request(&mut self, mut request_send_msg: RequestSendMessage) {
         // TODO
-        // - Add our freeze link
+
+        let index = request_send_msg.route.pk_index(self.state.get_local_public_key())
+            .expect("We are not present in the route!");
+        let prev_index = index.checked_sub(1).expect("We are the originator of this request");
+        let next_index = index.checked_add(1).expect("Index out of range");
+        
+        let prev_pk = request_send_msg.route.pk_by_index(prev_index)
+            .expect("Could not obtain previous public key");
+        let next_pk = request_send_msg.route.pk_by_index(prev_index)
+            .expect("Could not obtain next public key");
+
+        let prev_neighbor = self.state.get_neighbors().get(&prev_pk)
+            .expect("Previous neighbor not present");
+        let next_neighbor = self.state.get_neighbors().get(&next_pk)
+            .expect("Next neighbor not present");
+
+
+        let total_trust = self.state.get_total_trust();
+        let prev_trust = prev_neighbor.get_trust();
+        let forward_trust = next_neighbor.get_trust();
+
+        let two_pow_64 = BigUint::new(vec![0x1, 0x0, 0x0]);
+        let numerator = (two_pow_64 * forward_trust) / (total_trust - &prev_trust);
+        let usable_ratio = match numerator.to_u64() {
+            Some(num) => Ratio::Numerator(num),
+            None => Ratio::One,
+        };
+
+        let shared_credits = prev_trust.to_u64().unwrap_or(u64::max_value());
+
+        // Add our freeze link
+        request_send_msg.freeze_links.push(NetworkerFreezeLink {
+            shared_credits,
+            usable_ratio,
+        });
+
+        
         // - Queue message to the relevant neighbor (Note that there will not be a specific token
         //   channel, as a request can go through any available token channel).
         unreachable!();
