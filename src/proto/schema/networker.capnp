@@ -3,7 +3,7 @@
 using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomUInt256;
 using import "common.capnp".CustomUInt512;
-using import "common.capnp".Rational64;
+using import "common.capnp".Ratio64;
 using import "common.capnp".Receipt;
 using import "common.capnp".RandNonceSignature;
 
@@ -105,7 +105,7 @@ struct NeighborsRoute {
 struct NeighborFreezeLink {
         sharedCredits @0: UInt64;
         # Credits shared for freezing through previous edge.
-        usableRatio @1: Rational64;
+        usableRatio @1: Ratio64;
         # Ratio of credits that can be used for freezing from the previous
         # edge. Ratio might only be an approximation to real value, if the real
         # value can not be represented as a u64/u64.
