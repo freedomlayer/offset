@@ -164,6 +164,12 @@ pub struct SmApplyNeighborMoveToken {
     pub neighbor_move_token: NeighborMoveToken,
 }
 
+#[derive(Clone)]
+pub struct SmNeighborPushRequest {
+    pub neighbor_public_key: PublicKey,
+    pub request: RequestSendMessage,
+}
+
 #[allow(unused)]
 #[derive(Clone)]
 pub enum StateMutateMessage {
@@ -175,6 +181,7 @@ pub enum StateMutateMessage {
     SetNeighborStatus(SetNeighborStatus),
     InitTokenChannel(SmInitTokenChannel),
     TokenChannelPushOp(SmTokenChannelPushOp),
+    NeighborPushRequest(SmNeighborPushRequest),
     ResetTokenChannel(SmResetTokenChannel),
     ApplyNeighborMoveToken(SmApplyNeighborMoveToken),
 }
@@ -351,6 +358,18 @@ impl MessengerState {
             .ok_or(MessengerStateError::TokenChannelDoesNotExist)?;
 
         token_channel_slot.pending_operations.push_back(token_channel_push_op.neighbor_op.clone());
+
+        Ok(())
+    }
+
+    pub fn neighbor_push_request(&mut self, 
+                                 neighbor_push_request: SmNeighborPushRequest) 
+        -> Result<(), MessengerStateError> {
+
+        let neighbor = self.neighbors.get_mut(&neighbor_push_request.neighbor_public_key)
+            .ok_or(MessengerStateError::NeighborDoesNotExist)?;
+
+        neighbor.pending_requests.push_back(neighbor_push_request.request);
 
         Ok(())
     }
