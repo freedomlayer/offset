@@ -403,7 +403,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                                remote_public_key: &PublicKey,
                                channel_index: u16,
                                response_send_msg: ResponseSendMessage,
-                               pending_request: PendingNeighborRequest) {
+                               _pending_request: PendingNeighborRequest) {
 
         match self.find_request_origin(&response_send_msg.request_id) {
             None => {
