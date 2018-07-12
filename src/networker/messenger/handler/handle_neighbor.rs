@@ -298,8 +298,6 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
 
     /// Forward a request message to the relevant neighbor and token channel.
     fn forward_request(&mut self, mut request_send_msg: RequestSendMessage) {
-        // TODO
-
         let index = request_send_msg.route.pk_index(self.state.get_local_public_key())
             .expect("We are not present in the route!");
         let prev_index = index.checked_sub(1).expect("We are the originator of this request");
