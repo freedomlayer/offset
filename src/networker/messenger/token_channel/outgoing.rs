@@ -125,6 +125,10 @@ impl OutgoingTokenChannel {
         }
     }
 
+    pub fn is_operations_empty(&self) -> bool {
+        self.operations.is_empty()
+    }
+
     fn queue_enable_requests(&mut self, send_price: NetworkerSendPrice) ->
         Result<(), QueueOperationError> {
 

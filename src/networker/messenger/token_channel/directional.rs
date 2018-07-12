@@ -105,6 +105,10 @@ impl TokenChannelSender {
         Result<(), QueueOperationFailure> {
         self.outgoing_tc.queue_operation(operation)
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.outgoing_tc.is_operations_empty()
+    }
 }
 
 
