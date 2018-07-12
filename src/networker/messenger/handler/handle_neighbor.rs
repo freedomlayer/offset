@@ -570,9 +570,23 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     ///
     /// Any operations that will enter the message should be applied. For example, a failure
     /// message should cause the pending request to be removed.
+    ///
+    /// is_empty -- is the move token message we have just received empty?
     fn send_through_token_channel(&mut self, 
                                   remote_public_key: &PublicKey,
-                                  channel_index: u16) {
+                                  channel_index: u16,
+                                  is_empty: bool) {
+
+        let token_channel_slot = self.get_token_channel_slot(&remote_public_key, 
+                                                             channel_index);
+        let remote_max_debt = token_channel_slot
+            .tc_state
+            .remote_max_debt();
+
+        if token_channel_slot.wanted_remote_max_debt != remote_max_debt {
+            // TODO: Queue a SetRemoteMaxDebt message
+
+        }
 
         // TODO
         // - If any messages are pending for this token channel, batch as many as possible into one
@@ -581,8 +595,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         //      - Set remote max debt (If wanted max debt is different than current max debt).
         //      - Open, Close neighbor for requests.
         //
-        // - If there is nothing to send, and the transaction we have received contains real
-        //   messages, send an empty message back as ack.
+        // - If there is nothing to send, and the transaction we have received is nonempty, send an empty message back as ack.
         //
         // - If the message received is empty and there is nothing to send, we do nothing. (There
         //   is not reason to send ack for an empty message).
@@ -658,6 +671,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                                            neighbor_move_token.new_token.clone()))?;
 
 
+        let is_empty = neighbor_move_token.operations.is_empty();
 
         let apply_neighbor_move_token = SmApplyNeighborMoveToken {
             neighbor_public_key: remote_public_key.clone(),
@@ -685,7 +699,8 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                                                channel_index,
                                                ops_list_output))?;
                 fself.send_through_token_channel(&remote_public_key,
-                                                 channel_index);
+                                                 channel_index,
+                                                 is_empty);
                 fself.initiate_load_funds(&remote_public_key,
                                           channel_index);
                 fself
