@@ -461,7 +461,7 @@ impl MessengerState {
                                       channel_index: u16,
                                       tc_sender: TokenChannelSender,
                                       rand_nonce: RandValue) 
-                            -> Result<SmOutgoingNeighborMoveToken , MessengerStateError>  {
+                            -> Result<NeighborMoveToken, MessengerStateError>  {
 
         let neighbor = self.neighbors.get_mut(neighbor_public_key)
             .ok_or(MessengerStateError::NeighborDoesNotExist)?;
@@ -471,9 +471,7 @@ impl MessengerState {
 
         let neighbor_move_token = token_channel_slot.tc_state
             .commit_outgoing_move_token(tc_sender, rand_nonce);
-        Ok(SmOutgoingNeighborMoveToken {
-            neighbor_public_key: neighbor_public_key.clone(),
-            neighbor_move_token,
-        })
+
+        Ok(neighbor_move_token)
     }
 }
