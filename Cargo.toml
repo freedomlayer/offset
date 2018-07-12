@@ -28,9 +28,9 @@ rusqlite = "0.13"
 async_mutex = { git = "https://github.com/realcr/async_mutex", rev = "a1d973ed7" }
 
 num-bigint = "0.2.0"
+num-traits = "0.2.4"
 
 [dev-dependencies]
-num-traits = "0.2.4"
 
 [dependencies.byteorder]
 version = "1.1"
