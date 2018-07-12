@@ -8,7 +8,7 @@ use crypto::identity::PublicKey;
 
 use proto::networker::ChannelToken;
 
-use super::types::{NeighborTcOp, NeighborMoveToken};
+use super::types::{NeighborTcOp, NeighborMoveToken, RequestSendMessage};
 use super::super::messages::{NeighborStatus};
 
 use super::token_channel::directional::{DirectionalTokenChannel, 
@@ -82,7 +82,7 @@ pub struct NeighborState {
     pub status: NeighborStatus,
     // Enabled or disabled?
     pub token_channel_slots: HashMap<u16, TokenChannelSlot>,
-    neighbor_pending_operations: VecDeque<NeighborTcOp>,
+    pending_requests: VecDeque<RequestSendMessage>,
     // Pending operations that could be sent through any token channel.
     ticks_since_last_incoming: usize,
     // Number of time ticks since last incoming message
@@ -107,7 +107,7 @@ impl NeighborState {
             // Initially we assume that the remote side has the same amount of channels as we do.
             status: NeighborStatus::Disable,
             token_channel_slots: HashMap::new(),
-            neighbor_pending_operations: VecDeque::new(),
+            pending_requests: VecDeque::new(),
             ticks_since_last_incoming: 0,
             ticks_since_last_outgoing: 0,
         }
