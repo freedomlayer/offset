@@ -175,6 +175,29 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         }))
     }
 
+    #[async]
+    fn failure_message_add_signature(mut self, 
+                                     mut failure_send_msg: FailureSendMessage,
+                                     pending_local_request: PendingNeighborRequest) 
+        -> Result<(Self, FailureSendMessage),()> {
+
+        let mut failure_signature_buffer = create_failure_signature_buffer(
+                                            &failure_send_msg,
+                                            &pending_local_request);
+        let rand_nonce = RandValue::new(&*self.rng);
+        failure_signature_buffer.extend_from_slice(&rand_nonce);
+        let signature = await!(self.security_module_client.request_signature(failure_signature_buffer))
+            .expect("Failed to create a signature!");
+
+        let rand_nonce_signature = RandNonceSignature {
+            rand_nonce,
+            signature,
+        };
+        failure_send_msg.rand_nonce_signatures.push(rand_nonce_signature);
+
+        Ok((self, failure_send_msg))
+    }
+
 
     #[async]
     fn cancel_local_pending_requests(mut self, 
@@ -436,17 +459,15 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         }
     }
 
-    fn handle_failure_send_msg(&mut self, 
+    #[async]
+    fn handle_failure_send_msg(mut self, 
                                remote_public_key: &PublicKey,
                                channel_index: u16,
                                failure_send_msg: FailureSendMessage,
-                               pending_request: PendingNeighborRequest) {
+                               pending_request: PendingNeighborRequest)
+                                -> Result<Self, ()> {
 
-
-        // TODO: We need to add our signature here:
-        unreachable!();
-
-        match self.find_request_origin(&failure_send_msg.request_id) {
+        let fself = match self.find_request_origin(&failure_send_msg.request_id) {
             None => {
                 // We are the origin of this request, and we got a failure
                 // We should pass it back to crypter.
@@ -458,8 +479,11 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                         })
                     )
                 );
+                self
             },
             Some((neighbor_public_key, channel_index)) => {
+                let (mut fself, failure_send_msg) = await!(self.failure_message_add_signature(failure_send_msg, 
+                                                               pending_request))?;
                 // Queue this failure message to another token channel:
                 let failure_op = NeighborTcOp::FailureSendMessage(failure_send_msg);
                 let push_op = SmTokenChannelPushOp {
@@ -469,11 +493,13 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                 };
 
                 let sm_msg = StateMutateMessage::TokenChannelPushOp(push_op.clone());
-                self.state.token_channel_push_op(push_op)
+                fself.state.token_channel_push_op(push_op)
                     .expect("Could not push neighbor operation into channel!");
-                self.sm_messages.push(sm_msg);
+                fself.sm_messages.push(sm_msg);
+                fself
             },
-        }
+        };
+        Ok(fself)
     }
 
     /// Process valid incoming operations from remote side.
@@ -498,9 +524,8 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                 },
                 ProcessOperationOutput::Failure(IncomingFailureSendMessage {
                                                 pending_request, incoming_failure}) => {
-                    fself.handle_failure_send_msg(&remote_public_key, channel_index, 
-                                                 incoming_failure, pending_request);
-                    fself
+                    await!(fself.handle_failure_send_msg(&remote_public_key, channel_index, 
+                                                 incoming_failure, pending_request))?
                 },
             }
         }
