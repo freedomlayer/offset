@@ -280,7 +280,7 @@ impl DirectionalTokenChannel {
         let (token_channel, operations) = outgoing_tc.commit();
         self.opt_token_channel = Some(token_channel);
         let neighbor_move_token_inner = NeighborMoveTokenInner {
-            operations: operations,
+            operations,
             old_token: self.new_token.clone(),
             rand_nonce,
         };

@@ -120,7 +120,7 @@ impl NeighborState {
     /// leaves and never returns.
     pub fn get_trust(&self) -> BigUint {
         let mut sum: BigUint = BigUint::zero();
-        for (_slot_num, token_channel_slot) in &self.token_channel_slots {
+        for token_channel_slot in self.token_channel_slots.values() {
             let remote_max_debt: BigUint = token_channel_slot.wanted_remote_max_debt.into();
             sum += remote_max_debt;
         }
@@ -219,7 +219,7 @@ impl MessengerState {
     /// Get total trust (in credits) we put on all the neighbors together.
     pub fn get_total_trust(&self) -> BigUint {
         let mut sum: BigUint = BigUint::zero();
-        for (_public_key, neighbor) in  &self.neighbors {
+        for neighbor in self.neighbors.values() {
             sum += neighbor.get_trust();
         }
         sum
