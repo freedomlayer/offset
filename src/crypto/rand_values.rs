@@ -80,11 +80,11 @@ impl RandValuesStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::test_utils::DummyRandom;
+    use super::super::test_utils::dummy_random;
 
     #[test]
     fn test_rand_values_store() {
-        let rng = DummyRandom::new(&[1, 2, 3, 4, 5]);
+        let rng = dummy_random(&[1, 2, 3, 4, 5]);
 
         // Generate some unrelated rand value:
         let rand_value0 = RandValue::new(&rng);

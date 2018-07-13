@@ -85,11 +85,11 @@ impl DhPrivateKey {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::test_utils::DummyRandom;
+    use super::super::test_utils::dummy_random;
 
     #[test]
     fn test_new_salt() {
-        let rng = DummyRandom::new(&[1, 2, 3, 4, 6]);
+        let rng = dummy_random(&[1, 2, 3, 4, 6]);
         let salt1 = Salt::new(&rng).unwrap();
         let salt2 = Salt::new(&rng).unwrap();
 
@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     fn test_derive_symmetric_key() {
-        let rng = DummyRandom::new(&[1, 2, 3, 4, 5]);
+        let rng = dummy_random(&[1, 2, 3, 4, 5]);
         let dh_private_a = DhPrivateKey::new(&rng).unwrap();
         let dh_private_b = DhPrivateKey::new(&rng).unwrap();
 
