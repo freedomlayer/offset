@@ -2,8 +2,6 @@
 
 #![feature(nll)]
 #![feature(try_from)]
-#![feature(iterator_step_by)]
-#![feature(refcell_replace_swap)]
 #![cfg_attr(not(feature = "cargo-clippy"), allow(unknown_lints))]
 #![cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
 
