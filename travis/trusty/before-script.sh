@@ -2,7 +2,7 @@
 
 set -eux -o pipefail
 
-CLIPPY_VERSION="0.0.206"
+CLIPPY_VERSION="0.0.212"
 
 if [[ -f ".cargo/config" ]]; then
     rm .cargo/config
