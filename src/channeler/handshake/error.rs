@@ -1,7 +1,7 @@
 use crypto::CryptoError;
 
 #[derive(Debug)]
-pub enum Error {
+pub enum HandshakeError {
     CryptoError(CryptoError),
 
     /// The handshake is in progress.
