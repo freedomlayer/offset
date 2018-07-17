@@ -1,58 +1,48 @@
-#![warn(unused)]
-
-use std::cmp;
 use std::convert::TryFrom;
-use std::collections::HashMap;
 
-// use num_bigint::BigUint;
+use crypto::identity::{verify_signature};
 
-use crypto::identity::{PublicKey, verify_signature};
-use crypto::uid::Uid;
-use crypto::hash;
-
-use proto::common::SendFundsReceipt;
 use proto::funder::InvoiceId;
+use proto::common::SendFundsReceipt;
 use proto::networker::NetworkerSendPrice;
 
-use utils::trans_hashmap::TransHashMap;
 use utils::int_convert::usize_to_u32;
 use utils::safe_arithmetic::SafeArithmetic;
 
-use super::types::{ResponseSendMessage, FailureSendMessage, RequestSendMessage,
-                                NeighborTcOp, NeighborsRoute, PkPairPosition,
-                                PendingNeighborRequest};
-use super::credit_calc::CreditCalculator;
-use super::signature_buff::{create_failure_signature_buffer, 
-    create_response_signature_buffer};
+use super::super::types::{ResponseSendMessage, FailureSendMessage, RequestSendMessage,
+                          NeighborTcOp, NeighborsRoute, PkPairPosition,
+                          PendingNeighborRequest };
+
+use super::super::credit_calc::CreditCalculator;
+use super::super::signature_buff::{create_response_signature_buffer, verify_failure_signature};
+
+use super::types::{TokenChannel, TcBalance, TcInvoice, TcSendPrice, TcIdents,
+    TransTcPendingRequests, MAX_NETWORKER_DEBT};
 
 
-/// The maximum possible networker debt.
-/// We don't use the full u64 because i64 can not go beyond this value.
-const MAX_NETWORKER_DEBT: u64 = (1 << 63) - 1;
 
 /*
 pub struct IncomingRequestSendMessage {
     request: RequestSendMessage,
     incoming_response: ResponseSendMessage,
 }
-
-pub struct IncomingResponseSendMessage {
-    pending_request: PendingNeighborRequest,
-    incoming_response: ResponseSendMessage,
-}
-
-pub struct IncomingFailedSendMessage {
-    pending_request: PendingNeighborRequest,
-    incoming_failed: FailedSendMessage,
-}
 */
 
+pub struct IncomingResponseSendMessage {
+    pub pending_request: PendingNeighborRequest,
+    pub incoming_response: ResponseSendMessage,
+}
+
+pub struct IncomingFailureSendMessage {
+    pub pending_request: PendingNeighborRequest,
+    pub incoming_failure: FailureSendMessage,
+}
 
 /// Resulting tasks to perform after processing an incoming operation.
 pub enum ProcessOperationOutput {
     Request(RequestSendMessage),
-    Response(ResponseSendMessage),
-    Failure(FailureSendMessage),
+    Response(IncomingResponseSendMessage),
+    Failure(IncomingFailureSendMessage),
 }
 
 
@@ -62,7 +52,7 @@ pub enum ProcessOperationError {
     /// Trying to set the invoiceId, while already expecting another invoice id.
     InvoiceIdExists,
     MissingInvoiceId,
-    InvalidInvoiceId,
+    InvoiceIdMismatch,
     InvalidSendFundsReceiptSignature,
     PkPairNotInRoute,
     PendingCreditTooLarge,
@@ -98,185 +88,23 @@ pub struct ProcessTransListError {
 }
 
 
-#[derive(Clone)]
-struct TCIdents {
-    /// My public key
-    local_public_key: PublicKey,
-    /// Neighbor's public key
-    remote_public_key: PublicKey,
-}
-
-#[derive(Clone)]
-pub struct TCBalance {
-    /// Amount of credits this side has against the remote side.
-    /// The other side keeps the negation of this value.
-    balance: i64,
-    /// Maximum possible remote debt
-    remote_max_debt: u64,
-    /// Maximum possible local debt
-    local_max_debt: u64,
-    /// Frozen credits by our side
-    local_pending_debt: u64,
-    /// Frozen credits by the remote side
-    remote_pending_debt: u64,
-}
-
-impl TCBalance {
-    fn new(balance: i64) -> TCBalance {
-        TCBalance {
-            balance,
-            remote_max_debt: cmp::max(balance, 0) as u64,
-            local_max_debt: cmp::min(-balance, 0) as u64,
-            local_pending_debt: 0,
-            remote_pending_debt: 0,
-        }
-    }
-}
-
-
-#[derive(Clone)]
-pub struct TCInvoice {
-    /// The invoice id which I randomized locally
-    local_invoice_id: Option<InvoiceId>,
-    /// The invoice id which the neighbor randomized
-    remote_invoice_id: Option<InvoiceId>,
-}
-
-impl TCInvoice {
-    fn new() -> TCInvoice {
-        TCInvoice {
-            local_invoice_id: None,
-            remote_invoice_id: None,
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct TCSendPrice {
-    /// Price for us to send message to the remote side
-    /// Knowns only if we enabled requests
-    pub local_send_price: Option<NetworkerSendPrice>,
-    /// Price for the remote side to send messages to us
-    /// Knowns only if remote side enabled requests
-    pub remote_send_price: Option<NetworkerSendPrice>,
-}
-
-impl TCSendPrice {
-    fn new() -> TCSendPrice {
-        TCSendPrice {
-            local_send_price: None,
-            remote_send_price: None,
-        }
-    }
-}
-
-struct TCPendingRequests {
-    /// Pending requests that were opened locally and not yet completed
-    pending_local_requests: HashMap<Uid, PendingNeighborRequest>,
-    /// Pending requests that were opened remotely and not yet completed
-    pending_remote_requests: HashMap<Uid, PendingNeighborRequest>,
-}
-
-impl TCPendingRequests {
-    fn new() -> TCPendingRequests {
-        TCPendingRequests {
-            pending_local_requests: HashMap::new(),
-            pending_remote_requests: HashMap::new(),
-        }
-    }
-}
-
-struct TransTCPendingRequests {
-    trans_pending_local_requests: TransHashMap<Uid, PendingNeighborRequest>,
-    trans_pending_remote_requests: TransHashMap<Uid, PendingNeighborRequest>,
-}
-
-impl TransTCPendingRequests {
-    fn new(pending_requests: TCPendingRequests) -> TransTCPendingRequests {
-        TransTCPendingRequests {
-            trans_pending_local_requests: TransHashMap::new(pending_requests.pending_local_requests),
-            trans_pending_remote_requests: TransHashMap::new(pending_requests.pending_remote_requests),
-        }
-    }
-
-    fn commit(self) -> TCPendingRequests {
-        TCPendingRequests {
-            pending_local_requests: self.trans_pending_local_requests.commit(),
-            pending_remote_requests: self.trans_pending_remote_requests.commit(),
-        }
-    }
-
-    fn cancel(self) -> TCPendingRequests {
-        TCPendingRequests {
-            pending_local_requests: self.trans_pending_local_requests.cancel(),
-            pending_remote_requests: self.trans_pending_remote_requests.cancel(),
-        }
-    }
-}
-
-
-pub struct TokenChannel {
-    idents: TCIdents,
-    balance: TCBalance,
-    invoice: TCInvoice,
-    send_price: TCSendPrice,
-    pending_requests: TCPendingRequests,
-}
-
-
-impl TokenChannel {
-    pub fn new(local_public_key: &PublicKey, 
-           remote_public_key: &PublicKey, 
-           balance: i64) -> TokenChannel {
-
-        TokenChannel {
-            idents: TCIdents {
-                local_public_key: local_public_key.clone(),
-                remote_public_key: remote_public_key.clone(),
-            },
-            balance: TCBalance::new(balance),
-            invoice: TCInvoice::new(),
-            send_price: TCSendPrice::new(),
-            pending_requests: TCPendingRequests::new(),
-        }
-    }
-
-    /// Calculate required balance for reset.
-    /// This would be current balance plus additional future profits.
-    pub fn balance_for_reset(&self) -> i64 {
-        self.balance.balance
-            .checked_add_unsigned(self.balance.remote_pending_debt)
-            .expect("Overflow when calculating balance_for_reset")
-    }
-
-    pub fn pending_local_requests(&self) -> &HashMap<Uid, PendingNeighborRequest> {
-        &self.pending_requests.pending_local_requests
-    }
-
-    pub fn pending_remote_requests(&self) -> &HashMap<Uid, PendingNeighborRequest> {
-        &self.pending_requests.pending_remote_requests
-    }
-}
-
-
-
 /// Processes incoming messages, acts upon an underlying `TokenChannel`.
-struct TransTokenChannel {
-    orig_balance: TCBalance,
-    orig_invoice: TCInvoice,
-    orig_send_price: TCSendPrice,
-    idents: TCIdents,
-    balance: TCBalance,
-    invoice: TCInvoice,
-    send_price: TCSendPrice,
-    trans_pending_requests: TransTCPendingRequests,
+struct IncomingTokenChannel {
+    orig_balance: TcBalance,
+    orig_invoice: TcInvoice,
+    orig_send_price: TcSendPrice,
+    idents: TcIdents,
+    balance: TcBalance,
+    invoice: TcInvoice,
+    send_price: TcSendPrice,
+    trans_pending_requests: TransTcPendingRequests,
 }
 
 /// If this function returns an error, the token channel becomes incosistent.
 pub fn atomic_process_operations_list(token_channel: TokenChannel, operations: Vec<NeighborTcOp>)
                                     -> (TokenChannel, Result<Vec<ProcessOperationOutput>, ProcessTransListError>) {
 
-    let mut trans_token_channel = TransTokenChannel::new(token_channel);
+    let mut trans_token_channel = IncomingTokenChannel::new(token_channel);
     match trans_token_channel.process_operations_list(operations) {
         Err(e) => (trans_token_channel.cancel(), Err(e)),
         Ok(output_tasks) => (trans_token_channel.commit(), Ok(output_tasks)),
@@ -284,69 +112,12 @@ pub fn atomic_process_operations_list(token_channel: TokenChannel, operations: V
 }
 
 
-/*
-fn verify_freezing_links(freeze_links: &[NetworkerFreezeLink], 
-                            credit_calc: &CreditCalculator) -> Result<(), ProcessOperationError> {
-
-    // Make sure that the freeze_links vector is valid:
-    // numerator <= denominator for every link.
-    for freeze_link in freeze_links {
-        let usable_ratio = &freeze_link.usable_ratio;
-        if usable_ratio.numerator > usable_ratio.denominator {
-            return Err(ProcessOperationError::InvalidFreezeLinks);
-        }
-    }
-
-    // Verify previous freezing links
-    #[allow(needless_range_loop)]
-    for node_findex in 0 .. freeze_links.len() {
-        let freeze_link = &freeze_links[node_findex];
-        let mut allowed_credits: BigUint = freeze_link.shared_credits.into();
-        for fi in node_findex .. freeze_links.len() {
-            allowed_credits *= freeze_link.usable_ratio.numerator;
-            allowed_credits /= freeze_link.usable_ratio.denominator;
-        }
-
-        let freeze_credits = credit_calc.credits_to_freeze(node_findex)
-            .ok_or(ProcessOperationError::CreditCalculatorFailure)?;
-
-        if allowed_credits < freeze_credits.into() {
-            return Err(ProcessOperationError::InsufficientTransitiveTrust);
-        }
-    }
-    Ok(())
-}
-*/
-
-/// Verify all failure message signature chain
-fn verify_failure_signature(index: usize,
-                            reporting_index: usize,
-                            failure_send_msg: &FailureSendMessage,
-                            pending_request: &PendingNeighborRequest) -> Option<()> {
-
-    let mut failure_signature_buffer = create_failure_signature_buffer(
-                                        &failure_send_msg,
-                                        &pending_request);
-    let next_index = index.checked_add(1)?;
-    for i in (next_index ..= reporting_index).rev() {
-        let sig_index = i.checked_sub(next_index)?;
-        let rand_nonce = &failure_send_msg.rand_nonce_signatures[sig_index].rand_nonce;
-        let signature = &failure_send_msg.rand_nonce_signatures[sig_index].signature;
-        failure_signature_buffer.extend_from_slice(rand_nonce);
-        let public_key = pending_request.route.pk_by_index(i)?;
-        if !verify_signature(&failure_signature_buffer, public_key, signature) {
-            return None;
-        }
-    }
-    Some(())
-}
-
 
 /// Transactional state of the token channel.
-impl TransTokenChannel {
+impl IncomingTokenChannel {
     /// original_token_channel: the underlying TokenChannel.
-    pub fn new(token_channel: TokenChannel) -> TransTokenChannel {
-        TransTokenChannel {
+    pub fn new(token_channel: TokenChannel) -> IncomingTokenChannel {
+        IncomingTokenChannel {
             orig_balance: token_channel.balance.clone(),
             orig_invoice: token_channel.invoice.clone(),
             orig_send_price: token_channel.send_price.clone(),
@@ -354,7 +125,7 @@ impl TransTokenChannel {
             balance: token_channel.balance,
             invoice: token_channel.invoice,
             send_price: token_channel.send_price,
-            trans_pending_requests: TransTCPendingRequests::new(token_channel.pending_requests),
+            trans_pending_requests: TransTcPendingRequests::new(token_channel.pending_requests),
         }
     }
 
@@ -471,12 +242,12 @@ impl TransTokenChannel {
         }
 
         // Check if invoice_id matches. If so, we remove the remote invoice.
-        match self.invoice.remote_invoice_id.take() {
+        match self.invoice.local_invoice_id.take() {
             None => return Err(ProcessOperationError::MissingInvoiceId),
             Some(invoice_id) => {
                 if invoice_id != send_funds_receipt.invoice_id {
-                    self.invoice.remote_invoice_id = Some(invoice_id);
-                    return Err(ProcessOperationError::InvalidInvoiceId);
+                    self.invoice.local_invoice_id = Some(invoice_id);
+                    return Err(ProcessOperationError::InvoiceIdMismatch);
                 }
             }
         };
@@ -484,7 +255,7 @@ impl TransTokenChannel {
         // Add payment to self.balance.balance. We have to be careful because payment u128, and
         // self.balance.balance is of type i64.
         let payment = u64::try_from(send_funds_receipt.payment).unwrap_or(u64::max_value());
-        self.balance.balance = self.balance.balance.saturating_add_unsigned(payment);
+        self.balance.balance = self.balance.balance.saturating_sub_unsigned(payment);
         Ok(None)
     }
 
@@ -511,7 +282,6 @@ impl TransTokenChannel {
             Ok(())
         }
     }
-
 
     /// Process an incoming RequestSendMessage
     fn process_request_send_message(&mut self, request_send_msg: RequestSendMessage)
@@ -579,16 +349,8 @@ impl TransTokenChannel {
         }
 
         // Add pending request message:
-        let request_content_len = usize_to_u32(request_send_msg.request_content.len())
+        let pending_neighbor_request = request_send_msg.create_pending_request()
             .ok_or(ProcessOperationError::RequestContentTooLong)?;
-        let pending_neighbor_request = PendingNeighborRequest {
-            request_id: request_send_msg.request_id,
-            route: request_send_msg.route.clone(),
-            request_content_hash: hash::sha_512_256(&request_send_msg.request_content),
-            request_content_len,
-            max_response_len: request_send_msg.max_response_len,
-            processing_fee_proposal: request_send_msg.processing_fee_proposal,
-        };
         p_remote_requests.insert(request_send_msg.request_id,
                                      pending_neighbor_request);
         
@@ -598,7 +360,7 @@ impl TransTokenChannel {
     }
 
     fn process_response_send_message(&mut self, response_send_msg: ResponseSendMessage) ->
-        Result<ResponseSendMessage, ProcessOperationError> {
+        Result<IncomingResponseSendMessage, ProcessOperationError> {
 
         // Make sure that id exists in local_pending hashmap, 
         // and access saved request details.
@@ -615,7 +377,7 @@ impl TransTokenChannel {
 
         // Verify response message signature:
         if !verify_signature(&response_signature_buffer, 
-                                 &self.idents.local_public_key,
+                                 &self.idents.remote_public_key,
                                  &response_send_msg.signature) {
             return Err(ProcessOperationError::InvalidResponseSignature);
         }
@@ -640,8 +402,8 @@ impl TransTokenChannel {
 
         // Find ourselves on the route. If we are not there, abort.
         let pk_pair = pending_request.route.find_pk_pair(
-            &self.idents.remote_public_key, 
-            &self.idents.local_public_key)
+            &self.idents.local_public_key, 
+            &self.idents.remote_public_key)
             .expect("Can not find myself in request's route!");
 
         let index = match pk_pair {
@@ -650,8 +412,8 @@ impl TransTokenChannel {
         }.expect("Route too long!");
 
         // Remove entry from local_pending hashmap:
-        self.trans_pending_requests.trans_pending_local_requests.remove(
-            &response_send_msg.request_id);
+        let pending_request = self.trans_pending_requests.trans_pending_local_requests.remove(
+            &response_send_msg.request_id).expect("pending_request not present!");
 
         let next_index = index.checked_add(1).expect("Route too long!");
         let success_credits = credit_calc.credits_on_success(next_index, response_content_len)
@@ -659,7 +421,7 @@ impl TransTokenChannel {
         let freeze_credits = credit_calc.credits_to_freeze(next_index)
             .expect("credits_to_freeze calculation failed!");
 
-        // Decrease frozen credits and increase balance:
+        // Decrease frozen credits and decrease balance:
         self.balance.local_pending_debt = 
             self.balance.local_pending_debt.checked_sub(freeze_credits)
             .expect("Insufficient frozen credit!");
@@ -668,11 +430,14 @@ impl TransTokenChannel {
             self.balance.balance.checked_sub_unsigned(success_credits)
             .expect("balance overflow");
 
-        Ok(response_send_msg)
+        Ok(IncomingResponseSendMessage {
+            pending_request,
+            incoming_response: response_send_msg,
+        })
     }
 
     fn process_failure_send_message(&mut self, failure_send_msg: FailureSendMessage) ->
-        Result<FailureSendMessage, ProcessOperationError> {
+        Result<IncomingFailureSendMessage, ProcessOperationError> {
         
         // Make sure that id exists in local_pending hashmap, 
         // and access saved request details.
@@ -685,8 +450,8 @@ impl TransTokenChannel {
 
         // Find ourselves on the route. If we are not there, abort.
         let pk_pair = pending_request.route.find_pk_pair(
-            &self.idents.remote_public_key, 
-            &self.idents.local_public_key)
+            &self.idents.local_public_key, 
+            &self.idents.remote_public_key)
             .expect("Can not find myself in request's route!");
 
         let index = match pk_pair {
@@ -727,8 +492,8 @@ impl TransTokenChannel {
             .ok_or(ProcessOperationError::CreditCalculatorFailure)?;
 
         // Remove entry from local_pending hashmap:
-        self.trans_pending_requests.trans_pending_local_requests.remove(
-            &failure_send_msg.request_id);
+        let pending_request = self.trans_pending_requests.trans_pending_local_requests.remove(
+            &failure_send_msg.request_id).expect("pending_request not present!");
 
         let next_index = index.checked_add(1).expect("Route too long!");
         let failure_credits = credit_calc.credits_on_failure(next_index, reporting_index)
@@ -736,7 +501,7 @@ impl TransTokenChannel {
         let freeze_credits = credit_calc.credits_to_freeze(next_index)
             .expect("credits_to_freeze calculation failed!");
 
-        // Decrease frozen credits and increase balance:
+        // Decrease frozen credits and decrease balance:
         self.balance.local_pending_debt = 
             self.balance.local_pending_debt.checked_sub(freeze_credits)
             .expect("Insufficient frozen credit!");
@@ -746,7 +511,10 @@ impl TransTokenChannel {
             .expect("balance overflow");
         
         // Return Failure message.
-        Ok(failure_send_msg)
+        Ok(IncomingFailureSendMessage {
+            pending_request,
+            incoming_failure: failure_send_msg,
+        })
 
     }
 }

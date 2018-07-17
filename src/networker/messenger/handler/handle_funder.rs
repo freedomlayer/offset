@@ -1,5 +1,5 @@
 use ring::rand::SecureRandom;
-use super::messenger_handler::{MessengerHandler, MessengerTask};
+use super::{MessengerHandler, MessengerTask};
 
 #[allow(unused)]
 impl<R: SecureRandom> MessengerHandler<R> {

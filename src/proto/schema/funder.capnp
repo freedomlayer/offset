@@ -3,7 +3,7 @@
 using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomUInt256;
 using import "common.capnp".CustomUInt512;
-using import "common.capnp".Rational128;
+using import "common.capnp".Ratio128;
 using import "common.capnp".RandNonceSignature;
 
 
@@ -83,7 +83,7 @@ struct FriendsRoute {
 struct FriendFreezeLink {
         sharedCredits @0: UInt64;
         # Credits shared for freezing through previous edge.
-        usableRatio @1: Rational128;
+        usableRatio @1: Ratio128;
         # Ratio of credits that can be used for freezing from the previous
         # edge. Ratio might only be an approximation to real value, if the real
         # value can not be represented as a u128/u128.

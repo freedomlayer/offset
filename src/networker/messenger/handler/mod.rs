@@ -1,11 +1,20 @@
+mod handle_app_manager;
+pub mod handle_neighbor;
+mod handle_funder;
+mod handle_crypter;
+
 use std::rc::Rc;
 use security_module::client::SecurityModuleClient;
 use ring::rand::SecureRandom;
 
+use crypto::uid::Uid;
+use crypto::identity::PublicKey;
+
 use super::messenger_state::{MessengerState, StateMutateMessage};
-use super::handle_neighbor::{NeighborMoveToken, NeighborInconsistencyError, 
+use self::handle_neighbor::{NeighborInconsistencyError, 
     NeighborSetMaxTokenChannels};
-use super::neighbor_tc_logic::ReceiveMoveTokenError;
+use super::token_channel::directional::ReceiveMoveTokenError;
+use super::types::{NeighborMoveToken, NeighborsRoute};
 
 pub enum AppManagerMessage {
     ReceiveMoveTokenError(ReceiveMoveTokenError),
@@ -23,8 +32,32 @@ pub enum NeighborMessage {
     SetMaxTokenChannels(NeighborSetMaxTokenChannels),
 }
 
-pub enum CrypterMessage {
+pub struct RequestReceived {
+    pub request_id: Uid,
+    pub route: NeighborsRoute,
+    pub request_content: Vec<u8>,
+    pub max_response_len: u32,
+    pub processing_fee_proposal: u64,
+}
 
+pub struct ResponseReceived {
+    pub request_id: Uid,
+    pub processing_fee_collected: u64,
+    pub response_content: Vec<u8>,
+}
+
+#[allow(unused)]
+pub struct FailureReceived {
+    pub request_id: Uid,
+    pub reporting_public_key: PublicKey,
+}
+
+
+#[allow(unused)]
+pub enum CrypterMessage {
+    RequestReceived(RequestReceived),
+    ResponseReceived(ResponseReceived),
+    FailureReceived(FailureReceived),
 }
 
 

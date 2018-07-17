@@ -1,8 +1,7 @@
 //! The messages sent by database to other components.
 
-use networker::messages::{MoveTokenDirection, NeighborInfo, NeighborTokenCommon};
+use networker::messages::{NeighborInfo, NeighborTokenCommon};
 use networker::messenger::types::PendingNeighborRequest;
-
 use funder::messages::{PendingFriendRequest, FriendInfo, FriendTokenCommon};
 
 
@@ -16,7 +15,7 @@ pub struct FriendInfo {
 */
 
 pub struct ResponseLoadFriendToken {
-    pub move_token_direction: MoveTokenDirection,
+    // pub move_token_direction: MoveTokenDirection,
     pub friend_token_common: FriendTokenCommon,
     pub pending_local_requests: Vec<PendingFriendRequest>,
     pub pending_remote_requests: Vec<PendingFriendRequest>,
@@ -33,7 +32,7 @@ pub struct ResponseLoadNeighbors {
 }
 
 pub struct ResponseLoadNeighborToken {
-    pub move_token_direction: MoveTokenDirection,
+    // pub move_token_direction: MoveTokenDirection,
     pub neighbor_token_common: NeighborTokenCommon,
     pub pending_local_requests: Vec<PendingNeighborRequest>,
     pub pending_remote_requests: Vec<PendingNeighborRequest>,

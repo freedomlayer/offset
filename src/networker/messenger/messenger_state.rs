@@ -1,16 +1,20 @@
 use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
 
+use num_bigint::BigUint;
+use num_traits::identities::Zero;
+
 use crypto::identity::PublicKey;
+use crypto::rand_values::RandValue;
 
 use proto::networker::ChannelToken;
 
-use super::types::NeighborTcOp;
-use super::neighbor_tc_logic::NeighborTCState;
-use super::handle_neighbor::NeighborMoveToken;
+use super::types::{NeighborTcOp, NeighborMoveToken, RequestSendMessage};
 use super::super::messages::{NeighborStatus};
-use super::neighbor_tc_logic::{NeighborMoveTokenInner, 
-    ReceiveMoveTokenOutput, ReceiveMoveTokenError};
+
+use super::token_channel::directional::{DirectionalTokenChannel, 
+    ReceiveMoveTokenOutput, ReceiveMoveTokenError, TokenChannelSender};
+use super::token_channel::types::NeighborMoveTokenInner;
 
 use app_manager::messages::{SetNeighborRemoteMaxDebt, SetNeighborMaxChannels, 
     AddNeighbor, RemoveNeighbor, ResetNeighborChannel, SetNeighborStatus};
@@ -29,7 +33,7 @@ pub enum TokenChannelStatus {
 
 #[allow(unused)]
 pub struct TokenChannelSlot {
-    pub tc_state: NeighborTCState,
+    pub tc_state: DirectionalTokenChannel,
     pub tc_status: TokenChannelStatus,
     pub wanted_remote_max_debt: u64,
     pub pending_operations: VecDeque<NeighborTcOp>,
@@ -43,7 +47,7 @@ impl TokenChannelSlot {
                remote_public_key: &PublicKey,
                token_channel_index: u16) -> TokenChannelSlot {
         TokenChannelSlot {
-            tc_state: NeighborTCState::new(local_public_key,
+            tc_state: DirectionalTokenChannel::new(local_public_key,
                                            remote_public_key,
                                            token_channel_index),
             tc_status: TokenChannelStatus::Valid,
@@ -54,12 +58,14 @@ impl TokenChannelSlot {
 
     pub fn new_from_reset(local_public_key: &PublicKey,
                            remote_public_key: &PublicKey,
+                           token_channel_index: u16,
                            current_token: &ChannelToken,
                            balance: i64) -> TokenChannelSlot {
 
         TokenChannelSlot {
-            tc_state: NeighborTCState::new_from_reset(local_public_key,
+            tc_state: DirectionalTokenChannel::new_from_reset(local_public_key,
                                                       remote_public_key,
+                                                      token_channel_index,
                                                       current_token,
                                                       balance),
             tc_status: TokenChannelStatus::Valid,
@@ -77,7 +83,7 @@ pub struct NeighborState {
     pub status: NeighborStatus,
     // Enabled or disabled?
     pub token_channel_slots: HashMap<u16, TokenChannelSlot>,
-    neighbor_pending_operations: VecDeque<NeighborTcOp>,
+    pending_requests: VecDeque<RequestSendMessage>,
     // Pending operations that could be sent through any token channel.
     ticks_since_last_incoming: usize,
     // Number of time ticks since last incoming message
@@ -102,10 +108,23 @@ impl NeighborState {
             // Initially we assume that the remote side has the same amount of channels as we do.
             status: NeighborStatus::Disable,
             token_channel_slots: HashMap::new(),
-            neighbor_pending_operations: VecDeque::new(),
+            pending_requests: VecDeque::new(),
             ticks_since_last_incoming: 0,
             ticks_since_last_outgoing: 0,
         }
+    }
+
+    /// Get the total trust we have in this neighbor.
+    /// This is the total sum of all remote_max_debt for all the token channels we have with this
+    /// neighbor. In other words, this is the total amount of money we can lose if this neighbor
+    /// leaves and never returns.
+    pub fn get_trust(&self) -> BigUint {
+        let mut sum: BigUint = BigUint::zero();
+        for token_channel_slot in self.token_channel_slots.values() {
+            let remote_max_debt: BigUint = token_channel_slot.wanted_remote_max_debt.into();
+            sum += remote_max_debt;
+        }
+        sum
     }
 }
 
@@ -130,6 +149,12 @@ pub struct SmTokenChannelPushOp {
     pub neighbor_op: NeighborTcOp
 }
 
+#[derive(Clone)]
+pub struct SmNeighborPushRequest {
+    pub neighbor_public_key: PublicKey,
+    pub request: RequestSendMessage,
+}
+
 #[allow(unused)]
 #[derive(Clone)]
 pub struct SmResetTokenChannel {
@@ -141,10 +166,19 @@ pub struct SmResetTokenChannel {
 
 #[allow(unused)]
 #[derive(Clone)]
+// TODO: Possibly change name to SmIncomingNeighborMoveToken.
 pub struct SmApplyNeighborMoveToken {
     pub neighbor_public_key: PublicKey, 
     pub neighbor_move_token: NeighborMoveToken,
 }
+
+#[allow(unused)]
+#[derive(Clone)]
+pub struct SmOutgoingNeighborMoveToken {
+    pub neighbor_public_key: PublicKey, 
+    pub neighbor_move_token: NeighborMoveToken,
+}
+
 
 #[allow(unused)]
 #[derive(Clone)]
@@ -157,8 +191,10 @@ pub enum StateMutateMessage {
     SetNeighborStatus(SetNeighborStatus),
     InitTokenChannel(SmInitTokenChannel),
     TokenChannelPushOp(SmTokenChannelPushOp),
+    NeighborPushRequest(SmNeighborPushRequest),
     ResetTokenChannel(SmResetTokenChannel),
     ApplyNeighborMoveToken(SmApplyNeighborMoveToken),
+    OutgoingNeighborMoveToken(SmOutgoingNeighborMoveToken),
 }
 
 
@@ -170,6 +206,7 @@ pub enum MessengerStateError {
     NeighborAlreadyExists,
     TokenChannelAlreadyExists,
     ReceiveMoveTokenError(ReceiveMoveTokenError),
+    TokenChannelAlreadyOutgoing,
 }
 
 #[allow(unused)]
@@ -177,6 +214,15 @@ impl MessengerState {
     pub fn new() -> MessengerState {
         // TODO: Initialize from database somehow.
         unreachable!();
+    }
+
+    /// Get total trust (in credits) we put on all the neighbors together.
+    pub fn get_total_trust(&self) -> BigUint {
+        let mut sum: BigUint = BigUint::zero();
+        for neighbor in self.neighbors.values() {
+            sum += neighbor.get_trust();
+        }
+        sum
     }
 
     pub fn get_neighbors(&self) -> &HashMap<PublicKey, NeighborState> {
@@ -204,6 +250,7 @@ impl MessengerState {
     }
 
 
+    // TODO: This method is very similar to reset_token_channel. Could/Should we unite them?
     pub fn reset_neighbor_channel(&mut self, 
                                     reset_neighbor_channel: ResetNeighborChannel) 
                                     -> Result<(), MessengerStateError> {
@@ -214,6 +261,7 @@ impl MessengerState {
         let new_token_channel_slot = TokenChannelSlot::new_from_reset(
             &self.local_public_key,
             &reset_neighbor_channel.neighbor_public_key,
+            reset_neighbor_channel.channel_index,
             &reset_neighbor_channel.current_token,
             reset_neighbor_channel.balance_for_reset);
 
@@ -326,6 +374,18 @@ impl MessengerState {
         Ok(())
     }
 
+    pub fn neighbor_push_request(&mut self, 
+                                 neighbor_push_request: SmNeighborPushRequest) 
+        -> Result<(), MessengerStateError> {
+
+        let neighbor = self.neighbors.get_mut(&neighbor_push_request.neighbor_public_key)
+            .ok_or(MessengerStateError::NeighborDoesNotExist)?;
+
+        neighbor.pending_requests.push_back(neighbor_push_request.request);
+
+        Ok(())
+    }
+
     pub fn reset_token_channel(&mut self, 
                                  reset_token_channel: SmResetTokenChannel) 
         -> Result<(), MessengerStateError> {
@@ -336,6 +396,7 @@ impl MessengerState {
         let token_channel_slot = TokenChannelSlot::new_from_reset(
             &self.local_public_key,
             &reset_token_channel.neighbor_public_key,
+            reset_token_channel.channel_index,
             &reset_token_channel.reset_token,
             reset_token_channel.balance_for_reset);
 
@@ -376,5 +437,41 @@ impl MessengerState {
         token_channel_slot.tc_state.receive_move_token(inner_move_token, new_token)
             .map_err(MessengerStateError::ReceiveMoveTokenError)
 
+    }
+
+    pub fn begin_outgoing_move_token(&mut self, 
+                                     neighbor_public_key: &PublicKey,
+                                     channel_index: u16) 
+                            -> Result<TokenChannelSender, MessengerStateError> {
+
+        let neighbor = self.neighbors.get_mut(neighbor_public_key)
+            .ok_or(MessengerStateError::NeighborDoesNotExist)?;
+        let token_channel_slot = neighbor.token_channel_slots
+            .get_mut(&channel_index)
+            .ok_or(MessengerStateError::TokenChannelDoesNotExist)?;
+
+        let tc_sender = token_channel_slot.tc_state.begin_outgoing_move_token()
+            .ok_or(MessengerStateError::TokenChannelAlreadyOutgoing)?;
+
+        Ok(tc_sender)
+    }
+
+    pub fn commit_outgoing_move_token(&mut self, 
+                                      neighbor_public_key: &PublicKey, 
+                                      channel_index: u16,
+                                      tc_sender: TokenChannelSender,
+                                      rand_nonce: RandValue) 
+                            -> Result<NeighborMoveToken, MessengerStateError>  {
+
+        let neighbor = self.neighbors.get_mut(neighbor_public_key)
+            .ok_or(MessengerStateError::NeighborDoesNotExist)?;
+        let token_channel_slot = neighbor.token_channel_slots
+            .get_mut(&channel_index)
+            .ok_or(MessengerStateError::TokenChannelDoesNotExist)?;
+
+        let neighbor_move_token = token_channel_slot.tc_state
+            .commit_outgoing_move_token(tc_sender, rand_nonce);
+
+        Ok(neighbor_move_token)
     }
 }

@@ -1,9 +1,9 @@
 #![allow(unused)]
 use ring::rand::SecureRandom;
 
-use super::messenger_state::{MessengerState, NeighborState, 
+use super::super::messenger_state::{MessengerState, NeighborState, 
     TokenChannelSlot, StateMutateMessage, MessengerStateError};
-use super::messenger_handler::{MessengerHandler, MessengerTask};
+use super::{MessengerHandler, MessengerTask};
 use app_manager::messages::{NetworkerConfig, AddNeighbor, 
     RemoveNeighbor, SetNeighborStatus, SetNeighborRemoteMaxDebt,
     ResetNeighborChannel, SetNeighborMaxChannels};

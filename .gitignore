@@ -1,6 +1,5 @@
 *.sw*
 *_capnp.rs
-Cargo.lock
 target/
 
 ## IntelliJ IDEA

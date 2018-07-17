@@ -15,16 +15,10 @@ use funder::messages::{RequestSendFunds};
 use database::messages::{ResponseLoadNeighbors, ResponseLoadNeighborToken};
 use proto::networker::ChannelToken;
 
-use super::messenger::token_channel::{TCBalance, TCInvoice, TCSendPrice};
+use super::messenger::token_channel::types::{TcBalance, TcInvoice, TcSendPrice};
 use super::messenger::types::{NeighborsRoute, PendingNeighborRequest};
 
 
-/// Indicate the direction of the move token message.
-#[derive(Clone, Copy, Debug)]
-pub enum MoveTokenDirection {
-    Incoming = 0,
-    Outgoing = 1,
-}
 
 #[derive(Clone, Copy)]
 pub enum NeighborStatus {
@@ -167,9 +161,9 @@ pub struct NeighborTokenCommon {
     pub old_token: ChannelToken,
     pub new_token: ChannelToken,
     // Equals Sha512/256(move_token_message)
-    balance: TCBalance,
-    invoice: TCInvoice,
-    send_price: TCSendPrice,
+    balance: TcBalance,
+    invoice: TcInvoice,
+    send_price: TcSendPrice,
 }
 
 pub struct InNeighborToken {

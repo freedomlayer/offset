@@ -131,7 +131,8 @@ fn credits_on_success_dest(payment_proposals: &PaymentProposals,
 /// Examples: C has 3 nodes to dest.
 /// D has 2 nodes to dest. E has 1 nodes to dest. F has 0 nodes to dest.
 ///
-/// Amount of credits C should earn for a successful delivery of the message:
+/// Amount of credits C should earn for a successful delivery of 
+/// a response message back to B:
 ///
 /// {CD}_b + request_len * {CD}_r
 ///    + {CB}_b + (response_len + max_failure_len) * {CB}_r 
@@ -318,14 +319,27 @@ impl CreditCalculator {
         })
     }
 
+    /// Convert node index to nodes_to_dest format.
+    /// The source node has index 0. 
+    /// The destination node has index route_len - 1.
+    ///
+    /// ```text
+    ///                            req       req       req
+    ///                            res       res       res      res
+    ///                    B   --   C   --    D    --   E   --   F   
+    ///
+    /// nodes_to_dest:     4        3         2         1        0
+    /// index:             0        1         2         3        4
+    ///
+    /// ```
     fn freeze_index_to_nodes_to_dest(&self, index: usize) -> Option<u32> {
         let index32 = usize_to_u32(index)?;
-        Some(self.route_len.checked_sub(index32.checked_sub(1)?)?)
+        self.route_len.checked_sub(index32)?.checked_sub(1)
     }
 
-    /// Calculate the amount of credits to freeze, 
-    /// according to a given node index on the route.
-    /// Note: source node has index 0. dest node has the last index.
+    /// Amount of credits node <index-1> should freeze when sending 
+    /// a request message to node <index>
+    /// Source node has index 0. Destination node has index route_len - 1.
     pub fn credits_to_freeze(&self, index: usize) -> Option<u64> {
 
         Some(credits_to_freeze(&self.payment_proposals,
@@ -335,6 +349,9 @@ impl CreditCalculator {
             self.freeze_index_to_nodes_to_dest(index)?)?)
     }
 
+    /// Amount of credits to be paid to node <index> when it sends a valid response to node
+    /// <index-1>
+    /// Source node has index 0. Destination node has index route_len - 1.
     pub fn credits_on_success(&self, index: usize, 
                               response_content_len: u32) -> Option<u64> {
         Some(credits_on_success(&self.payment_proposals,
@@ -345,6 +362,9 @@ impl CreditCalculator {
                                 self.freeze_index_to_nodes_to_dest(index)?)?)
     }
 
+    /// Amount of credits to be paid to node <index> when it sends a failure message to node
+    /// <index-1>
+    /// Source node has index 0. Destination node has index route_len - 1.
     pub fn credits_on_failure(&self, index: usize, reporting_index: usize) -> Option<u64> {
         let nodes_to_reporting = usize_to_u32(reporting_index.checked_sub(index)?)?;
         Some(credits_on_failure(&self.payment_proposals,

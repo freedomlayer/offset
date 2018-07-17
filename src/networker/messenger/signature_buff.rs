@@ -2,6 +2,7 @@
 
 use byteorder::{BigEndian, WriteBytesExt};
 use crypto::hash;
+use crypto::identity::verify_signature;
 use super::types::{ResponseSendMessage, FailureSendMessage, PendingNeighborRequest};
 
 const REQUEST_SUCCESS_PREFIX: &[u8] = b"REQUEST_SUCCESS";
@@ -29,7 +30,7 @@ pub fn create_response_signature_buffer(response_send_msg: &ResponseSendMessage,
     sbuffer
 }
 
-/// Create the buffer we sign over at the Response message.
+/// Create the buffer we sign over at the Failure message.
 /// Note that the signature is not just over the Response message bytes. The signed buffer also
 /// contains information from the Request message.
 pub fn create_failure_signature_buffer(failure_send_msg: &FailureSendMessage,
@@ -50,3 +51,28 @@ pub fn create_failure_signature_buffer(failure_send_msg: &FailureSendMessage,
 }
 
 // TODO: How to test this?
+
+
+/// Verify all failure message signature chain
+pub fn verify_failure_signature(index: usize,
+                            reporting_index: usize,
+                            failure_send_msg: &FailureSendMessage,
+                            pending_request: &PendingNeighborRequest) -> Option<()> {
+
+    let mut failure_signature_buffer = create_failure_signature_buffer(
+                                        &failure_send_msg,
+                                        &pending_request);
+    let next_index = index.checked_add(1)?;
+    for i in (next_index ..= reporting_index).rev() {
+        let sig_index = i.checked_sub(next_index)?;
+        let rand_nonce = &failure_send_msg.rand_nonce_signatures[sig_index].rand_nonce;
+        let signature = &failure_send_msg.rand_nonce_signatures[sig_index].signature;
+        failure_signature_buffer.extend_from_slice(rand_nonce);
+        let public_key = pending_request.route.pk_by_index(i)?;
+        if !verify_signature(&failure_signature_buffer, public_key, signature) {
+            return None;
+        }
+    }
+    Some(())
+}
+
