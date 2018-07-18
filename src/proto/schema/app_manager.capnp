@@ -451,8 +451,9 @@ struct AppToAppManager {
 
 
 
-# Following interfaces should be written as Rust structures.
-# The are internal to CSwitch:
+# Following interfaces should be written as Rust structures. 
+# They are only an example, and should not be used!
+# They are internal to CSwitch:
 
 # Interface with Networker
 ##########################
