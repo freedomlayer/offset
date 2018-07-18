@@ -10,6 +10,7 @@ using import "funder.capnp".FunderSendPrice;
 using import "common.capnp".Receipt;
 
 # Initial diffie hellman between an Application and AppManager:
+###############################################################
 
 # Application -> AppManager
 struct AppRandNonce {
