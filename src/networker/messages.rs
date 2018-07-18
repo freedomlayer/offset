@@ -13,7 +13,7 @@ use channeler::types::ChannelerNeighborInfo;
 use funder::messages::{RequestSendFunds};
 
 use database::messages::{ResponseLoadNeighbors, ResponseLoadNeighborToken};
-use proto::networker::ChannelToken;
+use proto::networker::{ChannelToken, NetworkerSendPrice};
 
 use super::messenger::token_channel::types::{TcBalance, TcInvoice, TcSendPrice};
 use super::messenger::types::{NeighborsRoute, PendingNeighborRequest};
@@ -38,40 +38,40 @@ pub struct NeighborInfo {
 
 // ======== Internal Interfaces ========
 
-struct NeighborTokenChannelLoaded {
-    channel_index: u16,
-    local_max_debt: u64,
-    remote_max_debt: u64,
-    balance: i64,
-}
-
-pub enum NeighborTokenChannelEventInner {
-    Open,
-    Close,
-    LocalMaxDebtChange(u64),  // Contains new local max debt
-    RemoteMaxDebtChange(u64), // Contains new remote max debt
-    BalanceChange(i64),       // Contains new balance
-    InconsistencyError(i64),  // Contains balance required for reset
-}
-
-pub struct NeighborLoaded {
-    neighbor_public_key: PublicKey,
+pub struct NeighborUpdated {
     neighbor_socket_addr: Option<SocketAddr>,
     max_channels: u16,
-    wanted_remote_max_debt: u64,
     status: NeighborStatus,
-    token_channels: Vec<NeighborTokenChannelLoaded>,
-    // TODO: Should we use a map instead of a vector for token_channels?
 }
 
-pub struct NeighborTokenChannelEvent {
+enum RequestsStatus {
+    Open(NetworkerSendPrice),
+    Closed,
+}
+
+pub struct NeighborTokenChannelUpdated {
     channel_index: u16,
-    event: NeighborTokenChannelEventInner,
+    balance: i64,
+    local_max_debt: u64,
+    remote_max_debt: u64,
+    local_pending_debt: u64,
+    remote_pending_debt: u64,
+    requests_status: RequestsStatus,
+}
+
+pub struct NeighborTokenChannelInconsistent {
+    channel_index: u16,
+    current_token: ChannelToken,
+    balance_for_reset: i64,
 }
 
 pub enum NeighborEvent {
-    NeighborLoaded(NeighborLoaded),
-    TokenChannelEvent(NeighborTokenChannelEvent),
+    // NeighborLoaded(NeighborLoaded),
+    // TokenChannelEvent(NeighborTokenChannelEvent),
+    NeighborUpdated(NeighborUpdated),
+    NeighborRemoved,
+    NeighborTokenChannelUpdated(NeighborTokenChannelUpdated),
+    NeighborTokenChannelInconsistent(NeighborTokenChannelInconsistent),
 }
 
 pub struct NeighborStateUpdate {
