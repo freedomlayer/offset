@@ -318,18 +318,66 @@ struct AppToAppManager {
         disableNeighbor @9: DisableNeighbor;
         setNeighborRemoteMaxDebt @10: SetNeighborRemoteMaxDebt;
         setNeighborMaxTokenChannels @11: SetNeighborMaxTokenChannels;
+        resetNeighborChannel @12: ResetNeighborChannel;
 
         # Friends management
-        openFriend @12: OpenFriend;
-        closeFriend @13: CloseFriend;
-        addFriend @14: AddFriend;
-        removeFriend @15: RemoveFriend;
-        enableFriend @16: EnableFriend;
-        disableFriend @17: DisableFriend;
-        setFriendRemoteMaxDebt @18: SetFriendRemoteMaxDebt;
+        openFriend @13: OpenFriend;
+        closeFriend @14: CloseFriend;
+        addFriend @15: AddFriend;
+        removeFriend @16: RemoveFriend;
+        enableFriend @17: EnableFriend;
+        disableFriend @18: DisableFriend;
+        setFriendRemoteMaxDebt @19: SetFriendRemoteMaxDebt;
+        resetFriendChannel @20: ResetFriendChannel;
 
         # Routes management:
-        requestNeighborsRoute @19: RequestNeighborsRoute;
-        requestFriendsRoute @20: RequestFriendsRoute;
+        requestNeighborsRoute @21: RequestNeighborsRoute;
+        requestFriendsRoute @22: RequestFriendsRoute;
     }
 }
+
+
+
+# Interface with Networker
+##########################
+
+struct AppManagerToNetworker {
+    union {
+        # Messages
+        requestSendMessage @0: RequestSendMessage;
+        respondIncomingMessage @1: ResponseSendMessage;
+
+        # Neighbors management
+        openNeighbor @2: OpenNeighbor;
+        closeNeighbor @3: CloseNeighbor;
+        addNeighbor @4: AddNeighbor;
+        removeNeighbor @5: RemoveNeighbor;
+        enableNeighbor @6: EnableNeighbor;
+        disableNeighbor @7: DisableNeighbor;
+        setNeighborRemoteMaxDebt @8: SetNeighborRemoteMaxDebt;
+        setNeighborMaxTokenChannels @9: SetNeighborMaxTokenChannels;
+        resetNeighborChannel @10: ResetNeighborChannel;
+
+        # Routes management:
+        responseNeighborsRoute @11: ResponseNeighborsRoute;
+    }
+}
+
+
+struct NetworkerToAppManager {
+    union {
+        # Messages
+        responseSendMessage @0: ResponseSendMessage;
+        messageReceived @1: RequestSendMessage;
+
+        # Neighbors management:
+        neighborStateUpdate @2: NeighborStateUpdate;
+
+        # Routes management:
+        requestNeighborsRoute @3: RequestNeighborsRoute;
+    }
+}
+
+
+
+
