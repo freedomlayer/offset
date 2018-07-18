@@ -309,12 +309,20 @@ struct NeighborRemoved {
         neighborPublicKey @0: CustomUInt256;
 }
 
+struct NeighborTokenChannelInconsistent {
+        neighborPublicKey @0: CustomUInt256;
+        channelIndex @1: UInt16;
+        currentToken @2: CustomUInt256;
+        balanceForReset @3: Int64;
+}
+
 # AppManager -> Application
 struct NeighborStateUpdate {
     union {
         neighborUpdated @0: NeighborUpdated;
         neighborRemoved @1: NeighborRemoved;
         neighborTokenChannelUpdated @2: NeighborTokenChannelUpdated;
+        neighborTokenChannelInconsistent @3: NeighborTokenChannelInconsistent;
     }
 }
 
@@ -380,11 +388,18 @@ struct FriendRemoved {
         friendPublicKey @0: CustomUInt256;
 }
 
+struct FriendInconsistent {
+        friendPublicKey @0: CustomUInt256;
+        currentToken @1: CustomUInt256;
+        balanceForReset @2: CustomUInt128;
+}
+
 # AppManager -> Application
 struct FriendStateUpdate {
     union {
         friendUpdated @0: FriendUpdated;
         friendRemoved @1: FriendRemoved;
+        friendInconsistent @2: FriendInconsistent;
     }
 }
 
