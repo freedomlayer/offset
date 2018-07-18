@@ -93,6 +93,12 @@ struct ResponseSendMessage {
         }
 }
 
+struct RespondSendMessage {
+        requestId @0: CustomUInt128;
+        processingFeeCollected @1: UInt64;
+        responseContent @2: Data;
+}
+
 # MessageReceived and RespondIncomingMessage are the same as above.
 
 # AppManager -> IndexerClient
@@ -162,7 +168,7 @@ struct AppManagerToIndexerClient {
 struct IndexerClientToAppManager {
     union {
         requestSendMessage @0: RequestSendMessage;
-        respondIncomingMessage @1: ResponseSendMessage;
+        respondIncomingMessage @1: RespondSendMessage;
         responseNeighborsRoute @2: ResponseNeighborsRoute;
         responseFriendsRoute @3: ResponseFriendsRoute;
     }
@@ -408,7 +414,7 @@ struct AppToAppManager {
     union {
         # Messages
         requestSendMessage @0: RequestSendMessage;
-        respondIncomingMessage @1: ResponseSendMessage;
+        respondIncomingMessage @1: RespondSendMessage;
 
         # Funds
         requestSendFunds @2: RequestSendFunds;
