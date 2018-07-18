@@ -280,52 +280,45 @@ enum NeighborStatus {
 }
 
 struct NeighborUpdated {
-        neighborPublicKey @0: CustomUInt256;
         neighborSocketAddr: union {
-                socketAddr @1: SocketAddr;
-                none @2: Void;
+                socketAddr @0: SocketAddr;
+                none @1: Void;
         }
-        maxChannels @3: UInt16;
-        status @4: NeighborStatus;
+        maxChannels @2: UInt16;
+        status @3: NeighborStatus;
         # When reading this field, make sure that there are no duplicates of channelIndex!
         # Idealy this would have been a HashMap (with channelIndex as key), and not a List.
 }
 
 struct NeighborTokenChannelUpdated {
-        neighborPublicKey @0: CustomUInt256;
-        channelIndex @1: UInt16;
-        balance @2: Int64;
-        localMaxDebt @3: UInt64;
-        remoteMaxDebt @4: UInt64;
-        localPendingDebt @5: UInt64;
-        remotePendingDebt @6: UInt64;
+        channelIndex @0: UInt16;
+        balance @1: Int64;
+        localMaxDebt @2: UInt64;
+        remoteMaxDebt @3: UInt64;
+        localPendingDebt @4: UInt64;
+        remotePendingDebt @5: UInt64;
         requestsStatus: union {
-                sendPrice @7: NetworkerSendPrice;
-                closed @8: Void;
+                sendPrice @6: NetworkerSendPrice;
+                closed @7: Void;
         }
 }
 
-struct NeighborRemoved {
-        neighborPublicKey @0: CustomUInt256;
-}
-
 struct NeighborTokenChannelInconsistent {
-        neighborPublicKey @0: CustomUInt256;
-        channelIndex @1: UInt16;
-        currentToken @2: CustomUInt256;
-        balanceForReset @3: Int64;
+        channelIndex @0: UInt16;
+        currentToken @1: CustomUInt256;
+        balanceForReset @2: Int64;
 }
 
 # AppManager -> Application
 struct NeighborStateUpdate {
-    union {
-        neighborUpdated @0: NeighborUpdated;
-        neighborRemoved @1: NeighborRemoved;
-        neighborTokenChannelUpdated @2: NeighborTokenChannelUpdated;
-        neighborTokenChannelInconsistent @3: NeighborTokenChannelInconsistent;
-    }
-}
-
+        neighborPublicKey @0: CustomUInt256;
+        union {
+                neighborUpdated @1: NeighborUpdated;
+                neighborRemoved @2: Void;
+                neighborTokenChannelUpdated @3: NeighborTokenChannelUpdated;
+                neighborTokenChannelInconsistent @4: NeighborTokenChannelInconsistent;
+        }
+} 
 
 # Application -> AppManager
 struct AddFriend {
@@ -366,41 +359,35 @@ struct SetFriendRemoteMaxDebt {
 
 # Application -> AppManager
 struct ResetFriendChannel {
-        friendPublicKey @0: CustomUInt256;
-        currentToken @1: CustomUInt256;
-        balanceForReset @2: CustomUInt128;
+        currentToken @0: CustomUInt256;
+        balanceForReset @1: CustomUInt128;
 }
 
 struct FriendUpdated {
-        friendPublicKey @0: CustomUInt256;
-        balance @1: CustomUInt128;
-        localMaxDebt @2: CustomUInt128;
-        remoteMaxDebt @3: CustomUInt128;
-        localPendingDebt @4: CustomUInt128;
-        remotePendingDebt @5: CustomUInt128;
+        balance @0: CustomUInt128;
+        localMaxDebt @1: CustomUInt128;
+        remoteMaxDebt @2: CustomUInt128;
+        localPendingDebt @3: CustomUInt128;
+        remotePendingDebt @4: CustomUInt128;
         requestsStatus: union {
-                sendPrice @6: FunderSendPrice;
-                closed @7: Void;
+                sendPrice @5: FunderSendPrice;
+                closed @6: Void;
         }
 }
 
-struct FriendRemoved {
-        friendPublicKey @0: CustomUInt256;
-}
-
 struct FriendInconsistent {
-        friendPublicKey @0: CustomUInt256;
-        currentToken @1: CustomUInt256;
-        balanceForReset @2: CustomUInt128;
+        currentToken @0: CustomUInt256;
+        balanceForReset @1: CustomUInt128;
 }
 
 # AppManager -> Application
 struct FriendStateUpdate {
-    union {
-        friendUpdated @0: FriendUpdated;
-        friendRemoved @1: FriendRemoved;
-        friendInconsistent @2: FriendInconsistent;
-    }
+        friendPublicKey @0: CustomUInt256;
+        union {
+                friendUpdated @1: FriendUpdated;
+                friendRemoved @2: Void;
+                friendInconsistent @3: FriendInconsistent;
+        }
 }
 
 struct AppManagerToApp {
