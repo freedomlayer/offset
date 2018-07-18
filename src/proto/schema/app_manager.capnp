@@ -179,18 +179,6 @@ struct ReceiptAck {
 }
 
 
-# Application -> AppManager
-struct OpenNeighborChannel {
-        neighborPublicKey @0: CustomUInt256;
-        channelIndex @1: UInt16;
-        sendPrice @2: NetworkerSendPrice;
-}
-
-# Application -> AppManager
-struct CloseNeighborChannel {
-        neighborPublicKey @0: CustomUInt256;
-        channelIndex @1: UInt16;
-}
 
 # IP address and port
 struct SocketAddr {
@@ -211,6 +199,19 @@ struct AddNeighbor {
 # Application -> AppManager
 struct RemoveNeighbor {
         neighborPublicKey @0: CustomUInt256;
+}
+
+# Application -> AppManager
+struct OpenNeighborChannel {
+        neighborPublicKey @0: CustomUInt256;
+        channelIndex @1: UInt16;
+        sendPrice @2: NetworkerSendPrice;
+}
+
+# Application -> AppManager
+struct CloseNeighborChannel {
+        neighborPublicKey @0: CustomUInt256;
+        channelIndex @1: UInt16;
 }
 
 # Application -> AppManager
@@ -290,6 +291,16 @@ struct NeighborStateUpdate {
 
 
 # Application -> AppManager
+struct AddFriend {
+        friendPublicKey @0: CustomUInt256;
+}
+
+# Application -> AppManager
+struct RemoveFriend {
+        friendPublicKey @0: CustomUInt256;
+}
+
+# Application -> AppManager
 struct OpenFriend {
         friendPublicKey @0: CustomUInt256;
         sendPrice @1: FunderSendPrice;
@@ -297,16 +308,6 @@ struct OpenFriend {
 
 # Application -> AppManager
 struct CloseFriend {
-        friendPublicKey @0: CustomUInt256;
-}
-
-# Application -> AppManager
-struct AddFriend {
-        friendPublicKey @0: CustomUInt256;
-}
-
-# Application -> AppManager
-struct RemoveFriend {
         friendPublicKey @0: CustomUInt256;
 }
 
@@ -391,10 +392,10 @@ struct AppToAppManager {
         receiptAck @3: ReceiptAck;
 
         # Neighbors management
-        openNeighbor @4: OpenNeighborChannel;
-        closeNeighbor @5: CloseNeighborChannel;
-        addNeighbor @6: AddNeighbor;
-        removeNeighbor @7: RemoveNeighbor;
+        addNeighbor @4: AddNeighbor;
+        removeNeighbor @5: RemoveNeighbor;
+        openNeighbor @6: OpenNeighborChannel;
+        closeNeighbor @7: CloseNeighborChannel;
         enableNeighbor @8: EnableNeighbor;
         disableNeighbor @9: DisableNeighbor;
         setNeighborRemoteMaxDebt @10: SetNeighborRemoteMaxDebt;
@@ -402,10 +403,10 @@ struct AppToAppManager {
         resetNeighborChannel @12: ResetNeighborChannel;
 
         # Friends management
-        openFriend @13: OpenFriend;
-        closeFriend @14: CloseFriend;
-        addFriend @15: AddFriend;
-        removeFriend @16: RemoveFriend;
+        addFriend @13: AddFriend;
+        removeFriend @14: RemoveFriend;
+        openFriend @15: OpenFriend;
+        closeFriend @16: CloseFriend;
         enableFriend @17: EnableFriend;
         disableFriend @18: DisableFriend;
         setFriendRemoteMaxDebt @19: SetFriendRemoteMaxDebt;
