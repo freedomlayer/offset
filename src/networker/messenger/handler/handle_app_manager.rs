@@ -103,6 +103,8 @@ impl<R: SecureRandom> MessengerHandler<R> {
                 self.app_manager_remove_neighbor(remove_neighbor),
             NetworkerConfig::SetNeighborStatus(set_neighbor_status) => 
                 self.app_manager_set_neighbor_status(set_neighbor_status),
+            NetworkerConfig::OpenNeighborChannel(open_neighbor_channel) => unimplemented!(),
+            NetworkerConfig::CloseNeighborChannel(close_neighbor_channel) => unimplemented!(),
         }
     }
 

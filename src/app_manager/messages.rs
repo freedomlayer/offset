@@ -5,7 +5,7 @@ use crypto::identity::PublicKey;
 use networker::messages::{NeighborStatus, RequestPath};
 
 use funder::messages::{FriendInfo, FriendRequestsStatus, FriendStatus, RequestSendFunds};
-use proto::networker::ChannelToken;
+use proto::networker::{ChannelToken, NetworkerSendPrice};
 
 
 #[allow(dead_code)]
@@ -54,13 +54,31 @@ pub struct SetNeighborStatus {
 }
 
 #[allow(dead_code)]
+#[derive(Clone)]
+pub struct OpenNeighborChannel {
+    pub neighbor_public_key: PublicKey,
+    pub channel_index: u16,
+    pub send_price: NetworkerSendPrice,
+}
+
+#[allow(dead_code)]
+#[derive(Clone)]
+pub struct CloseNeighborChannel {
+    pub neighbor_public_key: PublicKey,
+    pub channel_index: u16,
+}
+
+
+#[allow(dead_code)]
 pub enum NetworkerConfig {
-    SetNeighborRemoteMaxDebt(SetNeighborRemoteMaxDebt),
-    ResetNeighborChannel(ResetNeighborChannel),
-    SetNeighborMaxChannels(SetNeighborMaxChannels),
     AddNeighbor(AddNeighbor),
     RemoveNeighbor(RemoveNeighbor),
+    OpenNeighborChannel(OpenNeighborChannel),
+    CloseNeighborChannel(CloseNeighborChannel),
     SetNeighborStatus(SetNeighborStatus),
+    SetNeighborRemoteMaxDebt(SetNeighborRemoteMaxDebt),
+    SetNeighborMaxChannels(SetNeighborMaxChannels),
+    ResetNeighborChannel(ResetNeighborChannel),
 }
 
 pub enum AppManagerToNetworker {
