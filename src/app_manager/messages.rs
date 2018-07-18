@@ -70,7 +70,7 @@ pub struct CloseNeighborChannel {
 
 
 #[allow(dead_code)]
-pub enum NetworkerConfig {
+pub enum NetworkerCommand {
     AddNeighbor(AddNeighbor),
     RemoveNeighbor(RemoveNeighbor),
     OpenNeighborChannel(OpenNeighborChannel),
@@ -83,7 +83,7 @@ pub enum NetworkerConfig {
 
 pub enum AppManagerToNetworker {
     RequestPath(RequestPath),
-    NetworkerConfig(NetworkerConfig),
+    NetworkerCommand(NetworkerCommand),
 }
 
 /*

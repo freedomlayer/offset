@@ -4,7 +4,7 @@ use ring::rand::SecureRandom;
 use super::super::messenger_state::{MessengerState, NeighborState, 
     TokenChannelSlot, StateMutateMessage, MessengerStateError};
 use super::{MessengerHandler, MessengerTask};
-use app_manager::messages::{NetworkerConfig, AddNeighbor, 
+use app_manager::messages::{NetworkerCommand, AddNeighbor, 
     RemoveNeighbor, SetNeighborStatus, SetNeighborRemoteMaxDebt,
     ResetNeighborChannel, SetNeighborMaxChannels};
 
@@ -86,25 +86,25 @@ impl<R: SecureRandom> MessengerHandler<R> {
     }
 
     pub fn handle_app_manager_message(&mut self, 
-                                      networker_config: NetworkerConfig) 
+                                      networker_config: NetworkerCommand) 
         -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
 
 
         match networker_config {
-            NetworkerConfig::SetNeighborRemoteMaxDebt(set_neighbor_remote_max_debt) => 
+            NetworkerCommand::SetNeighborRemoteMaxDebt(set_neighbor_remote_max_debt) => 
                 self.app_manager_set_neighbor_remote_max_debt(set_neighbor_remote_max_debt),
-            NetworkerConfig::ResetNeighborChannel(reset_neighbor_channel) => 
+            NetworkerCommand::ResetNeighborChannel(reset_neighbor_channel) => 
                 self.app_manager_reset_neighbor_channel(reset_neighbor_channel),
-            NetworkerConfig::SetNeighborMaxChannels(set_neighbor_max_channels) => 
+            NetworkerCommand::SetNeighborMaxChannels(set_neighbor_max_channels) => 
                 self.app_manager_set_neighbor_max_channels(set_neighbor_max_channels),
-            NetworkerConfig::AddNeighbor(add_neighbor) => 
+            NetworkerCommand::AddNeighbor(add_neighbor) => 
                 self.app_manager_add_neighbor(add_neighbor),
-            NetworkerConfig::RemoveNeighbor(remove_neighbor) => 
+            NetworkerCommand::RemoveNeighbor(remove_neighbor) => 
                 self.app_manager_remove_neighbor(remove_neighbor),
-            NetworkerConfig::SetNeighborStatus(set_neighbor_status) => 
+            NetworkerCommand::SetNeighborStatus(set_neighbor_status) => 
                 self.app_manager_set_neighbor_status(set_neighbor_status),
-            NetworkerConfig::OpenNeighborChannel(open_neighbor_channel) => unimplemented!(),
-            NetworkerConfig::CloseNeighborChannel(close_neighbor_channel) => unimplemented!(),
+            NetworkerCommand::OpenNeighborChannel(open_neighbor_channel) => unimplemented!(),
+            NetworkerCommand::CloseNeighborChannel(close_neighbor_channel) => unimplemented!(),
         }
     }
 
