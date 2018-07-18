@@ -358,7 +358,7 @@ struct SetFriendRemoteMaxDebt {
 
 # Application -> AppManager
 struct ResetFriendChannel {
-        neighborPublicKey @0: CustomUInt256;
+        friendPublicKey @0: CustomUInt256;
         currentToken @1: CustomUInt256;
         balanceForReset @2: CustomUInt128;
 }
