@@ -128,10 +128,16 @@ pub struct MessageReceivedResponse {
     processing_fee_collected: u64,
 }
 
+pub struct RequestNeighborsRoute {
+    source_node_public_key: PublicKey,
+    dest_node_public_key: PublicKey,
+}
+
 
 pub enum NetworkerToAppManager {
-    MessageReceived(MessageReceived),
     ResponseSendMessage(ResponseSendMessage),
+    MessageReceived(MessageReceived),
+    RequestNeighborsRoute(RequestNeighborsRoute),
     NeighborStateUpdate(NeighborStateUpdate),
 }
 
