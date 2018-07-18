@@ -338,82 +338,82 @@ struct AppToAppManager {
 
 
 
-# Interface with Networker
-##########################
+#       # Interface with Networker
+#       ##########################
 
-struct AppManagerToNetworker {
-    union {
-        # Messages
-        requestSendMessage @0: RequestSendMessage;
-        respondIncomingMessage @1: ResponseSendMessage;
+#       struct AppManagerToNetworker {
+#           union {
+#               # Messages
+#               requestSendMessage @0: RequestSendMessage;
+#               respondIncomingMessage @1: ResponseSendMessage;
 
-        # Neighbors management
-        openNeighbor @2: OpenNeighbor;
-        closeNeighbor @3: CloseNeighbor;
-        addNeighbor @4: AddNeighbor;
-        removeNeighbor @5: RemoveNeighbor;
-        enableNeighbor @6: EnableNeighbor;
-        disableNeighbor @7: DisableNeighbor;
-        setNeighborRemoteMaxDebt @8: SetNeighborRemoteMaxDebt;
-        setNeighborMaxTokenChannels @9: SetNeighborMaxTokenChannels;
-        resetNeighborChannel @10: ResetNeighborChannel;
+#               # Neighbors management
+#               openNeighbor @2: OpenNeighbor;
+#               closeNeighbor @3: CloseNeighbor;
+#               addNeighbor @4: AddNeighbor;
+#               removeNeighbor @5: RemoveNeighbor;
+#               enableNeighbor @6: EnableNeighbor;
+#               disableNeighbor @7: DisableNeighbor;
+#               setNeighborRemoteMaxDebt @8: SetNeighborRemoteMaxDebt;
+#               setNeighborMaxTokenChannels @9: SetNeighborMaxTokenChannels;
+#               resetNeighborChannel @10: ResetNeighborChannel;
 
-        # Routes management:
-        responseNeighborsRoute @11: ResponseNeighborsRoute;
-    }
-}
-
-
-struct NetworkerToAppManager {
-    union {
-        # Messages
-        responseSendMessage @0: ResponseSendMessage;
-        messageReceived @1: RequestSendMessage;
-
-        # Neighbors management:
-        neighborStateUpdate @2: NeighborStateUpdate;
-
-        # Routes management:
-        requestNeighborsRoute @3: RequestNeighborsRoute;
-    }
-}
-
-# Interface with Funder
-#######################
+#               # Routes management:
+#               responseNeighborsRoute @11: ResponseNeighborsRoute;
+#           }
+#       }
 
 
-struct AppManagerToFunder {
-    union {
-        # Funds
-        requestSendFunds @0: RequestSendFund;
-        receiptAck @1: ReceiptAck;
+#       struct NetworkerToAppManager {
+#           union {
+#               # Messages
+#               responseSendMessage @0: ResponseSendMessage;
+#               messageReceived @1: RequestSendMessage;
 
-        # Friends management
-        openFriend @2: OpenFriend;
-        closeFriend @3: CloseFriend;
-        addFriend @4: AddFriend;
-        removeFriend @5: RemoveFriend;
-        enableFriend @6: EnableFriend;
-        disableFriend @7: DisableFriend;
-        setFriendRemoteMaxDebt @8: SetFriendRemoteMaxDebt;
-        resetFriendChannel @9: ResetFriendChannel;
+#               # Neighbors management:
+#               neighborStateUpdate @2: NeighborStateUpdate;
 
-        # Routes management:
-        requestFriendsRoute @10: RequestFriendsRoute;
+#               # Routes management:
+#               requestNeighborsRoute @3: RequestNeighborsRoute;
+#           }
+#       }
 
-    }
-}
+#       # Interface with Funder
+#       #######################
 
 
-struct FunderToAppManager {
-    union {
-        # Funds
-        responseSendFund @0: ResponseSendFund;
+#       struct AppManagerToFunder {
+#           union {
+#               # Funds
+#               requestSendFunds @0: RequestSendFund;
+#               receiptAck @1: ReceiptAck;
 
-        # Friends management:
-        friendStateUpdate @1: FriendStateUpdate;
+#               # Friends management
+#               openFriend @2: OpenFriend;
+#               closeFriend @3: CloseFriend;
+#               addFriend @4: AddFriend;
+#               removeFriend @5: RemoveFriend;
+#               enableFriend @6: EnableFriend;
+#               disableFriend @7: DisableFriend;
+#               setFriendRemoteMaxDebt @8: SetFriendRemoteMaxDebt;
+#               resetFriendChannel @9: ResetFriendChannel;
 
-        # Routes management:
-        responseFriendsRoute @2: ResponseFriendsRoute;
-    }
-}
+#               # Routes management:
+#               requestFriendsRoute @10: RequestFriendsRoute;
+
+#           }
+#       }
+
+
+#       struct FunderToAppManager {
+#           union {
+#               # Funds
+#               responseSendFund @0: ResponseSendFund;
+
+#               # Friends management:
+#               friendStateUpdate @1: FriendStateUpdate;
+
+#               # Routes management:
+#               responseFriendsRoute @2: ResponseFriendsRoute;
+#           }
+#       }
