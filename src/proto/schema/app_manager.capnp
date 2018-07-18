@@ -75,11 +75,22 @@ struct RequestSendMessage {
         requestContent @4: Data;
 }
 
+struct FailureSendMessage {
+        reportingPublicKey @0: CustomUInt256;
+}
+
+struct SuccessSendMessage {
+        processingFeeCollected @0: UInt64;
+        responseContent @1: Data;
+}
+
 # AppManager -> IndexerClient
 struct ResponseSendMessage {
         requestId @0: CustomUInt128;
-        processingFeeCollected @1: UInt64;
-        responseContent @2: Data;
+        response: union {
+                success @1: SuccessSendMessage;
+                failure @2: FailureSendMessage;
+        }
 }
 
 # MessageReceived and RespondIncomingMessage are the same as above.
@@ -169,9 +180,20 @@ struct RequestSendFunds {
         invoiceId @3: CustomUInt256;
 }
 
+struct SuccessSendFunds {
+        receipt @0: Receipt;
+} 
+
+struct FailureSendFunds {
+        reportingPublicKey @0: CustomUInt256;
+}
+
 struct ResponseSendFunds {
         requestId @0: CustomUInt128;
-        receipt @1: Receipt;
+        response: union {
+                success @1: SuccessSendFunds;
+                failure @2: FailureSendFunds;
+        }
 }
 
 struct ReceiptAck {
