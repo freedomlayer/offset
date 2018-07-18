@@ -90,7 +90,7 @@ struct FriendFreezeLink {
 }
 
 
-struct RequestSendFundOp { 
+struct RequestSendFundsOp { 
         requestId @0: CustomUInt128;
         destPayment @1: CustomUInt128;
         route @2: FriendsRoute;
@@ -102,7 +102,7 @@ struct RequestSendFundOp {
         # This part should not be signed in the Response message.
 }
 
-struct ResponseSendFundOp {
+struct ResponseSendFundsOp {
         requestId @0: CustomUInt128;
         randNonce @1: CustomUInt128;
         signature @2: CustomUInt512;
@@ -118,7 +118,7 @@ struct ResponseSendFundOp {
         # See also the Receipt structure.
 }
 
-struct FailureSendFundOp {
+struct FailureSendFundsOp {
         requestId @0: CustomUInt128;
         reportingPublicKey @1: CustomUInt256;
         # Index of the reporting node in the route of the corresponding request.
@@ -144,9 +144,9 @@ struct FriendOperation {
                 enableRequests @0: EnableRequestsOp;
                 disableRequests @1: Void;
                 setRemoteMaxDebt @2: SetRemoteMaxDebtOp;
-                requestSendFund @3: RequestSendFundOp;
-                responseSendFund @4: ResponseSendFundOp;
-                failedSendFund @5: FailureSendFundOp;
+                requestSendFunds @3: RequestSendFundsOp;
+                responseSendFunds @4: ResponseSendFundsOp;
+                failedSendFunds @5: FailureSendFundsOp;
         }
 }
 

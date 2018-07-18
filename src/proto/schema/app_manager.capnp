@@ -162,14 +162,14 @@ struct IndexerClientToAppManager {
 ###############################
 
 
-struct RequestSendFund {
+struct RequestSendFunds {
         requestId @0: CustomUInt128;
         destPayment @1: CustomUInt128;
         route @2: FriendsRoute;
         invoiceId @3: CustomUInt256;
 }
 
-struct ResponseSendFund {
+struct ResponseSendFunds {
         requestId @0: CustomUInt128;
         receipt @1: Receipt;
 }
@@ -367,7 +367,7 @@ struct AppManagerToApp {
         messageReceived @1: RequestSendMessage;
 
         # Funds
-        responseSendFund @2: ResponseSendFund;
+        responseSendFunds @2: ResponseSendFunds;
 
         # Neighbors management:
         neighborStateUpdate @3: NeighborStateUpdate;
@@ -389,7 +389,7 @@ struct AppToAppManager {
         respondIncomingMessage @1: ResponseSendMessage;
 
         # Funds
-        requestSendFunds @2: RequestSendFund;
+        requestSendFunds @2: RequestSendFunds;
         receiptAck @3: ReceiptAck;
 
         # Neighbors management
@@ -471,7 +471,7 @@ struct AppToAppManager {
 #       struct AppManagerToFunder {
 #           union {
 #               # Funds
-#               requestSendFunds @0: RequestSendFund;
+#               requestSendFunds @0: RequestSendFunds;
 #               receiptAck @1: ReceiptAck;
 
 #               # Friends management
@@ -494,7 +494,7 @@ struct AppToAppManager {
 #       struct FunderToAppManager {
 #           union {
 #               # Funds
-#               responseSendFund @0: ResponseSendFund;
+#               responseSendFunds @0: ResponseSendFunds;
 
 #               # Friends management:
 #               friendStateUpdate @1: FriendStateUpdate;
