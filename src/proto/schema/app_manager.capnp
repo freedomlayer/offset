@@ -6,6 +6,7 @@ using import "common.capnp".CustomUInt512;
 using import "networker.capnp".NeighborsRoute;
 using import "networker.capnp".NetworkerSendPrice;
 using import "funder.capnp".FriendsRoute;
+using import "funder.capnp".FunderSendPrice;
 using import "common.capnp".Receipt;
 
 # Initial diffie hellman between an Application and AppManager:
@@ -290,47 +291,71 @@ struct NeighborStateUpdate {
 
 # Application -> AppManager
 struct OpenFriend {
-        # TODO
+        friendPublicKey @0: CustomUInt256;
+        sendPrice @1: FunderSendPrice;
 }
 
 # Application -> AppManager
 struct CloseFriend {
-        # TODO
+        friendPublicKey @0: CustomUInt256;
 }
 
 # Application -> AppManager
 struct AddFriend {
-        # TODO
+        friendPublicKey @0: CustomUInt256;
 }
 
 # Application -> AppManager
 struct RemoveFriend {
-        # TODO
+        friendPublicKey @0: CustomUInt256;
 }
 
 # Application -> AppManager
 struct EnableFriend {
-        # TODO
+        friendPublicKey @0: CustomUInt256;
 }
 
 # Application -> AppManager
 struct DisableFriend {
-        # TODO
+        friendPublicKey @0: CustomUInt256;
 }
 
 # Application -> AppManager
 struct SetFriendRemoteMaxDebt {
-        # TODO
+        friendPublicKey @0: CustomUInt256;
+        remoteMaxDebt @1: CustomUInt128;
 }
 
 # Application -> AppManager
 struct ResetFriendChannel {
-        # TODO
+        neighborPublicKey @0: CustomUInt256;
+        currentToken @1: CustomUInt256;
+        balanceForReset @2: CustomUInt128;
+}
+
+struct FriendUpdated {
+        friendPublicKey @0: CustomUInt256;
+        balance @1: CustomUInt128;
+        localMaxDebt @2: CustomUInt128;
+        remoteMaxDebt @3: CustomUInt128;
+        localPendingDebt @4: CustomUInt128;
+        remotePendingDebt @5: CustomUInt128;
+        requestsStatus: union {
+                sendPrice @6: FunderSendPrice;
+                closed @7: Void;
+        }
+}
+
+struct FriendRemoved {
+        friendPublicKey @0: CustomUInt256;
 }
 
 # AppManager -> Application
 struct FriendStateUpdate {
-        # TODO
+    union {
+        friendUpdated @0: FriendUpdated;
+        friendRemoved @1: FriendRemoved;
+    }
 }
 
 struct AppManagerToApp {
