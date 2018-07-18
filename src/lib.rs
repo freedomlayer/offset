@@ -2,7 +2,8 @@
 
 #![feature(nll)]
 #![feature(try_from)]
-#![feature(proc_macro, generators)]
+#![feature(generators)]
+#![feature(use_extern_macros)]
 #![cfg_attr(not(feature = "cargo-clippy"), allow(unknown_lints))]
 #![cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
 
