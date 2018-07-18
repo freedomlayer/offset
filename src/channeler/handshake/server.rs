@@ -23,6 +23,8 @@ use super::{
 };
 
 pub struct HandshakeServer<SR> {
+    // TODO: Shoule we remove this field, we not use this in verifying exchange active message for
+    // now.
     local_public_key: PublicKey,
     neighbors:        Rc<RefCell<NeighborTable>>,
     secure_rng:       Rc<SR>,
