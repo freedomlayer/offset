@@ -4,6 +4,7 @@ using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomUInt256;
 using import "common.capnp".CustomUInt512;
 using import "networker.capnp".NeighborsRoute;
+using import "networker.capnp".NetworkerSendPrice;
 using import "funder.capnp".FriendsRoute;
 using import "common.capnp".Receipt;
 
@@ -179,48 +180,65 @@ struct ReceiptAck {
 
 # Application -> AppManager
 struct OpenNeighbor {
-        # TODO
+        neighborPublicKey @0: CustomUInt256;
+        sendPrice @1: NetworkerSendPrice;
 }
 
 # Application -> AppManager
 struct CloseNeighbor {
-        # TODO
+        neighborPublicKey @0: CustomUInt256;
+}
+
+# IP address and port
+struct SocketAddr {
+        address @0: UInt32;
+        port @1: UInt16;
 }
 
 # Application -> AppManager
 struct AddNeighbor {
-        # TODO
+        neighborPublicKey @0: CustomUInt256;
+        neighborSocketAddr: union {
+                socketAddr @1: SocketAddr;
+                none @2: Void;
+        }
+        maxChannels @3: UInt16;
 }
 
 # Application -> AppManager
 struct RemoveNeighbor {
-        # TODO
+        neighborPublicKey @0: CustomUInt256;
 }
 
 # Application -> AppManager
 struct EnableNeighbor {
-        # TODO
+        neighborPublicKey @0: CustomUInt256;
 }
 
 # Application -> AppManager
 struct DisableNeighbor {
-        # TODO
+        neighborPublicKey @0: CustomUInt256;
 }
 
 # Application -> AppManager
 struct SetNeighborRemoteMaxDebt {
-        # TODO
+        neighborPublicKey @0: CustomUInt256;
+        channelIndex @1: UInt16;
+        remoteMaxDebt @2: UInt64;
 }
 
 # Application -> AppManager
 struct SetNeighborMaxTokenChannels {
-        # TODO
+        neighborPublicKey @0: CustomUInt256;
+        maxChannels @1: UInt16;
 }
-
 
 # Application -> AppManager
 struct ResetNeighborChannel {
-        # TODO
+        neighborPublicKey @0: CustomUInt256;
+        channelIndex @1: UInt16;
+        currentToken @2: CustomUInt256;
+        balanceForReset @3: Int64;
 }
 
 # AppManager -> Application
