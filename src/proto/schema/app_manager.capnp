@@ -284,6 +284,28 @@ struct AppManagerToApp {
         messageReceived @1: RequestSendMessage;
 
         # Funds
+        responseSendFund @2: ResponseSendFund;
+
+        # Neighbors management:
+        neighborStateUpdate @3: NeighborStateUpdate;
+
+        # Friends management:
+        friendStateUpdate @4: FriendStateUpdate;
+
+        # Routes management:
+        responseNeighborsRoute @5: ResponseNeighborsRoute;
+        responseFriendsRoute @6: ResponseFriendsRoute;
+
+    }
+}
+
+struct AppToAppManager {
+    union {
+        # Messages
+        requestSendMessage @0: RequestSendMessage;
+        respondIncomingMessage @1: ResponseSendMessage;
+
+        # Funds
         requestSendFunds @2: RequestSendFund;
         receiptAck @3: ReceiptAck;
 
@@ -307,29 +329,7 @@ struct AppManagerToApp {
         setFriendRemoteMaxDebt @18: SetFriendRemoteMaxDebt;
 
         # Routes management:
-        responseNeighborsRoute @19: ResponseNeighborsRoute;
-        responseFriendsRoute @20: ResponseFriendsRoute;
-
-    }
-}
-
-struct AppToAppManager {
-    union {
-        # Messages
-        requestSendMessage @0: RequestSendMessage;
-        respondIncomingMessage @1: ResponseSendMessage;
-
-        # Funds
-        responseSendFund @2: ResponseSendFund;
-
-        # Neighbors management:
-        neighborStateUpdate @3: NeighborStateUpdate;
-
-        # Friends management:
-        friendStateUpdate @4: FriendStateUpdate;
-
-        # Routes management:
-        requestNeighborsRoute @5: RequestNeighborsRoute;
-        requestFriendsRoute @6: RequestFriendsRoute;
+        requestNeighborsRoute @19: RequestNeighborsRoute;
+        requestFriendsRoute @20: RequestFriendsRoute;
     }
 }
