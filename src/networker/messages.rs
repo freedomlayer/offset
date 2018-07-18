@@ -107,8 +107,8 @@ pub struct RequestSendMessage {
 
 /// Networker -> Component
 pub enum ResponseSendMessage {
-    Success(Vec<u8>),
-    Failure,
+    Success(MessageReceivedResponse),
+    Failure(PublicKey), // PublicKey of reporting node.
 }
 
 /// Networker -> Component
