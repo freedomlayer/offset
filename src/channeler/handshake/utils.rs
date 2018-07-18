@@ -1,15 +1,18 @@
+//! Handshake-related Utilities and helpers.
+
 use std::convert::TryFrom;
 
-use ring::aead::{SealingKey, OpeningKey, CHACHA20_POLY1305};
+use ring::aead::{CHACHA20_POLY1305, OpeningKey, SealingKey};
 
-use crypto::hash::sha_512_256;
-use crypto::identity::PublicKey;
-use crypto::rand_values::RandValue;
-use crypto::dh::{DhPublicKey, DhPrivateKey, Salt, DH_PUBLIC_KEY_LEN, SALT_LEN};
-
+use crypto::{
+    dh::{DhPrivateKey, DhPublicKey, Salt, DH_PUBLIC_KEY_LEN, SALT_LEN},
+    hash::sha_512_256,
+    identity::PublicKey,
+    rand_values::RandValue,
+};
 use proto::channeler::{ChannelId, CHANNEL_ID_LEN};
 
-use channeler::handshake::{ChannelMetadata, HandshakeError};
+use super::{ChannelMetadata, HandshakeError};
 
 pub fn finish_handshake(
     remote_public_key: PublicKey,
@@ -28,20 +31,22 @@ pub fn finish_handshake(
         &sent_rand_nonce,
         &recv_rand_nonce,
         &local_dh_public_key,
-        &remote_dh_public_key
+        &remote_dh_public_key,
     );
 
     let (tx_key, rx_key) = derive_channel_key(
         local_dh_private_key,
         remote_dh_public_key,
         sent_key_salt,
-        recv_key_salt
+        recv_key_salt,
     )?;
 
     Ok(ChannelMetadata {
         remote_public_key,
-        tx_cid, tx_key,
-        rx_cid, rx_key,
+        tx_cid,
+        tx_key,
+        rx_cid,
+        rx_key,
     })
 }
 
