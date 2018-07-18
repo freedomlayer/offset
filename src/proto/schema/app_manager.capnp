@@ -378,6 +378,42 @@ struct NetworkerToAppManager {
     }
 }
 
+# Interface with Funder
+#######################
 
 
+struct AppManagerToFunder {
+    union {
+        # Funds
+        requestSendFunds @0: RequestSendFund;
+        receiptAck @1: ReceiptAck;
 
+        # Friends management
+        openFriend @2: OpenFriend;
+        closeFriend @3: CloseFriend;
+        addFriend @4: AddFriend;
+        removeFriend @5: RemoveFriend;
+        enableFriend @6: EnableFriend;
+        disableFriend @7: DisableFriend;
+        setFriendRemoteMaxDebt @8: SetFriendRemoteMaxDebt;
+        resetFriendChannel @9: ResetFriendChannel;
+
+        # Routes management:
+        requestFriendsRoute @10: RequestFriendsRoute;
+
+    }
+}
+
+
+struct FunderToAppManager {
+    union {
+        # Funds
+        responseSendFund @0: ResponseSendFund;
+
+        # Friends management:
+        friendStateUpdate @1: FriendStateUpdate;
+
+        # Routes management:
+        responseFriendsRoute @2: ResponseFriendsRoute;
+    }
+}
