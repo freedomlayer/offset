@@ -5,6 +5,7 @@ using import "common.capnp".CustomUInt256;
 using import "common.capnp".CustomUInt512;
 using import "networker.capnp".NeighborsRoute;
 using import "funder.capnp".FriendsRoute;
+using import "common.capnp".Receipt;
 
 # Initial diffie hellman between an Application and AppManager:
 
@@ -137,8 +138,8 @@ struct ResponseFriendsRoute {
 
 struct AppManagerToIndexerClient {
     union {
-        requestSendMessage @0: RequestSendMessage;
-        respondIncomingMessage @1: ResponseSendMessage;
+        responseSendMessage @0: ResponseSendMessage;
+        messageReceived @1: RequestSendMessage;
         requestNeighborsRoute @2: RequestNeighborsRoute;
         requestFriendsRoute @3: RequestFriendsRoute;
     }
@@ -146,15 +147,189 @@ struct AppManagerToIndexerClient {
 
 struct IndexerClientToAppManager {
     union {
-        responseSendMessage @0: ResponseSendMessage;
-        messageReceived @1: RequestSendMessage;
+        requestSendMessage @0: RequestSendMessage;
+        respondIncomingMessage @1: ResponseSendMessage;
         responseNeighborsRoute @2: ResponseNeighborsRoute;
         responseFriendsRoute @3: ResponseFriendsRoute;
     }
 }
 
 
-# Interface with an App
-########################
+# Interface with an Application
+###############################
 
 
+struct RequestSendFund {
+        requestId @0: CustomUInt128;
+        destPayment @1: CustomUInt128;
+        route @2: FriendsRoute;
+        invoiceId @3: CustomUInt256;
+}
+
+struct ResponseSendFund {
+        requestId @0: CustomUInt128;
+        receipt @1: Receipt;
+}
+
+struct ReceiptAck {
+        requestId @0: CustomUInt128;
+        receiptHash @1: CustomUInt256;
+}
+
+
+# Application -> AppManager
+struct OpenNeighbor {
+        # TODO
+}
+
+# Application -> AppManager
+struct CloseNeighbor {
+        # TODO
+}
+
+# Application -> AppManager
+struct AddNeighbor {
+        # TODO
+}
+
+# Application -> AppManager
+struct RemoveNeighbor {
+        # TODO
+}
+
+# Application -> AppManager
+struct EnableNeighbor {
+        # TODO
+}
+
+# Application -> AppManager
+struct DisableNeighbor {
+        # TODO
+}
+
+# Application -> AppManager
+struct SetNeighborRemoteMaxDebt {
+        # TODO
+}
+
+# Application -> AppManager
+struct SetNeighborMaxTokenChannels {
+        # TODO
+}
+
+
+# Application -> AppManager
+struct ResetNeighborChannel {
+        # TODO
+}
+
+# AppManager -> Application
+struct NeighborStateUpdate {
+        # TODO
+}
+
+
+
+
+
+# Application -> AppManager
+struct OpenFriend {
+        # TODO
+}
+
+# Application -> AppManager
+struct CloseFriend {
+        # TODO
+}
+
+# Application -> AppManager
+struct AddFriend {
+        # TODO
+}
+
+# Application -> AppManager
+struct RemoveFriend {
+        # TODO
+}
+
+# Application -> AppManager
+struct EnableFriend {
+        # TODO
+}
+
+# Application -> AppManager
+struct DisableFriend {
+        # TODO
+}
+
+# Application -> AppManager
+struct SetFriendRemoteMaxDebt {
+        # TODO
+}
+
+# Application -> AppManager
+struct ResetFriendChannel {
+        # TODO
+}
+
+# AppManager -> Application
+struct FriendStateUpdate {
+        # TODO
+}
+
+struct AppManagerToApp {
+    union {
+        # Messages
+        responseSendMessage @0: ResponseSendMessage;
+        messageReceived @1: RequestSendMessage;
+
+        # Funds
+        requestSendFunds @2: RequestSendFund;
+        receiptAck @3: ReceiptAck;
+
+        # Neighbors management
+        openNeighbor @4: OpenNeighbor;
+        closeNeighbor @5: CloseNeighbor;
+        addNeighbor @6: AddNeighbor;
+        removeNeighbor @7: RemoveNeighbor;
+        enableNeighbor @8: EnableNeighbor;
+        disableNeighbor @9: DisableNeighbor;
+        setNeighborRemoteMaxDebt @10: SetNeighborRemoteMaxDebt;
+        setNeighborMaxTokenChannels @11: SetNeighborMaxTokenChannels;
+
+        # Friends management
+        openFriend @12: OpenFriend;
+        closeFriend @13: CloseFriend;
+        addFriend @14: AddFriend;
+        removeFriend @15: RemoveFriend;
+        enableFriend @16: EnableFriend;
+        disableFriend @17: DisableFriend;
+        setFriendRemoteMaxDebt @18: SetFriendRemoteMaxDebt;
+
+        # Routes management:
+        responseNeighborsRoute @19: ResponseNeighborsRoute;
+        responseFriendsRoute @20: ResponseFriendsRoute;
+
+    }
+}
+
+struct AppToAppManager {
+    union {
+        # Messages
+        requestSendMessage @0: RequestSendMessage;
+        respondIncomingMessage @1: ResponseSendMessage;
+
+        # Funds
+        responseSendFund @2: ResponseSendFund;
+
+        # Neighbors management:
+        neighborStateUpdate @3: NeighborStateUpdate;
+
+        # Friends management:
+        friendStateUpdate @4: FriendStateUpdate;
+
+        # Routes management:
+        requestNeighborsRoute @5: RequestNeighborsRoute;
+        requestFriendsRoute @6: RequestFriendsRoute;
+    }
+}
