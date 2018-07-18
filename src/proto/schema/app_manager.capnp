@@ -179,14 +179,16 @@ struct ReceiptAck {
 
 
 # Application -> AppManager
-struct OpenNeighbor {
+struct OpenNeighborChannel {
         neighborPublicKey @0: CustomUInt256;
-        sendPrice @1: NetworkerSendPrice;
+        channelIndex @1: UInt16;
+        sendPrice @2: NetworkerSendPrice;
 }
 
 # Application -> AppManager
-struct CloseNeighbor {
+struct CloseNeighborChannel {
         neighborPublicKey @0: CustomUInt256;
+        channelIndex @1: UInt16;
 }
 
 # IP address and port
@@ -241,13 +243,49 @@ struct ResetNeighborChannel {
         balanceForReset @3: Int64;
 }
 
-# AppManager -> Application
-struct NeighborStateUpdate {
-        # TODO
+enum NeighborStatus {
+        enabled @0;
+        disabled @1;
 }
 
+struct NeighborUpdated {
+        neighborPublicKey @0: CustomUInt256;
+        neighborSocketAddr: union {
+                socketAddr @1: SocketAddr;
+                none @2: Void;
+        }
+        maxChannels @3: UInt16;
+        status @4: NeighborStatus;
+        # When reading this field, make sure that there are no duplicates of channelIndex!
+        # Idealy this would have been a HashMap (with channelIndex as key), and not a List.
+}
 
+struct NeighborTokenChannelUpdated {
+        neighborPublicKey @0: CustomUInt256;
+        channelIndex @1: UInt16;
+        balance @2: Int64;
+        localMaxDebt @3: UInt64;
+        remoteMaxDebt @4: UInt64;
+        localPendingDebt @5: UInt64;
+        remotePendingDebt @6: UInt64;
+        requestsStatus: union {
+                sendPrice @7: NetworkerSendPrice;
+                closed @8: Void;
+        }
+}
 
+struct NeighborRemoved {
+        neighborPublicKey @0: CustomUInt256;
+}
+
+# AppManager -> Application
+struct NeighborStateUpdate {
+    union {
+        neighborUpdated @0: NeighborUpdated;
+        neighborRemoved @1: NeighborRemoved;
+        neighborTokenChannelUpdated @2: NeighborTokenChannelUpdated;
+    }
+}
 
 
 # Application -> AppManager
@@ -328,8 +366,8 @@ struct AppToAppManager {
         receiptAck @3: ReceiptAck;
 
         # Neighbors management
-        openNeighbor @4: OpenNeighbor;
-        closeNeighbor @5: CloseNeighbor;
+        openNeighbor @4: OpenNeighborChannel;
+        closeNeighbor @5: CloseNeighborChannel;
         addNeighbor @6: AddNeighbor;
         removeNeighbor @7: RemoveNeighbor;
         enableNeighbor @8: EnableNeighbor;
