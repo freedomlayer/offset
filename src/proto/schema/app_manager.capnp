@@ -466,8 +466,8 @@ struct AppManagerToNetworker {
         # Neighbors management
         addNeighbor @2: AddNeighbor;
         removeNeighbor @3: RemoveNeighbor;
-        openNeighbor @4: OpenNeighborChannel ;
-        closeNeighbor @5: CloseNeighborChannel;
+        openNeighborChannel @4: OpenNeighborChannel ;
+        closeNeighborChannel @5: CloseNeighborChannel;
         enableNeighbor @6: EnableNeighbor;
         disableNeighbor @7: DisableNeighbor;
         setNeighborRemoteMaxDebt @8: SetNeighborRemoteMaxDebt;
