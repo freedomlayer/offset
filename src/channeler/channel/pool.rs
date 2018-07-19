@@ -45,6 +45,14 @@ impl ChannelPool {
         }
     }
 
+    pub fn remove_tx(&mut self, cid: &ChannelId) {
+        if let Some(pk) = self.cid_to_pk.get(cid) {
+            if let Some(channel) = self.channels.get_mut(pk) {
+                channel.remove_tx();
+            }
+        }
+    }
+
     pub fn remove_channel(&mut self, pk: &PublicKey) {
         if let Some(channel) = self.channels.remove(pk) {
             for rx in channel.carousel_rx {

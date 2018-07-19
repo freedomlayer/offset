@@ -116,6 +116,10 @@ impl Channel {
         self.tx.is_some()
     }
 
+    fn remove_tx(&mut self) {
+        self.tx = None;
+    }
+
     fn update_channel(&mut self, tx: Tx, rx: Rx) -> Option<Rx> {
         self.tx = Some(tx);
         self.carousel_rx.push_back(rx);
