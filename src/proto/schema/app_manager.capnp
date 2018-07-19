@@ -218,7 +218,7 @@ struct SocketAddr {
 # Application -> AppManager
 struct AddNeighbor {
         neighborPublicKey @0: CustomUInt256;
-        neighborSocketAddr: union {
+        neighborAddr: union {
                 socketAddr @1: SocketAddr;
                 none @2: Void;
         }
@@ -280,7 +280,7 @@ enum NeighborStatus {
 }
 
 struct NeighborUpdated {
-        neighborSocketAddr: union {
+        neighborAddr: union {
                 socketAddr @0: SocketAddr;
                 none @1: Void;
         }
