@@ -99,6 +99,7 @@ pub struct RequestPath {
 /// Component -> Networker
 pub struct RequestSendMessage {
     // route: NeighborsRoute,
+    request_id: Uid,
     dest_port: DestinationPort,
     request_data: Vec<u8>,
     max_response_len: u32,
