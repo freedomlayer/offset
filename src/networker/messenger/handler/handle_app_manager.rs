@@ -105,6 +105,7 @@ impl<R: SecureRandom> MessengerHandler<R> {
                 self.app_manager_set_neighbor_status(set_neighbor_status),
             NetworkerCommand::OpenNeighborChannel(open_neighbor_channel) => unimplemented!(),
             NetworkerCommand::CloseNeighborChannel(close_neighbor_channel) => unimplemented!(),
+            NetworkerCommand::SetNeighborAddr(set_neighbor_addr) => unimplemented!(),
         }
     }
 

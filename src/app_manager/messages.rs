@@ -34,6 +34,14 @@ pub struct SetNeighborMaxChannels {
 
 #[allow(dead_code)]
 #[derive(Clone)]
+pub struct SetNeighborAddr {
+    pub neighbor_public_key: PublicKey,
+    pub neighbor_addr: Option<SocketAddr>,
+}
+
+
+#[allow(dead_code)]
+#[derive(Clone)]
 pub struct AddNeighbor {
     pub neighbor_public_key: PublicKey,
     pub neighbor_socket_addr: Option<SocketAddr>,
@@ -78,6 +86,7 @@ pub enum NetworkerCommand {
     SetNeighborStatus(SetNeighborStatus),
     SetNeighborRemoteMaxDebt(SetNeighborRemoteMaxDebt),
     SetNeighborMaxChannels(SetNeighborMaxChannels),
+    SetNeighborAddr(SetNeighborAddr),
     ResetNeighborChannel(ResetNeighborChannel),
 }
 

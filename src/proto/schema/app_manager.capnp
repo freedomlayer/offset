@@ -267,6 +267,15 @@ struct SetNeighborMaxTokenChannels {
 }
 
 # Application -> AppManager
+struct SetNeighborAddr {
+        neighborPublicKey @0: CustomUInt256;
+        neighborAddr: union {
+                socketAddr @1: SocketAddr;
+                none @2: Void;
+        }
+}
+
+# Application -> AppManager
 struct ResetNeighborChannel {
         neighborPublicKey @0: CustomUInt256;
         channelIndex @1: UInt16;
@@ -431,21 +440,22 @@ struct AppToAppManager {
         disableNeighbor @9: DisableNeighbor;
         setNeighborRemoteMaxDebt @10: SetNeighborRemoteMaxDebt;
         setNeighborMaxTokenChannels @11: SetNeighborMaxTokenChannels;
-        resetNeighborChannel @12: ResetNeighborChannel;
+        setNeighborAddr @12: SetNeighborAddr;
+        resetNeighborChannel @13: ResetNeighborChannel;
 
         # Friends management
-        addFriend @13: AddFriend;
-        removeFriend @14: RemoveFriend;
-        openFriend @15: OpenFriend;
-        closeFriend @16: CloseFriend;
-        enableFriend @17: EnableFriend;
-        disableFriend @18: DisableFriend;
-        setFriendRemoteMaxDebt @19: SetFriendRemoteMaxDebt;
-        resetFriendChannel @20: ResetFriendChannel;
+        addFriend @14: AddFriend;
+        removeFriend @15: RemoveFriend;
+        openFriend @16: OpenFriend;
+        closeFriend @17: CloseFriend;
+        enableFriend @18: EnableFriend;
+        disableFriend @19: DisableFriend;
+        setFriendRemoteMaxDebt @20: SetFriendRemoteMaxDebt;
+        resetFriendChannel @21: ResetFriendChannel;
 
         # Routes management:
-        requestNeighborsRoute @21: RequestNeighborsRoute;
-        requestFriendsRoute @22: RequestFriendsRoute;
+        requestNeighborsRoute @22: RequestNeighborsRoute;
+        requestFriendsRoute @23: RequestFriendsRoute;
     }
 }
 
@@ -473,10 +483,11 @@ struct AppManagerToNetworker {
         disableNeighbor @7: DisableNeighbor;
         setNeighborRemoteMaxDebt @8: SetNeighborRemoteMaxDebt;
         setNeighborMaxTokenChannels @9: SetNeighborMaxTokenChannels;
-        resetNeighborChannel @10: ResetNeighborChannel;
+        setNeighborAddr @10: SetNeighborAddr;
+        resetNeighborChannel @11: ResetNeighborChannel;
 
         # Routes management:
-        responseNeighborsRoute @11: ResponseNeighborsRoute;
+        responseNeighborsRoute @12: ResponseNeighborsRoute;
     }
 }
 
