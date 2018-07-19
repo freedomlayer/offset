@@ -44,7 +44,7 @@ pub struct SetNeighborAddr {
 #[derive(Clone)]
 pub struct AddNeighbor {
     pub neighbor_public_key: PublicKey,
-    pub neighbor_socket_addr: Option<SocketAddr>,
+    pub neighbor_addr: Option<SocketAddr>,
     pub max_channels: u16, // Maximum amount of token channels
 }
 
