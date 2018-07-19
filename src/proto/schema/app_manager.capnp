@@ -81,13 +81,21 @@ struct PathClosed {
         pathId @0: CustomUInt128;
 }
 
-struct RequestSendMessage {
+struct RequestSendMessageOutgoing {
         requestId @0: CustomUInt128;
         pathId @1: CustomUInt128;
         destPort @2: DestinationPort;
         maxResponseLength @3: UInt32;
         processingFeeProposal @4: UInt64;
         requestContent @5: Data;
+}
+
+struct RequestSendMessageIncoming {
+        requestId @0: CustomUInt128;
+        route @1: NeighborsRoute;
+        maxResponseLength @2: UInt32;
+        processingFeeProposal @3: UInt64;
+        requestContent @4: Data;
 }
 
 struct FailureSendMessage {
@@ -176,7 +184,7 @@ struct AppManagerToIndexerClient {
         responsePath @0: ResponsePath;
         pathClosed @1: PathClosed;
         responseSendMessage @2: ResponseSendMessage;
-        messageReceived @3: RequestSendMessage;
+        messageReceived @3: RequestSendMessageIncoming;
         requestNeighborsRoute @4: RequestNeighborsRoute;
         requestFriendsRoute @5: RequestFriendsRoute;
     }
@@ -185,7 +193,7 @@ struct AppManagerToIndexerClient {
 struct IndexerClientToAppManager {
     union {
         requestPath @0: RequestPath;
-        requestSendMessage @1: RequestSendMessage;
+        requestSendMessage @1: RequestSendMessageOutgoing;
         respondIncomingMessage @2: RespondSendMessage;
         responseNeighborsRoute @3: ResponseNeighborsRoute;
         responseFriendsRoute @4: ResponseFriendsRoute;
@@ -423,7 +431,7 @@ struct AppManagerToApp {
     union {
         # Messages
         responseSendMessage @0: ResponseSendMessage;
-        messageReceived @1: RequestSendMessage;
+        messageReceived @1: RequestSendMessageIncoming;
 
         # Funds
         responseSendFunds @2: ResponseSendFunds;
@@ -445,7 +453,7 @@ struct AppToAppManager {
     union {
         # Messages
         requestPath @0: RequestPath;
-        requestSendMessage @1: RequestSendMessage;
+        requestSendMessage @1: RequestSendMessageOutgoing;
         respondIncomingMessage @2: RespondSendMessage;
 
         # Funds
@@ -493,7 +501,7 @@ struct AppManagerToNetworker {
     union {
         # Messages
         requestPath @0: RequestPath;
-        requestSendMessage @1: RequestSendMessage;
+        requestSendMessage @1: RequestSendMessageOutgoing;
         respondIncomingMessage @2: RespondSendMessage;
 
         # Neighbors management
@@ -521,7 +529,7 @@ struct NetworkerToAppManager {
         responsePath @0: ResponsePath;
         pathClosed @1: PathClosed;
         responseSendMessage @2: ResponseSendMessage;
-        messageReceived @3: RequestSendMessage;
+        messageReceived @3: RequestSendMessageIncoming;
 
         # Neighbors management:
         neighborStateUpdate @4: NeighborStateUpdate;
