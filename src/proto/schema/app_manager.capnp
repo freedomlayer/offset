@@ -489,7 +489,8 @@ struct AppManagerToNetworker {
         resetNeighborChannel @11: ResetNeighborChannel;
 
         # Routes management:
-        responseNeighborsRoute @12: ResponseNeighborsRoute;
+        responseFriendsRoute @12: ResponseFriendsRoute;
+
     }
 }
 
@@ -504,7 +505,7 @@ struct NetworkerToAppManager {
         neighborStateUpdate @2: NeighborStateUpdate;
 
         # Routes management:
-        requestNeighborsRoute @3: RequestNeighborsRoute;
+        requestFriendsRoute @3: RequestFriendsRoute;
     }
 }
 
@@ -529,7 +530,7 @@ struct AppManagerToFunder {
         resetFriendChannel @9: ResetFriendChannel;
 
         # Routes management:
-        responseFriendsRoute @10: ResponseFriendsRoute;
+        responseNeighborsRoute @10: ResponseNeighborsRoute;
     }
 }
 
@@ -543,6 +544,7 @@ struct FunderToAppManager {
         friendStateUpdate @1: FriendStateUpdate;
 
         # Routes management:
-        requestFriendsRoute @2: RequestFriendsRoute;
+        requestNeighborsRoute @2: RequestNeighborsRoute;
+
     }
 }

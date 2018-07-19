@@ -5,7 +5,7 @@ use crypto::uid::Uid;
 
 use networker::messages::{RequestPath};
 use database::messages::{ResponseLoadFriends, ResponseLoadFriendToken};
-use app_manager::messages::RequestFriendsRoute;
+use app_manager::messages::RequestNeighborsRoute;
 
 use proto::funder::{InvoiceId, FunderSendPrice};
 use proto::networker::ChannelToken;
@@ -119,7 +119,7 @@ pub struct RequestSendFunds {
 
 pub enum FunderToAppManager {
     FriendStateUpdate(FriendStateUpdate),
-    RequestFriendsRoute(RequestFriendsRoute),
+    RequestNeighborsRoute(RequestNeighborsRoute),
 }
 
 

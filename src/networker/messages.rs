@@ -11,7 +11,7 @@ use futures::sync::{mpsc, oneshot};
 
 use channeler::types::ChannelerNeighborInfo;
 use funder::messages::{RequestSendFunds};
-use app_manager::messages::RequestNeighborsRoute;
+use app_manager::messages::RequestFriendsRoute;
 
 use database::messages::{ResponseLoadNeighbors, ResponseLoadNeighborToken};
 use proto::networker::{ChannelToken, NetworkerSendPrice};
@@ -134,7 +134,7 @@ pub struct MessageReceivedResponse {
 pub enum NetworkerToAppManager {
     ResponseSendMessage(ResponseSendMessage),
     MessageReceived(MessageReceived),
-    RequestNeighborsRoute(RequestNeighborsRoute),
+    RequestFriendsRoute(RequestFriendsRoute),
     NeighborStateUpdate(NeighborStateUpdate),
 }
 
