@@ -30,22 +30,35 @@ pub struct FriendLoaded {
     balance: i128,
 }
 
-enum FriendEvent {
-    Loaded(FriendLoaded),
-    Open,
-    Close,
-    RequestsOpened,
-    RequestsClosed,
-    LocalMaxDebtChange(u128),  // Contains new local max debt
-    RemoteMaxDebtChange(u128), // Contains new local max debt
-    BalanceChange(i128),       // Contains new balance
-    InconsistencyError(i128),  // Contains balance required for reset
+pub enum RequestsStatus {
+    Open(FunderSendPrice),
+    Closed,
+}
+
+pub struct FriendUpdated {
+    balance: i128,
+    local_max_debt: u128,
+    remote_max_debt: u128,
+    local_pending_debt: u128,
+    remote_pending_debt: u128,
+    requests_status: RequestsStatus,
+}
+
+pub struct FriendInconsistent {
+    current_token: ChannelToken,
+    balance_for_reset: i128,
+}
+
+pub enum FriendEvent {
+    FriendUpdated(FriendUpdated),
+    FriendRemoved,
+    FriendInconsistent(FriendInconsistent),
 }
 
 
 pub enum ResponseSendFunds {
     Success(SendFundsReceipt),
-    Failure,
+    Failure(PublicKey), // Reporting public key.
 }
 
 pub struct FriendStateUpdate {

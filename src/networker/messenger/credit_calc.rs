@@ -378,7 +378,7 @@ impl CreditCalculator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use proto::networker::LinearSendPrice;
+    use proto::LinearSendPrice;
     use num_traits::PrimInt;
     use std::cmp;
 

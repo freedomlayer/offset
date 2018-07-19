@@ -17,10 +17,12 @@ pub struct FunderClient {
     requests_sender: mpsc::Sender<RequestSendFunds>,
 }
 
+
 impl FunderClient {
     pub fn new(requests_sender: mpsc::Sender<RequestSendFunds>) -> Self {
         FunderClient { requests_sender }
     }
+    /*
     pub fn request_send_funds(&self, route: FriendsRoute, invoice_id: InvoiceId, payment: u128) 
         -> impl Future<Item=SendFundsReceipt, Error=FunderClientError> {
 
@@ -43,6 +45,6 @@ impl FunderClient {
              }
          })
     }
+    */
 }
-
 
