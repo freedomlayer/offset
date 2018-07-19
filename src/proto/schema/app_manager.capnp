@@ -65,6 +65,8 @@ struct AppManagerDhMessage {
 # Interface with IndexerClient
 ###############################
 
+# TODO: Add a destination port for request send message.
+# Should also be added in Rust's structs interface.
 
 # IndexerClient -> AppManager
 struct RequestSendMessage {
