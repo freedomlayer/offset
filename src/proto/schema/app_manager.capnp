@@ -527,8 +527,7 @@ struct AppManagerToFunder {
         resetFriendChannel @9: ResetFriendChannel;
 
         # Routes management:
-        requestFriendsRoute @10: RequestFriendsRoute;
-
+        responseFriendsRoute @10: ResponseFriendsRoute;
     }
 }
 
@@ -542,6 +541,6 @@ struct FunderToAppManager {
         friendStateUpdate @1: FriendStateUpdate;
 
         # Routes management:
-        responseFriendsRoute @2: ResponseFriendsRoute;
+        requestFriendsRoute @2: RequestFriendsRoute;
     }
 }
