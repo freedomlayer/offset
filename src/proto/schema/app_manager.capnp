@@ -332,6 +332,7 @@ struct NeighborStateUpdate {
 # Application -> AppManager
 struct AddFriend {
         friendPublicKey @0: CustomUInt256;
+        remoteMaxDebt @1: CustomUInt128;
 }
 
 # Application -> AppManager
@@ -368,8 +369,9 @@ struct SetFriendRemoteMaxDebt {
 
 # Application -> AppManager
 struct ResetFriendChannel {
-        currentToken @0: CustomUInt256;
-        balanceForReset @1: CustomUInt128;
+        friendPublicKey @0: CustomUInt256;
+        currentToken @1: CustomUInt256;
+        balanceForReset @2: CustomUInt128;
 }
 
 struct FriendUpdated {

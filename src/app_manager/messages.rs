@@ -10,6 +10,7 @@ use networker::messenger::types::NeighborsRoute;
 use funder::messages::{FriendInfo, FriendRequestsStatus, FriendStatus, RequestSendFunds,
                         FriendsRouteWithCapacity};
 use proto::networker::{ChannelToken, NetworkerSendPrice};
+use proto::funder::FunderSendPrice;
 
 
 #[allow(dead_code)]
@@ -99,41 +100,54 @@ pub enum AppManagerToNetworker {
     NetworkerCommand(NetworkerCommand),
 }
 
-/*
-pub enum AppManagerToIndexerClient {
-    AddIndexingProvider(IndexingProviderInfo),
-    SetIndexingProviderStatus {
-        id: IndexingProviderId,
-        status: IndexingProviderStatus,
-    },
-    RemoveIndexingProvider {
-        id: IndexingProviderId,
-    },
-    RequestNeighborsRoutes(RequestNeighborsRoutes),
-    RequestFriendsRoutes(RequestFriendsRoutes),
+pub struct AddFriend {
+    friend_public_key: PublicKey,
+    remote_max_debt: u128,
 }
-*/
+
+pub struct RemoveFriend {
+    friend_public_key: PublicKey,
+}
+
+pub struct OpenFriend {
+    friend_public_key: PublicKey,
+    send_price: FunderSendPrice,
+}
+
+pub struct CloseFriend {
+    friend_public_key: PublicKey,
+}
+
+pub struct EnableFriend {
+    friend_public_key: PublicKey,
+}
+
+pub struct DisableFriend {
+    friend_public_key: PublicKey,
+}
+
+pub struct SetFriendRemoteMaxDebt {
+    friend_public_key: PublicKey,
+    remote_max_debt: u128,
+}
+
+pub struct ResetFriendChannel {
+    friend_public_key: PublicKey,
+    current_token: ChannelToken,
+    balance_for_reset: u128,
+}
+
 
 pub enum AppManagerToFunder {
     RequestSendFunds(RequestSendFunds),
-    ResetFriendChannel {
-        friend_public_key: PublicKey,
-    },
-    AddFriend {
-        friend_info: FriendInfo,
-    },
-    RemoveFriend {
-        friend_public_key: PublicKey,
-    },
-    SetFriendStatus {
-        friend_public_key: PublicKey,
-        status: FriendStatus,
-        requests_status: FriendRequestsStatus,
-    },
-    SetFriendRemoteMaxDebt {
-        friend_public_key: PublicKey,
-        remote_max_debt: u128,
-    },
+    AddFriend(AddFriend),
+    RemoveFriend(RemoveFriend),
+    OpenFriend(OpenFriend),
+    CloseFriend(CloseFriend),
+    EnableFriend(EnableFriend),
+    DisableFriend(DisableFriend),
+    SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
+    ResetFriendChannel(ResetFriendChannel),
 }
 
 pub struct ResponseNeighborsRoute {
