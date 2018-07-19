@@ -77,6 +77,10 @@ struct ResponsePath {
         pathId @0: CustomUInt128;
 }
 
+struct PathClosed {
+        pathId @0: CustomUInt128;
+}
+
 struct RequestSendMessage {
         requestId @0: CustomUInt128;
         pathId @1: CustomUInt128;
@@ -170,10 +174,11 @@ struct ResponseFriendsRoute {
 struct AppManagerToIndexerClient {
     union {
         responsePath @0: ResponsePath;
-        responseSendMessage @1: ResponseSendMessage;
-        messageReceived @2: RequestSendMessage;
-        requestNeighborsRoute @3: RequestNeighborsRoute;
-        requestFriendsRoute @4: RequestFriendsRoute;
+        pathClosed @1: PathClosed;
+        responseSendMessage @2: ResponseSendMessage;
+        messageReceived @3: RequestSendMessage;
+        requestNeighborsRoute @4: RequestNeighborsRoute;
+        requestFriendsRoute @5: RequestFriendsRoute;
     }
 }
 
@@ -514,14 +519,15 @@ struct NetworkerToAppManager {
     union {
         # Messages
         responsePath @0: ResponsePath;
-        responseSendMessage @1: ResponseSendMessage;
-        messageReceived @2: RequestSendMessage;
+        pathClosed @1: PathClosed;
+        responseSendMessage @2: ResponseSendMessage;
+        messageReceived @3: RequestSendMessage;
 
         # Neighbors management:
-        neighborStateUpdate @3: NeighborStateUpdate;
+        neighborStateUpdate @4: NeighborStateUpdate;
 
         # Routes management:
-        requestFriendsRoute @4: RequestFriendsRoute;
+        requestFriendsRoute @5: RequestFriendsRoute;
     }
 }
 
