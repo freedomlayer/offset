@@ -11,6 +11,7 @@ use futures::sync::{mpsc, oneshot};
 
 use channeler::types::ChannelerNeighborInfo;
 use funder::messages::{RequestSendFunds};
+use app_manager::messages::RequestNeighborsRoute;
 
 use database::messages::{ResponseLoadNeighbors, ResponseLoadNeighborToken};
 use proto::networker::{ChannelToken, NetworkerSendPrice};
@@ -128,10 +129,6 @@ pub struct MessageReceivedResponse {
     processing_fee_collected: u64,
 }
 
-pub struct RequestNeighborsRoute {
-    source_node_public_key: PublicKey,
-    dest_node_public_key: PublicKey,
-}
 
 
 pub enum NetworkerToAppManager {

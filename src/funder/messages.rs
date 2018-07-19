@@ -5,8 +5,9 @@ use crypto::uid::Uid;
 
 use networker::messages::{RequestPath};
 use database::messages::{ResponseLoadFriends, ResponseLoadFriendToken};
+use app_manager::messages::RequestFriendsRoute;
 
-use proto::funder::InvoiceId;
+use proto::funder::{InvoiceId, FunderSendPrice};
 use proto::networker::ChannelToken;
 use proto::common::SendFundsReceipt;
 
@@ -68,9 +69,32 @@ pub struct PendingFriendRequest {
 }
 
 // ======== Internal interface ========
+//
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PaymentProposalPair {
+    pub request: FunderSendPrice,
+    pub response: FunderSendPrice,
+}
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FriendRouteLink {
+    pub node_public_key: PublicKey,
+    pub payment_proposal_pair: PaymentProposalPair,
+}
+
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FriendsRoute {
-    public_keys: Vec<PublicKey>,
+    pub source_public_key: PublicKey,
+    pub source_request_proposal: FunderSendPrice,
+    pub route_links: Vec<FriendRouteLink>,
+    pub dest_public_key: PublicKey,
+    pub dest_response_proposal: FunderSendPrice,
+}
+
+pub struct FriendsRouteWithCapacity {
+    route: FriendsRoute,
+    capacity: u128,
 }
 
 pub struct RequestSendFunds {
@@ -78,25 +102,6 @@ pub struct RequestSendFunds {
     pub invoice_id: InvoiceId,
     pub payment: u128,
     pub response_sender: oneshot::Sender<ResponseSendFunds>,
-}
-
-pub struct RouteDirect {
-    source_public_key: PublicKey,
-    dest_public_key: PublicKey,
-}
-
-pub struct RouteLoopFromFriend {
-    friend_public_key: PublicKey,
-}
-
-pub struct RouteLoopToFriend {
-    friend_public_key: PublicKey,
-}
-
-pub enum RequestFriendsRoute {
-    Direct(RouteDirect),
-    LoopFromFriend(RouteLoopFromFriend),
-    LoopToFriend(RouteLoopToFriend),
 }
 
 pub enum FunderToAppManager {

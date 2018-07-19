@@ -1,10 +1,14 @@
 use std::net::SocketAddr;
 
+use futures::sync::oneshot;
+
 use crypto::identity::PublicKey;
 
 use networker::messages::{NeighborStatus, RequestPath};
+use networker::messenger::types::NeighborsRoute;
 
-use funder::messages::{FriendInfo, FriendRequestsStatus, FriendStatus, RequestSendFunds};
+use funder::messages::{FriendInfo, FriendRequestsStatus, FriendStatus, RequestSendFunds,
+                        FriendsRouteWithCapacity};
 use proto::networker::{ChannelToken, NetworkerSendPrice};
 
 
@@ -131,3 +135,43 @@ pub enum AppManagerToFunder {
         remote_max_debt: u128,
     },
 }
+
+pub struct ResponseNeighborsRoute {
+    routes: Vec<NeighborsRoute>,
+}
+
+pub struct RequestNeighborsRoute {
+    source_node_public_key: PublicKey,
+    dest_node_public_key: PublicKey,
+    response_sender: oneshot::Sender<ResponseNeighborsRoute>,
+}
+
+pub struct RouteDirect {
+    source_public_key: PublicKey,
+    dest_public_key: PublicKey,
+}
+
+pub struct RouteLoopFromFriend {
+    friend_public_key: PublicKey,
+}
+
+pub struct RouteLoopToFriend {
+    friend_public_key: PublicKey,
+}
+
+pub enum RouteRequest {
+    Direct(RouteDirect),
+    LoopFromFriend(RouteLoopFromFriend),
+    LoopToFriend(RouteLoopToFriend),
+}
+
+pub struct ResponseFriendsRoute {
+    routes: Vec<FriendsRouteWithCapacity>,
+
+}
+
+pub struct RequestFriendsRoute {
+    route_request: RouteRequest,
+    pub response_sender: oneshot::Sender<ResponseFriendsRoute>,
+}
+
