@@ -45,6 +45,10 @@ impl ChannelPool {
         }
     }
 
+    pub fn get_public_key(&self, cid: &ChannelId) -> Option<&PublicKey> {
+        self.cid_to_pk.get(cid)
+    }
+
     pub fn remove_tx(&mut self, cid: &ChannelId) {
         if let Some(pk) = self.cid_to_pk.get(cid) {
             if let Some(channel) = self.channels.get_mut(pk) {
