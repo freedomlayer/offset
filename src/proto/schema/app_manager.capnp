@@ -5,6 +5,7 @@ using import "common.capnp".CustomUInt256;
 using import "common.capnp".CustomUInt512;
 using import "networker.capnp".NeighborsRoute;
 using import "networker.capnp".NetworkerSendPrice;
+using import "networker_crypter.capnp".DestinationPort;
 using import "funder.capnp".FriendsRoute;
 using import "funder.capnp".FunderSendPrice;
 using import "common.capnp".Receipt;
@@ -68,13 +69,21 @@ struct AppManagerDhMessage {
 # TODO: Add a destination port for request send message.
 # Should also be added in Rust's structs interface.
 
-# IndexerClient -> AppManager
+struct RequestPath {
+        route @0: NeighborsRoute;
+}
+
+struct ResponsePath {
+        pathId @0: CustomUInt128;
+}
+
 struct RequestSendMessage {
         requestId @0: CustomUInt128;
-        maxResponseLength @1: UInt32;
-        processingFeeProposal @2: UInt64;
-        route @3: NeighborsRoute;
-        requestContent @4: Data;
+        pathId @1: CustomUInt128;
+        destPort @2: DestinationPort;
+        maxResponseLength @3: UInt32;
+        processingFeeProposal @4: UInt64;
+        requestContent @5: Data;
 }
 
 struct FailureSendMessage {
@@ -160,19 +169,21 @@ struct ResponseFriendsRoute {
 
 struct AppManagerToIndexerClient {
     union {
-        responseSendMessage @0: ResponseSendMessage;
-        messageReceived @1: RequestSendMessage;
-        requestNeighborsRoute @2: RequestNeighborsRoute;
-        requestFriendsRoute @3: RequestFriendsRoute;
+        responsePath @0: ResponsePath;
+        responseSendMessage @1: ResponseSendMessage;
+        messageReceived @2: RequestSendMessage;
+        requestNeighborsRoute @3: RequestNeighborsRoute;
+        requestFriendsRoute @4: RequestFriendsRoute;
     }
 }
 
 struct IndexerClientToAppManager {
     union {
-        requestSendMessage @0: RequestSendMessage;
-        respondIncomingMessage @1: RespondSendMessage;
-        responseNeighborsRoute @2: ResponseNeighborsRoute;
-        responseFriendsRoute @3: ResponseFriendsRoute;
+        requestPath @0: RequestPath;
+        requestSendMessage @1: RequestSendMessage;
+        respondIncomingMessage @2: RespondSendMessage;
+        responseNeighborsRoute @3: ResponseNeighborsRoute;
+        responseFriendsRoute @4: ResponseFriendsRoute;
     }
 }
 
@@ -428,38 +439,39 @@ struct AppManagerToApp {
 struct AppToAppManager {
     union {
         # Messages
-        requestSendMessage @0: RequestSendMessage;
-        respondIncomingMessage @1: RespondSendMessage;
+        requestPath @0: RequestPath;
+        requestSendMessage @1: RequestSendMessage;
+        respondIncomingMessage @2: RespondSendMessage;
 
         # Funds
-        requestSendFunds @2: RequestSendFunds;
-        receiptAck @3: ReceiptAck;
+        requestSendFunds @3: RequestSendFunds;
+        receiptAck @4: ReceiptAck;
 
         # Neighbors management
-        addNeighbor @4: AddNeighbor;
-        removeNeighbor @5: RemoveNeighbor;
-        openNeighborChannel @6: OpenNeighborChannel;
-        closeNeighborChannel @7: CloseNeighborChannel;
-        enableNeighbor @8: EnableNeighbor;
-        disableNeighbor @9: DisableNeighbor;
-        setNeighborRemoteMaxDebt @10: SetNeighborRemoteMaxDebt;
-        setNeighborMaxTokenChannels @11: SetNeighborMaxTokenChannels;
-        setNeighborAddr @12: SetNeighborAddr;
-        resetNeighborChannel @13: ResetNeighborChannel;
+        addNeighbor @5: AddNeighbor;
+        removeNeighbor @6: RemoveNeighbor;
+        openNeighborChannel @7: OpenNeighborChannel;
+        closeNeighborChannel @8: CloseNeighborChannel;
+        enableNeighbor @9: EnableNeighbor;
+        disableNeighbor @10: DisableNeighbor;
+        setNeighborRemoteMaxDebt @11: SetNeighborRemoteMaxDebt;
+        setNeighborMaxTokenChannels @12: SetNeighborMaxTokenChannels;
+        setNeighborAddr @13: SetNeighborAddr;
+        resetNeighborChannel @14: ResetNeighborChannel;
 
         # Friends management
-        addFriend @14: AddFriend;
-        removeFriend @15: RemoveFriend;
-        openFriend @16: OpenFriend;
-        closeFriend @17: CloseFriend;
-        enableFriend @18: EnableFriend;
-        disableFriend @19: DisableFriend;
-        setFriendRemoteMaxDebt @20: SetFriendRemoteMaxDebt;
-        resetFriendChannel @21: ResetFriendChannel;
+        addFriend @15: AddFriend;
+        removeFriend @16: RemoveFriend;
+        openFriend @17: OpenFriend;
+        closeFriend @18: CloseFriend;
+        enableFriend @19: EnableFriend;
+        disableFriend @20: DisableFriend;
+        setFriendRemoteMaxDebt @21: SetFriendRemoteMaxDebt;
+        resetFriendChannel @22: ResetFriendChannel;
 
         # Routes management:
-        requestNeighborsRoute @22: RequestNeighborsRoute;
-        requestFriendsRoute @23: RequestFriendsRoute;
+        requestNeighborsRoute @23: RequestNeighborsRoute;
+        requestFriendsRoute @24: RequestFriendsRoute;
     }
 }
 
@@ -475,23 +487,24 @@ struct AppToAppManager {
 struct AppManagerToNetworker {
     union {
         # Messages
-        requestSendMessage @0: RequestSendMessage;
-        respondIncomingMessage @1: RespondSendMessage;
+        requestPath @0: RequestPath;
+        requestSendMessage @1: RequestSendMessage;
+        respondIncomingMessage @2: RespondSendMessage;
 
         # Neighbors management
-        addNeighbor @2: AddNeighbor;
-        removeNeighbor @3: RemoveNeighbor;
-        openNeighborChannel @4: OpenNeighborChannel ;
-        closeNeighborChannel @5: CloseNeighborChannel;
-        enableNeighbor @6: EnableNeighbor;
-        disableNeighbor @7: DisableNeighbor;
-        setNeighborRemoteMaxDebt @8: SetNeighborRemoteMaxDebt;
-        setNeighborMaxTokenChannels @9: SetNeighborMaxTokenChannels;
-        setNeighborAddr @10: SetNeighborAddr;
-        resetNeighborChannel @11: ResetNeighborChannel;
+        addNeighbor @3: AddNeighbor;
+        removeNeighbor @4: RemoveNeighbor;
+        openNeighborChannel @5: OpenNeighborChannel ;
+        closeNeighborChannel @6: CloseNeighborChannel;
+        enableNeighbor @7: EnableNeighbor;
+        disableNeighbor @8: DisableNeighbor;
+        setNeighborRemoteMaxDebt @9: SetNeighborRemoteMaxDebt;
+        setNeighborMaxTokenChannels @10: SetNeighborMaxTokenChannels;
+        setNeighborAddr @11: SetNeighborAddr;
+        resetNeighborChannel @12: ResetNeighborChannel;
 
         # Routes management:
-        responseFriendsRoute @12: ResponseFriendsRoute;
+        responseFriendsRoute @13: ResponseFriendsRoute;
 
     }
 }
@@ -500,14 +513,15 @@ struct AppManagerToNetworker {
 struct NetworkerToAppManager {
     union {
         # Messages
-        responseSendMessage @0: ResponseSendMessage;
-        messageReceived @1: RequestSendMessage;
+        responsePath @0: ResponsePath;
+        responseSendMessage @1: ResponseSendMessage;
+        messageReceived @2: RequestSendMessage;
 
         # Neighbors management:
-        neighborStateUpdate @2: NeighborStateUpdate;
+        neighborStateUpdate @3: NeighborStateUpdate;
 
         # Routes management:
-        requestFriendsRoute @3: RequestFriendsRoute;
+        requestFriendsRoute @4: RequestFriendsRoute;
     }
 }
 
