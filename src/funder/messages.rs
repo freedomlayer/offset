@@ -80,8 +80,28 @@ pub struct RequestSendFunds {
     pub response_sender: oneshot::Sender<ResponseSendFunds>,
 }
 
+pub struct RouteDirect {
+    source_public_key: PublicKey,
+    dest_public_key: PublicKey,
+}
+
+pub struct RouteLoopFromFriend {
+    friend_public_key: PublicKey,
+}
+
+pub struct RouteLoopToFriend {
+    friend_public_key: PublicKey,
+}
+
+pub enum RequestFriendsRoute {
+    Direct(RouteDirect),
+    LoopFromFriend(RouteLoopFromFriend),
+    LoopToFriend(RouteLoopToFriend),
+}
+
 pub enum FunderToAppManager {
     FriendStateUpdate(FriendStateUpdate),
+    RequestFriendsRoute(RequestFriendsRoute),
 }
 
 
