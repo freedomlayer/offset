@@ -80,16 +80,20 @@ struct Plain {
    content @1: Data;
 }
 
+struct DestinationPort {
+        union {
+                networker @0: Void;
+                funder @1: Void;
+                indexerClient @2: Void;
+                appManager @3: UInt32;
+        }
+
+}
 
 # This structure is used as the content field inside the Plain struct.
 struct PlainRequest {
         plainContent @0: Data;
-        destPort :union {
-                networker @1: Void;
-                funder @2: Void;
-                indexerClient @3: Void;
-                appManager @4: UInt32;
-        }
+        destPort @1: DestinationPort;
 }
 
 # All possible request messages:
