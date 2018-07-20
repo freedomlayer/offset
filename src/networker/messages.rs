@@ -107,14 +107,24 @@ pub struct RequestSendMessage {
     response_sender: oneshot::Sender<ResponseSendMessage>,
 }
 
+pub enum FailureSendMessage {
+    // Could not reach remote using provided route. reportingPublicKey is supplied.
+    Unreachable(PublicKey),
+    // Message reached remote, but remote side lost the key (Possibly due to a reboot).
+    RemoteLostKey,
+    // We do not maintain such path with the given pathId locally.
+    NoSuchPath,
+}
+
 /// Networker -> Component
 pub enum ResponseSendMessage {
     Success(MessageReceivedResponse),
-    Failure(PublicKey), // PublicKey of reporting node.
+    Failure(FailureSendMessage), 
 }
 
 /// Networker -> Component
 pub struct MessageReceived {
+    request_id: Uid,
     route: NeighborsRoute, // sender_public_key is the first public key on the NeighborsRoute
     request_data: Vec<u8>,
     max_response_len: u32,
