@@ -124,7 +124,6 @@ struct RespondSendMessage {
         responseContent @2: Data;
 }
 
-# MessageReceived and RespondIncomingMessage are the same as above.
 
 # AppManager -> IndexerClient
 struct RequestNeighborsRoute {
