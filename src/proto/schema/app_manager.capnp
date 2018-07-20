@@ -77,8 +77,8 @@ struct ResponsePath {
         pathId @0: CustomUInt128;
 }
 
-struct RequestSendMessageOutgoing {
-        requestId @0: CustomUInt128;
+struct RequestSendMessage {
+        messageId @0: CustomUInt128;
         pathId @1: CustomUInt128;
         destPort @2: DestinationPort;
         maxResponseLength @3: UInt32;
@@ -86,8 +86,8 @@ struct RequestSendMessageOutgoing {
         requestContent @5: Data;
 }
 
-struct RequestSendMessageIncoming {
-        requestId @0: CustomUInt128;
+struct MessageReceived {
+        messageId @0: CustomUInt128;
         route @1: NeighborsRoute;
         maxResponseLength @2: UInt32;
         processingFeeProposal @3: UInt64;
@@ -110,7 +110,7 @@ struct SuccessSendMessage {
 
 # AppManager -> IndexerClient
 struct ResponseSendMessage {
-        requestId @0: CustomUInt128;
+        messageId @0: CustomUInt128;
         pathId @1: CustomUInt128;
         response: union {
                 success @2: SuccessSendMessage;
@@ -119,7 +119,7 @@ struct ResponseSendMessage {
 }
 
 struct RespondSendMessage {
-        requestId @0: CustomUInt128;
+        messageId @0: CustomUInt128;
         processingFeeCollected @1: UInt64;
         responseContent @2: Data;
 }
@@ -185,7 +185,7 @@ struct AppManagerToIndexerClient {
     union {
         responsePath @0: ResponsePath;
         responseSendMessage @1: ResponseSendMessage;
-        messageReceived @2: RequestSendMessageIncoming;
+        messageReceived @2: MessageReceived;
         requestNeighborsRoute @3: RequestNeighborsRoute;
         requestFriendsRoute @4: RequestFriendsRoute;
     }
@@ -194,7 +194,7 @@ struct AppManagerToIndexerClient {
 struct IndexerClientToAppManager {
     union {
         requestPath @0: RequestPath;
-        requestSendMessage @1: RequestSendMessageOutgoing;
+        requestSendMessage @1: RequestSendMessage;
         respondIncomingMessage @2: RespondSendMessage;
         responseNeighborsRoute @3: ResponseNeighborsRoute;
         responseFriendsRoute @4: ResponseFriendsRoute;
@@ -207,7 +207,7 @@ struct IndexerClientToAppManager {
 
 
 struct RequestSendFunds {
-        requestId @0: CustomUInt128;
+        paymentId @0: CustomUInt128;
         destPayment @1: CustomUInt128;
         route @2: FriendsRoute;
         invoiceId @3: CustomUInt256;
@@ -222,7 +222,7 @@ struct FailureSendFunds {
 }
 
 struct ResponseSendFunds {
-        requestId @0: CustomUInt128;
+        paymentId @0: CustomUInt128;
         response: union {
                 success @1: SuccessSendFunds;
                 failure @2: FailureSendFunds;
@@ -230,7 +230,7 @@ struct ResponseSendFunds {
 }
 
 struct ReceiptAck {
-        requestId @0: CustomUInt128;
+        paymentId @0: CustomUInt128;
         receiptHash @1: CustomUInt256;
 }
 
@@ -432,7 +432,7 @@ struct AppManagerToApp {
     union {
         # Messages
         responseSendMessage @0: ResponseSendMessage;
-        messageReceived @1: RequestSendMessageIncoming;
+        messageReceived @1: MessageReceived;
 
         # Funds
         responseSendFunds @2: ResponseSendFunds;
@@ -454,7 +454,7 @@ struct AppToAppManager {
     union {
         # Messages
         requestPath @0: RequestPath;
-        requestSendMessage @1: RequestSendMessageOutgoing;
+        requestSendMessage @1: RequestSendMessage;
         respondIncomingMessage @2: RespondSendMessage;
 
         # Funds
