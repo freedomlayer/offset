@@ -99,7 +99,6 @@ pub struct RequestPath {
 /// Component -> Networker
 pub struct RequestSendMessage {
     // route: NeighborsRoute,
-    request_id: Uid,
     dest_port: DestinationPort,
     request_data: Vec<u8>,
     max_response_len: u32,
@@ -124,7 +123,6 @@ pub enum ResponseSendMessage {
 
 /// Networker -> Component
 pub struct MessageReceived {
-    request_id: Uid,
     route: NeighborsRoute, // sender_public_key is the first public key on the NeighborsRoute
     request_data: Vec<u8>,
     max_response_len: u32,
