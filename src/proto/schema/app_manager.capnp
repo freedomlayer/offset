@@ -95,7 +95,12 @@ struct RequestSendMessageIncoming {
 }
 
 struct FailureSendMessage {
-        reportingPublicKey @0: CustomUInt256;
+        union {
+                unreachable @0: CustomUInt256;
+                # reportingPublicKey
+                remoteLostKey @1: Void;
+                noSuchPath @2: Void;
+        }
 }
 
 struct SuccessSendMessage {
@@ -106,9 +111,10 @@ struct SuccessSendMessage {
 # AppManager -> IndexerClient
 struct ResponseSendMessage {
         requestId @0: CustomUInt128;
+        pathId @1: CustomUInt128;
         response: union {
-                success @1: SuccessSendMessage;
-                failure @2: FailureSendMessage;
+                success @2: SuccessSendMessage;
+                failure @3: FailureSendMessage;
         }
 }
 
