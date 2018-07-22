@@ -11,7 +11,7 @@ use crypto::hash::sha_512_256;
 use utils::int_convert::usize_to_u64;
 
 use super::types::{TokenChannel, NeighborMoveTokenInner};
-use super::incoming::{ProcessOperationOutput, ProcessTransListError};
+use super::incoming::{ProcessOperationOutput, ProcessTransListError, simulate_process_operations_list};
 use super::outgoing::{OutgoingTokenChannel, QueueOperationFailure};
 
 use super::super::types::{NeighborTcOp, NeighborMoveToken};
@@ -184,7 +184,7 @@ impl DirectionalTokenChannel {
     }
 
     pub fn remote_max_debt(&self) -> u64 {
-        self.get_token_channel().balance.remote_max_debt
+        self.get_token_channel().state().balance.remote_max_debt
     }
 
     #[allow(unused)]
@@ -220,7 +220,7 @@ impl DirectionalTokenChannel {
             },
             MoveTokenDirection::Outgoing(ref move_token_inner) => {
                 if move_token_message.old_token == self.new_token {
-                    match self.token_channel.simulate_process_operations_list(
+                    match simulate_process_operations_list(&self.token_channel,
                         move_token_message.operations) {
                         Ok(output) => {
                             // TODO: Add mutations for:
