@@ -1,5 +1,5 @@
 mod handle_app_manager;
-pub mod handle_neighbor;
+// pub mod handle_neighbor;
 mod handle_funder;
 mod handle_crypter;
 
@@ -11,8 +11,8 @@ use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 
 use super::messenger_state::{MessengerState, StateMutateMessage};
-use self::handle_neighbor::{NeighborInconsistencyError, 
-    NeighborSetMaxTokenChannels};
+//use self::handle_neighbor::{NeighborInconsistencyError, 
+//     NeighborSetMaxTokenChannels};
 use super::token_channel::directional::ReceiveMoveTokenError;
 use super::types::{NeighborMoveToken, NeighborsRoute};
 
@@ -28,8 +28,8 @@ pub enum FunderMessage {
 #[allow(unused)]
 pub enum NeighborMessage {
     MoveToken(NeighborMoveToken),
-    InconsistencyError(NeighborInconsistencyError),
-    SetMaxTokenChannels(NeighborSetMaxTokenChannels),
+    // InconsistencyError(NeighborInconsistencyError),
+    // SetMaxTokenChannels(NeighborSetMaxTokenChannels),
 }
 
 pub struct RequestReceived {
