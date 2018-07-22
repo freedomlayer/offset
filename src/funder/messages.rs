@@ -5,8 +5,9 @@ use crypto::uid::Uid;
 
 use networker::messages::{RequestPath};
 use database::messages::{ResponseLoadFriends, ResponseLoadFriendToken};
+use app_manager::messages::RequestNeighborsRoute;
 
-use proto::funder::InvoiceId;
+use proto::funder::{InvoiceId, FunderSendPrice};
 use proto::networker::ChannelToken;
 use proto::common::SendFundsReceipt;
 
@@ -29,22 +30,35 @@ pub struct FriendLoaded {
     balance: i128,
 }
 
-enum FriendEvent {
-    Loaded(FriendLoaded),
-    Open,
-    Close,
-    RequestsOpened,
-    RequestsClosed,
-    LocalMaxDebtChange(u128),  // Contains new local max debt
-    RemoteMaxDebtChange(u128), // Contains new local max debt
-    BalanceChange(i128),       // Contains new balance
-    InconsistencyError(i128),  // Contains balance required for reset
+pub enum RequestsStatus {
+    Open(FunderSendPrice),
+    Closed,
+}
+
+pub struct FriendUpdated {
+    balance: i128,
+    local_max_debt: u128,
+    remote_max_debt: u128,
+    local_pending_debt: u128,
+    remote_pending_debt: u128,
+    requests_status: RequestsStatus,
+}
+
+pub struct FriendInconsistent {
+    current_token: ChannelToken,
+    balance_for_reset: i128,
+}
+
+pub enum FriendEvent {
+    FriendUpdated(FriendUpdated),
+    FriendRemoved,
+    FriendInconsistent(FriendInconsistent),
 }
 
 
 pub enum ResponseSendFunds {
     Success(SendFundsReceipt),
-    Failure,
+    Failure(PublicKey), // Reporting public key.
 }
 
 pub struct FriendStateUpdate {
@@ -68,9 +82,32 @@ pub struct PendingFriendRequest {
 }
 
 // ======== Internal interface ========
+//
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PaymentProposalPair {
+    pub request: FunderSendPrice,
+    pub response: FunderSendPrice,
+}
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FriendRouteLink {
+    pub node_public_key: PublicKey,
+    pub payment_proposal_pair: PaymentProposalPair,
+}
+
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FriendsRoute {
-    public_keys: Vec<PublicKey>,
+    pub source_public_key: PublicKey,
+    pub source_request_proposal: FunderSendPrice,
+    pub route_links: Vec<FriendRouteLink>,
+    pub dest_public_key: PublicKey,
+    pub dest_response_proposal: FunderSendPrice,
+}
+
+pub struct FriendsRouteWithCapacity {
+    route: FriendsRoute,
+    capacity: u128,
 }
 
 pub struct RequestSendFunds {
@@ -82,6 +119,7 @@ pub struct RequestSendFunds {
 
 pub enum FunderToAppManager {
     FriendStateUpdate(FriendStateUpdate),
+    RequestNeighborsRoute(RequestNeighborsRoute),
 }
 
 

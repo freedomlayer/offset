@@ -77,7 +77,7 @@ impl TokenChannelSlot {
 
 #[allow(unused)]
 pub struct NeighborState {
-    neighbor_socket_addr: Option<SocketAddr>, 
+    neighbor_addr: Option<SocketAddr>, 
     pub local_max_channels: u16,
     pub remote_max_channels: u16,
     pub status: NeighborStatus,
@@ -98,11 +98,11 @@ pub struct NeighborState {
 
 #[allow(unused)]
 impl NeighborState {
-    pub fn new(neighbor_socket_addr: Option<SocketAddr>,
+    pub fn new(neighbor_addr: Option<SocketAddr>,
                local_max_channels: u16) -> NeighborState {
 
         NeighborState {
-            neighbor_socket_addr,
+            neighbor_addr,
             local_max_channels,
             remote_max_channels: local_max_channels,    
             // Initially we assume that the remote side has the same amount of channels as we do.
@@ -300,7 +300,7 @@ impl MessengerState {
 
         // Otherwise, we add a new neighbor:
         let neighbor_state = NeighborState::new(
-                add_neighbor.neighbor_socket_addr,
+                add_neighbor.neighbor_addr,
                 add_neighbor.max_channels);
 
         self.neighbors.insert(add_neighbor.neighbor_public_key.clone(), neighbor_state);
