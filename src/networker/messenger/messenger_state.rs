@@ -434,7 +434,7 @@ impl MessengerState {
 
         let new_token = apply_neighbor_move_token.neighbor_move_token.new_token;
 
-        token_channel_slot.tc_state.receive_move_token(inner_move_token, new_token)
+        token_channel_slot.tc_state.simulate_receive_move_token(inner_move_token, new_token)
             .map_err(MessengerStateError::ReceiveMoveTokenError)
 
     }
@@ -463,15 +463,8 @@ impl MessengerState {
                                       rand_nonce: RandValue) 
                             -> Result<NeighborMoveToken, MessengerStateError>  {
 
-        let neighbor = self.neighbors.get_mut(neighbor_public_key)
-            .ok_or(MessengerStateError::NeighborDoesNotExist)?;
-        let token_channel_slot = neighbor.token_channel_slots
-            .get_mut(&channel_index)
-            .ok_or(MessengerStateError::TokenChannelDoesNotExist)?;
+        // TODO: Get rid of this function.
+        unreachable!();
 
-        let neighbor_move_token = token_channel_slot.tc_state
-            .commit_outgoing_move_token(tc_sender, rand_nonce);
-
-        Ok(neighbor_move_token)
     }
 }

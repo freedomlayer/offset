@@ -1,5 +1,6 @@
 use std::cmp;
-use std::collections::HashMap;
+
+use im::hashmap::HashMap as ImHashMap;
 
 // use num_bigint::BigUint;
 
@@ -10,7 +11,6 @@ use crypto::rand_values::{RandValue};
 use proto::funder::InvoiceId;
 use proto::networker::{NetworkerSendPrice, ChannelToken};
 
-use utils::trans_hashmap::TransHashMap;
 use utils::safe_arithmetic::SafeArithmetic;
 
 use super::super::types::{PendingNeighborRequest, NeighborTcOp};
@@ -97,51 +97,25 @@ impl TcSendPrice {
     }
 }
 
+#[derive(Clone)]
 pub struct TcPendingRequests {
     /// Pending requests that were opened locally and not yet completed
-    pub(super) pending_local_requests: HashMap<Uid, PendingNeighborRequest>,
+    pub(super) pending_local_requests: ImHashMap<Uid, PendingNeighborRequest>,
     /// Pending requests that were opened remotely and not yet completed
-    pub(super) pending_remote_requests: HashMap<Uid, PendingNeighborRequest>,
+    pub(super) pending_remote_requests: ImHashMap<Uid, PendingNeighborRequest>,
 }
 
 impl TcPendingRequests {
     fn new() -> TcPendingRequests {
         TcPendingRequests {
-            pending_local_requests: HashMap::new(),
-            pending_remote_requests: HashMap::new(),
-        }
-    }
-}
-
-pub struct TransTcPendingRequests {
-    pub(super) trans_pending_local_requests: TransHashMap<Uid, PendingNeighborRequest>,
-    pub(super) trans_pending_remote_requests: TransHashMap<Uid, PendingNeighborRequest>,
-}
-
-impl TransTcPendingRequests {
-    pub fn new(pending_requests: TcPendingRequests) -> TransTcPendingRequests {
-        TransTcPendingRequests {
-            trans_pending_local_requests: TransHashMap::new(pending_requests.pending_local_requests),
-            trans_pending_remote_requests: TransHashMap::new(pending_requests.pending_remote_requests),
-        }
-    }
-
-    pub fn commit(self) -> TcPendingRequests {
-        TcPendingRequests {
-            pending_local_requests: self.trans_pending_local_requests.commit(),
-            pending_remote_requests: self.trans_pending_remote_requests.commit(),
-        }
-    }
-
-    pub fn cancel(self) -> TcPendingRequests {
-        TcPendingRequests {
-            pending_local_requests: self.trans_pending_local_requests.cancel(),
-            pending_remote_requests: self.trans_pending_remote_requests.cancel(),
+            pending_local_requests: ImHashMap::new(),
+            pending_remote_requests: ImHashMap::new(),
         }
     }
 }
 
 
+#[derive(Clone)]
 pub struct TokenChannel {
     pub(super) idents: TcIdents,
     pub(super) balance: TcBalance,
@@ -175,11 +149,11 @@ impl TokenChannel {
             .expect("Overflow when calculating balance_for_reset")
     }
 
-    pub fn pending_local_requests(&self) -> &HashMap<Uid, PendingNeighborRequest> {
+    pub fn pending_local_requests(&self) -> &ImHashMap<Uid, PendingNeighborRequest> {
         &self.pending_requests.pending_local_requests
     }
 
-    pub fn pending_remote_requests(&self) -> &HashMap<Uid, PendingNeighborRequest> {
+    pub fn pending_remote_requests(&self) -> &ImHashMap<Uid, PendingNeighborRequest> {
         &self.pending_requests.pending_remote_requests
     }
 }

@@ -16,17 +16,12 @@ use super::super::types::{ResponseSendMessage, FailureSendMessage, RequestSendMe
 use super::super::credit_calc::CreditCalculator;
 use super::super::signature_buff::{create_response_signature_buffer, verify_failure_signature};
 
-use super::types::{TokenChannel, TcBalance, TcInvoice, TcSendPrice, TcIdents,
-    TransTcPendingRequests, MAX_NETWORKER_DEBT};
+use super::types::{TokenChannel, MAX_NETWORKER_DEBT};
 
 
-
-/*
 pub struct IncomingRequestSendMessage {
-    request: RequestSendMessage,
-    incoming_response: ResponseSendMessage,
+    pub request: PendingNeighborRequest,
 }
-*/
 
 pub struct IncomingResponseSendMessage {
     pub pending_request: PendingNeighborRequest,
@@ -88,74 +83,21 @@ pub struct ProcessTransListError {
 }
 
 
-/// Processes incoming messages, acts upon an underlying `TokenChannel`.
-struct IncomingTokenChannel {
-    orig_balance: TcBalance,
-    orig_invoice: TcInvoice,
-    orig_send_price: TcSendPrice,
-    idents: TcIdents,
-    balance: TcBalance,
-    invoice: TcInvoice,
-    send_price: TcSendPrice,
-    trans_pending_requests: TransTcPendingRequests,
-}
-
-/// If this function returns an error, the token channel becomes incosistent.
-pub fn atomic_process_operations_list(token_channel: TokenChannel, operations: Vec<NeighborTcOp>)
-                                    -> (TokenChannel, Result<Vec<ProcessOperationOutput>, ProcessTransListError>) {
-
-    let mut trans_token_channel = IncomingTokenChannel::new(token_channel);
-    match trans_token_channel.process_operations_list(operations) {
-        Err(e) => (trans_token_channel.cancel(), Err(e)),
-        Ok(output_tasks) => (trans_token_channel.commit(), Ok(output_tasks)),
-    }
-}
-
-
-
 /// Transactional state of the token channel.
-impl IncomingTokenChannel {
-    /// original_token_channel: the underlying TokenChannel.
-    pub fn new(token_channel: TokenChannel) -> IncomingTokenChannel {
-        IncomingTokenChannel {
-            orig_balance: token_channel.balance.clone(),
-            orig_invoice: token_channel.invoice.clone(),
-            orig_send_price: token_channel.send_price.clone(),
-            idents: token_channel.idents,
-            balance: token_channel.balance,
-            invoice: token_channel.invoice,
-            send_price: token_channel.send_price,
-            trans_pending_requests: TransTcPendingRequests::new(token_channel.pending_requests),
-        }
-    }
-
-    pub fn cancel(self) -> TokenChannel {
-        TokenChannel {
-            idents: self.idents,
-            balance: self.orig_balance,
-            invoice: self.orig_invoice,
-            send_price: self.orig_send_price,
-            pending_requests: self.trans_pending_requests.cancel(),
-        }
-    }
-
-    pub fn commit(self) -> TokenChannel {
-        TokenChannel {
-            idents: self.idents,
-            balance: self.balance,
-            invoice: self.invoice,
-            send_price: self.send_price,
-            pending_requests: self.trans_pending_requests.commit(),
-        }
-    }
-
+impl TokenChannel {
     /// Every error is translated into an inconsistency of the token channel.
-    pub fn process_operations_list(&mut self, operations: Vec<NeighborTcOp>) ->
+    pub fn simulate_process_operations_list(&self, operations: Vec<NeighborTcOp>) ->
         Result<Vec<ProcessOperationOutput>, ProcessTransListError> {
         let mut outputs = Vec::new();
 
+        // We do not change the original TokenChannel. 
+        // Instead, we are operating over a clone:
+        // This operation is not very expensive, because we are using immutable data structures
+        // (specifically, HashMaps).
+        let mut cloned_token_channel = self.clone();
+
         for (index, message) in operations.into_iter().enumerate() {
-            match self.process_operation(message) {
+            match cloned_token_channel.process_operation(message) {
                 Err(e) => return Err(ProcessTransListError {
                     index,
                     process_trans_error: e
@@ -342,9 +284,9 @@ impl IncomingTokenChannel {
         // information here to check this. In addition, even if it turns out we can't freeze those
         // credits, we don't want to create a token channel inconsistency.         
         
-        let p_remote_requests = &mut self.trans_pending_requests.trans_pending_remote_requests;
+        let p_remote_requests = &mut self.pending_requests.pending_remote_requests;
         // Make sure that we don't have this request as a pending request already:
-        if p_remote_requests.get_hmap().contains_key(&request_send_msg.request_id) {
+        if p_remote_requests.contains_key(&request_send_msg.request_id) {
             return Err(ProcessOperationError::RequestAlreadyExists);
         }
 
@@ -364,8 +306,7 @@ impl IncomingTokenChannel {
 
         // Make sure that id exists in local_pending hashmap, 
         // and access saved request details.
-        let local_pending_requests = self.trans_pending_requests
-            .trans_pending_local_requests.get_hmap();
+        let local_pending_requests = &self.pending_requests.pending_local_requests;
 
         // Obtain pending request:
         let pending_request = local_pending_requests.get(&response_send_msg.request_id)
@@ -412,7 +353,7 @@ impl IncomingTokenChannel {
         }.expect("Route too long!");
 
         // Remove entry from local_pending hashmap:
-        let pending_request = self.trans_pending_requests.trans_pending_local_requests.remove(
+        let pending_request = self.pending_requests.pending_local_requests.remove(
             &response_send_msg.request_id).expect("pending_request not present!");
 
         let next_index = index.checked_add(1).expect("Route too long!");
@@ -441,8 +382,7 @@ impl IncomingTokenChannel {
         
         // Make sure that id exists in local_pending hashmap, 
         // and access saved request details.
-        let local_pending_requests = self.trans_pending_requests
-            .trans_pending_local_requests.get_hmap();
+        let local_pending_requests = &self.pending_requests.pending_local_requests;
 
         // Obtain pending request:
         let pending_request = local_pending_requests.get(&failure_send_msg.request_id)
@@ -492,7 +432,7 @@ impl IncomingTokenChannel {
             .ok_or(ProcessOperationError::CreditCalculatorFailure)?;
 
         // Remove entry from local_pending hashmap:
-        let pending_request = self.trans_pending_requests.trans_pending_local_requests.remove(
+        let pending_request = self.pending_requests.pending_local_requests.remove(
             &failure_send_msg.request_id).expect("pending_request not present!");
 
         let next_index = index.checked_add(1).expect("Route too long!");
