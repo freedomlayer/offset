@@ -25,6 +25,8 @@ extern crate async_mutex;
 extern crate num_traits;
 extern crate num_bigint;
 
+extern crate im;
+
 
 #[macro_use]
 pub mod utils;
