@@ -116,7 +116,7 @@ impl TcPendingRequests {
 
 
 #[derive(Clone)]
-struct TokenChannelState {
+pub struct TokenChannelState {
     pub idents: TcIdents,
     pub balance: TcBalance,
     pub invoice: TcInvoice,
@@ -130,15 +130,23 @@ pub struct TokenChannel {
 }
 
 pub enum TcMutation {
+    SetLocalSendPrice(NetworkerSendPrice),
+    ClearLocalSendPrice,
     SetRemoteSendPrice(NetworkerSendPrice),
     ClearRemoteSendPrice,
+    SetLocalMaxDebt(u64),
     SetRemoteMaxDebt(u64),
+    SetLocalInvoiceId(InvoiceId),
+    ClearLocalInvoiceId,
     SetRemoteInvoiceId(InvoiceId),
+    ClearRemoteInvoiceId,
     SetBalance(i64),
-    InsertRemotePendingRequest(PendingNeighborRequest),
-    SetRemotePendingDebt(u64),
+    InsertLocalPendingRequest(PendingNeighborRequest),
     RemoveLocalPendingRequest(Uid),
+    InsertRemotePendingRequest(PendingNeighborRequest),
+    RemoveRemotePendingRequest(Uid),
     SetLocalPendingDebt(u64),
+    SetRemotePendingDebt(u64),
 }
 
 pub enum TcMutateError {
@@ -175,76 +183,118 @@ impl TokenChannel {
         &self.state
     }
 
-    pub fn mutate(&mut self, tc_mutation: &TcMutation) -> Result<(), TcMutateError> {
+    pub fn mutate(&mut self, tc_mutation: &TcMutation) {
         match tc_mutation {
+            TcMutation::SetLocalSendPrice(send_price) =>
+                self.set_local_send_price(send_price),
+            TcMutation::ClearLocalSendPrice =>
+                self.clear_local_send_price(),
             TcMutation::SetRemoteSendPrice(send_price) => 
                 self.set_remote_send_price(send_price),
             TcMutation::ClearRemoteSendPrice => 
                 self.clear_remote_send_price(),
+            TcMutation::SetLocalMaxDebt(proposed_max_debt) => 
+                self.set_local_max_debt(*proposed_max_debt),
             TcMutation::SetRemoteMaxDebt(proposed_max_debt) => 
                 self.set_remote_max_debt(*proposed_max_debt),
+            TcMutation::SetLocalInvoiceId(invoice_id) => 
+                self.set_local_invoice_id(invoice_id),
+            TcMutation::ClearLocalInvoiceId => 
+                self.clear_local_invoice_id(),
             TcMutation::SetRemoteInvoiceId(invoice_id) => 
                 self.set_remote_invoice_id(invoice_id),
+            TcMutation::ClearRemoteInvoiceId => 
+                self.clear_remote_invoice_id(),
             TcMutation::SetBalance(balance) => 
                 self.set_balance(*balance),
-            TcMutation::InsertRemotePendingRequest(pending_neighbor_request) =>
-                self.insert_remote_pending_request(pending_neighbor_request),
-            TcMutation::SetRemotePendingDebt(remote_pending_debt) =>
-                self.set_remote_pending_debt(*remote_pending_debt),
+            TcMutation::InsertLocalPendingRequest(pending_neighbor_request) =>
+                self.insert_local_pending_request(pending_neighbor_request),
             TcMutation::RemoveLocalPendingRequest(request_id) =>
                 self.remove_local_pending_request(request_id),
+            TcMutation::InsertRemotePendingRequest(pending_neighbor_request) =>
+                self.insert_remote_pending_request(pending_neighbor_request),
+            TcMutation::RemoveRemotePendingRequest(request_id) =>
+                self.remove_remote_pending_request(request_id),
             TcMutation::SetLocalPendingDebt(local_pending_debt) =>
                 self.set_local_pending_debt(*local_pending_debt),
-
+            TcMutation::SetRemotePendingDebt(remote_pending_debt) =>
+                self.set_remote_pending_debt(*remote_pending_debt),
         }
     }
 
-    fn set_remote_send_price(&mut self, send_price: &NetworkerSendPrice) -> Result<(), TcMutateError> {
+    fn set_remote_send_price(&mut self, send_price: &NetworkerSendPrice) {
         self.state.send_price.remote_send_price = Some(send_price.clone());
-        Ok(())
     }
 
-    fn clear_remote_send_price(&mut self) -> Result<(), TcMutateError> {
+    fn clear_remote_send_price(&mut self) {
         self.state.send_price.remote_send_price = None;
-        Ok(())
     }
 
-    fn set_remote_max_debt(&mut self, proposed_max_debt: u64) -> Result<(), TcMutateError> {
+    fn set_remote_max_debt(&mut self, proposed_max_debt: u64) { 
         self.state.balance.remote_max_debt = proposed_max_debt;
-        Ok(())
     }
 
-    fn set_remote_invoice_id(&mut self, invoice_id: &InvoiceId) -> Result<(), TcMutateError> {
+    fn set_local_max_debt(&mut self, proposed_max_debt: u64) {
+        self.state.balance.local_max_debt = proposed_max_debt;
+    }
+
+    fn set_remote_invoice_id(&mut self, invoice_id: &InvoiceId) {
         self.state.invoice.remote_invoice_id = Some(invoice_id.clone());
-        Ok(())
     }
 
-    fn set_balance(&mut self, balance: i64) -> Result<(), TcMutateError> {
+    fn clear_remote_invoice_id(&mut self) {
+        self.state.invoice.remote_invoice_id = None;
+    }
+
+    fn set_local_invoice_id(&mut self, invoice_id: &InvoiceId) {
+        self.state.invoice.local_invoice_id = Some(invoice_id.clone());
+    }
+
+    fn clear_local_invoice_id(&mut self) {
+        self.state.invoice.local_invoice_id = None;
+    }
+
+    fn set_balance(&mut self, balance: i64) {
         self.state.balance.balance = balance;
-        Ok(())
     }
 
-    fn insert_remote_pending_request(&mut self, pending_neighbor_request: &PendingNeighborRequest) -> Result<(), TcMutateError> {
+    fn insert_remote_pending_request(&mut self, pending_neighbor_request: &PendingNeighborRequest) {
         self.state.pending_requests.pending_remote_requests.insert(
             pending_neighbor_request.request_id.clone(),
             pending_neighbor_request.clone());
-        Ok(())
     }
 
-    fn set_remote_pending_debt(&mut self, remote_pending_debt: u64) -> Result<(), TcMutateError> {
-        self.state.balance.remote_pending_debt = remote_pending_debt;
-        Ok(())
+    fn remove_remote_pending_request(&mut self, request_id: &Uid) {
+        let _ = self.state.pending_requests.pending_remote_requests.remove(
+            request_id);
     }
 
-    fn remove_local_pending_request(&mut self, request_id: &Uid) -> Result<(), TcMutateError> {
+    fn insert_local_pending_request(&mut self, pending_neighbor_request: &PendingNeighborRequest) {
+        self.state.pending_requests.pending_local_requests.insert(
+            pending_neighbor_request.request_id.clone(),
+            pending_neighbor_request.clone());
+    }
+
+    fn remove_local_pending_request(&mut self, request_id: &Uid) {
         let _ = self.state.pending_requests.pending_local_requests.remove(
             request_id);
-        Ok(())
     }
 
-    fn set_local_pending_debt(&mut self, local_pending_debt: u64) -> Result<(), TcMutateError> {
+    fn set_remote_pending_debt(&mut self, remote_pending_debt: u64) {
+        self.state.balance.remote_pending_debt = remote_pending_debt;
+    }
+
+
+    fn set_local_pending_debt(&mut self, local_pending_debt: u64) {
         self.state.balance.local_pending_debt = local_pending_debt;
-        Ok(())
+    }
+
+    fn set_local_send_price(&mut self, send_price: &NetworkerSendPrice) {
+        self.state.send_price.local_send_price = Some(send_price.clone());
+    }
+
+    fn clear_local_send_price(&mut self) {
+        self.state.send_price.local_send_price = None;
     }
 
 }
