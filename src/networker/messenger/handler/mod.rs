@@ -16,6 +16,7 @@ use super::messenger_state::{MessengerState, StateMutateMessage};
 use super::token_channel::directional::ReceiveMoveTokenError;
 use super::types::{NeighborMoveToken, NeighborsRoute};
 
+#[allow(unused)]
 pub enum AppManagerMessage {
     ReceiveMoveTokenError(ReceiveMoveTokenError),
 }

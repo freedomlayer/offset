@@ -244,15 +244,12 @@ impl DirectionalTokenChannel {
     }
 
     #[allow(unused)]
-    pub fn begin_outgoing_move_token(&self) -> Option<TokenChannelSender> {
+    pub fn begin_outgoing_move_token(&self) -> Option<OutgoingTokenChannel> {
         if let MoveTokenDirection::Outgoing(_) = self.direction {
             return None;
         }
 
-        let outgoing_tc = OutgoingTokenChannel::new(
-            self.token_channel.clone());
-    
-        Some(TokenChannelSender::new(outgoing_tc))
+        Some(OutgoingTokenChannel::new(&self.token_channel))
     }
 
     fn create_outgoing_move_token(&self, 

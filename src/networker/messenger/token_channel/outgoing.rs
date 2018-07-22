@@ -13,8 +13,8 @@ use proto::networker::NetworkerSendPrice;
 use utils::safe_arithmetic::SafeArithmetic;
 use utils::int_convert::usize_to_u32;
 
-use super::types::{TokenChannel, TcBalance, TcInvoice, TcSendPrice, TcIdents,
-    TcPendingRequests, NeighborMoveTokenInner, MAX_NETWORKER_DEBT};
+use super::types::{TokenChannel, TcMutation, 
+    NeighborMoveTokenInner, MAX_NETWORKER_DEBT};
 use super::super::credit_calc::CreditCalculator;
 use super::super::types::{NeighborTcOp, RequestSendMessage, 
     ResponseSendMessage, FailureSendMessage, PkPairPosition,
@@ -26,13 +26,9 @@ use super::super::signature_buff::{create_response_signature_buffer,
 /// Processes outgoing messages for a token channel.
 /// Used to batch as many messages as possible.
 pub struct OutgoingTokenChannel {
-    idents: TcIdents,
-    balance: TcBalance,
-    invoice: TcInvoice,
-    send_price: TcSendPrice,
-    pending_requests: TcPendingRequests,
-    /// Accumulated operations waiting to be sent:
-    operations: VecDeque<NeighborTcOp>,
+    token_channel: TokenChannel,
+    tc_mutations: Vec<TcMutation>,
+    operations: Vec<NeighborTcOp>,
 }
 
 pub enum QueueOperationError {
@@ -69,28 +65,19 @@ pub struct QueueOperationFailure {
 
 /// A wrapper over a token channel, accumulating messages to be sent as one transcation.
 impl OutgoingTokenChannel {
-    pub fn new(token_channel: TokenChannel) -> OutgoingTokenChannel {
+    pub fn new(token_channel: &TokenChannel) -> OutgoingTokenChannel {
         OutgoingTokenChannel {
-            idents: token_channel.idents,
-            balance: token_channel.balance,
-            invoice: token_channel.invoice,
-            send_price: token_channel.send_price,
-            pending_requests: token_channel.pending_requests,
-            operations: VecDeque::new(),
+            token_channel: token_channel.clone(),
+            tc_mutations: Vec::new(),
+            operations: Vec::new(),
         }
     }
 
-    /// Commit to send all the pending operations
-    pub fn commit(self) -> (TokenChannel, Vec<NeighborTcOp>) {
-        let token_channel = TokenChannel {
-            idents: self.idents,
-            balance: self.balance,
-            invoice: self.invoice,
-            send_price: self.send_price,
-            pending_requests: self.pending_requests,
-        };
-
-        (token_channel, self.operations.into_iter().collect())
+    /// Finished queueing operations.
+    /// Obtain the set of queued operations, and the expected side effects (mutations) on the token
+    /// channel.
+    pub fn done(self) -> (Vec<NeighborTcOp>, Vec<TcMutation>) {
+        (self.operations, self.tc_mutations)
     }
 
     pub fn queue_operation(&mut self, operation: NeighborTcOp) ->
@@ -114,8 +101,9 @@ impl OutgoingTokenChannel {
                 self.queue_failure_send_message(failure_send_msg),
         };
         match res {
-            Ok(()) => {
-                self.operations.push_back(operation);
+            Ok(tc_mutations) => {
+                self.tc_mutations.extend(tc_mutations);
+                self.operations.push(operation);
                 Ok(())
             },
             Err(error) => Err(QueueOperationFailure {
@@ -130,64 +118,94 @@ impl OutgoingTokenChannel {
     }
 
     fn queue_enable_requests(&mut self, send_price: NetworkerSendPrice) ->
-        Result<(), QueueOperationError> {
+        Result<Vec<TcMutation>, QueueOperationError> {
 
         // TODO: Should we check first if there is an existing send_price?
         // Currently this method is used both for enabling requests and updating the send_price.
-        self.send_price.local_send_price = Some(send_price);
-        Ok(())
+        let mut tc_mutations = Vec::new();
+        let tc_mutation = TcMutation::SetLocalSendPrice(send_price);
+        self.token_channel.mutate(&tc_mutation);
+        tc_mutations.push(tc_mutation);
+
+        Ok(tc_mutations)
     }
 
     fn queue_disable_requests(&mut self) ->
-        Result<(), QueueOperationError> {
-        self.send_price.local_send_price = None;
-        Ok(())
+        Result<Vec<TcMutation>, QueueOperationError> {
+
+        let mut tc_mutations = Vec::new();
+        let tc_mutation = TcMutation::ClearLocalSendPrice;
+        self.token_channel.mutate(&tc_mutation);
+        tc_mutations.push(tc_mutation);
+
+        Ok(tc_mutations)
     }
 
     fn queue_set_remote_max_debt(&mut self, proposed_max_debt: u64) -> 
-        Result<(), QueueOperationError> {
+        Result<Vec<TcMutation>, QueueOperationError> {
 
         if proposed_max_debt > MAX_NETWORKER_DEBT {
             return Err(QueueOperationError::RemoteMaxDebtTooLarge);
         }
 
-        self.balance.remote_max_debt = proposed_max_debt;
-        Ok(())
+        let mut tc_mutations = Vec::new();
+        let tc_mutation = TcMutation::SetRemoteMaxDebt(proposed_max_debt);
+        self.token_channel.mutate(&tc_mutation);
+        tc_mutations.push(tc_mutation);
+        Ok(tc_mutations)
     }
 
     fn queue_set_invoice_id(&mut self, invoice_id: InvoiceId) ->
-        Result<(), QueueOperationError> {
+        Result<Vec<TcMutation>, QueueOperationError> {
 
-        self.invoice.local_invoice_id = match self.invoice.local_invoice_id {
-            Some(_) => return Err(QueueOperationError::InvoiceIdAlreadyExists),
-            None => Some(invoice_id),
+        if self.token_channel.state().invoice.local_invoice_id.is_some() {
+            return Err(QueueOperationError::InvoiceIdAlreadyExists);
         };
-        Ok(())
+
+        let mut tc_mutations = Vec::new();
+        let tc_mutation = TcMutation::SetLocalInvoiceId(invoice_id.clone());
+        self.token_channel.mutate(&tc_mutation);
+        tc_mutations.push(tc_mutation);
+        Ok(tc_mutations)
     }
 
     fn queue_load_funds(&mut self, send_funds_receipt: SendFundsReceipt) -> 
-        Result<(), QueueOperationError> {
+        Result<Vec<TcMutation>, QueueOperationError> {
 
         // Verify signature:
-        if !send_funds_receipt.verify_signature(&self.idents.remote_public_key) {
+        let remote_public_key = &self.token_channel.state().idents.remote_public_key;
+        if !send_funds_receipt.verify_signature(remote_public_key) {
             return Err(QueueOperationError::InvalidSendFundsReceiptSignature);
         }
 
         // Make sure that the invoice id matches:
-        match self.invoice.remote_invoice_id.take() {
+        let remote_invoice_id = match self.token_channel.state().invoice.remote_invoice_id {
             None => return Err(QueueOperationError::MissingRemoteInvoiceId),
-            Some(invoice_id) => {
-                if invoice_id != send_funds_receipt.invoice_id {
-                    self.invoice.remote_invoice_id = Some(invoice_id);
-                    return Err(QueueOperationError::InvoiceIdMismatch);
-                }
-            }
+            Some(ref remote_invoice_id) => remote_invoice_id,
+        };
+
+        if remote_invoice_id != &send_funds_receipt.invoice_id {
+            return Err(QueueOperationError::InvoiceIdMismatch);
         }
+        // We are here if invoice ids match:
+
+        let mut tc_mutations = Vec::new();
+
+        // Clear remote invoice id:
+        let tc_mutation = TcMutation::ClearRemoteInvoiceId;
+        self.token_channel.mutate(&tc_mutation);
+        tc_mutations.push(tc_mutation);
+
 
         // Update balance according to payment:
         let payment = u64::try_from(send_funds_receipt.payment).unwrap_or(u64::max_value());
-        self.balance.balance = self.balance.balance.saturating_add_unsigned(payment);
-        Ok(())
+        let new_balance = self.token_channel.state().balance.balance.saturating_add_unsigned(payment);
+
+        let tc_mutation = TcMutation::SetBalance(new_balance);
+        self.token_channel.mutate(&tc_mutation);
+        tc_mutations.push(tc_mutation);
+
+        Ok(tc_mutations)
     }
 
     /// Make sure that the remote side is open to incoming request
@@ -197,7 +215,7 @@ impl OutgoingTokenChannel {
                                pk_pair_position: &PkPairPosition) 
         -> Result<(), QueueOperationError>  {
 
-        let remote_send_price = match self.send_price.remote_send_price {
+        let remote_send_price = match self.token_channel.state().send_price.remote_send_price {
             None => Err(QueueOperationError::RemoteIncomingRequestsDisabled),
             Some(ref remote_send_price) => Ok(remote_send_price.clone()),
         }?;
@@ -215,7 +233,7 @@ impl OutgoingTokenChannel {
     }
 
     fn queue_request_send_message(&mut self, request_send_msg: RequestSendMessage) ->
-        Result<(), QueueOperationError> {
+        Result<Vec<TcMutation>, QueueOperationError> {
 
         // Make sure that the route does not contains cycles/duplicates:
         if !request_send_msg.route.is_cycle_free() {
@@ -224,8 +242,8 @@ impl OutgoingTokenChannel {
 
         // Find ourselves on the route. If we are not there, abort.
         let pk_pair = request_send_msg.route.find_pk_pair(
-            &self.idents.local_public_key,
-            &self.idents.remote_public_key)
+            &self.token_channel.state().idents.local_public_key,
+            &self.token_channel.state().idents.remote_public_key)
             .ok_or(QueueOperationError::PkPairNotInRoute)?;
 
         // Make sure that freeze_links and route_links are compatible in length:
@@ -263,14 +281,14 @@ impl OutgoingTokenChannel {
             .ok_or(QueueOperationError::CreditCalculatorFailure)?;
 
         // Make sure we can freeze the credits
-        let new_local_pending_debt = self.balance.local_pending_debt
+        let new_local_pending_debt = self.token_channel.state().balance.local_pending_debt
             .checked_add(own_freeze_credits).ok_or(QueueOperationError::CreditsCalcOverflow)?;
 
-        if new_local_pending_debt > self.balance.local_max_debt {
+        if new_local_pending_debt > self.token_channel.state().balance.local_max_debt {
             return Err(QueueOperationError::InsufficientTrust);
         }
 
-        let p_local_requests = &mut self.pending_requests.pending_local_requests;
+        let p_local_requests = &self.token_channel.state().pending_requests.pending_local_requests;
         // Make sure that we don't have this request as a pending request already:
         if p_local_requests.contains_key(&request_send_msg.request_id) {
             return Err(QueueOperationError::RequestAlreadyExists);
@@ -285,19 +303,26 @@ impl OutgoingTokenChannel {
             max_response_len: request_send_msg.max_response_len,
             processing_fee_proposal: request_send_msg.processing_fee_proposal,
         };
-        p_local_requests.insert(request_send_msg.request_id,
-                                     pending_neighbor_request);
+
+        let mut tc_mutations = Vec::new();
+        let tc_mutation = TcMutation::InsertLocalPendingRequest(pending_neighbor_request);
+        self.token_channel.mutate(&tc_mutation);
+        tc_mutations.push(tc_mutation);
         
         // If we are here, we can freeze the credits:
-        self.balance.local_pending_debt = new_local_pending_debt;
-        Ok(())
+        let tc_mutation = TcMutation::SetLocalPendingDebt(new_local_pending_debt);
+        self.token_channel.mutate(&tc_mutation);
+        tc_mutations.push(tc_mutation);
+
+        Ok(tc_mutations)
     }
 
     fn queue_response_send_message(&mut self, response_send_msg: ResponseSendMessage) ->
-        Result<(), QueueOperationError> {
+        Result<Vec<TcMutation>, QueueOperationError> {
         // Make sure that id exists in remote_pending hashmap, 
         // and access saved request details.
-        let remote_pending_requests = &self.pending_requests.pending_remote_requests;
+        let remote_pending_requests = &self.token_channel.state()
+            .pending_requests.pending_remote_requests;
 
         // Obtain pending request:
         let pending_request = remote_pending_requests.get(&response_send_msg.request_id)
@@ -310,7 +335,7 @@ impl OutgoingTokenChannel {
 
         // Verify response message signature:
         if !verify_signature(&response_signature_buffer, 
-                                 &self.idents.local_public_key,
+                                 &self.token_channel.state().idents.local_public_key,
                                  &response_send_msg.signature) {
             return Err(QueueOperationError::InvalidResponseSignature);
         }
@@ -335,8 +360,8 @@ impl OutgoingTokenChannel {
 
         // Find ourselves on the route. If we are not there, abort.
         let pk_pair = pending_request.route.find_pk_pair(
-            &self.idents.remote_public_key, 
-            &self.idents.local_public_key)
+            &self.token_channel.state().idents.remote_public_key, 
+            &self.token_channel.state().idents.local_public_key)
             .expect("Can not find myself in request's route!");
 
         let index = match pk_pair {
@@ -344,32 +369,43 @@ impl OutgoingTokenChannel {
             PkPairPosition::NotDest(i) => i.checked_add(1),
         }.expect("Route too long!");
 
-        // Remove entry from local_pending hashmap:
-        self.pending_requests.pending_remote_requests.remove(
-            &response_send_msg.request_id);
+        // Remove entry from remote_pending hashmap:
+        let mut tc_mutations = Vec::new();
+        let tc_mutation = TcMutation::RemoveRemotePendingRequest(response_send_msg.request_id.clone());
+        self.token_channel.mutate(&tc_mutation);
+        tc_mutations.push(tc_mutation);
 
         let success_credits = credit_calc.credits_on_success(index, response_content_len)
             .expect("credits_on_success calculation failed!");
         let freeze_credits = credit_calc.credits_to_freeze(index)
             .expect("credits_to_freeze calculation failed!");
 
+
         // Decrease frozen credits and increase balance:
-        self.balance.remote_pending_debt = 
-            self.balance.remote_pending_debt.checked_sub(freeze_credits)
+        let new_remote_pending_debt = 
+            self.token_channel.state().balance.remote_pending_debt.checked_sub(freeze_credits)
             .expect("Insufficient frozen credit!");
 
-        self.balance.balance = 
-            self.balance.balance.checked_add_unsigned(success_credits)
+        let tc_mutation = TcMutation::SetRemotePendingDebt(new_remote_pending_debt);
+        self.token_channel.mutate(&tc_mutation);
+        tc_mutations.push(tc_mutation);
+
+        let new_balance = 
+            self.token_channel.state().balance.balance.checked_add_unsigned(success_credits)
             .expect("balance overflow");
 
-        Ok(())
+        let tc_mutation = TcMutation::SetBalance(new_balance);
+        self.token_channel.mutate(&tc_mutation);
+        tc_mutations.push(tc_mutation);
+
+        Ok(tc_mutations)
     }
 
     fn queue_failure_send_message(&mut self, failure_send_msg: FailureSendMessage) ->
-        Result<(), QueueOperationError> {
+        Result<Vec<TcMutation>, QueueOperationError> {
         // Make sure that id exists in remote_pending hashmap, 
         // and access saved request details.
-        let remote_pending_requests = &self.pending_requests
+        let remote_pending_requests = &self.token_channel.state().pending_requests
             .pending_remote_requests;
 
         // Obtain pending request:
@@ -378,8 +414,8 @@ impl OutgoingTokenChannel {
 
         // Find ourselves on the route. If we are not there, abort.
         let pk_pair = pending_request.route.find_pk_pair(
-            &self.idents.remote_public_key,
-            &self.idents.local_public_key)
+            &self.token_channel.state().idents.remote_public_key,
+            &self.token_channel.state().idents.local_public_key)
             .expect("Can not find myself in request's route!");
 
         // Note that we can not be the destination. The destination can not be the sender of a
@@ -420,10 +456,14 @@ impl OutgoingTokenChannel {
                                                 pending_request.max_response_len)
             .ok_or(QueueOperationError::CreditCalculatorFailure)?;
 
-        // Remove entry from remote hashmap:
-        self.pending_requests.pending_remote_requests.remove(
-            &failure_send_msg.request_id);
 
+
+        // Remove entry from remote hashmap:
+        let mut tc_mutations = Vec::new();
+
+        let tc_mutation = TcMutation::RemoveRemotePendingRequest(failure_send_msg.request_id.clone());
+        self.token_channel.mutate(&tc_mutation);
+        tc_mutations.push(tc_mutation);
 
         let failure_credits = credit_calc.credits_on_failure(index, reporting_index)
             .expect("credits_on_failure calculation failed!");
@@ -431,16 +471,24 @@ impl OutgoingTokenChannel {
             .expect("credits_to_freeze calculation failed!");
 
         // Decrease frozen credits:
-        self.balance.remote_pending_debt = 
-            self.balance.remote_pending_debt.checked_sub(freeze_credits)
+        let new_remote_pending_debt = 
+            self.token_channel.state().balance.remote_pending_debt.checked_sub(freeze_credits)
             .expect("Insufficient frozen credit!");
 
+        let tc_mutation = TcMutation::SetRemotePendingDebt(new_remote_pending_debt);
+        self.token_channel.mutate(&tc_mutation);
+        tc_mutations.push(tc_mutation);
+
         // Add to balance:
-        self.balance.balance = 
-            self.balance.balance.checked_add_unsigned(failure_credits)
+        let new_balance = 
+            self.token_channel.state().balance.balance.checked_add_unsigned(failure_credits)
             .expect("balance overflow");
 
-        Ok(())
+        let tc_mutation = TcMutation::SetBalance(new_balance);
+        self.token_channel.mutate(&tc_mutation);
+        tc_mutations.push(tc_mutation);
+
+        Ok(tc_mutations)
     }
 }
 

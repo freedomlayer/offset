@@ -40,6 +40,7 @@ pub enum IncomingMessage {
 }
 
 /// Resulting tasks to perform after processing an incoming operation.
+#[allow(unused)]
 pub struct ProcessOperationOutput {
     incoming_message: Option<IncomingMessage>,
     tc_mutations: Vec<TcMutation>,
@@ -142,7 +143,6 @@ fn process_enable_requests(token_channel: &mut TokenChannel,
     };
     let tc_mutation = TcMutation::SetRemoteSendPrice(send_price);
     token_channel.mutate(&tc_mutation);
-
     op_output.tc_mutations.push(tc_mutation);
 
     Ok(op_output)
@@ -178,7 +178,7 @@ fn process_set_remote_max_debt(token_channel: &mut TokenChannel,
     if proposed_max_debt > MAX_NETWORKER_DEBT {
         Err(ProcessOperationError::RemoteMaxDebtTooLarge(proposed_max_debt))
     } else {
-        let tc_mutation = TcMutation::SetRemoteMaxDebt(proposed_max_debt);
+        let tc_mutation = TcMutation::SetLocalMaxDebt(proposed_max_debt);
         token_channel.mutate(&tc_mutation);
         op_output.tc_mutations.push(tc_mutation);
         Ok(op_output)
@@ -215,10 +215,10 @@ fn process_load_funds(token_channel: &mut TokenChannel,
 
     let local_invoice_id = match token_channel.state().invoice.local_invoice_id {
         None => return Err(ProcessOperationError::MissingInvoiceId),
-        Some(local_invoice_id) => local_invoice_id,
+        Some(ref local_invoice_id) => local_invoice_id,
     };
 
-    if local_invoice_id != send_funds_receipt.invoice_id {
+    if local_invoice_id != &send_funds_receipt.invoice_id {
         return Err(ProcessOperationError::InvoiceIdMismatch);
     }
 
@@ -227,6 +227,11 @@ fn process_load_funds(token_channel: &mut TokenChannel,
         incoming_message: None,
         tc_mutations: Vec::new(),
     };
+
+    // Clear local invoice id:
+    let tc_mutation = TcMutation::ClearLocalInvoiceId;
+    token_channel.mutate(&tc_mutation);
+    op_output.tc_mutations.push(tc_mutation);
 
     // Add payment to self.balance.balance. We have to be careful because payment u128, and
     // self.balance.balance is of type i64.
@@ -404,7 +409,7 @@ fn process_response_send_message(token_channel: &mut TokenChannel,
         PkPairPosition::NotDest(i) => i.checked_add(1),
     }.expect("Route too long!");
 
-    let tc_mutations = Vec::new();
+    let mut tc_mutations = Vec::new();
 
     let pending_request = token_channel
         .state()

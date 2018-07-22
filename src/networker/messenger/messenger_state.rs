@@ -5,7 +5,7 @@ use num_bigint::BigUint;
 use num_traits::identities::Zero;
 
 use crypto::identity::PublicKey;
-use crypto::rand_values::RandValue;
+// use crypto::rand_values::RandValue;
 
 use proto::networker::ChannelToken;
 
@@ -13,7 +13,7 @@ use super::types::{NeighborTcOp, NeighborMoveToken, RequestSendMessage};
 use super::super::messages::{NeighborStatus};
 
 use super::token_channel::directional::{DirectionalTokenChannel, 
-    ReceiveMoveTokenOutput, ReceiveMoveTokenError, TokenChannelSender};
+    ReceiveMoveTokenOutput, ReceiveMoveTokenError};
 use super::token_channel::types::NeighborMoveTokenInner;
 
 use app_manager::messages::{SetNeighborRemoteMaxDebt, SetNeighborMaxChannels, 
@@ -439,32 +439,4 @@ impl MessengerState {
 
     }
 
-    pub fn begin_outgoing_move_token(&mut self, 
-                                     neighbor_public_key: &PublicKey,
-                                     channel_index: u16) 
-                            -> Result<TokenChannelSender, MessengerStateError> {
-
-        let neighbor = self.neighbors.get_mut(neighbor_public_key)
-            .ok_or(MessengerStateError::NeighborDoesNotExist)?;
-        let token_channel_slot = neighbor.token_channel_slots
-            .get_mut(&channel_index)
-            .ok_or(MessengerStateError::TokenChannelDoesNotExist)?;
-
-        let tc_sender = token_channel_slot.tc_state.begin_outgoing_move_token()
-            .ok_or(MessengerStateError::TokenChannelAlreadyOutgoing)?;
-
-        Ok(tc_sender)
-    }
-
-    pub fn commit_outgoing_move_token(&mut self, 
-                                      neighbor_public_key: &PublicKey, 
-                                      channel_index: u16,
-                                      tc_sender: TokenChannelSender,
-                                      rand_nonce: RandValue) 
-                            -> Result<NeighborMoveToken, MessengerStateError>  {
-
-        // TODO: Get rid of this function.
-        unreachable!();
-
-    }
 }
