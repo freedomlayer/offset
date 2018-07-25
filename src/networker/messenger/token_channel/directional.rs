@@ -10,11 +10,12 @@ use crypto::hash::sha_512_256;
 
 use utils::int_convert::usize_to_u64;
 
-use super::types::{TokenChannel, NeighborMoveTokenInner};
-use super::incoming::{ProcessOperationOutput, ProcessTransListError, simulate_process_operations_list};
-use super::outgoing::{OutgoingTokenChannel, QueueOperationFailure};
+use super::types::{TokenChannel, NeighborMoveTokenInner, TcMutation};
+use super::incoming::{ProcessOperationOutput, ProcessTransListError, 
+    simulate_process_operations_list, IncomingMessage};
+use super::outgoing::{OutgoingTokenChannel};
 
-use super::super::types::{NeighborTcOp, NeighborMoveToken};
+use super::super::types::{NeighborMoveToken};
 
 
 // Prefix used for chain hashing of token channel messages.
@@ -26,9 +27,17 @@ const TOKEN_RESET: &[u8] = b"RESET";
 
 
 /// Indicate the direction of the move token message.
+#[derive(Clone)]
 pub enum MoveTokenDirection {
     Incoming,
     Outgoing(NeighborMoveTokenInner),
+}
+
+
+pub enum DirectionalMutation {
+    TcMutation(TcMutation),
+    SetDirection(MoveTokenDirection),
+    SetNewToken(ChannelToken),
 }
 
 
@@ -46,15 +55,17 @@ pub enum ReceiveMoveTokenError {
     InvalidTransaction(ProcessTransListError),
 }
 
+pub struct ReceiveMoveTokenReceived {
+    incoming_messages: Vec<IncomingMessage>,
+    mutations: Vec<DirectionalMutation>,
+}
+
 pub enum ReceiveMoveTokenOutput {
     Duplicate,
     RetransmitOutgoing(NeighborMoveToken),
-    ProcessOpsListOutput(Vec<ProcessOperationOutput>),
+    Received(ReceiveMoveTokenReceived),
 }
 
-pub struct TokenChannelSender {
-    outgoing_tc: OutgoingTokenChannel,
-}
 
 /// Calculate the next token channel, given values of previous NeighborMoveToken message.
 fn calc_channel_next_token(token_channel_index: u16, 
@@ -92,24 +103,6 @@ pub fn calc_channel_reset_token(token_channel_index: u16,
     let hash_result = sha_512_256(&hash_buffer);
     ChannelToken::from(hash_result.as_array_ref())
 }
-
-impl TokenChannelSender {
-    pub fn new(outgoing_tc: OutgoingTokenChannel) -> Self {
-        TokenChannelSender {
-            outgoing_tc,
-        }
-    }
-
-    pub fn queue_operation(&mut self, operation: NeighborTcOp) ->
-        Result<(), QueueOperationFailure> {
-        self.outgoing_tc.queue_operation(operation)
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.outgoing_tc.is_operations_empty()
-    }
-}
-
 
 
 impl DirectionalTokenChannel {
@@ -194,6 +187,20 @@ impl DirectionalTokenChannel {
                                      self.get_token_channel().balance_for_reset())
     }
 
+    pub fn mutate(&mut self, d_mutation: &DirectionalMutation) {
+        match d_mutation {
+            DirectionalMutation::TcMutation(tc_mutation) => {
+                self.token_channel.mutate(tc_mutation);
+            },
+            DirectionalMutation::SetDirection(ref move_token_direction) => {
+                self.direction = move_token_direction.clone();
+            }
+            DirectionalMutation::SetNewToken(ref new_token) => {
+                self.new_token = new_token.clone();
+            },
+        }
+    }
+
 
     #[allow(unused)]
     pub fn simulate_receive_move_token(&self, 
@@ -222,11 +229,29 @@ impl DirectionalTokenChannel {
                 if move_token_message.old_token == self.new_token {
                     match simulate_process_operations_list(&self.token_channel,
                         move_token_message.operations) {
-                        Ok(output) => {
-                            // TODO: Add mutations for:
-                            // self.direction = MoveTokenDirection::Incoming;
-                            // self.new_token = new_token;
-                            Ok(ReceiveMoveTokenOutput::ProcessOpsListOutput(output))
+                        Ok(outputs) => {
+                            let mut move_token_received = ReceiveMoveTokenReceived {
+                                incoming_messages: Vec::new(),
+                                mutations: Vec::new(),
+                            };
+
+                            for output in outputs {
+                                let ProcessOperationOutput 
+                                    {incoming_message, tc_mutations} = output;
+
+                                if let Some(message) = incoming_message {
+                                    move_token_received.incoming_messages.push(message);
+                                }
+                                for tc_mutation in tc_mutations {
+                                    move_token_received.mutations.push(
+                                        DirectionalMutation::TcMutation(tc_mutation));
+                                }
+                            }
+                            move_token_received.mutations.push(
+                                DirectionalMutation::SetDirection(MoveTokenDirection::Incoming));
+                            move_token_received.mutations.push(
+                                DirectionalMutation::SetNewToken(new_token));
+                            Ok(ReceiveMoveTokenOutput::Received(move_token_received))
                         },
                         Err(e) => {
                             Err(ReceiveMoveTokenError::InvalidTransaction(e))
