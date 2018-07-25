@@ -8,7 +8,7 @@ use num_traits::identities::Zero;
 
 use super::types::{RequestSendMessage};
 use super::super::messages::{NeighborStatus};
-use super::slot::TokenChannelSlot;
+use super::slot::{TokenChannelSlot, SlotMutation};
 
 
 #[allow(unused)]
@@ -34,6 +34,16 @@ pub struct NeighborState {
 }
 
 #[allow(unused)]
+pub enum NeighborMutation {
+    SetLocalMaxChannels(u16),
+    SetRemoteMaxChannels(u16),
+    SetStatus(NeighborStatus),
+    PushBackPendingRequest(RequestSendMessage),
+    PopFrontPendingRequest,
+    SlotMutation((u16, SlotMutation)),
+}
+
+#[allow(unused)]
 impl NeighborState {
     pub fn new(neighbor_addr: Option<SocketAddr>,
                local_max_channels: u16) -> NeighborState {
@@ -44,7 +54,7 @@ impl NeighborState {
             remote_max_channels: local_max_channels,    
             // Initially we assume that the remote side has the same amount of channels as we do.
             status: NeighborStatus::Disable,
-            token_channel_slots: ImHashMap::new(),
+            tc_slots: ImHashMap::new(),
             pending_requests: Vector::new(),
             ticks_since_last_incoming: 0,
             ticks_since_last_outgoing: 0,
@@ -57,10 +67,34 @@ impl NeighborState {
     /// leaves and never returns.
     pub fn get_trust(&self) -> BigUint {
         let mut sum: BigUint = BigUint::zero();
-        for token_channel_slot in self.token_channel_slots.values() {
+        for token_channel_slot in self.tc_slots.values() {
             let remote_max_debt: BigUint = token_channel_slot.wanted_remote_max_debt.into();
             sum += remote_max_debt;
         }
         sum
+    }
+
+    pub fn mutate(&mut self, neighbor_mutation: &NeighborMutation) {
+        match neighbor_mutation {
+            NeighborMutation::SetLocalMaxChannels(local_max_channels) => {
+                self.local_max_channels = *local_max_channels;
+            },
+            NeighborMutation::SetRemoteMaxChannels(remote_max_channels) => {
+                self.remote_max_channels = *remote_max_channels;
+            },
+            NeighborMutation::SetStatus(neighbor_status) => {
+                self.status = neighbor_status.clone();
+            },
+            NeighborMutation::PushBackPendingRequest(request) => {
+                self.pending_requests.push_back(request.clone());
+            },
+            NeighborMutation::PopFrontPendingRequest => {
+                let _ = self.pending_requests.pop_front();
+            },
+            NeighborMutation::SlotMutation((slot_index, slot_mutation)) => {
+                let tc_slot = self.tc_slots.get_mut(&slot_index).unwrap();
+                tc_slot.mutate(slot_mutation);
+            },
+        }
     }
 }
