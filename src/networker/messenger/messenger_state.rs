@@ -33,7 +33,7 @@ pub enum TokenChannelStatus {
 
 #[allow(unused)]
 pub struct TokenChannelSlot {
-    pub tc_state: DirectionalTokenChannel,
+    pub directional: DirectionalTokenChannel,
     pub tc_status: TokenChannelStatus,
     pub wanted_remote_max_debt: u64,
     pub pending_operations: VecDeque<NeighborTcOp>,
@@ -47,7 +47,7 @@ impl TokenChannelSlot {
                remote_public_key: &PublicKey,
                token_channel_index: u16) -> TokenChannelSlot {
         TokenChannelSlot {
-            tc_state: DirectionalTokenChannel::new(local_public_key,
+            directional: DirectionalTokenChannel::new(local_public_key,
                                            remote_public_key,
                                            token_channel_index),
             tc_status: TokenChannelStatus::Valid,
@@ -63,7 +63,7 @@ impl TokenChannelSlot {
                            balance: i64) -> TokenChannelSlot {
 
         TokenChannelSlot {
-            tc_state: DirectionalTokenChannel::new_from_reset(local_public_key,
+            directional: DirectionalTokenChannel::new_from_reset(local_public_key,
                                                       remote_public_key,
                                                       token_channel_index,
                                                       current_token,
@@ -434,7 +434,7 @@ impl MessengerState {
 
         let new_token = apply_neighbor_move_token.neighbor_move_token.new_token;
 
-        token_channel_slot.tc_state.simulate_receive_move_token(inner_move_token, new_token)
+        token_channel_slot.directional.simulate_receive_move_token(inner_move_token, new_token)
             .map_err(MessengerStateError::ReceiveMoveTokenError)
 
     }
