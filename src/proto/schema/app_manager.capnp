@@ -74,7 +74,10 @@ struct RequestPath {
 }
 
 struct ResponsePath {
-        pathId @0: CustomUInt128;
+        union {
+                failure @0: Void;
+                pathId @1: CustomUInt128;
+        }
 }
 
 struct RequestSendMessage {
