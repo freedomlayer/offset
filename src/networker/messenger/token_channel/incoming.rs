@@ -89,8 +89,10 @@ pub struct ProcessTransListError {
 }
 
 
-pub fn simulate_process_operations_list(token_channel: &TokenChannel, operations: Vec<NeighborTcOp>) ->
+pub fn simulate_process_operations_list(token_channel: &TokenChannel, 
+                                        operations: Vec<NeighborTcOp>) ->
     Result<Vec<ProcessOperationOutput>, ProcessTransListError> {
+
     let mut outputs = Vec::new();
 
     // We do not change the original TokenChannel. 
