@@ -98,7 +98,8 @@ pub struct RequestPath {
 
 /// Component -> Networker
 pub struct RequestSendMessage {
-    // route: NeighborsRoute,
+    // Note: We do not specify request_id here. 
+    // It is the job of the Networker to randomly generate a random request_id internally.
     dest_port: DestinationPort,
     request_data: Vec<u8>,
     max_response_len: u32,
