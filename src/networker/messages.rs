@@ -90,10 +90,19 @@ pub enum DestinationPort {
     AppManager(u32),
 }
 
+pub enum ResponsePath {
+    Success(mpsc::Sender<RequestSendMessage>),
+    // Proposal for opening the path was too low. This was discovered when the ResponseNonce
+    // message was received.
+    ProposalTooLow(u64),
+    Failure,
+}
+
 /// Component -> Networker
 pub struct RequestPath {
     route: NeighborsRoute,
-    response_sender: oneshot::Sender<Option<mpsc::Sender<RequestSendMessage>>>,
+    path_fee_proposal: u64,
+    response_sender: oneshot::Sender<ResponsePath>,
 }
 
 /// Component -> Networker

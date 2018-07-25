@@ -71,12 +71,20 @@ struct AppManagerDhMessage {
 
 struct RequestPath {
         route @0: NeighborsRoute;
+        pathFeeProposal @1: UInt64;
+        # Maximum amount of credits we are willing to pay for opening this
+        # secure path.
 }
 
 struct ResponsePath {
         union {
-                failure @0: Void;
-                pathId @1: CustomUInt128;
+                pathId @0: CustomUInt128;
+                # Opening a secure path is successful.
+                proposalTooLow @1: UInt64;
+                # Proposal was too low, this is what the remote side asked for.
+                failure @2: Void;
+                # We could not reach the remote side using the provided route,
+                # or something strange happened.
         }
 }
 
