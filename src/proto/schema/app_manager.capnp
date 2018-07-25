@@ -88,6 +88,10 @@ struct ResponsePath {
         }
 }
 
+struct ClosePath {
+        pathId @0: CustomUInt128;
+}
+
 struct RequestSendMessage {
         messageId @0: CustomUInt128;
         pathId @1: CustomUInt128;
@@ -204,10 +208,11 @@ struct AppManagerToIndexerClient {
 struct IndexerClientToAppManager {
     union {
         requestPath @0: RequestPath;
-        requestSendMessage @1: RequestSendMessage;
-        respondIncomingMessage @2: RespondSendMessage;
-        responseNeighborsRoute @3: ResponseNeighborsRoute;
-        responseFriendsRoute @4: ResponseFriendsRoute;
+        closePath @1: ClosePath;
+        requestSendMessage @2: RequestSendMessage;
+        respondIncomingMessage @3: RespondSendMessage;
+        responseNeighborsRoute @4: ResponseNeighborsRoute;
+        responseFriendsRoute @5: ResponseFriendsRoute;
     }
 }
 
@@ -464,38 +469,39 @@ struct AppToAppManager {
     union {
         # Messages
         requestPath @0: RequestPath;
-        requestSendMessage @1: RequestSendMessage;
-        respondIncomingMessage @2: RespondSendMessage;
+        closePath @1: ClosePath;
+        requestSendMessage @2: RequestSendMessage;
+        respondIncomingMessage @3: RespondSendMessage;
 
         # Funds
-        requestSendFunds @3: RequestSendFunds;
-        receiptAck @4: ReceiptAck;
+        requestSendFunds @4: RequestSendFunds;
+        receiptAck @5: ReceiptAck;
 
         # Neighbors management
-        addNeighbor @5: AddNeighbor;
-        removeNeighbor @6: RemoveNeighbor;
-        openNeighborChannel @7: OpenNeighborChannel;
-        closeNeighborChannel @8: CloseNeighborChannel;
-        enableNeighbor @9: EnableNeighbor;
-        disableNeighbor @10: DisableNeighbor;
-        setNeighborRemoteMaxDebt @11: SetNeighborRemoteMaxDebt;
-        setNeighborMaxTokenChannels @12: SetNeighborMaxTokenChannels;
-        setNeighborAddr @13: SetNeighborAddr;
-        resetNeighborChannel @14: ResetNeighborChannel;
+        addNeighbor @6: AddNeighbor;
+        removeNeighbor @7: RemoveNeighbor;
+        openNeighborChannel @8: OpenNeighborChannel;
+        closeNeighborChannel @9: CloseNeighborChannel;
+        enableNeighbor @10: EnableNeighbor;
+        disableNeighbor @11: DisableNeighbor;
+        setNeighborRemoteMaxDebt @12: SetNeighborRemoteMaxDebt;
+        setNeighborMaxTokenChannels @13: SetNeighborMaxTokenChannels;
+        setNeighborAddr @14: SetNeighborAddr;
+        resetNeighborChannel @15: ResetNeighborChannel;
 
         # Friends management
-        addFriend @15: AddFriend;
-        removeFriend @16: RemoveFriend;
-        openFriend @17: OpenFriend;
-        closeFriend @18: CloseFriend;
-        enableFriend @19: EnableFriend;
-        disableFriend @20: DisableFriend;
-        setFriendRemoteMaxDebt @21: SetFriendRemoteMaxDebt;
-        resetFriendChannel @22: ResetFriendChannel;
+        addFriend @16: AddFriend;
+        removeFriend @17: RemoveFriend;
+        openFriend @18: OpenFriend;
+        closeFriend @19: CloseFriend;
+        enableFriend @20: EnableFriend;
+        disableFriend @21: DisableFriend;
+        setFriendRemoteMaxDebt @22: SetFriendRemoteMaxDebt;
+        resetFriendChannel @23: ResetFriendChannel;
 
         # Routes management:
-        requestNeighborsRoute @23: RequestNeighborsRoute;
-        requestFriendsRoute @24: RequestFriendsRoute;
+        requestNeighborsRoute @24: RequestNeighborsRoute;
+        requestFriendsRoute @25: RequestFriendsRoute;
     }
 }
 
