@@ -19,6 +19,7 @@ use super::super::types::{PendingNeighborRequest, NeighborTcOp};
 /// We don't use the full u64 because i64 can not go beyond this value.
 pub const MAX_NETWORKER_DEBT: u64 = (1 << 63) - 1;
 
+#[derive(Clone)]
 pub struct NeighborMoveTokenInner {
     pub operations: Vec<NeighborTcOp>,
     pub old_token: ChannelToken,
