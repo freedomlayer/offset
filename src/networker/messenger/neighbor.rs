@@ -19,7 +19,7 @@ pub struct NeighborState {
     pub remote_max_channels: u16,
     pub status: NeighborStatus,
     // Enabled or disabled?
-    pub token_channel_slots: ImHashMap<u16, TokenChannelSlot>,
+    pub tc_slots: ImHashMap<u16, TokenChannelSlot>,
     pub pending_requests: Vector<RequestSendMessage>,
     // Pending operations that could be sent through any token channel.
     ticks_since_last_incoming: usize,

@@ -134,7 +134,7 @@ impl MessengerState {
             .ok_or(MessengerStateError::NeighborDoesNotExist)?;
         
         // Find the token channel slot:
-        let token_channel_slot = neighbor_state.token_channel_slots
+        let token_channel_slot = neighbor_state.tc_slots
             .get_mut(&set_neighbor_remote_max_debt.channel_index)
             .ok_or(MessengerStateError::TokenChannelDoesNotExist)?;
 
@@ -159,11 +159,11 @@ impl MessengerState {
             reset_neighbor_channel.balance_for_reset);
 
         // Replace the old token channel slot with the new one:
-        if !neighbor_state.token_channel_slots.contains_key(&reset_neighbor_channel.channel_index) {
+        if !neighbor_state.tc_slots.contains_key(&reset_neighbor_channel.channel_index) {
             return Err(MessengerStateError::TokenChannelDoesNotExist);
         }
         
-        neighbor_state.token_channel_slots.insert(reset_neighbor_channel.channel_index, 
+        neighbor_state.tc_slots.insert(reset_neighbor_channel.channel_index, 
                                                   new_token_channel_slot);
 
         Ok(())
@@ -236,14 +236,14 @@ impl MessengerState {
         -> Result<(), MessengerStateError> {
 
         if self.get_neighbor(&init_token_channel.neighbor_public_key)?
-            .token_channel_slots.contains_key(&init_token_channel.channel_index) {
+            .tc_slots.contains_key(&init_token_channel.channel_index) {
             return Err(MessengerStateError::TokenChannelAlreadyExists);
         }
 
         let neighbor = self.neighbors.get_mut(&init_token_channel.neighbor_public_key)
             .ok_or(MessengerStateError::NeighborDoesNotExist)?;
 
-        neighbor.token_channel_slots.insert(
+        neighbor.tc_slots.insert(
             init_token_channel.channel_index,
             TokenChannelSlot::new(&self.local_public_key,
                                      &init_token_channel.neighbor_public_key,
@@ -258,7 +258,7 @@ impl MessengerState {
         let neighbor = self.neighbors.get_mut(&token_channel_push_op.neighbor_public_key)
             .ok_or(MessengerStateError::NeighborDoesNotExist)?;
 
-        let token_channel_slot = neighbor.token_channel_slots
+        let token_channel_slot = neighbor.tc_slots
             .get_mut(&token_channel_push_op.channel_index)
             .ok_or(MessengerStateError::TokenChannelDoesNotExist)?;
 
@@ -293,7 +293,7 @@ impl MessengerState {
             &reset_token_channel.reset_token,
             reset_token_channel.balance_for_reset);
 
-        let _ = neighbor.token_channel_slots.insert(
+        let _ = neighbor.tc_slots.insert(
             reset_token_channel.channel_index, 
             token_channel_slot);
 
@@ -312,7 +312,7 @@ impl MessengerState {
             .neighbor_move_token
             .token_channel_index;
 
-        let token_channel_slot = neighbor.token_channel_slots
+        let token_channel_slot = neighbor.tc_slots
             .get_mut(&channel_index)
             .ok_or(MessengerStateError::TokenChannelDoesNotExist)?;
 
