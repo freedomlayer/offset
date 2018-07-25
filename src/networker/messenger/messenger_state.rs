@@ -12,68 +12,14 @@ use proto::networker::ChannelToken;
 use super::types::{NeighborTcOp, NeighborMoveToken, RequestSendMessage};
 use super::super::messages::{NeighborStatus};
 
-use super::token_channel::directional::{DirectionalTokenChannel, 
-    ReceiveMoveTokenOutput, ReceiveMoveTokenError};
+use super::slot::TokenChannelSlot;
+use super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError};
 use super::token_channel::types::NeighborMoveTokenInner;
 
 use app_manager::messages::{SetNeighborRemoteMaxDebt, SetNeighborMaxChannels, 
     AddNeighbor, RemoveNeighbor, ResetNeighborChannel, SetNeighborStatus};
 
 
-#[allow(dead_code)]
-pub enum TokenChannelStatus {
-    Valid,
-    /// Inconsistent means that the remote side showed disagreement about the 
-    /// token channel, and this channel is waiting for a local human intervention.
-    Inconsistent {
-        current_token: ChannelToken,
-        balance_for_reset: i64,
-    },
-}
-
-#[allow(unused)]
-pub struct TokenChannelSlot {
-    pub directional: DirectionalTokenChannel,
-    pub tc_status: TokenChannelStatus,
-    pub wanted_remote_max_debt: u64,
-    pub pending_operations: VecDeque<NeighborTcOp>,
-    // Pending operations to be sent to the token channel.
-}
-
-
-#[allow(unused)]
-impl TokenChannelSlot {
-    pub fn new(local_public_key: &PublicKey,
-               remote_public_key: &PublicKey,
-               token_channel_index: u16) -> TokenChannelSlot {
-        TokenChannelSlot {
-            directional: DirectionalTokenChannel::new(local_public_key,
-                                           remote_public_key,
-                                           token_channel_index),
-            tc_status: TokenChannelStatus::Valid,
-            wanted_remote_max_debt: 0,
-            pending_operations: VecDeque::new(),
-        }
-    }
-
-    pub fn new_from_reset(local_public_key: &PublicKey,
-                           remote_public_key: &PublicKey,
-                           token_channel_index: u16,
-                           current_token: &ChannelToken,
-                           balance: i64) -> TokenChannelSlot {
-
-        TokenChannelSlot {
-            directional: DirectionalTokenChannel::new_from_reset(local_public_key,
-                                                      remote_public_key,
-                                                      token_channel_index,
-                                                      current_token,
-                                                      balance),
-            tc_status: TokenChannelStatus::Valid,
-            wanted_remote_max_debt: 0,
-            pending_operations: VecDeque::new(),
-        }
-    }
-}
 
 #[allow(unused)]
 pub struct NeighborState {

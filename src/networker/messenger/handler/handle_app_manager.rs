@@ -2,7 +2,7 @@
 use ring::rand::SecureRandom;
 
 use super::super::messenger_state::{MessengerState, NeighborState, 
-    TokenChannelSlot, StateMutateMessage, MessengerStateError};
+    StateMutateMessage, MessengerStateError};
 use super::{MessengerHandler, MessengerTask};
 use app_manager::messages::{NetworkerCommand, AddNeighbor, 
     RemoveNeighbor, SetNeighborStatus, SetNeighborRemoteMaxDebt,

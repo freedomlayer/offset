@@ -26,6 +26,7 @@ use database::clients::networker_client::DBNetworkerClient;
 use channeler::messages::ChannelerToNetworker;
 
 pub mod token_channel;
+mod slot;
 mod handler;
 pub mod types;
 mod credit_calc;
