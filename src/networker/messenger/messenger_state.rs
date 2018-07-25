@@ -1,5 +1,5 @@
-use std::collections::{HashMap, VecDeque};
-use std::net::SocketAddr;
+use im::hashmap::HashMap as ImHashMap;
+
 
 use num_bigint::BigUint;
 use num_traits::identities::Zero;
@@ -10,11 +10,11 @@ use crypto::identity::PublicKey;
 use proto::networker::ChannelToken;
 
 use super::types::{NeighborTcOp, NeighborMoveToken, RequestSendMessage};
-use super::super::messages::{NeighborStatus};
 
 use super::slot::TokenChannelSlot;
 use super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError};
 use super::token_channel::types::NeighborMoveTokenInner;
+use super::neighbor::NeighborState;
 
 use app_manager::messages::{SetNeighborRemoteMaxDebt, SetNeighborMaxChannels, 
     AddNeighbor, RemoveNeighbor, ResetNeighborChannel, SetNeighborStatus};
@@ -22,62 +22,9 @@ use app_manager::messages::{SetNeighborRemoteMaxDebt, SetNeighborMaxChannels,
 
 
 #[allow(unused)]
-pub struct NeighborState {
-    neighbor_addr: Option<SocketAddr>, 
-    pub local_max_channels: u16,
-    pub remote_max_channels: u16,
-    pub status: NeighborStatus,
-    // Enabled or disabled?
-    pub token_channel_slots: HashMap<u16, TokenChannelSlot>,
-    pending_requests: VecDeque<RequestSendMessage>,
-    // Pending operations that could be sent through any token channel.
-    ticks_since_last_incoming: usize,
-    // Number of time ticks since last incoming message
-    ticks_since_last_outgoing: usize,
-    // Number of time ticks since last outgoing message
-    
-    // TODO: Keep state of payment requests to Funder
-    
-    // TODO: Keep state of requests to database? Only write to RAM after getting acknowledgement
-    // from database.
-}
-
-#[allow(unused)]
-impl NeighborState {
-    pub fn new(neighbor_addr: Option<SocketAddr>,
-               local_max_channels: u16) -> NeighborState {
-
-        NeighborState {
-            neighbor_addr,
-            local_max_channels,
-            remote_max_channels: local_max_channels,    
-            // Initially we assume that the remote side has the same amount of channels as we do.
-            status: NeighborStatus::Disable,
-            token_channel_slots: HashMap::new(),
-            pending_requests: VecDeque::new(),
-            ticks_since_last_incoming: 0,
-            ticks_since_last_outgoing: 0,
-        }
-    }
-
-    /// Get the total trust we have in this neighbor.
-    /// This is the total sum of all remote_max_debt for all the token channels we have with this
-    /// neighbor. In other words, this is the total amount of money we can lose if this neighbor
-    /// leaves and never returns.
-    pub fn get_trust(&self) -> BigUint {
-        let mut sum: BigUint = BigUint::zero();
-        for token_channel_slot in self.token_channel_slots.values() {
-            let remote_max_debt: BigUint = token_channel_slot.wanted_remote_max_debt.into();
-            sum += remote_max_debt;
-        }
-        sum
-    }
-}
-
-#[allow(unused)]
 pub struct MessengerState {
     local_public_key: PublicKey,
-    neighbors: HashMap<PublicKey, NeighborState>,
+    neighbors: ImHashMap<PublicKey, NeighborState>,
 }
 
 #[allow(unused)]
@@ -171,7 +118,7 @@ impl MessengerState {
         sum
     }
 
-    pub fn get_neighbors(&self) -> &HashMap<PublicKey, NeighborState> {
+    pub fn get_neighbors(&self) -> &ImHashMap<PublicKey, NeighborState> {
         &self.neighbors
     }
 

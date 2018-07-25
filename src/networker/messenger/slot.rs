@@ -30,6 +30,7 @@ pub enum SlotMutation {
 }
 
 #[allow(unused)]
+#[derive(Clone)]
 pub struct TokenChannelSlot {
     pub directional: DirectionalTokenChannel,
     pub tc_status: TokenChannelStatus,

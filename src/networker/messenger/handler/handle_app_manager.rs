@@ -1,7 +1,8 @@
 #![allow(unused)]
 use ring::rand::SecureRandom;
 
-use super::super::messenger_state::{MessengerState, NeighborState, 
+use super::super::neighbor::NeighborState;
+use super::super::messenger_state::{MessengerState, 
     StateMutateMessage, MessengerStateError};
 use super::{MessengerHandler, MessengerTask};
 use app_manager::messages::{NetworkerCommand, AddNeighbor, 

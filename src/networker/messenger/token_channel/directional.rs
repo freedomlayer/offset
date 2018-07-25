@@ -41,6 +41,7 @@ pub enum DirectionalMutation {
 }
 
 
+#[derive(Clone)]
 pub struct DirectionalTokenChannel {
     token_channel_index: u16,
     direction: MoveTokenDirection,

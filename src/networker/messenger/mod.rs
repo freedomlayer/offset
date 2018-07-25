@@ -27,6 +27,7 @@ use channeler::messages::ChannelerToNetworker;
 
 pub mod token_channel;
 mod slot;
+mod neighbor;
 mod handler;
 pub mod types;
 mod credit_calc;
