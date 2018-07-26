@@ -1,6 +1,6 @@
 use crypto::identity::PublicKey;
 use serde::{Deserialize, Deserializer};
-use std::collections::{BTreeSet, BTreeMap, HashMap};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct IndexerConfig {
@@ -34,18 +34,20 @@ pub struct AppConfig {
 pub struct Config {
     pub indexer: IndexerConfig,
     #[serde(default, deserialize_with = "parse_applications_config")]
-    pub applications: BTreeMap<u32, AppConfig>,
+    pub applications: HashMap<u32, AppConfig>,
 }
 
-fn parse_applications_config<'a, D>(deserializer: D) -> Result<BTreeMap<u32, AppConfig>, D::Error>
+fn parse_applications_config<'a, D>(deserializer: D) -> Result<HashMap<u32, AppConfig>, D::Error>
 where
     D: Deserializer<'a>
 {
     use serde::de::Error;
     Deserialize::deserialize(deserializer).and_then(|apps: HashMap<String, AppConfig>| {
         let original_len = apps.values().len();
-        let unique_len = apps.values().map(|app| app.port).collect::<BTreeSet<_>>().len();
-        if original_len == unique_len {
+        let mut ports: Vec<_> = apps.values().map(|app| app.port).collect();
+        ports.sort();
+        ports.dedup();
+        if original_len == ports.len() {
             Ok(apps)
         } else {
             Err(Error::custom("applications must have unique ports"))
