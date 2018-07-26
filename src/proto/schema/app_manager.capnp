@@ -133,7 +133,7 @@ struct ResponseSendMessage {
         }
 }
 
-struct RespondSendMessage {
+struct RespondIncomingMessage {
         messageId @0: CustomUInt128;
         processingFeeCollected @1: UInt64;
         responseContent @2: Data;
@@ -210,7 +210,7 @@ struct IndexerClientToAppManager {
         requestPath @0: RequestPath;
         closePath @1: ClosePath;
         requestSendMessage @2: RequestSendMessage;
-        respondIncomingMessage @3: RespondSendMessage;
+        respondIncomingMessage @3: RespondIncomingMessage;
         responseNeighborsRoute @4: ResponseNeighborsRoute;
         responseFriendsRoute @5: ResponseFriendsRoute;
     }
@@ -471,7 +471,7 @@ struct AppToAppManager {
         requestPath @0: RequestPath;
         closePath @1: ClosePath;
         requestSendMessage @2: RequestSendMessage;
-        respondIncomingMessage @3: RespondSendMessage;
+        respondIncomingMessage @3: RespondIncomingMessage;
 
         # Funds
         requestSendFunds @4: RequestSendFunds;
