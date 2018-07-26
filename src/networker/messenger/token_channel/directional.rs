@@ -38,18 +38,16 @@ pub enum DirectionalMutation {
     TcMutation(TcMutation),
     SetDirection(MoveTokenDirection),
     SetNewToken(ChannelToken),
-    Reset((ChannelToken, i64)),
-    // (ChannelToken, balance_for_reset)
 }
 
 
 #[derive(Clone)]
 pub struct DirectionalTokenChannel {
-    token_channel_index: u16,
-    direction: MoveTokenDirection,
-    new_token: ChannelToken,
+    pub token_channel_index: u16,
+    pub direction: MoveTokenDirection,
+    pub new_token: ChannelToken,
     // Equals Sha512/256(NeighborMoveToken)
-    token_channel: TokenChannel,
+    pub token_channel: TokenChannel,
 }
 
 #[derive(Debug)]
@@ -200,16 +198,6 @@ impl DirectionalTokenChannel {
             }
             DirectionalMutation::SetNewToken(ref new_token) => {
                 self.new_token = new_token.clone();
-            },
-            DirectionalMutation::Reset((current_token, balance_for_reset)) => {
-                // TODO: This should probably be ::Outgoing, fix this:
-                self.direction = MoveTokenDirection::Incoming;
-                self.new_token = current_token.clone();
-                self.token_channel = TokenChannel::new(
-                    &self.token_channel.state().idents.local_public_key, 
-                    &self.token_channel.state().idents.remote_public_key, 
-                    *balance_for_reset);
-                unimplemented!();
             },
         }
     }

@@ -29,9 +29,9 @@ pub struct NeighborMoveTokenInner {
 #[derive(Clone)]
 pub struct TcIdents {
     /// My public key
-    pub(super) local_public_key: PublicKey,
+    pub local_public_key: PublicKey,
     /// Neighbor's public key
-    pub(super) remote_public_key: PublicKey,
+    pub remote_public_key: PublicKey,
 }
 
 #[derive(Clone)]

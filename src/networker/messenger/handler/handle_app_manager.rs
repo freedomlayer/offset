@@ -1,9 +1,11 @@
 #![allow(unused)]
 use ring::rand::SecureRandom;
 
+use crypto::identity::PublicKey;
+
 use super::super::token_channel::types::TcMutation;
 use super::super::token_channel::directional::DirectionalMutation;
-use super::super::slot::SlotMutation;
+use super::super::slot::{SlotMutation, TokenChannelSlot, TokenChannelStatus};
 use super::super::neighbor::{NeighborState, NeighborMutation};
 use super::super::messenger_state::{MessengerMutation, MessengerState};
 use super::{MessengerHandler, MessengerTask};
@@ -12,20 +14,37 @@ use app_manager::messages::{NetworkerCommand, AddNeighbor,
     ResetNeighborChannel, SetNeighborMaxChannels};
 
 
-/*
 pub enum HandleAppManagerError {
     NeighborDoesNotExist,
     TokenChannelDoesNotExist,
-    NeighborAlreadyExists,
-    MessengerStateError(MessengerStateError),
+    NotInvitedToReset,
+    ResetTokenMismatch,
 }
-*/
 
 #[allow(unused)]
 impl<R: SecureRandom> MessengerHandler<R> {
+
+    fn get_neighbor(&self, neighbor_public_key: &PublicKey) -> Result<&NeighborState, HandleAppManagerError> {
+        match self.state().neighbors.get(neighbor_public_key) {
+            Some(ref neighbor) => Ok(neighbor),
+            None => Err(HandleAppManagerError::NeighborDoesNotExist),
+        }
+    }
+
+    fn get_slot(&self, neighbor_public_key: &PublicKey, channel_index: u16) -> Result<&TokenChannelSlot, HandleAppManagerError> {
+        let neighbor = self.get_neighbor(&neighbor_public_key)?;
+        match neighbor.tc_slots.get(&channel_index) {
+            Some(ref tc_slot) => Ok(tc_slot),
+            None => Err(HandleAppManagerError::TokenChannelDoesNotExist),
+        }
+    }
+
     fn app_manager_set_neighbor_remote_max_debt(&self, 
                                                 set_neighbor_remote_max_debt: SetNeighborRemoteMaxDebt) 
-        -> (Vec<MessengerMutation>, Vec<MessengerTask>) {
+        -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), HandleAppManagerError> {
+
+        // Make sure that neighbor exists:
+        let _neighbor = self.get_neighbor(&set_neighbor_remote_max_debt.neighbor_public_key)?;
 
         let tc_mutation = TcMutation::SetRemoteMaxDebt(set_neighbor_remote_max_debt.remote_max_debt);
         let directional_mutation = DirectionalMutation::TcMutation(tc_mutation);
@@ -35,84 +54,88 @@ impl<R: SecureRandom> MessengerHandler<R> {
         let m_mutation = MessengerMutation::NeighborMutation(
             (set_neighbor_remote_max_debt.neighbor_public_key, neighbor_mutation));
 
-        (vec![m_mutation], vec![])
+        Ok((vec![m_mutation], vec![]))
     }
-
-
-
-/*
-#[derive(Clone)]
-pub struct ResetNeighborChannel {
-    pub neighbor_public_key: PublicKey,
-    pub channel_index: u16,
-    pub current_token: ChannelToken,
-    pub balance_for_reset: i64,
-}
-*/
 
     fn app_manager_reset_neighbor_channel(&mut self, 
                                           reset_neighbor_channel: ResetNeighborChannel) 
-        -> (Vec<MessengerMutation>, Vec<MessengerTask>) {
+        -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), HandleAppManagerError> {
 
-        // TODO: Maybe allow smaller interface to the ability of resetting a neighbor's channel?
-        let directional_mutation = DirectionalMutation::Reset((
-                reset_neighbor_channel.current_token,
-                reset_neighbor_channel.balance_for_reset));
-        let slot_mutation = SlotMutation::DirectionalMutation(directional_mutation);
+        let slot = self.get_slot(&reset_neighbor_channel.neighbor_public_key,
+                                 reset_neighbor_channel.channel_index)?;
+
+        match &slot.tc_status {
+            TokenChannelStatus::Valid => return Err(HandleAppManagerError::NotInvitedToReset),
+            TokenChannelStatus::Inconsistent { current_token, .. } => {
+                if (current_token != &reset_neighbor_channel.current_token)  {
+                    return Err(HandleAppManagerError::ResetTokenMismatch);
+                }
+            }
+        };
+
+
+        let slot_mutation = SlotMutation::Reset;
         let neighbor_mutation = NeighborMutation::SlotMutation(
             (reset_neighbor_channel.channel_index, slot_mutation));
         let m_mutation = MessengerMutation::NeighborMutation(
             (reset_neighbor_channel.neighbor_public_key, neighbor_mutation));
-        (vec![m_mutation], vec![])
+
+        Ok((vec![m_mutation], vec![]))
 
     }
 
     fn app_manager_set_neighbor_max_channels(&mut self, 
                                           set_neighbor_max_channels: SetNeighborMaxChannels) 
-        -> (Vec<MessengerMutation>, Vec<MessengerTask>) {
+        -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), HandleAppManagerError> {
+
+        // Make sure that neighbor exists:
+        let _neighbor = self.get_neighbor(&set_neighbor_max_channels.neighbor_public_key)?;
 
         let neighbor_mutation = NeighborMutation::SetLocalMaxChannels(set_neighbor_max_channels.max_channels);
         let m_mutation = MessengerMutation::NeighborMutation(
             (set_neighbor_max_channels.neighbor_public_key, neighbor_mutation));
 
-        (vec![m_mutation], vec![])
+        Ok((vec![m_mutation], vec![]))
     }
 
     fn app_manager_add_neighbor(&mut self, 
                                 add_neighbor: AddNeighbor) 
-        -> (Vec<MessengerMutation>, Vec<MessengerTask>) {
+        -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), HandleAppManagerError> {
 
         let m_mutation = MessengerMutation::AddNeighbor((
                 add_neighbor.neighbor_public_key,
                 add_neighbor.neighbor_addr,
                 add_neighbor.max_channels));
 
-        (vec![m_mutation], vec![])
+        Ok((vec![m_mutation], vec![]))
     }
 
     fn app_manager_remove_neighbor(&mut self, remove_neighbor: RemoveNeighbor) 
-        -> (Vec<MessengerMutation>, Vec<MessengerTask>) {
+        -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), HandleAppManagerError> {
 
         let m_mutation = MessengerMutation::RemoveNeighbor(
                 remove_neighbor.neighbor_public_key);
 
-        (vec![m_mutation], vec![])
+        Ok((vec![m_mutation], vec![]))
     }
 
 
     fn app_manager_set_neighbor_status(&mut self, set_neighbor_status: SetNeighborStatus) 
-        -> (Vec<MessengerMutation>, Vec<MessengerTask>) {
+        -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), HandleAppManagerError> {
+
+        // Make sure that neighbor exists:
+        let _neighbor = self.get_neighbor(&set_neighbor_status.neighbor_public_key)?;
 
         let neighbor_mutation = NeighborMutation::SetStatus(set_neighbor_status.status);
         let m_mutation = MessengerMutation::NeighborMutation(
             (set_neighbor_status.neighbor_public_key, neighbor_mutation));
 
-        (vec![m_mutation], vec![])
+        Ok((vec![m_mutation], vec![]))
     }
 
     pub fn handle_app_manager_message(&mut self, 
                                       networker_config: NetworkerCommand) 
-        -> (Vec<MessengerMutation>, Vec<MessengerTask>) {
+        -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), HandleAppManagerError> {
 
 
         match networker_config {

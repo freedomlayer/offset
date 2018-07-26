@@ -13,8 +13,8 @@ use super::neighbor::{NeighborState, NeighborMutation};
 #[allow(unused)]
 #[derive(Clone)]
 pub struct MessengerState {
-    local_public_key: PublicKey,
-    neighbors: ImHashMap<PublicKey, NeighborState>,
+    pub local_public_key: PublicKey,
+    pub neighbors: ImHashMap<PublicKey, NeighborState>,
 }
 
 #[allow(unused)]

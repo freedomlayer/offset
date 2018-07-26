@@ -72,7 +72,7 @@ pub enum MessengerTask {
 
 #[allow(unused)]
 pub struct MessengerHandler<R> {
-    pub state: MessengerState,
+    state: MessengerState,
     pub security_module_client: SecurityModuleClient,
     pub rng: Rc<R>,
     pub sm_messages: Vec<MessengerMutation>,
@@ -80,6 +80,10 @@ pub struct MessengerHandler<R> {
 }
 
 impl<R: SecureRandom> MessengerHandler<R> {
+    pub fn state(&self) -> &MessengerState {
+        &self.state
+    }
+
     #[allow(unused)]
     pub fn handle_timer_tick(&mut self) -> Vec<MessengerTask> {
         // TODO
