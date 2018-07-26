@@ -2,13 +2,13 @@ use crypto::identity::PublicKey;
 use serde::{Deserialize, Deserializer};
 use std::collections::{BTreeSet, BTreeMap, HashMap};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct IndexerConfig {
     #[serde(deserialize_with = "PublicKey::deserialize_base64")]
     pub public_key: PublicKey,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 enum Permission {
     #[serde(rename = "view")]
     View,
@@ -20,7 +20,7 @@ enum Permission {
     All,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct AppConfig {
     #[serde(skip)]
     name: String,
@@ -58,27 +58,77 @@ where
     })
 }
 
-pub fn test1() {
-    let text = r#"
-    [indexer]
-    public_key = "{key}"
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crypto::identity::PUBLIC_KEY_LEN;
 
-    [applications]
+    #[test]
+    fn test() {
+        let key = PublicKey::from(&[0; PUBLIC_KEY_LEN]);
 
-    [applications.app0]
-    port = 0
-    permission = "all"
-    public_key = "{key}"
+        let text = format!(r#"
+[indexer]
+public_key = "{key}"
 
-    [applications.app1]
-    port = 1
-    permission = "all"
-    public_key = "{key}"
-        "#;
+[applications]
 
-    let key = ::base64::encode(PublicKey::from(&[0u8; 32]).as_ref());
-    let text = text.replace("{key}", &key);
+[applications.app0]
+port = 0
+permission = "view"
+public_key = "{key}"
 
-    let config = ::toml::from_str::<Config>(&text);
-    println!("{:?}", config);
+[applications.app1]
+port = 1
+permission = "communicate"
+public_key = "{key}"
+
+[applications.app2]
+port = 2
+permission = "communicate+fund"
+public_key = "{key}"
+
+[applications.app3]
+port = 3
+permission = "all"
+public_key = "{key}"
+        "#, key=::base64::encode(key.as_ref()));
+        let config: Config = ::toml::from_str(&text).unwrap();
+
+        assert_eq!(key, config.indexer.public_key);
+        assert!(config.applications.values().all(|v| key == v.public_key));
+        assert!(config.applications.iter().all(|(k, v)| *k == v.port));
+        assert_eq!(config.applications[&0].permission, Permission::View);
+        assert_eq!(config.applications[&1].permission, Permission::Communicate);
+        assert_eq!(config.applications[&2].permission, Permission::CommunicateAndFund);
+        assert_eq!(config.applications[&3].permission, Permission::All);
+        assert_eq!(config.applications[&0].name, "app0");
+        assert_eq!(config.applications[&1].name, "app1");
+        assert_eq!(config.applications[&2].name, "app2");
+        assert_eq!(config.applications[&3].name, "app3");
+    }
+
+    #[test]
+    fn unique() {
+        let key = PublicKey::from(&[0; PUBLIC_KEY_LEN]);
+
+        let text = format!(r#"
+[indexer]
+public_key = "{key}"
+
+[applications]
+
+[applications.app0]
+port = 0
+permission = "view"
+public_key = "{key}"
+
+[applications.app1]
+port = 0
+permission = "communicate"
+public_key = "{key}"
+        "#, key=::base64::encode(key.as_ref()));
+
+        ::toml::from_str::<Config>(&text).unwrap_err();
+    }
 }
