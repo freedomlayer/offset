@@ -150,8 +150,6 @@ pub enum TcMutation {
     SetRemotePendingDebt(u64),
 }
 
-pub enum TcMutateError {
-}
 
 impl TokenChannel {
     pub fn new(local_public_key: &PublicKey, 
