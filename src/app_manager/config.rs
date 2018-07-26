@@ -30,7 +30,7 @@ pub struct AppConfig {
     public_key: PublicKey,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct Config {
     pub indexer: IndexerConfig,
     #[serde(default, deserialize_with = "parse_applications_config")]
