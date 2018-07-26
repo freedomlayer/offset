@@ -26,8 +26,6 @@ pub struct NeighborState {
     // Number of time ticks since last incoming message
     ticks_since_last_outgoing: usize,
     // Number of time ticks since last outgoing message
-    
-    // TODO: Keep state of payment requests to Funder
 }
 
 #[allow(unused)]
