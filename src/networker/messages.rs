@@ -94,7 +94,9 @@ pub enum ResponsePath {
     Success(mpsc::Sender<RequestSendMessage>),
     // Proposal for opening the path was too low. This was discovered when the ResponseNonce
     // message was received.
-    ProposalTooLow(u64),
+    ProposalTooLow(u64), 
+    // Returns the wanted amount of credits by remote side (Which was higher than what we were
+    // willing to pay).
     Failure,
 }
 
