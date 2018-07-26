@@ -28,7 +28,10 @@ struct ResponseNonce {
         randNonce1 @0: CustomUInt128;
         randNonceB @1: CustomUInt128;
         responseNonceB @2: CustomUInt128;
-        signature @3: CustomUInt512;
+        pathFee @3: UInt64;
+        # Cost for opening the path (For the initiator). 
+        # This should be paid as a request fee at the ExchangeActive message.
+        signature @4: CustomUInt512;
 }
 
 ###########################################
