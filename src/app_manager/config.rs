@@ -1,7 +1,7 @@
 use crypto::identity::PublicKey;
 use serde::{Deserialize, Deserializer};
 use std::convert::TryFrom;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, BTreeMap, HashMap};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct IndexerConfig {
@@ -22,6 +22,8 @@ enum Permission {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct AppConfig {
+    #[serde(skip)]
+    name: String,
     port: u32,
     permission: Permission,
     public_key: PublicKey,
@@ -30,8 +32,8 @@ pub struct AppConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
     pub indexer: IndexerConfig,
-    #[serde(deserialize_with = "validate_ports")]
-    pub applications: HashMap<String, AppConfig>,
+    #[serde(deserialize_with = "parse_applications_config")]
+    pub applications: BTreeMap<u32, AppConfig>,
 }
 
 // TODO where to put this code? In `crypto` module or here?
@@ -47,7 +49,7 @@ impl<'a> Deserialize<'a> for PublicKey {
     }
 }
 
-fn validate_ports<'a, D>(deserializer: D) -> Result<HashMap<String, AppConfig>, D::Error>
+fn parse_applications_config<'a, D>(deserializer: D) -> Result<BTreeMap<u32, AppConfig>, D::Error>
 where
     D: Deserializer<'a>
 {
@@ -60,6 +62,11 @@ where
         } else {
             Err(Error::custom("applications must have unique ports"))
         }
+    }).map(|mut apps| {
+        apps.drain().map(|(k, mut v)| {
+            v.name = k;
+            (v.port, v)
+        }).collect()
     })
 }
 
