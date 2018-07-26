@@ -111,6 +111,10 @@ pub struct FriendsRouteWithCapacity {
 }
 
 pub struct RequestSendFunds {
+    // Note that it is the sender's responsibility to randomly generate a request_id.
+    // This is important to make sure send funds requests can be tracked by the sending
+    // application, and can not be lost.
+    pub request_id: Uid,
     pub route: FriendsRoute,
     pub invoice_id: InvoiceId,
     pub payment: u128,

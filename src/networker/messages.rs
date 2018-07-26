@@ -90,15 +90,27 @@ pub enum DestinationPort {
     AppManager(u32),
 }
 
+pub enum ResponsePath {
+    Success(mpsc::Sender<RequestSendMessage>),
+    // Proposal for opening the path was too low. This was discovered when the ResponseNonce
+    // message was received.
+    ProposalTooLow(u64), 
+    // Returns the wanted amount of credits by remote side (Which was higher than what we were
+    // willing to pay).
+    Failure,
+}
+
 /// Component -> Networker
 pub struct RequestPath {
     route: NeighborsRoute,
-    response_sender: oneshot::Sender<Option<mpsc::Sender<RequestSendMessage>>>,
+    path_fee_proposal: u64,
+    response_sender: oneshot::Sender<ResponsePath>,
 }
 
 /// Component -> Networker
 pub struct RequestSendMessage {
-    // route: NeighborsRoute,
+    // Note: We do not specify request_id here. 
+    // It is the job of the Networker to randomly generate a random request_id internally.
     dest_port: DestinationPort,
     request_data: Vec<u8>,
     max_response_len: u32,
