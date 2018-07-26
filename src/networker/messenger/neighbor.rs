@@ -28,9 +28,6 @@ pub struct NeighborState {
     // Number of time ticks since last outgoing message
     
     // TODO: Keep state of payment requests to Funder
-    
-    // TODO: Keep state of requests to database? Only write to RAM after getting acknowledgement
-    // from database.
 }
 
 #[allow(unused)]
