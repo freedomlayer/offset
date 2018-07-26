@@ -1,4 +1,5 @@
 use crypto::identity::PublicKey;
+use serde::{Deserialize, Deserializer};
 use std::convert::TryFrom;
 use std::collections::{BTreeSet, HashMap};
 
@@ -34,10 +35,10 @@ pub struct Config {
 }
 
 // TODO where to put this code? In `crypto` module or here?
-impl<'a> ::serde::Deserialize<'a> for PublicKey {
+impl<'a> Deserialize<'a> for PublicKey {
     fn deserialize<D>(deserializer: D) -> Result<PublicKey, D::Error>
     where
-        D: ::serde::Deserializer<'a>
+        D: Deserializer<'a>
     {
         use serde::de::Error;
         String::deserialize(deserializer)
@@ -48,10 +49,10 @@ impl<'a> ::serde::Deserialize<'a> for PublicKey {
 
 fn validate_ports<'a, D>(deserializer: D) -> Result<HashMap<String, AppConfig>, D::Error>
 where
-    D: ::serde::Deserializer<'a>
+    D: Deserializer<'a>
 {
     use serde::de::Error;
-    ::serde::Deserialize::deserialize(deserializer).and_then(|apps: HashMap<String, AppConfig>| {
+    Deserialize::deserialize(deserializer).and_then(|apps: HashMap<String, AppConfig>| {
         let original_len = apps.values().len();
         let unique_len = apps.values().map(|app| app.port).collect::<BTreeSet<_>>().len();
         if original_len == unique_len {
