@@ -98,10 +98,10 @@ impl TokenChannelSlot {
                 let _ = self.pending_operations.pop_front();
             },
             SlotMutation::SetPendingSendFundsId(request_id) => {
-                self.pending_send_funds = Some(requet_id.clone());
+                self.pending_send_funds_id = Some(request_id.clone());
             },
             SlotMutation::ClearPendingSendFundsId => {
-                self.pending_send_funds = None;
+                self.pending_send_funds_id = None;
             },
         }
     }
