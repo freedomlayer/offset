@@ -10,7 +10,7 @@ use ring::rand::SecureRandom;
 use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 
-use super::messenger_state::{MessengerState, StateMutateMessage};
+use super::messenger_state::{MessengerState, MessengerMutation};
 //use self::handle_neighbor::{NeighborInconsistencyError, 
 //     NeighborSetMaxTokenChannels};
 use super::token_channel::directional::ReceiveMoveTokenError;
@@ -75,7 +75,7 @@ pub struct MessengerHandler<R> {
     pub state: MessengerState,
     pub security_module_client: SecurityModuleClient,
     pub rng: Rc<R>,
-    pub sm_messages: Vec<StateMutateMessage>,
+    pub sm_messages: Vec<MessengerMutation>,
     pub messenger_tasks: Vec<MessengerTask>,
 }
 
