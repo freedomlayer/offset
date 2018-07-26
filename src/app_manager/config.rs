@@ -33,7 +33,7 @@ pub struct AppConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
     pub indexer: IndexerConfig,
-    #[serde(deserialize_with = "parse_applications_config")]
+    #[serde(default, deserialize_with = "parse_applications_config")]
     pub applications: BTreeMap<u32, AppConfig>,
 }
 
@@ -130,5 +130,18 @@ public_key = "{key}"
         "#, key=::base64::encode(key.as_ref()));
 
         ::toml::from_str::<Config>(&text).unwrap_err();
+    }
+
+    #[test]
+    fn no_app() {
+        let key = PublicKey::from(&[0; PUBLIC_KEY_LEN]);
+
+        let text = format!(r#"
+[indexer]
+public_key = "{key}"
+        "#, key=::base64::encode(key.as_ref()));
+
+        let config: Config = ::toml::from_str(&text).unwrap();
+        assert!(config.applications.is_empty());
     }
 }
