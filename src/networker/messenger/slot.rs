@@ -1,6 +1,7 @@
 use im::vector::Vector;
 
 use crypto::identity::PublicKey;
+use crypto::uid::Uid;
 
 use super::token_channel::directional::DirectionalMutation;
 use proto::networker::ChannelToken;
@@ -27,6 +28,8 @@ pub enum SlotMutation {
     SetWantedRemoteMaxDebt(u64),
     PushBackPendingOperation(NeighborTcOp),
     PopFrontPendingOperation,
+    SetPendingSendFundsId(Uid),
+    ClearPendingSendFundsId,
 }
 
 #[allow(unused)]
@@ -37,6 +40,7 @@ pub struct TokenChannelSlot {
     pub wanted_remote_max_debt: u64,
     pub pending_operations: Vector<NeighborTcOp>,
     // Pending operations to be sent to the token channel.
+    pending_send_funds_id: Option<Uid>,
 }
 
 
@@ -52,6 +56,7 @@ impl TokenChannelSlot {
             tc_status: TokenChannelStatus::Valid,
             wanted_remote_max_debt: 0,
             pending_operations: Vector::new(),
+            pending_send_funds_id: None,
         }
     }
 
@@ -70,6 +75,7 @@ impl TokenChannelSlot {
             tc_status: TokenChannelStatus::Valid,
             wanted_remote_max_debt: 0,
             pending_operations: Vector::new(),
+            pending_send_funds_id: None,
         }
     }
 
@@ -90,6 +96,12 @@ impl TokenChannelSlot {
             },
             SlotMutation::PopFrontPendingOperation => {
                 let _ = self.pending_operations.pop_front();
+            },
+            SlotMutation::SetPendingSendFundsId(request_id) => {
+                self.pending_send_funds = Some(requet_id.clone());
+            },
+            SlotMutation::ClearPendingSendFundsId => {
+                self.pending_send_funds = None;
             },
         }
     }
