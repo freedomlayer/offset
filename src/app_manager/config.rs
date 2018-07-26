@@ -1,10 +1,10 @@
 use crypto::identity::PublicKey;
 use serde::{Deserialize, Deserializer};
-use std::convert::TryFrom;
 use std::collections::{BTreeSet, BTreeMap, HashMap};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct IndexerConfig {
+    #[serde(deserialize_with = "PublicKey::deserialize_base64")]
     pub public_key: PublicKey,
 }
 
@@ -26,6 +26,7 @@ pub struct AppConfig {
     name: String,
     port: u32,
     permission: Permission,
+    #[serde(deserialize_with = "PublicKey::deserialize_base64")]
     public_key: PublicKey,
 }
 
@@ -34,19 +35,6 @@ pub struct Config {
     pub indexer: IndexerConfig,
     #[serde(deserialize_with = "parse_applications_config")]
     pub applications: BTreeMap<u32, AppConfig>,
-}
-
-// TODO where to put this code? In `crypto` module or here?
-impl<'a> Deserialize<'a> for PublicKey {
-    fn deserialize<D>(deserializer: D) -> Result<PublicKey, D::Error>
-    where
-        D: Deserializer<'a>
-    {
-        use serde::de::Error;
-        String::deserialize(deserializer)
-            .and_then(|string| ::base64::decode(&string).map_err(Error::custom))
-            .and_then(|bytes| PublicKey::try_from(bytes.as_slice()).map_err(Error::custom))
-    }
 }
 
 fn parse_applications_config<'a, D>(deserializer: D) -> Result<BTreeMap<u32, AppConfig>, D::Error>
