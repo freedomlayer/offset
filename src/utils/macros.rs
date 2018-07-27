@@ -31,6 +31,18 @@ macro_rules! define_fixed_bytes {
             pub fn as_array_ref(&self) -> &[u8; $len] {
                 &self.0
             }
+            #[allow(unused)]
+            pub fn deserialize_base64<'a, D>(d: D) -> Result<Self, D::Error>
+            where
+                D: ::serde::Deserializer<'a>,
+            {
+                use serde::de::Error;
+                use serde::Deserialize;
+                use std::convert::TryFrom;
+                String::deserialize(d)
+                    .and_then(|string| ::base64::decode(&string).map_err(Error::custom))
+                    .and_then(|bytes| Self::try_from(bytes.as_slice()).map_err(Error::custom))
+            }
         }
         impl AsRef<[u8]> for $name {
             #[inline]

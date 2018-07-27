@@ -25,6 +25,11 @@ extern crate async_mutex;
 extern crate num_traits;
 extern crate num_bigint;
 
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+extern crate toml;
+extern crate base64;
 
 #[macro_use]
 pub mod utils;
