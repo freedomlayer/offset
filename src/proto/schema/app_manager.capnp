@@ -322,7 +322,6 @@ struct ResetNeighborChannel {
         neighborPublicKey @0: CustomUInt256;
         channelIndex @1: UInt16;
         currentToken @2: CustomUInt256;
-        balanceForReset @3: Int64;
 }
 
 enum NeighborStatus {
@@ -413,7 +412,6 @@ struct SetFriendRemoteMaxDebt {
 struct ResetFriendChannel {
         friendPublicKey @0: CustomUInt256;
         currentToken @1: CustomUInt256;
-        balanceForReset @2: CustomUInt128;
 }
 
 struct FriendUpdated {
