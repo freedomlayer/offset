@@ -30,7 +30,8 @@ pub enum SlotMutation {
     PopFrontPendingOperation,
     SetPendingSendFundsId(Uid),
     ClearPendingSendFundsId,
-    Reset,
+    RemoteReset,        // Remote side performed reset
+    LocalReset,         // Local side performed reset
 }
 
 #[allow(unused)]
@@ -104,7 +105,7 @@ impl TokenChannelSlot {
             SlotMutation::ClearPendingSendFundsId => {
                 self.pending_send_funds_id = None;
             },
-            SlotMutation::Reset => {
+            SlotMutation::LocalReset => {
                 match &self.tc_status {
                     TokenChannelStatus::Valid => unreachable!(),
                     TokenChannelStatus::Inconsistent {current_token, balance_for_reset} => {
@@ -116,6 +117,18 @@ impl TokenChannelSlot {
                             *balance_for_reset);
                     }
                 }
+            },
+            SlotMutation::RemoteReset => {
+                let reset_token = self.directional.calc_channel_reset_token(
+                    self.directional.token_channel_index);
+                let balance_for_reset = self.directional.balance_for_reset();
+                self.tc_status = TokenChannelStatus::Valid;
+                self.directional = DirectionalTokenChannel::new_from_reset(
+                    &self.directional.token_channel.state().idents.local_public_key,
+                    &self.directional.token_channel.state().idents.remote_public_key,
+                    self.directional.token_channel_index,
+                    &reset_token,
+                    balance_for_reset);
             },
         }
     }

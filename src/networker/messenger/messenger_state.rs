@@ -57,7 +57,10 @@ impl MessengerState {
                 neighbor.mutate(neighbor_mutation);
             },
             MessengerMutation::AddNeighbor((neighbor_public_key, opt_socket_addr, max_channels)) => {
-                let neighbor = NeighborState::new(*opt_socket_addr, *max_channels);
+                let neighbor = NeighborState::new(&self.local_public_key,
+                                                  neighbor_public_key,
+                                                  *opt_socket_addr, 
+                                                  *max_channels);
                 // Insert neighbor, but also make sure that we did not remove any existing neighbor
                 // with the same public key:
                 let _ = self.neighbors.insert(neighbor_public_key.clone(), neighbor).unwrap();

@@ -1,5 +1,5 @@
 mod handle_app_manager;
-// pub mod handle_neighbor;
+pub mod handle_neighbor;
 mod handle_funder;
 mod handle_crypter;
 

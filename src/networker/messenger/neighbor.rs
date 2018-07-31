@@ -2,6 +2,9 @@ use im::hashmap::HashMap as ImHashMap;
 use im::vector::Vector;
 
 use std::net::SocketAddr;
+use std::cmp;
+
+use crypto::identity::PublicKey;
 
 use num_bigint::BigUint;
 use num_traits::identities::Zero;
@@ -14,6 +17,8 @@ use super::slot::{TokenChannelSlot, SlotMutation};
 #[allow(unused)]
 #[derive(Clone)]
 pub struct NeighborState {
+    pub local_public_key: PublicKey,
+    pub remote_public_key: PublicKey,
     neighbor_addr: Option<SocketAddr>, 
     pub local_max_channels: u16,
     pub remote_max_channels: u16,
@@ -40,10 +45,14 @@ pub enum NeighborMutation {
 
 #[allow(unused)]
 impl NeighborState {
-    pub fn new(neighbor_addr: Option<SocketAddr>,
+    pub fn new(local_public_key: &PublicKey,
+               remote_public_key: &PublicKey,
+               neighbor_addr: Option<SocketAddr>,
                local_max_channels: u16) -> NeighborState {
 
         NeighborState {
+            local_public_key: local_public_key.clone(),
+            remote_public_key: remote_public_key.clone(),
             neighbor_addr,
             local_max_channels,
             remote_max_channels: local_max_channels,    
@@ -87,7 +96,15 @@ impl NeighborState {
                 let _ = self.pending_requests.pop_front();
             },
             NeighborMutation::SlotMutation((slot_index, slot_mutation)) => {
-                let tc_slot = self.tc_slots.get_mut(&slot_index).unwrap();
+                // If the slot does not exist but it is in reasonable index boundaries, we create
+                // it. If it is outside the reasonable boundaries and it does not exist, we panic.
+                let tc_slot = if *slot_index < cmp::min(self.local_max_channels, self.remote_max_channels) {
+                    self.tc_slots.entry(*slot_index).or_insert(
+                        TokenChannelSlot::new(
+                            &self.local_public_key, &self.remote_public_key, *slot_index))
+                } else {
+                    self.tc_slots.get_mut(slot_index).unwrap()
+                };
                 tc_slot.mutate(slot_mutation);
             },
         }
