@@ -115,14 +115,36 @@ struct FailureSendMessage {
         union {
                 unreachable @0: CustomUInt256;
                 # reportingPublicKey
+                noListeningApp @1: Void;
+                # remote exists, but no application currently listens on the
+                # requested port.
                 remoteLostKey @1: Void;
+                # Remote's Crypter lost the key, so he can not decrypt the message.
                 noSuchPath @2: Void;
+                # AppManager doesn't know about such path.
         }
 }
 
 struct SuccessSendMessage {
         processingFeeCollected @0: UInt64;
         responseContent @1: Data;
+}
+
+# When AppManager receives a MessageReceived from the Networker, it should
+# first search for the relevant application (Using the provided port).  If the
+# application does not exist, it sends back to Networker a
+# MessageReceivedResponse with data = ResponseData::noListeningApp.
+# 
+# If, on the other hand, the appliation exists, AppManager will pass the
+# MessageReceived to the Application, and wait for a reply of
+# RespondIncomingMessage from the Application. When this arrives, AppManager
+# wraps it inside a ResponseData::appData(...) and send it as the data of
+# RespondIncomingMessage back to the Networker.
+struct ResponseData {
+        union {
+                noListeningApp @0: Void;
+                appData: @1: Data;
+        }
 }
 
 # AppManager -> IndexerClient
