@@ -70,19 +70,21 @@ struct AppManagerDhMessage {
 # Should also be added in Rust's structs interface.
 
 struct RequestPath {
-        route @0: NeighborsRoute;
-        pathFeeProposal @1: UInt64;
+        pathRequestId @0: CustomUInt128;
+        route @1: NeighborsRoute;
+        pathFeeProposal @2: UInt64;
         # Maximum amount of credits we are willing to pay for opening this
         # secure path.
 }
 
 struct ResponsePath {
+        pathRequestId @0: CustomUInt128;
         union {
-                pathId @0: CustomUInt128;
+                pathId @1: CustomUInt128;
                 # Opening a secure path is successful.
-                proposalTooLow @1: UInt64;
+                proposalTooLow @2: UInt64;
                 # Proposal was too low, this is what the remote side asked for.
-                failure @2: Void;
+                failure @3: Void;
                 # We could not reach the remote side using the provided route,
                 # or something strange happened.
         }
