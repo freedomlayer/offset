@@ -57,6 +57,10 @@ pub enum IncomingNeighborMessage {
 /// Make sure that freezing credits along the route never exceeds the allowed amount.
 fn verify_freezing_links(request_send_msg: &RequestSendMessage) -> Option<()> {
 
+    // TODO: We need to keep track of a map between nodes --> total amount of credits frozen.
+    // We then use it inside this function to check if we may freeze credits.
+    assert!(false);
+
     // Perform DoS protection check:
     let request_content_len = usize_to_u32(request_send_msg.request_content.len())
         .expect("Invalid request_content.len())");
