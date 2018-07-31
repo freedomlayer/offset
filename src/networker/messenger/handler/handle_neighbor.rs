@@ -13,8 +13,8 @@ use utils::int_convert::usize_to_u32;
 
 use proto::networker::ChannelToken;
 
-use super::super::token_channel::incoming::{ProcessOperationOutput, 
-    IncomingResponseSendMessage, IncomingFailureSendMessage, IncomingMessage};
+use super::super::token_channel::incoming::{IncomingResponseSendMessage, 
+    IncomingFailureSendMessage, IncomingMessage};
 use super::super::token_channel::outgoing::{OutgoingTokenChannel, QueueOperationFailure};
 use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
     DirectionalMutation, MoveTokenDirection, MoveTokenReceived};
@@ -693,6 +693,9 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                                            channel_index, 
                                            neighbor_move_token.new_token.clone()))?;
 
+        let token_channel_slot = fself.get_token_channel_slot(&remote_public_key, 
+                                                             channel_index);
+
 
         let is_empty = neighbor_move_token.operations.is_empty();
 
@@ -705,7 +708,6 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         let receive_move_token_res = token_channel_slot.directional.simulate_receive_move_token(
             neighbor_move_token_inner,
             neighbor_move_token.new_token);
-
 
         Ok(match receive_move_token_res {
             Ok(ReceiveMoveTokenOutput::Duplicate) => fself,
@@ -726,8 +728,8 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                     let slot_mutation = SlotMutation::DirectionalMutation(directional_mutation);
                     let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
                     let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
-                    self.state.mutate(&messenger_mutation);
-                    self.sm_messages.push(messenger_mutation);
+                    fself.state.mutate(&messenger_mutation);
+                    fself.sm_messages.push(messenger_mutation);
                 }
 
 
