@@ -118,9 +118,9 @@ struct FailureSendMessage {
                 noListeningApp @1: Void;
                 # remote exists, but no application currently listens on the
                 # requested port.
-                remoteLostKey @1: Void;
+                remoteLostKey @2: Void;
                 # Remote's Crypter lost the key, so he can not decrypt the message.
-                noSuchPath @2: Void;
+                noSuchPath @3: Void;
                 # AppManager doesn't know about such path.
         }
 }
@@ -143,7 +143,7 @@ struct SuccessSendMessage {
 struct ResponseData {
         union {
                 noListeningApp @0: Void;
-                appData: @1: Data;
+                appData @1: Data;
         }
 }
 
@@ -320,9 +320,8 @@ struct DisableNeighbor {
 }
 
 # Application -> AppManager
-struct SetNeighborIncomingPathFee {
-        neighborPublicKey @0: CustomUInt256;
-        incomingPathFee @1: UInt64;
+struct SetIncomingPathFee {
+        incomingPathFee @0: UInt64;
 }
 
 # Application -> AppManager
@@ -365,8 +364,7 @@ struct NeighborUpdated {
                 none @1: Void;
         }
         maxChannels @2: UInt16;
-        incomingPathFee @3: UInt64;
-        status @4: NeighborStatus;
+        status @3: NeighborStatus;
         # When reading this field, make sure that there are no duplicates of channelIndex!
         # Idealy this would have been a HashMap (with channelIndex as key), and not a List.
 }
@@ -472,6 +470,14 @@ struct FriendStateUpdate {
         }
 }
 
+struct StateUpdate {
+        union {
+                neighborStateUpdate @0: NeighborStateUpdate;
+                friendStateUpdate @1: FriendStateUpdate;
+                incomingPathFeeUpdate @2: UInt64;
+        }
+}
+
 struct AppManagerToApp {
     union {
         # Messages
@@ -482,14 +488,11 @@ struct AppManagerToApp {
         responseSendFunds @2: ResponseSendFunds;
 
         # Neighbors management:
-        neighborStateUpdate @3: NeighborStateUpdate;
-
-        # Friends management:
-        friendStateUpdate @4: FriendStateUpdate;
+        stateUpdate @3: StateUpdate;
 
         # Routes management:
-        responseNeighborsRoute @5: ResponseNeighborsRoute;
-        responseFriendsRoute @6: ResponseFriendsRoute;
+        responseNeighborsRoute @4: ResponseNeighborsRoute;
+        responseFriendsRoute @5: ResponseFriendsRoute;
 
     }
 }

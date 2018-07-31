@@ -42,7 +42,6 @@ pub struct NeighborInfo {
 pub struct NeighborUpdated {
     neighbor_socket_addr: Option<SocketAddr>,
     max_channels: u16,
-    incoming_path_fee: u64,
     status: NeighborStatus,
 }
 
@@ -152,12 +151,12 @@ pub struct MessageReceivedResponse {
 }
 
 
-
 pub enum NetworkerToAppManager {
     ResponseSendMessage(ResponseSendMessage),
     MessageReceived(MessageReceived),
     RequestFriendsRoute(RequestFriendsRoute),
     NeighborStateUpdate(NeighborStateUpdate),
+    IncomingPathFeeUpdate(u64),
 }
 
 pub enum NetworkerToChanneler {
