@@ -505,3 +505,14 @@ struct AppToAppManager {
     }
 }
 
+
+# The data we encrypt. Contains random padding (Of variable length) together
+# with actual data. This struct is used for any data we encrypt.
+# Incremental nonce should be used for encryption/decryption.
+struct Plain {
+    randPadding @0: Data;
+    content :union {
+        user      @1: Data;
+        keepAlive @2: Void;
+    }
+}
