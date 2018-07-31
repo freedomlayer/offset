@@ -151,12 +151,12 @@ pub struct MessageReceivedResponse {
 }
 
 
-
 pub enum NetworkerToAppManager {
     ResponseSendMessage(ResponseSendMessage),
     MessageReceived(MessageReceived),
     RequestFriendsRoute(RequestFriendsRoute),
     NeighborStateUpdate(NeighborStateUpdate),
+    IncomingPathFeeUpdate(u64),
 }
 
 pub enum NetworkerToChanneler {

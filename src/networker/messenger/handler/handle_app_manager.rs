@@ -106,6 +106,7 @@ impl<R: SecureRandom> MessengerHandler<R> {
             NetworkerCommand::OpenNeighborChannel(open_neighbor_channel) => unimplemented!(),
             NetworkerCommand::CloseNeighborChannel(close_neighbor_channel) => unimplemented!(),
             NetworkerCommand::SetNeighborAddr(set_neighbor_addr) => unimplemented!(),
+            NetworkerCommand::SetNeighborIncomingPathFee(set_neighbor_incoming_path_fee) => unimplemented!(),
         }
     }
 

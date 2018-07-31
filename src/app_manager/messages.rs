@@ -15,7 +15,6 @@ use proto::networker::{ChannelToken, NetworkerSendPrice};
 use proto::funder::FunderSendPrice;
 
 
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct SetNeighborRemoteMaxDebt {
     pub neighbor_public_key: PublicKey,
@@ -23,7 +22,6 @@ pub struct SetNeighborRemoteMaxDebt {
     pub remote_max_debt: u64,
 }
 
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct ResetNeighborChannel {
     pub neighbor_public_key: PublicKey,
@@ -32,14 +30,12 @@ pub struct ResetNeighborChannel {
     pub balance_for_reset: i64,
 }
 
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct SetNeighborMaxChannels {
     pub neighbor_public_key: PublicKey,
     pub max_channels: u16,
 }
 
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct SetNeighborAddr {
     pub neighbor_public_key: PublicKey,
@@ -47,7 +43,6 @@ pub struct SetNeighborAddr {
 }
 
 
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct AddNeighbor {
     pub neighbor_public_key: PublicKey,
@@ -55,20 +50,23 @@ pub struct AddNeighbor {
     pub max_channels: u16, // Maximum amount of token channels
 }
 
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct RemoveNeighbor {
     pub neighbor_public_key: PublicKey,
 }
 
-#[allow(dead_code)]
+#[derive(Clone)]
+pub struct SetNeighborIncomingPathFee {
+    pub neighbor_public_key: PublicKey,
+    pub incoming_path_fee: u64,
+}
+
 #[derive(Clone)]
 pub struct SetNeighborStatus {
     pub neighbor_public_key: PublicKey,
     pub status: NeighborStatus,
 }
 
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct OpenNeighborChannel {
     pub neighbor_public_key: PublicKey,
@@ -76,7 +74,6 @@ pub struct OpenNeighborChannel {
     pub send_price: NetworkerSendPrice,
 }
 
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct CloseNeighborChannel {
     pub neighbor_public_key: PublicKey,
@@ -84,12 +81,12 @@ pub struct CloseNeighborChannel {
 }
 
 
-#[allow(dead_code)]
 pub enum NetworkerCommand {
     AddNeighbor(AddNeighbor),
     RemoveNeighbor(RemoveNeighbor),
     OpenNeighborChannel(OpenNeighborChannel),
     CloseNeighborChannel(CloseNeighborChannel),
+    SetNeighborIncomingPathFee(SetNeighborIncomingPathFee),
     SetNeighborStatus(SetNeighborStatus),
     SetNeighborRemoteMaxDebt(SetNeighborRemoteMaxDebt),
     SetNeighborMaxChannels(SetNeighborMaxChannels),

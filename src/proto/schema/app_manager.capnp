@@ -70,19 +70,21 @@ struct AppManagerDhMessage {
 # Should also be added in Rust's structs interface.
 
 struct RequestPath {
-        route @0: NeighborsRoute;
-        pathFeeProposal @1: UInt64;
+        pathRequestId @0: CustomUInt128;
+        route @1: NeighborsRoute;
+        pathFeeProposal @2: UInt64;
         # Maximum amount of credits we are willing to pay for opening this
         # secure path.
 }
 
 struct ResponsePath {
+        pathRequestId @0: CustomUInt128;
         union {
-                pathId @0: CustomUInt128;
+                pathId @1: CustomUInt128;
                 # Opening a secure path is successful.
-                proposalTooLow @1: UInt64;
+                proposalTooLow @2: UInt64;
                 # Proposal was too low, this is what the remote side asked for.
-                failure @2: Void;
+                failure @3: Void;
                 # We could not reach the remote side using the provided route,
                 # or something strange happened.
         }
@@ -113,14 +115,36 @@ struct FailureSendMessage {
         union {
                 unreachable @0: CustomUInt256;
                 # reportingPublicKey
-                remoteLostKey @1: Void;
-                noSuchPath @2: Void;
+                noListeningApp @1: Void;
+                # remote exists, but no application currently listens on the
+                # requested port.
+                remoteLostKey @2: Void;
+                # Remote's Crypter lost the key, so he can not decrypt the message.
+                noSuchPath @3: Void;
+                # AppManager doesn't know about such path.
         }
 }
 
 struct SuccessSendMessage {
         processingFeeCollected @0: UInt64;
         responseContent @1: Data;
+}
+
+# When AppManager receives a MessageReceived from the Networker, it should
+# first search for the relevant application (Using the provided port).  If the
+# application does not exist, it sends back to Networker a
+# MessageReceivedResponse with data = ResponseData::noListeningApp.
+# 
+# If, on the other hand, the appliation exists, AppManager will pass the
+# MessageReceived to the Application, and wait for a reply of
+# RespondIncomingMessage from the Application. When this arrives, AppManager
+# wraps it inside a ResponseData::appData(...) and send it as the data of
+# RespondIncomingMessage back to the Networker.
+struct ResponseData {
+        union {
+                noListeningApp @0: Void;
+                appData @1: Data;
+        }
 }
 
 # AppManager -> IndexerClient
@@ -296,6 +320,11 @@ struct DisableNeighbor {
 }
 
 # Application -> AppManager
+struct SetIncomingPathFee {
+        incomingPathFee @0: UInt64;
+}
+
+# Application -> AppManager
 struct SetNeighborRemoteMaxDebt {
         neighborPublicKey @0: CustomUInt256;
         channelIndex @1: UInt16;
@@ -441,6 +470,14 @@ struct FriendStateUpdate {
         }
 }
 
+struct StateUpdate {
+        union {
+                neighborStateUpdate @0: NeighborStateUpdate;
+                friendStateUpdate @1: FriendStateUpdate;
+                incomingPathFeeUpdate @2: UInt64;
+        }
+}
+
 struct AppManagerToApp {
     union {
         # Messages
@@ -451,14 +488,11 @@ struct AppManagerToApp {
         responseSendFunds @2: ResponseSendFunds;
 
         # Neighbors management:
-        neighborStateUpdate @3: NeighborStateUpdate;
-
-        # Friends management:
-        friendStateUpdate @4: FriendStateUpdate;
+        stateUpdate @3: StateUpdate;
 
         # Routes management:
-        responseNeighborsRoute @5: ResponseNeighborsRoute;
-        responseFriendsRoute @6: ResponseFriendsRoute;
+        responseNeighborsRoute @4: ResponseNeighborsRoute;
+        responseFriendsRoute @5: ResponseFriendsRoute;
 
     }
 }
@@ -503,3 +537,14 @@ struct AppToAppManager {
     }
 }
 
+
+# The data we encrypt. Contains random padding (Of variable length) together
+# with actual data. This struct is used for any data we encrypt.
+# Incremental nonce should be used for encryption/decryption.
+struct Plain {
+    randPadding @0: Data;
+    content :union {
+        user      @1: Data;
+        keepAlive @2: Void;
+    }
+}
