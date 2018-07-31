@@ -298,6 +298,12 @@ struct DisableNeighbor {
 }
 
 # Application -> AppManager
+struct SetNeighborIncomingPathFee {
+        neighborPublicKey @0: CustomUInt256;
+        incomingPathFee @1: UInt64;
+}
+
+# Application -> AppManager
 struct SetNeighborRemoteMaxDebt {
         neighborPublicKey @0: CustomUInt256;
         channelIndex @1: UInt16;
@@ -337,7 +343,8 @@ struct NeighborUpdated {
                 none @1: Void;
         }
         maxChannels @2: UInt16;
-        status @3: NeighborStatus;
+        incomingPathFee @3: UInt64;
+        status @4: NeighborStatus;
         # When reading this field, make sure that there are no duplicates of channelIndex!
         # Idealy this would have been a HashMap (with channelIndex as key), and not a List.
 }

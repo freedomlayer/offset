@@ -63,6 +63,13 @@ pub struct RemoveNeighbor {
 
 #[allow(dead_code)]
 #[derive(Clone)]
+pub struct SetNeighborIncomingPathFee {
+    pub neighbor_public_key: PublicKey,
+    pub incoming_path_fee: u64,
+}
+
+#[allow(dead_code)]
+#[derive(Clone)]
 pub struct SetNeighborStatus {
     pub neighbor_public_key: PublicKey,
     pub status: NeighborStatus,
@@ -90,6 +97,7 @@ pub enum NetworkerCommand {
     RemoveNeighbor(RemoveNeighbor),
     OpenNeighborChannel(OpenNeighborChannel),
     CloseNeighborChannel(CloseNeighborChannel),
+    SetNeighborIncomingPathFee(SetNeighborIncomingPathFee),
     SetNeighborStatus(SetNeighborStatus),
     SetNeighborRemoteMaxDebt(SetNeighborRemoteMaxDebt),
     SetNeighborMaxChannels(SetNeighborMaxChannels),

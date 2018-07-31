@@ -42,6 +42,7 @@ pub struct NeighborInfo {
 pub struct NeighborUpdated {
     neighbor_socket_addr: Option<SocketAddr>,
     max_channels: u16,
+    incoming_path_fee: u64,
     status: NeighborStatus,
 }
 
