@@ -74,7 +74,7 @@ impl<R: SecureRandom> MessengerHandler<R> {
         };
 
 
-        let slot_mutation = SlotMutation::Reset;
+        let slot_mutation = SlotMutation::LocalReset;
         let neighbor_mutation = NeighborMutation::SlotMutation(
             (reset_neighbor_channel.channel_index, slot_mutation));
         let m_mutation = MessengerMutation::NeighborMutation(

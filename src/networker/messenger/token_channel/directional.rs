@@ -56,15 +56,15 @@ pub enum ReceiveMoveTokenError {
     InvalidTransaction(ProcessTransListError),
 }
 
-pub struct ReceiveMoveTokenReceived {
-    incoming_messages: Vec<IncomingMessage>,
-    mutations: Vec<DirectionalMutation>,
+pub struct MoveTokenReceived {
+    pub incoming_messages: Vec<IncomingMessage>,
+    pub mutations: Vec<DirectionalMutation>,
 }
 
 pub enum ReceiveMoveTokenOutput {
     Duplicate,
     RetransmitOutgoing(NeighborMoveToken),
-    Received(ReceiveMoveTokenReceived),
+    Received(MoveTokenReceived),
 }
 
 
@@ -231,7 +231,7 @@ impl DirectionalTokenChannel {
                     match simulate_process_operations_list(&self.token_channel,
                         move_token_message.operations) {
                         Ok(outputs) => {
-                            let mut move_token_received = ReceiveMoveTokenReceived {
+                            let mut move_token_received = MoveTokenReceived {
                                 incoming_messages: Vec::new(),
                                 mutations: Vec::new(),
                             };
