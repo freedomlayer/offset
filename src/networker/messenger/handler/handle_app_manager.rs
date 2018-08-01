@@ -39,9 +39,9 @@ impl<R: SecureRandom> MutableMessengerHandler<R> {
         }
     }
 
-    fn app_manager_set_neighbor_remote_max_debt(&self, 
+    fn app_manager_set_neighbor_remote_max_debt(&mut self, 
                                                 set_neighbor_remote_max_debt: SetNeighborRemoteMaxDebt) 
-        -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), HandleAppManagerError> {
+        -> Result<(), HandleAppManagerError> {
 
         // Make sure that neighbor exists:
         let _neighbor = self.get_neighbor(&set_neighbor_remote_max_debt.neighbor_public_key)?;
@@ -54,12 +54,13 @@ impl<R: SecureRandom> MutableMessengerHandler<R> {
         let m_mutation = MessengerMutation::NeighborMutation(
             (set_neighbor_remote_max_debt.neighbor_public_key, neighbor_mutation));
 
-        Ok((vec![m_mutation], vec![]))
+        self.apply_mutation(m_mutation);
+        Ok(())
     }
 
     fn app_manager_reset_neighbor_channel(&mut self, 
                                           reset_neighbor_channel: ResetNeighborChannel) 
-        -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), HandleAppManagerError> {
+        -> Result<(), HandleAppManagerError> {
 
         let slot = self.get_slot(&reset_neighbor_channel.neighbor_public_key,
                                  reset_neighbor_channel.channel_index)?;
@@ -80,13 +81,14 @@ impl<R: SecureRandom> MutableMessengerHandler<R> {
         let m_mutation = MessengerMutation::NeighborMutation(
             (reset_neighbor_channel.neighbor_public_key, neighbor_mutation));
 
-        Ok((vec![m_mutation], vec![]))
+        self.apply_mutation(m_mutation);
+        Ok(())
 
     }
 
     fn app_manager_set_neighbor_max_channels(&mut self, 
                                           set_neighbor_max_channels: SetNeighborMaxChannels) 
-        -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), HandleAppManagerError> {
+        -> Result<(), HandleAppManagerError> {
 
         // Make sure that neighbor exists:
         let _neighbor = self.get_neighbor(&set_neighbor_max_channels.neighbor_public_key)?;
@@ -95,33 +97,36 @@ impl<R: SecureRandom> MutableMessengerHandler<R> {
         let m_mutation = MessengerMutation::NeighborMutation(
             (set_neighbor_max_channels.neighbor_public_key, neighbor_mutation));
 
-        Ok((vec![m_mutation], vec![]))
+        self.apply_mutation(m_mutation);
+        Ok(())
     }
 
     fn app_manager_add_neighbor(&mut self, 
                                 add_neighbor: AddNeighbor) 
-        -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), HandleAppManagerError> {
+        -> Result<(), HandleAppManagerError> {
 
         let m_mutation = MessengerMutation::AddNeighbor((
                 add_neighbor.neighbor_public_key,
                 add_neighbor.neighbor_addr,
                 add_neighbor.max_channels));
 
-        Ok((vec![m_mutation], vec![]))
+        self.apply_mutation(m_mutation);
+        Ok(())
     }
 
     fn app_manager_remove_neighbor(&mut self, remove_neighbor: RemoveNeighbor) 
-        -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), HandleAppManagerError> {
+        -> Result<(), HandleAppManagerError> {
 
         let m_mutation = MessengerMutation::RemoveNeighbor(
                 remove_neighbor.neighbor_public_key);
 
-        Ok((vec![m_mutation], vec![]))
+        self.apply_mutation(m_mutation);
+        Ok(())
     }
 
 
     fn app_manager_set_neighbor_status(&mut self, set_neighbor_status: SetNeighborStatus) 
-        -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), HandleAppManagerError> {
+        -> Result<(), HandleAppManagerError> {
 
         // Make sure that neighbor exists:
         let _neighbor = self.get_neighbor(&set_neighbor_status.neighbor_public_key)?;
@@ -130,12 +135,13 @@ impl<R: SecureRandom> MutableMessengerHandler<R> {
         let m_mutation = MessengerMutation::NeighborMutation(
             (set_neighbor_status.neighbor_public_key, neighbor_mutation));
 
-        Ok((vec![m_mutation], vec![]))
+        self.apply_mutation(m_mutation);
+        Ok(())
     }
 
     pub fn handle_app_manager_message(&mut self, 
                                       networker_config: NetworkerCommand) 
-        -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), HandleAppManagerError> {
+        -> Result<(), HandleAppManagerError> {
 
 
         match networker_config {

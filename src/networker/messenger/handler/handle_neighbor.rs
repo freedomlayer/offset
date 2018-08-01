@@ -245,8 +245,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
             let slot_mutation = SlotMutation::PushBackPendingOperation(failure_op);
             let neighbor_mutation = NeighborMutation::SlotMutation((origin_channel_index, slot_mutation));
             let messenger_mutation = MessengerMutation::NeighborMutation((origin_public_key.clone(), neighbor_mutation));
-            fself.state.mutate(&messenger_mutation);
-            fself.sm_messages.push(messenger_mutation);
+            fself.apply_mutation(messenger_mutation);
         }
         Ok(fself)
    }
@@ -274,8 +273,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
             let slot_mutation = SlotMutation::RemoteReset;
             let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
             let messenger_mutation = MessengerMutation::NeighborMutation((neighbor_public_key.clone(), neighbor_mutation));
-            fself.state.mutate(&messenger_mutation);
-            fself.sm_messages.push(messenger_mutation);
+            fself.apply_mutation(messenger_mutation);
 
             Ok(fself)
         } else {
@@ -312,8 +310,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
         let slot_mutation = SlotMutation::PushBackPendingOperation(failure_op);
         let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
         let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
-        fself.state.mutate(&messenger_mutation);
-        fself.sm_messages.push(messenger_mutation);
+        fself.apply_mutation(messenger_mutation);
 
         Ok(fself)
     }
@@ -359,8 +356,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
         // available token channel:
         let neighbor_mutation = NeighborMutation::PushBackPendingRequest(request_send_msg.clone());
         let messenger_mutation = MessengerMutation::NeighborMutation((next_pk.clone(), neighbor_mutation));
-        self.state.mutate(&messenger_mutation);
-        self.sm_messages.push(messenger_mutation);
+        self.apply_mutation(messenger_mutation);
     }
 
     #[async]
@@ -442,8 +438,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
                 let slot_mutation = SlotMutation::PushBackPendingOperation(response_op);
                 let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
                 let messenger_mutation = MessengerMutation::NeighborMutation((neighbor_public_key, neighbor_mutation));
-                self.state.mutate(&messenger_mutation);
-                self.sm_messages.push(messenger_mutation);
+                self.apply_mutation(messenger_mutation);
             },
         }
     }
@@ -478,8 +473,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
                 let slot_mutation = SlotMutation::PushBackPendingOperation(failure_op);
                 let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
                 let messenger_mutation = MessengerMutation::NeighborMutation((neighbor_public_key.clone(), neighbor_mutation));
-                fself.state.mutate(&messenger_mutation);
-                fself.sm_messages.push(messenger_mutation);
+                fself.apply_mutation(messenger_mutation);
 
                 fself
             },
@@ -616,8 +610,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
             let slot_mutation = SlotMutation::DirectionalMutation(directional_mutation);
             let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
             let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
-            self.state.mutate(&messenger_mutation);
-            self.sm_messages.push(messenger_mutation);
+            self.apply_mutation(messenger_mutation);
         }
         let token_channel_slot = self.get_token_channel_slot(remote_public_key, channel_index);
 
@@ -633,14 +626,13 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
         let slot_mutation = SlotMutation::DirectionalMutation(directional_mutation);
         let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
         let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
-        self.state.mutate(&messenger_mutation);
-        self.sm_messages.push(messenger_mutation);
+        self.apply_mutation(messenger_mutation);
 
         let token_channel_slot = self.get_token_channel_slot(remote_public_key, channel_index);
         let outgoing_move_token = token_channel_slot.directional.get_outgoing_move_token().unwrap();
 
         // Add a task for sending the outgoing move token:
-        self.messenger_tasks.push(
+        self.add_task(
             MessengerTask::NeighborMessage(
                 NeighborMessage::MoveToken(outgoing_move_token)));
     }
@@ -735,8 +727,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
                     let slot_mutation = SlotMutation::DirectionalMutation(directional_mutation);
                     let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
                     let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
-                    fself.state.mutate(&messenger_mutation);
-                    fself.sm_messages.push(messenger_mutation);
+                    fself.apply_mutation(messenger_mutation);
                 }
 
 
