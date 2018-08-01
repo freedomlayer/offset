@@ -8,7 +8,7 @@ use super::super::token_channel::directional::DirectionalMutation;
 use super::super::slot::{SlotMutation, TokenChannelSlot, TokenChannelStatus};
 use super::super::neighbor::{NeighborState, NeighborMutation};
 use super::super::messenger_state::{MessengerMutation, MessengerState};
-use super::{MessengerHandler, MessengerTask};
+use super::{MutableMessengerHandler, MessengerTask};
 use app_manager::messages::{NetworkerCommand, AddNeighbor, 
     RemoveNeighbor, SetNeighborStatus, SetNeighborRemoteMaxDebt,
     ResetNeighborChannel, SetNeighborMaxChannels};
@@ -22,7 +22,7 @@ pub enum HandleAppManagerError {
 }
 
 #[allow(unused)]
-impl<R: SecureRandom> MessengerHandler<R> {
+impl<R: SecureRandom> MutableMessengerHandler<R> {
 
     fn get_neighbor(&self, neighbor_public_key: &PublicKey) -> Result<&NeighborState, HandleAppManagerError> {
         match self.state().neighbors.get(neighbor_public_key) {

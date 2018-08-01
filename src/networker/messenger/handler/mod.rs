@@ -11,10 +11,13 @@ use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 
 use super::messenger_state::{MessengerState, MessengerMutation};
+use self::handle_app_manager::HandleAppManagerError;
 use self::handle_neighbor::{NeighborInconsistencyError, 
      NeighborSetMaxTokenChannels};
 use super::token_channel::directional::ReceiveMoveTokenError;
 use super::types::{NeighborMoveToken, NeighborsRoute};
+
+use app_manager::messages::{NetworkerCommand};
 
 #[allow(unused)]
 pub enum AppManagerMessage {
@@ -70,8 +73,11 @@ pub enum MessengerTask {
     CrypterMessage(CrypterMessage),
 }
 
-#[allow(unused)]
-pub struct MessengerHandler<R> {
+pub enum HandlerError {
+    HandleAppManagerError(HandleAppManagerError),
+}
+
+pub struct MutableMessengerHandler<R> {
     state: MessengerState,
     pub security_module_client: SecurityModuleClient,
     pub rng: Rc<R>,
@@ -79,14 +85,67 @@ pub struct MessengerHandler<R> {
     pub messenger_tasks: Vec<MessengerTask>,
 }
 
-impl<R: SecureRandom> MessengerHandler<R> {
+impl<R> MutableMessengerHandler<R> {
     pub fn state(&self) -> &MessengerState {
         &self.state
     }
+}
+
+pub struct MessengerHandler<R> {
+    pub security_module_client: SecurityModuleClient,
+    pub rng: Rc<R>,
+}
+
+impl<R: SecureRandom> MessengerHandler<R> {
+
+    fn gen_mutable(&self, messenger_state: &MessengerState) -> MutableMessengerHandler<R> {
+        MutableMessengerHandler {
+            state: messenger_state.clone(),
+            security_module_client: self.security_module_client.clone(),
+            rng: self.rng.clone(),
+            sm_messages: Vec::new(),
+            messenger_tasks: Vec::new(),
+        }
+    }
 
     #[allow(unused)]
-    pub fn handle_timer_tick(&mut self) -> Vec<MessengerTask> {
+    fn simulate_handle_timer_tick(&mut self)
+            -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), ()> {
         // TODO
         unreachable!();
     }
+
+    #[allow(unused)]
+    fn simulate_handle_app_manager_message(&self,
+                                        messenger_state: &MessengerState,
+                                        networker_command: NetworkerCommand)
+            -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), HandlerError> {
+        let mut mutable_handler = self.gen_mutable(messenger_state);
+        mutable_handler
+            .handle_app_manager_message(networker_command)
+            .map_err(HandlerError::HandleAppManagerError)
+    }
+
+    #[allow(unused)]
+    fn simulate_handle_neighbor_message(&self, 
+                                        messenger_state: &MessengerState)
+            -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), ()> {
+        unreachable!();
+    }
+
+    #[allow(unused)]
+    fn simulate_handle_funder_message(&self, 
+                                        messenger_state: &MessengerState)
+            -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), ()> {
+        unreachable!();
+    }
+
+    #[allow(unused)]
+    fn simulate_handle_crypter_message(&self, 
+                                        messenger_state: &MessengerState)
+            -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), ()> {
+        unreachable!();
+    }
+
 }
+

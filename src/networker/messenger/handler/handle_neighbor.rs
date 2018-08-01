@@ -18,7 +18,7 @@ use super::super::token_channel::incoming::{IncomingResponseSendMessage,
 use super::super::token_channel::outgoing::{OutgoingTokenChannel, QueueOperationFailure};
 use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
     DirectionalMutation, MoveTokenDirection, MoveTokenReceived};
-use super::{MessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage,
+use super::{MutableMessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage,
             CrypterMessage, RequestReceived, ResponseReceived, FailureReceived};
 use super::super::types::{NeighborTcOp, RequestSendMessage, 
     ResponseSendMessage, FailureSendMessage, RandNonceSignature, 
@@ -99,7 +99,7 @@ fn verify_freezing_links(request_send_msg: &RequestSendMessage) -> Option<()> {
 
 
 #[allow(unused)]
-impl<R: SecureRandom + 'static> MessengerHandler<R> {
+impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
 
     fn get_token_channel_slot(&self, 
                               neighbor_public_key: &PublicKey,
@@ -771,9 +771,8 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     #[async]
     pub fn handle_neighbor_message(mut self, 
                                    remote_public_key: PublicKey, 
-                                   neighbor_message: IncomingNeighborMessage) 
-        -> Result<Self, ()> {
-
+                                   neighbor_message: IncomingNeighborMessage)
+                                        -> Result<Self, ()> {
         match neighbor_message {
             IncomingNeighborMessage::MoveToken(neighbor_move_token) =>
                 await!(self.handle_move_token(remote_public_key, neighbor_move_token)),
@@ -787,4 +786,6 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             }
         }
     }
+
 }
+
