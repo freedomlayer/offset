@@ -166,14 +166,16 @@ struct RespondIncomingMessage {
 
 # AppManager -> IndexerClient
 struct RequestNeighborsRoute {
-        sourceNodePublicKey @0: CustomUInt256;
-        destNodePublicKey @1: CustomUInt256;
+        requestRouteId @0: CustomUInt128;
+        sourceNodePublicKey @1: CustomUInt256;
+        destNodePublicKey @2: CustomUInt256;
 }
 
 
 # IndexerClient -> AppManager
-struct ResponseNeighborsRoute {
-        routes @0: List(NeighborsRoute);
+struct ResponseNeighborsRoute { 
+        responseRouteId @0: CustomUInt128;
+        routes @1: List(NeighborsRoute);
 }
 
 
@@ -200,10 +202,11 @@ struct LoopToFriendRoute {
 
 # AppManager -> IndexerClient
 struct RequestFriendsRoute {
+        requestRouteId @0: CustomUInt128;
         routeType :union {
-                direct @0: DirectRoute;
-                loopFromFriend @1: LoopFromFriendRoute;
-                loopToFriend @2: LoopToFriendRoute;
+                direct @1: DirectRoute;
+                loopFromFriend @2: LoopFromFriendRoute;
+                loopToFriend @3: LoopToFriendRoute;
         }
 }
 
@@ -215,7 +218,8 @@ struct FriendsRouteWithCapacity {
 
 # IndexerClient -> AppManager
 struct ResponseFriendsRoute {
-        routes @0: List(FriendsRouteWithCapacity);
+        requestRouteId @0: CustomUInt128;
+        routes @1: List(FriendsRouteWithCapacity);
 }
 
 
