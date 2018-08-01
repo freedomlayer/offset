@@ -95,7 +95,7 @@ struct ClosePath {
 }
 
 struct RequestSendMessage {
-        messageId @0: CustomUInt128;
+        requestId @0: CustomUInt128;
         pathId @1: CustomUInt128;
         destPort @2: DestinationPort;
         maxResponseLength @3: UInt32;
@@ -149,7 +149,7 @@ struct ResponseData {
 
 # AppManager -> IndexerClient
 struct ResponseSendMessage {
-        messageId @0: CustomUInt128;
+        requestId @0: CustomUInt128;
         pathId @1: CustomUInt128;
         response: union {
                 success @2: SuccessSendMessage;
