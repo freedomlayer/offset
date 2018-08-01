@@ -53,6 +53,9 @@ pub enum IncomingNeighborMessage {
     SetMaxTokenChannels(NeighborSetMaxTokenChannels),
 }
 
+pub enum HandleNeighborError {
+}
+
 
 /// Make sure that freezing credits along the route never exceeds the allowed amount.
 fn verify_freezing_links(request_send_msg: &RequestSendMessage) -> Option<()> {
@@ -151,7 +154,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
     /// We are the reporting_public_key for this failure message.
     #[async]
     fn create_failure_message(mut self, pending_local_request: PendingNeighborRequest) 
-        -> Result<(Self, FailureSendMessage), ()> {
+        -> Result<(Self, FailureSendMessage), HandleNeighborError> {
 
         let local_public_key = self.state.get_local_public_key().clone();
         let failure_send_msg = FailureSendMessage {
@@ -184,7 +187,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
     fn failure_message_add_signature(mut self, 
                                      mut failure_send_msg: FailureSendMessage,
                                      pending_local_request: PendingNeighborRequest) 
-        -> Result<(Self, FailureSendMessage),()> {
+        -> Result<(Self, FailureSendMessage),HandleNeighborError> {
 
         let mut failure_signature_buffer = create_failure_signature_buffer(
                                             &failure_send_msg,
@@ -207,7 +210,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
     #[async]
     fn cancel_local_pending_requests(mut self, 
                                      neighbor_public_key: PublicKey, 
-                                     channel_index: u16) -> Result<Self, ()> {
+                                     channel_index: u16) -> Result<Self, HandleNeighborError> {
 
         let neighbor = self.state.get_neighbors().get(&neighbor_public_key)
             .expect("Neighbor not found!");
@@ -255,7 +258,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
     fn check_reset_channel(mut self, 
                            neighbor_public_key: PublicKey,
                            channel_index: u16,
-                           new_token: ChannelToken) -> Result<Self, ()> {
+                           new_token: ChannelToken) -> Result<Self, HandleNeighborError> {
         // Check if incoming message is an attempt to reset channel.
         // We can know this by checking if new_token is a special value.
         let token_channel_slot = self.get_token_channel_slot(&neighbor_public_key,
@@ -299,7 +302,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
     fn reply_with_failure(self, 
                           remote_public_key: PublicKey,
                           channel_index: u16,
-                          request_send_msg: RequestSendMessage) -> Result<Self, ()> {
+                          request_send_msg: RequestSendMessage) -> Result<Self, HandleNeighborError> {
 
         let pending_request = request_send_msg.create_pending_request()
             .expect("Could not create pending_request");
@@ -364,7 +367,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
     fn handle_request_send_msg(mut self, 
                                remote_public_key: PublicKey,
                                channel_index: u16,
-                               request_send_msg: RequestSendMessage) -> Result<Self, ()> {
+                               request_send_msg: RequestSendMessage) -> Result<Self, HandleNeighborError> {
 
         // Find ourselves on the route. If we are not there, abort.
         let pk_pair = request_send_msg.route.find_pk_pair(
@@ -451,7 +454,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
                                channel_index: u16,
                                failure_send_msg: FailureSendMessage,
                                pending_request: PendingNeighborRequest)
-                                -> Result<Self, ()> {
+                                -> Result<Self, HandleNeighborError> {
 
         let fself = match self.find_request_origin(&failure_send_msg.request_id) {
             None => {
@@ -490,7 +493,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
                                 remote_public_key: PublicKey,
                                 channel_index: u16,
                                 incoming_messages: Vec<IncomingMessage> )
-                        -> Result<Self, ()> {
+                        -> Result<Self, HandleNeighborError> {
 
         let mut fself = self;
         for incoming_message in incoming_messages {
@@ -654,7 +657,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
     #[async]
     fn handle_move_token(mut self, 
                          remote_public_key: PublicKey,
-                         neighbor_move_token: NeighborMoveToken) -> Result<Self,()> {
+                         neighbor_move_token: NeighborMoveToken) -> Result<Self,HandleNeighborError> {
 
         // Find neighbor:
         let neighbor = match self.state.get_neighbors().get(&remote_public_key) {
@@ -772,7 +775,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
     pub fn handle_neighbor_message(mut self, 
                                    remote_public_key: PublicKey, 
                                    neighbor_message: IncomingNeighborMessage)
-                                        -> Result<Self, ()> {
+                                        -> Result<Self, HandleNeighborError> {
         match neighbor_message {
             IncomingNeighborMessage::MoveToken(neighbor_move_token) =>
                 await!(self.handle_move_token(remote_public_key, neighbor_move_token)),

@@ -3,6 +3,8 @@ pub mod handle_neighbor;
 mod handle_funder;
 mod handle_crypter;
 
+use futures::prelude::{async, await};
+
 use std::rc::Rc;
 use security_module::client::SecurityModuleClient;
 use ring::rand::SecureRandom;
@@ -13,7 +15,7 @@ use crypto::identity::PublicKey;
 use super::messenger_state::{MessengerState, MessengerMutation};
 use self::handle_app_manager::HandleAppManagerError;
 use self::handle_neighbor::{NeighborInconsistencyError, 
-     NeighborSetMaxTokenChannels};
+     NeighborSetMaxTokenChannels, HandleNeighborError, IncomingNeighborMessage};
 use super::token_channel::directional::ReceiveMoveTokenError;
 use super::types::{NeighborMoveToken, NeighborsRoute};
 
@@ -75,6 +77,7 @@ pub enum MessengerTask {
 
 pub enum HandlerError {
     HandleAppManagerError(HandleAppManagerError),
+    HandleNeighborError(HandleNeighborError),
 }
 
 pub struct MutableMessengerHandler<R> {
@@ -96,7 +99,7 @@ pub struct MessengerHandler<R> {
     pub rng: Rc<R>,
 }
 
-impl<R: SecureRandom> MessengerHandler<R> {
+impl<R: SecureRandom + 'static> MessengerHandler<R> {
 
     fn gen_mutable(&self, messenger_state: &MessengerState) -> MutableMessengerHandler<R> {
         MutableMessengerHandler {
@@ -127,10 +130,19 @@ impl<R: SecureRandom> MessengerHandler<R> {
     }
 
     #[allow(unused)]
-    fn simulate_handle_neighbor_message(&self, 
-                                        messenger_state: &MessengerState)
-            -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), ()> {
-        unreachable!();
+    #[async]
+    fn simulate_handle_neighbor_message(self, 
+                                        messenger_state: MessengerState,
+                                        remote_public_key: PublicKey,
+                                        neighbor_message: IncomingNeighborMessage)
+            -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), HandlerError> {
+
+        let mut mutable_handler = self.gen_mutable(&messenger_state);
+        let mutable_handler = await!(mutable_handler
+            .handle_neighbor_message(remote_public_key, neighbor_message))
+            .map_err(HandlerError::HandleNeighborError)?;
+
+        Ok((mutable_handler.sm_messages, mutable_handler.messenger_tasks))
     }
 
     #[allow(unused)]
