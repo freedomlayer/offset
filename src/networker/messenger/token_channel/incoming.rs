@@ -19,9 +19,11 @@ use super::super::signature_buff::{create_response_signature_buffer, verify_fail
 use super::types::{TokenChannel, MAX_NETWORKER_DEBT, TcMutation};
 
 
+/*
 pub struct IncomingRequestSendMessage {
     pub request: PendingNeighborRequest,
 }
+*/
 
 pub struct IncomingResponseSendMessage {
     pub pending_request: PendingNeighborRequest,
