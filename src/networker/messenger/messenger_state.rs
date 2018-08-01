@@ -14,6 +14,7 @@ use super::neighbor::{NeighborState, NeighborMutation};
 #[derive(Clone)]
 pub struct MessengerState {
     pub local_public_key: PublicKey,
+    pub incoming_path_fee: u64,
     pub neighbors: ImHashMap<PublicKey, NeighborState>,
 }
 
@@ -23,6 +24,7 @@ pub enum MessengerMutation {
     AddNeighbor((PublicKey, Option<SocketAddr>, u16)),
     // (neighbor_public_key, neighbor_addr, max_channels)
     RemoveNeighbor(PublicKey),
+    SetIncomingPathFee(u64),
 }
 
 
@@ -68,6 +70,9 @@ impl MessengerState {
             },
             MessengerMutation::RemoveNeighbor(public_key) => {
                 let _ = self.neighbors.remove(&public_key);
+            },
+            MessengerMutation::SetIncomingPathFee(incoming_path_fee) => {
+                self.incoming_path_fee = *incoming_path_fee;
             },
         }
 
