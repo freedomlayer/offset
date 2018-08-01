@@ -7,7 +7,7 @@ use super::super::token_channel::types::TcMutation;
 use super::super::token_channel::directional::DirectionalMutation;
 use super::super::slot::{SlotMutation, TokenChannelSlot, TokenChannelStatus};
 use super::super::neighbor::{NeighborState, NeighborMutation};
-use super::super::messenger_state::{MessengerMutation, MessengerState};
+use super::super::state::{MessengerMutation, MessengerState};
 use super::{MutableMessengerHandler, MessengerTask};
 use app_manager::messages::{NetworkerCommand, AddNeighbor, 
     RemoveNeighbor, SetNeighborStatus, SetNeighborRemoteMaxDebt,

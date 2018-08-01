@@ -12,7 +12,7 @@ use ring::rand::SecureRandom;
 use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 
-use super::messenger_state::{MessengerState, MessengerMutation};
+use super::state::{MessengerState, MessengerMutation};
 use self::handle_app_manager::HandleAppManagerError;
 use self::handle_neighbor::{NeighborInconsistencyError, 
      NeighborSetMaxTokenChannels, HandleNeighborError, IncomingNeighborMessage};

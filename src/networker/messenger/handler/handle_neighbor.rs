@@ -24,7 +24,7 @@ use super::super::types::{NeighborTcOp, RequestSendMessage,
     ResponseSendMessage, FailureSendMessage, RandNonceSignature, 
     NeighborMoveToken};
 use super::super::token_channel::types::NeighborMoveTokenInner;
-use super::super::messenger_state::MessengerMutation;
+use super::super::state::MessengerMutation;
 use super::super::neighbor::{NeighborState, NeighborMutation};
 use super::super::slot::{TokenChannelSlot, SlotMutation, TokenChannelStatus};
 
