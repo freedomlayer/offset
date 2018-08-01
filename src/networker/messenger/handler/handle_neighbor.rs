@@ -9,7 +9,6 @@ use crypto::rand_values::RandValue;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
-use utils::int_convert::usize_to_u32;
 
 use proto::networker::ChannelToken;
 
@@ -30,7 +29,6 @@ use super::super::slot::{TokenChannelSlot, SlotMutation, TokenChannelStatus};
 
 use super::super::signature_buff::create_failure_signature_buffer;
 use super::super::types::{NetworkerFreezeLink, PkPairPosition, PendingNeighborRequest, Ratio};
-use super::super::credit_calc::CreditCalculator;
 
 
 
@@ -56,48 +54,6 @@ pub enum IncomingNeighborMessage {
 pub enum HandleNeighborError {
 }
 
-
-/// Make sure that freezing credits along the route never exceeds the allowed amount.
-fn verify_freezing_links(request_send_msg: &RequestSendMessage) -> Option<()> {
-
-    // TODO: We need to keep track of a map between nodes --> total amount of credits frozen.
-    // We then use it inside this function to check if we may freeze credits.
-    assert!(false);
-
-    // Perform DoS protection check:
-    let request_content_len = usize_to_u32(request_send_msg.request_content.len())
-        .expect("Invalid request_content.len())");
-    let credit_calc = CreditCalculator::new(&request_send_msg.route,
-                                            request_content_len,
-                                            request_send_msg.processing_fee_proposal,
-                                            request_send_msg.max_response_len)
-        .expect("Could not construct credit_calc");
-
-    // Make sure that the freeze_links vector is valid:
-    // numerator <= denominator for every link.
-    let two_pow_64 = BigUint::new(vec![0x1, 0x0, 0x0]);
-
-    // Verify previous freezing links
-    #[allow(needless_range_loop)]
-    for node_findex in 0 .. request_send_msg.freeze_links.len() {
-        let first_freeze_link = &request_send_msg.freeze_links[node_findex];
-        let mut allowed_credits: BigUint = first_freeze_link.shared_credits.into();
-        for freeze_link in &request_send_msg.freeze_links[
-            node_findex .. request_send_msg.freeze_links.len()] {
-            
-            allowed_credits = match freeze_link.usable_ratio {
-                Ratio::One => allowed_credits,
-                Ratio::Numerator(num) => allowed_credits * num / &two_pow_64,
-            };
-        }
-
-        let freeze_credits = credit_calc.credits_to_freeze(node_findex)?;
-        if allowed_credits < freeze_credits.into() {
-            return None;
-        }
-    }
-    Some(())
-}
 
 
 
@@ -365,6 +321,9 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
                                channel_index: u16,
                                request_send_msg: RequestSendMessage) -> Result<Self, HandleNeighborError> {
 
+        self.cache.add_frozen_credit(&request_send_msg.create_pending_request().unwrap());
+        // TODO: Add rest of add/sub_frozen_credit
+
         // Find ourselves on the route. If we are not there, abort.
         let pk_pair = request_send_msg.route.find_pk_pair(
             &remote_public_key, 
@@ -397,7 +356,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
 
 
         // Perform DoS protection check:
-        Ok(match verify_freezing_links(&request_send_msg) {
+        Ok(match fself.cache.verify_freezing_links(&request_send_msg) {
             Some(()) => {
                 // Add our freezing link, and queue message to the next node.
                 fself.forward_request(request_send_msg);
@@ -416,8 +375,9 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
                                remote_public_key: &PublicKey,
                                channel_index: u16,
                                response_send_msg: ResponseSendMessage,
-                               _pending_request: PendingNeighborRequest) {
+                               pending_request: PendingNeighborRequest) {
 
+        self.cache.sub_frozen_credit(&pending_request);
         match self.find_request_origin(&response_send_msg.request_id) {
             None => {
                 // We are the origin of this request, and we got a response.
@@ -451,6 +411,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
                                pending_request: PendingNeighborRequest)
                                 -> Result<Self, HandleNeighborError> {
 
+        self.cache.sub_frozen_credit(&pending_request);
         let fself = match self.find_request_origin(&failure_send_msg.request_id) {
             None => {
                 // We are the origin of this request, and we got a failure
