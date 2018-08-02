@@ -38,15 +38,15 @@ pub struct TcIdents {
 pub struct TcBalance {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
-    pub(super) balance: i64,
+    pub balance: i64,
     /// Maximum possible remote debt
-    pub(super) remote_max_debt: u64,
+    pub remote_max_debt: u64,
     /// Maximum possible local debt
-    pub(super) local_max_debt: u64,
+    pub local_max_debt: u64,
     /// Frozen credits by our side
-    pub(super) local_pending_debt: u64,
+    pub local_pending_debt: u64,
     /// Frozen credits by the remote side
-    pub(super) remote_pending_debt: u64,
+    pub remote_pending_debt: u64,
 }
 
 impl TcBalance {
@@ -83,10 +83,10 @@ impl TcInvoice {
 pub struct TcSendPrice {
     /// Price for us to send message to the remote side
     /// Known only if we enabled requests
-    pub(super) local_send_price: Option<NetworkerSendPrice>,
+    pub  local_send_price: Option<NetworkerSendPrice>,
     /// Price for the remote side to send messages to us
     /// Known only if remote side enabled requests
-    pub(super) remote_send_price: Option<NetworkerSendPrice>,
+    pub remote_send_price: Option<NetworkerSendPrice>,
 }
 
 impl TcSendPrice {
