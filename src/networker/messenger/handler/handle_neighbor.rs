@@ -816,7 +816,11 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
     fn handle_set_max_token_channels(&mut self, 
                                      remote_public_key: PublicKey,
                                      neighbor_set_max_token_channels: NeighborSetMaxTokenChannels) {
-        unimplemented!();
+
+        let neighbor_mutation = NeighborMutation::SetRemoteMaxChannels(
+            neighbor_set_max_token_channels.max_token_channels);
+        let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+        self.apply_mutation(messenger_mutation);
     }
 
     #[async]
