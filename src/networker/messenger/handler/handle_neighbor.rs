@@ -513,9 +513,15 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
         //   - The first messages in the batch should be pending configuration requests:
         //      - Set remote max debt (If wanted max debt is different than current max debt).
         //      - Open, Close neighbor for requests.
+        //
+        //  TODO:
+        //  Make sure that outgoing message is not too large. How can we know this? This might be
+        //  difficult, as serializing is done outside of this module.
 
         let token_channel_slot = self.get_token_channel_slot(&remote_public_key, 
                                                              channel_index);
+
+        // Set remote_max_debt if needed:
         let remote_max_debt = token_channel_slot
             .directional
             .remote_max_debt();
@@ -524,7 +530,22 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
             out_tc.queue_operation(NeighborTcOp::SetRemoteMaxDebt(token_channel_slot.wanted_remote_max_debt))?;
         }
 
-        // TODO
+        // Set local_send_price if needed:
+        let local_send_price = &token_channel_slot
+            .directional
+            .token_channel
+            .state()
+            .send_price
+            .local_send_price;
+
+        if token_channel_slot.wanted_local_send_price != *local_send_price {
+            match &token_channel_slot.wanted_local_send_price {
+                Some(wanted_local_send_price) => out_tc.queue_operation(NeighborTcOp::EnableRequests(
+                    wanted_local_send_price.clone()))?,
+                None => out_tc.queue_operation(NeighborTcOp::DisableRequests)?,
+            };
+        }
+
         unreachable!();
 
         Ok(())
