@@ -43,7 +43,7 @@ pub struct TokenChannelSlot {
     pub wanted_local_send_price: Option<NetworkerSendPrice>,
     pub pending_operations: Vector<NeighborTcOp>,
     // Pending operations to be sent to the token channel.
-    opt_pending_send_funds_id: Option<Uid>,
+    pub opt_pending_send_funds_id: Option<Uid>,
 }
 
 
@@ -120,6 +120,8 @@ impl TokenChannelSlot {
                 let _ = self.pending_operations.pop_front();
             },
             SlotMutation::SetPendingSendFundsId(opt_request_id) => {
+                // We don't want to lose another payment:
+                assert!(opt_request_id.is_none());
                 self.opt_pending_send_funds_id = opt_request_id.clone();
             },
             SlotMutation::LocalReset => {

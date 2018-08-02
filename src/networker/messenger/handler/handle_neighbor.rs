@@ -656,6 +656,11 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
 
         let tc_slot = self.get_token_channel_slot(
             remote_public_key, channel_index);
+
+        if tc_slot.opt_pending_send_funds_id.is_some() {
+            // We already have a pending payment. Nothing to do here.
+            return;
+        }
         
         //
         //   -LocalMaxDebt        0  balance    RemoteMaxDebt 
