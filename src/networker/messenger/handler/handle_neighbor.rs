@@ -810,6 +810,14 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
     fn handle_inconsistency_error(&mut self, 
                                   remote_public_key: PublicKey,
                                   neighbor_inconsistency_error: NeighborInconsistencyError) {
+        // TODO:
+        // - Keep inconsistency information.
+        // - Send remote side our reset terms in an inconsistency error message.
+        //
+        // Remote side have sent an inconsistency error messsage.
+        // We should reply with our inconsistency error. How to make sure we don't get into a loop
+        // with this?
+        //
         unimplemented!();
     }
 
