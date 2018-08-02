@@ -8,12 +8,13 @@ pub struct DummyRandom<R> {
 }
 
 impl DummyRandom<StdRng> {
-    pub fn new(seed: &[usize]) -> Self {
-        let rng_seed: &[_] = seed;
+    pub fn new(seed: &[u8]) -> Self {
+        let mut rng_seed: [u8; 32] = [0; 32];
+        // We copy as many seed bytes as we have as seed into rng_seed
+        // If seed.len() > 32, clone_from_slice will panic.
+        rng_seed[.. seed.len()].clone_from_slice(seed);
         let rng: StdRng = rand::SeedableRng::from_seed(rng_seed);
 
-        // Note: We use UnsafeCell here, because of the signature of the function fill.
-        // It takes &self, it means that we can not change internal state with safe rust.
         DummyRandom {
             rng: RefCell::new(rng),
         }
