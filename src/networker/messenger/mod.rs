@@ -33,6 +33,7 @@ pub mod types;
 mod credit_calc;
 mod signature_buff;
 mod state;
+mod freeze_guard;
 mod cache;
 
 

@@ -321,7 +321,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
                                channel_index: u16,
                                request_send_msg: RequestSendMessage) -> Result<Self, HandleNeighborError> {
 
-        self.cache.add_frozen_credit(&request_send_msg.create_pending_request().unwrap());
+        self.cache.freeze_guard.add_frozen_credit(&request_send_msg.create_pending_request().unwrap());
         // TODO: Add rest of add/sub_frozen_credit
 
         // Find ourselves on the route. If we are not there, abort.
@@ -356,7 +356,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
 
 
         // Perform DoS protection check:
-        Ok(match fself.cache.verify_freezing_links(&request_send_msg) {
+        Ok(match fself.cache.freeze_guard.verify_freezing_links(&request_send_msg) {
             Some(()) => {
                 // Add our freezing link, and queue message to the next node.
                 fself.forward_request(request_send_msg);
@@ -377,7 +377,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
                                response_send_msg: ResponseSendMessage,
                                pending_request: PendingNeighborRequest) {
 
-        self.cache.sub_frozen_credit(&pending_request);
+        self.cache.freeze_guard.sub_frozen_credit(&pending_request);
         match self.find_request_origin(&response_send_msg.request_id) {
             None => {
                 // We are the origin of this request, and we got a response.
@@ -411,7 +411,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
                                pending_request: PendingNeighborRequest)
                                 -> Result<Self, HandleNeighborError> {
 
-        self.cache.sub_frozen_credit(&pending_request);
+        self.cache.freeze_guard.sub_frozen_credit(&pending_request);
         let fself = match self.find_request_origin(&failure_send_msg.request_id) {
             None => {
                 // We are the origin of this request, and we got a failure
