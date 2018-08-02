@@ -67,8 +67,8 @@ impl<R: SecureRandom> MutableMessengerHandler<R> {
 
         match &slot.tc_status {
             TokenChannelStatus::Valid => return Err(HandleAppManagerError::NotInvitedToReset),
-            TokenChannelStatus::Inconsistent { current_token, .. } => {
-                if (current_token != &reset_neighbor_channel.current_token)  {
+            TokenChannelStatus::Inconsistent(status_inconsistent) => {
+                if (status_inconsistent.current_token != reset_neighbor_channel.current_token)  {
                     return Err(HandleAppManagerError::ResetTokenMismatch);
                 }
             }

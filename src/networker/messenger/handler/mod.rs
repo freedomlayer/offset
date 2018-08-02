@@ -14,7 +14,7 @@ use crypto::identity::PublicKey;
 
 use super::state::{MessengerState, MessengerMutation};
 use self::handle_app_manager::HandleAppManagerError;
-use self::handle_neighbor::{NeighborInconsistencyError, 
+use self::handle_neighbor::{NeighborInconsistencyError,
      NeighborSetMaxTokenChannels, HandleNeighborError, IncomingNeighborMessage};
 use super::token_channel::directional::ReceiveMoveTokenError;
 use super::types::{NeighborMoveToken, NeighborsRoute};

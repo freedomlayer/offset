@@ -9,16 +9,22 @@ use super::types::{NeighborTcOp};
 use super::token_channel::directional::{DirectionalTokenChannel};
 
 
+#[derive(Clone)]
+pub struct StatusInconsistent {
+    // Has the remote side acknowledged our reset terms?
+    pub local_terms_acked: bool,
+    pub current_token: ChannelToken,
+    pub balance_for_reset: i64,
+}
+
 #[allow(dead_code)]
 #[derive(Clone)]
 pub enum TokenChannelStatus {
     Valid,
     /// Inconsistent means that the remote side showed disagreement about the 
     /// token channel, and this channel is waiting for a local human intervention.
-    Inconsistent {
-        current_token: ChannelToken,
-        balance_for_reset: i64,
-    },
+    /// The information in Inconsistent are the requirements of the remote side for a reset.
+    Inconsistent(StatusInconsistent),
 }
 
 #[allow(unused)]
@@ -127,13 +133,13 @@ impl TokenChannelSlot {
             SlotMutation::LocalReset => {
                 match &self.tc_status {
                     TokenChannelStatus::Valid => unreachable!(),
-                    TokenChannelStatus::Inconsistent {current_token, balance_for_reset} => {
+                    TokenChannelStatus::Inconsistent(status_inconsistent) => {
                         self.directional = DirectionalTokenChannel::new_from_reset(
                             &self.directional.token_channel.state().idents.local_public_key,
                             &self.directional.token_channel.state().idents.remote_public_key,
                             self.directional.token_channel_index,
-                            &current_token,
-                            *balance_for_reset);
+                            &status_inconsistent.current_token,
+                            status_inconsistent.balance_for_reset);
                     }
                 }
             },

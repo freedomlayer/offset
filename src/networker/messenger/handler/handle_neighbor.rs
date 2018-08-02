@@ -30,7 +30,8 @@ use super::super::types::{NeighborTcOp, RequestSendMessage,
 use super::super::token_channel::types::NeighborMoveTokenInner;
 use super::super::state::MessengerMutation;
 use super::super::neighbor::{NeighborState, NeighborMutation};
-use super::super::slot::{TokenChannelSlot, SlotMutation, TokenChannelStatus};
+use super::super::slot::{TokenChannelSlot, SlotMutation, TokenChannelStatus, 
+    StatusInconsistent};
 
 use super::super::signature_buff::create_failure_signature_buffer;
 use super::super::types::{NetworkerFreezeLink, PkPairPosition, PendingNeighborRequest, Ratio};
@@ -43,6 +44,7 @@ const MAX_MOVE_TOKEN_LENGTH: usize = 0x1000;
 
 #[allow(unused)]
 pub struct NeighborInconsistencyError {
+    opt_ack: Option<ChannelToken>,
     token_channel_index: u16,
     current_token: ChannelToken,
     balance_for_reset: i64,
@@ -500,6 +502,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
             .balance_for_reset();
 
         let inconsistency_error = NeighborInconsistencyError {
+            opt_ack: None,
             token_channel_index: channel_index,
             current_token,
             balance_for_reset,
@@ -739,6 +742,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
         // This means that the remote side has sent an InconsistencyError message in the past.
         // In this case, we are not willing to accept new messages from the remote side until the
         // inconsistency is resolved.
+        // TODO: Is this the correct behaviour?
         if let TokenChannelStatus::Inconsistent { .. } 
                     = token_channel_slot.tc_status {
             return Ok(self);
@@ -808,17 +812,47 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
     }
 
     fn handle_inconsistency_error(&mut self, 
-                                  remote_public_key: PublicKey,
+                                  remote_public_key: &PublicKey,
                                   neighbor_inconsistency_error: NeighborInconsistencyError) {
-        // TODO:
-        // - Keep inconsistency information.
-        // - Send remote side our reset terms in an inconsistency error message.
-        //
-        // Remote side have sent an inconsistency error messsage.
-        // We should reply with our inconsistency error. How to make sure we don't get into a loop
-        // with this?
-        //
-        unimplemented!();
+        
+        let token_channel_index = neighbor_inconsistency_error.token_channel_index;
+        let tc_slot = self.get_token_channel_slot(
+            remote_public_key, token_channel_index);
+
+        // Send inconsistency message to remote side:
+        let directional = &tc_slot.directional;
+        let current_token = directional.calc_channel_reset_token(token_channel_index);
+        let balance_for_reset = directional.balance_for_reset();
+
+        let inconsistency_error = NeighborInconsistencyError {
+            opt_ack: Some(neighbor_inconsistency_error.current_token.clone()),
+            token_channel_index,
+            current_token: current_token.clone(),
+            balance_for_reset,
+        };
+
+        self.add_task(
+            MessengerTask::NeighborMessage(
+                NeighborMessage::InconsistencyError(inconsistency_error)));
+
+        // Check if remote side successfuly acknowledged our reset demands:
+        let local_terms_acked = match neighbor_inconsistency_error.opt_ack {
+            None => false,
+            Some(ack_current_token) => ack_current_token == current_token,
+        };
+
+        // Keep inconsistency information:
+        let new_status = TokenChannelStatus::Inconsistent(StatusInconsistent {
+            local_terms_acked,
+            current_token: neighbor_inconsistency_error.current_token,
+            balance_for_reset: neighbor_inconsistency_error.balance_for_reset,
+        });
+
+        let slot_mutation = SlotMutation::SetTcStatus(new_status);
+        let neighbor_mutation = NeighborMutation::SlotMutation((token_channel_index, slot_mutation));
+        let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+        self.apply_mutation(messenger_mutation);
+
     }
 
     fn handle_set_max_token_channels(&mut self, 
@@ -840,7 +874,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
             IncomingNeighborMessage::MoveToken(neighbor_move_token) =>
                 await!(self.handle_move_token(remote_public_key, neighbor_move_token)),
             IncomingNeighborMessage::InconsistencyError(neighbor_inconsistency_error) => {
-                self.handle_inconsistency_error(remote_public_key, neighbor_inconsistency_error);
+                self.handle_inconsistency_error(&remote_public_key, neighbor_inconsistency_error);
                 Ok(self)
             }
             IncomingNeighborMessage::SetMaxTokenChannels(neighbor_set_max_token_channels) => {
