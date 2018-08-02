@@ -694,7 +694,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
         self.add_task(MessengerTask::SendPayment(send_payment));
 
         // Keep the request_id of the generated RequestSendFunds, and save it inside the state:
-        let slot_mutation = SlotMutation::SetPendingSendFundsId(payment_id);
+        let slot_mutation = SlotMutation::SetPendingSendFundsId(Some(payment_id));
         let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
         let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
         self.apply_mutation(messenger_mutation);

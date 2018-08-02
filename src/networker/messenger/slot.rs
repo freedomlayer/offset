@@ -29,8 +29,7 @@ pub enum SlotMutation {
     SetWantedLocalSendPrice(Option<NetworkerSendPrice>),
     PushBackPendingOperation(NeighborTcOp),
     PopFrontPendingOperation,
-    SetPendingSendFundsId(Uid),
-    ClearPendingSendFundsId,
+    SetPendingSendFundsId(Option<Uid>),
     RemoteReset,        // Remote side performed reset
     LocalReset,         // Local side performed reset
 }
@@ -44,7 +43,7 @@ pub struct TokenChannelSlot {
     pub wanted_local_send_price: Option<NetworkerSendPrice>,
     pub pending_operations: Vector<NeighborTcOp>,
     // Pending operations to be sent to the token channel.
-    pending_send_funds_id: Option<Uid>,
+    opt_pending_send_funds_id: Option<Uid>,
 }
 
 
@@ -65,10 +64,11 @@ impl TokenChannelSlot {
             // send price). When possible, this will be updated with the TokenChannel.
             wanted_local_send_price: None,
             pending_operations: Vector::new(),
-            pending_send_funds_id: None,
+            opt_pending_send_funds_id: None,
         }
     }
 
+    /*
     pub fn new_from_reset(local_public_key: &PublicKey,
                            remote_public_key: &PublicKey,
                            token_channel_index: u16,
@@ -93,9 +93,10 @@ impl TokenChannelSlot {
             wanted_remote_max_debt,
             wanted_local_send_price,
             pending_operations: Vector::new(),
-            pending_send_funds_id: None,
+            opt_pending_send_funds_id: None, // TODO: What to put here?
         }
     }
+    */
 
     #[allow(unused)]
     pub fn mutate(&mut self, slot_mutation: &SlotMutation) {
@@ -118,11 +119,8 @@ impl TokenChannelSlot {
             SlotMutation::PopFrontPendingOperation => {
                 let _ = self.pending_operations.pop_front();
             },
-            SlotMutation::SetPendingSendFundsId(request_id) => {
-                self.pending_send_funds_id = Some(request_id.clone());
-            },
-            SlotMutation::ClearPendingSendFundsId => {
-                self.pending_send_funds_id = None;
+            SlotMutation::SetPendingSendFundsId(opt_request_id) => {
+                self.opt_pending_send_funds_id = opt_request_id.clone();
             },
             SlotMutation::LocalReset => {
                 match &self.tc_status {
