@@ -33,6 +33,7 @@ use super::super::types::{NetworkerFreezeLink, PkPairPosition, PendingNeighborRe
 
 
 // Approximate maximum size of a MOVE_TOKEN message.
+// TODO: Where to put this constant? Do we have more like this one?
 const MAX_MOVE_TOKEN_LENGTH: usize = 0x1000;
 
 
@@ -511,53 +512,57 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
                            channel_index: u16,
                            out_tc: &mut OutgoingTokenChannel) -> Result<(), QueueOperationFailure> {
 
-        // TODO
-        // - If any messages are pending for this token channel, batch as many as possible into one
-        //   move token message and add a task to send it. 
-        //   - The first messages in the batch should be pending configuration requests:
-        //      - Set remote max debt (If wanted max debt is different than current max debt).
-        //      - Open, Close neighbor for requests.
-        //
-        //  TODO:
-        //  Make sure that outgoing message is not too large. How can we know this? This might be
-        //  difficult, as serializing is done outside of this module.
-
-        let token_channel_slot = self.get_token_channel_slot(&remote_public_key, 
-                                                             channel_index);
+        let tc_slot = self.get_token_channel_slot(&remote_public_key, 
+                                                    channel_index);
 
         // Set remote_max_debt if needed:
-        let remote_max_debt = token_channel_slot
+        let remote_max_debt = tc_slot
             .directional
             .remote_max_debt();
 
-        if token_channel_slot.wanted_remote_max_debt != remote_max_debt {
-            out_tc.queue_operation(NeighborTcOp::SetRemoteMaxDebt(token_channel_slot.wanted_remote_max_debt))?;
+        if tc_slot.wanted_remote_max_debt != remote_max_debt {
+            out_tc.queue_operation(NeighborTcOp::SetRemoteMaxDebt(tc_slot.wanted_remote_max_debt))?;
         }
 
         // Set local_send_price if needed:
-        let local_send_price = &token_channel_slot
+        let local_send_price = &tc_slot
             .directional
             .token_channel
             .state()
             .send_price
             .local_send_price;
 
-        if token_channel_slot.wanted_local_send_price != *local_send_price {
-            match &token_channel_slot.wanted_local_send_price {
+        if tc_slot.wanted_local_send_price != *local_send_price {
+            match &tc_slot.wanted_local_send_price {
                 Some(wanted_local_send_price) => out_tc.queue_operation(NeighborTcOp::EnableRequests(
                     wanted_local_send_price.clone()))?,
                 None => out_tc.queue_operation(NeighborTcOp::DisableRequests)?,
             };
         }
 
-        // Send pending responses and failures:
+        // Send pending operations (responses and failures)
+        // TODO: Possibly replace this clone with something more efficient later:
+        let mut pending_operations = tc_slot.pending_operations.clone();
+        while let Some(pending_operation) = pending_operations.pop_front() {
+            out_tc.queue_operation(pending_operation)?;
+            let slot_mutation = SlotMutation::PopFrontPendingOperation;
+            let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
+            let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+            self.apply_mutation(messenger_mutation);
+        }
 
         // Send requests:
+        let neighbor = self.state.get_neighbors().get(&remote_public_key).unwrap();
 
-        unreachable!();
+        let mut pending_requests = neighbor.pending_requests.clone();
+        while let Some(pending_request) = pending_requests.pop_front() {
+            out_tc.queue_operation(NeighborTcOp::RequestSendMessage(pending_request))?;
+            let neighbor_mutation = NeighborMutation::PopFrontPendingRequest;
+            let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+            self.apply_mutation(messenger_mutation);
+        }
 
         Ok(())
-
     }
 
     /// Compose a large as possible message to send through the token channel to the remote side.
