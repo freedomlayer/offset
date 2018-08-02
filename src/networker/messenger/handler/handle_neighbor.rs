@@ -511,7 +511,26 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
         self.messenger_tasks.push(
             MessengerTask::NeighborMessage(
                 NeighborMessage::InconsistencyError(inconsistency_error)));
+
+        unimplemented!();
+        // TODO: Set local_terms_acked to be false (Because our new sent inconsistency was not yet
+        // acknowledged).
+        // TODO: Possibly make local_terms_acked a separate field, and not part of a sub option of
+        // the enum?
+        /*
+        let new_status = TokenChannelStatus::Inconsistent(StatusInconsistent {
+            local_terms_acked,
+            current_token: neighbor_inconsistency_error.current_token,
+            balance_for_reset: neighbor_inconsistency_error.balance_for_reset,
+        });
+
+        let slot_mutation = SlotMutation::SetTcStatus(new_status);
+        let neighbor_mutation = NeighborMutation::SlotMutation((token_channel_index, slot_mutation));
+        let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+        self.apply_mutation(messenger_mutation);
+        */
     }
+
 
     /// Queue as many messages as possible into available token channel.
     fn queue_outgoing_operations(&mut self,
