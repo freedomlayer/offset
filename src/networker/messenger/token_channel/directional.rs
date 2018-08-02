@@ -270,12 +270,12 @@ impl DirectionalTokenChannel {
     }
 
     #[allow(unused)]
-    pub fn begin_outgoing_move_token(&self) -> Option<OutgoingTokenChannel> {
+    pub fn begin_outgoing_move_token(&self, move_token_max_length: usize) -> Option<OutgoingTokenChannel> {
         if let MoveTokenDirection::Outgoing(_) = self.direction {
             return None;
         }
 
-        Some(OutgoingTokenChannel::new(&self.token_channel))
+        Some(OutgoingTokenChannel::new(&self.token_channel, move_token_max_length))
     }
 
     fn create_outgoing_move_token(&self, 

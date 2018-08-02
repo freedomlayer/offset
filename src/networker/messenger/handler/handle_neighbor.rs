@@ -14,7 +14,8 @@ use proto::networker::ChannelToken;
 
 use super::super::token_channel::incoming::{IncomingResponseSendMessage, 
     IncomingFailureSendMessage, IncomingMessage};
-use super::super::token_channel::outgoing::{OutgoingTokenChannel, QueueOperationFailure};
+use super::super::token_channel::outgoing::{OutgoingTokenChannel, QueueOperationFailure,
+    QueueOperationError};
 use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
     DirectionalMutation, MoveTokenDirection, MoveTokenReceived};
 use super::{MutableMessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage,
@@ -30,6 +31,9 @@ use super::super::slot::{TokenChannelSlot, SlotMutation, TokenChannelStatus};
 use super::super::signature_buff::create_failure_signature_buffer;
 use super::super::types::{NetworkerFreezeLink, PkPairPosition, PendingNeighborRequest, Ratio};
 
+
+// Approximate maximum size of a MOVE_TOKEN message.
+const MAX_MOVE_TOKEN_LENGTH: usize = 0x1000;
 
 
 #[allow(unused)]
@@ -546,6 +550,10 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
             };
         }
 
+        // Send pending responses and failures:
+
+        // Send requests:
+
         unreachable!();
 
         Ok(())
@@ -568,11 +576,24 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
                                   received_empty: bool) {
 
         let token_channel_slot = self.get_token_channel_slot(remote_public_key, channel_index);
-        let mut out_tc = token_channel_slot.directional.begin_outgoing_move_token().unwrap();
+        let mut out_tc = token_channel_slot.directional
+            .begin_outgoing_move_token(MAX_MOVE_TOKEN_LENGTH).unwrap();
 
-        let _ = self.queue_outgoing_operations(remote_public_key,
+        let res = self.queue_outgoing_operations(remote_public_key,
                                        channel_index,
                                        &mut out_tc);
+
+        // If we had a real error, we should panic.
+        // Otherwise
+        match res {
+            Ok(()) => {},
+            Err(QueueOperationFailure {error, ..}) => {
+                match error {
+                    QueueOperationError::MaxLengthReached => {},
+                    _ => unreachable!(),
+                }
+            }
+        };
 
         let (operations, tc_mutations) = out_tc.done();
 

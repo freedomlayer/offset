@@ -27,6 +27,10 @@ use super::super::signature_buff::{create_response_signature_buffer,
 /// Used to batch as many messages as possible.
 pub struct OutgoingTokenChannel {
     token_channel: TokenChannel,
+    // We want to limit the amount of bytes we can accumulate into
+    // one MoveTokenChannel. Here we count how many bytes left until
+    // we reach the maximum
+    bytes_left: usize,  
     tc_mutations: Vec<TcMutation>,
     operations: Vec<NeighborTcOp>,
 }
@@ -56,18 +60,20 @@ pub enum QueueOperationError {
     InvalidReportingNode,
     InvalidFailureSignature,
     FailureOriginatedFromDest,
+    MaxLengthReached,
 }
 
 pub struct QueueOperationFailure {
-    operation: NeighborTcOp,
-    error: QueueOperationError,
+    pub operation: NeighborTcOp,
+    pub error: QueueOperationError,
 }
 
 /// A wrapper over a token channel, accumulating messages to be sent as one transcation.
 impl OutgoingTokenChannel {
-    pub fn new(token_channel: &TokenChannel) -> OutgoingTokenChannel {
+    pub fn new(token_channel: &TokenChannel, move_token_max_length: usize) -> OutgoingTokenChannel {
         OutgoingTokenChannel {
             token_channel: token_channel.clone(),
+            bytes_left: move_token_max_length,
             tc_mutations: Vec::new(),
             operations: Vec::new(),
         }
@@ -82,6 +88,16 @@ impl OutgoingTokenChannel {
 
     pub fn queue_operation(&mut self, operation: NeighborTcOp) ->
         Result<(), QueueOperationFailure> {
+
+        // Check if we have room for another message:
+        let approx_bytes_count = operation.approx_bytes_count();
+        if self.bytes_left < approx_bytes_count {
+            return Err(QueueOperationFailure {
+                operation,
+                error: QueueOperationError::MaxLengthReached,
+            });
+        }
+
         let res = match operation.clone() {
             NeighborTcOp::EnableRequests(send_price) =>
                 self.queue_enable_requests(send_price),
@@ -104,6 +120,8 @@ impl OutgoingTokenChannel {
             Ok(tc_mutations) => {
                 self.tc_mutations.extend(tc_mutations);
                 self.operations.push(operation);
+                self.bytes_left = self.bytes_left
+                    .checked_sub(approx_bytes_count).unwrap();
                 Ok(())
             },
             Err(error) => Err(QueueOperationFailure {
