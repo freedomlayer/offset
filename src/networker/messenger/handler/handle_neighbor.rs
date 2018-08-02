@@ -636,9 +636,6 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
         let token_channel_slot = self.get_token_channel_slot(&remote_public_key, 
                                                              channel_index);
 
-        // QUESTION: Should Database be informed about the creation of a new token channel?
-        // This is not really a creation of anything new, as we create the default new channel.
-
         // Check if the channel is inconsistent.
         // This means that the remote side has sent an InconsistencyError message in the past.
         // In this case, we are not willing to accept new messages from the remote side until the
