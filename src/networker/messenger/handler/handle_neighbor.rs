@@ -650,7 +650,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
                            remote_public_key: &PublicKey,
                            channel_index: u16) {
         // TODO
-        unreachable!();
+        unimplemented!();
     }
 
 
@@ -758,13 +758,13 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
     fn handle_inconsistency_error(&mut self, 
                                   remote_public_key: PublicKey,
                                   neighbor_inconsistency_error: NeighborInconsistencyError) {
-        unreachable!();
+        unimplemented!();
     }
 
     fn handle_set_max_token_channels(&mut self, 
                                      remote_public_key: PublicKey,
                                      neighbor_set_max_token_channels: NeighborSetMaxTokenChannels) {
-        unreachable!();
+        unimplemented!();
     }
 
     #[async]
