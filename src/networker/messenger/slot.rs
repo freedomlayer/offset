@@ -75,14 +75,23 @@ impl TokenChannelSlot {
                            current_token: &ChannelToken,
                            balance: i64) -> TokenChannelSlot {
 
-        TokenChannelSlot {
-            directional: DirectionalTokenChannel::new_from_reset(local_public_key,
+        let directional = DirectionalTokenChannel::new_from_reset(local_public_key,
                                                       remote_public_key,
                                                       token_channel_index,
                                                       current_token,
-                                                      balance),
+                                                      balance);
+
+        // Set what we want to be what we have:
+        let wanted_remote_max_debt 
+            = directional.token_channel.state().balance.remote_max_debt;
+        let wanted_local_send_price 
+            = directional.token_channel.state().send_price.local_send_price.clone();
+
+        TokenChannelSlot {
+            directional,
             tc_status: TokenChannelStatus::Valid,
-            wanted_remote_max_debt: 0,
+            wanted_remote_max_debt,
+            wanted_local_send_price,
             pending_operations: Vector::new(),
             pending_send_funds_id: None,
         }
