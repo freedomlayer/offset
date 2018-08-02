@@ -67,10 +67,21 @@ pub enum CrypterMessage {
     FailureReceived(FailureReceived),
 }
 
+/// Used for rebalancing a token channel by sending a payment to neighbor
+/// along a route of friends.
+#[allow(unused)]
+pub struct SendPayment {
+    neighbor_public_key: PublicKey,
+    channel_index: u16,
+    payment_id: Uid,
+    payment: u64,   // Amount of credits to pay
+}
+
 
 #[allow(unused)]
 pub enum MessengerTask {
     AppManagerMessage(AppManagerMessage),
+    SendPayment(SendPayment),
     FunderMessage(FunderMessage),
     NeighborMessage(NeighborMessage),
     CrypterMessage(CrypterMessage),
