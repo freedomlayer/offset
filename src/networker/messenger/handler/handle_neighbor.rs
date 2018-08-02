@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use futures::prelude::{async, await};
 
 use num_bigint::BigUint;
@@ -9,6 +11,8 @@ use crypto::rand_values::RandValue;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
+use utils::safe_arithmetic::SafeArithmetic;
+
 
 use proto::networker::ChannelToken;
 
@@ -19,7 +23,7 @@ use super::super::token_channel::outgoing::{OutgoingTokenChannel, QueueOperation
 use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
     DirectionalMutation, MoveTokenDirection, MoveTokenReceived};
 use super::{MutableMessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage,
-            CrypterMessage, RequestReceived, ResponseReceived, FailureReceived};
+            CrypterMessage, RequestReceived, ResponseReceived, FailureReceived, SendPayment};
 use super::super::types::{NeighborTcOp, RequestSendMessage, 
     ResponseSendMessage, FailureSendMessage, RandNonceSignature, 
     NeighborMoveToken};
@@ -645,12 +649,55 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
                 NeighborMessage::MoveToken(outgoing_move_token)));
     }
 
-    /// Initialte loading funds (Using a funder message) for token channel, if needed.
+    /// Initiate loading funds (Using a funder message) for token channel, if needed.
     fn initiate_load_funds(&mut self,
                            remote_public_key: &PublicKey,
                            channel_index: u16) {
-        // TODO
-        unimplemented!();
+
+        let tc_slot = self.get_token_channel_slot(
+            remote_public_key, channel_index);
+        
+        //
+        //   -LocalMaxDebt        0  balance    RemoteMaxDebt 
+        //  -----[----------------|---|-----------]--------->
+        //
+
+        let tc_balance = &tc_slot.directional.token_channel.state().balance;
+        let span = tc_balance.remote_max_debt + tc_balance.local_max_debt;
+
+        let left_dist: u64 = u64::try_from(tc_balance.balance.checked_add_unsigned(tc_balance.local_max_debt)
+            .unwrap()).unwrap();
+        let left_quad = left_dist < span / 4;
+
+        if !left_quad {
+            // We are not in the left quadrant. Nothing to do here
+            return;
+        }
+
+        // We want to bring balance to the middle between -LocalMaxDebt and RemoteMaxDebt
+        // dest_balance = (-local_max_debt + remote_max_debt) / 2
+        let dest_balance = (0i64).checked_sub_unsigned(tc_balance.local_max_debt).unwrap()
+            .checked_add_unsigned(tc_balance.remote_max_debt).unwrap() / 2;
+        // payment = dest_balance - balance
+        let payment = u64::try_from(dest_balance.checked_sub(tc_balance.balance).unwrap()).unwrap();
+
+        // Create a RequestSendFunds, and push it as a task.
+        let payment_id = Uid::new(&*self.rng);
+
+        let send_payment = SendPayment {
+            neighbor_public_key: remote_public_key.clone(),
+            channel_index,
+            payment_id,
+            payment,
+        };
+
+        self.add_task(MessengerTask::SendPayment(send_payment));
+
+        // Keep the request_id of the generated RequestSendFunds, and save it inside the state:
+        let slot_mutation = SlotMutation::SetPendingSendFundsId(payment_id);
+        let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
+        let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+        self.apply_mutation(messenger_mutation);
     }
 
 
