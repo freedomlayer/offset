@@ -42,7 +42,7 @@ pub struct Channel {
 }
 
 #[derive(Debug)]
-pub enum Error {
+pub enum ChannelError {
     /// Message too short, we discard the message.
     MessageTooShort,
 
@@ -52,7 +52,7 @@ pub enum Error {
     /// Error may occur in opening sealed message.
     DecryptFailed,
 
-    /// No sending end for a neighbor.
+    /// No sending end for specified neighbor.
     Disconnected,
 
     /// When we received a message while there is no channel matches its
@@ -61,10 +61,10 @@ pub enum Error {
     UnknownChannel(ChannelId),
 
     /// The `Nonce` along with a message doesn't be accepted.
-    IllegalNonce,
+    InvalidNonce,
 
     /// Error may occur in encoding/decoding message.
-    Proto(ProtoError),
+    ProtoError(ProtoError),
 }
 
 impl Channel {
@@ -75,16 +75,16 @@ impl Channel {
         Channel { tx: Some(tx), carousel_rx }
     }
 
-    fn encrypt_msg(&mut self, msg: Plain) -> Result<(SocketAddr, Bytes), Error> {
-        self.tx_mut().and_then(move |tx| {
-            tx.encrypt(msg).and_then(|encrypted| {
-                Ok((tx.remote_addr(), encrypted))
-            })
+    fn encrypt_msg(&mut self, msg: Plain) -> Result<(SocketAddr, Bytes), ChannelError> {
+        let tx = self.tx_mut()?;
+
+        tx.encrypt(msg).and_then(|encrypted| {
+            Ok((tx.remote_addr(), encrypted))
         })
     }
 
-    fn decrypt_msg(&mut self, cid: ChannelId, msg: Bytes) -> Result<Option<Bytes>, Error> {
-        let rx = self.rx_mut(cid)?;
+    fn decrypt_msg(&mut self, channel_id: ChannelId, msg: Bytes) -> Result<Option<Bytes>, ChannelError> {
+        let rx = self.rx_mut(&channel_id)?;
 
         match rx.decrypt(msg)?.content {
             PlainContent::KeepAlive => {
@@ -96,38 +96,40 @@ impl Channel {
     }
 
     #[inline]
-    fn tx_mut(&mut self) -> Result<&mut Tx, Error> {
-        self.tx.as_mut().ok_or(Error::Disconnected)
+    fn tx_mut(&mut self) -> Result<&mut Tx, ChannelError> {
+        self.tx.as_mut().ok_or(ChannelError::Disconnected)
     }
 
     #[inline]
-    fn rx_mut(&mut self, cid: ChannelId) -> Result<&mut Rx, Error> {
+    fn rx_mut(&mut self, channel_id: &ChannelId) -> Result<&mut Rx, ChannelError> {
         for rx in &mut self.carousel_rx {
-            if rx.channel_id() == &cid {
+            if rx.channel_id() == channel_id {
                 return Ok(rx)
             }
         }
 
-        Err(Error::UnknownChannel(cid))
+        Err(ChannelError::UnknownChannel(channel_id.clone()))
     }
 
     #[inline]
-    fn can_send_msg(&self) -> bool {
+    fn can_send_message(&self) -> bool {
         self.tx.is_some()
     }
 
-    fn remove_tx(&mut self) {
-        self.tx = None;
+    fn remove_sender(&mut self) -> Option<ChannelId> {
+        self.tx.take().map(|tx| tx.channel_id().clone())
     }
 
-    fn update_channel(&mut self, tx: Tx, rx: Rx) -> Option<Rx> {
-        self.tx = Some(tx);
+    fn update_channel(&mut self, tx: Tx, rx: Rx) -> (Option<Tx>, Option<Rx>) {
+        let old_tx = ::std::mem::replace(&mut self.tx, Some(tx));
         self.carousel_rx.push_back(rx);
 
-        if self.carousel_rx.len() <= MAXIMUM_CAROUSEL_RECEIVER {
+        let old_rx = if self.carousel_rx.len() <= MAXIMUM_CAROUSEL_RECEIVER {
             None
         } else {
             self.carousel_rx.pop_front()
-        }
+        };
+
+        (old_tx, old_rx)
     }
 }
