@@ -4,7 +4,7 @@ use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 use super::token_channel::directional::DirectionalMutation;
-use proto::networker::ChannelToken;
+use proto::networker::{ChannelToken, NetworkerSendPrice};
 use super::types::{NeighborTcOp};
 use super::token_channel::directional::{DirectionalTokenChannel};
 
@@ -26,6 +26,7 @@ pub enum SlotMutation {
     DirectionalMutation(DirectionalMutation),
     SetTcStatus(TokenChannelStatus),
     SetWantedRemoteMaxDebt(u64),
+    SetWantedLocalSendPrice(Option<NetworkerSendPrice>),
     PushBackPendingOperation(NeighborTcOp),
     PopFrontPendingOperation,
     SetPendingSendFundsId(Uid),
@@ -40,6 +41,7 @@ pub struct TokenChannelSlot {
     pub directional: DirectionalTokenChannel,
     pub tc_status: TokenChannelStatus,
     pub wanted_remote_max_debt: u64,
+    pub wanted_local_send_price: Option<NetworkerSendPrice>,
     pub pending_operations: Vector<NeighborTcOp>,
     // Pending operations to be sent to the token channel.
     pending_send_funds_id: Option<Uid>,
@@ -56,7 +58,12 @@ impl TokenChannelSlot {
                                            remote_public_key,
                                            token_channel_index),
             tc_status: TokenChannelStatus::Valid,
+            // The remote_max_debt we want to have. When possible, this will be sent to the remote
+            // side.
             wanted_remote_max_debt: 0,
+            // The local_send_price we want to have (Or possibly close requests, by having an empty
+            // send price). When possible, this will be updated with the TokenChannel.
+            wanted_local_send_price: None,
             pending_operations: Vector::new(),
             pending_send_funds_id: None,
         }
@@ -92,6 +99,9 @@ impl TokenChannelSlot {
             },
             SlotMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
                 self.wanted_remote_max_debt = *wanted_remote_max_debt;
+            },
+            SlotMutation::SetWantedLocalSendPrice(wanted_local_send_price) => {
+                self.wanted_local_send_price = wanted_local_send_price.clone();
             },
             SlotMutation::PushBackPendingOperation(neighbor_tc_op) => {
                 self.pending_operations.push_back(neighbor_tc_op.clone());
