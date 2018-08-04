@@ -8,6 +8,7 @@ use proto::networker::{ChannelToken, NetworkerSendPrice};
 use super::types::{NeighborTcOp};
 use super::token_channel::directional::{DirectionalTokenChannel};
 
+/*
 
 #[derive(Clone)]
 pub struct StatusInconsistent {
@@ -26,11 +27,52 @@ pub enum TokenChannelStatus {
     /// The information in Inconsistent are the requirements of the remote side for a reset.
     Inconsistent(StatusInconsistent),
 }
+*/
+
+#[derive(Clone)]
+pub struct ResetTerms {
+    pub current_token: ChannelToken,
+    pub balance_for_reset: i64,
+}
+
+#[derive(Clone)]
+pub enum IncomingInconsistency {
+    // No incoming inconsistency was received
+    Empty,
+    // Incoming inconsistency was received from remote side.
+    Incoming(ResetTerms),
+}
+
+#[derive(Clone)]
+pub enum OutgoingInconsistency {
+    // No outgoing inconsistency in progress
+    Empty,
+    // Outgoing inconsistency message was sent
+    Sent,
+    // Outgoing inconsistency message was sent and acknowledged by remote side
+    Acked,
+}
+
+#[derive(Clone)]
+pub struct InconsistencyStatus {
+    pub incoming: IncomingInconsistency,
+    pub outgoing: OutgoingInconsistency,
+}
+
+impl InconsistencyStatus {
+    pub fn new() -> InconsistencyStatus {
+        InconsistencyStatus {
+            incoming: IncomingInconsistency::Empty,
+            outgoing: OutgoingInconsistency::Empty,
+        }
+    }
+}
 
 #[allow(unused)]
 pub enum SlotMutation {
     DirectionalMutation(DirectionalMutation),
-    SetTcStatus(TokenChannelStatus),
+    SetIncomingInconsistency(IncomingInconsistency),
+    SetOutgoingInconsistency(OutgoingInconsistency),
     SetWantedRemoteMaxDebt(u64),
     SetWantedLocalSendPrice(Option<NetworkerSendPrice>),
     PushBackPendingOperation(NeighborTcOp),
@@ -44,7 +86,7 @@ pub enum SlotMutation {
 #[derive(Clone)]
 pub struct TokenChannelSlot {
     pub directional: DirectionalTokenChannel,
-    pub tc_status: TokenChannelStatus,
+    pub inconsistency_status: InconsistencyStatus,
     pub wanted_remote_max_debt: u64,
     pub wanted_local_send_price: Option<NetworkerSendPrice>,
     pub pending_operations: Vector<NeighborTcOp>,
@@ -62,7 +104,8 @@ impl TokenChannelSlot {
             directional: DirectionalTokenChannel::new(local_public_key,
                                            remote_public_key,
                                            token_channel_index),
-            tc_status: TokenChannelStatus::Valid,
+
+            inconsistency_status: InconsistencyStatus::new(),
             // The remote_max_debt we want to have. When possible, this will be sent to the remote
             // side.
             wanted_remote_max_debt: 0,
@@ -110,8 +153,11 @@ impl TokenChannelSlot {
             SlotMutation::DirectionalMutation(directional_mutation) => {
                 self.directional.mutate(directional_mutation);
             },
-            SlotMutation::SetTcStatus(tc_status) => {
-                self.tc_status = tc_status.clone();
+            SlotMutation::SetIncomingInconsistency(incoming_inconsistency) => {
+                self.inconsistency_status.incoming = incoming_inconsistency.clone();
+            },
+            SlotMutation::SetOutgoingInconsistency(outgoing_inconsistency) => {
+                self.inconsistency_status.outgoing = outgoing_inconsistency.clone();
             },
             SlotMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
                 self.wanted_remote_max_debt = *wanted_remote_max_debt;
@@ -131,23 +177,26 @@ impl TokenChannelSlot {
                 self.opt_pending_send_funds_id = opt_request_id.clone();
             },
             SlotMutation::LocalReset => {
-                match &self.tc_status {
-                    TokenChannelStatus::Valid => unreachable!(),
-                    TokenChannelStatus::Inconsistent(status_inconsistent) => {
+                // Local reset was applied (We sent a reset from AppManager).
+                match &self.inconsistency_status.incoming {
+                    IncomingInconsistency::Empty => unreachable!(),
+                    IncomingInconsistency::Incoming(reset_terms) => {
                         self.directional = DirectionalTokenChannel::new_from_reset(
                             &self.directional.token_channel.state().idents.local_public_key,
                             &self.directional.token_channel.state().idents.remote_public_key,
                             self.directional.token_channel_index,
-                            &status_inconsistent.current_token,
-                            status_inconsistent.balance_for_reset);
+                            &reset_terms.current_token,
+                            reset_terms.balance_for_reset);
                     }
-                }
+                };
+                self.inconsistency_status = InconsistencyStatus::new();
             },
             SlotMutation::RemoteReset => {
+                // Remote reset was applied (Remote side has given a reset command)
                 let reset_token = self.directional.calc_channel_reset_token(
                     self.directional.token_channel_index);
                 let balance_for_reset = self.directional.balance_for_reset();
-                self.tc_status = TokenChannelStatus::Valid;
+                self.inconsistency_status = InconsistencyStatus::new();
                 self.directional = DirectionalTokenChannel::new_from_reset(
                     &self.directional.token_channel.state().idents.local_public_key,
                     &self.directional.token_channel.state().idents.remote_public_key,

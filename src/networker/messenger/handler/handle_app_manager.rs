@@ -5,7 +5,8 @@ use crypto::identity::PublicKey;
 
 use super::super::token_channel::types::TcMutation;
 use super::super::token_channel::directional::DirectionalMutation;
-use super::super::slot::{SlotMutation, TokenChannelSlot, TokenChannelStatus};
+use super::super::slot::{SlotMutation, TokenChannelSlot, InconsistencyStatus,
+                            IncomingInconsistency};
 use super::super::neighbor::{NeighborState, NeighborMutation};
 use super::super::state::{MessengerMutation, MessengerState};
 use super::{MutableMessengerHandler, MessengerTask};
@@ -65,10 +66,10 @@ impl<R: SecureRandom> MutableMessengerHandler<R> {
         let slot = self.get_slot(&reset_neighbor_channel.neighbor_public_key,
                                  reset_neighbor_channel.channel_index)?;
 
-        match &slot.tc_status {
-            TokenChannelStatus::Valid => return Err(HandleAppManagerError::NotInvitedToReset),
-            TokenChannelStatus::Inconsistent(status_inconsistent) => {
-                if (status_inconsistent.current_token != reset_neighbor_channel.current_token)  {
+        match &slot.inconsistency_status.incoming {
+            IncomingInconsistency::Empty => return Err(HandleAppManagerError::NotInvitedToReset),
+            IncomingInconsistency::Incoming(reset_terms) => {
+                if (reset_terms.current_token != reset_neighbor_channel.current_token)  {
                     return Err(HandleAppManagerError::ResetTokenMismatch);
                 }
             }

@@ -30,8 +30,8 @@ use super::super::types::{NeighborTcOp, RequestSendMessage,
 use super::super::token_channel::types::NeighborMoveTokenInner;
 use super::super::state::MessengerMutation;
 use super::super::neighbor::{NeighborState, NeighborMutation};
-use super::super::slot::{TokenChannelSlot, SlotMutation, TokenChannelStatus, 
-    StatusInconsistent};
+use super::super::slot::{TokenChannelSlot, SlotMutation, OutgoingInconsistency, 
+    IncomingInconsistency, ResetTerms};
 
 use super::super::signature_buff::create_failure_signature_buffer;
 use super::super::types::{NetworkerFreezeLink, PkPairPosition, PendingNeighborRequest, Ratio};
@@ -493,6 +493,14 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
             MessengerTask::AppManagerMessage(
                 AppManagerMessage::ReceiveMoveTokenError(receive_move_token_error)));
 
+
+        // Clear current incoming inconsistency messages:
+        let slot_mutation = SlotMutation::SetIncomingInconsistency(IncomingInconsistency::Empty);
+        let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
+        let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+        self.apply_mutation(messenger_mutation);
+
+
         let token_channel_slot = self.get_token_channel_slot(&remote_public_key, 
                                                               channel_index);
         // Send an InconsistencyError message to remote side:
@@ -512,23 +520,11 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
             MessengerTask::NeighborMessage(
                 NeighborMessage::InconsistencyError(inconsistency_error)));
 
-        unimplemented!();
-        // TODO: Set local_terms_acked to be false (Because our new sent inconsistency was not yet
-        // acknowledged).
-        // TODO: Possibly make local_terms_acked a separate field, and not part of a sub option of
-        // the enum?
-        /*
-        let new_status = TokenChannelStatus::Inconsistent(StatusInconsistent {
-            local_terms_acked,
-            current_token: neighbor_inconsistency_error.current_token,
-            balance_for_reset: neighbor_inconsistency_error.balance_for_reset,
-        });
-
-        let slot_mutation = SlotMutation::SetTcStatus(new_status);
-        let neighbor_mutation = NeighborMutation::SlotMutation((token_channel_index, slot_mutation));
+        // Keep outgoing InconsistencyError message details in memory:
+        let slot_mutation = SlotMutation::SetOutgoingInconsistency(OutgoingInconsistency::Sent);
+        let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
         let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
         self.apply_mutation(messenger_mutation);
-        */
     }
 
 
@@ -727,6 +723,80 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
         self.apply_mutation(messenger_mutation);
     }
 
+    /// Clear all pending inconsistency errors if exist
+    fn clear_inconsistency_status(&mut self,
+                               remote_public_key: &PublicKey,
+                               channel_index: u16) {
+        let tc_slot = self.get_token_channel_slot(&remote_public_key, channel_index);
+        match tc_slot.inconsistency_status.incoming {
+            IncomingInconsistency::Empty => {},
+            _ => {
+                let slot_mutation = SlotMutation::SetIncomingInconsistency(IncomingInconsistency::Empty);
+                let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
+                let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+                self.apply_mutation(messenger_mutation);
+            },
+        }
+
+        let tc_slot = self.get_token_channel_slot(&remote_public_key, channel_index);
+        match tc_slot.inconsistency_status.outgoing {
+            OutgoingInconsistency::Empty => {},
+            _ => {
+                let slot_mutation = SlotMutation::SetOutgoingInconsistency(OutgoingInconsistency::Empty);
+                let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
+                let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+                self.apply_mutation(messenger_mutation);
+            },
+        }
+    }
+
+    /// Handle success with incoming move token.
+    #[async]
+    fn handle_move_token_success(mut self,
+                               remote_public_key: PublicKey,
+                               channel_index: u16,
+                               receive_move_token_output: ReceiveMoveTokenOutput,
+                               is_empty: bool) -> Result<Self, HandleNeighborError> {
+
+        self.clear_inconsistency_status(&remote_public_key,
+                                        channel_index);
+
+        match receive_move_token_output {
+            ReceiveMoveTokenOutput::Duplicate => Ok(self),
+            ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token) => {
+                // Retransmit last sent token channel message:
+                self.messenger_tasks.push(
+                    MessengerTask::NeighborMessage(
+                        NeighborMessage::MoveToken(outgoing_move_token)));
+                Ok(self)
+            },
+            ReceiveMoveTokenOutput::Received(move_token_received) => {
+
+                let MoveTokenReceived {incoming_messages, mutations} = 
+                    move_token_received;
+
+                // Apply all mutations:
+                for directional_mutation in mutations {
+                    let slot_mutation = SlotMutation::DirectionalMutation(directional_mutation);
+                    let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
+                    let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+                    self.apply_mutation(messenger_mutation);
+                }
+
+
+                let mut fself = await!(self.handle_move_token_output(remote_public_key.clone(),
+                                               channel_index,
+                                               incoming_messages))?;
+                fself.send_through_token_channel(&remote_public_key,
+                                                 channel_index,
+                                                 is_empty);
+                fself.initiate_load_funds(&remote_public_key,
+                                          channel_index);
+                Ok(fself)
+            },
+        }
+    }
+
 
     #[async]
     fn handle_move_token(mut self, 
@@ -762,10 +832,12 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
         // In this case, we are not willing to accept new messages from the remote side until the
         // inconsistency is resolved.
         // TODO: Is this the correct behaviour?
+        /*
         if let TokenChannelStatus::Inconsistent { .. } 
                     = token_channel_slot.tc_status {
             return Ok(self);
         };
+        */
 
 
         let mut fself = await!(self.check_reset_channel(remote_public_key.clone(), 
@@ -789,37 +861,11 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
             neighbor_move_token.new_token);
 
         Ok(match receive_move_token_res {
-            Ok(ReceiveMoveTokenOutput::Duplicate) => fself,
-            Ok(ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token)) => {
-                // Retransmit last sent token channel message:
-                fself.messenger_tasks.push(
-                    MessengerTask::NeighborMessage(
-                        NeighborMessage::MoveToken(outgoing_move_token)));
-                fself
-            },
-            Ok(ReceiveMoveTokenOutput::Received(move_token_received)) => {
-
-                let MoveTokenReceived {incoming_messages, mutations} = 
-                    move_token_received;
-
-                // Apply all mutations:
-                for directional_mutation in mutations {
-                    let slot_mutation = SlotMutation::DirectionalMutation(directional_mutation);
-                    let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
-                    let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
-                    fself.apply_mutation(messenger_mutation);
-                }
-
-
-                let mut fself = await!(fself.handle_move_token_output(remote_public_key.clone(),
-                                               channel_index,
-                                               incoming_messages))?;
-                fself.send_through_token_channel(&remote_public_key,
-                                                 channel_index,
-                                                 is_empty);
-                fself.initiate_load_funds(&remote_public_key,
-                                          channel_index);
-                fself
+            Ok(receive_move_token_output) => {
+                await!(fself.handle_move_token_success(remote_public_key.clone(),
+                                             channel_index,
+                                             receive_move_token_output,
+                                             is_empty))?
             },
             Err(receive_move_token_error) => {
                 fself.handle_move_token_error(&remote_public_key,
@@ -834,43 +880,67 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
                                   remote_public_key: &PublicKey,
                                   neighbor_inconsistency_error: NeighborInconsistencyError) {
         
+        // Save incoming inconsistency details:
         let token_channel_index = neighbor_inconsistency_error.token_channel_index;
-        let tc_slot = self.get_token_channel_slot(
-            remote_public_key, token_channel_index);
-
-        // Send inconsistency message to remote side:
-        let directional = &tc_slot.directional;
-        let current_token = directional.calc_channel_reset_token(token_channel_index);
-        let balance_for_reset = directional.balance_for_reset();
-
-        let inconsistency_error = NeighborInconsistencyError {
-            opt_ack: Some(neighbor_inconsistency_error.current_token.clone()),
-            token_channel_index,
-            current_token: current_token.clone(),
-            balance_for_reset,
-        };
-
-        self.add_task(
-            MessengerTask::NeighborMessage(
-                NeighborMessage::InconsistencyError(inconsistency_error)));
-
-        // Check if remote side successfuly acknowledged our reset demands:
-        let local_terms_acked = match neighbor_inconsistency_error.opt_ack {
-            None => false,
-            Some(ack_current_token) => ack_current_token == current_token,
-        };
-
-        // Keep inconsistency information:
-        let new_status = TokenChannelStatus::Inconsistent(StatusInconsistent {
-            local_terms_acked,
-            current_token: neighbor_inconsistency_error.current_token,
+        let incoming = IncomingInconsistency::Incoming(ResetTerms {
+            current_token: neighbor_inconsistency_error.current_token.clone(),
             balance_for_reset: neighbor_inconsistency_error.balance_for_reset,
         });
 
-        let slot_mutation = SlotMutation::SetTcStatus(new_status);
+        let slot_mutation = SlotMutation::SetIncomingInconsistency(incoming);
         let neighbor_mutation = NeighborMutation::SlotMutation((token_channel_index, slot_mutation));
         let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
         self.apply_mutation(messenger_mutation);
+
+        // Obtain information about our reset terms:
+        let tc_slot = self.get_token_channel_slot(
+            remote_public_key, token_channel_index);
+        let directional = &tc_slot.directional;
+        let reset_token = directional.calc_channel_reset_token(token_channel_index);
+        let balance_for_reset = directional.balance_for_reset();
+
+
+        // Check if we should send an outgoing inconsistency message:
+        let should_send_outgoing = match tc_slot.inconsistency_status.outgoing {
+            OutgoingInconsistency::Empty => {
+                let slot_mutation = SlotMutation::SetOutgoingInconsistency(OutgoingInconsistency::Sent);
+                let neighbor_mutation = NeighborMutation::SlotMutation((token_channel_index, slot_mutation));
+                let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+                self.apply_mutation(messenger_mutation);
+                true
+            },
+            OutgoingInconsistency::Sent => {
+                let is_ack_valid = match neighbor_inconsistency_error.opt_ack {
+                    Some(acked_reset_token) => acked_reset_token == reset_token,
+                    None => false,
+                };
+                if is_ack_valid {
+                    let slot_mutation = SlotMutation::SetOutgoingInconsistency(OutgoingInconsistency::Acked);
+                    let neighbor_mutation = NeighborMutation::SlotMutation((token_channel_index, slot_mutation));
+                    let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+                    self.apply_mutation(messenger_mutation);
+                    false
+                } else {
+                    true
+                }
+                
+            },
+            OutgoingInconsistency::Acked => false,
+        };
+
+        // Send an outgoing inconsistency message if required:
+        if should_send_outgoing {
+            let inconsistency_error = NeighborInconsistencyError {
+                opt_ack: Some(neighbor_inconsistency_error.current_token.clone()),
+                token_channel_index,
+                current_token: reset_token.clone(),
+                balance_for_reset,
+            };
+
+            self.add_task(
+                MessengerTask::NeighborMessage(
+                    NeighborMessage::InconsistencyError(inconsistency_error)));
+        }
 
     }
 
