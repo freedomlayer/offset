@@ -13,53 +13,23 @@ using import "common.capnp".Receipt;
 # Initial diffie hellman between an Application and AppManager:
 ###############################################################
 
-# Application -> AppManager
-struct AppRandNonce {
-        appRandNonce @0: CustomUInt128;
-        appPublicKey @1: CustomUInt256;
-}
-
-# AppManager -> Application
-struct AppManagerRandNonce {
-        appManagerRandNonce @0: CustomUInt128;
-        appManagerPublicKey @1: CustomUInt256;
+struct ExchangeRandNonce {
+        randNonce @0: CustomUInt128;
+        publicKey @1: CustomUInt256;
 }
 
 
-# Application -> AppManager
-struct AppDh {
-        appDhPublicKey @0: CustomUInt256;
-        appManagerRandNonce @1: CustomUInt128;
-        # This is the nonce previously sent by AppManager.
-        appKeySalt @2: CustomUInt256;
-        signature @3: CustomUInt512;
+struct ExchangeDh {
+        dhPublicKey @0: CustomUInt256;
+        randNonce @1: CustomUInt128;
+        # This is the nonce previously sent by the remote side.
 }
 
-# AppManager -> Application
-struct AppManagerDh {
-        appManagerDhPublicKey @0: CustomUInt256;
-        appRandNonce @1: CustomUInt128;
-        # This is the nonce previously sent by the Application.
-        appManagerKeySalt @2: CustomUInt256;
-        signature @3: CustomUInt512;
-}
-
-# Summary of initial Diffie Hellman messages:
-
-# Messages that App can send during Diffie Hellman:
-struct AppDhMessage {
-    union {
-        appRandNonce @0: AppRandNonce;
-        appDh        @1: AppDh;
-    }
-}
-
-# Messages that the AppManager can send during Diffie Hellman:
-struct AppManagerDhMessage {
-    union {
-        appManagerRandNonce @0: AppManagerRandNonce;
-        appManagerDh        @1: AppManagerDh;
-    }
+# After ExchangeRandNonce and ExchangeDh were sent and received, 
+# only encrypted data can be sent:
+struct Encrypted {
+        encData: Data,
+        # encData is encrypted Plain structure.
 }
 
 
