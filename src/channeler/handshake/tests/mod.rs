@@ -29,17 +29,17 @@ fn handshake_happy_path() {
         (public_key, identity)
     };
 
-    let info_a = ChannelerNeighborInfo {
+    let channeler_neighbor_info_a = ChannelerNeighborInfo {
         public_key:  public_key_a.clone(),
         socket_addr: None,
     };
-    let info_b = ChannelerNeighborInfo {
+    let channeler_neighbor_info_b = ChannelerNeighborInfo {
         public_key:  public_key_b.clone(),
         socket_addr: Some("127.0.0.1:10001".parse().unwrap()),
     };
 
-    let node_a = ChannelerNeighbor::new(info_a);
-    let node_b = ChannelerNeighbor::new(info_b);
+    let node_a = ChannelerNeighbor::new(channeler_neighbor_info_a);
+    let node_b = ChannelerNeighbor::new(channeler_neighbor_info_b);
 
     let (neighbors_a, neighbors_b) = {
         let mut neighbors_a = HashMap::new();
@@ -104,16 +104,16 @@ fn handshake_happy_path() {
     exchange_passive_to_a.signature = identity_b.sign_message(&exchange_passive_to_a.as_bytes());
 
     // A -> B: ChannelReady (A: Finish)
-    let (new_channel_info_a, mut channel_ready_to_b) = handshake_client_a
+    let (channel_metadata_a, mut channel_ready_to_b) = handshake_client_a
         .handle_exchange_passive(exchange_passive_to_a)
         .unwrap();
     channel_ready_to_b.signature = identity_a.sign_message(&channel_ready_to_b.as_bytes());
 
     // B: Finish
-    let new_channel_info_b = handshake_server_b
+    let channel_metadata_b = handshake_server_b
         .handle_channel_ready(channel_ready_to_b)
         .unwrap();
 
-    assert_eq!(new_channel_info_a.tx_cid, new_channel_info_b.rx_cid);
-    assert_eq!(new_channel_info_b.tx_cid, new_channel_info_a.rx_cid);
+    assert_eq!(channel_metadata_a.tx_channel_id, channel_metadata_b.rx_channel_id);
+    assert_eq!(channel_metadata_b.tx_channel_id, channel_metadata_a.rx_channel_id);
 }

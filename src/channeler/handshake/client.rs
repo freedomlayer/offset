@@ -104,7 +104,7 @@ impl<SR: SecureRandom> HandshakeClient<SR> {
         }
     }
 
-    fn allow_initiate_handshake(
+    pub fn allow_initiate_handshake(
         &self,
         remote_public_key: &PublicKey,
     ) -> Result<(), HandshakeError> {

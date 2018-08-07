@@ -18,10 +18,10 @@ pub use self::server::HandshakeServer;
 pub struct ChannelMetadata {
     pub remote_public_key: PublicKey,
 
-    pub tx_cid: ChannelId,
-    pub tx_key: SealingKey,
+    pub tx_channel_id: ChannelId,
+    pub tx_sealing_key: SealingKey,
 
-    pub rx_cid: ChannelId,
-    pub rx_key: OpeningKey,
+    pub rx_channel_id: ChannelId,
+    pub rx_opening_key: OpeningKey,
 }
 

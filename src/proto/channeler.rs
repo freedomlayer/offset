@@ -99,7 +99,6 @@ impl ResponseNonce {
 }
 
 impl ExchangeActive {
-    #[allow(dead_code, unused)]
     #[inline]
     pub fn as_bytes(&self) -> Bytes {
         let mut buf = BytesMut::with_capacity(
@@ -138,7 +137,6 @@ impl ExchangePassive {
 }
 
 impl ChannelReady {
-    #[allow(dead_code, unused)]
     #[inline]
     pub fn as_bytes(&self) -> Bytes {
         Bytes::from(self.prev_hash.as_ref())

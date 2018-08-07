@@ -43,10 +43,10 @@ pub fn finish_handshake(
 
     Ok(ChannelMetadata {
         remote_public_key,
-        tx_cid,
-        tx_key,
-        rx_cid,
-        rx_key,
+        tx_channel_id: tx_cid,
+        tx_sealing_key: tx_key,
+        rx_channel_id: rx_cid,
+        rx_opening_key: rx_key,
     })
 }
 

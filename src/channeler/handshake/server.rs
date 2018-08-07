@@ -7,7 +7,6 @@ use crypto::{
     hash::{sha_512_256, HashResult},
     identity::{verify_signature, PublicKey, Signature, SIGNATURE_LEN},
     rand_values::{RandValue, RandValuesStore},
-    CryptoError,
 };
 
 use proto::channeler::*;
