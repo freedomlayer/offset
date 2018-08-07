@@ -25,13 +25,6 @@ struct ExchangeDh {
         # This is the nonce previously sent by the remote side.
 }
 
-# After ExchangeRandNonce and ExchangeDh were sent and received, 
-# only encrypted data can be sent:
-struct Encrypted {
-        encData: Data,
-        # encData is encrypted Plain structure.
-}
-
 
 # Interface with IndexerClient
 ###############################
