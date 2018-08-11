@@ -51,3 +51,7 @@ mod proto;
 use proto::proto_impl::common::common_capnp;
 // use proto::proto_impl::indexer::indexer_capnp;
 use proto::proto_impl::channeler::channeler_capnp;
+use proto::proto_impl::funder::funder_capnp;
+use proto::proto_impl::app_manager::app_manager_capnp;
+use proto::proto_impl::networker::networker_capnp;
+use proto::proto_impl::networker_crypter::networker_crypter_capnp;

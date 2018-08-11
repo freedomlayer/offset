@@ -9,6 +9,7 @@ macro_rules! include_schema {
                 include!(concat!(env!("OUT_DIR"), "/schema/", $path, ".rs"));
             }
 
+            #[allow(unused_imports)]
             use self::$name::*;
         )*
     };
