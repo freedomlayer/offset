@@ -520,3 +520,7 @@ struct Plain {
         keepAlive @2: Void;
     }
 }
+
+struct Frame {
+    data @0: Data;
+}
