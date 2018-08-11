@@ -18,13 +18,16 @@ struct ExchangeRandNonce {
         publicKey @1: CustomUInt256;
 }
 
+struct Signed {
+    data @0: Data;
+    signature @1: CustomUInt512;
+}
 
 struct ExchangeDh {
         dhPublicKey @0: CustomUInt256;
         randNonce @1: CustomUInt128;
         # This is the nonce previously sent by the remote side.
         keySalt @2: CustomUInt256;
-        signature @3: CustomUInt512;
 }
 
 
@@ -516,4 +519,8 @@ struct Plain {
         user      @1: Data;
         keepAlive @2: Void;
     }
+}
+
+struct Frame {
+    data @0: Data;
 }
