@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use futures::prelude::{async, await};
 
 use num_bigint::BigUint;
@@ -9,33 +11,40 @@ use crypto::rand_values::RandValue;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
-use utils::int_convert::usize_to_u32;
+use utils::safe_arithmetic::SafeArithmetic;
+
 
 use proto::networker::ChannelToken;
 
-use super::super::token_channel::incoming::{ProcessOperationOutput, 
-    IncomingResponseSendMessage, IncomingFailureSendMessage};
-use super::super::token_channel::outgoing::QueueOperationFailure;
+use super::super::token_channel::incoming::{IncomingResponseSendMessage, 
+    IncomingFailureSendMessage, IncomingMessage};
+use super::super::token_channel::outgoing::{OutgoingTokenChannel, QueueOperationFailure,
+    QueueOperationError};
 use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
-    TokenChannelSender};
-use super::{MessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage,
-            CrypterMessage, RequestReceived, ResponseReceived, FailureReceived};
+    DirectionalMutation, MoveTokenDirection, MoveTokenReceived};
+use super::{MutableMessengerHandler, MessengerTask, NeighborMessage, AppManagerMessage,
+            CrypterMessage, RequestReceived, ResponseReceived, FailureReceived, SendPayment};
 use super::super::types::{NeighborTcOp, RequestSendMessage, 
     ResponseSendMessage, FailureSendMessage, RandNonceSignature, 
     NeighborMoveToken};
-use super::super::messenger_state::{NeighborState, StateMutateMessage, 
-    MessengerStateError, TokenChannelStatus, TokenChannelSlot,
-    SmInitTokenChannel, SmTokenChannelPushOp, SmNeighborPushRequest, SmResetTokenChannel, 
-    SmApplyNeighborMoveToken, SmOutgoingNeighborMoveToken};
+use super::super::token_channel::types::NeighborMoveTokenInner;
+use super::super::state::MessengerMutation;
+use super::super::neighbor::{NeighborState, NeighborMutation};
+use super::super::slot::{TokenChannelSlot, SlotMutation, OutgoingInconsistency, 
+    IncomingInconsistency, ResetTerms};
 
 use super::super::signature_buff::create_failure_signature_buffer;
 use super::super::types::{NetworkerFreezeLink, PkPairPosition, PendingNeighborRequest, Ratio};
-use super::super::credit_calc::CreditCalculator;
 
+
+// Approximate maximum size of a MOVE_TOKEN message.
+// TODO: Where to put this constant? Do we have more like this one?
+const MAX_MOVE_TOKEN_LENGTH: usize = 0x1000;
 
 
 #[allow(unused)]
 pub struct NeighborInconsistencyError {
+    opt_ack: Option<ChannelToken>,
     token_channel_index: u16,
     current_token: ChannelToken,
     balance_for_reset: i64,
@@ -53,49 +62,14 @@ pub enum IncomingNeighborMessage {
     SetMaxTokenChannels(NeighborSetMaxTokenChannels),
 }
 
-
-/// Make sure that freezing credits along the route never exceeds the allowed amount.
-fn verify_freezing_links(request_send_msg: &RequestSendMessage) -> Option<()> {
-
-    // Perform DoS protection check:
-    let request_content_len = usize_to_u32(request_send_msg.request_content.len())
-        .expect("Invalid request_content.len())");
-    let credit_calc = CreditCalculator::new(&request_send_msg.route,
-                                            request_content_len,
-                                            request_send_msg.processing_fee_proposal,
-                                            request_send_msg.max_response_len)
-        .expect("Could not construct credit_calc");
-
-    // Make sure that the freeze_links vector is valid:
-    // numerator <= denominator for every link.
-    let two_pow_64 = BigUint::new(vec![0x1, 0x0, 0x0]);
-
-    // Verify previous freezing links
-    #[allow(needless_range_loop)]
-    for node_findex in 0 .. request_send_msg.freeze_links.len() {
-        let first_freeze_link = &request_send_msg.freeze_links[node_findex];
-        let mut allowed_credits: BigUint = first_freeze_link.shared_credits.into();
-        for freeze_link in &request_send_msg.freeze_links[
-            node_findex .. request_send_msg.freeze_links.len()] {
-            
-            allowed_credits = match freeze_link.usable_ratio {
-                Ratio::One => allowed_credits,
-                Ratio::Numerator(num) => allowed_credits * num / &two_pow_64,
-            };
-        }
-
-        let freeze_credits = credit_calc.credits_to_freeze(node_findex)?;
-        if allowed_credits < freeze_credits.into() {
-            return None;
-        }
-    }
-    Some(())
+pub enum HandleNeighborError {
 }
 
 
 
+
 #[allow(unused)]
-impl<R: SecureRandom + 'static> MessengerHandler<R> {
+impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
 
     fn get_token_channel_slot(&self, 
                               neighbor_public_key: &PublicKey,
@@ -103,7 +77,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
 
         let neighbor = self.state.get_neighbors().get(&neighbor_public_key)
             .expect("Neighbor not found!");
-        neighbor.token_channel_slots
+        neighbor.tc_slots
             .get(&channel_index)
             .expect("token_channel_slot not found!")
     }
@@ -114,12 +88,11 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                                         neighbor: &NeighborState, 
                                         request_id: &Uid) -> Option<u16> {
 
-        for (&channel_index, token_channel_slot) in &neighbor.token_channel_slots {
-            let pending_remote_requests = token_channel_slot.tc_state
-                .get_token_channel()
-                .pending_remote_requests();
+        for (channel_index, token_channel_slot) in &neighbor.tc_slots {
+            let pending_remote_requests = &token_channel_slot.directional
+                .token_channel.state().pending_requests.pending_remote_requests;
             if pending_remote_requests.get(request_id).is_none() {
-                return Some(channel_index)
+                return Some(*channel_index)
             }
         }
         None
@@ -148,7 +121,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     /// We are the reporting_public_key for this failure message.
     #[async]
     fn create_failure_message(mut self, pending_local_request: PendingNeighborRequest) 
-        -> Result<(Self, FailureSendMessage), ()> {
+        -> Result<(Self, FailureSendMessage), HandleNeighborError> {
 
         let local_public_key = self.state.get_local_public_key().clone();
         let failure_send_msg = FailureSendMessage {
@@ -181,7 +154,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     fn failure_message_add_signature(mut self, 
                                      mut failure_send_msg: FailureSendMessage,
                                      pending_local_request: PendingNeighborRequest) 
-        -> Result<(Self, FailureSendMessage),()> {
+        -> Result<(Self, FailureSendMessage),HandleNeighborError> {
 
         let mut failure_signature_buffer = create_failure_signature_buffer(
                                             &failure_send_msg,
@@ -204,20 +177,22 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     #[async]
     fn cancel_local_pending_requests(mut self, 
                                      neighbor_public_key: PublicKey, 
-                                     channel_index: u16) -> Result<Self, ()> {
+                                     channel_index: u16) -> Result<Self, HandleNeighborError> {
 
         let neighbor = self.state.get_neighbors().get(&neighbor_public_key)
             .expect("Neighbor not found!");
-        let token_channel_slot = neighbor.token_channel_slots
+        let token_channel_slot = neighbor.tc_slots
             .get(&channel_index)
             .expect("token_channel_slot not found!");
 
         // Mark all pending requests to this neighbor as errors.  
         // As the token channel is being reset, we can be sure we will never obtain a response
         // for those requests.
-        let pending_local_requests = token_channel_slot.tc_state
-            .get_token_channel()
-            .pending_local_requests()
+        let pending_local_requests = token_channel_slot.directional
+            .token_channel
+            .state()
+            .pending_requests
+            .pending_local_requests
             .clone();
 
         let local_public_key = self.state.get_local_public_key().clone();
@@ -234,16 +209,10 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             fself = new_fself;
 
             let failure_op = NeighborTcOp::FailureSendMessage(failure_send_msg);
-            let token_channel_push_op = SmTokenChannelPushOp {
-                neighbor_public_key: origin_public_key.clone(),
-                channel_index: origin_channel_index,
-                neighbor_op: failure_op,
-            };
-
-            let sm_msg = StateMutateMessage::TokenChannelPushOp(token_channel_push_op.clone());
-            fself.state.token_channel_push_op(token_channel_push_op)
-                .expect("Could not push neighbor operation into channel!");
-            fself.sm_messages.push(sm_msg);
+            let slot_mutation = SlotMutation::PushBackPendingOperation(failure_op);
+            let neighbor_mutation = NeighborMutation::SlotMutation((origin_channel_index, slot_mutation));
+            let messenger_mutation = MessengerMutation::NeighborMutation((origin_public_key.clone(), neighbor_mutation));
+            fself.apply_mutation(messenger_mutation);
         }
         Ok(fself)
    }
@@ -255,27 +224,24 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     fn check_reset_channel(mut self, 
                            neighbor_public_key: PublicKey,
                            channel_index: u16,
-                           new_token: ChannelToken) -> Result<Self, ()> {
+                           new_token: ChannelToken) -> Result<Self, HandleNeighborError> {
         // Check if incoming message is an attempt to reset channel.
         // We can know this by checking if new_token is a special value.
         let token_channel_slot = self.get_token_channel_slot(&neighbor_public_key,
                                                              channel_index);
-        let reset_token = token_channel_slot.tc_state.calc_channel_reset_token(channel_index);
-        let balance_for_reset = token_channel_slot.tc_state.balance_for_reset();
+        let reset_token = token_channel_slot.directional.calc_channel_reset_token(channel_index);
+        let balance_for_reset = token_channel_slot.directional.balance_for_reset();
 
         if new_token == reset_token {
             // This is a reset message. We reset the token channel:
             let mut fself = await!(self.cancel_local_pending_requests(
                 neighbor_public_key.clone(), channel_index))?;
-            let reset_token_channel = SmResetTokenChannel {
-                neighbor_public_key: neighbor_public_key.clone(),
-                channel_index, 
-                reset_token,
-                balance_for_reset,
-            };
-            let sm_msg = StateMutateMessage::ResetTokenChannel(reset_token_channel.clone());
-            fself.state.reset_token_channel(reset_token_channel);
-            fself.sm_messages.push(sm_msg);
+
+            let slot_mutation = SlotMutation::RemoteReset;
+            let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
+            let messenger_mutation = MessengerMutation::NeighborMutation((neighbor_public_key.clone(), neighbor_mutation));
+            fself.apply_mutation(messenger_mutation);
+
             Ok(fself)
         } else {
             Ok(self)
@@ -301,23 +267,18 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     fn reply_with_failure(self, 
                           remote_public_key: PublicKey,
                           channel_index: u16,
-                          request_send_msg: RequestSendMessage) -> Result<Self, ()> {
+                          request_send_msg: RequestSendMessage) -> Result<Self, HandleNeighborError> {
 
         let pending_request = request_send_msg.create_pending_request()
             .expect("Could not create pending_request");
         let (mut fself, failure_send_msg) = await!(self.create_failure_message(pending_request))?;
 
         let failure_op = NeighborTcOp::FailureSendMessage(failure_send_msg);
-        let push_op = SmTokenChannelPushOp {
-            neighbor_public_key: remote_public_key,
-            channel_index,
-            neighbor_op: failure_op,
-        };
+        let slot_mutation = SlotMutation::PushBackPendingOperation(failure_op);
+        let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
+        let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+        fself.apply_mutation(messenger_mutation);
 
-        let sm_msg = StateMutateMessage::TokenChannelPushOp(push_op.clone());
-        fself.state.token_channel_push_op(push_op)
-            .expect("Could not push neighbor operation into channel!");
-        fself.sm_messages.push(sm_msg);
         Ok(fself)
     }
 
@@ -360,22 +321,19 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
 
         // Queue message to the relevant neighbor. Later this message will be queued to a specific
         // available token channel:
-        let push_op = SmNeighborPushRequest {
-            neighbor_public_key: next_pk.clone(),
-            request: request_send_msg,
-        };
-
-        let sm_msg = StateMutateMessage::NeighborPushRequest(push_op.clone());
-        self.state.neighbor_push_request(push_op)
-            .expect("Could not push neighbor operation into channel!");
-        self.sm_messages.push(sm_msg);
+        let neighbor_mutation = NeighborMutation::PushBackPendingRequest(request_send_msg.clone());
+        let messenger_mutation = MessengerMutation::NeighborMutation((next_pk.clone(), neighbor_mutation));
+        self.apply_mutation(messenger_mutation);
     }
 
     #[async]
     fn handle_request_send_msg(mut self, 
                                remote_public_key: PublicKey,
                                channel_index: u16,
-                               request_send_msg: RequestSendMessage) -> Result<Self, ()> {
+                               request_send_msg: RequestSendMessage) -> Result<Self, HandleNeighborError> {
+
+        self.cache.freeze_guard.add_frozen_credit(&request_send_msg.create_pending_request().unwrap());
+        // TODO: Add rest of add/sub_frozen_credit
 
         // Find ourselves on the route. If we are not there, abort.
         let pk_pair = request_send_msg.route.find_pk_pair(
@@ -409,7 +367,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
 
 
         // Perform DoS protection check:
-        Ok(match verify_freezing_links(&request_send_msg) {
+        Ok(match fself.cache.freeze_guard.verify_freezing_links(&request_send_msg) {
             Some(()) => {
                 // Add our freezing link, and queue message to the next node.
                 fself.forward_request(request_send_msg);
@@ -428,8 +386,9 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                                remote_public_key: &PublicKey,
                                channel_index: u16,
                                response_send_msg: ResponseSendMessage,
-                               _pending_request: PendingNeighborRequest) {
+                               pending_request: PendingNeighborRequest) {
 
+        self.cache.freeze_guard.sub_frozen_credit(&pending_request);
         match self.find_request_origin(&response_send_msg.request_id) {
             None => {
                 // We are the origin of this request, and we got a response.
@@ -447,16 +406,10 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             Some((neighbor_public_key, channel_index)) => {
                 // Queue this response message to another token channel:
                 let response_op = NeighborTcOp::ResponseSendMessage(response_send_msg);
-                let push_op = SmTokenChannelPushOp {
-                    neighbor_public_key,
-                    channel_index,
-                    neighbor_op: response_op,
-                };
-
-                let sm_msg = StateMutateMessage::TokenChannelPushOp(push_op.clone());
-                self.state.token_channel_push_op(push_op)
-                    .expect("Could not push neighbor operation into channel!");
-                self.sm_messages.push(sm_msg);
+                let slot_mutation = SlotMutation::PushBackPendingOperation(response_op);
+                let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
+                let messenger_mutation = MessengerMutation::NeighborMutation((neighbor_public_key, neighbor_mutation));
+                self.apply_mutation(messenger_mutation);
             },
         }
     }
@@ -467,8 +420,9 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                                channel_index: u16,
                                failure_send_msg: FailureSendMessage,
                                pending_request: PendingNeighborRequest)
-                                -> Result<Self, ()> {
+                                -> Result<Self, HandleNeighborError> {
 
+        self.cache.freeze_guard.sub_frozen_credit(&pending_request);
         let fself = match self.find_request_origin(&failure_send_msg.request_id) {
             None => {
                 // We are the origin of this request, and we got a failure
@@ -488,16 +442,11 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                                                                pending_request))?;
                 // Queue this failure message to another token channel:
                 let failure_op = NeighborTcOp::FailureSendMessage(failure_send_msg);
-                let push_op = SmTokenChannelPushOp {
-                    neighbor_public_key,
-                    channel_index,
-                    neighbor_op: failure_op,
-                };
+                let slot_mutation = SlotMutation::PushBackPendingOperation(failure_op);
+                let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
+                let messenger_mutation = MessengerMutation::NeighborMutation((neighbor_public_key.clone(), neighbor_mutation));
+                fself.apply_mutation(messenger_mutation);
 
-                let sm_msg = StateMutateMessage::TokenChannelPushOp(push_op.clone());
-                fself.state.token_channel_push_op(push_op)
-                    .expect("Could not push neighbor operation into channel!");
-                fself.sm_messages.push(sm_msg);
                 fself
             },
         };
@@ -509,22 +458,22 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     fn handle_move_token_output(mut self, 
                                 remote_public_key: PublicKey,
                                 channel_index: u16,
-                                ops_list_output: Vec<ProcessOperationOutput> )
-                        -> Result<Self, ()> {
+                                incoming_messages: Vec<IncomingMessage> )
+                        -> Result<Self, HandleNeighborError> {
 
         let mut fself = self;
-        for op_output in ops_list_output {
-            fself = match op_output {
-                ProcessOperationOutput::Request(request_send_msg) => 
+        for incoming_message in incoming_messages {
+            fself = match incoming_message {
+                IncomingMessage::Request(request_send_msg) => 
                     await!(fself.handle_request_send_msg(remote_public_key.clone(), channel_index, 
                                                  request_send_msg))?,
-                ProcessOperationOutput::Response(IncomingResponseSendMessage {
+                IncomingMessage::Response(IncomingResponseSendMessage {
                                                 pending_request, incoming_response}) => {
                     fself.handle_response_send_msg(&remote_public_key, channel_index, 
                                                   incoming_response, pending_request);
                     fself
                 },
-                ProcessOperationOutput::Failure(IncomingFailureSendMessage {
+                IncomingMessage::Failure(IncomingFailureSendMessage {
                                                 pending_request, incoming_failure}) => {
                     await!(fself.handle_failure_send_msg(&remote_public_key, channel_index, 
                                                  incoming_failure, pending_request))?
@@ -544,15 +493,24 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             MessengerTask::AppManagerMessage(
                 AppManagerMessage::ReceiveMoveTokenError(receive_move_token_error)));
 
+
+        // Clear current incoming inconsistency messages:
+        let slot_mutation = SlotMutation::SetIncomingInconsistency(IncomingInconsistency::Empty);
+        let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
+        let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+        self.apply_mutation(messenger_mutation);
+
+
         let token_channel_slot = self.get_token_channel_slot(&remote_public_key, 
                                                               channel_index);
         // Send an InconsistencyError message to remote side:
-        let current_token = token_channel_slot.tc_state
+        let current_token = token_channel_slot.directional
             .calc_channel_reset_token(channel_index);
-        let balance_for_reset = token_channel_slot.tc_state
+        let balance_for_reset = token_channel_slot.directional
             .balance_for_reset();
 
         let inconsistency_error = NeighborInconsistencyError {
+            opt_ack: None,
             token_channel_index: channel_index,
             current_token,
             balance_for_reset,
@@ -561,36 +519,72 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         self.messenger_tasks.push(
             MessengerTask::NeighborMessage(
                 NeighborMessage::InconsistencyError(inconsistency_error)));
+
+        // Keep outgoing InconsistencyError message details in memory:
+        let slot_mutation = SlotMutation::SetOutgoingInconsistency(OutgoingInconsistency::Sent);
+        let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
+        let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+        self.apply_mutation(messenger_mutation);
     }
+
 
     /// Queue as many messages as possible into available token channel.
     fn queue_outgoing_operations(&mut self,
                            remote_public_key: &PublicKey,
                            channel_index: u16,
-                           tc_sender: &mut TokenChannelSender) -> Result<(), QueueOperationFailure> {
+                           out_tc: &mut OutgoingTokenChannel) -> Result<(), QueueOperationFailure> {
 
-        // TODO
-        // - If any messages are pending for this token channel, batch as many as possible into one
-        //   move token message and add a task to send it. 
-        //   - The first messages in the batch should be pending configuration requests:
-        //      - Set remote max debt (If wanted max debt is different than current max debt).
-        //      - Open, Close neighbor for requests.
+        let tc_slot = self.get_token_channel_slot(&remote_public_key, 
+                                                    channel_index);
 
-        let token_channel_slot = self.get_token_channel_slot(&remote_public_key, 
-                                                             channel_index);
-        let remote_max_debt = token_channel_slot
-            .tc_state
+        // Set remote_max_debt if needed:
+        let remote_max_debt = tc_slot
+            .directional
             .remote_max_debt();
 
-        if token_channel_slot.wanted_remote_max_debt != remote_max_debt {
-            tc_sender.queue_operation(NeighborTcOp::SetRemoteMaxDebt(token_channel_slot.wanted_remote_max_debt))?;
+        if tc_slot.wanted_remote_max_debt != remote_max_debt {
+            out_tc.queue_operation(NeighborTcOp::SetRemoteMaxDebt(tc_slot.wanted_remote_max_debt))?;
         }
 
-        // TODO
-        unreachable!();
+        // Set local_send_price if needed:
+        let local_send_price = &tc_slot
+            .directional
+            .token_channel
+            .state()
+            .send_price
+            .local_send_price;
+
+        if tc_slot.wanted_local_send_price != *local_send_price {
+            match &tc_slot.wanted_local_send_price {
+                Some(wanted_local_send_price) => out_tc.queue_operation(NeighborTcOp::EnableRequests(
+                    wanted_local_send_price.clone()))?,
+                None => out_tc.queue_operation(NeighborTcOp::DisableRequests)?,
+            };
+        }
+
+        // Send pending operations (responses and failures)
+        // TODO: Possibly replace this clone with something more efficient later:
+        let mut pending_operations = tc_slot.pending_operations.clone();
+        while let Some(pending_operation) = pending_operations.pop_front() {
+            out_tc.queue_operation(pending_operation)?;
+            let slot_mutation = SlotMutation::PopFrontPendingOperation;
+            let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
+            let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+            self.apply_mutation(messenger_mutation);
+        }
+
+        // Send requests:
+        let neighbor = self.state.get_neighbors().get(&remote_public_key).unwrap();
+
+        let mut pending_requests = neighbor.pending_requests.clone();
+        while let Some(pending_request) = pending_requests.pop_front() {
+            out_tc.queue_operation(NeighborTcOp::RequestSendMessage(pending_request))?;
+            let neighbor_mutation = NeighborMutation::PopFrontPendingRequest;
+            let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+            self.apply_mutation(messenger_mutation);
+        }
 
         Ok(())
-
     }
 
     /// Compose a large as possible message to send through the token channel to the remote side.
@@ -608,21 +602,27 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
                                   channel_index: u16,
                                   received_empty: bool) {
 
-        let mut tc_sender = self.state.begin_outgoing_move_token(remote_public_key, channel_index)
-            .expect("Token Channel already outgoing!");
+        let token_channel_slot = self.get_token_channel_slot(remote_public_key, channel_index);
+        let mut out_tc = token_channel_slot.directional
+            .begin_outgoing_move_token(MAX_MOVE_TOKEN_LENGTH).unwrap();
 
-
-        let _ = self.queue_outgoing_operations(remote_public_key,
+        let res = self.queue_outgoing_operations(remote_public_key,
                                        channel_index,
-                                       &mut tc_sender);
+                                       &mut out_tc);
 
-        let rand_nonce = RandValue::new(&*self.rng);
-        let no_ops = tc_sender.is_empty();
-        let outgoing_move_token = self.state.commit_outgoing_move_token(remote_public_key,
-                                          channel_index,
-                                          tc_sender,
-                                          rand_nonce)
-            .expect("Could not commit operations");
+        // If we had a real error, we should panic.
+        // Otherwise
+        match res {
+            Ok(()) => {},
+            Err(QueueOperationFailure {error, ..}) => {
+                match error {
+                    QueueOperationError::MaxLengthReached => {},
+                    _ => unreachable!(),
+                }
+            }
+        };
+
+        let (operations, tc_mutations) = out_tc.done();
 
         // If there is nothing to send, and the transaction we have received is nonempty, send an empty message back as ack.
         //
@@ -631,38 +631,177 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
 
         // If we received an empty move token message, and we have nothing to send, 
         // we do nothing:
-        if received_empty && no_ops {
+        if received_empty && operations.is_empty() {
             return;
         }
 
-        // Add a state mutate message about sending outgoing move token:
-        let sm_msg = StateMutateMessage::OutgoingNeighborMoveToken(
-            SmOutgoingNeighborMoveToken {
-                neighbor_public_key: remote_public_key.clone(),
-                neighbor_move_token: outgoing_move_token.clone(),
-            });
-        self.sm_messages.push(sm_msg);
+        for tc_mutation in tc_mutations {
+            let directional_mutation = DirectionalMutation::TcMutation(tc_mutation);
+            let slot_mutation = SlotMutation::DirectionalMutation(directional_mutation);
+            let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
+            let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+            self.apply_mutation(messenger_mutation);
+        }
+        let token_channel_slot = self.get_token_channel_slot(remote_public_key, channel_index);
 
+        let rand_nonce = RandValue::new(&*self.rng);
+        let neighbor_move_token_inner = NeighborMoveTokenInner {
+            operations,
+            old_token: token_channel_slot.directional.new_token.clone(),
+            rand_nonce,
+        };
+
+        let directional_mutation = DirectionalMutation::SetDirection(
+            MoveTokenDirection::Outgoing(neighbor_move_token_inner));
+        let slot_mutation = SlotMutation::DirectionalMutation(directional_mutation);
+        let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
+        let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+        self.apply_mutation(messenger_mutation);
+
+        let token_channel_slot = self.get_token_channel_slot(remote_public_key, channel_index);
+        let outgoing_move_token = token_channel_slot.directional.get_outgoing_move_token().unwrap();
 
         // Add a task for sending the outgoing move token:
-        self.messenger_tasks.push(
+        self.add_task(
             MessengerTask::NeighborMessage(
                 NeighborMessage::MoveToken(outgoing_move_token)));
     }
 
-    /// Initialte loading funds (Using a funder message) for token channel, if needed.
+    /// Initiate loading funds (Using a funder message) for token channel, if needed.
     fn initiate_load_funds(&mut self,
                            remote_public_key: &PublicKey,
                            channel_index: u16) {
-        // TODO
-        unreachable!();
+
+        let tc_slot = self.get_token_channel_slot(
+            remote_public_key, channel_index);
+
+        if tc_slot.opt_pending_send_funds_id.is_some() {
+            // We already have a pending payment. Nothing to do here.
+            return;
+        }
+        
+        //
+        //   -LocalMaxDebt        0  balance    RemoteMaxDebt 
+        //  -----[----------------|---|-----------]--------->
+        //
+
+        let tc_balance = &tc_slot.directional.token_channel.state().balance;
+        let span = tc_balance.remote_max_debt + tc_balance.local_max_debt;
+
+        let left_dist: u64 = u64::try_from(tc_balance.balance.checked_add_unsigned(tc_balance.local_max_debt)
+            .unwrap()).unwrap();
+        let left_quad = left_dist < span / 4;
+
+        if !left_quad {
+            // We are not in the left quadrant. Nothing to do here
+            return;
+        }
+
+        // We want to bring balance to the middle between -LocalMaxDebt and RemoteMaxDebt
+        // dest_balance = (-local_max_debt + remote_max_debt) / 2
+        let dest_balance = (0i64).checked_sub_unsigned(tc_balance.local_max_debt).unwrap()
+            .checked_add_unsigned(tc_balance.remote_max_debt).unwrap() / 2;
+        // payment = dest_balance - balance
+        let payment = u64::try_from(dest_balance.checked_sub(tc_balance.balance).unwrap()).unwrap();
+
+        // Create a RequestSendFunds, and push it as a task.
+        let payment_id = Uid::new(&*self.rng);
+
+        let send_payment = SendPayment {
+            neighbor_public_key: remote_public_key.clone(),
+            channel_index,
+            payment_id,
+            payment,
+        };
+
+        self.add_task(MessengerTask::SendPayment(send_payment));
+
+        // Keep the request_id of the generated RequestSendFunds, and save it inside the state:
+        let slot_mutation = SlotMutation::SetPendingSendFundsId(Some(payment_id));
+        let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
+        let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+        self.apply_mutation(messenger_mutation);
+    }
+
+    /// Clear all pending inconsistency errors if exist
+    fn clear_inconsistency_status(&mut self,
+                               remote_public_key: &PublicKey,
+                               channel_index: u16) {
+        let tc_slot = self.get_token_channel_slot(&remote_public_key, channel_index);
+        match tc_slot.inconsistency_status.incoming {
+            IncomingInconsistency::Empty => {},
+            _ => {
+                let slot_mutation = SlotMutation::SetIncomingInconsistency(IncomingInconsistency::Empty);
+                let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
+                let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+                self.apply_mutation(messenger_mutation);
+            },
+        }
+
+        let tc_slot = self.get_token_channel_slot(&remote_public_key, channel_index);
+        match tc_slot.inconsistency_status.outgoing {
+            OutgoingInconsistency::Empty => {},
+            _ => {
+                let slot_mutation = SlotMutation::SetOutgoingInconsistency(OutgoingInconsistency::Empty);
+                let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
+                let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+                self.apply_mutation(messenger_mutation);
+            },
+        }
+    }
+
+    /// Handle success with incoming move token.
+    #[async]
+    fn handle_move_token_success(mut self,
+                               remote_public_key: PublicKey,
+                               channel_index: u16,
+                               receive_move_token_output: ReceiveMoveTokenOutput,
+                               is_empty: bool) -> Result<Self, HandleNeighborError> {
+
+        self.clear_inconsistency_status(&remote_public_key,
+                                        channel_index);
+
+        match receive_move_token_output {
+            ReceiveMoveTokenOutput::Duplicate => Ok(self),
+            ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token) => {
+                // Retransmit last sent token channel message:
+                self.messenger_tasks.push(
+                    MessengerTask::NeighborMessage(
+                        NeighborMessage::MoveToken(outgoing_move_token)));
+                Ok(self)
+            },
+            ReceiveMoveTokenOutput::Received(move_token_received) => {
+
+                let MoveTokenReceived {incoming_messages, mutations} = 
+                    move_token_received;
+
+                // Apply all mutations:
+                for directional_mutation in mutations {
+                    let slot_mutation = SlotMutation::DirectionalMutation(directional_mutation);
+                    let neighbor_mutation = NeighborMutation::SlotMutation((channel_index, slot_mutation));
+                    let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+                    self.apply_mutation(messenger_mutation);
+                }
+
+
+                let mut fself = await!(self.handle_move_token_output(remote_public_key.clone(),
+                                               channel_index,
+                                               incoming_messages))?;
+                fself.send_through_token_channel(&remote_public_key,
+                                                 channel_index,
+                                                 is_empty);
+                fself.initiate_load_funds(&remote_public_key,
+                                          channel_index);
+                Ok(fself)
+            },
+        }
     }
 
 
     #[async]
     fn handle_move_token(mut self, 
                          remote_public_key: PublicKey,
-                         neighbor_move_token: NeighborMoveToken) -> Result<Self,()> {
+                         neighbor_move_token: NeighborMoveToken) -> Result<Self,HandleNeighborError> {
 
         // Find neighbor:
         let neighbor = match self.state.get_neighbors().get(&remote_public_key) {
@@ -685,106 +824,146 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             return Ok(self)
         }
 
-
-        if !neighbor.token_channel_slots.contains_key(&channel_index) {
-            let init_token_channel = SmInitTokenChannel {
-                neighbor_public_key: remote_public_key.clone(),
-                channel_index,
-            };
-            let sm_msg = StateMutateMessage::InitTokenChannel(init_token_channel.clone());
-            self.state.init_token_channel(init_token_channel)
-                .expect("Failed to initialize token channel!");
-            self.sm_messages.push(sm_msg);
-        }
-
         let token_channel_slot = self.get_token_channel_slot(&remote_public_key, 
                                                              channel_index);
-
-        // QUESTION: Should Database be informed about the creation of a new token channel?
-        // This is not really a creation of anything new, as we create the default new channel.
 
         // Check if the channel is inconsistent.
         // This means that the remote side has sent an InconsistencyError message in the past.
         // In this case, we are not willing to accept new messages from the remote side until the
         // inconsistency is resolved.
+        // TODO: Is this the correct behaviour?
+        /*
         if let TokenChannelStatus::Inconsistent { .. } 
                     = token_channel_slot.tc_status {
             return Ok(self);
         };
+        */
 
 
         let mut fself = await!(self.check_reset_channel(remote_public_key.clone(), 
                                            channel_index, 
                                            neighbor_move_token.new_token.clone()))?;
 
+        let token_channel_slot = fself.get_token_channel_slot(&remote_public_key, 
+                                                             channel_index);
+
 
         let is_empty = neighbor_move_token.operations.is_empty();
 
-        let apply_neighbor_move_token = SmApplyNeighborMoveToken {
-            neighbor_public_key: remote_public_key.clone(),
-            neighbor_move_token,
+        // TODO: Possibly refactor this part into a function?
+        let neighbor_move_token_inner = NeighborMoveTokenInner {
+            operations: neighbor_move_token.operations,
+            old_token: neighbor_move_token.old_token,
+            rand_nonce: neighbor_move_token.rand_nonce,
         };
+        let receive_move_token_res = token_channel_slot.directional.simulate_receive_move_token(
+            neighbor_move_token_inner,
+            neighbor_move_token.new_token);
 
-        
-        let sm_msg = StateMutateMessage::ApplyNeighborMoveToken(
-            apply_neighbor_move_token.clone());
-
-
-        let receive_move_token_output = 
-            fself.state.apply_neighbor_move_token(apply_neighbor_move_token);
-        Ok(match receive_move_token_output {
-            Ok(ReceiveMoveTokenOutput::Duplicate) => fself,
-            Ok(ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token)) => {
-                // Retransmit last sent token channel message:
-                fself.messenger_tasks.push(
-                    MessengerTask::NeighborMessage(
-                        NeighborMessage::MoveToken(outgoing_move_token)));
-                fself
+        Ok(match receive_move_token_res {
+            Ok(receive_move_token_output) => {
+                await!(fself.handle_move_token_success(remote_public_key.clone(),
+                                             channel_index,
+                                             receive_move_token_output,
+                                             is_empty))?
             },
-            Ok(ReceiveMoveTokenOutput::ProcessOpsListOutput(ops_list_output)) => {
-                let mut fself = await!(fself.handle_move_token_output(remote_public_key.clone(),
-                                               channel_index,
-                                               ops_list_output))?;
-                fself.send_through_token_channel(&remote_public_key,
-                                                 channel_index,
-                                                 is_empty);
-                fself.initiate_load_funds(&remote_public_key,
-                                          channel_index);
-                fself
-            },
-            Err(MessengerStateError::ReceiveMoveTokenError(receive_move_token_error)) => {
+            Err(receive_move_token_error) => {
                 fself.handle_move_token_error(&remote_public_key,
                                              channel_index,
                                              receive_move_token_error);
                 fself
             },
-            Err(_) => unreachable!(),
         })
     }
 
     fn handle_inconsistency_error(&mut self, 
-                                  remote_public_key: PublicKey,
+                                  remote_public_key: &PublicKey,
                                   neighbor_inconsistency_error: NeighborInconsistencyError) {
-        unreachable!();
+        
+        // Save incoming inconsistency details:
+        let token_channel_index = neighbor_inconsistency_error.token_channel_index;
+        let incoming = IncomingInconsistency::Incoming(ResetTerms {
+            current_token: neighbor_inconsistency_error.current_token.clone(),
+            balance_for_reset: neighbor_inconsistency_error.balance_for_reset,
+        });
+
+        let slot_mutation = SlotMutation::SetIncomingInconsistency(incoming);
+        let neighbor_mutation = NeighborMutation::SlotMutation((token_channel_index, slot_mutation));
+        let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+        self.apply_mutation(messenger_mutation);
+
+        // Obtain information about our reset terms:
+        let tc_slot = self.get_token_channel_slot(
+            remote_public_key, token_channel_index);
+        let directional = &tc_slot.directional;
+        let reset_token = directional.calc_channel_reset_token(token_channel_index);
+        let balance_for_reset = directional.balance_for_reset();
+
+
+        // Check if we should send an outgoing inconsistency message:
+        let should_send_outgoing = match tc_slot.inconsistency_status.outgoing {
+            OutgoingInconsistency::Empty => {
+                let slot_mutation = SlotMutation::SetOutgoingInconsistency(OutgoingInconsistency::Sent);
+                let neighbor_mutation = NeighborMutation::SlotMutation((token_channel_index, slot_mutation));
+                let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+                self.apply_mutation(messenger_mutation);
+                true
+            },
+            OutgoingInconsistency::Sent => {
+                let is_ack_valid = match neighbor_inconsistency_error.opt_ack {
+                    Some(acked_reset_token) => acked_reset_token == reset_token,
+                    None => false,
+                };
+                if is_ack_valid {
+                    let slot_mutation = SlotMutation::SetOutgoingInconsistency(OutgoingInconsistency::Acked);
+                    let neighbor_mutation = NeighborMutation::SlotMutation((token_channel_index, slot_mutation));
+                    let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+                    self.apply_mutation(messenger_mutation);
+                    false
+                } else {
+                    true
+                }
+                
+            },
+            OutgoingInconsistency::Acked => false,
+        };
+
+        // Send an outgoing inconsistency message if required:
+        if should_send_outgoing {
+            let inconsistency_error = NeighborInconsistencyError {
+                opt_ack: Some(neighbor_inconsistency_error.current_token.clone()),
+                token_channel_index,
+                current_token: reset_token.clone(),
+                balance_for_reset,
+            };
+
+            self.add_task(
+                MessengerTask::NeighborMessage(
+                    NeighborMessage::InconsistencyError(inconsistency_error)));
+        }
+
     }
 
     fn handle_set_max_token_channels(&mut self, 
                                      remote_public_key: PublicKey,
                                      neighbor_set_max_token_channels: NeighborSetMaxTokenChannels) {
-        unreachable!();
+
+        let neighbor_mutation = NeighborMutation::SetRemoteMaxChannels(
+            neighbor_set_max_token_channels.max_token_channels);
+        let messenger_mutation = MessengerMutation::NeighborMutation((remote_public_key.clone(), neighbor_mutation));
+        self.apply_mutation(messenger_mutation);
     }
 
     #[async]
     pub fn handle_neighbor_message(mut self, 
                                    remote_public_key: PublicKey, 
-                                   neighbor_message: IncomingNeighborMessage) 
-        -> Result<Self, ()> {
-
+                                   neighbor_message: IncomingNeighborMessage)
+                                        -> Result<Self, HandleNeighborError> {
         match neighbor_message {
             IncomingNeighborMessage::MoveToken(neighbor_move_token) =>
                 await!(self.handle_move_token(remote_public_key, neighbor_move_token)),
             IncomingNeighborMessage::InconsistencyError(neighbor_inconsistency_error) => {
-                self.handle_inconsistency_error(remote_public_key, neighbor_inconsistency_error);
+                self.handle_inconsistency_error(&remote_public_key, neighbor_inconsistency_error);
                 Ok(self)
             }
             IncomingNeighborMessage::SetMaxTokenChannels(neighbor_set_max_token_channels) => {
@@ -793,4 +972,6 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
             }
         }
     }
+
 }
+

@@ -400,4 +400,10 @@ impl NeighborTcOp {
         }
         res_bytes
     }
+
+    /// Get an approximation of the amount of bytes required to represent 
+    /// this operation.
+    pub fn approx_bytes_count(&self) -> usize {
+        self.to_bytes().len()
+    }
 }

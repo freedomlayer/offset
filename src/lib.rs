@@ -31,6 +31,9 @@ extern crate serde_derive;
 extern crate toml;
 extern crate base64;
 
+extern crate im;
+
+
 #[macro_use]
 pub mod utils;
 pub mod crypto;

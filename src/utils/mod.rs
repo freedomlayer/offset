@@ -4,8 +4,8 @@ mod stream_mediator;
 mod nonce_window;
 #[macro_use]
 mod macros;
-pub mod trans_hashmap;
-pub mod trans_hashmap_mut;
+// pub mod trans_hashmap;
+// pub mod trans_hashmap_mut;
 pub mod int_convert;
 pub mod safe_arithmetic;
 

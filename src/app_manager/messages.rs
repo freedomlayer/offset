@@ -27,7 +27,6 @@ pub struct ResetNeighborChannel {
     pub neighbor_public_key: PublicKey,
     pub channel_index: u16,
     pub current_token: ChannelToken,
-    pub balance_for_reset: i64,
 }
 
 #[derive(Clone)]

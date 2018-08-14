@@ -1,93 +1,148 @@
 #![allow(unused)]
 use ring::rand::SecureRandom;
 
-use super::super::messenger_state::{MessengerState, NeighborState, 
-    TokenChannelSlot, StateMutateMessage, MessengerStateError};
-use super::{MessengerHandler, MessengerTask};
+use crypto::identity::PublicKey;
+
+use super::super::token_channel::types::TcMutation;
+use super::super::token_channel::directional::DirectionalMutation;
+use super::super::slot::{SlotMutation, TokenChannelSlot, InconsistencyStatus,
+                            IncomingInconsistency};
+use super::super::neighbor::{NeighborState, NeighborMutation};
+use super::super::state::{MessengerMutation, MessengerState};
+use super::{MutableMessengerHandler, MessengerTask};
 use app_manager::messages::{NetworkerCommand, AddNeighbor, 
     RemoveNeighbor, SetNeighborStatus, SetNeighborRemoteMaxDebt,
     ResetNeighborChannel, SetNeighborMaxChannels};
 
-/*
+
 pub enum HandleAppManagerError {
     NeighborDoesNotExist,
     TokenChannelDoesNotExist,
-    NeighborAlreadyExists,
-    MessengerStateError(MessengerStateError),
+    NotInvitedToReset,
+    ResetTokenMismatch,
 }
-*/
 
 #[allow(unused)]
-impl<R: SecureRandom> MessengerHandler<R> {
+impl<R: SecureRandom> MutableMessengerHandler<R> {
+
+    fn get_neighbor(&self, neighbor_public_key: &PublicKey) -> Result<&NeighborState, HandleAppManagerError> {
+        match self.state().neighbors.get(neighbor_public_key) {
+            Some(ref neighbor) => Ok(neighbor),
+            None => Err(HandleAppManagerError::NeighborDoesNotExist),
+        }
+    }
+
+    fn get_slot(&self, neighbor_public_key: &PublicKey, channel_index: u16) -> Result<&TokenChannelSlot, HandleAppManagerError> {
+        let neighbor = self.get_neighbor(&neighbor_public_key)?;
+        match neighbor.tc_slots.get(&channel_index) {
+            Some(ref tc_slot) => Ok(tc_slot),
+            None => Err(HandleAppManagerError::TokenChannelDoesNotExist),
+        }
+    }
+
     fn app_manager_set_neighbor_remote_max_debt(&mut self, 
                                                 set_neighbor_remote_max_debt: SetNeighborRemoteMaxDebt) 
-        -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
+        -> Result<(), HandleAppManagerError> {
 
+        // Make sure that neighbor exists:
+        let _neighbor = self.get_neighbor(&set_neighbor_remote_max_debt.neighbor_public_key)?;
 
-        let sm_msg = StateMutateMessage::SetNeighborRemoteMaxDebt(set_neighbor_remote_max_debt.clone());
-        match self.state.set_neighbor_remote_max_debt(set_neighbor_remote_max_debt) {
-            Ok(()) => (vec![sm_msg], vec![]),
-            Err(_) => (vec![], vec![]),
-        }
+        let tc_mutation = TcMutation::SetRemoteMaxDebt(set_neighbor_remote_max_debt.remote_max_debt);
+        let directional_mutation = DirectionalMutation::TcMutation(tc_mutation);
+        let slot_mutation = SlotMutation::DirectionalMutation(directional_mutation);
+        let neighbor_mutation = NeighborMutation::SlotMutation(
+            (set_neighbor_remote_max_debt.channel_index, slot_mutation));
+        let m_mutation = MessengerMutation::NeighborMutation(
+            (set_neighbor_remote_max_debt.neighbor_public_key, neighbor_mutation));
+
+        self.apply_mutation(m_mutation);
+        Ok(())
     }
 
     fn app_manager_reset_neighbor_channel(&mut self, 
                                           reset_neighbor_channel: ResetNeighborChannel) 
-        -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
+        -> Result<(), HandleAppManagerError> {
 
-        let sm_msg = StateMutateMessage::ResetNeighborChannel(reset_neighbor_channel.clone());
-        match self.state.reset_neighbor_channel(reset_neighbor_channel) {
-            Ok(()) => (vec![sm_msg], vec![]),
-            Err(_) => (vec![], vec![]),
-        }
+        let slot = self.get_slot(&reset_neighbor_channel.neighbor_public_key,
+                                 reset_neighbor_channel.channel_index)?;
+
+        match &slot.inconsistency_status.incoming {
+            IncomingInconsistency::Empty => return Err(HandleAppManagerError::NotInvitedToReset),
+            IncomingInconsistency::Incoming(reset_terms) => {
+                if (reset_terms.current_token != reset_neighbor_channel.current_token)  {
+                    return Err(HandleAppManagerError::ResetTokenMismatch);
+                }
+            }
+        };
+
+
+        let slot_mutation = SlotMutation::LocalReset;
+        let neighbor_mutation = NeighborMutation::SlotMutation(
+            (reset_neighbor_channel.channel_index, slot_mutation));
+        let m_mutation = MessengerMutation::NeighborMutation(
+            (reset_neighbor_channel.neighbor_public_key, neighbor_mutation));
+
+        self.apply_mutation(m_mutation);
+        Ok(())
+
     }
 
     fn app_manager_set_neighbor_max_channels(&mut self, 
                                           set_neighbor_max_channels: SetNeighborMaxChannels) 
-        -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
+        -> Result<(), HandleAppManagerError> {
 
-        let sm_msg = StateMutateMessage::SetNeighborMaxChannels(set_neighbor_max_channels.clone());
-        match self.state.set_neighbor_max_channels(set_neighbor_max_channels) {
-            Ok(()) => (vec![sm_msg], vec![]),
-            Err(_) => (vec![], vec![]),
-        }
+        // Make sure that neighbor exists:
+        let _neighbor = self.get_neighbor(&set_neighbor_max_channels.neighbor_public_key)?;
+
+        let neighbor_mutation = NeighborMutation::SetLocalMaxChannels(set_neighbor_max_channels.max_channels);
+        let m_mutation = MessengerMutation::NeighborMutation(
+            (set_neighbor_max_channels.neighbor_public_key, neighbor_mutation));
+
+        self.apply_mutation(m_mutation);
+        Ok(())
     }
 
     fn app_manager_add_neighbor(&mut self, 
                                 add_neighbor: AddNeighbor) 
-        -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
+        -> Result<(), HandleAppManagerError> {
 
-        let sm_msg = StateMutateMessage::AddNeighbor(add_neighbor.clone());
-        match self.state.add_neighbor(add_neighbor) {
-            Ok(()) => (vec![sm_msg], vec![]),
-            Err(_) => (vec![], vec![]),
-        }
+        let m_mutation = MessengerMutation::AddNeighbor((
+                add_neighbor.neighbor_public_key,
+                add_neighbor.neighbor_addr,
+                add_neighbor.max_channels));
+
+        self.apply_mutation(m_mutation);
+        Ok(())
     }
 
     fn app_manager_remove_neighbor(&mut self, remove_neighbor: RemoveNeighbor) 
-        -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
+        -> Result<(), HandleAppManagerError> {
 
-        let sm_msg = StateMutateMessage::RemoveNeighbor(remove_neighbor.clone());
-        match self.state.remove_neighbor(remove_neighbor) {
-            Ok(()) => (vec![sm_msg], vec![]),
-            Err(_) => (vec![], vec![]),
-        }
+        let m_mutation = MessengerMutation::RemoveNeighbor(
+                remove_neighbor.neighbor_public_key);
+
+        self.apply_mutation(m_mutation);
+        Ok(())
     }
 
 
     fn app_manager_set_neighbor_status(&mut self, set_neighbor_status: SetNeighborStatus) 
-        -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
+        -> Result<(), HandleAppManagerError> {
 
-        let sm_msg = StateMutateMessage::SetNeighborStatus(set_neighbor_status.clone());
-        match self.state.set_neighbor_status(set_neighbor_status) {
-            Ok(()) => (vec![sm_msg], vec![]),
-            Err(_) => (vec![], vec![]),
-        }
+        // Make sure that neighbor exists:
+        let _neighbor = self.get_neighbor(&set_neighbor_status.neighbor_public_key)?;
+
+        let neighbor_mutation = NeighborMutation::SetStatus(set_neighbor_status.status);
+        let m_mutation = MessengerMutation::NeighborMutation(
+            (set_neighbor_status.neighbor_public_key, neighbor_mutation));
+
+        self.apply_mutation(m_mutation);
+        Ok(())
     }
 
     pub fn handle_app_manager_message(&mut self, 
                                       networker_config: NetworkerCommand) 
-        -> (Vec<StateMutateMessage>, Vec<MessengerTask>) {
+        -> Result<(), HandleAppManagerError> {
 
 
         match networker_config {
