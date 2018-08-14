@@ -259,7 +259,7 @@ impl TokenChannel {
 
     fn insert_remote_pending_request(&mut self, pending_neighbor_request: &PendingNeighborRequest) {
         self.state.pending_requests.pending_remote_requests.insert(
-            pending_neighbor_request.request_id.clone(),
+            pending_neighbor_request.request_id,
             pending_neighbor_request.clone());
     }
 
@@ -270,7 +270,7 @@ impl TokenChannel {
 
     fn insert_local_pending_request(&mut self, pending_neighbor_request: &PendingNeighborRequest) {
         self.state.pending_requests.pending_local_requests.insert(
-            pending_neighbor_request.request_id.clone(),
+            pending_neighbor_request.request_id,
             pending_neighbor_request.clone());
     }
 

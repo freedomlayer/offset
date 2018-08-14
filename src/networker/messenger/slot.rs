@@ -174,7 +174,7 @@ impl TokenChannelSlot {
             SlotMutation::SetPendingSendFundsId(opt_request_id) => {
                 // We don't want to lose another payment:
                 assert!(opt_request_id.is_none());
-                self.opt_pending_send_funds_id = opt_request_id.clone();
+                self.opt_pending_send_funds_id = *opt_request_id;
             },
             SlotMutation::LocalReset => {
                 // Local reset was applied (We sent a reset from AppManager).

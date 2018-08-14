@@ -87,7 +87,7 @@ impl NeighborState {
                 self.remote_max_channels = *remote_max_channels;
             },
             NeighborMutation::SetStatus(neighbor_status) => {
-                self.status = neighbor_status.clone();
+                self.status = *neighbor_status;
             },
             NeighborMutation::PushBackPendingRequest(request) => {
                 self.pending_requests.push_back(request.clone());

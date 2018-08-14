@@ -424,7 +424,7 @@ fn process_response_send_message(token_channel: &mut TokenChannel,
         .clone();
 
     // Remove entry from local_pending hashmap:
-    let tc_mutation = TcMutation::RemoveLocalPendingRequest(response_send_msg.request_id.clone());
+    let tc_mutation = TcMutation::RemoveLocalPendingRequest(response_send_msg.request_id);
     token_channel.mutate(&tc_mutation);
     tc_mutations.push(tc_mutation);
 
@@ -533,7 +533,7 @@ fn process_failure_send_message(token_channel: &mut TokenChannel,
         .clone();
 
     // Remove entry from local_pending hashmap:
-    let tc_mutation = TcMutation::RemoveLocalPendingRequest(failure_send_msg.request_id.clone());
+    let tc_mutation = TcMutation::RemoveLocalPendingRequest(failure_send_msg.request_id);
     token_channel.mutate(&tc_mutation);
     tc_mutations.push(tc_mutation);
 

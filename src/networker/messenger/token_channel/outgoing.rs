@@ -389,7 +389,7 @@ impl OutgoingTokenChannel {
 
         // Remove entry from remote_pending hashmap:
         let mut tc_mutations = Vec::new();
-        let tc_mutation = TcMutation::RemoveRemotePendingRequest(response_send_msg.request_id.clone());
+        let tc_mutation = TcMutation::RemoveRemotePendingRequest(response_send_msg.request_id);
         self.token_channel.mutate(&tc_mutation);
         tc_mutations.push(tc_mutation);
 
@@ -479,7 +479,7 @@ impl OutgoingTokenChannel {
         // Remove entry from remote hashmap:
         let mut tc_mutations = Vec::new();
 
-        let tc_mutation = TcMutation::RemoveRemotePendingRequest(failure_send_msg.request_id.clone());
+        let tc_mutation = TcMutation::RemoveRemotePendingRequest(failure_send_msg.request_id);
         self.token_channel.mutate(&tc_mutation);
         tc_mutations.push(tc_mutation);
 
