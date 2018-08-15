@@ -15,6 +15,7 @@ pub enum FriendStatus {
     Disable = 0,
 }
 
+#[derive(Clone)]
 pub enum RequestsStatus {
     Open,
     Closed,
