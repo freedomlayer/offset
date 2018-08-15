@@ -10,4 +10,4 @@ mod signature_buff;
 // mod slot;
 // mod state;
 mod types;
-// mod token_channel;
+mod token_channel;

@@ -8,16 +8,16 @@ use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 use crypto::rand_values::{RandValue};
 
-use proto::funder::InvoiceId;
-use proto::funder::{FunderSendPrice, ChannelToken};
+use proto::funder::ChannelToken;
 
 use utils::safe_arithmetic::SafeArithmetic;
 
 use super::super::types::{PendingFriendRequest, FriendTcOp};
+use super::super::messages::RequestsStatus;
 
 /// The maximum possible funder debt.
-/// We don't use the full u64 because i64 can not go beyond this value.
-pub const MAX_NETWORKER_DEBT: u64 = (1 << 63) - 1;
+/// We don't use the full u128 because i128 can not go beyond this value.
+pub const MAX_FUNDER_DEBT: u128 = (1 << 127) - 1;
 
 #[derive(Clone)]
 pub struct FriendMoveTokenInner {
@@ -38,62 +38,25 @@ pub struct TcIdents {
 pub struct TcBalance {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
-    pub balance: i64,
+    pub balance: i128,
     /// Maximum possible remote debt
-    pub remote_max_debt: u64,
+    pub remote_max_debt: u128,
     /// Maximum possible local debt
-    pub local_max_debt: u64,
+    pub local_max_debt: u128,
     /// Frozen credits by our side
-    pub local_pending_debt: u64,
+    pub local_pending_debt: u128,
     /// Frozen credits by the remote side
-    pub remote_pending_debt: u64,
+    pub remote_pending_debt: u128,
 }
 
 impl TcBalance {
-    fn new(balance: i64) -> TcBalance {
+    fn new(balance: i128) -> TcBalance {
         TcBalance {
             balance,
-            remote_max_debt: cmp::max(balance, 0) as u64,
-            local_max_debt: cmp::min(-balance, 0) as u64,
+            remote_max_debt: cmp::max(balance, 0) as u128,
+            local_max_debt: cmp::min(-balance, 0) as u128,
             local_pending_debt: 0,
             remote_pending_debt: 0,
-        }
-    }
-}
-
-
-#[derive(Clone)]
-pub struct TcInvoice {
-    /// The invoice id which I randomized locally
-    pub(super) local_invoice_id: Option<InvoiceId>,
-    /// The invoice id which the friend randomized
-    pub(super) remote_invoice_id: Option<InvoiceId>,
-}
-
-impl TcInvoice {
-    fn new() -> TcInvoice {
-        TcInvoice {
-            local_invoice_id: None,
-            remote_invoice_id: None,
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct TcSendPrice {
-    /// Price for us to send message to the remote side
-    /// Known only if we enabled requests
-    pub  local_send_price: Option<FunderSendPrice>,
-    /// Price for the remote side to send messages to us
-    /// Known only if remote side enabled requests
-    pub remote_send_price: Option<FunderSendPrice>,
-}
-
-impl TcSendPrice {
-    fn new() -> TcSendPrice {
-        TcSendPrice {
-            local_send_price: None,
-            remote_send_price: None,
         }
     }
 }
@@ -115,14 +78,30 @@ impl TcPendingRequests {
     }
 }
 
+#[derive(Clone)]
+pub struct TcRequestsStatus {
+    // Local is open/closed for incoming requests:
+    pub local: RequestsStatus,
+    // Remote is open/closed for incoming requests:
+    pub remote: RequestsStatus,
+}
+
+impl TcRequestsStatus {
+    fn new() -> TcRequestsStatus {
+        TcRequestsStatus {
+            local: RequestsStatus::Closed,
+            remote: RequestsStatus::Closed,
+        }
+    }
+}
+
 
 #[derive(Clone)]
 pub struct TokenChannelState {
     pub idents: TcIdents,
     pub balance: TcBalance,
-    pub invoice: TcInvoice,
-    pub send_price: TcSendPrice,
     pub pending_requests: TcPendingRequests,
+    pub requests_status: TcRequestsStatus,
 }
 
 #[derive(Clone)]
@@ -131,30 +110,26 @@ pub struct TokenChannel {
 }
 
 pub enum TcMutation {
-    SetLocalSendPrice(FunderSendPrice),
-    ClearLocalSendPrice,
-    SetRemoteSendPrice(FunderSendPrice),
-    ClearRemoteSendPrice,
-    SetLocalMaxDebt(u64),
-    SetRemoteMaxDebt(u64),
-    SetLocalInvoiceId(InvoiceId),
-    ClearLocalInvoiceId,
-    SetRemoteInvoiceId(InvoiceId),
-    ClearRemoteInvoiceId,
-    SetBalance(i64),
+    OpenLocalRequests,
+    CloseLocalRequests,
+    OpenRemoteRequests,
+    CloseRemoteRequests,
+    SetLocalMaxDebt(u128),
+    SetRemoteMaxDebt(u128),
+    SetBalance(i128),
     InsertLocalPendingRequest(PendingFriendRequest),
     RemoveLocalPendingRequest(Uid),
     InsertRemotePendingRequest(PendingFriendRequest),
     RemoveRemotePendingRequest(Uid),
-    SetLocalPendingDebt(u64),
-    SetRemotePendingDebt(u64),
+    SetLocalPendingDebt(u128),
+    SetRemotePendingDebt(u128),
 }
 
 
 impl TokenChannel {
     pub fn new(local_public_key: &PublicKey, 
            remote_public_key: &PublicKey, 
-           balance: i64) -> TokenChannel {
+           balance: i128) -> TokenChannel {
 
         TokenChannel {
             state: TokenChannelState {
@@ -163,16 +138,15 @@ impl TokenChannel {
                     remote_public_key: remote_public_key.clone(),
                 },
                 balance: TcBalance::new(balance),
-                invoice: TcInvoice::new(),
-                send_price: TcSendPrice::new(),
                 pending_requests: TcPendingRequests::new(),
+                requests_status: TcRequestsStatus::new(),
             }
         }
     }
 
     /// Calculate required balance for reset.
     /// This would be current balance plus additional future profits.
-    pub fn balance_for_reset(&self) -> i64 {
+    pub fn balance_for_reset(&self) -> i128 {
         self.state.balance.balance
             .checked_add_unsigned(self.state.balance.remote_pending_debt)
             .expect("Overflow when calculating balance_for_reset")
@@ -184,26 +158,18 @@ impl TokenChannel {
 
     pub fn mutate(&mut self, tc_mutation: &TcMutation) {
         match tc_mutation {
-            TcMutation::SetLocalSendPrice(send_price) =>
-                self.set_local_send_price(send_price),
-            TcMutation::ClearLocalSendPrice =>
-                self.clear_local_send_price(),
-            TcMutation::SetRemoteSendPrice(send_price) => 
-                self.set_remote_send_price(send_price),
-            TcMutation::ClearRemoteSendPrice => 
-                self.clear_remote_send_price(),
+            TcMutation::OpenLocalRequests => 
+                self.open_local_requests(),
+            TcMutation::CloseLocalRequests => 
+                self.close_local_requests(),
+            TcMutation::OpenRemoteRequests => 
+                self.open_remote_requests(),
+            TcMutation::CloseRemoteRequests => 
+                self.close_remote_requests(),
             TcMutation::SetLocalMaxDebt(proposed_max_debt) => 
                 self.set_local_max_debt(*proposed_max_debt),
             TcMutation::SetRemoteMaxDebt(proposed_max_debt) => 
                 self.set_remote_max_debt(*proposed_max_debt),
-            TcMutation::SetLocalInvoiceId(invoice_id) => 
-                self.set_local_invoice_id(invoice_id),
-            TcMutation::ClearLocalInvoiceId => 
-                self.clear_local_invoice_id(),
-            TcMutation::SetRemoteInvoiceId(invoice_id) => 
-                self.set_remote_invoice_id(invoice_id),
-            TcMutation::ClearRemoteInvoiceId => 
-                self.clear_remote_invoice_id(),
             TcMutation::SetBalance(balance) => 
                 self.set_balance(*balance),
             TcMutation::InsertLocalPendingRequest(pending_friend_request) =>
@@ -221,39 +187,31 @@ impl TokenChannel {
         }
     }
 
-    fn set_remote_send_price(&mut self, send_price: &FunderSendPrice) {
-        self.state.send_price.remote_send_price = Some(send_price.clone());
+    fn open_local_requests(&mut self) {
+        self.state.requests_status.local = RequestsStatus::Open;
     }
 
-    fn clear_remote_send_price(&mut self) {
-        self.state.send_price.remote_send_price = None;
+    fn close_local_requests(&mut self) {
+        self.state.requests_status.local = RequestsStatus::Closed;
     }
 
-    fn set_remote_max_debt(&mut self, proposed_max_debt: u64) { 
+    fn open_remote_requests(&mut self) {
+        self.state.requests_status.remote = RequestsStatus::Open;
+    }
+
+    fn close_remote_requests(&mut self) {
+        self.state.requests_status.remote = RequestsStatus::Closed;
+    }
+
+    fn set_remote_max_debt(&mut self, proposed_max_debt: u128) { 
         self.state.balance.remote_max_debt = proposed_max_debt;
     }
 
-    fn set_local_max_debt(&mut self, proposed_max_debt: u64) {
+    fn set_local_max_debt(&mut self, proposed_max_debt: u128) {
         self.state.balance.local_max_debt = proposed_max_debt;
     }
 
-    fn set_remote_invoice_id(&mut self, invoice_id: &InvoiceId) {
-        self.state.invoice.remote_invoice_id = Some(invoice_id.clone());
-    }
-
-    fn clear_remote_invoice_id(&mut self) {
-        self.state.invoice.remote_invoice_id = None;
-    }
-
-    fn set_local_invoice_id(&mut self, invoice_id: &InvoiceId) {
-        self.state.invoice.local_invoice_id = Some(invoice_id.clone());
-    }
-
-    fn clear_local_invoice_id(&mut self) {
-        self.state.invoice.local_invoice_id = None;
-    }
-
-    fn set_balance(&mut self, balance: i64) {
+    fn set_balance(&mut self, balance: i128) {
         self.state.balance.balance = balance;
     }
 
@@ -279,22 +237,12 @@ impl TokenChannel {
             request_id);
     }
 
-    fn set_remote_pending_debt(&mut self, remote_pending_debt: u64) {
+    fn set_remote_pending_debt(&mut self, remote_pending_debt: u128) {
         self.state.balance.remote_pending_debt = remote_pending_debt;
     }
 
 
-    fn set_local_pending_debt(&mut self, local_pending_debt: u64) {
+    fn set_local_pending_debt(&mut self, local_pending_debt: u128) {
         self.state.balance.local_pending_debt = local_pending_debt;
     }
-
-    fn set_local_send_price(&mut self, send_price: &FunderSendPrice) {
-        self.state.send_price.local_send_price = Some(send_price.clone());
-    }
-
-    fn clear_local_send_price(&mut self) {
-        self.state.send_price.local_send_price = None;
-    }
-
 }
-
