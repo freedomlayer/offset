@@ -381,9 +381,7 @@ fn process_failure_send_funds(token_channel: &mut TokenChannel,
         .ok_or(ProcessOperationError::InvalidFailureSignature)?;
 
     // At this point we believe the failure funds is valid.
-    //
-    let route_len = usize_to_u32(pending_request.route.len())
-        .ok_or(ProcessOperationError::RouteTooLong)?;
+    let route_len = usize_to_u32(pending_request.route.len()).unwrap();
     let credit_calc = CreditCalculator::new(route_len,
                                             pending_request.dest_payment);
 
