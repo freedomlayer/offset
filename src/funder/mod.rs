@@ -2,7 +2,7 @@
 
 pub mod messages;
 pub mod client;
-// mod cache;
+mod cache;
 mod credit_calc;
 mod freeze_guard;
 // mod friend;
