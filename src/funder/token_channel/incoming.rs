@@ -1,57 +1,52 @@
-use std::convert::TryFrom;
-
-use crypto::identity::{verify_signature};
-
-use proto::funder::InvoiceId;
-use proto::common::SendFundsReceipt;
-use proto::funder::FunderSendPrice;
+use crypto::identity::verify_signature;
 
 use utils::int_convert::usize_to_u32;
 use utils::safe_arithmetic::SafeArithmetic;
 
-use super::super::types::{ResponseSendMessage, FailureSendMessage, RequestSendMessage,
-                          FriendTcOp, FriendsRoute, PkPairPosition,
-                          PendingFriendRequest };
+use super::super::types::{ResponseSendFunds, FailureSendFunds, RequestSendFunds,
+                          FriendTcOp, PendingFriendRequest };
 
 use super::super::credit_calc::CreditCalculator;
-use super::super::signature_buff::{create_response_signature_buffer, verify_failure_signature};
+use super::super::signature_buff::{create_response_signature_buffer, 
+    verify_failure_signature};
 
-use super::types::{TokenChannel, MAX_NETWORKER_DEBT, TcMutation};
+use super::types::{TokenChannel, MAX_FUNDER_DEBT, TcMutation};
+use super::super::messages::RequestsStatus;
 
 
 /*
-pub struct IncomingRequestSendMessage {
+pub struct IncomingRequestSendFunds {
     pub request: PendingFriendRequest,
 }
 */
 
-pub struct IncomingResponseSendMessage {
+pub struct IncomingResponseSendFunds {
     pub pending_request: PendingFriendRequest,
-    pub incoming_response: ResponseSendMessage,
+    pub incoming_response: ResponseSendFunds,
 }
 
-pub struct IncomingFailureSendMessage {
+pub struct IncomingFailureSendFunds {
     pub pending_request: PendingFriendRequest,
-    pub incoming_failure: FailureSendMessage,
+    pub incoming_failure: FailureSendFunds,
 }
 
-pub enum IncomingMessage {
-    Request(RequestSendMessage),
-    Response(IncomingResponseSendMessage),
-    Failure(IncomingFailureSendMessage),
+pub enum IncomingFunds {
+    Request(RequestSendFunds),
+    Response(IncomingResponseSendFunds),
+    Failure(IncomingFailureSendFunds),
 }
 
 /// Resulting tasks to perform after processing an incoming operation.
 #[allow(unused)]
 pub struct ProcessOperationOutput {
-    pub incoming_message: Option<IncomingMessage>,
+    pub incoming_funds: Option<IncomingFunds>,
     pub tc_mutations: Vec<TcMutation>,
 }
 
 
 #[derive(Debug)]
 pub enum ProcessOperationError {
-    RemoteMaxDebtTooLarge(u64),
+    RemoteMaxDebtTooLarge(u128),
     /// Trying to set the invoiceId, while already expecting another invoice id.
     InvoiceIdExists,
     MissingInvoiceId,
@@ -66,22 +61,21 @@ pub enum ProcessOperationError {
     ResponsePaymentProposalTooLow,
     IncomingRequestsDisabled,
     RoutePricingOverflow,
-    RequestContentTooLong,
     RouteTooLong,
     InsufficientTrust,
     InsufficientTransitiveTrust,
     CreditsCalcOverflow,
-    IncompatibleFreezeeLinks,
+    IncompatibleFreezeLinks,
     InvalidFreezeLinks,
     CreditCalculatorFailure,
     RequestAlreadyExists,
     RequestDoesNotExist,
     InvalidResponseSignature,
-    ProcessingFeeCollectedTooHigh,
     ResponseContentTooLong,
     ReportingNodeNonexistent,
     InvalidReportingNode,
     InvalidFailureSignature,
+    LocalRequestsClosed,
 }
 
 #[derive(Debug)]
@@ -103,8 +97,8 @@ pub fn simulate_process_operations_list(token_channel: &TokenChannel,
     // (specifically, HashMaps).
     let mut cloned_token_channel = token_channel.clone();
 
-    for (index, message) in operations.into_iter().enumerate() {
-        match process_operation(&mut cloned_token_channel, message) {
+    for (index, funds) in operations.into_iter().enumerate() {
+        match process_operation(&mut cloned_token_channel, funds) {
             Err(e) => return Err(ProcessTransListError {
                 index,
                 process_trans_error: e
@@ -115,37 +109,32 @@ pub fn simulate_process_operations_list(token_channel: &TokenChannel,
     Ok(outputs)
 }
 
-fn process_operation(token_channel: &mut TokenChannel, message: FriendTcOp) ->
+fn process_operation(token_channel: &mut TokenChannel, funds: FriendTcOp) ->
     Result<ProcessOperationOutput, ProcessOperationError> {
-    match message {
-        FriendTcOp::EnableRequests(send_price) =>
-            process_enable_requests(token_channel, send_price),
+    match funds {
+        FriendTcOp::EnableRequests =>
+            process_enable_requests(token_channel),
         FriendTcOp::DisableRequests =>
             process_disable_requests(token_channel),
         FriendTcOp::SetRemoteMaxDebt(proposed_max_debt) =>
             process_set_remote_max_debt(token_channel, proposed_max_debt),
-        FriendTcOp::SetInvoiceId(rand_nonce) =>
-            process_set_invoice_id(token_channel, rand_nonce),
-        FriendTcOp::LoadFunds(send_funds_receipt) =>
-            process_load_funds(token_channel, send_funds_receipt),
-        FriendTcOp::RequestSendMessage(request_send_msg) =>
-            process_request_send_message(token_channel, request_send_msg),
-        FriendTcOp::ResponseSendMessage(response_send_msg) =>
-            process_response_send_message(token_channel, response_send_msg),
-        FriendTcOp::FailureSendMessage(failure_send_msg) =>
-            process_failure_send_message(token_channel, failure_send_msg),
+        FriendTcOp::RequestSendFunds(request_send_funds) =>
+            process_request_send_funds(token_channel, request_send_funds),
+        FriendTcOp::ResponseSendFunds(response_send_funds) =>
+            process_response_send_funds(token_channel, response_send_funds),
+        FriendTcOp::FailureSendFunds(failure_send_funds) =>
+            process_failure_send_funds(token_channel, failure_send_funds),
     }
 }
 
-fn process_enable_requests(token_channel: &mut TokenChannel, 
-                           send_price: FunderSendPrice) ->
+fn process_enable_requests(token_channel: &mut TokenChannel) ->
     Result<ProcessOperationOutput, ProcessOperationError> {
 
     let mut op_output = ProcessOperationOutput {
-        incoming_message: None,
+        incoming_funds: None,
         tc_mutations: Vec::new(),
     };
-    let tc_mutation = TcMutation::SetRemoteSendPrice(send_price);
+    let tc_mutation = TcMutation::OpenRemoteRequests;
     token_channel.mutate(&tc_mutation);
     op_output.tc_mutations.push(tc_mutation);
 
@@ -156,30 +145,31 @@ fn process_disable_requests(token_channel: &mut TokenChannel) ->
     Result<ProcessOperationOutput, ProcessOperationError> {
 
     let mut op_output = ProcessOperationOutput {
-        incoming_message: None,
+        incoming_funds: None,
         tc_mutations: Vec::new(),
     };
 
-    if token_channel.state().send_price.remote_send_price.is_none() {
-        Err(ProcessOperationError::RequestsAlreadyDisabled)
-    } else {
-        let tc_mutation = TcMutation::ClearRemoteSendPrice;
-        token_channel.mutate(&tc_mutation);
-        op_output.tc_mutations.push(tc_mutation);
-        Ok(op_output)
+    match token_channel.state().requests_status.remote {
+        RequestsStatus::Open => {
+            let tc_mutation = TcMutation::CloseRemoteRequests;
+            token_channel.mutate(&tc_mutation);
+            op_output.tc_mutations.push(tc_mutation);
+            Ok(op_output)
+        },
+        RequestsStatus::Closed => Err(ProcessOperationError::RequestsAlreadyDisabled),
     }
 }
 
 fn process_set_remote_max_debt(token_channel: &mut TokenChannel,
-                               proposed_max_debt: u64) -> 
+                               proposed_max_debt: u128) -> 
     Result<ProcessOperationOutput, ProcessOperationError> {
 
     let mut op_output = ProcessOperationOutput {
-        incoming_message: None,
+        incoming_funds: None,
         tc_mutations: Vec::new(),
     };
 
-    if proposed_max_debt > MAX_NETWORKER_DEBT {
+    if proposed_max_debt > MAX_FUNDER_DEBT {
         Err(ProcessOperationError::RemoteMaxDebtTooLarge(proposed_max_debt))
     } else {
         let tc_mutation = TcMutation::SetLocalMaxDebt(proposed_max_debt);
@@ -189,136 +179,47 @@ fn process_set_remote_max_debt(token_channel: &mut TokenChannel,
     }
 }
 
-fn process_set_invoice_id(token_channel: &mut TokenChannel,
-                          invoice_id: InvoiceId)
-                          -> Result<ProcessOperationOutput, ProcessOperationError> {
-    let mut op_output = ProcessOperationOutput {
-        incoming_message: None,
-        tc_mutations: Vec::new(),
-    };
 
-    if token_channel.state().invoice.remote_invoice_id.is_none() {
-        let tc_mutation = TcMutation::SetRemoteInvoiceId(invoice_id.clone());
-        token_channel.mutate(&tc_mutation);
-        op_output.tc_mutations.push(tc_mutation);
-        Ok(op_output)
-    } else {
-        Err(ProcessOperationError::InvoiceIdExists)
-    }
-}
-
-fn process_load_funds(token_channel: &mut TokenChannel,
-                      send_funds_receipt: SendFundsReceipt) -> 
-    Result<ProcessOperationOutput, ProcessOperationError> {
-
-    // Check if the SendFundsReceipt is signed properly by us. 
-    //      Could we somehow abstract this, for easier testing?
-    if !send_funds_receipt.verify_signature(&token_channel.state().idents.local_public_key) {
-        return Err(ProcessOperationError::InvalidSendFundsReceiptSignature);
-    }
-
-    let local_invoice_id = match token_channel.state().invoice.local_invoice_id {
-        None => return Err(ProcessOperationError::MissingInvoiceId),
-        Some(ref local_invoice_id) => local_invoice_id,
-    };
-
-    if local_invoice_id != &send_funds_receipt.invoice_id {
-        return Err(ProcessOperationError::InvoiceIdMismatch);
-    }
-
-    // We are here if the invoice_id-s match!
-    let mut op_output = ProcessOperationOutput {
-        incoming_message: None,
-        tc_mutations: Vec::new(),
-    };
-
-    // Clear local invoice id:
-    let tc_mutation = TcMutation::ClearLocalInvoiceId;
-    token_channel.mutate(&tc_mutation);
-    op_output.tc_mutations.push(tc_mutation);
-
-    // Add payment to self.balance.balance. We have to be careful because payment u128, and
-    // self.balance.balance is of type i64.
-    let payment = u64::try_from(send_funds_receipt.payment).unwrap_or(u64::max_value());
-    let new_balance = token_channel.state().balance.balance.saturating_sub_unsigned(payment);
-
-    let tc_mutation = TcMutation::SetBalance(new_balance);
-    token_channel.mutate(&tc_mutation);
-    op_output.tc_mutations.push(tc_mutation);
-
-    Ok(op_output)
-}
-
-/// Make sure that we are open to incoming requests, 
-/// and that the offered response proposal is high enough.
-fn verify_local_send_price(token_channel: &TokenChannel,
-                           route: &FriendsRoute, 
-                           pk_pair_position: &PkPairPosition) 
-    -> Result<(), ProcessOperationError>  {
-
-    let local_send_price = match token_channel.state().send_price.local_send_price {
-        None => Err(ProcessOperationError::IncomingRequestsDisabled),
-        Some(ref local_send_price) => Ok(local_send_price.clone()),
-    }?;
-
-    let response_proposal = match *pk_pair_position {
-        PkPairPosition::Dest => &route.dest_response_proposal,
-        PkPairPosition::NotDest(i) => &route.route_links[i].payment_proposal_pair.response,
-    };
-    // If linear payment proposal for returning response is too low, return error
-    if response_proposal.smaller_than(&local_send_price) {
-        Err(ProcessOperationError::ResponsePaymentProposalTooLow)
-    } else {
-        Ok(())
-    }
-}
-
-/// Process an incoming RequestSendMessage
-fn process_request_send_message(token_channel: &mut TokenChannel,
-                                request_send_msg: RequestSendMessage)
+/// Process an incoming RequestSendFunds
+fn process_request_send_funds(token_channel: &mut TokenChannel,
+                                request_send_funds: RequestSendFunds)
     -> Result<ProcessOperationOutput, ProcessOperationError> {
 
     // Make sure that the route does not contains cycles/duplicates:
-    if !request_send_msg.route.is_cycle_free() {
+    if !request_send_funds.route.is_cycle_free() {
         return Err(ProcessOperationError::DuplicateNodesInRoute);
     }
 
     // Find ourselves on the route. If we are not there, abort.
-    let pk_pair = request_send_msg.route.find_pk_pair(
+    let remote_index = request_send_funds.route.find_pk_pair(
         &token_channel.state().idents.remote_public_key, 
         &token_channel.state().idents.local_public_key)
         .ok_or(ProcessOperationError::PkPairNotInRoute)?;
 
     // Make sure that freeze_links and route_links are compatible in length:
-    let freeze_links_len = request_send_msg.freeze_links.len();
-    let route_links_len = request_send_msg.route.route_links.len();
-    let is_compat = match pk_pair {
-        PkPairPosition::Dest => freeze_links_len == route_links_len + 2,
-        PkPairPosition::NotDest(i) => freeze_links_len == i
-    };
-    if !is_compat {
+    let freeze_links_len = request_send_funds.freeze_links.len();
+    let route_links_len = request_send_funds.route.len();
+    if remote_index.checked_add(1).unwrap() != freeze_links_len {
         return Err(ProcessOperationError::InvalidFreezeLinks);
     }
 
-    verify_local_send_price(&*token_channel, &request_send_msg.route, &pk_pair)?;
+    // Make sure that we are open to requests:
+    if let RequestsStatus::Open = token_channel.state().requests_status.local {
+        return Err(ProcessOperationError::LocalRequestsClosed);
+    }
 
-    let request_content_len = usize_to_u32(request_send_msg.request_content.len())
-        .ok_or(ProcessOperationError::RequestContentTooLong)?;
-    let credit_calc = CreditCalculator::new(&request_send_msg.route,
-                                            request_content_len,
-                                            request_send_msg.processing_fee_proposal,
-                                            request_send_msg.max_response_len)
-        .ok_or(ProcessOperationError::CreditCalculatorFailure)?;
+    let route_len = usize_to_u32(request_send_funds.route.len())
+        .ok_or(ProcessOperationError::RouteTooLong)?;
+    let credit_calc = CreditCalculator::new(route_len,
+                                            request_send_funds.dest_payment);
 
-    // verify_freezing_links(&request_send_msg.freeze_links, &credit_calc)?;
-
-    let index = match pk_pair {
-        PkPairPosition::Dest => request_send_msg.route.route_links.len().checked_add(1),
-        PkPairPosition::NotDest(i) => i.checked_add(1),
-    }.ok_or(ProcessOperationError::RouteTooLong)?;
+    let local_index = remote_index.checked_add(1)
+        .ok_or(ProcessOperationError::RouteTooLong)?;
+    let local_index = usize_to_u32(local_index)
+        .ok_or(ProcessOperationError::RouteTooLong)?;
 
     // Calculate amount of credits to freeze
-    let own_freeze_credits = credit_calc.credits_to_freeze(index)
+    let own_freeze_credits = credit_calc.credits_to_freeze(local_index)
         .ok_or(ProcessOperationError::CreditCalculatorFailure)?;
 
     // Make sure we can freeze the credits
@@ -335,16 +236,15 @@ fn process_request_send_message(token_channel: &mut TokenChannel,
     
     let p_remote_requests = &token_channel.state().pending_requests.pending_remote_requests;
     // Make sure that we don't have this request as a pending request already:
-    if p_remote_requests.contains_key(&request_send_msg.request_id) {
+    if p_remote_requests.contains_key(&request_send_funds.request_id) {
         return Err(ProcessOperationError::RequestAlreadyExists);
     }
 
-    // Add pending request message:
-    let pending_friend_request = request_send_msg.create_pending_request()
-        .ok_or(ProcessOperationError::RequestContentTooLong)?;
+    // Add pending request funds:
+    let pending_friend_request = request_send_funds.create_pending_request();
 
     let mut op_output = ProcessOperationOutput {
-        incoming_message: None,
+        incoming_funds: None,
         tc_mutations: Vec::new(),
     };
 
@@ -361,8 +261,8 @@ fn process_request_send_message(token_channel: &mut TokenChannel,
 
 }
 
-fn process_response_send_message(token_channel: &mut TokenChannel,
-                                 response_send_msg: ResponseSendMessage) ->
+fn process_response_send_funds(token_channel: &mut TokenChannel,
+                                 response_send_funds: ResponseSendFunds) ->
     Result<ProcessOperationOutput, ProcessOperationError> {
 
     // Make sure that id exists in local_pending hashmap, 
@@ -370,104 +270,80 @@ fn process_response_send_message(token_channel: &mut TokenChannel,
     let local_pending_requests = &token_channel.state().pending_requests.pending_local_requests;
 
     // Obtain pending request:
-    let pending_request = local_pending_requests.get(&response_send_msg.request_id)
-        .ok_or(ProcessOperationError::RequestDoesNotExist)?;
+    let pending_request = local_pending_requests
+        .get(&response_send_funds.request_id)
+        .ok_or(ProcessOperationError::RequestDoesNotExist)?
+        .clone();
 
     let response_signature_buffer = create_response_signature_buffer(
-                                        &response_send_msg,
+                                        &response_send_funds,
                                         &pending_request);
 
-    // Verify response message signature:
+    // Verify response funds signature:
     if !verify_signature(&response_signature_buffer, 
                              &token_channel.state().idents.remote_public_key,
-                             &response_send_msg.signature) {
+                             &response_send_funds.signature) {
         return Err(ProcessOperationError::InvalidResponseSignature);
     }
 
-    // Verify that processing_fee_collected is within range.
-    if response_send_msg.processing_fee_collected > pending_request.processing_fee_proposal {
-        return Err(ProcessOperationError::ProcessingFeeCollectedTooHigh);
-    }
-
-    // Make sure that response_content is not longer than max_response_len.
-    let response_content_len = usize_to_u32(response_send_msg.response_content.len())
-        .ok_or(ProcessOperationError::ResponseContentTooLong)?;
-    if response_content_len > pending_request.max_response_len {
-        return Err(ProcessOperationError::ResponseContentTooLong)?;
-    }
-
-    let credit_calc = CreditCalculator::new(&pending_request.route,
-                                            pending_request.request_content_len,
-                                            pending_request.processing_fee_proposal,
-                                            pending_request.max_response_len)
-        .ok_or(ProcessOperationError::CreditCalculatorFailure)?;
+    // It should never happen that usize_to_u32 fails here, because we 
+    // checked this when we created the pending_request.
+    let route_len = usize_to_u32(pending_request.route.len()).unwrap();
+    let credit_calc = CreditCalculator::new(route_len,
+                                            pending_request.dest_payment);
 
     // Find ourselves on the route. If we are not there, abort.
-    let pk_pair = pending_request.route.find_pk_pair(
+    let local_index = pending_request.route.find_pk_pair(
         &token_channel.state().idents.local_public_key, 
-        &token_channel.state().idents.remote_public_key)
-        .expect("Can not find myself in request's route!");
-
-    let index = match pk_pair {
-        PkPairPosition::Dest => pending_request.route.route_links.len().checked_add(1),
-        PkPairPosition::NotDest(i) => i.checked_add(1),
-    }.expect("Route too long!");
+        &token_channel.state().idents.remote_public_key).unwrap();
 
     let mut tc_mutations = Vec::new();
 
-    let pending_request = token_channel
-        .state()
-        .pending_requests
-        .pending_local_requests
-        .get(&response_send_msg.request_id)
-        .expect("pending_request not present!")
-        .clone();
-
     // Remove entry from local_pending hashmap:
-    let tc_mutation = TcMutation::RemoveLocalPendingRequest(response_send_msg.request_id);
+    let tc_mutation = TcMutation::RemoveLocalPendingRequest(response_send_funds.request_id);
     token_channel.mutate(&tc_mutation);
     tc_mutations.push(tc_mutation);
 
-    let next_index = index.checked_add(1).expect("Route too long!");
-    let success_credits = credit_calc.credits_on_success(next_index, response_content_len)
-        .expect("credits_on_success calculation failed!");
-    let freeze_credits = credit_calc.credits_to_freeze(next_index)
-        .expect("credits_to_freeze calculation failed!");
+    let remote_index = usize_to_u32(local_index.checked_add(1).unwrap()).unwrap();
+    let success_credits = credit_calc.credits_on_success(remote_index).unwrap();
+    let freeze_credits = credit_calc.credits_to_freeze(remote_index).unwrap();
 
     // Decrease frozen credits and decrease balance:
     let new_local_pending_debt = 
-        token_channel.state().balance.local_pending_debt.checked_sub(freeze_credits)
-        .expect("Insufficient frozen credit!");
+        token_channel.state().balance.local_pending_debt
+        .checked_sub(freeze_credits)
+        .unwrap();
 
     let tc_mutation = TcMutation::SetLocalPendingDebt(new_local_pending_debt);
     token_channel.mutate(&tc_mutation);
     tc_mutations.push(tc_mutation);
 
     let new_balance = 
-        token_channel.state().balance.balance.checked_sub_unsigned(success_credits)
-        .expect("balance overflow");
+        token_channel.state().balance.balance
+        .checked_sub_unsigned(success_credits)
+        .unwrap();
 
     let tc_mutation = TcMutation::SetBalance(new_balance);
     token_channel.mutate(&tc_mutation);
     tc_mutations.push(tc_mutation);
 
-    let incoming_message = Some(
-        IncomingMessage::Response(
-            IncomingResponseSendMessage {
+    let incoming_funds = Some(
+        IncomingFunds::Response(
+            IncomingResponseSendFunds {
                 pending_request,
-                incoming_response: response_send_msg,
+                incoming_response: response_send_funds,
             }
         )
     );
 
     Ok(ProcessOperationOutput {
-        incoming_message,
+        incoming_funds,
         tc_mutations,
     })
 }
 
-fn process_failure_send_message(token_channel: &mut TokenChannel,
-                                failure_send_msg: FailureSendMessage) ->
+fn process_failure_send_funds(token_channel: &mut TokenChannel,
+                                failure_send_funds: FailureSendFunds) ->
     Result<ProcessOperationOutput, ProcessOperationError> {
     
     // Make sure that id exists in local_pending hashmap, 
@@ -475,79 +351,63 @@ fn process_failure_send_message(token_channel: &mut TokenChannel,
     let local_pending_requests = &token_channel.state().pending_requests.pending_local_requests;
 
     // Obtain pending request:
-    let pending_request = local_pending_requests.get(&failure_send_msg.request_id)
-        .ok_or(ProcessOperationError::RequestDoesNotExist)?;
+    let pending_request = local_pending_requests
+        .get(&failure_send_funds.request_id)
+        .ok_or(ProcessOperationError::RequestDoesNotExist)?
+        .clone();
 
     // Find ourselves on the route. If we are not there, abort.
-    let pk_pair = pending_request.route.find_pk_pair(
+    let local_index = pending_request.route.find_pk_pair(
         &token_channel.state().idents.local_public_key, 
-        &token_channel.state().idents.remote_public_key)
-        .expect("Can not find myself in request's route!");
-
-    let index = match pk_pair {
-        PkPairPosition::Dest => pending_request.route.route_links.len().checked_add(1),
-        PkPairPosition::NotDest(i) => i.checked_add(1),
-    }.expect("Route too long!");
-
+        &token_channel.state().idents.remote_public_key).unwrap();
 
     // Make sure that reporting node public key is:
     //  - inside the route
     //  - After us on the route.
     //  - Not the destination node
     
-    let reporting_index = pending_request.route.pk_index(
-        &failure_send_msg.reporting_public_key)
+    let reporting_index = pending_request.route.pk_to_index(
+        &failure_send_funds.reporting_public_key)
         .ok_or(ProcessOperationError::ReportingNodeNonexistent)?;
 
-    let dest_index = pending_request.route.route_links.len()
+    let dest_index = pending_request.route.len()
         .checked_add(1)
         .ok_or(ProcessOperationError::RouteTooLong)?;
 
-    if (reporting_index <= index) || (reporting_index >= dest_index) {
+    if reporting_index <= local_index {
         return Err(ProcessOperationError::InvalidReportingNode);
     }
 
-    verify_failure_signature(index,
-                             reporting_index,
-                             &failure_send_msg,
-                             pending_request)
+
+    verify_failure_signature(&failure_send_funds, &pending_request)
         .ok_or(ProcessOperationError::InvalidFailureSignature)?;
 
-    // At this point we believe the failure message is valid.
-
-    let credit_calc = CreditCalculator::new(&pending_request.route,
-                                            pending_request.request_content_len,
-                                            pending_request.processing_fee_proposal,
-                                            pending_request.max_response_len)
-        .ok_or(ProcessOperationError::CreditCalculatorFailure)?;
+    // At this point we believe the failure funds is valid.
+    //
+    let route_len = usize_to_u32(pending_request.route.len())
+        .ok_or(ProcessOperationError::RouteTooLong)?;
+    let credit_calc = CreditCalculator::new(route_len,
+                                            pending_request.dest_payment);
 
     let mut tc_mutations = Vec::new();
 
     // Remove entry from local_pending hashmap:
-    let pending_request = token_channel
-        .state()
-        .pending_requests
-        .pending_local_requests
-        .get(&failure_send_msg.request_id)
-        .expect("pending_request not present!")
-        .clone();
-
-    // Remove entry from local_pending hashmap:
-    let tc_mutation = TcMutation::RemoveLocalPendingRequest(failure_send_msg.request_id);
+    let tc_mutation = TcMutation::RemoveLocalPendingRequest(failure_send_funds.request_id);
     token_channel.mutate(&tc_mutation);
     tc_mutations.push(tc_mutation);
 
 
-    let next_index = index.checked_add(1).expect("Route too long!");
-    let failure_credits = credit_calc.credits_on_failure(next_index, reporting_index)
-        .expect("credits_on_failure calculation failed!");
-    let freeze_credits = credit_calc.credits_to_freeze(next_index)
-        .expect("credits_to_freeze calculation failed!");
+    let remote_index = usize_to_u32(local_index.checked_add(1).unwrap()).unwrap();
+    let reporting_index = usize_to_u32(reporting_index).unwrap();
+    let failure_credits = credit_calc.credits_on_failure(remote_index, reporting_index)
+        .unwrap();
+    let freeze_credits = credit_calc.credits_to_freeze(remote_index)
+        .unwrap();
 
     // Decrease frozen credits and decrease balance:
     let new_local_pending_debt = 
         token_channel.state().balance.local_pending_debt.checked_sub(freeze_credits)
-        .expect("Insufficient frozen credit!");
+        .unwrap();
 
     let tc_mutation = TcMutation::SetLocalPendingDebt(new_local_pending_debt);
     token_channel.mutate(&tc_mutation);
@@ -555,24 +415,24 @@ fn process_failure_send_message(token_channel: &mut TokenChannel,
 
     let new_balance = 
         token_channel.state().balance.balance.checked_sub_unsigned(failure_credits)
-        .expect("balance overflow");
+        .unwrap();
 
     let tc_mutation = TcMutation::SetBalance(new_balance);
     token_channel.mutate(&tc_mutation);
     tc_mutations.push(tc_mutation);
     
-    // Return Failure message.
-    let incoming_message = Some(
-        IncomingMessage::Failure(
-            IncomingFailureSendMessage {
+    // Return Failure funds.
+    let incoming_funds = Some(
+        IncomingFunds::Failure(
+            IncomingFailureSendFunds {
                 pending_request,
-                incoming_failure: failure_send_msg,
+                incoming_failure: failure_send_funds,
             }
         )
     );
 
     Ok(ProcessOperationOutput {
-        incoming_message,
+        incoming_funds,
         tc_mutations,
     })
 
