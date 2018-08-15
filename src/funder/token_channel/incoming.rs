@@ -270,6 +270,7 @@ fn process_response_send_funds(token_channel: &mut TokenChannel,
     let local_pending_requests = &token_channel.state().pending_requests.pending_local_requests;
 
     // Obtain pending request:
+    // TODO: Possibly get rid of clone() here for optimization later
     let pending_request = local_pending_requests
         .get(&response_send_funds.request_id)
         .ok_or(ProcessOperationError::RequestDoesNotExist)?
@@ -355,6 +356,7 @@ fn process_failure_send_funds(token_channel: &mut TokenChannel,
         .get(&failure_send_funds.request_id)
         .ok_or(ProcessOperationError::RequestDoesNotExist)?
         .clone();
+    // TODO: Possibly get rid of clone() here for optimization later
 
     // Find ourselves on the route. If we are not there, abort.
     let local_index = pending_request.route.find_pk_pair(
