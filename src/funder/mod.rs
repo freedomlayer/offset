@@ -9,5 +9,5 @@ mod credit_calc;
 // mod signature_buff;
 // mod slot;
 // mod state;
-// mod types;
+mod types;
 // mod token_channel;
