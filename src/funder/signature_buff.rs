@@ -52,9 +52,7 @@ pub fn create_failure_signature_buffer(failure_send_funds: &FailureSendFunds,
 }
 
 /// Verify a failure signature
-pub fn verify_failure_signature(index: usize,
-                            reporting_index: usize,
-                            failure_send_funds: &FailureSendFunds,
+pub fn verify_failure_signature(failure_send_funds: &FailureSendFunds,
                             pending_request: &PendingFriendRequest) -> Option<()> {
 
     let failure_signature_buffer = create_failure_signature_buffer(
