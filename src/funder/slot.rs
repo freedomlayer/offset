@@ -56,7 +56,6 @@ pub enum SlotMutation {
     SetWantedRemoteMaxDebt(u128),
     PushBackPendingOperation(FriendTcOp),
     PopFrontPendingOperation,
-    SetPendingSendFundsId(Option<Uid>),
     RemoteReset,        // Remote side performed reset
     LocalReset,         // Local side performed reset
 }
@@ -69,7 +68,6 @@ pub struct TokenChannelSlot {
     pub wanted_remote_max_debt: u128,
     pub pending_operations: Vector<FriendTcOp>,
     // Pending operations to be sent to the token channel.
-    pub opt_pending_send_funds_id: Option<Uid>,
 }
 
 
@@ -88,7 +86,6 @@ impl TokenChannelSlot {
             // The local_send_price we want to have (Or possibly close requests, by having an empty
             // send price). When possible, this will be updated with the TokenChannel.
             pending_operations: Vector::new(),
-            opt_pending_send_funds_id: None,
         }
     }
 
@@ -112,11 +109,6 @@ impl TokenChannelSlot {
             },
             SlotMutation::PopFrontPendingOperation => {
                 let _ = self.pending_operations.pop_front();
-            },
-            SlotMutation::SetPendingSendFundsId(opt_request_id) => {
-                // We don't want to lose another payment:
-                assert!(opt_request_id.is_none());
-                self.opt_pending_send_funds_id = *opt_request_id;
             },
             SlotMutation::LocalReset => {
                 // Local reset was applied (We sent a reset from AppManager).
