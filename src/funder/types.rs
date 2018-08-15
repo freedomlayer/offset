@@ -18,7 +18,7 @@ use proto::funder::{ChannelToken};
 pub enum FriendTcOp {
     EnableRequests,
     DisableRequests,
-    SetRemoteMaxDebt(u64),
+    SetRemoteMaxDebt(u128),
     RequestSendFunds(RequestSendFunds),
     ResponseSendFunds(ResponseSendFunds),
     FailureSendFunds(FailureSendFunds),
@@ -109,6 +109,10 @@ impl FriendsRoute {
                 * self.route_links.len()
     }
     */
+
+    pub fn len(&self) -> usize {
+        self.public_keys.len()
+    }
 
     /// Check if every node shows up in the route at most once.
     /// This makes sure no cycles are present
@@ -250,7 +254,7 @@ impl FriendTcOp {
             }
             FriendTcOp::SetRemoteMaxDebt(remote_max_debt) => {
                 res_bytes.push(2u8);
-                res_bytes.write_u64::<BigEndian>(*remote_max_debt)
+                res_bytes.write_u128::<BigEndian>(*remote_max_debt)
                     .expect("Failed to serialize u64 (remote_max_debt)");
             }
             FriendTcOp::RequestSendFunds(request_send_funds) => {
