@@ -69,8 +69,8 @@ struct ResponseSendFundsOp {
         # Signature{key=recipientKey}(
         #   sha512/256("FUND_SUCCESS") ||
         #   sha512/256(requestId || sha512/256(route) || randNonce) ||
-        #   invoiceId ||
-        #   destPayment
+        #   destPayment ||
+        #   invoiceId
         # )
         #
         # Note that the signature contains an inner blob (requestId || ...).
