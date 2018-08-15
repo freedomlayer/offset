@@ -54,7 +54,6 @@ pub enum SlotMutation {
     SetIncomingInconsistency(IncomingInconsistency),
     SetOutgoingInconsistency(OutgoingInconsistency),
     SetWantedRemoteMaxDebt(u128),
-    SetWantedLocalSendPrice(Option<FunderSendPrice>),
     PushBackPendingOperation(FriendTcOp),
     PopFrontPendingOperation,
     SetPendingSendFundsId(Option<Uid>),
@@ -68,7 +67,6 @@ pub struct TokenChannelSlot {
     pub directional: DirectionalTokenChannel,
     pub inconsistency_status: InconsistencyStatus,
     pub wanted_remote_max_debt: u128,
-    pub wanted_local_send_price: Option<FunderSendPrice>,
     pub pending_operations: Vector<FriendTcOp>,
     // Pending operations to be sent to the token channel.
     pub opt_pending_send_funds_id: Option<Uid>,
@@ -89,7 +87,6 @@ impl TokenChannelSlot {
             wanted_remote_max_debt: 0,
             // The local_send_price we want to have (Or possibly close requests, by having an empty
             // send price). When possible, this will be updated with the TokenChannel.
-            wanted_local_send_price: None,
             pending_operations: Vector::new(),
             opt_pending_send_funds_id: None,
         }
@@ -109,9 +106,6 @@ impl TokenChannelSlot {
             },
             SlotMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
                 self.wanted_remote_max_debt = *wanted_remote_max_debt;
-            },
-            SlotMutation::SetWantedLocalSendPrice(wanted_local_send_price) => {
-                self.wanted_local_send_price = wanted_local_send_price.clone();
             },
             SlotMutation::PushBackPendingOperation(friend_tc_op) => {
                 self.pending_operations.push_back(friend_tc_op.clone());
