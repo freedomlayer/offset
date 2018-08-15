@@ -82,7 +82,6 @@ pub struct FriendsRoute {
 #[allow(unused)]
 #[derive(Clone)]
 pub struct FriendMoveToken {
-    pub token_channel_index: u16,
     pub operations: Vec<FriendTcOp>,
     pub old_token: ChannelToken,
     pub rand_nonce: RandValue,
