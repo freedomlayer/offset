@@ -4,7 +4,6 @@ using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomUInt256;
 using import "common.capnp".CustomUInt512;
 using import "common.capnp".Ratio128;
-using import "common.capnp".RandNonceSignature;
 
 
 # Token channel messages
@@ -29,19 +28,6 @@ struct FriendInconsistencyError {
 # Token Operations
 # ------------------
 
-struct EnableRequestsOp {
-        base @0: UInt64;
-        multiplier @1: UInt64;
-        # The sender of this message declares that
-        # Sending x bytes to the remote side costs `base + x * multiplier`
-        # credits.
-}
-# This message may be sent more than once, to update the values of base and multiplier.
-
-
-# struct DisableRequests {
-# }
-
 # Set the maximum possible debt for the remote party.
 # Note: It is not possible to set a maximum debt smaller than the current debt
 # This will cause an inconsistency.
@@ -49,35 +35,9 @@ struct SetRemoteMaxDebtOp {
         remoteMaxDebt @0: UInt64;
 }
 
-struct FunderSendPrice {
-        base @0: UInt64;
-        multiplier @1: UInt64;
-}
-
-struct FriendRouteLink {
-        nodePublicKey @0: CustomUInt256;
-        # Public key of current node
-        requestProposal @1: FunderSendPrice;
-        # Payment proposal for sending data to the next node.
-        responseProposal @2: FunderSendPrice;
-        # Payment proposal for sending data to the previous node.
-}
-
-
 struct FriendsRoute {
-        sourcePublicKey @0: CustomUInt256;
-        # Public key for the message originator.
-        sourceResponseProposal @1: FunderSendPrice;
-        # Payment proposal for sending data from source forward.
-        # This amount is not used in the calculation of costs for sending the
-        # request, but can be used by the receiver to produce a route back to
-        # the origin of the request.
-        routeLinks @2: List(FriendRouteLink);
-        # A chain of all intermediate nodes.
-        destPublicKey @3: CustomUInt256;
-        # Public key for the message destination.
-        destResponseProposal @4: FunderSendPrice;
-        # Payment proposal for sending data from dest backwards.
+        nodePublicKeys @0: List(CustomUInt256);
+        # A list of public keys
 }
 
 struct FriendFreezeLink {
@@ -123,9 +83,8 @@ struct FailureSendFundsOp {
         reportingPublicKey @1: CustomUInt256;
         # Index of the reporting node in the route of the corresponding request.
         # The reporting node cannot be the destination node.
-        randNonceSignatures @2: List(RandNonceSignature);
-        # Contains a signature for every node in the route, from the reporting
-        # node, until the current node.
+        randNonce @2: CustomUInt128;
+        signature @3: CustomUInt512;
         # Signature{key=recipientKey}(
         #   sha512/256("FUND_FAILURE") ||
         #   requestId ||
@@ -133,7 +92,6 @@ struct FailureSendFundsOp {
         #   sha512/256(route) || 
         #   invoiceId ||
         #   reportingPublicKey ||
-        #   prev randNonceSignatures ||
         #   randNonce
         # )
 }
@@ -141,32 +99,12 @@ struct FailureSendFundsOp {
 
 struct FriendOperation {
         union {
-                enableRequests @0: EnableRequestsOp;
+                enableRequests @0: Void;
                 disableRequests @1: Void;
                 setRemoteMaxDebt @2: SetRemoteMaxDebtOp;
                 requestSendFunds @3: RequestSendFundsOp;
                 responseSendFunds @4: ResponseSendFundsOp;
-                failedSendFunds @5: FailureSendFundsOp;
+                failureSendFunds @5: FailureSendFundsOp;
         }
 }
 
-
-# Requests sent directly to the Funder
-# ------------------------------------
-
-# Node -> Node::Funder
-# struct RequestNodeFriendsInfo {} # (Empty)
-
-struct ConnectedFriend {
-        sendCapacity @0: CustomUInt128;
-        recvCapacity @1: CustomUInt128;
-        publicKey @2: CustomUInt256;
-        requestBase @3: UInt64;
-        requestMultiplier @4: UInt64;
-}
-
-# Node::Funder -> Node
-struct ResponseNodeFriendsInfo {
-        connectedFriendsList @0: List(ConnectedFriend);
-        # A list of friends currently online.
-}
