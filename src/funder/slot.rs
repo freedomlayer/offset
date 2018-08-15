@@ -4,7 +4,7 @@ use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 use super::token_channel::directional::DirectionalMutation;
-use proto::networker::{ChannelToken, NetworkerSendPrice};
+use proto::funder::{ChannelToken, FunderSendPrice};
 use super::types::{FriendTcOp};
 use super::token_channel::directional::{DirectionalTokenChannel};
 
@@ -74,7 +74,7 @@ pub enum SlotMutation {
     SetIncomingInconsistency(IncomingInconsistency),
     SetOutgoingInconsistency(OutgoingInconsistency),
     SetWantedRemoteMaxDebt(u64),
-    SetWantedLocalSendPrice(Option<NetworkerSendPrice>),
+    SetWantedLocalSendPrice(Option<FunderSendPrice>),
     PushBackPendingOperation(FriendTcOp),
     PopFrontPendingOperation,
     SetPendingSendFundsId(Option<Uid>),
@@ -88,7 +88,7 @@ pub struct TokenChannelSlot {
     pub directional: DirectionalTokenChannel,
     pub inconsistency_status: InconsistencyStatus,
     pub wanted_remote_max_debt: u64,
-    pub wanted_local_send_price: Option<NetworkerSendPrice>,
+    pub wanted_local_send_price: Option<FunderSendPrice>,
     pub pending_operations: Vector<FriendTcOp>,
     // Pending operations to be sent to the token channel.
     pub opt_pending_send_funds_id: Option<Uid>,

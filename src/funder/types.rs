@@ -12,11 +12,11 @@ use crypto::hash::HashResult;
 
 use proto::common::SendFundsReceipt;
 use proto::funder::InvoiceId;
-use proto::networker::{NetworkerSendPrice, ChannelToken};
+use proto::funder::{FunderSendPrice, ChannelToken};
 
 #[derive(Clone)]
 pub enum FriendTcOp {
-    EnableRequests(NetworkerSendPrice),
+    EnableRequests(FunderSendPrice),
     DisableRequests,
     SetRemoteMaxDebt(u64),
     SetInvoiceId(InvoiceId),
@@ -56,7 +56,7 @@ pub enum Ratio<T> {
 }
 
 #[derive(Clone)]
-pub struct NetworkerFreezeLink {
+pub struct FunderFreezeLink {
     pub shared_credits: u64,
     pub usable_ratio: Ratio<u64>
 }
@@ -68,7 +68,7 @@ pub struct RequestSendMessage {
     pub request_content: Vec<u8>,
     pub max_response_len: u32,
     pub processing_fee_proposal: u64,
-    pub freeze_links: Vec<NetworkerFreezeLink>,
+    pub freeze_links: Vec<FunderFreezeLink>,
 }
 
 #[derive(Clone)]
@@ -87,8 +87,8 @@ pub struct FailureSendMessage {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PaymentProposalPair {
-    pub request: NetworkerSendPrice,
-    pub response: NetworkerSendPrice,
+    pub request: FunderSendPrice,
+    pub response: FunderSendPrice,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -100,10 +100,10 @@ pub struct FriendRouteLink {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FriendsRoute {
     pub (super) source_public_key: PublicKey,
-    pub (super) source_request_proposal: NetworkerSendPrice,
+    pub (super) source_request_proposal: FunderSendPrice,
     pub (super) route_links: Vec<FriendRouteLink>,
     pub (super) dest_public_key: PublicKey,
-    pub (super) dest_response_proposal: NetworkerSendPrice,
+    pub (super) dest_response_proposal: FunderSendPrice,
 }
 
 
@@ -141,7 +141,7 @@ impl FriendRouteLink {
     /*
     pub fn bytes_count() -> usize {
         mem::size_of::<PublicKey>() + 
-            NetworkerSendPrice::bytes_count() * 2
+            FunderSendPrice::bytes_count() * 2
     }
     */
 
@@ -290,7 +290,7 @@ impl Ratio<u64> {
     }
 }
 
-impl NetworkerFreezeLink {
+impl FunderFreezeLink {
     fn to_bytes(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.write_u64::<BigEndian>(self.shared_credits)
@@ -364,9 +364,9 @@ impl FriendTcOp {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         match self {
-            FriendTcOp::EnableRequests(networker_send_price) => {
+            FriendTcOp::EnableRequests(funder_send_price) => {
                 res_bytes.push(0u8);
-                res_bytes.append(&mut networker_send_price.to_bytes());
+                res_bytes.append(&mut funder_send_price.to_bytes());
             },
             FriendTcOp::DisableRequests => {
                 res_bytes.push(1u8);

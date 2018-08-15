@@ -3,7 +3,7 @@
 use std::convert::TryFrom;
 use byteorder::{BigEndian, WriteBytesExt};
 
-use proto::networker::ChannelToken;
+use proto::funder::ChannelToken;
 use crypto::identity::PublicKey;
 use crypto::rand_values::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;

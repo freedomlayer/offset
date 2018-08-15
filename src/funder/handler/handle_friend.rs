@@ -14,7 +14,7 @@ use crypto::uid::Uid;
 use utils::safe_arithmetic::SafeArithmetic;
 
 
-use proto::networker::ChannelToken;
+use proto::funder::ChannelToken;
 
 use super::super::token_channel::incoming::{IncomingResponseSendMessage, 
     IncomingFailureSendMessage, IncomingMessage};
@@ -34,7 +34,7 @@ use super::super::slot::{TokenChannelSlot, SlotMutation, OutgoingInconsistency,
     IncomingInconsistency, ResetTerms};
 
 use super::super::signature_buff::create_failure_signature_buffer;
-use super::super::types::{NetworkerFreezeLink, PkPairPosition, PendingFriendRequest, Ratio};
+use super::super::types::{FunderFreezeLink, PkPairPosition, PendingFriendRequest, Ratio};
 
 
 // Approximate maximum size of a MOVE_TOKEN message.
@@ -314,7 +314,7 @@ impl<R: SecureRandom + 'static> MutableMessengerHandler<R> {
         let shared_credits = prev_trust.to_u64().unwrap_or(u64::max_value());
 
         // Add our freeze link
-        request_send_msg.freeze_links.push(NetworkerFreezeLink {
+        request_send_msg.freeze_links.push(FunderFreezeLink {
             shared_credits,
             usable_ratio,
         });

@@ -5,7 +5,7 @@ use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 use proto::funder::{InvoiceId, FunderSendPrice};
-use proto::networker::ChannelToken;
+use proto::funder::ChannelToken;
 use proto::common::SendFundsReceipt;
 use channeler::types::ChannelerNeighborInfo;
 

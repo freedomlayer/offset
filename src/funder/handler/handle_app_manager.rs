@@ -10,7 +10,7 @@ use super::super::slot::{SlotMutation, TokenChannelSlot, InconsistencyStatus,
 use super::super::friend::{FriendState, FriendMutation};
 use super::super::state::{MessengerMutation, MessengerState};
 use super::{MutableMessengerHandler, MessengerTask};
-use app_manager::messages::{NetworkerCommand, AddFriend, 
+use app_manager::messages::{FunderCommand, AddFriend, 
     RemoveFriend, SetFriendStatus, SetFriendRemoteMaxDebt,
     ResetFriendChannel, SetFriendMaxChannels};
 
@@ -141,27 +141,27 @@ impl<R: SecureRandom> MutableMessengerHandler<R> {
     }
 
     pub fn handle_app_manager_message(&mut self, 
-                                      networker_config: NetworkerCommand) 
+                                      funder_config: FunderCommand) 
         -> Result<(), HandleAppManagerError> {
 
 
-        match networker_config {
-            NetworkerCommand::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) => 
+        match funder_config {
+            FunderCommand::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) => 
                 self.app_manager_set_friend_remote_max_debt(set_friend_remote_max_debt),
-            NetworkerCommand::ResetFriendChannel(reset_friend_channel) => 
+            FunderCommand::ResetFriendChannel(reset_friend_channel) => 
                 self.app_manager_reset_friend_channel(reset_friend_channel),
-            NetworkerCommand::SetFriendMaxChannels(set_friend_max_channels) => 
+            FunderCommand::SetFriendMaxChannels(set_friend_max_channels) => 
                 self.app_manager_set_friend_max_channels(set_friend_max_channels),
-            NetworkerCommand::AddFriend(add_friend) => 
+            FunderCommand::AddFriend(add_friend) => 
                 self.app_manager_add_friend(add_friend),
-            NetworkerCommand::RemoveFriend(remove_friend) => 
+            FunderCommand::RemoveFriend(remove_friend) => 
                 self.app_manager_remove_friend(remove_friend),
-            NetworkerCommand::SetFriendStatus(set_friend_status) => 
+            FunderCommand::SetFriendStatus(set_friend_status) => 
                 self.app_manager_set_friend_status(set_friend_status),
-            NetworkerCommand::OpenFriendChannel(open_friend_channel) => unimplemented!(),
-            NetworkerCommand::CloseFriendChannel(close_friend_channel) => unimplemented!(),
-            NetworkerCommand::SetFriendAddr(set_friend_addr) => unimplemented!(),
-            NetworkerCommand::SetFriendIncomingPathFee(set_friend_incoming_path_fee) => unimplemented!(),
+            FunderCommand::OpenFriendChannel(open_friend_channel) => unimplemented!(),
+            FunderCommand::CloseFriendChannel(close_friend_channel) => unimplemented!(),
+            FunderCommand::SetFriendAddr(set_friend_addr) => unimplemented!(),
+            FunderCommand::SetFriendIncomingPathFee(set_friend_incoming_path_fee) => unimplemented!(),
         }
     }
 

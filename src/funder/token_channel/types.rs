@@ -9,13 +9,13 @@ use crypto::uid::Uid;
 use crypto::rand_values::{RandValue};
 
 use proto::funder::InvoiceId;
-use proto::networker::{NetworkerSendPrice, ChannelToken};
+use proto::funder::{FunderSendPrice, ChannelToken};
 
 use utils::safe_arithmetic::SafeArithmetic;
 
 use super::super::types::{PendingFriendRequest, FriendTcOp};
 
-/// The maximum possible networker debt.
+/// The maximum possible funder debt.
 /// We don't use the full u64 because i64 can not go beyond this value.
 pub const MAX_NETWORKER_DEBT: u64 = (1 << 63) - 1;
 
@@ -83,10 +83,10 @@ impl TcInvoice {
 pub struct TcSendPrice {
     /// Price for us to send message to the remote side
     /// Known only if we enabled requests
-    pub  local_send_price: Option<NetworkerSendPrice>,
+    pub  local_send_price: Option<FunderSendPrice>,
     /// Price for the remote side to send messages to us
     /// Known only if remote side enabled requests
-    pub remote_send_price: Option<NetworkerSendPrice>,
+    pub remote_send_price: Option<FunderSendPrice>,
 }
 
 impl TcSendPrice {
@@ -131,9 +131,9 @@ pub struct TokenChannel {
 }
 
 pub enum TcMutation {
-    SetLocalSendPrice(NetworkerSendPrice),
+    SetLocalSendPrice(FunderSendPrice),
     ClearLocalSendPrice,
-    SetRemoteSendPrice(NetworkerSendPrice),
+    SetRemoteSendPrice(FunderSendPrice),
     ClearRemoteSendPrice,
     SetLocalMaxDebt(u64),
     SetRemoteMaxDebt(u64),
@@ -221,7 +221,7 @@ impl TokenChannel {
         }
     }
 
-    fn set_remote_send_price(&mut self, send_price: &NetworkerSendPrice) {
+    fn set_remote_send_price(&mut self, send_price: &FunderSendPrice) {
         self.state.send_price.remote_send_price = Some(send_price.clone());
     }
 
@@ -288,7 +288,7 @@ impl TokenChannel {
         self.state.balance.local_pending_debt = local_pending_debt;
     }
 
-    fn set_local_send_price(&mut self, send_price: &NetworkerSendPrice) {
+    fn set_local_send_price(&mut self, send_price: &FunderSendPrice) {
         self.state.send_price.local_send_price = Some(send_price.clone());
     }
 

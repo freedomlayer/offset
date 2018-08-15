@@ -20,7 +20,7 @@ use super::token_channel::directional::ReceiveMoveTokenError;
 use super::types::{FriendMoveToken, FriendsRoute};
 use super::cache::MessengerCache;
 
-use app_manager::messages::{NetworkerCommand};
+use app_manager::messages::{FunderCommand};
 
 #[allow(unused)]
 pub enum AppManagerMessage {
@@ -152,12 +152,12 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
     fn simulate_handle_app_manager_message(&self,
                                         messenger_state: &MessengerState,
                                         messenger_cache: MessengerCache,
-                                        networker_command: NetworkerCommand)
+                                        funder_command: FunderCommand)
             -> Result<(MessengerCache, Vec<MessengerMutation>, Vec<MessengerTask>), HandlerError> {
         let mut mutable_handler = self.gen_mutable(messenger_state,
                                                    messenger_cache);
         mutable_handler
-            .handle_app_manager_message(networker_command)
+            .handle_app_manager_message(funder_command)
             .map_err(HandlerError::HandleAppManagerError)?;
 
         Ok(mutable_handler.done())

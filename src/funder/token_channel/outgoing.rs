@@ -8,7 +8,7 @@ use crypto::hash;
 
 use proto::funder::InvoiceId;
 use proto::common::SendFundsReceipt;
-use proto::networker::NetworkerSendPrice;
+use proto::funder::FunderSendPrice;
 
 use utils::safe_arithmetic::SafeArithmetic;
 use utils::int_convert::usize_to_u32;
@@ -135,7 +135,7 @@ impl OutgoingTokenChannel {
         self.operations.is_empty()
     }
 
-    fn queue_enable_requests(&mut self, send_price: NetworkerSendPrice) ->
+    fn queue_enable_requests(&mut self, send_price: FunderSendPrice) ->
         Result<Vec<TcMutation>, QueueOperationError> {
 
         // TODO: Should we check first if there is an existing send_price?

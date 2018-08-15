@@ -4,7 +4,7 @@ use crypto::identity::{verify_signature};
 
 use proto::funder::InvoiceId;
 use proto::common::SendFundsReceipt;
-use proto::networker::NetworkerSendPrice;
+use proto::funder::FunderSendPrice;
 
 use utils::int_convert::usize_to_u32;
 use utils::safe_arithmetic::SafeArithmetic;
@@ -138,7 +138,7 @@ fn process_operation(token_channel: &mut TokenChannel, message: FriendTcOp) ->
 }
 
 fn process_enable_requests(token_channel: &mut TokenChannel, 
-                           send_price: NetworkerSendPrice) ->
+                           send_price: FunderSendPrice) ->
     Result<ProcessOperationOutput, ProcessOperationError> {
 
     let mut op_output = ProcessOperationOutput {
