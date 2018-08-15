@@ -26,8 +26,8 @@ extern crate num_traits;
 extern crate num_bigint;
 
 extern crate serde;
-#[macro_use]
-extern crate serde_derive;
+// #[macro_use]
+// extern crate serde_derive;
 extern crate toml;
 extern crate base64;
 
@@ -39,11 +39,11 @@ pub mod utils;
 pub mod crypto;
 
 // Modules
-pub mod app_manager;
+// pub mod app_manager;
 pub mod channeler;
-pub mod database;
+// pub mod database;
 pub mod funder;
-pub mod networker;
+// pub mod networker;
 pub mod security_module;
 pub mod timer;
 
