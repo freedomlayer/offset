@@ -1,111 +1,150 @@
-use im::hashmap::HashMap as ImHashMap;
 use im::vector::Vector;
 
-use std::net::SocketAddr;
-use std::cmp;
-
 use crypto::identity::PublicKey;
+use crypto::uid::Uid;
 
-use num_bigint::BigUint;
-use num_traits::identities::Zero;
+use super::token_channel::directional::DirectionalMutation;
+use proto::funder::ChannelToken;
+use super::types::FriendTcOp;
+use super::token_channel::directional::DirectionalTokenChannel;
+use super::messages::FriendStatus;
 
-use super::types::{RequestSendMessage};
-use super::messages::{FriendStatus};
-use super::slot::{TokenChannelSlot, SlotMutation};
 
-
-#[allow(unused)]
 #[derive(Clone)]
-pub struct FriendState {
-    pub local_public_key: PublicKey,
-    pub remote_public_key: PublicKey,
-    friend_addr: Option<SocketAddr>, 
-    pub local_max_channels: u16,
-    pub remote_max_channels: u16,
-    pub status: FriendStatus,
-    // Enabled or disabled?
-    pub tc_slot: TokenChannelSlot,
-    pub pending_requests: Vector<RequestSendMessage>,
-    // Pending operations that could be sent through any token channel.
-    ticks_since_last_incoming: usize,
-    // Number of time ticks since last incoming message
-    ticks_since_last_outgoing: usize,
-    // Number of time ticks since last outgoing message
+pub struct ResetTerms {
+    pub current_token: ChannelToken,
+    pub balance_for_reset: i128,
+}
+
+#[derive(Clone)]
+pub enum IncomingInconsistency {
+    // No incoming inconsistency was received
+    Empty,
+    // Incoming inconsistency was received from remote side.
+    Incoming(ResetTerms),
+}
+
+#[derive(Clone)]
+pub enum OutgoingInconsistency {
+    // No outgoing inconsistency in progress
+    Empty,
+    // Outgoing inconsistency message was sent
+    Sent,
+    // Outgoing inconsistency message was sent and acknowledged by remote side
+    Acked,
+}
+
+#[derive(Clone)]
+pub struct InconsistencyStatus {
+    pub incoming: IncomingInconsistency,
+    pub outgoing: OutgoingInconsistency,
+}
+
+impl InconsistencyStatus {
+    pub fn new() -> InconsistencyStatus {
+        InconsistencyStatus {
+            incoming: IncomingInconsistency::Empty,
+            outgoing: OutgoingInconsistency::Empty,
+        }
+    }
 }
 
 #[allow(unused)]
 pub enum FriendMutation {
-    SetLocalMaxChannels(u16),
-    SetRemoteMaxChannels(u16),
+    DirectionalMutation(DirectionalMutation),
+    SetIncomingInconsistency(IncomingInconsistency),
+    SetOutgoingInconsistency(OutgoingInconsistency),
+    SetWantedRemoteMaxDebt(u128),
+    PushBackPendingOperation(FriendTcOp),
+    PopFrontPendingOperation,
     SetStatus(FriendStatus),
-    PushBackPendingRequest(RequestSendMessage),
-    PopFrontPendingRequest,
-    SlotMutation((u16, SlotMutation)),
+    RemoteReset,        // Remote side performed reset
+    LocalReset,         // Local side performed reset
 }
 
 #[allow(unused)]
-impl FriendState {
+#[derive(Clone)]
+pub struct FriendState<A> {
+    pub opt_remote_address: Option<A>, 
+    pub directional: DirectionalTokenChannel,
+    pub inconsistency_status: InconsistencyStatus,
+    pub wanted_remote_max_debt: u128,
+    pub pending_operations: Vector<FriendTcOp>,
+    // Pending operations to be sent to the token channel.
+    pub status: FriendStatus,
+}
+
+
+#[allow(unused)]
+impl<A> FriendState<A> {
     pub fn new(local_public_key: &PublicKey,
                remote_public_key: &PublicKey,
-               friend_addr: Option<SocketAddr>,
-               local_max_channels: u16) -> FriendState {
-
+               opt_remote_address: Option<A>) -> FriendState<A> {
         FriendState {
-            local_public_key: local_public_key.clone(),
-            remote_public_key: remote_public_key.clone(),
-            friend_addr,
-            local_max_channels,
-            remote_max_channels: local_max_channels,    
-            // Initially we assume that the remote side has the same amount of channels as we do.
-            status: FriendStatus::Disable,
-            tc_slot: TokenChannelSlot::new(),
-            pending_requests: Vector::new(),
-            ticks_since_last_incoming: 0,
-            ticks_since_last_outgoing: 0,
+            opt_remote_address,
+            directional: DirectionalTokenChannel::new(local_public_key,
+                                           remote_public_key),
+
+            inconsistency_status: InconsistencyStatus::new(),
+            // The remote_max_debt we want to have. When possible, this will be sent to the remote
+            // side.
+            wanted_remote_max_debt: 0,
+            // The local_send_price we want to have (Or possibly close requests, by having an empty
+            // send price). When possible, this will be updated with the TokenChannel.
+            pending_operations: Vector::new(),
+            status: FriendStatus::Enable,
         }
     }
 
-    /// Get the total trust we have in this friend.
-    /// This is the total sum of all remote_max_debt for all the token channels we have with this
-    /// friend. In other words, this is the total amount of money we can lose if this friend
-    /// leaves and never returns.
-    pub fn get_trust(&self) -> BigUint {
-        let mut sum: BigUint = BigUint::zero();
-        for token_channel_slot in self.tc_slots.values() {
-            let remote_max_debt: BigUint = token_channel_slot.wanted_remote_max_debt.into();
-            sum += remote_max_debt;
-        }
-        sum
-    }
 
-    pub fn mutate(&mut self, friend_mutation: &FriendMutation) {
-        match friend_mutation {
-            FriendMutation::SetLocalMaxChannels(local_max_channels) => {
-                self.local_max_channels = *local_max_channels;
+    #[allow(unused)]
+    pub fn mutate(&mut self, slot_mutation: &FriendMutation) {
+        match slot_mutation {
+            FriendMutation::DirectionalMutation(directional_mutation) => {
+                self.directional.mutate(directional_mutation);
             },
-            FriendMutation::SetRemoteMaxChannels(remote_max_channels) => {
-                self.remote_max_channels = *remote_max_channels;
+            FriendMutation::SetIncomingInconsistency(incoming_inconsistency) => {
+                self.inconsistency_status.incoming = incoming_inconsistency.clone();
+            },
+            FriendMutation::SetOutgoingInconsistency(outgoing_inconsistency) => {
+                self.inconsistency_status.outgoing = outgoing_inconsistency.clone();
+            },
+            FriendMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
+                self.wanted_remote_max_debt = *wanted_remote_max_debt;
+            },
+            FriendMutation::PushBackPendingOperation(friend_tc_op) => {
+                self.pending_operations.push_back(friend_tc_op.clone());
+            },
+            FriendMutation::PopFrontPendingOperation => {
+                let _ = self.pending_operations.pop_front();
             },
             FriendMutation::SetStatus(friend_status) => {
-                self.status = *friend_status;
+                self.status = friend_status.clone();
             },
-            FriendMutation::PushBackPendingRequest(request) => {
-                self.pending_requests.push_back(request.clone());
-            },
-            FriendMutation::PopFrontPendingRequest => {
-                let _ = self.pending_requests.pop_front();
-            },
-            FriendMutation::SlotMutation((slot_index, slot_mutation)) => {
-                // If the slot does not exist but it is in reasonable index boundaries, we create
-                // it. If it is outside the reasonable boundaries and it does not exist, we panic.
-                let tc_slot = if *slot_index < cmp::min(self.local_max_channels, self.remote_max_channels) {
-                    self.tc_slots.entry(*slot_index).or_insert(
-                        TokenChannelSlot::new(
-                            &self.local_public_key, &self.remote_public_key, *slot_index))
-                } else {
-                    self.tc_slots.get_mut(slot_index).unwrap()
+            FriendMutation::LocalReset => {
+                // Local reset was applied (We sent a reset from AppManager).
+                match &self.inconsistency_status.incoming {
+                    IncomingInconsistency::Empty => unreachable!(),
+                    IncomingInconsistency::Incoming(reset_terms) => {
+                        self.directional = DirectionalTokenChannel::new_from_reset(
+                            &self.directional.token_channel.state().idents.local_public_key,
+                            &self.directional.token_channel.state().idents.remote_public_key,
+                            &reset_terms.current_token,
+                            reset_terms.balance_for_reset);
+                    }
                 };
-                tc_slot.mutate(slot_mutation);
+                self.inconsistency_status = InconsistencyStatus::new();
+            },
+            FriendMutation::RemoteReset => {
+                // Remote reset was applied (Remote side has given a reset command)
+                let reset_token = self.directional.calc_channel_reset_token();
+                let balance_for_reset = self.directional.balance_for_reset();
+                self.inconsistency_status = InconsistencyStatus::new();
+                self.directional = DirectionalTokenChannel::new_from_reset(
+                    &self.directional.token_channel.state().idents.local_public_key,
+                    &self.directional.token_channel.state().idents.remote_public_key,
+                    &reset_token,
+                    balance_for_reset);
             },
         }
     }

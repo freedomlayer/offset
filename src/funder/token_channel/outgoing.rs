@@ -8,7 +8,6 @@ use crypto::hash;
 
 use proto::funder::InvoiceId;
 use proto::common::SendFundsReceipt;
-use proto::funder::FunderSendPrice;
 
 use utils::safe_arithmetic::SafeArithmetic;
 use utils::int_convert::usize_to_u32;
