@@ -1,37 +1,22 @@
 use futures::sync::oneshot;
+use bytes::Bytes;
 
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
-use networker::messages::{RequestPath};
-use database::messages::{ResponseLoadFriends, ResponseLoadFriendToken};
-use app_manager::messages::RequestNeighborsRoute;
 
 use proto::funder::{InvoiceId, FunderSendPrice};
 use proto::networker::ChannelToken;
 use proto::common::SendFundsReceipt;
+use channeler::types::ChannelerNeighborInfo;
 
 pub enum FriendStatus {
     Enable = 1,
     Disable = 0,
 }
 
-pub enum FriendRequestsStatus {
-    Open = 1,
-    Close = 0,
-}
-
-pub struct FriendLoaded {
-    status: FriendStatus,
-    requests_status: FriendRequestsStatus,
-    wanted_remote_max_debt: u128,
-    local_max_debt: u128,
-    remote_max_debt: u128,
-    balance: i128,
-}
-
 pub enum RequestsStatus {
-    Open(FunderSendPrice),
+    Open,
     Closed,
 }
 
@@ -42,6 +27,7 @@ pub struct FriendUpdated {
     local_pending_debt: u128,
     remote_pending_debt: u128,
     requests_status: RequestsStatus,
+    status: FriendStatus,
 }
 
 pub struct FriendInconsistent {
@@ -82,27 +68,10 @@ pub struct PendingFriendRequest {
 }
 
 // ======== Internal interface ========
-//
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PaymentProposalPair {
-    pub request: FunderSendPrice,
-    pub response: FunderSendPrice,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct FriendRouteLink {
-    pub node_public_key: PublicKey,
-    pub payment_proposal_pair: PaymentProposalPair,
-}
-
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FriendsRoute {
-    pub source_public_key: PublicKey,
-    pub source_request_proposal: FunderSendPrice,
-    pub route_links: Vec<FriendRouteLink>,
-    pub dest_public_key: PublicKey,
-    pub dest_response_proposal: FunderSendPrice,
+    pub route_links: Vec<PublicKey>,
 }
 
 pub struct FriendsRouteWithCapacity {
@@ -123,64 +92,25 @@ pub struct RequestSendFunds {
     pub response_sender: oneshot::Sender<ResponseSendFunds>,
 }
 
-pub enum FunderToAppManager {
-    FriendStateUpdate(FriendStateUpdate),
-    RequestNeighborsRoute(RequestNeighborsRoute),
-}
 
 
-pub struct FriendTokenCommon {
-    pub friend_public_key: PublicKey,
-    pub move_token_message: Vec<u8>,
-    // move_token_message is opaque. (Can not be read by the database). 
-    // This is why we have the extra old_token and new_token fields.
-    pub old_token: ChannelToken,
-    pub new_token: ChannelToken,
-    // Equals Sha512/256(move_token_message)
-    pub remote_max_debt: u64,
-    pub local_max_debt: u64,
-    pub remote_pending_debt: u64,
-    pub local_pending_debt: u64,
-    pub balance: i64,
-    pub local_state: FriendRequestsStatus,
-    pub remote_state: FriendRequestsStatus,
-}
-
-pub struct InFriendToken {
-    pub friend_token_common: FriendTokenCommon,
-    pub closed_local_requests: Vec<Uid>,
-    pub opened_remote_requests: Vec<PendingFriendRequest>,
-}
-
-pub struct OutFriendToken {
-    pub friend_token_common: FriendTokenCommon,
-    pub opened_local_requests: Vec<PendingFriendRequest>,
-    pub closed_remote_requests: Vec<Uid>,
-}
-
-#[allow(large_enum_variant)]
 pub enum FunderToDatabase {
-    StoreFriend(FriendInfo),
+    // TODO
+}
+
+
+pub enum FunderToChanneler<A> {
+    /// Request send message to remote.
+    SendChannelMessage {
+        neighbor_public_key: PublicKey,
+        content: Bytes,
+    },
+    /// Request to add a new neighbor.
+    AddFriend {
+        info: ChannelerNeighborInfo<A>,
+    },
+    /// Request to remove a neighbor.
     RemoveFriend {
-        friend_public_key: PublicKey,
-    },
-    RequestLoadFriends {
-        response_sender: oneshot::Sender<ResponseLoadFriends>,
-    },
-    StoreInFriendToken(InFriendToken),
-    StoreOutFriendToken(OutFriendToken),
-    RequestLoadFriendToken {
-        friend_public_key: PublicKey,
-        response_sender: oneshot::Sender<Option<ResponseLoadFriendToken>>,
+        neighbor_public_key: PublicKey
     },
 }
-
-pub enum FunderToNetworker {
-    RequestPath(RequestPath),
-}
-
-/*
-pub enum FunderToIndexerClient {
-    RequestNeighborsRoute(RequestNeighborsRoutes),
-}
-*/
