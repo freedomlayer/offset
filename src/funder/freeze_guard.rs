@@ -122,7 +122,7 @@ impl FreezeGuard {
                                                 request_send_funds.dest_payment);
 
 
-        let two_pow_128 = BigUint::new(vec![0x1, 0x0, 0x0, 0x0, 0x0]);
+        let two_pow_128 = BigUint::new(vec![0x1u32, 0x0u32, 0x0u32, 0x0u32, 0x0u32]);
 
         // Verify previous freezing links
         #[allow(needless_range_loop)]
