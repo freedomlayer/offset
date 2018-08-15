@@ -41,10 +41,10 @@ pub fn credits_on_failure() -> Option<u128> {
 ///                           res      res      res      res
 ///                    B  --   C   --  (D)   --   E   --   F   
 ///
-/// nodes_to_dest:     4       3        2        1        0
+/// node_index:        0       1        2         3        4
 ///
 /// In the above example, if we plan to send a message from C to D, 
-/// we should have nodes_to_dest = 2 in order to calculate the amount of credits C should freeze.
+/// we should have node_index = 2 in order to calculate the amount of credits C should freeze.
 /// ```
 ///
 pub fn credits_to_freeze(node_index: u32, 
