@@ -3,76 +3,75 @@
 use byteorder::{BigEndian, WriteBytesExt};
 use crypto::hash;
 use crypto::identity::verify_signature;
-use super::types::{ResponseSendMessage, FailureSendMessage, PendingFriendRequest};
+use super::types::{ResponseSendFunds, FailureSendFunds, PendingFriendRequest};
 
-const REQUEST_SUCCESS_PREFIX: &[u8] = b"REQUEST_SUCCESS";
-const REQUEST_FAILURE_PREFIX: &[u8] = b"REQUEST_FAILURE";
+const FUND_SUCCESS_PREFIX: &[u8] = b"FUND_SUCCESS";
+const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
 
-/// Create the buffer we sign over at the Response message.
-/// Note that the signature is not just over the Response message bytes. The signed buffer also
-/// contains information from the Request message.
-pub fn create_response_signature_buffer(response_send_msg: &ResponseSendMessage,
+/// Create the buffer we sign over at the Response funds.
+/// Note that the signature is not just over the Response funds bytes. The signed buffer also
+/// contains information from the Request funds.
+pub fn create_response_signature_buffer(response_send_funds: &ResponseSendFunds,
                         pending_request: &PendingFriendRequest) -> Vec<u8> {
 
     let mut sbuffer = Vec::new();
 
     // TODO: Add a const for this:
-    sbuffer.extend_from_slice(&hash::sha_512_256(REQUEST_SUCCESS_PREFIX));
-    sbuffer.extend_from_slice(&pending_request.request_id);
-    sbuffer.write_u32::<BigEndian>(pending_request.max_response_len).expect("Serialization failure!");
-    sbuffer.write_u64::<BigEndian>(pending_request.processing_fee_proposal).expect("Serialization failure!");
-    sbuffer.extend_from_slice(&pending_request.route.hash());
-    sbuffer.extend_from_slice(&pending_request.request_content_hash);
-    sbuffer.write_u64::<BigEndian>(response_send_msg.processing_fee_collected).expect("Serialization failure!");
-    sbuffer.extend_from_slice(&hash::sha_512_256(&response_send_msg.response_content));
-    sbuffer.extend_from_slice(&response_send_msg.rand_nonce);
+    sbuffer.extend_from_slice(&hash::sha_512_256(FUND_SUCCESS_PREFIX));
+
+    let mut inner_blob = Vec::new();
+    inner_blob.extend_from_slice(&pending_request.request_id);
+    inner_blob.extend_from_slice(&pending_request.route.hash());
+    inner_blob.extend_from_slice(&response_send_funds.rand_nonce);
+
+    sbuffer.extend_from_slice(&hash::sha_512_256(&inner_blob));
+    sbuffer.write_u128::<BigEndian>(pending_request.dest_payment).unwrap();
+    sbuffer.extend_from_slice(&pending_request.invoice_id);
 
     sbuffer
 }
 
-/// Create the buffer we sign over at the Failure message.
-/// Note that the signature is not just over the Response message bytes. The signed buffer also
-/// contains information from the Request message.
-pub fn create_failure_signature_buffer(failure_send_msg: &FailureSendMessage,
+/// Create the buffer we sign over at the Failure funds.
+/// Note that the signature is not just over the Response funds bytes. The signed buffer also
+/// contains information from the Request funds.
+pub fn create_failure_signature_buffer(failure_send_funds: &FailureSendFunds,
                         pending_request: &PendingFriendRequest) -> Vec<u8> {
 
     let mut sbuffer = Vec::new();
 
-    // TODO: Add a const for this:
-    sbuffer.extend_from_slice(&hash::sha_512_256(REQUEST_FAILURE_PREFIX));
+    sbuffer.extend_from_slice(&hash::sha_512_256(FUND_FAILURE_PREFIX));
     sbuffer.extend_from_slice(&pending_request.request_id);
-    sbuffer.write_u32::<BigEndian>(pending_request.max_response_len).expect("Serialization failure!");
-    sbuffer.write_u64::<BigEndian>(pending_request.processing_fee_proposal).expect("Serialization failure!");
     sbuffer.extend_from_slice(&pending_request.route.hash());
-    sbuffer.extend_from_slice(&pending_request.request_content_hash);
-    sbuffer.extend_from_slice(&failure_send_msg.reporting_public_key);
+
+    sbuffer.write_u128::<BigEndian>(pending_request.dest_payment).unwrap();
+    sbuffer.extend_from_slice(&pending_request.invoice_id);
+    sbuffer.extend_from_slice(&failure_send_funds.reporting_public_key);
+    sbuffer.extend_from_slice(&failure_send_funds.rand_nonce);
 
     sbuffer
 }
 
-// TODO: How to test this?
-
-
-/// Verify all failure message signature chain
+/// Verify a failure signature
 pub fn verify_failure_signature(index: usize,
                             reporting_index: usize,
-                            failure_send_msg: &FailureSendMessage,
+                            failure_send_funds: &FailureSendFunds,
                             pending_request: &PendingFriendRequest) -> Option<()> {
 
-    let mut failure_signature_buffer = create_failure_signature_buffer(
-                                        &failure_send_msg,
+    let failure_signature_buffer = create_failure_signature_buffer(
+                                        &failure_send_funds,
                                         &pending_request);
-    let next_index = index.checked_add(1)?;
-    for i in (next_index ..= reporting_index).rev() {
-        let sig_index = i.checked_sub(next_index)?;
-        let rand_nonce = &failure_send_msg.rand_nonce_signatures[sig_index].rand_nonce;
-        let signature = &failure_send_msg.rand_nonce_signatures[sig_index].signature;
-        failure_signature_buffer.extend_from_slice(rand_nonce);
-        let public_key = pending_request.route.pk_by_index(i)?;
-        if !verify_signature(&failure_signature_buffer, public_key, signature) {
-            return None;
-        }
+    let reporting_public_key = &failure_send_funds.reporting_public_key;
+    // Make sure that the reporting_public_key is on the route:
+    // TODO: Should we check that it is after us? Is it checked somewhere else?
+    let _ = pending_request.route.pk_to_index(&reporting_public_key)?;
+
+    if !verify_signature(&failure_signature_buffer, 
+                     reporting_public_key, 
+                     &failure_send_funds.signature) {
+        return None;
     }
     Some(())
 }
 
+
+// TODO: How to test this?

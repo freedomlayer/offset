@@ -6,7 +6,7 @@ pub mod client;
 mod credit_calc;
 // mod freeze_guard;
 // mod friend;
-// mod signature_buff;
+mod signature_buff;
 // mod slot;
 // mod state;
 mod types;
