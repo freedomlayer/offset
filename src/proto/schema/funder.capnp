@@ -52,8 +52,8 @@ struct FriendFreezeLink {
 
 struct RequestSendFundsOp { 
         requestId @0: CustomUInt128;
-        destPayment @1: CustomUInt128;
-        route @2: FriendsRoute;
+        route @1: FriendsRoute;
+        destPayment @2: CustomUInt128;
         invoiceId @3: CustomUInt256;
         freezeLinks @4: List(FriendFreezeLink);
         # Variable amount of freezing links. This is used for protection
@@ -88,8 +88,8 @@ struct FailureSendFundsOp {
         # Signature{key=recipientKey}(
         #   sha512/256("FUND_FAILURE") ||
         #   requestId ||
-        #   destPayment ||
         #   sha512/256(route) || 
+        #   destPayment ||
         #   invoiceId ||
         #   reportingPublicKey ||
         #   randNonce
