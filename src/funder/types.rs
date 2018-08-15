@@ -29,6 +29,7 @@ pub struct PendingFriendRequest {
     pub request_id: Uid,
     pub route: FriendsRoute,
     pub dest_payment: u128,
+    pub invoice_id: InvoiceId,
 }
 
 
@@ -58,6 +59,7 @@ pub struct RequestSendFunds {
     pub request_id: Uid,
     pub route: FriendsRoute,
     pub dest_payment: u128,
+    pub invoice_id: InvoiceId,
     pub freeze_links: Vec<FunderFreezeLink>,
 }
 
@@ -209,6 +211,7 @@ impl RequestSendFunds {
             request_id: self.request_id,
             route: self.route.clone(),
             dest_payment: self.dest_payment,
+            invoice_id: self.invoice_id.clone(),
         }
     }
 }
