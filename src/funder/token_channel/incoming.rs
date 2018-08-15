@@ -372,10 +372,6 @@ fn process_failure_send_funds(token_channel: &mut TokenChannel,
         &failure_send_funds.reporting_public_key)
         .ok_or(ProcessOperationError::ReportingNodeNonexistent)?;
 
-    let dest_index = pending_request.route.len()
-        .checked_add(1)
-        .ok_or(ProcessOperationError::RouteTooLong)?;
-
     if reporting_index <= local_index {
         return Err(ProcessOperationError::InvalidReportingNode);
     }
