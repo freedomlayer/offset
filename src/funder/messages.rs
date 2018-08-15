@@ -4,12 +4,12 @@ use bytes::Bytes;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
-
 use proto::funder::{InvoiceId, FunderSendPrice};
 use proto::networker::ChannelToken;
 use proto::common::SendFundsReceipt;
 use channeler::types::ChannelerNeighborInfo;
 
+#[derive(Clone)]
 pub enum FriendStatus {
     Enable = 1,
     Disable = 0,
@@ -102,15 +102,15 @@ pub enum FunderToDatabase {
 pub enum FunderToChanneler<A> {
     /// Request send message to remote.
     SendChannelMessage {
-        neighbor_public_key: PublicKey,
+        friend_public_key: PublicKey,
         content: Bytes,
     },
-    /// Request to add a new neighbor.
+    /// Request to add a new friend.
     AddFriend {
         info: ChannelerNeighborInfo<A>,
     },
-    /// Request to remove a neighbor.
+    /// Request to remove a friend.
     RemoveFriend {
-        neighbor_public_key: PublicKey
+        friend_public_key: PublicKey
     },
 }
