@@ -12,7 +12,7 @@ use crypto::identity::PublicKey;
 
 use super::state::{FunderState, FunderMutation};
 use self::handle_control::HandleControlError;
-// use self::handle_friend::{FriendInconsistencyError,
+use self::handle_friend::{FriendInconsistencyError};
 // FriendSetMaxTokenChannels, HandleFriendError, IncomingFriendMessage};
 use super::token_channel::directional::ReceiveMoveTokenError;
 use super::types::{FriendMoveToken, FriendsRoute};
@@ -24,7 +24,7 @@ use super::messages::FunderCommand;
 #[allow(unused)]
 pub enum FriendMessage {
     MoveToken(FriendMoveToken),
-    // InconsistencyError(FriendInconsistencyError),
+    InconsistencyError(FriendInconsistencyError),
 }
 
 pub struct RequestReceived {
