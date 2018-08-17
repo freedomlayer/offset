@@ -147,19 +147,16 @@ pub struct SetFriendStatus {
     pub status: FriendStatus,
 }
 
-pub struct OpenFriend {
+pub struct SetRequestsStatus {
     pub friend_public_key: PublicKey,
+    pub status: RequestsStatus,
 }
 
-pub struct CloseFriend {
-    pub friend_public_key: PublicKey,
-}
 
 pub enum FunderCommand<A> {
     AddFriend(AddFriend<A>),
     RemoveFriend(RemoveFriend),
-    OpenFriend(OpenFriend),
-    CloseFriend(CloseFriend),
+    SetRequestsStatus(SetRequestsStatus),
     SetFriendStatus(SetFriendStatus),
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
     SetFriendAddr(SetFriendAddr<A>),
