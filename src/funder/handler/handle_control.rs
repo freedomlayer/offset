@@ -137,6 +137,7 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
     fn control_request_send_funds(&mut self, request_send_funds: RequestSendFunds) 
         -> Result<(), HandleControlError> {
 
+        // TODO
         unimplemented!();
     }
 
