@@ -17,7 +17,7 @@ use utils::safe_arithmetic::SafeArithmetic;
 use proto::funder::ChannelToken;
 
 use super::super::token_channel::incoming::{IncomingResponseSendFunds, 
-    IncomingFailureSendFunds, IncomingFunds};
+    IncomingFailureSendFunds, IncomingMessage};
 use super::super::token_channel::outgoing::{OutgoingTokenChannel, QueueOperationFailure,
     QueueOperationError};
 use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
@@ -49,7 +49,7 @@ pub struct FriendInconsistencyError {
 
 
 #[allow(unused)]
-pub enum IncomingFriendFunds {
+pub enum IncomingFriendMessage {
     MoveToken(FriendMoveToken),
     InconsistencyError(FriendInconsistencyError),
 }
@@ -304,7 +304,6 @@ impl<A: Clone, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
     fn handle_response_send_funds(&mut self, 
                                remote_public_key: &PublicKey,
-                               channel_index: u16,
                                response_send_funds: ResponseSendFunds,
                                pending_request: PendingFriendRequest) {
 
@@ -313,7 +312,7 @@ impl<A: Clone, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             None => {
                 // We are the origin of this request, and we got a response.
                 // We should pass it back to crypter.
-                self.messenger_tasks.push(
+                self.funder_tasks.push(
                     FunderTask::CrypterFunds(
                         CrypterFunds::ResponseReceived(ResponseReceived {
                             request_id: response_send_funds.request_id,
@@ -323,7 +322,7 @@ impl<A: Clone, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                     )
                 );
             },
-            Some((friend_public_key, channel_index)) => {
+            Some(friend_public_key) => {
                 // Queue this response message to another token channel:
                 let response_op = FriendTcOp::ResponseSendFunds(response_send_funds);
                 let slot_mutation = SlotMutation::PushBackPendingOperation(response_op);
@@ -378,22 +377,22 @@ impl<A: Clone, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     fn handle_move_token_output(mut self, 
                                 remote_public_key: PublicKey,
                                 channel_index: u16,
-                                incoming_messages: Vec<IncomingFunds> )
+                                incoming_messages: Vec<IncomingMessage> )
                         -> Result<Self, HandleFriendError> {
 
         let mut fself = self;
         for incoming_message in incoming_messages {
             fself = match incoming_message {
-                IncomingFunds::Request(request_send_funds) => 
+                IncomingMessage::Request(request_send_funds) => 
                     await!(fself.handle_request_send_funds(remote_public_key.clone(), channel_index, 
                                                  request_send_funds))?,
-                IncomingFunds::Response(IncomingResponseSendFunds {
+                IncomingMessage::Response(IncomingResponseSendFunds {
                                                 pending_request, incoming_response}) => {
                     fself.handle_response_send_funds(&remote_public_key, channel_index, 
                                                   incoming_response, pending_request);
                     fself
                 },
-                IncomingFunds::Failure(IncomingFailureSendFunds {
+                IncomingMessage::Failure(IncomingFailureSendFunds {
                                                 pending_request, incoming_failure}) => {
                     await!(fself.handle_failure_send_funds(&remote_public_key, channel_index, 
                                                  incoming_failure, pending_request))?
@@ -415,8 +414,7 @@ impl<A: Clone, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
 
         // Clear current incoming inconsistency messages:
-        let slot_mutation = SlotMutation::SetIncomingInconsistency(IncomingInconsistency::Empty);
-        let friend_mutation = FriendMutation::SlotMutation((channel_index, slot_mutation));
+        let friend_mutation = FriendMutation::SetIncomingInconsistency(IncomingInconsistency::Empty);
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
 
@@ -436,13 +434,12 @@ impl<A: Clone, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             balance_for_reset,
         };
 
-        self.messenger_tasks.push(
-            FunderTask::FriendFunds(
-                FriendFunds::InconsistencyError(inconsistency_error)));
+        self.funder_tasks.push(
+            FunderTask::FriendMessage(
+                FriendMessage::InconsistencyError(inconsistency_error)));
 
         // Keep outgoing InconsistencyError message details in memory:
-        let slot_mutation = SlotMutation::SetOutgoingInconsistency(OutgoingInconsistency::Sent);
-        let friend_mutation = FriendMutation::SlotMutation((channel_index, slot_mutation));
+        let friend_mutation = FriendMutation::SetOutgoingInconsistency(OutgoingInconsistency::Sent);
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
     }
@@ -487,8 +484,7 @@ impl<A: Clone, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let mut pending_operations = tc_slot.pending_operations.clone();
         while let Some(pending_operation) = pending_operations.pop_front() {
             out_tc.queue_operation(pending_operation)?;
-            let slot_mutation = SlotMutation::PopFrontPendingOperation;
-            let friend_mutation = FriendMutation::SlotMutation((channel_index, slot_mutation));
+            let friend_mutation = FriendMutation::PopFrontPendingOperation;
             let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
             self.apply_mutation(messenger_mutation);
         }
@@ -557,8 +553,7 @@ impl<A: Clone, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         for tc_mutation in tc_mutations {
             let directional_mutation = DirectionalMutation::TcMutation(tc_mutation);
-            let slot_mutation = SlotMutation::DirectionalMutation(directional_mutation);
-            let friend_mutation = FriendMutation::SlotMutation((channel_index, slot_mutation));
+            let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
             let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
             self.apply_mutation(messenger_mutation);
         }
@@ -573,8 +568,7 @@ impl<A: Clone, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         let directional_mutation = DirectionalMutation::SetDirection(
             MoveTokenDirection::Outgoing(friend_move_token_inner));
-        let slot_mutation = SlotMutation::DirectionalMutation(directional_mutation);
-        let friend_mutation = FriendMutation::SlotMutation((channel_index, slot_mutation));
+        let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
 
@@ -583,32 +577,29 @@ impl<A: Clone, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         // Add a task for sending the outgoing move token:
         self.add_task(
-            FunderTask::FriendFunds(
-                FriendFunds::MoveToken(outgoing_move_token)));
+            FunderTask::FriendMessage(
+                FriendMessage::MoveToken(outgoing_move_token)));
     }
 
 
     /// Clear all pending inconsistency errors if exist
     fn clear_inconsistency_status(&mut self,
-                               remote_public_key: &PublicKey,
-                               channel_index: u16) {
-        let tc_slot = self.get_token_channel_slot(&remote_public_key, channel_index);
-        match tc_slot.inconsistency_status.incoming {
+                               remote_public_key: &PublicKey) {
+        let friend = self.get_friend(remote_public_key);
+        match friend.inconsistency_status.incoming {
             IncomingInconsistency::Empty => {},
             _ => {
-                let slot_mutation = SlotMutation::SetIncomingInconsistency(IncomingInconsistency::Empty);
-                let friend_mutation = FriendMutation::SlotMutation((channel_index, slot_mutation));
+                let friend_mutation = FriendMutation::SetIncomingInconsistency(IncomingInconsistency::Empty);
                 let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
                 self.apply_mutation(messenger_mutation);
             },
         }
 
-        let tc_slot = self.get_token_channel_slot(&remote_public_key, channel_index);
-        match tc_slot.inconsistency_status.outgoing {
+        let friend = self.get_friend(remote_public_key);
+        match friend.inconsistency_status.outgoing {
             OutgoingInconsistency::Empty => {},
             _ => {
-                let slot_mutation = SlotMutation::SetOutgoingInconsistency(OutgoingInconsistency::Empty);
-                let friend_mutation = FriendMutation::SlotMutation((channel_index, slot_mutation));
+                let friend_mutation = FriendMutation::SetOutgoingInconsistency(OutgoingInconsistency::Empty);
                 let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
                 self.apply_mutation(messenger_mutation);
             },
@@ -619,20 +610,19 @@ impl<A: Clone, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     #[async]
     fn handle_move_token_success(mut self,
                                remote_public_key: PublicKey,
-                               channel_index: u16,
                                receive_move_token_output: ReceiveMoveTokenOutput,
                                is_empty: bool) -> Result<Self, HandleFriendError> {
 
-        self.clear_inconsistency_status(&remote_public_key,
-                                        channel_index);
+        self.clear_inconsistency_status(&remote_public_key);
+                                        
 
         match receive_move_token_output {
             ReceiveMoveTokenOutput::Duplicate => Ok(self),
             ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token) => {
                 // Retransmit last sent token channel message:
-                self.messenger_tasks.push(
-                    FunderTask::FriendFunds(
-                        FriendFunds::MoveToken(outgoing_move_token)));
+                self.funder_tasks.push(
+                    FunderTask::FriendMessage(
+                        FriendMessage::MoveToken(outgoing_move_token)));
                 Ok(self)
             },
             ReceiveMoveTokenOutput::Received(move_token_received) => {
@@ -642,8 +632,7 @@ impl<A: Clone, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
                 // Apply all mutations:
                 for directional_mutation in mutations {
-                    let slot_mutation = SlotMutation::DirectionalMutation(directional_mutation);
-                    let friend_mutation = FriendMutation::SlotMutation((channel_index, slot_mutation));
+                    let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
                     let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
                     self.apply_mutation(messenger_mutation);
                 }
@@ -669,28 +658,10 @@ impl<A: Clone, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                          friend_move_token: FriendMoveToken) -> Result<Self,HandleFriendError> {
 
         // Find friend:
-        let friend = match self.state.get_friends().get(&remote_public_key) {
+        let friend = match self.get_friend(&remote_public_key) {
             Some(friend) => friend,
             None => return Ok(self),
         };
-
-        let channel_index = friend_move_token.token_channel_index;
-        if channel_index >= friend.local_max_channels {
-            // Tell remote side that we don't support such a high token channel index:
-            self.messenger_tasks.push(
-                FunderTask::FriendFunds(
-                    FriendFunds::SetMaxTokenChannels(
-                        FriendSetMaxTokenChannels {
-                            max_token_channels: friend.local_max_channels,
-                        }
-                    )
-                )
-            );
-            return Ok(self)
-        }
-
-        let token_channel_slot = self.get_token_channel_slot(&remote_public_key, 
-                                                             channel_index);
 
         // Check if the channel is inconsistent.
         // This means that the remote side has sent an InconsistencyError message in the past.
@@ -800,8 +771,8 @@ impl<A: Clone, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             };
 
             self.add_task(
-                FunderTask::FriendFunds(
-                    FriendFunds::InconsistencyError(inconsistency_error)));
+                FunderTask::FriendMessage(
+                    FriendMessage::InconsistencyError(inconsistency_error)));
         }
 
     }
@@ -809,12 +780,12 @@ impl<A: Clone, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     #[async]
     pub fn handle_friend_message(mut self, 
                                    remote_public_key: PublicKey, 
-                                   friend_message: IncomingFriendFunds)
+                                   friend_message: IncomingFriendMessage)
                                         -> Result<Self, HandleFriendError> {
         match friend_message {
-            IncomingFriendFunds::MoveToken(friend_move_token) =>
+            IncomingFriendMessage::MoveToken(friend_move_token) =>
                 await!(self.handle_move_token(remote_public_key, friend_move_token)),
-            IncomingFriendFunds::InconsistencyError(friend_inconsistency_error) => {
+            IncomingFriendMessage::InconsistencyError(friend_inconsistency_error) => {
                 self.handle_inconsistency_error(&remote_public_key, friend_inconsistency_error);
                 Ok(self)
             }
