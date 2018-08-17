@@ -429,7 +429,6 @@ impl<A: Clone, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         let inconsistency_error = FriendInconsistencyError {
             opt_ack: None,
-            token_channel_index: channel_index,
             current_token,
             balance_for_reset,
         };
@@ -765,7 +764,6 @@ impl<A: Clone, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         if should_send_outgoing {
             let inconsistency_error = FriendInconsistencyError {
                 opt_ack: Some(friend_inconsistency_error.current_token.clone()),
-                token_channel_index,
                 current_token: reset_token.clone(),
                 balance_for_reset,
             };
