@@ -14,6 +14,7 @@ use proto::common::SendFundsReceipt;
 use proto::funder::InvoiceId;
 use proto::funder::{ChannelToken};
 
+
 #[derive(Clone)]
 pub enum FriendTcOp {
     EnableRequests,
@@ -279,3 +280,4 @@ impl FriendTcOp {
         self.to_bytes().len()
     }
 }
+

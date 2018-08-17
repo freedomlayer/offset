@@ -10,4 +10,4 @@ mod friend;
 mod state;
 mod types;
 mod token_channel;
-// mod handler;
+mod handler;

@@ -9,13 +9,13 @@ use super::friend::{FriendState, FriendMutation};
 
 #[allow(unused)]
 #[derive(Clone)]
-pub struct MessengerState<A:Clone> {
+pub struct FunderState<A:Clone> {
     pub local_public_key: PublicKey,
     pub friends: ImHashMap<PublicKey, FriendState<A>>,
 }
 
 #[allow(unused)]
-pub enum MessengerMutation<A> {
+pub enum FunderMutation<A> {
     FriendMutation((PublicKey, FriendMutation)),
     AddFriend((PublicKey, Option<A>)), // (friend_public_key, opt_address)
     RemoveFriend(PublicKey),
@@ -23,8 +23,8 @@ pub enum MessengerMutation<A> {
 
 
 #[allow(unused)]
-impl<A:Clone> MessengerState<A> {
-    pub fn new() -> MessengerState<A> {
+impl<A:Clone> FunderState<A> {
+    pub fn new() -> FunderState<A> {
         // TODO: Initialize from database somehow.
         unreachable!();
     }
@@ -47,13 +47,13 @@ impl<A:Clone> MessengerState<A> {
         &self.local_public_key
     }
 
-    pub fn mutate(&mut self, messenger_mutation: &MessengerMutation<A>) {
+    pub fn mutate(&mut self, messenger_mutation: &FunderMutation<A>) {
         match messenger_mutation {
-            MessengerMutation::FriendMutation((public_key, friend_mutation)) => {
+            FunderMutation::FriendMutation((public_key, friend_mutation)) => {
                 let friend = self.friends.get_mut(&public_key).unwrap();
                 friend.mutate(friend_mutation);
             },
-            MessengerMutation::AddFriend((friend_public_key, opt_address)) => {
+            FunderMutation::AddFriend((friend_public_key, opt_address)) => {
                 let friend = FriendState::new(&self.local_public_key,
                                                   friend_public_key,
                                                   opt_address.clone());
@@ -62,7 +62,7 @@ impl<A:Clone> MessengerState<A> {
                 let _ = self.friends.insert(friend_public_key.clone(), friend).unwrap();
 
             },
-            MessengerMutation::RemoveFriend(public_key) => {
+            FunderMutation::RemoveFriend(public_key) => {
                 let _ = self.friends.remove(&public_key);
             },
         }

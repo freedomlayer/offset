@@ -114,3 +114,55 @@ pub enum FunderToChanneler<A> {
         friend_public_key: PublicKey
     },
 }
+
+
+pub struct SetFriendRemoteMaxDebt {
+    pub friend_public_key: PublicKey,
+    pub remote_max_debt: u128,
+}
+
+pub struct ResetFriendChannel {
+    pub friend_public_key: PublicKey,
+    pub current_token: ChannelToken,
+}
+
+
+pub struct SetFriendAddr<A> {
+    pub friend_public_key: PublicKey,
+    pub address: Option<A>,
+}
+
+
+pub struct AddFriend<A> {
+    pub friend_public_key: PublicKey,
+    pub address: Option<A>,
+}
+
+pub struct RemoveFriend {
+    pub friend_public_key: PublicKey,
+}
+
+pub struct SetFriendStatus {
+    pub friend_public_key: PublicKey,
+    pub status: FriendStatus,
+}
+
+pub struct OpenFriend {
+    pub friend_public_key: PublicKey,
+}
+
+pub struct CloseFriend {
+    pub friend_public_key: PublicKey,
+}
+
+pub enum FunderCommand<A> {
+    AddFriend(AddFriend<A>),
+    RemoveFriend(RemoveFriend),
+    OpenFriend(OpenFriend),
+    CloseFriend(CloseFriend),
+    SetFriendStatus(SetFriendStatus),
+    SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
+    SetFriendAddr(SetFriendAddr<A>),
+    ResetFriendChannel(ResetFriendChannel),
+    RequestSendFunds(RequestSendFunds),
+}

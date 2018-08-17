@@ -1,7 +1,5 @@
-mod handle_app_manager;
-pub mod handle_friend;
-mod handle_funder;
-mod handle_crypter;
+mod handle_control;
+// pub mod handle_friend;
 
 use futures::prelude::{async, await};
 
@@ -12,31 +10,21 @@ use ring::rand::SecureRandom;
 use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 
-use super::state::{MessengerState, MessengerMutation};
-use self::handle_app_manager::HandleAppManagerError;
-use self::handle_friend::{FriendInconsistencyError,
-     FriendSetMaxTokenChannels, HandleFriendError, IncomingFriendMessage};
+use super::state::{FunderState, FunderMutation};
+use self::handle_control::HandleControlError;
+// use self::handle_friend::{FriendInconsistencyError,
+// FriendSetMaxTokenChannels, HandleFriendError, IncomingFriendMessage};
 use super::token_channel::directional::ReceiveMoveTokenError;
 use super::types::{FriendMoveToken, FriendsRoute};
-use super::cache::MessengerCache;
+use super::cache::FunderCache;
 
-use app_manager::messages::{FunderCommand};
-
-#[allow(unused)]
-pub enum AppManagerMessage {
-    ReceiveMoveTokenError(ReceiveMoveTokenError),
-}
-
-pub enum FunderMessage {
-
-}
+use super::messages::FunderCommand;
 
 
 #[allow(unused)]
 pub enum FriendMessage {
     MoveToken(FriendMoveToken),
-    InconsistencyError(FriendInconsistencyError),
-    SetMaxTokenChannels(FriendSetMaxTokenChannels),
+    // InconsistencyError(FriendInconsistencyError),
 }
 
 pub struct RequestReceived {
@@ -60,117 +48,98 @@ pub struct FailureReceived {
 }
 
 
-#[allow(unused)]
-pub enum CrypterMessage {
-    RequestReceived(RequestReceived),
-    ResponseReceived(ResponseReceived),
-    FailureReceived(FailureReceived),
-}
-
-/// Used for rebalancing a token channel by sending a payment to friend
-/// along a route of friends.
-#[allow(unused)]
-pub struct SendPayment {
-    friend_public_key: PublicKey,
-    channel_index: u16,
-    payment_id: Uid,
-    payment: u64,   // Amount of credits to pay
-}
-
 
 #[allow(unused)]
-pub enum MessengerTask {
-    AppManagerMessage(AppManagerMessage),
-    SendPayment(SendPayment),
-    FunderMessage(FunderMessage),
+pub enum FunderTask {
     FriendMessage(FriendMessage),
-    CrypterMessage(CrypterMessage),
+    StateUpdate(()),
 }
 
 pub enum HandlerError {
-    HandleAppManagerError(HandleAppManagerError),
-    HandleFriendError(HandleFriendError),
+    HandleControlError(HandleControlError),
+    // HandleFriendError(HandleFriendError),
 }
 
-pub struct MutableMessengerHandler<R> {
-    state: MessengerState,
-    pub cache: MessengerCache,
+pub struct MutableFunderHandler<A:Clone,R> {
+    state: FunderState<A>,
+    pub cache: FunderCache,
     pub security_module_client: SecurityModuleClient,
     pub rng: Rc<R>,
-    mutations: Vec<MessengerMutation>,
-    messenger_tasks: Vec<MessengerTask>,
+    mutations: Vec<FunderMutation<A>>,
+    funder_tasks: Vec<FunderTask>,
 }
 
-impl<R> MutableMessengerHandler<R> {
-    pub fn state(&self) -> &MessengerState {
+impl<A:Clone,R> MutableFunderHandler<A,R> {
+    pub fn state(&self) -> &FunderState<A> {
         &self.state
     }
 
-    pub fn done(self) -> (MessengerCache, Vec<MessengerMutation>, Vec<MessengerTask>) {
-        (self.cache, self.mutations, self.messenger_tasks)
+    pub fn done(self) -> (FunderCache, Vec<FunderMutation<A>>, Vec<FunderTask>) {
+        (self.cache, self.mutations, self.funder_tasks)
     }
 
     /// Apply a mutation and also remember it.
-    pub fn apply_mutation(&mut self, messenger_mutation: MessengerMutation) {
+    pub fn apply_mutation(&mut self, messenger_mutation: FunderMutation<A>) {
         self.state.mutate(&messenger_mutation);
         self.mutations.push(messenger_mutation);
     }
 
-    pub fn add_task(&mut self, messenger_task: MessengerTask) {
-        self.messenger_tasks.push(messenger_task);
+    pub fn add_task(&mut self, messenger_task: FunderTask) {
+        self.funder_tasks.push(messenger_task);
     }
 }
 
 
-pub struct MessengerHandler<R> {
+pub struct FunderHandler<R> {
     pub security_module_client: SecurityModuleClient,
     pub rng: Rc<R>,
 }
 
-impl<R: SecureRandom + 'static> MessengerHandler<R> {
+impl<R: SecureRandom + 'static> FunderHandler<R> {
 
-    fn gen_mutable(&self, messenger_state: &MessengerState,
-                   messenger_cache: MessengerCache) -> MutableMessengerHandler<R> {
-        MutableMessengerHandler {
+    fn gen_mutable<A:Clone>(&self, messenger_state: &FunderState<A>,
+                   messenger_cache: FunderCache) -> MutableFunderHandler<A,R> {
+        MutableFunderHandler {
             state: messenger_state.clone(),
             cache: messenger_cache,
             security_module_client: self.security_module_client.clone(),
             rng: self.rng.clone(),
             mutations: Vec::new(),
-            messenger_tasks: Vec::new(),
+            funder_tasks: Vec::new(),
         }
     }
 
     #[allow(unused)]
-    fn simulate_handle_timer_tick(&self)
-            -> Result<(Vec<MessengerMutation>, Vec<MessengerTask>), ()> {
+    fn simulate_handle_timer_tick<A>(&self)
+            -> Result<(Vec<FunderMutation<A>>, Vec<FunderTask>), ()> {
         // TODO
         unreachable!();
     }
 
+    /*
     #[allow(unused)]
-    fn simulate_handle_app_manager_message(&self,
-                                        messenger_state: &MessengerState,
-                                        messenger_cache: MessengerCache,
-                                        funder_command: FunderCommand)
-            -> Result<(MessengerCache, Vec<MessengerMutation>, Vec<MessengerTask>), HandlerError> {
+    fn simulate_handle_control_message<A: Clone>(&self,
+                                        messenger_state: &FunderState<A>,
+                                        messenger_cache: FunderCache,
+                                        funder_command: FunderCommand<A>)
+            -> Result<(FunderCache, Vec<FunderMutation<A>>, Vec<FunderTask>), HandlerError> {
         let mut mutable_handler = self.gen_mutable(messenger_state,
                                                    messenger_cache);
         mutable_handler
-            .handle_app_manager_message(funder_command)
-            .map_err(HandlerError::HandleAppManagerError)?;
+            .handle_control_message(funder_command)
+            .map_err(HandlerError::HandleControlError)?;
 
         Ok(mutable_handler.done())
     }
 
     #[allow(unused)]
     #[async]
-    fn simulate_handle_friend_message(self, 
-                                        messenger_state: MessengerState,
-                                        messenger_cache: MessengerCache,
+    fn simulate_handle_friend_message<A: Clone>(self, 
+                                        messenger_state: FunderState<A>,
+                                        messenger_cache: FunderCache,
                                         remote_public_key: PublicKey,
                                         friend_message: IncomingFriendMessage)
-            -> Result<(MessengerCache, Vec<MessengerMutation>, Vec<MessengerTask>), HandlerError> {
+            -> Result<(FunderCache, Vec<FunderMutation<A>>, Vec<FunderTask>), HandlerError> {
 
         let mut mutable_handler = self.gen_mutable(&messenger_state,
                                                    messenger_cache);
@@ -181,19 +150,7 @@ impl<R: SecureRandom + 'static> MessengerHandler<R> {
         Ok(mutable_handler.done())
     }
 
-    #[allow(unused)]
-    fn simulate_handle_funder_message(&self, 
-                                        messenger_state: &MessengerState)
-            -> Result<(MessengerCache, Vec<MessengerMutation>, Vec<MessengerTask>), ()> {
-        unreachable!();
-    }
-
-    #[allow(unused)]
-    fn simulate_handle_crypter_message(&self, 
-                                        messenger_state: &MessengerState)
-            -> Result<(MessengerCache, Vec<MessengerMutation>, Vec<MessengerTask>), ()> {
-        unreachable!();
-    }
+    */
 
 }
 
