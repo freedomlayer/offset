@@ -110,10 +110,8 @@ pub struct TokenChannel {
 }
 
 pub enum TcMutation {
-    OpenLocalRequests,
-    CloseLocalRequests,
-    OpenRemoteRequests,
-    CloseRemoteRequests,
+    SetLocalRequestsStatus(RequestsStatus),
+    SetRemoteRequestsStatus(RequestsStatus),
     SetLocalMaxDebt(u128),
     SetRemoteMaxDebt(u128),
     SetBalance(i128),
@@ -158,14 +156,10 @@ impl TokenChannel {
 
     pub fn mutate(&mut self, tc_mutation: &TcMutation) {
         match tc_mutation {
-            TcMutation::OpenLocalRequests => 
-                self.open_local_requests(),
-            TcMutation::CloseLocalRequests => 
-                self.close_local_requests(),
-            TcMutation::OpenRemoteRequests => 
-                self.open_remote_requests(),
-            TcMutation::CloseRemoteRequests => 
-                self.close_remote_requests(),
+            TcMutation::SetLocalRequestsStatus(requests_status) => 
+                self.set_local_requests_status(requests_status.clone()),
+            TcMutation::SetRemoteRequestsStatus(requests_status) => 
+                self.set_remote_requests_status(requests_status.clone()),
             TcMutation::SetLocalMaxDebt(proposed_max_debt) => 
                 self.set_local_max_debt(*proposed_max_debt),
             TcMutation::SetRemoteMaxDebt(proposed_max_debt) => 
@@ -187,8 +181,12 @@ impl TokenChannel {
         }
     }
 
-    fn open_local_requests(&mut self) {
-        self.state.requests_status.local = RequestsStatus::Open;
+    fn set_local_requests_status(&mut self, requests_status: RequestsStatus) {
+        self.state.requests_status.local = requests_status;
+    }
+
+    fn set_remote_requests_status(&mut self, requests_status: RequestsStatus) {
+        self.state.requests_status.remote = requests_status;
     }
 
     fn close_local_requests(&mut self) {

@@ -134,7 +134,7 @@ fn process_enable_requests(token_channel: &mut TokenChannel) ->
         incoming_funds: None,
         tc_mutations: Vec::new(),
     };
-    let tc_mutation = TcMutation::OpenRemoteRequests;
+    let tc_mutation = TcMutation::SetRemoteRequestsStatus(RequestsStatus::Open);
     token_channel.mutate(&tc_mutation);
     op_output.tc_mutations.push(tc_mutation);
 
@@ -151,7 +151,7 @@ fn process_disable_requests(token_channel: &mut TokenChannel) ->
 
     match token_channel.state().requests_status.remote {
         RequestsStatus::Open => {
-            let tc_mutation = TcMutation::CloseRemoteRequests;
+            let tc_mutation = TcMutation::SetRemoteRequestsStatus(RequestsStatus::Closed);
             token_channel.mutate(&tc_mutation);
             op_output.tc_mutations.push(tc_mutation);
             Ok(op_output)

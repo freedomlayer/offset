@@ -7,7 +7,8 @@ use super::token_channel::directional::DirectionalMutation;
 use proto::funder::ChannelToken;
 use super::types::FriendTcOp;
 use super::token_channel::directional::DirectionalTokenChannel;
-use super::messages::FriendStatus;
+use super::messages::{FriendStatus, RequestsStatus};
+
 
 
 #[derive(Clone)]
@@ -50,14 +51,16 @@ impl InconsistencyStatus {
 }
 
 #[allow(unused)]
-pub enum FriendMutation {
+pub enum FriendMutation<A> {
     DirectionalMutation(DirectionalMutation),
     SetIncomingInconsistency(IncomingInconsistency),
     SetOutgoingInconsistency(OutgoingInconsistency),
     SetWantedRemoteMaxDebt(u128),
+    SetWantedLocalRequestsStatus(RequestsStatus),
     PushBackPendingOperation(FriendTcOp),
     PopFrontPendingOperation,
     SetStatus(FriendStatus),
+    SetFriendAddr(Option<A>),
     RemoteReset,        // Remote side performed reset
     LocalReset,         // Local side performed reset
 }
@@ -69,6 +72,7 @@ pub struct FriendState<A> {
     pub directional: DirectionalTokenChannel,
     pub inconsistency_status: InconsistencyStatus,
     pub wanted_remote_max_debt: u128,
+    pub wanted_local_requests_status: RequestsStatus,
     pub pending_operations: Vector<FriendTcOp>,
     // Pending operations to be sent to the token channel.
     pub status: FriendStatus,
@@ -76,7 +80,7 @@ pub struct FriendState<A> {
 
 
 #[allow(unused)]
-impl<A> FriendState<A> {
+impl<A:Clone> FriendState<A> {
     pub fn new(local_public_key: &PublicKey,
                remote_public_key: &PublicKey,
                opt_remote_address: Option<A>) -> FriendState<A> {
@@ -89,6 +93,7 @@ impl<A> FriendState<A> {
             // The remote_max_debt we want to have. When possible, this will be sent to the remote
             // side.
             wanted_remote_max_debt: 0,
+            wanted_local_requests_status: RequestsStatus::Closed,
             // The local_send_price we want to have (Or possibly close requests, by having an empty
             // send price). When possible, this will be updated with the TokenChannel.
             pending_operations: Vector::new(),
@@ -98,7 +103,7 @@ impl<A> FriendState<A> {
 
 
     #[allow(unused)]
-    pub fn mutate(&mut self, slot_mutation: &FriendMutation) {
+    pub fn mutate(&mut self, slot_mutation: &FriendMutation<A>) {
         match slot_mutation {
             FriendMutation::DirectionalMutation(directional_mutation) => {
                 self.directional.mutate(directional_mutation);
@@ -112,6 +117,9 @@ impl<A> FriendState<A> {
             FriendMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
                 self.wanted_remote_max_debt = *wanted_remote_max_debt;
             },
+            FriendMutation::SetWantedLocalRequestsStatus(wanted_local_requests_status) => {
+                self.wanted_local_requests_status = wanted_local_requests_status.clone();
+            },
             FriendMutation::PushBackPendingOperation(friend_tc_op) => {
                 self.pending_operations.push_back(friend_tc_op.clone());
             },
@@ -120,6 +128,9 @@ impl<A> FriendState<A> {
             },
             FriendMutation::SetStatus(friend_status) => {
                 self.status = friend_status.clone();
+            },
+            FriendMutation::SetFriendAddr(opt_friend_addr) => {
+                self.opt_remote_address = opt_friend_addr.clone();
             },
             FriendMutation::LocalReset => {
                 // Local reset was applied (We sent a reset from AppManager).

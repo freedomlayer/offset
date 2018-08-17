@@ -109,13 +109,29 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
     fn control_set_requests_status(&mut self, set_requests_status: SetRequestsStatus) 
         -> Result<(), HandleControlError> {
 
-        unimplemented!();
+        // Make sure that friend exists:
+        let _friend = self.get_friend(&set_requests_status.friend_public_key)?;
+
+        let friend_mutation = FriendMutation::SetWantedLocalRequestsStatus(set_requests_status.status);
+        let m_mutation = FunderMutation::FriendMutation(
+            (set_requests_status.friend_public_key, friend_mutation));
+
+        self.apply_mutation(m_mutation);
+        Ok(())
     }
 
     fn control_set_friend_addr(&mut self, set_friend_addr: SetFriendAddr<A>) 
         -> Result<(), HandleControlError> {
 
-        unimplemented!();
+        // Make sure that friend exists:
+        let _friend = self.get_friend(&set_friend_addr.friend_public_key)?;
+
+        let friend_mutation = FriendMutation::SetFriendAddr(set_friend_addr.address);
+        let m_mutation = FunderMutation::FriendMutation(
+            (set_friend_addr.friend_public_key, friend_mutation));
+
+        self.apply_mutation(m_mutation);
+        Ok(())
     }
 
     fn control_request_send_funds(&mut self, request_send_funds: RequestSendFunds) 
@@ -149,5 +165,4 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
                 self.control_request_send_funds(request_send_funds),
         }
     }
-
 }

@@ -138,7 +138,7 @@ impl OutgoingTokenChannel {
 
         // TODO: Should we check first if local requests are already open?
         let mut tc_mutations = Vec::new();
-        let tc_mutation = TcMutation::OpenLocalRequests;
+        let tc_mutation = TcMutation::SetLocalRequestsStatus(RequestsStatus::Open);
         self.token_channel.mutate(&tc_mutation);
         tc_mutations.push(tc_mutation);
 
@@ -149,7 +149,7 @@ impl OutgoingTokenChannel {
         Result<Vec<TcMutation>, QueueOperationError> {
 
         let mut tc_mutations = Vec::new();
-        let tc_mutation = TcMutation::CloseLocalRequests;
+        let tc_mutation = TcMutation::SetLocalRequestsStatus(RequestsStatus::Closed);
         self.token_channel.mutate(&tc_mutation);
         tc_mutations.push(tc_mutation);
 
