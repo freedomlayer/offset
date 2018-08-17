@@ -12,7 +12,7 @@ use utils::int_convert::usize_to_u64;
 
 use super::types::{TokenChannel, FriendMoveTokenInner, TcMutation};
 use super::incoming::{ProcessOperationOutput, ProcessTransListError, 
-    simulate_process_operations_list, IncomingFunds};
+    simulate_process_operations_list, IncomingMessage};
 use super::outgoing::{OutgoingTokenChannel};
 
 use super::super::types::{FriendMoveToken};
@@ -56,7 +56,7 @@ pub enum ReceiveMoveTokenError {
 }
 
 pub struct MoveTokenReceived {
-    pub incoming_fundss: Vec<IncomingFunds>,
+    pub incoming_messages: Vec<IncomingMessage>,
     pub mutations: Vec<DirectionalMutation>,
 }
 
@@ -219,16 +219,16 @@ impl DirectionalTokenChannel {
                         move_token_funds.operations) {
                         Ok(outputs) => {
                             let mut move_token_received = MoveTokenReceived {
-                                incoming_fundss: Vec::new(),
+                                incoming_messages: Vec::new(),
                                 mutations: Vec::new(),
                             };
 
                             for output in outputs {
                                 let ProcessOperationOutput 
-                                    {incoming_funds, tc_mutations} = output;
+                                    {incoming_message, tc_mutations} = output;
 
-                                if let Some(funds) = incoming_funds {
-                                    move_token_received.incoming_fundss.push(funds);
+                                if let Some(funds) = incoming_message {
+                                    move_token_received.incoming_messages.push(funds);
                                 }
                                 for tc_mutation in tc_mutations {
                                     move_token_received.mutations.push(

@@ -30,7 +30,7 @@ pub struct IncomingFailureSendFunds {
     pub incoming_failure: FailureSendFunds,
 }
 
-pub enum IncomingFunds {
+pub enum IncomingMessage {
     Request(RequestSendFunds),
     Response(IncomingResponseSendFunds),
     Failure(IncomingFailureSendFunds),
@@ -39,7 +39,7 @@ pub enum IncomingFunds {
 /// Resulting tasks to perform after processing an incoming operation.
 #[allow(unused)]
 pub struct ProcessOperationOutput {
-    pub incoming_funds: Option<IncomingFunds>,
+    pub incoming_message: Option<IncomingMessage>,
     pub tc_mutations: Vec<TcMutation>,
 }
 
@@ -131,7 +131,7 @@ fn process_enable_requests(token_channel: &mut TokenChannel) ->
     Result<ProcessOperationOutput, ProcessOperationError> {
 
     let mut op_output = ProcessOperationOutput {
-        incoming_funds: None,
+        incoming_message: None,
         tc_mutations: Vec::new(),
     };
     let tc_mutation = TcMutation::SetRemoteRequestsStatus(RequestsStatus::Open);
@@ -145,7 +145,7 @@ fn process_disable_requests(token_channel: &mut TokenChannel) ->
     Result<ProcessOperationOutput, ProcessOperationError> {
 
     let mut op_output = ProcessOperationOutput {
-        incoming_funds: None,
+        incoming_message: None,
         tc_mutations: Vec::new(),
     };
 
@@ -165,7 +165,7 @@ fn process_set_remote_max_debt(token_channel: &mut TokenChannel,
     Result<ProcessOperationOutput, ProcessOperationError> {
 
     let mut op_output = ProcessOperationOutput {
-        incoming_funds: None,
+        incoming_message: None,
         tc_mutations: Vec::new(),
     };
 
@@ -244,7 +244,7 @@ fn process_request_send_funds(token_channel: &mut TokenChannel,
     let pending_friend_request = request_send_funds.create_pending_request();
 
     let mut op_output = ProcessOperationOutput {
-        incoming_funds: None,
+        incoming_message: None,
         tc_mutations: Vec::new(),
     };
 
@@ -328,8 +328,8 @@ fn process_response_send_funds(token_channel: &mut TokenChannel,
     token_channel.mutate(&tc_mutation);
     tc_mutations.push(tc_mutation);
 
-    let incoming_funds = Some(
-        IncomingFunds::Response(
+    let incoming_message = Some(
+        IncomingMessage::Response(
             IncomingResponseSendFunds {
                 pending_request,
                 incoming_response: response_send_funds,
@@ -338,7 +338,7 @@ fn process_response_send_funds(token_channel: &mut TokenChannel,
     );
 
     Ok(ProcessOperationOutput {
-        incoming_funds,
+        incoming_message,
         tc_mutations,
     })
 }
@@ -418,8 +418,8 @@ fn process_failure_send_funds(token_channel: &mut TokenChannel,
     tc_mutations.push(tc_mutation);
     
     // Return Failure funds.
-    let incoming_funds = Some(
-        IncomingFunds::Failure(
+    let incoming_message = Some(
+        IncomingMessage::Failure(
             IncomingFailureSendFunds {
                 pending_request,
                 incoming_failure: failure_send_funds,
@@ -428,7 +428,7 @@ fn process_failure_send_funds(token_channel: &mut TokenChannel,
     );
 
     Ok(ProcessOperationOutput {
-        incoming_funds,
+        incoming_message,
         tc_mutations,
     })
 
