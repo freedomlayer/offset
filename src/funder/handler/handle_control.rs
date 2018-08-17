@@ -10,7 +10,7 @@ use super::super::state::{FunderMutation, FunderState};
 use super::{MutableFunderHandler, FunderTask};
 use super::super::messages::{FunderCommand, AddFriend, 
     RemoveFriend, SetFriendStatus, SetFriendRemoteMaxDebt,
-    ResetFriendChannel};
+    ResetFriendChannel, SetRequestsStatus, SetFriendAddr, RequestSendFunds};
 
 
 pub enum HandleControlError {
@@ -106,6 +106,25 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
         Ok(())
     }
 
+    fn control_set_requests_status(&mut self, set_requests_status: SetRequestsStatus) 
+        -> Result<(), HandleControlError> {
+
+        unimplemented!();
+    }
+
+    fn control_set_friend_addr(&mut self, set_friend_addr: SetFriendAddr<A>) 
+        -> Result<(), HandleControlError> {
+
+        unimplemented!();
+    }
+
+    fn control_request_send_funds(&mut self, request_send_funds: RequestSendFunds) 
+        -> Result<(), HandleControlError> {
+
+        unimplemented!();
+    }
+
+
     pub fn handle_control_message(&mut self, 
                                       funder_config: FunderCommand<A>) 
         -> Result<(), HandleControlError> {
@@ -122,10 +141,12 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
                 self.control_remove_friend(remove_friend),
             FunderCommand::SetFriendStatus(set_friend_status) => 
                 self.control_set_friend_status(set_friend_status),
-            FunderCommand::OpenFriend(open_friend) => unimplemented!(),
-            FunderCommand::CloseFriend(close_friend) => unimplemented!(),
-            FunderCommand::SetFriendAddr(set_friend_addr) => unimplemented!(),
-            FunderCommand::RequestSendFunds(request_send_funds) => unimplemented!(),
+            FunderCommand::SetRequestsStatus(set_requests_status) => 
+                self.control_set_requests_status(set_requests_status),
+            FunderCommand::SetFriendAddr(set_friend_addr) => 
+                self.control_set_friend_addr(set_friend_addr),
+            FunderCommand::RequestSendFunds(request_send_funds) => 
+                self.control_request_send_funds(request_send_funds),
         }
     }
 
