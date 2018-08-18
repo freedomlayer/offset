@@ -8,6 +8,10 @@ use proto::funder::{ChannelToken, InvoiceId};
 use proto::common::SendFundsReceipt;
 use channeler::types::ChannelerNeighborInfo;
 use super::types::{RequestsStatus, FriendStatus};
+use super::handler::handle_control::{SetFriendRemoteMaxDebt, ResetFriendChannel,
+    SetFriendAddr, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
+    RequestSendFunds, ReceiptAck};
+
 
 pub struct FriendUpdated {
     balance: i128,
@@ -78,10 +82,7 @@ pub struct CtrlRequestSendFunds {
     // application, and can not be lost.
     //
     // TODO: Rename request_id -> payment_id ?
-    pub request_id: Uid,
-    pub route: FriendsRoute,
-    pub invoice_id: InvoiceId,
-    pub payment: u128,
+    request_send_funds: RequestSendFunds,
     pub response_sender: oneshot::Sender<CtrlResponseSendFunds>,
 }
 
@@ -109,48 +110,14 @@ pub enum FunderToChanneler<A> {
 }
 
 
-pub struct CtrlSetFriendRemoteMaxDebt {
-    pub friend_public_key: PublicKey,
-    pub remote_max_debt: u128,
-}
-
-pub struct CtrlResetFriendChannel {
-    pub friend_public_key: PublicKey,
-    pub current_token: ChannelToken,
-}
-
-pub struct CtrlSetFriendAddr<A> {
-    pub friend_public_key: PublicKey,
-    pub address: Option<A>,
-}
-
-pub struct CtrlAddFriend<A> {
-    pub friend_public_key: PublicKey,
-    pub address: Option<A>,
-}
-
-pub struct CtrlRemoveFriend {
-    pub friend_public_key: PublicKey,
-}
-
-pub struct CtrlSetFriendStatus {
-    pub friend_public_key: PublicKey,
-    pub status: FriendStatus,
-}
-
-pub struct CtrlSetRequestsStatus {
-    pub friend_public_key: PublicKey,
-    pub status: RequestsStatus,
-}
-
 
 pub enum FunderCommand<A> {
-    AddFriend(CtrlAddFriend<A>),
-    RemoveFriend(CtrlRemoveFriend),
-    SetRequestsStatus(CtrlSetRequestsStatus),
-    SetFriendStatus(CtrlSetFriendStatus),
-    SetFriendRemoteMaxDebt(CtrlSetFriendRemoteMaxDebt),
-    SetFriendAddr(CtrlSetFriendAddr<A>),
-    ResetFriendChannel(CtrlResetFriendChannel),
+    AddFriend(AddFriend<A>),
+    RemoveFriend(RemoveFriend),
+    SetRequestsStatus(SetRequestsStatus),
+    SetFriendStatus(SetFriendStatus),
+    SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
+    SetFriendAddr(SetFriendAddr<A>),
+    ResetFriendChannel(ResetFriendChannel),
     RequestSendFunds(CtrlRequestSendFunds),
 }

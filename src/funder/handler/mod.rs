@@ -1,4 +1,4 @@
-mod handle_control;
+pub mod handle_control;
 pub mod handle_friend;
 
 use futures::prelude::{async, await};
