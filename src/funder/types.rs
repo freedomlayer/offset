@@ -74,8 +74,9 @@ pub struct UserRequestSendFunds {
     pub request_id: Uid,
     pub route: FriendsRoute,
     pub invoice_id: InvoiceId,
-    pub payment: u128,
+    pub dest_payment: u128,
 }
+
 
 #[derive(Clone)]
 pub struct RequestSendFunds {
