@@ -109,7 +109,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                             &pending_local_request);
 
         let signature = await!(self.security_module_client.request_signature(failure_signature_buffer))
-            .expect("Failed to create a signature!");
+            .unwrap();
 
         Ok((self, FailureSendFunds {
             request_id: pending_local_request.request_id,
@@ -207,16 +207,14 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     fn forward_request(&mut self, mut request_send_funds: RequestSendFunds) {
         let index = request_send_funds.route.pk_to_index(self.state.get_local_public_key())
             .unwrap();
-        let prev_index = index.checked_sub(1).expect("We are the originator of this request");
-        let next_index = index.checked_add(1).expect("Index out of range");
+        let prev_index = index.checked_sub(1).unwrap();
+        let next_index = index.checked_add(1).unwrap();
         
         let prev_pk = request_send_funds.route.index_to_pk(prev_index).unwrap();
         let next_pk = request_send_funds.route.index_to_pk(prev_index).unwrap();
 
-        let prev_friend = self.state.get_friends().get(&prev_pk)
-            .expect("Previous friend not present");
-        let next_friend = self.state.get_friends().get(&next_pk)
-            .expect("Next friend not present");
+        let prev_friend = self.state.get_friends().get(&prev_pk).unwrap();
+        let next_friend = self.state.get_friends().get(&next_pk).unwrap();
 
 
         let total_trust = self.state.get_total_trust();
@@ -612,7 +610,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                     let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
                     self.apply_mutation(messenger_mutation);
                 }
-
 
                 let mut fself = await!(self.handle_move_token_output(remote_public_key.clone(),
                                                incoming_messages))?;
