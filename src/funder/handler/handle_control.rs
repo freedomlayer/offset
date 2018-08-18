@@ -10,7 +10,7 @@ use super::super::state::{FunderMutation, FunderState};
 use super::{MutableFunderHandler, FunderTask};
 use super::super::messages::{FunderCommand, AddFriend, 
     RemoveFriend, SetFriendStatus, SetFriendRemoteMaxDebt,
-    ResetFriendChannel, SetRequestsStatus, SetFriendAddr, RequestSendFunds};
+    ResetFriendChannel, SetRequestsStatus, SetFriendAddr, RequestSendFundsMsg};
 
 
 pub enum HandleControlError {
@@ -22,7 +22,7 @@ pub enum HandleControlError {
 
 #[allow(unused)]
 impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
-    fn get_friend(&self, friend_public_key: &PublicKey) -> Result<&FriendState<A>, HandleControlError> {
+    fn get_friend_control(&self, friend_public_key: &PublicKey) -> Result<&FriendState<A>, HandleControlError> {
         match self.state().friends.get(friend_public_key) {
             Some(ref friend) => Ok(friend),
             None => Err(HandleControlError::FriendDoesNotExist),
@@ -34,7 +34,7 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
         -> Result<(), HandleControlError> {
 
         // Make sure that friend exists:
-        let _friend = self.get_friend(&set_friend_remote_max_debt.friend_public_key)?;
+        let _friend = self.get_friend_control(&set_friend_remote_max_debt.friend_public_key)?;
 
         let tc_mutation = TcMutation::SetRemoteMaxDebt(set_friend_remote_max_debt.remote_max_debt);
         let directional_mutation = DirectionalMutation::TcMutation(tc_mutation);
@@ -50,7 +50,7 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
                                           reset_friend_channel: ResetFriendChannel) 
         -> Result<(), HandleControlError> {
 
-        let friend = self.get_friend(&reset_friend_channel.friend_public_key)?;
+        let friend = self.get_friend_control(&reset_friend_channel.friend_public_key)?;
 
         match &friend.inconsistency_status.incoming {
             IncomingInconsistency::Empty => return Err(HandleControlError::NotInvitedToReset),
@@ -96,7 +96,7 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
         -> Result<(), HandleControlError> {
 
         // Make sure that friend exists:
-        let _friend = self.get_friend(&set_friend_status.friend_public_key)?;
+        let _friend = self.get_friend_control(&set_friend_status.friend_public_key)?;
 
         let friend_mutation = FriendMutation::SetStatus(set_friend_status.status);
         let m_mutation = FunderMutation::FriendMutation(
@@ -110,7 +110,7 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
         -> Result<(), HandleControlError> {
 
         // Make sure that friend exists:
-        let _friend = self.get_friend(&set_requests_status.friend_public_key)?;
+        let _friend = self.get_friend_control(&set_requests_status.friend_public_key)?;
 
         let friend_mutation = FriendMutation::SetWantedLocalRequestsStatus(set_requests_status.status);
         let m_mutation = FunderMutation::FriendMutation(
@@ -124,7 +124,7 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
         -> Result<(), HandleControlError> {
 
         // Make sure that friend exists:
-        let _friend = self.get_friend(&set_friend_addr.friend_public_key)?;
+        let _friend = self.get_friend_control(&set_friend_addr.friend_public_key)?;
 
         let friend_mutation = FriendMutation::SetFriendAddr(set_friend_addr.address);
         let m_mutation = FunderMutation::FriendMutation(
@@ -134,7 +134,7 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
         Ok(())
     }
 
-    fn control_request_send_funds(&mut self, request_send_funds: RequestSendFunds) 
+    fn control_request_send_funds_msg(&mut self, request_send_funds_msg: RequestSendFundsMsg) 
         -> Result<(), HandleControlError> {
 
         // TODO
@@ -162,8 +162,8 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
                 self.control_set_requests_status(set_requests_status),
             FunderCommand::SetFriendAddr(set_friend_addr) => 
                 self.control_set_friend_addr(set_friend_addr),
-            FunderCommand::RequestSendFunds(request_send_funds) => 
-                self.control_request_send_funds(request_send_funds),
+            FunderCommand::RequestSendFundsMsg(request_send_funds_msg) => 
+                self.control_request_send_funds_msg(request_send_funds_msg),
         }
     }
 }

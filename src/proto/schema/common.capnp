@@ -42,14 +42,6 @@ struct Ratio128 {
         }
 }
 
-# A pair of a nonce and a signature used to sign a FailedSendXXXTran.
-# Every party on the route back to the originator of the request message add his 
-# signature over the failure message. This is important to avoid the hollow failure route attack.
-struct RandNonceSignature {
-        randNonce @0: CustomUInt128;
-        signature @1: CustomUInt512;
-}
-
 
 # A receipt for payment to the Funder
 struct Receipt {

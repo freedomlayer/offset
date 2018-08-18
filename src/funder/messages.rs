@@ -42,7 +42,7 @@ pub enum FriendEvent {
 }
 
 
-pub enum ResponseSendFunds {
+pub enum ResponseSendFundsMsg {
     Success(SendFundsReceipt),
     Failure(PublicKey), // Reporting public key.
 }
@@ -62,7 +62,6 @@ pub struct FriendInfo {
 pub struct PendingFriendRequest {
     pub request_id: Uid,
     // pub route: FriendsRouteWithCapacity, // TODO: Fill in later
-    pub mediator_payment_proposal: u64,
     pub invoice_id: InvoiceId,
     pub destination_payment: u128,
 }
@@ -79,7 +78,7 @@ pub struct FriendsRouteWithCapacity {
     capacity: u128,
 }
 
-pub struct RequestSendFunds {
+pub struct RequestSendFundsMsg {
     // Note that it is the sender's responsibility to randomly generate a request_id.
     // This is important to make sure send funds requests can be tracked by the sending
     // application, and can not be lost.
@@ -89,7 +88,7 @@ pub struct RequestSendFunds {
     pub route: FriendsRoute,
     pub invoice_id: InvoiceId,
     pub payment: u128,
-    pub response_sender: oneshot::Sender<ResponseSendFunds>,
+    pub response_sender: oneshot::Sender<ResponseSendFundsMsg>,
 }
 
 
@@ -161,5 +160,5 @@ pub enum FunderCommand<A> {
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
     SetFriendAddr(SetFriendAddr<A>),
     ResetFriendChannel(ResetFriendChannel),
-    RequestSendFunds(RequestSendFunds),
+    RequestSendFundsMsg(RequestSendFundsMsg),
 }

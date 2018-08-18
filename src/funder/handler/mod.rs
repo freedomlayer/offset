@@ -12,13 +12,13 @@ use crypto::identity::PublicKey;
 
 use super::state::{FunderState, FunderMutation};
 use self::handle_control::HandleControlError;
-use self::handle_friend::{FriendInconsistencyError};
-// FriendSetMaxTokenChannels, HandleFriendError, IncomingFriendMessage};
+use self::handle_friend::{FriendInconsistencyError,
+    HandleFriendError, IncomingFriendMessage};
 use super::token_channel::directional::ReceiveMoveTokenError;
 use super::types::{FriendMoveToken, FriendsRoute};
 use super::cache::FunderCache;
 
-use super::messages::FunderCommand;
+use super::messages::{FunderCommand, ResponseSendFundsMsg};
 
 
 #[allow(unused)]
@@ -27,37 +27,22 @@ pub enum FriendMessage {
     InconsistencyError(FriendInconsistencyError),
 }
 
-pub struct RequestReceived {
-    pub request_id: Uid,
-    pub route: FriendsRoute,
-    pub request_content: Vec<u8>,
-    pub max_response_len: u32,
-    pub processing_fee_proposal: u64,
-}
-
 pub struct ResponseReceived {
     pub request_id: Uid,
-    pub processing_fee_collected: u64,
-    pub response_content: Vec<u8>,
+    pub response_send_funds_msg: ResponseSendFundsMsg,
 }
-
-#[allow(unused)]
-pub struct FailureReceived {
-    pub request_id: Uid,
-    pub reporting_public_key: PublicKey,
-}
-
 
 
 #[allow(unused)]
 pub enum FunderTask {
     FriendMessage(FriendMessage),
-    StateUpdate(()),
+    ResponseReceived(ResponseReceived),
+    // StateUpdate(()),
 }
 
 pub enum HandlerError {
     HandleControlError(HandleControlError),
-    // HandleFriendError(HandleFriendError),
+    HandleFriendError(HandleFriendError),
 }
 
 pub struct MutableFunderHandler<A:Clone,R> {

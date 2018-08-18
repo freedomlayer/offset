@@ -5,8 +5,8 @@ use crypto::hash;
 use crypto::identity::verify_signature;
 use super::types::{ResponseSendFunds, FailureSendFunds, PendingFriendRequest};
 
-const FUND_SUCCESS_PREFIX: &[u8] = b"FUND_SUCCESS";
-const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
+pub const FUND_SUCCESS_PREFIX: &[u8] = b"FUND_SUCCESS";
+pub const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
 
 /// Create the buffer we sign over at the Response funds.
 /// Note that the signature is not just over the Response funds bytes. The signed buffer also
