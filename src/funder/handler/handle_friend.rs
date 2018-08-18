@@ -32,8 +32,8 @@ use super::super::state::FunderMutation;
 use super::super::friend::{FriendState, FriendMutation, OutgoingInconsistency, IncomingInconsistency, ResetTerms};
 
 use super::super::signature_buff::{create_failure_signature_buffer, prepare_receipt};
-use super::super::types::{FunderFreezeLink, PkPairPosition, PendingFriendRequest, Ratio};
-use super::super::messages::{RequestsStatus, ResponseSendFundsMsg};
+use super::super::types::{FunderFreezeLink, PkPairPosition, PendingFriendRequest, Ratio, RequestsStatus};
+use super::super::messages::{ResponseSendFundsResult};
 
 use proto::common::SendFundsReceipt;
 
@@ -307,12 +307,12 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 let receipt = prepare_receipt(&response_send_funds,
                                               &pending_request);
 
-                let response_send_funds_msg = ResponseSendFundsMsg::Success(receipt);
+                let response_send_funds_result = ResponseSendFundsResult::Success(receipt);
                 self.funder_tasks.push(
                     FunderTask::ResponseReceived(
                         ResponseReceived {
                             request_id: pending_request.request_id,
-                            response_send_funds_msg,
+                            result: response_send_funds_result,
                         }
                     )
                 );
@@ -341,12 +341,12 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 // We should pass it back to crypter.
 
 
-                let response_send_funds_msg = ResponseSendFundsMsg::Failure(failure_send_funds.reporting_public_key);
+                let response_send_funds_result = ResponseSendFundsResult::Failure(failure_send_funds.reporting_public_key);
                 self.funder_tasks.push(
                     FunderTask::ResponseReceived(
                         ResponseReceived {
                             request_id: pending_request.request_id,
-                            response_send_funds_msg,
+                            result: response_send_funds_result,
                         }
                     )
                 );

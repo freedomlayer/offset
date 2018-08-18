@@ -2,15 +2,16 @@
 use ring::rand::SecureRandom;
 
 use crypto::identity::PublicKey;
+use crypto::uid::Uid;
+use crypto::hash::HashResult;
+use proto::funder::{ChannelToken, InvoiceId};
 
 use super::super::token_channel::types::TcMutation;
 use super::super::token_channel::directional::DirectionalMutation;
 use super::super::friend::{FriendState, FriendMutation, IncomingInconsistency};
 use super::super::state::{FunderMutation, FunderState};
 use super::{MutableFunderHandler, FunderTask};
-use super::super::messages::{FunderCommand, AddFriend, 
-    RemoveFriend, SetFriendStatus, SetFriendRemoteMaxDebt,
-    ResetFriendChannel, SetRequestsStatus, SetFriendAddr, RequestSendFundsMsg};
+use super::super::types::{FriendStatus, RequestsStatus, FriendsRoute};
 
 
 pub enum HandleControlError {
@@ -19,6 +20,65 @@ pub enum HandleControlError {
     NotInvitedToReset,
     ResetTokenMismatch,
 }
+
+pub struct SetFriendRemoteMaxDebt {
+    pub friend_public_key: PublicKey,
+    pub remote_max_debt: u128,
+}
+
+pub struct ResetFriendChannel {
+    pub friend_public_key: PublicKey,
+    pub current_token: ChannelToken,
+}
+
+pub struct SetFriendAddr<A> {
+    pub friend_public_key: PublicKey,
+    pub address: Option<A>,
+}
+
+pub struct AddFriend<A> {
+    pub friend_public_key: PublicKey,
+    pub address: Option<A>,
+}
+
+pub struct RemoveFriend {
+    pub friend_public_key: PublicKey,
+}
+
+pub struct SetFriendStatus {
+    pub friend_public_key: PublicKey,
+    pub status: FriendStatus,
+}
+
+pub struct SetRequestsStatus {
+    pub friend_public_key: PublicKey,
+    pub status: RequestsStatus,
+}
+
+pub struct RequestSendFunds {
+    pub request_id: Uid,
+    pub route: FriendsRoute,
+    pub invoice_id: InvoiceId,
+    pub payment: u128,
+}
+
+pub struct ReceiptAck {
+    pub request_id: Uid,
+    pub receipt_hash: HashResult,
+}
+
+pub enum IncomingControlMessage<A> {
+    AddFriend(AddFriend<A>),
+    RemoveFriend(RemoveFriend),
+    SetRequestsStatus(SetRequestsStatus),
+    SetFriendStatus(SetFriendStatus),
+    SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
+    SetFriendAddr(SetFriendAddr<A>),
+    ResetFriendChannel(ResetFriendChannel),
+    RequestSendFunds(RequestSendFunds),
+    ReceiptAck(ReceiptAck),
+}
+
 
 #[allow(unused)]
 impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
@@ -134,8 +194,31 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
         Ok(())
     }
 
-    fn control_request_send_funds_msg(&mut self, request_send_funds_msg: RequestSendFundsMsg) 
+    fn control_request_send_funds(&mut self, request_send_funds: RequestSendFunds) 
         -> Result<(), HandleControlError> {
+
+        // TODO:
+        // Attempt to push message to pending requests queue of a friend.
+        // This queue should not be the same as the pending operations queue.
+        //
+        // If there is room, the message will wait in the queue for a time when the token is at our
+        // side. If there is no room, a failure message will be returned, having the local public
+        // key as the failure originator.
+
+        // TODO
+        unimplemented!();
+    }
+
+    fn control_receipt_ack(&mut self, receipt_ack: ReceiptAck) 
+        -> Result<(), HandleControlError> {
+
+        // TODO:
+        // Attempt to push message to pending requests queue of a friend.
+        // This queue should not be the same as the pending operations queue.
+        //
+        // If there is room, the message will wait in the queue for a time when the token is at our
+        // side. If there is no room, a failure message will be returned, having the local public
+        // key as the failure originator.
 
         // TODO
         unimplemented!();
@@ -143,27 +226,29 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
 
 
     pub fn handle_control_message(&mut self, 
-                                      funder_config: FunderCommand<A>) 
+                                  funder_config: IncomingControlMessage<A>) 
         -> Result<(), HandleControlError> {
 
 
         match funder_config {
-            FunderCommand::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) => 
+            IncomingControlMessage::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) => 
                 self.control_set_friend_remote_max_debt(set_friend_remote_max_debt),
-            FunderCommand::ResetFriendChannel(reset_friend_channel) => 
+            IncomingControlMessage::ResetFriendChannel(reset_friend_channel) => 
                 self.control_reset_friend_channel(reset_friend_channel),
-            FunderCommand::AddFriend(add_friend) => 
+            IncomingControlMessage::AddFriend(add_friend) => 
                 self.control_add_friend(add_friend),
-            FunderCommand::RemoveFriend(remove_friend) => 
+            IncomingControlMessage::RemoveFriend(remove_friend) => 
                 self.control_remove_friend(remove_friend),
-            FunderCommand::SetFriendStatus(set_friend_status) => 
+            IncomingControlMessage::SetFriendStatus(set_friend_status) => 
                 self.control_set_friend_status(set_friend_status),
-            FunderCommand::SetRequestsStatus(set_requests_status) => 
+            IncomingControlMessage::SetRequestsStatus(set_requests_status) => 
                 self.control_set_requests_status(set_requests_status),
-            FunderCommand::SetFriendAddr(set_friend_addr) => 
+            IncomingControlMessage::SetFriendAddr(set_friend_addr) => 
                 self.control_set_friend_addr(set_friend_addr),
-            FunderCommand::RequestSendFundsMsg(request_send_funds_msg) => 
-                self.control_request_send_funds_msg(request_send_funds_msg),
+            IncomingControlMessage::RequestSendFunds(request_send_funds) => 
+                self.control_request_send_funds(request_send_funds),
+            IncomingControlMessage::ReceiptAck(receipt_ack) => 
+                self.control_receipt_ack(receipt_ack),
         }
     }
 }

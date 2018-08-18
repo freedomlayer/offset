@@ -7,18 +7,7 @@ use crypto::uid::Uid;
 use proto::funder::{ChannelToken, InvoiceId};
 use proto::common::SendFundsReceipt;
 use channeler::types::ChannelerNeighborInfo;
-
-#[derive(Clone)]
-pub enum FriendStatus {
-    Enable = 1,
-    Disable = 0,
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub enum RequestsStatus {
-    Open,
-    Closed,
-}
+use super::types::{RequestsStatus, FriendStatus};
 
 pub struct FriendUpdated {
     balance: i128,
@@ -41,10 +30,14 @@ pub enum FriendEvent {
     FriendInconsistent(FriendInconsistent),
 }
 
-
-pub enum ResponseSendFundsMsg {
+pub enum ResponseSendFundsResult {
     Success(SendFundsReceipt),
     Failure(PublicKey), // Reporting public key.
+}
+
+pub struct CtrlResponseSendFunds {
+    pub result: ResponseSendFundsResult,
+    pub ack_sender: oneshot::Sender<()>,
 }
 
 pub struct FriendStateUpdate {
@@ -78,7 +71,8 @@ pub struct FriendsRouteWithCapacity {
     capacity: u128,
 }
 
-pub struct RequestSendFundsMsg {
+
+pub struct CtrlRequestSendFunds {
     // Note that it is the sender's responsibility to randomly generate a request_id.
     // This is important to make sure send funds requests can be tracked by the sending
     // application, and can not be lost.
@@ -88,7 +82,7 @@ pub struct RequestSendFundsMsg {
     pub route: FriendsRoute,
     pub invoice_id: InvoiceId,
     pub payment: u128,
-    pub response_sender: oneshot::Sender<ResponseSendFundsMsg>,
+    pub response_sender: oneshot::Sender<CtrlResponseSendFunds>,
 }
 
 
@@ -115,50 +109,48 @@ pub enum FunderToChanneler<A> {
 }
 
 
-pub struct SetFriendRemoteMaxDebt {
+pub struct CtrlSetFriendRemoteMaxDebt {
     pub friend_public_key: PublicKey,
     pub remote_max_debt: u128,
 }
 
-pub struct ResetFriendChannel {
+pub struct CtrlResetFriendChannel {
     pub friend_public_key: PublicKey,
     pub current_token: ChannelToken,
 }
 
-
-pub struct SetFriendAddr<A> {
+pub struct CtrlSetFriendAddr<A> {
     pub friend_public_key: PublicKey,
     pub address: Option<A>,
 }
 
-
-pub struct AddFriend<A> {
+pub struct CtrlAddFriend<A> {
     pub friend_public_key: PublicKey,
     pub address: Option<A>,
 }
 
-pub struct RemoveFriend {
+pub struct CtrlRemoveFriend {
     pub friend_public_key: PublicKey,
 }
 
-pub struct SetFriendStatus {
+pub struct CtrlSetFriendStatus {
     pub friend_public_key: PublicKey,
     pub status: FriendStatus,
 }
 
-pub struct SetRequestsStatus {
+pub struct CtrlSetRequestsStatus {
     pub friend_public_key: PublicKey,
     pub status: RequestsStatus,
 }
 
 
 pub enum FunderCommand<A> {
-    AddFriend(AddFriend<A>),
-    RemoveFriend(RemoveFriend),
-    SetRequestsStatus(SetRequestsStatus),
-    SetFriendStatus(SetFriendStatus),
-    SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
-    SetFriendAddr(SetFriendAddr<A>),
-    ResetFriendChannel(ResetFriendChannel),
-    RequestSendFundsMsg(RequestSendFundsMsg),
+    AddFriend(CtrlAddFriend<A>),
+    RemoveFriend(CtrlRemoveFriend),
+    SetRequestsStatus(CtrlSetRequestsStatus),
+    SetFriendStatus(CtrlSetFriendStatus),
+    SetFriendRemoteMaxDebt(CtrlSetFriendRemoteMaxDebt),
+    SetFriendAddr(CtrlSetFriendAddr<A>),
+    ResetFriendChannel(CtrlResetFriendChannel),
+    RequestSendFunds(CtrlRequestSendFunds),
 }

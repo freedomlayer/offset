@@ -18,7 +18,7 @@ use super::token_channel::directional::ReceiveMoveTokenError;
 use super::types::{FriendMoveToken, FriendsRoute};
 use super::cache::FunderCache;
 
-use super::messages::{FunderCommand, ResponseSendFundsMsg};
+use super::messages::{FunderCommand, ResponseSendFundsResult};
 
 
 #[allow(unused)]
@@ -29,7 +29,7 @@ pub enum FriendMessage {
 
 pub struct ResponseReceived {
     pub request_id: Uid,
-    pub response_send_funds_msg: ResponseSendFundsMsg,
+    pub result: ResponseSendFundsResult,
 }
 
 

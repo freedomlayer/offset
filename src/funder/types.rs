@@ -16,6 +16,19 @@ use proto::funder::{ChannelToken};
 
 
 #[derive(Clone)]
+pub enum FriendStatus {
+    Enable = 1,
+    Disable = 0,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub enum RequestsStatus {
+    Open,
+    Closed,
+}
+
+
+#[derive(Clone)]
 pub enum FriendTcOp {
     EnableRequests,
     DisableRequests,

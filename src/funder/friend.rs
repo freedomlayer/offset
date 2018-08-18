@@ -7,7 +7,7 @@ use super::token_channel::directional::DirectionalMutation;
 use proto::funder::ChannelToken;
 use super::types::FriendTcOp;
 use super::token_channel::directional::DirectionalTokenChannel;
-use super::messages::{FriendStatus, RequestsStatus};
+use super::types::{FriendStatus, RequestsStatus};
 
 
 
