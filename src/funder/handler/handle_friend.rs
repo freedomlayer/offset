@@ -472,6 +472,18 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             self.apply_mutation(messenger_mutation);
         }
 
+        let friend = self.get_friend(remote_public_key).unwrap();
+
+        // Send as many pending user requests as possible:
+        let mut pending_user_requests = friend.pending_user_requests.clone();
+        while let Some(request_send_funds) = pending_user_requests.pop_front() {
+            let request_op = FriendTcOp::RequestSendFunds(request_send_funds);
+            out_tc.queue_operation(request_op)?;
+            let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
+            let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+            self.apply_mutation(messenger_mutation);
+        }
+
         Ok(())
     }
 
