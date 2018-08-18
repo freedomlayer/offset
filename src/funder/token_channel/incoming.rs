@@ -198,7 +198,6 @@ fn process_request_send_funds(token_channel: &mut TokenChannel,
 
     // Make sure that freeze_links and route_links are compatible in length:
     let freeze_links_len = request_send_funds.freeze_links.len();
-    let route_links_len = request_send_funds.route.len();
     if remote_index.checked_add(1).unwrap() != freeze_links_len {
         return Err(ProcessOperationError::InvalidFreezeLinks);
     }
