@@ -4,7 +4,7 @@
 
 // #![deny(warnings)]
 
-use std::{io, mem};
+use std::io;
 use bytes::Bytes;
 
 /// The convenient methods used to encode/decode capnp messages.
@@ -57,67 +57,4 @@ impl From<::capnp::NotInSchema> for ProtoError {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct LinearSendPrice<T> {
-    pub base: T,
-    pub multiplier: T,
-}
-
-impl<T:PartialOrd> LinearSendPrice<T> {
-    pub fn bytes_count() -> usize {
-        mem::size_of::<T>() * 2
-    }
-
-    pub fn smaller_than(&self, other: &Self) -> bool {
-        if self.base < other.base {
-            self.multiplier <= other.multiplier
-        } else if self.base == other.base {
-            self.multiplier < other.multiplier
-        } else {
-            false
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_linear_send_price_ord() {
-        let lsp1 = LinearSendPrice {
-            base: 3,
-            multiplier: 3,
-        };
-
-        let lsp2 = LinearSendPrice {
-            base: 5,
-            multiplier: 5,
-        };
-
-        let lsp3 = LinearSendPrice {
-            base: 4,
-            multiplier: 6,
-        };
-
-        let lsp4 = LinearSendPrice {
-            base: 4,
-            multiplier: 7,
-        };
-
-        let lsp5 = LinearSendPrice {
-            base: 5,
-            multiplier: 6,
-        };
-
-        assert!(lsp1.smaller_than(&lsp2));
-        assert!(lsp1.smaller_than(&lsp3));
-
-        assert!(!(lsp2.smaller_than(&lsp3)));
-        assert!(!(lsp3.smaller_than(&lsp2)));
-
-        assert!(lsp3.smaller_than(&lsp4));
-        assert!(lsp3.smaller_than(&lsp5));
-    }
-}
 
