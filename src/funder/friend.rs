@@ -6,7 +6,7 @@ use crypto::uid::Uid;
 use super::token_channel::directional::DirectionalMutation;
 use proto::funder::ChannelToken;
 use super::types::{FriendTcOp, FriendStatus, 
-    RequestsStatus, UserRequestSendFunds};
+    RequestsStatus, RequestSendFunds};
 use super::token_channel::directional::DirectionalTokenChannel;
 
 
@@ -59,7 +59,7 @@ pub enum FriendMutation<A> {
     SetWantedLocalRequestsStatus(RequestsStatus),
     PushBackPendingOperation(FriendTcOp),
     PopFrontPendingOperation,
-    PushBackPendingUserRequest(UserRequestSendFunds),
+    PushBackPendingUserRequest(RequestSendFunds),
     PopFrontPendingUserRequest,
     SetStatus(FriendStatus),
     SetFriendAddr(Option<A>),
@@ -78,7 +78,7 @@ pub struct FriendState<A> {
     pub pending_operations: Vector<FriendTcOp>,
     // Pending operations to be sent to the token channel.
     pub status: FriendStatus,
-    pub pending_user_requests: Vector<UserRequestSendFunds>,
+    pub pending_user_requests: Vector<RequestSendFunds>,
     // Request that the user has sent to this neighbor, 
     // but have not been processed yet. Bounded in size.
 }
