@@ -304,3 +304,14 @@ impl FriendTcOp {
     }
 }
 
+impl UserRequestSendFunds {
+    fn to_request(self) -> RequestSendFunds {
+        RequestSendFunds {
+            request_id: self.request_id,
+            route: self.route,
+            invoice_id: self.invoice_id,
+            dest_payment: self.dest_payment,
+            freeze_links: Vec::new(),
+        }
+    }
+}
