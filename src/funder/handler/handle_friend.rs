@@ -446,9 +446,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         }
 
         // Open or close requests is needed:
-        unimplemented!();
-
-
         let local_requests_status = &friend
             .directional
             .token_channel
