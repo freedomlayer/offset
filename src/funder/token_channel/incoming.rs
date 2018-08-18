@@ -231,7 +231,7 @@ fn process_request_send_funds(token_channel: &mut TokenChannel,
     let pending_friend_request = request_send_funds.create_pending_request();
 
     let mut op_output = ProcessOperationOutput {
-        incoming_message: None,
+        incoming_message: Some(IncomingMessage::Request(request_send_funds)),
         tc_mutations: Vec::new(),
     };
 
