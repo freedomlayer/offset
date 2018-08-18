@@ -4,6 +4,7 @@ use byteorder::{BigEndian, WriteBytesExt};
 use crypto::hash;
 use crypto::identity::verify_signature;
 use super::types::{ResponseSendFunds, FailureSendFunds, PendingFriendRequest};
+use proto::common::SendFundsReceipt;
 
 pub const FUND_SUCCESS_PREFIX: &[u8] = b"FUND_SUCCESS";
 pub const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
@@ -69,6 +70,24 @@ pub fn verify_failure_signature(failure_send_funds: &FailureSendFunds,
         return None;
     }
     Some(())
+}
+
+pub fn prepare_receipt(response_send_funds: &ResponseSendFunds,
+                    pending_request: &PendingFriendRequest) -> SendFundsReceipt {
+
+    let mut hash_buff = Vec::new();
+    hash_buff.extend_from_slice(&pending_request.request_id);
+    hash_buff.extend_from_slice(&pending_request.route.to_bytes());
+    hash_buff.extend_from_slice(&response_send_funds.rand_nonce);
+    let response_hash = hash::sha_512_256(&hash_buff);
+    // = sha512/256(requestId || sha512/256(route) || randNonce)
+
+    SendFundsReceipt {
+        response_hash,
+        invoice_id: pending_request.invoice_id.clone(),
+        dest_payment: pending_request.dest_payment,
+        signature: response_send_funds.signature.clone(),
+    }
 }
 
 

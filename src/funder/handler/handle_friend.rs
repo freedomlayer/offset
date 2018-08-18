@@ -10,7 +10,6 @@ use ring::rand::SecureRandom;
 use crypto::rand_values::RandValue;
 use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
-use crypto::hash::sha_512_256;
 
 use utils::safe_arithmetic::SafeArithmetic;
 
@@ -32,7 +31,7 @@ use super::super::token_channel::types::FriendMoveTokenInner;
 use super::super::state::FunderMutation;
 use super::super::friend::{FriendState, FriendMutation, OutgoingInconsistency, IncomingInconsistency, ResetTerms};
 
-use super::super::signature_buff::create_failure_signature_buffer;
+use super::super::signature_buff::{create_failure_signature_buffer, prepare_receipt};
 use super::super::types::{FunderFreezeLink, PkPairPosition, PendingFriendRequest, Ratio};
 use super::super::messages::{RequestsStatus, ResponseSendFundsMsg};
 
@@ -59,25 +58,6 @@ pub enum IncomingFriendMessage {
 
 pub enum HandleFriendError {
 }
-
-fn prepare_receipt(response_send_funds: &ResponseSendFunds,
-                    pending_request: &PendingFriendRequest) -> SendFundsReceipt {
-
-    let mut hash_buff = Vec::new();
-    hash_buff.extend_from_slice(&pending_request.request_id);
-    hash_buff.extend_from_slice(&pending_request.route.to_bytes());
-    hash_buff.extend_from_slice(&response_send_funds.rand_nonce);
-    let response_hash = sha_512_256(&hash_buff);
-    // = sha512/256(requestId || sha512/256(route) || randNonce)
-
-    SendFundsReceipt {
-        response_hash,
-        invoice_id: pending_request.invoice_id.clone(),
-        dest_payment: pending_request.dest_payment,
-        signature: response_send_funds.signature.clone(),
-    }
-}
-
 
 
 #[allow(unused)]
