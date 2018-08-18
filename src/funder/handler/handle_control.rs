@@ -212,13 +212,6 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
     fn control_receipt_ack(&mut self, receipt_ack: ReceiptAck) 
         -> Result<(), HandleControlError> {
 
-        // TODO:
-        // Attempt to push message to pending requests queue of a friend.
-        // This queue should not be the same as the pending operations queue.
-        //
-        // If there is room, the message will wait in the queue for a time when the token is at our
-        // side. If there is no room, a failure message will be returned, having the local public
-        // key as the failure originator.
 
         // TODO
         unimplemented!();
