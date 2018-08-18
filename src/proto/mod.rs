@@ -26,7 +26,7 @@ pub mod proto_impl;
 pub mod common;
 pub mod channeler;
 pub mod funder;
-pub mod networker;
+// pub mod networker;
 
 #[derive(Debug)]
 pub enum ProtoError {
