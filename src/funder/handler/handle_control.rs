@@ -199,6 +199,8 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
         // If there is room, the message will wait in the queue for a time when the token is at our
         // side. If there is no room, a failure message will be returned, having the local public
         // key as the failure originator.
+        //
+        // Should we check if a mesasge with the same request_id is already in progress?
 
         // TODO
         unimplemented!();
