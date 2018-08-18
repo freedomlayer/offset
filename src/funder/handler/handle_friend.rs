@@ -262,8 +262,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let next_index = local_index.checked_add(1).unwrap();
         if next_index >= request_send_funds.route.len() {
             // self.punt_request_to_crypter(request_send_funds);
-            // TODO: How do we take the credits here?
-            unimplemented!();
             return Ok(self);
         }
 
