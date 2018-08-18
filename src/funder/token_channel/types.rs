@@ -189,18 +189,6 @@ impl TokenChannel {
         self.state.requests_status.remote = requests_status;
     }
 
-    fn close_local_requests(&mut self) {
-        self.state.requests_status.local = RequestsStatus::Closed;
-    }
-
-    fn open_remote_requests(&mut self) {
-        self.state.requests_status.remote = RequestsStatus::Open;
-    }
-
-    fn close_remote_requests(&mut self) {
-        self.state.requests_status.remote = RequestsStatus::Closed;
-    }
-
     fn set_remote_max_debt(&mut self, proposed_max_debt: u128) { 
         self.state.balance.remote_max_debt = proposed_max_debt;
     }
