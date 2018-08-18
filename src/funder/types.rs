@@ -68,6 +68,15 @@ pub struct FunderFreezeLink {
     pub usable_ratio: Ratio<u128>
 }
 
+/// A request to send funds that originates from the user
+#[derive(Clone)]
+pub struct UserRequestSendFunds {
+    pub request_id: Uid,
+    pub route: FriendsRoute,
+    pub invoice_id: InvoiceId,
+    pub payment: u128,
+}
+
 #[derive(Clone)]
 pub struct RequestSendFunds {
     pub request_id: Uid,

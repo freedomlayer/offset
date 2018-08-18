@@ -7,10 +7,10 @@ use crypto::uid::Uid;
 use proto::funder::{ChannelToken, InvoiceId};
 use proto::common::SendFundsReceipt;
 use channeler::types::ChannelerNeighborInfo;
-use super::types::{RequestsStatus, FriendStatus};
+use super::types::{RequestsStatus, FriendStatus, UserRequestSendFunds};
 use super::handler::handle_control::{SetFriendRemoteMaxDebt, ResetFriendChannel,
     SetFriendAddr, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
-    RequestSendFunds, ReceiptAck};
+    ReceiptAck};
 
 
 pub struct FriendUpdated {
@@ -82,7 +82,7 @@ pub struct CtrlRequestSendFunds {
     // application, and can not be lost.
     //
     // TODO: Rename request_id -> payment_id ?
-    request_send_funds: RequestSendFunds,
+    request_send_funds: UserRequestSendFunds,
     pub response_sender: oneshot::Sender<CtrlResponseSendFunds>,
 }
 

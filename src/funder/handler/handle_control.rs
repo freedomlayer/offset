@@ -11,7 +11,8 @@ use super::super::token_channel::directional::DirectionalMutation;
 use super::super::friend::{FriendState, FriendMutation, IncomingInconsistency};
 use super::super::state::{FunderMutation, FunderState};
 use super::{MutableFunderHandler, FunderTask};
-use super::super::types::{FriendStatus, RequestsStatus, FriendsRoute};
+use super::super::types::{FriendStatus, RequestsStatus, 
+    FriendsRoute, UserRequestSendFunds};
 
 
 pub enum HandleControlError {
@@ -55,12 +56,6 @@ pub struct SetRequestsStatus {
     pub status: RequestsStatus,
 }
 
-pub struct RequestSendFunds {
-    pub request_id: Uid,
-    pub route: FriendsRoute,
-    pub invoice_id: InvoiceId,
-    pub payment: u128,
-}
 
 pub struct ReceiptAck {
     pub request_id: Uid,
@@ -75,7 +70,7 @@ pub enum IncomingControlMessage<A> {
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
     SetFriendAddr(SetFriendAddr<A>),
     ResetFriendChannel(ResetFriendChannel),
-    RequestSendFunds(RequestSendFunds),
+    RequestSendFunds(UserRequestSendFunds),
     ReceiptAck(ReceiptAck),
 }
 
@@ -194,7 +189,7 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
         Ok(())
     }
 
-    fn control_request_send_funds(&mut self, request_send_funds: RequestSendFunds) 
+    fn control_request_send_funds(&mut self, user_request_send_funds: UserRequestSendFunds) 
         -> Result<(), HandleControlError> {
 
         // TODO:
@@ -238,8 +233,8 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
                 self.control_set_requests_status(set_requests_status),
             IncomingControlMessage::SetFriendAddr(set_friend_addr) => 
                 self.control_set_friend_addr(set_friend_addr),
-            IncomingControlMessage::RequestSendFunds(request_send_funds) => 
-                self.control_request_send_funds(request_send_funds),
+            IncomingControlMessage::RequestSendFunds(user_request_send_funds) => 
+                self.control_request_send_funds(user_request_send_funds),
             IncomingControlMessage::ReceiptAck(receipt_ack) => 
                 self.control_receipt_ack(receipt_ack),
         }

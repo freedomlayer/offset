@@ -5,9 +5,9 @@ use crypto::uid::Uid;
 
 use super::token_channel::directional::DirectionalMutation;
 use proto::funder::ChannelToken;
-use super::types::FriendTcOp;
+use super::types::{FriendTcOp, FriendStatus, 
+    RequestsStatus, UserRequestSendFunds};
 use super::token_channel::directional::DirectionalTokenChannel;
-use super::types::{FriendStatus, RequestsStatus};
 
 
 
@@ -59,6 +59,8 @@ pub enum FriendMutation<A> {
     SetWantedLocalRequestsStatus(RequestsStatus),
     PushBackPendingOperation(FriendTcOp),
     PopFrontPendingOperation,
+    PushBackPendingUserRequest(UserRequestSendFunds),
+    PopFrontPendingUserRequest,
     SetStatus(FriendStatus),
     SetFriendAddr(Option<A>),
     RemoteReset,        // Remote side performed reset
@@ -76,6 +78,9 @@ pub struct FriendState<A> {
     pub pending_operations: Vector<FriendTcOp>,
     // Pending operations to be sent to the token channel.
     pub status: FriendStatus,
+    pub pending_user_requests: Vector<UserRequestSendFunds>,
+    // Request that the user has sent to this neighbor, 
+    // but have not been processed yet. Bounded in size.
 }
 
 
@@ -98,13 +103,14 @@ impl<A:Clone> FriendState<A> {
             // send price). When possible, this will be updated with the TokenChannel.
             pending_operations: Vector::new(),
             status: FriendStatus::Enable,
+            pending_user_requests: Vector::new(),
         }
     }
 
 
     #[allow(unused)]
-    pub fn mutate(&mut self, slot_mutation: &FriendMutation<A>) {
-        match slot_mutation {
+    pub fn mutate(&mut self, friend_mutation: &FriendMutation<A>) {
+        match friend_mutation {
             FriendMutation::DirectionalMutation(directional_mutation) => {
                 self.directional.mutate(directional_mutation);
             },
@@ -125,6 +131,12 @@ impl<A:Clone> FriendState<A> {
             },
             FriendMutation::PopFrontPendingOperation => {
                 let _ = self.pending_operations.pop_front();
+            },
+            FriendMutation::PushBackPendingUserRequest(user_request_send_funds) => {
+                self.pending_user_requests.push_back(user_request_send_funds.clone());
+            },
+            FriendMutation::PopFrontPendingUserRequest => {
+                let _ = self.pending_user_requests.pop_front();
             },
             FriendMutation::SetStatus(friend_status) => {
                 self.status = friend_status.clone();
