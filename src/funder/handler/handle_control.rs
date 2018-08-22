@@ -235,6 +235,12 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
         //
         // - Check if we have room to push this message.
         //   If we don't, we return an error.
+        //
+        // - Push the message to the queue.
+        // - Trigger a function that tries to send stuff to the remote side 
+        //      - If the token is at our side, we might be able to send the request immediately.
+        //      - If the token is at the remote side, we should signal the remote side to give us
+        //      the token.
         
         unimplemented!();
     }
