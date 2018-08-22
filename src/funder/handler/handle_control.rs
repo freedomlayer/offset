@@ -13,6 +13,8 @@ use super::super::state::{FunderMutation, FunderState};
 use super::{MutableFunderHandler, FunderTask};
 use super::super::types::{FriendStatus, RequestsStatus, 
     FriendsRoute, UserRequestSendFunds};
+use super::ResponseReceived;
+use super::super::messages::ResponseSendFundsResult;
 
 
 pub enum HandleControlError {
@@ -20,6 +22,8 @@ pub enum HandleControlError {
     TokenChannelDoesNotExist,
     NotInvitedToReset,
     ResetTokenMismatch,
+    NotFirstInRoute,
+    InvalidRoute,
 }
 
 pub struct SetFriendRemoteMaxDebt {
@@ -188,7 +192,7 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
         Ok(())
     }
 
-    fn control_request_send_funds(&mut self, user_request_send_funds: UserRequestSendFunds) 
+    fn control_request_send_funds_inner(&mut self, user_request_send_funds: UserRequestSendFunds)
         -> Result<(), HandleControlError> {
 
         // TODO:
@@ -201,8 +205,55 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
         //
         // Should we check if a mesasge with the same request_id is already in progress?
 
-        // TODO
+        // Check if we have room in the pending queue:
+        let route = &user_request_send_funds.route;
+
+        // We have to be the first on the route:
+        match route.public_keys.first() {
+            Some(first) if *first == self.state.local_public_key => Ok(()),
+            // TODO: Possibly return here a failure message?
+            _ => Err(HandleControlError::NotFirstInRoute),
+        }?;
+
+        // We want to have at least two public keys on the route (source and destination).
+        // We also want that the public keys on the route are unique.
+        if (route.len() < 2) || !route.is_cycle_free() {
+            return Err(HandleControlError::InvalidRoute);
+        }
+        let friend_public_key = &route.public_keys[1];
+
+        let friend = match self.get_friend(friend_public_key) {
+            Some(friend) => Ok(friend),
+            None => Err(HandleControlError::FriendDoesNotExist),
+        }?;
+
+        // TODO:
+        // - Check if there is a message with identical request in progress somewhere:
+        //      - Inside the pending queue.
+        //      - As a pending request.
+        //  If so, we return success and don't push anything.
+        //
+        // - Check if we have room to push this message.
+        //   If we don't, we return an error.
+        
         unimplemented!();
+    }
+
+
+    fn control_request_send_funds(&mut self, user_request_send_funds: UserRequestSendFunds) 
+        -> Result<(), HandleControlError> {
+        
+        // If we managed to push the message, we return an Ok(()).
+        // Otherwise, we return the internal error and return a response failure message.
+        self.control_request_send_funds_inner(user_request_send_funds.clone())
+            .map_err(|e| {
+                let response_received = ResponseReceived {
+                    request_id: user_request_send_funds.request_id,
+                    result: ResponseSendFundsResult::Failure(self.state.local_public_key.clone()),
+                };
+                self.funder_tasks.push(FunderTask::ResponseReceived(response_received));
+                e
+            })
     }
 
     fn control_receipt_ack(&mut self, receipt_ack: ReceiptAck) 
