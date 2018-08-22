@@ -63,9 +63,6 @@ pub enum HandleFriendError {
 #[allow(unused)]
 impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
-    fn get_friend(&self, friend_public_key: &PublicKey) -> Option<&FriendState<A>> {
-        self.state.get_friends().get(&friend_public_key)
-    }
 
     /// Find the originator of a pending local request.
     /// This should be a pending remote request at some other friend.

@@ -77,19 +77,14 @@ pub enum IncomingControlMessage<A> {
 
 #[allow(unused)]
 impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
-    fn get_friend_control(&self, friend_public_key: &PublicKey) -> Result<&FriendState<A>, HandleControlError> {
-        match self.state().friends.get(friend_public_key) {
-            Some(ref friend) => Ok(friend),
-            None => Err(HandleControlError::FriendDoesNotExist),
-        }
-    }
 
     fn control_set_friend_remote_max_debt(&mut self, 
-                                                set_friend_remote_max_debt: SetFriendRemoteMaxDebt) 
+                                            set_friend_remote_max_debt: SetFriendRemoteMaxDebt) 
         -> Result<(), HandleControlError> {
 
         // Make sure that friend exists:
-        let _friend = self.get_friend_control(&set_friend_remote_max_debt.friend_public_key)?;
+        let _friend = self.get_friend(&set_friend_remote_max_debt.friend_public_key)
+            .ok_or(HandleControlError::FriendDoesNotExist)?;
 
         let tc_mutation = TcMutation::SetRemoteMaxDebt(set_friend_remote_max_debt.remote_max_debt);
         let directional_mutation = DirectionalMutation::TcMutation(tc_mutation);
@@ -105,7 +100,8 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
                                           reset_friend_channel: ResetFriendChannel) 
         -> Result<(), HandleControlError> {
 
-        let friend = self.get_friend_control(&reset_friend_channel.friend_public_key)?;
+        let friend = self.get_friend(&reset_friend_channel.friend_public_key)
+            .ok_or(HandleControlError::FriendDoesNotExist)?;
 
         match &friend.inconsistency_status.incoming {
             IncomingInconsistency::Empty => return Err(HandleControlError::NotInvitedToReset),
@@ -151,7 +147,8 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
         -> Result<(), HandleControlError> {
 
         // Make sure that friend exists:
-        let _friend = self.get_friend_control(&set_friend_status.friend_public_key)?;
+        let _friend = self.get_friend(&set_friend_status.friend_public_key)
+            .ok_or(HandleControlError::FriendDoesNotExist)?;
 
         let friend_mutation = FriendMutation::SetStatus(set_friend_status.status);
         let m_mutation = FunderMutation::FriendMutation(
@@ -165,7 +162,8 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
         -> Result<(), HandleControlError> {
 
         // Make sure that friend exists:
-        let _friend = self.get_friend_control(&set_requests_status.friend_public_key)?;
+        let _friend = self.get_friend(&set_requests_status.friend_public_key)
+            .ok_or(HandleControlError::FriendDoesNotExist)?;
 
         let friend_mutation = FriendMutation::SetWantedLocalRequestsStatus(set_requests_status.status);
         let m_mutation = FunderMutation::FriendMutation(
@@ -179,7 +177,8 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
         -> Result<(), HandleControlError> {
 
         // Make sure that friend exists:
-        let _friend = self.get_friend_control(&set_friend_addr.friend_public_key)?;
+        let _friend = self.get_friend(&set_friend_addr.friend_public_key)
+            .ok_or(HandleControlError::FriendDoesNotExist)?;
 
         let friend_mutation = FriendMutation::SetFriendAddr(set_friend_addr.address);
         let m_mutation = FunderMutation::FriendMutation(
