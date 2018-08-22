@@ -198,23 +198,23 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
     fn control_request_send_funds_inner(&mut self, user_request_send_funds: UserRequestSendFunds)
         -> Result<(), HandleControlError> {
 
-        // TODO:
-        // Attempt to push message to pending requests queue of a friend.
-        // This queue should not be the same as the pending operations queue.
-        //
-        // If there is room, the message will wait in the queue for a time when the token is at our
-        // side. If there is no room, a failure message will be returned, having the local public
-        // key as the failure originator.
-        //
-        // Should we check if a mesasge with the same request_id is already in progress?
+        // If we already have a receipt for this request, we return the receipt immediately and
+        // exit. Note that we don't erase the receipt yet. This will only be done when a receipt
+        // ack is received.
+        if let Some(receipt) = self.state.ready_receipts.get(&user_request_send_funds.request_id) {
+            let response_received = ResponseReceived {
+                request_id: user_request_send_funds.request_id,
+                result: ResponseSendFundsResult::Success(receipt.clone()),
+            };
+            self.funder_tasks.push(FunderTask::ResponseReceived(response_received));
+            return Ok(());
+        }
 
-        // Check if we have room in the pending queue:
         let route = &user_request_send_funds.route;
 
         // We have to be the first on the route:
         match route.public_keys.first() {
             Some(first) if *first == self.state.local_public_key => Ok(()),
-            // TODO: Possibly return here a failure message?
             _ => Err(HandleControlError::NotFirstInRoute),
         }?;
 
@@ -290,7 +290,7 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
     fn control_receipt_ack(&mut self, receipt_ack: ReceiptAck) 
         -> Result<(), HandleControlError> {
 
-
+        //  TODO: Remove the receipt from self.state.ready_receipts.
         // TODO
         unimplemented!();
     }
