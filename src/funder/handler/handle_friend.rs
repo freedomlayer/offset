@@ -66,6 +66,7 @@ pub enum IncomingFriendMessage {
     InconsistencyError(FriendInconsistencyError),
     MoveTokenAck(FriendMoveTokenAck),
     RequestToken(FriendRequestToken),
+    KeepAlive,
 }
 
 pub enum HandleFriendError {
@@ -770,6 +771,9 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 unimplemented!();
             },
             IncomingFriendMessage::RequestToken(request_token) => {
+                unimplemented!();
+            },
+            IncomingFriendMessage::KeepAlive => {
                 unimplemented!();
             },
         }
