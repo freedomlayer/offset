@@ -4,7 +4,9 @@ use num_bigint::BigUint;
 use num_traits::identities::Zero;
 
 use crypto::identity::PublicKey;
+use crypto::uid::Uid;
 use super::friend::{FriendState, FriendMutation};
+use proto::common::SendFundsReceipt;
 
 
 #[allow(unused)]
@@ -12,6 +14,7 @@ use super::friend::{FriendState, FriendMutation};
 pub struct FunderState<A:Clone> {
     pub local_public_key: PublicKey,
     pub friends: ImHashMap<PublicKey, FriendState<A>>,
+    pub ready_receipts: ImHashMap<Uid, SendFundsReceipt>,
 }
 
 #[allow(unused)]
