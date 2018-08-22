@@ -22,6 +22,8 @@ pub enum FunderMutation<A> {
     FriendMutation((PublicKey, FriendMutation<A>)),
     AddFriend((PublicKey, Option<A>)), // (friend_public_key, opt_address)
     RemoveFriend(PublicKey),
+    AddReceipt((Uid, SendFundsReceipt)),  //(request_id, receipt)
+    RemoveReceipt(Uid),
 }
 
 
@@ -67,6 +69,12 @@ impl<A:Clone> FunderState<A> {
             },
             FunderMutation::RemoveFriend(public_key) => {
                 let _ = self.friends.remove(&public_key);
+            },
+            FunderMutation::AddReceipt((uid, send_funds_receipt)) => {
+                self.ready_receipts.insert(uid.clone(), send_funds_receipt.clone());
+            },
+            FunderMutation::RemoveReceipt(uid) => {
+                let _ = self.ready_receipts.remove(uid);
             },
         }
     }
