@@ -1,4 +1,4 @@
-mod handle_control;
+pub mod handle_control;
 pub mod handle_friend;
 
 use futures::prelude::{async, await};
@@ -17,8 +17,9 @@ use self::handle_friend::{FriendInconsistencyError,
 use super::token_channel::directional::ReceiveMoveTokenError;
 use super::types::{FriendMoveToken, FriendsRoute};
 use super::cache::FunderCache;
+use super::friend::FriendState;
 
-use super::messages::{FunderCommand, ResponseSendFundsMsg};
+use super::messages::{FunderCommand, ResponseSendFundsResult};
 
 
 #[allow(unused)]
@@ -29,7 +30,7 @@ pub enum FriendMessage {
 
 pub struct ResponseReceived {
     pub request_id: Uid,
-    pub response_send_funds_msg: ResponseSendFundsMsg,
+    pub result: ResponseSendFundsResult,
 }
 
 
@@ -57,6 +58,10 @@ pub struct MutableFunderHandler<A:Clone,R> {
 impl<A:Clone,R> MutableFunderHandler<A,R> {
     pub fn state(&self) -> &FunderState<A> {
         &self.state
+    }
+
+    fn get_friend(&self, friend_public_key: &PublicKey) -> Option<&FriendState<A>> {
+        self.state.get_friends().get(&friend_public_key)
     }
 
     pub fn done(self) -> (FunderCache, Vec<FunderMutation<A>>, Vec<FunderTask>) {

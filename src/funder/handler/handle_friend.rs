@@ -32,8 +32,8 @@ use super::super::state::FunderMutation;
 use super::super::friend::{FriendState, FriendMutation, OutgoingInconsistency, IncomingInconsistency, ResetTerms};
 
 use super::super::signature_buff::{create_failure_signature_buffer, prepare_receipt};
-use super::super::types::{FunderFreezeLink, PkPairPosition, PendingFriendRequest, Ratio};
-use super::super::messages::{RequestsStatus, ResponseSendFundsMsg};
+use super::super::types::{FunderFreezeLink, PkPairPosition, PendingFriendRequest, Ratio, RequestsStatus};
+use super::super::messages::{ResponseSendFundsResult};
 
 use proto::common::SendFundsReceipt;
 
@@ -63,9 +63,6 @@ pub enum HandleFriendError {
 #[allow(unused)]
 impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
-    fn get_friend(&self, friend_public_key: &PublicKey) -> Option<&FriendState<A>> {
-        self.state.get_friends().get(&friend_public_key)
-    }
 
     /// Find the originator of a pending local request.
     /// This should be a pending remote request at some other friend.
@@ -307,12 +304,12 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 let receipt = prepare_receipt(&response_send_funds,
                                               &pending_request);
 
-                let response_send_funds_msg = ResponseSendFundsMsg::Success(receipt);
+                let response_send_funds_result = ResponseSendFundsResult::Success(receipt);
                 self.funder_tasks.push(
                     FunderTask::ResponseReceived(
                         ResponseReceived {
                             request_id: pending_request.request_id,
-                            response_send_funds_msg,
+                            result: response_send_funds_result,
                         }
                     )
                 );
@@ -341,12 +338,12 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 // We should pass it back to crypter.
 
 
-                let response_send_funds_msg = ResponseSendFundsMsg::Failure(failure_send_funds.reporting_public_key);
+                let response_send_funds_result = ResponseSendFundsResult::Failure(failure_send_funds.reporting_public_key);
                 self.funder_tasks.push(
                     FunderTask::ResponseReceived(
                         ResponseReceived {
                             request_id: pending_request.request_id,
-                            response_send_funds_msg,
+                            result: response_send_funds_result,
                         }
                     )
                 );
@@ -468,6 +465,18 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         while let Some(pending_operation) = pending_operations.pop_front() {
             out_tc.queue_operation(pending_operation)?;
             let friend_mutation = FriendMutation::PopFrontPendingOperation;
+            let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+            self.apply_mutation(messenger_mutation);
+        }
+
+        let friend = self.get_friend(remote_public_key).unwrap();
+
+        // Send as many pending user requests as possible:
+        let mut pending_user_requests = friend.pending_user_requests.clone();
+        while let Some(request_send_funds) = pending_user_requests.pop_front() {
+            let request_op = FriendTcOp::RequestSendFunds(request_send_funds);
+            out_tc.queue_operation(request_op)?;
+            let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
             let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
             self.apply_mutation(messenger_mutation);
         }

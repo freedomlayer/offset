@@ -17,10 +17,9 @@ use super::types::{TokenChannel, TcMutation,
 use super::super::credit_calc::CreditCalculator;
 use super::super::types::{FriendTcOp, RequestSendFunds, 
     ResponseSendFunds, FailureSendFunds, PkPairPosition,
-    PendingFriendRequest, FriendsRoute};
+    PendingFriendRequest, FriendsRoute, RequestsStatus};
 use super::super::signature_buff::{create_response_signature_buffer, 
     verify_failure_signature};
-use super::super::messages::RequestsStatus;
 
 
 /// Processes outgoing fundss for a token channel.

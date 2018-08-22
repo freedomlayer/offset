@@ -16,6 +16,19 @@ use proto::funder::{ChannelToken};
 
 
 #[derive(Clone)]
+pub enum FriendStatus {
+    Enable = 1,
+    Disable = 0,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub enum RequestsStatus {
+    Open,
+    Closed,
+}
+
+
+#[derive(Clone)]
 pub enum FriendTcOp {
     EnableRequests,
     DisableRequests,
@@ -54,6 +67,16 @@ pub struct FunderFreezeLink {
     pub shared_credits: u128,
     pub usable_ratio: Ratio<u128>
 }
+
+/// A request to send funds that originates from the user
+#[derive(Clone)]
+pub struct UserRequestSendFunds {
+    pub request_id: Uid,
+    pub route: FriendsRoute,
+    pub invoice_id: InvoiceId,
+    pub dest_payment: u128,
+}
+
 
 #[derive(Clone)]
 pub struct RequestSendFunds {
@@ -281,3 +304,14 @@ impl FriendTcOp {
     }
 }
 
+impl UserRequestSendFunds {
+    fn to_request(self) -> RequestSendFunds {
+        RequestSendFunds {
+            request_id: self.request_id,
+            route: self.route,
+            invoice_id: self.invoice_id,
+            dest_payment: self.dest_payment,
+            freeze_links: Vec::new(),
+        }
+    }
+}

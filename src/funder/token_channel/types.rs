@@ -13,7 +13,7 @@ use proto::funder::ChannelToken;
 use utils::safe_arithmetic::SafeArithmetic;
 
 use super::super::types::{PendingFriendRequest, FriendTcOp};
-use super::super::messages::RequestsStatus;
+use super::super::types::RequestsStatus;
 
 /// The maximum possible funder debt.
 /// We don't use the full u128 because i128 can not go beyond this value.

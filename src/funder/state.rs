@@ -4,7 +4,9 @@ use num_bigint::BigUint;
 use num_traits::identities::Zero;
 
 use crypto::identity::PublicKey;
+use crypto::uid::Uid;
 use super::friend::{FriendState, FriendMutation};
+use proto::common::SendFundsReceipt;
 
 
 #[allow(unused)]
@@ -12,6 +14,7 @@ use super::friend::{FriendState, FriendMutation};
 pub struct FunderState<A:Clone> {
     pub local_public_key: PublicKey,
     pub friends: ImHashMap<PublicKey, FriendState<A>>,
+    pub ready_receipts: ImHashMap<Uid, SendFundsReceipt>,
 }
 
 #[allow(unused)]
@@ -19,6 +22,8 @@ pub enum FunderMutation<A> {
     FriendMutation((PublicKey, FriendMutation<A>)),
     AddFriend((PublicKey, Option<A>)), // (friend_public_key, opt_address)
     RemoveFriend(PublicKey),
+    AddReceipt((Uid, SendFundsReceipt)),  //(request_id, receipt)
+    RemoveReceipt(Uid),
 }
 
 
@@ -64,6 +69,12 @@ impl<A:Clone> FunderState<A> {
             },
             FunderMutation::RemoveFriend(public_key) => {
                 let _ = self.friends.remove(&public_key);
+            },
+            FunderMutation::AddReceipt((uid, send_funds_receipt)) => {
+                self.ready_receipts.insert(uid.clone(), send_funds_receipt.clone());
+            },
+            FunderMutation::RemoveReceipt(uid) => {
+                let _ = self.ready_receipts.remove(uid);
             },
         }
     }

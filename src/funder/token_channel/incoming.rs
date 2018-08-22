@@ -4,14 +4,13 @@ use utils::int_convert::usize_to_u32;
 use utils::safe_arithmetic::SafeArithmetic;
 
 use super::super::types::{ResponseSendFunds, FailureSendFunds, RequestSendFunds,
-                          FriendTcOp, PendingFriendRequest };
+                          FriendTcOp, PendingFriendRequest, RequestsStatus};
 
 use super::super::credit_calc::CreditCalculator;
 use super::super::signature_buff::{create_response_signature_buffer, 
     verify_failure_signature};
 
 use super::types::{TokenChannel, MAX_FUNDER_DEBT, TcMutation};
-use super::super::messages::RequestsStatus;
 
 
 /*
