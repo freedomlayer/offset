@@ -27,6 +27,7 @@ pub enum HandleControlError {
     InvalidRoute,
     RequestAlreadyInProgress,
     PendingUserRequestsFull,
+    ReceiptDoesNotExist,
 }
 
 pub struct SetFriendRemoteMaxDebt {
@@ -287,12 +288,17 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
             })
     }
 
+    /// Handle an incoming receipt ack message
     fn control_receipt_ack(&mut self, receipt_ack: ReceiptAck) 
         -> Result<(), HandleControlError> {
 
-        //  TODO: Remove the receipt from self.state.ready_receipts.
-        // TODO
-        unimplemented!();
+        if !self.state.ready_receipts.contains_key(&receipt_ack.request_id) {
+            return Err(HandleControlError::ReceiptDoesNotExist);
+        }
+        let m_mutation = FunderMutation::RemoveReceipt(receipt_ack.request_id);
+        self.apply_mutation(m_mutation);
+
+        Ok(())
     }
 
 
