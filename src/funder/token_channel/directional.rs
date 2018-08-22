@@ -15,7 +15,8 @@ use super::incoming::{ProcessOperationOutput, ProcessTransListError,
     simulate_process_operations_list, IncomingMessage};
 use super::outgoing::{OutgoingTokenChannel};
 
-use super::super::types::{FriendMoveToken};
+use super::super::types::FriendMoveToken;
+use super::super::messages::PendingFriendRequest;
 
 
 // Prefix used for chain hashing of token channel fundss.
@@ -44,6 +45,7 @@ pub enum SetDirection {
     Outgoing(FriendMoveToken),
 }
 
+#[allow(unused)]
 pub enum DirectionalMutation {
     TcMutation(TcMutation),
     SetDirection(SetDirection),
@@ -65,6 +67,8 @@ pub enum ReceiveMoveTokenError {
 }
 
 pub struct MoveTokenReceived {
+    pub canceled_local_pending_requests: Option<Vec<PendingFriendRequest>>,
+    // In case of a reset, all the local pending requests will be canceled.
     pub incoming_messages: Vec<IncomingMessage>,
     pub mutations: Vec<DirectionalMutation>,
 }
@@ -223,11 +227,11 @@ impl DirectionalTokenChannel {
 
     #[allow(unused)]
     pub fn simulate_receive_move_token(&self, 
-                              move_token_funds: FriendMoveToken)
+                              move_token_msg: FriendMoveToken)
         -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
 
         // Make sure that the given new_token is valid:
-        let new_token = calc_channel_next_token(&move_token_funds);
+        let new_token = calc_channel_next_token(&move_token_msg);
 
         match &self.direction {
             MoveTokenDirection::Incoming(incoming_new_token) => {
@@ -241,11 +245,19 @@ impl DirectionalTokenChannel {
             },
             MoveTokenDirection::Outgoing(ref outgoing_move_token) => {
                 let friend_move_token = &outgoing_move_token.friend_move_token;
-                if move_token_funds.old_token == self.new_token() {
+                let canceled_local_pending_requests = None;
+                let is_reset_token = move_token_msg.old_token == self.calc_channel_reset_token();
+                let is_next_token = move_token_msg.old_token == self.new_token();
+
+                // TODO: Implement the case of reset channel here.
+                unimplemented!();
+
+                if is_next_token || is_reset_token {
                     match simulate_process_operations_list(&self.token_channel,
-                        move_token_funds.operations) {
+                        move_token_msg.operations) {
                         Ok(outputs) => {
                             let mut move_token_received = MoveTokenReceived {
+                                canceled_local_pending_requests,
                                 incoming_messages: Vec::new(),
                                 mutations: Vec::new(),
                             };
