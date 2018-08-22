@@ -49,11 +49,23 @@ pub struct FriendInconsistencyError {
     balance_for_reset: i128,
 }
 
+#[allow(unused)]
+pub struct FriendMoveTokenAck {
+    acked_token: ChannelToken,
+}
+
+#[allow(unused)]
+pub struct FriendRequestToken {
+    last_token: ChannelToken,
+}
+
 
 #[allow(unused)]
 pub enum IncomingFriendMessage {
     MoveToken(FriendMoveToken),
     InconsistencyError(FriendInconsistencyError),
+    MoveTokenAck(FriendMoveTokenAck),
+    RequestToken(FriendRequestToken),
 }
 
 pub enum HandleFriendError {
@@ -754,6 +766,12 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 self.handle_inconsistency_error(&remote_public_key, friend_inconsistency_error);
                 Ok(self)
             }
+            IncomingFriendMessage::MoveTokenAck(move_token_ack) => {
+                unimplemented!();
+            },
+            IncomingFriendMessage::RequestToken(request_token) => {
+                unimplemented!();
+            },
         }
     }
 
