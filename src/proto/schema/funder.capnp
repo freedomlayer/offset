@@ -32,8 +32,12 @@ struct FriendRequestToken {
 
 
 struct FriendInconsistencyError {
-        currentToken @0: CustomUInt256;
-        balanceForReset @1: CustomUInt128;
+        optAck :union {
+                resetToken @0: Data;
+                none @1: Void;
+        }
+        currentToken @2: CustomUInt256;
+        balanceForReset @3: CustomUInt128;
         # Note that this is actually a signed number (Highest bit is the sign
         # bit, Two's complement method). TODO: Should we have a separate type,
         # like CustomInt128?
