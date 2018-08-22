@@ -16,6 +16,7 @@ use super::super::types::{FriendStatus, RequestsStatus,
 use super::ResponseReceived;
 use super::super::messages::ResponseSendFundsResult;
 
+const MAX_PENDING_USER_REQUESTS: usize = 0x10;
 
 pub enum HandleControlError {
     FriendDoesNotExist,
@@ -24,6 +25,8 @@ pub enum HandleControlError {
     ResetTokenMismatch,
     NotFirstInRoute,
     InvalidRoute,
+    RequestAlreadyInProgress,
+    PendingUserRequestsFull,
 }
 
 pub struct SetFriendRemoteMaxDebt {
@@ -227,22 +230,44 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
             None => Err(HandleControlError::FriendDoesNotExist),
         }?;
 
-        // TODO:
-        // - Check if there is a message with identical request in progress somewhere:
-        //      - Inside the pending queue.
-        //      - As a pending request.
-        //  If so, we return success and don't push anything.
-        //
+        // If request is already in progress, we do nothing:
+        // Check if there is already a pending user request with the same request_id:
+        for user_request in &friend.pending_user_requests {
+            if user_request_send_funds.request_id == user_request.request_id {
+                return Err(HandleControlError::RequestAlreadyInProgress);
+            }
+        }
+
+        // Check if there is an onging request with the same request_id with this specific friend:
+        if friend.directional
+            .token_channel
+            .state()
+            .pending_requests
+            .pending_local_requests
+            .contains_key(&user_request_send_funds.request_id) {
+                return Err(HandleControlError::RequestAlreadyInProgress);
+        }
+
+        // Check if we have room to push this message:
+        if friend.pending_user_requests.len() >= MAX_PENDING_USER_REQUESTS {
+            return Err(HandleControlError::PendingUserRequestsFull);
+        }
+
+        // TODO: Trigger a function that tries to send stuff to the remote side.
+        
+        
         // - Check if we have room to push this message.
         //   If we don't, we return an error.
         //
         // - Push the message to the queue.
-        // - Trigger a function that tries to send stuff to the remote side 
+        // - If we have the token: Trigger a function that tries to send stuff to the remote side 
         //      - If the token is at our side, we might be able to send the request immediately.
         //      - If the token is at the remote side, we should signal the remote side to give us
         //      the token.
         
         unimplemented!();
+
+        Ok(())
     }
 
 
