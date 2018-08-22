@@ -768,12 +768,15 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 Ok(self)
             }
             IncomingFriendMessage::MoveTokenAck(move_token_ack) => {
+                // TODO
                 unimplemented!();
             },
             IncomingFriendMessage::RequestToken(request_token) => {
+                // TODO
                 unimplemented!();
             },
             IncomingFriendMessage::KeepAlive => {
+                // TODO
                 unimplemented!();
             },
         }
