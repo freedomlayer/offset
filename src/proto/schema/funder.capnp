@@ -49,6 +49,7 @@ struct FriendMessage {
                 friendMoveTokenAck @1: FriendMoveTokenAck;
                 friendRequestToken @2: FriendRequestToken;
                 friendInconsistencyError @3: FriendInconsistencyError;
+                friendKeepAlive @4: Void;
         }
 }
 
