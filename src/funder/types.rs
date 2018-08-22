@@ -109,8 +109,8 @@ pub struct FriendMoveToken {
     pub operations: Vec<FriendTcOp>,
     pub old_token: ChannelToken,
     pub rand_nonce: RandValue,
-    pub new_token: ChannelToken,
 }
+
 
 
 #[derive(PartialEq, Eq)]
