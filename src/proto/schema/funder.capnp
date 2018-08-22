@@ -15,6 +15,21 @@ struct FriendMoveToken {
         randNonce @2: CustomUInt128;
 }
 
+# Acknowledge that a FriendMoveToken message was received.
+# Until this message is sent, the remote side will keep resending the
+# last FriendMoveToken message.
+struct FriendMoveTokenAck {
+        ackedToken @0: CustomUInt256;
+}
+
+# Request the token from remote side.
+struct FriendRequestToken {
+        lastToken @0: CustomUInt256;
+        # Last token we have sent to the remote side.
+        # This allows the remote side to ignore this message if it arrived too
+        # late.
+}
+
 
 struct FriendInconsistencyError {
         currentToken @0: CustomUInt256;
@@ -23,6 +38,17 @@ struct FriendInconsistencyError {
         # bit, Two's complement method). TODO: Should we have a separate type,
         # like CustomInt128?
 }
+
+struct FriendMessage {
+        union {
+                friendMoveToken @0: FriendMoveToken;
+                friendMoveTokenAck @1: FriendMoveTokenAck;
+                friendRequestToken @2: FriendRequestToken;
+                friendInconsistencyError @3: FriendInconsistencyError;
+        }
+}
+
+
 
 
 # Token Operations
