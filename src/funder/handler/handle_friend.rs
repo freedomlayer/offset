@@ -544,7 +544,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let friend = self.get_friend(remote_public_key).unwrap();
 
         let rand_nonce = RandValue::new(&*self.rng);
-        let friend_move_token_inner = FriendMoveToken {
+        let friend_move_token = FriendMoveToken {
             operations,
             old_token: friend.directional.new_token().clone(),
             rand_nonce,
@@ -552,7 +552,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
 
         let directional_mutation = DirectionalMutation::SetDirection(
-            SetDirection::Outgoing(friend_move_token_inner));
+            SetDirection::Outgoing(friend_move_token));
         let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
