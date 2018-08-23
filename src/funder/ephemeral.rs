@@ -1,9 +1,9 @@
 use super::freeze_guard::FreezeGuard;
 
-pub struct FunderCache {
+pub struct FunderEphemeral {
     pub freeze_guard: FreezeGuard,
 }
 
 
-impl FunderCache {
+impl FunderEphemeral {
 }

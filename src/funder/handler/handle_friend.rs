@@ -263,7 +263,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                remote_public_key: PublicKey,
                                request_send_funds: RequestSendFunds) -> Result<Self, HandleFriendError> {
 
-        self.cache.freeze_guard.add_frozen_credit(&request_send_funds.create_pending_request());
+        self.ephemeral.freeze_guard.add_frozen_credit(&request_send_funds.create_pending_request());
         // TODO: Add rest of add/sub_frozen_credit
 
         // Find ourselves on the route. If we are not there, abort.
@@ -290,7 +290,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
 
         // Perform DoS protection check:
-        Ok(match fself.cache.freeze_guard.verify_freezing_links(&request_send_funds) {
+        Ok(match fself.ephemeral.freeze_guard.verify_freezing_links(&request_send_funds) {
             Some(()) => {
                 // Add our freezing link, and queue message to the next node.
                 fself.forward_request(request_send_funds);
@@ -310,7 +310,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                response_send_funds: ResponseSendFunds,
                                pending_request: PendingFriendRequest) {
 
-        self.cache.freeze_guard.sub_frozen_credit(&pending_request);
+        self.ephemeral.freeze_guard.sub_frozen_credit(&pending_request);
         match self.find_request_origin(&response_send_funds.request_id) {
             None => {
                 // We are the origin of this request, and we got a response.
@@ -347,7 +347,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                pending_request: PendingFriendRequest)
                                 -> Result<Self, HandleFriendError> {
 
-        self.cache.freeze_guard.sub_frozen_credit(&pending_request);
+        self.ephemeral.freeze_guard.sub_frozen_credit(&pending_request);
         let fself = match self.find_request_origin(&failure_send_funds.request_id) {
             None => {
                 // We are the origin of this request, and we got a failure
