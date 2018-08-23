@@ -69,6 +69,9 @@ pub enum IncomingFriendMessage {
 }
 
 pub enum HandleFriendError {
+    FriendDoesNotExist,
+    NoMoveTokenToAck,
+    AlreadyAcked,
 }
 
 
@@ -639,9 +642,9 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         // Find friend:
         let friend = match self.get_friend(&remote_public_key) {
-            Some(friend) => friend,
-            None => return Ok(self),
-        };
+            Some(friend) => Ok(friend),
+            None => Err(HandleFriendError::FriendDoesNotExist),
+        }?;
 
         // Check if the channel is inconsistent.
         // This means that the remote side has sent an InconsistencyError message in the past.
@@ -742,6 +745,34 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
     }
 
+    fn handle_move_token_ack(&mut self, 
+                                remote_public_key: &PublicKey,
+                                friend_move_token_ack: FriendMoveTokenAck)
+                                    -> Result<(), HandleFriendError> {
+
+        // Find friend:
+        let friend = match self.get_friend(&remote_public_key) {
+            Some(friend) => Ok(friend),
+            None => Err(HandleFriendError::FriendDoesNotExist),
+        }?;
+
+        // If we have the token, we ignore the ack:
+        let outgoing_move_token = match &friend.directional.direction {
+            MoveTokenDirection::Outgoing(outgoing_move_token) => Ok(outgoing_move_token),
+            MoveTokenDirection::Incoming(_) => Err(HandleFriendError::NoMoveTokenToAck),
+        }?;
+
+        if outgoing_move_token.is_acked {
+            return Err(HandleFriendError::AlreadyAcked);
+        }
+
+        let directional_mutation = DirectionalMutation::AckOutgoing;
+        let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
+        let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+        self.apply_mutation(messenger_mutation);
+        Ok(())
+    }
+
     #[async]
     pub fn handle_friend_message(mut self, 
                                    remote_public_key: PublicKey, 
@@ -754,9 +785,9 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 self.handle_inconsistency_error(&remote_public_key, friend_inconsistency_error);
                 Ok(self)
             }
-            IncomingFriendMessage::MoveTokenAck(move_token_ack) => {
-                // TODO
-                unimplemented!();
+            IncomingFriendMessage::MoveTokenAck(friend_move_token_ack) => {
+                self.handle_move_token_ack(&remote_public_key, friend_move_token_ack)?;
+                Ok(self)
             },
             IncomingFriendMessage::RequestToken(request_token) => {
                 // TODO
