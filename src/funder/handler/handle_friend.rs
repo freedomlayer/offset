@@ -814,6 +814,13 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         Ok(())
     }
 
+    fn handle_keep_alive(&mut self, 
+                        remote_public_key: &PublicKey)
+                                    -> Result<(), HandleFriendError> {
+        // TODO
+        unimplemented!();
+    }
+
     #[async]
     pub fn handle_friend_message(mut self, 
                                    remote_public_key: PublicKey, 
@@ -835,8 +842,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 Ok(self)
             },
             IncomingFriendMessage::KeepAlive => {
-                // TODO
-                unimplemented!();
+                self.handle_keep_alive(&remote_public_key)?;
+                Ok(self)
             },
         }
     }
