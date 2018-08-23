@@ -13,7 +13,7 @@ use utils::safe_arithmetic::SafeArithmetic;
 use utils::int_convert::usize_to_u32;
 
 use super::types::{TokenChannel, TcMutation, 
-    FriendMoveTokenInner, MAX_FUNDER_DEBT};
+    MAX_FUNDER_DEBT};
 use super::super::credit_calc::CreditCalculator;
 use super::super::types::{FriendTcOp, RequestSendFunds, 
     ResponseSendFunds, FailureSendFunds, PkPairPosition,

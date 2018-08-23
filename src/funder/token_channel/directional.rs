@@ -10,12 +10,12 @@ use crypto::hash::sha_512_256;
 
 use utils::int_convert::usize_to_u64;
 
-use super::types::{TokenChannel, FriendMoveTokenInner, TcMutation};
+use super::types::{TokenChannel, TcMutation};
 use super::incoming::{ProcessOperationOutput, ProcessTransListError, 
     simulate_process_operations_list, IncomingMessage};
 use super::outgoing::{OutgoingTokenChannel};
 
-use super::super::types::{FriendMoveToken};
+use super::super::types::FriendMoveToken;
 
 
 // Prefix used for chain hashing of token channel fundss.
@@ -26,25 +26,35 @@ const TOKEN_NEXT: &[u8] = b"NEXT";
 const TOKEN_RESET: &[u8] = b"RESET";
 
 
+#[derive(Clone)]
+pub struct OutgoingMoveToken {
+    friend_move_token: FriendMoveToken,
+    pub is_acked: bool,
+}
+
 /// Indicate the direction of the move token funds.
 #[derive(Clone)]
 pub enum MoveTokenDirection {
-    Incoming,
-    Outgoing(FriendMoveTokenInner),
+    Incoming(ChannelToken), // new_token
+    Outgoing(OutgoingMoveToken),
 }
 
+pub enum SetDirection {
+    Incoming(ChannelToken), // new_token
+    Outgoing(FriendMoveToken),
+}
 
+#[allow(unused)]
 pub enum DirectionalMutation {
     TcMutation(TcMutation),
-    SetDirection(MoveTokenDirection),
-    SetNewToken(ChannelToken),
+    SetDirection(SetDirection),
+    AckOutgoing,
 }
 
 
 #[derive(Clone)]
 pub struct DirectionalTokenChannel {
     pub direction: MoveTokenDirection,
-    pub new_token: ChannelToken,
     // Equals Sha512/256(FriendMoveToken)
     pub token_channel: TokenChannel,
 }
@@ -60,15 +70,17 @@ pub struct MoveTokenReceived {
     pub mutations: Vec<DirectionalMutation>,
 }
 
+
 pub enum ReceiveMoveTokenOutput {
     Duplicate,
     RetransmitOutgoing(FriendMoveToken),
     Received(MoveTokenReceived),
+    // In case of a reset, all the local pending requests will be canceled.
 }
 
 
 /// Calculate the next token channel, given values of previous FriendMoveToken funds.
-fn calc_channel_next_token(move_token_funds: &FriendMoveTokenInner) 
+fn calc_channel_next_token(move_token_funds: &FriendMoveToken) 
                         -> ChannelToken {
 
     let mut contents = Vec::new();
@@ -112,10 +124,9 @@ impl DirectionalTokenChannel {
         let remote_pk_hash = sha_512_256(remote_public_key);
         let new_token_channel = TokenChannel::new(local_public_key, remote_public_key, 0);
 
-        let rand_nonce = RandValue::try_from(&remote_pk_hash.as_ref()[.. RAND_VALUE_LEN])
-                    .expect("Failed to trim a public key hash into the size of random value!");
+        let rand_nonce = RandValue::try_from(&remote_pk_hash.as_ref()[.. RAND_VALUE_LEN]).unwrap();
 
-        let first_move_token_lower = FriendMoveTokenInner {
+        let first_move_token_lower = FriendMoveToken {
             operations: Vec::new(),
             old_token: ChannelToken::from(local_pk_hash.as_array_ref()),
             rand_nonce: rand_nonce.clone(),
@@ -126,32 +137,48 @@ impl DirectionalTokenChannel {
 
         if local_pk_hash < remote_pk_hash {
             // We are the first sender
-            DirectionalTokenChannel {
-                direction: MoveTokenDirection::Outgoing(FriendMoveTokenInner {
+            let outgoing_move_token = OutgoingMoveToken {
+                friend_move_token: FriendMoveToken {
                     operations: Vec::new(),
                     old_token: ChannelToken::from(local_pk_hash.as_array_ref()),
                     rand_nonce,
-                }),
-                new_token,
+                },
+                is_acked: false,
+            };
+            DirectionalTokenChannel {
+                direction: MoveTokenDirection::Outgoing(outgoing_move_token),
                 token_channel: new_token_channel,
             }
         } else {
             // We are the second sender
             DirectionalTokenChannel {
-                direction: MoveTokenDirection::Incoming,
-                new_token,
+                direction: MoveTokenDirection::Incoming(new_token),
                 token_channel: new_token_channel,
             }
         }
     }
 
-    pub fn new_from_reset(local_public_key: &PublicKey, 
+    pub fn new_from_remote_reset(local_public_key: &PublicKey, 
                       remote_public_key: &PublicKey, 
-                      current_token: &ChannelToken, 
+                      new_token: &ChannelToken, 
                       balance: i128) -> DirectionalTokenChannel {
         DirectionalTokenChannel {
-            direction: MoveTokenDirection::Incoming,
-            new_token: current_token.clone(),
+            direction: MoveTokenDirection::Incoming(new_token.clone()),
+            token_channel: TokenChannel::new(local_public_key, remote_public_key, balance),
+        }
+    }
+
+    pub fn new_from_local_reset(local_public_key: &PublicKey, 
+                      remote_public_key: &PublicKey, 
+                      reset_move_token: &FriendMoveToken,
+                      balance: i128) -> DirectionalTokenChannel {
+
+        let outgoing_move_token = OutgoingMoveToken {
+            friend_move_token: reset_move_token.clone(),
+            is_acked: false,
+        };
+        DirectionalTokenChannel {
+            direction: MoveTokenDirection::Outgoing(outgoing_move_token),
             token_channel: TokenChannel::new(local_public_key, remote_public_key, balance),
         }
     }
@@ -170,9 +197,17 @@ impl DirectionalTokenChannel {
         self.get_token_channel().state().balance.remote_max_debt
     }
 
+    pub fn new_token(&self) -> ChannelToken {
+        match &self.direction {
+            MoveTokenDirection::Incoming(new_token) => new_token.clone(),
+            MoveTokenDirection::Outgoing(outgoing_move_token) =>
+                calc_channel_next_token(&outgoing_move_token.friend_move_token)
+        }
+    }
+
     #[allow(unused)]
     pub fn calc_channel_reset_token(&self) -> ChannelToken {
-        calc_channel_reset_token(&self.new_token,
+        calc_channel_reset_token(&self.new_token(),
                                  self.get_token_channel().balance_for_reset())
     }
 
@@ -181,11 +216,24 @@ impl DirectionalTokenChannel {
             DirectionalMutation::TcMutation(tc_mutation) => {
                 self.token_channel.mutate(tc_mutation);
             },
-            DirectionalMutation::SetDirection(ref move_token_direction) => {
-                self.direction = move_token_direction.clone();
-            }
-            DirectionalMutation::SetNewToken(ref new_token) => {
-                self.new_token = new_token.clone();
+            DirectionalMutation::SetDirection(ref set_direction) => {
+                self.direction = match set_direction {
+                    SetDirection::Incoming(new_token) => MoveTokenDirection::Incoming(new_token.clone()),
+                    SetDirection::Outgoing(friend_move_token) => {
+                        MoveTokenDirection::Outgoing(OutgoingMoveToken {
+                            friend_move_token: friend_move_token.clone(),
+                            is_acked: false,
+                        })
+                    }
+                };
+            },
+            DirectionalMutation::AckOutgoing => {
+                match self.direction {
+                    MoveTokenDirection::Incoming(_) => unreachable!(),
+                    MoveTokenDirection::Outgoing(ref mut outgoing_move_token) => {
+                        outgoing_move_token.is_acked = true;
+                    },
+                }
             },
         }
     }
@@ -193,19 +241,15 @@ impl DirectionalTokenChannel {
 
     #[allow(unused)]
     pub fn simulate_receive_move_token(&self, 
-                              move_token_funds: FriendMoveTokenInner, 
-                              new_token: ChannelToken) 
+                              move_token_msg: FriendMoveToken)
         -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
 
         // Make sure that the given new_token is valid:
-        let expected_new_token = calc_channel_next_token(&move_token_funds);
-        if expected_new_token != new_token {
-            return Err(ReceiveMoveTokenError::ChainInconsistency);
-        }
+        let new_token = calc_channel_next_token(&move_token_msg);
 
-        match self.direction {
-            MoveTokenDirection::Incoming => {
-                if new_token == self.new_token {
+        match &self.direction {
+            MoveTokenDirection::Incoming(incoming_new_token) => {
+                if new_token == *incoming_new_token {
                     // Duplicate
                     Ok(ReceiveMoveTokenOutput::Duplicate)
                 } else {
@@ -213,10 +257,11 @@ impl DirectionalTokenChannel {
                     Err(ReceiveMoveTokenError::ChainInconsistency)
                 }
             },
-            MoveTokenDirection::Outgoing(ref move_token_inner) => {
-                if move_token_funds.old_token == self.new_token {
+            MoveTokenDirection::Outgoing(ref outgoing_move_token) => {
+                let friend_move_token = &outgoing_move_token.friend_move_token;
+                if move_token_msg.old_token == self.new_token() {
                     match simulate_process_operations_list(&self.token_channel,
-                        move_token_funds.operations) {
+                        move_token_msg.operations) {
                         Ok(outputs) => {
                             let mut move_token_received = MoveTokenReceived {
                                 incoming_messages: Vec::new(),
@@ -236,19 +281,16 @@ impl DirectionalTokenChannel {
                                 }
                             }
                             move_token_received.mutations.push(
-                                DirectionalMutation::SetDirection(MoveTokenDirection::Incoming));
-                            move_token_received.mutations.push(
-                                DirectionalMutation::SetNewToken(new_token));
+                                DirectionalMutation::SetDirection(SetDirection::Incoming(new_token)));
                             Ok(ReceiveMoveTokenOutput::Received(move_token_received))
                         },
                         Err(e) => {
                             Err(ReceiveMoveTokenError::InvalidTransaction(e))
                         },
                     }
-                } else if move_token_inner.old_token == new_token {
+                } else if friend_move_token.old_token == new_token {
                     // We should retransmit our funds to the remote side.
-                    let outgoing_move_token = self.create_outgoing_move_token(move_token_inner);
-                    Ok(ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token))
+                    Ok(ReceiveMoveTokenOutput::RetransmitOutgoing(friend_move_token.clone()))
                 } else {
                     Err(ReceiveMoveTokenError::ChainInconsistency)
                 }
@@ -265,23 +307,13 @@ impl DirectionalTokenChannel {
         Some(OutgoingTokenChannel::new(&self.token_channel, move_token_max_length))
     }
 
-    fn create_outgoing_move_token(&self, 
-                                  move_token_inner: &FriendMoveTokenInner) 
-                                        -> FriendMoveToken {
-        FriendMoveToken {
-            operations: move_token_inner.operations.clone(),
-            old_token: move_token_inner.old_token.clone(),
-            rand_nonce: move_token_inner.rand_nonce.clone(),
-            new_token: self.new_token.clone(),
-        }
-    }
 
     #[allow(unused)]
     pub fn get_outgoing_move_token(&self) -> Option<FriendMoveToken> {
         match self.direction {
-            MoveTokenDirection::Incoming => None,
-            MoveTokenDirection::Outgoing(ref move_token_inner) => {
-                Some(self.create_outgoing_move_token(move_token_inner))
+            MoveTokenDirection::Incoming(_)=> None,
+            MoveTokenDirection::Outgoing(ref outgoing_move_token) => {
+                Some(outgoing_move_token.friend_move_token.clone())
             }
         }
     }

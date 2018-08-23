@@ -6,25 +6,17 @@ use im::hashmap::HashMap as ImHashMap;
 
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
-use crypto::rand_values::{RandValue};
 
-use proto::funder::ChannelToken;
 
 use utils::safe_arithmetic::SafeArithmetic;
 
-use super::super::types::{PendingFriendRequest, FriendTcOp};
+use super::super::types::PendingFriendRequest;
 use super::super::types::RequestsStatus;
 
 /// The maximum possible funder debt.
 /// We don't use the full u128 because i128 can not go beyond this value.
 pub const MAX_FUNDER_DEBT: u128 = (1 << 127) - 1;
 
-#[derive(Clone)]
-pub struct FriendMoveTokenInner {
-    pub operations: Vec<FriendTcOp>,
-    pub old_token: ChannelToken,
-    pub rand_nonce: RandValue,
-}
 
 #[derive(Clone)]
 pub struct TcIdents {

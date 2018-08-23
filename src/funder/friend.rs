@@ -6,7 +6,7 @@ use crypto::uid::Uid;
 use super::token_channel::directional::DirectionalMutation;
 use proto::funder::ChannelToken;
 use super::types::{FriendTcOp, FriendStatus, 
-    RequestsStatus, RequestSendFunds};
+    RequestsStatus, RequestSendFunds, FriendMoveToken};
 use super::token_channel::directional::DirectionalTokenChannel;
 
 
@@ -63,8 +63,9 @@ pub enum FriendMutation<A> {
     PopFrontPendingUserRequest,
     SetStatus(FriendStatus),
     SetFriendAddr(Option<A>),
-    RemoteReset,        // Remote side performed reset
-    LocalReset,         // Local side performed reset
+    LocalReset(FriendMoveToken),
+    // The outgoing move token message we have sent to reset the channel.
+    RemoteReset,
 }
 
 #[allow(unused)]
@@ -144,15 +145,16 @@ impl<A:Clone> FriendState<A> {
             FriendMutation::SetFriendAddr(opt_friend_addr) => {
                 self.opt_remote_address = opt_friend_addr.clone();
             },
-            FriendMutation::LocalReset => {
-                // Local reset was applied (We sent a reset from AppManager).
+            FriendMutation::LocalReset(reset_move_token) => {
+                // Local reset was applied (We sent a reset from the control line)
                 match &self.inconsistency_status.incoming {
                     IncomingInconsistency::Empty => unreachable!(),
                     IncomingInconsistency::Incoming(reset_terms) => {
-                        self.directional = DirectionalTokenChannel::new_from_reset(
+                        assert_eq!(reset_move_token.old_token, reset_terms.current_token);
+                        self.directional = DirectionalTokenChannel::new_from_local_reset(
                             &self.directional.token_channel.state().idents.local_public_key,
                             &self.directional.token_channel.state().idents.remote_public_key,
-                            &reset_terms.current_token,
+                            &reset_move_token,
                             reset_terms.balance_for_reset);
                     }
                 };
@@ -162,12 +164,12 @@ impl<A:Clone> FriendState<A> {
                 // Remote reset was applied (Remote side has given a reset command)
                 let reset_token = self.directional.calc_channel_reset_token();
                 let balance_for_reset = self.directional.balance_for_reset();
-                self.inconsistency_status = InconsistencyStatus::new();
-                self.directional = DirectionalTokenChannel::new_from_reset(
+                self.directional = DirectionalTokenChannel::new_from_remote_reset(
                     &self.directional.token_channel.state().idents.local_public_key,
                     &self.directional.token_channel.state().idents.remote_public_key,
                     &reset_token,
                     balance_for_reset);
+                self.inconsistency_status = InconsistencyStatus::new();
             },
         }
     }

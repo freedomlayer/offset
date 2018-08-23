@@ -4,6 +4,8 @@ use ring::rand::SecureRandom;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 use crypto::hash::HashResult;
+use crypto::rand_values::RandValue;
+
 use proto::funder::{ChannelToken, InvoiceId};
 
 use super::super::token_channel::types::TcMutation;
@@ -12,8 +14,8 @@ use super::super::friend::{FriendState, FriendMutation, IncomingInconsistency};
 use super::super::state::{FunderMutation, FunderState};
 use super::{MutableFunderHandler, FunderTask};
 use super::super::types::{FriendStatus, RequestsStatus, 
-    FriendsRoute, UserRequestSendFunds};
-use super::ResponseReceived;
+    FriendsRoute, UserRequestSendFunds, FriendMoveToken};
+use super::{ResponseReceived, FriendMessage};
 use super::super::messages::ResponseSendFundsResult;
 
 const MAX_PENDING_USER_REQUESTS: usize = 0x10;
@@ -111,20 +113,35 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
         let friend = self.get_friend(&reset_friend_channel.friend_public_key)
             .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-        match &friend.inconsistency_status.incoming {
+        let reset_terms = match &friend.inconsistency_status.incoming {
             IncomingInconsistency::Empty => return Err(HandleControlError::NotInvitedToReset),
             IncomingInconsistency::Incoming(reset_terms) => {
                 if (reset_terms.current_token != reset_friend_channel.current_token)  {
                     return Err(HandleControlError::ResetTokenMismatch);
                 }
+                reset_terms
             }
         };
 
-        let friend_mutation = FriendMutation::LocalReset;
+        let rand_nonce = RandValue::new(&*self.rng);
+        let friend_move_token = FriendMoveToken {
+            operations: Vec::new(), 
+            // No operations are required for a reset move token
+            old_token: reset_terms.current_token.clone(),
+            rand_nonce,
+        };
+
+        let friend_mutation = FriendMutation::LocalReset(friend_move_token.clone());
         let m_mutation = FunderMutation::FriendMutation(
             (reset_friend_channel.friend_public_key, friend_mutation));
-
         self.apply_mutation(m_mutation);
+
+        // Send a reset message to remote side:
+        self.funder_tasks.push(FunderTask::FriendMessage(
+                FriendMessage::MoveToken(friend_move_token)
+            )
+        );
+
         Ok(())
 
     }

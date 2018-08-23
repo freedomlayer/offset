@@ -21,13 +21,12 @@ use super::super::token_channel::incoming::{IncomingResponseSendFunds,
 use super::super::token_channel::outgoing::{OutgoingTokenChannel, QueueOperationFailure,
     QueueOperationError};
 use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
-    DirectionalMutation, MoveTokenDirection, MoveTokenReceived};
+    DirectionalMutation, MoveTokenDirection, MoveTokenReceived, SetDirection};
 use super::{MutableFunderHandler, FunderTask, FriendMessage,
             ResponseReceived};
 use super::super::types::{FriendTcOp, RequestSendFunds, 
     ResponseSendFunds, FailureSendFunds, 
     FriendMoveToken};
-use super::super::token_channel::types::FriendMoveTokenInner;
 use super::super::state::FunderMutation;
 use super::super::friend::{FriendState, FriendMutation, OutgoingInconsistency, IncomingInconsistency, ResetTerms};
 
@@ -49,14 +48,31 @@ pub struct FriendInconsistencyError {
     balance_for_reset: i128,
 }
 
+#[allow(unused)]
+pub struct FriendMoveTokenAck {
+    acked_token: ChannelToken,
+}
+
+#[allow(unused)]
+pub struct FriendRequestToken {
+    last_token: ChannelToken,
+}
+
 
 #[allow(unused)]
 pub enum IncomingFriendMessage {
     MoveToken(FriendMoveToken),
     InconsistencyError(FriendInconsistencyError),
+    MoveTokenAck(FriendMoveTokenAck),
+    RequestToken(FriendRequestToken),
+    KeepAlive,
 }
 
 pub enum HandleFriendError {
+    FriendDoesNotExist,
+    NoMoveTokenToAck,
+    AlreadyAcked,
+    TokenNotOwned,
 }
 
 
@@ -160,14 +176,14 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     #[async]
     fn check_reset_channel(mut self, 
                            friend_public_key: PublicKey,
-                           new_token: ChannelToken) -> Result<Self, HandleFriendError> {
+                           friend_move_token: FriendMoveToken) -> Result<Self, HandleFriendError> {
         // Check if incoming message is an attempt to reset channel.
-        // We can know this by checking if new_token is a special value.
+        // We can know this by checking if old_token is a special value.
         let friend = self.get_friend(&friend_public_key).unwrap();
         let reset_token = friend.directional.calc_channel_reset_token();
         let balance_for_reset = friend.directional.balance_for_reset();
 
-        if new_token == reset_token {
+        if friend_move_token.old_token == reset_token {
             // This is a reset message. We reset the token channel:
             let mut fself = await!(self.cancel_local_pending_requests(
                 friend_public_key.clone()))?;
@@ -518,14 +534,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         let (operations, tc_mutations) = out_tc.done();
 
-        // If there is nothing to send, and the transaction we have received is nonempty, send an empty message back as ack.
-        //
-        // If the message received is empty and there is nothing to send, we do nothing. (There
-        // is no reason to send an ack for an empty message).
-
-        // If we received an empty move token message, and we have nothing to send, 
-        // we do nothing:
-        if received_empty && operations.is_empty() {
+        // If we have nothing to send, we do nothing:
+        if operations.is_empty() {
             return;
         }
 
@@ -538,14 +548,15 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let friend = self.get_friend(remote_public_key).unwrap();
 
         let rand_nonce = RandValue::new(&*self.rng);
-        let friend_move_token_inner = FriendMoveTokenInner {
+        let friend_move_token = FriendMoveToken {
             operations,
-            old_token: friend.directional.new_token.clone(),
+            old_token: friend.directional.new_token().clone(),
             rand_nonce,
         };
 
+
         let directional_mutation = DirectionalMutation::SetDirection(
-            MoveTokenDirection::Outgoing(friend_move_token_inner));
+            SetDirection::Outgoing(friend_move_token));
         let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
@@ -632,9 +643,9 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         // Find friend:
         let friend = match self.get_friend(&remote_public_key) {
-            Some(friend) => friend,
-            None => return Ok(self),
-        };
+            Some(friend) => Ok(friend),
+            None => Err(HandleFriendError::FriendDoesNotExist),
+        }?;
 
         // Check if the channel is inconsistent.
         // This means that the remote side has sent an InconsistencyError message in the past.
@@ -650,21 +661,14 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
 
         let mut fself = await!(self.check_reset_channel(remote_public_key.clone(), 
-                                           friend_move_token.new_token.clone()))?;
+                                           friend_move_token.clone()))?;
 
         let friend = fself.get_friend(&remote_public_key).unwrap();
 
         let is_empty = friend_move_token.operations.is_empty();
 
-        // TODO: Possibly refactor this part into a function?
-        let friend_move_token_inner = FriendMoveTokenInner {
-            operations: friend_move_token.operations,
-            old_token: friend_move_token.old_token,
-            rand_nonce: friend_move_token.rand_nonce,
-        };
         let receive_move_token_res = friend.directional.simulate_receive_move_token(
-            friend_move_token_inner,
-            friend_move_token.new_token);
+            friend_move_token);
 
         Ok(match receive_move_token_res {
             Ok(receive_move_token_output) => {
@@ -742,6 +746,81 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
     }
 
+    fn handle_move_token_ack(&mut self, 
+                                remote_public_key: &PublicKey,
+                                friend_move_token_ack: FriendMoveTokenAck)
+                                    -> Result<(), HandleFriendError> {
+        // Find friend:
+        let friend = match self.get_friend(&remote_public_key) {
+            Some(friend) => Ok(friend),
+            None => Err(HandleFriendError::FriendDoesNotExist),
+        }?;
+
+        // If we have the token, we ignore the ack:
+        let outgoing_move_token = match &friend.directional.direction {
+            MoveTokenDirection::Outgoing(outgoing_move_token) => Ok(outgoing_move_token),
+            MoveTokenDirection::Incoming(_) => Err(HandleFriendError::NoMoveTokenToAck),
+        }?;
+
+        if outgoing_move_token.is_acked {
+            return Err(HandleFriendError::AlreadyAcked);
+        }
+
+        let directional_mutation = DirectionalMutation::AckOutgoing;
+        let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
+        let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+        self.apply_mutation(messenger_mutation);
+        Ok(())
+    }
+
+    fn handle_request_token(&mut self, 
+                            remote_public_key: &PublicKey,
+                            friend_request_token: FriendRequestToken)
+                                    -> Result<(), HandleFriendError> {
+        // Find friend:
+        let friend = match self.get_friend(&remote_public_key) {
+            Some(friend) => Ok(friend),
+            None => Err(HandleFriendError::FriendDoesNotExist),
+        }?;
+
+        // If remote side has the token, we ignore the request:
+        let new_token = match &friend.directional.direction {
+            MoveTokenDirection::Outgoing(_) => Err(HandleFriendError::TokenNotOwned),
+            MoveTokenDirection::Incoming(new_token) => Ok(new_token),
+        }?;
+
+        // Compose an empty friend_move_token message and send it to the remote side:
+        let rand_nonce = RandValue::new(&*self.rng);
+        let friend_move_token = FriendMoveToken {
+            operations: Vec::new(),
+            old_token: new_token.clone(),
+            rand_nonce,
+        };
+
+        let directional_mutation = DirectionalMutation::SetDirection(
+            SetDirection::Outgoing(friend_move_token));
+        let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
+        let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+        self.apply_mutation(messenger_mutation);
+
+        let friend = self.get_friend(remote_public_key).unwrap();
+        let outgoing_move_token = friend.directional.get_outgoing_move_token().unwrap();
+
+        // Add a task for sending the outgoing move token:
+        self.add_task(
+            FunderTask::FriendMessage(
+                FriendMessage::MoveToken(outgoing_move_token)));
+
+        Ok(())
+    }
+
+    fn handle_keep_alive(&mut self, 
+                        remote_public_key: &PublicKey)
+                                    -> Result<(), HandleFriendError> {
+        // TODO
+        unimplemented!();
+    }
+
     #[async]
     pub fn handle_friend_message(mut self, 
                                    remote_public_key: PublicKey, 
@@ -754,6 +833,18 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 self.handle_inconsistency_error(&remote_public_key, friend_inconsistency_error);
                 Ok(self)
             }
+            IncomingFriendMessage::MoveTokenAck(friend_move_token_ack) => {
+                self.handle_move_token_ack(&remote_public_key, friend_move_token_ack)?;
+                Ok(self)
+            },
+            IncomingFriendMessage::RequestToken(friend_request_token) => {
+                self.handle_request_token(&remote_public_key, friend_request_token)?;
+                Ok(self)
+            },
+            IncomingFriendMessage::KeepAlive => {
+                self.handle_keep_alive(&remote_public_key)?;
+                Ok(self)
+            },
         }
     }
 
