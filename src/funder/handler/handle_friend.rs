@@ -173,10 +173,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     fn check_reset_channel(mut self, 
                            friend_public_key: PublicKey,
                            friend_move_token: FriendMoveToken) -> Result<Self, HandleFriendError> {
-        unimplemented!();
-        // TODO: This should be implemented inside Directional,
-        // possibly inside: `simulate_receive_move_token`.
-        
         // Check if incoming message is an attempt to reset channel.
         // We can know this by checking if old_token is a special value.
         let friend = self.get_friend(&friend_public_key).unwrap();
@@ -616,7 +612,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             },
             ReceiveMoveTokenOutput::Received(move_token_received) => {
 
-                let MoveTokenReceived {canceled_local_pending_requests, incoming_messages, mutations} = 
+                let MoveTokenReceived {incoming_messages, mutations} = 
                     move_token_received;
 
                 // Apply all mutations:
@@ -662,10 +658,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         let mut fself = await!(self.check_reset_channel(remote_public_key.clone(), 
                                            friend_move_token.clone()))?;
-        // TODO: How to deal with the case of reset channel correctly?
-        // Currently this code will not work correctly.
-        // Maybe we should put the reset channel logic inside simulate_receive_move_token?
-        unimplemented!();
 
         let friend = fself.get_friend(&remote_public_key).unwrap();
 

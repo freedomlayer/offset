@@ -16,7 +16,6 @@ use super::incoming::{ProcessOperationOutput, ProcessTransListError,
 use super::outgoing::{OutgoingTokenChannel};
 
 use super::super::types::FriendMoveToken;
-use super::super::messages::PendingFriendRequest;
 
 
 // Prefix used for chain hashing of token channel fundss.
@@ -67,16 +66,16 @@ pub enum ReceiveMoveTokenError {
 }
 
 pub struct MoveTokenReceived {
-    pub canceled_local_pending_requests: Option<Vec<PendingFriendRequest>>,
-    // In case of a reset, all the local pending requests will be canceled.
     pub incoming_messages: Vec<IncomingMessage>,
     pub mutations: Vec<DirectionalMutation>,
 }
+
 
 pub enum ReceiveMoveTokenOutput {
     Duplicate,
     RetransmitOutgoing(FriendMoveToken),
     Received(MoveTokenReceived),
+    // In case of a reset, all the local pending requests will be canceled.
 }
 
 
@@ -159,12 +158,27 @@ impl DirectionalTokenChannel {
         }
     }
 
-    pub fn new_from_reset(local_public_key: &PublicKey, 
+    pub fn new_from_remote_reset(local_public_key: &PublicKey, 
                       remote_public_key: &PublicKey, 
-                      current_token: &ChannelToken, 
+                      new_token: &ChannelToken, 
                       balance: i128) -> DirectionalTokenChannel {
         DirectionalTokenChannel {
-            direction: MoveTokenDirection::Incoming(current_token.clone()),
+            direction: MoveTokenDirection::Incoming(new_token.clone()),
+            token_channel: TokenChannel::new(local_public_key, remote_public_key, balance),
+        }
+    }
+
+    pub fn new_from_local_reset(local_public_key: &PublicKey, 
+                      remote_public_key: &PublicKey, 
+                      reset_move_token: &FriendMoveToken,
+                      balance: i128) -> DirectionalTokenChannel {
+
+        let outgoing_move_token = OutgoingMoveToken {
+            friend_move_token: reset_move_token.clone(),
+            is_acked: false,
+        };
+        DirectionalTokenChannel {
+            direction: MoveTokenDirection::Outgoing(outgoing_move_token),
             token_channel: TokenChannel::new(local_public_key, remote_public_key, balance),
         }
     }
@@ -245,19 +259,11 @@ impl DirectionalTokenChannel {
             },
             MoveTokenDirection::Outgoing(ref outgoing_move_token) => {
                 let friend_move_token = &outgoing_move_token.friend_move_token;
-                let canceled_local_pending_requests = None;
-                let is_reset_token = move_token_msg.old_token == self.calc_channel_reset_token();
-                let is_next_token = move_token_msg.old_token == self.new_token();
-
-                // TODO: Implement the case of reset channel here.
-                unimplemented!();
-
-                if is_next_token || is_reset_token {
+                if move_token_msg.old_token == self.new_token() {
                     match simulate_process_operations_list(&self.token_channel,
                         move_token_msg.operations) {
                         Ok(outputs) => {
                             let mut move_token_received = MoveTokenReceived {
-                                canceled_local_pending_requests,
                                 incoming_messages: Vec::new(),
                                 mutations: Vec::new(),
                             };
