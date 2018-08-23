@@ -29,7 +29,7 @@ const TOKEN_RESET: &[u8] = b"RESET";
 #[derive(Clone)]
 pub struct OutgoingMoveToken {
     friend_move_token: FriendMoveToken,
-    is_acked: bool,
+    pub is_acked: bool,
 }
 
 /// Indicate the direction of the move token funds.
