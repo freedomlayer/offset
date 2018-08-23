@@ -2,6 +2,7 @@
 
 pub mod messages;
 // pub mod client;
+mod liveness;
 mod ephemeral;
 mod credit_calc;
 mod freeze_guard;
