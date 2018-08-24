@@ -11,7 +11,7 @@ use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 
 use super::state::{FunderState, FunderMutation};
-use self::handle_control::HandleControlError;
+use self::handle_control::{HandleControlError, IncomingControlMessage};
 use self::handle_friend::{FriendInconsistencyError,
     HandleFriendError, IncomingFriendMessage};
 use super::token_channel::directional::ReceiveMoveTokenError;
@@ -106,12 +106,11 @@ impl<R: SecureRandom + 'static> FunderHandler<R> {
         unreachable!();
     }
 
-    /*
-    #[allow(unused)]
+    #[allow(unused,type_complexity)]
     fn simulate_handle_control_message<A: Clone>(&self,
                                         messenger_state: &FunderState<A>,
-                                        funder_ephemeral: FunderEphemeral,
-                                        funder_command: FunderCommand<A>)
+                                        funder_ephemeral: &FunderEphemeral,
+                                        funder_command: IncomingControlMessage<A>)
             -> Result<(FunderEphemeral, Vec<FunderMutation<A>>, Vec<FunderTask>), HandlerError> {
         let mut mutable_handler = self.gen_mutable(messenger_state,
                                                    funder_ephemeral);
@@ -121,6 +120,7 @@ impl<R: SecureRandom + 'static> FunderHandler<R> {
 
         Ok(mutable_handler.done())
     }
+    /*
 
     #[allow(unused)]
     #[async]
