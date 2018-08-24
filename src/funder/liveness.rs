@@ -244,7 +244,6 @@ impl Liveness {
         friend_public_keys.sort_unstable();
         let friend_public_keys = friend_public_keys;
 
-
         let mut time_tick_output = TimeTickOutput::new();
 
         for friend_public_key in &friend_public_keys {
