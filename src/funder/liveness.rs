@@ -1,4 +1,5 @@
 use std::collections::hash_map::HashMap;
+use im::hashmap::HashMap as ImHashMap;
 use crypto::identity::PublicKey;
 
 const FRIEND_KEEPALIVE_TICKS: usize = 0x20;
@@ -9,6 +10,7 @@ pub enum LivenessError {
     FriendAlreadyExists,
 }
 
+#[derive(Clone)]
 struct OnlineStatus {
     // Amount of ticks we leave to the remote side to send us anything.
     ticks_to_recv: usize,
@@ -17,19 +19,22 @@ struct OnlineStatus {
     ticks_to_retransmit_inconsistency: Option<usize>,
 }
 
+#[derive(Clone)]
 enum LivenessStatus {
     Offline,
     Online(OnlineStatus),
 }
 
+#[derive(Clone)]
 pub struct FriendLiveness {
     // When this amount reaches 0, we send a keepalive to remote friend:
     ticks_to_send_keepalive: usize,
     liveness_status: LivenessStatus,
 }
 
+#[derive(Clone)]
 pub struct Liveness {
-    pub friends: HashMap<PublicKey, FriendLiveness>,
+    pub friends: ImHashMap<PublicKey, FriendLiveness>,
 }
 
 #[derive(Clone, Copy)]
@@ -85,7 +90,7 @@ impl FriendLiveness {
 impl Liveness {
     fn new() -> Liveness {
         Liveness {
-            friends: HashMap::new(),
+            friends: ImHashMap::new(),
         }
     }
 
