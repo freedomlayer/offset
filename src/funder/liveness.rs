@@ -150,7 +150,7 @@ impl FriendLiveness {
         Actions::new()
     }
 
-    pub fn time_tick(&mut self) -> Actions {
+    fn time_tick(&mut self) -> Actions {
         let mut actions = Actions::new();
         self.ticks_send_keepalive = self.ticks_send_keepalive.checked_sub(1).unwrap();
         if self.ticks_send_keepalive == 0 {
