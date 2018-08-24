@@ -88,10 +88,10 @@ pub struct FunderHandler<R> {
 impl<R: SecureRandom + 'static> FunderHandler<R> {
 
     fn gen_mutable<A:Clone>(&self, messenger_state: &FunderState<A>,
-                   funder_ephemeral: FunderEphemeral) -> MutableFunderHandler<A,R> {
+                   funder_ephemeral: &FunderEphemeral) -> MutableFunderHandler<A,R> {
         MutableFunderHandler {
             state: messenger_state.clone(),
-            ephemeral: funder_ephemeral,
+            ephemeral: funder_ephemeral.clone(),
             security_module_client: self.security_module_client.clone(),
             rng: self.rng.clone(),
             mutations: Vec::new(),
