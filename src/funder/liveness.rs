@@ -99,51 +99,51 @@ impl FriendLiveness {
     }
 
     /// A message was received from this remote friend
-    fn move_token_received(&mut self) -> Actions {
+    pub fn move_token_received(&mut self) -> Actions {
         self.ticks_retransmit_token_msg = None;
         self.ticks_retransmit_inconsistency = None;
         self.set_friend_online()
     }
 
     /// A message was sent to this remote friend
-    fn move_token_sent(&mut self) -> Actions{
+    pub fn move_token_sent(&mut self) -> Actions{
         self.message_sent();
         self.ticks_retransmit_token_msg = Some(RETRANSMIT_TICKS);
         self.ticks_retransmit_inconsistency = None;
         Actions::new()
     }
 
-    fn move_token_ack_received(&mut self) -> Actions {
+    pub fn move_token_ack_received(&mut self) -> Actions {
         self.ticks_retransmit_token_msg = None;
         // TODO: Should we clear ticks_retransmit_inconsistency here?
         self.set_friend_online()
     }
 
-    fn move_token_ack_sent(&mut self) -> Actions {
+    pub fn move_token_ack_sent(&mut self) -> Actions {
         self.message_sent();
         Actions::new()
     }
 
-    fn keepalive_received(&mut self) -> Actions {
+    pub fn keepalive_received(&mut self) -> Actions {
         self.set_friend_online()
     }
 
-    fn keepalive_sent(&mut self) -> Actions {
+    pub fn keepalive_sent(&mut self) -> Actions {
         self.message_sent();
         Actions::new()
     }
 
-    fn inconsistency_received(&mut self) -> Actions {
+    pub fn inconsistency_received(&mut self) -> Actions {
         self.set_friend_online()
     }
 
-    fn inconsistency_sent(&mut self) -> Actions {
+    pub fn inconsistency_sent(&mut self) -> Actions {
         self.message_sent();
         self.ticks_retransmit_inconsistency = Some(RETRANSMIT_TICKS);
         Actions::new()
     }
 
-    fn time_tick(&mut self) -> Actions {
+    pub fn time_tick(&mut self) -> Actions {
         let mut actions = Actions::new();
         self.ticks_send_keepalive = self.ticks_send_keepalive.checked_sub(1).unwrap();
         if self.ticks_send_keepalive == 0 {
@@ -192,18 +192,17 @@ impl FriendLiveness {
         }
         actions
     }
-
 }
 
 
 impl Liveness {
-    fn new() -> Liveness {
+    pub fn new() -> Liveness {
         Liveness {
             friends: ImHashMap::new(),
         }
     }
 
-    fn insert_friend(&mut self, friend_public_key: &PublicKey, direction: Direction) -> Result<(), LivenessError> {
+    pub fn insert_friend(&mut self, friend_public_key: &PublicKey, direction: Direction) -> Result<(), LivenessError> {
         if self.friends.contains_key(friend_public_key) {
             Err(LivenessError::FriendAlreadyExists)
         } else {
@@ -212,11 +211,22 @@ impl Liveness {
         }
     }
 
-    fn remove_friend(&mut self, friend_public_key: &PublicKey) -> Result<(), LivenessError> {
+    pub fn remove_friend(&mut self, friend_public_key: &PublicKey) -> Result<(), LivenessError> {
         self.friends.remove(&friend_public_key).ok_or(LivenessError::FriendDoesNotExist)?;
         Ok(())
     }
 
-    fn time_tick(&mut self) {
+    pub fn time_tick(&mut self) {
+        /*
+        let mut friend_public_keys = self.friends.keys().cloned().collect::<Vec<PublicKey>>();
+        friend_public_keys.sort_unstable();
+        let friend_public_keys = friend_public_keys;
+
+
+        for friend_public_key in &friend_public_keys {
+            let mut friend = self.friends.get_mut(friend_public_key).unwrap();
+            friend.time_tick();
+        }
+        */
     }
 }
