@@ -69,6 +69,13 @@ impl FriendLiveness {
         }
     }
 
+    fn is_online(&self) -> bool {
+        match self.liveness_status {
+            LivenessStatus::Online(_) => true,
+            LivenessStatus::Offline => false,
+        }
+    }
+
     fn message_sent(&mut self) {
         self.ticks_send_keepalive = FRIEND_KEEPALIVE_TICKS/2;
     }
@@ -194,6 +201,22 @@ impl FriendLiveness {
     }
 }
 
+pub struct TimeTickOutput {
+    pub became_offline: Vec<PublicKey>,
+    pub became_online: Vec<PublicKey>,
+    pub friends_actions: Vec<(PublicKey, Actions)>,
+}
+
+impl TimeTickOutput {
+    fn new() -> TimeTickOutput {
+        TimeTickOutput {
+            became_offline: Vec::new(),
+            became_online: Vec::new(),
+            friends_actions: Vec::new(),
+        }
+    }
+}
+
 
 impl Liveness {
     pub fn new() -> Liveness {
@@ -216,17 +239,31 @@ impl Liveness {
         Ok(())
     }
 
-    pub fn time_tick(&mut self) {
-        /*
+    pub fn time_tick(&mut self) -> TimeTickOutput {
         let mut friend_public_keys = self.friends.keys().cloned().collect::<Vec<PublicKey>>();
         friend_public_keys.sort_unstable();
         let friend_public_keys = friend_public_keys;
 
 
+        let mut time_tick_output = TimeTickOutput::new();
+
         for friend_public_key in &friend_public_keys {
             let mut friend = self.friends.get_mut(friend_public_key).unwrap();
-            friend.time_tick();
+            let is_online_before = friend.is_online();
+            let actions = friend.time_tick();
+            let is_online_after = friend.is_online();
+
+            time_tick_output.friends_actions.push((friend_public_key.clone(), actions));
+            if is_online_before && !is_online_after {
+                time_tick_output.became_offline.push(friend_public_key.clone());
+            }
+            if !is_online_before && is_online_after {
+                time_tick_output.became_online.push(friend_public_key.clone());
+            }
         }
-        */
+        time_tick_output
     }
 }
+
+
+// TODO: Add tests.
