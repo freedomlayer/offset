@@ -745,6 +745,11 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             None => Err(HandleFriendError::FriendDoesNotExist),
         }?;
 
+        let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
+        liveness_friend.move_token_ack_received();
+
+        let friend = self.get_friend(&remote_public_key).unwrap();
+
         // If we have the token, we ignore the ack:
         let outgoing_move_token = match &friend.directional.direction {
             MoveTokenDirection::Outgoing(outgoing_move_token) => Ok(outgoing_move_token),
