@@ -15,7 +15,7 @@ use proto::funder::ChannelToken;
 use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError, IncomingControlMessage};
 use self::handle_friend::{FriendInconsistencyError,
-    HandleFriendError, IncomingFriendMessage};
+    HandleFriendError};
 use super::token_channel::directional::ReceiveMoveTokenError;
 use super::types::{FriendMoveToken, FriendsRoute};
 use super::ephemeral::FunderEphemeral;

@@ -50,25 +50,7 @@ pub struct FriendInconsistencyError {
     balance_for_reset: i128,
 }
 
-#[allow(unused)]
-pub struct FriendMoveTokenAck {
-    acked_token: ChannelToken,
-}
 
-#[allow(unused)]
-pub struct FriendRequestToken {
-    last_token: ChannelToken,
-}
-
-
-#[allow(unused)]
-pub enum IncomingFriendMessage {
-    MoveToken(FriendMoveToken),
-    InconsistencyError(FriendInconsistencyError),
-    MoveTokenAck(FriendMoveTokenAck),
-    RequestToken(FriendRequestToken),
-    KeepAlive,
-}
 
 pub enum HandleFriendError {
     FriendDoesNotExist,
