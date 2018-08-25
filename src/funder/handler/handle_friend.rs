@@ -47,6 +47,7 @@ use proto::common::SendFundsReceipt;
 const MAX_MOVE_TOKEN_LENGTH: usize = 0x1000;
 
 
+#[derive(Debug)]
 pub enum HandleFriendError {
     FriendDoesNotExist,
     NoMoveTokenToAck,
@@ -67,7 +68,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     ///
     /// TODO: We need to change this search to be O(1) in the future. Possibly by maintaining a map
     /// between request_id and (friend_public_key, friend).
-    fn find_request_origin(&self, request_id: &Uid) -> Option<&PublicKey> {
+    pub fn find_request_origin(&self, request_id: &Uid) -> Option<&PublicKey> {
         for (friend_public_key, friend) in self.state.get_friends() {
             if friend.directional
                 .token_channel
@@ -84,7 +85,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     /// Create a (signed) failure message for a given request_id.
     /// We are the reporting_public_key for this failure message.
     #[async]
-    fn create_failure_message(mut self, pending_local_request: PendingFriendRequest) 
+    pub fn create_failure_message(self, pending_local_request: PendingFriendRequest) 
         -> Result<(Self, FailureSendFunds), HandleFriendError> {
 
         let rand_nonce = RandValue::new(&*self.rng);
@@ -134,19 +135,30 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let mut fself = self;
         // Prepare a list of all remote requests that we need to cancel:
         for (local_request_id, pending_local_request) in pending_local_requests {
-            let opt_origin_public_key = fself.find_request_origin(&local_request_id);
+            let opt_origin_public_key = fself.find_request_origin(&local_request_id).cloned();
             let origin_public_key = match opt_origin_public_key {
-                Some(origin_public_key) => origin_public_key.clone(),
-                None => continue,
+                Some(origin_public_key) => {
+                    // We have found the friend that is the origin of this request.
+                    // We send him a failure message.
+                    let (new_fself, failure_send_funds) = await!(fself.create_failure_message(pending_local_request))?;
+                    fself = new_fself;
+
+                    let failure_op = ResponseOp::Failure(failure_send_funds);
+                    let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
+                    let messenger_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
+                    fself.apply_mutation(messenger_mutation);
+                },
+                None => {
+                    // We are the origin of this request.
+                    // We send a failure response through the control:
+                    let response_received = ResponseReceived {
+                        request_id: pending_local_request.request_id,
+                        result: ResponseSendFundsResult::Failure(fself.state.local_public_key.clone()),
+                    };
+                    fself.funder_tasks.push(FunderTask::ResponseReceived(response_received));
+                },            
             };
 
-            let (new_fself, failure_send_funds) = await!(fself.create_failure_message(pending_local_request))?;
-            fself = new_fself;
-
-            let failure_op = ResponseOp::Failure(failure_send_funds);
-            let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
-            let messenger_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
-            fself.apply_mutation(messenger_mutation);
         }
         Ok(fself)
    }
