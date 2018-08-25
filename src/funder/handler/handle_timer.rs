@@ -63,6 +63,8 @@ impl<A:Clone, R:SecureRandom> MutableFunderHandler<A,R> {
         // TODO:
         // - For any friend that just got offline:
         //      - Cancel all pending requests.
+        for friend_public_key in time_tick_output.became_offline {
+        }
 
         unimplemented!();
     }
