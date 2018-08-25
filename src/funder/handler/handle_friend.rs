@@ -28,7 +28,9 @@ use super::super::types::{FriendTcOp, RequestSendFunds,
     ResponseSendFunds, FailureSendFunds, 
     FriendMoveToken};
 use super::super::state::FunderMutation;
-use super::super::friend::{FriendState, FriendMutation, OutgoingInconsistency, IncomingInconsistency, ResetTerms};
+use super::super::friend::{FriendState, FriendMutation, 
+    OutgoingInconsistency, IncomingInconsistency, 
+    ResetTerms, ResponseOp};
 
 use super::super::signature_buff::{create_failure_signature_buffer, prepare_receipt};
 use super::super::types::{FunderFreezeLink, PkPairPosition, PendingFriendRequest, Ratio, RequestsStatus};
@@ -141,8 +143,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             let (new_fself, failure_send_funds) = await!(fself.create_failure_message(pending_local_request))?;
             fself = new_fself;
 
-            let failure_op = FriendTcOp::FailureSendFunds(failure_send_funds);
-            let friend_mutation = FriendMutation::PushBackPendingOperation(failure_op);
+            let failure_op = ResponseOp::Failure(failure_send_funds);
+            let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
             let messenger_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
             fself.apply_mutation(messenger_mutation);
         }
@@ -187,8 +189,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let pending_request = request_send_funds.create_pending_request();
         let (mut fself, failure_send_funds) = await!(self.create_failure_message(pending_request))?;
 
-        let failure_op = FriendTcOp::FailureSendFunds(failure_send_funds);
-        let friend_mutation = FriendMutation::PushBackPendingOperation(failure_op);
+        let failure_op = ResponseOp::Failure(failure_send_funds);
+        let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         fself.apply_mutation(messenger_mutation);
 
@@ -231,8 +233,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         // Queue message to the relevant friend. Later this message will be queued to a specific
         // available token channel:
-        let request_op = FriendTcOp::RequestSendFunds(request_send_funds.clone());
-        let friend_mutation = FriendMutation::PushBackPendingOperation(request_op);
+        let friend_mutation = FriendMutation::PushBackPendingRequest(request_send_funds.clone());
         let messenger_mutation = FunderMutation::FriendMutation((next_pk.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
     }
@@ -311,8 +312,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             },
             Some(friend_public_key) => {
                 // Queue this response message to another token channel:
-                let response_op = FriendTcOp::ResponseSendFunds(response_send_funds);
-                let friend_mutation = FriendMutation::PushBackPendingOperation(response_op);
+                let response_op = ResponseOp::Response(response_send_funds);
+                let friend_mutation = FriendMutation::PushBackPendingResponse(response_op);
                 let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
                 self.apply_mutation(messenger_mutation);
             },
@@ -347,8 +348,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             },
             Some(friend_public_key) => {
                 // Queue this failure message to another token channel:
-                let failure_op = FriendTcOp::FailureSendFunds(failure_send_funds);
-                let friend_mutation = FriendMutation::PushBackPendingOperation(failure_op);
+                let failure_op = ResponseOp::Failure(failure_send_funds);
+                let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
                 let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
                 self.apply_mutation(messenger_mutation);
 
@@ -462,12 +463,29 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             out_tc.queue_operation(friend_op)?;
         }
 
-        // Send pending operations (responses and failures)
+        // Send pending responses (responses and failures)
         // TODO: Possibly replace this clone with something more efficient later:
-        let mut pending_operations = friend.pending_operations.clone();
-        while let Some(pending_operation) = pending_operations.pop_front() {
-            out_tc.queue_operation(pending_operation)?;
-            let friend_mutation = FriendMutation::PopFrontPendingOperation;
+        let mut pending_responses = friend.pending_responses.clone();
+        while let Some(pending_response) = pending_responses.pop_front() {
+            let pending_op = match pending_response {
+                ResponseOp::Response(response) => FriendTcOp::ResponseSendFunds(response),
+                ResponseOp::Failure(failure) => FriendTcOp::FailureSendFunds(failure),
+            };
+            out_tc.queue_operation(pending_op)?;
+            let friend_mutation = FriendMutation::PopFrontPendingResponse;
+            let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+            self.apply_mutation(messenger_mutation);
+        }
+
+        let friend = self.get_friend(remote_public_key).unwrap();
+
+        // Send pending requests:
+        // TODO: Possibly replace this clone with something more efficient later:
+        let mut pending_requests = friend.pending_requests.clone();
+        while let Some(pending_request) = pending_requests.pop_front() {
+            let pending_op = FriendTcOp::RequestSendFunds(pending_request);
+            out_tc.queue_operation(pending_op)?;
+            let friend_mutation = FriendMutation::PopFrontPendingRequest;
             let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
             self.apply_mutation(messenger_mutation);
         }
