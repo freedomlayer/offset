@@ -678,7 +678,16 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
     fn handle_inconsistency_error(&mut self, 
                                   remote_public_key: &PublicKey,
-                                  friend_inconsistency_error: FriendInconsistencyError) {
+                                  friend_inconsistency_error: FriendInconsistencyError)
+                                    -> Result<(), HandleFriendError> {
+
+        // Make sure that friend exists:
+        let _ = match self.get_friend(&remote_public_key) {
+            Some(friend) => Ok(friend),
+            None => Err(HandleFriendError::FriendDoesNotExist),
+        }?;
+        let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
+        liveness_friend.inconsistency_received();
         
         // Save incoming inconsistency details:
         let incoming = IncomingInconsistency::Incoming(ResetTerms {
@@ -738,8 +747,10 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             self.add_task(
                 FunderTask::FriendMessage(
                     FriendMessage::InconsistencyError(inconsistency_error)));
+            let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
+            liveness_friend.inconsistency_sent();
         }
-
+        Ok(())
     }
 
     fn handle_move_token_ack(&mut self, 
