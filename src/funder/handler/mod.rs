@@ -148,7 +148,5 @@ impl<R: SecureRandom + 'static> FunderHandler<R> {
 
         Ok(mutable_handler.done())
     }
-
-
 }
 
