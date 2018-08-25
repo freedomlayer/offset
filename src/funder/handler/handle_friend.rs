@@ -760,7 +760,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
     fn handle_move_token_ack(&mut self, 
                                 remote_public_key: &PublicKey,
-                                friend_move_token_ack: FriendMoveTokenAck)
+                                acked_token: ChannelToken)
                                     -> Result<(), HandleFriendError> {
         // Find friend:
         let friend = match self.get_friend(&remote_public_key) {
@@ -787,7 +787,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
     fn handle_request_token(&mut self, 
                             remote_public_key: &PublicKey,
-                            friend_request_token: FriendRequestToken)
+                            last_token: ChannelToken)
                                     -> Result<(), HandleFriendError> {
         // Find friend:
         let friend = match self.get_friend(&remote_public_key) {
@@ -891,24 +891,24 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     #[async]
     pub fn handle_friend_message(mut self, 
                                    remote_public_key: PublicKey, 
-                                   friend_message: IncomingFriendMessage)
+                                   friend_message: FriendMessage)
                                         -> Result<Self, HandleFriendError> {
         match friend_message {
-            IncomingFriendMessage::MoveToken(friend_move_token) =>
+            FriendMessage::MoveToken(friend_move_token) =>
                 await!(self.handle_move_token(remote_public_key, friend_move_token)),
-            IncomingFriendMessage::InconsistencyError(friend_inconsistency_error) => {
+            FriendMessage::InconsistencyError(friend_inconsistency_error) => {
                 self.handle_inconsistency_error(&remote_public_key, friend_inconsistency_error);
                 Ok(self)
             }
-            IncomingFriendMessage::MoveTokenAck(friend_move_token_ack) => {
-                self.handle_move_token_ack(&remote_public_key, friend_move_token_ack)?;
+            FriendMessage::MoveTokenAck(acked_token) => {
+                self.handle_move_token_ack(&remote_public_key, acked_token)?;
                 Ok(self)
             },
-            IncomingFriendMessage::RequestToken(friend_request_token) => {
-                self.handle_request_token(&remote_public_key, friend_request_token)?;
+            FriendMessage::RequestToken(last_token) => {
+                self.handle_request_token(&remote_public_key, last_token)?;
                 Ok(self)
             },
-            IncomingFriendMessage::KeepAlive => {
+            FriendMessage::KeepAlive => {
                 self.handle_keep_alive(&remote_public_key)?;
                 Ok(self)
             },
