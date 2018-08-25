@@ -75,6 +75,8 @@ pub enum HandleFriendError {
     NoMoveTokenToAck,
     AlreadyAcked,
     TokenNotOwned,
+    IncorrectAckedToken,
+    IncorrectLastToken,
 }
 
 
@@ -774,8 +776,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             MoveTokenDirection::Incoming(_) => Err(HandleFriendError::NoMoveTokenToAck),
         }?;
 
-        if outgoing_move_token.is_acked {
-            return Err(HandleFriendError::AlreadyAcked);
+        if outgoing_move_token.friend_move_token.old_token != acked_token {
+            return Err(HandleFriendError::IncorrectAckedToken);
         }
 
         let directional_mutation = DirectionalMutation::AckOutgoing;
@@ -800,6 +802,10 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             MoveTokenDirection::Outgoing(_) => Err(HandleFriendError::TokenNotOwned),
             MoveTokenDirection::Incoming(new_token) => Ok(new_token),
         }?;
+
+        if *new_token != last_token {
+            return Err(HandleFriendError::IncorrectLastToken);
+        }
 
         // Compose an empty friend_move_token message and send it to the remote side:
         let rand_nonce = RandValue::new(&*self.rng);
