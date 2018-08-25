@@ -14,8 +14,7 @@ use proto::funder::ChannelToken;
 
 use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError, IncomingControlMessage};
-use self::handle_friend::{FriendInconsistencyError,
-    HandleFriendError};
+use self::handle_friend::HandleFriendError;
 use super::token_channel::directional::ReceiveMoveTokenError;
 use super::types::{FriendMoveToken, FriendsRoute};
 use super::ephemeral::FunderEphemeral;
@@ -23,6 +22,12 @@ use super::friend::FriendState;
 
 use super::messages::{FunderCommand, ResponseSendFundsResult};
 
+#[allow(unused)]
+pub struct FriendInconsistencyError {
+    opt_ack: Option<ChannelToken>,
+    current_token: ChannelToken,
+    balance_for_reset: i128,
+}
 
 #[allow(unused)]
 pub enum FriendMessage {

@@ -35,21 +35,14 @@ use super::super::types::{FunderFreezeLink, PkPairPosition, PendingFriendRequest
 use super::super::messages::{ResponseSendFundsResult};
 
 use super::super::liveness::Actions;
+use super::FriendInconsistencyError;
 
 use proto::common::SendFundsReceipt;
+
 
 // Approximate maximum size of a MOVE_TOKEN message.
 // TODO: Where to put this constant? Do we have more like this one?
 const MAX_MOVE_TOKEN_LENGTH: usize = 0x1000;
-
-
-#[allow(unused)]
-pub struct FriendInconsistencyError {
-    opt_ack: Option<ChannelToken>,
-    current_token: ChannelToken,
-    balance_for_reset: i128,
-}
-
 
 
 pub enum HandleFriendError {
