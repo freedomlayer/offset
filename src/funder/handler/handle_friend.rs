@@ -33,7 +33,8 @@ use super::super::friend::{FriendState, FriendMutation,
     ResetTerms, ResponseOp};
 
 use super::super::signature_buff::{create_failure_signature_buffer, prepare_receipt};
-use super::super::types::{FunderFreezeLink, PkPairPosition, PendingFriendRequest, Ratio, RequestsStatus};
+use super::super::types::{FunderFreezeLink, PkPairPosition, PendingFriendRequest, 
+    Ratio, RequestsStatus};
 use super::super::messages::{ResponseSendFundsResult};
 
 use super::super::liveness::Actions;
@@ -47,6 +48,7 @@ use proto::common::SendFundsReceipt;
 const MAX_MOVE_TOKEN_LENGTH: usize = 0x1000;
 
 
+#[derive(Debug)]
 pub enum HandleFriendError {
     FriendDoesNotExist,
     NoMoveTokenToAck,
@@ -81,39 +83,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         None
     }
 
-    /// Create a (signed) failure message for a given request_id.
-    /// We are the reporting_public_key for this failure message.
-    #[async]
-    fn create_failure_message(mut self, pending_local_request: PendingFriendRequest) 
-        -> Result<(Self, FailureSendFunds), HandleFriendError> {
-
-        let rand_nonce = RandValue::new(&*self.rng);
-        let local_public_key = self.state.get_local_public_key().clone();
-
-        let failure_send_funds = FailureSendFunds {
-            request_id: pending_local_request.request_id,
-            reporting_public_key: local_public_key.clone(),
-            rand_nonce: rand_nonce.clone(),
-            signature: Signature::zero(),
-        };
-        // TODO: Add default() implementation for Signature
-        
-        let mut failure_signature_buffer = create_failure_signature_buffer(
-                                            &failure_send_funds,
-                                            &pending_local_request);
-
-        let signature = await!(self.security_module_client.request_signature(failure_signature_buffer))
-            .unwrap();
-
-        Ok((self, FailureSendFunds {
-            request_id: pending_local_request.request_id,
-            reporting_public_key: local_public_key,
-            rand_nonce,
-            signature,
-        }))
-    }
-
-
     #[async]
     fn cancel_local_pending_requests(mut self, 
                                      friend_public_key: PublicKey) -> Result<Self, HandleFriendError> {
@@ -140,7 +109,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 None => continue,
             };
 
-            let (new_fself, failure_send_funds) = await!(fself.create_failure_message(pending_local_request))?;
+            let (new_fself, failure_send_funds) = await!(fself.create_failure_message(pending_local_request)).unwrap();
             fself = new_fself;
 
             let failure_op = ResponseOp::Failure(failure_send_funds);
@@ -187,7 +156,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                           request_send_funds: RequestSendFunds) -> Result<Self, HandleFriendError> {
 
         let pending_request = request_send_funds.create_pending_request();
-        let (mut fself, failure_send_funds) = await!(self.create_failure_message(pending_request))?;
+        let (mut fself, failure_send_funds) = await!(self.create_failure_message(pending_request)).unwrap();
 
         let failure_op = ResponseOp::Failure(failure_send_funds);
         let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
