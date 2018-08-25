@@ -1,15 +1,25 @@
 use ring::rand::SecureRandom;
+use futures::prelude::{async, await};
 
 use crypto::identity::PublicKey;
 
 use super::{FriendInconsistencyError, FunderTask, FriendMessage};
 use super::super::liveness::Actions;
-use super::super::friend::{IncomingInconsistency, OutgoingInconsistency};
+use super::super::friend::{IncomingInconsistency, 
+    OutgoingInconsistency, FriendMutation, ResponseOp};
+use super::super::state::FunderMutation;
+use super::super::messages::{ResponseSendFundsResult};
 
-use super::MutableFunderHandler;
+use super::{MutableFunderHandler, ResponseReceived};
 
-impl<A:Clone, R:SecureRandom> MutableFunderHandler<A,R> {
 
+enum HandleTimerError {
+}
+
+impl<A:Clone + 'static, R:SecureRandom + 'static> MutableFunderHandler<A,R> {
+
+    /// Create a (signed) failure message for a given request_id.
+    /// We are the reporting_public_key for this failure message.
     fn invoke_actions(&mut self, 
                       remote_public_key: &PublicKey,
                       actions: &Actions) {
@@ -54,7 +64,48 @@ impl<A:Clone, R:SecureRandom> MutableFunderHandler<A,R> {
         }
     }
 
-    fn handle_timer_tick(&mut self) {
+    #[async]
+    fn cancel_pending_requests(mut self,
+                               friend_public_key: PublicKey)
+                        -> Result<Self, HandleTimerError> {
+
+        let friend = self.get_friend(&friend_public_key).unwrap();
+        let mut pending_requests = friend.pending_requests.clone();
+        let mut fself = self;
+
+        while let Some(pending_request) = pending_requests.pop_front() {
+            let friend_mutation = FriendMutation::PopFrontPendingRequest;
+            let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+            fself.apply_mutation(messenger_mutation);
+
+            let opt_origin_public_key = fself.find_request_origin(&pending_request.request_id).cloned();
+            let origin_public_key = match opt_origin_public_key {
+                Some(origin_public_key) => {
+                    let pending_request = pending_request.create_pending_request();
+                    let (new_fself, failure_send_funds) = await!(fself.create_failure_message(pending_request)).unwrap();
+                    fself = new_fself;
+
+                    let failure_op = ResponseOp::Failure(failure_send_funds);
+                    let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
+                    let messenger_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
+                    fself.apply_mutation(messenger_mutation);
+                },
+                None => {
+                    // We are the origin of this request:
+                    let response_received = ResponseReceived {
+                        request_id: pending_request.request_id,
+                        result: ResponseSendFundsResult::Failure(fself.state.local_public_key.clone()),
+                    };
+                    fself.funder_tasks.push(FunderTask::ResponseReceived(response_received));
+                }, 
+            };
+        }
+        Ok(fself)
+    }
+
+    #[async]
+    fn handle_timer_tick(mut self)
+                        -> Result<Self, HandleTimerError> {
         let time_tick_output = self.ephemeral.liveness.time_tick();
         for (friend_public_key, actions) in &time_tick_output.friends_actions {
             self.invoke_actions(friend_public_key, actions);
@@ -63,9 +114,12 @@ impl<A:Clone, R:SecureRandom> MutableFunderHandler<A,R> {
         // TODO:
         // - For any friend that just got offline:
         //      - Cancel all pending requests.
+        let mut fself = self;
         for friend_public_key in time_tick_output.became_offline {
+            fself = await!(fself.cancel_pending_requests(friend_public_key.clone()))?;
+            // TODO:
+            // fself = await!(fself.cancel_pending_user_requests(friend_public_key.clone()))?;
         }
-
-        unimplemented!();
+        Ok(fself)
     }
 }
