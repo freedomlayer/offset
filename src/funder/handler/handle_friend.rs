@@ -856,11 +856,11 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             .unwrap();
         liveness_friend.message_received();
 
-        match friend_message {
+        let mut fself = match friend_message {
             FriendMessage::MoveToken(friend_move_token) =>
-                await!(self.handle_move_token(remote_public_key, friend_move_token)),
+                await!(self.handle_move_token(remote_public_key.clone(), friend_move_token)),
             FriendMessage::InconsistencyError(friend_inconsistency_error) => {
-                self.handle_inconsistency_error(&remote_public_key, friend_inconsistency_error);
+                self.handle_inconsistency_error(&remote_public_key.clone(), friend_inconsistency_error);
                 Ok(self)
             }
             FriendMessage::MoveTokenAck(acked_token) => {
@@ -875,6 +875,13 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 self.handle_keep_alive(&remote_public_key)?;
                 Ok(self)
             },
+        }?;
+
+        // If any outgoing message was queued as a task, we mark that a message was sent:
+        if fself.has_outgoing_message() {
+            let liveness_friend = fself.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
+            liveness_friend.message_sent();
         }
+        Ok(fself)
     }
 }

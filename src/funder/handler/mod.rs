@@ -88,6 +88,15 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
     pub fn add_task(&mut self, messenger_task: FunderTask) {
         self.funder_tasks.push(messenger_task);
     }
+
+    pub fn has_outgoing_message(&self) -> bool {
+        for task in &self.funder_tasks {
+            if let FunderTask::FriendMessage(_) = task {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 
