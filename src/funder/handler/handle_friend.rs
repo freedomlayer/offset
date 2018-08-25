@@ -772,6 +772,11 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             None => Err(HandleFriendError::FriendDoesNotExist),
         }?;
 
+        let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
+        liveness_friend.request_token_received();
+
+        let friend = self.get_friend(&remote_public_key).unwrap();
+
         // If remote side has the token, we ignore the request:
         let new_token = match &friend.directional.direction {
             MoveTokenDirection::Outgoing(_) => Err(HandleFriendError::TokenNotOwned),
@@ -799,10 +804,13 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let friend = self.get_friend(remote_public_key).unwrap();
         let outgoing_move_token = friend.directional.get_outgoing_move_token().unwrap();
 
+
         // Add a task for sending the outgoing move token:
         self.add_task(
             FunderTask::FriendMessage(
                 FriendMessage::MoveToken(outgoing_move_token)));
+        let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
+        liveness_friend.move_token_sent();
 
         Ok(())
     }
