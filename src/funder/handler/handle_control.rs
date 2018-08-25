@@ -9,7 +9,8 @@ use crypto::rand_values::RandValue;
 use proto::funder::{ChannelToken, InvoiceId};
 
 use super::super::token_channel::types::TcMutation;
-use super::super::token_channel::directional::DirectionalMutation;
+use super::super::token_channel::directional::{DirectionalMutation, 
+    OutgoingMoveToken, MoveTokenDirection};
 use super::super::friend::{FriendState, FriendMutation, IncomingInconsistency};
 use super::super::state::{FunderMutation, FunderState};
 use super::{MutableFunderHandler, FunderTask};
@@ -17,6 +18,7 @@ use super::super::types::{FriendStatus, RequestsStatus,
     FriendsRoute, UserRequestSendFunds, FriendMoveToken};
 use super::{ResponseReceived, FriendMessage};
 use super::super::messages::ResponseSendFundsResult;
+use super::super::liveness::Direction;
 
 const MAX_PENDING_USER_REQUESTS: usize = 0x10;
 
@@ -150,10 +152,20 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
         -> Result<(), HandleControlError> {
 
         let m_mutation = FunderMutation::AddFriend((
-                add_friend.friend_public_key,
+                add_friend.friend_public_key.clone(),
                 add_friend.address));
 
         self.apply_mutation(m_mutation);
+
+        let friend = self.get_friend(&add_friend.friend_public_key).unwrap();
+        let direction = match &friend.directional.direction {
+            MoveTokenDirection::Incoming(_) => Direction::Incoming,
+            MoveTokenDirection::Outgoing(outgoing_move_token) => 
+                Direction::Outgoing(outgoing_move_token.is_acked)
+        };
+        self.ephemeral.liveness.add_friend(&add_friend.friend_public_key,
+                                           direction);
+
         Ok(())
     }
 
@@ -161,9 +173,11 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
         -> Result<(), HandleControlError> {
 
         let m_mutation = FunderMutation::RemoveFriend(
-                remove_friend.friend_public_key);
+                remove_friend.friend_public_key.clone());
 
         self.apply_mutation(m_mutation);
+        self.ephemeral.liveness.remove_friend(&remove_friend.friend_public_key);
+                                               
         Ok(())
     }
 
