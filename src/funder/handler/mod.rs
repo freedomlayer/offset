@@ -130,19 +130,18 @@ impl<R: SecureRandom + 'static> FunderHandler<R> {
 
         Ok(mutable_handler.done())
     }
-    /*
 
-    #[allow(unused)]
+    #[allow(unused, type_complexity)]
     #[async]
-    fn simulate_handle_friend_message<A: Clone>(self, 
+    fn simulate_handle_friend_message<A: Clone + 'static>(self, 
                                         messenger_state: FunderState<A>,
                                         funder_ephemeral: FunderEphemeral,
                                         remote_public_key: PublicKey,
-                                        friend_message: IncomingFriendMessage)
+                                        friend_message: FriendMessage)
             -> Result<(FunderEphemeral, Vec<FunderMutation<A>>, Vec<FunderTask>), HandlerError> {
 
         let mut mutable_handler = self.gen_mutable(&messenger_state,
-                                                   funder_ephemeral);
+                                                   &funder_ephemeral);
         let mutable_handler = await!(mutable_handler
             .handle_friend_message(remote_public_key, friend_message))
             .map_err(HandlerError::HandleFriendError)?;
@@ -150,7 +149,6 @@ impl<R: SecureRandom + 'static> FunderHandler<R> {
         Ok(mutable_handler.done())
     }
 
-    */
 
 }
 
