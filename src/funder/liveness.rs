@@ -76,11 +76,11 @@ impl FriendLiveness {
         }
     }
 
-    fn message_sent(&mut self) {
+    pub fn message_sent(&mut self) {
         self.ticks_send_keepalive = FRIEND_KEEPALIVE_TICKS/2;
     }
 
-    fn message_received(&mut self) {
+    pub fn message_received(&mut self) {
         match &self.liveness_status {
             LivenessStatus::Online(ticks_to_offline) => {
                 self.liveness_status = LivenessStatus::Online(FRIEND_KEEPALIVE_TICKS);
@@ -100,56 +100,22 @@ impl FriendLiveness {
         };
     }
 
-    /// A message was received from this remote friend
-    pub fn move_token_received(&mut self) {
-        self.ticks_retransmit_token_msg = None;
-        self.ticks_retransmit_inconsistency = None;
-        self.message_received();
-    }
-
-    /// A message was sent to this remote friend
-    pub fn move_token_sent(&mut self) {
-        self.message_sent();
-        self.ticks_retransmit_token_msg = Some(RETRANSMIT_TICKS);
+    pub fn cancel_inconsistency(&mut self) {
         self.ticks_retransmit_inconsistency = None;
     }
 
-    pub fn move_token_ack_received(&mut self) {
-        self.ticks_retransmit_token_msg = None;
-        // TODO: Should we clear ticks_retransmit_inconsistency here?
-        self.message_received();
-    }
-
-    pub fn move_token_ack_sent(&mut self) {
-        self.message_sent();
-    }
-
-    pub fn keepalive_received(&mut self) {
-        self.message_received();
-    }
-
-    pub fn keepalive_sent(&mut self) {
-        self.message_sent();
-    }
-
-    pub fn inconsistency_received(&mut self) {
-        self.ticks_retransmit_token_msg = None;
-        self.message_received();
-    }
-
-    pub fn inconsistency_sent(&mut self) {
-        self.message_sent();
+    pub fn reset_inconsistency(&mut self) {
         self.ticks_retransmit_inconsistency = Some(RETRANSMIT_TICKS);
+    }
+
+    pub fn cancel_token_msg(&mut self) {
         self.ticks_retransmit_token_msg = None;
     }
 
-    pub fn request_token_received(&mut self)  {
-        self.message_received();
+    pub fn reset_token_msg(&mut self) {
+        self.ticks_retransmit_token_msg = Some(RETRANSMIT_TICKS);
     }
 
-    pub fn request_token_sent(&mut self) {
-        self.message_sent();
-    }
 
     fn time_tick(&mut self) -> Actions {
         let mut actions = Actions::new();
