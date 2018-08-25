@@ -224,7 +224,7 @@ impl Liveness {
         }
     }
 
-    pub fn insert_friend(&mut self, friend_public_key: &PublicKey, direction: Direction) -> Result<(), LivenessError> {
+    pub fn add_friend(&mut self, friend_public_key: &PublicKey, direction: Direction) -> Result<(), LivenessError> {
         if self.friends.contains_key(friend_public_key) {
             Err(LivenessError::FriendAlreadyExists)
         } else {
