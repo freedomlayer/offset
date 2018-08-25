@@ -864,8 +864,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             None => Err(HandleFriendError::FriendDoesNotExist),
         }?;
 
-        let actions = friend_liveness.keepalive_received();
-        self.invoke_actions(remote_public_key, &actions);
+        friend_liveness.keepalive_received();
         Ok(())
     }
 

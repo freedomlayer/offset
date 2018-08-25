@@ -80,74 +80,75 @@ impl FriendLiveness {
         self.ticks_send_keepalive = FRIEND_KEEPALIVE_TICKS/2;
     }
 
-    fn set_friend_online(&mut self) -> Actions {
-        let mut actions = Actions::new();
+    fn message_received(&mut self) {
         match &self.liveness_status {
             LivenessStatus::Online(ticks_to_offline) => {
                 self.liveness_status = LivenessStatus::Online(FRIEND_KEEPALIVE_TICKS);
             },
             LivenessStatus::Offline => {
                 self.ticks_send_keepalive = FRIEND_KEEPALIVE_TICKS;
-                actions.send_keepalive = true;
                 self.liveness_status = LivenessStatus::Online(FRIEND_KEEPALIVE_TICKS);
                 if self.ticks_retransmit_inconsistency.is_some() {
-                    self.ticks_retransmit_inconsistency = Some(RETRANSMIT_TICKS);
-                    actions.retransmit_inconsistency = true;
-                    actions.send_keepalive = false;
+                    // Will be triggered in the next tick:
+                    self.ticks_retransmit_inconsistency = Some(1); 
                 }
                 if self.ticks_retransmit_token_msg.is_some() {
-                    self.ticks_retransmit_token_msg = Some(RETRANSMIT_TICKS);
-                    actions.retransmit_token_msg = true;
-                    actions.send_keepalive = false;
+                    // Will be triggered in the next tick:
+                    self.ticks_retransmit_token_msg = Some(1);
                 }
             },
         };
-        actions
     }
 
     /// A message was received from this remote friend
-    pub fn move_token_received(&mut self) -> Actions {
+    pub fn move_token_received(&mut self) {
         self.ticks_retransmit_token_msg = None;
         self.ticks_retransmit_inconsistency = None;
-        self.set_friend_online()
+        self.message_received();
     }
 
     /// A message was sent to this remote friend
-    pub fn move_token_sent(&mut self) -> Actions{
+    pub fn move_token_sent(&mut self) {
         self.message_sent();
         self.ticks_retransmit_token_msg = Some(RETRANSMIT_TICKS);
         self.ticks_retransmit_inconsistency = None;
-        Actions::new()
     }
 
-    pub fn move_token_ack_received(&mut self) -> Actions {
+    pub fn move_token_ack_received(&mut self) {
         self.ticks_retransmit_token_msg = None;
         // TODO: Should we clear ticks_retransmit_inconsistency here?
-        self.set_friend_online()
+        self.message_received();
     }
 
-    pub fn move_token_ack_sent(&mut self) -> Actions {
+    pub fn move_token_ack_sent(&mut self) {
         self.message_sent();
-        Actions::new()
     }
 
-    pub fn keepalive_received(&mut self) -> Actions {
-        self.set_friend_online()
+    pub fn keepalive_received(&mut self) {
+        self.message_received();
     }
 
-    pub fn keepalive_sent(&mut self) -> Actions {
+    pub fn keepalive_sent(&mut self) {
         self.message_sent();
-        Actions::new()
     }
 
-    pub fn inconsistency_received(&mut self) -> Actions {
-        self.set_friend_online()
+    pub fn inconsistency_received(&mut self) {
+        self.ticks_retransmit_token_msg = None;
+        self.message_received();
     }
 
-    pub fn inconsistency_sent(&mut self) -> Actions {
+    pub fn inconsistency_sent(&mut self) {
         self.message_sent();
         self.ticks_retransmit_inconsistency = Some(RETRANSMIT_TICKS);
-        Actions::new()
+        self.ticks_retransmit_token_msg = None;
+    }
+
+    pub fn request_token_received(&mut self)  {
+        self.message_received();
+    }
+
+    pub fn request_token_sent(&mut self) {
+        self.message_sent();
     }
 
     fn time_tick(&mut self) -> Actions {
@@ -203,7 +204,6 @@ impl FriendLiveness {
 
 pub struct TimeTickOutput {
     pub became_offline: Vec<PublicKey>,
-    pub became_online: Vec<PublicKey>,
     pub friends_actions: Vec<(PublicKey, Actions)>,
 }
 
@@ -211,7 +211,6 @@ impl TimeTickOutput {
     fn new() -> TimeTickOutput {
         TimeTickOutput {
             became_offline: Vec::new(),
-            became_online: Vec::new(),
             friends_actions: Vec::new(),
         }
     }
@@ -250,14 +249,12 @@ impl Liveness {
             let mut friend = self.friends.get_mut(friend_public_key).unwrap();
             let is_online_before = friend.is_online();
             let actions = friend.time_tick();
+            time_tick_output.friends_actions.push((friend_public_key.clone(), actions));
             let is_online_after = friend.is_online();
 
-            time_tick_output.friends_actions.push((friend_public_key.clone(), actions));
+            // We can detect if the remote friend has became offline:
             if is_online_before && !is_online_after {
                 time_tick_output.became_offline.push(friend_public_key.clone());
-            }
-            if !is_online_before && is_online_after {
-                time_tick_output.became_online.push(friend_public_key.clone());
             }
         }
         time_tick_output
