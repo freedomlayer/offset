@@ -8,7 +8,7 @@ use super::super::friend::{IncomingInconsistency, OutgoingInconsistency};
 
 use super::MutableFunderHandler;
 
-impl<A:Clone + 'static, R:SecureRandom + 'static> MutableFunderHandler<A,R> {
+impl<A:Clone, R:SecureRandom> MutableFunderHandler<A,R> {
 
     fn invoke_actions(&mut self, 
                       remote_public_key: &PublicKey,

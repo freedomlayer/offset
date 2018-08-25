@@ -22,7 +22,6 @@ use super::super::liveness::Direction;
 
 const MAX_PENDING_USER_REQUESTS: usize = 0x10;
 
-#[derive(Debug)]
 pub enum HandleControlError {
     FriendDoesNotExist,
     TokenChannelDoesNotExist,
@@ -89,7 +88,7 @@ pub enum IncomingControlMessage<A> {
 
 
 #[allow(unused)]
-impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
+impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
 
     fn control_set_friend_remote_max_debt(&mut self, 
                                             set_friend_remote_max_debt: SetFriendRemoteMaxDebt) 
@@ -282,9 +281,8 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         }
 
         // Check if we have room to push this message:
-        // TODO; We need to return a failure message here:
         if friend.pending_user_requests.len() >= MAX_PENDING_USER_REQUESTS {
-            let pending_request = user_request_send_funds.create_pending_request();
+            return Err(HandleControlError::PendingUserRequestsFull);
         }
 
         // TODO: Trigger a function that tries to send stuff to the remote side.
@@ -300,8 +298,8 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         //      the token.
         
         unimplemented!();
-        Ok(())
 
+        Ok(())
     }
 
 
@@ -339,22 +337,23 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                   funder_config: IncomingControlMessage<A>) 
         -> Result<(), HandleControlError> {
 
+
         match funder_config {
             IncomingControlMessage::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) => 
                 self.control_set_friend_remote_max_debt(set_friend_remote_max_debt),
-            IncomingControlMessage::ResetFriendChannel(reset_friend_channel) =>
+            IncomingControlMessage::ResetFriendChannel(reset_friend_channel) => 
                 self.control_reset_friend_channel(reset_friend_channel),
-            IncomingControlMessage::AddFriend(add_friend) =>
+            IncomingControlMessage::AddFriend(add_friend) => 
                 self.control_add_friend(add_friend),
-            IncomingControlMessage::RemoveFriend(remove_friend) =>
+            IncomingControlMessage::RemoveFriend(remove_friend) => 
                 self.control_remove_friend(remove_friend),
-            IncomingControlMessage::SetFriendStatus(set_friend_status) =>
+            IncomingControlMessage::SetFriendStatus(set_friend_status) => 
                 self.control_set_friend_status(set_friend_status),
-            IncomingControlMessage::SetRequestsStatus(set_requests_status) =>
+            IncomingControlMessage::SetRequestsStatus(set_requests_status) => 
                 self.control_set_requests_status(set_requests_status),
             IncomingControlMessage::SetFriendAddr(set_friend_addr) => 
                 self.control_set_friend_addr(set_friend_addr),
-            IncomingControlMessage::RequestSendFunds(user_request_send_funds) =>
+            IncomingControlMessage::RequestSendFunds(user_request_send_funds) => 
                 self.control_request_send_funds(user_request_send_funds),
             IncomingControlMessage::ReceiptAck(receipt_ack) => 
                 self.control_receipt_ack(receipt_ack),
