@@ -838,53 +838,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         Ok(())
     }
 
-    fn invoke_actions(&mut self, 
-                      remote_public_key: &PublicKey,
-                      actions: &Actions) {
-
-
-        if actions.retransmit_inconsistency {
-            let friend = self.get_friend(&remote_public_key).unwrap();
-            // Check if we have an inconsistency message to ack:
-            let opt_ack = match &friend.inconsistency_status.incoming {
-                IncomingInconsistency::Empty => None,
-                IncomingInconsistency::Incoming(reset_terms) => Some(reset_terms.current_token.clone()),
-            };
-
-            let reset_terms = match &friend.inconsistency_status.outgoing {
-                OutgoingInconsistency::Empty | OutgoingInconsistency::Acked => unreachable!(),
-                OutgoingInconsistency::Sent(reset_terms) => reset_terms
-            };
-
-            let inconsistency_error = FriendInconsistencyError {
-                opt_ack,
-                current_token: reset_terms.current_token.clone(),
-                balance_for_reset: reset_terms.balance_for_reset,
-            };
-
-            self.add_task(
-                FunderTask::FriendMessage(
-                    FriendMessage::InconsistencyError(inconsistency_error)));
-
-        }
-
-        if actions.retransmit_token_msg {
-            let friend = self.get_friend(&remote_public_key).unwrap();
-            let outgoing_move_token = friend.directional.get_outgoing_move_token().unwrap();
-            // Add a task for sending the outgoing move token:
-            self.add_task(
-                FunderTask::FriendMessage(
-                    FriendMessage::MoveToken(outgoing_move_token)));
-        }
-
-        if actions.send_keepalive {
-            self.add_task(
-                FunderTask::FriendMessage(
-                    FriendMessage::KeepAlive));
-        }
-    }
-
-
     fn handle_keep_alive(&mut self, 
                         remote_public_key: &PublicKey)
                                     -> Result<(), HandleFriendError> {
@@ -925,5 +878,4 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             },
         }
     }
-
 }
