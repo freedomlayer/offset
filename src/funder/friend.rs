@@ -30,7 +30,7 @@ pub enum OutgoingInconsistency {
     // No outgoing inconsistency in progress
     Empty,
     // Outgoing inconsistency message was sent
-    Sent,
+    Sent(ResetTerms),
     // Outgoing inconsistency message was sent and acknowledged by remote side
     Acked,
 }

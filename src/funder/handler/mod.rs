@@ -10,6 +10,8 @@ use ring::rand::SecureRandom;
 use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 
+use proto::funder::ChannelToken;
+
 use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError, IncomingControlMessage};
 use self::handle_friend::{FriendInconsistencyError,
@@ -25,7 +27,10 @@ use super::messages::{FunderCommand, ResponseSendFundsResult};
 #[allow(unused)]
 pub enum FriendMessage {
     MoveToken(FriendMoveToken),
+    MoveTokenAck(ChannelToken), // acked_token
+    RequestToken(ChannelToken), // last_token
     InconsistencyError(FriendInconsistencyError),
+    KeepAlive,
 }
 
 pub struct ResponseReceived {

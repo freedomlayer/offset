@@ -27,9 +27,9 @@ pub struct FriendLiveness {
 }
 
 pub struct Actions {
-    retransmit_inconsistency: bool,
-    retransmit_token_msg: bool,
-    send_keepalive: bool,
+    pub retransmit_inconsistency: bool,
+    pub retransmit_token_msg: bool,
+    pub send_keepalive: bool,
 }
 
 impl Actions {

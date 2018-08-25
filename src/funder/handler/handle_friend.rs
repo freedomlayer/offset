@@ -34,6 +34,8 @@ use super::super::signature_buff::{create_failure_signature_buffer, prepare_rece
 use super::super::types::{FunderFreezeLink, PkPairPosition, PendingFriendRequest, Ratio, RequestsStatus};
 use super::super::messages::{ResponseSendFundsResult};
 
+use super::super::liveness::Actions;
+
 use proto::common::SendFundsReceipt;
 
 // Approximate maximum size of a MOVE_TOKEN message.
@@ -321,7 +323,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                               &pending_request);
 
                 let response_send_funds_result = ResponseSendFundsResult::Success(receipt);
-                self.funder_tasks.push(
+                self.add_task(
                     FunderTask::ResponseReceived(
                         ResponseReceived {
                             request_id: pending_request.request_id,
@@ -425,6 +427,11 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let balance_for_reset = friend.directional
             .balance_for_reset();
 
+        let reset_terms = ResetTerms {
+            current_token: current_token.clone(),
+            balance_for_reset,
+        };
+
         let inconsistency_error = FriendInconsistencyError {
             opt_ack: None,
             current_token,
@@ -435,8 +442,9 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             FunderTask::FriendMessage(
                 FriendMessage::InconsistencyError(inconsistency_error)));
 
+
         // Keep outgoing InconsistencyError message details in memory:
-        let friend_mutation = FriendMutation::SetOutgoingInconsistency(OutgoingInconsistency::Sent);
+        let friend_mutation = FriendMutation::SetOutgoingInconsistency(OutgoingInconsistency::Sent(reset_terms));
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
     }
@@ -704,16 +712,20 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let reset_token = directional.calc_channel_reset_token();
         let balance_for_reset = directional.balance_for_reset();
 
+        let reset_terms = ResetTerms {
+            current_token: reset_token.clone(),
+            balance_for_reset,
+        };
 
         // Check if we should send an outgoing inconsistency message:
         let should_send_outgoing = match friend.inconsistency_status.outgoing {
             OutgoingInconsistency::Empty => {
-                let friend_mutation = FriendMutation::SetOutgoingInconsistency(OutgoingInconsistency::Sent);
+                let friend_mutation = FriendMutation::SetOutgoingInconsistency(OutgoingInconsistency::Sent(reset_terms));
                 let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
                 self.apply_mutation(messenger_mutation);
                 true
             },
-            OutgoingInconsistency::Sent => {
+            OutgoingInconsistency::Sent(_) => {
                 let is_ack_valid = match friend_inconsistency_error.opt_ack {
                     Some(acked_reset_token) => acked_reset_token == reset_token,
                     None => false,
@@ -814,11 +826,66 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         Ok(())
     }
 
+    fn invoke_actions(&mut self, 
+                      remote_public_key: &PublicKey,
+                      actions: &Actions) {
+
+
+        if actions.retransmit_inconsistency {
+            let friend = self.get_friend(&remote_public_key).unwrap();
+            // Check if we have an inconsistency message to ack:
+            let opt_ack = match &friend.inconsistency_status.incoming {
+                IncomingInconsistency::Empty => None,
+                IncomingInconsistency::Incoming(reset_terms) => Some(reset_terms.current_token.clone()),
+            };
+
+            let reset_terms = match &friend.inconsistency_status.outgoing {
+                OutgoingInconsistency::Empty | OutgoingInconsistency::Acked => unreachable!(),
+                OutgoingInconsistency::Sent(reset_terms) => reset_terms
+            };
+
+            let inconsistency_error = FriendInconsistencyError {
+                opt_ack,
+                current_token: reset_terms.current_token.clone(),
+                balance_for_reset: reset_terms.balance_for_reset,
+            };
+
+            self.add_task(
+                FunderTask::FriendMessage(
+                    FriendMessage::InconsistencyError(inconsistency_error)));
+
+        }
+
+        if actions.retransmit_token_msg {
+            let friend = self.get_friend(&remote_public_key).unwrap();
+            let outgoing_move_token = friend.directional.get_outgoing_move_token().unwrap();
+            // Add a task for sending the outgoing move token:
+            self.add_task(
+                FunderTask::FriendMessage(
+                    FriendMessage::MoveToken(outgoing_move_token)));
+        }
+
+        if actions.send_keepalive {
+            self.add_task(
+                FunderTask::FriendMessage(
+                    FriendMessage::KeepAlive));
+        }
+    }
+
+
     fn handle_keep_alive(&mut self, 
                         remote_public_key: &PublicKey)
                                     -> Result<(), HandleFriendError> {
-        // TODO
-        unimplemented!();
+
+
+        let friend_liveness = match self.ephemeral.liveness.friends.get_mut(&remote_public_key) {
+            Some(friend_liveness) => Ok(friend_liveness),
+            None => Err(HandleFriendError::FriendDoesNotExist),
+        }?;
+
+        let actions = friend_liveness.keepalive_received();
+        self.invoke_actions(remote_public_key, &actions);
+        Ok(())
     }
 
     #[async]
