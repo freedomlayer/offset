@@ -679,6 +679,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             ReceiveMoveTokenOutput::Received(move_token_received) => {
                 let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
                 liveness_friend.cancel_inconsistency();
+                liveness_friend.cancel_request_token();
 
                 let MoveTokenReceived {incoming_messages, mutations} = 
                     move_token_received;
