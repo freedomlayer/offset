@@ -285,7 +285,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             false
         };
 
-        let mut fself = if friend_online {
+        let mut fself = if !friend_online {
             await!(self.reply_with_failure(remote_public_key.clone(), 
                                            request_send_funds.clone()))?
         } else {
