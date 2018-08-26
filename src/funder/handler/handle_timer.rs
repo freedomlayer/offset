@@ -79,7 +79,7 @@ impl<A:Clone + 'static, R:SecureRandom + 'static> MutableFunderHandler<A,R> {
     #[async]
     fn cancel_pending_requests(mut self,
                                friend_public_key: PublicKey)
-                        -> Result<Self, HandleTimerError> {
+                        -> Result<Self, !> {
 
         let friend = self.get_friend(&friend_public_key).unwrap();
         let mut pending_requests = friend.pending_requests.clone();
@@ -118,7 +118,7 @@ impl<A:Clone + 'static, R:SecureRandom + 'static> MutableFunderHandler<A,R> {
     #[async]
     fn cancel_pending_user_requests(mut self,
                                friend_public_key: PublicKey)
-                        -> Result<Self, HandleTimerError> {
+                        -> Result<Self, !> {
 
         let friend = self.get_friend(&friend_public_key).unwrap();
         let mut pending_user_requests = friend.pending_user_requests.clone();
@@ -156,7 +156,7 @@ impl<A:Clone + 'static, R:SecureRandom + 'static> MutableFunderHandler<A,R> {
 
     #[async]
     fn handle_timer_tick(mut self)
-                        -> Result<Self, HandleTimerError> {
+                        -> Result<Self, !> {
         let time_tick_output = self.ephemeral.liveness.time_tick();
         for (friend_public_key, actions) in &time_tick_output.friends_actions {
             self.invoke_actions(friend_public_key, actions);
