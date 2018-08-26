@@ -273,13 +273,24 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         // The node on the route has to be one of our friends:
         let next_public_key = request_send_funds.route.index_to_pk(next_index).unwrap();
-        let mut fself = if !self.state.get_friends().contains_key(next_public_key) {
+        let friend_exists = !self.state.get_friends().contains_key(next_public_key);
+
+        // This friend must be considered online.
+        let friend_online = if friend_exists {
+            self.ephemeral.liveness.friends
+                .get(&next_public_key)
+                .unwrap()
+                .is_online()
+        } else {
+            false
+        };
+
+        let mut fself = if friend_online {
             await!(self.reply_with_failure(remote_public_key.clone(), 
                                            request_send_funds.clone()))?
         } else {
             self
         };
-
 
         // Perform DoS protection check:
         Ok(match fself.ephemeral.freeze_guard.verify_freezing_links(&request_send_funds) {
