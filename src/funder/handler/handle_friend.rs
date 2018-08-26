@@ -703,6 +703,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             Ok(receive_move_token_output) => {
                 await!(fself.handle_move_token_success(remote_public_key.clone(),
                                              receive_move_token_output))?
+                // TODO:
+                // Send an ack message
             },
             Err(receive_move_token_error) => {
                 fself.handle_move_token_error(&remote_public_key,
