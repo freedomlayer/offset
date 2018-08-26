@@ -285,19 +285,10 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
             return Err(HandleControlError::PendingUserRequestsFull);
         }
 
-        // TODO: Trigger a function that tries to send stuff to the remote side.
-        
-        
-        // - Check if we have room to push this message.
-        //   If we don't, we return an error.
-        //
-        // - Push the message to the queue.
-        // - If we have the token: Trigger a function that tries to send stuff to the remote side 
-        //      - If the token is at our side, we might be able to send the request immediately.
-        //      - If the token is at the remote side, we should signal the remote side to give us
-        //      the token.
-        
-        unimplemented!();
+        let friend_mutation = FriendMutation::PushBackPendingUserRequest(user_request_send_funds.clone());
+        let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+        self.apply_mutation(messenger_mutation);
+        self.try_send_channel(&friend_public_key);
 
         Ok(())
     }
