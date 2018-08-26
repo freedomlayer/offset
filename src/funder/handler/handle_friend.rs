@@ -628,7 +628,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     fn handle_move_token_success(mut self,
                                remote_public_key: PublicKey,
                                receive_move_token_output: ReceiveMoveTokenOutput) 
-        -> Result<Self, HandleFriendError> {
+        -> Result<Self, !> {
 
         self.clear_inconsistency_status(&remote_public_key);
 
