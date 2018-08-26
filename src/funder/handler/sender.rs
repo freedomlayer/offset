@@ -177,6 +177,7 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
     /// If we don't own the token, send a request_token message instead.
     pub fn try_send_channel(&mut self,
                         remote_public_key: &PublicKey) {
+
         let friend = self.get_friend(remote_public_key).unwrap();
         let new_token = friend.directional.new_token();
         match friend.directional.direction {
@@ -189,7 +190,7 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
                 // We don't have the token. We should request it.
                 let liveness_friend = self.ephemeral.liveness.friends
                     .get_mut(&remote_public_key).unwrap();
-                if !liveness_friend.is_request_token_enabled() {
+                if !liveness_friend.is_request_token_enabled() && liveness_friend.is_online() {
                     self.funder_tasks.push(
                         FunderTask::FriendMessage(
                             FriendMessage::RequestToken(new_token)));
