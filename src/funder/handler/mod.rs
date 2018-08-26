@@ -1,6 +1,7 @@
 pub mod handle_control;
 pub mod handle_friend;
 pub mod handle_timer;
+mod sender;
 
 use futures::prelude::{async, await};
 
