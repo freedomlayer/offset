@@ -100,6 +100,10 @@ impl FriendLiveness {
                     // Will be triggered in the next tick:
                     self.ticks_retransmit_token_msg = Some(1);
                 }
+                if self.ticks_retransmit_request_token.is_some() {
+                    // Will be triggered in the next tick:
+                    self.ticks_retransmit_request_token = Some(1);
+                }
             },
         };
     }
