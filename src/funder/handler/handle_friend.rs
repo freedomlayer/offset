@@ -537,8 +537,9 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     /// Any operations that will enter the message should be applied. For example, a failure
     /// message should cause the pending request to be removed.
     ///
+    /// Returns whether a move token message is scheduled for the remote side.
     fn send_through_token_channel(&mut self, 
-                                  remote_public_key: &PublicKey) {
+                                  remote_public_key: &PublicKey) -> bool {
 
         let friend = self.get_friend(remote_public_key).unwrap();
         let mut out_tc = friend.directional
@@ -562,7 +563,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         // If we have nothing to send, we do nothing:
         if operations.is_empty() {
-            return;
+            return false;
         }
 
         for tc_mutation in tc_mutations {
@@ -596,6 +597,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 FriendMessage::MoveToken(outgoing_move_token)));
         let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
         liveness_friend.reset_token_msg();
+        true
     }
 
 
@@ -633,7 +635,18 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         self.clear_inconsistency_status(&remote_public_key);
 
         match receive_move_token_output {
-            ReceiveMoveTokenOutput::Duplicate => Ok(self),
+            ReceiveMoveTokenOutput::Duplicate => {
+                // Send an ack:
+                let acked_token = self.get_friend(&remote_public_key)
+                    .unwrap()
+                    .directional
+                    .new_token();
+
+                self.add_task(
+                    FunderTask::FriendMessage(
+                        FriendMessage::MoveTokenAck(acked_token)));
+                Ok(self)
+            },
             ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token) => {
                 // Retransmit last sent token channel message:
                 self.funder_tasks.push(
@@ -651,6 +664,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 let MoveTokenReceived {incoming_messages, mutations} = 
                     move_token_received;
 
+
                 // Apply all mutations:
                 for directional_mutation in mutations {
                     let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
@@ -660,7 +674,16 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
                 let mut fself = await!(self.handle_move_token_output(remote_public_key.clone(),
                                                incoming_messages))?;
-                fself.send_through_token_channel(&remote_public_key);
+                if !fself.send_through_token_channel(&remote_public_key) {
+                    // If we didn't reply a move token message, we will reply an ack:
+                    let acked_token = fself.get_friend(&remote_public_key)
+                        .unwrap()
+                        .directional
+                        .new_token();
+                    fself.add_task(
+                        FunderTask::FriendMessage(
+                            FriendMessage::MoveTokenAck(acked_token)));
+                }
                 Ok(fself)
             },
         }
@@ -703,8 +726,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             Ok(receive_move_token_output) => {
                 await!(fself.handle_move_token_success(remote_public_key.clone(),
                                              receive_move_token_output))?
-                // TODO:
-                // Send an ack message
             },
             Err(receive_move_token_error) => {
                 fself.handle_move_token_error(&remote_public_key,
