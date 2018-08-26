@@ -86,7 +86,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     /// We are the reporting_public_key for this failure message.
     #[async]
     pub fn create_failure_message(self, pending_local_request: PendingFriendRequest) 
-        -> Result<(Self, FailureSendFunds), HandleFriendError> {
+        -> Result<(Self, FailureSendFunds), !> {
 
         let rand_nonce = RandValue::new(&*self.rng);
         let local_public_key = self.state.get_local_public_key().clone();
@@ -196,7 +196,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     #[async]
     fn reply_with_failure(self, 
                           remote_public_key: PublicKey,
-                          request_send_funds: RequestSendFunds) -> Result<Self, HandleFriendError> {
+                          request_send_funds: RequestSendFunds) -> Result<Self, !> {
 
         let pending_request = request_send_funds.create_pending_request();
         let (mut fself, failure_send_funds) = await!(self.create_failure_message(pending_request))?;
@@ -253,7 +253,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     #[async]
     fn handle_request_send_funds(mut self, 
                                remote_public_key: PublicKey,
-                               request_send_funds: RequestSendFunds) -> Result<Self, HandleFriendError> {
+                               request_send_funds: RequestSendFunds) -> Result<Self, !> {
 
         self.ephemeral.freeze_guard.add_frozen_credit(&request_send_funds.create_pending_request());
         // TODO: Add rest of add/sub_frozen_credit
@@ -348,7 +348,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                remote_public_key: &PublicKey,
                                failure_send_funds: FailureSendFunds,
                                pending_request: PendingFriendRequest)
-                                -> Result<Self, HandleFriendError> {
+                                -> Result<Self, !> {
 
         self.ephemeral.freeze_guard.sub_frozen_credit(&pending_request);
         let fself = match self.find_request_origin(&failure_send_funds.request_id) {
@@ -387,7 +387,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     fn handle_move_token_output(mut self, 
                                 remote_public_key: PublicKey,
                                 incoming_messages: Vec<IncomingMessage> )
-                        -> Result<Self, HandleFriendError> {
+                        -> Result<Self, !> {
 
         let mut fself = self;
         for incoming_message in incoming_messages {
