@@ -9,6 +9,7 @@ use super::super::friend::{IncomingInconsistency,
     OutgoingInconsistency, FriendMutation, ResponseOp};
 use super::super::state::FunderMutation;
 use super::super::messages::{ResponseSendFundsResult};
+use super::super::token_channel::directional::MoveTokenDirection;
 
 use super::{MutableFunderHandler, ResponseReceived};
 
@@ -55,6 +56,18 @@ impl<A:Clone + 'static, R:SecureRandom + 'static> MutableFunderHandler<A,R> {
             self.add_task(
                 FunderTask::FriendMessage(
                     FriendMessage::MoveToken(outgoing_move_token)));
+        }
+
+        if actions.retransmit_request_token {
+            let friend = self.get_friend(&remote_public_key).unwrap();
+            let new_token = match &friend.directional.direction {
+                MoveTokenDirection::Incoming(new_token) => new_token.clone(),
+                MoveTokenDirection::Outgoing(_) => unreachable!(),
+            };
+            // Add a task for sending the outgoing move token:
+            self.add_task(
+                FunderTask::FriendMessage(
+                    FriendMessage::RequestToken(new_token)));
         }
 
         if actions.send_keepalive {
