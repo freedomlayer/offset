@@ -305,7 +305,7 @@ impl FriendTcOp {
 }
 
 impl UserRequestSendFunds {
-    fn to_request(self) -> RequestSendFunds {
+    pub fn to_request(self) -> RequestSendFunds {
         RequestSendFunds {
             request_id: self.request_id,
             route: self.route,
