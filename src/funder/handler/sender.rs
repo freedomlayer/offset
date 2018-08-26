@@ -165,9 +165,16 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
         let outgoing_move_token = friend.directional.get_outgoing_move_token().unwrap();
 
         // Add a task for sending the outgoing move token:
-        self.add_task(
-            FunderTask::FriendMessage(
-                FriendMessage::MoveToken(outgoing_move_token)));
+        let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
+        if liveness_friend.is_online() {
+            // TODO: We only add a FriendMessage::MoveToken task in the case where we think
+            // the remote friend is online. Could this cause any problems?
+            // Should we add this checks in other places in handle_friend.rs?
+            self.add_task(
+                FunderTask::FriendMessage(
+                    FriendMessage::MoveToken(outgoing_move_token)));
+        }
+
         let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
         liveness_friend.reset_token_msg();
         true
