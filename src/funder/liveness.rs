@@ -69,7 +69,7 @@ impl FriendLiveness {
         }
     }
 
-    fn is_online(&self) -> bool {
+    pub fn is_online(&self) -> bool {
         match self.liveness_status {
             LivenessStatus::Online(_) => true,
             LivenessStatus::Offline => false,
