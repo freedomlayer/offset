@@ -22,6 +22,7 @@ pub struct FriendLiveness {
     liveness_status: LivenessStatus,
     ticks_retransmit_inconsistency: Option<usize>,
     ticks_retransmit_token_msg: Option<usize>,
+    ticks_retransmit_request_token: Option<usize>,
     // When this amount reaches 0, we send a keepalive to remote friend:
     ticks_send_keepalive: usize,
 }
@@ -29,6 +30,7 @@ pub struct FriendLiveness {
 pub struct Actions {
     pub retransmit_inconsistency: bool,
     pub retransmit_token_msg: bool,
+    pub retransmit_request_token: bool,
     pub send_keepalive: bool,
 }
 
@@ -37,6 +39,7 @@ impl Actions {
         Actions {
             retransmit_inconsistency: false,
             retransmit_token_msg: false,
+            retransmit_request_token: false,
             send_keepalive: false,
         }
     }
@@ -65,6 +68,7 @@ impl FriendLiveness {
             liveness_status: LivenessStatus::Offline,
             ticks_retransmit_inconsistency: None,
             ticks_retransmit_token_msg,
+            ticks_retransmit_request_token: None,
             ticks_send_keepalive: FRIEND_KEEPALIVE_TICKS/2,
         }
     }
@@ -116,6 +120,23 @@ impl FriendLiveness {
         self.ticks_retransmit_token_msg = Some(RETRANSMIT_TICKS);
     }
 
+    pub fn cancel_request_token(&mut self) {
+        self.ticks_retransmit_request_token = None;
+    }
+
+    /// Enable the process of requesting the remote token.
+    /// If already in progress, this function does nothing.
+    pub fn enable_request_token(&mut self) {
+        if self.ticks_retransmit_request_token.is_none() {
+            self.ticks_retransmit_request_token = Some(RETRANSMIT_TICKS);
+        }
+    }
+
+    /// Check if we are currently in the process of resending request_token messages.
+    pub fn is_request_token_enabled(&self) -> bool {
+        self.ticks_retransmit_request_token.is_some()
+    }
+
 
     fn time_tick(&mut self) -> Actions {
         let mut actions = Actions::new();
@@ -157,6 +178,18 @@ impl FriendLiveness {
                     if *retransmit_ticks == 0 {
                         *retransmit_ticks = RETRANSMIT_TICKS;
                         actions.retransmit_token_msg = true;
+                        actions.send_keepalive = false;
+                    }
+                    Some(*retransmit_ticks)
+                },
+                None => None,
+            };
+            self.ticks_retransmit_token_msg = match self.ticks_retransmit_request_token {
+                Some(ref mut retransmit_ticks) => {
+                    *retransmit_ticks = retransmit_ticks.checked_sub(1).unwrap();
+                    if *retransmit_ticks == 0 {
+                        *retransmit_ticks = RETRANSMIT_TICKS;
+                        actions.retransmit_request_token = true;
                         actions.send_keepalive = false;
                     }
                     Some(*retransmit_ticks)
