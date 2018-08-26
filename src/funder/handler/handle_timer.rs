@@ -64,7 +64,6 @@ impl<A:Clone + 'static, R:SecureRandom + 'static> MutableFunderHandler<A,R> {
                 MoveTokenDirection::Incoming(new_token) => new_token.clone(),
                 MoveTokenDirection::Outgoing(_) => unreachable!(),
             };
-            // Add a task for sending the outgoing move token:
             self.add_task(
                 FunderTask::FriendMessage(
                     FriendMessage::RequestToken(new_token)));
