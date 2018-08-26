@@ -69,7 +69,8 @@ impl FriendLiveness {
             ticks_retransmit_inconsistency: None,
             ticks_retransmit_token_msg,
             ticks_retransmit_request_token: None,
-            ticks_send_keepalive: FRIEND_KEEPALIVE_TICKS/2,
+            ticks_send_keepalive: 1, 
+            // We will send a keepalive in the next tick
         }
     }
 
@@ -90,7 +91,6 @@ impl FriendLiveness {
                 self.liveness_status = LivenessStatus::Online(FRIEND_KEEPALIVE_TICKS);
             },
             LivenessStatus::Offline => {
-                self.ticks_send_keepalive = FRIEND_KEEPALIVE_TICKS;
                 self.liveness_status = LivenessStatus::Online(FRIEND_KEEPALIVE_TICKS);
                 if self.ticks_retransmit_inconsistency.is_some() {
                     // Will be triggered in the next tick:
@@ -146,7 +146,7 @@ impl FriendLiveness {
         let mut actions = Actions::new();
         self.ticks_send_keepalive = self.ticks_send_keepalive.checked_sub(1).unwrap();
         if self.ticks_send_keepalive == 0 {
-            self.ticks_send_keepalive = FRIEND_KEEPALIVE_TICKS;
+            self.ticks_send_keepalive = FRIEND_KEEPALIVE_TICKS/2;
             actions.send_keepalive = true;
         }
         self.liveness_status = match self.liveness_status {
