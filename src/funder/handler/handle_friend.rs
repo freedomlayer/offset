@@ -625,6 +625,25 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         }
     }
 
+    /// Try to send whatever possible through a friend channel.
+    /// If we don't own the token, send a request_token message instead.
+    fn try_send_channel(&mut self,
+                        remote_public_key: &PublicKey) {
+        let friend = self.get_friend(remote_public_key).unwrap();
+        let token_owned = match friend.directional.direction {
+            MoveTokenDirection::Incoming(_) => true,
+            MoveTokenDirection::Outgoing(_) => false,
+        };
+
+        // TODO:
+        // If we have the token, send as much as possible through the token channel
+        // (We already have a function that does that).
+        // If we don't have the token, we should send a request token, and update Liveness
+        // accordingly.
+
+        unimplemented!();
+    }
+
     /// Handle success with incoming move token.
     #[async]
     fn handle_move_token_success(mut self,
