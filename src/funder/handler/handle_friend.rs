@@ -378,12 +378,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             },
             ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token) => {
                 // Retransmit last sent token channel message:
-                self.funder_tasks.push(
-                    FunderTask::FriendMessage(
-                        FriendMessage::MoveToken(outgoing_move_token)));
-                let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
-                liveness_friend.reset_token_msg();
-                liveness_friend.cancel_inconsistency();
+                self.transmit_outgoing(&remote_public_key);
                 Ok(self)
             },
             ReceiveMoveTokenOutput::Received(move_token_received) => {
