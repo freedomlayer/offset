@@ -600,29 +600,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         }
 
         // Compose an empty friend_move_token message and send it to the remote side:
-        let rand_nonce = RandValue::new(&*self.rng);
-        let friend_move_token = FriendMoveToken {
-            operations: Vec::new(),
-            old_token: new_token.clone(),
-            rand_nonce,
-        };
-
-        let directional_mutation = DirectionalMutation::SetDirection(
-            SetDirection::Outgoing(friend_move_token));
-        let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
-        let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-        self.apply_mutation(messenger_mutation);
-
-        let friend = self.get_friend(remote_public_key).unwrap();
-        let outgoing_move_token = friend.directional.get_outgoing_move_token().unwrap();
-
-
-        // Add a task for sending the outgoing move token:
-        self.add_task(
-            FunderTask::FriendMessage(
-                FriendMessage::MoveToken(outgoing_move_token)));
-        let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
-        liveness_friend.reset_token_msg();
+        let move_token_sent = self.send_friend_move_token(
+            &remote_public_key, Vec::new()).unwrap();
 
         Ok(())
     }
