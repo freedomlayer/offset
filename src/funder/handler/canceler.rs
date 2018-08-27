@@ -49,7 +49,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         }))
     }
 
-
     /// Reply to a request message with failure.
     #[async]
     pub fn reply_with_failure(self, 
@@ -115,8 +114,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         }
         Ok(fself)
-   }
-
+    }
 
     #[async]
     pub fn cancel_pending_requests(mut self,
@@ -156,7 +154,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         }
         Ok(fself)
     }
-
 
     #[async]
     pub fn cancel_pending_user_requests(mut self,
