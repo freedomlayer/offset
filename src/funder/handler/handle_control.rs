@@ -184,8 +184,12 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let _friend = self.get_friend(&remove_friend.friend_public_key)
             .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-        let mut fself = await!(self.cancel_local_pending_requests(
+        let fself = await!(self.cancel_local_pending_requests(
             remove_friend.friend_public_key.clone()))?;
+        let fself = await!(fself.cancel_pending_requests(
+                remove_friend.friend_public_key.clone()))?;
+        let mut fself = await!(fself.cancel_pending_user_requests(
+                remove_friend.friend_public_key.clone()))?;
 
         let m_mutation = FunderMutation::RemoveFriend(
                 remove_friend.friend_public_key.clone());
