@@ -255,9 +255,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                remote_public_key: PublicKey,
                                request_send_funds: RequestSendFunds) -> Result<Self, !> {
 
-        self.ephemeral.freeze_guard.add_frozen_credit(&request_send_funds.create_pending_request());
-        // TODO: Add rest of add/sub_frozen_credit
-
         // Find ourselves on the route. If we are not there, abort.
         let remote_index = request_send_funds.route.find_pk_pair(
             &remote_public_key, 
@@ -313,7 +310,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                response_send_funds: ResponseSendFunds,
                                pending_request: PendingFriendRequest) {
 
-        self.ephemeral.freeze_guard.sub_frozen_credit(&pending_request);
         match self.find_request_origin(&response_send_funds.request_id).cloned() {
             None => {
                 // We are the origin of this request, and we got a response.
@@ -351,7 +347,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                pending_request: PendingFriendRequest)
                                 -> Result<Self, !> {
 
-        self.ephemeral.freeze_guard.sub_frozen_credit(&pending_request);
         let fself = match self.find_request_origin(&failure_send_funds.request_id).cloned() {
             None => {
                 // We are the origin of this request, and we got a failure
@@ -394,17 +389,20 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let mut fself = self;
         for incoming_message in incoming_messages {
             fself = match incoming_message {
-                IncomingMessage::Request(request_send_funds) => 
+                IncomingMessage::Request(request_send_funds) => {
                     await!(fself.handle_request_send_funds(remote_public_key.clone(),
-                                                 request_send_funds))?,
+                                                 request_send_funds))?
+                },
                 IncomingMessage::Response(IncomingResponseSendFunds {
                                                 pending_request, incoming_response}) => {
+                    fself.ephemeral.freeze_guard.sub_frozen_credit(&pending_request);
                     fself.handle_response_send_funds(&remote_public_key, 
                                                   incoming_response, pending_request);
                     fself
                 },
                 IncomingMessage::Failure(IncomingFailureSendFunds {
                                                 pending_request, incoming_failure}) => {
+                    fself.ephemeral.freeze_guard.sub_frozen_credit(&pending_request);
                     await!(fself.handle_failure_send_funds(&remote_public_key, 
                                                  incoming_failure, pending_request))?
                 },

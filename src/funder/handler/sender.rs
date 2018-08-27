@@ -145,6 +145,16 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
             let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
             self.apply_mutation(messenger_mutation);
         }
+
+        // Update freeze guard about outgoing requests:
+        for operation in &operations {
+            if let FriendTcOp::RequestSendFunds(request_send_funds) = operation {
+                self.ephemeral.freeze_guard
+                    .add_frozen_credit(
+                        &request_send_funds.create_pending_request());
+            }
+        }
+
         let friend = self.get_friend(remote_public_key).unwrap();
 
         let rand_nonce = RandValue::new(&*self.rng);
@@ -153,7 +163,6 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
             old_token: friend.directional.new_token().clone(),
             rand_nonce,
         };
-
 
         let directional_mutation = DirectionalMutation::SetDirection(
             SetDirection::Outgoing(friend_move_token));
