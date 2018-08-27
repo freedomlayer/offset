@@ -27,9 +27,13 @@ const MAX_MOVE_TOKEN_LENGTH: usize = 0x1000;
 impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
     /// Queue as many messages as possible into available token channel.
     fn queue_outgoing_operations(&mut self,
-                           remote_public_key: &PublicKey,
-                           out_tc: &mut OutgoingTokenChannel) -> Result<(), QueueOperationFailure> {
+                           remote_public_key: &PublicKey) -> Result<Vec<FriendTcOp>, QueueOperationFailure> {
 
+        // TODO:
+        // Take MAX_MOVE_TOKEN_LENGTH into consideration.
+        unimplemented!();
+
+        let mut operations = Vec::new();
         let friend = self.get_friend(remote_public_key).unwrap();
 
         // Set remote_max_debt if needed:
@@ -38,7 +42,7 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
             .remote_max_debt();
 
         if friend.wanted_remote_max_debt != remote_max_debt {
-            out_tc.queue_operation(FriendTcOp::SetRemoteMaxDebt(friend.wanted_remote_max_debt))?;
+            operations.push(FriendTcOp::SetRemoteMaxDebt(friend.wanted_remote_max_debt));
         }
 
         // Open or close requests is needed:
@@ -55,7 +59,7 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
             } else {
                 FriendTcOp::DisableRequests
             };
-            out_tc.queue_operation(friend_op)?;
+            operations.push(friend_op);
         }
 
         // Send pending responses (responses and failures)
@@ -66,7 +70,7 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
                 ResponseOp::Response(response) => FriendTcOp::ResponseSendFunds(response),
                 ResponseOp::Failure(failure) => FriendTcOp::FailureSendFunds(failure),
             };
-            out_tc.queue_operation(pending_op)?;
+            operations.push(pending_op);
             let friend_mutation = FriendMutation::PopFrontPendingResponse;
             let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
             self.apply_mutation(messenger_mutation);
@@ -79,7 +83,7 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
         let mut pending_requests = friend.pending_requests.clone();
         while let Some(pending_request) = pending_requests.pop_front() {
             let pending_op = FriendTcOp::RequestSendFunds(pending_request);
-            out_tc.queue_operation(pending_op)?;
+            operations.push(pending_op);
             let friend_mutation = FriendMutation::PopFrontPendingRequest;
             let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
             self.apply_mutation(messenger_mutation);
@@ -91,13 +95,13 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
         let mut pending_user_requests = friend.pending_user_requests.clone();
         while let Some(user_request_send_funds) = pending_user_requests.pop_front() {
             let request_op = FriendTcOp::RequestSendFunds(user_request_send_funds.to_request());
-            out_tc.queue_operation(request_op)?;
+            operations.push(request_op);
             let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
             let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
             self.apply_mutation(messenger_mutation);
         }
 
-        Ok(())
+        Ok(operations)
     }
 
     pub fn send_friend_move_token(&mut self,
@@ -107,9 +111,8 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
 
 
         let friend = self.get_friend(remote_public_key).unwrap();
-        // TODO: Maybe move the maximum limitation to another place?
         let mut out_tc = friend.directional
-            .begin_outgoing_move_token(MAX_MOVE_TOKEN_LENGTH).unwrap();
+            .begin_outgoing_move_token().unwrap();
 
         for op in operations {
             out_tc.queue_operation(op)?;
@@ -185,78 +188,12 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
 
         let friend = self.get_friend(remote_public_key).unwrap();
         let mut out_tc = friend.directional
-            .begin_outgoing_move_token(MAX_MOVE_TOKEN_LENGTH).unwrap();
+            .begin_outgoing_move_token().unwrap();
 
-        let res = self.queue_outgoing_operations(remote_public_key, &mut out_tc);
+        let operations = self.queue_outgoing_operations(remote_public_key).unwrap();
 
-
-        // If we had a real error, we should panic.
-        // Otherwise
-        match res {
-            Ok(()) => {},
-            Err(QueueOperationFailure {error, ..}) => {
-                match error {
-                    QueueOperationError::MaxLengthReached => {},
-                    _ => unreachable!(),
-                }
-            }
-        };
-
-        let (operations, tc_mutations) = out_tc.done();
-
-        // If we have nothing to send, we do nothing:
-        if operations.is_empty() {
-            return false;
-        }
-
-        for tc_mutation in tc_mutations {
-            let directional_mutation = DirectionalMutation::TcMutation(tc_mutation);
-            let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
-            let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-            self.apply_mutation(messenger_mutation);
-        }
-
-        // Update freeze guard about outgoing requests:
-        for operation in &operations {
-            if let FriendTcOp::RequestSendFunds(request_send_funds) = operation {
-                self.ephemeral.freeze_guard
-                    .add_frozen_credit(
-                        &request_send_funds.create_pending_request());
-            }
-        }
-
-        let friend = self.get_friend(remote_public_key).unwrap();
-
-        let rand_nonce = RandValue::new(&*self.rng);
-        let friend_move_token = FriendMoveToken {
-            operations,
-            old_token: friend.directional.new_token().clone(),
-            rand_nonce,
-        };
-
-        let directional_mutation = DirectionalMutation::SetDirection(
-            SetDirection::Outgoing(friend_move_token));
-        let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
-        let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-        self.apply_mutation(messenger_mutation);
-
-        let friend = self.get_friend(remote_public_key).unwrap();
-        let outgoing_move_token = friend.directional.get_outgoing_move_token().unwrap();
-
-        // Add a task for sending the outgoing move token:
-        let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
-        if liveness_friend.is_online() {
-            // TODO: We only add a FriendMessage::MoveToken task in the case where we think
-            // the remote friend is online. Could this cause any problems?
-            // Should we add this checks in other places in handle_friend.rs?
-            self.add_task(
-                FunderTask::FriendMessage(
-                    FriendMessage::MoveToken(outgoing_move_token)));
-        }
-
-        let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
-        liveness_friend.reset_token_msg();
-        true
+        self.send_friend_move_token(
+            remote_public_key, operations).unwrap()
     }
 
     /// Try to send whatever possible through a friend channel.

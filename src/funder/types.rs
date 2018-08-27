@@ -28,7 +28,7 @@ pub enum RequestsStatus {
 }
 
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum FriendTcOp {
     EnableRequests,
     DisableRequests,
@@ -47,7 +47,7 @@ pub struct PendingFriendRequest {
 }
 
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ResponseSendFunds {
     pub request_id: Uid,
     pub rand_nonce: RandValue,
@@ -56,13 +56,13 @@ pub struct ResponseSendFunds {
 
 
 /// The ratio can be numeration / T::max_value(), or 1
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Ratio<T> {
     One,
     Numerator(T),
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct FunderFreezeLink {
     pub shared_credits: u128,
     pub usable_ratio: Ratio<u128>
@@ -78,7 +78,7 @@ pub struct UserRequestSendFunds {
 }
 
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct RequestSendFunds {
     pub request_id: Uid,
     pub route: FriendsRoute,
@@ -88,7 +88,7 @@ pub struct RequestSendFunds {
 }
 
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct FailureSendFunds {
     pub request_id: Uid,
     pub reporting_public_key: PublicKey,

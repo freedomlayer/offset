@@ -29,11 +29,11 @@ pub struct OutgoingTokenChannel {
     // We want to limit the amount of bytes we can accumulate into
     // one MoveTokenChannel. Here we count how many bytes left until
     // we reach the maximum
-    bytes_left: usize,  
     tc_mutations: Vec<TcMutation>,
     operations: Vec<FriendTcOp>,
 }
 
+#[derive(Debug)]
 pub enum QueueOperationError {
     RemoteMaxDebtTooLarge,
     InvoiceIdAlreadyExists,
@@ -64,6 +64,7 @@ pub enum QueueOperationError {
     RemoteRequestsClosed,
 }
 
+#[derive(Debug)]
 pub struct QueueOperationFailure {
     pub operation: FriendTcOp,
     pub error: QueueOperationError,
@@ -71,10 +72,9 @@ pub struct QueueOperationFailure {
 
 /// A wrapper over a token channel, accumulating fundss to be sent as one transcation.
 impl OutgoingTokenChannel {
-    pub fn new(token_channel: &TokenChannel, move_token_max_length: usize) -> OutgoingTokenChannel {
+    pub fn new(token_channel: &TokenChannel) -> OutgoingTokenChannel {
         OutgoingTokenChannel {
             token_channel: token_channel.clone(),
-            bytes_left: move_token_max_length,
             tc_mutations: Vec::new(),
             operations: Vec::new(),
         }
@@ -92,12 +92,6 @@ impl OutgoingTokenChannel {
 
         // Check if we have room for another funds:
         let approx_bytes_count = operation.approx_bytes_count();
-        if self.bytes_left < approx_bytes_count {
-            return Err(QueueOperationFailure {
-                operation,
-                error: QueueOperationError::MaxLengthReached,
-            });
-        }
 
         let res = match operation.clone() {
             FriendTcOp::EnableRequests =>
@@ -117,8 +111,6 @@ impl OutgoingTokenChannel {
             Ok(tc_mutations) => {
                 self.tc_mutations.extend(tc_mutations);
                 self.operations.push(operation);
-                self.bytes_left = self.bytes_left
-                    .checked_sub(approx_bytes_count).unwrap();
                 Ok(())
             },
             Err(error) => Err(QueueOperationFailure {
