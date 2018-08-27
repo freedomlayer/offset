@@ -25,7 +25,7 @@ impl FreezeGuard {
     /// ```text
     /// A -- ... -- X -- B
     /// ```
-    /// Add credits frozen by B of all all nodes until us on the route.
+    /// Add credits frozen by B of all nodes until us on the route.
     pub fn add_frozen_credit(&mut self, pending_request: &PendingFriendRequest) {
         if &self.local_public_key == pending_request.route.public_keys.last().unwrap() {
             // We are the destination. Nothing to do here.
