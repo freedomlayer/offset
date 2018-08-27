@@ -58,27 +58,6 @@ pub enum HandleFriendError {
 #[allow(unused)]
 impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
-
-    /// Find the originator of a pending local request.
-    /// This should be a pending remote request at some other friend.
-    /// Returns the public key of a friend. If we are the origin of this request, the function return None.
-    ///
-    /// TODO: We need to change this search to be O(1) in the future. Possibly by maintaining a map
-    /// between request_id and (friend_public_key, friend).
-    pub fn find_request_origin(&self, request_id: &Uid) -> Option<&PublicKey> {
-        for (friend_public_key, friend) in self.state.get_friends() {
-            if friend.directional
-                .token_channel
-                .state()
-                .pending_requests
-                .pending_remote_requests
-                .contains_key(request_id) {
-                    return Some(friend_public_key)
-            }
-        }
-        None
-    }
-
     /// Create a (signed) failure message for a given request_id.
     /// We are the reporting_public_key for this failure message.
     #[async]
@@ -113,8 +92,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
 
     #[async]
-    fn cancel_local_pending_requests(mut self, 
-                                     friend_public_key: PublicKey) -> Result<Self, HandleFriendError> {
+    pub fn cancel_local_pending_requests(mut self, 
+                                     friend_public_key: PublicKey) -> Result<Self, !> {
 
         let friend = self.get_friend(&friend_public_key).unwrap();
 

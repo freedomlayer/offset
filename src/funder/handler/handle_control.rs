@@ -1,4 +1,5 @@
 #![allow(unused)]
+use futures::prelude::{async, await};
 use ring::rand::SecureRandom;
 
 use crypto::identity::PublicKey;
@@ -88,7 +89,7 @@ pub enum IncomingControlMessage<A> {
 
 
 #[allow(unused)]
-impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
+impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
     fn control_set_friend_remote_max_debt(&mut self, 
                                             set_friend_remote_max_debt: SetFriendRemoteMaxDebt) 
@@ -108,9 +109,10 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
         Ok(())
     }
 
-    fn control_reset_friend_channel(&mut self, 
-                                          reset_friend_channel: ResetFriendChannel) 
-        -> Result<(), HandleControlError> {
+    #[async]
+    fn control_reset_friend_channel(mut self, 
+                                    reset_friend_channel: ResetFriendChannel) 
+        -> Result<Self, HandleControlError> {
 
         let friend = self.get_friend(&reset_friend_channel.friend_public_key)
             .ok_or(HandleControlError::FriendDoesNotExist)?;
@@ -133,18 +135,21 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
             rand_nonce,
         };
 
+        let mut fself = await!(self.cancel_local_pending_requests(
+            reset_friend_channel.friend_public_key.clone()))?;
+
         let friend_mutation = FriendMutation::LocalReset(friend_move_token.clone());
         let m_mutation = FunderMutation::FriendMutation(
             (reset_friend_channel.friend_public_key, friend_mutation));
-        self.apply_mutation(m_mutation);
+        fself.apply_mutation(m_mutation);
 
         // Send a reset message to remote side:
-        self.funder_tasks.push(FunderTask::FriendMessage(
+        fself.funder_tasks.push(FunderTask::FriendMessage(
                 FriendMessage::MoveToken(friend_move_token)
             )
         );
 
-        Ok(())
+        Ok(fself)
 
     }
 
@@ -169,22 +174,26 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
         Ok(())
     }
 
-    fn control_remove_friend(&mut self, remove_friend: RemoveFriend) 
-        -> Result<(), HandleControlError> {
+    #[async]
+    /// This is a violent operation, as it removes all the known state with the remote friend.  
+    /// An inconsistency will occur if the friend is added again.
+    fn control_remove_friend(mut self, remove_friend: RemoveFriend) 
+        -> Result<Self, HandleControlError> {
 
-        // TODO: 
-        // This is a violent operation.
-        // Cancel all pending local requests for the removed friend from other token channels.
-        // Those requests will never have a response.
-        unimplemented!();
+        // Make sure that friend exists:
+        let _friend = self.get_friend(&remove_friend.friend_public_key)
+            .ok_or(HandleControlError::FriendDoesNotExist)?;
+
+        let mut fself = await!(self.cancel_local_pending_requests(
+            remove_friend.friend_public_key.clone()))?;
 
         let m_mutation = FunderMutation::RemoveFriend(
                 remove_friend.friend_public_key.clone());
 
-        self.apply_mutation(m_mutation);
-        self.ephemeral.liveness.remove_friend(&remove_friend.friend_public_key);
+        fself.apply_mutation(m_mutation);
+        fself.ephemeral.liveness.remove_friend(&remove_friend.friend_public_key);
                                                
-        Ok(())
+        Ok(fself)
     }
 
 
@@ -330,30 +339,50 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
     }
 
 
-    pub fn handle_control_message(&mut self, 
+    #[async]
+    pub fn handle_control_message(mut self, 
                                   funder_config: IncomingControlMessage<A>) 
-        -> Result<(), HandleControlError> {
+        -> Result<Self, HandleControlError> {
 
 
-        match funder_config {
-            IncomingControlMessage::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) => 
-                self.control_set_friend_remote_max_debt(set_friend_remote_max_debt),
-            IncomingControlMessage::ResetFriendChannel(reset_friend_channel) => 
-                self.control_reset_friend_channel(reset_friend_channel),
-            IncomingControlMessage::AddFriend(add_friend) => 
-                self.control_add_friend(add_friend),
-            IncomingControlMessage::RemoveFriend(remove_friend) => 
-                self.control_remove_friend(remove_friend),
-            IncomingControlMessage::SetFriendStatus(set_friend_status) => 
-                self.control_set_friend_status(set_friend_status),
-            IncomingControlMessage::SetRequestsStatus(set_requests_status) => 
-                self.control_set_requests_status(set_requests_status),
-            IncomingControlMessage::SetFriendAddr(set_friend_addr) => 
-                self.control_set_friend_addr(set_friend_addr),
-            IncomingControlMessage::RequestSendFunds(user_request_send_funds) => 
-                self.control_request_send_funds(user_request_send_funds),
-            IncomingControlMessage::ReceiptAck(receipt_ack) => 
-                self.control_receipt_ack(receipt_ack),
-        }
+        let fself = match funder_config {
+            IncomingControlMessage::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) => {
+                self.control_set_friend_remote_max_debt(set_friend_remote_max_debt);
+                self
+            },
+            IncomingControlMessage::ResetFriendChannel(reset_friend_channel) => {
+                let fself = await!(self.control_reset_friend_channel(reset_friend_channel))?;
+                fself
+            },
+            IncomingControlMessage::AddFriend(add_friend) => {
+                self.control_add_friend(add_friend);
+                self
+            },
+            IncomingControlMessage::RemoveFriend(remove_friend) => {
+                let fself = await!(self.control_remove_friend(remove_friend))?;
+                fself
+            },
+            IncomingControlMessage::SetFriendStatus(set_friend_status) => {
+                self.control_set_friend_status(set_friend_status);
+                self
+            },
+            IncomingControlMessage::SetRequestsStatus(set_requests_status) => {
+                self.control_set_requests_status(set_requests_status);
+                self
+            },
+            IncomingControlMessage::SetFriendAddr(set_friend_addr) => {
+                self.control_set_friend_addr(set_friend_addr);
+                self
+            },
+            IncomingControlMessage::RequestSendFunds(user_request_send_funds) => {
+                self.control_request_send_funds(user_request_send_funds);
+                self
+            },
+            IncomingControlMessage::ReceiptAck(receipt_ack) => {
+                self.control_receipt_ack(receipt_ack);
+                self
+            }
+        };
+        Ok(fself)
     }
 }

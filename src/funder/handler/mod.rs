@@ -98,6 +98,26 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
         }
         false
     }
+
+    /// Find the originator of a pending local request.
+    /// This should be a pending remote request at some other friend.
+    /// Returns the public key of a friend. If we are the origin of this request, the function return None.
+    ///
+    /// TODO: We need to change this search to be O(1) in the future. Possibly by maintaining a map
+    /// between request_id and (friend_public_key, friend).
+    pub fn find_request_origin(&self, request_id: &Uid) -> Option<&PublicKey> {
+        for (friend_public_key, friend) in self.state.get_friends() {
+            if friend.directional
+                .token_channel
+                .state()
+                .pending_requests
+                .pending_remote_requests
+                .contains_key(request_id) {
+                    return Some(friend_public_key)
+            }
+        }
+        None
+    }
 }
 
 
@@ -128,15 +148,16 @@ impl<R: SecureRandom + 'static> FunderHandler<R> {
     }
 
     #[allow(unused,type_complexity)]
-    fn simulate_handle_control_message<A: Clone>(&self,
-                                        messenger_state: &FunderState<A>,
-                                        funder_ephemeral: &FunderEphemeral,
+    #[async]
+    fn simulate_handle_control_message<A: Clone + 'static>(self,
+                                        messenger_state: FunderState<A>,
+                                        funder_ephemeral: FunderEphemeral,
                                         funder_command: IncomingControlMessage<A>)
             -> Result<(FunderEphemeral, Vec<FunderMutation<A>>, Vec<FunderTask>), HandlerError> {
-        let mut mutable_handler = self.gen_mutable(messenger_state,
-                                                   funder_ephemeral);
-        mutable_handler
-            .handle_control_message(funder_command)
+        let mut mutable_handler = self.gen_mutable(&messenger_state,
+                                                   &funder_ephemeral);
+        let mutable_handler = await!(mutable_handler
+            .handle_control_message(funder_command))
             .map_err(HandlerError::HandleControlError)?;
 
         Ok(mutable_handler.done())
