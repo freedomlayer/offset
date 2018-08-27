@@ -1,6 +1,6 @@
-pub mod handle_control;
-pub mod handle_friend;
-pub mod handle_timer;
+mod handle_control;
+mod handle_friend;
+mod handle_timer;
 mod sender;
 mod canceler;
 
@@ -16,11 +16,11 @@ use crypto::identity::PublicKey;
 use proto::funder::ChannelToken;
 
 use super::state::{FunderState, FunderMutation};
-use self::handle_control::{HandleControlError, IncomingControlMessage};
+use self::handle_control::{HandleControlError};
 use self::handle_friend::HandleFriendError;
 use self::handle_timer::HandleTimerError;
 use super::token_channel::directional::ReceiveMoveTokenError;
-use super::types::{FriendMoveToken, FriendsRoute};
+use super::types::{FriendMoveToken, FriendsRoute, IncomingControlMessage};
 use super::ephemeral::FunderEphemeral;
 use super::friend::FriendState;
 

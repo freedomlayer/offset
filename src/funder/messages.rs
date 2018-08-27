@@ -7,8 +7,8 @@ use crypto::uid::Uid;
 use proto::funder::{ChannelToken, InvoiceId};
 use proto::common::SendFundsReceipt;
 use channeler::types::ChannelerNeighborInfo;
-use super::types::{RequestsStatus, FriendStatus, UserRequestSendFunds};
-use super::handler::handle_control::{SetFriendRemoteMaxDebt, ResetFriendChannel,
+use super::types::{RequestsStatus, FriendStatus, UserRequestSendFunds,
+    SetFriendRemoteMaxDebt, ResetFriendChannel,
     SetFriendAddr, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
     ReceiptAck};
 

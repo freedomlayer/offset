@@ -15,11 +15,13 @@ use super::super::token_channel::directional::{DirectionalMutation,
 use super::super::friend::{FriendState, FriendMutation, IncomingInconsistency};
 use super::super::state::{FunderMutation, FunderState};
 use super::{MutableFunderHandler, FunderTask};
-use super::super::types::{FriendStatus, RequestsStatus, 
-    FriendsRoute, UserRequestSendFunds, FriendMoveToken};
 use super::{ResponseReceived, FriendMessage};
 use super::super::messages::ResponseSendFundsResult;
 use super::super::liveness::Direction;
+use super::super::types::{RequestsStatus, FriendStatus, UserRequestSendFunds,
+    SetFriendRemoteMaxDebt, ResetFriendChannel,
+    SetFriendAddr, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
+    ReceiptAck, FriendsRoute, FriendMoveToken, IncomingControlMessage};
 
 const MAX_PENDING_USER_REQUESTS: usize = 0x10;
 
@@ -33,58 +35,6 @@ pub enum HandleControlError {
     RequestAlreadyInProgress,
     PendingUserRequestsFull,
     ReceiptDoesNotExist,
-}
-
-pub struct SetFriendRemoteMaxDebt {
-    pub friend_public_key: PublicKey,
-    pub remote_max_debt: u128,
-}
-
-pub struct ResetFriendChannel {
-    pub friend_public_key: PublicKey,
-    pub current_token: ChannelToken,
-}
-
-pub struct SetFriendAddr<A> {
-    pub friend_public_key: PublicKey,
-    pub address: Option<A>,
-}
-
-pub struct AddFriend<A> {
-    pub friend_public_key: PublicKey,
-    pub address: Option<A>,
-}
-
-pub struct RemoveFriend {
-    pub friend_public_key: PublicKey,
-}
-
-pub struct SetFriendStatus {
-    pub friend_public_key: PublicKey,
-    pub status: FriendStatus,
-}
-
-pub struct SetRequestsStatus {
-    pub friend_public_key: PublicKey,
-    pub status: RequestsStatus,
-}
-
-
-pub struct ReceiptAck {
-    pub request_id: Uid,
-    pub receipt_hash: HashResult,
-}
-
-pub enum IncomingControlMessage<A> {
-    AddFriend(AddFriend<A>),
-    RemoveFriend(RemoveFriend),
-    SetRequestsStatus(SetRequestsStatus),
-    SetFriendStatus(SetFriendStatus),
-    SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
-    SetFriendAddr(SetFriendAddr<A>),
-    ResetFriendChannel(ResetFriendChannel),
-    RequestSendFunds(UserRequestSendFunds),
-    ReceiptAck(ReceiptAck),
 }
 
 
