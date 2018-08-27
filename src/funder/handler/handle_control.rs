@@ -90,14 +90,24 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         let friend_mutation = FriendMutation::LocalReset(friend_move_token.clone());
         let m_mutation = FunderMutation::FriendMutation(
-            (reset_friend_channel.friend_public_key, friend_mutation));
+            (reset_friend_channel.friend_public_key.clone(), friend_mutation));
         fself.apply_mutation(m_mutation);
 
-        // Send a reset message to remote side:
-        fself.funder_tasks.push(FunderTask::FriendMessage(
-                FriendMessage::MoveToken(friend_move_token)
-            )
-        );
+        // TODO: friend_move_token is not sent properly here.
+        unimplemented!();
+
+        let liveness_friend = fself.ephemeral.liveness.friends.get_mut(
+            &reset_friend_channel.friend_public_key).unwrap();
+        if liveness_friend.is_online() {
+            // Send a reset message to remote side:
+            fself.funder_tasks.push(FunderTask::FriendMessage(
+                    FriendMessage::MoveToken(friend_move_token)
+                )
+            );
+        }
+        let liveness_friend = fself.ephemeral.liveness.friends.get_mut(
+            &reset_friend_channel.friend_public_key).unwrap();
+        liveness_friend.reset_token_msg();
 
         Ok(fself)
 
