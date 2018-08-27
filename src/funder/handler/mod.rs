@@ -18,6 +18,7 @@ use proto::funder::ChannelToken;
 use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError, IncomingControlMessage};
 use self::handle_friend::HandleFriendError;
+use self::handle_timer::HandleTimerError;
 use super::token_channel::directional::ReceiveMoveTokenError;
 use super::types::{FriendMoveToken, FriendsRoute};
 use super::ephemeral::FunderEphemeral;
@@ -57,6 +58,7 @@ pub enum FunderTask {
 pub enum HandlerError {
     HandleControlError(HandleControlError),
     HandleFriendError(HandleFriendError),
+    HandleTimerError(HandleTimerError),
 }
 
 pub struct MutableFunderHandler<A:Clone,R> {
@@ -141,11 +143,20 @@ impl<R: SecureRandom + 'static> FunderHandler<R> {
         }
     }
 
-    #[allow(unused)]
-    fn simulate_handle_timer_tick<A>(&self)
-            -> Result<(Vec<FunderMutation<A>>, Vec<FunderTask>), ()> {
+    #[allow(unused, type_complexity)]
+    #[async]
+    fn simulate_handle_timer_tick<A: Clone + 'static>(mut self,
+                                     messenger_state: FunderState<A>,
+                                     funder_ephemeral: FunderEphemeral)
+            -> Result<(FunderEphemeral, Vec<FunderMutation<A>>, Vec<FunderTask>), HandlerError> {
         // TODO
-        unreachable!();
+        let mut mutable_handler = self.gen_mutable(&messenger_state,
+                                                   &funder_ephemeral);
+        let mutable_handler = await!(mutable_handler
+            .handle_timer_tick())
+            .map_err(HandlerError::HandleTimerError)?;
+
+        Ok(mutable_handler.done())
     }
 
     #[allow(unused,type_complexity)]

@@ -14,7 +14,7 @@ use super::super::token_channel::directional::MoveTokenDirection;
 use super::{MutableFunderHandler, ResponseReceived};
 
 
-enum HandleTimerError {
+pub enum HandleTimerError {
 }
 
 impl<A:Clone + 'static, R:SecureRandom + 'static> MutableFunderHandler<A,R> {
@@ -77,7 +77,7 @@ impl<A:Clone + 'static, R:SecureRandom + 'static> MutableFunderHandler<A,R> {
     }
 
     #[async]
-    fn handle_timer_tick(mut self)
+    pub fn handle_timer_tick(mut self)
                         -> Result<Self, !> {
         let time_tick_output = self.ephemeral.liveness.time_tick();
         for (friend_public_key, actions) in &time_tick_output.friends_actions {
