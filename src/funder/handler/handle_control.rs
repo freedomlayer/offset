@@ -172,6 +172,12 @@ impl<A:Clone ,R: SecureRandom> MutableFunderHandler<A,R> {
     fn control_remove_friend(&mut self, remove_friend: RemoveFriend) 
         -> Result<(), HandleControlError> {
 
+        // TODO: 
+        // This is a violent operation.
+        // Cancel all pending local requests for the removed friend from other token channels.
+        // Those requests will never have a response.
+        unimplemented!();
+
         let m_mutation = FunderMutation::RemoveFriend(
                 remove_friend.friend_public_key.clone());
 
