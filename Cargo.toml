@@ -35,7 +35,7 @@ serde_derive = "1"
 toml = "0.4"
 base64 = "0.9"
 
-im = "11.0.0"
+im = "11.0.1"
 
 [dev-dependencies]
 

@@ -6,7 +6,8 @@ use crypto::uid::Uid;
 use super::token_channel::directional::DirectionalMutation;
 use proto::funder::ChannelToken;
 use super::types::{FriendTcOp, FriendStatus, 
-    RequestsStatus, RequestSendFunds, FriendMoveToken};
+    RequestsStatus, RequestSendFunds, FriendMoveToken,
+    ResponseSendFunds, FailureSendFunds, UserRequestSendFunds};
 use super::token_channel::directional::DirectionalTokenChannel;
 
 
@@ -30,7 +31,7 @@ pub enum OutgoingInconsistency {
     // No outgoing inconsistency in progress
     Empty,
     // Outgoing inconsistency message was sent
-    Sent,
+    Sent(ResetTerms),
     // Outgoing inconsistency message was sent and acknowledged by remote side
     Acked,
 }
@@ -50,6 +51,12 @@ impl InconsistencyStatus {
     }
 }
 
+#[derive(Clone)]
+pub enum ResponseOp {
+    Response(ResponseSendFunds),
+    Failure(FailureSendFunds),
+}
+
 #[allow(unused)]
 pub enum FriendMutation<A> {
     DirectionalMutation(DirectionalMutation),
@@ -57,9 +64,11 @@ pub enum FriendMutation<A> {
     SetOutgoingInconsistency(OutgoingInconsistency),
     SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatus),
-    PushBackPendingOperation(FriendTcOp),
-    PopFrontPendingOperation,
-    PushBackPendingUserRequest(RequestSendFunds),
+    PushBackPendingRequest(RequestSendFunds),
+    PopFrontPendingRequest,
+    PushBackPendingResponse(ResponseOp),
+    PopFrontPendingResponse,
+    PushBackPendingUserRequest(UserRequestSendFunds),
     PopFrontPendingUserRequest,
     SetStatus(FriendStatus),
     SetFriendAddr(Option<A>),
@@ -76,10 +85,11 @@ pub struct FriendState<A> {
     pub inconsistency_status: InconsistencyStatus,
     pub wanted_remote_max_debt: u128,
     pub wanted_local_requests_status: RequestsStatus,
-    pub pending_operations: Vector<FriendTcOp>,
+    pub pending_responses: Vector<ResponseOp>,
+    pub pending_requests: Vector<RequestSendFunds>,
     // Pending operations to be sent to the token channel.
     pub status: FriendStatus,
-    pub pending_user_requests: Vector<RequestSendFunds>,
+    pub pending_user_requests: Vector<UserRequestSendFunds>,
     // Request that the user has sent to this neighbor, 
     // but have not been processed yet. Bounded in size.
 }
@@ -102,7 +112,8 @@ impl<A:Clone> FriendState<A> {
             wanted_local_requests_status: RequestsStatus::Closed,
             // The local_send_price we want to have (Or possibly close requests, by having an empty
             // send price). When possible, this will be updated with the TokenChannel.
-            pending_operations: Vector::new(),
+            pending_requests: Vector::new(),
+            pending_responses: Vector::new(),
             status: FriendStatus::Enable,
             pending_user_requests: Vector::new(),
         }
@@ -127,11 +138,17 @@ impl<A:Clone> FriendState<A> {
             FriendMutation::SetWantedLocalRequestsStatus(wanted_local_requests_status) => {
                 self.wanted_local_requests_status = wanted_local_requests_status.clone();
             },
-            FriendMutation::PushBackPendingOperation(friend_tc_op) => {
-                self.pending_operations.push_back(friend_tc_op.clone());
+            FriendMutation::PushBackPendingRequest(request_send_funds) => {
+                self.pending_requests.push_back(request_send_funds.clone());
             },
-            FriendMutation::PopFrontPendingOperation => {
-                let _ = self.pending_operations.pop_front();
+            FriendMutation::PopFrontPendingRequest => {
+                let _ = self.pending_requests.pop_front();
+            },
+            FriendMutation::PushBackPendingResponse(response_op) => {
+                self.pending_responses.push_back(response_op.clone());
+            },
+            FriendMutation::PopFrontPendingResponse => {
+                let _ = self.pending_responses.pop_front();
             },
             FriendMutation::PushBackPendingUserRequest(user_request_send_funds) => {
                 self.pending_user_requests.push_back(user_request_send_funds.clone());

@@ -28,7 +28,7 @@ const TOKEN_RESET: &[u8] = b"RESET";
 
 #[derive(Clone)]
 pub struct OutgoingMoveToken {
-    friend_move_token: FriendMoveToken,
+    pub friend_move_token: FriendMoveToken,
     pub is_acked: bool,
 }
 

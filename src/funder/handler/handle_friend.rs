@@ -28,51 +28,30 @@ use super::super::types::{FriendTcOp, RequestSendFunds,
     ResponseSendFunds, FailureSendFunds, 
     FriendMoveToken};
 use super::super::state::FunderMutation;
-use super::super::friend::{FriendState, FriendMutation, OutgoingInconsistency, IncomingInconsistency, ResetTerms};
+use super::super::friend::{FriendState, FriendMutation, 
+    OutgoingInconsistency, IncomingInconsistency, 
+    ResetTerms, ResponseOp};
 
 use super::super::signature_buff::{create_failure_signature_buffer, prepare_receipt};
 use super::super::types::{FunderFreezeLink, PkPairPosition, PendingFriendRequest, Ratio, RequestsStatus};
 use super::super::messages::{ResponseSendFundsResult};
 
+use super::super::liveness::Actions;
+use super::FriendInconsistencyError;
+
 use proto::common::SendFundsReceipt;
 
-// Approximate maximum size of a MOVE_TOKEN message.
-// TODO: Where to put this constant? Do we have more like this one?
-const MAX_MOVE_TOKEN_LENGTH: usize = 0x1000;
 
 
-#[allow(unused)]
-pub struct FriendInconsistencyError {
-    opt_ack: Option<ChannelToken>,
-    current_token: ChannelToken,
-    balance_for_reset: i128,
-}
 
-#[allow(unused)]
-pub struct FriendMoveTokenAck {
-    acked_token: ChannelToken,
-}
-
-#[allow(unused)]
-pub struct FriendRequestToken {
-    last_token: ChannelToken,
-}
-
-
-#[allow(unused)]
-pub enum IncomingFriendMessage {
-    MoveToken(FriendMoveToken),
-    InconsistencyError(FriendInconsistencyError),
-    MoveTokenAck(FriendMoveTokenAck),
-    RequestToken(FriendRequestToken),
-    KeepAlive,
-}
-
+#[derive(Debug)]
 pub enum HandleFriendError {
     FriendDoesNotExist,
     NoMoveTokenToAck,
     AlreadyAcked,
     TokenNotOwned,
+    IncorrectAckedToken,
+    IncorrectLastToken,
 }
 
 
@@ -86,7 +65,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     ///
     /// TODO: We need to change this search to be O(1) in the future. Possibly by maintaining a map
     /// between request_id and (friend_public_key, friend).
-    fn find_request_origin(&self, request_id: &Uid) -> Option<&PublicKey> {
+    pub fn find_request_origin(&self, request_id: &Uid) -> Option<&PublicKey> {
         for (friend_public_key, friend) in self.state.get_friends() {
             if friend.directional
                 .token_channel
@@ -103,8 +82,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     /// Create a (signed) failure message for a given request_id.
     /// We are the reporting_public_key for this failure message.
     #[async]
-    fn create_failure_message(mut self, pending_local_request: PendingFriendRequest) 
-        -> Result<(Self, FailureSendFunds), HandleFriendError> {
+    pub fn create_failure_message(self, pending_local_request: PendingFriendRequest) 
+        -> Result<(Self, FailureSendFunds), !> {
 
         let rand_nonce = RandValue::new(&*self.rng);
         let local_public_key = self.state.get_local_public_key().clone();
@@ -153,19 +132,31 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let mut fself = self;
         // Prepare a list of all remote requests that we need to cancel:
         for (local_request_id, pending_local_request) in pending_local_requests {
-            let opt_origin_public_key = fself.find_request_origin(&local_request_id);
+            let opt_origin_public_key = fself.find_request_origin(&local_request_id).cloned();
             let origin_public_key = match opt_origin_public_key {
-                Some(origin_public_key) => origin_public_key.clone(),
-                None => continue,
+                Some(origin_public_key) => {
+                    // We have found the friend that is the origin of this request.
+                    // We send him a failure message.
+                    let (new_fself, failure_send_funds) = await!(fself.create_failure_message(pending_local_request))?;
+                    fself = new_fself;
+
+                    let failure_op = ResponseOp::Failure(failure_send_funds);
+                    let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
+                    let messenger_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
+                    fself.apply_mutation(messenger_mutation);
+                    fself.try_send_channel(&origin_public_key);
+                },
+                None => {
+                    // We are the origin of this request.
+                    // We send a failure response through the control:
+                    let response_received = ResponseReceived {
+                        request_id: pending_local_request.request_id,
+                        result: ResponseSendFundsResult::Failure(fself.state.local_public_key.clone()),
+                    };
+                    fself.funder_tasks.push(FunderTask::ResponseReceived(response_received));
+                },            
             };
 
-            let (new_fself, failure_send_funds) = await!(fself.create_failure_message(pending_local_request))?;
-            fself = new_fself;
-
-            let failure_op = FriendTcOp::FailureSendFunds(failure_send_funds);
-            let friend_mutation = FriendMutation::PushBackPendingOperation(failure_op);
-            let messenger_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
-            fself.apply_mutation(messenger_mutation);
         }
         Ok(fself)
    }
@@ -203,15 +194,16 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     #[async]
     fn reply_with_failure(self, 
                           remote_public_key: PublicKey,
-                          request_send_funds: RequestSendFunds) -> Result<Self, HandleFriendError> {
+                          request_send_funds: RequestSendFunds) -> Result<Self, !> {
 
         let pending_request = request_send_funds.create_pending_request();
         let (mut fself, failure_send_funds) = await!(self.create_failure_message(pending_request))?;
 
-        let failure_op = FriendTcOp::FailureSendFunds(failure_send_funds);
-        let friend_mutation = FriendMutation::PushBackPendingOperation(failure_op);
+        let failure_op = ResponseOp::Failure(failure_send_funds);
+        let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         fself.apply_mutation(messenger_mutation);
+        fself.try_send_channel(&remote_public_key);
 
         Ok(fself)
     }
@@ -252,19 +244,16 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         // Queue message to the relevant friend. Later this message will be queued to a specific
         // available token channel:
-        let request_op = FriendTcOp::RequestSendFunds(request_send_funds.clone());
-        let friend_mutation = FriendMutation::PushBackPendingOperation(request_op);
+        let friend_mutation = FriendMutation::PushBackPendingRequest(request_send_funds.clone());
         let messenger_mutation = FunderMutation::FriendMutation((next_pk.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
+        self.try_send_channel(&next_pk);
     }
 
     #[async]
     fn handle_request_send_funds(mut self, 
                                remote_public_key: PublicKey,
-                               request_send_funds: RequestSendFunds) -> Result<Self, HandleFriendError> {
-
-        self.cache.freeze_guard.add_frozen_credit(&request_send_funds.create_pending_request());
-        // TODO: Add rest of add/sub_frozen_credit
+                               request_send_funds: RequestSendFunds) -> Result<Self, !> {
 
         // Find ourselves on the route. If we are not there, abort.
         let remote_index = request_send_funds.route.find_pk_pair(
@@ -281,16 +270,27 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         // The node on the route has to be one of our friends:
         let next_public_key = request_send_funds.route.index_to_pk(next_index).unwrap();
-        let mut fself = if !self.state.get_friends().contains_key(next_public_key) {
+        let friend_exists = !self.state.get_friends().contains_key(next_public_key);
+
+        // This friend must be considered online.
+        let friend_online = if friend_exists {
+            self.ephemeral.liveness.friends
+                .get(&next_public_key)
+                .unwrap()
+                .is_online()
+        } else {
+            false
+        };
+
+        let mut fself = if !friend_online {
             await!(self.reply_with_failure(remote_public_key.clone(), 
                                            request_send_funds.clone()))?
         } else {
             self
         };
 
-
         // Perform DoS protection check:
-        Ok(match fself.cache.freeze_guard.verify_freezing_links(&request_send_funds) {
+        Ok(match fself.ephemeral.freeze_guard.verify_freezing_links(&request_send_funds) {
             Some(()) => {
                 // Add our freezing link, and queue message to the next node.
                 fself.forward_request(request_send_funds);
@@ -310,8 +310,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                response_send_funds: ResponseSendFunds,
                                pending_request: PendingFriendRequest) {
 
-        self.cache.freeze_guard.sub_frozen_credit(&pending_request);
-        match self.find_request_origin(&response_send_funds.request_id) {
+        match self.find_request_origin(&response_send_funds.request_id).cloned() {
             None => {
                 // We are the origin of this request, and we got a response.
                 // We should pass it back to crypter.
@@ -321,7 +320,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                               &pending_request);
 
                 let response_send_funds_result = ResponseSendFundsResult::Success(receipt);
-                self.funder_tasks.push(
+                self.add_task(
                     FunderTask::ResponseReceived(
                         ResponseReceived {
                             request_id: pending_request.request_id,
@@ -332,10 +331,11 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             },
             Some(friend_public_key) => {
                 // Queue this response message to another token channel:
-                let response_op = FriendTcOp::ResponseSendFunds(response_send_funds);
-                let friend_mutation = FriendMutation::PushBackPendingOperation(response_op);
+                let response_op = ResponseOp::Response(response_send_funds);
+                let friend_mutation = FriendMutation::PushBackPendingResponse(response_op);
                 let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
                 self.apply_mutation(messenger_mutation);
+                self.try_send_channel(&friend_public_key);
             },
         }
     }
@@ -345,10 +345,9 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                remote_public_key: &PublicKey,
                                failure_send_funds: FailureSendFunds,
                                pending_request: PendingFriendRequest)
-                                -> Result<Self, HandleFriendError> {
+                                -> Result<Self, !> {
 
-        self.cache.freeze_guard.sub_frozen_credit(&pending_request);
-        let fself = match self.find_request_origin(&failure_send_funds.request_id) {
+        let fself = match self.find_request_origin(&failure_send_funds.request_id).cloned() {
             None => {
                 // We are the origin of this request, and we got a failure
                 // We should pass it back to crypter.
@@ -368,10 +367,11 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             },
             Some(friend_public_key) => {
                 // Queue this failure message to another token channel:
-                let failure_op = FriendTcOp::FailureSendFunds(failure_send_funds);
-                let friend_mutation = FriendMutation::PushBackPendingOperation(failure_op);
+                let failure_op = ResponseOp::Failure(failure_send_funds);
+                let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
                 let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
                 self.apply_mutation(messenger_mutation);
+                self.try_send_channel(&friend_public_key);
 
                 self
             },
@@ -384,22 +384,25 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     fn handle_move_token_output(mut self, 
                                 remote_public_key: PublicKey,
                                 incoming_messages: Vec<IncomingMessage> )
-                        -> Result<Self, HandleFriendError> {
+                        -> Result<Self, !> {
 
         let mut fself = self;
         for incoming_message in incoming_messages {
             fself = match incoming_message {
-                IncomingMessage::Request(request_send_funds) => 
+                IncomingMessage::Request(request_send_funds) => {
                     await!(fself.handle_request_send_funds(remote_public_key.clone(),
-                                                 request_send_funds))?,
+                                                 request_send_funds))?
+                },
                 IncomingMessage::Response(IncomingResponseSendFunds {
                                                 pending_request, incoming_response}) => {
+                    fself.ephemeral.freeze_guard.sub_frozen_credit(&pending_request);
                     fself.handle_response_send_funds(&remote_public_key, 
                                                   incoming_response, pending_request);
                     fself
                 },
                 IncomingMessage::Failure(IncomingFailureSendFunds {
                                                 pending_request, incoming_failure}) => {
+                    fself.ephemeral.freeze_guard.sub_frozen_credit(&pending_request);
                     await!(fself.handle_failure_send_funds(&remote_public_key, 
                                                  incoming_failure, pending_request))?
                 },
@@ -425,6 +428,11 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let balance_for_reset = friend.directional
             .balance_for_reset();
 
+        let reset_terms = ResetTerms {
+            current_token: current_token.clone(),
+            balance_for_reset,
+        };
+
         let inconsistency_error = FriendInconsistencyError {
             opt_ack: None,
             current_token,
@@ -434,141 +442,16 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         self.funder_tasks.push(
             FunderTask::FriendMessage(
                 FriendMessage::InconsistencyError(inconsistency_error)));
+        let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
+        liveness_friend.reset_inconsistency();
+        liveness_friend.cancel_token_msg();
 
         // Keep outgoing InconsistencyError message details in memory:
-        let friend_mutation = FriendMutation::SetOutgoingInconsistency(OutgoingInconsistency::Sent);
+        let friend_mutation = FriendMutation::SetOutgoingInconsistency(OutgoingInconsistency::Sent(reset_terms));
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
     }
 
-
-    /// Queue as many messages as possible into available token channel.
-    fn queue_outgoing_operations(&mut self,
-                           remote_public_key: &PublicKey,
-                           out_tc: &mut OutgoingTokenChannel) -> Result<(), QueueOperationFailure> {
-
-        let friend = self.get_friend(remote_public_key).unwrap();
-
-        // Set remote_max_debt if needed:
-        let remote_max_debt = friend
-            .directional
-            .remote_max_debt();
-
-        if friend.wanted_remote_max_debt != remote_max_debt {
-            out_tc.queue_operation(FriendTcOp::SetRemoteMaxDebt(friend.wanted_remote_max_debt))?;
-        }
-
-        // Open or close requests is needed:
-        let local_requests_status = &friend
-            .directional
-            .token_channel
-            .state()
-            .requests_status
-            .local;
-
-        if friend.wanted_local_requests_status != *local_requests_status {
-            let friend_op = if let RequestsStatus::Open = friend.wanted_local_requests_status {
-                FriendTcOp::EnableRequests
-            } else {
-                FriendTcOp::DisableRequests
-            };
-            out_tc.queue_operation(friend_op)?;
-        }
-
-        // Send pending operations (responses and failures)
-        // TODO: Possibly replace this clone with something more efficient later:
-        let mut pending_operations = friend.pending_operations.clone();
-        while let Some(pending_operation) = pending_operations.pop_front() {
-            out_tc.queue_operation(pending_operation)?;
-            let friend_mutation = FriendMutation::PopFrontPendingOperation;
-            let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-            self.apply_mutation(messenger_mutation);
-        }
-
-        let friend = self.get_friend(remote_public_key).unwrap();
-
-        // Send as many pending user requests as possible:
-        let mut pending_user_requests = friend.pending_user_requests.clone();
-        while let Some(request_send_funds) = pending_user_requests.pop_front() {
-            let request_op = FriendTcOp::RequestSendFunds(request_send_funds);
-            out_tc.queue_operation(request_op)?;
-            let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
-            let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-            self.apply_mutation(messenger_mutation);
-        }
-
-        Ok(())
-    }
-
-    /// Compose a large as possible message to send through the token channel to the remote side.
-    /// The message should contain various operations, collected from:
-    /// - Generic pending requests (Might be sent through any token channel).
-    /// - Token channel specific pending responses/failures.
-    /// - Commands that were initialized through AppManager.
-    ///
-    /// Any operations that will enter the message should be applied. For example, a failure
-    /// message should cause the pending request to be removed.
-    ///
-    /// received_empty -- is the move token message we have just received empty?
-    fn send_through_token_channel(&mut self, 
-                                  remote_public_key: &PublicKey,
-                                  received_empty: bool) {
-
-        let friend = self.get_friend(remote_public_key).unwrap();
-        let mut out_tc = friend.directional
-            .begin_outgoing_move_token(MAX_MOVE_TOKEN_LENGTH).unwrap();
-
-        let res = self.queue_outgoing_operations(remote_public_key, &mut out_tc);
-
-        // If we had a real error, we should panic.
-        // Otherwise
-        match res {
-            Ok(()) => {},
-            Err(QueueOperationFailure {error, ..}) => {
-                match error {
-                    QueueOperationError::MaxLengthReached => {},
-                    _ => unreachable!(),
-                }
-            }
-        };
-
-        let (operations, tc_mutations) = out_tc.done();
-
-        // If we have nothing to send, we do nothing:
-        if operations.is_empty() {
-            return;
-        }
-
-        for tc_mutation in tc_mutations {
-            let directional_mutation = DirectionalMutation::TcMutation(tc_mutation);
-            let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
-            let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-            self.apply_mutation(messenger_mutation);
-        }
-        let friend = self.get_friend(remote_public_key).unwrap();
-
-        let rand_nonce = RandValue::new(&*self.rng);
-        let friend_move_token = FriendMoveToken {
-            operations,
-            old_token: friend.directional.new_token().clone(),
-            rand_nonce,
-        };
-
-
-        let directional_mutation = DirectionalMutation::SetDirection(
-            SetDirection::Outgoing(friend_move_token));
-        let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
-        let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-        self.apply_mutation(messenger_mutation);
-
-        let friend = self.get_friend(remote_public_key).unwrap();
-        let outgoing_move_token = friend.directional.get_outgoing_move_token().unwrap();
-
-        // Add a task for sending the outgoing move token:
-        self.add_task(
-            FunderTask::FriendMessage(
-                FriendMessage::MoveToken(outgoing_move_token)));
-    }
 
 
     /// Clear all pending inconsistency errors if exist
@@ -599,25 +482,42 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     #[async]
     fn handle_move_token_success(mut self,
                                remote_public_key: PublicKey,
-                               receive_move_token_output: ReceiveMoveTokenOutput,
-                               is_empty: bool) -> Result<Self, HandleFriendError> {
+                               receive_move_token_output: ReceiveMoveTokenOutput) 
+        -> Result<Self, !> {
 
         self.clear_inconsistency_status(&remote_public_key);
-                                        
 
         match receive_move_token_output {
-            ReceiveMoveTokenOutput::Duplicate => Ok(self),
+            ReceiveMoveTokenOutput::Duplicate => {
+                // Send an ack:
+                let acked_token = self.get_friend(&remote_public_key)
+                    .unwrap()
+                    .directional
+                    .new_token();
+
+                self.add_task(
+                    FunderTask::FriendMessage(
+                        FriendMessage::MoveTokenAck(acked_token)));
+                Ok(self)
+            },
             ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token) => {
                 // Retransmit last sent token channel message:
                 self.funder_tasks.push(
                     FunderTask::FriendMessage(
                         FriendMessage::MoveToken(outgoing_move_token)));
+                let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
+                liveness_friend.reset_token_msg();
+                liveness_friend.cancel_inconsistency();
                 Ok(self)
             },
             ReceiveMoveTokenOutput::Received(move_token_received) => {
+                let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
+                liveness_friend.cancel_inconsistency();
+                liveness_friend.cancel_request_token();
 
                 let MoveTokenReceived {incoming_messages, mutations} = 
                     move_token_received;
+
 
                 // Apply all mutations:
                 for directional_mutation in mutations {
@@ -628,8 +528,16 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
                 let mut fself = await!(self.handle_move_token_output(remote_public_key.clone(),
                                                incoming_messages))?;
-                fself.send_through_token_channel(&remote_public_key,
-                                                 is_empty);
+                if !fself.send_through_token_channel(&remote_public_key) {
+                    // If we didn't reply a move token message, we will reply an ack:
+                    let acked_token = fself.get_friend(&remote_public_key)
+                        .unwrap()
+                        .directional
+                        .new_token();
+                    fself.add_task(
+                        FunderTask::FriendMessage(
+                            FriendMessage::MoveTokenAck(acked_token)));
+                }
                 Ok(fself)
             },
         }
@@ -665,16 +573,13 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         let friend = fself.get_friend(&remote_public_key).unwrap();
 
-        let is_empty = friend_move_token.operations.is_empty();
-
         let receive_move_token_res = friend.directional.simulate_receive_move_token(
             friend_move_token);
 
         Ok(match receive_move_token_res {
             Ok(receive_move_token_output) => {
                 await!(fself.handle_move_token_success(remote_public_key.clone(),
-                                             receive_move_token_output,
-                                             is_empty))?
+                                             receive_move_token_output))?
             },
             Err(receive_move_token_error) => {
                 fself.handle_move_token_error(&remote_public_key,
@@ -686,8 +591,14 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
     fn handle_inconsistency_error(&mut self, 
                                   remote_public_key: &PublicKey,
-                                  friend_inconsistency_error: FriendInconsistencyError) {
-        
+                                  friend_inconsistency_error: FriendInconsistencyError)
+                                    -> Result<(), HandleFriendError> {
+
+        // Make sure that friend exists:
+        let _ = match self.get_friend(&remote_public_key) {
+            Some(friend) => Ok(friend),
+            None => Err(HandleFriendError::FriendDoesNotExist),
+        }?;
         // Save incoming inconsistency details:
         let incoming = IncomingInconsistency::Incoming(ResetTerms {
             current_token: friend_inconsistency_error.current_token.clone(),
@@ -698,22 +609,31 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
 
+        // We stop resending token messages, because an inconsistency was received:
+        let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
+        liveness_friend.cancel_token_msg();
+        
+
         // Obtain information about our reset terms:
         let friend = self.get_friend(remote_public_key).unwrap();
         let directional = &friend.directional;
         let reset_token = directional.calc_channel_reset_token();
         let balance_for_reset = directional.balance_for_reset();
 
+        let reset_terms = ResetTerms {
+            current_token: reset_token.clone(),
+            balance_for_reset,
+        };
 
         // Check if we should send an outgoing inconsistency message:
         let should_send_outgoing = match friend.inconsistency_status.outgoing {
             OutgoingInconsistency::Empty => {
-                let friend_mutation = FriendMutation::SetOutgoingInconsistency(OutgoingInconsistency::Sent);
+                let friend_mutation = FriendMutation::SetOutgoingInconsistency(OutgoingInconsistency::Sent(reset_terms));
                 let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
                 self.apply_mutation(messenger_mutation);
                 true
             },
-            OutgoingInconsistency::Sent => {
+            OutgoingInconsistency::Sent(_) => {
                 let is_ack_valid = match friend_inconsistency_error.opt_ack {
                     Some(acked_reset_token) => acked_reset_token == reset_token,
                     None => false,
@@ -742,13 +662,15 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             self.add_task(
                 FunderTask::FriendMessage(
                     FriendMessage::InconsistencyError(inconsistency_error)));
+            let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
+            liveness_friend.reset_inconsistency();
         }
-
+        Ok(())
     }
 
     fn handle_move_token_ack(&mut self, 
                                 remote_public_key: &PublicKey,
-                                friend_move_token_ack: FriendMoveTokenAck)
+                                acked_token: ChannelToken)
                                     -> Result<(), HandleFriendError> {
         // Find friend:
         let friend = match self.get_friend(&remote_public_key) {
@@ -756,26 +678,34 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             None => Err(HandleFriendError::FriendDoesNotExist),
         }?;
 
+        let friend = self.get_friend(&remote_public_key).unwrap();
+
         // If we have the token, we ignore the ack:
         let outgoing_move_token = match &friend.directional.direction {
             MoveTokenDirection::Outgoing(outgoing_move_token) => Ok(outgoing_move_token),
             MoveTokenDirection::Incoming(_) => Err(HandleFriendError::NoMoveTokenToAck),
         }?;
 
-        if outgoing_move_token.is_acked {
-            return Err(HandleFriendError::AlreadyAcked);
+        if outgoing_move_token.friend_move_token.old_token != acked_token {
+            return Err(HandleFriendError::IncorrectAckedToken);
         }
 
         let directional_mutation = DirectionalMutation::AckOutgoing;
         let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
+
+        // Cancel retransmission of move token message, 
+        // because we have received a valid ack:
+        let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
+        liveness_friend.cancel_token_msg();
+
         Ok(())
     }
 
     fn handle_request_token(&mut self, 
                             remote_public_key: &PublicKey,
-                            friend_request_token: FriendRequestToken)
+                            last_token: ChannelToken)
                                     -> Result<(), HandleFriendError> {
         // Find friend:
         let friend = match self.get_friend(&remote_public_key) {
@@ -788,6 +718,10 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             MoveTokenDirection::Outgoing(_) => Err(HandleFriendError::TokenNotOwned),
             MoveTokenDirection::Incoming(new_token) => Ok(new_token),
         }?;
+
+        if *new_token != last_token {
+            return Err(HandleFriendError::IncorrectLastToken);
+        }
 
         // Compose an empty friend_move_token message and send it to the remote side:
         let rand_nonce = RandValue::new(&*self.rng);
@@ -806,10 +740,13 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let friend = self.get_friend(remote_public_key).unwrap();
         let outgoing_move_token = friend.directional.get_outgoing_move_token().unwrap();
 
+
         // Add a task for sending the outgoing move token:
         self.add_task(
             FunderTask::FriendMessage(
                 FriendMessage::MoveToken(outgoing_move_token)));
+        let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
+        liveness_friend.reset_token_msg();
 
         Ok(())
     }
@@ -817,35 +754,52 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     fn handle_keep_alive(&mut self, 
                         remote_public_key: &PublicKey)
                                     -> Result<(), HandleFriendError> {
-        // TODO
-        unimplemented!();
+        Ok(())
     }
 
     #[async]
     pub fn handle_friend_message(mut self, 
                                    remote_public_key: PublicKey, 
-                                   friend_message: IncomingFriendMessage)
+                                   friend_message: FriendMessage)
                                         -> Result<Self, HandleFriendError> {
-        match friend_message {
-            IncomingFriendMessage::MoveToken(friend_move_token) =>
-                await!(self.handle_move_token(remote_public_key, friend_move_token)),
-            IncomingFriendMessage::InconsistencyError(friend_inconsistency_error) => {
-                self.handle_inconsistency_error(&remote_public_key, friend_inconsistency_error);
+
+        // Make sure that friend exists:
+        let _ = match self.get_friend(&remote_public_key) {
+            Some(friend) => Ok(friend),
+            None => Err(HandleFriendError::FriendDoesNotExist),
+        }?;
+
+        let liveness_friend = self.ephemeral.liveness.friends
+            .get_mut(&remote_public_key)
+            .unwrap();
+        liveness_friend.message_received();
+
+        let mut fself = match friend_message {
+            FriendMessage::MoveToken(friend_move_token) =>
+                await!(self.handle_move_token(remote_public_key.clone(), friend_move_token)),
+            FriendMessage::InconsistencyError(friend_inconsistency_error) => {
+                self.handle_inconsistency_error(&remote_public_key.clone(), friend_inconsistency_error);
                 Ok(self)
             }
-            IncomingFriendMessage::MoveTokenAck(friend_move_token_ack) => {
-                self.handle_move_token_ack(&remote_public_key, friend_move_token_ack)?;
+            FriendMessage::MoveTokenAck(acked_token) => {
+                self.handle_move_token_ack(&remote_public_key, acked_token)?;
                 Ok(self)
             },
-            IncomingFriendMessage::RequestToken(friend_request_token) => {
-                self.handle_request_token(&remote_public_key, friend_request_token)?;
+            FriendMessage::RequestToken(last_token) => {
+                self.handle_request_token(&remote_public_key, last_token)?;
                 Ok(self)
             },
-            IncomingFriendMessage::KeepAlive => {
+            FriendMessage::KeepAlive => {
                 self.handle_keep_alive(&remote_public_key)?;
                 Ok(self)
             },
-        }
-    }
+        }?;
 
+        // If any outgoing message was queued as a task, we mark that a message was sent:
+        if fself.has_outgoing_message() {
+            let liveness_friend = fself.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
+            liveness_friend.message_sent();
+        }
+        Ok(fself)
+    }
 }

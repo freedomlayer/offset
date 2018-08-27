@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use im::hashmap::HashMap as ImHashMap;
 
 use num_bigint::BigUint;
 
@@ -8,6 +8,7 @@ use utils::int_convert::usize_to_u32;
 use super::credit_calc::CreditCalculator;
 use super::types::{PendingFriendRequest, RequestSendFunds, Ratio};
 
+#[derive(Clone)]
 pub struct FreezeGuard {
     local_public_key: PublicKey,
     // Total amount of credits frozen from A to B through this CSwitch node.
@@ -15,7 +16,7 @@ pub struct FreezeGuard {
     // A -- ... -- X -- B
     // ```
     // A could be any node, B must be a friend of this CSwitch node.
-    total_frozen: HashMap<PublicKey, HashMap<PublicKey, u128>>,
+    total_frozen: ImHashMap<PublicKey, ImHashMap<PublicKey, u128>>,
 }
 
 impl FreezeGuard {
@@ -24,7 +25,7 @@ impl FreezeGuard {
     /// ```text
     /// A -- ... -- X -- B
     /// ```
-    /// Add credits frozen by B of all all nodes until us on the route.
+    /// Add credits frozen by B of all nodes until us on the route.
     pub fn add_frozen_credit(&mut self, pending_request: &PendingFriendRequest) {
         if &self.local_public_key == pending_request.route.public_keys.last().unwrap() {
             // We are the destination. Nothing to do here.
@@ -42,7 +43,7 @@ impl FreezeGuard {
             .index_to_pk(my_index.checked_add(1).unwrap()).unwrap().clone();
         let friend_map = self.total_frozen
             .entry(next_public_key)
-            .or_insert_with(HashMap::new);
+            .or_insert_with(ImHashMap::new);
 
         // Iterate over all nodes from the beginning of the route until our index:
         for node_index in 0 .. my_index {
