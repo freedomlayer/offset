@@ -104,6 +104,31 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
         Ok(operations)
     }
 
+    /// Transmit the current outgoing friend_move_token.
+    pub fn transmit_outgoing(&mut self,
+                               remote_public_key: &PublicKey) {
+
+        let friend = self.get_friend(remote_public_key).unwrap();
+        let outgoing_move_token = match &friend.directional.direction {
+            MoveTokenDirection::Outgoing(outgoing_move_token) => outgoing_move_token.clone(),
+            MoveTokenDirection::Incoming(_) => unreachable!(),
+        };
+
+        if outgoing_move_token.is_acked {
+            return;
+        }
+
+        let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
+        if liveness_friend.is_online() {
+            // Transmit the current outgoing message:
+            self.funder_tasks.push(
+                FunderTask::FriendMessage(
+                    FriendMessage::MoveToken(outgoing_move_token.friend_move_token)));
+        }
+        liveness_friend.reset_token_msg();
+        liveness_friend.cancel_inconsistency();
+    }
+
     pub fn send_friend_move_token(&mut self,
                            remote_public_key: &PublicKey,
                            operations: Vec<FriendTcOp>)
