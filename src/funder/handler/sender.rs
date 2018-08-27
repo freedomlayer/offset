@@ -170,6 +170,7 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
 
         let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
         liveness_friend.reset_token_msg();
+        liveness_friend.cancel_inconsistency();
         Ok(move_token_sent)
     }
 
