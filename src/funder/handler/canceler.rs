@@ -4,7 +4,7 @@ use ring::rand::SecureRandom;
 use crypto::identity::{PublicKey, Signature};
 use crypto::rand_values::RandValue;
 
-use super::{MutableFunderHandler, FunderTask, FriendMessage,
+use super::{MutableFunderHandler, FunderTask,
             ResponseReceived};
 
 use super::super::types::{RequestSendFunds, FailureSendFunds, PendingFriendRequest};
