@@ -23,7 +23,7 @@ use super::super::token_channel::outgoing::{OutgoingTokenChannel, QueueOperation
 use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
     DirectionalMutation, MoveTokenDirection, MoveTokenReceived, SetDirection};
 use super::{MutableFunderHandler, FunderTask, FriendMessage,
-            ResponseReceived};
+            ResponseReceived, FriendInconsistencyError};
 use super::super::types::{RequestSendFunds, 
     ResponseSendFunds, FailureSendFunds, 
     FriendMoveToken, FunderFreezeLink, PkPairPosition, 
@@ -36,7 +36,6 @@ use super::super::friend::{FriendState, FriendMutation,
 use super::super::signature_buff::{create_failure_signature_buffer, prepare_receipt};
 use super::super::messages::ResponseSendFundsResult;
 
-use super::FriendInconsistencyError;
 
 use proto::common::SendFundsReceipt;
 
@@ -507,9 +506,12 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             return Err(HandleFriendError::IncorrectLastToken);
         }
 
-        if friend.is_inconsistent() {
-            return Err(HandleFriendError::TokenChannelInconsistent);
-        }
+        match friend.inconsistency_status {
+            InconsistencyStatus::Empty => Ok(()),
+            InconsistencyStatus::Outgoing(_) |
+            InconsistencyStatus::IncomingOutgoing(_) => 
+                Err(HandleFriendError::TokenChannelInconsistent)
+        }?;
 
         // Compose an empty friend_move_token message and send it to the remote side:
         let move_token_sent = self.send_friend_move_token(

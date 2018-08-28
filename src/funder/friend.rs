@@ -3,7 +3,7 @@ use im::vector::Vector;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
-use super::token_channel::directional::DirectionalMutation;
+use super::token_channel::directional::{DirectionalMutation, MoveTokenDirection};
 use proto::funder::ChannelToken;
 use super::types::{FriendTcOp, FriendStatus, 
     RequestsStatus, RequestSendFunds, FriendMoveToken,
@@ -98,17 +98,6 @@ impl<A:Clone> FriendState<A> {
             pending_user_requests: Vector::new(),
         }
     }
-
-    /// Check if token channel is in inconsistent state
-    pub fn is_inconsistent(&self) -> bool {
-        match self.inconsistency_status {
-            InconsistencyStatus::Outgoing(_) |
-            InconsistencyStatus::IncomingOutgoing(_) => true,
-            InconsistencyStatus::Empty => false,
-        }
-    }
-
-
 
     #[allow(unused)]
     pub fn mutate(&mut self, friend_mutation: &FriendMutation<A>) {
