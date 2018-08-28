@@ -147,7 +147,9 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let next_public_key = request_send_funds.route.index_to_pk(next_index).unwrap();
         let friend_exists = !self.state.get_friends().contains_key(next_public_key);
 
-        // This friend must be considered online.
+        // This friend must be considered online for us to forward the message.
+        // If we forward the request to an offline friend, the request could be stuck for a long
+        // time before a response arrives.
         let friend_online = if friend_exists {
             self.ephemeral.liveness.is_online(&next_public_key)
         } else {
