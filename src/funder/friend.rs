@@ -12,40 +12,23 @@ use super::token_channel::directional::DirectionalTokenChannel;
 
 
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResetTerms {
     pub current_token: ChannelToken,
     pub balance_for_reset: i128,
 }
 
 #[derive(Clone)]
-pub enum IncomingInconsistency {
-    // No incoming inconsistency was received
+pub enum InconsistencyStatus {
     Empty,
-    // Incoming inconsistency was received from remote side.
-    Incoming(ResetTerms),
-}
-
-#[derive(Clone)]
-pub enum OutgoingInconsistency {
-    // No outgoing inconsistency in progress
-    Empty,
-    // Outgoing inconsistency message was sent
-    Sent(ResetTerms),
-}
-
-#[derive(Clone)]
-pub struct InconsistencyStatus {
-    pub incoming: IncomingInconsistency,
-    pub outgoing: OutgoingInconsistency,
+    Outgoing(ResetTerms),
+    IncomingOutgoing((ResetTerms, ResetTerms)), 
+    // (incoming_reset_terms, outgoing_reset_terms)
 }
 
 impl InconsistencyStatus {
     pub fn new() -> InconsistencyStatus {
-        InconsistencyStatus {
-            incoming: IncomingInconsistency::Empty,
-            outgoing: OutgoingInconsistency::Empty,
-        }
+        InconsistencyStatus::Empty
     }
 }
 
@@ -58,8 +41,7 @@ pub enum ResponseOp {
 #[allow(unused)]
 pub enum FriendMutation<A> {
     DirectionalMutation(DirectionalMutation),
-    SetIncomingInconsistency(IncomingInconsistency),
-    SetOutgoingInconsistency(OutgoingInconsistency),
+    SetInconsistencyStatus(InconsistencyStatus),
     SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatus),
     PushBackPendingRequest(RequestSendFunds),
@@ -124,11 +106,8 @@ impl<A:Clone> FriendState<A> {
             FriendMutation::DirectionalMutation(directional_mutation) => {
                 self.directional.mutate(directional_mutation);
             },
-            FriendMutation::SetIncomingInconsistency(incoming_inconsistency) => {
-                self.inconsistency_status.incoming = incoming_inconsistency.clone();
-            },
-            FriendMutation::SetOutgoingInconsistency(outgoing_inconsistency) => {
-                self.inconsistency_status.outgoing = outgoing_inconsistency.clone();
+            FriendMutation::SetInconsistencyStatus(inconsistency_status) => {
+                self.inconsistency_status = inconsistency_status.clone();
             },
             FriendMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
                 self.wanted_remote_max_debt = *wanted_remote_max_debt;
@@ -162,15 +141,16 @@ impl<A:Clone> FriendState<A> {
             },
             FriendMutation::LocalReset(reset_move_token) => {
                 // Local reset was applied (We sent a reset from the control line)
-                match &self.inconsistency_status.incoming {
-                    IncomingInconsistency::Empty => unreachable!(),
-                    IncomingInconsistency::Incoming(reset_terms) => {
-                        assert_eq!(reset_move_token.old_token, reset_terms.current_token);
+                match &self.inconsistency_status {
+                    InconsistencyStatus::Empty => unreachable!(),
+                    InconsistencyStatus::Outgoing(_) => unreachable!(),
+                    InconsistencyStatus::IncomingOutgoing((in_reset_terms, _)) => {
+                        assert_eq!(reset_move_token.old_token, in_reset_terms.current_token);
                         self.directional = DirectionalTokenChannel::new_from_local_reset(
                             &self.directional.token_channel.state().idents.local_public_key,
                             &self.directional.token_channel.state().idents.remote_public_key,
                             &reset_move_token,
-                            reset_terms.balance_for_reset);
+                            in_reset_terms.balance_for_reset);
                     }
                 };
                 self.inconsistency_status = InconsistencyStatus::new();

@@ -12,7 +12,7 @@ use proto::funder::{ChannelToken, InvoiceId};
 use super::super::token_channel::types::TcMutation;
 use super::super::token_channel::directional::{DirectionalMutation, 
     OutgoingMoveToken, MoveTokenDirection};
-use super::super::friend::{FriendState, FriendMutation, IncomingInconsistency};
+use super::super::friend::{FriendState, FriendMutation, InconsistencyStatus};
 use super::super::state::{FunderMutation, FunderState};
 use super::{MutableFunderHandler, FunderTask, ResponseReceived, 
     FriendMessage, MAX_MOVE_TOKEN_LENGTH, ChannelerConfig};
@@ -68,13 +68,14 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let friend = self.get_friend(&reset_friend_channel.friend_public_key)
             .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-        let reset_terms = match &friend.inconsistency_status.incoming {
-            IncomingInconsistency::Empty => return Err(HandleControlError::NotInvitedToReset),
-            IncomingInconsistency::Incoming(reset_terms) => {
-                if (reset_terms.current_token != reset_friend_channel.current_token)  {
+        let in_reset_terms = match &friend.inconsistency_status {
+            InconsistencyStatus::Empty | 
+            InconsistencyStatus::Outgoing(_) => return Err(HandleControlError::NotInvitedToReset),
+            InconsistencyStatus::IncomingOutgoing((in_reset_terms, _out_reset_terms)) => {
+                if (in_reset_terms.current_token != reset_friend_channel.current_token)  {
                     return Err(HandleControlError::ResetTokenMismatch);
                 }
-                reset_terms
+                in_reset_terms
             }
         };
 
@@ -82,7 +83,7 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let friend_move_token = FriendMoveToken {
             operations: Vec::new(), 
             // No operations are required for a reset move token
-            old_token: reset_terms.current_token.clone(),
+            old_token: in_reset_terms.current_token.clone(),
             rand_nonce,
         };
 
