@@ -1,8 +1,8 @@
 use futures::prelude::{async, await};
 use ring::rand::SecureRandom;
 
-use super::{MutableFunderHandler};
-use super::super::types::{IncomingLivenessMessage};
+use super::MutableFunderHandler;
+use super::super::types::IncomingLivenessMessage;
 
 pub enum HandleLivenessError {
 }

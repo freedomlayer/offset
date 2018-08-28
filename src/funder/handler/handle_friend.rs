@@ -368,7 +368,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 let MoveTokenReceived {incoming_messages, mutations} = 
                     move_token_received;
 
-
                 // Apply all mutations:
                 for directional_mutation in mutations {
                     let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
