@@ -15,7 +15,7 @@ use super::super::token_channel::directional::{DirectionalMutation,
 use super::super::friend::{FriendState, FriendMutation, IncomingInconsistency};
 use super::super::state::{FunderMutation, FunderState};
 use super::{MutableFunderHandler, FunderTask, ResponseReceived, 
-    FriendMessage, MAX_MOVE_TOKEN_LENGTH};
+    FriendMessage, MAX_MOVE_TOKEN_LENGTH, ChannelerConfig};
 use super::super::messages::ResponseSendFundsResult;
 use super::super::liveness::Direction;
 use super::super::types::{RequestsStatus, FriendStatus, UserRequestSendFunds,
@@ -101,23 +101,49 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
     }
 
-    fn control_add_friend(&mut self, add_friend: AddFriend<A>) 
-        -> Result<(), HandleControlError> {
+    fn enable_friend(&mut self, 
+                     friend_public_key: &PublicKey,
+                     friend_address: Option<A>) {
 
-        let m_mutation = FunderMutation::AddFriend((
-                add_friend.friend_public_key.clone(),
-                add_friend.address));
+        // Notify Channeler:
+        let channeler_config = ChannelerConfig::AddFriend(
+            (friend_public_key.clone(), friend_address.clone()));
+        self.funder_tasks.push(FunderTask::ChannelerConfig(channeler_config));
 
-        self.apply_mutation(m_mutation);
-
-        let friend = self.get_friend(&add_friend.friend_public_key).unwrap();
+        // Update liveness:
+        let friend = self.get_friend(&friend_public_key).unwrap();
         let direction = match &friend.directional.direction {
             MoveTokenDirection::Incoming(_) => Direction::Incoming,
             MoveTokenDirection::Outgoing(outgoing_move_token) => 
                 Direction::Outgoing(outgoing_move_token.is_acked)
         };
-        self.ephemeral.liveness.add_friend(&add_friend.friend_public_key,
+        self.ephemeral.liveness.add_friend(&friend_public_key,
                                            direction);
+
+    }
+
+    fn disable_friend(&mut self, 
+                     friend_public_key: &PublicKey) {
+
+        // Notify Channeler:
+        let channeler_config = ChannelerConfig::RemoveFriend(
+            friend_public_key.clone());
+        self.funder_tasks.push(FunderTask::ChannelerConfig(channeler_config));
+
+        self.ephemeral.liveness.remove_friend(&friend_public_key);
+    }
+
+    fn control_add_friend(&mut self, add_friend: AddFriend<A>) 
+        -> Result<(), HandleControlError> {
+
+        let m_mutation = FunderMutation::AddFriend((
+                add_friend.friend_public_key.clone(),
+                add_friend.address.clone()));
+
+        self.apply_mutation(m_mutation);
+
+        self.enable_friend(&add_friend.friend_public_key,
+                           add_friend.address.clone());
 
         Ok(())
     }
@@ -132,6 +158,8 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let _friend = self.get_friend(&remove_friend.friend_public_key)
             .ok_or(HandleControlError::FriendDoesNotExist)?;
 
+        self.disable_friend(&remove_friend.friend_public_key);
+
         let fself = await!(self.cancel_local_pending_requests(
             remove_friend.friend_public_key.clone()))?;
         let fself = await!(fself.cancel_pending_requests(
@@ -143,24 +171,33 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 remove_friend.friend_public_key.clone());
 
         fself.apply_mutation(m_mutation);
-        fself.ephemeral.liveness.remove_friend(&remove_friend.friend_public_key);
                                                
         Ok(fself)
     }
-
 
     fn control_set_friend_status(&mut self, set_friend_status: SetFriendStatus) 
         -> Result<(), HandleControlError> {
 
         // Make sure that friend exists:
-        let _friend = self.get_friend(&set_friend_status.friend_public_key)
+        let _ = self.get_friend(&set_friend_status.friend_public_key)
             .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-        let friend_mutation = FriendMutation::SetStatus(set_friend_status.status);
+        let friend_mutation = FriendMutation::SetStatus(set_friend_status.status.clone());
         let m_mutation = FunderMutation::FriendMutation(
-            (set_friend_status.friend_public_key, friend_mutation));
-
+            (set_friend_status.friend_public_key.clone(), friend_mutation));
         self.apply_mutation(m_mutation);
+
+        let friend = self.get_friend(&set_friend_status.friend_public_key)
+            .ok_or(HandleControlError::FriendDoesNotExist)?;
+
+        let friend_public_key = &set_friend_status.friend_public_key;
+        let friend_address = friend.opt_remote_address.clone();
+
+        match set_friend_status.status {
+            FriendStatus::Enable => self.enable_friend(&friend_public_key, friend_address),
+            FriendStatus::Disable => self.disable_friend(&friend_public_key),
+        };
+
         Ok(())
     }
 
