@@ -337,8 +337,9 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     #[async]
     fn handle_move_token_success(mut self,
                                remote_public_key: PublicKey,
-                               receive_move_token_output: ReceiveMoveTokenOutput) 
-        -> Result<Self, !> {
+                               receive_move_token_output: ReceiveMoveTokenOutput,
+                               token_wanted: bool) 
+                                -> Result<Self, !> {
 
         match receive_move_token_output {
             ReceiveMoveTokenOutput::Duplicate => Ok(self),
@@ -360,7 +361,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
                 let mut fself = await!(self.handle_move_token_output(remote_public_key.clone(),
                                                incoming_messages))?;
-                fself.send_through_token_channel(&remote_public_key);
+                fself.send_through_token_channel(&remote_public_key, token_wanted);
                 Ok(fself)
             },
         }
@@ -398,12 +399,15 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let receive_move_token_res = friend.directional.simulate_receive_move_token(
             friend_move_token_request.friend_move_token);
 
+        let token_wanted = friend_move_token_request.token_wanted;
+
         fself.clear_inconsistency_status(&remote_public_key);
 
         Ok(match receive_move_token_res {
             Ok(receive_move_token_output) => {
                 await!(fself.handle_move_token_success(remote_public_key.clone(),
-                                             receive_move_token_output))?
+                                             receive_move_token_output,
+                                             token_wanted))?
             },
             Err(receive_move_token_error) => {
                 fself.handle_move_token_error(&remote_public_key,

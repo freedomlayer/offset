@@ -146,7 +146,7 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
     pub fn send_friend_move_token(&mut self,
                            remote_public_key: &PublicKey,
                            operations: Vec<FriendTcOp>)
-                -> Result<bool, QueueOperationFailure> {
+                -> Result<(), QueueOperationFailure> {
 
 
         let friend = self.get_friend(remote_public_key).unwrap();
@@ -199,7 +199,7 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
             FunderTask::FriendMessage((remote_public_key.clone(),
                 FriendMessage::MoveTokenRequest(friend_move_token_request))));
 
-        Ok(true)
+        Ok(())
     }
 
     /// Compose a large as possible message to send through the token channel to the remote side.
@@ -213,7 +213,8 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
     ///
     /// Returns whether a move token message is scheduled for the remote side.
     pub fn send_through_token_channel(&mut self, 
-                                  remote_public_key: &PublicKey) -> bool {
+                                  remote_public_key: &PublicKey,
+                                  token_wanted: bool) -> bool {
 
         let friend = self.get_friend(remote_public_key).unwrap();
         let mut out_tc = friend.directional
@@ -222,10 +223,14 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
         let mut ops_batch = OperationsBatch::new(MAX_MOVE_TOKEN_LENGTH);
         self.queue_outgoing_operations(remote_public_key, &mut ops_batch);
         let operations = ops_batch.done();
-        assert!(!operations.is_empty());
 
-        self.send_friend_move_token(
-            remote_public_key, operations).unwrap()
+        if token_wanted || !operations.is_empty() {
+            self.send_friend_move_token(
+                remote_public_key, operations).unwrap();
+            true
+        } else {
+            false
+        }
     }
 
     /// Try to send whatever possible through a friend channel.
@@ -239,7 +244,8 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
             MoveTokenDirection::Incoming(_) => {
                 // We have the token. 
                 // Send as many operations as possible to remote side:
-                self.send_through_token_channel(&remote_public_key);
+                let token_wanted = false;
+                self.send_through_token_channel(&remote_public_key, token_wanted);
             },
             MoveTokenDirection::Outgoing(outgoing_move_token) => {
                 if !outgoing_move_token.token_wanted {
