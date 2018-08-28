@@ -11,7 +11,7 @@ use proto::funder::{ChannelToken, InvoiceId};
 
 use super::super::token_channel::types::TcMutation;
 use super::super::token_channel::directional::{DirectionalMutation, 
-    OutgoingMoveToken, MoveTokenDirection};
+    MoveTokenDirection};
 use super::super::friend::{FriendState, FriendMutation, InconsistencyStatus};
 use super::super::state::{FunderMutation, FunderState};
 use super::{MutableFunderHandler, FunderTask, ResponseReceived, 

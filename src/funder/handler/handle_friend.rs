@@ -23,10 +23,10 @@ use super::super::token_channel::outgoing::{OutgoingTokenChannel, QueueOperation
 use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
     DirectionalMutation, MoveTokenDirection, MoveTokenReceived, SetDirection};
 use super::{MutableFunderHandler, FunderTask, FriendMessage,
-            ResponseReceived, FriendInconsistencyError};
-use super::super::types::{RequestSendFunds, 
-    ResponseSendFunds, FailureSendFunds, 
-    FriendMoveToken, FunderFreezeLink, PkPairPosition, 
+            ResponseReceived, FriendInconsistencyError, FriendMoveTokenRequest};
+use super::super::types::{RequestSendFunds, ResponseSendFunds, 
+    FailureSendFunds, FriendMoveToken, 
+    FunderFreezeLink, PkPairPosition, 
     PendingFriendRequest, Ratio, RequestsStatus};
 
 use super::super::state::FunderMutation;
@@ -61,6 +61,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     fn check_reset_channel(mut self, 
                            friend_public_key: PublicKey,
                            friend_move_token: FriendMoveToken) -> Result<Self, HandleFriendError> {
+
         // Check if incoming message is an attempt to reset channel.
         // We can know this by checking if old_token is a special value.
         let friend = self.get_friend(&friend_public_key).unwrap();
@@ -80,6 +81,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         } else {
             Ok(self)
         }
+
     }
 
     /// Forward a request message to the relevant friend and token channel.
@@ -366,9 +368,9 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
 
     #[async]
-    fn handle_move_token(mut self, 
+    fn handle_move_token_request(mut self, 
                          remote_public_key: PublicKey,
-                         friend_move_token: FriendMoveToken) -> Result<Self,HandleFriendError> {
+                         friend_move_token_request: FriendMoveTokenRequest) -> Result<Self,HandleFriendError> {
 
         // Find friend:
         let friend = match self.get_friend(&remote_public_key) {
@@ -389,12 +391,12 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         */
 
         let mut fself = await!(self.check_reset_channel(remote_public_key.clone(), 
-                                           friend_move_token.clone()))?;
+                                           friend_move_token_request.friend_move_token.clone()))?;
 
         let friend = fself.get_friend(&remote_public_key).unwrap();
 
         let receive_move_token_res = friend.directional.simulate_receive_move_token(
-            friend_move_token);
+            friend_move_token_request.friend_move_token);
 
         fself.clear_inconsistency_status(&remote_public_key);
 
@@ -480,6 +482,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     }
 
 
+    /*
     fn handle_request_token(&mut self, 
                             remote_public_key: &PublicKey,
                             last_token: ChannelToken)
@@ -513,6 +516,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         Ok(())
     }
+    */
 
     #[async]
     pub fn handle_friend_message(mut self, 
@@ -527,16 +531,12 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         }?;
 
         let mut fself = match friend_message {
-            FriendMessage::MoveToken(friend_move_token) =>
-                await!(self.handle_move_token(remote_public_key.clone(), friend_move_token)),
+            FriendMessage::MoveTokenRequest(friend_move_token_request) =>
+                await!(self.handle_move_token_request(remote_public_key.clone(), friend_move_token_request)),
             FriendMessage::InconsistencyError(friend_inconsistency_error) => {
                 self.handle_inconsistency_error(&remote_public_key.clone(), friend_inconsistency_error);
                 Ok(self)
             }
-            FriendMessage::RequestToken(last_token) => {
-                self.handle_request_token(&remote_public_key, last_token)?;
-                Ok(self)
-            },
         }?;
 
         Ok(fself)

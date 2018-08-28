@@ -25,19 +25,19 @@ use super::super::types::FriendMoveToken;
 const TOKEN_NEXT: &[u8] = b"NEXT";
 const TOKEN_RESET: &[u8] = b"RESET";
 
-
 #[derive(Clone)]
-pub struct OutgoingMoveToken {
+pub struct FriendMoveTokenRequest {
     pub friend_move_token: FriendMoveToken,
-    // Have we already requested the remote token?
-    pub request_token_sent: bool,
+    // Do we want the remote side to return the token:
+    pub token_wanted: bool,
 }
+
 
 /// Indicate the direction of the move token funds.
 #[derive(Clone)]
 pub enum MoveTokenDirection {
     Incoming(ChannelToken), // new_token
-    Outgoing(OutgoingMoveToken),
+    Outgoing(FriendMoveTokenRequest),
 }
 
 pub enum SetDirection {
@@ -137,16 +137,16 @@ impl DirectionalTokenChannel {
 
         if local_pk_hash < remote_pk_hash {
             // We are the first sender
-            let outgoing_move_token = OutgoingMoveToken {
+            let friend_move_token_request = FriendMoveTokenRequest {
                 friend_move_token: FriendMoveToken {
                     operations: Vec::new(),
                     old_token: ChannelToken::from(local_pk_hash.as_array_ref()),
                     rand_nonce,
                 },
-                request_token_sent: false,
+                token_wanted: false,
             };
             DirectionalTokenChannel {
-                direction: MoveTokenDirection::Outgoing(outgoing_move_token),
+                direction: MoveTokenDirection::Outgoing(friend_move_token_request),
                 token_channel: new_token_channel,
             }
         } else {
@@ -173,12 +173,12 @@ impl DirectionalTokenChannel {
                       reset_move_token: &FriendMoveToken,
                       balance: i128) -> DirectionalTokenChannel {
 
-        let outgoing_move_token = OutgoingMoveToken {
+        let friend_move_token_request = FriendMoveTokenRequest {
             friend_move_token: reset_move_token.clone(),
-            request_token_sent: false,
+            token_wanted: false,
         };
         DirectionalTokenChannel {
-            direction: MoveTokenDirection::Outgoing(outgoing_move_token),
+            direction: MoveTokenDirection::Outgoing(friend_move_token_request),
             token_channel: TokenChannel::new(local_public_key, remote_public_key, balance),
         }
     }
@@ -220,9 +220,9 @@ impl DirectionalTokenChannel {
                 self.direction = match set_direction {
                     SetDirection::Incoming(new_token) => MoveTokenDirection::Incoming(new_token.clone()),
                     SetDirection::Outgoing(friend_move_token) => {
-                        MoveTokenDirection::Outgoing(OutgoingMoveToken {
+                        MoveTokenDirection::Outgoing(FriendMoveTokenRequest {
                             friend_move_token: friend_move_token.clone(),
-                            request_token_sent: false,
+                            token_wanted: false,
                         })
                     }
                 };
@@ -230,8 +230,8 @@ impl DirectionalTokenChannel {
             DirectionalMutation::SetRequestTokenSent => {
                 match self.direction {
                     MoveTokenDirection::Incoming(_) => unreachable!(),
-                    MoveTokenDirection::Outgoing(ref mut outgoing_move_token) => {
-                        outgoing_move_token.request_token_sent = true;
+                    MoveTokenDirection::Outgoing(ref mut friend_move_token_request) => {
+                        friend_move_token_request.token_wanted = true;
                     },
                 }
             },
@@ -309,11 +309,11 @@ impl DirectionalTokenChannel {
 
 
     #[allow(unused)]
-    pub fn get_outgoing_move_token(&self) -> Option<FriendMoveToken> {
+    pub fn get_outgoing_move_token(&self) -> Option<FriendMoveTokenRequest> {
         match self.direction {
             MoveTokenDirection::Incoming(_)=> None,
-            MoveTokenDirection::Outgoing(ref outgoing_move_token) => {
-                Some(outgoing_move_token.friend_move_token.clone())
+            MoveTokenDirection::Outgoing(ref friend_move_token_request) => {
+                Some(friend_move_token_request.clone())
             }
         }
     }
