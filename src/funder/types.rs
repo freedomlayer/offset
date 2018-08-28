@@ -377,3 +377,8 @@ pub enum IncomingControlMessage<A> {
     RequestSendFunds(UserRequestSendFunds),
     ReceiptAck(ReceiptAck),
 }
+
+pub enum IncomingLivenessMessage {
+    Online(PublicKey),
+    Offline(PublicKey),
+}

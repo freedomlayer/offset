@@ -137,19 +137,10 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
             MoveTokenDirection::Incoming(_) => unreachable!(),
         };
 
-        if outgoing_move_token.is_acked {
-            return;
-        }
-
-        let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
-        if liveness_friend.is_online() {
-            // Transmit the current outgoing message:
-            self.funder_tasks.push(
-                FunderTask::FriendMessage((remote_public_key.clone(),
-                    FriendMessage::MoveToken(outgoing_move_token.friend_move_token))));
-        }
-        liveness_friend.reset_token_msg();
-        liveness_friend.cancel_inconsistency();
+        // Transmit the current outgoing message:
+        self.funder_tasks.push(
+            FunderTask::FriendMessage((remote_public_key.clone(),
+                FriendMessage::MoveToken(outgoing_move_token.friend_move_token))));
     }
 
     pub fn send_friend_move_token(&mut self,
@@ -202,24 +193,13 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
         let friend = self.get_friend(remote_public_key).unwrap();
         let outgoing_move_token = friend.directional.get_outgoing_move_token().unwrap();
 
-        let mut move_token_sent = false;
 
         // Add a task for sending the outgoing move token:
-        let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
-        if liveness_friend.is_online() {
-            // TODO: We only add a FriendMessage::MoveToken task in the case where we think
-            // the remote friend is online. Could this cause any problems?
-            // Should we add this checks in other places in handle_friend.rs?
-            self.add_task(
-                FunderTask::FriendMessage((remote_public_key.clone(),
-                    FriendMessage::MoveToken(outgoing_move_token))));
-            move_token_sent = true;
-        }
+        self.add_task(
+            FunderTask::FriendMessage((remote_public_key.clone(),
+                FriendMessage::MoveToken(outgoing_move_token))));
 
-        let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
-        liveness_friend.reset_token_msg();
-        liveness_friend.cancel_inconsistency();
-        Ok(move_token_sent)
+        Ok(true)
     }
 
     /// Compose a large as possible message to send through the token channel to the remote side.
@@ -263,14 +243,9 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
             },
             MoveTokenDirection::Outgoing(_) => {
                 // We don't have the token. We should request it.
-                let liveness_friend = self.ephemeral.liveness.friends
-                    .get_mut(&remote_public_key).unwrap();
-                if !liveness_friend.is_request_token_enabled() && liveness_friend.is_online() {
-                    self.funder_tasks.push(
-                        FunderTask::FriendMessage((remote_public_key.clone(),
-                            FriendMessage::RequestToken(new_token))));
-                }
-                liveness_friend.enable_request_token();
+            self.funder_tasks.push(
+                FunderTask::FriendMessage((remote_public_key.clone(),
+                        FriendMessage::RequestToken(new_token))));
             },
         };
     }

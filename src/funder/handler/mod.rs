@@ -1,6 +1,6 @@
 mod handle_control;
 mod handle_friend;
-mod handle_timer;
+mod handle_liveness;
 mod sender;
 mod canceler;
 
@@ -18,9 +18,9 @@ use proto::funder::ChannelToken;
 use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError};
 use self::handle_friend::HandleFriendError;
-use self::handle_timer::HandleTimerError;
 use super::token_channel::directional::ReceiveMoveTokenError;
-use super::types::{FriendMoveToken, FriendsRoute, IncomingControlMessage};
+use super::types::{FriendMoveToken, FriendsRoute, 
+    IncomingControlMessage, IncomingLivenessMessage};
 use super::ephemeral::FunderEphemeral;
 use super::friend::FriendState;
 
@@ -32,7 +32,6 @@ const MAX_MOVE_TOKEN_LENGTH: usize = 0x1000;
 
 #[allow(unused)]
 pub struct FriendInconsistencyError {
-    opt_ack: Option<ChannelToken>,
     current_token: ChannelToken,
     balance_for_reset: i128,
 }
@@ -40,10 +39,8 @@ pub struct FriendInconsistencyError {
 #[allow(unused)]
 pub enum FriendMessage {
     MoveToken(FriendMoveToken),
-    MoveTokenAck(ChannelToken), // acked_token
     RequestToken(ChannelToken), // last_token
     InconsistencyError(FriendInconsistencyError),
-    KeepAlive,
 }
 
 pub struct ResponseReceived {
@@ -68,7 +65,6 @@ pub enum FunderTask<A> {
 pub enum HandlerError {
     HandleControlError(HandleControlError),
     HandleFriendError(HandleFriendError),
-    HandleTimerError(HandleTimerError),
 }
 
 pub struct MutableFunderHandler<A:Clone,R> {
@@ -155,16 +151,17 @@ impl<R: SecureRandom + 'static> FunderHandler<R> {
 
     #[allow(unused, type_complexity)]
     #[async]
-    fn simulate_handle_timer_tick<A: Clone + 'static>(mut self,
-                                     messenger_state: FunderState<A>,
-                                     funder_ephemeral: FunderEphemeral)
+    fn simulate_handle_liveness_message<A: Clone + 'static>(self, 
+                                        messenger_state: FunderState<A>,
+                                        funder_ephemeral: FunderEphemeral,
+                                        liveness_message: IncomingLivenessMessage)
             -> Result<(FunderEphemeral, Vec<FunderMutation<A>>, Vec<FunderTask<A>>), HandlerError> {
-        // TODO
+
         let mut mutable_handler = self.gen_mutable(&messenger_state,
                                                    &funder_ephemeral);
         let mutable_handler = await!(mutable_handler
-            .handle_timer_tick())
-            .map_err(HandlerError::HandleTimerError)?;
+            .handle_liveness_message(liveness_message))
+            .map_err(HandlerError::HandleFriendError)?;
 
         Ok(mutable_handler.done())
     }
