@@ -53,7 +53,6 @@ pub enum DirectionalMutation {
 #[derive(Clone)]
 pub struct DirectionalTokenChannel {
     pub direction: MoveTokenDirection,
-    // Equals Sha512/256(FriendMoveToken)
     pub token_channel: TokenChannel,
 }
 
