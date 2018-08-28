@@ -24,7 +24,7 @@ use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMo
     DirectionalMutation, MoveTokenDirection, MoveTokenReceived, SetDirection};
 use super::{MutableFunderHandler, FunderTask, FriendMessage,
             ResponseReceived};
-use super::super::types::{FriendTcOp, RequestSendFunds, 
+use super::super::types::{RequestSendFunds, 
     ResponseSendFunds, FailureSendFunds, 
     FriendMoveToken, FunderFreezeLink, PkPairPosition, 
     PendingFriendRequest, Ratio, RequestsStatus};
@@ -316,8 +316,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         };
 
         self.funder_tasks.push(
-            FunderTask::FriendMessage(
-                FriendMessage::InconsistencyError(inconsistency_error)));
+            FunderTask::FriendMessage((remote_public_key.clone(),
+                FriendMessage::InconsistencyError(inconsistency_error))));
         let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
         liveness_friend.reset_inconsistency();
         liveness_friend.cancel_token_msg();
@@ -362,6 +362,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         -> Result<Self, !> {
 
         self.clear_inconsistency_status(&remote_public_key);
+        let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
+        liveness_friend.cancel_inconsistency();
 
         match receive_move_token_output {
             ReceiveMoveTokenOutput::Duplicate => {
@@ -372,8 +374,10 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                     .new_token();
 
                 self.add_task(
-                    FunderTask::FriendMessage(
-                        FriendMessage::MoveTokenAck(acked_token)));
+                    FunderTask::FriendMessage((remote_public_key.clone(), 
+                        FriendMessage::MoveTokenAck(acked_token))
+                    )
+                );
                 Ok(self)
             },
             ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token) => {
@@ -383,7 +387,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             },
             ReceiveMoveTokenOutput::Received(move_token_received) => {
                 let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
-                liveness_friend.cancel_inconsistency();
                 liveness_friend.cancel_request_token();
 
                 let MoveTokenReceived {incoming_messages, mutations} = 
@@ -406,8 +409,11 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                         .directional
                         .new_token();
                     fself.add_task(
-                        FunderTask::FriendMessage(
-                            FriendMessage::MoveTokenAck(acked_token)));
+                        FunderTask::FriendMessage((
+                            remote_public_key.clone(),
+                                FriendMessage::MoveTokenAck(acked_token))
+                        )
+                    );
                 }
                 Ok(fself)
             },
@@ -531,8 +537,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             };
 
             self.add_task(
-                FunderTask::FriendMessage(
-                    FriendMessage::InconsistencyError(inconsistency_error)));
+                FunderTask::FriendMessage((remote_public_key.clone(),
+                    FriendMessage::InconsistencyError(inconsistency_error))));
             let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
             liveness_friend.reset_inconsistency();
         }

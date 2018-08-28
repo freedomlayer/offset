@@ -26,6 +26,10 @@ use super::friend::FriendState;
 
 use super::messages::{FunderCommand, ResponseSendFundsResult};
 
+// Approximate maximum size of a MOVE_TOKEN message.
+// TODO: Where to put this constant? Do we have more like this one?
+const MAX_MOVE_TOKEN_LENGTH: usize = 0x1000;
+
 #[allow(unused)]
 pub struct FriendInconsistencyError {
     opt_ack: Option<ChannelToken>,
@@ -48,14 +52,14 @@ pub struct ResponseReceived {
 }
 
 pub enum ChannelerConfig<A> {
-    AddFriend((PublicKey, A)),
+    AddFriend((PublicKey, Option<A>)),
     RemoveFriend(PublicKey),
 }
 
 
 #[allow(unused)]
 pub enum FunderTask<A> {
-    FriendMessage(FriendMessage),
+    FriendMessage((PublicKey, FriendMessage)),
     ChannelerConfig(ChannelerConfig<A>),
     ResponseReceived(ResponseReceived),
     StateUpdate, // TODO

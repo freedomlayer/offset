@@ -45,8 +45,8 @@ impl<A:Clone + 'static, R:SecureRandom + 'static> MutableFunderHandler<A,R> {
             };
 
             self.add_task(
-                FunderTask::FriendMessage(
-                    FriendMessage::InconsistencyError(inconsistency_error)));
+                FunderTask::FriendMessage((remote_public_key.clone(),
+                    FriendMessage::InconsistencyError(inconsistency_error))));
         }
 
         if actions.retransmit_token_msg {
@@ -54,8 +54,8 @@ impl<A:Clone + 'static, R:SecureRandom + 'static> MutableFunderHandler<A,R> {
             let outgoing_move_token = friend.directional.get_outgoing_move_token().unwrap();
             // Add a task for sending the outgoing move token:
             self.add_task(
-                FunderTask::FriendMessage(
-                    FriendMessage::MoveToken(outgoing_move_token)));
+                FunderTask::FriendMessage((remote_public_key.clone(),
+                    FriendMessage::MoveToken(outgoing_move_token))));
         }
 
         if actions.retransmit_request_token {
@@ -65,14 +65,14 @@ impl<A:Clone + 'static, R:SecureRandom + 'static> MutableFunderHandler<A,R> {
                 MoveTokenDirection::Outgoing(_) => unreachable!(),
             };
             self.add_task(
-                FunderTask::FriendMessage(
-                    FriendMessage::RequestToken(new_token)));
+                FunderTask::FriendMessage((remote_public_key.clone(),
+                    FriendMessage::RequestToken(new_token))));
         }
 
         if actions.send_keepalive {
             self.add_task(
-                FunderTask::FriendMessage(
-                    FriendMessage::KeepAlive));
+                FunderTask::FriendMessage((remote_public_key.clone(),
+                    FriendMessage::KeepAlive)));
         }
     }
 

@@ -67,6 +67,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         Ok(fself)
     }
 
+    /// Cancel outgoing local requests that are already inside the token channel (Possibly already
+    /// communicated to the remote side).
     #[async]
     pub fn cancel_local_pending_requests(mut self, 
                                      friend_public_key: PublicKey) -> Result<Self, !> {
@@ -87,6 +89,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let mut fself = self;
         // Prepare a list of all remote requests that we need to cancel:
         for (local_request_id, pending_local_request) in pending_local_requests {
+            fself.ephemeral.freeze_guard.sub_frozen_credit(&pending_local_request);
+
             let opt_origin_public_key = fself.find_request_origin(&local_request_id).cloned();
             let origin_public_key = match opt_origin_public_key {
                 Some(origin_public_key) => {
