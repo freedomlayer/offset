@@ -52,7 +52,7 @@ pub struct ResponseReceived {
 }
 
 pub enum ChannelerConfig<A> {
-    AddFriend((PublicKey, A)),
+    AddFriend((PublicKey, Option<A>)),
     RemoveFriend(PublicKey),
 }
 
