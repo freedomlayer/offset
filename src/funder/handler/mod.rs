@@ -1,6 +1,5 @@
 mod handle_control;
 mod handle_friend;
-// mod handle_timer;
 mod handle_liveness;
 mod sender;
 mod canceler;
