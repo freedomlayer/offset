@@ -102,7 +102,7 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
     fn enable_friend(&mut self, 
                      friend_public_key: &PublicKey,
-                     friend_address: Option<A>) {
+                     friend_address: &Option<A>) {
 
         // Notify Channeler:
         let channeler_config = ChannelerConfig::AddFriend(
@@ -130,7 +130,7 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         self.apply_mutation(m_mutation);
 
         self.enable_friend(&add_friend.friend_public_key,
-                           add_friend.address.clone());
+                           &add_friend.address);
 
         Ok(())
     }
@@ -181,7 +181,7 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let friend_address = friend.opt_remote_address.clone();
 
         match set_friend_status.status {
-            FriendStatus::Enable => self.enable_friend(&friend_public_key, friend_address),
+            FriendStatus::Enable => self.enable_friend(friend_public_key, &friend_address),
             FriendStatus::Disable => self.disable_friend(&friend_public_key),
         };
 
@@ -210,11 +210,18 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let _friend = self.get_friend(&set_friend_addr.friend_public_key)
             .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-        let friend_mutation = FriendMutation::SetFriendAddr(set_friend_addr.address);
+        let friend_mutation = FriendMutation::SetFriendAddr(
+            set_friend_addr.address.clone());
         let m_mutation = FunderMutation::FriendMutation(
-            (set_friend_addr.friend_public_key, friend_mutation));
+            (set_friend_addr.friend_public_key.clone(), friend_mutation));
 
         self.apply_mutation(m_mutation);
+
+        // Notify Channeler to change the friend's address:
+        self.disable_friend(&set_friend_addr.friend_public_key);
+        self.enable_friend(&set_friend_addr.friend_public_key, 
+                           &set_friend_addr.address);
+
         Ok(())
     }
 
