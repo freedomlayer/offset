@@ -301,7 +301,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         };
 
         let inconsistency_error = FriendInconsistencyError {
-            reset_token: reset_token,
+            reset_token,
             balance_for_reset,
         };
 
