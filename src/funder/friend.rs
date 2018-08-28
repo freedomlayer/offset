@@ -32,8 +32,6 @@ pub enum OutgoingInconsistency {
     Empty,
     // Outgoing inconsistency message was sent
     Sent(ResetTerms),
-    // Outgoing inconsistency message was sent and acknowledged by remote side
-    Acked,
 }
 
 #[derive(Clone)]

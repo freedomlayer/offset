@@ -29,7 +29,6 @@ const TOKEN_RESET: &[u8] = b"RESET";
 #[derive(Clone)]
 pub struct OutgoingMoveToken {
     pub friend_move_token: FriendMoveToken,
-    pub is_acked: bool,
 }
 
 /// Indicate the direction of the move token funds.
@@ -48,7 +47,6 @@ pub enum SetDirection {
 pub enum DirectionalMutation {
     TcMutation(TcMutation),
     SetDirection(SetDirection),
-    AckOutgoing,
 }
 
 
@@ -143,7 +141,6 @@ impl DirectionalTokenChannel {
                     old_token: ChannelToken::from(local_pk_hash.as_array_ref()),
                     rand_nonce,
                 },
-                is_acked: false,
             };
             DirectionalTokenChannel {
                 direction: MoveTokenDirection::Outgoing(outgoing_move_token),
@@ -175,7 +172,6 @@ impl DirectionalTokenChannel {
 
         let outgoing_move_token = OutgoingMoveToken {
             friend_move_token: reset_move_token.clone(),
-            is_acked: false,
         };
         DirectionalTokenChannel {
             direction: MoveTokenDirection::Outgoing(outgoing_move_token),
@@ -222,18 +218,9 @@ impl DirectionalTokenChannel {
                     SetDirection::Outgoing(friend_move_token) => {
                         MoveTokenDirection::Outgoing(OutgoingMoveToken {
                             friend_move_token: friend_move_token.clone(),
-                            is_acked: false,
                         })
                     }
                 };
-            },
-            DirectionalMutation::AckOutgoing => {
-                match self.direction {
-                    MoveTokenDirection::Incoming(_) => unreachable!(),
-                    MoveTokenDirection::Outgoing(ref mut outgoing_move_token) => {
-                        outgoing_move_token.is_acked = true;
-                    },
-                }
             },
         }
     }

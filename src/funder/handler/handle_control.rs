@@ -17,7 +17,6 @@ use super::super::state::{FunderMutation, FunderState};
 use super::{MutableFunderHandler, FunderTask, ResponseReceived, 
     FriendMessage, MAX_MOVE_TOKEN_LENGTH, ChannelerConfig};
 use super::super::messages::ResponseSendFundsResult;
-use super::super::liveness::Direction;
 use super::super::types::{RequestsStatus, FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel,
     SetFriendAddr, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
@@ -110,16 +109,6 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             (friend_public_key.clone(), friend_address.clone()));
         self.funder_tasks.push(FunderTask::ChannelerConfig(channeler_config));
 
-        // Update liveness:
-        let friend = self.get_friend(&friend_public_key).unwrap();
-        let direction = match &friend.directional.direction {
-            MoveTokenDirection::Incoming(_) => Direction::Incoming,
-            MoveTokenDirection::Outgoing(outgoing_move_token) => 
-                Direction::Outgoing(outgoing_move_token.is_acked)
-        };
-        self.ephemeral.liveness.add_friend(&friend_public_key,
-                                           direction);
-
     }
 
     fn disable_friend(&mut self, 
@@ -129,8 +118,6 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let channeler_config = ChannelerConfig::RemoveFriend(
             friend_public_key.clone());
         self.funder_tasks.push(FunderTask::ChannelerConfig(channeler_config));
-
-        self.ephemeral.liveness.remove_friend(&friend_public_key);
     }
 
     fn control_add_friend(&mut self, add_friend: AddFriend<A>) 
