@@ -49,7 +49,7 @@ pub enum SetDirection {
 pub enum DirectionalMutation {
     TcMutation(TcMutation),
     SetDirection(SetDirection),
-    SetRequestTokenSent,
+    SetTokenWanted,
 }
 
 
@@ -227,7 +227,7 @@ impl DirectionalTokenChannel {
                     }
                 };
             },
-            DirectionalMutation::SetRequestTokenSent => {
+            DirectionalMutation::SetTokenWanted => {
                 match self.direction {
                     MoveTokenDirection::Incoming(_) => unreachable!(),
                     MoveTokenDirection::Outgoing(ref mut friend_move_token_request) => {

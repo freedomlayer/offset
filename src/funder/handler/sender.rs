@@ -251,7 +251,7 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
                 if !outgoing_move_token.token_wanted {
                     // We don't have the token. We should request it.
                     // Mark that we have sent a request token, to make sure we don't do this again:
-                    let directional_mutation = DirectionalMutation::SetRequestTokenSent;
+                    let directional_mutation = DirectionalMutation::SetTokenWanted;
                     let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
                     let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
                     self.apply_mutation(messenger_mutation);
