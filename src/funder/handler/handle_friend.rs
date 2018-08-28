@@ -49,6 +49,7 @@ pub enum HandleFriendError {
     TokenNotOwned,
     IncorrectAckedToken,
     IncorrectLastToken,
+    TokenChannelInconsistent,
 }
 
 
@@ -504,6 +505,10 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         if *new_token != last_token {
             return Err(HandleFriendError::IncorrectLastToken);
+        }
+
+        if friend.is_inconsistent() {
+            return Err(HandleFriendError::TokenChannelInconsistent);
         }
 
         // Compose an empty friend_move_token message and send it to the remote side:
