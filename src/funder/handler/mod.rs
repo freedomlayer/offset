@@ -19,7 +19,8 @@ use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError};
 use self::handle_friend::HandleFriendError;
 use super::token_channel::directional::ReceiveMoveTokenError;
-use super::types::{FriendMoveToken, FriendsRoute, IncomingControlMessage};
+use super::types::{FriendMoveToken, FriendsRoute, 
+    IncomingControlMessage, IncomingLivenessMessage};
 use super::ephemeral::FunderEphemeral;
 use super::friend::FriendState;
 
@@ -146,6 +147,23 @@ impl<R: SecureRandom + 'static> FunderHandler<R> {
             mutations: Vec::new(),
             funder_tasks: Vec::new(),
         }
+    }
+
+    #[allow(unused, type_complexity)]
+    #[async]
+    fn simulate_handle_liveness_message<A: Clone + 'static>(self, 
+                                        messenger_state: FunderState<A>,
+                                        funder_ephemeral: FunderEphemeral,
+                                        liveness_message: IncomingLivenessMessage)
+            -> Result<(FunderEphemeral, Vec<FunderMutation<A>>, Vec<FunderTask<A>>), HandlerError> {
+
+        let mut mutable_handler = self.gen_mutable(&messenger_state,
+                                                   &funder_ephemeral);
+        let mutable_handler = await!(mutable_handler
+            .handle_liveness_message(liveness_message))
+            .map_err(HandlerError::HandleFriendError)?;
+
+        Ok(mutable_handler.done())
     }
 
     #[allow(unused,type_complexity)]
