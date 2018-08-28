@@ -67,6 +67,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         Ok(fself)
     }
 
+    /// Cancel outgoing local requests that are already inside the token channel (Possibly already
+    /// communicated to the remote side).
     #[async]
     pub fn cancel_local_pending_requests(mut self, 
                                      friend_public_key: PublicKey) -> Result<Self, !> {
