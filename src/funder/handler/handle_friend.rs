@@ -291,17 +291,17 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         let friend = self.get_friend(&remote_public_key).unwrap();
         // Send an InconsistencyError message to remote side:
-        let current_token = friend.directional.calc_channel_reset_token();
+        let reset_token = friend.directional.calc_channel_reset_token();
         let balance_for_reset = friend.directional
             .balance_for_reset();
 
         let reset_terms = ResetTerms {
-            current_token: current_token.clone(),
+            reset_token: reset_token.clone(),
             balance_for_reset,
         };
 
         let inconsistency_error = FriendInconsistencyError {
-            reset_token: current_token.clone(),
+            reset_token: reset_token,
             balance_for_reset,
         };
 
@@ -423,7 +423,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         }?;
         // Save incoming inconsistency details:
         let new_in_reset_terms = ResetTerms {
-            current_token: friend_inconsistency_error.reset_token.clone(),
+            reset_token: friend_inconsistency_error.reset_token.clone(),
             balance_for_reset: friend_inconsistency_error.balance_for_reset,
         };
 
@@ -434,7 +434,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let balance_for_reset = directional.balance_for_reset();
 
         let new_out_reset_terms = ResetTerms {
-            current_token: reset_token.clone(),
+            reset_token: reset_token.clone(),
             balance_for_reset,
         };
 

@@ -57,9 +57,9 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         }
 
         for (friend_public_key, out_reset_terms) in inconsistents {
-            let ResetTerms {current_token, balance_for_reset} = out_reset_terms;
+            let ResetTerms {reset_token, balance_for_reset} = out_reset_terms;
             let inconsistency_error = FriendInconsistencyError {
-                reset_token: current_token,
+                reset_token,
                 balance_for_reset,
             };
             self.funder_tasks.push(

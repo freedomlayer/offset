@@ -72,7 +72,7 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             InconsistencyStatus::Empty | 
             InconsistencyStatus::Outgoing(_) => return Err(HandleControlError::NotInvitedToReset),
             InconsistencyStatus::IncomingOutgoing((in_reset_terms, _out_reset_terms)) => {
-                if (in_reset_terms.current_token != reset_friend_channel.current_token)  {
+                if (in_reset_terms.reset_token != reset_friend_channel.current_token)  {
                     return Err(HandleControlError::ResetTokenMismatch);
                 }
                 in_reset_terms
@@ -83,7 +83,7 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let friend_move_token = FriendMoveToken {
             operations: Vec::new(), 
             // No operations are required for a reset move token
-            old_token: in_reset_terms.current_token.clone(),
+            old_token: in_reset_terms.reset_token.clone(),
             rand_nonce,
         };
 

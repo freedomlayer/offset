@@ -14,7 +14,7 @@ use super::token_channel::directional::DirectionalTokenChannel;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResetTerms {
-    pub current_token: ChannelToken,
+    pub reset_token: ChannelToken,
     pub balance_for_reset: i128,
 }
 
@@ -144,7 +144,7 @@ impl<A:Clone> FriendState<A> {
                     InconsistencyStatus::Empty => unreachable!(),
                     InconsistencyStatus::Outgoing(_) => unreachable!(),
                     InconsistencyStatus::IncomingOutgoing((in_reset_terms, _)) => {
-                        assert_eq!(reset_move_token.old_token, in_reset_terms.current_token);
+                        assert_eq!(reset_move_token.old_token, in_reset_terms.reset_token);
                         self.directional = DirectionalTokenChannel::new_from_local_reset(
                             &self.directional.token_channel.state().idents.local_public_key,
                             &self.directional.token_channel.state().idents.remote_public_key,
