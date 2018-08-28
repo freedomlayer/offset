@@ -145,8 +145,8 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
         if liveness_friend.is_online() {
             // Transmit the current outgoing message:
             self.funder_tasks.push(
-                FunderTask::FriendMessage(
-                    FriendMessage::MoveToken(outgoing_move_token.friend_move_token)));
+                FunderTask::FriendMessage((remote_public_key.clone(),
+                    FriendMessage::MoveToken(outgoing_move_token.friend_move_token))));
         }
         liveness_friend.reset_token_msg();
         liveness_friend.cancel_inconsistency();
@@ -211,8 +211,8 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
             // the remote friend is online. Could this cause any problems?
             // Should we add this checks in other places in handle_friend.rs?
             self.add_task(
-                FunderTask::FriendMessage(
-                    FriendMessage::MoveToken(outgoing_move_token)));
+                FunderTask::FriendMessage((remote_public_key.clone(),
+                    FriendMessage::MoveToken(outgoing_move_token))));
             move_token_sent = true;
         }
 
@@ -267,8 +267,8 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
                     .get_mut(&remote_public_key).unwrap();
                 if !liveness_friend.is_request_token_enabled() && liveness_friend.is_online() {
                     self.funder_tasks.push(
-                        FunderTask::FriendMessage(
-                            FriendMessage::RequestToken(new_token)));
+                        FunderTask::FriendMessage((remote_public_key.clone(),
+                            FriendMessage::RequestToken(new_token))));
                 }
                 liveness_friend.enable_request_token();
             },

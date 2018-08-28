@@ -59,7 +59,7 @@ pub enum ChannelerConfig<A> {
 
 #[allow(unused)]
 pub enum FunderTask<A> {
-    FriendMessage(FriendMessage),
+    FriendMessage((PublicKey, FriendMessage)),
     ChannelerConfig(ChannelerConfig<A>),
     ResponseReceived(ResponseReceived),
     StateUpdate, // TODO
