@@ -28,7 +28,7 @@ pub enum RequestsStatus {
 }
 
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum FriendTcOp {
     EnableRequests,
     DisableRequests,
@@ -47,7 +47,7 @@ pub struct PendingFriendRequest {
 }
 
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ResponseSendFunds {
     pub request_id: Uid,
     pub rand_nonce: RandValue,
@@ -56,13 +56,13 @@ pub struct ResponseSendFunds {
 
 
 /// The ratio can be numeration / T::max_value(), or 1
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Ratio<T> {
     One,
     Numerator(T),
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct FunderFreezeLink {
     pub shared_credits: u128,
     pub usable_ratio: Ratio<u128>
@@ -78,7 +78,7 @@ pub struct UserRequestSendFunds {
 }
 
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct RequestSendFunds {
     pub request_id: Uid,
     pub route: FriendsRoute,
@@ -88,7 +88,7 @@ pub struct RequestSendFunds {
 }
 
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct FailureSendFunds {
     pub request_id: Uid,
     pub reporting_public_key: PublicKey,
@@ -323,4 +323,57 @@ impl UserRequestSendFunds {
             invoice_id: self.invoice_id.clone(),
         }
     }
+}
+
+
+pub struct SetFriendRemoteMaxDebt {
+    pub friend_public_key: PublicKey,
+    pub remote_max_debt: u128,
+}
+
+pub struct ResetFriendChannel {
+    pub friend_public_key: PublicKey,
+    pub current_token: ChannelToken,
+}
+
+pub struct SetFriendAddr<A> {
+    pub friend_public_key: PublicKey,
+    pub address: Option<A>,
+}
+
+pub struct AddFriend<A> {
+    pub friend_public_key: PublicKey,
+    pub address: Option<A>,
+}
+
+pub struct RemoveFriend {
+    pub friend_public_key: PublicKey,
+}
+
+pub struct SetFriendStatus {
+    pub friend_public_key: PublicKey,
+    pub status: FriendStatus,
+}
+
+pub struct SetRequestsStatus {
+    pub friend_public_key: PublicKey,
+    pub status: RequestsStatus,
+}
+
+
+pub struct ReceiptAck {
+    pub request_id: Uid,
+    pub receipt_hash: HashResult,
+}
+
+pub enum IncomingControlMessage<A> {
+    AddFriend(AddFriend<A>),
+    RemoveFriend(RemoveFriend),
+    SetRequestsStatus(SetRequestsStatus),
+    SetFriendStatus(SetFriendStatus),
+    SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
+    SetFriendAddr(SetFriendAddr<A>),
+    ResetFriendChannel(ResetFriendChannel),
+    RequestSendFunds(UserRequestSendFunds),
+    ReceiptAck(ReceiptAck),
 }

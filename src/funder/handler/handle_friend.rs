@@ -26,22 +26,21 @@ use super::{MutableFunderHandler, FunderTask, FriendMessage,
             ResponseReceived};
 use super::super::types::{FriendTcOp, RequestSendFunds, 
     ResponseSendFunds, FailureSendFunds, 
-    FriendMoveToken};
+    FriendMoveToken, FunderFreezeLink, PkPairPosition, 
+    PendingFriendRequest, Ratio, RequestsStatus};
+
 use super::super::state::FunderMutation;
 use super::super::friend::{FriendState, FriendMutation, 
     OutgoingInconsistency, IncomingInconsistency, 
     ResetTerms, ResponseOp};
 
 use super::super::signature_buff::{create_failure_signature_buffer, prepare_receipt};
-use super::super::types::{FunderFreezeLink, PkPairPosition, PendingFriendRequest, Ratio, RequestsStatus};
-use super::super::messages::{ResponseSendFundsResult};
+use super::super::messages::ResponseSendFundsResult;
 
 use super::super::liveness::Actions;
 use super::FriendInconsistencyError;
 
 use proto::common::SendFundsReceipt;
-
-
 
 
 #[derive(Debug)]
@@ -57,110 +56,6 @@ pub enum HandleFriendError {
 
 #[allow(unused)]
 impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
-
-
-    /// Find the originator of a pending local request.
-    /// This should be a pending remote request at some other friend.
-    /// Returns the public key of a friend. If we are the origin of this request, the function return None.
-    ///
-    /// TODO: We need to change this search to be O(1) in the future. Possibly by maintaining a map
-    /// between request_id and (friend_public_key, friend).
-    pub fn find_request_origin(&self, request_id: &Uid) -> Option<&PublicKey> {
-        for (friend_public_key, friend) in self.state.get_friends() {
-            if friend.directional
-                .token_channel
-                .state()
-                .pending_requests
-                .pending_remote_requests
-                .contains_key(request_id) {
-                    return Some(friend_public_key)
-            }
-        }
-        None
-    }
-
-    /// Create a (signed) failure message for a given request_id.
-    /// We are the reporting_public_key for this failure message.
-    #[async]
-    pub fn create_failure_message(self, pending_local_request: PendingFriendRequest) 
-        -> Result<(Self, FailureSendFunds), !> {
-
-        let rand_nonce = RandValue::new(&*self.rng);
-        let local_public_key = self.state.get_local_public_key().clone();
-
-        let failure_send_funds = FailureSendFunds {
-            request_id: pending_local_request.request_id,
-            reporting_public_key: local_public_key.clone(),
-            rand_nonce: rand_nonce.clone(),
-            signature: Signature::zero(),
-        };
-        // TODO: Add default() implementation for Signature
-        
-        let mut failure_signature_buffer = create_failure_signature_buffer(
-                                            &failure_send_funds,
-                                            &pending_local_request);
-
-        let signature = await!(self.security_module_client.request_signature(failure_signature_buffer))
-            .unwrap();
-
-        Ok((self, FailureSendFunds {
-            request_id: pending_local_request.request_id,
-            reporting_public_key: local_public_key,
-            rand_nonce,
-            signature,
-        }))
-    }
-
-
-    #[async]
-    fn cancel_local_pending_requests(mut self, 
-                                     friend_public_key: PublicKey) -> Result<Self, HandleFriendError> {
-
-        let friend = self.get_friend(&friend_public_key).unwrap();
-
-        // Mark all pending requests to this friend as errors.  
-        // As the token channel is being reset, we can be sure we will never obtain a response
-        // for those requests.
-        let pending_local_requests = friend.directional
-            .token_channel
-            .state()
-            .pending_requests
-            .pending_local_requests
-            .clone();
-
-        let local_public_key = self.state.get_local_public_key().clone();
-        let mut fself = self;
-        // Prepare a list of all remote requests that we need to cancel:
-        for (local_request_id, pending_local_request) in pending_local_requests {
-            let opt_origin_public_key = fself.find_request_origin(&local_request_id).cloned();
-            let origin_public_key = match opt_origin_public_key {
-                Some(origin_public_key) => {
-                    // We have found the friend that is the origin of this request.
-                    // We send him a failure message.
-                    let (new_fself, failure_send_funds) = await!(fself.create_failure_message(pending_local_request))?;
-                    fself = new_fself;
-
-                    let failure_op = ResponseOp::Failure(failure_send_funds);
-                    let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
-                    let messenger_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
-                    fself.apply_mutation(messenger_mutation);
-                    fself.try_send_channel(&origin_public_key);
-                },
-                None => {
-                    // We are the origin of this request.
-                    // We send a failure response through the control:
-                    let response_received = ResponseReceived {
-                        request_id: pending_local_request.request_id,
-                        result: ResponseSendFundsResult::Failure(fself.state.local_public_key.clone()),
-                    };
-                    fself.funder_tasks.push(FunderTask::ResponseReceived(response_received));
-                },            
-            };
-
-        }
-        Ok(fself)
-   }
-
 
     /// Check if channel reset is required (Remove side used the RESET token)
     /// If so, reset the channel.
@@ -187,25 +82,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         } else {
             Ok(self)
         }
-    }
-
-
-    /// Reply to a request message with failure.
-    #[async]
-    fn reply_with_failure(self, 
-                          remote_public_key: PublicKey,
-                          request_send_funds: RequestSendFunds) -> Result<Self, !> {
-
-        let pending_request = request_send_funds.create_pending_request();
-        let (mut fself, failure_send_funds) = await!(self.create_failure_message(pending_request))?;
-
-        let failure_op = ResponseOp::Failure(failure_send_funds);
-        let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
-        let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-        fself.apply_mutation(messenger_mutation);
-        fself.try_send_channel(&remote_public_key);
-
-        Ok(fself)
     }
 
     /// Forward a request message to the relevant friend and token channel.
@@ -502,12 +378,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             },
             ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token) => {
                 // Retransmit last sent token channel message:
-                self.funder_tasks.push(
-                    FunderTask::FriendMessage(
-                        FriendMessage::MoveToken(outgoing_move_token)));
-                let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
-                liveness_friend.reset_token_msg();
-                liveness_friend.cancel_inconsistency();
+                self.transmit_outgoing(&remote_public_key);
                 Ok(self)
             },
             ReceiveMoveTokenOutput::Received(move_token_received) => {
@@ -724,29 +595,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         }
 
         // Compose an empty friend_move_token message and send it to the remote side:
-        let rand_nonce = RandValue::new(&*self.rng);
-        let friend_move_token = FriendMoveToken {
-            operations: Vec::new(),
-            old_token: new_token.clone(),
-            rand_nonce,
-        };
-
-        let directional_mutation = DirectionalMutation::SetDirection(
-            SetDirection::Outgoing(friend_move_token));
-        let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
-        let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-        self.apply_mutation(messenger_mutation);
-
-        let friend = self.get_friend(remote_public_key).unwrap();
-        let outgoing_move_token = friend.directional.get_outgoing_move_token().unwrap();
-
-
-        // Add a task for sending the outgoing move token:
-        self.add_task(
-            FunderTask::FriendMessage(
-                FriendMessage::MoveToken(outgoing_move_token)));
-        let liveness_friend = self.ephemeral.liveness.friends.get_mut(&remote_public_key).unwrap();
-        liveness_friend.reset_token_msg();
+        let move_token_sent = self.send_friend_move_token(
+            &remote_public_key, Vec::new()).unwrap();
 
         Ok(())
     }

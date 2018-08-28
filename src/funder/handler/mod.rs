@@ -1,7 +1,8 @@
-pub mod handle_control;
-pub mod handle_friend;
-pub mod handle_timer;
+mod handle_control;
+mod handle_friend;
+mod handle_timer;
 mod sender;
+mod canceler;
 
 use futures::prelude::{async, await};
 
@@ -15,10 +16,11 @@ use crypto::identity::PublicKey;
 use proto::funder::ChannelToken;
 
 use super::state::{FunderState, FunderMutation};
-use self::handle_control::{HandleControlError, IncomingControlMessage};
+use self::handle_control::{HandleControlError};
 use self::handle_friend::HandleFriendError;
+use self::handle_timer::HandleTimerError;
 use super::token_channel::directional::ReceiveMoveTokenError;
-use super::types::{FriendMoveToken, FriendsRoute};
+use super::types::{FriendMoveToken, FriendsRoute, IncomingControlMessage};
 use super::ephemeral::FunderEphemeral;
 use super::friend::FriendState;
 
@@ -45,17 +47,24 @@ pub struct ResponseReceived {
     pub result: ResponseSendFundsResult,
 }
 
+pub enum ChannelerConfig<A> {
+    AddFriend((PublicKey, A)),
+    RemoveFriend(PublicKey),
+}
+
 
 #[allow(unused)]
-pub enum FunderTask {
+pub enum FunderTask<A> {
     FriendMessage(FriendMessage),
+    ChannelerConfig(ChannelerConfig<A>),
     ResponseReceived(ResponseReceived),
-    // StateUpdate(()),
+    StateUpdate, // TODO
 }
 
 pub enum HandlerError {
     HandleControlError(HandleControlError),
     HandleFriendError(HandleFriendError),
+    HandleTimerError(HandleTimerError),
 }
 
 pub struct MutableFunderHandler<A:Clone,R> {
@@ -64,7 +73,7 @@ pub struct MutableFunderHandler<A:Clone,R> {
     pub security_module_client: SecurityModuleClient,
     pub rng: Rc<R>,
     mutations: Vec<FunderMutation<A>>,
-    funder_tasks: Vec<FunderTask>,
+    funder_tasks: Vec<FunderTask<A>>,
 }
 
 impl<A:Clone,R> MutableFunderHandler<A,R> {
@@ -76,7 +85,7 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
         self.state.get_friends().get(&friend_public_key)
     }
 
-    pub fn done(self) -> (FunderEphemeral, Vec<FunderMutation<A>>, Vec<FunderTask>) {
+    pub fn done(self) -> (FunderEphemeral, Vec<FunderMutation<A>>, Vec<FunderTask<A>>) {
         (self.ephemeral, self.mutations, self.funder_tasks)
     }
 
@@ -86,7 +95,7 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
         self.mutations.push(messenger_mutation);
     }
 
-    pub fn add_task(&mut self, messenger_task: FunderTask) {
+    pub fn add_task(&mut self, messenger_task: FunderTask<A>) {
         self.funder_tasks.push(messenger_task);
     }
 
@@ -97,6 +106,26 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
             }
         }
         false
+    }
+
+    /// Find the originator of a pending local request.
+    /// This should be a pending remote request at some other friend.
+    /// Returns the public key of a friend. If we are the origin of this request, the function return None.
+    ///
+    /// TODO: We need to change this search to be O(1) in the future. Possibly by maintaining a map
+    /// between request_id and (friend_public_key, friend).
+    pub fn find_request_origin(&self, request_id: &Uid) -> Option<&PublicKey> {
+        for (friend_public_key, friend) in self.state.get_friends() {
+            if friend.directional
+                .token_channel
+                .state()
+                .pending_requests
+                .pending_remote_requests
+                .contains_key(request_id) {
+                    return Some(friend_public_key)
+            }
+        }
+        None
     }
 }
 
@@ -120,23 +149,33 @@ impl<R: SecureRandom + 'static> FunderHandler<R> {
         }
     }
 
-    #[allow(unused)]
-    fn simulate_handle_timer_tick<A>(&self)
-            -> Result<(Vec<FunderMutation<A>>, Vec<FunderTask>), ()> {
+    #[allow(unused, type_complexity)]
+    #[async]
+    fn simulate_handle_timer_tick<A: Clone + 'static>(mut self,
+                                     messenger_state: FunderState<A>,
+                                     funder_ephemeral: FunderEphemeral)
+            -> Result<(FunderEphemeral, Vec<FunderMutation<A>>, Vec<FunderTask<A>>), HandlerError> {
         // TODO
-        unreachable!();
+        let mut mutable_handler = self.gen_mutable(&messenger_state,
+                                                   &funder_ephemeral);
+        let mutable_handler = await!(mutable_handler
+            .handle_timer_tick())
+            .map_err(HandlerError::HandleTimerError)?;
+
+        Ok(mutable_handler.done())
     }
 
     #[allow(unused,type_complexity)]
-    fn simulate_handle_control_message<A: Clone>(&self,
-                                        messenger_state: &FunderState<A>,
-                                        funder_ephemeral: &FunderEphemeral,
+    #[async]
+    fn simulate_handle_control_message<A: Clone + 'static>(self,
+                                        messenger_state: FunderState<A>,
+                                        funder_ephemeral: FunderEphemeral,
                                         funder_command: IncomingControlMessage<A>)
-            -> Result<(FunderEphemeral, Vec<FunderMutation<A>>, Vec<FunderTask>), HandlerError> {
-        let mut mutable_handler = self.gen_mutable(messenger_state,
-                                                   funder_ephemeral);
-        mutable_handler
-            .handle_control_message(funder_command)
+            -> Result<(FunderEphemeral, Vec<FunderMutation<A>>, Vec<FunderTask<A>>), HandlerError> {
+        let mut mutable_handler = self.gen_mutable(&messenger_state,
+                                                   &funder_ephemeral);
+        let mutable_handler = await!(mutable_handler
+            .handle_control_message(funder_command))
             .map_err(HandlerError::HandleControlError)?;
 
         Ok(mutable_handler.done())
@@ -149,7 +188,7 @@ impl<R: SecureRandom + 'static> FunderHandler<R> {
                                         funder_ephemeral: FunderEphemeral,
                                         remote_public_key: PublicKey,
                                         friend_message: FriendMessage)
-            -> Result<(FunderEphemeral, Vec<FunderMutation<A>>, Vec<FunderTask>), HandlerError> {
+            -> Result<(FunderEphemeral, Vec<FunderMutation<A>>, Vec<FunderTask<A>>), HandlerError> {
 
         let mut mutable_handler = self.gen_mutable(&messenger_state,
                                                    &funder_ephemeral);

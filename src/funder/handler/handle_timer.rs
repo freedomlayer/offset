@@ -14,7 +14,7 @@ use super::super::token_channel::directional::MoveTokenDirection;
 use super::{MutableFunderHandler, ResponseReceived};
 
 
-enum HandleTimerError {
+pub enum HandleTimerError {
 }
 
 impl<A:Clone + 'static, R:SecureRandom + 'static> MutableFunderHandler<A,R> {
@@ -77,85 +77,7 @@ impl<A:Clone + 'static, R:SecureRandom + 'static> MutableFunderHandler<A,R> {
     }
 
     #[async]
-    fn cancel_pending_requests(mut self,
-                               friend_public_key: PublicKey)
-                        -> Result<Self, !> {
-
-        let friend = self.get_friend(&friend_public_key).unwrap();
-        let mut pending_requests = friend.pending_requests.clone();
-        let mut fself = self;
-
-        while let Some(pending_request) = pending_requests.pop_front() {
-            let friend_mutation = FriendMutation::PopFrontPendingRequest;
-            let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-            fself.apply_mutation(messenger_mutation);
-
-            let opt_origin_public_key = fself.find_request_origin(&pending_request.request_id).cloned();
-            let origin_public_key = match opt_origin_public_key {
-                Some(origin_public_key) => {
-                    let pending_request = pending_request.create_pending_request();
-                    let (new_fself, failure_send_funds) = await!(fself.create_failure_message(pending_request)).unwrap();
-                    fself = new_fself;
-
-                    let failure_op = ResponseOp::Failure(failure_send_funds);
-                    let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
-                    let messenger_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
-                    fself.apply_mutation(messenger_mutation);
-                },
-                None => {
-                    // We are the origin of this request:
-                    let response_received = ResponseReceived {
-                        request_id: pending_request.request_id,
-                        result: ResponseSendFundsResult::Failure(fself.state.local_public_key.clone()),
-                    };
-                    fself.funder_tasks.push(FunderTask::ResponseReceived(response_received));
-                }, 
-            };
-        }
-        Ok(fself)
-    }
-
-    #[async]
-    fn cancel_pending_user_requests(mut self,
-                               friend_public_key: PublicKey)
-                        -> Result<Self, !> {
-
-        let friend = self.get_friend(&friend_public_key).unwrap();
-        let mut pending_user_requests = friend.pending_user_requests.clone();
-        let mut fself = self;
-
-        while let Some(pending_user_request) = pending_user_requests.pop_front() {
-            let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
-            let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-            fself.apply_mutation(messenger_mutation);
-
-            let opt_origin_public_key = fself.find_request_origin(&pending_user_request.request_id).cloned();
-            let origin_public_key = match opt_origin_public_key {
-                Some(origin_public_key) => {
-                    let pending_request = pending_user_request.create_pending_request();
-                    let (new_fself, failure_send_funds) = await!(fself.create_failure_message(pending_request)).unwrap();
-                    fself = new_fself;
-
-                    let failure_op = ResponseOp::Failure(failure_send_funds);
-                    let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
-                    let messenger_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
-                    fself.apply_mutation(messenger_mutation);
-                },
-                None => {
-                    // We are the origin of this request:
-                    let response_received = ResponseReceived {
-                        request_id: pending_user_request.request_id,
-                        result: ResponseSendFundsResult::Failure(fself.state.local_public_key.clone()),
-                    };
-                    fself.funder_tasks.push(FunderTask::ResponseReceived(response_received));
-                }, 
-            };
-        }
-        Ok(fself)
-    }
-
-    #[async]
-    fn handle_timer_tick(mut self)
+    pub fn handle_timer_tick(mut self)
                         -> Result<Self, !> {
         let time_tick_output = self.ephemeral.liveness.time_tick();
         for (friend_public_key, actions) in &time_tick_output.friends_actions {
