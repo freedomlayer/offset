@@ -33,7 +33,7 @@ const MAX_MOVE_TOKEN_LENGTH: usize = 0x1000;
 
 #[allow(unused)]
 pub struct FriendInconsistencyError {
-    current_token: ChannelToken,
+    reset_token: ChannelToken,
     balance_for_reset: i128,
 }
 

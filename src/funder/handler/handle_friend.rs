@@ -301,7 +301,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         };
 
         let inconsistency_error = FriendInconsistencyError {
-            current_token,
+            reset_token: current_token.clone(),
             balance_for_reset,
         };
 
@@ -423,7 +423,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         }?;
         // Save incoming inconsistency details:
         let new_in_reset_terms = ResetTerms {
-            current_token: friend_inconsistency_error.current_token.clone(),
+            current_token: friend_inconsistency_error.reset_token.clone(),
             balance_for_reset: friend_inconsistency_error.balance_for_reset,
         };
 
@@ -468,7 +468,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         // Send an outgoing inconsistency message if required:
         if should_send_outgoing {
             let inconsistency_error = FriendInconsistencyError {
-                current_token: reset_token.clone(),
+                reset_token: reset_token.clone(),
                 balance_for_reset,
             };
 
