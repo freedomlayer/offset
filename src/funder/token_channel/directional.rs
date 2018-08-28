@@ -29,6 +29,8 @@ const TOKEN_RESET: &[u8] = b"RESET";
 #[derive(Clone)]
 pub struct OutgoingMoveToken {
     pub friend_move_token: FriendMoveToken,
+    // Have we already requested the remote token?
+    pub request_token_sent: bool,
 }
 
 /// Indicate the direction of the move token funds.
@@ -47,6 +49,7 @@ pub enum SetDirection {
 pub enum DirectionalMutation {
     TcMutation(TcMutation),
     SetDirection(SetDirection),
+    SetRequestTokenSent,
 }
 
 
@@ -140,6 +143,7 @@ impl DirectionalTokenChannel {
                     old_token: ChannelToken::from(local_pk_hash.as_array_ref()),
                     rand_nonce,
                 },
+                request_token_sent: false,
             };
             DirectionalTokenChannel {
                 direction: MoveTokenDirection::Outgoing(outgoing_move_token),
@@ -171,6 +175,7 @@ impl DirectionalTokenChannel {
 
         let outgoing_move_token = OutgoingMoveToken {
             friend_move_token: reset_move_token.clone(),
+            request_token_sent: false,
         };
         DirectionalTokenChannel {
             direction: MoveTokenDirection::Outgoing(outgoing_move_token),
@@ -217,9 +222,18 @@ impl DirectionalTokenChannel {
                     SetDirection::Outgoing(friend_move_token) => {
                         MoveTokenDirection::Outgoing(OutgoingMoveToken {
                             friend_move_token: friend_move_token.clone(),
+                            request_token_sent: false,
                         })
                     }
                 };
+            },
+            DirectionalMutation::SetRequestTokenSent => {
+                match self.direction {
+                    MoveTokenDirection::Incoming(_) => unreachable!(),
+                    MoveTokenDirection::Outgoing(ref mut outgoing_move_token) => {
+                        outgoing_move_token.request_token_sent = true;
+                    },
+                }
             },
         }
     }

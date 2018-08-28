@@ -235,17 +235,25 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
 
         let friend = self.get_friend(remote_public_key).unwrap();
         let new_token = friend.directional.new_token();
-        match friend.directional.direction {
+        match &friend.directional.direction {
             MoveTokenDirection::Incoming(_) => {
                 // We have the token. 
                 // Send as many operations as possible to remote side:
                 self.send_through_token_channel(&remote_public_key);
             },
-            MoveTokenDirection::Outgoing(_) => {
-                // We don't have the token. We should request it.
-            self.funder_tasks.push(
-                FunderTask::FriendMessage((remote_public_key.clone(),
-                        FriendMessage::RequestToken(new_token))));
+            MoveTokenDirection::Outgoing(outgoing_move_token) => {
+                if !outgoing_move_token.request_token_sent {
+                    // We don't have the token. We should request it.
+                    self.funder_tasks.push(
+                        FunderTask::FriendMessage((remote_public_key.clone(),
+                                FriendMessage::RequestToken(new_token))));
+
+                    // Mark that we have sent a request token, to make sure we don't do this again:
+                    let directional_mutation = DirectionalMutation::SetRequestTokenSent;
+                    let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
+                    let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+                    self.apply_mutation(messenger_mutation);
+                }
             },
         };
     }
