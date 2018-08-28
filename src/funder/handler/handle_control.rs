@@ -14,14 +14,15 @@ use super::super::token_channel::directional::{DirectionalMutation,
     OutgoingMoveToken, MoveTokenDirection};
 use super::super::friend::{FriendState, FriendMutation, IncomingInconsistency};
 use super::super::state::{FunderMutation, FunderState};
-use super::{MutableFunderHandler, FunderTask};
-use super::{ResponseReceived, FriendMessage};
+use super::{MutableFunderHandler, FunderTask, ResponseReceived, 
+    FriendMessage, MAX_MOVE_TOKEN_LENGTH};
 use super::super::messages::ResponseSendFundsResult;
 use super::super::liveness::Direction;
 use super::super::types::{RequestsStatus, FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel,
     SetFriendAddr, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
-    ReceiptAck, FriendsRoute, FriendMoveToken, IncomingControlMessage};
+    ReceiptAck, FriendsRoute, FriendMoveToken, IncomingControlMessage,
+    FriendTcOp};
 
 const MAX_PENDING_USER_REQUESTS: usize = 0x10;
 
@@ -35,6 +36,7 @@ pub enum HandleControlError {
     RequestAlreadyInProgress,
     PendingUserRequestsFull,
     ReceiptDoesNotExist,
+    UserRequestInvalid,
 }
 
 
@@ -192,8 +194,21 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         Ok(())
     }
 
+    fn check_user_request_valid(&self, 
+                                user_request_send_funds: &UserRequestSendFunds) 
+                                -> Option<()> {
+
+        let friend_op = FriendTcOp::RequestSendFunds(user_request_send_funds.clone().to_request());
+        MAX_MOVE_TOKEN_LENGTH.checked_sub(friend_op.approx_bytes_count())?;
+        Some(())
+    }
+
     fn control_request_send_funds_inner(&mut self, user_request_send_funds: UserRequestSendFunds)
         -> Result<(), HandleControlError> {
+
+        self.check_user_request_valid(&user_request_send_funds)
+            .ok_or(HandleControlError::UserRequestInvalid)?;
+
 
         // If we already have a receipt for this request, we return the receipt immediately and
         // exit. Note that we don't erase the receipt yet. This will only be done when a receipt

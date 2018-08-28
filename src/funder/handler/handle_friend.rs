@@ -24,7 +24,7 @@ use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMo
     DirectionalMutation, MoveTokenDirection, MoveTokenReceived, SetDirection};
 use super::{MutableFunderHandler, FunderTask, FriendMessage,
             ResponseReceived};
-use super::super::types::{FriendTcOp, RequestSendFunds, 
+use super::super::types::{RequestSendFunds, 
     ResponseSendFunds, FailureSendFunds, 
     FriendMoveToken, FunderFreezeLink, PkPairPosition, 
     PendingFriendRequest, Ratio, RequestsStatus};

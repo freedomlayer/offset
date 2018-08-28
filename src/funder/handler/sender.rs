@@ -3,8 +3,8 @@ use ring::rand::SecureRandom;
 use crypto::identity::PublicKey;
 use crypto::rand_values::RandValue;
 
-use super::{MutableFunderHandler};
-use super::{FunderTask, FriendMessage};
+use super::{FunderTask, FriendMessage, 
+    MutableFunderHandler, MAX_MOVE_TOKEN_LENGTH};
 
 use super::super::state::{FunderState, FunderMutation};
 
@@ -19,10 +19,6 @@ use super::super::friend::{FriendMutation, ResponseOp};
 use super::super::token_channel::directional::{DirectionalMutation, 
     MoveTokenDirection, SetDirection};
 
-
-// Approximate maximum size of a MOVE_TOKEN message.
-// TODO: Where to put this constant? Do we have more like this one?
-const MAX_MOVE_TOKEN_LENGTH: usize = 0x1000;
 
 pub struct OperationsBatch {
     bytes_left: usize,
