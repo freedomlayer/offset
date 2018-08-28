@@ -427,12 +427,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             balance_for_reset: friend_inconsistency_error.balance_for_reset,
         };
 
-        /*
-        let friend_mutation = FriendMutation::SetIncomingInconsistency(incoming);
-        let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-        self.apply_mutation(messenger_mutation);
-        */
-
         // Obtain information about our reset terms:
         let friend = self.get_friend(remote_public_key).unwrap();
         let directional = &friend.directional;
