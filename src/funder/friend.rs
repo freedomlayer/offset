@@ -99,6 +99,16 @@ impl<A:Clone> FriendState<A> {
         }
     }
 
+    /// Check if token channel is in inconsistent state
+    pub fn is_inconsistent(&self) -> bool {
+        match self.inconsistency_status {
+            InconsistencyStatus::Outgoing(_) |
+            InconsistencyStatus::IncomingOutgoing(_) => true,
+            InconsistencyStatus::Empty => false,
+        }
+    }
+
+
 
     #[allow(unused)]
     pub fn mutate(&mut self, friend_mutation: &FriendMutation<A>) {
