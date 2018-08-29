@@ -10,7 +10,9 @@ use self::state::FunderState;
 use self::ephemeral::FunderEphemeral;
 use self::handler::{funder_handle_message, 
     FunderHandlerOutput, FunderHandlerError};
-use self::types::{FunderMessage, ResponseReceived};
+use self::types::{FunderMessage, ResponseReceived,
+                    FunderOutgoingControl, FunderOutgoingComm,
+                    FunderTask};
 
 use security_module::client::SecurityModuleClient;
 
@@ -40,13 +42,8 @@ struct Funder<A: Clone, R> {
     funder_state: FunderState<A>,
     funder_ephemeral: FunderEphemeral,
     incoming_messages: mpsc::Receiver<FunderMessage<A>>,
-    outgoing_control: mpsc::Sender<()>,     // TODO
-    outgoing_comm: mpsc::Sender<()>,        // TODO
-}
-
-enum OutgoingControl {
-    ResponseReceived(ResponseReceived),
-    StateUpdate, // TODO
+    outgoing_control: mpsc::Sender<FunderOutgoingControl<A>>,
+    outgoing_comm: mpsc::Sender<FunderOutgoingComm<A>>,
 }
 
 impl<A: Clone + 'static, R: SecureRandom + 'static> Funder<A,R> {
@@ -58,7 +55,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> Funder<A,R> {
                     funder_state,
                     funder_ephemeral,
                     mut incoming_messages,
-                    .. } = self;
+                    outgoing_control,
+                    outgoing_comm} = self;
 
         loop {
             // Read one message from incoming messages:
@@ -80,7 +78,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> Funder<A,R> {
                                   funder_ephemeral.clone(),
                                   funder_message));
 
-            let handle_output = match res {
+            let handler_output = match res {
                 Ok(handler_output) => handler_output,
                 Err(handler_error) => {
                     // Reporting a recoverable error:
@@ -90,9 +88,21 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> Funder<A,R> {
             };
             // TODO; Handle output here:
             // - Send mutations to database.
+
+
+            for funder_task in handler_output.tasks {
+                match funder_task {
+                    FunderTask::FriendMessage((dest_public_key, friend_message)) => {},
+                    FunderTask::ChannelerConfig(channeler_config) => {},
+                    FunderTask::ResponseReceived(channeler_config) => {},
+                    FunderTask::Report(channeler_config) => {},
+                }
+            }
+
             // - Send outgoing control messages:
             //      - ResponseReceived,
             //      - StateUpdate,
+
             // - Send outgoing communication messages:     
             //      - ChannelerConfig
             //      - FriendMessage

@@ -11,6 +11,7 @@ use crypto::hash;
 use crypto::hash::HashResult;
 
 use super::messages::ResponseSendFundsResult;
+use super::report::FunderReport;
 
 
 pub const INVOICE_ID_LEN: usize = 32;
@@ -462,9 +463,20 @@ pub enum FunderMessage<A> {
 }
 
 #[allow(unused)]
-pub enum FunderTask<A> {
+pub enum FunderTask<A: Clone> {
     FriendMessage((PublicKey, FriendMessage)),
     ChannelerConfig(ChannelerConfig<A>),
     ResponseReceived(ResponseReceived),
-    StateUpdate, // TODO
+    Report(FunderReport<A>),
+}
+
+
+pub enum FunderOutgoingControl<A: Clone> {
+    ResponseReceived(ResponseReceived),
+    Report(FunderReport<A>),
+}
+
+pub enum FunderOutgoingComm<A> {
+    FriendMessage((PublicKey, FriendMessage)),
+    ChannelerConfig(ChannelerConfig<A>),
 }
