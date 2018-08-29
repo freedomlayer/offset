@@ -3,21 +3,27 @@ use ring::rand::SecureRandom;
 use crypto::identity::PublicKey;
 use crypto::rand_values::RandValue;
 
-use super::{FunderTask, FriendMessage, 
+use super::{
     MutableFunderHandler, MAX_MOVE_TOKEN_LENGTH};
 
 use super::super::state::{FunderState, FunderMutation};
 
 use super::super::types::{FriendTcOp, RequestSendFunds, 
     ResponseSendFunds, FailureSendFunds, 
-    FriendMoveToken, RequestsStatus};
+    FriendMoveToken, RequestsStatus, FriendMoveTokenRequest,
+    FunderTask, FriendMessage};
 use super::super::token_channel::outgoing::{OutgoingTokenChannel, QueueOperationFailure,
     QueueOperationError};
 
-use super::super::friend::{FriendMutation, ResponseOp};
+use super::super::friend::{FriendMutation, ResponseOp, InconsistencyStatus};
 
 use super::super::token_channel::directional::{DirectionalMutation, 
     MoveTokenDirection, SetDirection};
+
+pub enum SendMode {
+    EmptyAllowed,
+    EmptyNotAllowed,
+}
 
 
 pub struct OperationsBatch {
@@ -132,21 +138,21 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
                                remote_public_key: &PublicKey) {
 
         let friend = self.get_friend(remote_public_key).unwrap();
-        let outgoing_move_token = match &friend.directional.direction {
-            MoveTokenDirection::Outgoing(outgoing_move_token) => outgoing_move_token.clone(),
+        let friend_move_token_request = match &friend.directional.direction {
+            MoveTokenDirection::Outgoing(friend_move_token_request) => friend_move_token_request.clone(),
             MoveTokenDirection::Incoming(_) => unreachable!(),
         };
 
         // Transmit the current outgoing message:
-        self.funder_tasks.push(
+        self.add_task(
             FunderTask::FriendMessage((remote_public_key.clone(),
-                FriendMessage::MoveToken(outgoing_move_token.friend_move_token))));
+                FriendMessage::MoveTokenRequest(friend_move_token_request))));
     }
 
-    pub fn send_friend_move_token(&mut self,
+    fn send_friend_move_token(&mut self,
                            remote_public_key: &PublicKey,
                            operations: Vec<FriendTcOp>)
-                -> Result<bool, QueueOperationFailure> {
+                -> Result<(), QueueOperationFailure> {
 
 
         let friend = self.get_friend(remote_public_key).unwrap();
@@ -191,15 +197,15 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
         self.apply_mutation(messenger_mutation);
 
         let friend = self.get_friend(remote_public_key).unwrap();
-        let outgoing_move_token = friend.directional.get_outgoing_move_token().unwrap();
-
+        let friend_move_token_request = 
+            friend.directional.get_outgoing_move_token().unwrap();
 
         // Add a task for sending the outgoing move token:
         self.add_task(
             FunderTask::FriendMessage((remote_public_key.clone(),
-                FriendMessage::MoveToken(outgoing_move_token))));
+                FriendMessage::MoveTokenRequest(friend_move_token_request))));
 
-        Ok(true)
+        Ok(())
     }
 
     /// Compose a large as possible message to send through the token channel to the remote side.
@@ -212,8 +218,9 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
     /// message should cause the pending request to be removed.
     ///
     /// Returns whether a move token message is scheduled for the remote side.
-    pub fn send_through_token_channel(&mut self, 
-                                  remote_public_key: &PublicKey) -> bool {
+    fn send_through_token_channel(&mut self, 
+                                  remote_public_key: &PublicKey,
+                                  send_mode: SendMode) -> bool {
 
         let friend = self.get_friend(remote_public_key).unwrap();
         let mut out_tc = friend.directional
@@ -222,30 +229,50 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
         let mut ops_batch = OperationsBatch::new(MAX_MOVE_TOKEN_LENGTH);
         self.queue_outgoing_operations(remote_public_key, &mut ops_batch);
         let operations = ops_batch.done();
-        assert!(!operations.is_empty());
 
-        self.send_friend_move_token(
-            remote_public_key, operations).unwrap()
+        let may_send_empty = if let SendMode::EmptyAllowed = send_mode {true} else {false};
+        if may_send_empty || !operations.is_empty() {
+            self.send_friend_move_token(
+                remote_public_key, operations).unwrap();
+            true
+        } else {
+            false
+        }
     }
 
     /// Try to send whatever possible through a friend channel.
-    /// If we don't own the token, send a request_token message instead.
     pub fn try_send_channel(&mut self,
-                        remote_public_key: &PublicKey) {
+                        remote_public_key: &PublicKey,
+                        send_mode: SendMode) {
 
         let friend = self.get_friend(remote_public_key).unwrap();
+
+        // We do not send messages if we are in an inconsistent status:
+        match friend.inconsistency_status {
+            InconsistencyStatus::Empty => {},
+            InconsistencyStatus::Outgoing(_) |
+            InconsistencyStatus::IncomingOutgoing(_) => return,
+        };
+
         let new_token = friend.directional.new_token();
-        match friend.directional.direction {
+
+        match &friend.directional.direction {
             MoveTokenDirection::Incoming(_) => {
                 // We have the token. 
                 // Send as many operations as possible to remote side:
-                self.send_through_token_channel(&remote_public_key);
+                self.send_through_token_channel(&remote_public_key, send_mode);
             },
-            MoveTokenDirection::Outgoing(_) => {
-                // We don't have the token. We should request it.
-            self.funder_tasks.push(
-                FunderTask::FriendMessage((remote_public_key.clone(),
-                        FriendMessage::RequestToken(new_token))));
+            MoveTokenDirection::Outgoing(outgoing_move_token) => {
+                if !outgoing_move_token.token_wanted {
+                    // We don't have the token. We should request it.
+                    // Mark that we have sent a request token, to make sure we don't do this again:
+                    let directional_mutation = DirectionalMutation::SetTokenWanted;
+                    let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
+                    let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+                    self.apply_mutation(messenger_mutation);
+
+                    self.transmit_outgoing(remote_public_key);
+                }
             },
         };
     }

@@ -23,9 +23,8 @@ pub trait Proto<'a>: Sized {
 
 pub mod proto_impl;
 
-pub mod common;
 pub mod channeler;
-pub mod funder;
+// pub mod funder;
 // pub mod networker;
 
 #[derive(Debug)]

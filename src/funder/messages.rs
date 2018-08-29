@@ -4,13 +4,11 @@ use bytes::Bytes;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
-use proto::funder::{ChannelToken, InvoiceId};
-use proto::common::SendFundsReceipt;
 use channeler::types::ChannelerNeighborInfo;
 use super::types::{RequestsStatus, FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel,
     SetFriendAddr, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
-    ReceiptAck};
+    ReceiptAck, SendFundsReceipt, ChannelToken, InvoiceId};
 
 
 pub struct FriendUpdated {

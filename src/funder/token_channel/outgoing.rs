@@ -6,9 +6,6 @@ use std::collections::VecDeque;
 use crypto::identity::verify_signature;
 use crypto::hash;
 
-use proto::funder::InvoiceId;
-use proto::common::SendFundsReceipt;
-
 use utils::safe_arithmetic::SafeArithmetic;
 use utils::int_convert::usize_to_u32;
 
@@ -17,7 +14,8 @@ use super::types::{TokenChannel, TcMutation,
 use super::super::credit_calc::CreditCalculator;
 use super::super::types::{FriendTcOp, RequestSendFunds, 
     ResponseSendFunds, FailureSendFunds, PkPairPosition,
-    PendingFriendRequest, FriendsRoute, RequestsStatus};
+    PendingFriendRequest, FriendsRoute, RequestsStatus,
+    SendFundsReceipt, InvoiceId};
 use super::super::signature_buff::{create_response_signature_buffer, 
     verify_failure_signature};
 
