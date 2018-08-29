@@ -12,14 +12,15 @@ use super::super::token_channel::directional::{DirectionalMutation,
     MoveTokenDirection};
 use super::super::friend::{FriendState, FriendMutation, InconsistencyStatus};
 use super::super::state::{FunderMutation, FunderState};
-use super::{MutableFunderHandler, FunderTask, ResponseReceived, 
-    FriendMessage, MAX_MOVE_TOKEN_LENGTH, ChannelerConfig};
+use super::{MutableFunderHandler, 
+    MAX_MOVE_TOKEN_LENGTH};
 use super::super::messages::ResponseSendFundsResult;
 use super::super::types::{RequestsStatus, FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel,
     SetFriendAddr, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
     ReceiptAck, FriendsRoute, FriendMoveToken, IncomingControlMessage,
-    FriendTcOp, ChannelToken, InvoiceId};
+    FriendTcOp, ChannelToken, InvoiceId, FunderTask, ResponseReceived,
+    FriendMessage, ChannelerConfig};
 use super::sender::SendMode;
 
 // TODO: Should be an argument of the Funder:

@@ -3,21 +3,22 @@ use ring::rand::SecureRandom;
 use crypto::identity::PublicKey;
 use crypto::rand_values::RandValue;
 
-use super::{FunderTask, FriendMessage, 
+use super::{
     MutableFunderHandler, MAX_MOVE_TOKEN_LENGTH};
 
 use super::super::state::{FunderState, FunderMutation};
 
 use super::super::types::{FriendTcOp, RequestSendFunds, 
     ResponseSendFunds, FailureSendFunds, 
-    FriendMoveToken, RequestsStatus};
+    FriendMoveToken, RequestsStatus, FriendMoveTokenRequest,
+    FunderTask, FriendMessage};
 use super::super::token_channel::outgoing::{OutgoingTokenChannel, QueueOperationFailure,
     QueueOperationError};
 
 use super::super::friend::{FriendMutation, ResponseOp, InconsistencyStatus};
 
 use super::super::token_channel::directional::{DirectionalMutation, 
-    MoveTokenDirection, SetDirection, FriendMoveTokenRequest};
+    MoveTokenDirection, SetDirection};
 
 pub enum SendMode {
     EmptyAllowed,

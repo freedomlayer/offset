@@ -17,9 +17,10 @@ use crypto::identity::PublicKey;
 use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError};
 use self::handle_friend::HandleFriendError;
-use super::token_channel::directional::{ReceiveMoveTokenError, FriendMoveTokenRequest};
+use super::token_channel::directional::{ReceiveMoveTokenError};
 use super::types::{FriendMoveToken, FriendsRoute, 
-    IncomingControlMessage, IncomingLivenessMessage, ChannelToken};
+    IncomingControlMessage, IncomingLivenessMessage, ChannelToken,
+    FriendMoveTokenRequest, FunderTask, FunderMessage};
 use super::ephemeral::FunderEphemeral;
 use super::friend::{FriendState, InconsistencyStatus};
 
@@ -29,43 +30,6 @@ use super::messages::{FunderCommand, ResponseSendFundsResult};
 // TODO: Where to put this constant? Do we have more like this one?
 const MAX_MOVE_TOKEN_LENGTH: usize = 0x1000;
 
-#[allow(unused)]
-pub struct FriendInconsistencyError {
-    reset_token: ChannelToken,
-    balance_for_reset: i128,
-}
-
-#[allow(unused)]
-pub enum FriendMessage {
-    MoveTokenRequest(FriendMoveTokenRequest),
-    InconsistencyError(FriendInconsistencyError),
-}
-
-pub struct ResponseReceived {
-    pub request_id: Uid,
-    pub result: ResponseSendFundsResult,
-}
-
-pub enum ChannelerConfig<A> {
-    AddFriend((PublicKey, Option<A>)),
-    RemoveFriend(PublicKey),
-}
-
-/// An incoming message to the Funder:
-pub enum FunderMessage<A> {
-    Init,
-    Liveness(IncomingLivenessMessage),
-    Control(IncomingControlMessage<A>),
-    Friend((PublicKey, FriendMessage)),
-}
-
-#[allow(unused)]
-pub enum FunderTask<A> {
-    FriendMessage((PublicKey, FriendMessage)),
-    ChannelerConfig(ChannelerConfig<A>),
-    ResponseReceived(ResponseReceived),
-    StateUpdate, // TODO
-}
 
 #[derive(Debug)]
 pub enum FunderHandlerError {

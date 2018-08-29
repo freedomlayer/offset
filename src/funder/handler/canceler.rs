@@ -4,10 +4,10 @@ use ring::rand::SecureRandom;
 use crypto::identity::{PublicKey, Signature};
 use crypto::rand_values::RandValue;
 
-use super::{MutableFunderHandler, FunderTask,
-            ResponseReceived};
+use super::{MutableFunderHandler, FunderTask};
 
-use super::super::types::{RequestSendFunds, FailureSendFunds, PendingFriendRequest};
+use super::super::types::{RequestSendFunds, FailureSendFunds, PendingFriendRequest,
+                            ResponseReceived};
 use super::super::signature_buff::{create_failure_signature_buffer, prepare_receipt};
 use super::super::friend::{FriendMutation, ResponseOp};
 use super::super::state::FunderMutation;

@@ -10,7 +10,7 @@ use crypto::rand_values::RandValue;
 use crypto::hash;
 use crypto::hash::HashResult;
 
-use super::signature_buff::FUND_SUCCESS_PREFIX;
+use super::messages::ResponseSendFundsResult;
 
 
 pub const INVOICE_ID_LEN: usize = 32;
@@ -420,4 +420,51 @@ impl SendFundsReceipt {
         res_bytes.extend_from_slice(&self.signature);
         res_bytes
     }
+}
+
+#[derive(Clone)]
+pub struct FriendMoveTokenRequest {
+    pub friend_move_token: FriendMoveToken,
+    // Do we want the remote side to return the token:
+    pub token_wanted: bool,
+}
+
+#[allow(unused)]
+pub struct FriendInconsistencyError {
+    pub reset_token: ChannelToken,
+    pub balance_for_reset: i128,
+}
+
+
+#[allow(unused)]
+pub enum FriendMessage {
+    MoveTokenRequest(FriendMoveTokenRequest),
+    InconsistencyError(FriendInconsistencyError),
+}
+
+
+pub struct ResponseReceived {
+    pub request_id: Uid,
+    pub result: ResponseSendFundsResult,
+}
+
+pub enum ChannelerConfig<A> {
+    AddFriend((PublicKey, Option<A>)),
+    RemoveFriend(PublicKey),
+}
+
+/// An incoming message to the Funder:
+pub enum FunderMessage<A> {
+    Init,
+    Liveness(IncomingLivenessMessage),
+    Control(IncomingControlMessage<A>),
+    Friend((PublicKey, FriendMessage)),
+}
+
+#[allow(unused)]
+pub enum FunderTask<A> {
+    FriendMessage((PublicKey, FriendMessage)),
+    ChannelerConfig(ChannelerConfig<A>),
+    ResponseReceived(ResponseReceived),
+    StateUpdate, // TODO
 }

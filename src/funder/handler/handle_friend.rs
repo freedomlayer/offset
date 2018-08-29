@@ -20,13 +20,13 @@ use super::super::token_channel::outgoing::{OutgoingTokenChannel, QueueOperation
     QueueOperationError};
 use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
     DirectionalMutation, MoveTokenDirection, MoveTokenReceived, SetDirection};
-use super::{MutableFunderHandler, FunderTask, FriendMessage,
-            ResponseReceived, FriendInconsistencyError, FriendMoveTokenRequest};
+use super::{MutableFunderHandler, FriendMoveTokenRequest};
 use super::super::types::{RequestSendFunds, ResponseSendFunds, 
     FailureSendFunds, FriendMoveToken, 
     FunderFreezeLink, PkPairPosition, 
     PendingFriendRequest, Ratio, RequestsStatus, SendFundsReceipt,
-    ChannelToken};
+    ChannelToken, FunderTask, FriendInconsistencyError,
+    FriendMessage, ResponseReceived};
 
 use super::super::state::FunderMutation;
 use super::super::friend::{FriendState, FriendMutation, 

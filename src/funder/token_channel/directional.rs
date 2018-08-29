@@ -14,7 +14,8 @@ use super::incoming::{ProcessOperationOutput, ProcessTransListError,
     simulate_process_operations_list, IncomingMessage};
 use super::outgoing::{OutgoingTokenChannel};
 
-use super::super::types::{FriendMoveToken, ChannelToken};
+use super::super::types::{FriendMoveToken, ChannelToken, 
+    FriendMoveTokenRequest};
 
 
 // Prefix used for chain hashing of token channel fundss.
@@ -24,12 +25,6 @@ use super::super::types::{FriendMoveToken, ChannelToken};
 const TOKEN_NEXT: &[u8] = b"NEXT";
 const TOKEN_RESET: &[u8] = b"RESET";
 
-#[derive(Clone)]
-pub struct FriendMoveTokenRequest {
-    pub friend_move_token: FriendMoveToken,
-    // Do we want the remote side to return the token:
-    pub token_wanted: bool,
-}
 
 
 /// Indicate the direction of the move token funds.

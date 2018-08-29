@@ -8,8 +8,9 @@ use ring::rand::SecureRandom;
 
 use self::state::FunderState;
 use self::ephemeral::FunderEphemeral;
-use self::handler::{funder_handle_message, FunderMessage, 
+use self::handler::{funder_handle_message, 
     FunderHandlerOutput, FunderHandlerError};
+use self::types::{FunderMessage, ResponseReceived};
 
 use security_module::client::SecurityModuleClient;
 
@@ -41,6 +42,11 @@ struct Funder<A: Clone, R> {
     incoming_messages: mpsc::Receiver<FunderMessage<A>>,
     outgoing_control: mpsc::Sender<()>,     // TODO
     outgoing_comm: mpsc::Sender<()>,        // TODO
+}
+
+enum OutgoingControl {
+    ResponseReceived(ResponseReceived),
+    StateUpdate, // TODO
 }
 
 impl<A: Clone + 'static, R: SecureRandom + 'static> Funder<A,R> {
