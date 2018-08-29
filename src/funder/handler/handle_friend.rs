@@ -155,13 +155,13 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         // This friend must be considered online for us to forward the message.
         // If we forward the request to an offline friend, the request could be stuck for a long
         // time before a response arrives.
-        let friend_online = if friend_exists {
-            self.ephemeral.liveness.is_online(&next_public_key)
+        let friend_ready = if friend_exists {
+            self.is_friend_ready(&next_public_key)
         } else {
             false
         };
 
-        let mut fself = if !friend_online {
+        let mut fself = if !friend_ready {
             await!(self.reply_with_failure(remote_public_key.clone(), 
                                            request_send_funds.clone()))?
         } else {
