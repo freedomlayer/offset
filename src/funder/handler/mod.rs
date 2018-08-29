@@ -38,10 +38,10 @@ pub enum FunderHandlerError {
     HandleLivenessError(!),
 }
 
-pub struct FunderHandlerOutput<A> {
-    ephemeral: FunderEphemeral,
-    mutations: Vec<FunderMutation<A>>,
-    tasks: Vec<FunderTask<A>>,
+pub struct FunderHandlerOutput<A: Clone> {
+    pub ephemeral: FunderEphemeral,
+    pub mutations: Vec<FunderMutation<A>>,
+    pub tasks: Vec<FunderTask<A>>,
 }
 
 pub struct MutableFunderHandler<A:Clone,R> {
