@@ -14,10 +14,15 @@ use super::super::types::{FriendTcOp, RequestSendFunds,
 use super::super::token_channel::outgoing::{OutgoingTokenChannel, QueueOperationFailure,
     QueueOperationError};
 
-use super::super::friend::{FriendMutation, ResponseOp};
+use super::super::friend::{FriendMutation, ResponseOp, InconsistencyStatus};
 
 use super::super::token_channel::directional::{DirectionalMutation, 
     MoveTokenDirection, SetDirection, FriendMoveTokenRequest};
+
+pub enum SendMode {
+    EmptyAllowed,
+    EmptyNotAllowed,
+}
 
 
 pub struct OperationsBatch {
@@ -143,7 +148,7 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
                 FriendMessage::MoveTokenRequest(friend_move_token_request))));
     }
 
-    pub fn send_friend_move_token(&mut self,
+    fn send_friend_move_token(&mut self,
                            remote_public_key: &PublicKey,
                            operations: Vec<FriendTcOp>)
                 -> Result<(), QueueOperationFailure> {
@@ -212,9 +217,9 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
     /// message should cause the pending request to be removed.
     ///
     /// Returns whether a move token message is scheduled for the remote side.
-    pub fn send_through_token_channel(&mut self, 
+    fn send_through_token_channel(&mut self, 
                                   remote_public_key: &PublicKey,
-                                  token_wanted: bool) -> bool {
+                                  send_mode: SendMode) -> bool {
 
         let friend = self.get_friend(remote_public_key).unwrap();
         let mut out_tc = friend.directional
@@ -224,7 +229,8 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
         self.queue_outgoing_operations(remote_public_key, &mut ops_batch);
         let operations = ops_batch.done();
 
-        if token_wanted || !operations.is_empty() {
+        let may_send_empty = if let SendMode::EmptyAllowed = send_mode {true} else {false};
+        if may_send_empty || !operations.is_empty() {
             self.send_friend_move_token(
                 remote_public_key, operations).unwrap();
             true
@@ -234,9 +240,9 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
     }
 
     /// Try to send whatever possible through a friend channel.
-    /// If we don't own the token, send a request_token message instead.
     pub fn try_send_channel(&mut self,
-                        remote_public_key: &PublicKey) {
+                        remote_public_key: &PublicKey,
+                        send_mode: SendMode) {
 
         let friend = self.get_friend(remote_public_key).unwrap();
         let new_token = friend.directional.new_token();
@@ -244,8 +250,7 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
             MoveTokenDirection::Incoming(_) => {
                 // We have the token. 
                 // Send as many operations as possible to remote side:
-                let token_wanted = false;
-                self.send_through_token_channel(&remote_public_key, token_wanted);
+                self.send_through_token_channel(&remote_public_key, send_mode);
             },
             MoveTokenDirection::Outgoing(outgoing_move_token) => {
                 if !outgoing_move_token.token_wanted {

@@ -12,6 +12,7 @@ use super::super::signature_buff::{create_failure_signature_buffer, prepare_rece
 use super::super::friend::{FriendMutation, ResponseOp};
 use super::super::state::FunderMutation;
 use super::super::messages::{ResponseSendFundsResult};
+use super::sender::SendMode;
 
 
 #[allow(unused)]
@@ -62,7 +63,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         fself.apply_mutation(messenger_mutation);
-        fself.try_send_channel(&remote_public_key);
+        fself.try_send_channel(&remote_public_key, SendMode::EmptyNotAllowed);
 
         Ok(fself)
     }
@@ -103,7 +104,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                     let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
                     let messenger_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
                     fself.apply_mutation(messenger_mutation);
-                    fself.try_send_channel(&origin_public_key);
+                    fself.try_send_channel(&origin_public_key, SendMode::EmptyNotAllowed);
                 },
                 None => {
                     // We are the origin of this request.

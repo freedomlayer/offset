@@ -22,6 +22,7 @@ use super::super::types::{RequestsStatus, FriendStatus, UserRequestSendFunds,
     SetFriendAddr, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
     ReceiptAck, FriendsRoute, FriendMoveToken, IncomingControlMessage,
     FriendTcOp};
+use super::sender::SendMode;
 
 // TODO: Should be an argument of the Funder:
 const MAX_PENDING_USER_REQUESTS: usize = 0x10;
@@ -301,7 +302,7 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let friend_mutation = FriendMutation::PushBackPendingUserRequest(user_request_send_funds.clone());
         let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
-        self.try_send_channel(&friend_public_key);
+        self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed);
 
         Ok(())
     }

@@ -35,6 +35,7 @@ use super::super::friend::{FriendState, FriendMutation,
 
 use super::super::signature_buff::{create_failure_signature_buffer, prepare_receipt};
 use super::super::messages::ResponseSendFundsResult;
+use super::sender::SendMode;
 
 
 use proto::common::SendFundsReceipt;
@@ -126,7 +127,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let friend_mutation = FriendMutation::PushBackPendingRequest(request_send_funds.clone());
         let messenger_mutation = FunderMutation::FriendMutation((next_pk.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
-        self.try_send_channel(&next_pk);
+        self.try_send_channel(&next_pk, SendMode::EmptyNotAllowed);
     }
 
     #[async]
@@ -213,7 +214,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 let friend_mutation = FriendMutation::PushBackPendingResponse(response_op);
                 let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
                 self.apply_mutation(messenger_mutation);
-                self.try_send_channel(&friend_public_key);
+                self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed);
             },
         }
     }
@@ -249,7 +250,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
                 let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
                 self.apply_mutation(messenger_mutation);
-                self.try_send_channel(&friend_public_key);
+                self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed);
 
                 self
             },
@@ -364,7 +365,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
                 let mut fself = await!(self.handle_move_token_output(remote_public_key.clone(),
                                                incoming_messages))?;
-                fself.send_through_token_channel(&remote_public_key, token_wanted);
+                let send_mode = match token_wanted {true => SendMode::EmptyAllowed, false => SendMode::EmptyNotAllowed};
+                fself.try_send_channel(&remote_public_key, send_mode);
                 Ok(fself)
             },
         }
