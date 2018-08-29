@@ -14,14 +14,12 @@ use ring::rand::SecureRandom;
 use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 
-use proto::funder::ChannelToken;
-
 use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError};
 use self::handle_friend::HandleFriendError;
 use super::token_channel::directional::{ReceiveMoveTokenError, FriendMoveTokenRequest};
 use super::types::{FriendMoveToken, FriendsRoute, 
-    IncomingControlMessage, IncomingLivenessMessage};
+    IncomingControlMessage, IncomingLivenessMessage, ChannelToken};
 use super::ephemeral::FunderEphemeral;
 use super::friend::{FriendState, InconsistencyStatus};
 

@@ -7,8 +7,6 @@ use crypto::uid::Uid;
 use crypto::hash::HashResult;
 use crypto::rand_values::RandValue;
 
-use proto::funder::{ChannelToken, InvoiceId};
-
 use super::super::token_channel::types::TcMutation;
 use super::super::token_channel::directional::{DirectionalMutation, 
     MoveTokenDirection};
@@ -21,7 +19,7 @@ use super::super::types::{RequestsStatus, FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel,
     SetFriendAddr, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
     ReceiptAck, FriendsRoute, FriendMoveToken, IncomingControlMessage,
-    FriendTcOp};
+    FriendTcOp, ChannelToken, InvoiceId};
 use super::sender::SendMode;
 
 // TODO: Should be an argument of the Funder:

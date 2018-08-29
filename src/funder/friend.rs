@@ -4,10 +4,10 @@ use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 use super::token_channel::directional::{DirectionalMutation, MoveTokenDirection};
-use proto::funder::ChannelToken;
 use super::types::{FriendTcOp, FriendStatus, 
     RequestsStatus, RequestSendFunds, FriendMoveToken,
-    ResponseSendFunds, FailureSendFunds, UserRequestSendFunds};
+    ResponseSendFunds, FailureSendFunds, UserRequestSendFunds,
+    ChannelToken};
 use super::token_channel::directional::DirectionalTokenChannel;
 
 

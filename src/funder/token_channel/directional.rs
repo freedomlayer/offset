@@ -3,7 +3,6 @@
 use std::convert::TryFrom;
 use byteorder::{BigEndian, WriteBytesExt};
 
-use proto::funder::ChannelToken;
 use crypto::identity::PublicKey;
 use crypto::rand_values::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
@@ -15,7 +14,7 @@ use super::incoming::{ProcessOperationOutput, ProcessTransListError,
     simulate_process_operations_list, IncomingMessage};
 use super::outgoing::{OutgoingTokenChannel};
 
-use super::super::types::FriendMoveToken;
+use super::super::types::{FriendMoveToken, ChannelToken};
 
 
 // Prefix used for chain hashing of token channel fundss.

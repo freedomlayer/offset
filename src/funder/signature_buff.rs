@@ -91,6 +91,7 @@ pub fn prepare_receipt(response_send_funds: &ResponseSendFunds,
 }
 
 
+#[allow(unused)]
 pub fn verify_receipt(receipt: &SendFundsReceipt,
                       public_key: &PublicKey) -> bool {
     let mut data = Vec::new();

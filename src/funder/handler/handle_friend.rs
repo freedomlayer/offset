@@ -14,8 +14,6 @@ use crypto::uid::Uid;
 use utils::safe_arithmetic::SafeArithmetic;
 
 
-use proto::funder::ChannelToken;
-
 use super::super::token_channel::incoming::{IncomingResponseSendFunds, 
     IncomingFailureSendFunds, IncomingMessage};
 use super::super::token_channel::outgoing::{OutgoingTokenChannel, QueueOperationFailure,
@@ -27,7 +25,8 @@ use super::{MutableFunderHandler, FunderTask, FriendMessage,
 use super::super::types::{RequestSendFunds, ResponseSendFunds, 
     FailureSendFunds, FriendMoveToken, 
     FunderFreezeLink, PkPairPosition, 
-    PendingFriendRequest, Ratio, RequestsStatus, SendFundsReceipt};
+    PendingFriendRequest, Ratio, RequestsStatus, SendFundsReceipt,
+    ChannelToken};
 
 use super::super::state::FunderMutation;
 use super::super::friend::{FriendState, FriendMutation, 
