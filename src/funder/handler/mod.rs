@@ -23,7 +23,7 @@ use super::token_channel::directional::{ReceiveMoveTokenError, FriendMoveTokenRe
 use super::types::{FriendMoveToken, FriendsRoute, 
     IncomingControlMessage, IncomingLivenessMessage};
 use super::ephemeral::FunderEphemeral;
-use super::friend::FriendState;
+use super::friend::{FriendState, InconsistencyStatus};
 
 use super::messages::{FunderCommand, ResponseSendFundsResult};
 
@@ -117,6 +117,20 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
             }
         }
         None
+    }
+
+    /// Is it a good idea to forward requests to this friend at this moment?
+    /// This checks if it is likely that the friend will answer in a timely manner.
+    pub fn is_friend_ready(&self, friend_public_key: &PublicKey) -> bool {
+        let friend = self.get_friend(friend_public_key).unwrap();
+        if !self.ephemeral.liveness.is_online(friend_public_key) {
+            return false;
+        }
+        match friend.inconsistency_status {
+            InconsistencyStatus::Empty => true,
+            InconsistencyStatus::Outgoing(_) |
+            InconsistencyStatus::IncomingOutgoing(_) => false,
+        }
     }
 
 }
