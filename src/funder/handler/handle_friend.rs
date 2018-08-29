@@ -62,6 +62,10 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                            friend_public_key: PublicKey,
                            friend_move_token: FriendMoveToken) -> Result<Self, HandleFriendError> {
 
+        // TODO: Should we check if the channel is currently inconsistent?
+        // Currently we allow the remote side to reset the channel even we didn't send him an
+        // InconsistencyError message.
+
         // Check if incoming message is an attempt to reset channel.
         // We can know this by checking if old_token is a special value.
         let friend = self.get_friend(&friend_public_key).unwrap();
