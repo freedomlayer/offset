@@ -422,16 +422,24 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         })
     }
 
-    fn handle_inconsistency_error(&mut self, 
-                                  remote_public_key: &PublicKey,
+    #[async]
+    fn handle_inconsistency_error(self, 
+                                  remote_public_key: PublicKey,
                                   friend_inconsistency_error: FriendInconsistencyError)
-                                    -> Result<(), HandleFriendError> {
+                                    -> Result<Self, HandleFriendError> {
 
         // Make sure that friend exists:
         let _ = match self.get_friend(&remote_public_key) {
             Some(friend) => Ok(friend),
             None => Err(HandleFriendError::FriendDoesNotExist),
         }?;
+
+        // Cancel all pending requests to this neighbor:
+        let fself = await!(self.cancel_pending_requests(
+                remote_public_key.clone()))?;
+        let mut fself = await!(fself.cancel_pending_user_requests(
+                remote_public_key.clone()))?;
+
         // Save incoming inconsistency details:
         let new_in_reset_terms = ResetTerms {
             reset_token: friend_inconsistency_error.reset_token.clone(),
@@ -439,7 +447,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         };
 
         // Obtain information about our reset terms:
-        let friend = self.get_friend(remote_public_key).unwrap();
+        let friend = fself.get_friend(&remote_public_key).unwrap();
         let directional = &friend.directional;
         let reset_token = directional.calc_channel_reset_token();
         let balance_for_reset = directional.balance_for_reset();
@@ -455,7 +463,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 let friend_mutation = FriendMutation::SetInconsistencyStatus(
                     InconsistencyStatus::IncomingOutgoing((new_in_reset_terms, new_out_reset_terms)));
                 let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-                self.apply_mutation(messenger_mutation);
+                fself.apply_mutation(messenger_mutation);
                 true
             },
             InconsistencyStatus::Outgoing(out_reset_terms) => {
@@ -463,7 +471,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 let friend_mutation = FriendMutation::SetInconsistencyStatus(
                     InconsistencyStatus::IncomingOutgoing((new_in_reset_terms, out_reset_terms.clone())));
                 let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-                self.apply_mutation(messenger_mutation);
+                fself.apply_mutation(messenger_mutation);
                 false
             },
             InconsistencyStatus::IncomingOutgoing((in_reset_terms, out_reset_terms)) => {
@@ -471,7 +479,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 let friend_mutation = FriendMutation::SetInconsistencyStatus(
                     InconsistencyStatus::IncomingOutgoing((new_in_reset_terms, out_reset_terms.clone())));
                 let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-                self.apply_mutation(messenger_mutation);
+                fself.apply_mutation(messenger_mutation);
                 false
             },
         };
@@ -483,11 +491,11 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 balance_for_reset,
             };
 
-            self.add_task(
+            fself.add_task(
                 FunderTask::FriendMessage((remote_public_key.clone(),
                     FriendMessage::InconsistencyError(inconsistency_error))));
         }
-        Ok(())
+        Ok(fself)
     }
 
 
@@ -543,8 +551,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             FriendMessage::MoveTokenRequest(friend_move_token_request) =>
                 await!(self.handle_move_token_request(remote_public_key.clone(), friend_move_token_request)),
             FriendMessage::InconsistencyError(friend_inconsistency_error) => {
-                self.handle_inconsistency_error(&remote_public_key.clone(), friend_inconsistency_error);
-                Ok(self)
+                await!(self.handle_inconsistency_error(remote_public_key.clone(), friend_inconsistency_error))
             }
         }?;
 
