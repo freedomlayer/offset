@@ -245,7 +245,16 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
                         send_mode: SendMode) {
 
         let friend = self.get_friend(remote_public_key).unwrap();
+
+        // We do not send messages if we are in an inconsistent status:
+        match friend.inconsistency_status {
+            InconsistencyStatus::Empty => {},
+            InconsistencyStatus::Outgoing(_) |
+            InconsistencyStatus::IncomingOutgoing(_) => return,
+        };
+
         let new_token = friend.directional.new_token();
+
         match &friend.directional.direction {
             MoveTokenDirection::Incoming(_) => {
                 // We have the token. 
