@@ -291,9 +291,10 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     }
 
     /// Handle an error with incoming move token.
-    fn handle_move_token_error(&mut self,
-                               remote_public_key: &PublicKey,
-                               receive_move_token_error: ReceiveMoveTokenError) {
+    #[async]
+    fn handle_move_token_error(mut self,
+                               remote_public_key: PublicKey,
+                               receive_move_token_error: ReceiveMoveTokenError) -> Result<Self, !> {
 
         let friend = self.get_friend(&remote_public_key).unwrap();
         // Send an InconsistencyError message to remote side:
@@ -319,6 +320,14 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let friend_mutation = FriendMutation::SetInconsistencyStatus(InconsistencyStatus::Outgoing(reset_terms));
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
+
+        // Cancel all pending requests to this friend:
+        let fself = await!(self.cancel_pending_requests(
+                remote_public_key.clone()))?;
+        let fself = await!(fself.cancel_pending_user_requests(
+                remote_public_key.clone()))?;
+
+        Ok(fself)
     }
 
 
@@ -415,9 +424,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                              token_wanted))?
             },
             Err(receive_move_token_error) => {
-                fself.handle_move_token_error(&remote_public_key,
-                                             receive_move_token_error);
-                fself
+                await!(fself.handle_move_token_error(remote_public_key,
+                                             receive_move_token_error))?
             },
         })
     }
@@ -434,7 +442,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             None => Err(HandleFriendError::FriendDoesNotExist),
         }?;
 
-        // Cancel all pending requests to this neighbor:
+        // Cancel all pending requests to this friend:
         let fself = await!(self.cancel_pending_requests(
                 remote_public_key.clone()))?;
         let mut fself = await!(fself.cancel_pending_user_requests(
