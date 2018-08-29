@@ -99,15 +99,6 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
         self.funder_tasks.push(messenger_task);
     }
 
-    pub fn has_outgoing_message(&self) -> bool {
-        for task in &self.funder_tasks {
-            if let FunderTask::FriendMessage(_) = task {
-                return true;
-            }
-        }
-        false
-    }
-
     /// Find the originator of a pending local request.
     /// This should be a pending remote request at some other friend.
     /// Returns the public key of a friend. If we are the origin of this request, the function return None.
@@ -127,6 +118,7 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
         }
         None
     }
+
 }
 
 
