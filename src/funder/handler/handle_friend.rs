@@ -66,7 +66,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         // We can know this by checking if old_token is a special value.
         let friend = self.get_friend(&friend_public_key).unwrap();
         let reset_token = friend.directional.calc_channel_reset_token();
-        let balance_for_reset = friend.directional.balance_for_reset();
 
         if friend_move_token.old_token == reset_token {
             // This is a reset message. We reset the token channel:
