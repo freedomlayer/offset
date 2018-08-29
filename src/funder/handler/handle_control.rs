@@ -38,6 +38,7 @@ pub enum HandleControlError {
     PendingUserRequestsFull,
     ReceiptDoesNotExist,
     UserRequestInvalid,
+    FriendNotReady,
 }
 
 
@@ -243,7 +244,6 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         self.check_user_request_valid(&user_request_send_funds)
             .ok_or(HandleControlError::UserRequestInvalid)?;
 
-
         // If we already have a receipt for this request, we return the receipt immediately and
         // exit. Note that we don't erase the receipt yet. This will only be done when a receipt
         // ack is received.
@@ -275,6 +275,10 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             Some(friend) => Ok(friend),
             None => Err(HandleControlError::FriendDoesNotExist),
         }?;
+
+        if !self.is_friend_ready(&friend_public_key) {
+            return Err(HandleControlError::FriendNotReady);
+        }
 
         // If request is already in progress, we do nothing:
         // Check if there is already a pending user request with the same request_id:
