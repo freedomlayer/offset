@@ -2,9 +2,9 @@
 
 use byteorder::{BigEndian, WriteBytesExt};
 use crypto::hash;
-use crypto::identity::verify_signature;
-use super::types::{ResponseSendFunds, FailureSendFunds, PendingFriendRequest};
-use proto::common::SendFundsReceipt;
+use crypto::identity::{verify_signature, PublicKey};
+use super::types::{ResponseSendFunds, FailureSendFunds, 
+    PendingFriendRequest, SendFundsReceipt};
 
 pub const FUND_SUCCESS_PREFIX: &[u8] = b"FUND_SUCCESS";
 pub const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
@@ -88,6 +88,17 @@ pub fn prepare_receipt(response_send_funds: &ResponseSendFunds,
         dest_payment: pending_request.dest_payment,
         signature: response_send_funds.signature.clone(),
     }
+}
+
+
+pub fn verify_receipt(receipt: &SendFundsReceipt,
+                      public_key: &PublicKey) -> bool {
+    let mut data = Vec::new();
+    data.extend(FUND_SUCCESS_PREFIX);
+    data.extend(receipt.response_hash.as_ref());
+    data.extend(receipt.invoice_id.as_ref());
+    data.write_u128::<BigEndian>(receipt.dest_payment).unwrap();
+    verify_signature(&data, public_key, &receipt.signature)
 }
 
 

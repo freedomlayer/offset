@@ -4,15 +4,15 @@ use byteorder::{WriteBytesExt, BigEndian};
 
 use utils::int_convert::{usize_to_u64, usize_to_u32};
 
-use crypto::identity::{PublicKey, Signature};
+use crypto::identity::{PublicKey, Signature, verify_signature};
 use crypto::uid::Uid;
 use crypto::rand_values::RandValue;
 use crypto::hash;
 use crypto::hash::HashResult;
 
-use proto::common::SendFundsReceipt;
 use proto::funder::InvoiceId;
 use proto::funder::{ChannelToken};
+use super::signature_buff::FUND_SUCCESS_PREFIX;
 
 
 #[derive(Clone)]
@@ -381,4 +381,33 @@ pub enum IncomingControlMessage<A> {
 pub enum IncomingLivenessMessage {
     Online(PublicKey),
     Offline(PublicKey),
+}
+
+/// A `SendFundsReceipt` is received if a `RequestSendFunds` is successful.
+/// It can be used a proof of payment for a specific `invoice_id`.
+#[derive(Clone)]
+pub struct SendFundsReceipt {
+    pub response_hash: HashResult,
+    // = sha512/256(requestId || sha512/256(route) || randNonce)
+    pub invoice_id: InvoiceId,
+    pub dest_payment: u128,
+    pub signature: Signature,
+    // Signature{key=recipientKey}(
+    //   "FUND_SUCCESS" ||
+    //   sha512/256(requestId || sha512/256(route) || randNonce) ||
+    //   invoiceId ||
+    //   destPayment
+    // )
+}
+
+
+impl SendFundsReceipt {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.response_hash);
+        res_bytes.extend_from_slice(&self.invoice_id);
+        res_bytes.write_u128::<BigEndian>(self.dest_payment).unwrap();
+        res_bytes.extend_from_slice(&self.signature);
+        res_bytes
+    }
 }

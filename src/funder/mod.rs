@@ -6,10 +6,11 @@ mod liveness;
 mod ephemeral;
 mod credit_calc;
 mod freeze_guard;
-pub mod signature_buff; // TODO: Why is this public?
+mod signature_buff; // TODO: Why is this public?
 mod friend;
 mod state;
 mod types;
 mod token_channel;
 mod handler;
 mod report;
+

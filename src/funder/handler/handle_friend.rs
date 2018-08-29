@@ -27,7 +27,7 @@ use super::{MutableFunderHandler, FunderTask, FriendMessage,
 use super::super::types::{RequestSendFunds, ResponseSendFunds, 
     FailureSendFunds, FriendMoveToken, 
     FunderFreezeLink, PkPairPosition, 
-    PendingFriendRequest, Ratio, RequestsStatus};
+    PendingFriendRequest, Ratio, RequestsStatus, SendFundsReceipt};
 
 use super::super::state::FunderMutation;
 use super::super::friend::{FriendState, FriendMutation, 
@@ -36,9 +36,6 @@ use super::super::friend::{FriendState, FriendMutation,
 use super::super::signature_buff::{create_failure_signature_buffer, prepare_receipt};
 use super::super::messages::ResponseSendFundsResult;
 use super::sender::SendMode;
-
-
-use proto::common::SendFundsReceipt;
 
 
 #[derive(Debug)]

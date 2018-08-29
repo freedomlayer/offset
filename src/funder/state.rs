@@ -6,7 +6,7 @@ use num_traits::identities::Zero;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 use super::friend::{FriendState, FriendMutation};
-use proto::common::SendFundsReceipt;
+use super::types::SendFundsReceipt;
 
 
 #[allow(unused)]
