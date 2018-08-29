@@ -201,7 +201,7 @@ impl<R: SecureRandom + 'static> FunderHandler<R> {
     }
 
     #[allow(unused, type_complexity)]
-    fn simulate_handle_init<A: Clone + 'static>(&self, 
+    fn simulate_handle_init<A: Clone>(&self, 
                                         messenger_state: &FunderState<A>,
                                         funder_ephemeral: &FunderEphemeral)
             -> Result<(FunderEphemeral, Vec<FunderMutation<A>>, Vec<FunderTask<A>>), HandlerError> {

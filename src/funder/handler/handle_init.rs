@@ -10,7 +10,7 @@ pub enum HandleInitError {
 }
 
 #[allow(unused)]
-impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
+impl<A: Clone, R: SecureRandom> MutableFunderHandler<A,R> {
 
     pub fn handle_init(&mut self) {
         let mut retransmit_pks = Vec::new();
