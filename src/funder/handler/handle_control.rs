@@ -25,6 +25,7 @@ use super::sender::SendMode;
 // TODO: Should be an argument of the Funder:
 const MAX_PENDING_USER_REQUESTS: usize = 0x10;
 
+#[derive(Debug)]
 pub enum HandleControlError {
     FriendDoesNotExist,
     TokenChannelDoesNotExist,
