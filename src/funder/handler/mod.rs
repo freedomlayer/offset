@@ -1,3 +1,5 @@
+mod handle_control;
+mod handle_friend;
 mod handle_liveness;
 mod handle_init;
 mod sender;
