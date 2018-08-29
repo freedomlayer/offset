@@ -199,5 +199,18 @@ impl<R: SecureRandom + 'static> FunderHandler<R> {
 
         Ok(mutable_handler.done())
     }
+
+    #[allow(unused, type_complexity)]
+    fn simulate_handle_init<A: Clone + 'static>(&self, 
+                                        messenger_state: &FunderState<A>,
+                                        funder_ephemeral: &FunderEphemeral)
+            -> Result<(FunderEphemeral, Vec<FunderMutation<A>>, Vec<FunderTask<A>>), HandlerError> {
+
+        let mut mutable_handler = self.gen_mutable(messenger_state,
+                                                   funder_ephemeral);
+        mutable_handler.handle_init();
+        Ok(mutable_handler.done())
+    }
+
 }
 
