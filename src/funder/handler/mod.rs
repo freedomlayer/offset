@@ -67,6 +67,7 @@ pub enum FunderTask<A> {
     StateUpdate, // TODO
 }
 
+#[derive(Debug)]
 pub enum FunderHandlerError {
     HandleControlError(HandleControlError),
     HandleFriendError(HandleFriendError),
