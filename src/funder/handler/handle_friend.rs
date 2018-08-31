@@ -30,7 +30,7 @@ use super::super::types::{RequestSendFunds, ResponseSendFunds,
 
 use super::super::state::FunderMutation;
 use super::super::friend::{FriendState, FriendMutation, 
-    InconsistencyStatus, ResetTerms, ResponseOp};
+    ResetTerms, ResponseOp, ChannelStatus};
 
 use super::super::signature_buff::{create_failure_signature_buffer, prepare_receipt};
 use super::super::messages::ResponseSendFundsResult;
@@ -46,6 +46,8 @@ pub enum HandleFriendError {
     IncorrectAckedToken,
     IncorrectLastToken,
     TokenChannelInconsistent,
+    NotInconsistent,
+    ResetTokenMismatch,
 }
 
 
@@ -57,18 +59,19 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     #[async]
     fn check_reset_channel(mut self, 
                            friend_public_key: PublicKey,
-                           friend_move_token: FriendMoveToken) -> Result<Self, HandleFriendError> {
+                           friend_move_token: FriendMoveToken) -> Result<Self, !> {
 
-        // TODO: Should we check if the channel is currently inconsistent?
-        // Currently we allow the remote side to reset the channel even we didn't send him an
-        // InconsistencyError message.
+
+        let friend = self.get_friend(&friend_public_key).unwrap();
+
+        let local_reset_terms = match friend.channel_status {
+            ChannelStatus::Consistent(_) => return Ok(self),
+            ChannelStatus::Inconsistent((local_reset_terms, _)) => local_reset_terms,
+        };
 
         // Check if incoming message is an attempt to reset channel.
         // We can know this by checking if old_token is a special value.
-        let friend = self.get_friend(&friend_public_key).unwrap();
-        let reset_token = friend.directional.calc_channel_reset_token();
-
-        if friend_move_token.old_token == reset_token {
+        if friend_move_token.old_token == local_reset_terms.reset_token {
             // This is a reset message. We reset the token channel:
             let mut fself = await!(self.cancel_local_pending_requests(
                 friend_public_key.clone()))?;
