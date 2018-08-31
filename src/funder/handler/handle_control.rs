@@ -10,7 +10,7 @@ use crypto::rand_values::RandValue;
 use super::super::token_channel::types::TcMutation;
 use super::super::token_channel::directional::{DirectionalMutation, 
     MoveTokenDirection};
-use super::super::friend::{FriendState, FriendMutation, InconsistencyStatus};
+use super::super::friend::{FriendState, FriendMutation, ChannelStatus};
 use super::super::state::{FunderMutation, FunderState};
 use super::{MutableFunderHandler, 
     MAX_MOVE_TOKEN_LENGTH};
@@ -71,22 +71,23 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let friend = self.get_friend(&reset_friend_channel.friend_public_key)
             .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-        let in_reset_terms = match &friend.inconsistency_status {
-            InconsistencyStatus::Empty | 
-            InconsistencyStatus::Outgoing(_) => return Err(HandleControlError::NotInvitedToReset),
-            InconsistencyStatus::IncomingOutgoing((in_reset_terms, _out_reset_terms)) => {
-                if (in_reset_terms.reset_token != reset_friend_channel.current_token)  {
-                    return Err(HandleControlError::ResetTokenMismatch);
+        let remote_reset_terms = match &friend.channel_status {
+            ChannelStatus::Consistent(_) => Err(HandleControlError::NotInvitedToReset),
+            ChannelStatus::Inconsistent((_, None)) => Err(HandleControlError::NotInvitedToReset),
+            ChannelStatus::Inconsistent((_, Some(remote_reset_terms))) => {
+                if (remote_reset_terms.reset_token != reset_friend_channel.current_token)  {
+                    Err(HandleControlError::ResetTokenMismatch)
+                } else {
+                    Ok(remote_reset_terms)
                 }
-                in_reset_terms
-            }
-        };
+            },
+        }?;
 
         let rand_nonce = RandValue::new(&*self.rng);
         let friend_move_token = FriendMoveToken {
             operations: Vec::new(), 
             // No operations are required for a reset move token
-            old_token: in_reset_terms.reset_token.clone(),
+            old_token: remote_reset_terms.reset_token.clone(),
             rand_nonce,
         };
 
@@ -288,8 +289,13 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             }
         }
 
+        let directional = match friend.channel_status {
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+            ChannelStatus::Consistent(directional) => directional
+        };
+
         // Check if there is an onging request with the same request_id with this specific friend:
-        if friend.directional
+        if directional
             .token_channel
             .state()
             .pending_requests
