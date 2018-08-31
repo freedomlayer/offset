@@ -9,7 +9,7 @@ use super::{MutableFunderHandler, FunderTask};
 use super::super::types::{RequestSendFunds, FailureSendFunds, PendingFriendRequest,
                             ResponseReceived};
 use super::super::signature_buff::{create_failure_signature_buffer, prepare_receipt};
-use super::super::friend::{FriendMutation, ResponseOp};
+use super::super::friend::{FriendMutation, ResponseOp, ChannelStatus};
 use super::super::state::FunderMutation;
 use super::super::messages::{ResponseSendFundsResult};
 use super::sender::SendMode;
@@ -76,10 +76,15 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         let friend = self.get_friend(&friend_public_key).unwrap();
 
+        let directional = match friend.channel_status {
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+            ChannelStatus::Consistent(directional) => directional,
+        };
+
         // Mark all pending requests to this friend as errors.  
         // As the token channel is being reset, we can be sure we will never obtain a response
         // for those requests.
-        let pending_local_requests = friend.directional
+        let pending_local_requests = directional
             .token_channel
             .state()
             .pending_requests
