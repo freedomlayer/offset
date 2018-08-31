@@ -22,7 +22,7 @@ use super::types::{FriendMoveToken, FriendsRoute,
     IncomingControlMessage, IncomingLivenessMessage, ChannelToken,
     FriendMoveTokenRequest, FunderTask, FunderMessage};
 use super::ephemeral::FunderEphemeral;
-use super::friend::{FriendState, InconsistencyStatus};
+use super::friend::{FriendState, ChannelStatus};
 
 use super::messages::{FunderCommand, ResponseSendFundsResult};
 
@@ -82,19 +82,24 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
 
     /// Find the originator of a pending local request.
     /// This should be a pending remote request at some other friend.
-    /// Returns the public key of a friend. If we are the origin of this request, the function return None.
+    /// Returns the public key of a friend. If we are the origin of this request, the function returns None.
     ///
     /// TODO: We need to change this search to be O(1) in the future. Possibly by maintaining a map
     /// between request_id and (friend_public_key, friend).
     pub fn find_request_origin(&self, request_id: &Uid) -> Option<&PublicKey> {
         for (friend_public_key, friend) in self.state.get_friends() {
-            if friend.directional
-                .token_channel
-                .state()
-                .pending_requests
-                .pending_remote_requests
-                .contains_key(request_id) {
-                    return Some(friend_public_key)
+            match friend.channel_status {
+                ChannelStatus::Inconsistent(_) => continue,
+                ChannelStatus::Consistent(directional) => {
+                    if directional
+                        .token_channel
+                        .state()
+                        .pending_requests
+                        .pending_remote_requests
+                        .contains_key(request_id) {
+                            return Some(friend_public_key)
+                    }
+                },
             }
         }
         None
@@ -107,10 +112,9 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
         if !self.ephemeral.liveness.is_online(friend_public_key) {
             return false;
         }
-        match friend.inconsistency_status {
-            InconsistencyStatus::Empty => true,
-            InconsistencyStatus::Outgoing(_) |
-            InconsistencyStatus::IncomingOutgoing(_) => false,
+        match friend.channel_status {
+            ChannelStatus::Consistent(_) => true,
+            ChannelStatus::Inconsistent(_) => false,
         }
     }
 
