@@ -67,7 +67,7 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
         let friend = self.get_friend(remote_public_key).unwrap();
 
         // Set remote_max_debt if needed:
-        let remote_max_debt = match friend.channel_status {
+        let remote_max_debt = match &friend.channel_status {
             ChannelStatus::Consistent(directional) => directional,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         }.remote_max_debt();
@@ -77,19 +77,19 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
             ops_batch.add(FriendTcOp::SetRemoteMaxDebt(friend.wanted_remote_max_debt))?;
         }
 
-        let directional = match friend.channel_status {
+        let directional = match &friend.channel_status {
             ChannelStatus::Consistent(directional) => directional,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
 
         // Open or close requests is needed:
-        let local_requests_status = directional
+        let local_requests_status = &directional
             .token_channel
             .state()
             .requests_status
             .local;
 
-        if friend.wanted_local_requests_status != local_requests_status {
+        if friend.wanted_local_requests_status != *local_requests_status {
             let friend_op = if let RequestsStatus::Open = friend.wanted_local_requests_status {
                 FriendTcOp::EnableRequests
             } else {
@@ -144,12 +144,12 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
                                remote_public_key: &PublicKey) {
 
         let friend = self.get_friend(remote_public_key).unwrap();
-        let directional = match friend.channel_status {
+        let directional = match &friend.channel_status {
             ChannelStatus::Consistent(directional) => directional,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
 
-        let friend_move_token_request = match directional.direction {
+        let friend_move_token_request = match &directional.direction {
             MoveTokenDirection::Outgoing(friend_move_token_request) => friend_move_token_request.clone(),
             MoveTokenDirection::Incoming(_) => unreachable!(),
         };
@@ -167,7 +167,7 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
 
 
         let friend = self.get_friend(remote_public_key).unwrap();
-        let directional = match friend.channel_status {
+        let directional = match &friend.channel_status {
             ChannelStatus::Consistent(directional) => directional,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
@@ -199,7 +199,7 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
         let friend = self.get_friend(remote_public_key).unwrap();
 
         let rand_nonce = RandValue::new(&*self.rng);
-        let directional = match friend.channel_status {
+        let directional = match &friend.channel_status {
             ChannelStatus::Consistent(directional) => directional,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
@@ -216,6 +216,10 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
         self.apply_mutation(messenger_mutation);
 
         let friend = self.get_friend(remote_public_key).unwrap();
+        let directional = match &friend.channel_status {
+            ChannelStatus::Consistent(directional) => directional,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
         let friend_move_token_request = 
             directional.get_outgoing_move_token().unwrap();
 
@@ -242,7 +246,7 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
                                   send_mode: SendMode) -> bool {
 
         let friend = self.get_friend(remote_public_key).unwrap();
-        let directional = match friend.channel_status {
+        let directional = match &friend.channel_status {
             ChannelStatus::Consistent(directional) => directional,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
@@ -271,7 +275,7 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
         let friend = self.get_friend(remote_public_key).unwrap();
 
         // We do not send messages if we are in an inconsistent status:
-        let directional = match friend.channel_status {
+        let directional = match &friend.channel_status {
             ChannelStatus::Consistent(directional) => directional,
             ChannelStatus::Inconsistent(_) => return,
         };

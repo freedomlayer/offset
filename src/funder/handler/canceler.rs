@@ -76,7 +76,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         let friend = self.get_friend(&friend_public_key).unwrap();
 
-        let directional = match friend.channel_status {
+        let directional = match &friend.channel_status {
             ChannelStatus::Inconsistent(_) => unreachable!(),
             ChannelStatus::Consistent(directional) => directional,
         };

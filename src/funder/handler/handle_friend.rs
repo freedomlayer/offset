@@ -64,7 +64,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         let friend = self.get_friend(&friend_public_key).unwrap();
 
-        let local_reset_terms = match friend.channel_status {
+        let local_reset_terms = match &friend.channel_status {
             ChannelStatus::Consistent(_) => return Ok(self),
             ChannelStatus::Inconsistent((local_reset_terms, _)) => local_reset_terms,
         };
@@ -100,11 +100,19 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let prev_friend = self.state.get_friends().get(&prev_pk).unwrap();
         let next_friend = self.state.get_friends().get(&next_pk).unwrap();
 
+        let prev_directional = match &prev_friend.channel_status {
+            ChannelStatus::Consistent(directional) => directional,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
+        let next_directional = match &next_friend.channel_status {
+            ChannelStatus::Consistent(directional) => directional,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
 
         let total_trust = self.state.get_total_trust();
 
-        let prev_trust: BigUint = prev_friend.directional.token_channel.state().balance.remote_max_debt.into();
-        let forward_trust: BigUint = next_friend.directional.token_channel.state().balance.remote_max_debt.into();
+        let prev_trust: BigUint = prev_directional.token_channel.state().balance.remote_max_debt.into();
+        let forward_trust: BigUint = next_directional.token_channel.state().balance.remote_max_debt.into();
 
         let two_pow_128 = BigUint::new(vec![0x1, 0x0u32, 0x0u32, 0x0u32, 0x0u32]);
         let numerator = (two_pow_128 * forward_trust) / (total_trust - &prev_trust);
@@ -295,7 +303,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                receive_move_token_error: ReceiveMoveTokenError) -> Result<Self, !> {
 
         let friend = self.get_friend(&remote_public_key).unwrap();
-        let directional = match friend.channel_status {
+        let directional = match &friend.channel_status {
             ChannelStatus::Consistent(directional) => directional,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
@@ -330,24 +338,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         Ok(fself)
     }
-
-
-
-    /*
-    /// Clear all pending inconsistency errors if exist
-    fn clear_inconsistency_status(&mut self,
-                               remote_public_key: &PublicKey) {
-
-        let friend = self.get_friend(remote_public_key).unwrap();
-        if let InconsistencyStatus::Empty = friend.inconsistency_status {
-            return;
-        }
-
-        let friend_mutation = FriendMutation::SetInconsistencyStatus(InconsistencyStatus::Empty);
-        let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-        self.apply_mutation(messenger_mutation);
-    }
-    */
 
 
     /// Handle success with incoming move token.
@@ -409,17 +399,23 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         };
         */
 
+        // TODO: Rewrite logic of dealing with inconsistent channel at this point.
+        unimplemented!();
+
         let mut fself = await!(self.check_reset_channel(remote_public_key.clone(), 
                                            friend_move_token_request.friend_move_token.clone()))?;
 
         let friend = fself.get_friend(&remote_public_key).unwrap();
 
-        let receive_move_token_res = friend.directional.simulate_receive_move_token(
+        let directional = match &friend.channel_status {
+            ChannelStatus::Consistent(directional) => directional,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
+        let receive_move_token_res = directional.simulate_receive_move_token(
             friend_move_token_request.friend_move_token);
 
         let token_wanted = friend_move_token_request.token_wanted;
 
-        fself.clear_inconsistency_status(&remote_public_key);
 
         Ok(match receive_move_token_res {
             Ok(receive_move_token_output) => {
@@ -460,14 +456,14 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         // Obtain information about our reset terms:
         let friend = fself.get_friend(&remote_public_key).unwrap();
-        let new_local_reset_terms = match friend.channel_status {
+        let new_local_reset_terms = match &friend.channel_status {
             ChannelStatus::Consistent(directional) => 
                 // TODO; Maybe add a directional.reset_terms() method.
                 ResetTerms {
                     reset_token: directional.calc_channel_reset_token(),
                     balance_for_reset: directional.balance_for_reset(),
                 },
-            ChannelStatus::Inconsistent((local_reset_terms, _)) => local_reset_terms
+            ChannelStatus::Inconsistent((local_reset_terms, _)) => local_reset_terms.clone(),
         };
 
         // Check if we should send an outgoing inconsistency message:
@@ -477,15 +473,15 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         };
 
         let friend_mutation = FriendMutation::SetChannelStatus(
-            ChannelStatus::Inconsistent((new_local_reset_terms, Some(new_remote_reset_terms))));
+            (new_local_reset_terms.clone(), Some(new_remote_reset_terms)));
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         fself.apply_mutation(messenger_mutation);
 
         // Send an outgoing inconsistency message if required:
         if should_send_outgoing {
             let inconsistency_error = FriendInconsistencyError {
-                reset_token: reset_token.clone(),
-                balance_for_reset,
+                reset_token: new_local_reset_terms.reset_token,
+                balance_for_reset: new_local_reset_terms.balance_for_reset,
             };
 
             fself.add_task(

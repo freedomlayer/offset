@@ -63,8 +63,8 @@ fn create_tc_report(token_channel: &TokenChannel) -> TcReport {
 }
 
 fn create_friend_report<A: Clone>(friend_state: &FriendState<A>) -> FriendReport<A> {
-    let channel_status = match friend_state.channel_status {
-        ChannelStatus::Inconsistent(reset_terms_tuple) => ChannelStatusReport::Inconsistent(reset_terms_tuple),
+    let channel_status = match &friend_state.channel_status {
+        ChannelStatus::Inconsistent(reset_terms_tuple) => ChannelStatusReport::Inconsistent(reset_terms_tuple.clone()),
         ChannelStatus::Consistent(directional) => {
             let direction = match directional.direction {
                 MoveTokenDirection::Incoming(_) => DirectionReport::Incoming,
@@ -72,7 +72,7 @@ fn create_friend_report<A: Clone>(friend_state: &FriendState<A>) -> FriendReport
             };
             let directional = DirectionalTcReport {
                 direction,
-                token_channel: create_tc_report(&friend_state.directional.token_channel),
+                token_channel: create_tc_report(&directional.token_channel),
             };
             ChannelStatusReport::Consistent(directional)
         },

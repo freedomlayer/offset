@@ -38,8 +38,8 @@ impl<A:Clone> FunderState<A> {
     pub fn get_total_trust(&self) -> BigUint {
         let mut sum: BigUint = BigUint::zero();
         for friend in self.friends.values() {
-            let remote_max_debt: BigUint = friend.directional.token_channel.state().balance.remote_max_debt.into();
-            sum += remote_max_debt;
+            let trust: BigUint = friend.get_trust().into();
+            sum += trust;
         }
         sum
     }

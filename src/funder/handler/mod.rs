@@ -88,7 +88,7 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
     /// between request_id and (friend_public_key, friend).
     pub fn find_request_origin(&self, request_id: &Uid) -> Option<&PublicKey> {
         for (friend_public_key, friend) in self.state.get_friends() {
-            match friend.channel_status {
+            match &friend.channel_status {
                 ChannelStatus::Inconsistent(_) => continue,
                 ChannelStatus::Consistent(directional) => {
                     if directional

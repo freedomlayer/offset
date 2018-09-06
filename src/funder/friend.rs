@@ -93,14 +93,27 @@ impl<A:Clone> FriendState<A> {
         }
     }
 
+    /// Return how much (in credits) we trust this friend.
+    pub fn get_trust(&self) -> u128 {
+        match &self.channel_status {
+            ChannelStatus::Consistent(directional) =>
+                directional.token_channel.state().balance.remote_max_debt,
+            ChannelStatus::Inconsistent(_) => {
+                // TODO; Is this the right return value here?
+                self.wanted_remote_max_debt 
+            },
+        }
+
+    }
+
     #[allow(unused)]
     pub fn mutate(&mut self, friend_mutation: &FriendMutation<A>) {
         match friend_mutation {
             FriendMutation::DirectionalMutation(directional_mutation) => {
                 match &mut self.channel_status {
-                    ChannelStatus::Consistent(ref mut directional) => {
-                        directional.mutate(directional_mutation)
-                    }
+                    ChannelStatus::Consistent(ref mut directional) =>
+                        directional.mutate(directional_mutation),
+                    ChannelStatus::Inconsistent(_) => unreachable!(),
                 }
             },
             FriendMutation::SetChannelStatus(channel_status) => {
@@ -138,7 +151,7 @@ impl<A:Clone> FriendState<A> {
             },
             FriendMutation::LocalReset(reset_move_token) => {
                 // Local reset was applied (We sent a reset from the control line)
-                match self.channel_status {
+                match &self.channel_status {
                     ChannelStatus::Consistent(_) => unreachable!(),
                     ChannelStatus::Inconsistent((local_reset_terms, None)) => unreachable!(),
                     ChannelStatus::Inconsistent((local_reset_terms, Some(remote_reset_terms))) => {
@@ -154,7 +167,7 @@ impl<A:Clone> FriendState<A> {
             },
             FriendMutation::RemoteReset => {
                 // Remote reset was applied (Remote side has given a reset command)
-                match self.channel_status {
+                match &self.channel_status {
                     ChannelStatus::Consistent(_) => unreachable!(),
                     ChannelStatus::Inconsistent((local_reset_terms, _)) => {
                         let directional = DirectionalTokenChannel::new_from_remote_reset(
