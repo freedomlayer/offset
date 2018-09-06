@@ -280,8 +280,6 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
             ChannelStatus::Inconsistent(_) => return,
         };
 
-        let new_token = directional.new_token();
-
         match &directional.direction {
             MoveTokenDirection::Incoming(_) => {
                 // We have the token. 
