@@ -27,7 +27,7 @@ pub enum ResponseOp {
 #[allow(unused)]
 pub enum FriendMutation<A> {
     DirectionalMutation(DirectionalMutation),
-    SetInconsistencyStatus((ResetTerms, Option<ResetTerms>)),
+    SetChannelStatus((ResetTerms, Option<ResetTerms>)), // (local_reset_terms, opt_remote_reset_terms)
     SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatus),
     PushBackPendingRequest(RequestSendFunds),
@@ -103,8 +103,8 @@ impl<A:Clone> FriendState<A> {
                     }
                 }
             },
-            FriendMutation::SetInconsistencyStatus(inconsistency_status) => {
-                self.channel_status = ChannelStatus::Inconsistent(inconsistency_status.clone());
+            FriendMutation::SetChannelStatus(channel_status) => {
+                self.channel_status = ChannelStatus::Inconsistent(channel_status.clone());
             },
             FriendMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
                 self.wanted_remote_max_debt = *wanted_remote_max_debt;
