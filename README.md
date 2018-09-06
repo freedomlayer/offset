@@ -13,10 +13,10 @@ CSwitch is still a work in progress, and is not yet ready for use in production.
 
 Theoretically CSwitch should work anywhere Rust works (Windows, Linux, MacOS).
 
-### Requirement
+### Dependencies
 
 - [SQLite3][sqlite], for persistent storage.
-- [Cap'n Proto][capnp], as ser&de protocol.
+- [Cap'n Proto][capnp], for serialization and deserialization.
 
 [sqlite]: https://www.sqlite.org
 [capnp]: https://capnproto.org
@@ -33,14 +33,19 @@ Also, we need the Rust development toolchain.
     - On Ubuntu, run: `sudo apt install capnproto`
     - On MacOS, run: `brew install canpnp`
 
-### Note for the toolchain version
+### Pinned toolchain version
 
 We currently pin the version of `Rust` and `clippy`, the current version in
 use can be found in `.travis.yml`. We do this because things tend to break very
 often when using the latest nightly version.
 
-You can run `rustup override set nightly-YYYY-MM-DD` to pinned Rust toolchain version
-under the root of the project. 
+To use a pinned rust toolchain with this project, run:
+
+```bash
+rustup override set nightly-YYYY-MM-DD
+```
+
+Where the current `YYYY-MM-DD` can be found by looking at `.travis.yml`.
 
 To install [clippy](https://github.com/rust-lang-nursery/rust-clippy) which
 matches the installed Rust toolchain, run:
