@@ -25,12 +25,13 @@ use super::super::types::{RequestSendFunds, ResponseSendFunds,
     FailureSendFunds, FriendMoveToken, 
     FunderFreezeLink, PkPairPosition, 
     PendingFriendRequest, Ratio, RequestsStatus, SendFundsReceipt,
-    ChannelToken, FunderTask, FriendInconsistencyError,
-    FriendMessage, ResponseReceived};
+    ChannelToken, FriendInconsistencyError,
+    FriendMessage, ResponseReceived, ResetTerms,
+    FunderOutgoingControl, FunderOutgoingComm};
 
 use super::super::state::FunderMutation;
 use super::super::friend::{FriendState, FriendMutation, 
-    InconsistencyStatus, ResetTerms, ResponseOp};
+    ResponseOp, ChannelStatus};
 
 use super::super::signature_buff::{create_failure_signature_buffer, prepare_receipt};
 use super::super::messages::ResponseSendFundsResult;
@@ -46,6 +47,8 @@ pub enum HandleFriendError {
     IncorrectAckedToken,
     IncorrectLastToken,
     TokenChannelInconsistent,
+    NotInconsistent,
+    ResetTokenMismatch,
 }
 
 
@@ -54,33 +57,78 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
     /// Check if channel reset is required (Remove side used the RESET token)
     /// If so, reset the channel.
-    #[async]
-    fn check_reset_channel(mut self, 
-                           friend_public_key: PublicKey,
-                           friend_move_token: FriendMoveToken) -> Result<Self, HandleFriendError> {
-
-        // TODO: Should we check if the channel is currently inconsistent?
-        // Currently we allow the remote side to reset the channel even we didn't send him an
-        // InconsistencyError message.
+    fn try_reset_channel(&mut self, 
+                           friend_public_key: &PublicKey,
+                           local_reset_terms: &ResetTerms,
+                           friend_move_token: &FriendMoveToken) {
 
         // Check if incoming message is an attempt to reset channel.
         // We can know this by checking if old_token is a special value.
-        let friend = self.get_friend(&friend_public_key).unwrap();
-        let reset_token = friend.directional.calc_channel_reset_token();
-
-        if friend_move_token.old_token == reset_token {
+        if friend_move_token.old_token == local_reset_terms.reset_token {
             // This is a reset message. We reset the token channel:
-            let mut fself = await!(self.cancel_local_pending_requests(
-                friend_public_key.clone()))?;
-
             let friend_mutation = FriendMutation::RemoteReset;
             let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-            fself.apply_mutation(messenger_mutation);
-
-            Ok(fself)
-        } else {
-            Ok(self)
+            self.apply_mutation(messenger_mutation);
         }
+
+    }
+
+    pub fn add_local_freezing_link(&self, request_send_funds: &mut RequestSendFunds) {
+        let index = request_send_funds.route.pk_to_index(self.state.get_local_public_key())
+            .unwrap();
+        assert_eq!(request_send_funds.freeze_links.len(), index);
+        let next_index = index.checked_add(1).unwrap();
+        let next_pk = request_send_funds.route.index_to_pk(next_index).unwrap();
+        let next_friend = self.state.get_friends().get(&next_pk).unwrap();
+        let next_directional = match &next_friend.channel_status {
+            ChannelStatus::Consistent(directional) => directional,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
+        let forward_trust: BigUint = next_directional.token_channel.state().balance.remote_max_debt.into();
+        let total_trust = self.state.get_total_trust();
+        let two_pow_128 = BigUint::new(vec![0x1, 0x0u32, 0x0u32, 0x0u32, 0x0u32]);
+
+        let funder_freeze_link = if index == 0 {
+            // We are the first node on the route (We initiated this request):
+            
+            let numerator = (two_pow_128 * forward_trust) / &total_trust;
+            let usable_ratio = match numerator.to_u128() {
+                Some(num) => Ratio::Numerator(num),
+                None => Ratio::One,
+            };
+
+            FunderFreezeLink {
+                shared_credits: total_trust.to_u128().unwrap_or(u128::max_value()),
+                usable_ratio,
+            }
+
+        } else {
+            // We are not the first node on the route:
+            let prev_index = index.checked_sub(1).unwrap();
+            let prev_pk = request_send_funds.route.index_to_pk(prev_index).unwrap();
+            let prev_friend = self.state.get_friends().get(&prev_pk).unwrap();
+            let prev_directional = match &prev_friend.channel_status {
+                ChannelStatus::Consistent(directional) => directional,
+                ChannelStatus::Inconsistent(_) => unreachable!(),
+            };
+
+            let prev_trust: BigUint = prev_directional.token_channel.state().balance.remote_max_debt.into();
+            let numerator = (two_pow_128 * forward_trust) / (total_trust - &prev_trust);
+            let usable_ratio = match numerator.to_u128() {
+                Some(num) => Ratio::Numerator(num),
+                None => Ratio::One,
+            };
+
+            let shared_credits = prev_trust.to_u128().unwrap_or(u128::max_value());
+            FunderFreezeLink {
+                shared_credits,
+                usable_ratio,
+            }
+
+        };
+
+        // Add our freeze link
+        request_send_funds.freeze_links.push(funder_freeze_link);
 
     }
 
@@ -88,35 +136,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     fn forward_request(&mut self, mut request_send_funds: RequestSendFunds) {
         let index = request_send_funds.route.pk_to_index(self.state.get_local_public_key())
             .unwrap();
-        let prev_index = index.checked_sub(1).unwrap();
         let next_index = index.checked_add(1).unwrap();
-        
-        let prev_pk = request_send_funds.route.index_to_pk(prev_index).unwrap();
-        let next_pk = request_send_funds.route.index_to_pk(prev_index).unwrap();
-
-        let prev_friend = self.state.get_friends().get(&prev_pk).unwrap();
-        let next_friend = self.state.get_friends().get(&next_pk).unwrap();
-
-
-        let total_trust = self.state.get_total_trust();
-
-        let prev_trust: BigUint = prev_friend.directional.token_channel.state().balance.remote_max_debt.into();
-        let forward_trust: BigUint = next_friend.directional.token_channel.state().balance.remote_max_debt.into();
-
-        let two_pow_128 = BigUint::new(vec![0x1, 0x0u32, 0x0u32, 0x0u32, 0x0u32]);
-        let numerator = (two_pow_128 * forward_trust) / (total_trust - &prev_trust);
-        let usable_ratio = match numerator.to_u128() {
-            Some(num) => Ratio::Numerator(num),
-            None => Ratio::One,
-        };
-
-        let shared_credits = prev_trust.to_u128().unwrap_or(u128::max_value());
-
-        // Add our freeze link
-        request_send_funds.freeze_links.push(FunderFreezeLink {
-            shared_credits,
-            usable_ratio,
-        });
+        let next_pk = request_send_funds.route.index_to_pk(next_index).unwrap();
 
         // Queue message to the relevant friend. Later this message will be queued to a specific
         // available token channel:
@@ -129,7 +150,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     #[async]
     fn handle_request_send_funds(mut self, 
                                remote_public_key: PublicKey,
-                               request_send_funds: RequestSendFunds) -> Result<Self, !> {
+                               mut request_send_funds: RequestSendFunds) -> Result<Self, !> {
 
         // Find ourselves on the route. If we are not there, abort.
         let remote_index = request_send_funds.route.find_pk_pair(
@@ -163,6 +184,9 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             self
         };
 
+        // Add our freezing link:
+        fself.add_local_freezing_link(&mut request_send_funds);
+
         // Perform DoS protection check:
         Ok(match fself.ephemeral.freeze_guard.verify_freezing_links(&request_send_funds) {
             Some(()) => {
@@ -194,13 +218,11 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                               &pending_request);
 
                 let response_send_funds_result = ResponseSendFundsResult::Success(receipt);
-                self.add_task(
-                    FunderTask::ResponseReceived(
-                        ResponseReceived {
-                            request_id: pending_request.request_id,
-                            result: response_send_funds_result,
-                        }
-                    )
+                self.add_response_received(
+                    ResponseReceived {
+                        request_id: pending_request.request_id,
+                        result: response_send_funds_result,
+                    }
                 );
             },
             Some(friend_public_key) => {
@@ -228,13 +250,11 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
 
                 let response_send_funds_result = ResponseSendFundsResult::Failure(failure_send_funds.reporting_public_key);
-                self.funder_tasks.push(
-                    FunderTask::ResponseReceived(
-                        ResponseReceived {
-                            request_id: pending_request.request_id,
-                            result: response_send_funds_result,
-                        }
-                    )
+                self.add_response_received(
+                    ResponseReceived {
+                        request_id: pending_request.request_id,
+                        result: response_send_funds_result,
+                    }
                 );
 
                 self
@@ -292,32 +312,27 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                receive_move_token_error: ReceiveMoveTokenError) -> Result<Self, !> {
 
         let friend = self.get_friend(&remote_public_key).unwrap();
+        let directional = match &friend.channel_status {
+            ChannelStatus::Consistent(directional) => directional,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
         // Send an InconsistencyError message to remote side:
-        let reset_token = friend.directional.calc_channel_reset_token();
-        let balance_for_reset = friend.directional
-            .balance_for_reset();
+        let local_reset_terms = directional.get_reset_terms();
 
-        let reset_terms = ResetTerms {
-            reset_token: reset_token.clone(),
-            balance_for_reset,
-        };
-
-        let inconsistency_error = FriendInconsistencyError {
-            reset_token,
-            balance_for_reset,
-        };
-
-        self.funder_tasks.push(
-            FunderTask::FriendMessage((remote_public_key.clone(),
-                FriendMessage::InconsistencyError(inconsistency_error))));
+        self.add_outgoing_comm(FunderOutgoingComm::FriendMessage((remote_public_key.clone(),
+                FriendMessage::InconsistencyError(local_reset_terms.clone()))));
 
         // Keep outgoing InconsistencyError message details in memory:
-        let friend_mutation = FriendMutation::SetInconsistencyStatus(InconsistencyStatus::Outgoing(reset_terms));
+        let friend_mutation = FriendMutation::SetChannelStatus((local_reset_terms, None));
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
 
+
+        // Cancel all internal pending requests inside token channel:
+        let fself = await!(self.cancel_local_pending_requests(
+            remote_public_key.clone()))?;
         // Cancel all pending requests to this friend:
-        let fself = await!(self.cancel_pending_requests(
+        let fself = await!(fself.cancel_pending_requests(
                 remote_public_key.clone()))?;
         let fself = await!(fself.cancel_pending_user_requests(
                 remote_public_key.clone()))?;
@@ -325,21 +340,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         Ok(fself)
     }
 
-
-
-    /// Clear all pending inconsistency errors if exist
-    fn clear_inconsistency_status(&mut self,
-                               remote_public_key: &PublicKey) {
-
-        let friend = self.get_friend(remote_public_key).unwrap();
-        if let InconsistencyStatus::Empty = friend.inconsistency_status {
-            return;
-        }
-
-        let friend_mutation = FriendMutation::SetInconsistencyStatus(InconsistencyStatus::Empty);
-        let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-        self.apply_mutation(messenger_mutation);
-    }
 
     /// Handle success with incoming move token.
     #[async]
@@ -388,38 +388,29 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             None => Err(HandleFriendError::FriendDoesNotExist),
         }?;
 
-        // Check if the channel is inconsistent.
-        // This means that the remote side has sent an InconsistencyError message in the past.
-        // In this case, we are not willing to accept new messages from the remote side until the
-        // inconsistency is resolved.
-        // TODO: Is this the correct behaviour?
-        /*
-        if let TokenChannelStatus::Inconsistent { .. } 
-                    = token_channel_slot.tc_status {
-            return Ok(self);
+        let directional = match &friend.channel_status {
+            ChannelStatus::Consistent(directional) => directional,
+            ChannelStatus::Inconsistent((local_reset_terms, _)) => {
+                self.try_reset_channel(&remote_public_key, 
+                                       &local_reset_terms.clone(),
+                                       &friend_move_token_request.friend_move_token);
+                return Ok(self);
+            }
         };
-        */
 
-        let mut fself = await!(self.check_reset_channel(remote_public_key.clone(), 
-                                           friend_move_token_request.friend_move_token.clone()))?;
-
-        let friend = fself.get_friend(&remote_public_key).unwrap();
-
-        let receive_move_token_res = friend.directional.simulate_receive_move_token(
+        // We will only consider move token messages if we are in a consistent state:
+        let receive_move_token_res = directional.simulate_receive_move_token(
             friend_move_token_request.friend_move_token);
-
         let token_wanted = friend_move_token_request.token_wanted;
-
-        fself.clear_inconsistency_status(&remote_public_key);
 
         Ok(match receive_move_token_res {
             Ok(receive_move_token_output) => {
-                await!(fself.handle_move_token_success(remote_public_key.clone(),
+                await!(self.handle_move_token_success(remote_public_key.clone(),
                                              receive_move_token_output,
                                              token_wanted))?
             },
             Err(receive_move_token_error) => {
-                await!(fself.handle_move_token_error(remote_public_key,
+                await!(self.handle_move_token_error(remote_public_key,
                                              receive_move_token_error))?
             },
         })
@@ -428,7 +419,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     #[async]
     fn handle_inconsistency_error(self, 
                                   remote_public_key: PublicKey,
-                                  friend_inconsistency_error: FriendInconsistencyError)
+                                  remote_reset_terms: ResetTerms)
                                     -> Result<Self, HandleFriendError> {
 
         // Make sure that friend exists:
@@ -443,100 +434,34 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let mut fself = await!(fself.cancel_pending_user_requests(
                 remote_public_key.clone()))?;
 
-        // Save incoming inconsistency details:
-        let new_in_reset_terms = ResetTerms {
-            reset_token: friend_inconsistency_error.reset_token.clone(),
-            balance_for_reset: friend_inconsistency_error.balance_for_reset,
-        };
+        // Save remote incoming inconsistency details:
+        let new_remote_reset_terms = remote_reset_terms;
 
         // Obtain information about our reset terms:
         let friend = fself.get_friend(&remote_public_key).unwrap();
-        let directional = &friend.directional;
-        let reset_token = directional.calc_channel_reset_token();
-        let balance_for_reset = directional.balance_for_reset();
-
-        let new_out_reset_terms = ResetTerms {
-            reset_token: reset_token.clone(),
-            balance_for_reset,
+        let new_local_reset_terms = match &friend.channel_status {
+            ChannelStatus::Consistent(directional) => directional.get_reset_terms(),
+            ChannelStatus::Inconsistent((local_reset_terms, _)) => local_reset_terms.clone(),
         };
 
         // Check if we should send an outgoing inconsistency message:
-        let should_send_outgoing = match &friend.inconsistency_status {
-            InconsistencyStatus::Empty => {
-                let friend_mutation = FriendMutation::SetInconsistencyStatus(
-                    InconsistencyStatus::IncomingOutgoing((new_in_reset_terms, new_out_reset_terms)));
-                let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-                fself.apply_mutation(messenger_mutation);
-                true
-            },
-            InconsistencyStatus::Outgoing(out_reset_terms) => {
-                assert_eq!(new_out_reset_terms, *out_reset_terms);
-                let friend_mutation = FriendMutation::SetInconsistencyStatus(
-                    InconsistencyStatus::IncomingOutgoing((new_in_reset_terms, out_reset_terms.clone())));
-                let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-                fself.apply_mutation(messenger_mutation);
-                false
-            },
-            InconsistencyStatus::IncomingOutgoing((in_reset_terms, out_reset_terms)) => {
-                assert_eq!(new_out_reset_terms, *out_reset_terms);
-                let friend_mutation = FriendMutation::SetInconsistencyStatus(
-                    InconsistencyStatus::IncomingOutgoing((new_in_reset_terms, out_reset_terms.clone())));
-                let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-                fself.apply_mutation(messenger_mutation);
-                false
-            },
+        let should_send_outgoing = match &friend.channel_status {
+            ChannelStatus::Consistent(_) => true,
+            ChannelStatus::Inconsistent(_) => false,
         };
+
+        let friend_mutation = FriendMutation::SetChannelStatus(
+            (new_local_reset_terms.clone(), Some(new_remote_reset_terms)));
+        let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+        fself.apply_mutation(messenger_mutation);
 
         // Send an outgoing inconsistency message if required:
         if should_send_outgoing {
-            let inconsistency_error = FriendInconsistencyError {
-                reset_token: reset_token.clone(),
-                balance_for_reset,
-            };
-
-            fself.add_task(
-                FunderTask::FriendMessage((remote_public_key.clone(),
-                    FriendMessage::InconsistencyError(inconsistency_error))));
+            fself.add_outgoing_comm(FunderOutgoingComm::FriendMessage((remote_public_key.clone(),
+                    FriendMessage::InconsistencyError(new_local_reset_terms))));
         }
         Ok(fself)
     }
-
-
-    /*
-    fn handle_request_token(&mut self, 
-                            remote_public_key: &PublicKey,
-                            last_token: ChannelToken)
-                                    -> Result<(), HandleFriendError> {
-        // Find friend:
-        let friend = match self.get_friend(&remote_public_key) {
-            Some(friend) => Ok(friend),
-            None => Err(HandleFriendError::FriendDoesNotExist),
-        }?;
-
-        // If remote side has the token, we ignore the request:
-        let new_token = match &friend.directional.direction {
-            MoveTokenDirection::Outgoing(_) => Err(HandleFriendError::TokenNotOwned),
-            MoveTokenDirection::Incoming(new_token) => Ok(new_token),
-        }?;
-
-        if *new_token != last_token {
-            return Err(HandleFriendError::IncorrectLastToken);
-        }
-
-        match friend.inconsistency_status {
-            InconsistencyStatus::Empty => Ok(()),
-            InconsistencyStatus::Outgoing(_) |
-            InconsistencyStatus::IncomingOutgoing(_) => 
-                Err(HandleFriendError::TokenChannelInconsistent)
-        }?;
-
-        // Compose an empty friend_move_token message and send it to the remote side:
-        let move_token_sent = self.send_friend_move_token(
-            &remote_public_key, Vec::new()).unwrap();
-
-        Ok(())
-    }
-    */
 
     #[async]
     pub fn handle_friend_message(mut self, 
@@ -553,8 +478,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let mut fself = match friend_message {
             FriendMessage::MoveTokenRequest(friend_move_token_request) =>
                 await!(self.handle_move_token_request(remote_public_key.clone(), friend_move_token_request)),
-            FriendMessage::InconsistencyError(friend_inconsistency_error) => {
-                await!(self.handle_inconsistency_error(remote_public_key.clone(), friend_inconsistency_error))
+            FriendMessage::InconsistencyError(remote_reset_terms) => {
+                await!(self.handle_inconsistency_error(remote_public_key.clone(), remote_reset_terms))
             }
         }?;
 

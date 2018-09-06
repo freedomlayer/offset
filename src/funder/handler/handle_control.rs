@@ -10,7 +10,7 @@ use crypto::rand_values::RandValue;
 use super::super::token_channel::types::TcMutation;
 use super::super::token_channel::directional::{DirectionalMutation, 
     MoveTokenDirection};
-use super::super::friend::{FriendState, FriendMutation, InconsistencyStatus};
+use super::super::friend::{FriendState, FriendMutation, ChannelStatus};
 use super::super::state::{FunderMutation, FunderState};
 use super::{MutableFunderHandler, 
     MAX_MOVE_TOKEN_LENGTH};
@@ -19,8 +19,8 @@ use super::super::types::{RequestsStatus, FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel,
     SetFriendAddr, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
     ReceiptAck, FriendsRoute, FriendMoveToken, IncomingControlMessage,
-    FriendTcOp, ChannelToken, InvoiceId, FunderTask, ResponseReceived,
-    FriendMessage, ChannelerConfig};
+    FriendTcOp, ChannelToken, InvoiceId, ResponseReceived,
+    FriendMessage, ChannelerConfig, FunderOutgoingComm, FunderOutgoingControl};
 use super::sender::SendMode;
 
 // TODO: Should be an argument of the Funder:
@@ -39,6 +39,7 @@ pub enum HandleControlError {
     ReceiptDoesNotExist,
     UserRequestInvalid,
     FriendNotReady,
+    BlockedByFreezeGuard,
 }
 
 
@@ -71,22 +72,23 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let friend = self.get_friend(&reset_friend_channel.friend_public_key)
             .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-        let in_reset_terms = match &friend.inconsistency_status {
-            InconsistencyStatus::Empty | 
-            InconsistencyStatus::Outgoing(_) => return Err(HandleControlError::NotInvitedToReset),
-            InconsistencyStatus::IncomingOutgoing((in_reset_terms, _out_reset_terms)) => {
-                if (in_reset_terms.reset_token != reset_friend_channel.current_token)  {
-                    return Err(HandleControlError::ResetTokenMismatch);
+        let remote_reset_terms = match &friend.channel_status {
+            ChannelStatus::Consistent(_) => Err(HandleControlError::NotInvitedToReset),
+            ChannelStatus::Inconsistent((_, None)) => Err(HandleControlError::NotInvitedToReset),
+            ChannelStatus::Inconsistent((_, Some(remote_reset_terms))) => {
+                if (remote_reset_terms.reset_token != reset_friend_channel.current_token)  {
+                    Err(HandleControlError::ResetTokenMismatch)
+                } else {
+                    Ok(remote_reset_terms)
                 }
-                in_reset_terms
-            }
-        };
+            },
+        }?;
 
         let rand_nonce = RandValue::new(&*self.rng);
         let friend_move_token = FriendMoveToken {
             operations: Vec::new(), 
             // No operations are required for a reset move token
-            old_token: in_reset_terms.reset_token.clone(),
+            old_token: remote_reset_terms.reset_token.clone(),
             rand_nonce,
         };
 
@@ -111,7 +113,7 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         // Notify Channeler:
         let channeler_config = ChannelerConfig::AddFriend(
             (friend_public_key.clone(), friend_address.clone()));
-        self.funder_tasks.push(FunderTask::ChannelerConfig(channeler_config));
+        self.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
 
     }
 
@@ -121,7 +123,7 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         // Notify Channeler:
         let channeler_config = ChannelerConfig::RemoveFriend(
             friend_public_key.clone());
-        self.funder_tasks.push(FunderTask::ChannelerConfig(channeler_config));
+        self.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
     }
 
     fn control_add_friend(&mut self, add_friend: AddFriend<A>) 
@@ -252,7 +254,7 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 request_id: user_request_send_funds.request_id,
                 result: ResponseSendFundsResult::Success(receipt.clone()),
             };
-            self.funder_tasks.push(FunderTask::ResponseReceived(response_received));
+            self.add_response_received(response_received);
             return Ok(());
         }
 
@@ -269,9 +271,9 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         if (route.len() < 2) || !route.is_cycle_free() {
             return Err(HandleControlError::InvalidRoute);
         }
-        let friend_public_key = &route.public_keys[1];
+        let friend_public_key = route.public_keys[1].clone();
 
-        let friend = match self.get_friend(friend_public_key) {
+        let friend = match self.get_friend(&friend_public_key) {
             Some(friend) => Ok(friend),
             None => Err(HandleControlError::FriendDoesNotExist),
         }?;
@@ -288,8 +290,13 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             }
         }
 
+        let directional = match &friend.channel_status {
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+            ChannelStatus::Consistent(directional) => directional
+        };
+
         // Check if there is an onging request with the same request_id with this specific friend:
-        if friend.directional
+        if directional
             .token_channel
             .state()
             .pending_requests
@@ -303,7 +310,13 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             return Err(HandleControlError::PendingUserRequestsFull);
         }
 
-        let friend_mutation = FriendMutation::PushBackPendingUserRequest(user_request_send_funds.clone());
+        let mut request_send_funds = user_request_send_funds.to_request();
+        self.add_local_freezing_link(&mut request_send_funds);
+        if self.ephemeral.freeze_guard.verify_freezing_links(&request_send_funds).is_some() {
+            return Err(HandleControlError::BlockedByFreezeGuard);
+        }
+
+        let friend_mutation = FriendMutation::PushBackPendingUserRequest(request_send_funds);
         let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
         self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed);
@@ -323,7 +336,7 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                     request_id: user_request_send_funds.request_id,
                     result: ResponseSendFundsResult::Failure(self.state.local_public_key.clone()),
                 };
-                self.funder_tasks.push(FunderTask::ResponseReceived(response_received));
+                self.add_response_received(response_received);
                 e
             })
     }

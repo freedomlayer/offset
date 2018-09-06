@@ -11,11 +11,11 @@ use super::super::state::{FunderState, FunderMutation};
 use super::super::types::{FriendTcOp, RequestSendFunds, 
     ResponseSendFunds, FailureSendFunds, 
     FriendMoveToken, RequestsStatus, FriendMoveTokenRequest,
-    FunderTask, FriendMessage};
+    FriendMessage, FunderOutgoingComm};
 use super::super::token_channel::outgoing::{OutgoingTokenChannel, QueueOperationFailure,
     QueueOperationError};
 
-use super::super::friend::{FriendMutation, ResponseOp, InconsistencyStatus};
+use super::super::friend::{FriendMutation, ResponseOp, ChannelStatus};
 
 use super::super::token_channel::directional::{DirectionalMutation, 
     MoveTokenDirection, SetDirection};
@@ -67,17 +67,23 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
         let friend = self.get_friend(remote_public_key).unwrap();
 
         // Set remote_max_debt if needed:
-        let remote_max_debt = friend
-            .directional
-            .remote_max_debt();
+        let remote_max_debt = match &friend.channel_status {
+            ChannelStatus::Consistent(directional) => directional,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        }.remote_max_debt();
+
 
         if friend.wanted_remote_max_debt != remote_max_debt {
             ops_batch.add(FriendTcOp::SetRemoteMaxDebt(friend.wanted_remote_max_debt))?;
         }
 
+        let directional = match &friend.channel_status {
+            ChannelStatus::Consistent(directional) => directional,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
+
         // Open or close requests is needed:
-        let local_requests_status = &friend
-            .directional
+        let local_requests_status = &directional
             .token_channel
             .state()
             .requests_status
@@ -123,8 +129,8 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
 
         // Send as many pending user requests as possible:
         let mut pending_user_requests = friend.pending_user_requests.clone();
-        while let Some(user_request_send_funds) = pending_user_requests.pop_front() {
-            let request_op = FriendTcOp::RequestSendFunds(user_request_send_funds.to_request());
+        while let Some(request_send_funds) = pending_user_requests.pop_front() {
+            let request_op = FriendTcOp::RequestSendFunds(request_send_funds);
             ops_batch.add(request_op)?;
             let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
             let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
@@ -138,14 +144,19 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
                                remote_public_key: &PublicKey) {
 
         let friend = self.get_friend(remote_public_key).unwrap();
-        let friend_move_token_request = match &friend.directional.direction {
+        let directional = match &friend.channel_status {
+            ChannelStatus::Consistent(directional) => directional,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
+
+        let friend_move_token_request = match &directional.direction {
             MoveTokenDirection::Outgoing(friend_move_token_request) => friend_move_token_request.clone(),
             MoveTokenDirection::Incoming(_) => unreachable!(),
         };
 
         // Transmit the current outgoing message:
-        self.add_task(
-            FunderTask::FriendMessage((remote_public_key.clone(),
+        self.add_outgoing_comm(FunderOutgoingComm::FriendMessage(
+            (remote_public_key.clone(),
                 FriendMessage::MoveTokenRequest(friend_move_token_request))));
     }
 
@@ -156,7 +167,11 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
 
 
         let friend = self.get_friend(remote_public_key).unwrap();
-        let mut out_tc = friend.directional
+        let directional = match &friend.channel_status {
+            ChannelStatus::Consistent(directional) => directional,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
+        let mut out_tc = directional
             .begin_outgoing_move_token().unwrap();
 
         for op in operations {
@@ -184,9 +199,13 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
         let friend = self.get_friend(remote_public_key).unwrap();
 
         let rand_nonce = RandValue::new(&*self.rng);
+        let directional = match &friend.channel_status {
+            ChannelStatus::Consistent(directional) => directional,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
         let friend_move_token = FriendMoveToken {
             operations,
-            old_token: friend.directional.new_token().clone(),
+            old_token: directional.new_token().clone(),
             rand_nonce,
         };
 
@@ -197,12 +216,16 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
         self.apply_mutation(messenger_mutation);
 
         let friend = self.get_friend(remote_public_key).unwrap();
+        let directional = match &friend.channel_status {
+            ChannelStatus::Consistent(directional) => directional,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
         let friend_move_token_request = 
-            friend.directional.get_outgoing_move_token().unwrap();
+            directional.get_outgoing_move_token().unwrap();
 
         // Add a task for sending the outgoing move token:
-        self.add_task(
-            FunderTask::FriendMessage((remote_public_key.clone(),
+        self.add_outgoing_comm(FunderOutgoingComm::FriendMessage(
+            (remote_public_key.clone(),
                 FriendMessage::MoveTokenRequest(friend_move_token_request))));
 
         Ok(())
@@ -223,7 +246,11 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
                                   send_mode: SendMode) -> bool {
 
         let friend = self.get_friend(remote_public_key).unwrap();
-        let mut out_tc = friend.directional
+        let directional = match &friend.channel_status {
+            ChannelStatus::Consistent(directional) => directional,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
+        let mut out_tc = directional
             .begin_outgoing_move_token().unwrap();
 
         let mut ops_batch = OperationsBatch::new(MAX_MOVE_TOKEN_LENGTH);
@@ -248,15 +275,12 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
         let friend = self.get_friend(remote_public_key).unwrap();
 
         // We do not send messages if we are in an inconsistent status:
-        match friend.inconsistency_status {
-            InconsistencyStatus::Empty => {},
-            InconsistencyStatus::Outgoing(_) |
-            InconsistencyStatus::IncomingOutgoing(_) => return,
+        let directional = match &friend.channel_status {
+            ChannelStatus::Consistent(directional) => directional,
+            ChannelStatus::Inconsistent(_) => return,
         };
 
-        let new_token = friend.directional.new_token();
-
-        match &friend.directional.direction {
+        match &directional.direction {
             MoveTokenDirection::Incoming(_) => {
                 // We have the token. 
                 // Send as many operations as possible to remote side:
@@ -270,6 +294,8 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
                     let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
                     let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
                     self.apply_mutation(messenger_mutation);
+
+                    // TODO: Should we set outgoing_move_token.token_wanted = true here?
 
                     self.transmit_outgoing(remote_public_key);
                 }

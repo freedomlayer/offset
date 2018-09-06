@@ -17,12 +17,15 @@ use crypto::identity::PublicKey;
 use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError};
 use self::handle_friend::HandleFriendError;
+use self::handle_liveness::HandleLivenessError;
 use super::token_channel::directional::{ReceiveMoveTokenError};
 use super::types::{FriendMoveToken, FriendsRoute, 
     IncomingControlMessage, IncomingLivenessMessage, ChannelToken,
-    FriendMoveTokenRequest, FunderTask, FunderMessage};
+    FriendMoveTokenRequest, FunderOutgoing, FunderIncoming,
+    FunderOutgoingComm, FunderOutgoingControl, FunderIncomingComm,
+    ResponseReceived};
 use super::ephemeral::FunderEphemeral;
-use super::friend::{FriendState, InconsistencyStatus};
+use super::friend::{FriendState, ChannelStatus};
 
 use super::messages::{FunderCommand, ResponseSendFundsResult};
 
@@ -35,13 +38,14 @@ const MAX_MOVE_TOKEN_LENGTH: usize = 0x1000;
 pub enum FunderHandlerError {
     HandleControlError(HandleControlError),
     HandleFriendError(HandleFriendError),
-    HandleLivenessError(!),
+    HandleLivenessError(HandleLivenessError),
 }
 
 pub struct FunderHandlerOutput<A: Clone> {
     pub ephemeral: FunderEphemeral,
     pub mutations: Vec<FunderMutation<A>>,
-    pub tasks: Vec<FunderTask<A>>,
+    pub outgoing_comms: Vec<FunderOutgoingComm<A>>,
+    pub responses_received: Vec<ResponseReceived>,
 }
 
 pub struct MutableFunderHandler<A:Clone,R> {
@@ -50,7 +54,8 @@ pub struct MutableFunderHandler<A:Clone,R> {
     pub security_module_client: SecurityModuleClient,
     pub rng: Rc<R>,
     mutations: Vec<FunderMutation<A>>,
-    funder_tasks: Vec<FunderTask<A>>,
+    outgoing_comms: Vec<FunderOutgoingComm<A>>,
+    responses_received: Vec<ResponseReceived>,
 }
 
 impl<A:Clone,R> MutableFunderHandler<A,R> {
@@ -66,7 +71,8 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
         FunderHandlerOutput {
             ephemeral: self.ephemeral,
             mutations: self.mutations,
-            tasks: self.funder_tasks,
+            outgoing_comms: self.outgoing_comms,
+            responses_received: self.responses_received,
         }
     }
 
@@ -76,25 +82,34 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
         self.mutations.push(messenger_mutation);
     }
 
-    pub fn add_task(&mut self, messenger_task: FunderTask<A>) {
-        self.funder_tasks.push(messenger_task);
+    pub fn add_outgoing_comm(&mut self, outgoing_comm: FunderOutgoingComm<A>) {
+        self.outgoing_comms.push(outgoing_comm);
+    }
+
+    pub fn add_response_received(&mut self, response_received: ResponseReceived) {
+        self.responses_received.push(response_received);
     }
 
     /// Find the originator of a pending local request.
     /// This should be a pending remote request at some other friend.
-    /// Returns the public key of a friend. If we are the origin of this request, the function return None.
+    /// Returns the public key of a friend. If we are the origin of this request, the function returns None.
     ///
     /// TODO: We need to change this search to be O(1) in the future. Possibly by maintaining a map
     /// between request_id and (friend_public_key, friend).
     pub fn find_request_origin(&self, request_id: &Uid) -> Option<&PublicKey> {
         for (friend_public_key, friend) in self.state.get_friends() {
-            if friend.directional
-                .token_channel
-                .state()
-                .pending_requests
-                .pending_remote_requests
-                .contains_key(request_id) {
-                    return Some(friend_public_key)
+            match &friend.channel_status {
+                ChannelStatus::Inconsistent(_) => continue,
+                ChannelStatus::Consistent(directional) => {
+                    if directional
+                        .token_channel
+                        .state()
+                        .pending_requests
+                        .pending_remote_requests
+                        .contains_key(request_id) {
+                            return Some(friend_public_key)
+                    }
+                },
             }
         }
         None
@@ -107,10 +122,9 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
         if !self.ephemeral.liveness.is_online(friend_public_key) {
             return false;
         }
-        match friend.inconsistency_status {
-            InconsistencyStatus::Empty => true,
-            InconsistencyStatus::Outgoing(_) |
-            InconsistencyStatus::IncomingOutgoing(_) => false,
+        match friend.channel_status {
+            ChannelStatus::Consistent(_) => true,
+            ChannelStatus::Inconsistent(_) => false,
         }
     }
 
@@ -127,7 +141,8 @@ fn gen_mutable<A:Clone, R: SecureRandom>(security_module_client: SecurityModuleC
         security_module_client,
         rng,
         mutations: Vec::new(),
-        funder_tasks: Vec::new(),
+        outgoing_comms: Vec::new(),
+        responses_received: Vec::new(),
     }
 }
 
@@ -137,7 +152,7 @@ pub fn funder_handle_message<A: Clone + 'static, R: SecureRandom + 'static>(
                       rng: Rc<R>,
                       funder_state: FunderState<A>,
                       funder_ephemeral: FunderEphemeral,
-                      funder_message: FunderMessage<A>) 
+                      funder_incoming: FunderIncoming<A>) 
         -> Result<FunderHandlerOutput<A>, FunderHandlerError> {
 
     let mut mutable_handler = gen_mutable(security_module_client.clone(),
@@ -147,23 +162,27 @@ pub fn funder_handle_message<A: Clone + 'static, R: SecureRandom + 'static>(
 
     let state = funder_state.clone();
     let ephemeral = funder_ephemeral.clone();
-    let mutable_handler = match funder_message {
-        FunderMessage::Init =>  {
+    let mutable_handler = match funder_incoming {
+        FunderIncoming::Init =>  {
             mutable_handler.handle_init();
             mutable_handler
         },
-        FunderMessage::Liveness(liveness_message) =>
-            await!(mutable_handler
-                .handle_liveness_message(liveness_message))
-                .map_err(FunderHandlerError::HandleLivenessError)?,
-        FunderMessage::Control(control_message) => 
+        FunderIncoming::Control(control_message) =>
             await!(mutable_handler
                 .handle_control_message(control_message))
                 .map_err(FunderHandlerError::HandleControlError)?,
-        FunderMessage::Friend((origin_public_key, friend_message)) => 
-            await!(mutable_handler
-                .handle_friend_message(origin_public_key, friend_message))
-                .map_err(FunderHandlerError::HandleFriendError)?,
+        FunderIncoming::Comm(incoming_comm) => {
+            match incoming_comm {
+                FunderIncomingComm::Liveness(liveness_message) =>
+                    await!(mutable_handler
+                        .handle_liveness_message(liveness_message))
+                        .map_err(FunderHandlerError::HandleLivenessError)?,
+                FunderIncomingComm::Friend((origin_public_key, friend_message)) => 
+                    await!(mutable_handler
+                        .handle_friend_message(origin_public_key, friend_message))
+                        .map_err(FunderHandlerError::HandleFriendError)?,
+            }
+        },
     };
     Ok(mutable_handler.done())
 }

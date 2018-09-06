@@ -440,7 +440,7 @@ pub struct FriendInconsistencyError {
 #[allow(unused)]
 pub enum FriendMessage {
     MoveTokenRequest(FriendMoveTokenRequest),
-    InconsistencyError(FriendInconsistencyError),
+    InconsistencyError(ResetTerms),
 }
 
 
@@ -454,22 +454,23 @@ pub enum ChannelerConfig<A> {
     RemoveFriend(PublicKey),
 }
 
-/// An incoming message to the Funder:
-pub enum FunderMessage<A> {
-    Init,
+pub enum FunderIncomingComm {
     Liveness(IncomingLivenessMessage),
-    Control(IncomingControlMessage<A>),
     Friend((PublicKey, FriendMessage)),
 }
 
-#[allow(unused)]
-pub enum FunderTask<A: Clone> {
-    FriendMessage((PublicKey, FriendMessage)),
-    ChannelerConfig(ChannelerConfig<A>),
-    ResponseReceived(ResponseReceived),
-    Report(FunderReport<A>),
+/// An incoming message to the Funder:
+pub enum FunderIncoming<A> {
+    Init,
+    Control(IncomingControlMessage<A>),
+    Comm(FunderIncomingComm),
 }
 
+#[allow(unused)]
+pub enum FunderOutgoing<A: Clone> {
+    Control(FunderOutgoingControl<A>),
+    Comm(FunderOutgoingComm<A>),
+}
 
 pub enum FunderOutgoingControl<A: Clone> {
     ResponseReceived(ResponseReceived),
@@ -479,4 +480,10 @@ pub enum FunderOutgoingControl<A: Clone> {
 pub enum FunderOutgoingComm<A> {
     FriendMessage((PublicKey, FriendMessage)),
     ChannelerConfig(ChannelerConfig<A>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResetTerms {
+    pub reset_token: ChannelToken,
+    pub balance_for_reset: i128,
 }

@@ -10,9 +10,8 @@ use self::state::FunderState;
 use self::ephemeral::FunderEphemeral;
 use self::handler::{funder_handle_message, 
     FunderHandlerOutput, FunderHandlerError};
-use self::types::{FunderMessage, ResponseReceived,
-                    FunderOutgoingControl, FunderOutgoingComm,
-                    FunderTask};
+use self::types::{FunderOutgoing, FunderIncoming, ResponseReceived,
+                    FunderOutgoingControl, FunderOutgoingComm};
 
 use security_module::client::SecurityModuleClient;
 
@@ -41,7 +40,7 @@ struct Funder<A: Clone, R> {
     rng: Rc<R>,
     funder_state: FunderState<A>,
     funder_ephemeral: FunderEphemeral,
-    incoming_messages: mpsc::Receiver<FunderMessage<A>>,
+    incoming_messages: mpsc::Receiver<FunderIncoming<A>>,
     outgoing_control: mpsc::Sender<FunderOutgoingControl<A>>,
     outgoing_comm: mpsc::Sender<FunderOutgoingComm<A>>,
 }
@@ -88,24 +87,25 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> Funder<A,R> {
             };
             // TODO; Handle output here:
             // - Send mutations to database.
+            unimplemented!();
+            
 
-
-            for funder_task in handler_output.tasks {
-                match funder_task {
-                    FunderTask::FriendMessage((dest_public_key, friend_message)) => {},
-                    FunderTask::ChannelerConfig(channeler_config) => {},
-                    FunderTask::ResponseReceived(channeler_config) => {},
-                    FunderTask::Report(channeler_config) => {},
-                }
+            // - Send outgoing communication messages:     
+            //      - ChannelerConfig
+            //      - FriendMessage
+            for outgoing_comm in handler_output.outgoing_comms {
+                unimplemented!();
             }
 
             // - Send outgoing control messages:
             //      - ResponseReceived,
             //      - StateUpdate,
+            for response_received in handler_output.responses_received {
+                unimplemented!();
+            }
 
-            // - Send outgoing communication messages:     
-            //      - ChannelerConfig
-            //      - FriendMessage
+            // Send a Report message through the outgoing control:
+
             unimplemented!();
 
         }
