@@ -4,7 +4,10 @@
 [![codecov](https://codecov.io/gh/kamyuentse/cswitch/branch/master/graph/badge.svg?token=8wnbKAjDFl)](https://codecov.io/gh/kamyuentse/cswitch)
 [![Gitter chat](https://badges.gitter.im/freedomlayer/cswitch.svg)](https://gitter.im/freedomlayer/cswitch)
 
-A Credit Switching engine written in Rust.
+**Credit Switching** is a decentralized payment infrastructure, relying on real
+world trust between people. CSwitch is a Credit Switching engine written in Rust.
+
+CSwitch is still a work in progress, and is not yet ready for use in production.
 
 ## Setting up development environment
 
