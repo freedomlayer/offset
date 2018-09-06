@@ -169,13 +169,11 @@ impl FreezeGuard {
         let my_index = request_send_funds.route.pk_to_index(&self.local_public_key).unwrap();
         // TODO: Do we ever get here as the destination of the request_send_funds?
         let next_index = my_index.checked_add(1).unwrap();
-        let next_public_key = request_send_funds.route
-            .index_to_pk(next_index).unwrap().clone();
+        assert_eq!(next_index, request_send_funds.freeze_links.len());
 
         let route_len = usize_to_u32(request_send_funds.route.len()).unwrap();
         let credit_calc = CreditCalculator::new(route_len,
                                                 request_send_funds.dest_payment);
-
 
         let two_pow_128 = BigUint::new(vec![0x1u32, 0x0u32, 0x0u32, 0x0u32, 0x0u32]);
 
