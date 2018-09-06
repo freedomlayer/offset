@@ -24,22 +24,25 @@ Also, we need the Rust development toolchain.
 
 - Install Rust development toolchain, we recommend [rustup](https://rustup.rs).
 - Install SQLite3:
-    - For Ubuntu user, run `sudo apt install libsqlite3-dev`
-    - For MacOS user, the SQLite3 is part of the system
+    - On Ubuntu, run: `sudo apt install libsqlite3-dev`
+    - On MacOS SQLite3 is part of the system
 - Install capnproto:
-    - For Ubuntu user, run `sudo apt install capnproto`
-    - For MacOS user, it can be installed via Homebrew: `brew install canpnp`
+    - On Ubuntu, run: `sudo apt install capnproto`
+    - On MacOS, run: `brew install canpnp`
 
 ### Note for the toolchain version
 
-Currently we pinned the version of `Rust` and `clippy`, the newest version we used
-can be found in `.travis.yml`.
+We currently pin the version of `Rust` and `clippy`, the current version in
+use can be found in `.travis.yml`. We do this because things tend to break very
+often when using the latest nightly version.
 
 You can run `rustup override set nightly-YYYY-MM-DD` to pinned Rust toolchain version
-under the root of the project, and `cargo install clippy --rev <commit hash>` to do
-the same for `clippy`.
+under the root of the project. 
 
-## Code of conduct
+To install [clippy](https://github.com/rust-lang-nursery/rust-clippy) which
+matches the installed Rust toolchain, run:
 
-Before you open a PR, all test should passed, also check the output of `clippy`,
-promise error free and make the warning as little as possible.
+```bash
+rustup update
+rustup component add clippy-preview
+```
