@@ -39,6 +39,7 @@ pub enum HandleControlError {
     ReceiptDoesNotExist,
     UserRequestInvalid,
     FriendNotReady,
+    BlockedByFreezeGuard,
 }
 
 
@@ -270,9 +271,9 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         if (route.len() < 2) || !route.is_cycle_free() {
             return Err(HandleControlError::InvalidRoute);
         }
-        let friend_public_key = &route.public_keys[1];
+        let friend_public_key = route.public_keys[1].clone();
 
-        let friend = match self.get_friend(friend_public_key) {
+        let friend = match self.get_friend(&friend_public_key) {
             Some(friend) => Ok(friend),
             None => Err(HandleControlError::FriendDoesNotExist),
         }?;
@@ -309,7 +310,13 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             return Err(HandleControlError::PendingUserRequestsFull);
         }
 
-        let friend_mutation = FriendMutation::PushBackPendingUserRequest(user_request_send_funds.clone());
+        let mut request_send_funds = user_request_send_funds.to_request();
+        self.add_local_freezing_link(&mut request_send_funds);
+        if self.ephemeral.freeze_guard.verify_freezing_links(&request_send_funds).is_some() {
+            return Err(HandleControlError::BlockedByFreezeGuard);
+        }
+
+        let friend_mutation = FriendMutation::PushBackPendingUserRequest(request_send_funds);
         let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
         self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed);
