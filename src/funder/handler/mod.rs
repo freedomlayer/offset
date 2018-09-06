@@ -54,8 +54,8 @@ pub struct MutableFunderHandler<A:Clone,R> {
     pub security_module_client: SecurityModuleClient,
     pub rng: Rc<R>,
     mutations: Vec<FunderMutation<A>>,
-    pub outgoing_comms: Vec<FunderOutgoingComm<A>>,
-    pub responses_received: Vec<ResponseReceived>,
+    outgoing_comms: Vec<FunderOutgoingComm<A>>,
+    responses_received: Vec<ResponseReceived>,
 }
 
 impl<A:Clone,R> MutableFunderHandler<A,R> {
