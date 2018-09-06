@@ -22,7 +22,8 @@ use super::token_channel::directional::{ReceiveMoveTokenError};
 use super::types::{FriendMoveToken, FriendsRoute, 
     IncomingControlMessage, IncomingLivenessMessage, ChannelToken,
     FriendMoveTokenRequest, FunderOutgoing, FunderIncoming,
-    FunderOutgoingComm, FunderOutgoingControl, FunderIncomingComm};
+    FunderOutgoingComm, FunderOutgoingControl, FunderIncomingComm,
+    ResponseReceived};
 use super::ephemeral::FunderEphemeral;
 use super::friend::{FriendState, ChannelStatus};
 
@@ -43,7 +44,8 @@ pub enum FunderHandlerError {
 pub struct FunderHandlerOutput<A: Clone> {
     pub ephemeral: FunderEphemeral,
     pub mutations: Vec<FunderMutation<A>>,
-    pub outgoings: Vec<FunderOutgoing<A>>,
+    pub outgoing_comms: Vec<FunderOutgoingComm<A>>,
+    pub responses_received: Vec<ResponseReceived>,
 }
 
 pub struct MutableFunderHandler<A:Clone,R> {
@@ -52,7 +54,8 @@ pub struct MutableFunderHandler<A:Clone,R> {
     pub security_module_client: SecurityModuleClient,
     pub rng: Rc<R>,
     mutations: Vec<FunderMutation<A>>,
-    outgoings: Vec<FunderOutgoing<A>>,
+    pub outgoing_comms: Vec<FunderOutgoingComm<A>>,
+    pub responses_received: Vec<ResponseReceived>,
 }
 
 impl<A:Clone,R> MutableFunderHandler<A,R> {
@@ -68,7 +71,8 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
         FunderHandlerOutput {
             ephemeral: self.ephemeral,
             mutations: self.mutations,
-            outgoings: self.outgoings,
+            outgoing_comms: self.outgoing_comms,
+            responses_received: self.responses_received,
         }
     }
 
@@ -79,11 +83,11 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
     }
 
     pub fn add_outgoing_comm(&mut self, outgoing_comm: FunderOutgoingComm<A>) {
-        self.outgoings.push(FunderOutgoing::Comm(outgoing_comm));
+        self.outgoing_comms.push(outgoing_comm);
     }
 
-    pub fn add_outgoing_control(&mut self, outgoing_control: FunderOutgoingControl<A>) {
-        self.outgoings.push(FunderOutgoing::Control(outgoing_control));
+    pub fn add_response_received(&mut self, response_received: ResponseReceived) {
+        self.responses_received.push(response_received);
     }
 
     /// Find the originator of a pending local request.
@@ -137,7 +141,8 @@ fn gen_mutable<A:Clone, R: SecureRandom>(security_module_client: SecurityModuleC
         security_module_client,
         rng,
         mutations: Vec::new(),
-        outgoings: Vec::new(),
+        outgoing_comms: Vec::new(),
+        responses_received: Vec::new(),
     }
 }
 

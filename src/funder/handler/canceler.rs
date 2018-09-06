@@ -118,7 +118,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                         request_id: pending_local_request.request_id,
                         result: ResponseSendFundsResult::Failure(fself.state.local_public_key.clone()),
                     };
-                    fself.add_outgoing_control(FunderOutgoingControl::ResponseReceived(response_received));
+                    fself.add_response_received(response_received);
                 },            
             };
 
@@ -158,7 +158,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                         request_id: pending_request.request_id,
                         result: ResponseSendFundsResult::Failure(fself.state.local_public_key.clone()),
                     };
-                    fself.add_outgoing_control(FunderOutgoingControl::ResponseReceived(response_received));
+                    fself.add_response_received(response_received);
                 }, 
             };
         }
@@ -184,7 +184,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 request_id: pending_user_request.request_id,
                 result: ResponseSendFundsResult::Failure(fself.state.local_public_key.clone()),
             };
-            fself.add_outgoing_control(FunderOutgoingControl::ResponseReceived(response_received));
+            fself.add_response_received(response_received);
         }
         Ok(fself)
     }

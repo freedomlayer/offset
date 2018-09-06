@@ -87,22 +87,25 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> Funder<A,R> {
             };
             // TODO; Handle output here:
             // - Send mutations to database.
+            unimplemented!();
+            
 
-
-            for funder_outgoing in handler_output.outgoings {
-                match funder_outgoing {
-                    FunderOutgoing::Control(outgoing_control) => {},
-                    FunderOutgoing::Comm(outgoing_comm) => {},
-                }
+            // - Send outgoing communication messages:     
+            //      - ChannelerConfig
+            //      - FriendMessage
+            for outgoing_comm in handler_output.outgoing_comms {
+                unimplemented!();
             }
 
             // - Send outgoing control messages:
             //      - ResponseReceived,
             //      - StateUpdate,
+            for response_received in handler_output.responses_received {
+                unimplemented!();
+            }
 
-            // - Send outgoing communication messages:     
-            //      - ChannelerConfig
-            //      - FriendMessage
+            // Send a Report message through the outgoing control:
+
             unimplemented!();
 
         }

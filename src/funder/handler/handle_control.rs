@@ -254,7 +254,7 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 request_id: user_request_send_funds.request_id,
                 result: ResponseSendFundsResult::Success(receipt.clone()),
             };
-            self.add_outgoing_control(FunderOutgoingControl::ResponseReceived(response_received));
+            self.add_response_received(response_received);
             return Ok(());
         }
 
@@ -336,7 +336,7 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                     request_id: user_request_send_funds.request_id,
                     result: ResponseSendFundsResult::Failure(self.state.local_public_key.clone()),
                 };
-                self.add_outgoing_control(FunderOutgoingControl::ResponseReceived(response_received));
+                self.add_response_received(response_received);
                 e
             })
     }

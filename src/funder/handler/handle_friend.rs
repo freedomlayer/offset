@@ -218,12 +218,12 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                               &pending_request);
 
                 let response_send_funds_result = ResponseSendFundsResult::Success(receipt);
-                self.add_outgoing_control(FunderOutgoingControl::ResponseReceived(
+                self.add_response_received(
                     ResponseReceived {
                         request_id: pending_request.request_id,
                         result: response_send_funds_result,
                     }
-                ));
+                );
             },
             Some(friend_public_key) => {
                 // Queue this response message to another token channel:
@@ -250,13 +250,11 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
 
                 let response_send_funds_result = ResponseSendFundsResult::Failure(failure_send_funds.reporting_public_key);
-                self.add_outgoing_control(
-                    FunderOutgoingControl::ResponseReceived(
-                        ResponseReceived {
-                            request_id: pending_request.request_id,
-                            result: response_send_funds_result,
-                        }
-                    )
+                self.add_response_received(
+                    ResponseReceived {
+                        request_id: pending_request.request_id,
+                        result: response_send_funds_result,
+                    }
                 );
 
                 self
