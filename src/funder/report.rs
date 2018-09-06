@@ -2,7 +2,7 @@ use im::hashmap::HashMap as ImHashMap;
 
 use crypto::identity::PublicKey;
 
-use super::friend::{FriendState, InconsistencyStatus};
+use super::friend::{FriendState, ResetTerms, ChannelStatus};
 use super::state::FunderState;
 use super::types::{RequestsStatus, FriendStatus};
 use super::token_channel::types::{TcBalance, TcRequestsStatus, TokenChannel};
@@ -28,10 +28,15 @@ pub struct DirectionalTcReport {
 }
 
 #[derive(Clone)]
+pub enum ChannelStatusReport {
+    Inconsistent((ResetTerms, Option<ResetTerms>)), // local_reset_terms, remote_reset_terms
+    Consistent(DirectionalTcReport),
+}
+
+#[derive(Clone)]
 pub struct FriendReport<A> {
     pub opt_remote_address: Option<A>, 
-    pub directional: DirectionalTcReport,
-    pub inconsistency_status: InconsistencyStatus,
+    pub channel_status: ChannelStatusReport,
     pub wanted_remote_max_debt: u128,
     pub wanted_local_requests_status: RequestsStatus,
     pub num_pending_responses: usize,
@@ -58,20 +63,26 @@ fn create_tc_report(token_channel: &TokenChannel) -> TcReport {
 }
 
 fn create_friend_report<A: Clone>(friend_state: &FriendState<A>) -> FriendReport<A> {
-    let direction = match friend_state.directional.direction {
-        MoveTokenDirection::Incoming(_) => DirectionReport::Incoming,
-        MoveTokenDirection::Outgoing(_) => DirectionReport::Outgoing,
+    let channel_status = match friend_state.channel_status {
+        ChannelStatus::Inconsistent(reset_terms_tuple) => ChannelStatusReport::Inconsistent(reset_terms_tuple),
+        ChannelStatus::Consistent(directional) => {
+            let direction = match directional.direction {
+                MoveTokenDirection::Incoming(_) => DirectionReport::Incoming,
+                MoveTokenDirection::Outgoing(_) => DirectionReport::Outgoing,
+            };
+            let directional = DirectionalTcReport {
+                direction,
+                token_channel: create_tc_report(&friend_state.directional.token_channel),
+            };
+            ChannelStatusReport::Consistent(directional)
+        },
     };
 
-    let directional = DirectionalTcReport {
-        direction,
-        token_channel: create_tc_report(&friend_state.directional.token_channel),
-    };
+
 
     FriendReport {
         opt_remote_address: friend_state.opt_remote_address.clone(),
-        directional,
-        inconsistency_status: friend_state.inconsistency_status.clone(),
+        channel_status,
         wanted_remote_max_debt: friend_state.wanted_remote_max_debt,
         wanted_local_requests_status: friend_state.wanted_local_requests_status.clone(),
         num_pending_responses: friend_state.pending_responses.len(),
