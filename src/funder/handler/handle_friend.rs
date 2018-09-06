@@ -295,10 +295,13 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                receive_move_token_error: ReceiveMoveTokenError) -> Result<Self, !> {
 
         let friend = self.get_friend(&remote_public_key).unwrap();
+        let directional = match friend.channel_status {
+            ChannelStatus::Consistent(directional) => directional,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
         // Send an InconsistencyError message to remote side:
-        let reset_token = friend.directional.calc_channel_reset_token();
-        let balance_for_reset = friend.directional
-            .balance_for_reset();
+        let reset_token = directional.calc_channel_reset_token();
+        let balance_for_reset = directional.balance_for_reset();
 
         let reset_terms = ResetTerms {
             reset_token: reset_token.clone(),
@@ -315,7 +318,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 FriendMessage::InconsistencyError(inconsistency_error))));
 
         // Keep outgoing InconsistencyError message details in memory:
-        let friend_mutation = FriendMutation::SetInconsistencyStatus(InconsistencyStatus::Outgoing(reset_terms));
+        let friend_mutation = FriendMutation::SetChannelStatus((reset_terms, None));
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
 
@@ -330,6 +333,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
 
 
+    /*
     /// Clear all pending inconsistency errors if exist
     fn clear_inconsistency_status(&mut self,
                                remote_public_key: &PublicKey) {
@@ -343,6 +347,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
     }
+    */
+
 
     /// Handle success with incoming move token.
     #[async]
@@ -447,48 +453,33 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 remote_public_key.clone()))?;
 
         // Save incoming inconsistency details:
-        let new_in_reset_terms = ResetTerms {
+        let new_remote_reset_terms = ResetTerms {
             reset_token: friend_inconsistency_error.reset_token.clone(),
             balance_for_reset: friend_inconsistency_error.balance_for_reset,
         };
 
         // Obtain information about our reset terms:
         let friend = fself.get_friend(&remote_public_key).unwrap();
-        let directional = &friend.directional;
-        let reset_token = directional.calc_channel_reset_token();
-        let balance_for_reset = directional.balance_for_reset();
-
-        let new_out_reset_terms = ResetTerms {
-            reset_token: reset_token.clone(),
-            balance_for_reset,
+        let new_local_reset_terms = match friend.channel_status {
+            ChannelStatus::Consistent(directional) => 
+                // TODO; Maybe add a directional.reset_terms() method.
+                ResetTerms {
+                    reset_token: directional.calc_channel_reset_token(),
+                    balance_for_reset: directional.balance_for_reset(),
+                },
+            ChannelStatus::Inconsistent((local_reset_terms, _)) => local_reset_terms
         };
 
         // Check if we should send an outgoing inconsistency message:
-        let should_send_outgoing = match &friend.inconsistency_status {
-            InconsistencyStatus::Empty => {
-                let friend_mutation = FriendMutation::SetInconsistencyStatus(
-                    InconsistencyStatus::IncomingOutgoing((new_in_reset_terms, new_out_reset_terms)));
-                let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-                fself.apply_mutation(messenger_mutation);
-                true
-            },
-            InconsistencyStatus::Outgoing(out_reset_terms) => {
-                assert_eq!(new_out_reset_terms, *out_reset_terms);
-                let friend_mutation = FriendMutation::SetInconsistencyStatus(
-                    InconsistencyStatus::IncomingOutgoing((new_in_reset_terms, out_reset_terms.clone())));
-                let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-                fself.apply_mutation(messenger_mutation);
-                false
-            },
-            InconsistencyStatus::IncomingOutgoing((in_reset_terms, out_reset_terms)) => {
-                assert_eq!(new_out_reset_terms, *out_reset_terms);
-                let friend_mutation = FriendMutation::SetInconsistencyStatus(
-                    InconsistencyStatus::IncomingOutgoing((new_in_reset_terms, out_reset_terms.clone())));
-                let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-                fself.apply_mutation(messenger_mutation);
-                false
-            },
+        let should_send_outgoing = match &friend.channel_status {
+            ChannelStatus::Consistent(_) => true,
+            ChannelStatus::Inconsistent(_) => false,
         };
+
+        let friend_mutation = FriendMutation::SetChannelStatus(
+            ChannelStatus::Inconsistent((new_local_reset_terms, Some(new_remote_reset_terms))));
+        let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+        fself.apply_mutation(messenger_mutation);
 
         // Send an outgoing inconsistency message if required:
         if should_send_outgoing {
