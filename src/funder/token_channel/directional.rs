@@ -212,6 +212,13 @@ impl DirectionalTokenChannel {
         }
     }
 
+    pub fn is_outgoing(&self) -> bool {
+        match self.direction {
+            MoveTokenDirection::Incoming(_) => false,
+            MoveTokenDirection::Outgoing(_) => true,
+        }
+    }
+
     pub fn mutate(&mut self, d_mutation: &DirectionalMutation) {
         match d_mutation {
             DirectionalMutation::TcMutation(tc_mutation) => {
