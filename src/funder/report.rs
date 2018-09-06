@@ -2,9 +2,9 @@ use im::hashmap::HashMap as ImHashMap;
 
 use crypto::identity::PublicKey;
 
-use super::friend::{FriendState, ResetTerms, ChannelStatus};
+use super::friend::{FriendState, ChannelStatus};
 use super::state::FunderState;
-use super::types::{RequestsStatus, FriendStatus};
+use super::types::{RequestsStatus, FriendStatus, ResetTerms};
 use super::token_channel::types::{TcBalance, TcRequestsStatus, TokenChannel};
 use super::token_channel::directional::MoveTokenDirection; 
 

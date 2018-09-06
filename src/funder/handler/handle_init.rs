@@ -2,11 +2,10 @@ use futures::prelude::{async, await};
 use ring::rand::SecureRandom;
 
 use super::MutableFunderHandler;
-use super::super::friend::ResetTerms;
 use super::super::token_channel::directional::MoveTokenDirection;
 use super::super::types::{FunderTask, FriendMessage,
                             FriendInconsistencyError, ChannelerConfig,
-                            FriendStatus};
+                            FriendStatus, ResetTerms};
 
 pub enum HandleInitError {
 }

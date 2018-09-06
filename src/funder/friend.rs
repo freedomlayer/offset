@@ -7,16 +7,10 @@ use super::token_channel::directional::{DirectionalMutation, MoveTokenDirection}
 use super::types::{FriendTcOp, FriendStatus, 
     RequestsStatus, RequestSendFunds, FriendMoveToken,
     ResponseSendFunds, FailureSendFunds, UserRequestSendFunds,
-    ChannelToken};
+    ChannelToken, ResetTerms};
 use super::token_channel::directional::DirectionalTokenChannel;
 
 
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResetTerms {
-    pub reset_token: ChannelToken,
-    pub balance_for_reset: i128,
-}
 
 #[derive(Clone)]
 pub enum ResponseOp {

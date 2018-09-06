@@ -26,11 +26,11 @@ use super::super::types::{RequestSendFunds, ResponseSendFunds,
     FunderFreezeLink, PkPairPosition, 
     PendingFriendRequest, Ratio, RequestsStatus, SendFundsReceipt,
     ChannelToken, FunderTask, FriendInconsistencyError,
-    FriendMessage, ResponseReceived};
+    FriendMessage, ResponseReceived, ResetTerms};
 
 use super::super::state::FunderMutation;
 use super::super::friend::{FriendState, FriendMutation, 
-    ResetTerms, ResponseOp, ChannelStatus};
+    ResponseOp, ChannelStatus};
 
 use super::super::signature_buff::{create_failure_signature_buffer, prepare_receipt};
 use super::super::messages::ResponseSendFundsResult;
@@ -303,14 +303,9 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         // Send an InconsistencyError message to remote side:
         let reset_terms = directional.get_reset_terms();
 
-        let inconsistency_error = FriendInconsistencyError {
-            reset_token: reset_terms.reset_token.clone(),
-            balance_for_reset: reset_terms.balance_for_reset,
-        };
-
         self.funder_tasks.push(
             FunderTask::FriendMessage((remote_public_key.clone(),
-                FriendMessage::InconsistencyError(inconsistency_error))));
+                FriendMessage::InconsistencyError(reset_terms.clone()))));
 
         // Keep outgoing InconsistencyError message details in memory:
         let friend_mutation = FriendMutation::SetChannelStatus((reset_terms, None));
@@ -406,7 +401,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     #[async]
     fn handle_inconsistency_error(self, 
                                   remote_public_key: PublicKey,
-                                  friend_inconsistency_error: FriendInconsistencyError)
+                                  remote_reset_terms: ResetTerms)
                                     -> Result<Self, HandleFriendError> {
 
         // Make sure that friend exists:
@@ -421,11 +416,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let mut fself = await!(fself.cancel_pending_user_requests(
                 remote_public_key.clone()))?;
 
-        // Save incoming inconsistency details:
-        let new_remote_reset_terms = ResetTerms {
-            reset_token: friend_inconsistency_error.reset_token.clone(),
-            balance_for_reset: friend_inconsistency_error.balance_for_reset,
-        };
+        // Save remote incoming inconsistency details:
+        let new_remote_reset_terms = remote_reset_terms;
 
         // Obtain information about our reset terms:
         let friend = fself.get_friend(&remote_public_key).unwrap();
@@ -447,14 +439,9 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         // Send an outgoing inconsistency message if required:
         if should_send_outgoing {
-            let inconsistency_error = FriendInconsistencyError {
-                reset_token: new_local_reset_terms.reset_token,
-                balance_for_reset: new_local_reset_terms.balance_for_reset,
-            };
-
             fself.add_task(
                 FunderTask::FriendMessage((remote_public_key.clone(),
-                    FriendMessage::InconsistencyError(inconsistency_error))));
+                    FriendMessage::InconsistencyError(new_local_reset_terms))));
         }
         Ok(fself)
     }
@@ -474,8 +461,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let mut fself = match friend_message {
             FriendMessage::MoveTokenRequest(friend_move_token_request) =>
                 await!(self.handle_move_token_request(remote_public_key.clone(), friend_move_token_request)),
-            FriendMessage::InconsistencyError(friend_inconsistency_error) => {
-                await!(self.handle_inconsistency_error(remote_public_key.clone(), friend_inconsistency_error))
+            FriendMessage::InconsistencyError(remote_reset_terms) => {
+                await!(self.handle_inconsistency_error(remote_public_key.clone(), remote_reset_terms))
             }
         }?;
 

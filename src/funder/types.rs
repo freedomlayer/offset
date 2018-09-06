@@ -440,7 +440,7 @@ pub struct FriendInconsistencyError {
 #[allow(unused)]
 pub enum FriendMessage {
     MoveTokenRequest(FriendMoveTokenRequest),
-    InconsistencyError(FriendInconsistencyError),
+    InconsistencyError(ResetTerms),
 }
 
 
@@ -479,4 +479,10 @@ pub enum FunderOutgoingControl<A: Clone> {
 pub enum FunderOutgoingComm<A> {
     FriendMessage((PublicKey, FriendMessage)),
     ChannelerConfig(ChannelerConfig<A>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResetTerms {
+    pub reset_token: ChannelToken,
+    pub balance_for_reset: i128,
 }

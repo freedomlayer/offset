@@ -15,10 +15,7 @@ use super::incoming::{ProcessOperationOutput, ProcessTransListError,
 use super::outgoing::{OutgoingTokenChannel};
 
 use super::super::types::{FriendMoveToken, ChannelToken, 
-    FriendMoveTokenRequest};
-
-// TODO: ResetTerms should move to outer types.rs
-use super::super::friend::ResetTerms;
+    FriendMoveTokenRequest, ResetTerms};
 
 
 // Prefix used for chain hashing of token channel fundss.
