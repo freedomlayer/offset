@@ -4,16 +4,19 @@
 [![codecov](https://codecov.io/gh/kamyuentse/cswitch/branch/master/graph/badge.svg?token=8wnbKAjDFl)](https://codecov.io/gh/kamyuentse/cswitch)
 [![Gitter chat](https://badges.gitter.im/freedomlayer/cswitch.svg)](https://gitter.im/freedomlayer/cswitch)
 
-A Credit Switching engine written in Rust.
+**Credit Switching** is a decentralized payment infrastructure, relying on real
+world trust between people. CSwitch is a Credit Switching engine written in Rust.
+
+CSwitch is still a work in progress, and is not yet ready for use in production.
 
 ## Setting up development environment
 
 Theoretically CSwitch should work anywhere Rust works (Windows, Linux, MacOS).
 
-### Requirement
+### Dependencies
 
 - [SQLite3][sqlite], for persistent storage.
-- [Cap'n Proto][capnp], as ser&de protocol.
+- [Cap'n Proto][capnp], for serialization and deserialization.
 
 [sqlite]: https://www.sqlite.org
 [capnp]: https://capnproto.org
@@ -30,14 +33,19 @@ Also, we need the Rust development toolchain.
     - On Ubuntu, run: `sudo apt install capnproto`
     - On MacOS, run: `brew install canpnp`
 
-### Note for the toolchain version
+### Pinned toolchain version
 
 We currently pin the version of `Rust` and `clippy`, the current version in
 use can be found in `.travis.yml`. We do this because things tend to break very
 often when using the latest nightly version.
 
-You can run `rustup override set nightly-YYYY-MM-DD` to pinned Rust toolchain version
-under the root of the project. 
+To use a pinned rust toolchain with this project, run:
+
+```bash
+rustup override set nightly-YYYY-MM-DD
+```
+
+Where the current `YYYY-MM-DD` can be found by looking at `.travis.yml`.
 
 To install [clippy](https://github.com/rust-lang-nursery/rust-clippy) which
 matches the installed Rust toolchain, run:
