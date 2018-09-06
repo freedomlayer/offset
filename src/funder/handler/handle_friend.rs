@@ -72,46 +72,62 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
     }
 
-    fn add_local_freezing_link(&self, request_send_funds: &mut RequestSendFunds) {
+    pub fn add_local_freezing_link(&self, request_send_funds: &mut RequestSendFunds) {
         let index = request_send_funds.route.pk_to_index(self.state.get_local_public_key())
             .unwrap();
-        let prev_index = index.checked_sub(1).unwrap();
+        assert_eq!(request_send_funds.freeze_links.len(), index);
         let next_index = index.checked_add(1).unwrap();
-        
-        let prev_pk = request_send_funds.route.index_to_pk(prev_index).unwrap();
         let next_pk = request_send_funds.route.index_to_pk(next_index).unwrap();
-
-        let prev_friend = self.state.get_friends().get(&prev_pk).unwrap();
         let next_friend = self.state.get_friends().get(&next_pk).unwrap();
-
-        let prev_directional = match &prev_friend.channel_status {
-            ChannelStatus::Consistent(directional) => directional,
-            ChannelStatus::Inconsistent(_) => unreachable!(),
-        };
         let next_directional = match &next_friend.channel_status {
             ChannelStatus::Consistent(directional) => directional,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
-
-        let total_trust = self.state.get_total_trust();
-
-        let prev_trust: BigUint = prev_directional.token_channel.state().balance.remote_max_debt.into();
         let forward_trust: BigUint = next_directional.token_channel.state().balance.remote_max_debt.into();
-
+        let total_trust = self.state.get_total_trust();
         let two_pow_128 = BigUint::new(vec![0x1, 0x0u32, 0x0u32, 0x0u32, 0x0u32]);
-        let numerator = (two_pow_128 * forward_trust) / (total_trust - &prev_trust);
-        let usable_ratio = match numerator.to_u128() {
-            Some(num) => Ratio::Numerator(num),
-            None => Ratio::One,
+
+        let funder_freeze_link = if index == 0 {
+            // We are the first node on the route (We initiated this request):
+            
+            let numerator = (two_pow_128 * forward_trust) / &total_trust;
+            let usable_ratio = match numerator.to_u128() {
+                Some(num) => Ratio::Numerator(num),
+                None => Ratio::One,
+            };
+
+            FunderFreezeLink {
+                shared_credits: total_trust.to_u128().unwrap_or(u128::max_value()),
+                usable_ratio,
+            }
+
+        } else {
+            // We are not the first node on the route:
+            let prev_index = index.checked_sub(1).unwrap();
+            let prev_pk = request_send_funds.route.index_to_pk(prev_index).unwrap();
+            let prev_friend = self.state.get_friends().get(&prev_pk).unwrap();
+            let prev_directional = match &prev_friend.channel_status {
+                ChannelStatus::Consistent(directional) => directional,
+                ChannelStatus::Inconsistent(_) => unreachable!(),
+            };
+
+            let prev_trust: BigUint = prev_directional.token_channel.state().balance.remote_max_debt.into();
+            let numerator = (two_pow_128 * forward_trust) / (total_trust - &prev_trust);
+            let usable_ratio = match numerator.to_u128() {
+                Some(num) => Ratio::Numerator(num),
+                None => Ratio::One,
+            };
+
+            let shared_credits = prev_trust.to_u128().unwrap_or(u128::max_value());
+            FunderFreezeLink {
+                shared_credits,
+                usable_ratio,
+            }
+
         };
 
-        let shared_credits = prev_trust.to_u128().unwrap_or(u128::max_value());
-
         // Add our freeze link
-        request_send_funds.freeze_links.push(FunderFreezeLink {
-            shared_credits,
-            usable_ratio,
-        });
+        request_send_funds.freeze_links.push(funder_freeze_link);
 
     }
 
