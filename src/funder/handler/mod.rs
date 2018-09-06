@@ -17,6 +17,7 @@ use crypto::identity::PublicKey;
 use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError};
 use self::handle_friend::HandleFriendError;
+use self::handle_liveness::HandleLivenessError;
 use super::token_channel::directional::{ReceiveMoveTokenError};
 use super::types::{FriendMoveToken, FriendsRoute, 
     IncomingControlMessage, IncomingLivenessMessage, ChannelToken,
@@ -35,7 +36,7 @@ const MAX_MOVE_TOKEN_LENGTH: usize = 0x1000;
 pub enum FunderHandlerError {
     HandleControlError(HandleControlError),
     HandleFriendError(HandleFriendError),
-    HandleLivenessError(!),
+    HandleLivenessError(HandleLivenessError),
 }
 
 pub struct FunderHandlerOutput<A: Clone> {
