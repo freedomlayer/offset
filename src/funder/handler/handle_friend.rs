@@ -57,17 +57,10 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     /// Check if channel reset is required (Remove side used the RESET token)
     /// If so, reset the channel.
     #[async]
-    fn check_reset_channel(mut self, 
+    fn try_reset_channel(mut self, 
                            friend_public_key: PublicKey,
+                           local_reset_terms: ResetTerms,
                            friend_move_token: FriendMoveToken) -> Result<Self, !> {
-
-
-        let friend = self.get_friend(&friend_public_key).unwrap();
-
-        let local_reset_terms = match &friend.channel_status {
-            ChannelStatus::Consistent(_) => return Ok(self),
-            ChannelStatus::Inconsistent((local_reset_terms, _)) => local_reset_terms,
-        };
 
         // Check if incoming message is an attempt to reset channel.
         // We can know this by checking if old_token is a special value.
@@ -387,44 +380,30 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             None => Err(HandleFriendError::FriendDoesNotExist),
         }?;
 
-        // Check if the channel is inconsistent.
-        // This means that the remote side has sent an InconsistencyError message in the past.
-        // In this case, we are not willing to accept new messages from the remote side until the
-        // inconsistency is resolved.
-        // TODO: Is this the correct behaviour?
-        /*
-        if let TokenChannelStatus::Inconsistent { .. } 
-                    = token_channel_slot.tc_status {
-            return Ok(self);
-        };
-        */
-
-        // TODO: Rewrite logic of dealing with inconsistent channel at this point.
-        unimplemented!();
-
-        let mut fself = await!(self.check_reset_channel(remote_public_key.clone(), 
-                                           friend_move_token_request.friend_move_token.clone()))?;
-
-        let friend = fself.get_friend(&remote_public_key).unwrap();
-
         let directional = match &friend.channel_status {
             ChannelStatus::Consistent(directional) => directional,
-            ChannelStatus::Inconsistent(_) => unreachable!(),
+            ChannelStatus::Inconsistent((local_reset_terms, _)) => {
+                let local_reset_terms_clone = local_reset_terms.clone();
+                let fself = await!(self.try_reset_channel(remote_public_key.clone(), 
+                                           local_reset_terms_clone,
+                                           friend_move_token_request.friend_move_token.clone()))?;
+                return Ok(fself);
+            }
         };
+
+        // We will only consider move token messages if we are in a consistent state:
         let receive_move_token_res = directional.simulate_receive_move_token(
             friend_move_token_request.friend_move_token);
-
         let token_wanted = friend_move_token_request.token_wanted;
-
 
         Ok(match receive_move_token_res {
             Ok(receive_move_token_output) => {
-                await!(fself.handle_move_token_success(remote_public_key.clone(),
+                await!(self.handle_move_token_success(remote_public_key.clone(),
                                              receive_move_token_output,
                                              token_wanted))?
             },
             Err(receive_move_token_error) => {
-                await!(fself.handle_move_token_error(remote_public_key,
+                await!(self.handle_move_token_error(remote_public_key,
                                              receive_move_token_error))?
             },
         })
