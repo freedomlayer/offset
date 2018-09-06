@@ -28,7 +28,7 @@ pub enum FriendMutation<A> {
     PopFrontPendingRequest,
     PushBackPendingResponse(ResponseOp),
     PopFrontPendingResponse,
-    PushBackPendingUserRequest(UserRequestSendFunds),
+    PushBackPendingUserRequest(RequestSendFunds),
     PopFrontPendingUserRequest,
     SetStatus(FriendStatus),
     SetFriendAddr(Option<A>),
@@ -56,7 +56,7 @@ pub struct FriendState<A> {
     pub pending_requests: Vector<RequestSendFunds>,
     // Pending operations to be sent to the token channel.
     pub status: FriendStatus,
-    pub pending_user_requests: Vector<UserRequestSendFunds>,
+    pub pending_user_requests: Vector<RequestSendFunds>,
     // Request that the user has sent to this neighbor, 
     // but have not been processed yet. Bounded in size.
 }
@@ -131,8 +131,8 @@ impl<A:Clone> FriendState<A> {
             FriendMutation::PopFrontPendingResponse => {
                 let _ = self.pending_responses.pop_front();
             },
-            FriendMutation::PushBackPendingUserRequest(user_request_send_funds) => {
-                self.pending_user_requests.push_back(user_request_send_funds.clone());
+            FriendMutation::PushBackPendingUserRequest(request_send_funds) => {
+                self.pending_user_requests.push_back(request_send_funds.clone());
             },
             FriendMutation::PopFrontPendingUserRequest => {
                 let _ = self.pending_user_requests.pop_front();
