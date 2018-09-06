@@ -301,14 +301,14 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
         // Send an InconsistencyError message to remote side:
-        let reset_terms = directional.get_reset_terms();
+        let local_reset_terms = directional.get_reset_terms();
 
         self.funder_tasks.push(
             FunderTask::FriendMessage((remote_public_key.clone(),
-                FriendMessage::InconsistencyError(reset_terms.clone()))));
+                FriendMessage::InconsistencyError(local_reset_terms.clone()))));
 
         // Keep outgoing InconsistencyError message details in memory:
-        let friend_mutation = FriendMutation::SetChannelStatus((reset_terms, None));
+        let friend_mutation = FriendMutation::SetChannelStatus((local_reset_terms, None));
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
 
