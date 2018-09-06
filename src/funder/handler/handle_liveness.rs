@@ -17,6 +17,12 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         let fself = match liveness_message {
             IncomingLivenessMessage::Online(friend_public_key) => {
+                unimplemented!();
+                // TODO: If was offline before, all pending messages should be sent to this
+                // neighbor. This should be one of the following:
+                // - An InconsistencyError message
+                // - An OutgoingMoveToken
+                // - Possibly nothing, if the token channel is consistent, in incoming direction.
                 self.ephemeral.liveness.set_online(&friend_public_key);
                 self
             },
