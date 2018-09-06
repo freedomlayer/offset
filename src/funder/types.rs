@@ -454,22 +454,23 @@ pub enum ChannelerConfig<A> {
     RemoveFriend(PublicKey),
 }
 
-/// An incoming message to the Funder:
-pub enum FunderMessage<A> {
-    Init,
+pub enum FunderIncomingComm {
     Liveness(IncomingLivenessMessage),
-    Control(IncomingControlMessage<A>),
     Friend((PublicKey, FriendMessage)),
 }
 
-#[allow(unused)]
-pub enum FunderTask<A: Clone> {
-    FriendMessage((PublicKey, FriendMessage)),
-    ChannelerConfig(ChannelerConfig<A>),
-    ResponseReceived(ResponseReceived),
-    Report(FunderReport<A>),
+/// An incoming message to the Funder:
+pub enum FunderIncoming<A> {
+    Init,
+    Control(IncomingControlMessage<A>),
+    Comm(FunderIncomingComm),
 }
 
+#[allow(unused)]
+pub enum FunderOutgoing<A: Clone> {
+    Control(FunderOutgoingControl<A>),
+    Comm(FunderOutgoingComm<A>),
+}
 
 pub enum FunderOutgoingControl<A: Clone> {
     ResponseReceived(ResponseReceived),

@@ -4,7 +4,7 @@ use ring::rand::SecureRandom;
 use super::MutableFunderHandler;
 use super::super::friend::ChannelStatus;
 use super::super::types::{IncomingLivenessMessage, FriendStatus, 
-    FriendMessage, FunderTask};
+    FriendMessage, FunderOutgoingComm};
 
 #[derive(Debug)]
 pub enum HandleLivenessError {
@@ -44,8 +44,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                         }
                     },
                     ChannelStatus::Inconsistent((local_reset_terms, _)) => {
-                        self.funder_tasks.push(
-                            FunderTask::FriendMessage((friend_public_key.clone(),
+                        self.add_outgoing_comm(
+                            FunderOutgoingComm::FriendMessage((friend_public_key.clone(),
                                 FriendMessage::InconsistencyError(local_reset_terms.clone()))));
                     },
                 };

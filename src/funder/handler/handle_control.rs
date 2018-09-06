@@ -19,8 +19,8 @@ use super::super::types::{RequestsStatus, FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel,
     SetFriendAddr, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
     ReceiptAck, FriendsRoute, FriendMoveToken, IncomingControlMessage,
-    FriendTcOp, ChannelToken, InvoiceId, FunderTask, ResponseReceived,
-    FriendMessage, ChannelerConfig};
+    FriendTcOp, ChannelToken, InvoiceId, ResponseReceived,
+    FriendMessage, ChannelerConfig, FunderOutgoingComm, FunderOutgoingControl};
 use super::sender::SendMode;
 
 // TODO: Should be an argument of the Funder:
@@ -113,7 +113,7 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         // Notify Channeler:
         let channeler_config = ChannelerConfig::AddFriend(
             (friend_public_key.clone(), friend_address.clone()));
-        self.funder_tasks.push(FunderTask::ChannelerConfig(channeler_config));
+        self.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
 
     }
 
@@ -123,7 +123,7 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         // Notify Channeler:
         let channeler_config = ChannelerConfig::RemoveFriend(
             friend_public_key.clone());
-        self.funder_tasks.push(FunderTask::ChannelerConfig(channeler_config));
+        self.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
     }
 
     fn control_add_friend(&mut self, add_friend: AddFriend<A>) 
@@ -254,7 +254,7 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 request_id: user_request_send_funds.request_id,
                 result: ResponseSendFundsResult::Success(receipt.clone()),
             };
-            self.funder_tasks.push(FunderTask::ResponseReceived(response_received));
+            self.add_outgoing_control(FunderOutgoingControl::ResponseReceived(response_received));
             return Ok(());
         }
 
@@ -336,7 +336,7 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                     request_id: user_request_send_funds.request_id,
                     result: ResponseSendFundsResult::Failure(self.state.local_public_key.clone()),
                 };
-                self.funder_tasks.push(FunderTask::ResponseReceived(response_received));
+                self.add_outgoing_control(FunderOutgoingControl::ResponseReceived(response_received));
                 e
             })
     }

@@ -3,9 +3,10 @@ use ring::rand::SecureRandom;
 
 use super::MutableFunderHandler;
 use super::super::token_channel::directional::MoveTokenDirection;
-use super::super::types::{FunderTask, FriendMessage,
+use super::super::types::{FriendMessage,
                             FriendInconsistencyError, ChannelerConfig,
-                            FriendStatus, ResetTerms};
+                            FriendStatus, ResetTerms,
+                            FunderOutgoingComm};
 
 pub enum HandleInitError {
 }
@@ -53,7 +54,7 @@ impl<A: Clone, R: SecureRandom> MutableFunderHandler<A,R> {
         for enabled_friend in enabled_friends {
             // Notify Channeler:
             let channeler_config = ChannelerConfig::AddFriend(enabled_friend);
-            self.funder_tasks.push(FunderTask::ChannelerConfig(channeler_config));
+            self.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
         }
 
 

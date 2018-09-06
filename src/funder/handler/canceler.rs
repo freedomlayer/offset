@@ -4,10 +4,10 @@ use ring::rand::SecureRandom;
 use crypto::identity::{PublicKey, Signature};
 use crypto::rand_values::RandValue;
 
-use super::{MutableFunderHandler, FunderTask};
+use super::{MutableFunderHandler};
 
 use super::super::types::{RequestSendFunds, FailureSendFunds, PendingFriendRequest,
-                            ResponseReceived};
+                            ResponseReceived, FunderOutgoingControl};
 use super::super::signature_buff::{create_failure_signature_buffer, prepare_receipt};
 use super::super::friend::{FriendMutation, ResponseOp, ChannelStatus};
 use super::super::state::FunderMutation;
@@ -118,7 +118,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                         request_id: pending_local_request.request_id,
                         result: ResponseSendFundsResult::Failure(fself.state.local_public_key.clone()),
                     };
-                    fself.funder_tasks.push(FunderTask::ResponseReceived(response_received));
+                    fself.add_outgoing_control(FunderOutgoingControl::ResponseReceived(response_received));
                 },            
             };
 
@@ -158,7 +158,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                         request_id: pending_request.request_id,
                         result: ResponseSendFundsResult::Failure(fself.state.local_public_key.clone()),
                     };
-                    fself.funder_tasks.push(FunderTask::ResponseReceived(response_received));
+                    fself.add_outgoing_control(FunderOutgoingControl::ResponseReceived(response_received));
                 }, 
             };
         }
@@ -184,7 +184,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                 request_id: pending_user_request.request_id,
                 result: ResponseSendFundsResult::Failure(fself.state.local_public_key.clone()),
             };
-            fself.funder_tasks.push(FunderTask::ResponseReceived(response_received));
+            fself.add_outgoing_control(FunderOutgoingControl::ResponseReceived(response_received));
         }
         Ok(fself)
     }

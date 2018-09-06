@@ -21,7 +21,8 @@ use self::handle_liveness::HandleLivenessError;
 use super::token_channel::directional::{ReceiveMoveTokenError};
 use super::types::{FriendMoveToken, FriendsRoute, 
     IncomingControlMessage, IncomingLivenessMessage, ChannelToken,
-    FriendMoveTokenRequest, FunderTask, FunderMessage};
+    FriendMoveTokenRequest, FunderOutgoing, FunderIncoming,
+    FunderOutgoingComm, FunderOutgoingControl, FunderIncomingComm};
 use super::ephemeral::FunderEphemeral;
 use super::friend::{FriendState, ChannelStatus};
 
@@ -42,7 +43,7 @@ pub enum FunderHandlerError {
 pub struct FunderHandlerOutput<A: Clone> {
     pub ephemeral: FunderEphemeral,
     pub mutations: Vec<FunderMutation<A>>,
-    pub tasks: Vec<FunderTask<A>>,
+    pub outgoings: Vec<FunderOutgoing<A>>,
 }
 
 pub struct MutableFunderHandler<A:Clone,R> {
@@ -51,7 +52,7 @@ pub struct MutableFunderHandler<A:Clone,R> {
     pub security_module_client: SecurityModuleClient,
     pub rng: Rc<R>,
     mutations: Vec<FunderMutation<A>>,
-    funder_tasks: Vec<FunderTask<A>>,
+    outgoings: Vec<FunderOutgoing<A>>,
 }
 
 impl<A:Clone,R> MutableFunderHandler<A,R> {
@@ -67,7 +68,7 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
         FunderHandlerOutput {
             ephemeral: self.ephemeral,
             mutations: self.mutations,
-            tasks: self.funder_tasks,
+            outgoings: self.outgoings,
         }
     }
 
@@ -77,8 +78,12 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
         self.mutations.push(messenger_mutation);
     }
 
-    pub fn add_task(&mut self, messenger_task: FunderTask<A>) {
-        self.funder_tasks.push(messenger_task);
+    pub fn add_outgoing_comm(&mut self, outgoing_comm: FunderOutgoingComm<A>) {
+        self.outgoings.push(FunderOutgoing::Comm(outgoing_comm));
+    }
+
+    pub fn add_outgoing_control(&mut self, outgoing_control: FunderOutgoingControl<A>) {
+        self.outgoings.push(FunderOutgoing::Control(outgoing_control));
     }
 
     /// Find the originator of a pending local request.
@@ -132,7 +137,7 @@ fn gen_mutable<A:Clone, R: SecureRandom>(security_module_client: SecurityModuleC
         security_module_client,
         rng,
         mutations: Vec::new(),
-        funder_tasks: Vec::new(),
+        outgoings: Vec::new(),
     }
 }
 
@@ -142,7 +147,7 @@ pub fn funder_handle_message<A: Clone + 'static, R: SecureRandom + 'static>(
                       rng: Rc<R>,
                       funder_state: FunderState<A>,
                       funder_ephemeral: FunderEphemeral,
-                      funder_message: FunderMessage<A>) 
+                      funder_incoming: FunderIncoming<A>) 
         -> Result<FunderHandlerOutput<A>, FunderHandlerError> {
 
     let mut mutable_handler = gen_mutable(security_module_client.clone(),
@@ -152,23 +157,27 @@ pub fn funder_handle_message<A: Clone + 'static, R: SecureRandom + 'static>(
 
     let state = funder_state.clone();
     let ephemeral = funder_ephemeral.clone();
-    let mutable_handler = match funder_message {
-        FunderMessage::Init =>  {
+    let mutable_handler = match funder_incoming {
+        FunderIncoming::Init =>  {
             mutable_handler.handle_init();
             mutable_handler
         },
-        FunderMessage::Liveness(liveness_message) =>
-            await!(mutable_handler
-                .handle_liveness_message(liveness_message))
-                .map_err(FunderHandlerError::HandleLivenessError)?,
-        FunderMessage::Control(control_message) => 
+        FunderIncoming::Control(control_message) =>
             await!(mutable_handler
                 .handle_control_message(control_message))
                 .map_err(FunderHandlerError::HandleControlError)?,
-        FunderMessage::Friend((origin_public_key, friend_message)) => 
-            await!(mutable_handler
-                .handle_friend_message(origin_public_key, friend_message))
-                .map_err(FunderHandlerError::HandleFriendError)?,
+        FunderIncoming::Comm(incoming_comm) => {
+            match incoming_comm {
+                FunderIncomingComm::Liveness(liveness_message) =>
+                    await!(mutable_handler
+                        .handle_liveness_message(liveness_message))
+                        .map_err(FunderHandlerError::HandleLivenessError)?,
+                FunderIncomingComm::Friend((origin_public_key, friend_message)) => 
+                    await!(mutable_handler
+                        .handle_friend_message(origin_public_key, friend_message))
+                        .map_err(FunderHandlerError::HandleFriendError)?,
+            }
+        },
     };
     Ok(mutable_handler.done())
 }

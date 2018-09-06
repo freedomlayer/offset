@@ -11,7 +11,7 @@ use super::super::state::{FunderState, FunderMutation};
 use super::super::types::{FriendTcOp, RequestSendFunds, 
     ResponseSendFunds, FailureSendFunds, 
     FriendMoveToken, RequestsStatus, FriendMoveTokenRequest,
-    FunderTask, FriendMessage};
+    FriendMessage, FunderOutgoingComm};
 use super::super::token_channel::outgoing::{OutgoingTokenChannel, QueueOperationFailure,
     QueueOperationError};
 
@@ -155,8 +155,8 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
         };
 
         // Transmit the current outgoing message:
-        self.add_task(
-            FunderTask::FriendMessage((remote_public_key.clone(),
+        self.add_outgoing_comm(FunderOutgoingComm::FriendMessage(
+            (remote_public_key.clone(),
                 FriendMessage::MoveTokenRequest(friend_move_token_request))));
     }
 
@@ -224,8 +224,8 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
             directional.get_outgoing_move_token().unwrap();
 
         // Add a task for sending the outgoing move token:
-        self.add_task(
-            FunderTask::FriendMessage((remote_public_key.clone(),
+        self.add_outgoing_comm(FunderOutgoingComm::FriendMessage(
+            (remote_public_key.clone(),
                 FriendMessage::MoveTokenRequest(friend_move_token_request))));
 
         Ok(())

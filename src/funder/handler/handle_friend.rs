@@ -25,8 +25,9 @@ use super::super::types::{RequestSendFunds, ResponseSendFunds,
     FailureSendFunds, FriendMoveToken, 
     FunderFreezeLink, PkPairPosition, 
     PendingFriendRequest, Ratio, RequestsStatus, SendFundsReceipt,
-    ChannelToken, FunderTask, FriendInconsistencyError,
-    FriendMessage, ResponseReceived, ResetTerms};
+    ChannelToken, FriendInconsistencyError,
+    FriendMessage, ResponseReceived, ResetTerms,
+    FunderOutgoingControl, FunderOutgoingComm};
 
 use super::super::state::FunderMutation;
 use super::super::friend::{FriendState, FriendMutation, 
@@ -217,14 +218,12 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                               &pending_request);
 
                 let response_send_funds_result = ResponseSendFundsResult::Success(receipt);
-                self.add_task(
-                    FunderTask::ResponseReceived(
-                        ResponseReceived {
-                            request_id: pending_request.request_id,
-                            result: response_send_funds_result,
-                        }
-                    )
-                );
+                self.add_outgoing_control(FunderOutgoingControl::ResponseReceived(
+                    ResponseReceived {
+                        request_id: pending_request.request_id,
+                        result: response_send_funds_result,
+                    }
+                ));
             },
             Some(friend_public_key) => {
                 // Queue this response message to another token channel:
@@ -251,8 +250,8 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
 
                 let response_send_funds_result = ResponseSendFundsResult::Failure(failure_send_funds.reporting_public_key);
-                self.funder_tasks.push(
-                    FunderTask::ResponseReceived(
+                self.add_outgoing_control(
+                    FunderOutgoingControl::ResponseReceived(
                         ResponseReceived {
                             request_id: pending_request.request_id,
                             result: response_send_funds_result,
@@ -322,8 +321,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         // Send an InconsistencyError message to remote side:
         let local_reset_terms = directional.get_reset_terms();
 
-        self.funder_tasks.push(
-            FunderTask::FriendMessage((remote_public_key.clone(),
+        self.add_outgoing_comm(FunderOutgoingComm::FriendMessage((remote_public_key.clone(),
                 FriendMessage::InconsistencyError(local_reset_terms.clone()))));
 
         // Keep outgoing InconsistencyError message details in memory:
@@ -461,8 +459,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         // Send an outgoing inconsistency message if required:
         if should_send_outgoing {
-            fself.add_task(
-                FunderTask::FriendMessage((remote_public_key.clone(),
+            fself.add_outgoing_comm(FunderOutgoingComm::FriendMessage((remote_public_key.clone(),
                     FriendMessage::InconsistencyError(new_local_reset_terms))));
         }
         Ok(fself)

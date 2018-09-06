@@ -10,9 +10,8 @@ use self::state::FunderState;
 use self::ephemeral::FunderEphemeral;
 use self::handler::{funder_handle_message, 
     FunderHandlerOutput, FunderHandlerError};
-use self::types::{FunderMessage, ResponseReceived,
-                    FunderOutgoingControl, FunderOutgoingComm,
-                    FunderTask};
+use self::types::{FunderOutgoing, FunderIncoming, ResponseReceived,
+                    FunderOutgoingControl, FunderOutgoingComm};
 
 use security_module::client::SecurityModuleClient;
 
@@ -41,7 +40,7 @@ struct Funder<A: Clone, R> {
     rng: Rc<R>,
     funder_state: FunderState<A>,
     funder_ephemeral: FunderEphemeral,
-    incoming_messages: mpsc::Receiver<FunderMessage<A>>,
+    incoming_messages: mpsc::Receiver<FunderIncoming<A>>,
     outgoing_control: mpsc::Sender<FunderOutgoingControl<A>>,
     outgoing_comm: mpsc::Sender<FunderOutgoingComm<A>>,
 }
@@ -90,12 +89,10 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> Funder<A,R> {
             // - Send mutations to database.
 
 
-            for funder_task in handler_output.tasks {
-                match funder_task {
-                    FunderTask::FriendMessage((dest_public_key, friend_message)) => {},
-                    FunderTask::ChannelerConfig(channeler_config) => {},
-                    FunderTask::ResponseReceived(channeler_config) => {},
-                    FunderTask::Report(channeler_config) => {},
+            for funder_outgoing in handler_output.outgoings {
+                match funder_outgoing {
+                    FunderOutgoing::Control(outgoing_control) => {},
+                    FunderOutgoing::Comm(outgoing_comm) => {},
                 }
             }
 
