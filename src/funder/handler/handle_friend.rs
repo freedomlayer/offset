@@ -301,17 +301,11 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
         // Send an InconsistencyError message to remote side:
-        let reset_token = directional.calc_channel_reset_token();
-        let balance_for_reset = directional.balance_for_reset();
-
-        let reset_terms = ResetTerms {
-            reset_token: reset_token.clone(),
-            balance_for_reset,
-        };
+        let reset_terms = directional.get_reset_terms();
 
         let inconsistency_error = FriendInconsistencyError {
-            reset_token,
-            balance_for_reset,
+            reset_token: reset_terms.reset_token.clone(),
+            balance_for_reset: reset_terms.balance_for_reset,
         };
 
         self.funder_tasks.push(
@@ -436,12 +430,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         // Obtain information about our reset terms:
         let friend = fself.get_friend(&remote_public_key).unwrap();
         let new_local_reset_terms = match &friend.channel_status {
-            ChannelStatus::Consistent(directional) => 
-                // TODO; Maybe add a directional.reset_terms() method.
-                ResetTerms {
-                    reset_token: directional.calc_channel_reset_token(),
-                    balance_for_reset: directional.balance_for_reset(),
-                },
+            ChannelStatus::Consistent(directional) => directional.get_reset_terms(),
             ChannelStatus::Inconsistent((local_reset_terms, _)) => local_reset_terms.clone(),
         };
 

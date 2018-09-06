@@ -17,6 +17,9 @@ use super::outgoing::{OutgoingTokenChannel};
 use super::super::types::{FriendMoveToken, ChannelToken, 
     FriendMoveTokenRequest};
 
+// TODO: ResetTerms should move to outer types.rs
+use super::super::friend::ResetTerms;
+
 
 // Prefix used for chain hashing of token channel fundss.
 // NEXT is used for hashing for the next move token funds.
@@ -183,7 +186,7 @@ impl DirectionalTokenChannel {
     }
 
     #[allow(unused)]
-    pub fn balance_for_reset(&self) -> i128 {
+    fn balance_for_reset(&self) -> i128 {
         self.get_token_channel().balance_for_reset()
     }
 
@@ -200,9 +203,16 @@ impl DirectionalTokenChannel {
     }
 
     #[allow(unused)]
-    pub fn calc_channel_reset_token(&self) -> ChannelToken {
+    fn calc_channel_reset_token(&self) -> ChannelToken {
         calc_channel_reset_token(&self.new_token(),
                                  self.get_token_channel().balance_for_reset())
+    }
+
+    pub fn get_reset_terms(&self) -> ResetTerms {
+        ResetTerms {
+            reset_token: self.calc_channel_reset_token(),
+            balance_for_reset: self.balance_for_reset(),
+        }
     }
 
     pub fn mutate(&mut self, d_mutation: &DirectionalMutation) {
