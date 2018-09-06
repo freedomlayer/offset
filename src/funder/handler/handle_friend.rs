@@ -56,26 +56,18 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
     /// Check if channel reset is required (Remove side used the RESET token)
     /// If so, reset the channel.
-    #[async]
-    fn try_reset_channel(mut self, 
-                           friend_public_key: PublicKey,
-                           local_reset_terms: ResetTerms,
-                           friend_move_token: FriendMoveToken) -> Result<Self, !> {
+    fn try_reset_channel(&mut self, 
+                           friend_public_key: &PublicKey,
+                           local_reset_terms: &ResetTerms,
+                           friend_move_token: &FriendMoveToken) {
 
         // Check if incoming message is an attempt to reset channel.
         // We can know this by checking if old_token is a special value.
         if friend_move_token.old_token == local_reset_terms.reset_token {
             // This is a reset message. We reset the token channel:
-            let mut fself = await!(self.cancel_local_pending_requests(
-                friend_public_key.clone()))?;
-
             let friend_mutation = FriendMutation::RemoteReset;
             let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-            fself.apply_mutation(messenger_mutation);
-
-            Ok(fself)
-        } else {
-            Ok(self)
+            self.apply_mutation(messenger_mutation);
         }
 
     }
@@ -312,8 +304,12 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
 
+
+        // Cancel all internal pending requests inside token channel:
+        let fself = await!(self.cancel_local_pending_requests(
+            remote_public_key.clone()))?;
         // Cancel all pending requests to this friend:
-        let fself = await!(self.cancel_pending_requests(
+        let fself = await!(fself.cancel_pending_requests(
                 remote_public_key.clone()))?;
         let fself = await!(fself.cancel_pending_user_requests(
                 remote_public_key.clone()))?;
@@ -372,11 +368,10 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let directional = match &friend.channel_status {
             ChannelStatus::Consistent(directional) => directional,
             ChannelStatus::Inconsistent((local_reset_terms, _)) => {
-                let local_reset_terms_clone = local_reset_terms.clone();
-                let fself = await!(self.try_reset_channel(remote_public_key.clone(), 
-                                           local_reset_terms_clone,
-                                           friend_move_token_request.friend_move_token.clone()))?;
-                return Ok(fself);
+                self.try_reset_channel(&remote_public_key, 
+                                       &local_reset_terms.clone(),
+                                       &friend_move_token_request.friend_move_token);
+                return Ok(self);
             }
         };
 
