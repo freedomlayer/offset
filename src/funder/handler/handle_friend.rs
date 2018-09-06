@@ -72,15 +72,14 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
     }
 
-    /// Forward a request message to the relevant friend and token channel.
-    fn forward_request(&mut self, mut request_send_funds: RequestSendFunds) {
+    fn add_local_freezing_link(&self, request_send_funds: &mut RequestSendFunds) {
         let index = request_send_funds.route.pk_to_index(self.state.get_local_public_key())
             .unwrap();
         let prev_index = index.checked_sub(1).unwrap();
         let next_index = index.checked_add(1).unwrap();
         
         let prev_pk = request_send_funds.route.index_to_pk(prev_index).unwrap();
-        let next_pk = request_send_funds.route.index_to_pk(prev_index).unwrap();
+        let next_pk = request_send_funds.route.index_to_pk(next_index).unwrap();
 
         let prev_friend = self.state.get_friends().get(&prev_pk).unwrap();
         let next_friend = self.state.get_friends().get(&next_pk).unwrap();
@@ -114,6 +113,15 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             usable_ratio,
         });
 
+    }
+
+    /// Forward a request message to the relevant friend and token channel.
+    fn forward_request(&mut self, mut request_send_funds: RequestSendFunds) {
+        let index = request_send_funds.route.pk_to_index(self.state.get_local_public_key())
+            .unwrap();
+        let next_index = index.checked_add(1).unwrap();
+        let next_pk = request_send_funds.route.index_to_pk(next_index).unwrap();
+
         // Queue message to the relevant friend. Later this message will be queued to a specific
         // available token channel:
         let friend_mutation = FriendMutation::PushBackPendingRequest(request_send_funds.clone());
@@ -125,7 +133,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
     #[async]
     fn handle_request_send_funds(mut self, 
                                remote_public_key: PublicKey,
-                               request_send_funds: RequestSendFunds) -> Result<Self, !> {
+                               mut request_send_funds: RequestSendFunds) -> Result<Self, !> {
 
         // Find ourselves on the route. If we are not there, abort.
         let remote_index = request_send_funds.route.find_pk_pair(
@@ -158,6 +166,9 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         } else {
             self
         };
+
+        // Add our freezing link:
+        fself.add_local_freezing_link(&mut request_send_funds);
 
         // Perform DoS protection check:
         Ok(match fself.ephemeral.freeze_guard.verify_freezing_links(&request_send_funds) {
