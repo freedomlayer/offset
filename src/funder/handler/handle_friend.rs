@@ -491,43 +491,6 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         Ok(fself)
     }
 
-
-    /*
-    fn handle_request_token(&mut self, 
-                            remote_public_key: &PublicKey,
-                            last_token: ChannelToken)
-                                    -> Result<(), HandleFriendError> {
-        // Find friend:
-        let friend = match self.get_friend(&remote_public_key) {
-            Some(friend) => Ok(friend),
-            None => Err(HandleFriendError::FriendDoesNotExist),
-        }?;
-
-        // If remote side has the token, we ignore the request:
-        let new_token = match &friend.directional.direction {
-            MoveTokenDirection::Outgoing(_) => Err(HandleFriendError::TokenNotOwned),
-            MoveTokenDirection::Incoming(new_token) => Ok(new_token),
-        }?;
-
-        if *new_token != last_token {
-            return Err(HandleFriendError::IncorrectLastToken);
-        }
-
-        match friend.inconsistency_status {
-            InconsistencyStatus::Empty => Ok(()),
-            InconsistencyStatus::Outgoing(_) |
-            InconsistencyStatus::IncomingOutgoing(_) => 
-                Err(HandleFriendError::TokenChannelInconsistent)
-        }?;
-
-        // Compose an empty friend_move_token message and send it to the remote side:
-        let move_token_sent = self.send_friend_move_token(
-            &remote_public_key, Vec::new()).unwrap();
-
-        Ok(())
-    }
-    */
-
     #[async]
     pub fn handle_friend_message(mut self, 
                                    remote_public_key: PublicKey, 
