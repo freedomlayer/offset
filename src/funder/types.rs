@@ -349,12 +349,12 @@ pub struct ResetFriendChannel {
 
 pub struct SetFriendAddr<A> {
     pub friend_public_key: PublicKey,
-    pub address: Option<A>,
+    pub address: A,
 }
 
 pub struct AddFriend<A> {
     pub friend_public_key: PublicKey,
-    pub address: Option<A>,
+    pub address: A,
 }
 
 pub struct RemoveFriend {
@@ -450,7 +450,7 @@ pub struct ResponseReceived {
 }
 
 pub enum ChannelerConfig<A> {
-    AddFriend((PublicKey, Option<A>)),
+    AddFriend((PublicKey, A)),
     RemoveFriend(PublicKey),
 }
 

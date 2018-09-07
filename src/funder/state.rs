@@ -20,7 +20,7 @@ pub struct FunderState<A:Clone> {
 #[allow(unused)]
 pub enum FunderMutation<A> {
     FriendMutation((PublicKey, FriendMutation<A>)),
-    AddFriend((PublicKey, Option<A>)), // (friend_public_key, opt_address)
+    AddFriend((PublicKey, A)), // (friend_public_key, opt_address)
     RemoveFriend(PublicKey),
     AddReceipt((Uid, SendFundsReceipt)),  //(request_id, receipt)
     RemoveReceipt(Uid),

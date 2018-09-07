@@ -20,7 +20,7 @@ impl<A: Clone, R: SecureRandom> MutableFunderHandler<A,R> {
             match friend.status {
                 FriendStatus::Enable => {
                     enabled_friends.push((friend.remote_public_key.clone(),
-                        friend.opt_remote_address.clone()));
+                        friend.remote_address.clone()));
                 },
                 FriendStatus::Disable => continue,
             };
