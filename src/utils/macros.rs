@@ -22,7 +22,7 @@ impl ::std::error::Error for TryFromBytesError {
 #[macro_export]
 macro_rules! define_fixed_bytes {
     ($name:ident, $len:expr) => {
-        #[derive(Default, Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
+        #[derive(Default, Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
         pub struct $name([u8; $len]);
 
         impl $name {
