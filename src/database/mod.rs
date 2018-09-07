@@ -325,9 +325,10 @@ impl Database {
     }
 
     /// Apply a mutation over the database, and save it.
-    fn apply_mutation(&mut self, funder_mutation: FunderMutation) {
-        // TDOO:
+    fn mutate(&mut self, funder_mutation: FunderMutation) {
         // - Apply mutation to funder_state
+        self.funder_state.mutate(funder_mutation);
+        // TODO:
         // - Save the new funder_state to file, atomically.
         unimplemented!();
     }
