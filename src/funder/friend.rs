@@ -8,7 +8,7 @@ use super::types::{FriendTcOp, FriendStatus,
     RequestsStatus, RequestSendFunds, FriendMoveToken,
     ResponseSendFunds, FailureSendFunds, UserRequestSendFunds,
     ChannelToken, ResetTerms};
-use super::token_channel::directional::DirectionalTokenChannel;
+use super::token_channel::directional::DirectionalTc;
 
 
 
@@ -40,7 +40,7 @@ pub enum FriendMutation<A> {
 #[derive(Clone)]
 pub enum ChannelStatus {
     Inconsistent((ResetTerms, Option<ResetTerms>)), // local_reset_terms, remote_reset_terms
-    Consistent(DirectionalTokenChannel),
+    Consistent(DirectionalTc),
 }
 
 #[allow(unused)]
@@ -71,7 +71,7 @@ impl<A:Clone> FriendState<A> {
             local_public_key: local_public_key.clone(),
             remote_public_key: remote_public_key.clone(),
             remote_address,
-            channel_status: ChannelStatus::Consistent(DirectionalTokenChannel::new(local_public_key,
+            channel_status: ChannelStatus::Consistent(DirectionalTc::new(local_public_key,
                                            remote_public_key)),
 
             // The remote_max_debt we want to have. When possible, this will be sent to the remote
@@ -150,7 +150,7 @@ impl<A:Clone> FriendState<A> {
                     ChannelStatus::Inconsistent((local_reset_terms, None)) => unreachable!(),
                     ChannelStatus::Inconsistent((local_reset_terms, Some(remote_reset_terms))) => {
                         assert_eq!(reset_move_token.old_token, remote_reset_terms.reset_token);
-                        let directional = DirectionalTokenChannel::new_from_local_reset(
+                        let directional = DirectionalTc::new_from_local_reset(
                             &self.local_public_key,
                             &self.remote_public_key,
                             &reset_move_token,
@@ -164,7 +164,7 @@ impl<A:Clone> FriendState<A> {
                 match &self.channel_status {
                     ChannelStatus::Consistent(_) => unreachable!(),
                     ChannelStatus::Inconsistent((local_reset_terms, _)) => {
-                        let directional = DirectionalTokenChannel::new_from_remote_reset(
+                        let directional = DirectionalTc::new_from_remote_reset(
                             &self.local_public_key,
                             &self.remote_public_key,
                             &local_reset_terms.reset_token,
