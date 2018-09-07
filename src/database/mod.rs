@@ -303,20 +303,7 @@
 
 use std::string::String;
 use funder::state::{FunderMutation, FunderState};
-// use im::hashmap::HashMap as ImHashMap;
 
-/*
-struct OtherStruct {
-    a: u32,
-    b: u64,
-}
-
-#[derive(Serialize, Deserialize)]
-struct TestStruct {
-    my_hash_map: ImHashMap<u32, OtherStruct>,
-}
-
-*/
 
 #[allow(unused)]
 struct Database<A: Clone> {
