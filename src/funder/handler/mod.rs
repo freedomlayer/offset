@@ -26,6 +26,7 @@ use super::types::{FriendMoveToken, FriendsRoute,
     ResponseReceived};
 use super::ephemeral::FunderEphemeral;
 use super::friend::{FriendState, ChannelStatus};
+use super::report::create_report;
 
 use super::messages::{FunderCommand, ResponseSendFundsResult};
 
@@ -45,7 +46,7 @@ pub struct FunderHandlerOutput<A: Clone> {
     pub ephemeral: FunderEphemeral,
     pub mutations: Vec<FunderMutation<A>>,
     pub outgoing_comms: Vec<FunderOutgoingComm<A>>,
-    pub responses_received: Vec<ResponseReceived>,
+    pub outgoing_control: Vec<FunderOutgoingControl<A>>,
 }
 
 pub struct MutableFunderHandler<A:Clone,R> {
@@ -68,11 +69,23 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
     }
 
     pub fn done(self) -> FunderHandlerOutput<A> {
+        let mut outgoing_control = self.responses_received
+            .into_iter()
+            .map(FunderOutgoingControl::ResponseReceived)
+            .collect::<Vec<FunderOutgoingControl<A>>>();
+
+        // If anything is expected to change with the state, add a report to be sent through the
+        // outgoing control channel:
+        if !self.mutations.is_empty() {
+            let funder_report = create_report(&self.state);
+            outgoing_control.push(FunderOutgoingControl::Report(funder_report));
+        }
+
         FunderHandlerOutput {
             ephemeral: self.ephemeral,
             mutations: self.mutations,
             outgoing_comms: self.outgoing_comms,
-            responses_received: self.responses_received,
+            outgoing_control,
         }
     }
 
