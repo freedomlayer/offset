@@ -33,6 +33,7 @@
 //! </details>
 //!
 
+
 //use std::io;
 //use std::path::PathBuf;
 //
@@ -298,3 +299,36 @@ pub mod messages;
 //        });
 //    }
 //}
+
+
+use std::string::String;
+use funder::state::{FunderMutation, FunderState};
+
+
+struct Database {
+    /// Database file path
+    db_path: String,
+    /// Current FunderState represented by the database
+    funder_state: FunderState,
+}
+
+impl Database {
+    fn new(db_path: &str) -> Database {
+        // TODO:
+        // - Read database from file into funder_state
+        unimplemented!();
+    }
+
+    /// Get current FunderState represented by the database
+    fn state(&self) -> &FunderState {
+        &self.funder_state
+    }
+
+    /// Apply a mutation over the database, and save it.
+    fn apply_mutation(&mut self, funder_mutation: FunderMutation) {
+        // TDOO:
+        // - Apply mutation to funder_state
+        // - Save the new funder_state to file, atomically.
+        unimplemented!();
+    }
+}

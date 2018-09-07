@@ -23,7 +23,7 @@ mod credit_calc;
 mod freeze_guard;
 mod signature_buff; 
 mod friend;
-mod state;
+pub mod state;
 mod types;
 mod token_channel;
 mod handler;
