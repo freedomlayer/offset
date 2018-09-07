@@ -41,7 +41,7 @@ pub mod crypto;
 // Modules
 // pub mod app_manager;
 pub mod channeler;
-// pub mod database;
+pub mod database;
 pub mod funder;
 // pub mod networker;
 pub mod security_module;

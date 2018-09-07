@@ -43,8 +43,8 @@
 
 //pub mod types;
 
-pub mod clients;
-pub mod messages;
+// pub mod clients;
+// pub mod messages;
 
 //
 //use futures::prelude::*;
@@ -303,31 +303,46 @@ pub mod messages;
 
 use std::string::String;
 use funder::state::{FunderMutation, FunderState};
+// use im::hashmap::HashMap as ImHashMap;
 
+/*
+struct OtherStruct {
+    a: u32,
+    b: u64,
+}
 
-struct Database {
+#[derive(Serialize, Deserialize)]
+struct TestStruct {
+    my_hash_map: ImHashMap<u32, OtherStruct>,
+}
+
+*/
+
+#[allow(unused)]
+struct Database<A: Clone> {
     /// Database file path
     db_path: String,
     /// Current FunderState represented by the database
-    funder_state: FunderState,
+    funder_state: FunderState<A>,
 }
 
-impl Database {
-    fn new(db_path: &str) -> Database {
+#[allow(unused)]
+impl<A: Clone> Database<A> {
+    fn new(db_path: &str) -> Database<A> {
         // TODO:
         // - Read database from file into funder_state
         unimplemented!();
     }
 
     /// Get current FunderState represented by the database
-    fn state(&self) -> &FunderState {
+    fn state(&self) -> &FunderState<A> {
         &self.funder_state
     }
 
     /// Apply a mutation over the database, and save it.
-    fn mutate(&mut self, funder_mutation: FunderMutation) {
+    fn mutate(&mut self, mut funder_mutation: FunderMutation<A>) {
         // - Apply mutation to funder_state
-        self.funder_state.mutate(funder_mutation);
+        self.funder_state.mutate(&mut funder_mutation);
         // TODO:
         // - Save the new funder_state to file, atomically.
         unimplemented!();
