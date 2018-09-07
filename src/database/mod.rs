@@ -340,9 +340,9 @@ impl<A: Clone> Database<A> {
     }
 
     /// Apply a mutation over the database, and save it.
-    fn mutate(&mut self, mut funder_mutation: FunderMutation<A>) {
+    fn mutate(&mut self, funder_mutation: FunderMutation<A>) {
         // - Apply mutation to funder_state
-        self.funder_state.mutate(&mut funder_mutation);
+        self.funder_state.mutate(&funder_mutation);
         // TODO:
         // - Save the new funder_state to file, atomically.
         unimplemented!();
