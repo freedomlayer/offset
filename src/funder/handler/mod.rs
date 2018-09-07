@@ -45,7 +45,7 @@ pub struct FunderHandlerOutput<A: Clone> {
     pub ephemeral: FunderEphemeral,
     pub mutations: Vec<FunderMutation<A>>,
     pub outgoing_comms: Vec<FunderOutgoingComm<A>>,
-    pub responses_received: Vec<ResponseReceived>,
+    pub outgoing_control: Vec<FunderOutgoingControl<A>>,
 }
 
 pub struct MutableFunderHandler<A:Clone,R> {
@@ -68,11 +68,16 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
     }
 
     pub fn done(self) -> FunderHandlerOutput<A> {
+        let outgoing_control = self.responses_received
+            .into_iter()
+            .map(FunderOutgoingControl::ResponseReceived)
+            .collect::<Vec<FunderOutgoingControl<A>>>();
+
         FunderHandlerOutput {
             ephemeral: self.ephemeral,
             mutations: self.mutations,
             outgoing_comms: self.outgoing_comms,
-            responses_received: self.responses_received,
+            outgoing_control,
         }
     }
 

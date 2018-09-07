@@ -100,7 +100,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> Funder<A,R> {
             // - Send outgoing control messages:
             //      - ResponseReceived,
             //      - StateUpdate,
-            for response_received in handler_output.responses_received {
+            for outgoing_control in handler_output.outgoing_control {
                 unimplemented!();
             }
 
