@@ -28,7 +28,7 @@ extern crate num_bigint;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate bincode;
+extern crate serde_json;
 extern crate base64;
 
 extern crate atomicwrites;

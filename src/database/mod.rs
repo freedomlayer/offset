@@ -6,7 +6,7 @@ use std::fs::File;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use bincode;
+use serde_json;
 use atomicwrites;
 
 use funder::state::{FunderMutation, FunderState};
@@ -14,8 +14,8 @@ use funder::state::{FunderMutation, FunderState};
 pub enum DatabaseError {
     ReadError(io::Error),
     WriteError(atomicwrites::Error<io::Error>),
-    DeserializeError(bincode::Error),
-    SerializeError(bincode::Error),
+    DeserializeError(serde_json::error::Error),
+    SerializeError(serde_json::error::Error),
 }
 
 #[allow(unused)]
@@ -49,11 +49,11 @@ impl<A: Clone + Serialize + DeserializeOwned> Database<A> {
         let mut fr = File::open(&db_conn.db_path)
             .map_err(DatabaseError::ReadError)?;
 
-        let mut data = Vec::new();
-        fr.read_to_end(&mut data)
+        let mut serialized_str = String::new();
+        fr.read_to_string(&mut serialized_str)
             .map_err(DatabaseError::ReadError)?;
 
-        let funder_state: FunderState<A> = bincode::deserialize(&data)
+        let funder_state: FunderState<A> = serde_json::from_str(&serialized_str)
             .map_err(DatabaseError::DeserializeError)?;
 
         Ok(Database {
@@ -73,13 +73,13 @@ impl<A: Clone + Serialize + DeserializeOwned> Database<A> {
         self.funder_state.mutate(&funder_mutation);
 
         // Serialize the funder_state:
-        let data = bincode::serialize(&self.funder_state)
+        let serialized_str = serde_json::to_string(&self.funder_state)
             .map_err(DatabaseError::SerializeError)?;
 
         // Save the new funder_state to file, atomically:
         let af = atomicwrites::AtomicFile::new(&self.db_conn.db_path, atomicwrites::AllowOverwrite);
         af.write(|fw| {
-            fw.write_all(&data)
+            fw.write_all(serialized_str.as_bytes())
         }).map_err(DatabaseError::WriteError)?;
 
         
