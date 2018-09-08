@@ -17,7 +17,6 @@ pub fn create_response_signature_buffer(response_send_funds: &ResponseSendFunds,
 
     let mut sbuffer = Vec::new();
 
-    // TODO: Add a const for this:
     sbuffer.extend_from_slice(&hash::sha_512_256(FUND_SUCCESS_PREFIX));
 
     let mut inner_blob = Vec::new();
