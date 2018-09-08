@@ -45,6 +45,7 @@ pub struct DbCore<A: Clone> {
 impl<A: Clone + Serialize + DeserializeOwned> DbCore<A> {
     pub fn new(db_conn: DbConn) -> Result<DbCore<A>, DbCoreError> {
 
+        // TODO: Should create a new funder_state here if does not exist?
         let mut fr = File::open(&db_conn.db_path)
             .map_err(DbCoreError::ReadError)?;
 
