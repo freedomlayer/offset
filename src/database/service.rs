@@ -14,9 +14,9 @@ use super::core::{DbCore, DbCoreError};
 
 
 pub struct IncomingMutationsBatch<A> {
-    funder_mutations: Vec<FunderMutation<A>>,
+    pub funder_mutations: Vec<FunderMutation<A>>,
     /// A oneshot to respond that the mutation was applied and the new state was saved.
-    ack_sender: oneshot::Sender<()>,
+    pub ack_sender: oneshot::Sender<()>,
 }
 
 pub enum DbServiceError {
