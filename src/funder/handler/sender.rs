@@ -294,9 +294,6 @@ impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
                     let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
                     let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
                     self.apply_mutation(messenger_mutation);
-
-                    // TODO: Should we set outgoing_move_token.token_wanted = true here?
-
                     self.transmit_outgoing(remote_public_key);
                 }
             },
