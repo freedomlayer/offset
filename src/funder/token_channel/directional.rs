@@ -28,7 +28,7 @@ const TOKEN_RESET: &[u8] = b"RESET";
 
 
 /// Indicate the direction of the move token funds.
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum MoveTokenDirection {
     Incoming(ChannelToken), // new_token
     Outgoing(FriendMoveTokenRequest),
@@ -47,7 +47,7 @@ pub enum DirectionalMutation {
 }
 
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct DirectionalTc {
     pub direction: MoveTokenDirection,
     pub token_channel: TokenChannel,

@@ -12,7 +12,7 @@ use super::token_channel::directional::DirectionalTc;
 
 
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum ResponseOp {
     Response(ResponseSendFunds),
     Failure(FailureSendFunds),
@@ -37,14 +37,14 @@ pub enum FriendMutation<A> {
     RemoteReset,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum ChannelStatus {
     Inconsistent((ResetTerms, Option<ResetTerms>)), // local_reset_terms, remote_reset_terms
     Consistent(DirectionalTc),
 }
 
 #[allow(unused)]
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct FriendState<A> {
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,

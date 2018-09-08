@@ -26,20 +26,20 @@ define_fixed_bytes!(ChannelToken, CHANNEL_TOKEN_LEN);
 
 
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum FriendStatus {
     Enable = 1,
     Disable = 0,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RequestsStatus {
     Open,
     Closed,
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FriendTcOp {
     EnableRequests,
     DisableRequests,
@@ -49,7 +49,7 @@ pub enum FriendTcOp {
     FailureSendFunds(FailureSendFunds),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct PendingFriendRequest {
     pub request_id: Uid,
     pub route: FriendsRoute,
@@ -58,7 +58,7 @@ pub struct PendingFriendRequest {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResponseSendFunds {
     pub request_id: Uid,
     pub rand_nonce: RandValue,
@@ -67,13 +67,13 @@ pub struct ResponseSendFunds {
 
 
 /// The ratio can be numeration / T::max_value(), or 1
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Ratio<T> {
     One,
     Numerator(T),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunderFreezeLink {
     pub shared_credits: u128,
     pub usable_ratio: Ratio<u128>
@@ -89,7 +89,7 @@ pub struct UserRequestSendFunds {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RequestSendFunds {
     pub request_id: Uid,
     pub route: FriendsRoute,
@@ -99,7 +99,7 @@ pub struct RequestSendFunds {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FailureSendFunds {
     pub request_id: Uid,
     pub reporting_public_key: PublicKey,
@@ -108,14 +108,14 @@ pub struct FailureSendFunds {
 }
 
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct FriendsRoute {
     pub public_keys: Vec<PublicKey>,
 }
 
 
 #[allow(unused)]
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct FriendMoveToken {
     pub operations: Vec<FriendTcOp>,
     pub old_token: ChannelToken,
@@ -396,7 +396,7 @@ pub enum IncomingLivenessMessage {
 
 /// A `SendFundsReceipt` is received if a `RequestSendFunds` is successful.
 /// It can be used a proof of payment for a specific `invoice_id`.
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SendFundsReceipt {
     pub response_hash: HashResult,
     // = sha512/256(requestId || sha512/256(route) || randNonce)
@@ -423,7 +423,7 @@ impl SendFundsReceipt {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct FriendMoveTokenRequest {
     pub friend_move_token: FriendMoveToken,
     // Do we want the remote side to return the token:
@@ -482,7 +482,7 @@ pub enum FunderOutgoingComm<A> {
     ChannelerConfig(ChannelerConfig<A>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResetTerms {
     pub reset_token: ChannelToken,
     pub balance_for_reset: i128,

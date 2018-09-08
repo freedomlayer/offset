@@ -3,13 +3,13 @@ mod service_client;
 mod stream_mediator;
 mod nonce_window;
 #[macro_use]
-mod big_array;
-#[macro_use]
 mod macros;
 // pub mod trans_hashmap;
 // pub mod trans_hashmap_mut;
 pub mod int_convert;
 pub mod safe_arithmetic;
+#[macro_use]
+pub mod big_array;
 
 pub use self::close_handle::CloseHandle;
 pub use self::service_client::{ServiceClient, ServiceClientError};

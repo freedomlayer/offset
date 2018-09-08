@@ -18,7 +18,7 @@ use super::super::types::RequestsStatus;
 pub const MAX_FUNDER_DEBT: u128 = (1 << 127) - 1;
 
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct TcIdents {
     /// My public key
     pub local_public_key: PublicKey,
@@ -26,7 +26,7 @@ pub struct TcIdents {
     pub remote_public_key: PublicKey,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct TcBalance {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
@@ -53,7 +53,7 @@ impl TcBalance {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct TcPendingRequests {
     /// Pending requests that were opened locally and not yet completed
     pub pending_local_requests: ImHashMap<Uid, PendingFriendRequest>,
@@ -70,7 +70,7 @@ impl TcPendingRequests {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct TcRequestsStatus {
     // Local is open/closed for incoming requests:
     pub local: RequestsStatus,
@@ -88,7 +88,7 @@ impl TcRequestsStatus {
 }
 
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct TokenChannelState {
     pub idents: TcIdents,
     pub balance: TcBalance,
@@ -96,7 +96,7 @@ pub struct TokenChannelState {
     pub requests_status: TcRequestsStatus,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct TokenChannel {
     state: TokenChannelState,
 }

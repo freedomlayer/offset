@@ -10,7 +10,7 @@ use super::types::SendFundsReceipt;
 
 
 #[allow(unused)]
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct FunderState<A:Clone> {
     pub local_public_key: PublicKey,
     pub friends: ImHashMap<PublicKey, FriendState<A>>,

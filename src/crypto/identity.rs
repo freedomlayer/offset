@@ -3,14 +3,15 @@ extern crate untrusted;
 use ring::signature;
 
 use super::CryptoError;
+use utils::big_array::BigArray;
 
 pub const PUBLIC_KEY_LEN: usize = 32;
 pub const SIGNATURE_LEN: usize = 64;
 
 define_fixed_bytes!(PublicKey, PUBLIC_KEY_LEN);
 
-#[derive(Clone)]
-pub struct Signature([u8; SIGNATURE_LEN]);
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Signature(#[serde(with = "BigArray")] [u8; SIGNATURE_LEN]);
 
 impl Signature {
     pub fn zero() -> Signature {
