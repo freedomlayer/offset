@@ -18,7 +18,7 @@ extern crate futures_cpupool;
 extern crate log;
 extern crate rand;
 extern crate ring;
-extern crate rusqlite;
+// extern crate rusqlite;
 extern crate tokio_core;
 extern crate tokio_io;
 extern crate async_mutex;
