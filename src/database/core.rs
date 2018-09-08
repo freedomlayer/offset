@@ -43,7 +43,7 @@ pub struct DbCore<A: Clone> {
 
 #[allow(unused)]
 impl<A: Clone + Serialize + DeserializeOwned> DbCore<A> {
-    fn new(db_conn: DbConn) -> Result<DbCore<A>, DbCoreError> {
+    pub fn new(db_conn: DbConn) -> Result<DbCore<A>, DbCoreError> {
 
         let mut fr = File::open(&db_conn.db_path)
             .map_err(DbCoreError::ReadError)?;
@@ -62,14 +62,16 @@ impl<A: Clone + Serialize + DeserializeOwned> DbCore<A> {
     }
 
     /// Get current FunderState represented by the database
-    fn state(&self) -> &FunderState<A> {
+    pub fn state(&self) -> &FunderState<A> {
         &self.funder_state
     }
 
     /// Apply a mutation over the database, and save it.
-    fn mutate(&mut self, funder_mutation: FunderMutation<A>) -> Result<(), DbCoreError> {
+    pub fn mutate(&mut self, funder_mutations: Vec<FunderMutation<A>>) -> Result<(), DbCoreError> {
         // Apply mutation to funder_state:
-        self.funder_state.mutate(&funder_mutation);
+        for funder_mutation in funder_mutations {
+            self.funder_state.mutate(&funder_mutation);
+        }
 
         // Serialize the funder_state:
         let serialized_str = serde_json::to_string(&self.funder_state)
