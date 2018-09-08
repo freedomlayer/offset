@@ -28,6 +28,7 @@ mod types;
 mod token_channel;
 mod handler;
 mod report;
+mod database;
 
 enum FunderError {
     IncomingMessagesClosed,
