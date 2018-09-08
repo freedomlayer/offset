@@ -3,6 +3,8 @@ mod service_client;
 mod stream_mediator;
 mod nonce_window;
 #[macro_use]
+mod big_array;
+#[macro_use]
 mod macros;
 // pub mod trans_hashmap;
 // pub mod trans_hashmap_mut;
