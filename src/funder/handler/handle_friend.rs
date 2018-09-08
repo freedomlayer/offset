@@ -49,6 +49,7 @@ pub enum HandleFriendError {
     TokenChannelInconsistent,
     NotInconsistent,
     ResetTokenMismatch,
+    InconsistencyWhenTokenOwned,
 }
 
 
@@ -439,16 +440,16 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
         // Obtain information about our reset terms:
         let friend = fself.get_friend(&remote_public_key).unwrap();
-        let new_local_reset_terms = match &friend.channel_status {
-            ChannelStatus::Consistent(directional) => directional.get_reset_terms(),
-            ChannelStatus::Inconsistent((local_reset_terms, _)) => local_reset_terms.clone(),
+        let (should_send_outgoing, new_local_reset_terms) = match &friend.channel_status {
+            ChannelStatus::Consistent(directional) => {
+                if !directional.is_outgoing() {
+                    return Err(HandleFriendError::InconsistencyWhenTokenOwned);
+                }
+                (true, directional.get_reset_terms())
+            },
+            ChannelStatus::Inconsistent((local_reset_terms, _)) => (false, local_reset_terms.clone()),
         };
 
-        // Check if we should send an outgoing inconsistency message:
-        let should_send_outgoing = match &friend.channel_status {
-            ChannelStatus::Consistent(_) => true,
-            ChannelStatus::Inconsistent(_) => false,
-        };
 
         let friend_mutation = FriendMutation::SetChannelStatus(
             (new_local_reset_terms.clone(), Some(new_remote_reset_terms)));
