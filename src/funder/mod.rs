@@ -21,14 +21,13 @@ use self::database::{DbCore, DbRunner, DbRunnerError};
 use security_module::client::SecurityModuleClient;
 
 pub mod messages;
-// pub mod client;
 mod liveness;
 mod ephemeral;
 mod credit_calc;
 mod freeze_guard;
 mod signature_buff; 
 mod friend;
-pub mod state;
+mod state;
 mod types;
 mod token_channel;
 mod handler;
@@ -114,8 +113,6 @@ impl<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: SecureR
             for outgoing_control in handler_output.outgoing_control {
                 unimplemented!();
             }
-
-            // Send a Report message through the outgoing control:
 
             unimplemented!();
 
