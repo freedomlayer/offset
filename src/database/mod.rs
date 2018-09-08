@@ -18,7 +18,6 @@ pub enum DatabaseError {
     SerializeError(serde_json::error::Error),
 }
 
-#[allow(unused)]
 pub struct DbConn {
     /// Database file path
     db_path: String,
@@ -77,11 +76,11 @@ impl<A: Clone + Serialize + DeserializeOwned> Database<A> {
             .map_err(DatabaseError::SerializeError)?;
 
         // Save the new funder_state to file, atomically:
-        let af = atomicwrites::AtomicFile::new(&self.db_conn.db_path, atomicwrites::AllowOverwrite);
+        let af = atomicwrites::AtomicFile::new(
+            &self.db_conn.db_path, atomicwrites::AllowOverwrite);
         af.write(|fw| {
             fw.write_all(serialized_str.as_bytes())
         }).map_err(DatabaseError::WriteError)?;
-
         
         Ok(())
     }
