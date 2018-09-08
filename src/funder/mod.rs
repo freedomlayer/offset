@@ -2,7 +2,7 @@
 
 use std::rc::Rc;
 use futures::prelude::{async, await};
-use futures::{sync::mpsc, Stream};
+use futures::{sync::mpsc, Stream, stream, Sink};
 use futures_cpupool::CpuPool;
 
 use serde::Serialize;
@@ -38,6 +38,8 @@ enum FunderError {
     IncomingMessagesClosed,
     IncomingMessagesError,
     DbRunnerError(DbRunnerError),
+    SendControlError,
+    SendCommError,
 }
 
 
@@ -46,8 +48,8 @@ struct Funder<A: Clone, R> {
     rng: Rc<R>,
     funder_ephemeral: FunderEphemeral,
     incoming_messages: mpsc::Receiver<FunderIncoming<A>>,
-    outgoing_control: mpsc::Sender<FunderOutgoingControl<A>>,
-    outgoing_comm: mpsc::Sender<FunderOutgoingComm<A>>,
+    control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
+    comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
     db_core: DbCore<A>,
 }
 
@@ -59,9 +61,13 @@ impl<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: SecureR
                     rng,
                     funder_ephemeral,
                     mut incoming_messages,
-                    outgoing_control,
-                    outgoing_comm,
+                    control_sender,
+                    comm_sender,
                     db_core} = self;
+
+        // Transform error type:
+        let mut comm_sender = comm_sender.sink_map_err(|_| ());
+        let mut control_sender = control_sender.sink_map_err(|_| ());
 
         let funder_state = db_core.state().clone();
         let mut db_runner = DbRunner::new(db_core);
@@ -100,21 +106,18 @@ impl<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: SecureR
                 .map_err(FunderError::DbRunnerError)?;
             
 
-            // - Send outgoing communication messages:     
-            //      - ChannelerConfig
-            //      - FriendMessage
-            for outgoing_comm in handler_output.outgoing_comms {
-                unimplemented!();
-            }
+            // Send outgoing communication messages:
+            let comm_stream = stream::iter_ok::<_, ()>(handler_output.outgoing_comms);
+            let (ret_comm_sender, _) = await!(comm_sender.send_all(comm_stream))
+                .map_err(|_| FunderError::SendCommError)?;
+            comm_sender = ret_comm_sender;
 
-            // - Send outgoing control messages:
-            //      - ResponseReceived,
-            //      - StateUpdate,
-            for outgoing_control in handler_output.outgoing_control {
-                unimplemented!();
-            }
 
-            unimplemented!();
+            // Send outgoing control messages:
+            let control_stream = stream::iter_ok::<_, ()>(handler_output.outgoing_control);
+            let (ret_control_sender, _) = await!(control_sender.send_all(control_stream))
+                .map_err(|_| FunderError::SendControlError)?;
+            control_sender = ret_control_sender;
 
         }
     }
