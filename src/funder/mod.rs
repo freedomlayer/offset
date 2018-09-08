@@ -3,6 +3,10 @@
 use std::rc::Rc;
 use futures::prelude::{async, await};
 use futures::{sync::mpsc, Stream};
+use futures_cpupool::CpuPool;
+
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 use ring::rand::SecureRandom;
 
@@ -12,6 +16,7 @@ use self::handler::{funder_handle_message,
     FunderHandlerOutput, FunderHandlerError};
 use self::types::{FunderOutgoing, FunderIncoming, ResponseReceived,
                     FunderOutgoingControl, FunderOutgoingComm};
+use self::database::{DbCore, DbRunner, DbRunnerError};
 
 use security_module::client::SecurityModuleClient;
 
@@ -33,30 +38,34 @@ mod database;
 enum FunderError {
     IncomingMessagesClosed,
     IncomingMessagesError,
+    DbRunnerError(DbRunnerError),
 }
 
 
 struct Funder<A: Clone, R> {
     security_module_client: SecurityModuleClient,
     rng: Rc<R>,
-    funder_state: FunderState<A>,
     funder_ephemeral: FunderEphemeral,
     incoming_messages: mpsc::Receiver<FunderIncoming<A>>,
     outgoing_control: mpsc::Sender<FunderOutgoingControl<A>>,
     outgoing_comm: mpsc::Sender<FunderOutgoingComm<A>>,
+    db_core: DbCore<A>,
 }
 
-impl<A: Clone + 'static, R: SecureRandom + 'static> Funder<A,R> {
+impl<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: SecureRandom + 'static> Funder<A,R> {
     #[async]
     fn run(mut self) -> Result<!, FunderError> {
 
         let Funder {security_module_client,
                     rng,
-                    funder_state,
                     funder_ephemeral,
                     mut incoming_messages,
                     outgoing_control,
-                    outgoing_comm} = self;
+                    outgoing_comm,
+                    db_core} = self;
+
+        let funder_state = db_core.state().clone();
+        let mut db_runner = DbRunner::new(db_core);
 
         loop {
             // Read one message from incoming messages:
@@ -86,9 +95,10 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> Funder<A,R> {
                     continue;
                 },
             };
-            // TODO; Handle output here:
-            // - Send mutations to database.
-            unimplemented!();
+
+            // Send mutations to database:
+            db_runner = await!(db_runner.mutate(handler_output.mutations))
+                .map_err(FunderError::DbRunnerError)?;
             
 
             // - Send outgoing communication messages:     
