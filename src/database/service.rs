@@ -20,18 +20,20 @@ pub struct IncomingMutationsBatch<A> {
 }
 
 pub enum DbServiceError {
+    /// Incoming mutations stream closed
     IncomingClosed,
+    /// Some error occured when trying to read an incoming batch
     IncomingError,
     DbCoreError(DbCoreError),
+    /// Error when trying to send an ack
     AckFailure,
 }
 
-fn apply_funder_mutation<A: Clone + Serialize + DeserializeOwned>(
+fn apply_funder_mutations<A: Clone + Serialize + DeserializeOwned>(
     mut db_core: DbCore<A>, funder_mutations: Vec<FunderMutation<A>>) -> Result<DbCore<A>,DbCoreError> {
 
     db_core.mutate(funder_mutations)?;
     Ok(db_core)
-
 }
 
 #[async]
@@ -42,7 +44,7 @@ pub fn db_service<A: Clone + Serialize + DeserializeOwned + Send + Sync + 'stati
     let pool = CpuPool::new(1);
 
     loop {
-        // Read one incoming 
+        // Read one incoming batch of mutations
         let incoming_mutations_batch = match await!(incoming_batches.into_future()) {
             Ok((opt_incoming_mutations_batch, ret_incoming_batches)) => {
                 incoming_batches = ret_incoming_batches;
@@ -56,7 +58,7 @@ pub fn db_service<A: Clone + Serialize + DeserializeOwned + Send + Sync + 'stati
 
         let IncomingMutationsBatch {funder_mutations, ack_sender} = incoming_mutations_batch;
 
-        db_core = await!(pool.spawn_fn(move || apply_funder_mutation(db_core, funder_mutations)))
+        db_core = await!(pool.spawn_fn(move || apply_funder_mutations(db_core, funder_mutations)))
             .map_err(DbServiceError::DbCoreError)?;
 
         // Send an ack to signal that the operation has completed:
