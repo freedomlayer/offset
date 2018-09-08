@@ -28,7 +28,7 @@ const TOKEN_RESET: &[u8] = b"RESET";
 
 
 /// Indicate the direction of the move token funds.
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum MoveTokenDirection {
     Incoming(ChannelToken), // new_token
     Outgoing(FriendMoveTokenRequest),
@@ -47,8 +47,8 @@ pub enum DirectionalMutation {
 }
 
 
-#[derive(Clone)]
-pub struct DirectionalTokenChannel {
+#[derive(Clone, Serialize, Deserialize)]
+pub struct DirectionalTc {
     pub direction: MoveTokenDirection,
     pub token_channel: TokenChannel,
 }
@@ -107,10 +107,10 @@ pub fn calc_channel_reset_token(new_token: &ChannelToken,
 }
 
 
-impl DirectionalTokenChannel {
+impl DirectionalTc {
     #[allow(unused)]
     pub fn new(local_public_key: &PublicKey, 
-               remote_public_key: &PublicKey) -> DirectionalTokenChannel {
+               remote_public_key: &PublicKey) -> DirectionalTc {
 
         let mut hash_buffer: Vec<u8> = Vec::new();
 
@@ -139,13 +139,13 @@ impl DirectionalTokenChannel {
                 },
                 token_wanted: false,
             };
-            DirectionalTokenChannel {
+            DirectionalTc {
                 direction: MoveTokenDirection::Outgoing(friend_move_token_request),
                 token_channel: new_token_channel,
             }
         } else {
             // We are the second sender
-            DirectionalTokenChannel {
+            DirectionalTc {
                 direction: MoveTokenDirection::Incoming(new_token),
                 token_channel: new_token_channel,
             }
@@ -155,8 +155,8 @@ impl DirectionalTokenChannel {
     pub fn new_from_remote_reset(local_public_key: &PublicKey, 
                       remote_public_key: &PublicKey, 
                       new_token: &ChannelToken, 
-                      balance: i128) -> DirectionalTokenChannel {
-        DirectionalTokenChannel {
+                      balance: i128) -> DirectionalTc {
+        DirectionalTc {
             direction: MoveTokenDirection::Incoming(new_token.clone()),
             token_channel: TokenChannel::new(local_public_key, remote_public_key, balance),
         }
@@ -165,13 +165,13 @@ impl DirectionalTokenChannel {
     pub fn new_from_local_reset(local_public_key: &PublicKey, 
                       remote_public_key: &PublicKey, 
                       reset_move_token: &FriendMoveToken,
-                      balance: i128) -> DirectionalTokenChannel {
+                      balance: i128) -> DirectionalTc {
 
         let friend_move_token_request = FriendMoveTokenRequest {
             friend_move_token: reset_move_token.clone(),
             token_wanted: false,
         };
-        DirectionalTokenChannel {
+        DirectionalTc {
             direction: MoveTokenDirection::Outgoing(friend_move_token_request),
             token_channel: TokenChannel::new(local_public_key, remote_public_key, balance),
         }

@@ -108,7 +108,7 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
 
     fn enable_friend(&mut self, 
                      friend_public_key: &PublicKey,
-                     friend_address: &Option<A>) {
+                     friend_address: &A) {
 
         // Notify Channeler:
         let channeler_config = ChannelerConfig::AddFriend(
@@ -184,7 +184,7 @@ impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
             .ok_or(HandleControlError::FriendDoesNotExist)?;
 
         let friend_public_key = &set_friend_status.friend_public_key;
-        let friend_address = friend.opt_remote_address.clone();
+        let friend_address = friend.remote_address.clone();
 
         match set_friend_status.status {
             FriendStatus::Enable => self.enable_friend(friend_public_key, &friend_address),

@@ -8,11 +8,11 @@ use super::types::{FriendTcOp, FriendStatus,
     RequestsStatus, RequestSendFunds, FriendMoveToken,
     ResponseSendFunds, FailureSendFunds, UserRequestSendFunds,
     ChannelToken, ResetTerms};
-use super::token_channel::directional::DirectionalTokenChannel;
+use super::token_channel::directional::DirectionalTc;
 
 
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum ResponseOp {
     Response(ResponseSendFunds),
     Failure(FailureSendFunds),
@@ -31,24 +31,24 @@ pub enum FriendMutation<A> {
     PushBackPendingUserRequest(RequestSendFunds),
     PopFrontPendingUserRequest,
     SetStatus(FriendStatus),
-    SetFriendAddr(Option<A>),
+    SetFriendAddr(A),
     LocalReset(FriendMoveToken),
     // The outgoing move token message we have sent to reset the channel.
     RemoteReset,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum ChannelStatus {
     Inconsistent((ResetTerms, Option<ResetTerms>)), // local_reset_terms, remote_reset_terms
-    Consistent(DirectionalTokenChannel),
+    Consistent(DirectionalTc),
 }
 
 #[allow(unused)]
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct FriendState<A> {
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,
-    pub opt_remote_address: Option<A>, 
+    pub remote_address: A, 
     pub channel_status: ChannelStatus,
     pub wanted_remote_max_debt: u128,
     pub wanted_local_requests_status: RequestsStatus,
@@ -66,12 +66,12 @@ pub struct FriendState<A> {
 impl<A:Clone> FriendState<A> {
     pub fn new(local_public_key: &PublicKey,
                remote_public_key: &PublicKey,
-               opt_remote_address: Option<A>) -> FriendState<A> {
+               remote_address: A) -> FriendState<A> {
         FriendState {
             local_public_key: local_public_key.clone(),
             remote_public_key: remote_public_key.clone(),
-            opt_remote_address,
-            channel_status: ChannelStatus::Consistent(DirectionalTokenChannel::new(local_public_key,
+            remote_address,
+            channel_status: ChannelStatus::Consistent(DirectionalTc::new(local_public_key,
                                            remote_public_key)),
 
             // The remote_max_debt we want to have. When possible, this will be sent to the remote
@@ -140,8 +140,8 @@ impl<A:Clone> FriendState<A> {
             FriendMutation::SetStatus(friend_status) => {
                 self.status = friend_status.clone();
             },
-            FriendMutation::SetFriendAddr(opt_friend_addr) => {
-                self.opt_remote_address = opt_friend_addr.clone();
+            FriendMutation::SetFriendAddr(friend_addr) => {
+                self.remote_address = friend_addr.clone();
             },
             FriendMutation::LocalReset(reset_move_token) => {
                 // Local reset was applied (We sent a reset from the control line)
@@ -150,7 +150,7 @@ impl<A:Clone> FriendState<A> {
                     ChannelStatus::Inconsistent((local_reset_terms, None)) => unreachable!(),
                     ChannelStatus::Inconsistent((local_reset_terms, Some(remote_reset_terms))) => {
                         assert_eq!(reset_move_token.old_token, remote_reset_terms.reset_token);
-                        let directional = DirectionalTokenChannel::new_from_local_reset(
+                        let directional = DirectionalTc::new_from_local_reset(
                             &self.local_public_key,
                             &self.remote_public_key,
                             &reset_move_token,
@@ -164,7 +164,7 @@ impl<A:Clone> FriendState<A> {
                 match &self.channel_status {
                     ChannelStatus::Consistent(_) => unreachable!(),
                     ChannelStatus::Inconsistent((local_reset_terms, _)) => {
-                        let directional = DirectionalTokenChannel::new_from_remote_reset(
+                        let directional = DirectionalTc::new_from_remote_reset(
                             &self.local_public_key,
                             &self.remote_public_key,
                             &local_reset_terms.reset_token,

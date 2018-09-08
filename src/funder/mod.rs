@@ -2,7 +2,11 @@
 
 use std::rc::Rc;
 use futures::prelude::{async, await};
-use futures::{sync::mpsc, Stream};
+use futures::{sync::mpsc, Stream, stream, Sink};
+use futures_cpupool::CpuPool;
+
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 use ring::rand::SecureRandom;
 
@@ -12,11 +16,11 @@ use self::handler::{funder_handle_message,
     FunderHandlerOutput, FunderHandlerError};
 use self::types::{FunderOutgoing, FunderIncoming, ResponseReceived,
                     FunderOutgoingControl, FunderOutgoingComm};
+use self::database::{DbCore, DbRunner, DbRunnerError};
 
 use security_module::client::SecurityModuleClient;
 
 pub mod messages;
-// pub mod client;
 mod liveness;
 mod ephemeral;
 mod credit_calc;
@@ -28,34 +32,45 @@ mod types;
 mod token_channel;
 mod handler;
 mod report;
+mod database;
 
 enum FunderError {
     IncomingMessagesClosed,
     IncomingMessagesError,
+    DbRunnerError(DbRunnerError),
+    SendControlError,
+    SendCommError,
 }
 
 
 struct Funder<A: Clone, R> {
     security_module_client: SecurityModuleClient,
     rng: Rc<R>,
-    funder_state: FunderState<A>,
     funder_ephemeral: FunderEphemeral,
     incoming_messages: mpsc::Receiver<FunderIncoming<A>>,
-    outgoing_control: mpsc::Sender<FunderOutgoingControl<A>>,
-    outgoing_comm: mpsc::Sender<FunderOutgoingComm<A>>,
+    control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
+    comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
+    db_core: DbCore<A>,
 }
 
-impl<A: Clone + 'static, R: SecureRandom + 'static> Funder<A,R> {
+impl<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: SecureRandom + 'static> Funder<A,R> {
     #[async]
     fn run(mut self) -> Result<!, FunderError> {
 
         let Funder {security_module_client,
                     rng,
-                    funder_state,
                     funder_ephemeral,
                     mut incoming_messages,
-                    outgoing_control,
-                    outgoing_comm} = self;
+                    control_sender,
+                    comm_sender,
+                    db_core} = self;
+
+        // Transform error type:
+        let mut comm_sender = comm_sender.sink_map_err(|_| ());
+        let mut control_sender = control_sender.sink_map_err(|_| ());
+
+        let funder_state = db_core.state().clone();
+        let mut db_runner = DbRunner::new(db_core);
 
         loop {
             // Read one message from incoming messages:
@@ -85,28 +100,24 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> Funder<A,R> {
                     continue;
                 },
             };
-            // TODO; Handle output here:
-            // - Send mutations to database.
-            unimplemented!();
+
+            // Send mutations to database:
+            db_runner = await!(db_runner.mutate(handler_output.mutations))
+                .map_err(FunderError::DbRunnerError)?;
             
 
-            // - Send outgoing communication messages:     
-            //      - ChannelerConfig
-            //      - FriendMessage
-            for outgoing_comm in handler_output.outgoing_comms {
-                unimplemented!();
-            }
+            // Send outgoing communication messages:
+            let comm_stream = stream::iter_ok::<_, ()>(handler_output.outgoing_comms);
+            let (ret_comm_sender, _) = await!(comm_sender.send_all(comm_stream))
+                .map_err(|_| FunderError::SendCommError)?;
+            comm_sender = ret_comm_sender;
 
-            // - Send outgoing control messages:
-            //      - ResponseReceived,
-            //      - StateUpdate,
-            for outgoing_control in handler_output.outgoing_control {
-                unimplemented!();
-            }
 
-            // Send a Report message through the outgoing control:
-
-            unimplemented!();
+            // Send outgoing control messages:
+            let control_stream = stream::iter_ok::<_, ()>(handler_output.outgoing_control);
+            let (ret_control_sender, _) = await!(control_sender.send_all(control_stream))
+                .map_err(|_| FunderError::SendControlError)?;
+            control_sender = ret_control_sender;
 
         }
     }

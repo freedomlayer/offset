@@ -13,11 +13,12 @@ extern crate capnp;
 #[macro_use]
 // extern crate futures;
 extern crate futures_await as futures;
+extern crate futures_cpupool;
 #[macro_use]
 extern crate log;
 extern crate rand;
 extern crate ring;
-extern crate rusqlite;
+// extern crate rusqlite;
 extern crate tokio_core;
 extern crate tokio_io;
 extern crate async_mutex;
@@ -26,10 +27,12 @@ extern crate num_traits;
 extern crate num_bigint;
 
 extern crate serde;
-// #[macro_use]
-// extern crate serde_derive;
-extern crate toml;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
 extern crate base64;
+
+extern crate atomicwrites;
 
 extern crate im;
 
@@ -41,7 +44,6 @@ pub mod crypto;
 // Modules
 // pub mod app_manager;
 pub mod channeler;
-// pub mod database;
 pub mod funder;
 // pub mod networker;
 pub mod security_module;

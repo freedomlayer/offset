@@ -21,9 +21,10 @@ futures = "0.1"
 tokio-io = "0.1"
 tokio-core = "0.1"
 futures-await = "0.1"
+futures-cpupool = "0.1.8"
 
 capnp = "0.8"
-rusqlite = "0.13"
+# rusqlite = "0.13"
 
 async_mutex = { git = "https://github.com/realcr/async_mutex", rev = "a1d973ed7" }
 
@@ -32,10 +33,13 @@ num-traits = "0.2.4"
 
 serde = "1"
 serde_derive = "1"
-toml = "0.4"
+serde_json = "1.0.27"
 base64 = "0.9"
 
-im = "11.0.1"
+atomicwrites = "0.2.2"
+
+im = {version = "12.0.0", features = ["serde"]}
+
 
 [dev-dependencies]
 

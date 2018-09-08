@@ -35,7 +35,7 @@ pub enum ChannelStatusReport {
 
 #[derive(Clone)]
 pub struct FriendReport<A> {
-    pub opt_remote_address: Option<A>, 
+    pub remote_address: A, 
     pub channel_status: ChannelStatusReport,
     pub wanted_remote_max_debt: u128,
     pub wanted_local_requests_status: RequestsStatus,
@@ -81,7 +81,7 @@ fn create_friend_report<A: Clone>(friend_state: &FriendState<A>) -> FriendReport
 
 
     FriendReport {
-        opt_remote_address: friend_state.opt_remote_address.clone(),
+        remote_address: friend_state.remote_address.clone(),
         channel_status,
         wanted_remote_max_debt: friend_state.wanted_remote_max_debt,
         wanted_local_requests_status: friend_state.wanted_local_requests_status.clone(),
