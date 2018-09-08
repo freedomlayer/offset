@@ -110,6 +110,7 @@ impl ChannelPool {
         }
     }
 
+    // TODO: pass rng, external sender here, for sending keepalive in place.
     pub fn time_tick(&mut self) -> Vec<PublicKey> {
         // FIXME: https://github.com/realcr/cswitch/pull/54#issuecomment-396855438
         let mut keepalive_timeout_fired = Vec::new();
