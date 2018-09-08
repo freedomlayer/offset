@@ -13,6 +13,7 @@ extern crate capnp;
 #[macro_use]
 // extern crate futures;
 extern crate futures_await as futures;
+extern crate futures_cpupool;
 #[macro_use]
 extern crate log;
 extern crate rand;
