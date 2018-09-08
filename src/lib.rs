@@ -28,8 +28,10 @@ extern crate num_bigint;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate toml;
+extern crate bincode;
 extern crate base64;
+
+extern crate atomicwrites;
 
 extern crate im;
 
