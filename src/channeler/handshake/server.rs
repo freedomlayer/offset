@@ -16,7 +16,7 @@ use super::{
         config::{HANDSHAKE_SESSION_TIMEOUT, RAND_VALUES_STORE_CAPACITY, RAND_VALUES_STORE_TICKS},
         types::NeighborTable,
     },
-    utils::finish_handshake,
+    helpers::finish_handshake,
     ChannelMetadata,
     HandshakeError,
 };

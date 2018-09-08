@@ -15,7 +15,7 @@ use super::{
         config::{HANDSHAKE_SESSION_TIMEOUT, REQUEST_NONCE_TIMEOUT},
         types::NeighborTable,
     },
-    utils::finish_handshake,
+    helpers::finish_handshake,
     ChannelMetadata,
     HandshakeError,
 };

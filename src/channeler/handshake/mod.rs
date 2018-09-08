@@ -4,7 +4,7 @@ use crypto::identity::PublicKey;
 use proto::channeler::ChannelId;
 
 mod error;
-mod utils;
+mod helpers;
 mod server;
 mod client;
 
