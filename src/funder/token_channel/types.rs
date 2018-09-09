@@ -53,6 +53,8 @@ impl TcBalance {
     }
 }
 
+// TODO: Rename pending_local_requests to a shorter name, like local.
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TcPendingRequests {
     /// Pending requests that were opened locally and not yet completed
