@@ -46,7 +46,6 @@ enum FunderError {
 struct Funder<A: Clone, R> {
     security_module_client: SecurityModuleClient,
     rng: Rc<R>,
-    funder_ephemeral: FunderEphemeral,
     incoming_messages: mpsc::Receiver<FunderIncoming<A>>,
     control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
     comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
@@ -59,11 +58,11 @@ impl<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: SecureR
 
         let Funder {security_module_client,
                     rng,
-                    funder_ephemeral,
                     mut incoming_messages,
                     control_sender,
                     comm_sender,
                     db_core} = self;
+
 
         // Transform error type:
         let mut comm_sender = comm_sender.sink_map_err(|_| ());
@@ -71,6 +70,8 @@ impl<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: SecureR
 
         let funder_state = db_core.state().clone();
         let mut db_runner = DbRunner::new(db_core);
+        let mut funder_ephemeral = FunderEphemeral::new(&funder_state);
+        let _ = funder_state;
 
         loop {
             // Read one message from incoming messages:
@@ -88,7 +89,7 @@ impl<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: SecureR
             // Process message:
             let res = await!(funder_handle_message(security_module_client.clone(),
                                   rng.clone(),
-                                  funder_state.clone(),
+                                  db_runner.state().clone(),
                                   funder_ephemeral.clone(),
                                   funder_message));
 
@@ -105,6 +106,8 @@ impl<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: SecureR
             db_runner = await!(db_runner.mutate(handler_output.mutations))
                 .map_err(FunderError::DbRunnerError)?;
             
+            // Keep new funder_ephemeral:
+            funder_ephemeral = handler_output.ephemeral;
 
             // Send outgoing communication messages:
             let comm_stream = stream::iter_ok::<_, ()>(handler_output.outgoing_comms);

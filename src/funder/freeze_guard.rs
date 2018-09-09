@@ -7,6 +7,8 @@ use crypto::hash::{HashResult, sha_512_256};
 use utils::int_convert::usize_to_u32;
 
 use super::credit_calc::CreditCalculator;
+use super::state::FunderState;
+use super::friend::ChannelStatus;
 use super::types::{PendingFriendRequest, RequestSendFunds, Ratio};
 
 
@@ -46,6 +48,23 @@ fn hash_subroute(subroute: &[PublicKey]) -> HashResult {
 }
 
 impl FreezeGuard {
+    pub fn new<A: Clone>(funder_state: &FunderState<A>) -> FreezeGuard {
+        let mut freeze_guard = FreezeGuard {
+            local_public_key: funder_state.local_public_key.clone(),
+            frozen_to: ImHashMap::new(),
+        };
+
+        for (_friend_public_key, friend) in &funder_state.friends {
+            if let ChannelStatus::Consistent(directional) = &friend.channel_status {
+                let pending_local_requests = &directional.token_channel.state().pending_requests.pending_local_requests;
+                for (_request_id, pending_request) in pending_local_requests {
+                    freeze_guard.add_frozen_credit(&pending_request);
+                }
+            }
+        }
+
+        freeze_guard
+    }
     // TODO: Possibly refactor similar code of add/sub frozen credit to be one function that
     // returns an iterator?
     /// ```text
