@@ -88,7 +88,7 @@ impl<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: SecureR
             // Process message:
             let res = await!(funder_handle_message(security_module_client.clone(),
                                   rng.clone(),
-                                  funder_state.clone(),
+                                  db_runner.state().clone(),
                                   funder_ephemeral.clone(),
                                   funder_message));
 
