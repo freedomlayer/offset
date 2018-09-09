@@ -9,7 +9,7 @@ use futures_cpupool::CpuPool;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use funder::state::{FunderMutation};
+use funder::state::{FunderMutation, FunderState};
 use super::core::{DbCore, DbCoreError};
 
 /*
@@ -97,6 +97,10 @@ impl<A: Clone + Serialize + DeserializeOwned + Send + Sync + 'static> DbRunner<A
         let db_core = await!(pool.spawn_fn(move || apply_funder_mutations(db_core, funder_mutations)))
             .map_err(DbRunnerError::DbCoreError)?;
         Ok(DbRunner {pool, db_core})
+    }
+
+    pub fn state(&self) -> &FunderState<A> {
+        self.db_core.state()
     }
 }
 
