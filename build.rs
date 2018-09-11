@@ -14,6 +14,7 @@ fn main() {
     build_schema!{
         "src/proto/schema/channeler.capnp",
         "src/proto/schema/common.capnp",
-        "src/proto/schema/funder.capnp"
+        "src/proto/schema/funder.capnp",
+        "src/proto/schema/relay.capnp"
     }
 }
