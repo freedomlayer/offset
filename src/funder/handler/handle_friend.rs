@@ -33,8 +33,7 @@ use super::super::state::FunderMutation;
 use super::super::friend::{FriendState, FriendMutation, 
     ResponseOp, ChannelStatus};
 
-use super::super::signature_buff::{create_failure_signature_buffer, 
-    create_response_signature_buffer, prepare_receipt};
+use super::super::signature_buff::{create_response_signature_buffer, prepare_receipt};
 use super::super::messages::ResponseSendFundsResult;
 use super::sender::SendMode;
 
