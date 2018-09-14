@@ -16,12 +16,26 @@ struct DhStateHalf {
 }
 
 #[allow(unused)]
+struct Receiver {
+    incoming_key: SymmetricKey,
+    incoming_counter: u128,
+}
+
+#[allow(unused)]
+struct Sender {
+    outgoing_key: SymmetricKey,
+    outgoing_counter: u128,
+}
+
+#[allow(unused)]
 struct DhState {
     remote_public_key: PublicKey,
-    incoming_key: SymmetricKey,
-    outgoing_key: SymmetricKey,
-    incoming_counter: u128,
-    outgoing_counter: u128,
+    sender: Sender,
+    receiver: Receiver,
+    /// We might have an old receiver from the last rekeying.
+    /// We will remove it upon receipt of the first successful incoming 
+    /// messages for the new receiver.
+    old_receiver: Option<Receiver>,
 }
 
 
