@@ -33,7 +33,8 @@ use super::super::state::FunderMutation;
 use super::super::friend::{FriendState, FriendMutation, 
     ResponseOp, ChannelStatus};
 
-use super::super::signature_buff::{create_failure_signature_buffer, prepare_receipt};
+use super::super::signature_buff::{create_failure_signature_buffer, 
+    create_response_signature_buffer, prepare_receipt};
 use super::super::messages::ResponseSendFundsResult;
 use super::sender::SendMode;
 
@@ -146,6 +147,30 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let messenger_mutation = FunderMutation::FriendMutation((next_pk.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
         self.try_send_channel(&next_pk, SendMode::EmptyNotAllowed);
+    }
+
+    /// Create a (signed) failure message for a given request_id.
+    /// We are the reporting_public_key for this failure message.
+    #[async]
+    fn create_response_message(self, request_send_funds: RequestSendFunds) 
+        -> Result<(Self, ResponseSendFunds), !> {
+
+        let rand_nonce = RandValue::new(&*self.rng);
+        let local_public_key = self.state.get_local_public_key().clone();
+
+        let mut response_send_funds = ResponseSendFunds {
+            request_id: request_send_funds.request_id,
+            rand_nonce,
+            signature: Signature::zero(),
+        };
+
+        let response_signature_buffer = create_response_signature_buffer(&response_send_funds,
+                        &request_send_funds.create_pending_request());
+
+        response_send_funds.signature = await!(self.identity_client.request_signature(response_signature_buffer))
+            .unwrap();
+
+        Ok((self, response_send_funds))
     }
 
     #[async]
