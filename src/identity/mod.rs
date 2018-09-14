@@ -6,21 +6,21 @@ use futures::sync::mpsc;
 
 use crypto::identity::Identity;
 
-use self::messages::{ToSecurityModule, ResponseSignature, ResponsePublicKey};
+use self::messages::{ToIdentity, ResponseSignature, ResponsePublicKey};
 
-pub enum SecurityModuleError {
+pub enum IdentityError {
     ErrorReceivingRequest,
 }
 
 /// Create a new security module, together with a close handle to be used after the security module
 /// future instance was consumed.
-pub fn create_security_module<I: Identity>(identity: I) -> (mpsc::Sender<ToSecurityModule>, impl Future<Item=(), Error=SecurityModuleError>) {
+pub fn create_identity<I: Identity>(identity: I) -> (mpsc::Sender<ToIdentity>, impl Future<Item=(), Error=IdentityError>) {
     let (requests_sender, requests_receiver) = mpsc::channel(0);
-    let security_module = requests_receiver
-        .map_err(|()| SecurityModuleError::ErrorReceivingRequest)
+    let identity = requests_receiver
+        .map_err(|()| IdentityError::ErrorReceivingRequest)
         .for_each(move |request| {
         match request {
-            ToSecurityModule::RequestSignature {message, response_sender} => {
+            ToIdentity::RequestSignature {message, response_sender} => {
                 let _ = response_sender.send(ResponseSignature {
                     signature: identity.sign_message(&message),
                 }); 
@@ -28,7 +28,7 @@ pub fn create_security_module<I: Identity>(identity: I) -> (mpsc::Sender<ToSecur
                 // We don't care about this.
                 Ok(())
             },
-            ToSecurityModule::RequestPublicKey {response_sender} => {
+            ToIdentity::RequestPublicKey {response_sender} => {
                 let _ = response_sender.send(ResponsePublicKey {
                     public_key: identity.get_public_key(),
                 });
@@ -37,7 +37,7 @@ pub fn create_security_module<I: Identity>(identity: I) -> (mpsc::Sender<ToSecur
         }
     });
     
-    (requests_sender, security_module)
+    (requests_sender, identity)
 }
 
 
@@ -53,14 +53,14 @@ mod tests {
     use crypto::identity::{verify_signature, SoftwareEd25519Identity};
 
     #[test]
-    fn test_security_module_consistent_public_key() {
+    fn test_identity_consistent_public_key() {
         let secure_rand = FixedByteRandom { byte: 0x3 };
         let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
         let actual_public_key = identity.get_public_key();
-        let (requests_sender, sm) = create_security_module(identity);
+        let (requests_sender, sm) = create_identity(identity);
 
-        // Start the SecurityModule service:
+        // Start the Identity service:
         let mut core = Core::new().unwrap();
         let handle = core.handle();
         handle.spawn(sm.then(|_| Ok(())));
@@ -70,7 +70,7 @@ mod tests {
             let rsender = requests_sender.clone();
             let (tx, rx) = oneshot::channel();
             let public_key_from_client = core.run(rsender
-                .send(ToSecurityModule::RequestPublicKey { response_sender: tx })
+                .send(ToIdentity::RequestPublicKey { response_sender: tx })
                 .then(|result| {
                     match result {
                         Ok(_) => rx,
@@ -83,15 +83,15 @@ mod tests {
     }
 
     #[test]
-    fn test_security_module_request_signature_against_identity() {
+    fn test_identity_request_signature_against_identity() {
         let secure_rand = FixedByteRandom { byte: 0x3 };
         let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
         // Get the public key straight from the Identity
         let public_key = identity.get_public_key();
 
-        // Start the SecurityModule service:
-        let (requests_sender, sm) = create_security_module(identity);
+        // Start the Identity service:
+        let (requests_sender, sm) = create_identity(identity);
         let mut core = Core::new().unwrap();
         let handle = core.handle();
         handle.spawn(sm.then(|_| Ok(())));
@@ -102,7 +102,7 @@ mod tests {
         let rsender = requests_sender.clone();
         let (tx, rx) = oneshot::channel();
         let signature = core.run(rsender
-                 .send(ToSecurityModule::RequestSignature {message: my_message.to_vec(), response_sender: tx})
+                 .send(ToIdentity::RequestSignature {message: my_message.to_vec(), response_sender: tx})
                  .then(|result| {
                      match result {
                          Ok(_) => rx,
@@ -114,15 +114,15 @@ mod tests {
     }
 
     #[test]
-    fn test_security_module_request_signature() {
+    fn test_identity_request_signature() {
         let secure_rand = FixedByteRandom { byte: 0x3 };
         let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
 
 
-        // Start the SecurityModule service:
-        let (requests_sender, sm) = create_security_module(identity);
+        // Start the Identity service:
+        let (requests_sender, sm) = create_identity(identity);
         let mut core = Core::new().unwrap();
         let handle = core.handle();
         handle.spawn(sm.then(|_| Ok(())));
@@ -132,7 +132,7 @@ mod tests {
         let rsender1 = requests_sender.clone();
         let (tx1, rx1) = oneshot::channel();
         let public_key_from_client = core.run(rsender1
-            .send(ToSecurityModule::RequestPublicKey { response_sender: tx1 })
+            .send(ToIdentity::RequestPublicKey { response_sender: tx1 })
             .then(|result| {
                 match result {
                     Ok(_) => rx1,
@@ -144,7 +144,7 @@ mod tests {
         let rsender2 = requests_sender.clone();
         let (tx2, rx2) = oneshot::channel();
         let signature = core.run(rsender2
-                 .send(ToSecurityModule::RequestSignature {message: my_message.to_vec(), response_sender: tx2})
+                 .send(ToIdentity::RequestSignature {message: my_message.to_vec(), response_sender: tx2})
                  .then(|result| {
                      match result {
                          Ok(_) => rx2,

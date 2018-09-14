@@ -33,7 +33,7 @@ use super::super::state::FunderMutation;
 use super::super::friend::{FriendState, FriendMutation, 
     ResponseOp, ChannelStatus};
 
-use super::super::signature_buff::{create_failure_signature_buffer, prepare_receipt};
+use super::super::signature_buff::{create_response_signature_buffer, prepare_receipt};
 use super::super::messages::ResponseSendFundsResult;
 use super::sender::SendMode;
 
@@ -148,6 +148,30 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         self.try_send_channel(&next_pk, SendMode::EmptyNotAllowed);
     }
 
+    /// Create a (signed) failure message for a given request_id.
+    /// We are the reporting_public_key for this failure message.
+    #[async]
+    fn create_response_message(self, request_send_funds: RequestSendFunds) 
+        -> Result<(Self, ResponseSendFunds), !> {
+
+        let rand_nonce = RandValue::new(&*self.rng);
+        let local_public_key = self.state.get_local_public_key().clone();
+
+        let mut response_send_funds = ResponseSendFunds {
+            request_id: request_send_funds.request_id,
+            rand_nonce,
+            signature: Signature::zero(),
+        };
+
+        let response_signature_buffer = create_response_signature_buffer(&response_send_funds,
+                        &request_send_funds.create_pending_request());
+
+        response_send_funds.signature = await!(self.identity_client.request_signature(response_signature_buffer))
+            .unwrap();
+
+        Ok((self, response_send_funds))
+    }
+
     #[async]
     fn handle_request_send_funds(mut self, 
                                remote_public_key: PublicKey,
@@ -161,7 +185,14 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let local_index = remote_index.checked_add(1).unwrap();
         let next_index = local_index.checked_add(1).unwrap();
         if next_index >= request_send_funds.route.len() {
-            return Ok(self);
+            // We are the destination of this request. We return a response:
+            let (mut fself, response_send_funds) = await!(self.create_response_message(request_send_funds.clone()))
+                .unwrap();
+            let response_op = ResponseOp::Response(response_send_funds);
+            let friend_mutation = FriendMutation::PushBackPendingResponse(response_op);
+            let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+            fself.apply_mutation(messenger_mutation);
+            return Ok(fself);
         }
 
 

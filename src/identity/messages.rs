@@ -3,7 +3,7 @@ use crypto::identity::{PublicKey, Signature};
 
 
 /// The response from security module client to security module.
-pub enum ToSecurityModule {
+pub enum ToIdentity {
     /// Request to sign a message.
     RequestSignature {
         message:         Vec<u8>,
