@@ -186,7 +186,14 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let local_index = remote_index.checked_add(1).unwrap();
         let next_index = local_index.checked_add(1).unwrap();
         if next_index >= request_send_funds.route.len() {
-            return Ok(self);
+            // We are the destination of this request. We return a response:
+            let (mut fself, response_send_funds) = await!(self.create_response_message(request_send_funds.clone()))
+                .unwrap();
+            let response_op = ResponseOp::Response(response_send_funds);
+            let friend_mutation = FriendMutation::PushBackPendingResponse(response_op);
+            let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+            fself.apply_mutation(messenger_mutation);
+            return Ok(fself);
         }
 
 
