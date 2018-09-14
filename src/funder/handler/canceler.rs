@@ -27,10 +27,10 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
         let rand_nonce = RandValue::new(&*self.rng);
         let local_public_key = self.state.get_local_public_key().clone();
 
-        let failure_send_funds = FailureSendFunds {
+        let mut failure_send_funds = FailureSendFunds {
             request_id: pending_local_request.request_id,
-            reporting_public_key: local_public_key.clone(),
-            rand_nonce: rand_nonce.clone(),
+            reporting_public_key: local_public_key,
+            rand_nonce,
             signature: Signature::zero(),
         };
         // TODO: Add default() implementation for Signature
@@ -39,15 +39,10 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                             &failure_send_funds,
                                             &pending_local_request);
 
-        let signature = await!(self.identity_client.request_signature(failure_signature_buffer))
+        failure_send_funds.signature = await!(self.identity_client.request_signature(failure_signature_buffer))
             .unwrap();
 
-        Ok((self, FailureSendFunds {
-            request_id: pending_local_request.request_id,
-            reporting_public_key: local_public_key,
-            rand_nonce,
-            signature,
-        }))
+        Ok((self, failure_send_funds))
     }
 
     /// Reply to a request message with failure.
