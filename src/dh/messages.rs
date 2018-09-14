@@ -1,5 +1,5 @@
 use crypto::identity::{Signature, PublicKey};
-use crypto::dh::DhPublicKey;
+use crypto::dh::{DhPublicKey, Salt};
 use crypto::rand_values::RandValue;
 
 pub struct EncryptedData(Vec<u8>);
@@ -17,14 +17,14 @@ pub struct ExchangeRandNonce {
 pub struct ExchangeDh {
     pub dh_public_key: DhPublicKey,
     pub rand_nonce: RandValue,
-    pub key_salt: RandValue, // ? Not long enough ?
+    pub key_salt: Salt,
     pub signature: Signature,
 }
 
 #[allow(unused)]
 pub struct Rekey {
     pub dh_public_key: DhPublicKey,
-    pub key_salt: RandValue, // ? Not long enough ?
+    pub key_salt: Salt,
 }
 
 #[allow(unused)]
