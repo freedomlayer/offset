@@ -15,6 +15,7 @@ fn main() {
         "src/proto/schema/channeler.capnp",
         "src/proto/schema/common.capnp",
         "src/proto/schema/funder.capnp",
+        "src/proto/schema/dh.capnp",
         "src/proto/schema/relay.capnp"
     }
 }
