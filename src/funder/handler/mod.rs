@@ -8,7 +8,7 @@ mod canceler;
 use futures::prelude::{async, await};
 
 use std::rc::Rc;
-use security_module::client::SecurityModuleClient;
+use identity::client::IdentityClient;
 use ring::rand::SecureRandom;
 
 use crypto::uid::Uid;
@@ -52,7 +52,7 @@ pub struct FunderHandlerOutput<A: Clone> {
 pub struct MutableFunderHandler<A:Clone,R> {
     state: FunderState<A>,
     pub ephemeral: FunderEphemeral,
-    pub security_module_client: SecurityModuleClient,
+    pub identity_client: IdentityClient,
     pub rng: Rc<R>,
     mutations: Vec<FunderMutation<A>>,
     outgoing_comms: Vec<FunderOutgoingComm<A>>,
@@ -143,7 +143,7 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
 
 }
 
-fn gen_mutable<A:Clone, R: SecureRandom>(security_module_client: SecurityModuleClient,
+fn gen_mutable<A:Clone, R: SecureRandom>(identity_client: IdentityClient,
                        rng: Rc<R>,
                        funder_state: &FunderState<A>,
                        funder_ephemeral: &FunderEphemeral) -> MutableFunderHandler<A,R> {
@@ -151,7 +151,7 @@ fn gen_mutable<A:Clone, R: SecureRandom>(security_module_client: SecurityModuleC
     MutableFunderHandler {
         state: funder_state.clone(),
         ephemeral: funder_ephemeral.clone(),
-        security_module_client,
+        identity_client,
         rng,
         mutations: Vec::new(),
         outgoing_comms: Vec::new(),
@@ -161,14 +161,14 @@ fn gen_mutable<A:Clone, R: SecureRandom>(security_module_client: SecurityModuleC
 
 #[async]
 pub fn funder_handle_message<A: Clone + 'static, R: SecureRandom + 'static>(
-                      security_module_client: SecurityModuleClient,
+                      identity_client: IdentityClient,
                       rng: Rc<R>,
                       funder_state: FunderState<A>,
                       funder_ephemeral: FunderEphemeral,
                       funder_incoming: FunderIncoming<A>) 
         -> Result<FunderHandlerOutput<A>, FunderHandlerError> {
 
-    let mut mutable_handler = gen_mutable(security_module_client.clone(),
+    let mut mutable_handler = gen_mutable(identity_client.clone(),
                                           rng.clone(),
                                           &funder_state,
                                           &funder_ephemeral);

@@ -3,36 +3,36 @@ use futures::sync::{mpsc, oneshot};
 
 use crypto::identity::{PublicKey, Signature};
 
-use security_module::messages::ToSecurityModule;
+use identity::messages::ToIdentity;
 
 #[derive(Debug)]
-pub enum SecurityModuleClientError {
+pub enum IdentityClientError {
     RequestSendFailed,
     OneshotReceiverCanceled,
 }
 
 #[derive(Clone)]
-pub struct SecurityModuleClient {
-    requests_sender: mpsc::Sender<ToSecurityModule>,
+pub struct IdentityClient {
+    requests_sender: mpsc::Sender<ToIdentity>,
 }
 
-impl SecurityModuleClient {
-    pub fn new(requests_sender: mpsc::Sender<ToSecurityModule>) -> Self {
-        SecurityModuleClient { requests_sender }
+impl IdentityClient {
+    pub fn new(requests_sender: mpsc::Sender<ToIdentity>) -> Self {
+        IdentityClient { requests_sender }
     }
 
-    /// Send a request to the SecurityModule. Returns a Future that waits for the response.
+    /// Send a request to the Identity. Returns a Future that waits for the response.
     fn request_response<R>(
         &self,
-        request: ToSecurityModule,
+        request: ToIdentity,
         rx: oneshot::Receiver<R>,
-    ) -> impl Future<Item = R, Error = SecurityModuleClientError> {
+    ) -> impl Future<Item = R, Error = IdentityClientError> {
         self.requests_sender
             .clone()
             .send(request)
-            .map_err(|_| SecurityModuleClientError::RequestSendFailed)
+            .map_err(|_| IdentityClientError::RequestSendFailed)
             .and_then(|_| {
-                rx.map_err(|oneshot::Canceled| SecurityModuleClientError::OneshotReceiverCanceled)
+                rx.map_err(|oneshot::Canceled| IdentityClientError::OneshotReceiverCanceled)
             })
     }
 
@@ -41,9 +41,9 @@ impl SecurityModuleClient {
     pub fn request_signature(
         &self,
         message: Vec<u8>,
-    ) -> impl Future<Item = Signature, Error = SecurityModuleClientError> {
+    ) -> impl Future<Item = Signature, Error = IdentityClientError> {
         let (tx, rx) = oneshot::channel();
-        let request = ToSecurityModule::RequestSignature {
+        let request = ToIdentity::RequestSignature {
             message,
             response_sender: tx,
         };
@@ -55,9 +55,9 @@ impl SecurityModuleClient {
     /// Returns a Future that resolves to the public key.
     pub fn request_public_key(
         &self,
-    ) -> impl Future<Item = PublicKey, Error = SecurityModuleClientError> {
+    ) -> impl Future<Item = PublicKey, Error = IdentityClientError> {
         let (tx, rx) = oneshot::channel();
-        let request = ToSecurityModule::RequestPublicKey {
+        let request = ToIdentity::RequestPublicKey {
             response_sender: tx,
         };
         self.request_response(request, rx)
@@ -73,18 +73,18 @@ mod tests {
     use tokio_core::reactor::Core;
 
     use crypto::identity::{verify_signature, SoftwareEd25519Identity};
-    use security_module::create_security_module;
+    use identity::create_identity;
 
     #[test]
-    fn test_security_module_consistent_public_key_with_client() {
+    fn test_identity_consistent_public_key_with_client() {
         let secure_rand = FixedByteRandom { byte: 0x3 };
         let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
-        let (requests_sender, sm) = create_security_module(identity);
-        let smc = SecurityModuleClient::new(requests_sender);
+        let (requests_sender, sm) = create_identity(identity);
+        let smc = IdentityClient::new(requests_sender);
 
-        // Start the SecurityModule service:
+        // Start the Identity service:
         let mut core = Core::new().unwrap();
         let handle = core.handle();
         handle.spawn(sm.then(|_| Ok(())));
@@ -96,20 +96,20 @@ mod tests {
     }
 
     #[test]
-    fn test_security_module_request_sign_with_client() {
+    fn test_identity_request_sign_with_client() {
         let secure_rand = FixedByteRandom { byte: 0x3 };
         let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
-        let (requests_sender, sm) = create_security_module(identity);
-        let smc = SecurityModuleClient::new(requests_sender);
+        let (requests_sender, sm) = create_identity(identity);
+        let smc = IdentityClient::new(requests_sender);
 
-        // SecurityModuleClient can be cloned:
+        // IdentityClient can be cloned:
         let smc = smc.clone();
 
         let my_message = b"This is my message!";
 
-        // Start the SecurityModule service:
+        // Start the Identity service:
         let mut core = Core::new().unwrap();
         let handle = core.handle();
         handle.spawn(sm.then(|_| Ok(())));

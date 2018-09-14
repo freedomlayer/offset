@@ -39,7 +39,7 @@ impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
                                             &failure_send_funds,
                                             &pending_local_request);
 
-        let signature = await!(self.security_module_client.request_signature(failure_signature_buffer))
+        let signature = await!(self.identity_client.request_signature(failure_signature_buffer))
             .unwrap();
 
         Ok((self, FailureSendFunds {

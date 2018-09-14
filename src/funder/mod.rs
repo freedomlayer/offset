@@ -18,7 +18,7 @@ use self::types::{FunderOutgoing, FunderIncoming, ResponseReceived,
                     FunderOutgoingControl, FunderOutgoingComm};
 use self::database::{DbCore, DbRunner, DbRunnerError};
 
-use security_module::client::SecurityModuleClient;
+use identity::client::IdentityClient;
 
 pub mod messages;
 mod liveness;
@@ -44,7 +44,7 @@ enum FunderError {
 
 
 struct Funder<A: Clone, R> {
-    security_module_client: SecurityModuleClient,
+    identity_client: IdentityClient,
     rng: Rc<R>,
     incoming_messages: mpsc::Receiver<FunderIncoming<A>>,
     control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
@@ -56,7 +56,7 @@ impl<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: SecureR
     #[async]
     fn run(mut self) -> Result<!, FunderError> {
 
-        let Funder {security_module_client,
+        let Funder {identity_client,
                     rng,
                     mut incoming_messages,
                     control_sender,
@@ -87,7 +87,7 @@ impl<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: SecureR
             };
 
             // Process message:
-            let res = await!(funder_handle_message(security_module_client.clone(),
+            let res = await!(funder_handle_message(identity_client.clone(),
                                   rng.clone(),
                                   db_runner.state().clone(),
                                   funder_ephemeral.clone(),
