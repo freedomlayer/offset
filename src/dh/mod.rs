@@ -78,6 +78,12 @@ impl DhState {
         unimplemented!();
     }
 
+    /// Initiate rekeying. Outputs an encrypted message to send to remote side.
+    pub fn rekey(&mut self) -> EncryptedData {
+        // TODO; How to deal with simultaneous rekeying?
+        unimplemented!();
+    }
+
     /// Decrypt an incoming message
     fn decrypt_incoming(&mut self, enc_data: EncryptedData) -> ChannelMessage {
         unimplemented!();
@@ -95,5 +101,4 @@ impl DhState {
         }
     }
 }
-
 
