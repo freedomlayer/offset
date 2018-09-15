@@ -5,7 +5,7 @@ use ring::rand::SecureRandom;
 use crypto::rand_values::RandValue;
 use crypto::identity::{PublicKey, Signature, verify_signature};
 use crypto::dh::{DhPublicKey, DhPrivateKey, Salt};
-use crypto::sym_encrypt::SymmetricKey;
+use crypto::sym_encrypt::{Encryptor, Decryptor};
 use identity::client::IdentityClient;
 use self::messages::{ExchangeRandNonce, ExchangeDh, ChannelMessage,
                     EncryptedData, PlainData};
@@ -13,6 +13,7 @@ use self::messages::{ExchangeRandNonce, ExchangeDh, ChannelMessage,
 mod messages;
 
 
+#[derive(Debug)]
 pub enum DhError {
     PrivateKeyGenFailure,
     SaltGenFailure,
@@ -20,6 +21,8 @@ pub enum DhError {
     IncorrectRandNonce,
     InvalidSignature,
     KeyDerivationFailure,
+    CreateEncryptorFailure,
+    CreateDecryptorFailure,
 }
 
 #[allow(unused)]
@@ -37,35 +40,6 @@ pub struct DhStateHalf {
     local_salt: Salt,
 }
 
-#[allow(unused)]
-struct Receiver {
-    recv_key: SymmetricKey,
-    recv_counter: u128,
-}
-
-impl Receiver {
-    fn new(recv_key: SymmetricKey) -> Receiver {
-        Receiver {
-            recv_key,
-            recv_counter: 0,
-        }
-    }
-}
-
-#[allow(unused)]
-struct Sender {
-    send_key: SymmetricKey,
-    send_counter: u128,
-}
-
-impl Sender {
-    fn new(send_key: SymmetricKey) -> Sender {
-        Sender {
-            send_key,
-            send_counter: 0,
-        }
-    }
-}
 
 #[allow(unused)]
 struct PendingRekey {
@@ -77,12 +51,12 @@ struct PendingRekey {
 pub struct DhState {
     local_public_key: PublicKey,
     remote_public_key: PublicKey,
-    sender: Sender,
-    receiver: Receiver,
+    sender: Encryptor,
+    receiver: Decryptor,
     /// We might have an old receiver from the last rekeying.
     /// We will remove it upon receipt of the first successful incoming 
     /// messages for the new receiver.
-    old_receiver: Option<Receiver>,
+    old_receiver: Option<Decryptor>,
     pending_rekey: Option<PendingRekey>,
 }
 
@@ -160,8 +134,10 @@ impl DhStateHalf {
         Ok(DhState {
             local_public_key: self.local_public_key,
             remote_public_key: self.remote_public_key,
-            sender: Sender::new(send_key),
-            receiver: Receiver::new(recv_key),
+            sender: Encryptor::new(&send_key)
+                .map_err(|_| DhError::CreateEncryptorFailure)?,
+            receiver: Decryptor::new(&recv_key)
+                .map_err(|_| DhError::CreateDecryptorFailure)?,
             old_receiver: None,
             pending_rekey: None,
         })
