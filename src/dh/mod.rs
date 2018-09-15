@@ -19,6 +19,7 @@ pub enum DhError {
     DhPublicKeyComputeFailure,
     IncorrectRandNonce,
     InvalidSignature,
+    KeyDerivationFailure,
 }
 
 #[allow(unused)]
@@ -38,14 +39,32 @@ pub struct DhStateHalf {
 
 #[allow(unused)]
 struct Receiver {
-    incoming_key: SymmetricKey,
-    incoming_counter: u128,
+    recv_key: SymmetricKey,
+    recv_counter: u128,
+}
+
+impl Receiver {
+    fn new(recv_key: SymmetricKey) -> Receiver {
+        Receiver {
+            recv_key,
+            recv_counter: 0,
+        }
+    }
 }
 
 #[allow(unused)]
 struct Sender {
-    outgoing_key: SymmetricKey,
-    outgoing_counter: u128,
+    send_key: SymmetricKey,
+    send_counter: u128,
+}
+
+impl Sender {
+    fn new(send_key: SymmetricKey) -> Sender {
+        Sender {
+            send_key,
+            send_counter: 0,
+        }
+    }
 }
 
 #[allow(unused)]
@@ -56,6 +75,7 @@ struct PendingRekey {
 
 #[allow(unused)]
 pub struct DhState {
+    local_public_key: PublicKey,
     remote_public_key: PublicKey,
     sender: Sender,
     receiver: Receiver,
@@ -130,8 +150,21 @@ impl DhStateHalf {
 
     fn handle_exchange_dh(self, exchange_dh: ExchangeDh) -> Result<DhState, DhError> {
         self.verify_exchange_dh(&exchange_dh)?;
-        // - Combine DhPublicKeys and obtain symmetric key.
-        unimplemented!();
+
+        let (send_key, recv_key) = self.dh_private_key.derive_symmetric_key(
+            exchange_dh.dh_public_key,
+            self.local_salt,
+            exchange_dh.key_salt)
+            .map_err(|_| DhError::KeyDerivationFailure)?;
+
+        Ok(DhState {
+            local_public_key: self.local_public_key,
+            remote_public_key: self.remote_public_key,
+            sender: Sender::new(send_key),
+            receiver: Receiver::new(recv_key),
+            old_receiver: None,
+            pending_rekey: None,
+        })
     }
 }
 
