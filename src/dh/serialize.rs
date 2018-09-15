@@ -9,7 +9,7 @@ use utils::capnp_custom_int::{read_custom_u_int128, write_custom_u_int128,
                                 read_custom_u_int256, write_custom_u_int256,
                                 read_custom_u_int512, write_custom_u_int512};
 // use dh_capnp::{plain, exchange_rand_nonce, exchange_dh, rekey};
-use super::messages::{ChannelMessage, ExchangeRandNonce, ExchangeDh, Rekey};
+use super::messages::{ChannelContent, ExchangeRandNonce, ExchangeDh, Rekey};
 
 pub enum DhSerializeError {
     CapnpError(capnp::Error),
@@ -68,4 +68,27 @@ fn serialize_rekey(rekey: &Rekey) -> Result<Vec<u8>, DhSerializeError> {
     Ok(serialized_msg)
 }
 
+fn serialize_channel_message(channel_message: &ChannelContent, rand_padding: Vec<u8>) -> Result<Vec<u8>, DhSerializeError> {
+    let mut builder = capnp::message::Builder::new_default();
+    let mut msg = builder.init_root::<dh_capnp::channel_message::Builder>();
+    let mut serialized_msg = Vec::new();
+
+    msg.reborrow().set_rand_padding(&rand_padding);
+    let mut content_msg = msg.reborrow().get_content();
+
+    match channel_message {
+        ChannelContent::KeepAlive => {
+            content_msg.set_keep_alive(());
+        }, 
+        ChannelContent::Rekey(rekey) => {
+            let mut rekey_msg = content_msg.init_rekey();
+            write_custom_u_int256(&rekey.dh_public_key, &mut rekey_msg.reborrow().get_dh_public_key()?);
+            write_custom_u_int256(&rekey.key_salt, &mut rekey_msg.reborrow().get_key_salt()?);
+        },
+        ChannelContent::User(_) => unimplemented!(),
+    };
+
+    serialize_packed::write_message(&mut serialized_msg, &builder)?;
+    Ok(serialized_msg)
+}
 
