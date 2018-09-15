@@ -78,8 +78,10 @@ impl DhStateInitial {
     }
 
     #[async]
-    fn handle_exchange_rand_nonce<R: SecureRandom + 'static>(self, exchange_rand_nonce: ExchangeRandNonce, 
-                                                   identity_client: IdentityClient, rng:Rc<R>) -> Result<(DhStateHalf, ExchangeDh),DhError> {
+    fn handle_exchange_rand_nonce<R: SecureRandom + 'static>(self, 
+                                                             exchange_rand_nonce: ExchangeRandNonce, 
+                                                             identity_client: IdentityClient, rng:Rc<R>) 
+                                                            -> Result<(DhStateHalf, ExchangeDh),DhError> {
 
         let dh_private_key = DhPrivateKey::new(&*rng)
             .map_err(|_| DhError::PrivateKeyGenFailure)?;
@@ -113,7 +115,7 @@ impl DhStateInitial {
 #[allow(unused)]
 impl DhStateHalf {
     /// Verify the signature at ExchangeDh message
-    pub fn verify_exchange_dh(&self, exchange_dh: &ExchangeDh) -> Result<(),DhError> {
+    pub fn verify_exchange_dh(&self, exchange_dh: &ExchangeDh) -> Result<(), DhError> {
         // Verify rand_nonce:
         if self.local_rand_nonce != exchange_dh.rand_nonce {
             return Err(DhError::IncorrectRandNonce);
