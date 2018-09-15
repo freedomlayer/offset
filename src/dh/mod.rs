@@ -23,6 +23,7 @@ pub enum DhError {
     KeyDerivationFailure,
     CreateEncryptorFailure,
     CreateDecryptorFailure,
+    EncryptionFailure,
 }
 
 #[allow(unused)]
@@ -157,8 +158,20 @@ pub enum HandleIncomingOutput {
 #[allow(unused)]
 impl DhState {
     /// Create an outgoing encrypted message
-    pub fn create_outgoing(&mut self, content: PlainData) -> EncryptedData {
+    pub fn create_outgoing(&mut self, content: PlainData) -> Result<EncryptedData, DhError> {
+        let channel_message = ChannelMessage::User(content);
+
+        // TODO: 
+        // - Serialize channel message
+        // - Encrypt channel message
+
         unimplemented!();
+
+        /*
+        let encrypted = self.sender.encrypt(&content.0)
+            .map_err(|_| DhError::EncryptionFailure)?;
+        Ok(EncryptedData(encrypted.to_vec()))
+        */
     }
 
     /// Initiate rekeying. Outputs an encrypted message to send to remote side.
@@ -169,6 +182,9 @@ impl DhState {
 
     /// Decrypt an incoming message
     fn decrypt_incoming(&mut self, enc_data: EncryptedData) -> ChannelMessage {
+        // TODO:
+        // - Decrypt channel message
+        // - Deserialize channel message
         unimplemented!();
     }
 
