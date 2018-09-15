@@ -2,7 +2,6 @@ use std::iter;
 
 use ring;
 use ring::aead::{open_in_place, seal_in_place, CHACHA20_POLY1305, OpeningKey, SealingKey};
-use ring::rand::SecureRandom;
 
 use super::{CryptoError, increase_nonce};
 
@@ -22,13 +21,9 @@ pub struct EncryptNonceCounter {
 }
 
 impl EncryptNonceCounter {
-    pub fn new<R: SecureRandom>(crypt_rng: &R) -> Result<Self, CryptoError> {
-        let mut enc_nonce = EncryptNonce([0_u8; ENC_NONCE_LEN]);
-        // Generate a random initial EncNonce:
-        if crypt_rng.fill(&mut enc_nonce.0).is_ok() {
-            Ok(EncryptNonceCounter { inner: enc_nonce })
-        } else {
-            Err(CryptoError)
+    pub fn new() -> Self {
+        EncryptNonceCounter { 
+            inner: EncryptNonce([0_u8; ENC_NONCE_LEN])
         }
     }
 
@@ -37,6 +32,10 @@ impl EncryptNonceCounter {
         let export_nonce = self.inner.clone();
         increase_nonce(&mut self.inner.0);
         export_nonce
+    }
+
+    pub fn as_ref(&self) -> &[u8; ENC_NONCE_LEN] {
+        &self.inner.0
     }
 }
 
@@ -49,11 +48,10 @@ pub struct Encryptor {
 
 impl Encryptor {
     /// Create a new encryptor object. This object can encrypt messages.
-    pub fn new(symmetric_key: &SymmetricKey, nonce_counter: EncryptNonceCounter)
-        -> Result<Self, CryptoError> {
+    pub fn new(symmetric_key: &SymmetricKey) -> Result<Self, CryptoError> {
         Ok(Encryptor {
             sealing_key: SealingKey::new(&CHACHA20_POLY1305, symmetric_key)?,
-            nonce_counter,
+            nonce_counter: EncryptNonceCounter::new(),
         })
     }
 
@@ -83,6 +81,7 @@ impl Encryptor {
 /// A structure used for decrypting messages with a given symmetric key.
 pub struct Decryptor {
     opening_key: OpeningKey,
+    nonce_counter: EncryptNonceCounter,
 }
 
 impl Decryptor {
@@ -90,26 +89,35 @@ impl Decryptor {
     pub fn new(symmetric_key: &SymmetricKey) -> Result<Self, CryptoError> {
         Ok(Decryptor {
             opening_key: OpeningKey::new(&CHACHA20_POLY1305, symmetric_key)?,
+            nonce_counter: EncryptNonceCounter::new(),
         })
     }
 
     /// Decrypt and authenticate a message.
-    pub fn decrypt(&self, cipher_msg: &[u8]) -> Result<Vec<u8>, CryptoError> {
+    pub fn decrypt(&mut self, cipher_msg: &[u8]) -> Result<Vec<u8>, CryptoError> {
         let enc_nonce = &cipher_msg[..ENC_NONCE_LEN];
+        if enc_nonce != self.nonce_counter.as_ref() {
+            // Nonce doesn't match!
+            return Err(CryptoError);
+        }
+
         let mut msg_buffer = cipher_msg[ENC_NONCE_LEN..].to_vec();
         let ad: [u8; 0] = [];
 
         match open_in_place(&self.opening_key, enc_nonce, &ad, 0, &mut msg_buffer) {
-            Ok(slice) => Ok(slice.to_vec()),
+            Ok(slice) => {
+                let _ = self.nonce_counter.next_nonce();
+                Ok(slice.to_vec())
+            },
             Err(ring::error::Unspecified) => Err(CryptoError),
         }
+        
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ring::test::rand::FixedByteRandom;
 
     #[test]
     fn increase_nonce_basic() {
@@ -136,11 +144,8 @@ mod tests {
 
         // let rng_seed: &[_] = &[1,2,3,4,5,6];
         // let mut rng: StdRng = rand::SeedableRng::from_seed(rng_seed);
-        let rng = FixedByteRandom { byte: 0x10 };
-        let enc_nonce_counter = EncryptNonceCounter::new(&rng).unwrap();
-        let mut encryptor = Encryptor::new(&symmetric_key, enc_nonce_counter).unwrap();
-
-        let decryptor = Decryptor::new(&symmetric_key).unwrap();
+        let mut encryptor = Encryptor::new(&symmetric_key).unwrap();
+        let mut decryptor = Decryptor::new(&symmetric_key).unwrap();
 
         let plain_msg = b"Hello world!";
         let cipher_msg = encryptor.encrypt(plain_msg).unwrap();
