@@ -13,7 +13,7 @@ use proto::ProtoError;
 use proto::channeler::ChannelId;
 // use proto::indexer::{IndexingProviderId, IndexingProviderStateHash};
 
-include_schema!(common_capnp, "common_capnp");
+use common_capnp::*;
 
 const CUSTOM_UINT128_LEN: usize = 16;
 const CUSTOM_UINT256_LEN: usize = 32;
