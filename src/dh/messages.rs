@@ -2,8 +2,8 @@ use crypto::identity::{Signature, PublicKey};
 use crypto::dh::{DhPublicKey, Salt};
 use crypto::rand_values::RandValue;
 
-pub struct EncryptedData(Vec<u8>);
-pub struct PlainData(Vec<u8>);
+pub struct EncryptedData(pub Vec<u8>);
+pub struct PlainData(pub Vec<u8>);
 
 /// First Diffie-Hellman message:
 #[allow(unused)]
