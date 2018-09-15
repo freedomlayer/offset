@@ -26,7 +26,7 @@ struct Rekey {
     keySalt @1: CustomUInt256;
 }
 
-struct Plain {
+struct ChannelMessage {
     randPadding @0: Data;
     content :union {
         keepAlive @1: Void;
