@@ -68,6 +68,8 @@ fn serialize_rekey(rekey: &Rekey) -> Result<Vec<u8>, DhSerializeError> {
     Ok(serialized_msg)
 }
 
+// TODO: Add exact type of ChannelMessage instead of dealing with the two types:
+// ChannelMessage and ChannelContent at the same time.
 fn serialize_channel_message(channel_message: &ChannelContent, rand_padding: Vec<u8>) -> Result<Vec<u8>, DhSerializeError> {
     let mut builder = capnp::message::Builder::new_default();
     let mut msg = builder.init_root::<dh_capnp::channel_message::Builder>();
