@@ -11,6 +11,7 @@ use self::messages::{ExchangeRandNonce, ExchangeDh, ChannelMessage,
                     EncryptedData, PlainData};
 
 mod messages;
+pub mod serialize;
 
 
 #[derive(Debug)]
