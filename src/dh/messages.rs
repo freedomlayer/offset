@@ -38,7 +38,7 @@ pub struct Rekey {
 }
 
 #[allow(unused)]
-pub enum ChannelMessage {
+pub enum ChannelContent {
     KeepAlive,
     Rekey(Rekey),
     User(PlainData),

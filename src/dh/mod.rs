@@ -7,11 +7,11 @@ use crypto::identity::{PublicKey, Signature, verify_signature};
 use crypto::dh::{DhPublicKey, DhPrivateKey, Salt};
 use crypto::sym_encrypt::{Encryptor, Decryptor};
 use identity::client::IdentityClient;
-use self::messages::{ExchangeRandNonce, ExchangeDh, ChannelMessage,
+use self::messages::{ExchangeRandNonce, ExchangeDh, ChannelContent,
                     EncryptedData, PlainData};
 
 mod messages;
-pub mod serialize;
+mod serialize;
 
 
 #[derive(Debug)]
@@ -160,7 +160,7 @@ pub enum HandleIncomingOutput {
 impl DhState {
     /// Create an outgoing encrypted message
     pub fn create_outgoing(&mut self, content: PlainData) -> Result<EncryptedData, DhError> {
-        let channel_message = ChannelMessage::User(content);
+        let channel_message = ChannelContent::User(content);
 
         // TODO: 
         // - Serialize channel message
@@ -182,7 +182,7 @@ impl DhState {
     }
 
     /// Decrypt an incoming message
-    fn decrypt_incoming(&mut self, enc_data: EncryptedData) -> ChannelMessage {
+    fn decrypt_incoming(&mut self, enc_data: EncryptedData) -> ChannelContent {
         // TODO:
         // - Decrypt channel message
         // - Deserialize channel message
@@ -191,12 +191,12 @@ impl DhState {
 
     /// Handle an incoming encrypted message
     pub fn handle_incoming(&mut self, enc_data: EncryptedData) -> HandleIncomingOutput {
-        let channel_message = self.decrypt_incoming(enc_data);
-        match channel_message {
-            ChannelMessage::KeepAlive => 
+        let content_message = self.decrypt_incoming(enc_data);
+        match content_message {
+            ChannelContent::KeepAlive => 
                 HandleIncomingOutput::Empty,
-            ChannelMessage::Rekey(rekey) => unimplemented!(),
-            ChannelMessage::User(content) => 
+            ChannelContent::Rekey(rekey) => unimplemented!(),
+            ChannelContent::User(content) => 
                 HandleIncomingOutput::IncomingUserMessage(content),
         }
     }
