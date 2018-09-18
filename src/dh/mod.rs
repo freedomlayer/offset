@@ -47,7 +47,7 @@ pub struct DhStateHalf {
 
 
 #[allow(unused)]
-struct PendingRekey {
+struct PendingSentRekey {
     local_dh_public_key: DhPublicKey,
     local_salt: Salt,
 }
@@ -62,7 +62,7 @@ pub struct DhState {
     /// We will remove it upon receipt of the first successful incoming 
     /// messages for the new receiver.
     old_receiver: Option<Decryptor>,
-    pending_rekey: Option<PendingRekey>,
+    pending_sent_rekey: Option<PendingSentRekey>,
 }
 
 
@@ -144,7 +144,7 @@ impl DhStateHalf {
             receiver: Decryptor::new(&recv_key)
                 .map_err(|_| DhError::CreateDecryptorFailure)?,
             old_receiver: None,
-            pending_rekey: None,
+            pending_sent_rekey: None,
         })
     }
 }
