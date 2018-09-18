@@ -44,3 +44,8 @@ pub enum ChannelContent {
     User(PlainData),
 }
 
+#[allow(unused)]
+pub struct ChannelMessage {
+    pub rand_padding: Vec<u8>,
+    pub content: ChannelContent,
+}
