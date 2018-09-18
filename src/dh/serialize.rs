@@ -160,3 +160,53 @@ pub fn deserialize_channel_message(data: &[u8]) -> Result<ChannelMessage, DhSeri
         content,
     })
 }
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crypto::rand_values::RAND_VALUE_LEN;
+    use crypto::identity::{PUBLIC_KEY_LEN, SIGNATURE_LEN};
+    use crypto::dh::{SALT_LEN, DH_PUBLIC_KEY_LEN};
+
+    #[test]
+    fn test_serialize_exchange_rand_nonce() {
+        let msg = ExchangeRandNonce {
+            rand_nonce: RandValue::try_from(&[0x01u8; RAND_VALUE_LEN][..]).unwrap(),
+            public_key: PublicKey::try_from(&[0x02u8; PUBLIC_KEY_LEN][..]).unwrap(),
+        };
+        let serialized = serialize_exchange_rand_nonce(&msg);
+        let msg2 = deserialize_exchange_rand_nonce(&serialized[..]).unwrap();
+        assert_eq!(msg, msg2);
+    }
+
+    #[test]
+    fn test_serialize_exchange_dh() {
+        let msg = ExchangeDh {
+            dh_public_key: DhPublicKey::try_from(&[0x01u8; DH_PUBLIC_KEY_LEN][..]).unwrap(),
+            rand_nonce: RandValue::try_from(&[0x02u8; RAND_VALUE_LEN][..]).unwrap(),
+            key_salt: Salt::try_from(&[0x03u8; SALT_LEN][..]).unwrap(),
+            signature: Signature::try_from(&[0x03u8; SIGNATURE_LEN][..]).unwrap(),
+        };
+        let serialized = serialize_exchange_dh(&msg);
+        let msg2 = deserialize_exchange_dh(&serialized[..]).unwrap();
+        assert_eq!(msg, msg2);
+    }
+
+    #[test]
+    fn test_serialize_channel_message_rekey() {
+        let rekey = Rekey {
+            dh_public_key: DhPublicKey::try_from(&[0x01u8; DH_PUBLIC_KEY_LEN][..]).unwrap(),
+            key_salt: Salt::try_from(&[0x03u8; SALT_LEN][..]).unwrap(),
+        };
+        let content = ChannelContent::Rekey(rekey);
+        let msg = ChannelMessage {
+            rand_padding: vec![1,2,3,4,5,6],
+            content,
+        };
+        let serialized = serialize_channel_message(&msg);
+        let msg2 = deserialize_channel_message(&serialized[..]).unwrap();
+        assert_eq!(msg, msg2);
+    }
+}
