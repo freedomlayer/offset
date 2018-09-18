@@ -1,18 +1,21 @@
 use std::rc::Rc;
 use futures::prelude::{async, await};
 use ring::rand::SecureRandom;
+use byteorder::{BigEndian, ByteOrder};
 
 use crypto::rand_values::RandValue;
 use crypto::identity::{PublicKey, Signature, verify_signature};
-use crypto::dh::{DhPublicKey, DhPrivateKey, Salt};
+use crypto::dh::{DhPrivateKey, Salt};
 use crypto::sym_encrypt::{Encryptor, Decryptor};
 use identity::client::IdentityClient;
 use self::messages::{ExchangeRandNonce, ExchangeDh, ChannelContent,
-                    EncryptedData, PlainData, ChannelMessage};
+                    EncryptedData, PlainData, ChannelMessage, Rekey};
 use self::serialize::{serialize_channel_message, deserialize_channel_message};
 
 mod messages;
 mod serialize;
+
+const MAX_RAND_PADDING: u16 = 0x100;
 
 
 #[derive(Debug)]
@@ -28,6 +31,7 @@ pub enum DhError {
     EncryptionFailure,
     DecryptionFailure,
     DeserializeError,
+    RekeyInProgress,
 }
 
 #[allow(unused)]
@@ -47,8 +51,8 @@ pub struct DhStateHalf {
 
 
 #[allow(unused)]
-struct PendingSentRekey {
-    local_dh_public_key: DhPublicKey,
+struct PendingRekey {
+    local_dh_private_key: DhPrivateKey,
     local_salt: Salt,
 }
 
@@ -61,8 +65,8 @@ pub struct DhState {
     /// We might have an old receiver from the last rekeying.
     /// We will remove it upon receipt of the first successful incoming 
     /// messages for the new receiver.
-    old_receiver: Option<Decryptor>,
-    pending_sent_rekey: Option<PendingSentRekey>,
+    opt_old_receiver: Option<Decryptor>,
+    opt_pending_rekey: Option<PendingRekey>,
 }
 
 
@@ -143,8 +147,8 @@ impl DhStateHalf {
                 .map_err(|_| DhError::CreateEncryptorFailure)?,
             receiver: Decryptor::new(&recv_key)
                 .map_err(|_| DhError::CreateDecryptorFailure)?,
-            old_receiver: None,
-            pending_sent_rekey: None,
+            opt_old_receiver: None,
+            opt_pending_rekey: None,
         })
     }
 }
@@ -159,22 +163,17 @@ pub enum HandleIncomingOutput {
     IncomingUserMessage(PlainData),
 }
 
+
 #[allow(unused)]
 impl DhState {
-    /// Create an outgoing encrypted message
-    pub fn create_outgoing(&mut self, content: PlainData, rand_padding: Vec<u8>) -> Result<EncryptedData, DhError> {
-        let content = ChannelContent::User(content);
-        let channel_message = ChannelMessage { rand_padding, content };
+    fn encrypt_outgoing<R: SecureRandom>(&mut self, channel_content: ChannelContent, rng: &R) -> EncryptedData {
+        let channel_message = ChannelMessage {
+            rand_padding: self.gen_rand_padding(rng),
+            content: channel_content,
+        };
         let ser_channel_message = serialize_channel_message(&channel_message);
-        let encrypted = self.sender.encrypt(&ser_channel_message)
-            .map_err(|_| DhError::EncryptionFailure)?;
-        Ok(EncryptedData(encrypted))
-    }
-
-    /// Initiate rekeying. Outputs an encrypted message to send to remote side.
-    pub fn rekey(&mut self) -> EncryptedData {
-        // TODO; How to deal with simultaneous rekeying?
-        unimplemented!();
+        let enc_channel_message = self.sender.encrypt(&ser_channel_message).unwrap();
+        EncryptedData(enc_channel_message)
     }
 
     /// Decrypt an incoming message
@@ -187,8 +186,54 @@ impl DhState {
         Ok(channel_message.content)
     }
 
+    /// Create an outgoing encrypted message
+    pub fn create_outgoing<R: SecureRandom>(&mut self, content: PlainData, rng: &R) -> EncryptedData {
+        let content = ChannelContent::User(content);
+        self.encrypt_outgoing(content, rng)
+    }
+
+    fn gen_rand_padding<R: SecureRandom>(&self, rng: &R) -> Vec<u8> {
+        assert_eq!(MAX_RAND_PADDING & 0xff, 0);
+
+        // Randomize the length of the random padding:
+        let mut len_bytes = [0x00; 2];
+        rng.fill(&mut len_bytes[..]).unwrap();
+        let padding_len = BigEndian::read_u16(&len_bytes[..]) as usize;
+
+        // Return padding_len random bytes:
+        let mut rand_padding = vec![0x00; padding_len];
+        rng.fill(&mut rand_padding[..]).unwrap();
+
+        rand_padding
+    }
+
+    /// Initiate rekeying. Outputs an encrypted message to send to remote side.
+    pub fn create_rekey<R: SecureRandom>(&mut self, rng: &R) -> Result<EncryptedData, DhError> {
+        if self.opt_pending_rekey.is_some() {
+            return Err(DhError::RekeyInProgress);
+        }
+        let dh_private_key = DhPrivateKey::new(rng)
+            .map_err(|_| DhError::PrivateKeyGenFailure)?;
+        let dh_public_key = dh_private_key.compute_public_key()
+                .map_err(|_| DhError::DhPublicKeyComputeFailure)?;;
+        let local_salt = Salt::new(rng)
+            .map_err(|_| DhError::SaltGenFailure)?;
+
+        let pending_rekey = PendingRekey {
+            local_dh_private_key: dh_private_key,
+            local_salt: local_salt.clone(),
+        };
+        self.opt_pending_rekey = Some(pending_rekey);
+
+        let rekey = Rekey {
+            dh_public_key: dh_public_key,
+            key_salt: local_salt,
+        };
+        Ok(self.encrypt_outgoing(ChannelContent::Rekey(rekey), rng))
+    }
+
     /// Handle an incoming encrypted message
-    pub fn handle_incoming(&mut self, enc_data: EncryptedData) -> Result<HandleIncomingOutput, DhError> {
+    pub fn handle_incoming<R: SecureRandom>(&mut self, enc_data: EncryptedData, rng:Rc<R>) -> Result<HandleIncomingOutput, DhError> {
         match self.decrypt_incoming(enc_data)? {
             ChannelContent::KeepAlive => 
                 Ok(HandleIncomingOutput::Empty),
