@@ -72,8 +72,8 @@ pub struct DhState {
 
 #[allow(unused)]
 impl DhStateInitial {
-    fn new<R: SecureRandom>(local_public_key: &PublicKey, rng:Rc<R>) -> (DhStateInitial, ExchangeRandNonce) {
-        let local_rand_nonce = RandValue::new(&*rng);
+    fn new<R: SecureRandom>(local_public_key: &PublicKey, rng: &R) -> (DhStateInitial, ExchangeRandNonce) {
+        let local_rand_nonce = RandValue::new(rng);
 
         let dh_state_initial = DhStateInitial {
             local_public_key: local_public_key.clone(),
@@ -320,3 +320,55 @@ impl DhState {
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::prelude::{async, await};
+    use futures::Future;
+    use tokio_core::reactor::Core;
+    use ring::test::rand::FixedByteRandom;
+    use ring::signature;
+    use crypto::identity::SoftwareEd25519Identity;
+    use identity::create_identity;
+    use identity::client::IdentityClient;
+
+    #[async]
+    fn run_basic_dh_state(identity_client1: IdentityClient, identity_client2: IdentityClient) -> Result<(),()> {
+        let rng1 = Rc::new(FixedByteRandom { byte: 0x1 });
+        let rng2 = Rc::new(FixedByteRandom { byte: 0x2 });
+        let local_public_key1 = await!(identity_client1.request_public_key()).unwrap();
+        let local_public_key2 = await!(identity_client2.request_public_key()).unwrap();
+        let (dh_state_initial1, exchange_rand_nonce1) =  DhStateInitial::new(&local_public_key1, &*rng1);
+        let (dh_state_initial2, exchange_rand_nonce2) =  DhStateInitial::new(&local_public_key2, &*rng2);
+
+        await!(dh_state_initial1.handle_exchange_rand_nonce(exchange_rand_nonce2, identity_client1.clone(), Rc::clone(&rng1)));
+        await!(dh_state_initial2.handle_exchange_rand_nonce(exchange_rand_nonce1, identity_client2.clone(), Rc::clone(&rng2)));
+        // TODO: Continue here.
+        Ok(())
+    }
+
+
+    #[test]
+    fn test_basic_dh_state() {
+        let rng1 = FixedByteRandom { byte: 0x1 };
+        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&rng1).unwrap();
+        let identity1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        let (requests_sender1, identity_server1) = create_identity(identity1);
+        let identity_client1 = IdentityClient::new(requests_sender1);
+
+        let rng2 = FixedByteRandom { byte: 0x2 };
+        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&rng2).unwrap();
+        let identity2 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        let (requests_sender2, identity_server2) = create_identity(identity2);
+        let identity_client2 = IdentityClient::new(requests_sender2);
+
+        // Start the Identity service:
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+        handle.spawn(identity_server1.then(|_| Ok(())));
+        handle.spawn(identity_server2.then(|_| Ok(())));
+
+        core.run(run_basic_dh_state(identity_client1, identity_client2)).unwrap();
+    }
+}
