@@ -96,7 +96,6 @@ impl DhStateInitial {
 
         let dh_state_half = DhStateHalf {
             remote_public_key: exchange_rand_nonce.public_key,
-            // remote_rand_nonce: exchange_rand_nonce.rand_nonce,
             local_public_key: self.local_public_key,
             local_rand_nonce: self.local_rand_nonce,
             dh_private_key,
