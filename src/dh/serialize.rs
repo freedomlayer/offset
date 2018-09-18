@@ -67,18 +67,17 @@ fn serialize_rekey(rekey: &Rekey) -> Result<Vec<u8>, DhSerializeError> {
     serialize_packed::write_message(&mut serialized_msg, &builder)?;
     Ok(serialized_msg)
 }
+*/
 
-// TODO: Add exact type of ChannelMessage instead of dealing with the two types:
-// ChannelMessage and ChannelContent at the same time.
-fn serialize_channel_message(channel_message: &ChannelContent, rand_padding: Vec<u8>) -> Result<Vec<u8>, DhSerializeError> {
+fn serialize_channel_message(channel_message: &ChannelMessage) -> Result<Vec<u8>, DhSerializeError> {
     let mut builder = capnp::message::Builder::new_default();
     let mut msg = builder.init_root::<dh_capnp::channel_message::Builder>();
     let mut serialized_msg = Vec::new();
 
-    msg.reborrow().set_rand_padding(&rand_padding);
+    msg.reborrow().set_rand_padding(&channel_message.rand_padding);
     let mut content_msg = msg.reborrow().get_content();
 
-    match channel_message {
+    match &channel_message.content {
         ChannelContent::KeepAlive => {
             content_msg.set_keep_alive(());
         }, 
@@ -87,7 +86,9 @@ fn serialize_channel_message(channel_message: &ChannelContent, rand_padding: Vec
             write_custom_u_int256(&rekey.dh_public_key, &mut rekey_msg.reborrow().get_dh_public_key()?);
             write_custom_u_int256(&rekey.key_salt, &mut rekey_msg.reborrow().get_key_salt()?);
         },
-        ChannelContent::User(_) => unimplemented!(),
+        ChannelContent::User(PlainData(plain_data)) => {
+            content_msg.set_user(plain_data);
+        },
     };
 
     serialize_packed::write_message(&mut serialized_msg, &builder)?;
