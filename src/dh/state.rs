@@ -210,6 +210,8 @@ impl DhState {
         self.encrypt_outgoing(content, rng)
     }
 
+    /// Generate random padding of random variable length
+    /// Done to make it harder to collect metadata over lengths of messages
     fn gen_rand_padding<R: SecureRandom>(&self, rng: &R) -> Vec<u8> {
         assert_eq!(MAX_RAND_PADDING & 0xff, 0);
 
