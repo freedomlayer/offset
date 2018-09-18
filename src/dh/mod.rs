@@ -1,3 +1,4 @@
+use std::mem;
 use std::rc::Rc;
 use futures::prelude::{async, await};
 use ring::rand::SecureRandom;
@@ -154,13 +155,10 @@ impl DhStateHalf {
 }
 
 #[allow(unused)]
-pub enum HandleIncomingOutput {
-    /// Nothing to do:
-    Empty,
-    /// This message should be sent to the remote side:
-    SendMessage(EncryptedData),
-    /// Received an incoming user message
-    IncomingUserMessage(PlainData),
+pub struct HandleIncomingOutput {
+    rekey_occured: bool,
+    opt_send_message: Option<EncryptedData>,
+    opt_incoming_message: Option<PlainData>,
 }
 
 
@@ -212,13 +210,9 @@ impl DhState {
         if self.opt_pending_rekey.is_some() {
             return Err(DhError::RekeyInProgress);
         }
-        let dh_private_key = DhPrivateKey::new(rng)
-            .map_err(|_| DhError::PrivateKeyGenFailure)?;
-        let dh_public_key = dh_private_key.compute_public_key()
-                .map_err(|_| DhError::DhPublicKeyComputeFailure)?;;
-        let local_salt = Salt::new(rng)
-            .map_err(|_| DhError::SaltGenFailure)?;
-
+        let dh_private_key = DhPrivateKey::new(rng).unwrap();
+        let local_salt = Salt::new(rng).unwrap();
+        let dh_public_key = dh_private_key.compute_public_key().unwrap();
         let pending_rekey = PendingRekey {
             local_dh_private_key: dh_private_key,
             local_salt: local_salt.clone(),
@@ -226,20 +220,81 @@ impl DhState {
         self.opt_pending_rekey = Some(pending_rekey);
 
         let rekey = Rekey {
-            dh_public_key: dh_public_key,
+            dh_public_key,
             key_salt: local_salt,
         };
         Ok(self.encrypt_outgoing(ChannelContent::Rekey(rekey), rng))
     }
 
+    fn handle_incoming_rekey<R: SecureRandom>(&mut self, rekey: Rekey, rng: &R) 
+        -> Result<HandleIncomingOutput, DhError> {
+
+        match self.opt_pending_rekey.take() {
+            None => {
+                let dh_private_key = DhPrivateKey::new(rng).unwrap();
+                let local_salt = Salt::new(rng).unwrap();
+                let dh_public_key = dh_private_key.compute_public_key().unwrap();
+
+                let (send_key, recv_key) = dh_private_key.derive_symmetric_key(
+                    rekey.dh_public_key,
+                    local_salt.clone(),
+                    rekey.key_salt)
+                    .map_err(|_| DhError::KeyDerivationFailure)?;
+
+                let new_sender = Encryptor::new(&send_key)
+                    .map_err(|_| DhError::CreateEncryptorFailure)?;
+                let new_receiver = Decryptor::new(&recv_key)
+                    .map_err(|_| DhError::CreateDecryptorFailure)?;
+
+                self.opt_old_receiver = Some(mem::replace(&mut self.receiver, new_receiver));
+
+                // Create our Rekey message using the old sender:
+                let rekey = Rekey {
+                    dh_public_key,
+                    key_salt: local_salt
+                };
+                let rekey_data = self.encrypt_outgoing(ChannelContent::Rekey(rekey), rng);
+
+                self.sender = new_sender;
+                Ok(HandleIncomingOutput {
+                    rekey_occured: true,
+                    opt_send_message: Some(rekey_data),
+                    opt_incoming_message: None,
+                })
+            },
+            Some(pending_rekey) => {
+                let (send_key, recv_key) = pending_rekey.local_dh_private_key.derive_symmetric_key(
+                    rekey.dh_public_key,
+                    pending_rekey.local_salt,
+                    rekey.key_salt)
+                    .map_err(|_| DhError::KeyDerivationFailure)?;
+                self.sender = Encryptor::new(&send_key)
+                    .map_err(|_| DhError::CreateEncryptorFailure)?;
+                let new_receiver = Decryptor::new(&recv_key)
+                    .map_err(|_| DhError::CreateDecryptorFailure)?;
+                self.opt_old_receiver = Some(mem::replace(&mut self.receiver, new_receiver));
+                Ok(HandleIncomingOutput {
+                    rekey_occured: true,
+                    opt_send_message: None,
+                    opt_incoming_message: None,
+                })
+            },
+        }
+    }
+
     /// Handle an incoming encrypted message
-    pub fn handle_incoming<R: SecureRandom>(&mut self, enc_data: EncryptedData, rng:Rc<R>) -> Result<HandleIncomingOutput, DhError> {
+    pub fn handle_incoming<R: SecureRandom>(&mut self, enc_data: EncryptedData, rng: &R) 
+        -> Result<HandleIncomingOutput, DhError> {
+
+        // TODO: Try to decrypt with old decryptor first.
         match self.decrypt_incoming(enc_data)? {
             ChannelContent::KeepAlive => 
-                Ok(HandleIncomingOutput::Empty),
-            ChannelContent::Rekey(rekey) => unimplemented!(),
+                Ok(HandleIncomingOutput { rekey_occured: false, 
+                    opt_send_message: None, opt_incoming_message: None }),
+            ChannelContent::Rekey(rekey) => self.handle_incoming_rekey(rekey, rng),
             ChannelContent::User(content) => 
-                Ok(HandleIncomingOutput::IncomingUserMessage(content)),
+                Ok(HandleIncomingOutput { rekey_occured: false, 
+                    opt_send_message: None, opt_incoming_message: Some(content) }),
         }
     }
 }
