@@ -8,7 +8,8 @@ use crypto::dh::{DhPublicKey, DhPrivateKey, Salt};
 use crypto::sym_encrypt::{Encryptor, Decryptor};
 use identity::client::IdentityClient;
 use self::messages::{ExchangeRandNonce, ExchangeDh, ChannelContent,
-                    EncryptedData, PlainData};
+                    EncryptedData, PlainData, ChannelMessage};
+use self::serialize::{serialize_channel_message, deserialize_channel_message};
 
 mod messages;
 mod serialize;
@@ -25,6 +26,8 @@ pub enum DhError {
     CreateEncryptorFailure,
     CreateDecryptorFailure,
     EncryptionFailure,
+    DecryptionFailure,
+    DeserializeError,
 }
 
 #[allow(unused)]
@@ -159,20 +162,13 @@ pub enum HandleIncomingOutput {
 #[allow(unused)]
 impl DhState {
     /// Create an outgoing encrypted message
-    pub fn create_outgoing(&mut self, content: PlainData) -> Result<EncryptedData, DhError> {
-        let channel_message = ChannelContent::User(content);
-
-        // TODO: 
-        // - Serialize channel message
-        // - Encrypt channel message
-
-        unimplemented!();
-
-        /*
-        let encrypted = self.sender.encrypt(&content.0)
+    pub fn create_outgoing(&mut self, content: PlainData, rand_padding: Vec<u8>) -> Result<EncryptedData, DhError> {
+        let content = ChannelContent::User(content);
+        let channel_message = ChannelMessage { rand_padding, content };
+        let ser_channel_message = serialize_channel_message(&channel_message);
+        let encrypted = self.sender.encrypt(&ser_channel_message)
             .map_err(|_| DhError::EncryptionFailure)?;
-        Ok(EncryptedData(encrypted.to_vec()))
-        */
+        Ok(EncryptedData(encrypted))
     }
 
     /// Initiate rekeying. Outputs an encrypted message to send to remote side.
@@ -182,22 +178,23 @@ impl DhState {
     }
 
     /// Decrypt an incoming message
-    fn decrypt_incoming(&mut self, enc_data: EncryptedData) -> ChannelContent {
-        // TODO:
-        // - Decrypt channel message
-        // - Deserialize channel message
-        unimplemented!();
+    fn decrypt_incoming(&mut self, enc_data: EncryptedData) -> Result<ChannelContent, DhError> {
+        let data = self.receiver.decrypt(&enc_data.0)
+            .map_err(|_| DhError::DecryptionFailure)?;
+        let channel_message = deserialize_channel_message(&data)
+            .map_err(|_| DhError::DeserializeError)?;
+
+        Ok(channel_message.content)
     }
 
     /// Handle an incoming encrypted message
-    pub fn handle_incoming(&mut self, enc_data: EncryptedData) -> HandleIncomingOutput {
-        let content_message = self.decrypt_incoming(enc_data);
-        match content_message {
+    pub fn handle_incoming(&mut self, enc_data: EncryptedData) -> Result<HandleIncomingOutput, DhError> {
+        match self.decrypt_incoming(enc_data)? {
             ChannelContent::KeepAlive => 
-                HandleIncomingOutput::Empty,
+                Ok(HandleIncomingOutput::Empty),
             ChannelContent::Rekey(rekey) => unimplemented!(),
             ChannelContent::User(content) => 
-                HandleIncomingOutput::IncomingUserMessage(content),
+                Ok(HandleIncomingOutput::IncomingUserMessage(content)),
         }
     }
 }
