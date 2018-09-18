@@ -14,6 +14,7 @@ use utils::capnp_custom_int::{read_custom_u_int128, write_custom_u_int128,
 use super::messages::{PlainData, ChannelMessage, ChannelContent, 
     ExchangeRandNonce, ExchangeDh, Rekey};
 
+#[derive(Debug)]
 pub enum DhSerializeError {
     CapnpError(capnp::Error),
     NotInSchema(capnp::NotInSchema),
