@@ -2,11 +2,14 @@ use crypto::identity::{Signature, PublicKey};
 use crypto::dh::{DhPublicKey, Salt};
 use crypto::rand_values::RandValue;
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct EncryptedData(pub Vec<u8>);
+#[derive(Debug, PartialEq, Eq)]
 pub struct PlainData(pub Vec<u8>);
 
 /// First Diffie-Hellman message:
 #[allow(unused)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ExchangeRandNonce {
     pub rand_nonce: RandValue,
     pub public_key: PublicKey,
@@ -14,6 +17,7 @@ pub struct ExchangeRandNonce {
 
 /// Second Diffie-Hellman message:
 #[allow(unused)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ExchangeDh {
     pub dh_public_key: DhPublicKey,
     pub rand_nonce: RandValue,
@@ -32,12 +36,14 @@ impl ExchangeDh {
 }
 
 #[allow(unused)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Rekey {
     pub dh_public_key: DhPublicKey,
     pub key_salt: Salt,
 }
 
 #[allow(unused)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ChannelContent {
     KeepAlive,
     Rekey(Rekey),
@@ -45,6 +51,7 @@ pub enum ChannelContent {
 }
 
 #[allow(unused)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ChannelMessage {
     pub rand_padding: Vec<u8>,
     pub content: ChannelContent,
