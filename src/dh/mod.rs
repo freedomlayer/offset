@@ -174,10 +174,26 @@ impl DhState {
         EncryptedData(enc_channel_message)
     }
 
-    /// Decrypt an incoming message
-    fn decrypt_incoming(&mut self, enc_data: EncryptedData) -> Result<ChannelContent, DhError> {
+    /// First try to decrypt with the old decryptor.
+    /// If it doesn't work, try to decrypt with the new decryptor.
+    /// If decryption with the new decryptor works, remove the old decryptor.
+    fn try_decrypt(&mut self, enc_data: EncryptedData) -> Result<PlainData, DhError> {
+        if let Some(ref mut old_receiver) = self.opt_old_receiver {
+            if let Ok(data) = old_receiver.decrypt(&enc_data.0) {
+                return Ok(PlainData(data));
+            }
+        };
+
         let data = self.receiver.decrypt(&enc_data.0)
             .map_err(|_| DhError::DecryptionFailure)?;
+        self.opt_old_receiver = None;
+        Ok(PlainData(data))
+    }
+
+
+    /// Decrypt an incoming message
+    fn decrypt_incoming(&mut self, enc_data: EncryptedData) -> Result<ChannelContent, DhError> {
+        let data = self.try_decrypt(enc_data)?.0;
         let channel_message = deserialize_channel_message(&data)
             .map_err(|_| DhError::DeserializeError)?;
 
@@ -286,7 +302,6 @@ impl DhState {
     pub fn handle_incoming<R: SecureRandom>(&mut self, enc_data: EncryptedData, rng: &R) 
         -> Result<HandleIncomingOutput, DhError> {
 
-        // TODO: Try to decrypt with old decryptor first.
         match self.decrypt_incoming(enc_data)? {
             ChannelContent::KeepAlive => 
                 Ok(HandleIncomingOutput { rekey_occured: false, 
