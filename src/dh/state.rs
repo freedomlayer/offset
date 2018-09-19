@@ -123,7 +123,7 @@ impl DhStateInitial {
 #[allow(unused)]
 impl DhStateHalf {
     /// Verify the signature at ExchangeDh message
-    pub fn verify_exchange_dh(&self, exchange_dh: &ExchangeDh) -> Result<(), DhError> {
+    fn verify_exchange_dh(&self, exchange_dh: &ExchangeDh) -> Result<(), DhError> {
         // Verify rand_nonce:
         if self.local_rand_nonce != exchange_dh.rand_nonce {
             return Err(DhError::IncorrectRandNonce);
@@ -136,7 +136,7 @@ impl DhStateHalf {
         Ok(())
     }
 
-    fn handle_exchange_dh(self, exchange_dh: ExchangeDh) -> Result<DhState, DhError> {
+    pub fn handle_exchange_dh(self, exchange_dh: ExchangeDh) -> Result<DhState, DhError> {
         self.verify_exchange_dh(&exchange_dh)?;
 
         let (send_key, recv_key) = self.dh_private_key.derive_symmetric_key(
