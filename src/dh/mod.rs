@@ -8,7 +8,7 @@ use ring::rand::SecureRandom;
 
 use crypto::identity::PublicKey;
 use identity::client::IdentityClient;
-use timer::messages::FromTimer;
+use timer::TimerClient;
 
 mod messages;
 mod serialize;
@@ -28,7 +28,7 @@ fn create_secure_channel<M,K,R>(reader: M, writer: K,
                               identity_client: IdentityClient,
                               expected_remote: Option<PublicKey>,
                               rng: Rc<R>,
-                              from_timer: mpsc::Receiver<FromTimer>) 
+                              timer_client: TimerClient)
     -> Result<SecureChannel, SecureChannelError>
 where
     R: SecureRandom,
