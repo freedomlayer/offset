@@ -32,10 +32,11 @@ enum SecureChannelError {
     HandleExchangeRandNonceError(DhError),
     DeserializeExchangeDhError,
     HandleExchangeDhError(DhError),
+    UnexpectedRemotePublicKey,
 }
 
-#[async]
 /// Read one message from reader
+#[async]
 fn read_from_reader<M: 'static>(reader: M) -> Result<(Vec<u8>, M), SecureChannelError>
     where M: Stream<Item=Vec<u8>, Error=()>,
 {
@@ -50,15 +51,12 @@ fn read_from_reader<M: 'static>(reader: M) -> Result<(Vec<u8>, M), SecureChannel
     }
 }
 
-
-
 #[async]
-fn create_secure_channel<M: 'static,K: 'static,R: SecureRandom + 'static>(reader: M, writer: K, 
+fn initial_exchange<M: 'static,K: 'static,R: SecureRandom + 'static>(reader: M, writer: K, 
                               identity_client: IdentityClient,
-                              expected_remote: Option<PublicKey>,
-                              rng: Rc<R>,
-                              timer_client: TimerClient)
-    -> Result<SecureChannel, SecureChannelError>
+                              opt_expected_remote: Option<PublicKey>,
+                              rng: Rc<R>)
+                            -> Result<(DhState, M, K), SecureChannelError>
 where
     R: SecureRandom,
     M: Stream<Item=Vec<u8>, Error=()>,
@@ -71,6 +69,12 @@ where
     let ser_exchange_rand_nonce = serialize_exchange_rand_nonce(&exchange_rand_nonce);
     let writer = await!(writer.send(ser_exchange_rand_nonce))
         .map_err(|_| SecureChannelError::WriterError)?;
+
+    if let Some(expected_remote) = opt_expected_remote {
+        if expected_remote != local_public_key {
+            return Err(SecureChannelError::UnexpectedRemotePublicKey);
+        }
+    }
 
     let (reader_message, reader) = await!(read_from_reader(reader))?;
 
@@ -91,6 +95,30 @@ where
         .map_err(|_| SecureChannelError::DeserializeExchangeDhError)?;
     let dh_state = dh_state_half.handle_exchange_dh(exchange_dh)
         .map_err(SecureChannelError::HandleExchangeDhError)?;
+
+    Ok((dh_state, reader, writer))
+}
+
+
+#[async]
+fn create_secure_channel<M: 'static,K: 'static,R: SecureRandom + 'static>(reader: M, writer: K, 
+                              identity_client: IdentityClient,
+                              opt_expected_remote: Option<PublicKey>,
+                              rng: Rc<R>,
+                              timer_client: TimerClient)
+    -> Result<SecureChannel, SecureChannelError>
+where
+    R: SecureRandom,
+    M: Stream<Item=Vec<u8>, Error=()>,
+    K: Sink<SinkItem=Vec<u8>, SinkError=()>,
+{
+
+    let (dh_state, reader, writer) = await!(initial_exchange(
+                                                reader, 
+                                                writer, 
+                                                identity_client, 
+                                                opt_expected_remote, 
+                                                Rc::clone(&rng)))?;
 
 
     
