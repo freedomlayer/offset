@@ -101,3 +101,17 @@ macro_rules! define_fixed_bytes {
         }
     };
 }
+
+/// Include a capnp schema
+macro_rules! include_schema {
+    ($( $name:ident, $path:expr );*) => {
+        $(
+            #[allow(unused)]
+            pub mod $name {
+                include!(concat!(env!("OUT_DIR"), "/schema/", $path, ".rs"));
+            }
+
+            // use self::$name::*;
+        )*
+    };
+}

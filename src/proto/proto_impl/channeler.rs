@@ -7,7 +7,8 @@ use super::common::*;
 use proto::channeler::*;
 use proto::{Proto, ProtoError};
 
-include_schema!(channeler_capnp, "channeler_capnp");
+// include_schema!(channeler_capnp, "channeler_capnp");
+use channeler_capnp::*;
 
 impl<'a> Proto<'a> for InitChannel {
     type Reader = init_channel::Reader<'a>;

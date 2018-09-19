@@ -10,6 +10,7 @@ pub mod int_convert;
 pub mod safe_arithmetic;
 #[macro_use]
 pub mod big_array;
+pub mod capnp_custom_int;
 
 pub use self::close_handle::CloseHandle;
 pub use self::service_client::{ServiceClient, ServiceClientError};

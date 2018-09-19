@@ -47,11 +47,14 @@ pub mod channeler;
 pub mod funder;
 pub mod identity;
 pub mod timer;
+pub mod dh;
 
 
 mod proto;
 // FIXME: The capnpc generated code assumes that we
 // add it as a module at the top level of the crate.
-use proto::proto_impl::common::common_capnp;
+// use proto::proto_impl::common::common_capnp;
 // use proto::proto_impl::indexer::indexer_capnp;
-use proto::proto_impl::channeler::channeler_capnp;
+include_schema!(channeler_capnp, "channeler_capnp");
+include_schema!(common_capnp, "common_capnp");
+include_schema!(dh_capnp, "dh_capnp");
