@@ -7,28 +7,11 @@
 //!
 //! ## The Timer Message Format
 //!
-//! The message from timer module was shown bellow:
-//!
-//! ```rust,norun
-//! enum FromTimer {
-//!     TimeTick,
-//! }
-//! ```
-//!
 //! ## Details
 //!
 //! Currently, timer module backend by [`futures-timer`][futures-timer],
 //! which is designed for working with timers, timeouts, and intervals with the
 //! [`futures`][futures] crate.
-//!
-//! Timer module support following operations:
-//!
-//! - `new(duration: time::Duration) -> TimerModule;`
-//! - `create_client(&mut self) -> mpsc::Sender<FromTimer>;`
-//!
-//! After running the instance of `TimerModule`, paired `Receiver<FromTimer>`
-//! returned by [`create_client()`](#method.create_clinet.html) would receive
-//! the timer tick periodically, which could be used to run scheduled task and so on.
 //!
 //! ## Unsolved problem
 //!
@@ -37,96 +20,111 @@
 //! [futures]: https://github.com/alexcrichton/futures
 //! [futures-timer]: https://github.com/alexcrichton/futures-timer
 
-#![deny(warnings)]
+// #![deny(warnings)]
 
-use std::{io, mem, time::Duration};
+use std::{io, time::Duration};
 use futures::prelude::*;
-use futures::sync::mpsc;
+use futures::prelude::{async, await};
+use futures::sync::{mpsc, oneshot};
 
 use tokio_core::reactor::{Handle, Interval};
 
-pub mod messages {
-    #[derive(Clone)]
-    pub enum FromTimer {
-        TimeTick,
-    }
-}
-
-use self::messages::FromTimer;
+pub struct TimerTick;
 
 #[derive(Debug)]
 pub enum TimerError {
+    IntervalCreationError,
     Interval(io::Error),
+    IncomingRequestsClosed,
+    IncomingRequestsError,
 }
 
-/// The timer module.
-pub struct TimerModule {
-    inner: Interval,
-    clients: Vec<Option<mpsc::Sender<FromTimer>>>,
+#[derive(Debug)]
+pub enum TimerClientError {
+    SendFailure,
+    ResponseCanceled,
 }
 
-impl TimerModule {
-    pub fn new(dur: Duration, handle: &Handle) -> TimerModule {
-        let inner = Interval::new(dur, handle).expect("can't create timer module");
+struct TimerRequest {
+    response_sender: oneshot::Sender<mpsc::Receiver<TimerTick>>,
+}
 
-        TimerModule {
-            inner,
-            clients: Vec::new(),
+#[derive(Clone)]
+pub struct TimerClient {
+    sender: mpsc::Sender<TimerRequest>,
+}
+
+impl TimerClient {
+    fn new(sender: mpsc::Sender<TimerRequest>) -> TimerClient {
+        TimerClient {
+            sender
         }
     }
 
-    pub fn create_client(&mut self) -> mpsc::Receiver<FromTimer> {
-        let (sender, receiver) = mpsc::channel(0);
-        self.clients.push(Some(sender));
-        receiver
+    #[async]
+    pub fn request_timer_stream(self) -> Result<mpsc::Receiver<TimerTick>, TimerClientError> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        let timer_request = TimerRequest { response_sender };
+        let _ = match await!(self.sender.send(timer_request)) {
+            Ok(sender) => Ok(sender),
+            Err(_) => Err(TimerClientError::SendFailure),
+        }?;
+        match await!(response_receiver) {
+            Ok(timer_stream) => Ok(timer_stream),
+            Err(_) => Err(TimerClientError::ResponseCanceled),
+        }
     }
 }
 
-impl Future for TimerModule {
-    type Item = ();
-    type Error = TimerError;
+enum TimerEvent {
+    Interval,
+    IncomingRequest(TimerRequest),
+}
 
-    fn poll(&mut self) -> Poll<(), TimerError> {
-        let timer_poll = self.inner.poll().map_err(TimerError::Interval);
+#[async]
+fn timer_loop(interval: Interval, incoming: mpsc::Receiver<TimerRequest>) -> Result<!, TimerError> {
+    let interval = interval.map(|_| TimerEvent::Interval)
+        .map_err(TimerError::Interval);
+    let incoming = incoming.map(|timer_request| TimerEvent::IncomingRequest(timer_request))
+        .map_err(|_| TimerError::IncomingRequestsError);
 
-        if try_ready!(timer_poll).is_some() {
-            for client in &mut self.clients {
-                match mem::replace(client, None) {
-                    None => {
-                        unreachable!("encounter a dropped client");
-                    }
-                    Some(mut sender) => {
-                        match sender.start_send(FromTimer::TimeTick) {
-                            Err(_e) => {
-                                info!("timer client disconnected");
-                            }
-                            Ok(start_send) => {
-                                match start_send {
-                                    AsyncSink::Ready => {
-                                        // For now, this should always succeed
-                                        if sender.poll_complete().is_ok() {
-                                            mem::replace(client, Some(sender));
-                                        }
-                                    }
-                                    AsyncSink::NotReady(_) => {
-                                        warn!("failed to send tick");
-                                    }
-                                }
-                            }
-                        }
+    // TODO: What happens if one of the two streams (interval, incoming) is closed?
+    let events = interval.select(incoming);
+    let mut tick_senders: Vec<mpsc::Sender<TimerTick>> = Vec::new();
+
+    #[async]
+    for event in events {
+        match event {
+            TimerEvent::Interval => {
+                let mut temp_tick_senders = Vec::new();
+                temp_tick_senders.append(&mut tick_senders);
+                for tick_sender in temp_tick_senders {
+                    if let Ok(tick_sender) = await!(tick_sender.send(TimerTick)) {
+                        tick_senders.push(tick_sender);
                     }
                 }
-            }
-
-            // Remove the dropped clients
-            self.clients.retain(|client| client.is_some());
-
-            Ok(Async::NotReady)
-        } else {
-            Ok(Async::Ready(()))
+            },
+            TimerEvent::IncomingRequest(timer_request) => {
+                let (tick_sender, tick_receiver) = mpsc::channel(0);
+                tick_senders.push(tick_sender);
+                let _ = timer_request.response_sender.send(tick_receiver);
+            },
         }
     }
+
+    Err(TimerError::IncomingRequestsClosed)
 }
+
+pub fn create_timer(dur: Duration, handle: &Handle) -> Result<TimerClient, TimerError> {
+    let interval = Interval::new(dur, handle)
+        .map_err(|_| TimerError::IntervalCreationError)?;
+
+    let (sender, receiver) = mpsc::channel::<TimerRequest>(0);
+    let timer_loop_future = timer_loop(interval, receiver);
+    handle.spawn(timer_loop_future.then(|_| Ok(())));
+    Ok(TimerClient::new(sender))
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -142,15 +140,15 @@ mod tests {
         let mut core = Core::new().unwrap();
         let handle = core.handle();
 
-        let dur = Duration::from_millis(10);
 
-        let mut tm = TimerModule::new(dur, &handle);
+        let dur = Duration::from_millis(10);
+        let timer_client = create_timer(dur, &handle).unwrap();
 
         const TICKS: u32 = 20;
         const TIMER_CLIENT_NUM: usize = 50;
 
         let clients = (0..TIMER_CLIENT_NUM)
-            .map(|_| tm.create_client())
+            .map(|_| core.run(timer_client.clone().request_timer_stream()).unwrap())
             .step_by(2)
             .collect::<Vec<_>>();
 
@@ -167,7 +165,7 @@ mod tests {
             }))
             .collect::<Vec<_>>();
 
-        let task = tm.map_err(|_| ()).select2(join_all(clients_fut));
+        let task = join_all(clients_fut);
 
         assert!(core.run(task).is_ok());
     }
