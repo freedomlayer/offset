@@ -6,6 +6,7 @@ use futures::prelude::{async, await};
 use futures::sync::mpsc;
 use ring::rand::SecureRandom;
 
+use crypto::identity::PublicKey;
 use identity::client::IdentityClient;
 use timer::messages::FromTimer;
 
@@ -25,6 +26,7 @@ enum SecureChannelError {
 #[async]
 fn create_secure_channel<M,K,R>(reader: M, writer: K, 
                               identity_client: IdentityClient,
+                              expected_remote: Option<PublicKey>,
                               rng: Rc<R>,
                               from_timer: mpsc::Receiver<FromTimer>) 
     -> Result<SecureChannel, SecureChannelError>
