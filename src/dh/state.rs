@@ -334,23 +334,81 @@ mod tests {
     use identity::client::IdentityClient;
 
     #[async]
-    fn run_basic_dh_state(identity_client1: IdentityClient, identity_client2: IdentityClient) -> Result<(),()> {
+    fn run_basic_dh_state(identity_client1: IdentityClient, identity_client2: IdentityClient) -> Result<(DhState, DhState),()> {
         let rng1 = Rc::new(FixedByteRandom { byte: 0x1 });
         let rng2 = Rc::new(FixedByteRandom { byte: 0x2 });
         let local_public_key1 = await!(identity_client1.request_public_key()).unwrap();
         let local_public_key2 = await!(identity_client2.request_public_key()).unwrap();
-        let (dh_state_initial1, exchange_rand_nonce1) =  DhStateInitial::new(&local_public_key1, &*rng1);
-        let (dh_state_initial2, exchange_rand_nonce2) =  DhStateInitial::new(&local_public_key2, &*rng2);
+        let (dh_state_initial1, exchange_rand_nonce1) = DhStateInitial::new(&local_public_key1, &*rng1);
+        let (dh_state_initial2, exchange_rand_nonce2) = DhStateInitial::new(&local_public_key2, &*rng2);
 
-        await!(dh_state_initial1.handle_exchange_rand_nonce(exchange_rand_nonce2, identity_client1.clone(), Rc::clone(&rng1)));
-        await!(dh_state_initial2.handle_exchange_rand_nonce(exchange_rand_nonce1, identity_client2.clone(), Rc::clone(&rng2)));
-        // TODO: Continue here.
-        Ok(())
+        let (dh_state_half1, exchange_dh1) = 
+            await!(dh_state_initial1.handle_exchange_rand_nonce(exchange_rand_nonce2, identity_client1.clone(), Rc::clone(&rng1))).unwrap();
+        let (dh_state_half2, exchange_dh2) = 
+            await!(dh_state_initial2.handle_exchange_rand_nonce(exchange_rand_nonce1, identity_client2.clone(), Rc::clone(&rng2))).unwrap();
+        
+        let dh_state1 = dh_state_half1.handle_exchange_dh(exchange_dh2).unwrap();
+        let dh_state2 = dh_state_half2.handle_exchange_dh(exchange_dh1).unwrap();
+        Ok((dh_state1, dh_state2))
     }
 
+    fn send_recv_messages<R: SecureRandom>(dh_state1: &mut DhState, dh_state2: &mut DhState, 
+                                           rng1: &R, rng2: &R) {
+        // Send a few messages 1 -> 2
+        for i in 0 .. 5 {
+            let plain_data = PlainData(vec![0,1,2,3,4,i as u8]);
+            let enc_data = dh_state1.create_outgoing(&plain_data,rng1);
+            let incoming_output = dh_state2.handle_incoming(&enc_data, rng2).unwrap();
+            assert_eq!(incoming_output.rekey_occured, false);
+            assert_eq!(incoming_output.opt_send_message, None);
+            assert_eq!(incoming_output.opt_incoming_message.unwrap(), plain_data);
+        }
 
-    #[test]
-    fn test_basic_dh_state() {
+        // Send a few messages 2 -> 1:
+        for i in 0 .. 5 {
+            let plain_data = PlainData(vec![0,1,2,3,4,i as u8]);
+            let enc_data = dh_state2.create_outgoing(&plain_data,rng2);
+            let incoming_output = dh_state1.handle_incoming(&enc_data, rng1).unwrap();
+            assert_eq!(incoming_output.rekey_occured, false);
+            assert_eq!(incoming_output.opt_send_message, None);
+            assert_eq!(incoming_output.opt_incoming_message.unwrap(), plain_data);
+        }
+    }
+
+    fn rekey_sequential<R: SecureRandom>(dh_state1: &mut DhState, dh_state2: &mut DhState, 
+                                           rng1: &R, rng2: &R) {
+
+        let rekey_enc_data1 = dh_state1.create_rekey(rng1).unwrap();
+        let incoming_output = dh_state2.handle_incoming(&rekey_enc_data1, rng2).unwrap();
+        assert_eq!(incoming_output.rekey_occured, true);
+        let rekey_enc_data2 = incoming_output.opt_send_message.unwrap();
+        assert_eq!(incoming_output.opt_incoming_message, None);
+
+        let incoming_output = dh_state1.handle_incoming(&rekey_enc_data2, rng1).unwrap();
+        assert_eq!(incoming_output.rekey_occured, true);
+        assert_eq!(incoming_output.opt_send_message, None);
+        assert_eq!(incoming_output.opt_incoming_message, None);
+    }
+
+    fn rekey_simultaneous<R: SecureRandom>(dh_state1: &mut DhState, dh_state2: &mut DhState, 
+                                           rng1: &R, rng2: &R) {
+
+        let rekey_enc_data1 = dh_state1.create_rekey(rng1).unwrap();
+        let rekey_enc_data2 = dh_state2.create_rekey(rng2).unwrap();
+
+        let incoming_output1 = dh_state1.handle_incoming(&rekey_enc_data2, rng1).unwrap();
+        let incoming_output2 = dh_state2.handle_incoming(&rekey_enc_data1, rng2).unwrap();
+
+        assert_eq!(incoming_output1.rekey_occured, true);
+        assert_eq!(incoming_output1.opt_send_message, None);
+        assert_eq!(incoming_output1.opt_incoming_message, None);
+
+        assert_eq!(incoming_output2.rekey_occured, true);
+        assert_eq!(incoming_output2.opt_send_message, None);
+        assert_eq!(incoming_output2.opt_incoming_message, None);
+    }
+
+    fn prepare_dh_test() -> (DhState, DhState, FixedByteRandom, FixedByteRandom) {
         let rng1 = FixedByteRandom { byte: 0x1 };
         let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&rng1).unwrap();
         let identity1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
@@ -369,6 +427,19 @@ mod tests {
         handle.spawn(identity_server1.then(|_| Ok(())));
         handle.spawn(identity_server2.then(|_| Ok(())));
 
-        core.run(run_basic_dh_state(identity_client1, identity_client2)).unwrap();
+        let (dh_state1, dh_state2) = 
+            core.run(run_basic_dh_state(identity_client1, identity_client2)).unwrap();
+
+        (dh_state1, dh_state2, rng1, rng2)
+    }
+
+    #[test]
+    fn test_basic_dh_state() {
+        let (mut dh_state1, mut dh_state2, rng1, rng2) = prepare_dh_test();
+        send_recv_messages(&mut dh_state1, &mut dh_state2, &rng1, &rng2);
+        rekey_sequential(&mut dh_state1, &mut dh_state2, &rng1, &rng2);
+        send_recv_messages(&mut dh_state1, &mut dh_state2, &rng1, &rng2);
+        rekey_simultaneous(&mut dh_state1, &mut dh_state2, &rng1, &rng2);
+        send_recv_messages(&mut dh_state1, &mut dh_state2, &rng1, &rng2);
     }
 }
