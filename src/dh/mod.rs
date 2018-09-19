@@ -49,7 +49,7 @@ where
     //          - Send keepalive if required
     //          - rekey
     //      - incoming message from remote
-    //          - Send the message to remote side
+    //          - Forward remote message to user
     //      - incoming message from user
     //          - Forward user message to remote
     //
@@ -57,6 +57,8 @@ where
 
     Ok(SecureChannel)
 }
+
+// TODO: How to make SecureChannel behave like tokio's TcpStream?
 
 
 
