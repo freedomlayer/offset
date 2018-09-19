@@ -181,7 +181,7 @@ impl DhState {
     /// First try to decrypt with the old decryptor.
     /// If it doesn't work, try to decrypt with the new decryptor.
     /// If decryption with the new decryptor works, remove the old decryptor.
-    fn try_decrypt(&mut self, enc_data: EncryptedData) -> Result<PlainData, DhError> {
+    fn try_decrypt(&mut self, enc_data: &EncryptedData) -> Result<PlainData, DhError> {
         if let Some(ref mut old_receiver) = self.opt_old_receiver {
             if let Ok(data) = old_receiver.decrypt(&enc_data.0) {
                 return Ok(PlainData(data));
@@ -196,7 +196,7 @@ impl DhState {
 
 
     /// Decrypt an incoming message
-    fn decrypt_incoming(&mut self, enc_data: EncryptedData) -> Result<ChannelContent, DhError> {
+    fn decrypt_incoming(&mut self, enc_data: &EncryptedData) -> Result<ChannelContent, DhError> {
         let data = self.try_decrypt(enc_data)?.0;
         let channel_message = deserialize_channel_message(&data)
             .map_err(|_| DhError::DeserializeError)?;
@@ -205,8 +205,8 @@ impl DhState {
     }
 
     /// Create an outgoing encrypted message
-    pub fn create_outgoing<R: SecureRandom>(&mut self, content: PlainData, rng: &R) -> EncryptedData {
-        let content = ChannelContent::User(content);
+    pub fn create_outgoing<R: SecureRandom>(&mut self, plain_data: &PlainData, rng: &R) -> EncryptedData {
+        let content = ChannelContent::User(plain_data.clone());
         self.encrypt_outgoing(content, rng)
     }
 
@@ -305,7 +305,7 @@ impl DhState {
     }
 
     /// Handle an incoming encrypted message
-    pub fn handle_incoming<R: SecureRandom>(&mut self, enc_data: EncryptedData, rng: &R) 
+    pub fn handle_incoming<R: SecureRandom>(&mut self, enc_data: &EncryptedData, rng: &R) 
         -> Result<HandleIncomingOutput, DhError> {
 
         match self.decrypt_incoming(enc_data)? {
