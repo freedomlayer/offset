@@ -72,7 +72,7 @@ pub struct DhState {
 
 #[allow(unused)]
 impl DhStateInitial {
-    fn new<R: SecureRandom>(local_public_key: &PublicKey, rng: &R) -> (DhStateInitial, ExchangeRandNonce) {
+    pub fn new<R: SecureRandom>(local_public_key: &PublicKey, rng: &R) -> (DhStateInitial, ExchangeRandNonce) {
         let local_rand_nonce = RandValue::new(rng);
 
         let dh_state_initial = DhStateInitial {
@@ -87,7 +87,7 @@ impl DhStateInitial {
     }
 
     #[async]
-    fn handle_exchange_rand_nonce<R: SecureRandom + 'static>(self, 
+    pub fn handle_exchange_rand_nonce<R: SecureRandom + 'static>(self, 
                                                              exchange_rand_nonce: ExchangeRandNonce, 
                                                              identity_client: IdentityClient, rng:Rc<R>) 
                                                             -> Result<(DhStateHalf, ExchangeDh), DhError> {
