@@ -210,6 +210,11 @@ impl DhState {
         self.encrypt_outgoing(content, rng)
     }
 
+    /// Create an outgoing keep alive message
+    pub fn create_keepalive<R: SecureRandom>(&mut self, rng: &R) -> EncryptedData {
+        self.encrypt_outgoing(ChannelContent::KeepAlive, rng)
+    }
+
     /// Generate random padding of random variable length
     /// Done to make it harder to collect metadata over lengths of messages
     fn gen_rand_padding<R: SecureRandom>(&self, rng: &R) -> Vec<u8> {
@@ -375,6 +380,23 @@ mod tests {
         }
     }
 
+    fn send_recv_keepalive<R: SecureRandom>(dh_state1: &mut DhState, dh_state2: &mut DhState, 
+                                           rng1: &R, rng2: &R) {
+        // 1 -> 2
+        let enc_data = dh_state1.create_keepalive(rng1);
+        let incoming_output = dh_state2.handle_incoming(&enc_data, rng2).unwrap();
+        assert_eq!(incoming_output.rekey_occured, false);
+        assert_eq!(incoming_output.opt_send_message, None);
+        assert_eq!(incoming_output.opt_incoming_message, None);
+
+        // 2 -> 1
+        let enc_data = dh_state2.create_keepalive(rng2);
+        let incoming_output = dh_state1.handle_incoming(&enc_data, rng1).unwrap();
+        assert_eq!(incoming_output.rekey_occured, false);
+        assert_eq!(incoming_output.opt_send_message, None);
+        assert_eq!(incoming_output.opt_incoming_message, None);
+    }
+
     fn rekey_sequential<R: SecureRandom>(dh_state1: &mut DhState, dh_state2: &mut DhState, 
                                            rng1: &R, rng2: &R) {
 
@@ -437,10 +459,13 @@ mod tests {
     fn test_basic_dh_state() {
         let (mut dh_state1, mut dh_state2, rng1, rng2) = prepare_dh_test();
         send_recv_messages(&mut dh_state1, &mut dh_state2, &rng1, &rng2);
+        send_recv_keepalive(&mut dh_state1, &mut dh_state2, &rng1, &rng2);
         rekey_sequential(&mut dh_state1, &mut dh_state2, &rng1, &rng2);
         send_recv_messages(&mut dh_state1, &mut dh_state2, &rng1, &rng2);
+        send_recv_keepalive(&mut dh_state1, &mut dh_state2, &rng1, &rng2);
         rekey_simultaneous(&mut dh_state1, &mut dh_state2, &rng1, &rng2);
         send_recv_messages(&mut dh_state1, &mut dh_state2, &rng1, &rng2);
+        send_recv_keepalive(&mut dh_state1, &mut dh_state2, &rng1, &rng2);
     }
     // TODO: Add tests:
     // - Test the usage of old receiver
