@@ -2,9 +2,9 @@ use crypto::identity::{Signature, PublicKey};
 use crypto::dh::{DhPublicKey, Salt};
 use crypto::rand_values::RandValue;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct EncryptedData(pub Vec<u8>);
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct PlainData(pub Vec<u8>);
 
 /// First Diffie-Hellman message:
