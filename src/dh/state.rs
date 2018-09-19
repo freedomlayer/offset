@@ -442,4 +442,9 @@ mod tests {
         rekey_simultaneous(&mut dh_state1, &mut dh_state2, &rng1, &rng2);
         send_recv_messages(&mut dh_state1, &mut dh_state2, &rng1, &rng2);
     }
+    // TODO: Add tests:
+    // - Test the usage of old receiver
+    // - Test error cases 
+    //   - deserialize error
+    //   - create_rekey() twice
 }
