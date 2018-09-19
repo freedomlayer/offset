@@ -46,7 +46,7 @@ where
     // - Send exchange dh
     // - Wait (timeout)
     // - Create two pairs of (sender, receiver)
-    // - spawn an even loop (Separate async function) over the following:
+    // - spawn an event loop (Separate async function) over the following:
     //      - Timer event
     //          - Send keepalive if required
     //          - rekey
