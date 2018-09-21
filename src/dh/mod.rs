@@ -118,7 +118,6 @@ where
 {
     // TODO:
     // - Timer event
-    //      - Send keepalive if required
     //      - rekey
     // - incoming message from remote
     //      - Forward remote message to user
