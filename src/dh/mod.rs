@@ -1,8 +1,10 @@
 #![allow(unused)]
 
 use std::rc::Rc;
-use futures::{Stream, Sink};
+use futures::{Stream, Sink, Future};
 use futures::prelude::{async, await};
+use tokio_core::reactor::Handle;
+
 use futures::sync::mpsc;
 use ring::rand::SecureRandom;
 
@@ -20,7 +22,10 @@ mod state;
 
 // const MAX_FRAME_LEN: usize = 0x1000
 
-struct SecureChannel;
+struct SecureChannel {
+    sender: mpsc::Sender<Vec<u8>>,
+    receiver: mpsc::Receiver<Vec<u8>>,
+}
 
 #[derive(Debug)]
 enum SecureChannelError {
@@ -99,13 +104,39 @@ where
     Ok((dh_state, reader, writer))
 }
 
+#[async]
+fn secure_channel_loop<M: 'static,K: 'static,R: SecureRandom + 'static>(reader: M, writer: K, 
+                              from_user: mpsc::Receiver<Vec<u8>>,
+                              to_user: mpsc::Sender<Vec<u8>>,
+                              rng: Rc<R>,
+                              timer_client: TimerClient)
+    -> Result<SecureChannel, SecureChannelError>
+where
+    R: SecureRandom,
+    M: Stream<Item=Vec<u8>, Error=()>,
+    K: Sink<SinkItem=Vec<u8>, SinkError=()>,
+{
+    // TODO:
+    // - Timer event
+    //      - Send keepalive if required
+    //      - rekey
+    // - incoming message from remote
+    //      - Forward remote message to user
+    // - incoming message from user
+    //      - Forward user message to remote
+    
+    unimplemented!();
+
+}
+
 
 #[async]
 fn create_secure_channel<M: 'static,K: 'static,R: SecureRandom + 'static>(reader: M, writer: K, 
                               identity_client: IdentityClient,
                               opt_expected_remote: Option<PublicKey>,
                               rng: Rc<R>,
-                              timer_client: TimerClient)
+                              timer_client: TimerClient,
+                              handle: Handle)
     -> Result<SecureChannel, SecureChannelError>
 where
     R: SecureRandom,
@@ -120,21 +151,21 @@ where
                                                 opt_expected_remote, 
                                                 Rc::clone(&rng)))?;
 
+    let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(0);
+    let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(0);
 
-    // TODO:
-    // - Create two pairs of (sender, receiver)
-    // - spawn an event loop (Separate async function) over the following:
-    //      - Timer event
-    //          - Send keepalive if required
-    //          - rekey
-    //      - incoming message from remote
-    //          - Forward remote message to user
-    //      - incoming message from user
-    //          - Forward user message to remote
-    //
-    // - Return to user a SecureChannel, that contains user sender and user receiver.
+    let sc_loop = secure_channel_loop(reader, writer,
+                                      from_user,
+                                      to_user,
+                                      rng,
+                                      timer_client);
 
-    Ok(SecureChannel)
+    handle.spawn(sc_loop.then(|_| Ok(())));
+
+    Ok(SecureChannel {
+        sender: user_sender,
+        receiver: user_receiver,
+    })
 }
 
 // TODO: How to make SecureChannel behave like tokio's TcpStream?
