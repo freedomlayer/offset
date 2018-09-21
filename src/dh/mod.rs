@@ -121,7 +121,6 @@ where
                                                 Rc::clone(&rng)))?;
 
 
-    
     // TODO:
     // - Create two pairs of (sender, receiver)
     // - spawn an event loop (Separate async function) over the following:

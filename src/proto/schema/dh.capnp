@@ -29,8 +29,7 @@ struct Rekey {
 struct ChannelMessage {
     randPadding @0: Data;
     content :union {
-        keepAlive @1: Void;
-        rekey     @2: Rekey;
-        user      @3: Data;
+        rekey     @1: Rekey;
+        user      @2: Data;
     }
 }
