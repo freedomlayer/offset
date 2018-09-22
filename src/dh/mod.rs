@@ -232,6 +232,7 @@ where
                                       ticks_to_rekey,
                                       timer_client);
 
+    // TODO: Possibly log error here?
     handle.spawn(sc_loop.then(|_| Ok(())));
 
     Ok(SecureChannel {
