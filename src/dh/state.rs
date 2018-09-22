@@ -160,9 +160,9 @@ impl DhStateHalf {
 
 #[allow(unused)]
 pub struct HandleIncomingOutput {
-    rekey_occured: bool,
-    opt_send_message: Option<EncryptedData>,
-    opt_incoming_message: Option<PlainData>,
+    pub rekey_occured: bool,
+    pub opt_send_message: Option<EncryptedData>,
+    pub opt_incoming_message: Option<PlainData>,
 }
 
 
