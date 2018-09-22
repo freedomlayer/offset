@@ -79,12 +79,6 @@ where
     let writer = await!(writer.send(ser_exchange_rand_nonce))
         .map_err(|_| SecureChannelError::WriterError)?;
 
-    if let Some(expected_remote) = opt_expected_remote {
-        if expected_remote != local_public_key {
-            return Err(SecureChannelError::UnexpectedRemotePublicKey);
-        }
-    }
-
     let (reader_message, reader) = await!(read_from_reader(reader))?;
 
     let exchange_rand_nonce = deserialize_exchange_rand_nonce(&reader_message)
@@ -94,6 +88,13 @@ where
                                                 identity_client.clone(),
                                                 Rc::clone(&rng)))
         .map_err(SecureChannelError::HandleExchangeRandNonceError)?;
+
+    if let Some(expected_remote) = opt_expected_remote {
+        if expected_remote != dh_state_half.remote_public_key {
+            return Err(SecureChannelError::UnexpectedRemotePublicKey);
+        }
+    }
+
 
     let ser_exchange_dh = serialize_exchange_dh(&exchange_dh);
     let writer = await!(writer.send(ser_exchange_dh))
