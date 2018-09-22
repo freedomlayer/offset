@@ -31,7 +31,7 @@ where
             buf = &mut buf[min_len ..];
             total_read += min_len;
 
-            if self.pending_in.len() > 0 || buf.len() == 0 {
+            if buf.len() == 0 {
                 return Ok(total_read);
             }
 
