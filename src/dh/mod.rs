@@ -12,18 +12,14 @@ use crypto::identity::PublicKey;
 use identity::client::IdentityClient;
 use timer::TimerClient;
 
-use self::state::{DhStateInitial, DhStateHalf, DhState, DhError};
+use self::state::{ScStateInitial, ScStateHalf, ScState, ScStateError};
 use self::serialize::{serialize_exchange_rand_nonce, deserialize_exchange_rand_nonce,
                         serialize_exchange_dh, deserialize_exchange_dh};
 use self::messages::{EncryptedData, PlainData};
 
-// const TICKS_TO_REKEY: usize = 3600; // 1 hour
-
 mod messages;
 mod serialize;
 mod state;
-
-// const MAX_FRAME_LEN: usize = 0x1000
 
 struct SecureChannel {
     sender: mpsc::Sender<Vec<u8>>,
@@ -37,9 +33,9 @@ enum SecureChannelError {
     ReaderClosed,
     ReaderError,
     DeserializeRandNonceError,
-    HandleExchangeRandNonceError(DhError),
-    DeserializeExchangeDhError,
-    HandleExchangeDhError(DhError),
+    HandleExchangeRandNonceError(ScStateError),
+    DeserializeExchangeScStateError,
+    HandleExchangeScStateError(ScStateError),
     UnexpectedRemotePublicKey,
     RequestTimerStreamError,
     SomeReceiverClosed,
@@ -69,7 +65,7 @@ fn initial_exchange<M: 'static,K: 'static,R: SecureRandom + 'static>(reader: M, 
                               identity_client: IdentityClient,
                               opt_expected_remote: Option<PublicKey>,
                               rng: Rc<R>)
-                            -> Result<(DhState, M, K), SecureChannelError>
+                            -> Result<(ScState, M, K), SecureChannelError>
 where
     R: SecureRandom,
     M: Stream<Item=Vec<u8>, Error=()>,
@@ -78,7 +74,7 @@ where
     let local_public_key = await!(identity_client.request_public_key())
         .map_err(|_| SecureChannelError::IdentityFailure)?;
 
-    let (dh_state_initial, exchange_rand_nonce) = DhStateInitial::new(&local_public_key, &*rng);
+    let (dh_state_initial, exchange_rand_nonce) = ScStateInitial::new(&local_public_key, &*rng);
     let ser_exchange_rand_nonce = serialize_exchange_rand_nonce(&exchange_rand_nonce);
     let writer = await!(writer.send(ser_exchange_rand_nonce))
         .map_err(|_| SecureChannelError::WriterError)?;
@@ -105,9 +101,9 @@ where
 
     let (reader_message, reader) = await!(read_from_reader(reader))?;
     let exchange_dh = deserialize_exchange_dh(&reader_message)
-        .map_err(|_| SecureChannelError::DeserializeExchangeDhError)?;
+        .map_err(|_| SecureChannelError::DeserializeExchangeScStateError)?;
     let dh_state = dh_state_half.handle_exchange_dh(exchange_dh)
-        .map_err(SecureChannelError::HandleExchangeDhError)?;
+        .map_err(SecureChannelError::HandleExchangeScStateError)?;
 
     Ok((dh_state, reader, writer))
 }
@@ -123,7 +119,7 @@ enum SecureChannelEvent {
 
 #[async]
 fn secure_channel_loop<M: 'static,K: 'static, R: SecureRandom + 'static>(
-                              mut dh_state: DhState,
+                              mut dh_state: ScState,
                               reader: M, mut writer: K, 
                               from_user: mpsc::Receiver<Vec<u8>>,
                               mut to_user: mpsc::Sender<Vec<u8>>,
@@ -185,7 +181,7 @@ where
                 }
                 let enc_data = match dh_state.create_rekey(&*rng) {
                     Ok(enc_data) => enc_data,
-                    Err(DhError::RekeyInProgress) => continue,
+                    Err(ScStateError::RekeyInProgress) => continue,
                     Err(_) => unreachable!(),
                 };
                 writer = await!(writer.send(enc_data.0))
