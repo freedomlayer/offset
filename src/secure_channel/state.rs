@@ -41,7 +41,7 @@ pub struct ScStateInitial {
 
 #[allow(unused)]
 pub struct ScStateHalf {
-    remote_public_key: PublicKey,
+    pub remote_public_key: PublicKey,
     local_public_key: PublicKey,
     local_rand_nonce: RandValue,
     dh_private_key: DhPrivateKey,
