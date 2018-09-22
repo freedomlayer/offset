@@ -228,8 +228,16 @@ where
                                       ticks_to_rekey,
                                       timer_client);
 
-    // TODO: Possibly log error here?
-    handle.spawn(sc_loop.then(|_| Ok(())));
+    let sc_loop_report_error = sc_loop.then(|res| {
+        match res {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                error!("Secure Channel error: {:?}", e);
+                Ok(())
+            },
+        }
+    });
+    handle.spawn(sc_loop_report_error);
 
     Ok(SecureChannel {
         sender: user_sender,
