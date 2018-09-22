@@ -17,7 +17,7 @@ use self::serialize::{serialize_exchange_rand_nonce, deserialize_exchange_rand_n
                         serialize_exchange_dh, deserialize_exchange_dh};
 use self::messages::{EncryptedData, PlainData};
 
-const TICKS_TO_REKEY: usize = 3600; // 1 hour
+// const TICKS_TO_REKEY: usize = 3600; // 1 hour
 
 mod messages;
 mod serialize;
