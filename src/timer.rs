@@ -22,7 +22,7 @@
 
 // #![deny(warnings)]
 
-use std::{io, time::Duration};
+use std::{time::Duration};
 use futures::prelude::*;
 use futures::prelude::{async, await};
 use futures::sync::{mpsc, oneshot};
@@ -34,7 +34,7 @@ pub struct TimerTick;
 #[derive(Debug)]
 pub enum TimerError {
     IntervalCreationError,
-    Interval(io::Error),
+    IncomingError,
     IncomingRequestsClosed,
     IncomingRequestsError,
 }
@@ -77,25 +77,28 @@ impl TimerClient {
 }
 
 enum TimerEvent {
-    Interval,
-    IncomingRequest(TimerRequest),
+    Incoming,
+    Request(TimerRequest),
 }
 
 #[async]
-fn timer_loop(interval: Interval, incoming: mpsc::Receiver<TimerRequest>) -> Result<!, TimerError> {
-    let interval = interval.map(|_| TimerEvent::Interval)
-        .map_err(TimerError::Interval);
-    let incoming = incoming.map(|timer_request| TimerEvent::IncomingRequest(timer_request))
+fn timer_loop<M: 'static>(incoming: M, from_client: mpsc::Receiver<TimerRequest>) -> Result<!, TimerError> 
+where
+    M: Stream<Item=(), Error=()>,
+{
+    let incoming = incoming.map(|_| TimerEvent::Incoming)
+        .map_err(|_| TimerError::IncomingError);
+    let from_client = from_client.map(|timer_request| TimerEvent::Request(timer_request))
         .map_err(|_| TimerError::IncomingRequestsError);
 
-    // TODO: What happens if one of the two streams (interval, incoming) is closed?
-    let events = interval.select(incoming);
+    // TODO: What happens if one of the two streams (incoming, from_client) is closed?
+    let events = incoming.select(from_client);
     let mut tick_senders: Vec<mpsc::Sender<TimerTick>> = Vec::new();
 
     #[async]
     for event in events {
         match event {
-            TimerEvent::Interval => {
+            TimerEvent::Incoming => {
                 let mut temp_tick_senders = Vec::new();
                 temp_tick_senders.append(&mut tick_senders);
                 for tick_sender in temp_tick_senders {
@@ -104,7 +107,7 @@ fn timer_loop(interval: Interval, incoming: mpsc::Receiver<TimerRequest>) -> Res
                     }
                 }
             },
-            TimerEvent::IncomingRequest(timer_request) => {
+            TimerEvent::Request(timer_request) => {
                 let (tick_sender, tick_receiver) = mpsc::channel(0);
                 tick_senders.push(tick_sender);
                 let _ = timer_request.response_sender.send(tick_receiver);
@@ -115,15 +118,26 @@ fn timer_loop(interval: Interval, incoming: mpsc::Receiver<TimerRequest>) -> Res
     Err(TimerError::IncomingRequestsClosed)
 }
 
+/// Create a timer service that broadcasts everything from the incoming Stream.
+/// Useful for testing, as this function allows full control on the rate of incoming signals.
+pub fn create_timer_incoming<M: 'static>(incoming: M, handle: &Handle) -> Result<TimerClient, TimerError> 
+where
+    M: Stream<Item=(), Error=()>,
+{
+    let (sender, receiver) = mpsc::channel::<TimerRequest>(0);
+    let timer_loop_future = timer_loop(incoming, receiver);
+    handle.spawn(timer_loop_future.then(|_| Ok(())));
+    Ok(TimerClient::new(sender))
+}
+
+/// Create a timer service that ticks every `dur`.
 pub fn create_timer(dur: Duration, handle: &Handle) -> Result<TimerClient, TimerError> {
     let interval = Interval::new(dur, handle)
         .map_err(|_| TimerError::IntervalCreationError)?;
 
-    let (sender, receiver) = mpsc::channel::<TimerRequest>(0);
-    let timer_loop_future = timer_loop(interval, receiver);
-    handle.spawn(timer_loop_future.then(|_| Ok(())));
-    Ok(TimerClient::new(sender))
+    create_timer_incoming(interval.map_err(|_| ()), handle)
 }
+
 
 
 #[cfg(test)]
