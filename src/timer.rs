@@ -26,6 +26,7 @@ use std::{time::Duration};
 use futures::prelude::*;
 use futures::prelude::{async, await};
 use futures::sync::{mpsc, oneshot};
+use futures::stream;
 
 use tokio_core::reactor::{Handle, Interval};
 
@@ -78,7 +79,9 @@ impl TimerClient {
 
 enum TimerEvent {
     Incoming,
+    IncomingDone,
     Request(TimerRequest),
+    RequestsDone,
 }
 
 #[async]
@@ -87,9 +90,11 @@ where
     M: Stream<Item=(), Error=()>,
 {
     let incoming = incoming.map(|_| TimerEvent::Incoming)
-        .map_err(|_| TimerError::IncomingError);
+        .map_err(|_| TimerError::IncomingError)
+        .chain(stream::once(Ok(TimerEvent::IncomingDone)));
     let from_client = from_client.map(|timer_request| TimerEvent::Request(timer_request))
-        .map_err(|_| TimerError::IncomingRequestsError);
+        .map_err(|_| TimerError::IncomingRequestsError)
+        .chain(stream::once(Ok(TimerEvent::RequestsDone)));
 
     // TODO: What happens if one of the two streams (incoming, from_client) is closed?
     let events = incoming.select(from_client);
@@ -112,6 +117,7 @@ where
                 tick_senders.push(tick_sender);
                 let _ = timer_request.response_sender.send(tick_receiver);
             },
+            TimerEvent::IncomingDone | TimerEvent::RequestsDone => break,
         }
     }
 
