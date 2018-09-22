@@ -20,6 +20,7 @@ use self::messages::{EncryptedData, PlainData};
 mod messages;
 mod serialize;
 mod state;
+mod sc_stream;
 
 struct SecureChannel {
     sender: mpsc::Sender<Vec<u8>>,
