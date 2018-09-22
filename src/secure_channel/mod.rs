@@ -197,7 +197,7 @@ where
 
 
 #[async]
-fn create_secure_channel<M: 'static,K: 'static,R: SecureRandom + 'static>(reader: M, writer: K, 
+pub fn create_secure_channel<M: 'static,K: 'static,R: SecureRandom + 'static>(reader: M, writer: K, 
                               identity_client: IdentityClient,
                               opt_expected_remote: Option<PublicKey>,
                               rng: Rc<R>,
@@ -247,6 +247,122 @@ where
 }
 
 // TODO: How to make SecureChannel behave like tokio's TcpStream?
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use timer::create_timer_incoming;
+    use futures::prelude::{async, await};
+    use futures::Future;
+    use futures::sync::oneshot;
+    use tokio_core::reactor::Core;
+    use ring::test::rand::FixedByteRandom;
+    use ring::signature;
+    use crypto::identity::{Identity, SoftwareEd25519Identity};
+    use identity::create_identity;
+    use identity::client::IdentityClient;
+
+    #[async]
+    fn secure_channel1(fut_sc: impl Future<Item=SecureChannel, Error=SecureChannelError> + 'static,
+                       mut tick_sender: mpsc::Sender<()>,
+                       output_sender: oneshot::Sender<bool>) -> Result<(),()> {
+        let SecureChannel {sender, receiver} = await!(fut_sc).unwrap();
+        let sender = await!(sender.send(vec![0,1,2,3,4,5])).unwrap();
+        let (data, receiver) = await!(read_from_reader(receiver)).unwrap();
+        assert_eq!(data, vec![5,4,3]);
+
+        // Move time forward, to cause rekying:
+        for _ in 0_usize .. 20 {
+            tick_sender = await!(tick_sender.send(())).unwrap();
+        }
+        let sender = await!(sender.send(vec![0,1,2])).unwrap();
+
+        output_sender.send(true);
+        Ok(())
+    }
+
+    #[async]
+    fn secure_channel2(fut_sc: impl Future<Item=SecureChannel, Error=SecureChannelError> + 'static,
+                       tick_sender: mpsc::Sender<()>,
+                       output_sender: oneshot::Sender<bool>) -> Result<(),()> {
+
+        let SecureChannel {sender, receiver} = await!(fut_sc).unwrap();
+        let (data, receiver) = await!(read_from_reader(receiver)).unwrap();
+        assert_eq!(data, vec![0,1,2,3,4,5]);
+        let sender = await!(sender.send(vec![5,4,3])).unwrap();
+
+        let (data, receiver) = await!(read_from_reader(receiver)).unwrap();
+        assert_eq!(data, vec![0,1,2]);
+
+        output_sender.send(true);
+        Ok(())
+    }
+
+    #[test]
+    fn test_secure_channel_basic() {
+        // Start the Identity service:
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+
+        // Create a mock time service:
+        let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
+        let timer_client = create_timer_incoming(tick_receiver, &handle).unwrap();
+
+        let rng1 = FixedByteRandom { byte: 0x1 };
+        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&rng1).unwrap();
+        let identity1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        let public_key1 = identity1.get_public_key();
+        let (requests_sender1, identity_server1) = create_identity(identity1);
+        let identity_client1 = IdentityClient::new(requests_sender1);
+
+        let rng2 = FixedByteRandom { byte: 0x2 };
+        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&rng2).unwrap();
+        let identity2 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        let public_key2 = identity2.get_public_key();
+        let (requests_sender2, identity_server2) = create_identity(identity2);
+        let identity_client2 = IdentityClient::new(requests_sender2);
+
+        handle.spawn(identity_server1.then(|_| Ok(())));
+        handle.spawn(identity_server2.then(|_| Ok(())));
+
+        let (sender1, receiver2) = mpsc::channel::<Vec<u8>>(0);
+        let (sender2, receiver1) = mpsc::channel::<Vec<u8>>(0);
+
+
+        let rc_rng1 = Rc::new(rng1);
+        let rc_rng2 = Rc::new(rng2);
+
+        let ticks_to_rekey: usize = 16;
+
+        let fut_sc1 = create_secure_channel(receiver1, 
+                              sender1.sink_map_err(|_| ()),
+                              identity_client1,
+                              Some(public_key2),
+                              Rc::clone(&rc_rng1),
+                              timer_client.clone(),
+                              ticks_to_rekey,
+                              handle.clone());
+
+        let fut_sc2 = create_secure_channel(receiver2,
+                              sender2.sink_map_err(|_| ()),
+                              identity_client2,
+                              Some(public_key1),
+                              Rc::clone(&rc_rng2),
+                              timer_client.clone(),
+                              ticks_to_rekey,
+                              handle.clone());
+
+        let (output_sender1, output_receiver1) = oneshot::channel::<bool>();
+        let (output_sender2, output_receiver2) = oneshot::channel::<bool>();
+
+        handle.spawn(secure_channel1(fut_sc1, tick_sender.clone(), output_sender1));
+        handle.spawn(secure_channel2(fut_sc2, tick_sender.clone(), output_sender2));
+
+        assert_eq!(true, core.run(output_receiver1).unwrap());
+        assert_eq!(true, core.run(output_receiver2).unwrap());
+    }
+}
 
 
 
