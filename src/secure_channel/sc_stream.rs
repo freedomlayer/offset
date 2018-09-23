@@ -96,7 +96,7 @@ where
             }
 
             // Buffer as much as possible:
-            let free_bytes = self.max_frame_len - self.pending_out.len();
+            let free_bytes = self.max_frame_len.checked_sub(self.pending_out.len()).unwrap();
             let min_len = cmp::min(buf.len(), free_bytes);
             self.pending_out.extend_from_slice(&buf[.. min_len]);
             buf = &buf[min_len ..];
