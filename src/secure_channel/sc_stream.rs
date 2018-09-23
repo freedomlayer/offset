@@ -112,11 +112,10 @@ where
                 Err(()) => return Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
             };
             if !is_ready {
+                self.opt_sender = Some(sender);
                 if total_write > 0 {
-                    self.opt_sender = Some(sender);
                     return Ok(total_write);
                 } else {
-                    self.opt_sender = Some(sender);
                     return Err(io::Error::new(io::ErrorKind::WouldBlock, "WouldBlock"));
                 }
             }
