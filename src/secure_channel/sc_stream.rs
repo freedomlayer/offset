@@ -1,6 +1,6 @@
-use std::{io, cmp};
+use std::{io, cmp, mem};
 use futures::sync::mpsc;
-use futures::{Async, Stream};
+use futures::{Async, AsyncSink, Stream, Sink};
 
 
 struct StreamReceiver<M> {
@@ -56,6 +56,90 @@ where
                 },
                 None => return Ok(total_read),
             }
+        }
+    }
+}
+
+struct StreamSender<K> {
+    opt_sender: Option<K>,
+    pending_out: Vec<u8>,
+    max_frame_len: usize,
+}
+
+
+impl<K> StreamSender<K> {
+    fn new(sender: K, max_frame_len: usize) -> Self {
+        StreamSender {
+            opt_sender: Some(sender),
+            pending_out: Vec::new(),
+            max_frame_len,
+        }
+    }
+}
+
+
+impl<K> io::Write for StreamSender<K> 
+where
+    K: Sink<SinkItem=Vec<u8>, SinkError=()>,
+{
+    fn write(&mut self, mut buf: &[u8]) -> io::Result<usize> {
+        let mut sender = match self.opt_sender.take() {
+            Some(sender) => sender,
+            None => return return Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
+        };
+        let mut total_write = 0;
+
+        loop {
+            if buf.len() == 0 {
+                self.opt_sender = Some(sender);
+                return Ok(total_write);
+            }
+
+            // Buffer as much as possible:
+            let free_bytes = self.max_frame_len - self.pending_out.len();
+            let min_len = cmp::min(buf.len(), free_bytes);
+            self.pending_out.extend_from_slice(&buf[.. min_len]);
+            buf = &buf[min_len ..];
+            total_write += min_len;
+
+            let pending_out = mem::replace(&mut self.pending_out, Vec::new());
+            let is_ready = match sender.start_send(pending_out) {
+                Ok(AsyncSink::Ready) => true,
+                Ok(AsyncSink::NotReady(pending_out)) => {
+                    self.pending_out = pending_out;
+                    false
+                },
+                Err(()) => return Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
+            };
+            if !is_ready {
+                if total_write > 0 {
+                    self.opt_sender = Some(sender);
+                    return Ok(total_write);
+                } else {
+                    self.opt_sender = Some(sender);
+                    return Err(io::Error::new(io::ErrorKind::WouldBlock, "WouldBlock"));
+                }
+            }
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        let mut sender = match self.opt_sender.take() {
+            Some(sender) => sender,
+            None => return Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
+        };
+
+        let is_ready = match sender.poll_complete() {
+            Ok(Async::Ready(())) => true,
+            Ok(Async::NotReady) => false, 
+            Err(()) => return Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
+        };
+
+        self.opt_sender = Some(sender);
+        if !is_ready {
+            Err(io::Error::new(io::ErrorKind::WouldBlock, "WouldBlock"))
+        } else {
+            Ok(())
         }
     }
 }
