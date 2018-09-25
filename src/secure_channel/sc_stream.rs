@@ -1,6 +1,7 @@
 use std::{io, cmp, mem};
 use futures::sync::mpsc;
-use futures::{Async, AsyncSink, Stream, Sink};
+use futures::{Async, AsyncSink, Stream, Sink, Poll};
+use tokio_io::{AsyncRead, AsyncWrite};
 
 
 struct StreamReceiver<M> {
@@ -59,6 +60,10 @@ where
         }
     }
 }
+
+
+impl<M> AsyncRead for StreamReceiver<M> where M: Stream<Item=Vec<u8>, Error=()> {}
+
 
 struct StreamSender<K> {
     opt_sender: Option<K>,
@@ -139,6 +144,16 @@ where
             Err(io::Error::new(io::ErrorKind::WouldBlock, "WouldBlock"))
         } else {
             Ok(())
+        }
+    }
+}
+
+impl<K> AsyncWrite for StreamSender<K> where K: Sink<SinkItem=Vec<u8>, SinkError=()> {
+    fn shutdown(&mut self) -> Poll<(), io::Error> {
+        match self.opt_sender.take() {
+            Some(mut sender) => sender.close()
+                .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
+            None => Ok(Async::Ready(())),
         }
     }
 }
