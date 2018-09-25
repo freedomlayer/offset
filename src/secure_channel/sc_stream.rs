@@ -151,9 +151,17 @@ where
 impl<K> AsyncWrite for StreamSender<K> where K: Sink<SinkItem=Vec<u8>, SinkError=()> {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
         match self.opt_sender.take() {
-            Some(mut sender) => sender.close()
-                .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
-            None => Ok(Async::Ready(())),
+            Some(mut sender) => {
+                match sender.close() {
+                    Ok(Async::Ready(())) => Ok(Async::Ready(())),
+                    Ok(Async::NotReady) => {
+                        self.opt_sender = Some(sender);
+                        Ok(Async::NotReady)
+                    },
+                    Err(_) => Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
+                }
+            },
+            None => Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
         }
     }
 }
