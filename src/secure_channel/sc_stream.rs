@@ -10,7 +10,7 @@ struct StreamReceiver<M> {
 }
 
 impl<M> StreamReceiver<M> {
-    fn new(receiver: M) -> Self {
+    pub fn new(receiver: M) -> Self {
         StreamReceiver {
             opt_receiver: Some(receiver),
             pending_in: Vec::new(),
@@ -73,7 +73,7 @@ struct StreamSender<K> {
 
 
 impl<K> StreamSender<K> {
-    fn new(sender: K, max_frame_len: usize) -> Self {
+    pub fn new(sender: K, max_frame_len: usize) -> Self {
         StreamSender {
             opt_sender: Some(sender),
             pending_out: Vec::new(),
@@ -163,5 +163,55 @@ impl<K> AsyncWrite for StreamSender<K> where K: Sink<SinkItem=Vec<u8>, SinkError
             },
             None => Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::sync::mpsc;
+    use futures::prelude::{async, await};
+    use futures::Future;
+    use tokio_core::reactor::Core;
+
+    enum ReceiverRes {
+        Ready((usize, Vec<u8>)),
+        NotReady,
+        Error,
+    }
+
+    struct TestReceiver {
+        receiver: mpsc::Receiver<Vec<u8>>,
+        results: Vec<ReceiverRes>,
+    }
+
+    /*
+    impl Future for TestReceiver {
+        fn poll(&mut self) -> Poll<(), Self::Error> {
+            let my_buff = [0; 0x100];
+            match self.receiver.poll_read(&mut my_buff) {
+                Ok(Async::Ready(size)) => self.results.push(
+                    (ReceiverRes::Ready(size), my_buff[0..size].to_vec())),
+                Ok(Async::NotReady) => self.results.push(ReceiverRes::NotReady),
+                Err(_e) => self.results.push(ReceiverRes::Error),
+            }
+        }
+    }
+    */
+
+    // TODO: Continue tests here
+
+    #[async]
+    fn basic_stream_receiver() -> Result<(), ()> {
+        let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
+        let sreceiver = StreamReceiver::new(receiver);
+        Ok(())
+    }
+
+    #[test]
+    fn test_basic_stream_receiver() {
+
+        let mut core = Core::new().unwrap();
+        core.run(basic_stream_receiver());
     }
 }
