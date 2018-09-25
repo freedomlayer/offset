@@ -85,7 +85,7 @@ where
     fn write(&mut self, mut buf: &[u8]) -> io::Result<usize> {
         let mut sender = match self.opt_sender.take() {
             Some(sender) => sender,
-            None => return return Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
+            None => return Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
         };
         let mut total_write = 0;
 
