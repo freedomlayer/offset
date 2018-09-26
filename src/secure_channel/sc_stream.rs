@@ -1,26 +1,29 @@
 use std::{io, cmp, mem};
+use std::marker::PhantomData;
 use futures::sync::mpsc;
 use futures::{Async, AsyncSink, Stream, Sink, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 
-struct StreamReceiver<M> {
+struct StreamReceiver<M,E> {
     opt_receiver: Option<M>,
     pending_in: Vec<u8>,
+    phantom_error: PhantomData<E>,
 }
 
-impl<M> StreamReceiver<M> {
+impl<M,E> StreamReceiver<M,E> {
     pub fn new(receiver: M) -> Self {
         StreamReceiver {
             opt_receiver: Some(receiver),
             pending_in: Vec::new(),
+            phantom_error: PhantomData,
         }
     }
 }
 
-impl<M> io::Read for StreamReceiver<M> 
+impl<M,E> io::Read for StreamReceiver<M,E> 
 where
-    M: Stream<Item=Vec<u8>, Error=()>,
+    M: Stream<Item=Vec<u8>, Error=E>,
 {
     fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
         let mut total_read = 0; // Total amount of bytes read
@@ -52,7 +55,7 @@ where
                                 return Err(io::Error::new(io::ErrorKind::WouldBlock, "WouldBlock"))
                             }
                         },
-                        Err(()) => return Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
+                        Err(_) => return Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
                     };
                 },
                 None => return Ok(total_read),
@@ -62,7 +65,7 @@ where
 }
 
 
-impl<M> AsyncRead for StreamReceiver<M> where M: Stream<Item=Vec<u8>, Error=()> {}
+impl<M,E> AsyncRead for StreamReceiver<M,E> where M: Stream<Item=Vec<u8>, Error=E> {}
 
 
 struct StreamSender<K> {
@@ -204,7 +207,7 @@ mod tests {
     #[async]
     fn basic_stream_receiver() -> Result<(), ()> {
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
-        let sreceiver = StreamReceiver::new(receiver);
+        let sreceiver: StreamReceiver<_, ()> = StreamReceiver::new(receiver);
         Ok(())
     }
 
