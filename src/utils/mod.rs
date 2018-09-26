@@ -11,6 +11,7 @@ pub mod safe_arithmetic;
 pub mod big_array;
 pub mod capnp_custom_int;
 pub mod async_adapter;
+pub mod frame_codec;
 
 pub use self::close_handle::CloseHandle;
 pub use self::service_client::{ServiceClient, ServiceClientError};
