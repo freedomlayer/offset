@@ -2,7 +2,6 @@ use timer::TimerClient;
 use futures::prelude::{async, await};
 use futures::{Stream, stream, Sink};
 use super::messages::TunnelMessage;
-use super::ConnPair;
 
 enum TunnelError {
     RequestTimerStream,
@@ -22,18 +21,22 @@ pub enum TunnelEvent {
 }
 
 #[async]
-fn tunnel_loop(conn_pair1: ConnPair<TunnelMessage, TunnelMessage>, 
-               conn_pair2: ConnPair<TunnelMessage, TunnelMessage>, 
-               timer_client: TimerClient, keepalive_ticks: usize) -> Result<(), TunnelError> {
+fn tunnel_loop<R1,S1,R2,S2>(receiver1: R1, mut sender1: S1,
+                            receiver2: R2, mut sender2: S2,
+                            timer_client: TimerClient, 
+                            keepalive_ticks: usize) -> Result<(), TunnelError> 
+where
+    R1: Stream<Item=TunnelMessage, Error=()> + 'static,
+    S1: Sink<SinkItem=TunnelMessage, SinkError=()> + 'static,
+    R2: Stream<Item=TunnelMessage, Error=()> + 'static,
+    S2: Sink<SinkItem=TunnelMessage, SinkError=()> + 'static,
+{
 
     let timer_stream = await!(timer_client.request_timer_stream())
         .map_err(|_| TunnelError::RequestTimerStream)?;
     let timer_stream = timer_stream.map(|_| TunnelEvent::TimerTick)
         .map_err(|_| TunnelError::TimerStream)
         .chain(stream::once(Err(TunnelError::TimerClosed)));
-
-    let (receiver1, mut sender1) = conn_pair1.into_inner();
-    let (receiver2, mut sender2) = conn_pair2.into_inner();
 
     let mut open_receivers: usize = 2;
     // Ticks left until we drop the connection due to inactivity.
