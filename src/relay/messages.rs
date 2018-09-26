@@ -1,3 +1,4 @@
+#![allow(unused)]
 use crypto::identity::PublicKey;
 
 pub enum InitConnection {
