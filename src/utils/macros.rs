@@ -106,7 +106,7 @@ macro_rules! define_fixed_bytes {
 macro_rules! include_schema {
     ($( $name:ident, $path:expr );*) => {
         $(
-            #[allow(unused)]
+            #[allow(unused, clippy)]
             pub mod $name {
                 include!(concat!(env!("OUT_DIR"), "/schema/", $path, ".rs"));
             }

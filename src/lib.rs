@@ -1,5 +1,4 @@
-#![crate_type = "lib"]
-
+#![crate_type = "lib"] 
 #![feature(nll)]
 #![feature(try_from)]
 #![feature(generators)]
@@ -21,6 +20,7 @@ extern crate ring;
 // extern crate rusqlite;
 extern crate tokio_core;
 extern crate tokio_io;
+extern crate tokio_codec;
 extern crate async_mutex;
 
 extern crate num_traits;
@@ -47,7 +47,7 @@ pub mod channeler;
 pub mod funder;
 pub mod identity;
 pub mod timer;
-pub mod dh;
+pub mod secure_channel;
 
 
 mod proto;

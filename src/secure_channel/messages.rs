@@ -45,7 +45,6 @@ pub struct Rekey {
 #[allow(unused)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum ChannelContent {
-    KeepAlive,
     Rekey(Rekey),
     User(PlainData),
 }

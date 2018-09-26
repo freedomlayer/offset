@@ -116,9 +116,6 @@ pub fn serialize_channel_message(channel_message: &ChannelMessage) -> Vec<u8> {
     let mut content_msg = msg.reborrow().get_content();
 
     match &channel_message.content {
-        ChannelContent::KeepAlive => {
-            content_msg.set_keep_alive(());
-        }, 
         ChannelContent::Rekey(rekey) => {
             let mut rekey_msg = content_msg.init_rekey();
             write_custom_u_int256(&rekey.dh_public_key, &mut rekey_msg.reborrow().get_dh_public_key().unwrap());
@@ -141,7 +138,6 @@ pub fn deserialize_channel_message(data: &[u8]) -> Result<ChannelMessage, DhSeri
 
     let rand_padding = msg.get_rand_padding()?.to_vec();
     let content = match msg.get_content().which() {
-        Ok(dh_capnp::channel_message::content::KeepAlive(())) => ChannelContent::KeepAlive,
         Ok(dh_capnp::channel_message::content::Rekey(rekey)) => {
             let rekey = rekey?;
             let dh_public_key = DhPublicKey::try_from(&read_custom_u_int256(&rekey.get_dh_public_key()?)[..]).unwrap();

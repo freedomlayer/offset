@@ -1,5 +1,4 @@
-mod close_handle;
-mod service_client;
+mod close_handle; mod service_client;
 mod stream_mediator;
 mod nonce_window;
 #[macro_use]
@@ -11,6 +10,8 @@ pub mod safe_arithmetic;
 #[macro_use]
 pub mod big_array;
 pub mod capnp_custom_int;
+pub mod async_adapter;
+pub mod frame_codec;
 
 pub use self::close_handle::CloseHandle;
 pub use self::service_client::{ServiceClient, ServiceClientError};
