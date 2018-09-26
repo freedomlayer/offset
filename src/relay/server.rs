@@ -1,5 +1,6 @@
 #![allow(unused)]
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use bytes::Bytes;
 use futures::{stream, Stream, Sink};
 use futures::prelude::{async, await}; use crypto::identity::PublicKey;
@@ -7,44 +8,25 @@ use timer::TimerClient;
 
 use super::messages::{TunnelMessage, RelayListenIn, RelayListenOut};
 
-pub struct ConnPair<T,W> {
-    receiver: Box<Stream<Item=T, Error=()>>,
-    sender: Box<Sink<SinkItem=W, SinkError=()>>,
+struct ConnPair<M,K> {
+    receiver: M,
+    sender: K,
 }
 
-impl<T,W> ConnPair<T,W> {
-    pub fn new<M,K>(receiver: M, sender: K) -> ConnPair<T,W> 
-    where
-        M: Stream<Item=T, Error=()> + 'static,
-        K: Sink<SinkItem=W, SinkError=()> + 'static,
-    {
-        ConnPair {
-            receiver: Box::new(receiver),
-            sender: Box::new(sender),
-        }
-    }
-
-    pub fn into_inner(self) -> (Box<Stream<Item=T, Error=()>>,
-                      Box<Sink<SinkItem=W, SinkError=()>>) {
-        (self.receiver, self.sender)
-    }
-
-}
-
-struct HalfTunnel {
-    conn_pair: ConnPair<TunnelMessage, TunnelMessage>,
+struct HalfTunnel<MT,KT> {
+    conn_pair: ConnPair<MT,KT>,
     ticks_to_close: usize,
 }
 
-struct Listener {
-    half_tunnel: HashMap<PublicKey, HalfTunnel>,
-    conn_pair: ConnPair<RelayListenIn, RelayListenOut>,
+struct Listener<M,K,MT,KT> {
+    half_tunnel: HashMap<PublicKey, HalfTunnel<MT,KT>>,
+    conn_pair: ConnPair<M,K>,
     ticks_to_close: usize,
     ticks_to_send_keepalive: usize,
 }
 
-pub struct RelayServer {
-    listeners: HashMap<PublicKey, Listener>,
+pub struct RelayServer<M,K,MT,KT> {
+    listeners: HashMap<PublicKey, Listener<M,K,MT,KT>>,
     timer_client: TimerClient,
     keepalive_ticks: usize,
 }
@@ -69,7 +51,8 @@ enum RelayServerEvent {
 enum RelayServerError {
 }
 
-impl RelayServer {
+/*
+impl<M,K,MT,KT> RelayServer<M,K,MT,KT> {
     fn new(timer_client: TimerClient, 
            keepalive_ticks: usize) -> RelayServer {
         RelayServer {
@@ -108,4 +91,29 @@ impl RelayServer {
         //      - Send keepalive if required to a listening conn.
         unimplemented!();
     }
+}
+
+*/
+ 
+fn relay_server<T,M,K>(timer_client: TimerClient, 
+                incoming_conns: T,
+                keepalive_ticks: usize) -> Result<!, RelayServerError> 
+where
+    T: Stream<Item=(M, K), Error=()>,
+    M: Stream<Item=Bytes, Error=()>,
+    K: Sink<SinkItem=Bytes, SinkError=()>,
+{
+    // TODO:
+    // check for any event:
+    // - Incoming connection 
+    //      (sender, receiver) pair an a public key
+    //      - Convert the connection into one of three: Listen, Accept or Connect.
+    //          (Should be done using a .map() adapter on the Stream).
+    //          
+    // - A connection was closed
+    //      - Remove from data structures
+    // - Time tick
+    //      - Possibly timeout: Listening conn
+    //      - Send keepalive if required to a listening conn.
+    unimplemented!();
 }
