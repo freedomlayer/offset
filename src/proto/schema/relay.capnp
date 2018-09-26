@@ -20,20 +20,25 @@ struct InitConnection {
 }
 
 struct RelayListenIn {
-    keepAlive @0: Void;
-    rejectConnection @1: CustomUInt256;
-    # Reject incoming connection by PublicKey
+    union {
+        keepAlive @0: Void;
+        rejectConnection @1: CustomUInt256;
+        # Reject incoming connection by PublicKey
+    }
 }
 
 struct RelayListenOut {
-    keepAlive @0: Void;
-    incomingConnection @1: CustomUInt256;
-    # Incoming Connection public key
+    union {
+        keepAlive @0: Void;
+        incomingConnection @1: CustomUInt256;
+        # Incoming Connection public key
+    }
 }
 
-struct ConnectionMessage {
-    keepAlive @0: Void;
-    message @1: Data;
-    # Send a message through the connection.
-}
-
+struct TunnelMessage {
+    union {
+        keepAlive @0: Void;
+        message @1: Data;
+        # Send a message through the Tunnel
+    }
+} 
