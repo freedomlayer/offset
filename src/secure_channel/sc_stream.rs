@@ -68,27 +68,29 @@ where
 impl<M,E> AsyncRead for StreamReceiver<M,E> where M: Stream<Item=Vec<u8>, Error=E> {}
 
 
-struct StreamSender<K> {
+struct StreamSender<K,E> {
     opt_sender: Option<K>,
     pending_out: Vec<u8>,
     max_frame_len: usize,
+    phantom_error: PhantomData<E>,
 }
 
 
-impl<K> StreamSender<K> {
+impl<K,E> StreamSender<K,E> {
     pub fn new(sender: K, max_frame_len: usize) -> Self {
         StreamSender {
             opt_sender: Some(sender),
             pending_out: Vec::new(),
             max_frame_len,
+            phantom_error: PhantomData,
         }
     }
 }
 
 
-impl<K> io::Write for StreamSender<K> 
+impl<K,E> io::Write for StreamSender<K,E> 
 where
-    K: Sink<SinkItem=Vec<u8>, SinkError=()>,
+    K: Sink<SinkItem=Vec<u8>, SinkError=E>,
 {
     fn write(&mut self, mut buf: &[u8]) -> io::Result<usize> {
         let mut sender = match self.opt_sender.take() {
@@ -117,7 +119,7 @@ where
                     self.pending_out = pending_out;
                     false
                 },
-                Err(()) => return Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
+                Err(_) => return Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
             };
             if !is_ready {
                 self.opt_sender = Some(sender);
@@ -139,7 +141,7 @@ where
         let is_ready = match sender.poll_complete() {
             Ok(Async::Ready(())) => true,
             Ok(Async::NotReady) => false, 
-            Err(()) => return Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
+            Err(_) => return Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
         };
 
         self.opt_sender = Some(sender);
@@ -151,7 +153,7 @@ where
     }
 }
 
-impl<K> AsyncWrite for StreamSender<K> where K: Sink<SinkItem=Vec<u8>, SinkError=()> {
+impl<K,E> AsyncWrite for StreamSender<K,E> where K: Sink<SinkItem=Vec<u8>, SinkError=E> {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
         match self.opt_sender.take() {
             Some(mut sender) => {
