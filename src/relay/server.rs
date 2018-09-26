@@ -94,6 +94,18 @@ impl RelayServer {
 
     #[async]
     fn run(self) -> Result<!, RelayServerError> {
+        // TODO:
+        // check for any event:
+        // - Incoming connection 
+        //      (sender, receiver) pair an a public key
+        //      - Convert the connection into one of three: Listen, Accept or Connect.
+        //          (Should be done using a .map() adapter on the Stream).
+        //          
+        // - A connection was closed
+        //      - Remove from data structures
+        // - Time tick
+        //      - Possibly timeout: Listening conn
+        //      - Send keepalive if required to a listening conn.
         unimplemented!();
     }
 }
