@@ -142,6 +142,26 @@ where
             None => return Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
         };
 
+        // Try to send whatever pending bytes we have:
+        if !self.pending_out.is_empty() {
+            let pending_out = mem::replace(&mut self.pending_out, Vec::new());
+            let pending_out_bytes = Bytes::from(pending_out);
+            let is_ready = match sender.start_send(pending_out_bytes) {
+                Ok(AsyncSink::Ready) => true,
+                Ok(AsyncSink::NotReady(pending_out_bytes)) => {
+                    self.pending_out = pending_out_bytes.as_ref().to_vec();
+                    false
+                },
+                Err(_) => {
+                    return Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe"))
+                },
+            };
+            if !is_ready {
+                self.opt_sender = Some(sender);
+                return Err(io::Error::new(io::ErrorKind::WouldBlock, "WouldBlock"));
+            }
+        }
+
         let is_ready = match sender.poll_complete() {
             Ok(Async::Ready(())) => true,
             Ok(Async::NotReady) => false, 
