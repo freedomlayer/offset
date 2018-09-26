@@ -48,6 +48,7 @@ pub mod funder;
 pub mod identity;
 pub mod timer;
 pub mod secure_channel;
+pub mod relay;
 
 
 mod proto;
