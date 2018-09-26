@@ -207,37 +207,8 @@ mod tests {
     use utils::frame_codec::FrameCodec;
     use bytes::BytesMut;
 
-    enum ReceiverRes {
-        Ready((usize, Vec<u8>)),
-        NotReady,
-        Error,
-    }
-
-    struct TestReceiver {
-        receiver: mpsc::Receiver<Vec<u8>>,
-        results: Vec<ReceiverRes>,
-    }
-
-    /*
-    impl Future for TestReceiver {
-        fn poll(&mut self) -> Poll<(), Self::Error> {
-            let my_buff = [0; 0x100];
-            match self.receiver.poll_read(&mut my_buff) {
-                Ok(Async::Ready(size)) => self.results.push(
-                    (ReceiverRes::Ready(size), my_buff[0..size].to_vec())),
-                Ok(Async::NotReady) => self.results.push(ReceiverRes::NotReady),
-                Err(_e) => self.results.push(ReceiverRes::Error),
-            }
-        }
-    }
-    */
-
-    // TODO: Continue tests here
-
-    #[async]
-    fn basic_stream_receiver() -> Result<(), ()> {
-        Ok(())
-    }
+    // TODO: Tests here are very basic.
+    // More tests are required.
 
     #[async]
     fn plain_sender(sender: impl Sink<SinkItem=Bytes, SinkError=()> + 'static, 
@@ -271,9 +242,9 @@ mod tests {
     }
 
     #[test]
-    fn test_basic_stream_receiver() {
+    fn test_basic_async_reader() {
         let (sender, receiver) = mpsc::channel::<Bytes>(0);
-        let async_reader: AsyncReader<_, _> = AsyncReader::new(receiver);
+        let async_reader = AsyncReader::new(receiver);
         let reader = FramedRead::new(async_reader, FrameCodec::new())
             .map_err(|_| ());
         let sender = sender.sink_map_err(|_| ());
@@ -285,6 +256,78 @@ mod tests {
         let handle = core.handle();
         handle.spawn(frames_receiver(reader, reader_done_send));
         handle.spawn(plain_sender(sender, writer_done_send));
+        assert_eq!(true, core.run(reader_done_recv).unwrap());
+        assert_eq!(true, core.run(writer_done_recv).unwrap());
+    }
+
+    #[async]
+    fn frames_sender(sender: impl Sink<SinkItem=Bytes, SinkError=()> + 'static, 
+                     reader_done_send: oneshot::Sender<bool>) 
+            -> Result<(), ()> {
+        let sender = await!(sender.send(Bytes::from(vec![0; 0x90]))).unwrap();
+        let sender = await!(sender.send(Bytes::from(vec![1; 0x75]))).unwrap();
+        reader_done_send.send(true);
+        Ok(())
+    }
+
+    #[async]
+    fn plain_receiver(mut receiver: impl Stream<Item=Bytes, Error=()> + 'static, 
+                       writer_done_send: oneshot::Sender<bool>) 
+            -> Result<(), ()> {
+
+        let mut total_buf = BytesMut::new();
+        while let (Some(data), new_receiver) = await!(receiver.into_future()).map_err(|_| ())? {
+            receiver = new_receiver;
+            assert!(data.len() <= 0x11);
+            total_buf.extend(data);
+        }
+
+        let mut expected_buf = BytesMut::new();
+        expected_buf.extend(vec![0,0,0,0x90]);
+        expected_buf.extend(vec![0; 0x90]);
+        expected_buf.extend(vec![0,0,0,0x75]);
+        expected_buf.extend(vec![1; 0x75]);
+        assert_eq!(total_buf, expected_buf);
+        writer_done_send.send(true);
+        Ok(())
+    }
+
+    #[test]
+    fn test_basic_async_writer() {
+        let (sender, receiver) = mpsc::channel::<Bytes>(0);
+        let async_writer = AsyncWriter::new(sender, 0x11);
+        let writer = FramedWrite::new(async_writer, FrameCodec::new())
+            .sink_map_err(|_| ());
+        let receiver = receiver.map_err(|_| ());
+
+        let (reader_done_send, reader_done_recv) = oneshot::channel::<bool>();
+        let (writer_done_send, writer_done_recv) = oneshot::channel::<bool>();
+
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+        handle.spawn(plain_receiver(receiver, reader_done_send));
+        handle.spawn(frames_sender(writer, writer_done_send));
+        assert_eq!(true, core.run(reader_done_recv).unwrap());
+        assert_eq!(true, core.run(writer_done_recv).unwrap());
+    }
+
+    #[test]
+    fn test_basic_async_reader_writer() {
+        let (sender, receiver) = mpsc::channel::<Bytes>(0);
+        let async_writer = AsyncWriter::new(sender, 0x11);
+        let writer = FramedWrite::new(async_writer, FrameCodec::new())
+            .sink_map_err(|_| ());
+        let async_reader = AsyncReader::new(receiver);
+        let reader = FramedRead::new(async_reader, FrameCodec::new())
+            .map_err(|_| ());
+
+        let (reader_done_send, reader_done_recv) = oneshot::channel::<bool>();
+        let (writer_done_send, writer_done_recv) = oneshot::channel::<bool>();
+
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+        handle.spawn(frames_receiver(reader, reader_done_send));
+        handle.spawn(frames_sender(writer, writer_done_send));
         assert_eq!(true, core.run(reader_done_recv).unwrap());
         assert_eq!(true, core.run(writer_done_recv).unwrap());
     }
