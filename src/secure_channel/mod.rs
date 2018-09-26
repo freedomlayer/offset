@@ -47,8 +47,8 @@ enum SecureChannelError {
 
 /// Read one message from reader
 #[async]
-fn read_from_reader<M: 'static>(reader: M) -> Result<(Bytes, M), SecureChannelError>
-    where M: Stream<Item=Bytes, Error=()>,
+fn read_from_reader<EM, M: 'static>(reader: M) -> Result<(Bytes, M), SecureChannelError>
+    where M: Stream<Item=Bytes, Error=EM>,
 {
     match await!(reader.into_future()) {
         Ok((opt_reader_message, ret_reader)) => {
@@ -62,15 +62,15 @@ fn read_from_reader<M: 'static>(reader: M) -> Result<(Bytes, M), SecureChannelEr
 }
 
 #[async]
-fn initial_exchange<M: 'static,K: 'static,R: SecureRandom + 'static>(reader: M, writer: K, 
+fn initial_exchange<EM, EK, M: 'static,K: 'static,R: SecureRandom + 'static>(reader: M, writer: K, 
                               identity_client: IdentityClient,
                               opt_expected_remote: Option<PublicKey>,
                               rng: Rc<R>)
                             -> Result<(ScState, M, K), SecureChannelError>
 where
     R: SecureRandom,
-    M: Stream<Item=Bytes, Error=()>,
-    K: Sink<SinkItem=Bytes, SinkError=()>,
+    M: Stream<Item=Bytes, Error=EM>,
+    K: Sink<SinkItem=Bytes, SinkError=EK>,
 {
     let local_public_key = await!(identity_client.request_public_key())
         .map_err(|_| SecureChannelError::IdentityFailure)?;
@@ -120,7 +120,7 @@ enum SecureChannelEvent {
 
 
 #[async]
-fn secure_channel_loop<M: 'static,K: 'static, R: SecureRandom + 'static>(
+fn secure_channel_loop<EM, EK, M: 'static,K: 'static, R: SecureRandom + 'static>(
                               mut dh_state: ScState,
                               reader: M, mut writer: K, 
                               from_user: mpsc::Receiver<Bytes>,
@@ -131,8 +131,8 @@ fn secure_channel_loop<M: 'static,K: 'static, R: SecureRandom + 'static>(
     -> Result<!, SecureChannelError>
 where
     R: SecureRandom,
-    M: Stream<Item=Bytes, Error=()>,
-    K: Sink<SinkItem=Bytes, SinkError=()>,
+    M: Stream<Item=Bytes, Error=EM>,
+    K: Sink<SinkItem=Bytes, SinkError=EK>,
 {
     // TODO: How to perform greceful shutdown of sinks?
     // Is there a way to do it?
@@ -198,7 +198,7 @@ where
 
 
 #[async]
-pub fn create_secure_channel<M: 'static,K: 'static,R: SecureRandom + 'static>(reader: M, writer: K, 
+pub fn create_secure_channel<EM, EK, M: 'static,K: 'static,R: SecureRandom + 'static>(reader: M, writer: K, 
                               identity_client: IdentityClient,
                               opt_expected_remote: Option<PublicKey>,
                               rng: Rc<R>,
@@ -208,8 +208,8 @@ pub fn create_secure_channel<M: 'static,K: 'static,R: SecureRandom + 'static>(re
     -> Result<SecureChannel, SecureChannelError>
 where
     R: SecureRandom,
-    M: Stream<Item=Bytes, Error=()>,
-    K: Sink<SinkItem=Bytes, SinkError=()>,
+    M: Stream<Item=Bytes, Error=EM>,
+    K: Sink<SinkItem=Bytes, SinkError=EK>,
 {
 
     let (dh_state, reader, writer) = await!(initial_exchange(
