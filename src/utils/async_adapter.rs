@@ -2,7 +2,7 @@ use std::{io, cmp, mem};
 use std::marker::PhantomData;
 use futures::{Async, AsyncSink, Stream, Sink, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
-
+use bytes::Bytes;
 
 pub struct AsyncReader<M,E> {
     opt_receiver: Option<M>,
@@ -22,7 +22,7 @@ impl<M,E> AsyncReader<M,E> {
 
 impl<M,E> io::Read for AsyncReader<M,E> 
 where
-    M: Stream<Item=Vec<u8>, Error=E>,
+    M: Stream<Item=Bytes, Error=E>,
 {
     fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
         let mut total_read = 0; // Total amount of bytes read
@@ -43,7 +43,7 @@ where
                     match receiver.poll() {
                         Ok(Async::Ready(Some(data))) => {
                             self.opt_receiver = Some(receiver);
-                            self.pending_in = data;
+                            self.pending_in = data.as_ref().to_vec();
                         },
                         Ok(Async::Ready(None)) => return Ok(total_read), // End of incoming data
                         Ok(Async::NotReady) => {
@@ -51,10 +51,12 @@ where
                             if total_read > 0 {
                                 return Ok(total_read)
                             } else {
-                                return Err(io::Error::new(io::ErrorKind::WouldBlock, "WouldBlock"))
+                                return Err(io::Error::new(io::ErrorKind::WouldBlock, "WouldBlock"));
                             }
                         },
-                        Err(_) => return Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
+                        Err(_) => {
+                            return Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe"));
+                        },
                     };
                 },
                 None => return Ok(total_read),
@@ -64,7 +66,7 @@ where
 }
 
 
-impl<M,E> AsyncRead for AsyncReader<M,E> where M: Stream<Item=Vec<u8>, Error=E> {}
+impl<M,E> AsyncRead for AsyncReader<M,E> where M: Stream<Item=Bytes, Error=E> {}
 
 
 pub struct AsyncWriter<K,E> {
@@ -89,7 +91,7 @@ impl<K,E> AsyncWriter<K,E> {
 
 impl<K,E> io::Write for AsyncWriter<K,E> 
 where
-    K: Sink<SinkItem=Vec<u8>, SinkError=E>,
+    K: Sink<SinkItem=Bytes, SinkError=E>,
 {
     fn write(&mut self, mut buf: &[u8]) -> io::Result<usize> {
         let mut sender = match self.opt_sender.take() {
@@ -112,13 +114,16 @@ where
             total_write += min_len;
 
             let pending_out = mem::replace(&mut self.pending_out, Vec::new());
-            let is_ready = match sender.start_send(pending_out) {
+            let pending_out_bytes = Bytes::from(pending_out);
+            let is_ready = match sender.start_send(pending_out_bytes) {
                 Ok(AsyncSink::Ready) => true,
-                Ok(AsyncSink::NotReady(pending_out)) => {
-                    self.pending_out = pending_out;
+                Ok(AsyncSink::NotReady(pending_out_bytes)) => {
+                    self.pending_out = pending_out_bytes.as_ref().to_vec();
                     false
                 },
-                Err(_) => return Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe")),
+                Err(_) => {
+                    return Err(io::Error::new(io::ErrorKind::BrokenPipe, "BrokenPipe"))
+                },
             };
             if !is_ready {
                 self.opt_sender = Some(sender);
@@ -152,7 +157,7 @@ where
     }
 }
 
-impl<K,E> AsyncWrite for AsyncWriter<K,E> where K: Sink<SinkItem=Vec<u8>, SinkError=E> {
+impl<K,E> AsyncWrite for AsyncWriter<K,E> where K: Sink<SinkItem=Bytes, SinkError=E> {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
         match self.opt_sender.take() {
             Some(mut sender) => {
@@ -180,6 +185,7 @@ mod tests {
     use tokio_core::reactor::Core;
     use tokio_codec::{FramedRead, FramedWrite};
     use utils::frame_codec::FrameCodec;
+    use bytes::BytesMut;
 
     enum ReceiverRes {
         Ready((usize, Vec<u8>)),
@@ -214,50 +220,52 @@ mod tests {
     }
 
     #[async]
-    fn frames_sender(sender: impl Sink<SinkItem=Vec<u8>, SinkError=()> + 'static, 
+    fn plain_sender(sender: impl Sink<SinkItem=Bytes, SinkError=()> + 'static, 
                      reader_done_send: oneshot::Sender<bool>) 
             -> Result<(), ()> {
-        let sender = await!(sender.send(vec![0; 0x200])).unwrap();
-        let sender = await!(sender.send(vec![1; 0x100])).unwrap();
-        let sender = await!(sender.send(vec![2; 0x80])).unwrap();
+        let mut buf = BytesMut::new();
+        buf.extend(vec![0,0,0,0x90]);
+        buf.extend(vec![0; 0x90]);
+        let sender = await!(sender.send(buf.freeze())).unwrap();
 
+        let mut buf = BytesMut::new();
+        buf.extend(vec![0,0,0,0x75]);
+        buf.extend(vec![1; 0x75]);
+        let sender = await!(sender.send(buf.freeze())).unwrap();
         reader_done_send.send(true);
         Ok(())
     }
 
     #[async]
-    fn frames_receiver(receiver: impl Stream<Item=Vec<u8>, Error=()> + 'static, 
+    fn frames_receiver(receiver: impl Stream<Item=Bytes, Error=()> + 'static, 
                        writer_done_send: oneshot::Sender<bool>) 
             -> Result<(), ()> {
         let (opt_data, receiver) = await!(receiver.into_future()).map_err(|_| ())?;
+        assert_eq!(opt_data.unwrap(), Bytes::from(vec![0; 0x90]));
+        let (opt_data, receiver) = await!(receiver.into_future()).map_err(|_| ())?;
+        assert_eq!(opt_data.unwrap(), Bytes::from(vec![1; 0x75]));
+        let (opt_data, receiver) = await!(receiver.into_future()).map_err(|_| ())?;
+        assert_eq!(opt_data, None);
         writer_done_send.send(true);
         Ok(())
     }
 
     #[test]
     fn test_basic_stream_receiver() {
-        let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
+        let (sender, receiver) = mpsc::channel::<Bytes>(0);
         let async_reader: AsyncReader<_, _> = AsyncReader::new(receiver);
-        let async_writer: AsyncWriter<_, _> = AsyncWriter::new(sender, 0x20);
-
         let reader = FramedRead::new(async_reader, FrameCodec::new())
             .map_err(|_| ());
-        let writer = FramedWrite::new(async_writer, FrameCodec::new())
-            .sink_map_err(|_| ());
+        let sender = sender.sink_map_err(|_| ());
 
         let (reader_done_send, reader_done_recv) = oneshot::channel::<bool>();
         let (writer_done_send, writer_done_recv) = oneshot::channel::<bool>();
 
-        // TODO: Continue here.
-        // Required: Port async_adapter to use Bytes instead of Vec<u8>
-
-        /*
         let mut core = Core::new().unwrap();
         let handle = core.handle();
         handle.spawn(frames_receiver(reader, reader_done_send));
-        handle.spawn(frames_sender(writer, writer_done_send));
+        handle.spawn(plain_sender(sender, writer_done_send));
         assert_eq!(true, core.run(reader_done_recv).unwrap());
         assert_eq!(true, core.run(writer_done_recv).unwrap());
-        */
     }
 }
