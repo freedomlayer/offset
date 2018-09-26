@@ -1,19 +1,18 @@
 use std::{io, cmp, mem};
 use std::marker::PhantomData;
-use futures::sync::mpsc;
 use futures::{Async, AsyncSink, Stream, Sink, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 
-struct StreamReceiver<M,E> {
+pub struct AsyncReader<M,E> {
     opt_receiver: Option<M>,
     pending_in: Vec<u8>,
     phantom_error: PhantomData<E>,
 }
 
-impl<M,E> StreamReceiver<M,E> {
+impl<M,E> AsyncReader<M,E> {
     pub fn new(receiver: M) -> Self {
-        StreamReceiver {
+        AsyncReader {
             opt_receiver: Some(receiver),
             pending_in: Vec::new(),
             phantom_error: PhantomData,
@@ -21,7 +20,7 @@ impl<M,E> StreamReceiver<M,E> {
     }
 }
 
-impl<M,E> io::Read for StreamReceiver<M,E> 
+impl<M,E> io::Read for AsyncReader<M,E> 
 where
     M: Stream<Item=Vec<u8>, Error=E>,
 {
@@ -35,7 +34,7 @@ where
             buf = &mut buf[min_len ..];
             total_read += min_len;
 
-            if buf.len() == 0 {
+            if buf.is_empty() {
                 return Ok(total_read);
             }
 
@@ -65,10 +64,10 @@ where
 }
 
 
-impl<M,E> AsyncRead for StreamReceiver<M,E> where M: Stream<Item=Vec<u8>, Error=E> {}
+impl<M,E> AsyncRead for AsyncReader<M,E> where M: Stream<Item=Vec<u8>, Error=E> {}
 
 
-struct StreamSender<K,E> {
+pub struct AsyncWriter<K,E> {
     opt_sender: Option<K>,
     pending_out: Vec<u8>,
     max_frame_len: usize,
@@ -76,9 +75,9 @@ struct StreamSender<K,E> {
 }
 
 
-impl<K,E> StreamSender<K,E> {
+impl<K,E> AsyncWriter<K,E> {
     pub fn new(sender: K, max_frame_len: usize) -> Self {
-        StreamSender {
+        AsyncWriter {
             opt_sender: Some(sender),
             pending_out: Vec::new(),
             max_frame_len,
@@ -88,7 +87,7 @@ impl<K,E> StreamSender<K,E> {
 }
 
 
-impl<K,E> io::Write for StreamSender<K,E> 
+impl<K,E> io::Write for AsyncWriter<K,E> 
 where
     K: Sink<SinkItem=Vec<u8>, SinkError=E>,
 {
@@ -100,7 +99,7 @@ where
         let mut total_write = 0;
 
         loop {
-            if buf.len() == 0 {
+            if buf.is_empty() {
                 self.opt_sender = Some(sender);
                 return Ok(total_write);
             }
@@ -153,7 +152,7 @@ where
     }
 }
 
-impl<K,E> AsyncWrite for StreamSender<K,E> where K: Sink<SinkItem=Vec<u8>, SinkError=E> {
+impl<K,E> AsyncWrite for AsyncWriter<K,E> where K: Sink<SinkItem=Vec<u8>, SinkError=E> {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
         match self.opt_sender.take() {
             Some(mut sender) => {
@@ -172,6 +171,7 @@ impl<K,E> AsyncWrite for StreamSender<K,E> where K: Sink<SinkItem=Vec<u8>, SinkE
 }
 
 #[cfg(test)]
+#[allow(unused)]
 mod tests {
     use super::*;
     use futures::sync::mpsc;
@@ -209,7 +209,7 @@ mod tests {
     #[async]
     fn basic_stream_receiver() -> Result<(), ()> {
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
-        let sreceiver: StreamReceiver<_, ()> = StreamReceiver::new(receiver);
+        let async_reader: AsyncReader<_, ()> = AsyncReader::new(receiver);
         Ok(())
     }
 
