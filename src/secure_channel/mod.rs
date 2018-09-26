@@ -1,6 +1,7 @@
 #![allow(unused)]
 
 use std::rc::Rc;
+use bytes::Bytes;
 use futures::{stream, Stream, Sink, Future};
 use futures::prelude::{async, await};
 use tokio_core::reactor::Handle;
@@ -22,8 +23,8 @@ mod serialize;
 mod state;
 
 struct SecureChannel {
-    sender: mpsc::Sender<Vec<u8>>,
-    receiver: mpsc::Receiver<Vec<u8>>,
+    sender: mpsc::Sender<Bytes>,
+    receiver: mpsc::Receiver<Bytes>,
 }
 
 #[derive(Debug)]
@@ -46,8 +47,8 @@ enum SecureChannelError {
 
 /// Read one message from reader
 #[async]
-fn read_from_reader<M: 'static>(reader: M) -> Result<(Vec<u8>, M), SecureChannelError>
-    where M: Stream<Item=Vec<u8>, Error=()>,
+fn read_from_reader<M: 'static>(reader: M) -> Result<(Bytes, M), SecureChannelError>
+    where M: Stream<Item=Bytes, Error=()>,
 {
     match await!(reader.into_future()) {
         Ok((opt_reader_message, ret_reader)) => {
@@ -68,15 +69,15 @@ fn initial_exchange<M: 'static,K: 'static,R: SecureRandom + 'static>(reader: M, 
                             -> Result<(ScState, M, K), SecureChannelError>
 where
     R: SecureRandom,
-    M: Stream<Item=Vec<u8>, Error=()>,
-    K: Sink<SinkItem=Vec<u8>, SinkError=()>,
+    M: Stream<Item=Bytes, Error=()>,
+    K: Sink<SinkItem=Bytes, SinkError=()>,
 {
     let local_public_key = await!(identity_client.request_public_key())
         .map_err(|_| SecureChannelError::IdentityFailure)?;
 
     let (dh_state_initial, exchange_rand_nonce) = ScStateInitial::new(&local_public_key, &*rng);
     let ser_exchange_rand_nonce = serialize_exchange_rand_nonce(&exchange_rand_nonce);
-    let writer = await!(writer.send(ser_exchange_rand_nonce))
+    let writer = await!(writer.send(Bytes::from(ser_exchange_rand_nonce)))
         .map_err(|_| SecureChannelError::WriterError)?;
 
     let (reader_message, reader) = await!(read_from_reader(reader))?;
@@ -97,7 +98,7 @@ where
 
 
     let ser_exchange_dh = serialize_exchange_dh(&exchange_dh);
-    let writer = await!(writer.send(ser_exchange_dh))
+    let writer = await!(writer.send(Bytes::from(ser_exchange_dh)))
         .map_err(|_| SecureChannelError::WriterError)?;
 
     let (reader_message, reader) = await!(read_from_reader(reader))?;
@@ -110,8 +111,8 @@ where
 }
 
 enum SecureChannelEvent {
-    Reader(Vec<u8>),
-    User(Vec<u8>),
+    Reader(Bytes),
+    User(Bytes),
     TimerTick,
     /// Any of the receivers was closed:
     ReceiverClosed,
@@ -122,16 +123,16 @@ enum SecureChannelEvent {
 fn secure_channel_loop<M: 'static,K: 'static, R: SecureRandom + 'static>(
                               mut dh_state: ScState,
                               reader: M, mut writer: K, 
-                              from_user: mpsc::Receiver<Vec<u8>>,
-                              mut to_user: mpsc::Sender<Vec<u8>>,
+                              from_user: mpsc::Receiver<Bytes>,
+                              mut to_user: mpsc::Sender<Bytes>,
                               rng: Rc<R>,
                               ticks_to_rekey: usize,
                               timer_client: TimerClient)
     -> Result<!, SecureChannelError>
 where
     R: SecureRandom,
-    M: Stream<Item=Vec<u8>, Error=()>,
-    K: Sink<SinkItem=Vec<u8>, SinkError=()>,
+    M: Stream<Item=Bytes, Error=()>,
+    K: Sink<SinkItem=Bytes, SinkError=()>,
 {
     // TODO: How to perform greceful shutdown of sinks?
     // Is there a way to do it?
@@ -156,23 +157,23 @@ where
     for event in events {
         match event {
             SecureChannelEvent::Reader(data) => {
-                let hi_output = dh_state.handle_incoming(&EncryptedData(data), &*rng)
+                let hi_output = dh_state.handle_incoming(&EncryptedData(data.to_vec()), &*rng)
                     .map_err(|_| SecureChannelError::HandleIncomingError)?;
                 if hi_output.rekey_occured {
                     cur_ticks_to_rekey = ticks_to_rekey;
                 }
                 if let Some(send_message) = hi_output.opt_send_message {
-                    writer = await!(writer.send(send_message.0))
+                    writer = await!(writer.send(Bytes::from(send_message.0)))
                         .map_err(|_| SecureChannelError::WriterError)?;
                 }
                 if let Some(incoming_message) = hi_output.opt_incoming_message {
-                    to_user = await!(to_user.send(incoming_message.0))
+                    to_user = await!(to_user.send(Bytes::from(incoming_message.0)))
                         .map_err(|_| SecureChannelError::WriterError)?;
                 }
             },
             SecureChannelEvent::User(data) => {
-                let enc_data = dh_state.create_outgoing(&PlainData(data), &*rng);
-                writer = await!(writer.send(enc_data.0))
+                let enc_data = dh_state.create_outgoing(&PlainData(data.to_vec()), &*rng);
+                writer = await!(writer.send(Bytes::from(enc_data.0)))
                     .map_err(|_| SecureChannelError::WriterError)?;
             },
             SecureChannelEvent::TimerTick => {
@@ -185,7 +186,7 @@ where
                     Err(ScStateError::RekeyInProgress) => continue,
                     Err(_) => unreachable!(),
                 };
-                writer = await!(writer.send(enc_data.0))
+                writer = await!(writer.send(Bytes::from(enc_data.0)))
                     .map_err(|_| SecureChannelError::WriterError)?;
                 cur_ticks_to_rekey = ticks_to_rekey;
             },
@@ -207,8 +208,8 @@ pub fn create_secure_channel<M: 'static,K: 'static,R: SecureRandom + 'static>(re
     -> Result<SecureChannel, SecureChannelError>
 where
     R: SecureRandom,
-    M: Stream<Item=Vec<u8>, Error=()>,
-    K: Sink<SinkItem=Vec<u8>, SinkError=()>,
+    M: Stream<Item=Bytes, Error=()>,
+    K: Sink<SinkItem=Bytes, SinkError=()>,
 {
 
     let (dh_state, reader, writer) = await!(initial_exchange(
@@ -218,8 +219,8 @@ where
                                                 opt_expected_remote, 
                                                 Rc::clone(&rng)))?;
 
-    let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(0);
-    let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(0);
+    let (user_sender, from_user) = mpsc::channel::<Bytes>(0);
+    let (to_user, user_receiver) = mpsc::channel::<Bytes>(0);
 
     let sc_loop = secure_channel_loop(dh_state, 
                                       reader, writer,
@@ -268,15 +269,15 @@ mod tests {
                        mut tick_sender: mpsc::Sender<()>,
                        output_sender: oneshot::Sender<bool>) -> Result<(),()> {
         let SecureChannel {sender, receiver} = await!(fut_sc).unwrap();
-        let sender = await!(sender.send(vec![0,1,2,3,4,5])).unwrap();
+        let sender = await!(sender.send(Bytes::from(vec![0,1,2,3,4,5]))).unwrap();
         let (data, receiver) = await!(read_from_reader(receiver)).unwrap();
-        assert_eq!(data, vec![5,4,3]);
+        assert_eq!(data, Bytes::from(vec![5,4,3]));
 
         // Move time forward, to cause rekying:
         for _ in 0_usize .. 20 {
             tick_sender = await!(tick_sender.send(())).unwrap();
         }
-        let sender = await!(sender.send(vec![0,1,2])).unwrap();
+        let sender = await!(sender.send(Bytes::from(vec![0,1,2]))).unwrap();
 
         output_sender.send(true);
         Ok(())
@@ -289,11 +290,11 @@ mod tests {
 
         let SecureChannel {sender, receiver} = await!(fut_sc).unwrap();
         let (data, receiver) = await!(read_from_reader(receiver)).unwrap();
-        assert_eq!(data, vec![0,1,2,3,4,5]);
-        let sender = await!(sender.send(vec![5,4,3])).unwrap();
+        assert_eq!(data, Bytes::from(vec![0,1,2,3,4,5]));
+        let sender = await!(sender.send(Bytes::from(vec![5,4,3]))).unwrap();
 
         let (data, receiver) = await!(read_from_reader(receiver)).unwrap();
-        assert_eq!(data, vec![0,1,2]);
+        assert_eq!(data, Bytes::from(vec![0,1,2]));
 
         output_sender.send(true);
         Ok(())
@@ -326,8 +327,8 @@ mod tests {
         handle.spawn(identity_server1.then(|_| Ok(())));
         handle.spawn(identity_server2.then(|_| Ok(())));
 
-        let (sender1, receiver2) = mpsc::channel::<Vec<u8>>(0);
-        let (sender2, receiver1) = mpsc::channel::<Vec<u8>>(0);
+        let (sender1, receiver2) = mpsc::channel::<Bytes>(0);
+        let (sender2, receiver1) = mpsc::channel::<Bytes>(0);
 
 
         let rc_rng1 = Rc::new(rng1);
