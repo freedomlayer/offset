@@ -195,7 +195,34 @@ mod tests {
         let serialized = serialize_init_connection(&msg);
         let msg2 = deserialize_init_connection(&serialized[..]).unwrap();
         assert_eq!(msg, msg2);
+    }
 
+    #[test]
+    fn test_serialize_relay_listen_in() {
+        let msg = RelayListenIn::KeepAlive;
+        let serialized = serialize_relay_listen_in(&msg);
+        let msg2 = deserialize_relay_listen_in(&serialized[..]).unwrap();
+        assert_eq!(msg, msg2);
+
+        let public_key = PublicKey::try_from(&[0x02u8; PUBLIC_KEY_LEN][..]).unwrap();
+        let msg = RelayListenIn::RejectConnection(public_key);
+        let serialized = serialize_relay_listen_in(&msg);
+        let msg2 = deserialize_relay_listen_in(&serialized[..]).unwrap();
+        assert_eq!(msg, msg2);
+    }
+
+    #[test]
+    fn test_serialize_relay_listen_out() {
+        let msg = RelayListenOut::KeepAlive;
+        let serialized = serialize_relay_listen_out(&msg);
+        let msg2 = deserialize_relay_listen_out(&serialized[..]).unwrap();
+        assert_eq!(msg, msg2);
+
+        let public_key = PublicKey::try_from(&[0x02u8; PUBLIC_KEY_LEN][..]).unwrap();
+        let msg = RelayListenOut::IncomingConnection(public_key);
+        let serialized = serialize_relay_listen_out(&msg);
+        let msg2 = deserialize_relay_listen_out(&serialized[..]).unwrap();
+        assert_eq!(msg, msg2);
     }
 
     #[test]
