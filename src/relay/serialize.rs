@@ -133,6 +133,11 @@ mod tests {
 
     #[test]
     fn test_serialize_tunnel_message() {
+        let msg = TunnelMessage::KeepAlive;
+        let serialized = serialize_tunnel_message(&msg);
+        let msg2 = deserialize_tunnel_message(&serialized[..]).unwrap();
+        assert_eq!(msg, msg2);
+
         let msg = TunnelMessage::Message(b"Hello world".to_vec());
         let serialized = serialize_tunnel_message(&msg);
         let msg2 = deserialize_tunnel_message(&serialized[..]).unwrap();
