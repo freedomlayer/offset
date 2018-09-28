@@ -32,32 +32,38 @@ pub struct RelayServer<M,K,MT,KT> {
     keepalive_ticks: usize,
 }
 
-pub struct IncomingListen {
-    receiver: Box<Stream<Item=RelayListenIn, Error=()>>,
-    sender: Box<Sink<SinkItem=RelayListenOut, SinkError=()>>,
+// M: Stream<Item=RelayListenIn, Error=()>,
+// K: Sink<SinkItem=RelayListenOut, SinkError=()>,
+pub struct IncomingListen<M,K> {
+    receiver: M,
+    sender: K,
 }
 
-pub struct IncomingAccept {
-    receiver: Box<Stream<Item=RelayListenIn, Error=()>>,
-    sender: Box<Sink<SinkItem=RelayListenOut, SinkError=()>>,
+// M: Stream<Item=TunnelMessage, Error=()>>,
+// K: Sink<SinkItem=TunnelMessage, SinkError=()>>,
+pub struct IncomingAccept<M,K> {
+    receiver: M,
+    sender: K,
     accepted_public_key: PublicKey,
 }
 
-pub struct IncomingConnect {
-    receiver: Box<Stream<Item=RelayListenIn, Error=()>>,
-    sender: Box<Sink<SinkItem=RelayListenOut, SinkError=()>>,
+// M: Stream<Item=TunnelMessage, Error=()>,
+// K: SinkItem=TunnelMessage, SinkError=()>,
+pub struct IncomingConnect<M,K> {
+    receiver: M,
+    sender: K,
     dest_public_key: PublicKey,
 }
 
-enum IncomingConnInner {
-    Listen(IncomingListen),
-    Accept(IncomingAccept),
-    Connect(IncomingConnect),
+enum IncomingConnInner<ML,KL,MA,KA,MC,KC> {
+    Listen(IncomingListen<ML,KL>),
+    Accept(IncomingAccept<MA,KA>),
+    Connect(IncomingConnect<MC,KC>),
 }
 
-struct IncomingConn {
+struct IncomingConn<ML,KL,MA,KA,MC,KC> {
     conn_public_key: PublicKey,
-    inner: IncomingConnInner,
+    inner: IncomingConnInner<ML,KL,MA,KA,MC,KC>,
 }
 
 struct ConnClosed {
@@ -66,23 +72,24 @@ struct ConnClosed {
 }
 
 
-enum RelayServerEvent {
-    IncomingConn(IncomingConn),
+enum RelayServerEvent<ML,KL,MA,KA,MC,KC> {
+    IncomingConn(IncomingConn<ML,KL,MA,KA,MC,KC>),
     ConnClosed(ConnClosed),
 }
 
 enum RelayServerError {
 }
 
-#[async_stream(item=IncomingConn)]
 fn conn_processor<T,M,K>(timer_client: TimerClient,
                     incoming_conns: T,
-                    keepalive_ticks: usize) -> Result<(), RelayServerError>
+                    keepalive_ticks: usize) -> impl Stream 
 where
     T: Stream<Item=(M, K, PublicKey), Error=()>,
     M: Stream<Item=Vec<u8>, Error=()>,
     K: Sink<SinkItem=Vec<u8>, SinkError=()>,
 {
+
+    incoming_conns
 
     /*
     match await!(incoming_conns.into_future()) {
@@ -96,7 +103,7 @@ where
     }
     */
 
-    unimplemented!();
+    // unimplemented!();
 }
 
 
