@@ -1,4 +1,4 @@
-@0xecf75fe173593f90;
+@0xccef24a2bc5520ea;
 
 using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomUInt256;
@@ -15,21 +15,30 @@ struct InitConnection {
         accept @1: CustomUInt256;
         # Accepting connection from <PublicKey>
         connect @2: CustomUInt256;
-        # Request for a connection to <PublicKey>
+        # Request for a connection to <PublicKey> 
     }
 }
 
 struct RelayListenIn {
-    rejectConnection @0: CustomUInt256;
-    # Reject incoming connection by PublicKey
+    union {
+        keepAlive @0: Void;
+        rejectConnection @1: CustomUInt256;
+        # Reject incoming connection by PublicKey
+    }
 }
 
 struct RelayListenOut {
-    incomingConnection @0: CustomUInt256;
-    # Incoming Connection public key
+    union {
+        keepAlive @0: Void;
+        incomingConnection @1: CustomUInt256;
+        # Incoming Connection public key
+    }
 }
 
-struct ConnectionMessage {
-    message @0: Data;
-    # Send a message through the connection.
-}
+struct TunnelMessage {
+    union {
+        keepAlive @0: Void;
+        message @1: Data;
+        # Send a message through the Tunnel
+    }
+} 

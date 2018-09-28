@@ -48,6 +48,7 @@ pub mod funder;
 pub mod identity;
 pub mod timer;
 pub mod secure_channel;
+pub mod relay;
 
 
 mod proto;
@@ -58,3 +59,4 @@ mod proto;
 include_schema!(channeler_capnp, "channeler_capnp");
 include_schema!(common_capnp, "common_capnp");
 include_schema!(dh_capnp, "dh_capnp");
+include_schema!(relay_capnp, "relay_capnp");
