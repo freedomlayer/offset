@@ -2,7 +2,6 @@ use std::{io, cmp, mem};
 use std::marker::PhantomData;
 use futures::{Async, AsyncSink, Stream, Sink, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
-use bytes::Bytes;
 
 pub struct AsyncReader<M,E> {
     opt_receiver: Option<M>,
@@ -22,7 +21,7 @@ impl<M,E> AsyncReader<M,E> {
 
 impl<M,E> io::Read for AsyncReader<M,E> 
 where
-    M: Stream<Item=Bytes, Error=E>,
+    M: Stream<Item=Vec<u8>, Error=E>,
 {
     fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
         let mut total_read = 0; // Total amount of bytes read
@@ -43,7 +42,7 @@ where
                     match receiver.poll() {
                         Ok(Async::Ready(Some(data))) => {
                             self.opt_receiver = Some(receiver);
-                            self.pending_in = data.as_ref().to_vec();
+                            self.pending_in = data;
                         },
                         Ok(Async::Ready(None)) => return Ok(total_read), // End of incoming data
                         Ok(Async::NotReady) => {
@@ -66,7 +65,7 @@ where
 }
 
 
-impl<M,E> AsyncRead for AsyncReader<M,E> where M: Stream<Item=Bytes, Error=E> {}
+impl<M,E> AsyncRead for AsyncReader<M,E> where M: Stream<Item=Vec<u8>, Error=E> {}
 
 
 pub struct AsyncWriter<K,E> {
@@ -91,7 +90,7 @@ impl<K,E> AsyncWriter<K,E> {
 
 impl<K,E> io::Write for AsyncWriter<K,E> 
 where
-    K: Sink<SinkItem=Bytes, SinkError=E>,
+    K: Sink<SinkItem=Vec<u8>, SinkError=E>,
 {
     fn write(&mut self, mut buf: &[u8]) -> io::Result<usize> {
         let mut sender = match self.opt_sender.take() {
@@ -114,11 +113,10 @@ where
             total_write += min_len;
 
             let pending_out = mem::replace(&mut self.pending_out, Vec::new());
-            let pending_out_bytes = Bytes::from(pending_out);
-            let is_ready = match sender.start_send(pending_out_bytes) {
+            let is_ready = match sender.start_send(pending_out) {
                 Ok(AsyncSink::Ready) => true,
-                Ok(AsyncSink::NotReady(pending_out_bytes)) => {
-                    self.pending_out = pending_out_bytes.as_ref().to_vec();
+                Ok(AsyncSink::NotReady(pending_out)) => {
+                    self.pending_out = pending_out;
                     false
                 },
                 Err(_) => {
@@ -145,11 +143,10 @@ where
         // Try to send whatever pending bytes we have:
         if !self.pending_out.is_empty() {
             let pending_out = mem::replace(&mut self.pending_out, Vec::new());
-            let pending_out_bytes = Bytes::from(pending_out);
-            let is_ready = match sender.start_send(pending_out_bytes) {
+            let is_ready = match sender.start_send(pending_out) {
                 Ok(AsyncSink::Ready) => true,
-                Ok(AsyncSink::NotReady(pending_out_bytes)) => {
-                    self.pending_out = pending_out_bytes.as_ref().to_vec();
+                Ok(AsyncSink::NotReady(pending_out)) => {
+                    self.pending_out = pending_out;
                     false
                 },
                 Err(_) => {
@@ -177,7 +174,7 @@ where
     }
 }
 
-impl<K,E> AsyncWrite for AsyncWriter<K,E> where K: Sink<SinkItem=Bytes, SinkError=E> {
+impl<K,E> AsyncWrite for AsyncWriter<K,E> where K: Sink<SinkItem=Vec<u8>, SinkError=E> {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
         match self.opt_sender.take() {
             Some(mut sender) => {
@@ -205,36 +202,33 @@ mod tests {
     use tokio_core::reactor::Core;
     use tokio_codec::{FramedRead, FramedWrite};
     use utils::frame_codec::FrameCodec;
-    use bytes::BytesMut;
 
     // TODO: Tests here are very basic.
     // More tests are required.
 
     #[async]
-    fn plain_sender(sender: impl Sink<SinkItem=Bytes, SinkError=()> + 'static, 
+    fn plain_sender(sender: impl Sink<SinkItem=Vec<u8>, SinkError=()> + 'static, 
                      reader_done_send: oneshot::Sender<bool>) 
             -> Result<(), ()> {
-        let mut buf = BytesMut::new();
-        buf.extend(vec![0,0,0,0x90]);
-        buf.extend(vec![0; 0x90]);
-        let sender = await!(sender.send(buf.freeze())).unwrap();
+        let mut vec = vec![0u8,0,0,0x90];
+        vec.extend(vec![0; 0x90]);
+        let sender = await!(sender.send(vec)).unwrap();
 
-        let mut buf = BytesMut::new();
-        buf.extend(vec![0,0,0,0x75]);
-        buf.extend(vec![1; 0x75]);
-        let sender = await!(sender.send(buf.freeze())).unwrap();
+        let mut vec = vec![0u8,0,0,0x75];
+        vec.extend(vec![1; 0x75]);
+        let sender = await!(sender.send(vec)).unwrap();
         reader_done_send.send(true);
         Ok(())
     }
 
     #[async]
-    fn frames_receiver(receiver: impl Stream<Item=Bytes, Error=()> + 'static, 
+    fn frames_receiver(receiver: impl Stream<Item=Vec<u8>, Error=()> + 'static, 
                        writer_done_send: oneshot::Sender<bool>) 
             -> Result<(), ()> {
         let (opt_data, receiver) = await!(receiver.into_future()).map_err(|_| ())?;
-        assert_eq!(opt_data.unwrap(), Bytes::from(vec![0; 0x90]));
+        assert_eq!(opt_data.unwrap(), vec![0; 0x90]);
         let (opt_data, receiver) = await!(receiver.into_future()).map_err(|_| ())?;
-        assert_eq!(opt_data.unwrap(), Bytes::from(vec![1; 0x75]));
+        assert_eq!(opt_data.unwrap(), vec![1; 0x75]);
         let (opt_data, receiver) = await!(receiver.into_future()).map_err(|_| ())?;
         assert_eq!(opt_data, None);
         writer_done_send.send(true);
@@ -243,7 +237,7 @@ mod tests {
 
     #[test]
     fn test_basic_async_reader() {
-        let (sender, receiver) = mpsc::channel::<Bytes>(0);
+        let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let async_reader = AsyncReader::new(receiver);
         let reader = FramedRead::new(async_reader, FrameCodec::new())
             .map_err(|_| ());
@@ -261,28 +255,28 @@ mod tests {
     }
 
     #[async]
-    fn frames_sender(sender: impl Sink<SinkItem=Bytes, SinkError=()> + 'static, 
+    fn frames_sender(sender: impl Sink<SinkItem=Vec<u8>, SinkError=()> + 'static, 
                      reader_done_send: oneshot::Sender<bool>) 
             -> Result<(), ()> {
-        let sender = await!(sender.send(Bytes::from(vec![0; 0x90]))).unwrap();
-        let sender = await!(sender.send(Bytes::from(vec![1; 0x75]))).unwrap();
+        let sender = await!(sender.send(vec![0; 0x90])).unwrap();
+        let sender = await!(sender.send(vec![1; 0x75])).unwrap();
         reader_done_send.send(true);
         Ok(())
     }
 
     #[async]
-    fn plain_receiver(mut receiver: impl Stream<Item=Bytes, Error=()> + 'static, 
+    fn plain_receiver(mut receiver: impl Stream<Item=Vec<u8>, Error=()> + 'static, 
                        writer_done_send: oneshot::Sender<bool>) 
             -> Result<(), ()> {
 
-        let mut total_buf = BytesMut::new();
+        let mut total_buf = Vec::new();
         while let (Some(data), new_receiver) = await!(receiver.into_future()).map_err(|_| ())? {
             receiver = new_receiver;
             assert!(data.len() <= 0x11);
             total_buf.extend(data);
         }
 
-        let mut expected_buf = BytesMut::new();
+        let mut expected_buf = Vec::new();
         expected_buf.extend(vec![0,0,0,0x90]);
         expected_buf.extend(vec![0; 0x90]);
         expected_buf.extend(vec![0,0,0,0x75]);
@@ -294,7 +288,7 @@ mod tests {
 
     #[test]
     fn test_basic_async_writer() {
-        let (sender, receiver) = mpsc::channel::<Bytes>(0);
+        let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let async_writer = AsyncWriter::new(sender, 0x11);
         let writer = FramedWrite::new(async_writer, FrameCodec::new())
             .sink_map_err(|_| ());
@@ -313,7 +307,7 @@ mod tests {
 
     #[test]
     fn test_basic_async_reader_writer() {
-        let (sender, receiver) = mpsc::channel::<Bytes>(0);
+        let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let async_writer = AsyncWriter::new(sender, 0x11);
         let writer = FramedWrite::new(async_writer, FrameCodec::new())
             .sink_map_err(|_| ());
