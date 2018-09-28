@@ -1,7 +1,6 @@
 #![allow(unused)]
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use bytes::Bytes;
 use futures::{stream, Stream, Sink};
 use futures::sync::mpsc;
 use futures::prelude::{async, await, async_stream}; 
@@ -81,8 +80,8 @@ fn conn_processor<T,M,K>(timer_client: TimerClient,
                     keepalive_ticks: usize) -> Result<(), RelayServerError>
 where
     T: Stream<Item=(M, K, PublicKey), Error=()>,
-    M: Stream<Item=Bytes, Error=()>,
-    K: Sink<SinkItem=Bytes, SinkError=()>,
+    M: Stream<Item=Vec<u8>, Error=()>,
+    K: Sink<SinkItem=Vec<u8>, SinkError=()>,
 {
 
     /*
@@ -108,8 +107,8 @@ fn relay_server<T,M,K>(timer_client: TimerClient,
                 keepalive_ticks: usize) -> Result<!, RelayServerError> 
 where
     T: Stream<Item=(M, K, PublicKey), Error=()>,
-    M: Stream<Item=Bytes, Error=()>,
-    K: Sink<SinkItem=Bytes, SinkError=()>,
+    M: Stream<Item=Vec<u8>, Error=()>,
+    K: Sink<SinkItem=Vec<u8>, SinkError=()>,
 {
     // TODO:
     // check for any event:

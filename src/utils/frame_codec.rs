@@ -9,115 +9,159 @@
 //! ```
 //!
 //! - `length` (unsigned 4 bytes integer, big endian): the length (in bytes) of the remaining data
-//! - `data` (bytes, with length of `length`): the actually data
+//! - `data` (bytes, with length of `length`): the actual data
 
-use std::{cmp, io, mem};
-use tokio_io::codec::{Encoder, Decoder};
-use bytes::{Bytes, BytesMut, Buf, BufMut};
+
+extern crate tokio_io;
+extern crate bytes;
+extern crate byteorder;
+
+use std::io;
+use std::mem;
+use std::cmp;
+use self::bytes::{BytesMut};
+use self::tokio_io::codec::{Encoder, Decoder};
+use self::byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+
 
 const MAX_FRAME_LEN: usize = 1 << 20;
 
-enum State {
+/// Break a stream of bytes into chunks, using prefix length frames.
+/// Every frame begins with a 32 bit length prefix, after which the data follows.
+/// A magic 32 bit value is the beginning of every frame. (TODO: Is the magic a good idea?)
+enum FrameCodecState {
     Empty,
-    CollectingLength,
+    CollectingLength {
+        // Accumulated length bytes:
+        accum_length: Vec<u8>,
+    },
     CollectingFrame {
         length: usize,
-        frame: BytesMut,
-    },
+        // Accumulated frame bytes:
+        accum_frame: Vec<u8>,
+    }
 }
 
+
 pub struct FrameCodec {
-    state: State,
+    state: FrameCodecState,
 }
 
 #[derive(Debug)]
 pub enum FrameCodecError {
-    Io(io::Error),
-    TooLarge,
+    SerializeLengthError(io::Error),
+    DeserializeLengthError(io::Error),
+    IoError(io::Error),
+    ReceivedFrameLenTooLarge,
+    SentFrameLenTooLarge,
 }
 
 impl FrameCodec {
     pub fn new() -> Self {
         FrameCodec {
-            state: State::CollectingLength,
+            state: FrameCodecState::CollectingLength {
+                accum_length: Vec::new(),
+            },
         }
     }
 }
 
-/// Conversion of `io::Error` into `FrameCodecError`.
+/// Conversion of io::Error into FrameCodecError.
+/// This is required for usage of FrameCodecError as the error type of FrameCodec
+/// Encoder and Decoder.
 impl From<io::Error> for FrameCodecError {
-    #[inline]
     fn from(e: io::Error) -> Self {
-        FrameCodecError::Io(e)
+        FrameCodecError::IoError(e)
     }
 }
 
 impl Decoder for FrameCodec {
-    type Item = Bytes;
+    type Item = Vec<u8>;
     type Error = FrameCodecError;
 
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         loop {
-            match mem::replace(&mut self.state, State::Empty) {
-                State::Empty => unreachable!(),
-                State::CollectingLength => {
-                    if buf.len() < 4usize {
-                        // Do nothing, left data in buf
-                        self.state = State::CollectingLength;
-                        return Ok(None);
-                    } else {
-                        // Consume the first 4 bytes in the buf
-                        let length_bytes = buf.split_to(4usize).freeze();
-                        let length = io::Cursor::new(length_bytes).get_u32_be() as usize;
+            // Should we add here a check if buf.len() == 0?
+            match mem::replace(&mut self.state, FrameCodecState::Empty) {
+                FrameCodecState::Empty => unreachable!(),
+                FrameCodecState::CollectingLength { mut accum_length } => {
+                    // Try to add as many as possible bytes to accum_length:
+                    let missing_length_bytes = 4 - accum_length.len();
+                    let bytes_to_read = cmp::min(missing_length_bytes, buf.len());
+                    accum_length.extend(buf.split_to(bytes_to_read));
 
-                        if length > MAX_FRAME_LEN {
-                            return Err(FrameCodecError::TooLarge);
+                    if accum_length.len() == 4 {
+                        // Done reading length.
+                        let mut rdr = io::Cursor::new(accum_length);
+                        let frame_length = match rdr.read_u32::<BigEndian>() {
+                            Ok(frame_length) => frame_length,
+                            Err(e) => return Err(FrameCodecError::DeserializeLengthError(e)),
+                        } as usize;
+
+                        if frame_length > MAX_FRAME_LEN {
+                            return Err(FrameCodecError::ReceivedFrameLenTooLarge);
                         }
-
-                        // Transfer state and pre-allocate space needed to collect this frame
-                        self.state = State::CollectingFrame {
-                            length,
-                            frame: BytesMut::with_capacity(length),
+                        
+                        self.state = FrameCodecState::CollectingFrame {
+                            length: frame_length,
+                            accum_frame: Vec::new(),
                         };
-                    }
-                }
-                State::CollectingFrame { length, mut frame } => {
-                    let bytes_to_consume = cmp::min(length - frame.len(), buf.len());
-
-                    frame.put(buf.split_to(bytes_to_consume));
-
-                    if frame.len() == length {
-                        self.state = State::CollectingLength;
-                        return Ok(Some(frame.freeze()));
+                        // May continue from here to CollectingFrame state in the next iteration of
+                        // the loop.
                     } else {
-                        self.state = State::CollectingFrame { length, frame };
+                        self.state = FrameCodecState::CollectingLength {
+                            accum_length,
+                        };
                         return Ok(None);
                     }
-                }
-            }
+                },
+                FrameCodecState::CollectingFrame { length, mut accum_frame } => {
+                    let missing_frame_bytes = length - accum_frame.len();
+                    let bytes_to_read = cmp::min(missing_frame_bytes, buf.len());
+                    accum_frame.extend(buf.split_to(bytes_to_read));
+
+                    if accum_frame.len() == length {
+                        // Done reading frame contents
+                        self.state = FrameCodecState::CollectingLength {
+                            accum_length: Vec::new(),
+                        };
+
+                        // Return a completed message
+                        return Ok(Some(accum_frame));
+
+                    } else {
+                        self.state = FrameCodecState::CollectingFrame {
+                            length,
+                            accum_frame,
+                        };
+                        return Ok(None);
+                    }
+                },
+            };
         }
     }
 }
 
 impl Encoder for FrameCodec {
-    type Item = Bytes;
+    type Item = Vec<u8>;
     type Error = FrameCodecError;
 
-    fn encode(&mut self, data: Bytes, buf: &mut BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, data: Vec<u8>, buf: &mut BytesMut) -> Result<(), Self::Error> {
         if data.len() > MAX_FRAME_LEN {
-            return Err(FrameCodecError::TooLarge);
+            return Err(FrameCodecError::SentFrameLenTooLarge);
         }
 
-        // Make sure there is enough space in buffer to put data in and
-        // avoid more than one allocation caused by using `buf.extend(..)`
-        buf.reserve(4 + data.len());
+        // Encode length prefix as bytes:
+        let mut wtr = vec![];
+        match wtr.write_u32::<BigEndian>(data.len() as u32) {
+            Ok(()) => {},
+            Err(e) => return Err(FrameCodecError::SerializeLengthError(e)),
+        };
 
-        let mut prefix_length = BytesMut::with_capacity(4usize);
-        prefix_length.put_u32_be(data.len() as u32);
-
-        buf.put(prefix_length);
-        buf.put(data);
-
+        // Write length prefix:
+        buf.extend(&wtr[..]);
+        // Write actual data:
+        buf.extend(&data[..]);
         Ok(())
     }
 }
@@ -125,96 +169,96 @@ impl Encoder for FrameCodec {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use byteorder::{WriteBytesExt, BigEndian};
 
     #[test]
-    fn encode_basic() {
-        let mut codec = FrameCodec::new();
+    fn test_prefix_frame_encoder_basic() {
+        let mut prefix_frame_codec = FrameCodec::new();
         let mut buf = BytesMut::new();
-        match codec.encode(Bytes::from_static(&[1, 2, 3, 4, 5]), &mut buf) {
-            Ok(()) => {}
+        match prefix_frame_codec.encode(vec![1,2,3,4,5], &mut buf) {
+            Ok(()) => {},
             Err(_) => panic!("Error encoding data!"),
         };
-        assert_eq!(buf, vec![0, 0, 0, 5, 1, 2, 3, 4, 5]);
+        assert_eq!(buf, vec![0,0,0,5,1,2,3,4,5]);
     }
 
+
     #[test]
-    fn encode_empty() {
-        let mut codec = FrameCodec::new();
+    fn test_prefix_frame_encoder_empty_data() {
+        let mut prefix_frame_codec = FrameCodec::new();
         let mut buf = BytesMut::new();
-        match codec.encode(Bytes::new(), &mut buf) {
-            Ok(()) => {}
+        match prefix_frame_codec.encode(vec![], &mut buf) {
+            Ok(()) => {},
             _ => panic!("Error encoding data!"),
         };
-        assert_eq!(buf, vec![0, 0, 0, 0]);
+        assert_eq!(buf, vec![0,0,0,0]);
     }
 
     #[test]
-    fn encode_large() {
-        let mut codec = FrameCodec::new();
+    fn test_prefix_frame_encoder_large_data() {
+        let mut prefix_frame_codec = FrameCodec::new();
         let mut buf = BytesMut::new();
-        match codec.encode(Bytes::from_static(&[0; MAX_FRAME_LEN]), &mut buf) {
-            Ok(()) => {}
+        match prefix_frame_codec.encode(vec![0; MAX_FRAME_LEN], &mut buf) {
+            Ok(()) => {},
             _ => panic!("Error encoding data!"),
         };
         assert_eq!(buf.len(), 4 + MAX_FRAME_LEN);
     }
 
     #[test]
-    fn encode_too_large() {
-        let mut codec = FrameCodec::new();
+    fn test_prefix_frame_encoder_too_large_data() {
+        let mut prefix_frame_codec = FrameCodec::new();
         let mut buf = BytesMut::new();
-        match codec.encode(Bytes::from_static(&[0; MAX_FRAME_LEN + 1]), &mut buf) {
-            Err(FrameCodecError::TooLarge) => {}
+        match prefix_frame_codec.encode(vec![0; MAX_FRAME_LEN + 1], &mut buf) {
+            Err(FrameCodecError::SentFrameLenTooLarge) => {},
             _ => panic!("Test failed"),
         };
     }
 
     #[test]
-    fn decode_basic() {
-        let mut codec = FrameCodec::new();
+    fn test_prefix_frame_decoder() {
+        let mut prefix_frame_codec = FrameCodec::new();
         let mut buf = BytesMut::new();
-        buf.extend(vec![0, 0]);
-        match codec.decode(&mut buf) {
-            Ok(None) => {}
+        buf.extend(vec![0,0]);
+        match prefix_frame_codec.decode(&mut buf) {
+            Ok(None) => {},
             _ => panic!("Test failed1!"),
         };
         buf.extend(vec![0]);
-        match codec.decode(&mut buf) {
-            Ok(None) => {}
+        match prefix_frame_codec.decode(&mut buf) {
+            Ok(None) => {},
             _ => panic!("Test failed2!"),
         };
         buf.extend(vec![5]);
-        match codec.decode(&mut buf) {
-            Ok(None) => {}
+        match prefix_frame_codec.decode(&mut buf) {
+            Ok(None) => {},
             _ => panic!("Test failed3!"),
         };
-        buf.extend(vec![1, 2, 3, 4]);
-        match codec.decode(&mut buf) {
-            Ok(None) => {}
+        buf.extend(vec![1,2,3,4]);
+        match prefix_frame_codec.decode(&mut buf) {
+            Ok(None) => {},
             _ => panic!("Test failed4!"),
         };
-        buf.extend(vec![5, 6, 7, 8]);
-        match codec.decode(&mut buf) {
-            Ok(Some(v)) => assert_eq!(v, vec![1, 2, 3, 4, 5]),
+        buf.extend(vec![5,6,7,8]);
+        match prefix_frame_codec.decode(&mut buf) {
+            Ok(Some(v)) => assert_eq!(v,vec![1,2,3,4,5]),
             _ => panic!("Test failed5!"),
         };
 
         // Make sure that we still have the remainder:
-        assert_eq!(buf, vec![6, 7, 8]);
+        assert_eq!(buf, vec![6,7,8]);
     }
 
     #[test]
-    fn decode_too_large() {
-        let mut codec = FrameCodec::new();
+    fn test_prefix_frame_decoder_len_too_large() {
+        let mut prefix_frame_codec = FrameCodec::new();
         let mut buf = BytesMut::new();
 
         // Encode length prefix as bytes:
         let mut wtr = vec![];
         wtr.write_u32::<BigEndian>((MAX_FRAME_LEN + 1) as u32).unwrap();
         buf.extend(wtr);
-        match codec.decode(&mut buf) {
-            Err(FrameCodecError::TooLarge) => {}
+        match prefix_frame_codec.decode(&mut buf) {
+            Err(FrameCodecError::ReceivedFrameLenTooLarge) => {},
             _ => panic!("Test failed1!"),
         };
     }
