@@ -112,7 +112,7 @@ struct HalfTunnel<MT,KT> {
 struct Listener<MT,KT> {
     half_tunnels: HashMap<PublicKey, HalfTunnel<MT,KT>>,
     tunnels: HashSet<PublicKey>,
-    sender: mpsc::Sender<IncomingConnection>,
+    opt_sender: Option<mpsc::Sender<IncomingConnection>>,
 }
 
 impl<MT,KT> Listener<MT,KT> {
@@ -120,7 +120,7 @@ impl<MT,KT> Listener<MT,KT> {
         Listener {
             half_tunnels: HashMap::new(),
             tunnels: HashSet::new(),
-            sender,
+            opt_sender: Some(sender),
         }
     }
 }
@@ -305,9 +305,11 @@ where
                                                      incoming_connect.sender),
                             ticks_to_close: keepalive_ticks,
                         };
-                        // Try to send a message to listener about new pending connection:
-                        if let Ok(()) = listener.sender.try_send(IncomingConnection(public_key.clone())) {
-                            listener.half_tunnels.insert(public_key.clone(), half_tunnel);
+                        if let Some(sender) = &mut listener.opt_sender {
+                            // Try to send a message to listener about new pending connection:
+                            if let Ok(()) = sender.try_send(IncomingConnection(public_key.clone())) {
+                                listener.half_tunnels.insert(public_key.clone(), half_tunnel);
+                            }
                         }
                     },
                 }
@@ -319,6 +321,9 @@ where
                     None => continue,
                 };
                 listener.tunnels.remove(&tunnel_closed.init_public_key);
+                if listener.opt_sender.is_none() && listener.tunnels.is_empty() {
+                    listeners.remove(&tunnel_closed.listen_public_key);
+                }
             },
             RelayServerEvent::ListenerMessage((public_key, RejectConnection(rejected_public_key))) => {
                 let listener = match listeners.get_mut(&public_key) {
@@ -328,9 +333,14 @@ where
                 let _ = listener.half_tunnels.remove(&rejected_public_key);
             },
             RelayServerEvent::ListenerClosed(public_key) => {
-                listeners.remove(&public_key);
-                if incoming_conns_closed && listeners.is_empty() {
-                    break;
+                let listener = match listeners.get_mut(&public_key) {
+                    Some(listener) => listener,
+                    None => continue,
+                };
+                listener.opt_sender = None;
+                listener.half_tunnels = HashMap::new();
+                if listener.tunnels.is_empty() {
+                    listeners.remove(&public_key);
                 }
             },
             RelayServerEvent::TimerTick => {
@@ -342,6 +352,9 @@ where
                     });
                 }
             },
+        }
+        if incoming_conns_closed && listeners.is_empty() {
+            break;
         }
     }
     Ok(())
