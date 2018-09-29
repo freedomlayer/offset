@@ -22,7 +22,7 @@ pub enum TunnelEvent {
 }
 
 #[async]
-fn tunnel_loop<R1,S1,R2,S2>(receiver1: R1, mut sender1: S1,
+pub fn tunnel_loop<R1,S1,R2,S2>(receiver1: R1, mut sender1: S1,
                             receiver2: R2, mut sender2: S2,
                             timer_client: TimerClient, 
                             keepalive_ticks: usize) -> Result<(), TunnelError> 
