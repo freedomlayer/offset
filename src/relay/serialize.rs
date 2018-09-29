@@ -10,7 +10,7 @@ use utils::capnp_custom_int::{read_custom_u_int256,
 use relay_capnp;
 
 use super::messages::{InitConnection, RelayListenIn, 
-    RelayListenOut, TunnelMessage};
+    RelayListenOut, TunnelMessage, RejectConnection, IncomingConnection};
 
 #[derive(Debug)]
 pub enum RelaySerializeError {
@@ -81,7 +81,7 @@ pub fn serialize_relay_listen_in(relay_listen_in: &RelayListenIn) -> Vec<u8> {
 
     match relay_listen_in {
         RelayListenIn::KeepAlive => msg.set_keep_alive(()),
-        RelayListenIn::RejectConnection(public_key) => {
+        RelayListenIn::RejectConnection(RejectConnection(public_key)) => {
             let mut reject_connection = msg.init_reject_connection();
             write_custom_u_int256(&public_key, &mut reject_connection);
         }
@@ -103,7 +103,7 @@ pub fn deserialize_relay_listen_in(data: &[u8]) -> Result<RelayListenIn, RelaySe
         Ok(relay_capnp::relay_listen_in::RejectConnection(public_key)) => {
             let public_key_bytes = &read_custom_u_int256(&(public_key?));
             let public_key = PublicKey::try_from(&public_key_bytes[..]).unwrap();
-            Ok(RelayListenIn::RejectConnection(public_key))
+            Ok(RelayListenIn::RejectConnection(RejectConnection(public_key)))
         },
         Err(e) => Err(RelaySerializeError::NotInSchema(e)),
     }
@@ -115,7 +115,7 @@ pub fn serialize_relay_listen_out(relay_listen_out: &RelayListenOut) -> Vec<u8> 
 
     match relay_listen_out {
         RelayListenOut::KeepAlive => msg.set_keep_alive(()),
-        RelayListenOut::IncomingConnection(public_key) => {
+        RelayListenOut::IncomingConnection(IncomingConnection(public_key)) => {
             let mut incoming_connection = msg.init_incoming_connection();
             write_custom_u_int256(&public_key, &mut incoming_connection);
         }
@@ -137,7 +137,7 @@ pub fn deserialize_relay_listen_out(data: &[u8]) -> Result<RelayListenOut, Relay
         Ok(relay_capnp::relay_listen_out::IncomingConnection(public_key)) => {
             let public_key_bytes = &read_custom_u_int256(&(public_key?));
             let public_key = PublicKey::try_from(&public_key_bytes[..]).unwrap();
-            Ok(RelayListenOut::IncomingConnection(public_key))
+            Ok(RelayListenOut::IncomingConnection(IncomingConnection(public_key)))
         },
         Err(e) => Err(RelaySerializeError::NotInSchema(e)),
     }
@@ -205,7 +205,7 @@ mod tests {
         assert_eq!(msg, msg2);
 
         let public_key = PublicKey::try_from(&[0x02u8; PUBLIC_KEY_LEN][..]).unwrap();
-        let msg = RelayListenIn::RejectConnection(public_key);
+        let msg = RelayListenIn::RejectConnection(RejectConnection(public_key));
         let serialized = serialize_relay_listen_in(&msg);
         let msg2 = deserialize_relay_listen_in(&serialized[..]).unwrap();
         assert_eq!(msg, msg2);
@@ -219,7 +219,7 @@ mod tests {
         assert_eq!(msg, msg2);
 
         let public_key = PublicKey::try_from(&[0x02u8; PUBLIC_KEY_LEN][..]).unwrap();
-        let msg = RelayListenOut::IncomingConnection(public_key);
+        let msg = RelayListenOut::IncomingConnection(IncomingConnection(public_key));
         let serialized = serialize_relay_listen_out(&msg);
         let msg2 = deserialize_relay_listen_out(&serialized[..]).unwrap();
         assert_eq!(msg, msg2);

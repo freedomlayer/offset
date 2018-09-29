@@ -11,15 +11,21 @@ pub enum InitConnection {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub struct RejectConnection(pub PublicKey);
+
+#[derive(Debug, PartialEq, Eq)]
 pub enum RelayListenIn {
     KeepAlive,
-    RejectConnection(PublicKey),
+    RejectConnection(RejectConnection),
 }
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct IncomingConnection(pub PublicKey);
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum RelayListenOut {
     KeepAlive,
-    IncomingConnection(PublicKey),
+    IncomingConnection(IncomingConnection),
 }
 
 #[derive(Debug, PartialEq, Eq)]
