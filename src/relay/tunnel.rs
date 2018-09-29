@@ -3,7 +3,8 @@ use futures::prelude::{async, await};
 use futures::{Stream, stream, Sink};
 use super::messages::TunnelMessage;
 
-enum TunnelError {
+#[derive(Debug)]
+pub enum TunnelError {
     RequestTimerStream,
     TimerStream,
     TunnelReceiver,
