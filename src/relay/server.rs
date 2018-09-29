@@ -13,28 +13,6 @@ use super::serialize::{deserialize_init_connection, deserialize_relay_listen_in,
                         serialize_relay_listen_out, serialize_tunnel_message,
                         deserialize_tunnel_message};
 
-struct ConnPair<M,K> {
-    receiver: M,
-    sender: K,
-}
-
-struct HalfTunnel<MT,KT> {
-    conn_pair: ConnPair<MT,KT>,
-    ticks_to_close: usize,
-}
-
-struct Listener<M,K,MT,KT> {
-    half_tunnel: HashMap<PublicKey, HalfTunnel<MT,KT>>,
-    conn_pair: ConnPair<M,K>,
-    ticks_to_close: usize,
-    ticks_to_send_keepalive: usize,
-}
-
-pub struct RelayServer<M,K,MT,KT> {
-    listeners: HashMap<PublicKey, Listener<M,K,MT,KT>>,
-    timer_client: TimerClient,
-    keepalive_ticks: usize,
-}
 
 // M: Stream<Item=RelayListenIn, Error=()>,
 // K: Sink<SinkItem=RelayListenOut, SinkError=()>,
@@ -68,22 +46,6 @@ enum IncomingConnInner<ML,KL,MA,KA,MC,KC> {
 struct IncomingConn<ML,KL,MA,KA,MC,KC> {
     public_key: PublicKey,
     inner: IncomingConnInner<ML,KL,MA,KA,MC,KC>,
-}
-
-struct ConnClosed {
-    initiator: PublicKey,
-    listener: PublicKey,
-}
-
-
-enum RelayServerEvent<ML,KL,MA,KA,MC,KC> {
-    IncomingConn(IncomingConn<ML,KL,MA,KA,MC,KC>),
-    ConnClosed(ConnClosed),
-}
-
-enum RelayServerError {
-    IncomingConnsClosed,
-    IncomingConnsError,
 }
 
 fn dispatch_conn<M,K>(receiver: M, sender: K, public_key: PublicKey, first_msg: Vec<u8>) 
@@ -157,6 +119,45 @@ where
     }).filter_map(|opt_conn| opt_conn)
 }
 
+struct ConnPair<M,K> {
+    receiver: M,
+    sender: K,
+}
+
+struct HalfTunnel<MT,KT> {
+    conn_pair: ConnPair<MT,KT>,
+    ticks_to_close: usize,
+}
+
+struct Listener<M,K,MT,KT> {
+    half_tunnel: HashMap<PublicKey, HalfTunnel<MT,KT>>,
+    conn_pair: ConnPair<M,K>,
+    ticks_to_close: usize,
+    ticks_to_send_keepalive: usize,
+}
+
+pub struct RelayServer<M,K,MT,KT> {
+    listeners: HashMap<PublicKey, Listener<M,K,MT,KT>>,
+    timer_client: TimerClient,
+    keepalive_ticks: usize,
+}
+
+struct TunnelClosed {
+    initiator: PublicKey,
+    listener: PublicKey,
+}
+
+enum RelayServerEvent<ML,KL,MA,KA,MC,KC> {
+    IncomingConn(IncomingConn<ML,KL,MA,KA,MC,KC>),
+    TunnelClosed(TunnelClosed),
+    ListenerMessage((PublicKey, RelayListenIn)),
+    ListenerClosed(PublicKey),
+}
+
+enum RelayServerError {
+    IncomingConnsClosed,
+    IncomingConnsError,
+}
 
  
 #[async]
@@ -168,12 +169,12 @@ where
     M: Stream<Item=Vec<u8>, Error=()>,
     K: Sink<SinkItem=Vec<u8>, SinkError=()>,
 {
+
     // TODO:
     // check for any event:
     // - Incoming connection 
     //      (sender, receiver) pair an a public key
     //      - Convert the connection into one of three: Listen, Accept or Connect.
-    //          (Should be done using a .map() adapter on the Stream).
     //          
     // - A connection was closed
     //      - Remove from data structures
