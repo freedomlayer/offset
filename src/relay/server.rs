@@ -338,19 +338,15 @@ where
                 }
             },
             RelayServerEvent::IncomingConnsClosed => {},
-            RelayServerEvent::TunnelClosed(tunnel_closed) => {},
+            RelayServerEvent::TunnelClosed(tunnel_closed) => {
+                // TODO: Remove from data structures
+            },
             RelayServerEvent::ListenerMessage((public_key, RejectConnection(rejected_public_key))) => {},
             RelayServerEvent::ListenerClosed(public_key) => {},
-            RelayServerEvent::TimerTick => {},
+            RelayServerEvent::TimerTick => {
+                // TODO: Timeout half tunnels.
+            },
         }
-
-    // TODO:
-    // check for any event:
-    // - Incoming connection 
-    // - A connection was closed
-    //      - Remove from data structures
-    // - Time tick
-    //      - Possibly timeout half tunnels
     }
     unreachable!();
 }
