@@ -149,6 +149,7 @@ struct TunnelClosed {
 
 enum RelayServerEvent<ML,KL,MA,KA,MC,KC> {
     IncomingConn(IncomingConn<ML,KL,MA,KA,MC,KC>),
+    IncomingConsClosed,
     TunnelClosed(TunnelClosed),
     ListenerMessage((PublicKey, RelayListenIn)),
     ListenerClosed(PublicKey),
@@ -161,13 +162,16 @@ enum RelayServerError {
 
  
 #[async]
-fn relay_server<T,M,K>(timer_client: TimerClient, 
-                incoming_conns: T,
+fn relay_server<ML,KL,MA,KA,MC,KC>(timer_client: TimerClient, 
+                incoming_conns: IncomingConn<ML,KL,MA,KA,MC,KC>,
                 keepalive_ticks: usize) -> Result<!, RelayServerError> 
 where
-    T: Stream<Item=(M, K, PublicKey), Error=()>,
-    M: Stream<Item=Vec<u8>, Error=()>,
-    K: Sink<SinkItem=Vec<u8>, SinkError=()>,
+    ML: Stream<Item=RelayListenIn,Error=()>,
+    KL: Sink<SinkItem=RelayListenOut,SinkError=()>,
+    MA: Stream<Item=TunnelMessage,Error=()>,
+    KA: Sink<SinkItem=TunnelMessage,SinkError=()>,
+    MC: Stream<Item=TunnelMessage,Error=()>,
+    KC: Sink<SinkItem=TunnelMessage,SinkError=()>,
 {
 
     // TODO:
