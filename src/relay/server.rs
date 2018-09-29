@@ -144,58 +144,17 @@ enum RelayServerError {
     RequestTimerStreamError,
     TimerStreamError,
     TimerClosedError,
-    ListenerEventReceiverError,
-    ListenerEventReceiverClosed,
     ListeningNotInProgress,
     NoPendingHalfTunnel,
     AlreadyListening,
-    TunnelClosedReceiverError,
-    TunnelClosedReceiverClosed,
+    EventReceiverError,
 }
 
-/*
-fn handle_listen<M,K,MT,KT,ML,KL>(listeners: &mut HashMap<PublicKey, Listener<K,MT,KT>>,
-                            listener_public_key: PublicKey,
-                            incoming_listen: IncomingListen<ML,KL>,
-                            listener_event_sender: mpsc::Sender<(PublicKey, RejectConnection)>,
-                            timer_client: TimerClient,
-                            keepalive_ticks: usize,
-                            handle: &Handle) -> Result<(), RelayServerError>
-where
-    M: Stream<Item=TunnelMessage,Error=()>,
-    K: Sink<SinkItem=TunnelMessage,SinkError=()>,
-    MT: Stream<Item=TunnelMessage,Error=()>,
-    KT: Sink<SinkItem=TunnelMessage,SinkError=()>,
-    ML: Stream<Item=RelayListenIn,Error=()>,
-    KL: Sink<SinkItem=RelayListenOut,SinkError=()>,
-{
-    if listeners.contains_key(&listener_public_key) {
-        return Err(RelayServerError::AlreadyListening); // Discard Listen connection
-    }
-    let (receiver, sender) = listener_keepalive(incoming_listen.receiver,
-                          incoming_listen.sender,
-                          timer_client.clone(),
-                          keepalive_ticks,
-                          &handle);
-    
-    let listener = Listener::new(sender);
-    listeners.insert(listener_public_key, listener);
-    let receiver = receiver
-        .map(|reject_connection| (listener_public_key.clone(), reject_connection))
-        .map_err(|_| ());
-    handle.spawn(listener_event_sender
-                 .sink_map_err(|_| ())
-                 .send_all(receiver)
-                 .then(|_| Ok(())));
-    Ok(())
-}
-*/
 
-
-fn handle_accept<MT,KT,MA,KA>(listeners: &mut HashMap<PublicKey, Listener<MT,KT>>,
+fn handle_accept<MT,KT,MA,KA,TCL>(listeners: &mut HashMap<PublicKey, Listener<MT,KT>>,
                             acceptor_public_key: PublicKey,
                             incoming_accept: IncomingAccept<MA,KA>,
-                            tunnel_closed_sender: mpsc::Sender<TunnelClosed>,
+                            tunnel_closed_sender: TCL,
                             timer_client: TimerClient,
                             keepalive_ticks: usize,
                             handle: &Handle) -> Result<(), RelayServerError>
@@ -204,6 +163,7 @@ where
     KT: Sink<SinkItem=TunnelMessage,SinkError=()> + 'static,
     MA: Stream<Item=TunnelMessage,Error=()> + 'static,
     KA: Sink<SinkItem=TunnelMessage,SinkError=()> + 'static,
+    TCL: Sink<SinkItem=TunnelClosed, SinkError=()> + 'static,
 {
     let listener = match listeners.get_mut(&acceptor_public_key) {
         Some(listener) => listener,
@@ -229,7 +189,7 @@ where
             init_public_key: c_accept_public_key,
             listen_public_key: acceptor_public_key,
         };
-        tunnel_closed_sender.clone()
+        tunnel_closed_sender
             .send(tunnel_closed)
             .then(|_| Ok(()))
     });
@@ -266,27 +226,22 @@ where
         .map(|incoming_conn| RelayServerEvent::IncomingConn(incoming_conn))
         .chain(stream::once(Ok(RelayServerEvent::IncomingConnsClosed)));
 
-    let (listener_event_sender, listener_event_receiver) = mpsc::channel::<(PublicKey, RejectConnection)>(0);
-    let listener_event_receiver = listener_event_receiver
-        .map_err(|_| RelayServerError::ListenerEventReceiverError)
-        .map(|(public_key, reject_connection)| RelayServerEvent::ListenerMessage((public_key, reject_connection)))
-        .chain(stream::once(Err(RelayServerError::ListenerEventReceiverClosed)));
-
-    let (tunnel_closed_sender, tunnel_closed_receiver) = mpsc::channel::<TunnelClosed>(0);
-    let tunnel_closed_receiver = tunnel_closed_receiver
-        .map_err(|_| RelayServerError::TunnelClosedReceiverError)
-        .map(|tunnel_closed| RelayServerEvent::TunnelClosed(tunnel_closed))
-        .chain(stream::once(Err(RelayServerError::TunnelClosedReceiverClosed)));
+    let (event_sender, event_receiver) = mpsc::channel::<RelayServerEvent<_,_,_,_,_,_>>(0);
+    let event_sender = event_sender
+        .sink_map_err(|_| ());
+    let event_receiver = event_receiver
+        .map_err(|_| RelayServerError::EventReceiverError);
 
     let relay_server_events = timer_stream
         .select(incoming_conns)
-        .select(listener_event_receiver)
-        .select(tunnel_closed_receiver);
+        .select(event_receiver);
 
+    let mut incoming_conns_closed = false;
     let mut listeners: HashMap<PublicKey, Listener<_,_>> = HashMap::new();
 
     #[async]
     for relay_server_event in relay_server_events {
+        let c_event_sender = event_sender.clone();
         let c_timer_client = timer_client.clone();
         match relay_server_event {
             RelayServerEvent::IncomingConn(incoming_conn) => {
@@ -312,19 +267,24 @@ where
                         );
                         let listener = Listener::new(mpsc_sender);
                         listeners.insert(public_key.clone(), listener);
+                        let c_public_key = public_key.clone();
                         let receiver = receiver
-                            .map(move |reject_connection| (public_key.clone(), reject_connection))
-                            .map_err(|_| ());
-                        handle.spawn(listener_event_sender.clone()
+                            .map_err(|_| ())
+                            .map(move |reject_connection| RelayServerEvent::ListenerMessage(
+                                    (c_public_key.clone(), reject_connection)))
+                            .chain(stream::once(Ok(RelayServerEvent::ListenerClosed(public_key.clone()))));
+                        handle.spawn(c_event_sender
                                      .sink_map_err(|_| ())
                                      .send_all(receiver)
                                      .then(|_| Ok(())));
                     },
                     IncomingConnInner::Accept(incoming_accept) => {
+                        let tunnel_closed_sender = c_event_sender
+                            .with(|tunnel_closed| Ok(RelayServerEvent::TunnelClosed(tunnel_closed)));
                         let _ = handle_accept(&mut listeners,
                                       public_key.clone(),
                                       incoming_accept,
-                                      tunnel_closed_sender.clone(),
+                                      tunnel_closed_sender,
                                       c_timer_client,
                                       keepalive_ticks,
                                       &handle);
@@ -346,16 +306,37 @@ where
                     },
                 }
             },
-            RelayServerEvent::IncomingConnsClosed => {},
+            RelayServerEvent::IncomingConnsClosed => incoming_conns_closed = true,
             RelayServerEvent::TunnelClosed(tunnel_closed) => {
-                // TODO: Remove from data structures
+                let listener = match listeners.get_mut(&tunnel_closed.listen_public_key) {
+                    Some(listener) => listener,
+                    None => continue,
+                };
+                listener.tunnels.remove(&tunnel_closed.init_public_key);
             },
-            RelayServerEvent::ListenerMessage((public_key, RejectConnection(rejected_public_key))) => {},
-            RelayServerEvent::ListenerClosed(public_key) => {},
+            RelayServerEvent::ListenerMessage((public_key, RejectConnection(rejected_public_key))) => {
+                let listener = match listeners.get_mut(&public_key) {
+                    Some(listener) => listener,
+                    None => continue,
+                };
+                let _ = listener.half_tunnels.remove(&rejected_public_key);
+            },
+            RelayServerEvent::ListenerClosed(public_key) => {
+                listeners.remove(&public_key);
+                if incoming_conns_closed && listeners.is_empty() {
+                    break;
+                }
+            },
             RelayServerEvent::TimerTick => {
-                // TODO: Timeout half tunnels.
+                // Remove old half tunnels:
+                for (listener_public_key, listener) in &mut listeners {
+                    listener.half_tunnels.retain(|init_public_key, half_tunnel| {
+                        half_tunnel.ticks_to_close = half_tunnel.ticks_to_close.saturating_sub(1);
+                        half_tunnel.ticks_to_close > 0
+                    });
+                }
             },
         }
     }
-    unreachable!();
+    Ok(())
 }
