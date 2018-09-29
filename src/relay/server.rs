@@ -109,14 +109,14 @@ struct HalfTunnel<MT,KT> {
     ticks_to_close: usize,
 }
 
-struct Listener<K,MT,KT> {
+struct Listener<MT,KT> {
     half_tunnels: HashMap<PublicKey, HalfTunnel<MT,KT>>,
     tunnels: HashSet<PublicKey>,
-    sender: K
+    sender: mpsc::Sender<IncomingConnection>,
 }
 
-impl<K,MT,KT> Listener<K,MT,KT> {
-    fn new(sender: K) -> Self {
+impl<MT,KT> Listener<MT,KT> {
+    fn new(sender: mpsc::Sender<IncomingConnection>) -> Self {
         Listener {
             half_tunnels: HashMap::new(),
             tunnels: HashSet::new(),
@@ -192,7 +192,7 @@ where
 */
 
 
-fn handle_accept<K,MT,KT,MA,KA>(listeners: &mut HashMap<PublicKey, Listener<K,MT,KT>>,
+fn handle_accept<MT,KT,MA,KA>(listeners: &mut HashMap<PublicKey, Listener<MT,KT>>,
                             acceptor_public_key: PublicKey,
                             incoming_accept: IncomingAccept<MA,KA>,
                             tunnel_closed_sender: mpsc::Sender<TunnelClosed>,
@@ -200,7 +200,6 @@ fn handle_accept<K,MT,KT,MA,KA>(listeners: &mut HashMap<PublicKey, Listener<K,MT
                             keepalive_ticks: usize,
                             handle: &Handle) -> Result<(), RelayServerError>
 where
-    K: Sink<SinkItem=IncomingConnection,SinkError=()> + 'static,
     MT: Stream<Item=TunnelMessage,Error=()> + 'static,
     KT: Sink<SinkItem=TunnelMessage,SinkError=()> + 'static,
     MA: Stream<Item=TunnelMessage,Error=()> + 'static,
@@ -284,7 +283,7 @@ where
         .select(listener_event_receiver)
         .select(tunnel_closed_receiver);
 
-    let mut listeners: HashMap<PublicKey, Listener<_,_,_>> = HashMap::new();
+    let mut listeners: HashMap<PublicKey, Listener<_,_>> = HashMap::new();
 
     #[async]
     for relay_server_event in relay_server_events {
@@ -303,7 +302,15 @@ where
                                               keepalive_ticks,
                                               &handle);
                         
-                        let listener = Listener::new(sender);
+                        // Change the sender to be an mpsc::Sender, so that we can use the
+                        // try_send() function.
+                        let (mpsc_sender, mpsc_receiver) = mpsc::channel::<IncomingConnection>(0);
+                        handle.spawn(
+                            sender
+                                .send_all(mpsc_receiver.map_err(|_| ()))
+                                .then(|_| Ok(()))
+                        );
+                        let listener = Listener::new(mpsc_sender);
                         listeners.insert(public_key.clone(), listener);
                         let receiver = receiver
                             .map(move |reject_connection| (public_key.clone(), reject_connection))
@@ -332,8 +339,10 @@ where
                                                      incoming_connect.sender),
                             ticks_to_close: keepalive_ticks,
                         };
-                        listener.half_tunnels.insert(public_key.clone(), half_tunnel);
-                        unimplemented!()
+                        // Try to send a message to listener about new pending connection:
+                        if let Ok(()) = listener.sender.try_send(IncomingConnection(public_key.clone())) {
+                            listener.half_tunnels.insert(public_key.clone(), half_tunnel);
+                        }
                     },
                 }
             },
