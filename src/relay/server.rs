@@ -101,14 +101,12 @@ struct HalfTunnel<MT,KT> {
 struct Listener<M,K,MT,KT> {
     half_tunnel: HashMap<PublicKey, HalfTunnel<MT,KT>>,
     conn_pair: ConnPair<M,K>,
-    ticks_to_close: usize,
-    ticks_to_send_keepalive: usize,
 }
 
 pub struct RelayServer<M,K,MT,KT> {
     listeners: HashMap<PublicKey, Listener<M,K,MT,KT>>,
     timer_client: TimerClient,
-    keepalive_ticks: usize,
+    keepalive_ticks: usize, // config
 }
 
 struct TunnelClosed {
@@ -147,9 +145,6 @@ where
     // TODO:
     // check for any event:
     // - Incoming connection 
-    //      (sender, receiver) pair an a public key
-    //      - Convert the connection into one of three: Listen, Accept or Connect.
-    //          
     // - A connection was closed
     //      - Remove from data structures
     // - Time tick
