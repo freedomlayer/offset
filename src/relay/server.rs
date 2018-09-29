@@ -295,6 +295,11 @@ where
                             Some(listener) => listener,
                             None => continue, // Discard Connect connection
                         };
+                        if listener.half_tunnels.contains_key(&public_key) || 
+                            listener.tunnels.contains(&public_key) {
+                            continue;
+                        }
+
                         let half_tunnel = HalfTunnel {
                             conn_pair: ConnPair::new(incoming_connect.receiver, 
                                                      incoming_connect.sender),
