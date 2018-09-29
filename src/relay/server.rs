@@ -154,6 +154,7 @@ enum RelayServerError {
 fn handle_accept<MT,KT,MA,KA,TCL>(listeners: &mut HashMap<PublicKey, Listener<MT,KT>>,
                             acceptor_public_key: PublicKey,
                             incoming_accept: IncomingAccept<MA,KA>,
+                            // TODO: This should be a oneshot:
                             tunnel_closed_sender: TCL,
                             timer_client: TimerClient,
                             keepalive_ticks: usize,
