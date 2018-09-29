@@ -8,7 +8,7 @@ use crypto::identity::PublicKey;
 use timer::TimerClient;
 
 use super::messages::{InitConnection, TunnelMessage, 
-    RelayListenIn, RelayListenOut};
+    RelayListenIn, RelayListenOut, RejectConnection};
 use super::types::{IncomingConn, IncomingConnInner, 
     IncomingListen, IncomingAccept, IncomingConnect};
 use super::serialize::{deserialize_init_connection, deserialize_relay_listen_in,
@@ -118,20 +118,26 @@ enum RelayServerEvent<ML,KL,MA,KA,MC,KC> {
     IncomingConn(IncomingConn<ML,KL,MA,KA,MC,KC>),
     IncomingConsClosed,
     TunnelClosed(TunnelClosed),
-    ListenerMessage((PublicKey, RelayListenIn)),
+    ListenerMessage((PublicKey, RejectConnection)),
     ListenerClosed(PublicKey),
+    TimerTick,
 }
 
 enum RelayServerError {
     IncomingConnsClosed,
     IncomingConnsError,
+    RequestTimerStreamError,
+    TimerStreamError,
+    TimerClosedError,
+    ListenerEventReceiverError,
+    ListenerEventReceiverClosed,
 }
 
 
  
 #[async]
-fn relay_server<ML,KL,MA,KA,MC,KC>(timer_client: TimerClient, 
-                incoming_conns: IncomingConn<ML,KL,MA,KA,MC,KC>,
+fn relay_server<ML,KL,MA,KA,MC,KC,S>(timer_client: TimerClient, 
+                incoming_conns: S,
                 keepalive_ticks: usize) -> Result<!, RelayServerError> 
 where
     ML: Stream<Item=RelayListenIn,Error=()>,
@@ -140,15 +146,41 @@ where
     KA: Sink<SinkItem=TunnelMessage,SinkError=()>,
     MC: Stream<Item=TunnelMessage,Error=()>,
     KC: Sink<SinkItem=TunnelMessage,SinkError=()>,
+    S: Stream<Item=IncomingConn<ML,KL,MA,KA,MC,KC>, Error=()> + 'static,
 {
 
+    let timer_stream = await!(timer_client.request_timer_stream())
+        .map_err(|_| RelayServerError::RequestTimerStreamError)?;
+    let timer_stream = timer_stream
+        .map_err(|_| RelayServerError::TimerStreamError)
+        .map(|_| RelayServerEvent::TimerTick)
+        .chain(stream::once(Err(RelayServerError::TimerClosedError)));
+
+    let incoming_conns = incoming_conns
+        .map_err(|_| RelayServerError::IncomingConnsError)
+        .map(|incoming_conn| RelayServerEvent::IncomingConn(incoming_conn))
+        .chain(stream::once(Err(RelayServerError::IncomingConnsClosed)));
+
+    let (listener_event_sender, listener_event_receiver) = mpsc::channel::<(PublicKey, RejectConnection)>(0);
+
+    let listener_event_receiver = listener_event_receiver
+        .map_err(|_| RelayServerError::ListenerEventReceiverError)
+        .map(|(public_key, reject_connection)| RelayServerEvent::ListenerMessage((public_key, reject_connection)))
+        .chain(stream::once(Err(RelayServerError::ListenerEventReceiverClosed)));
+
+    let relay_server_events = timer_stream
+        .select(incoming_conns)
+        .select(listener_event_receiver);
+
+    #[async]
+    for relay_sever_event in relay_server_events {
     // TODO:
     // check for any event:
     // - Incoming connection 
     // - A connection was closed
     //      - Remove from data structures
     // - Time tick
-    //      - Possibly timeout: Listening conn
-    //      - Send keepalive if required to a listening conn.
-    unimplemented!();
+    //      - Possibly timeout half tunnels
+    }
+    unreachable!();
 }
