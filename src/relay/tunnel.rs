@@ -63,7 +63,7 @@ where
                 match tun_msg {
                     TunnelMessage::KeepAlive => ticks_to_timeout1 = keepalive_ticks,
                     TunnelMessage::Message(msg) => {
-                        sender1 = await!(sender1.send(TunnelMessage::Message(msg)))
+                        sender2 = await!(sender2.send(TunnelMessage::Message(msg)))
                             .map_err(|_| TunnelError::Sender)?;
                         ticks_to_keepalive1 = keepalive_ticks / 2;
                     },
@@ -73,7 +73,7 @@ where
                 match tun_msg {
                     TunnelMessage::KeepAlive => ticks_to_timeout2 = keepalive_ticks,
                     TunnelMessage::Message(msg) => {
-                        sender2 = await!(sender2.send(TunnelMessage::Message(msg)))
+                        sender1 = await!(sender1.send(TunnelMessage::Message(msg)))
                             .map_err(|_| TunnelError::Sender)?;
                         ticks_to_keepalive2 = keepalive_ticks / 2;
                     },
