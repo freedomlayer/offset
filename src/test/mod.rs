@@ -1,5 +1,5 @@
 use futures::prelude::{async, await};
-use futures::{Future, Stream};
+use futures::Stream;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ReceiveError {
