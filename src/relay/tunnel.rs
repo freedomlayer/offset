@@ -119,27 +119,7 @@ mod tests {
     use futures::Future;
     use tokio_core::reactor::Core;
     use timer::create_timer_incoming;
-
-    #[derive(Debug, Eq, PartialEq)]
-    enum ReadError {
-        Closed,
-        Error,
-    }
-
-    #[async]
-    fn receive<T, EM, M: 'static>(reader: M) -> Result<(T, M), ReadError>
-        where M: Stream<Item=T, Error=EM>,
-    {
-        match await!(reader.into_future()) {
-            Ok((opt_reader_message, ret_reader)) => {
-                match opt_reader_message {
-                    Some(reader_message) => Ok((reader_message, ret_reader)),
-                    None => return Err(ReadError::Closed),
-                }
-            },
-            Err(_) => return Err(ReadError::Error),
-        }
-    }
+    use test::{ReceiveError, receive};
 
     #[async]
     fn run_tunnel_basic(mut receiver_a: mpsc::Receiver<TunnelMessage>, 
@@ -226,49 +206,16 @@ mod tests {
             Ok(_) => unreachable!(),
             Err(e) => e
         };
-        assert_eq!(err, ReadError::Closed);
+        assert_eq!(err, ReceiveError::Closed);
 
         let err = match await!(receive(receiver_a)) {
             Ok(_) => unreachable!(),
             Err(e) => e
         };
-        assert_eq!(err, ReadError::Closed);
+        assert_eq!(err, ReceiveError::Closed);
 
         Ok(())
 
-    }
-
-    #[async]
-    fn run_a(mut receiver: mpsc::Receiver<TunnelMessage>, 
-             mut sender: mpsc::Sender<TunnelMessage>,
-             mut tick_sender: mpsc::Sender<()>,
-             fin_sender: oneshot::Sender<bool>) -> Result<(), ()> {
-
-        sender = await!(sender.send(TunnelMessage::KeepAlive)).unwrap();
-        sender = await!(sender.send(TunnelMessage::KeepAlive)).unwrap();
-        sender = await!(sender.send(TunnelMessage::Message(vec![1,2,3,4]))).unwrap();
-        let (data, new_receiver) = await!(receive(receiver)).unwrap();
-        receiver = new_receiver;
-        assert_eq!(data, TunnelMessage::Message(vec![5,6,7]));
-
-        for _ in 0 .. 8usize {
-            tick_sender = await!(tick_sender.send(())).unwrap();
-        }
-        let (data, new_receiver) = await!(receive(receiver)).unwrap();
-        receiver = new_receiver;
-        assert_eq!(data, TunnelMessage::KeepAlive);
-
-        for _ in 0 .. 8usize {
-            tick_sender = await!(tick_sender.send(())).unwrap();
-        }
-        let err = match await!(receive(receiver)) {
-            Ok(_) => unreachable!(),
-            Err(e) => e
-        };
-        assert_eq!(err, ReadError::Closed);
-
-        fin_sender.send(true).unwrap();
-        Ok(())
     }
 
     #[test]

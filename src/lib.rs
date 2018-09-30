@@ -50,6 +50,9 @@ pub mod timer;
 pub mod secure_channel;
 pub mod relay;
 
+#[cfg(test)]
+pub mod test;
+
 
 mod proto;
 // FIXME: The capnpc generated code assumes that we
