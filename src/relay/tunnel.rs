@@ -13,6 +13,7 @@ pub enum TunnelError {
     TimerClosed,
 }
 
+#[derive(Debug)]
 pub enum TunnelEvent {
     Receiver1(TunnelMessage),
     Receiver2(TunnelMessage),
@@ -184,6 +185,16 @@ mod tests {
         assert_eq!(data, TunnelMessage::Message(vec![1,2,3,4]));
         sender = await!(sender.send(TunnelMessage::KeepAlive)).unwrap();
         sender = await!(sender.send(TunnelMessage::Message(vec![5,6,7]))).unwrap();
+
+        let (msg, new_receiver) = await!(receive(receiver)).unwrap();
+        receiver = new_receiver;
+        assert_eq!(msg, TunnelMessage::KeepAlive);
+
+        let err = match await!(receive(receiver)) {
+            Ok(_) => unreachable!(),
+            Err(e) => e
+        };
+        assert_eq!(err, ReadError::Closed);
 
         fin_sender.send(true).unwrap();
         Ok(())
