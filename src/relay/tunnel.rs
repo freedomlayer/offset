@@ -115,7 +115,7 @@ where
 mod tests {
     use super::*;
     use futures::prelude::{async, await};
-    use futures::sync::{mpsc, oneshot};
+    use futures::sync::mpsc;
     use futures::Future;
     use tokio_core::reactor::Core;
     use timer::create_timer_incoming;
