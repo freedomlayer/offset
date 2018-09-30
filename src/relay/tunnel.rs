@@ -22,15 +22,15 @@ pub enum TunnelEvent {
 }
 
 #[async]
-pub fn tunnel_loop<R1,S1,R2,S2>(receiver1: R1, mut sender1: S1,
+pub fn tunnel_loop<R1,S1,R2,S2,ER1,ES1,ER2,ES2>(receiver1: R1, mut sender1: S1,
                             receiver2: R2, mut sender2: S2,
                             timer_client: TimerClient, 
                             keepalive_ticks: usize) -> Result<(), TunnelError> 
 where
-    R1: Stream<Item=TunnelMessage, Error=()> + 'static,
-    S1: Sink<SinkItem=TunnelMessage, SinkError=()> + 'static,
-    R2: Stream<Item=TunnelMessage, Error=()> + 'static,
-    S2: Sink<SinkItem=TunnelMessage, SinkError=()> + 'static,
+    R1: Stream<Item=TunnelMessage, Error=ER1> + 'static,
+    S1: Sink<SinkItem=TunnelMessage, SinkError=ES1> + 'static,
+    R2: Stream<Item=TunnelMessage, Error=ER2> + 'static,
+    S2: Sink<SinkItem=TunnelMessage, SinkError=ES2> + 'static,
 {
 
     let timer_stream = await!(timer_client.request_timer_stream())
