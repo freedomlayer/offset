@@ -123,8 +123,8 @@ pub fn listener_keepalive<M,K,ME,KE>(listener_receiver: M,
                       timer_client: TimerClient,
                       keepalive_ticks: usize,
                       handle: &Handle) 
-                                       -> (impl Stream<Item=RejectConnection, Error=()>,
-                                           impl Sink<SinkItem=IncomingConnection, SinkError=()>)
+                                       -> (mpsc::Receiver<RejectConnection>,
+                                           mpsc::Sender<IncomingConnection>)
 where
     M: Stream<Item=RelayListenIn,Error=ME> + 'static,
     K: Sink<SinkItem=RelayListenOut,SinkError=KE> + 'static,
@@ -143,9 +143,9 @@ where
         println!("listener_loop error: {:?}", e);
         ()
     }));
+    println!("listener_keepalive() exit");
     
-     (new_listener_receiver.map_err(|_| ()), 
-     new_listener_sender.sink_map_err(|_| ()))
+    (new_listener_receiver, new_listener_sender)
 }
 
 #[cfg(test)]
@@ -159,22 +159,18 @@ mod tests {
     use test::{receive, ReceiveError};
 
     #[async]
-    fn run_listener_keepalive_basic<WR,WS,WRE,WSE>(
-        mut wreceiver: WR, mut wsender: WS,
+    fn run_listener_keepalive_basic(
+        mut wreceiver: mpsc::Receiver<RejectConnection>, 
+        mut wsender: mpsc::Sender<IncomingConnection>,
         mut receiver: mpsc::Receiver<RelayListenOut>, 
         mut sender: mpsc::Sender<RelayListenIn>,
-        mut tick_sender: mpsc::Sender<()>) -> Result<(),()> 
-    where
-        WR: Stream<Item=RejectConnection, Error=WRE> + 'static,
-        WS: Sink<SinkItem=IncomingConnection, SinkError=WSE> + 'static,
-    {
+        mut tick_sender: mpsc::Sender<()>) -> Result<(),()> {
+
         // Make sure that we send keepalives on time:
         for _ in 0 .. 8usize {
             println!("1");
             tick_sender = await!(tick_sender.send(())).unwrap();
         }
-
-        drop(wsender);
 
         // let public_key = PublicKey::from(&[0xee; PUBLIC_KEY_LEN]);
         // wsender = await!(wsender.send(RejectConnection(public_key))).unwrap();

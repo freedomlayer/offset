@@ -263,6 +263,7 @@ where
                         let (mpsc_sender, mpsc_receiver) = mpsc::channel::<IncomingConnection>(0);
                         handle.spawn(
                             sender
+                                .sink_map_err(|_| ())
                                 .send_all(mpsc_receiver.map_err(|_| ()))
                                 .then(|_| Ok(()))
                         );
