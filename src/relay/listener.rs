@@ -111,7 +111,7 @@ where
 
 /// Deal with keepalive logic of a listener connection.
 /// Returns back a pair of sender and receiver, stripped from keepalive logic.
-pub fn listener_keepalive<M,K>(listener_receiver: M,
+pub fn listener_keepalive<M,K,ME,KE>(listener_receiver: M,
                       listener_sender: K,
                       timer_client: TimerClient,
                       keepalive_ticks: usize,
@@ -119,13 +119,13 @@ pub fn listener_keepalive<M,K>(listener_receiver: M,
                                        -> (impl Stream<Item=RejectConnection, Error=()>,
                                            impl Sink<SinkItem=IncomingConnection, SinkError=()>)
 where
-    M: Stream<Item=RelayListenIn,Error=()> + 'static,
-    K: Sink<SinkItem=RelayListenOut,SinkError=()> + 'static,
+    M: Stream<Item=RelayListenIn,Error=ME> + 'static,
+    K: Sink<SinkItem=RelayListenOut,SinkError=KE> + 'static,
 {
     let (new_listener_sender, outgoing_messages) = mpsc::channel::<IncomingConnection>(0);
     let (incoming_messages, new_listener_receiver) = mpsc::channel::<RejectConnection>(0);
-    let listener_fut = listener_loop(listener_receiver,
-                  listener_sender,
+    let listener_fut = listener_loop(listener_receiver.map_err(|_| ()),
+                  listener_sender.sink_map_err(|_| ()),
                   outgoing_messages.map_err(|_| ()),
                   incoming_messages.sink_map_err(|_| ()),
                   timer_client,
@@ -138,4 +138,65 @@ where
     
      (new_listener_receiver.map_err(|_| ()), 
      new_listener_sender.sink_map_err(|_| ()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::prelude::{async, await};
+    use futures::sync::{mpsc, oneshot};
+    use futures::Future;
+    use tokio_core::reactor::Core;
+    use timer::create_timer_incoming;
+    use test::{receive, ReceiveError};
+
+    #[async]
+    fn run_listener_keepalive_basic<WR,WS,R,S,TS,WRE,WSE,RE,SE,TSE>(
+        wreceiver: WR, wsender: WS,
+        receiver: R, sender: S,
+        tick_sender: TS) -> Result<(),()> 
+    where
+        WR: Stream<Item=RejectConnection, Error=WRE>,
+        WS: Sink<SinkItem=IncomingConnection, SinkError=WSE>,
+        R: Stream<Item=RelayListenOut, Error=RE>,
+        S: Sink<SinkItem=RelayListenIn, SinkError=SE>,
+        TS: Sink<SinkItem=(), SinkError=TSE>,
+    {
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_listener_keepalive_basic() {
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+
+        // Create a mock time service:
+        let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
+        let timer_client = create_timer_incoming(tick_receiver, &handle).unwrap();
+
+        /*      a     c 
+         * a_ca | <-- | c_ca
+         *      |     | 
+         * a_ac | --> | c_ac
+        */
+
+        let (a_ac, c_ac) = mpsc::channel::<RelayListenOut>(0);
+        let (c_ca, a_ca) = mpsc::channel::<RelayListenIn>(0);
+
+
+        let keepalive_ticks = 16;
+        let (w_a_ca, w_a_ac) = listener_keepalive(a_ca, 
+                                  a_ac,
+                                  timer_client,
+                                  keepalive_ticks,
+                                  &handle);
+
+        core.run(
+            run_listener_keepalive_basic(
+                w_a_ca, w_a_ac,
+                c_ac, c_ca,
+                tick_sender)
+        ).unwrap();
+    }
 }
