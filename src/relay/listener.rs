@@ -18,6 +18,7 @@ enum ListenerLoopError {
     IncomingMessagesFailure,
 }
 
+#[derive(Debug)]
 enum ListenerEvent {
     ListenerReceiver(RelayListenIn),
     OutgoingMessage(IncomingConnection),
@@ -40,8 +41,11 @@ where
     MO: Stream<Item=IncomingConnection,Error=()> + 'static,
     KI: Sink<SinkItem=RejectConnection,SinkError=()> + 'static,
 {
+    println!("listener_loop: 1");
     let timer_stream = await!(timer_client.request_timer_stream())
         .map_err(|_| ListenerLoopError::RequestTimerStreamError)?;
+    println!("listener_loop: 2");
+
     let timer_stream = timer_stream
         .map_err(|_| ListenerLoopError::TimerStream)
         .map(|_| ListenerEvent::TimerTick)
@@ -68,8 +72,11 @@ where
     // we are alive:
     let mut ticks_to_send_keepalive: usize = keepalive_ticks / 2;
 
+    println!("listener_loop: 3");
+
     #[async]
     for listener_event in listener_events {
+        println!("listener_event = {:?}", listener_event);
         match listener_event {
             ListenerEvent::ListenerReceiver(relay_listen_in) => {
                 match relay_listen_in {
@@ -133,6 +140,7 @@ where
 
     handle.spawn(listener_fut.map_err(|e| {
         error!("listener_loop() error: {:?}", e);
+        println!("listener_loop error: {:?}", e);
         ()
     }));
     
@@ -151,17 +159,31 @@ mod tests {
     use test::{receive, ReceiveError};
 
     #[async]
-    fn run_listener_keepalive_basic<WR,WS,R,S,TS,WRE,WSE,RE,SE,TSE>(
-        wreceiver: WR, wsender: WS,
-        receiver: R, sender: S,
-        tick_sender: TS) -> Result<(),()> 
+    fn run_listener_keepalive_basic<WR,WS,WRE,WSE>(
+        mut wreceiver: WR, mut wsender: WS,
+        mut receiver: mpsc::Receiver<RelayListenOut>, 
+        mut sender: mpsc::Sender<RelayListenIn>,
+        mut tick_sender: mpsc::Sender<()>) -> Result<(),()> 
     where
-        WR: Stream<Item=RejectConnection, Error=WRE>,
-        WS: Sink<SinkItem=IncomingConnection, SinkError=WSE>,
-        R: Stream<Item=RelayListenOut, Error=RE>,
-        S: Sink<SinkItem=RelayListenIn, SinkError=SE>,
-        TS: Sink<SinkItem=(), SinkError=TSE>,
+        WR: Stream<Item=RejectConnection, Error=WRE> + 'static,
+        WS: Sink<SinkItem=IncomingConnection, SinkError=WSE> + 'static,
     {
+        // Make sure that we send keepalives on time:
+        for _ in 0 .. 8usize {
+            println!("1");
+            tick_sender = await!(tick_sender.send(())).unwrap();
+        }
+
+        drop(wsender);
+
+        // let public_key = PublicKey::from(&[0xee; PUBLIC_KEY_LEN]);
+        // wsender = await!(wsender.send(RejectConnection(public_key))).unwrap();
+
+        /*
+        let (msg, new_receiver) = await!(receive(receiver)).unwrap();
+        receiver = new_receiver;
+        assert_eq!(msg, RelayListenOut::KeepAlive);
+        */
 
         Ok(())
     }
