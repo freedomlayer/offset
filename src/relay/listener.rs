@@ -41,10 +41,8 @@ where
     MO: Stream<Item=IncomingConnection,Error=()> + 'static,
     KI: Sink<SinkItem=RejectConnection,SinkError=()> + 'static,
 {
-    println!("listener_loop: 1");
     let timer_stream = await!(timer_client.request_timer_stream())
         .map_err(|_| ListenerLoopError::RequestTimerStreamError)?;
-    println!("listener_loop: 2");
 
     let timer_stream = timer_stream
         .map_err(|_| ListenerLoopError::TimerStream)
@@ -72,7 +70,6 @@ where
     // we are alive:
     let mut ticks_to_send_keepalive: usize = keepalive_ticks / 2;
 
-    println!("listener_loop: 3");
 
     #[async]
     for listener_event in listener_events {
@@ -97,12 +94,14 @@ where
             ListenerEvent::ListenerReceiverClosed | 
             ListenerEvent::OutgoingMessagesClosed => break,
             ListenerEvent::TimerTick => {
+                println!("TimerTick");
                 ticks_to_close = ticks_to_close.saturating_sub(1);
                 if ticks_to_close == 0 {
                     break;
                 }
                 ticks_to_send_keepalive 
                     = ticks_to_send_keepalive.saturating_sub(1);
+                println!("ticks_to_send_keepalive = {}", ticks_to_send_keepalive);
                 if ticks_to_send_keepalive == 0 {
                     listener_sender = await!(listener_sender.send(RelayListenOut::KeepAlive))
                         .map_err(|_| ListenerLoopError::ListenerSenderFailure)?;
@@ -140,10 +139,8 @@ where
 
     handle.spawn(listener_fut.map_err(|e| {
         error!("listener_loop() error: {:?}", e);
-        println!("listener_loop error: {:?}", e);
         ()
     }));
-    println!("listener_keepalive() exit");
     
     (new_listener_receiver, new_listener_sender)
 }
@@ -157,6 +154,7 @@ mod tests {
     use tokio_core::reactor::Core;
     use timer::create_timer_incoming;
     use test::{receive, ReceiveError};
+    use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
     #[async]
     fn run_listener_keepalive_basic(
@@ -166,20 +164,40 @@ mod tests {
         mut sender: mpsc::Sender<RelayListenIn>,
         mut tick_sender: mpsc::Sender<()>) -> Result<(),()> {
 
-        // Make sure that we send keepalives on time:
-        for _ in 0 .. 8usize {
-            println!("1");
+        // Make sure that keepalives are sent on time:
+        for i in 0 .. 8usize {
             tick_sender = await!(tick_sender.send(())).unwrap();
+            println!("Sent tick number {}",i);
         }
+        /*
 
-        // let public_key = PublicKey::from(&[0xee; PUBLIC_KEY_LEN]);
-        // wsender = await!(wsender.send(RejectConnection(public_key))).unwrap();
+        println!("0");
+
+        let (msg, new_receiver) = await!(receive(receiver)).unwrap();
+        receiver = new_receiver;
+        assert_eq!(msg, RelayListenOut::KeepAlive);
+
+        println!("1");
+
+        let public_key = PublicKey::from(&[0xee; PUBLIC_KEY_LEN]);
+        wsender = await!(wsender.send(IncomingConnection(public_key.clone()))).unwrap();
+
+        println!("2");
+
+        let (msg, new_receiver) = await!(receive(receiver)).unwrap();
+        receiver = new_receiver;
+        assert_eq!(msg, RelayListenOut::IncomingConnection(IncomingConnection(public_key)));
+        */
 
         /*
         let (msg, new_receiver) = await!(receive(receiver)).unwrap();
         receiver = new_receiver;
         assert_eq!(msg, RelayListenOut::KeepAlive);
         */
+        drop(wreceiver);
+        drop(wsender);
+        drop(receiver);
+        drop(sender);
 
         Ok(())
     }
