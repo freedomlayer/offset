@@ -195,7 +195,6 @@ mod tests {
 
     /////////////////////////////////////////////////////////////////////////////////////
 
-    struct CustomTick;
 
     #[derive(Debug, Eq, PartialEq)]
     enum ReadError {
@@ -204,6 +203,7 @@ mod tests {
     }
 
     #[async]
+    /// Util function to read from a Stream
     fn receive<T, EM, M: 'static>(reader: M) -> Result<(T, M), ReadError>
         where M: Stream<Item=T, Error=EM>,
     {
@@ -218,25 +218,22 @@ mod tests {
         }
     }
 
-    #[async]
-    fn task_ticks_sender(mut tick_sender: impl Sink<SinkItem=(), SinkError=()> + 'static) -> Result<(),()> {
-        for _ in 0 .. 8usize {
-            tick_sender = match await!(tick_sender.send(())) {
-                Ok(tick_sender) => tick_sender,
-                Err(_) => unreachable!(),
-            };
-        }
-        Ok(())
-    }
+    struct CustomTick;
 
     #[async]
-    fn task_ticks_receiver(timer_client: TimerClient) -> Result<(), ()> {
+    fn task_ticks_receiver<S>(mut tick_sender: S,
+                           timer_client: TimerClient) -> Result<(), ()> 
+    where
+        S: Sink<SinkItem=(), SinkError=()> + 'static
+    {
         let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
         let mut timer_stream = timer_stream.map(|_| CustomTick);
         for _ in 0 .. 8usize {
+            tick_sender = await!(tick_sender.send(())).unwrap();
             let (_, new_timer_stream) = await!(receive(timer_stream)).unwrap();
             timer_stream = new_timer_stream;
         }
+        drop(tick_sender);
         match await!(receive(timer_stream)) {
             Ok(_) => unreachable!(),
             Err(e) => assert_eq!(e, ReadError::Closed),
@@ -255,8 +252,7 @@ mod tests {
         let timer_client = create_timer_incoming(tick_receiver, &handle).unwrap();
 
         let tick_sender = tick_sender.sink_map_err(|_| ());
-        handle.spawn(task_ticks_sender(tick_sender));
-        core.run(task_ticks_receiver(timer_client)).unwrap();
+        core.run(task_ticks_receiver(tick_sender, timer_client)).unwrap();
 
     }
 }
