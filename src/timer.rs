@@ -85,7 +85,7 @@ enum TimerEvent {
 }
 
 #[async]
-fn timer_loop<M: 'static>(incoming: M, from_client: mpsc::Receiver<TimerRequest>) -> Result<!, TimerError> 
+fn timer_loop<M: 'static>(incoming: M, from_client: mpsc::Receiver<TimerRequest>) -> Result<(), TimerError> 
 where
     M: Stream<Item=(), Error=()>,
 {
@@ -99,6 +99,7 @@ where
     // TODO: What happens if one of the two streams (incoming, from_client) is closed?
     let events = incoming.select(from_client);
     let mut tick_senders: Vec<mpsc::Sender<TimerTick>> = Vec::new();
+    let mut requests_done = false;
 
     #[async]
     for event in events {
@@ -117,11 +118,14 @@ where
                 tick_senders.push(tick_sender);
                 let _ = timer_request.response_sender.send(tick_receiver);
             },
-            TimerEvent::IncomingDone | TimerEvent::RequestsDone => break,
+            TimerEvent::IncomingDone => break,
+            TimerEvent::RequestsDone => requests_done = true,
+        }
+        if requests_done && tick_senders.is_empty() {
+            break;
         }
     }
-
-    Err(TimerError::IncomingRequestsClosed)
+    Ok(())
 }
 
 /// Create a timer service that broadcasts everything from the incoming Stream.
@@ -149,9 +153,8 @@ pub fn create_timer(dur: Duration, handle: &Handle) -> Result<TimerClient, Timer
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use std::time;
-
+    use futures::prelude::{async, await};
     use futures::future::join_all;
     use tokio_core::reactor::Core;
 
@@ -188,5 +191,72 @@ mod tests {
         let task = join_all(clients_fut);
 
         assert!(core.run(task).is_ok());
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////
+
+    struct CustomTick;
+
+    #[derive(Debug, Eq, PartialEq)]
+    enum ReadError {
+        Closed,
+        Error,
+    }
+
+    #[async]
+    fn receive<T, EM, M: 'static>(reader: M) -> Result<(T, M), ReadError>
+        where M: Stream<Item=T, Error=EM>,
+    {
+        match await!(reader.into_future()) {
+            Ok((opt_reader_message, ret_reader)) => {
+                match opt_reader_message {
+                    Some(reader_message) => Ok((reader_message, ret_reader)),
+                    None => return Err(ReadError::Closed),
+                }
+            },
+            Err(_) => return Err(ReadError::Error),
+        }
+    }
+
+    #[async]
+    fn task_ticks_sender(mut tick_sender: impl Sink<SinkItem=(), SinkError=()> + 'static) -> Result<(),()> {
+        for _ in 0 .. 8usize {
+            tick_sender = match await!(tick_sender.send(())) {
+                Ok(tick_sender) => tick_sender,
+                Err(_) => unreachable!(),
+            };
+        }
+        Ok(())
+    }
+
+    #[async]
+    fn task_ticks_receiver(timer_client: TimerClient) -> Result<(), ()> {
+        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+        let mut timer_stream = timer_stream.map(|_| CustomTick);
+        for _ in 0 .. 8usize {
+            let (_, new_timer_stream) = await!(receive(timer_stream)).unwrap();
+            timer_stream = new_timer_stream;
+        }
+        match await!(receive(timer_stream)) {
+            Ok(_) => unreachable!(),
+            Err(e) => assert_eq!(e, ReadError::Closed),
+        };
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_timer_incoming() {
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+
+        // Create a mock time service:
+        let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
+        let timer_client = create_timer_incoming(tick_receiver, &handle).unwrap();
+
+        let tick_sender = tick_sender.sink_map_err(|_| ());
+        handle.spawn(task_ticks_sender(tick_sender));
+        core.run(task_ticks_receiver(timer_client)).unwrap();
+
     }
 }
