@@ -142,6 +142,103 @@ mod tests {
     }
 
     #[async]
+    fn run_tunnel_basic(mut receiver_a: mpsc::Receiver<TunnelMessage>, 
+                     mut sender_a: mpsc::Sender<TunnelMessage>,
+                     mut receiver_b: mpsc::Receiver<TunnelMessage>, 
+                     mut sender_b:  mpsc::Sender<TunnelMessage>,
+                     mut tick_sender: mpsc::Sender<()>) 
+        -> Result<(), ()> {
+
+        // Send and receive messages:
+        // (KeepAlive messages are not passed to the other side)
+        sender_a = await!(sender_a.send(TunnelMessage::KeepAlive)).unwrap();
+        sender_a = await!(sender_a.send(TunnelMessage::KeepAlive)).unwrap();
+
+        sender_a = await!(sender_a.send(TunnelMessage::Message(vec![1,2,3,4]))).unwrap();
+        let (msg, new_receiver_b) = await!(receive(receiver_b)).unwrap();
+        receiver_b = new_receiver_b;
+        assert_eq!(msg, TunnelMessage::Message(vec![1,2,3,4]));
+        sender_b = await!(sender_b.send(TunnelMessage::KeepAlive)).unwrap();
+
+        sender_b = await!(sender_b.send(TunnelMessage::Message(vec![5,6,7]))).unwrap();
+        let (msg, new_receiver_a) = await!(receive(receiver_a)).unwrap();
+        receiver_a = new_receiver_a;
+        assert_eq!(msg, TunnelMessage::Message(vec![5,6,7]));
+
+        // We should get keepalive after some time passes:
+        for _ in 0 .. 8usize {
+            tick_sender = await!(tick_sender.send(())).unwrap();
+        }
+        let (msg, new_receiver_a) = await!(receive(receiver_a)).unwrap();
+        receiver_a = new_receiver_a;
+        assert_eq!(msg, TunnelMessage::KeepAlive);
+
+        let (msg, new_receiver_b) = await!(receive(receiver_b)).unwrap();
+        receiver_b = new_receiver_b;
+        assert_eq!(msg, TunnelMessage::KeepAlive);
+
+        for _ in 0 .. 7usize {
+            tick_sender = await!(tick_sender.send(())).unwrap();
+        }
+        // Send a keepalive, so that we won't get disconnected:
+        sender_a = await!(sender_a.send(TunnelMessage::KeepAlive)).unwrap();
+        sender_b = await!(sender_b.send(TunnelMessage::KeepAlive)).unwrap();
+
+        // Wait one tick:
+        tick_sender = await!(tick_sender.send(())).unwrap();
+
+        let (msg, new_receiver_a) = await!(receive(receiver_a)).unwrap();
+        receiver_a = new_receiver_a;
+        assert_eq!(msg, TunnelMessage::KeepAlive);
+
+        let (msg, new_receiver_b) = await!(receive(receiver_b)).unwrap();
+        receiver_b = new_receiver_b;
+        assert_eq!(msg, TunnelMessage::KeepAlive);
+
+        // Send a message from A to B. 
+        // A will be disconnected 16 ticks from now,
+        // B will be disconnected 15 ticks from now.
+        // A will get a keepalive 8 ticks from now.
+        // B will get a keepalive 8 ticks from now.
+        sender_a = await!(sender_a.send(TunnelMessage::Message(vec![8,8,8]))).unwrap();
+        let (msg, new_receiver_b) = await!(receive(receiver_b)).unwrap();
+        receiver_b = new_receiver_b;
+        assert_eq!(msg, TunnelMessage::Message(vec![8,8,8]));
+
+        for _ in 0 .. 8usize {
+            tick_sender = await!(tick_sender.send(())).unwrap();
+        }
+
+        let (msg, new_receiver_b) = await!(receive(receiver_b)).unwrap();
+        receiver_b = new_receiver_b;
+        assert_eq!(msg, TunnelMessage::KeepAlive);
+
+        let (msg, new_receiver_a) = await!(receive(receiver_a)).unwrap();
+        receiver_a = new_receiver_a;
+        assert_eq!(msg, TunnelMessage::KeepAlive);
+
+        for _ in 0 .. 7usize {
+            tick_sender = await!(tick_sender.send(())).unwrap();
+        }
+
+        // B timeouts here. As a result the whole tunnel is closed:
+        let err = match await!(receive(receiver_b)) {
+            Ok(_) => unreachable!(),
+            Err(e) => e
+        };
+        assert_eq!(err, ReadError::Closed);
+
+        let err = match await!(receive(receiver_a)) {
+            Ok(_) => unreachable!(),
+            Err(e) => e
+        };
+        assert_eq!(err, ReadError::Closed);
+
+        Ok(())
+
+    }
+
+    #[async]
     fn run_a(mut receiver: mpsc::Receiver<TunnelMessage>, 
              mut sender: mpsc::Sender<TunnelMessage>,
              mut tick_sender: mpsc::Sender<()>,
@@ -164,32 +261,6 @@ mod tests {
         for _ in 0 .. 8usize {
             tick_sender = await!(tick_sender.send(())).unwrap();
         }
-        let err = match await!(receive(receiver)) {
-            Ok(_) => unreachable!(),
-            Err(e) => e
-        };
-        assert_eq!(err, ReadError::Closed);
-
-        fin_sender.send(true).unwrap();
-        Ok(())
-    }
-
-    #[async]
-    fn run_b(mut receiver: mpsc::Receiver<TunnelMessage>, 
-             mut sender: mpsc::Sender<TunnelMessage>,
-             _tick_sender: mpsc::Sender<()>,
-             fin_sender: oneshot::Sender<bool>) -> Result<(), ()> {
-
-        let (data, new_receiver) = await!(receive(receiver)).unwrap();
-        receiver = new_receiver;
-        assert_eq!(data, TunnelMessage::Message(vec![1,2,3,4]));
-        sender = await!(sender.send(TunnelMessage::KeepAlive)).unwrap();
-        sender = await!(sender.send(TunnelMessage::Message(vec![5,6,7]))).unwrap();
-
-        let (msg, new_receiver) = await!(receive(receiver)).unwrap();
-        receiver = new_receiver;
-        assert_eq!(msg, TunnelMessage::KeepAlive);
-
         let err = match await!(receive(receiver)) {
             Ok(_) => unreachable!(),
             Err(e) => e
@@ -231,15 +302,12 @@ mod tests {
             Ok(())
         }));
 
-        let (fin_sender_a, fin_receiver_a) = oneshot::channel::<bool>();
-        let (fin_sender_b, fin_receiver_b) = oneshot::channel::<bool>();
 
-        handle.spawn(run_a(a_ca, a_ac, tick_sender.clone(), fin_sender_a));
-        handle.spawn(run_b(b_cb, b_bc, tick_sender.clone(), fin_sender_b));
-
-        assert_eq!(core.run(fin_receiver_a).unwrap(), true);
-        assert_eq!(core.run(fin_receiver_b).unwrap(), true);
-
+        core.run(
+            run_tunnel_basic(a_ca,a_ac,
+                             b_cb,b_bc,
+                             tick_sender)
+        ).unwrap();
     }
 }
 
