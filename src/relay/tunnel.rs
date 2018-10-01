@@ -39,7 +39,6 @@ where
         .map_err(|_| TunnelError::TimerStream)
         .chain(stream::once(Err(TunnelError::TimerClosed)));
 
-    let mut open_receivers: usize = 2;
     // Ticks left until we drop the connection due to inactivity.
     let mut ticks_to_timeout1: usize = keepalive_ticks;
     let mut ticks_to_timeout2: usize = keepalive_ticks;
@@ -79,12 +78,7 @@ where
                     },
                 };
             },
-            TunnelEvent::Receiver1Closed | TunnelEvent::Receiver2Closed => {
-                open_receivers = open_receivers.saturating_sub(1);
-                if open_receivers == 0 {
-                    return Ok(())
-                }
-            },
+            TunnelEvent::Receiver1Closed | TunnelEvent::Receiver2Closed => return Ok(()),
             TunnelEvent::TimerTick => {
                 ticks_to_timeout1 = ticks_to_timeout1.saturating_sub(1);
                 ticks_to_timeout2 = ticks_to_timeout2.saturating_sub(1);
