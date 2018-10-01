@@ -24,7 +24,7 @@ use super::tunnel::tunnel_loop;
 
 
 
-fn dispatch_conn<M,K>(receiver: M, sender: K, public_key: PublicKey, first_msg: Vec<u8>) 
+fn dispatch_conn<M,K,ME,KE>(receiver: M, sender: K, public_key: PublicKey, first_msg: Vec<u8>) 
     -> Option<IncomingConn<impl Stream<Item=RelayListenIn,Error=()>,
                               impl Sink<SinkItem=RelayListenOut,SinkError=()>,
                               impl Stream<Item=TunnelMessage,Error=()>,
@@ -32,9 +32,11 @@ fn dispatch_conn<M,K>(receiver: M, sender: K, public_key: PublicKey, first_msg: 
                               impl Stream<Item=TunnelMessage,Error=()>,
                               impl Sink<SinkItem=TunnelMessage,SinkError=()>>>
 where
-    M: Stream<Item=Vec<u8>, Error=()>,
-    K: Sink<SinkItem=Vec<u8>, SinkError=()>,
+    M: Stream<Item=Vec<u8>, Error=ME>,
+    K: Sink<SinkItem=Vec<u8>, SinkError=KE>,
 {
+    let sender = sender.sink_map_err(|_| ());
+    let receiver = receiver.map_err(|_| ());
     let inner = match deserialize_init_connection(&first_msg).ok()? {
         InitConnection::Listen => {
             IncomingConnInner::Listen(IncomingListen {
@@ -67,7 +69,7 @@ where
 /// For each connection obtain the first message, and prepare the correct type according to this
 /// first messages.
 /// If waiting for the first message takes too long, discard the connection.
-fn conn_processor<T,M,K>(timer_client: TimerClient,
+fn conn_processor<T,M,K,TE,ME,KE>(timer_client: TimerClient,
                     incoming_conns: T,
                     conn_timeout_ticks: usize) -> impl Stream<
                         Item=IncomingConn<impl Stream<Item=RelayListenIn,Error=()>,
@@ -78,10 +80,11 @@ fn conn_processor<T,M,K>(timer_client: TimerClient,
                                           impl Sink<SinkItem=TunnelMessage,SinkError=()>>,
                         Error=()>
 where
-    T: Stream<Item=(M, K, PublicKey), Error=()>,
-    M: Stream<Item=Vec<u8>, Error=()>,
-    K: Sink<SinkItem=Vec<u8>, SinkError=()>,
+    T: Stream<Item=(M, K, PublicKey), Error=TE>,
+    M: Stream<Item=Vec<u8>, Error=ME>,
+    K: Sink<SinkItem=Vec<u8>, SinkError=KE>,
 {
+    let incoming_conns = incoming_conns.map_err(|_| ());
     let conn_timeout_ticks = usize_to_u64(conn_timeout_ticks).unwrap();
     let timer_streams = stream::iter_ok::<_, ()>(iter::repeat(()))
         .map_err(|_| ())
