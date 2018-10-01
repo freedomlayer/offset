@@ -71,7 +71,6 @@ where
 
     #[async]
     for listener_event in listener_events {
-        println!("listener_event = {:?}", listener_event);
         match listener_event {
             ListenerEvent::ListenerReceiver(relay_listen_in) => {
                 match relay_listen_in {
@@ -92,14 +91,12 @@ where
             ListenerEvent::ListenerReceiverClosed | 
             ListenerEvent::OutgoingMessagesClosed => break,
             ListenerEvent::TimerTick => {
-                println!("TimerTick");
                 ticks_to_close = ticks_to_close.saturating_sub(1);
                 if ticks_to_close == 0 {
                     break;
                 }
                 ticks_to_send_keepalive 
                     = ticks_to_send_keepalive.saturating_sub(1);
-                println!("ticks_to_send_keepalive = {}", ticks_to_send_keepalive);
                 if ticks_to_send_keepalive == 0 {
                     listener_sender = await!(listener_sender.send(RelayListenOut::KeepAlive))
                         .map_err(|_| ListenerLoopError::ListenerSenderFailure)?;
@@ -166,36 +163,65 @@ mod tests {
         // Make sure that keepalives are sent on time:
         for i in 0 .. 8usize {
             tick_sender = await!(tick_sender.send(())).unwrap();
-            println!("Sent tick number {}",i);
         }
-
-        println!("0");
 
         let (msg, new_receiver) = await!(receive(receiver)).unwrap();
         receiver = new_receiver;
         assert_eq!(msg, RelayListenOut::KeepAlive);
 
-        /*
-        println!("1");
-
+        // Check send/receive messages:
         let public_key = PublicKey::from(&[0xee; PUBLIC_KEY_LEN]);
         wsender = await!(wsender.send(IncomingConnection(public_key.clone()))).unwrap();
-
-        println!("2");
 
         let (msg, new_receiver) = await!(receive(receiver)).unwrap();
         receiver = new_receiver;
         assert_eq!(msg, RelayListenOut::IncomingConnection(IncomingConnection(public_key)));
-        */
 
-        /*
+        let public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
+        sender = await!(sender.send(RelayListenIn::RejectConnection(RejectConnection(public_key.clone())))).unwrap();
+
+        let (msg, new_wreceiver) = await!(receive(wreceiver)).unwrap();
+        wreceiver = new_wreceiver;
+        assert_eq!(msg, RejectConnection(public_key));
+
+        // Check that lack of keepalives causes disconnection:
+        for i in 0 .. 7usize {
+            tick_sender = await!(tick_sender.send(())).unwrap();
+        }
+
+        let public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
+        sender = await!(sender.send(RelayListenIn::KeepAlive)).unwrap();
+
+        tick_sender = await!(tick_sender.send(())).unwrap();
+
         let (msg, new_receiver) = await!(receive(receiver)).unwrap();
         receiver = new_receiver;
         assert_eq!(msg, RelayListenOut::KeepAlive);
-        */
-        drop(wreceiver);
+
+        for i in 0 .. 15usize {
+            tick_sender = await!(tick_sender.send(())).unwrap();
+        }
+
+        let (msg, new_receiver) = await!(receive(receiver)).unwrap();
+        receiver = new_receiver;
+        assert_eq!(msg, RelayListenOut::KeepAlive);
+
+        if let Err(ReceiveError::Closed) = await!(receive(receiver)) {
+        } else { 
+            unreachable!();
+        }
+
+        if let Err(ReceiveError::Closed) = await!(receive(wreceiver)) {
+        } else { 
+            unreachable!();
+        }
+
+        // Note: senders and receivers inside generators are seem to be dropped before the end of
+        // the scope. Beware.
+        // See also: https://users.rust-lang.org/t/sender-implicitly-dropped-inside-a-generator/20874
+        // drop(wreceiver);
         drop(wsender);
-        drop(receiver);
+        // drop(receiver);
         drop(sender);
 
         Ok(())
