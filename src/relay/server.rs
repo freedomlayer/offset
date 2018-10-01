@@ -541,9 +541,8 @@ mod tests {
         assert_eq!(closed_error.err().unwrap(), ReceiveError::Closed);
     }
 
-    /*
     #[async]
-    fn delayed_first_message_sender(handle: Handle) -> Result<(),()> {
+    fn task_process_conn_timeout(handle: Handle) -> Result<(),()> {
 
         // Create a mock time service:
         let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
@@ -553,36 +552,22 @@ mod tests {
         let (local_sender, remote_receiver) = mpsc::channel::<Vec<u8>>(0);
         let (remote_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
 
-        /*
-        let incoming_conns = stream::iter_ok::<_, ()>(
-            vec![(local_receiver, local_sender, public_key.clone())])
-            .map_err(|_| ());
-        */
-
-        let outgoing_conn = (local_receiver, local_sender, public_key.clone());
-        let (outgoing_conns, incoming_conns) = mpsc::channel::<_>(0);
-
         let conn_timeout_ticks = 16;
-        let processed_conns = conn_processor(timer_client, 
-                       incoming_conns, 
-                       conn_timeout_ticks);
-
-        let first_msg = InitConnection::Listen;
-        let ser_first_msg = serialize_init_connection(&first_msg);
-
-        let mut outgoing_conns = outgoing_conns.sink_map_err(|_| ());
-        outgoing_conns = await!(outgoing_conns.send(outgoing_conn)).unwrap();
+        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
 
         let (res_sender, res_receiver) = oneshot::channel();
-        handle.spawn(receive(processed_conns)
+        let fut_incoming_conn = process_conn(local_receiver, 
+                                             local_sender, 
+                                             public_key.clone(),
+                                             timer_stream,
+                                             conn_timeout_ticks);
+        handle.spawn(fut_incoming_conn
             .then(|res| {
                 res_sender.send(res);
                 Ok(())
             }));
 
-        // Off by one in timeout?
         for i in 0 .. 16usize {
-            println!("Send tick");
             tick_sender = await!(tick_sender.send(())).unwrap();
         }
 
@@ -590,20 +575,20 @@ mod tests {
         assert_eq!(closed_error.err().unwrap(), ReceiveError::Closed);
 
 
-        let closed_error = await!(res_receiver).unwrap();
-        assert_eq!(closed_error.err().unwrap(), ReceiveError::Closed);
+        assert!(await!(res_receiver).unwrap().unwrap().is_none());
 
+
+        let first_msg = InitConnection::Listen;
+        let ser_first_msg = serialize_init_connection(&first_msg);
         let res = await!(remote_sender.send(ser_first_msg));
-        println!("res = {:?}", res);
         assert!(res.is_err());
         Ok(())
     }
 
     #[test]
-    fn test_conn_processor_timeout() {
+    fn test_process_conn_timeout() {
         let mut core = Core::new().unwrap();
         let handle = core.handle();
-        core.run(delayed_first_message_sender(handle)).unwrap();
+        core.run(task_process_conn_timeout(handle)).unwrap();
     }
-    */
 }
