@@ -458,4 +458,63 @@ mod tests {
                                           public_key.clone(), ser_first_msg);
         assert!(res.is_none());
     }
+
+    use futures::prelude::{async, await};
+    use futures::sync::{mpsc, oneshot};
+    use futures::Future;
+    use tokio_core::reactor::Core;
+    use timer::create_timer_incoming;
+    use test::{receive, ReceiveError};
+
+    /*
+    #[async]
+    fn first_message_sender(remote_sender: mpsc::Sender<Vec<u8>>, 
+                            ser_first_msg: Vec<u8>) -> Result<(),()> {
+        remote_sender.send(ser_first_msg)
+        Ok(())
+    }
+    */
+
+    #[test]
+    fn test_conn_processor_basic() {
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+
+        // Create a mock time service:
+        let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
+        let timer_client = create_timer_incoming(tick_receiver, &handle).unwrap();
+
+        let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
+        let (local_sender, remote_receiver) = mpsc::channel::<Vec<u8>>(0);
+        let (remote_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
+
+        let incoming_conns = stream::iter_ok::<_, ()>(
+            vec![(local_receiver, local_sender, public_key.clone())])
+            .map_err(|_| ());
+
+        let conn_timeout_ticks = 16;
+        let processed_conns = conn_processor(timer_client, 
+                       incoming_conns, 
+                       conn_timeout_ticks);
+
+        let first_msg = InitConnection::Listen;
+        let ser_first_msg = serialize_init_connection(&first_msg);
+        handle.spawn(remote_sender
+                     .send(ser_first_msg)
+                     .then(|res| {
+                         match res {
+                             Ok(_remote_sender) => Ok(()),
+                             Err(_) => panic!("Sending first message failed!"),
+                         }
+                     })
+        );
+        // handle.spawn(first_message_sender(remote_sender, ser_first_msg));
+
+        let (conn, processed_conns) =  core.run(receive(processed_conns)).unwrap();
+        assert_eq!(conn.public_key, public_key);
+        match conn.inner {
+            IncomingConnInner::Listen(incoming_listen) => {},
+            _ => panic!("Incorrect processed conn"),
+        };
+    }
 }
