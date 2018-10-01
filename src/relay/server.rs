@@ -399,7 +399,16 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use futures::prelude::{async, await};
+    use futures::sync::{mpsc, oneshot};
+    use futures::Future;
+    use tokio_core::reactor::Core;
+
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
+    use timer::create_timer_incoming;
+    use test::{receive, ReceiveError};
+
     use super::super::serialize::serialize_init_connection;
 
     #[test]
@@ -459,12 +468,6 @@ mod tests {
         assert!(res.is_none());
     }
 
-    use futures::prelude::{async, await};
-    use futures::sync::{mpsc, oneshot};
-    use futures::Future;
-    use tokio_core::reactor::Core;
-    use timer::create_timer_incoming;
-    use test::{receive, ReceiveError};
 
     /*
     #[async]
@@ -516,5 +519,20 @@ mod tests {
             IncomingConnInner::Listen(incoming_listen) => {},
             _ => panic!("Incorrect processed conn"),
         };
+
+        let closed_error = core.run(receive(processed_conns));
+        assert_eq!(closed_error.err().unwrap(), ReceiveError::Closed);
     }
+
+    /*
+    #[test]
+    fn test_conn_processor_timeout() {
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+
+        // Create a mock time service:
+        let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
+        let timer_client = create_timer_incoming(tick_receiver, &handle).unwrap();
+    }
+    */
 }
