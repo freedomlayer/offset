@@ -3,7 +3,7 @@ use futures::prelude::{async, await};
 use futures::{stream, Stream, Sink, Future};
 use futures::sync::mpsc;
 use tokio_core::reactor::Handle;
-use timer::TimerClient;
+use timer::TimerTick;
 use super::messages::{RelayListenOut, RelayListenIn,
                         RejectConnection, IncomingConnection};
 
@@ -28,11 +28,11 @@ enum ListenerEvent {
 }
 
 #[async]
-fn listener_loop<M,K,MO,KI>(listener_receiver: M,
+fn listener_loop<M,K,MO,KI,TS>(listener_receiver: M,
                       mut listener_sender: K,
                       outgoing_messages: MO,
                       mut incoming_messages: KI,
-                      timer_client: TimerClient, 
+                      timer_stream: TS, 
                       keepalive_ticks: usize) 
     -> Result<(), ListenerLoopError> 
 where
@@ -40,10 +40,8 @@ where
     K: Sink<SinkItem=RelayListenOut,SinkError=()> + 'static,
     MO: Stream<Item=IncomingConnection,Error=()> + 'static,
     KI: Sink<SinkItem=RejectConnection,SinkError=()> + 'static,
+    TS: Stream<Item=TimerTick,Error=()> + 'static,
 {
-    let timer_stream = await!(timer_client.request_timer_stream())
-        .map_err(|_| ListenerLoopError::RequestTimerStreamError)?;
-
     let timer_stream = timer_stream
         .map_err(|_| ListenerLoopError::TimerStream)
         .map(|_| ListenerEvent::TimerTick)
@@ -117,9 +115,9 @@ where
 
 /// Deal with keepalive logic of a listener connection.
 /// Returns back a pair of sender and receiver, stripped from keepalive logic.
-pub fn listener_keepalive<M,K,ME,KE>(listener_receiver: M,
+pub fn listener_keepalive<M,K,ME,KE,TS>(listener_receiver: M,
                       listener_sender: K,
-                      timer_client: TimerClient,
+                      timer_stream: TS,
                       keepalive_ticks: usize,
                       handle: &Handle) 
                                        -> (mpsc::Receiver<RejectConnection>,
@@ -127,6 +125,7 @@ pub fn listener_keepalive<M,K,ME,KE>(listener_receiver: M,
 where
     M: Stream<Item=RelayListenIn,Error=ME> + 'static,
     K: Sink<SinkItem=RelayListenOut,SinkError=KE> + 'static,
+    TS: Stream<Item=TimerTick,Error=()> + 'static,
 {
     let (new_listener_sender, outgoing_messages) = mpsc::channel::<IncomingConnection>(0);
     let (incoming_messages, new_listener_receiver) = mpsc::channel::<RejectConnection>(0);
@@ -134,7 +133,7 @@ where
                   listener_sender.sink_map_err(|_| ()),
                   outgoing_messages.map_err(|_| ()),
                   incoming_messages.sink_map_err(|_| ()),
-                  timer_client,
+                  timer_stream,
                   keepalive_ticks);
 
     handle.spawn(listener_fut.map_err(|e| {
@@ -169,7 +168,6 @@ mod tests {
             tick_sender = await!(tick_sender.send(())).unwrap();
             println!("Sent tick number {}",i);
         }
-        /*
 
         println!("0");
 
@@ -177,6 +175,7 @@ mod tests {
         receiver = new_receiver;
         assert_eq!(msg, RelayListenOut::KeepAlive);
 
+        /*
         println!("1");
 
         let public_key = PublicKey::from(&[0xee; PUBLIC_KEY_LEN]);
@@ -220,11 +219,12 @@ mod tests {
         let (a_ac, c_ac) = mpsc::channel::<RelayListenOut>(0);
         let (c_ca, a_ca) = mpsc::channel::<RelayListenIn>(0);
 
+        let timer_stream = core.run(timer_client.request_timer_stream()).unwrap();
 
         let keepalive_ticks = 16;
         let (w_a_ca, w_a_ac) = listener_keepalive(a_ca, 
                                   a_ac,
-                                  timer_client,
+                                  timer_stream,
                                   keepalive_ticks,
                                   &handle);
 

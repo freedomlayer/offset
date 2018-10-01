@@ -252,9 +252,11 @@ where
                         if listeners.contains_key(&public_key) {
                             continue; // Discard Listen connection
                         }
+                        let timer_stream = await!(c_timer_client.request_timer_stream())
+                            .map_err(|_| RelayServerError::RequestTimerStreamError)?;
                         let (receiver, sender) = listener_keepalive(incoming_listen.receiver,
                                               incoming_listen.sender,
-                                              c_timer_client,
+                                              timer_stream,
                                               keepalive_ticks,
                                               &handle);
                         
