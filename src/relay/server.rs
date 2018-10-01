@@ -525,4 +525,12 @@ mod tests {
         core.run(task_relay_server_reject(handle)).unwrap();
 
     }
+
+
+    // TODO: Add tests:
+    // - Timeout of half tunnels
+    //      (Do some action first, to make sure timer_stream was already obtained).
+    // - Graceful shutdown if incoming_conns is closed.
+    // - Duplicate connections should be denied. (Same (initiator_pk, listener_pk) pair).
+    // - Tunnel keeps working even if listener is disconnected.
 }
