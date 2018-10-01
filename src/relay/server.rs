@@ -301,7 +301,7 @@ mod tests {
 
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
     use timer::create_timer_incoming;
-    use test::{receive /*, ReceiveError */};
+    use test::{receive, ReceiveError};
     use super::super::types::{IncomingListen, 
         IncomingConnect, IncomingAccept};
 
@@ -337,7 +337,7 @@ mod tests {
         let (a_ac, c_ac) = mpsc::channel::<RelayListenIn>(0);
         let (c_ca, a_ca) = mpsc::channel::<RelayListenOut>(0);
         let (mut b_bc, c_bc) = mpsc::channel::<TunnelMessage>(0);
-        let (c_cb, b_cb) = mpsc::channel::<TunnelMessage>(0);
+        let (c_cb, mut b_cb) = mpsc::channel::<TunnelMessage>(0);
 
         let a_public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
         let b_public_key = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
@@ -371,7 +371,7 @@ mod tests {
 
         // Open a new connection to Accept:
         let (mut a_ac1, c_ac1) = mpsc::channel::<TunnelMessage>(0);
-        let (c_ca1, a_ca1) = mpsc::channel::<TunnelMessage>(0);
+        let (c_ca1, mut a_ca1) = mpsc::channel::<TunnelMessage>(0);
 
         let incoming_accept_a = IncomingAccept {
             receiver: c_ac1.map_err(|_| ()),
@@ -386,22 +386,23 @@ mod tests {
         let _outgoing_conns = await!(outgoing_conns.send(incoming_conn_accept_a)).unwrap();
 
         a_ac1 = await!(a_ac1.send(TunnelMessage::Message(vec![1,2,3]))).unwrap();
-        let (msg, _new_b_cb) = await!(receive(b_cb)).unwrap();
-        // b_cb = new_b_cb;
+        let (msg, new_b_cb) = await!(receive(b_cb)).unwrap();
+        b_cb = new_b_cb;
         assert_eq!(msg, TunnelMessage::Message(vec![1,2,3]));
 
         b_bc = await!(b_bc.send(TunnelMessage::Message(vec![4,3,2,1]))).unwrap();
-        let (msg, _new_a_ca1) = await!(receive(a_ca1)).unwrap();
-        // a_ca1 = new_a_ca1;
+        let (msg, new_a_ca1) = await!(receive(a_ca1)).unwrap();
+        a_ca1 = new_a_ca1;
         assert_eq!(msg, TunnelMessage::Message(vec![4,3,2,1]));
 
-        // drop(b_bc);
-        // assert_eq!(ReceiveError::Closed, await!(receive(a_ca1)).err().unwrap());
-
-        drop(a_ac);
-        // drop(a_ca);
-        drop(a_ac1);
+        // If one side's sender is dropped, the other side's receiver will be notified:
         drop(b_bc);
+        assert_eq!(ReceiveError::Closed, await!(receive(a_ca1)).err().unwrap());
+
+        // Drop here, to make sure values are not automatically dropped earlier:
+        drop(a_ac);
+        drop(a_ac1);
+        drop(b_cb);
         Ok(())
     }
 
