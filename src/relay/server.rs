@@ -8,7 +8,7 @@ use futures::prelude::{async, await, async_stream};
 use tokio_core::reactor::Handle;
 
 use crypto::identity::PublicKey;
-use timer::TimerClient;
+use timer::{TimerTick, TimerClient};
 
 use super::messages::{InitConnection, TunnelMessage, 
     RelayListenIn, RelayListenOut, RejectConnection, IncomingConnection};
@@ -151,12 +151,12 @@ enum RelayServerError {
 }
 
 
-fn handle_accept<MT,KT,MA,KA,TCL>(listeners: &mut HashMap<PublicKey, Listener<MT,KT>>,
+fn handle_accept<MT,KT,MA,KA,TCL,TS>(listeners: &mut HashMap<PublicKey, Listener<MT,KT>>,
                             acceptor_public_key: PublicKey,
                             incoming_accept: IncomingAccept<MA,KA>,
                             // TODO: This should be a oneshot:
                             tunnel_closed_sender: TCL,
-                            timer_client: TimerClient,
+                            timer_stream: TS,
                             keepalive_ticks: usize,
                             handle: &Handle) -> Result<(), RelayServerError>
 where
@@ -165,6 +165,7 @@ where
     MA: Stream<Item=TunnelMessage,Error=()> + 'static,
     KA: Sink<SinkItem=TunnelMessage,SinkError=()> + 'static,
     TCL: Sink<SinkItem=TunnelClosed, SinkError=()> + 'static,
+    TS: Stream<Item=TimerTick,Error=()> + 'static,
 {
     let listener = match listeners.get_mut(&acceptor_public_key) {
         Some(listener) => listener,
@@ -179,7 +180,7 @@ where
     let c_accept_public_key = accept_public_key.clone();
     let tunnel_fut = tunnel_loop(conn_pair.receiver, conn_pair.sender,
                 receiver, sender,
-                timer_client.clone(),
+                timer_stream,
                 keepalive_ticks)
     .map_err(|e| {
         println!("tunnel_loop() error: {:?}", e);
@@ -285,11 +286,13 @@ where
                     IncomingConnInner::Accept(incoming_accept) => {
                         let tunnel_closed_sender = c_event_sender
                             .with(|tunnel_closed| Ok(RelayServerEvent::TunnelClosed(tunnel_closed)));
+                        let timer_stream = await!(c_timer_client.request_timer_stream())
+                            .map_err(|_| RelayServerError::RequestTimerStreamError)?;
                         let _ = handle_accept(&mut listeners,
                                       public_key.clone(),
                                       incoming_accept,
                                       tunnel_closed_sender,
-                                      c_timer_client,
+                                      timer_stream,
                                       keepalive_ticks,
                                       &handle);
                     },

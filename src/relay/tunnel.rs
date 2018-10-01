@@ -1,6 +1,6 @@
-use timer::TimerClient;
 use futures::prelude::{async, await};
 use futures::{Stream, stream, Sink};
+use timer::TimerTick;
 use super::messages::TunnelMessage;
 
 #[derive(Debug)]
@@ -23,19 +23,18 @@ pub enum TunnelEvent {
 }
 
 #[async]
-pub fn tunnel_loop<R1,S1,R2,S2,ER1,ES1,ER2,ES2>(receiver1: R1, mut sender1: S1,
+pub fn tunnel_loop<R1,S1,R2,S2,ER1,ES1,ER2,ES2,TS>(receiver1: R1, mut sender1: S1,
                             receiver2: R2, mut sender2: S2,
-                            timer_client: TimerClient, 
+                            timer_stream: TS, 
                             keepalive_ticks: usize) -> Result<(), TunnelError> 
 where
     R1: Stream<Item=TunnelMessage, Error=ER1> + 'static,
     S1: Sink<SinkItem=TunnelMessage, SinkError=ES1> + 'static,
     R2: Stream<Item=TunnelMessage, Error=ER2> + 'static,
     S2: Sink<SinkItem=TunnelMessage, SinkError=ES2> + 'static,
+    TS: Stream<Item=TimerTick,Error=()> + 'static,
 {
 
-    let timer_stream = await!(timer_client.request_timer_stream())
-        .map_err(|_| TunnelError::RequestTimerStream)?;
     let timer_stream = timer_stream.map(|_| TunnelEvent::TimerTick)
         .map_err(|_| TunnelError::TimerStream)
         .chain(stream::once(Err(TunnelError::TimerClosed)));
@@ -239,10 +238,11 @@ mod tests {
         let (c_cb, b_cb) = mpsc::channel::<TunnelMessage>(0);
 
         let keepalive_ticks = 16;
+        let timer_stream = core.run(timer_client.request_timer_stream()).unwrap();
 
         let tloop = tunnel_loop(c_ac, c_ca, 
                                 c_bc, c_cb,
-                                timer_client,
+                                timer_stream,
                                 keepalive_ticks);
         handle.spawn(tloop.then(|e| {
             println!("tloop error occured: {:?}", e);
