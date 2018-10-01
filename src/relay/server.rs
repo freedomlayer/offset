@@ -306,7 +306,7 @@ mod tests {
         IncomingConnect, IncomingAccept};
 
     #[async]
-    fn task_relay_server_basic(handle: Handle) -> Result<(),()> {
+    fn task_relay_server_connect(handle: Handle) -> Result<(),()> {
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let timer_client = create_timer_incoming(tick_receiver, &handle).unwrap();
@@ -408,10 +408,10 @@ mod tests {
 
 
     #[test]
-    fn test_relay_server_basic() {
+    fn test_relay_server_connect() {
         let mut core = Core::new().unwrap();
         let handle = core.handle();
-        core.run(task_relay_server_basic(handle)).unwrap();
+        core.run(task_relay_server_connect(handle)).unwrap();
 
     }
 }
