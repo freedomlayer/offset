@@ -62,6 +62,7 @@ enum RelayServerEvent<ML,KL,MA,KA,MC,KC> {
     TimerTick,
 }
 
+#[derive(Debug)]
 enum RelayServerError {
     IncomingConnsError,
     RequestTimerStreamError,
@@ -289,3 +290,127 @@ where
     Ok(())
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::prelude::{async, await};
+    use futures::sync::{mpsc};
+    use futures::Future;
+    use tokio_core::reactor::{Core, Handle};
+
+    use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
+    use timer::create_timer_incoming;
+    use test::{receive /*, ReceiveError */};
+    use super::super::types::{IncomingListen, 
+        IncomingConnect, IncomingAccept};
+
+    #[async]
+    fn task_relay_server_basic(handle: Handle) -> Result<(),()> {
+        // Create a mock time service:
+        let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
+        let timer_client = create_timer_incoming(tick_receiver, &handle).unwrap();
+
+        let (outgoing_conns, incoming_conns) = mpsc::channel::<_>(0);
+
+        let keepalive_ticks: usize = 16;
+
+        let fut_relay_server = relay_server(timer_client,
+                     incoming_conns,
+                     keepalive_ticks,
+                     handle.clone());
+
+        handle.spawn(
+            fut_relay_server
+                .map_err(|e| {
+                    println!("relay_server() error: {:?}", e);
+                    ()
+                })
+        );
+
+        /*      a          c          b
+         * a_ca | <-- c_ca | c_cb --> | b_cb
+         *      |          |          |
+         * a_ac | --> c_ac | c_bc <-- | b_bc
+        */
+
+        let (a_ac, c_ac) = mpsc::channel::<RelayListenIn>(0);
+        let (c_ca, a_ca) = mpsc::channel::<RelayListenOut>(0);
+        let (mut b_bc, c_bc) = mpsc::channel::<TunnelMessage>(0);
+        let (c_cb, b_cb) = mpsc::channel::<TunnelMessage>(0);
+
+        let a_public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
+        let b_public_key = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+
+        let incoming_listen_a = IncomingListen {
+            receiver: c_ac.map_err(|_| ()),
+            sender: c_ca.sink_map_err(|_| ()),
+        };
+        let incoming_conn_a = IncomingConn {
+            public_key: a_public_key.clone(),
+            inner: IncomingConnInner::Listen(incoming_listen_a),
+        };
+
+        let outgoing_conns = await!(outgoing_conns.send(incoming_conn_a)).unwrap();
+
+        let incoming_connect_b = IncomingConnect {
+            receiver: c_bc.map_err(|_| ()),
+            sender: c_cb.sink_map_err(|_| ()),
+            connect_public_key: a_public_key.clone(),
+        };
+        let incoming_conn_b = IncomingConn {
+            public_key: b_public_key.clone(),
+            inner: IncomingConnInner::Connect(incoming_connect_b),
+        };
+
+        let outgoing_conns = await!(outgoing_conns.send(incoming_conn_b)).unwrap();
+
+        let (msg, _new_a_ca) = await!(receive(a_ca)).unwrap();
+        assert_eq!(msg, RelayListenOut::IncomingConnection(
+                IncomingConnection(b_public_key.clone())));
+
+        // Open a new connection to Accept:
+        let (mut a_ac1, c_ac1) = mpsc::channel::<TunnelMessage>(0);
+        let (c_ca1, a_ca1) = mpsc::channel::<TunnelMessage>(0);
+
+        let incoming_accept_a = IncomingAccept {
+            receiver: c_ac1.map_err(|_| ()),
+            sender: c_ca1.sink_map_err(|_| ()),
+            accept_public_key: b_public_key.clone(),
+        };
+        let incoming_conn_accept_a = IncomingConn {
+            public_key: a_public_key.clone(),
+            inner: IncomingConnInner::Accept(incoming_accept_a),
+        };
+
+        let _outgoing_conns = await!(outgoing_conns.send(incoming_conn_accept_a)).unwrap();
+
+        a_ac1 = await!(a_ac1.send(TunnelMessage::Message(vec![1,2,3]))).unwrap();
+        let (msg, _new_b_cb) = await!(receive(b_cb)).unwrap();
+        // b_cb = new_b_cb;
+        assert_eq!(msg, TunnelMessage::Message(vec![1,2,3]));
+
+        b_bc = await!(b_bc.send(TunnelMessage::Message(vec![4,3,2,1]))).unwrap();
+        let (msg, _new_a_ca1) = await!(receive(a_ca1)).unwrap();
+        // a_ca1 = new_a_ca1;
+        assert_eq!(msg, TunnelMessage::Message(vec![4,3,2,1]));
+
+        // drop(b_bc);
+        // assert_eq!(ReceiveError::Closed, await!(receive(a_ca1)).err().unwrap());
+
+        drop(a_ac);
+        // drop(a_ca);
+        drop(a_ac1);
+        drop(b_bc);
+        Ok(())
+    }
+
+
+    #[test]
+    fn test_relay_server_basic() {
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+        core.run(task_relay_server_basic(handle)).unwrap();
+
+    }
+}
