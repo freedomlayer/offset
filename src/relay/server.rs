@@ -391,3 +391,68 @@ where
     }
     Ok(())
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
+    use super::super::serialize::serialize_init_connection;
+
+    #[test]
+    fn test_dispatch_conn_basic() {
+        let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
+        let first_msg = InitConnection::Listen;
+        let ser_first_msg = serialize_init_connection(&first_msg);
+        let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
+        let incoming_conn = dispatch_conn(receiver.map_err(|_| ()), 
+                                          sender.sink_map_err(|_| ()), 
+                                          public_key.clone(), ser_first_msg).unwrap();
+        assert_eq!(incoming_conn.public_key, public_key);
+        match incoming_conn.inner {
+            IncomingConnInner::Listen(incoming_listen) => {},
+            _ => panic!("Wrong IncomingConnInner"),
+        };
+
+        let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
+        let accept_public_key = PublicKey::from(&[0x22; PUBLIC_KEY_LEN]);
+        let first_msg = InitConnection::Accept(accept_public_key.clone());
+        let ser_first_msg = serialize_init_connection(&first_msg);
+        let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
+        let incoming_conn = dispatch_conn(receiver.map_err(|_| ()), 
+                                          sender.sink_map_err(|_| ()), 
+                                          public_key.clone(), ser_first_msg).unwrap();
+        assert_eq!(incoming_conn.public_key, public_key);
+        match incoming_conn.inner {
+            IncomingConnInner::Accept(incoming_accept) => 
+                assert_eq!(incoming_accept.accept_public_key, accept_public_key),
+            _ => panic!("Wrong IncomingConnInner"),
+        };
+
+        let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
+        let connect_public_key = PublicKey::from(&[0x33; PUBLIC_KEY_LEN]);
+        let first_msg = InitConnection::Connect(connect_public_key.clone());
+        let ser_first_msg = serialize_init_connection(&first_msg);
+        let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
+        let incoming_conn = dispatch_conn(receiver.map_err(|_| ()), 
+                                          sender.sink_map_err(|_| ()), 
+                                          public_key.clone(), ser_first_msg).unwrap();
+        assert_eq!(incoming_conn.public_key, public_key);
+        match incoming_conn.inner {
+            IncomingConnInner::Connect(incoming_connect) => 
+                assert_eq!(incoming_connect.connect_public_key, connect_public_key),
+            _ => panic!("Wrong IncomingConnInner"),
+        };
+    }
+
+    #[test]
+    fn test_dispatch_conn_invalid_first_msg() {
+        let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
+        let ser_first_msg = b"This is an invalid message".to_vec();
+        let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
+        let res = dispatch_conn(receiver.map_err(|_| ()), 
+                                          sender.sink_map_err(|_| ()), 
+                                          public_key.clone(), ser_first_msg);
+        assert!(res.is_none());
+    }
+}
