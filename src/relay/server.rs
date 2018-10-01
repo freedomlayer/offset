@@ -64,6 +64,55 @@ where
     })
 }
 
+fn process_conn<M,K,ME,KE,TS>(receiver: M, 
+                sender: K, 
+                public_key: PublicKey,
+                timer_stream: TS,
+                conn_timeout_ticks: usize) -> impl Future<Item=Option<
+                             IncomingConn<impl Stream<Item=RelayListenIn,Error=()>,
+                                          impl Sink<SinkItem=RelayListenOut,SinkError=()>,
+                                          impl Stream<Item=TunnelMessage,Error=()>,
+                                          impl Sink<SinkItem=TunnelMessage,SinkError=()>,
+                                          impl Stream<Item=TunnelMessage,Error=()>,
+                                          impl Sink<SinkItem=TunnelMessage,SinkError=()>>>,
+                        Error=()>
+
+where
+    M: Stream<Item=Vec<u8>, Error=ME>,
+    K: Sink<SinkItem=Vec<u8>, SinkError=KE>,
+    TS: Stream<Item=TimerTick, Error=()>,
+{
+    let conn_timeout_ticks = usize_to_u64(conn_timeout_ticks).unwrap();
+    let fut_receiver = 
+        receiver
+        .into_future()
+        .then(|res| {
+            Ok(match res {
+                Ok((opt_first_msg, receiver)) => {
+                    match opt_first_msg {
+                        Some(first_msg) => dispatch_conn(receiver, sender, public_key, first_msg),
+                        None => None,
+                    }
+                },
+                Err(_) => None,
+            })
+        });
+
+    let fut_time = timer_stream
+        .take(conn_timeout_ticks)
+        .for_each(|_| {
+            Ok(())
+        })
+        .map(|_| {
+            None
+        });
+
+    fut_receiver
+        .select(fut_time)
+        .map_err(|_| ())
+        .and_then(|(value, _last_future)| Ok(value))
+}
+
 
 /// Process incoming connections
 /// For each connection obtain the first message, and prepare the correct type according to this
@@ -84,8 +133,8 @@ where
     M: Stream<Item=Vec<u8>, Error=ME>,
     K: Sink<SinkItem=Vec<u8>, SinkError=KE>,
 {
-    let incoming_conns = incoming_conns.map_err(|_| ());
-    let conn_timeout_ticks = usize_to_u64(conn_timeout_ticks).unwrap();
+    let incoming_conns = incoming_conns.map_err(|_| ())
+        .then(|res| res);
     let timer_streams = stream::iter_ok::<_, ()>(iter::repeat(()))
         .map_err(|_| ())
         .and_then(move |()| {
@@ -94,31 +143,9 @@ where
         });
 
     incoming_conns.zip(timer_streams)
-    .and_then(move |((receiver, sender, public_key), timer_stream)| {
-        let fut_receiver = 
-            receiver
-            .into_future()
-            .then(|res| {
-                Ok(match res {
-                    Ok((opt_first_msg, receiver)) => {
-                        match opt_first_msg {
-                            Some(first_msg) => dispatch_conn(receiver, sender, public_key, first_msg),
-                            None => None,
-                        }
-                    },
-                    Err(_) => None,
-                })
-            });
-
-        let fut_time = timer_stream
-            .take(conn_timeout_ticks)
-            .for_each(|_| Ok(()))
-            .map(|_| None);
-
-        fut_receiver
-            .select(fut_time)
-            .map_err(|_| ())
-    }).and_then(|(value, _last_future)| Ok(value))
+    .and_then(move |((receiver, sender, public_key), timer_stream)|
+        process_conn(receiver, sender, public_key, 
+                     timer_stream, conn_timeout_ticks))
     .filter_map(|opt_conn| opt_conn)
 }
 
@@ -468,16 +495,6 @@ mod tests {
         assert!(res.is_none());
     }
 
-
-    /*
-    #[async]
-    fn first_message_sender(remote_sender: mpsc::Sender<Vec<u8>>, 
-                            ser_first_msg: Vec<u8>) -> Result<(),()> {
-        remote_sender.send(ser_first_msg)
-        Ok(())
-    }
-    */
-
     #[test]
     fn test_conn_processor_basic() {
         let mut core = Core::new().unwrap();
@@ -507,7 +524,7 @@ mod tests {
                      .then(|res| {
                          match res {
                              Ok(_remote_sender) => Ok(()),
-                             Err(_) => panic!("Sending first message failed!"),
+                             Err(_) => unreachable!("Sending first message failed!"),
                          }
                      })
         );
@@ -525,14 +542,68 @@ mod tests {
     }
 
     /*
+    #[async]
+    fn delayed_first_message_sender(handle: Handle) -> Result<(),()> {
+
+        // Create a mock time service:
+        let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
+        let timer_client = create_timer_incoming(tick_receiver, &handle).unwrap();
+
+        let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
+        let (local_sender, remote_receiver) = mpsc::channel::<Vec<u8>>(0);
+        let (remote_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
+
+        /*
+        let incoming_conns = stream::iter_ok::<_, ()>(
+            vec![(local_receiver, local_sender, public_key.clone())])
+            .map_err(|_| ());
+        */
+
+        let outgoing_conn = (local_receiver, local_sender, public_key.clone());
+        let (outgoing_conns, incoming_conns) = mpsc::channel::<_>(0);
+
+        let conn_timeout_ticks = 16;
+        let processed_conns = conn_processor(timer_client, 
+                       incoming_conns, 
+                       conn_timeout_ticks);
+
+        let first_msg = InitConnection::Listen;
+        let ser_first_msg = serialize_init_connection(&first_msg);
+
+        let mut outgoing_conns = outgoing_conns.sink_map_err(|_| ());
+        outgoing_conns = await!(outgoing_conns.send(outgoing_conn)).unwrap();
+
+        let (res_sender, res_receiver) = oneshot::channel();
+        handle.spawn(receive(processed_conns)
+            .then(|res| {
+                res_sender.send(res);
+                Ok(())
+            }));
+
+        // Off by one in timeout?
+        for i in 0 .. 16usize {
+            println!("Send tick");
+            tick_sender = await!(tick_sender.send(())).unwrap();
+        }
+
+        let closed_error = await!(receive(remote_receiver));
+        assert_eq!(closed_error.err().unwrap(), ReceiveError::Closed);
+
+
+        let closed_error = await!(res_receiver).unwrap();
+        assert_eq!(closed_error.err().unwrap(), ReceiveError::Closed);
+
+        let res = await!(remote_sender.send(ser_first_msg));
+        println!("res = {:?}", res);
+        assert!(res.is_err());
+        Ok(())
+    }
+
     #[test]
     fn test_conn_processor_timeout() {
         let mut core = Core::new().unwrap();
         let handle = core.handle();
-
-        // Create a mock time service:
-        let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let timer_client = create_timer_incoming(tick_receiver, &handle).unwrap();
+        core.run(delayed_first_message_sender(handle)).unwrap();
     }
     */
 }
