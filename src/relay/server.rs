@@ -414,4 +414,115 @@ mod tests {
         core.run(task_relay_server_connect(handle)).unwrap();
 
     }
+
+    
+    #[async]
+    fn task_relay_server_reject(handle: Handle) -> Result<(),()> {
+        // Create a mock time service:
+        let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
+        let timer_client = create_timer_incoming(tick_receiver, &handle).unwrap();
+
+        let (mut outgoing_conns, incoming_conns) = mpsc::channel::<_>(0);
+
+        let keepalive_ticks: usize = 16;
+
+        let fut_relay_server = relay_server(timer_client,
+                     incoming_conns,
+                     keepalive_ticks,
+                     handle.clone());
+
+        handle.spawn(
+            fut_relay_server
+                .map_err(|e| {
+                    println!("relay_server() error: {:?}", e);
+                    ()
+                })
+        );
+
+        /*      a          c          b
+         * a_ca | <-- c_ca | c_cb --> | b_cb
+         *      |          |          |
+         * a_ac | --> c_ac | c_bc <-- | b_bc
+        */
+
+        let (mut a_ac, c_ac) = mpsc::channel::<RelayListenIn>(0);
+        let (c_ca, mut a_ca) = mpsc::channel::<RelayListenOut>(0);
+        let (b_bc, c_bc) = mpsc::channel::<TunnelMessage>(0);
+        let (c_cb, b_cb) = mpsc::channel::<TunnelMessage>(0);
+
+        let a_public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
+        let b_public_key = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+
+        let incoming_listen_a = IncomingListen {
+            receiver: c_ac.map_err(|_| ()),
+            sender: c_ca.sink_map_err(|_| ()),
+        };
+        let incoming_conn_a = IncomingConn {
+            public_key: a_public_key.clone(),
+            inner: IncomingConnInner::Listen(incoming_listen_a),
+        };
+
+        outgoing_conns = await!(outgoing_conns.send(incoming_conn_a)).unwrap();
+
+        let incoming_connect_b = IncomingConnect {
+            receiver: c_bc.map_err(|_| ()),
+            sender: c_cb.sink_map_err(|_| ()),
+            connect_public_key: a_public_key.clone(),
+        };
+        let incoming_conn_b = IncomingConn {
+            public_key: b_public_key.clone(),
+            inner: IncomingConnInner::Connect(incoming_connect_b),
+        };
+
+        outgoing_conns = await!(outgoing_conns.send(incoming_conn_b)).unwrap();
+
+        let (msg, new_a_ca) = await!(receive(a_ca)).unwrap();
+        a_ca = new_a_ca;
+        assert_eq!(msg, RelayListenOut::IncomingConnection(
+                IncomingConnection(b_public_key.clone())));
+
+        // This is done to help the compiler deduce the types for 
+        // IncomingConn:
+        if false {
+            // Open a new connection to Accept:
+            let (_a_ac1, c_ac1) = mpsc::channel::<TunnelMessage>(0);
+            let (c_ca1, _a_ca1) = mpsc::channel::<TunnelMessage>(0);
+
+            let incoming_accept_a = IncomingAccept {
+                receiver: c_ac1.map_err(|_| ()),
+                sender: c_ca1.sink_map_err(|_| ()),
+                accept_public_key: b_public_key.clone(),
+            };
+            let incoming_conn_accept_a = IncomingConn {
+                public_key: a_public_key.clone(),
+                inner: IncomingConnInner::Accept(incoming_accept_a),
+            };
+            outgoing_conns = await!(outgoing_conns.send(incoming_conn_accept_a)).unwrap();
+        }
+
+        // A rejects B's connection:
+        let reject_connection = RelayListenIn::RejectConnection(
+            RejectConnection(b_public_key));
+        a_ac = await!(a_ac.send(reject_connection)).unwrap();
+
+        // B should be notified that the connection is closed:
+        assert_eq!(ReceiveError::Closed, await!(receive(b_cb)).err().unwrap());
+
+        // Drop here, to make sure values are not automatically dropped earlier:
+        drop(a_ac);
+        drop(a_ca);
+        // drop(b_cb);
+        drop(b_bc);
+        drop(outgoing_conns);
+        Ok(())
+    }
+
+
+    #[test]
+    fn test_relay_server_reject() {
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+        core.run(task_relay_server_reject(handle)).unwrap();
+
+    }
 }
