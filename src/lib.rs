@@ -5,6 +5,7 @@
 #![feature(never_type)]
 #![cfg_attr(not(feature = "cargo-clippy"), allow(unknown_lints))]
 #![cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
+#![type_length_limit="2097152"]
 
 extern crate byteorder;
 extern crate bytes;
@@ -49,6 +50,9 @@ pub mod identity;
 pub mod timer;
 pub mod secure_channel;
 pub mod relay;
+
+#[cfg(test)]
+pub mod test;
 
 
 mod proto;
