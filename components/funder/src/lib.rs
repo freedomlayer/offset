@@ -10,7 +10,6 @@
 
 extern crate byteorder;
 extern crate bytes;
-extern crate capnp;
 // extern crate futures;
 extern crate futures_await as futures;
 extern crate futures_cpupool;
