@@ -1,0 +1,22 @@
+[package]
+name = "cswitch-utils"
+version = "0.1.0"
+authors = ["real <real@freedomlayer.org>"]
+
+[dependencies]
+log = "0.4"
+
+async_mutex = { git = "https://github.com/realcr/async_mutex", rev = "a1d973ed7" }
+
+bytes = "0.4"
+futures = "0.1"
+tokio-io = "0.1"
+tokio-core = "0.1"
+tokio-codec = "0.1"
+futures-await = "0.1"
+
+serde = "1"
+byteorder = "1.1"
+
+[dev-dependencies]
+

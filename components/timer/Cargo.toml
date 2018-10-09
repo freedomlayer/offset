@@ -1,0 +1,15 @@
+[package]
+name = "cswitch-timer"
+version = "0.1.0"
+authors = ["real <real@freedomlayer.org>"]
+
+[dependencies]
+
+bytes = "0.4"
+futures = "0.1"
+tokio-core = "0.1"
+futures-await = "0.1"
+
+[dev-dependencies]
+
+

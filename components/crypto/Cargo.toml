@@ -1,0 +1,25 @@
+[package]
+name = "cswitch-crypto"
+version = "0.1.0"
+authors = ["real <real@freedomlayer.org>"]
+
+[dependencies]
+
+cswitch-utils = { path = "../utils", version = "0.1.0" }
+
+rand = "0.5"
+ring = "=0.13.0-alpha"
+untrusted = "0.6"
+
+serde = "1"
+serde_derive = "1"
+bytes = "0.4"
+base64 = "0.9"
+
+[dependencies.byteorder]
+version = "1.1"
+features = ["i128"]
+
+[dev-dependencies]
+
+
