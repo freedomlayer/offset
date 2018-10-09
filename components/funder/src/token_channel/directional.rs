@@ -4,7 +4,7 @@ use std::convert::TryFrom;
 use byteorder::{BigEndian, WriteBytesExt};
 
 use crypto::identity::PublicKey;
-use crypto::rand_values::{RandValue, RAND_VALUE_LEN};
+use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
 
 use utils::int_convert::usize_to_u64;

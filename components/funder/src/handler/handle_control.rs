@@ -1,11 +1,10 @@
 #![allow(unused)]
 use futures::prelude::{async, await};
-use ring::rand::SecureRandom;
 
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 use crypto::hash::HashResult;
-use crypto::rand_values::RandValue;
+use crypto::crypto_rand::{RandValue, CryptoRandom};
 
 use super::super::token_channel::types::TcMutation;
 use super::super::token_channel::directional::{DirectionalMutation, 
@@ -44,7 +43,7 @@ pub enum HandleControlError {
 
 
 #[allow(unused)]
-impl<A:Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
+impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
     fn control_set_friend_remote_max_debt(&mut self, 
                                             set_friend_remote_max_debt: SetFriendRemoteMaxDebt) 

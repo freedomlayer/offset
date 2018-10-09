@@ -1,5 +1,5 @@
 use futures::prelude::{async, await};
-use ring::rand::SecureRandom;
+use crypto::crypto_rand::CryptoRandom;
 
 use super::MutableFunderHandler;
 use super::super::friend::ChannelStatus;
@@ -14,7 +14,7 @@ pub enum HandleLivenessError {
 }
 
 #[allow(unused)]
-impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
+impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
     #[async]
     pub fn handle_liveness_message(mut self, 

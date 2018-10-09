@@ -5,9 +5,7 @@ use futures::prelude::{async, await};
 use num_bigint::BigUint;
 use num_traits::ToPrimitive;
 
-use ring::rand::SecureRandom;
-
-use crypto::rand_values::RandValue;
+use crypto::crypto_rand::{RandValue, CryptoRandom};
 use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
 
@@ -54,7 +52,7 @@ pub enum HandleFriendError {
 
 
 #[allow(unused)]
-impl<A: Clone + 'static, R: SecureRandom + 'static> MutableFunderHandler<A,R> {
+impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
     /// Check if channel reset is required (Remove side used the RESET token)
     /// If so, reset the channel.

@@ -6,7 +6,7 @@ use utils::int_convert::{usize_to_u64};
 
 use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
-use crypto::rand_values::RandValue;
+use crypto::crypto_rand::RandValue;
 use crypto::hash;
 use crypto::hash::HashResult;
 

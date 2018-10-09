@@ -9,10 +9,10 @@ use futures::prelude::{async, await};
 
 use std::rc::Rc;
 use identity::IdentityClient;
-use ring::rand::SecureRandom;
 
 use crypto::uid::Uid;
 use crypto::identity::PublicKey;
+use crypto::crypto_rand::CryptoRandom;
 
 use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError};
@@ -143,7 +143,7 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
 
 }
 
-fn gen_mutable<A:Clone, R: SecureRandom>(identity_client: IdentityClient,
+fn gen_mutable<A:Clone, R: CryptoRandom>(identity_client: IdentityClient,
                        rng: Rc<R>,
                        funder_state: &FunderState<A>,
                        funder_ephemeral: &FunderEphemeral) -> MutableFunderHandler<A,R> {
@@ -160,7 +160,7 @@ fn gen_mutable<A:Clone, R: SecureRandom>(identity_client: IdentityClient,
 }
 
 #[async]
-pub fn funder_handle_message<A: Clone + 'static, R: SecureRandom + 'static>(
+pub fn funder_handle_message<A: Clone + 'static, R: CryptoRandom + 'static>(
                       identity_client: IdentityClient,
                       rng: Rc<R>,
                       funder_state: FunderState<A>,

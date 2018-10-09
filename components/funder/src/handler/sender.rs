@@ -1,7 +1,5 @@
-use ring::rand::SecureRandom;
-
 use crypto::identity::PublicKey;
-use crypto::rand_values::RandValue;
+use crypto::crypto_rand::{RandValue, CryptoRandom};
 
 use super::{
     MutableFunderHandler, MAX_MOVE_TOKEN_LENGTH};
@@ -57,7 +55,7 @@ impl OperationsBatch {
 
 
 
-impl<A:Clone,R: SecureRandom> MutableFunderHandler<A,R> {
+impl<A:Clone,R: CryptoRandom> MutableFunderHandler<A,R> {
     /// Queue as many messages as possible into available token channel.
     fn queue_outgoing_operations(&mut self,
                            remote_public_key: &PublicKey,

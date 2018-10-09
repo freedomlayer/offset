@@ -1,5 +1,5 @@
 use futures::prelude::{async, await};
-use ring::rand::SecureRandom;
+use crypto::crypto_rand::CryptoRandom;
 
 use super::MutableFunderHandler;
 use super::super::token_channel::directional::MoveTokenDirection;
@@ -12,7 +12,7 @@ pub enum HandleInitError {
 }
 
 #[allow(unused)]
-impl<A: Clone, R: SecureRandom> MutableFunderHandler<A,R> {
+impl<A: Clone, R: CryptoRandom> MutableFunderHandler<A,R> {
 
     pub fn handle_init(&mut self) {
         let mut enabled_friends = Vec::new();

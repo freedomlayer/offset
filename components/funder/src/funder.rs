@@ -7,7 +7,6 @@ use futures_cpupool::CpuPool;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use ring::rand::SecureRandom;
 
 use state::FunderState;
 use ephemeral::FunderEphemeral;
@@ -17,6 +16,7 @@ use types::{FunderOutgoing, FunderIncoming, ResponseReceived,
                     FunderOutgoingControl, FunderOutgoingComm};
 use database::{DbCore, DbRunner, DbRunnerError};
 
+use crypto::crypto_rand::CryptoRandom;
 use identity::IdentityClient;
 
 
@@ -38,7 +38,7 @@ struct Funder<A: Clone, R> {
     db_core: DbCore<A>,
 }
 
-impl<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: SecureRandom + 'static> Funder<A,R> {
+impl<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: CryptoRandom + 'static> Funder<A,R> {
     #[async]
     fn run(mut self) -> Result<!, FunderError> {
 
