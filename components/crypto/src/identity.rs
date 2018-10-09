@@ -4,6 +4,7 @@ use ring::signature;
 
 use super::CryptoError;
 use utils::big_array::BigArray;
+use crypto_rand::CryptoRandom;
 
 pub const PUBLIC_KEY_LEN: usize = 32;
 pub const SIGNATURE_LEN: usize = 64;
@@ -17,6 +18,11 @@ impl Signature {
     pub fn zero() -> Signature {
         Signature([0x00u8; SIGNATURE_LEN])
     }
+}
+
+/// Generate a pkcs8 key pair
+pub fn generate_pkcs8_key_pair<R: CryptoRandom>(rng: &R) -> [u8; 85]  {
+    ring::signature::Ed25519KeyPair::generate_pkcs8(rng).unwrap()
 }
 
 /// A generic interface for signing and verifying messages.
