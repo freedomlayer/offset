@@ -6,7 +6,6 @@
 #![type_length_limit="2097152"]
 
 extern crate futures_await as futures;
-extern crate futures_cpupool;
 extern crate tokio_core;
 #[macro_use]
 extern crate log;
