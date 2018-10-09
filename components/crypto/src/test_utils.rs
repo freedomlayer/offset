@@ -2,6 +2,11 @@ use std::cell::RefCell;
 
 use rand::{self, Rng, StdRng};
 use ring::{error::Unspecified, rand::SecureRandom};
+use crypto_rand::CryptoRandom;
+
+pub use ring::test::rand::FixedByteRandom;
+
+impl CryptoRandom for FixedByteRandom {}
 
 pub struct DummyRandom<R> {
     rng: RefCell<R>,
@@ -27,3 +32,7 @@ impl<R: Rng> SecureRandom for DummyRandom<R> {
         Ok(())
     }
 }
+
+impl <R:Rng> CryptoRandom for DummyRandom<R> {}
+
+
