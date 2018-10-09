@@ -1,55 +1,13 @@
-[package]
-name = "cswitch"
-version = "0.1.0"
-authors = ["real <real@freedomlayer.org>"]
-build = "build.rs"
 
-[[bin]]
-name = "main"
-path = "src/bin/main.rs"
+[workspace]
 
-[dependencies]
-log = "0.4"
-pretty_env_logger = "0.2"
-
-rand = "0.5"
-ring = "=0.13.0-alpha"
-untrusted = "0.6"
-
-bytes = "0.4"
-futures = "0.1"
-tokio-io = "0.1"
-tokio-core = "0.1"
-tokio-codec = "0.1"
-futures-await = "0.1"
-futures-cpupool = "0.1.8"
-
-capnp = "0.8"
-# rusqlite = "0.13"
-
-async_mutex = { git = "https://github.com/realcr/async_mutex", rev = "a1d973ed7" }
-
-num-bigint = "0.2.0"
-num-traits = "0.2.4"
-
-serde = "1"
-serde_derive = "1"
-serde_json = "1.0.27"
-base64 = "0.9"
-
-atomicwrites = "0.2.2"
-
-im = {version = "12.0.0", features = ["serde"]}
-
-
-[dev-dependencies]
-
-[dependencies.byteorder]
-version = "1.1"
-features = ["i128"]
-
-[build-dependencies]
-capnpc = "0.8"
-
-[profile.release]
-debug = true
+members = [
+  "components/funder",
+  "components/utils",
+  "components/proto",
+  "components/crypto",
+  "components/identity",
+  "components/timer",
+  "components/relay",
+  "components/secure_channel",
+]
