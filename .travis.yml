@@ -23,7 +23,7 @@ matrix:
           sources:
             - ubuntu-toolchain-r-test
       script:
-        - cargo clean && cargo clippy
+        - cargo clean && cargo test
       after_success:
         - travis/trusty/after-success.sh
 
