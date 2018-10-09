@@ -3,11 +3,11 @@ use std::io;
 use std::convert::TryFrom;
 use capnp;
 use capnp::serialize_packed;
-use proto::dh_capnp;
+use dh_capnp;
 use crypto::identity::{PublicKey, Signature};
 use crypto::crypto_rand::RandValue;
 use crypto::dh::{DhPublicKey, Salt};
-use proto::capnp_custom_int::{read_custom_u_int128, write_custom_u_int128,
+use capnp_custom_int::{read_custom_u_int128, write_custom_u_int128,
                                 read_custom_u_int256, write_custom_u_int256,
                                 read_custom_u_int512, write_custom_u_int512};
 // use dh_capnp::{plain, exchange_rand_nonce, exchange_dh, rekey};

@@ -8,9 +8,9 @@ use crypto::identity::{PublicKey, Signature, verify_signature};
 use crypto::dh::{DhPrivateKey, Salt};
 use crypto::sym_encrypt::{Encryptor, Decryptor};
 use identity::IdentityClient;
-use super::messages::{ExchangeRandNonce, ExchangeDh, ChannelContent,
+use proto::secure_channel::messages::{ExchangeRandNonce, ExchangeDh, ChannelContent,
                     EncryptedData, PlainData, ChannelMessage, Rekey};
-use super::serialize::{serialize_channel_message, deserialize_channel_message};
+use proto::secure_channel::serialize::{serialize_channel_message, deserialize_channel_message};
 
 const MAX_RAND_PADDING: u16 = 0x100;
 

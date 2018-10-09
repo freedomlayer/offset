@@ -13,9 +13,9 @@ use identity::IdentityClient;
 use timer::TimerClient;
 
 use state::{ScStateInitial, ScStateHalf, ScState, ScStateError};
-use serialize::{serialize_exchange_rand_nonce, deserialize_exchange_rand_nonce,
+use proto::secure_channel::serialize::{serialize_exchange_rand_nonce, deserialize_exchange_rand_nonce,
                         serialize_exchange_dh, deserialize_exchange_dh};
-use messages::{EncryptedData, PlainData};
+use proto::secure_channel::messages::{EncryptedData, PlainData};
 
 
 struct SecureChannel {

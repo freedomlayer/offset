@@ -10,6 +10,7 @@ extern crate cswitch_crypto as crypto;
 pub mod macros;
 pub mod capnp_custom_int;
 pub mod relay;
+pub mod secure_channel;
 
 
 include_schema!(channeler_capnp, "channeler_capnp");
