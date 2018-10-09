@@ -17,11 +17,12 @@ pub mod macros;
 pub mod dh;
 pub mod hash;
 pub mod identity;
-pub mod rand_values;
+pub mod crypto_rand;
 pub mod sym_encrypt;
 pub mod test_utils;
 pub mod uid;
 pub mod nonce_window;
+
 
 pub use self::macros::TryFromBytesError;
 

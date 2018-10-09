@@ -6,8 +6,11 @@ pub const RAND_VALUE_LEN: usize = 16;
 
 define_fixed_bytes!(RandValue, RAND_VALUE_LEN);
 
+pub trait CryptoRandom: SecureRandom {}
+
+
 impl RandValue {
-    pub fn new<R: SecureRandom>(crypt_rng: &R) -> Self {
+    pub fn new<R: CryptoRandom>(crypt_rng: &R) -> Self {
         let mut rand_value = RandValue([0; RAND_VALUE_LEN]);
         crypt_rng.fill(&mut rand_value.0).unwrap();
         rand_value
@@ -26,7 +29,7 @@ pub struct RandValuesStore {
 }
 
 impl RandValuesStore {
-    pub fn new<R: SecureRandom>(
+    pub fn new<R: CryptoRandom>(
         crypt_rng: &R,
         rand_value_ticks: usize,
         num_rand_values: usize,
@@ -55,7 +58,7 @@ impl RandValuesStore {
     /// Apply a time tick over the store.
     /// If enough time ticks have occurred, a new rand value will be generated.
     #[inline]
-    pub fn time_tick<R: SecureRandom>(&mut self, crypt_rng: &R) {
+    pub fn time_tick<R: CryptoRandom>(&mut self, crypt_rng: &R) {
         self.ticks_left_to_next_rand_value -= 1;
         if self.ticks_left_to_next_rand_value == 0 {
             self.ticks_left_to_next_rand_value = self.rand_value_ticks;
