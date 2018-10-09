@@ -5,7 +5,7 @@ use capnp;
 use capnp::serialize_packed;
 use proto::dh_capnp;
 use crypto::identity::{PublicKey, Signature};
-use crypto::rand_values::RandValue;
+use crypto::crypto_rand::RandValue;
 use crypto::dh::{DhPublicKey, Salt};
 use proto::capnp_custom_int::{read_custom_u_int128, write_custom_u_int128,
                                 read_custom_u_int256, write_custom_u_int256,
@@ -162,7 +162,7 @@ pub fn deserialize_channel_message(data: &[u8]) -> Result<ChannelMessage, DhSeri
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crypto::rand_values::RAND_VALUE_LEN;
+    use crypto::crypto_rand::RAND_VALUE_LEN;
     use crypto::identity::{PUBLIC_KEY_LEN, SIGNATURE_LEN};
     use crypto::dh::{SALT_LEN, DH_PUBLIC_KEY_LEN};
 

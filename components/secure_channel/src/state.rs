@@ -1,10 +1,9 @@
 use std::mem;
 use std::rc::Rc;
 use futures::prelude::{async, await};
-use ring::rand::SecureRandom;
 use byteorder::{BigEndian, ByteOrder};
 
-use crypto::rand_values::RandValue;
+use crypto::crypto_rand::{RandValue, CryptoRandom};
 use crypto::identity::{PublicKey, Signature, verify_signature};
 use crypto::dh::{DhPrivateKey, Salt};
 use crypto::sym_encrypt::{Encryptor, Decryptor};
@@ -72,7 +71,7 @@ pub struct ScState {
 
 #[allow(unused)]
 impl ScStateInitial {
-    pub fn new<R: SecureRandom>(local_public_key: &PublicKey, rng: &R) -> (ScStateInitial, ExchangeRandNonce) {
+    pub fn new<R: CryptoRandom>(local_public_key: &PublicKey, rng: &R) -> (ScStateInitial, ExchangeRandNonce) {
         let local_rand_nonce = RandValue::new(rng);
 
         let sc_state_initial = ScStateInitial {
@@ -87,7 +86,7 @@ impl ScStateInitial {
     }
 
     #[async]
-    pub fn handle_exchange_rand_nonce<R: SecureRandom + 'static>(self, 
+    pub fn handle_exchange_rand_nonce<R: CryptoRandom + 'static>(self, 
                                                              exchange_rand_nonce: ExchangeRandNonce, 
                                                              identity_client: IdentityClient, rng:Rc<R>) 
                                                             -> Result<(ScStateHalf, ExchangeDh), ScStateError> {
@@ -168,7 +167,7 @@ pub struct HandleIncomingOutput {
 
 #[allow(unused)]
 impl ScState {
-    fn encrypt_outgoing<R: SecureRandom>(&mut self, channel_content: ChannelContent, rng: &R) -> EncryptedData {
+    fn encrypt_outgoing<R: CryptoRandom>(&mut self, channel_content: ChannelContent, rng: &R) -> EncryptedData {
         let channel_message = ChannelMessage {
             rand_padding: self.gen_rand_padding(rng),
             content: channel_content,
@@ -205,14 +204,14 @@ impl ScState {
     }
 
     /// Create an outgoing encrypted message
-    pub fn create_outgoing<R: SecureRandom>(&mut self, plain_data: &PlainData, rng: &R) -> EncryptedData {
+    pub fn create_outgoing<R: CryptoRandom>(&mut self, plain_data: &PlainData, rng: &R) -> EncryptedData {
         let content = ChannelContent::User(plain_data.clone());
         self.encrypt_outgoing(content, rng)
     }
 
     /// Generate random padding of random variable length
     /// Done to make it harder to collect metadata over lengths of messages
-    fn gen_rand_padding<R: SecureRandom>(&self, rng: &R) -> Vec<u8> {
+    fn gen_rand_padding<R: CryptoRandom>(&self, rng: &R) -> Vec<u8> {
         assert_eq!(MAX_RAND_PADDING & 0xff, 0);
 
         // Randomize the length of the random padding:
@@ -228,7 +227,7 @@ impl ScState {
     }
 
     /// Initiate rekeying. Outputs an encrypted message to send to remote side.
-    pub fn create_rekey<R: SecureRandom>(&mut self, rng: &R) -> Result<EncryptedData, ScStateError> {
+    pub fn create_rekey<R: CryptoRandom>(&mut self, rng: &R) -> Result<EncryptedData, ScStateError> {
         if self.opt_pending_rekey.is_some() {
             return Err(ScStateError::RekeyInProgress);
         }
@@ -248,7 +247,7 @@ impl ScState {
         Ok(self.encrypt_outgoing(ChannelContent::Rekey(rekey), rng))
     }
 
-    fn handle_incoming_rekey<R: SecureRandom>(&mut self, rekey: Rekey, rng: &R) 
+    fn handle_incoming_rekey<R: CryptoRandom>(&mut self, rekey: Rekey, rng: &R) 
         -> Result<HandleIncomingOutput, ScStateError> {
 
         match self.opt_pending_rekey.take() {
@@ -305,7 +304,7 @@ impl ScState {
     }
 
     /// Handle an incoming encrypted message
-    pub fn handle_incoming<R: SecureRandom>(&mut self, enc_data: &EncryptedData, rng: &R) 
+    pub fn handle_incoming<R: CryptoRandom>(&mut self, enc_data: &EncryptedData, rng: &R) 
         -> Result<HandleIncomingOutput, ScStateError> {
 
         match self.decrypt_incoming(enc_data)? {
@@ -324,9 +323,8 @@ mod tests {
     use futures::prelude::{async, await};
     use futures::Future;
     use tokio_core::reactor::Core;
-    use ring::test::rand::FixedByteRandom;
-    use ring::signature;
-    use crypto::identity::SoftwareEd25519Identity;
+    use crypto::test_utils::FixedByteRandom;
+    use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair};
     use identity::create_identity;
     use identity::IdentityClient;
 
@@ -349,7 +347,7 @@ mod tests {
         Ok((sc_state1, sc_state2))
     }
 
-    fn send_recv_messages<R: SecureRandom>(sc_state1: &mut ScState, sc_state2: &mut ScState, 
+    fn send_recv_messages<R: CryptoRandom>(sc_state1: &mut ScState, sc_state2: &mut ScState, 
                                            rng1: &R, rng2: &R) {
         // Send a few messages 1 -> 2
         for i in 0 .. 5 {
@@ -373,7 +371,7 @@ mod tests {
     }
 
 
-    fn rekey_sequential<R: SecureRandom>(sc_state1: &mut ScState, sc_state2: &mut ScState, 
+    fn rekey_sequential<R: CryptoRandom>(sc_state1: &mut ScState, sc_state2: &mut ScState, 
                                            rng1: &R, rng2: &R) {
 
         let rekey_enc_data1 = sc_state1.create_rekey(rng1).unwrap();
@@ -388,7 +386,7 @@ mod tests {
         assert_eq!(incoming_output.opt_incoming_message, None);
     }
 
-    fn rekey_simultaneous<R: SecureRandom>(sc_state1: &mut ScState, sc_state2: &mut ScState, 
+    fn rekey_simultaneous<R: CryptoRandom>(sc_state1: &mut ScState, sc_state2: &mut ScState, 
                                            rng1: &R, rng2: &R) {
 
         let rekey_enc_data1 = sc_state1.create_rekey(rng1).unwrap();
@@ -408,13 +406,13 @@ mod tests {
 
     fn prepare_dh_test() -> (ScState, ScState, FixedByteRandom, FixedByteRandom) {
         let rng1 = FixedByteRandom { byte: 0x1 };
-        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&rng1).unwrap();
+        let pkcs8 = generate_pkcs8_key_pair(&rng1);
         let identity1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
         let (requests_sender1, identity_server1) = create_identity(identity1);
         let identity_client1 = IdentityClient::new(requests_sender1);
 
         let rng2 = FixedByteRandom { byte: 0x2 };
-        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&rng2).unwrap();
+        let pkcs8 = generate_pkcs8_key_pair(&rng2);
         let identity2 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
         let (requests_sender2, identity_server2) = create_identity(identity2);
         let identity_client2 = IdentityClient::new(requests_sender2);

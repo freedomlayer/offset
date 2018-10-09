@@ -13,7 +13,6 @@ extern crate capnp;
 extern crate log;
 
 extern crate byteorder;
-extern crate ring;
 
 extern crate cswitch_crypto as crypto;
 extern crate cswitch_proto as proto;

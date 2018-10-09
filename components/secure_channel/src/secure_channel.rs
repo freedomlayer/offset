@@ -6,9 +6,9 @@ use futures::prelude::{async, await};
 use tokio_core::reactor::Handle;
 
 use futures::sync::mpsc;
-use ring::rand::SecureRandom;
 
 use crypto::identity::PublicKey;
+use crypto::crypto_rand::CryptoRandom;
 use identity::IdentityClient;
 use timer::TimerClient;
 
@@ -58,13 +58,13 @@ fn read_from_reader<EM, M: 'static>(reader: M) -> Result<(Vec<u8>, M), SecureCha
 }
 
 #[async]
-fn initial_exchange<EM, EK, M: 'static,K: 'static,R: SecureRandom + 'static>(reader: M, writer: K, 
+fn initial_exchange<EM, EK, M: 'static,K: 'static,R: CryptoRandom + 'static>(reader: M, writer: K, 
                               identity_client: IdentityClient,
                               opt_expected_remote: Option<PublicKey>,
                               rng: Rc<R>)
                             -> Result<(ScState, M, K), SecureChannelError>
 where
-    R: SecureRandom,
+    R: CryptoRandom,
     M: Stream<Item=Vec<u8>, Error=EM>,
     K: Sink<SinkItem=Vec<u8>, SinkError=EK>,
 {
@@ -116,7 +116,7 @@ enum SecureChannelEvent {
 
 
 #[async]
-fn secure_channel_loop<EM, EK, M: 'static,K: 'static, R: SecureRandom + 'static>(
+fn secure_channel_loop<EM, EK, M: 'static,K: 'static, R: CryptoRandom + 'static>(
                               mut dh_state: ScState,
                               reader: M, mut writer: K, 
                               from_user: mpsc::Receiver<Vec<u8>>,
@@ -126,7 +126,7 @@ fn secure_channel_loop<EM, EK, M: 'static,K: 'static, R: SecureRandom + 'static>
                               timer_client: TimerClient)
     -> Result<!, SecureChannelError>
 where
-    R: SecureRandom,
+    R: CryptoRandom,
     M: Stream<Item=Vec<u8>, Error=EM>,
     K: Sink<SinkItem=Vec<u8>, SinkError=EK>,
 {
@@ -194,7 +194,7 @@ where
 
 
 #[async]
-pub fn create_secure_channel<EM, EK, M: 'static,K: 'static,R: SecureRandom + 'static>(reader: M, writer: K, 
+pub fn create_secure_channel<EM, EK, M: 'static,K: 'static,R: CryptoRandom + 'static>(reader: M, writer: K, 
                               identity_client: IdentityClient,
                               opt_expected_remote: Option<PublicKey>,
                               rng: Rc<R>,
@@ -203,7 +203,7 @@ pub fn create_secure_channel<EM, EK, M: 'static,K: 'static,R: SecureRandom + 'st
                               handle: Handle)
     -> Result<SecureChannel, SecureChannelError>
 where
-    R: SecureRandom,
+    R: CryptoRandom,
     M: Stream<Item=Vec<u8>, Error=EM>,
     K: Sink<SinkItem=Vec<u8>, SinkError=EK>,
 {
@@ -254,11 +254,10 @@ mod tests {
     use futures::Future;
     use futures::sync::oneshot;
     use tokio_core::reactor::Core;
-    use ring::test::rand::FixedByteRandom;
-    use ring::signature;
-    use crypto::identity::{Identity, SoftwareEd25519Identity};
-    use identity::create_identity;
-    use identity::IdentityClient;
+    use crypto::test_utils::FixedByteRandom;
+    use crypto::identity::{Identity, SoftwareEd25519Identity,
+                            generate_pkcs8_key_pair};
+    use identity::{create_identity, IdentityClient};
 
     #[async]
     fn secure_channel1(fut_sc: impl Future<Item=SecureChannel, Error=SecureChannelError> + 'static,
@@ -307,14 +306,14 @@ mod tests {
         let timer_client = create_timer_incoming(tick_receiver, &handle).unwrap();
 
         let rng1 = FixedByteRandom { byte: 0x1 };
-        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&rng1).unwrap();
+        let pkcs8 = generate_pkcs8_key_pair(&rng1);
         let identity1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
         let public_key1 = identity1.get_public_key();
         let (requests_sender1, identity_server1) = create_identity(identity1);
         let identity_client1 = IdentityClient::new(requests_sender1);
 
         let rng2 = FixedByteRandom { byte: 0x2 };
-        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&rng2).unwrap();
+        let pkcs8 = generate_pkcs8_key_pair(&rng2);
         let identity2 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
         let public_key2 = identity2.get_public_key();
         let (requests_sender2, identity_server2) = create_identity(identity2);
