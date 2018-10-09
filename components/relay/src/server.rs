@@ -7,7 +7,7 @@ use tokio_core::reactor::Handle;
 use timer::{TimerTick, TimerClient};
 use crypto::identity::PublicKey;
 
-use super::messages::{TunnelMessage, RelayListenIn, 
+use proto::relay::messages::{TunnelMessage, RelayListenIn, 
     RelayListenOut, RejectConnection, IncomingConnection};
 
 use super::types::{IncomingConn, IncomingConnInner, 

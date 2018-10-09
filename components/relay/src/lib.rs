@@ -8,7 +8,6 @@
 extern crate futures_await as futures;
 extern crate futures_cpupool;
 extern crate tokio_core;
-extern crate capnp;
 #[macro_use]
 extern crate log;
 
@@ -18,8 +17,6 @@ extern crate cswitch_utils as utils;
 extern crate cswitch_timer as timer;
 
 
-mod messages;
-mod serialize;
 mod types;
 mod listener;
 mod tunnel;

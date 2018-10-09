@@ -1,7 +1,7 @@
 use futures::prelude::{async, await};
 use futures::{Stream, stream, Sink};
 use timer::TimerTick;
-use super::messages::TunnelMessage;
+use proto::relay::messages::TunnelMessage;
 
 #[derive(Debug)]
 pub enum TunnelError {

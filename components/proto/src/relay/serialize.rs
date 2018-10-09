@@ -4,10 +4,10 @@ use std::convert::TryFrom;
 use capnp;
 use capnp::serialize_packed;
 use crypto::identity::PublicKey;
-use proto::capnp_custom_int::{read_custom_u_int256, 
+use capnp_custom_int::{read_custom_u_int256, 
                                 write_custom_u_int256};
 
-use proto::relay_capnp;
+use relay_capnp;
 
 use super::messages::{InitConnection, RelayListenIn, 
     RelayListenOut, TunnelMessage, RejectConnection, IncomingConnection};
@@ -238,3 +238,4 @@ mod tests {
         assert_eq!(msg, msg2);
     }
 }
+

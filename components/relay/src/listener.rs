@@ -4,7 +4,7 @@ use futures::{stream, Stream, Sink, Future};
 use futures::sync::mpsc;
 use tokio_core::reactor::Handle;
 use timer::TimerTick;
-use super::messages::{RelayListenOut, RelayListenIn,
+use proto::relay::messages::{RelayListenOut, RelayListenIn,
                         RejectConnection, IncomingConnection};
 
 #[derive(Debug)]

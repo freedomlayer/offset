@@ -5,6 +5,9 @@ authors = ["real <real@freedomlayer.org>"]
 build = "build.rs"
 
 [dependencies]
+
+cswitch-crypto = { path = "../crypto", version = "0.1.0" }
+
 log = "0.4"
 pretty_env_logger = "0.2"
 

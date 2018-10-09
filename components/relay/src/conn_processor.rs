@@ -6,11 +6,11 @@ use crypto::identity::PublicKey;
 use timer::{TimerTick, TimerClient};
 use utils::int_convert::usize_to_u64;
 
-use super::messages::{InitConnection, TunnelMessage, 
+use proto::relay::messages::{InitConnection, TunnelMessage, 
     RelayListenIn, RelayListenOut};
 use super::types::{IncomingConn, IncomingConnInner, 
     IncomingListen, IncomingAccept, IncomingConnect};
-use super::serialize::{deserialize_init_connection, deserialize_relay_listen_in,
+use proto::relay::serialize::{deserialize_init_connection, deserialize_relay_listen_in,
                         serialize_relay_listen_out, serialize_tunnel_message,
                         deserialize_tunnel_message};
 
@@ -155,7 +155,7 @@ mod tests {
     use timer::create_timer_incoming;
     use utils::async_test_utils::{receive, ReceiveError};
 
-    use super::super::serialize::serialize_init_connection;
+    use proto::relay::serialize::serialize_init_connection;
 
     #[test]
     fn test_dispatch_conn_basic() {
