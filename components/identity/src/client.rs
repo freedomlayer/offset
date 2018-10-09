@@ -68,17 +68,17 @@ impl IdentityClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ring;
-    use ring::test::rand::FixedByteRandom;
+    use crypto::test_utils::FixedByteRandom;
     use tokio_core::reactor::Core;
 
-    use crypto::identity::{verify_signature, SoftwareEd25519Identity};
+    use crypto::identity::{verify_signature, SoftwareEd25519Identity,
+                            generate_pkcs8_key_pair};
     use identity::create_identity;
 
     #[test]
     fn test_identity_consistent_public_key_with_client() {
         let secure_rand = FixedByteRandom { byte: 0x3 };
-        let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
+        let pkcs8 = generate_pkcs8_key_pair(&secure_rand);
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
         let (requests_sender, sm) = create_identity(identity);
@@ -98,7 +98,7 @@ mod tests {
     #[test]
     fn test_identity_request_sign_with_client() {
         let secure_rand = FixedByteRandom { byte: 0x3 };
-        let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
+        let pkcs8 = generate_pkcs8_key_pair(&secure_rand);
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
         let (requests_sender, sm) = create_identity(identity);

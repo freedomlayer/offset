@@ -6,7 +6,6 @@
 
 extern crate futures;
 extern crate tokio_core;
-extern crate ring;
 
 extern crate cswitch_crypto as crypto;
 

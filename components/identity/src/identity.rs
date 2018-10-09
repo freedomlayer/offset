@@ -43,16 +43,16 @@ mod tests {
     use super::*;
 
     use futures::sync::oneshot;
-    use ring;
     use tokio_core::reactor::Core;
-    use ring::test::rand::FixedByteRandom;
+    use crypto::test_utils::FixedByteRandom;
 
-    use crypto::identity::{verify_signature, SoftwareEd25519Identity};
+    use crypto::identity::{verify_signature, SoftwareEd25519Identity,
+                            generate_pkcs8_key_pair};
 
     #[test]
     fn test_identity_consistent_public_key() {
         let secure_rand = FixedByteRandom { byte: 0x3 };
-        let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
+        let pkcs8 = generate_pkcs8_key_pair(&secure_rand);
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
         let actual_public_key = identity.get_public_key();
         let (requests_sender, sm) = create_identity(identity);
@@ -82,7 +82,7 @@ mod tests {
     #[test]
     fn test_identity_request_signature_against_identity() {
         let secure_rand = FixedByteRandom { byte: 0x3 };
-        let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
+        let pkcs8 = generate_pkcs8_key_pair(&secure_rand);
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
         // Get the public key straight from the Identity
         let public_key = identity.get_public_key();
@@ -113,7 +113,7 @@ mod tests {
     #[test]
     fn test_identity_request_signature() {
         let secure_rand = FixedByteRandom { byte: 0x3 };
-        let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
+        let pkcs8 = generate_pkcs8_key_pair(&secure_rand);
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
 
