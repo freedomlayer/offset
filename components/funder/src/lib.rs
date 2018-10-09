@@ -34,14 +34,12 @@ extern crate atomicwrites;
 
 extern crate im;
 
+#[macro_use]
 extern crate cswitch_utils as utils;
 extern crate cswitch_crypto as crypto;
 extern crate cswitch_identity as identity;
 
-pub use self::macros::TryFromBytesError;
 
-#[macro_use]
-mod macros;
 pub mod messages;
 mod liveness;
 mod ephemeral;
