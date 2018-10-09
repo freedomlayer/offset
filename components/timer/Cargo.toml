@@ -3,47 +3,13 @@ name = "cswitch-timer"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 
-
 [dependencies]
-
-cswitch-utils = { path = "../utils", version = "0.1.0" }
-cswitch-crypto = { path = "../crypto", version = "0.1.0" }
-
-log = "0.4"
-pretty_env_logger = "0.2"
-
-rand = "0.5"
-untrusted = "0.6"
 
 bytes = "0.4"
 futures = "0.1"
-tokio-io = "0.1"
 tokio-core = "0.1"
-tokio-codec = "0.1"
 futures-await = "0.1"
-futures-cpupool = "0.1.8"
-
-capnp = "0.8"
-
-num-bigint = "0.2.0"
-num-traits = "0.2.4"
-
-serde = "1"
-serde_derive = "1"
-serde_json = "1.0.27"
-base64 = "0.9"
-
-atomicwrites = "0.2.2"
-
-im = {version = "12.0.0", features = ["serde"]}
-
 
 [dev-dependencies]
 
-[dependencies.byteorder]
-version = "1.1"
-features = ["i128"]
-
-[build-dependencies]
-capnpc = "0.8"
 
