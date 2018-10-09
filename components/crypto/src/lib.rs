@@ -24,7 +24,6 @@ pub mod uid;
 pub mod nonce_window;
 
 
-pub use self::macros::TryFromBytesError;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CryptoError;

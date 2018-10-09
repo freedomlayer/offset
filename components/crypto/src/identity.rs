@@ -113,12 +113,12 @@ impl<'a> ::std::convert::From<&'a [u8; SIGNATURE_LEN]> for Signature {
 }
 
 impl<'a> ::std::convert::TryFrom<&'a [u8]> for Signature {
-    type Error = ::TryFromBytesError;
+    type Error = ();
 
     #[inline]
-    fn try_from(src: &'a [u8]) -> Result<Signature, ::TryFromBytesError> {
+    fn try_from(src: &'a [u8]) -> Result<Signature, ()> {
         if src.len() < SIGNATURE_LEN {
-            Err(::TryFromBytesError)
+            Err(())
         } else {
             let mut inner = [0x00u8; SIGNATURE_LEN];
             inner.copy_from_slice(&src[..SIGNATURE_LEN]);
@@ -128,12 +128,12 @@ impl<'a> ::std::convert::TryFrom<&'a [u8]> for Signature {
 }
 
 impl<'a> ::std::convert::TryFrom<&'a ::bytes::Bytes> for Signature {
-    type Error = ::TryFromBytesError;
+    type Error = ();
 
     #[inline]
-    fn try_from(src: &'a ::bytes::Bytes) -> Result<Signature, ::TryFromBytesError> {
+    fn try_from(src: &'a ::bytes::Bytes) -> Result<Signature, ()> {
         if src.len() < SIGNATURE_LEN {
-            Err(::TryFromBytesError)
+            Err(())
         } else {
             let mut inner = [0x00u8; SIGNATURE_LEN];
             inner.copy_from_slice(&src[..SIGNATURE_LEN]);
