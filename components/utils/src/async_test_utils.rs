@@ -1,4 +1,3 @@
-use futures::prelude::{async, await};
 use futures::Stream;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -8,8 +7,7 @@ pub enum ReceiveError {
 }
 
 /// Util function to read one item from a Stream, asynchronously.
-#[async]
-pub fn receive<T, EM, M: 'static>(reader: M) -> Result<(T, M), ReceiveError>
+pub async fn receive<T, EM, M: 'static>(reader: M) -> Result<(T, M), ReceiveError>
     where M: Stream<Item=T, Error=EM>,
 {
     match await!(reader.into_future()) {
