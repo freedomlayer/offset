@@ -2,7 +2,7 @@
 //!
 //! ## Introduction
 //!
-//! The timer based on broadcast model. It send time tick to all clients
+//! The timer is based on broadcast model. It sends time tick to all clients
 //! periodically.
 //!
 //! ## The Timer Message Format
