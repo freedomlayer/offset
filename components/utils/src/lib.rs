@@ -4,14 +4,16 @@
 #![feature(try_from)]
 #![crate_type = "lib"] 
 
-#[macro_use]
 // extern crate futures;
 extern crate futures;
-#[macro_use]
+extern crate futures_util;
+extern crate tokio_codec;
+
 extern crate log;
 extern crate async_mutex;
 
 extern crate serde;
+extern crate core;
 
 
 pub mod int_convert;

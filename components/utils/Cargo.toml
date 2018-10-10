@@ -9,7 +9,8 @@ log = "0.4"
 async_mutex = { git = "https://github.com/realcr/async_mutex", rev = "a1d973ed7" }
 
 bytes = "0.4"
-futures-preview = "0.3.0-alpha.5"
+futures-preview = "0.3.0-alpha.7"
+futures-util-preview = {version = "0.3.0-alpha.7", features = ["compat"]}
 
 tokio-io = "0.1"
 tokio-core = "0.1"
