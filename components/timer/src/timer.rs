@@ -27,8 +27,6 @@ use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
 use futures::stream;
 
-use tokio_core::reactor::{Handle, Interval};
-
 pub struct TimerTick;
 
 #[derive(Debug)]
