@@ -205,13 +205,15 @@ mod tests {
     use futures::{Future, SinkExt};
     use futures::executor::LocalPool;
     use futures::task::SpawnExt;
-    use futures_util::compat::Compat;
+    use futures::io::{AsyncReadExt, AsyncWriteExt};
+
     use tokio_codec::{FramedRead, FramedWrite};
     use frame_codec::FrameCodec;
 
     // TODO: Tests here are very basic.
     // More tests are required.
 
+    /*
     async fn plain_sender(sender: impl Sink<SinkItem=Vec<u8>, SinkError=()> + std::marker::Unpin + 'static, 
                      reader_done_send: oneshot::Sender<bool>)  {
         let mut vec = vec![0u8,0,0,0x90];
@@ -239,7 +241,7 @@ mod tests {
     fn test_basic_async_reader() {
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let async_reader = AsyncReader::new(receiver);
-        let reader = FramedRead::new(Compat(async_reader), FrameCodec::new())
+        let reader = FramedRead::new(async_reader.compat(), FrameCodec::new())
             .map_err(|_| ());
         let sender = sender.sink_map_err(|_| ());
 
@@ -317,5 +319,70 @@ mod tests {
         spawner.spawn(frames_sender(writer, writer_done_send));
         assert_eq!(true, local_pool.run_until(reader_done_recv).unwrap());
         assert_eq!(true, local_pool.run_until(writer_done_recv).unwrap());
+    }
+    */
+
+    async fn task_basic_async_write() {
+        // We use a channel with a large buffer so that we don't need two tasks to run this test.
+        let (sender, mut receiver) = mpsc::channel::<Vec<u8>>(100);
+        let mut async_writer = AsyncWriter::new(sender, 0x11);
+
+        await!(async_writer.write_all(&[0; 0x90])).unwrap();
+        await!(async_writer.write_all(&[0; 0x75])).unwrap();
+        drop(async_writer);
+
+        let mut total_buf = Vec::new();
+        while let (Some(data), new_receiver) = await!(receiver.into_future()) {
+            receiver = new_receiver;
+            assert!(data.len() <= 0x11);
+            total_buf.extend(data);
+        }
+
+        let mut expected_buf = Vec::new();
+        expected_buf.extend(vec![0; 0x90 + 0x75]);
+
+        assert_eq!(expected_buf, total_buf);
+    }
+
+
+    #[test]
+    fn test_basic_async_write() {
+        let mut local_pool = LocalPool::new();
+        local_pool.run_until(task_basic_async_write());
+    }
+
+
+    async fn task_basic_async_read() {
+        // We use a channel with a large buffer so that we don't need two tasks to run this test.
+        let (mut sender, receiver) = mpsc::channel::<Vec<u8>>(100);
+        let mut async_reader = AsyncReader::new(receiver);
+
+        for i in 0 .. 20 {
+            await!(sender.send(vec![i; 0x10]));
+        }
+        drop(sender);
+
+        let mut total_buf = [0u8; 20 * 0x10];
+        let mut buf_pos = &mut total_buf[..];
+        while let (Ok(num_read)) = await!(async_reader.read(buf_pos)) {
+            if num_read == 0 {
+                break;
+            }
+            buf_pos = &mut buf_pos[num_read..];
+        }
+
+        let mut expected_buf = Vec::new();
+        for i in 0 .. 20 {
+            expected_buf.extend(vec![i; 0x10]);
+        }
+
+        assert_eq!(&expected_buf[..], &total_buf[..]);
+    }
+
+
+    #[test]
+    fn test_basic_async_read() {
+        let mut local_pool = LocalPool::new();
+        local_pool.run_until(task_basic_async_read());
     }
 }
