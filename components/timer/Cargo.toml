@@ -6,9 +6,7 @@ authors = ["real <real@freedomlayer.org>"]
 [dependencies]
 
 bytes = "0.4"
-futures = "0.1"
-tokio-core = "0.1"
-futures-await = "0.1"
+futures-preview = "0.3.0-alpha.7"
 
 [dev-dependencies]
 

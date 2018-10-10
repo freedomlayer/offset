@@ -24,8 +24,7 @@
 
 use std::{time::Duration};
 use futures::prelude::*;
-use futures::prelude::{async, await};
-use futures::sync::{mpsc, oneshot};
+use futures::channel::{mpsc, oneshot};
 use futures::stream;
 
 use tokio_core::reactor::{Handle, Interval};
@@ -62,8 +61,7 @@ impl TimerClient {
         }
     }
 
-    #[async]
-    pub fn request_timer_stream(self) -> Result<mpsc::Receiver<TimerTick>, TimerClientError> {
+    pub async fn request_timer_stream(self) -> Result<mpsc::Receiver<TimerTick>, TimerClientError> {
         let (response_sender, response_receiver) = oneshot::channel();
         let timer_request = TimerRequest { response_sender };
         let _ = match await!(self.sender.send(timer_request)) {
@@ -84,8 +82,7 @@ enum TimerEvent {
     RequestsDone,
 }
 
-#[async]
-fn timer_loop<M: 'static>(incoming: M, from_client: mpsc::Receiver<TimerRequest>) -> Result<(), TimerError> 
+async fn timer_loop<M: 'static>(incoming: M, from_client: mpsc::Receiver<TimerRequest>) -> Result<(), TimerError> 
 where
     M: Stream<Item=(), Error=()>,
 {
@@ -101,8 +98,7 @@ where
     let mut tick_senders: Vec<mpsc::Sender<TimerTick>> = Vec::new();
     let mut requests_done = false;
 
-    #[async]
-    for event in events {
+    async for event in events {
         match event {
             TimerEvent::Incoming => {
                 let mut temp_tick_senders = Vec::new();
@@ -154,7 +150,6 @@ pub fn create_timer(dur: Duration, handle: &Handle) -> Result<TimerClient, Timer
 mod tests {
     use super::*;
     use std::time;
-    use futures::prelude::{async, await};
     use futures::future::join_all;
     use tokio_core::reactor::Core;
 
@@ -202,9 +197,8 @@ mod tests {
         Error,
     }
 
-    #[async]
     /// Util function to read from a Stream
-    fn receive<T, EM, M: 'static>(reader: M) -> Result<(T, M), ReadError>
+    async fn receive<T, EM, M: 'static>(reader: M) -> Result<(T, M), ReadError>
         where M: Stream<Item=T, Error=EM>,
     {
         match await!(reader.into_future()) {
@@ -220,8 +214,7 @@ mod tests {
 
     struct CustomTick;
 
-    #[async]
-    fn task_ticks_receiver<S>(mut tick_sender: S,
+    async fn task_ticks_receiver<S>(mut tick_sender: S,
                            timer_client: TimerClient) -> Result<(), ()> 
     where
         S: Sink<SinkItem=(), SinkError=()> + 'static
