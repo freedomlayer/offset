@@ -5,7 +5,6 @@
 #![feature(try_from)]
 #![crate_type = "lib"] 
 
-// extern crate futures;
 extern crate futures;
 
 extern crate log;
