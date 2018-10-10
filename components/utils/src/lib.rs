@@ -7,8 +7,6 @@
 
 // extern crate futures;
 extern crate futures;
-extern crate futures_util;
-extern crate tokio_codec;
 
 extern crate log;
 extern crate async_mutex;

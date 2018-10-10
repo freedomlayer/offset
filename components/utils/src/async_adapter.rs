@@ -207,9 +207,6 @@ mod tests {
     use futures::task::SpawnExt;
     use futures::io::{AsyncReadExt, AsyncWriteExt};
 
-    use tokio_codec::{FramedRead, FramedWrite};
-    use frame_codec::FrameCodec;
-
     // TODO: Tests here are very basic.
     // More tests are required.
 
