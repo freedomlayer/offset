@@ -7,7 +7,8 @@
 
 extern crate futures;
 extern crate futures_util;
-extern crate tokio;
+extern crate futures_01;
+extern crate tokio_timer;
 #[macro_use]
 extern crate log;
 
