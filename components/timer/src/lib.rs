@@ -3,8 +3,13 @@
 #![feature(nll)]
 #![feature(try_from)]
 #![feature(never_type)]
+#![feature(dbg_macro)]
 
 extern crate futures;
+extern crate futures_util;
+extern crate tokio;
+#[macro_use]
+extern crate log;
 
 pub mod timer;
 
