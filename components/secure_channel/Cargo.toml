@@ -15,7 +15,7 @@ log = "0.4"
 pretty_env_logger = "0.2"
 
 
-futures = "0.1"
+futures = "0.1.25"
 tokio-core = "0.1"
 futures-await = "0.1"
 byteorder = "1.1"

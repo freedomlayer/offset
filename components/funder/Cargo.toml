@@ -17,7 +17,7 @@ rand = "0.5"
 untrusted = "0.6"
 
 bytes = "0.4"
-futures = "0.1"
+futures = "0.1.25"
 tokio-io = "0.1"
 tokio-core = "0.1"
 tokio-codec = "0.1"
