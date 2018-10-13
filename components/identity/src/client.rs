@@ -77,7 +77,7 @@ mod tests {
 
     use crypto::identity::{verify_signature, SoftwareEd25519Identity,
                             generate_pkcs8_key_pair};
-    use identity::create_identity;
+    use crate::identity::create_identity;
 
     #[test]
     fn test_identity_consistent_public_key_with_client() {
