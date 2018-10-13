@@ -12,6 +12,7 @@ extern crate async_mutex;
 
 extern crate serde;
 extern crate core;
+extern crate tokio;
 
 
 pub mod int_convert;
@@ -23,5 +24,7 @@ pub mod define_fixed_bytes;
 pub mod async_adapter;
 pub mod frame_codec;
 pub mod async_test_utils;
+pub mod futures_compat;
+
 
 
