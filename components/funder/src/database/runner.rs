@@ -2,8 +2,10 @@
 
 use std::marker::Send;
 use futures::channel::{oneshot, mpsc};
-use futures::Stream;
-use futures_cpupool::CpuPool;
+use futures::{future, Stream};
+use futures::task::SpawnExt;
+// use futures_cpupool::CpuPool;
+use futures::executor::ThreadPool;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -76,23 +78,24 @@ pub enum DbRunnerError {
 }
 
 pub struct DbRunner<A: Clone> {
-    pool: CpuPool,
+    pool: ThreadPool,
     db_core: DbCore<A>,
 }
 
 impl<A: Clone + Serialize + DeserializeOwned + Send + Sync + 'static> DbRunner<A> {
     pub fn new(db_core: DbCore<A>) -> DbRunner<A> {
         // Start a pool to run slow database operations:
-        let pool = CpuPool::new(1);
         DbRunner {
-            pool,
+            pool: ThreadPool::new().unwrap(),
             db_core,
         }
     }
 
     pub async fn mutate(self, funder_mutations: Vec<FunderMutation<A>>) -> Result<Self, DbRunnerError> {
-        let DbRunner {pool, db_core} = self;
-        let db_core = await!(pool.spawn_fn(move || apply_funder_mutations(db_core, funder_mutations)))
+        let DbRunner {mut pool, db_core} = self;
+        let fut_apply_db_mutation = future::lazy(move |_| apply_funder_mutations(db_core, funder_mutations));
+        let handle = pool.spawn_with_handle(fut_apply_db_mutation).unwrap();
+        let db_core = await!(handle)
             .map_err(DbRunnerError::DbCoreError)?;
         Ok(DbRunner {pool, db_core})
     }
