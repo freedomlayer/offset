@@ -1,7 +1,8 @@
-use futures::{Future, Sink, SinkExt, TryFutureExt};
+use futures::{Future, TryFutureExt};
 use futures::channel::{mpsc, oneshot};
 
 use crypto::identity::{PublicKey, Signature};
+use utils::futures_compat::send_to_sink;
 
 use super::messages::{ToIdentity, ResponseSignature, ResponsePublicKey};
 
@@ -14,18 +15,6 @@ pub enum IdentityClientError {
 #[derive(Clone)]
 pub struct IdentityClient {
     requests_sender: mpsc::Sender<ToIdentity>,
-}
-
-/// A helper function to allow sending into a sink while consuming the sink.
-/// Futures 3.0's Sink::send function takes a mutable reference to the sink instead of consuming
-/// it. 
-/// See: https://users.rust-lang.org/t/discarding-unused-cloned-sender-futures-3-0/21228
-async fn send_to_sink<S, T, E>(mut sink: S , item: T) -> Result<S, E>
-where
-    S: Sink<SinkItem=T, SinkError=E> + std::marker::Unpin + 'static,
-{
-    await!(sink.send(item))?;
-    Ok(sink)
 }
 
 impl IdentityClient {

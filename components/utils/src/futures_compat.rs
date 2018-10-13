@@ -1,6 +1,6 @@
 use std::thread;
 use std::time::{Duration, Instant};
-use futures::sink::{SinkExt};
+use futures::sink::{SinkExt, Sink};
 use futures::channel::mpsc;
 use tokio::prelude::{Sink as TokioSink, Stream as TokioStream, Future as TokioFuture};
 use tokio::timer::Interval;
@@ -23,6 +23,19 @@ pub fn create_interval(duration: Duration) -> mpsc::Receiver<()> {
     let (sender, receiver) = mpsc::channel::<()>(0);
     thread::spawn(move || interval_thread(duration, sender));
     receiver
+}
+
+
+/// A helper function to allow sending into a sink while consuming the sink.
+/// Futures 3.0's Sink::send function takes a mutable reference to the sink instead of consuming
+/// it. 
+/// See: https://users.rust-lang.org/t/discarding-unused-cloned-sender-futures-3-0/21228
+pub async fn send_to_sink<S, T, E>(mut sink: S , item: T) -> Result<S, E>
+where
+    S: Sink<SinkItem=T, SinkError=E> + std::marker::Unpin + 'static,
+{
+    await!(sink.send(item))?;
+    Ok(sink)
 }
 
 
