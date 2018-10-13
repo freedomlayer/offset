@@ -1,9 +1,9 @@
-use futures::{Future, Sink};
-use futures::sync::{mpsc, oneshot};
+use futures::{Future, SinkExt, TryFutureExt};
+use futures::channel::{mpsc, oneshot};
 
 use crypto::identity::{PublicKey, Signature};
 
-use super::messages::ToIdentity;
+use super::messages::{ToIdentity, ResponseSignature, ResponsePublicKey};
 
 #[derive(Debug)]
 pub enum IdentityClientError {
@@ -26,7 +26,7 @@ impl IdentityClient {
         &self,
         request: ToIdentity,
         rx: oneshot::Receiver<R>,
-    ) -> impl Future<Item = R, Error = IdentityClientError> {
+    ) -> impl Future<Output=Result<R, IdentityClientError>> {
         self.requests_sender
             .clone()
             .send(request)
@@ -41,35 +41,40 @@ impl IdentityClient {
     pub fn request_signature(
         &self,
         message: Vec<u8>,
-    ) -> impl Future<Item = Signature, Error = IdentityClientError> {
-        let (tx, rx) = oneshot::channel();
+    ) -> impl Future<Output=Result<Signature, IdentityClientError>> {
+        let (tx, rx) = oneshot::channel::<ResponseSignature>();
         let request = ToIdentity::RequestSignature {
             message,
             response_sender: tx,
         };
         self.request_response(request, rx)
-            .and_then(|response_signature| Ok(response_signature.signature))
+            .map_ok(|response_signature| response_signature.signature)
     }
 
     /// Request the public key of the used Identity.
     /// Returns a Future that resolves to the public key.
     pub fn request_public_key(
         &self,
-    ) -> impl Future<Item = PublicKey, Error = IdentityClientError> {
+    ) -> impl Future<Output=Result<PublicKey, IdentityClientError>> {
         let (tx, rx) = oneshot::channel();
         let request = ToIdentity::RequestPublicKey {
             response_sender: tx,
         };
         self.request_response(request, rx)
-            .and_then(|response_public_key| Ok(response_public_key.public_key))
+            .map_ok(|response_public_key: ResponsePublicKey| response_public_key.public_key)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use futures::future;
+    use futures::executor::LocalPool;
+    use futures::task::SpawnExt;
+    use futures::FutureExt;
+
     use crypto::test_utils::FixedByteRandom;
-    use tokio_core::reactor::Core;
 
     use crypto::identity::{verify_signature, SoftwareEd25519Identity,
                             generate_pkcs8_key_pair};
@@ -85,12 +90,12 @@ mod tests {
         let smc = IdentityClient::new(requests_sender);
 
         // Start the Identity service:
-        let mut core = Core::new().unwrap();
-        let handle = core.handle();
-        handle.spawn(sm.then(|_| Ok(())));
+        let mut local_pool = LocalPool::new();
+        let mut spawner = local_pool.spawner();
+        spawner.spawn(sm.then(|_| future::ready(())));
 
-        let public_key1 = core.run(smc.request_public_key()).unwrap();
-        let public_key2 = core.run(smc.request_public_key()).unwrap();
+        let public_key1 = local_pool.run_until(smc.request_public_key()).unwrap();
+        let public_key2 = local_pool.run_until(smc.request_public_key()).unwrap();
 
         assert_eq!(public_key1, public_key2);
     }
@@ -110,12 +115,12 @@ mod tests {
         let my_message = b"This is my message!";
 
         // Start the Identity service:
-        let mut core = Core::new().unwrap();
-        let handle = core.handle();
-        handle.spawn(sm.then(|_| Ok(())));
+        let mut local_pool = LocalPool::new();
+        let mut spawner = local_pool.spawner();
+        spawner.spawn(sm.then(|_| future::ready(())));
 
-        let public_key = core.run(smc.request_public_key()).unwrap();
-        let signature = core.run(smc.request_signature(my_message.to_vec())).unwrap();
+        let public_key = local_pool.run_until(smc.request_public_key()).unwrap();
+        let signature = local_pool.run_until(smc.request_signature(my_message.to_vec())).unwrap();
 
         assert!(verify_signature(&my_message[..], &public_key, &signature));
     }

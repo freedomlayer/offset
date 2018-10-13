@@ -1,20 +1,21 @@
 use futures::prelude::*;
-use futures::sync::mpsc;
+use futures::channel::mpsc;
 
 use crypto::identity::Identity;
 
 use super::messages::{ToIdentity, ResponseSignature, ResponsePublicKey};
 
+/*
 pub enum IdentityError {
     ErrorReceivingRequest,
 }
+*/
 
 /// Create a new security module, together with a close handle to be used after the security module
 /// future instance was consumed.
-pub fn create_identity<I: Identity>(identity: I) -> (mpsc::Sender<ToIdentity>, impl Future<Item=(), Error=IdentityError>) {
-    let (requests_sender, requests_receiver) = mpsc::channel(0);
+pub fn create_identity<I: Identity>(identity: I) -> (mpsc::Sender<ToIdentity>, impl Future<Output=()>) {
+    let (requests_sender, requests_receiver) = mpsc::channel::<ToIdentity>(0);
     let identity = requests_receiver
-        .map_err(|()| IdentityError::ErrorReceivingRequest)
         .for_each(move |request| {
         match request {
             ToIdentity::RequestSignature {message, response_sender} => {
@@ -23,13 +24,13 @@ pub fn create_identity<I: Identity>(identity: I) -> (mpsc::Sender<ToIdentity>, i
                 }); 
                 // It is possible that sending the response didn't work.
                 // We don't care about this.
-                Ok(())
+                future::ready(())
             },
             ToIdentity::RequestPublicKey {response_sender} => {
                 let _ = response_sender.send(ResponsePublicKey {
                     public_key: identity.get_public_key(),
                 });
-                Ok(())
+                future::ready(())
             },
         }
     });
@@ -42,10 +43,10 @@ pub fn create_identity<I: Identity>(identity: I) -> (mpsc::Sender<ToIdentity>, i
 mod tests {
     use super::*;
 
-    use futures::sync::oneshot;
-    use tokio_core::reactor::Core;
+    use futures::executor::LocalPool;
+    use futures::channel::oneshot;
+    use futures::task::SpawnExt;
     use crypto::test_utils::FixedByteRandom;
-
     use crypto::identity::{verify_signature, SoftwareEd25519Identity,
                             generate_pkcs8_key_pair};
 
@@ -58,15 +59,15 @@ mod tests {
         let (requests_sender, sm) = create_identity(identity);
 
         // Start the Identity service:
-        let mut core = Core::new().unwrap();
-        let handle = core.handle();
-        handle.spawn(sm.then(|_| Ok(())));
+        let mut local_pool = LocalPool::new();
+        let mut spawner = local_pool.spawner();
+        spawner.spawn(sm.then(|_| future::ready(())));
 
         // Query the security module twice to check for consistency
         for _ in 0 .. 2 {
-            let rsender = requests_sender.clone();
-            let (tx, rx) = oneshot::channel();
-            let public_key_from_client = core.run(rsender
+            let mut rsender = requests_sender.clone();
+            let (tx, rx) = oneshot::channel::<ResponsePublicKey>();
+            let public_key_from_client = local_pool.run_until(rsender
                 .send(ToIdentity::RequestPublicKey { response_sender: tx })
                 .then(|result| {
                     match result {
@@ -89,16 +90,16 @@ mod tests {
 
         // Start the Identity service:
         let (requests_sender, sm) = create_identity(identity);
-        let mut core = Core::new().unwrap();
-        let handle = core.handle();
-        handle.spawn(sm.then(|_| Ok(())));
+        let mut local_pool = LocalPool::new();
+        let mut spawner = local_pool.spawner();
+        spawner.spawn(sm.then(|_| future::ready(())));
 
         // Get a signature from the service
         let my_message = b"This is my message!";
 
-        let rsender = requests_sender.clone();
-        let (tx, rx) = oneshot::channel();
-        let signature = core.run(rsender
+        let mut rsender = requests_sender.clone();
+        let (tx, rx) = oneshot::channel::<ResponseSignature>();
+        let signature = local_pool.run_until(rsender
                  .send(ToIdentity::RequestSignature {message: my_message.to_vec(), response_sender: tx})
                  .then(|result| {
                      match result {
@@ -120,15 +121,15 @@ mod tests {
 
         // Start the Identity service:
         let (requests_sender, sm) = create_identity(identity);
-        let mut core = Core::new().unwrap();
-        let handle = core.handle();
-        handle.spawn(sm.then(|_| Ok(())));
+        let mut local_pool = LocalPool::new();
+        let mut spawner = local_pool.spawner();
+        spawner.spawn(sm.then(|_| future::ready(())));
 
         // Get the public key from the service
         let my_message = b"This is my message!";
-        let rsender1 = requests_sender.clone();
-        let (tx1, rx1) = oneshot::channel();
-        let public_key_from_client = core.run(rsender1
+        let mut rsender1 = requests_sender.clone();
+        let (tx1, rx1) = oneshot::channel::<ResponsePublicKey>();
+        let public_key_from_client = local_pool.run_until(rsender1
             .send(ToIdentity::RequestPublicKey { response_sender: tx1 })
             .then(|result| {
                 match result {
@@ -138,9 +139,9 @@ mod tests {
             })).unwrap().public_key;
 
         // Get a signature from the service
-        let rsender2 = requests_sender.clone();
-        let (tx2, rx2) = oneshot::channel();
-        let signature = core.run(rsender2
+        let mut rsender2 = requests_sender.clone();
+        let (tx2, rx2) = oneshot::channel::<ResponseSignature>();
+        let signature = local_pool.run_until(rsender2
                  .send(ToIdentity::RequestSignature {message: my_message.to_vec(), response_sender: tx2})
                  .then(|result| {
                      match result {

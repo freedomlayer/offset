@@ -229,9 +229,8 @@ version = "0.1.0"
 dependencies = [
  "cswitch-crypto 0.1.0",
  "cswitch-utils 0.1.0",
- "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-await 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-core 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures-preview 0.3.0-alpha.7 (git+https://github.com/rust-lang-nursery/futures-rs?rev=a25e51e)",
 ]
 
 [[package]]
