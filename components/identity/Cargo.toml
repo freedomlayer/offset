@@ -11,7 +11,7 @@ cswitch-crypto = { path = "../crypto", version = "0.1.0" }
 
 # futures = "0.1.25"
 # tokio-core = "0.1"
-futures-await = "0.1"
+# futures-await = "0.1"
 futures-preview = { git = "https://github.com/rust-lang-nursery/futures-rs", rev = "a25e51e" }
 
 [dev-dependencies]
