@@ -5,15 +5,6 @@
 #![feature(try_from)]
 #![crate_type = "lib"] 
 
-extern crate futures;
-
-extern crate log;
-extern crate async_mutex;
-
-extern crate serde;
-extern crate core;
-extern crate tokio;
-
 
 pub mod int_convert;
 pub mod safe_arithmetic;
