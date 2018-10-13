@@ -1,18 +1,18 @@
 #![allow(unused)]
 
 use std::rc::Rc;
-use futures::{stream, Stream, Sink, Future};
-use futures::prelude::{async, await};
-use tokio_core::reactor::Handle;
+use futures::{future, stream, Stream, StreamExt, 
+    Sink, SinkExt, Future, FutureExt};
+use futures::task::{Spawn, SpawnExt};
 
-use futures::sync::mpsc;
+use futures::channel::mpsc;
 
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
 use identity::IdentityClient;
 use timer::TimerClient;
 
-use state::{ScStateInitial, ScStateHalf, ScState, ScStateError};
+use crate::state::{ScStateInitial, ScStateHalf, ScState, ScStateError};
 use proto::secure_channel::serialize::{serialize_exchange_rand_nonce, deserialize_exchange_rand_nonce,
                         serialize_exchange_dh, deserialize_exchange_dh};
 use proto::secure_channel::messages::{EncryptedData, PlainData};
@@ -41,42 +41,39 @@ enum SecureChannelError {
     HandleIncomingError,
 }
 
+/*
 /// Read one message from reader
-#[async]
-fn read_from_reader<EM, M: 'static>(reader: M) -> Result<(Vec<u8>, M), SecureChannelError>
-    where M: Stream<Item=Vec<u8>, Error=EM>,
+async fn read_from_reader<M: 'static>(reader: M) -> Result<(Vec<u8>, M), SecureChannelError>
+    where M: Stream<Item=Vec<u8>>,
 {
-    match await!(reader.into_future()) {
-        Ok((opt_reader_message, ret_reader)) => {
-            match opt_reader_message {
-                Some(reader_message) => Ok((reader_message, ret_reader)),
-                None => return Err(SecureChannelError::ReaderClosed),
-            }
-        },
-        Err(_) => return Err(SecureChannelError::ReaderError),
+    match await!(reader.next()) {
+        Some(reader_message) => Ok((reader_message, ret_reader)),
+        None => return Err(SecureChannelError::ReaderClosed),
     }
 }
+*/
 
-#[async]
-fn initial_exchange<EM, EK, M: 'static,K: 'static,R: CryptoRandom + 'static>(reader: M, writer: K, 
+async fn initial_exchange<EK, M: 'static,K: 'static,R: CryptoRandom + 'static>(reader: M, writer: K, 
                               identity_client: IdentityClient,
                               opt_expected_remote: Option<PublicKey>,
                               rng: Rc<R>)
                             -> Result<(ScState, M, K), SecureChannelError>
 where
     R: CryptoRandom,
-    M: Stream<Item=Vec<u8>, Error=EM>,
-    K: Sink<SinkItem=Vec<u8>, SinkError=EK>,
+    M: Stream<Item=Vec<u8>> + std::marker::Unpin,
+    K: Sink<SinkItem=Vec<u8>, SinkError=EK> + std::marker::Unpin,
 {
     let local_public_key = await!(identity_client.request_public_key())
         .map_err(|_| SecureChannelError::IdentityFailure)?;
 
     let (dh_state_initial, exchange_rand_nonce) = ScStateInitial::new(&local_public_key, &*rng);
     let ser_exchange_rand_nonce = serialize_exchange_rand_nonce(&exchange_rand_nonce);
-    let writer = await!(writer.send(ser_exchange_rand_nonce))
+    await!(writer.send(ser_exchange_rand_nonce))
         .map_err(|_| SecureChannelError::WriterError)?;
 
-    let (reader_message, reader) = await!(read_from_reader(reader))?;
+    let reader_message = await!(reader.next())
+        .ok_or(SecureChannelError::ReaderClosed)?;
+
 
     let exchange_rand_nonce = deserialize_exchange_rand_nonce(&reader_message)
         .map_err(|_| SecureChannelError::DeserializeRandNonceError)?;
@@ -94,10 +91,11 @@ where
 
 
     let ser_exchange_dh = serialize_exchange_dh(&exchange_dh);
-    let writer = await!(writer.send(ser_exchange_dh))
+    await!(writer.send(ser_exchange_dh))
         .map_err(|_| SecureChannelError::WriterError)?;
 
-    let (reader_message, reader) = await!(read_from_reader(reader))?;
+    let reader_message = await!(reader.next())
+        .ok_or(SecureChannelError::ReaderClosed)?;
     let exchange_dh = deserialize_exchange_dh(&reader_message)
         .map_err(|_| SecureChannelError::DeserializeExchangeScStateError)?;
     let dh_state = dh_state_half.handle_exchange_dh(exchange_dh)
@@ -115,8 +113,7 @@ enum SecureChannelEvent {
 }
 
 
-#[async]
-fn secure_channel_loop<EM, EK, M: 'static,K: 'static, R: CryptoRandom + 'static>(
+async fn secure_channel_loop<EK, M: 'static,K: 'static, R: CryptoRandom + 'static>(
                               mut dh_state: ScState,
                               reader: M, mut writer: K, 
                               from_user: mpsc::Receiver<Vec<u8>>,
@@ -127,8 +124,8 @@ fn secure_channel_loop<EM, EK, M: 'static,K: 'static, R: CryptoRandom + 'static>
     -> Result<!, SecureChannelError>
 where
     R: CryptoRandom,
-    M: Stream<Item=Vec<u8>, Error=EM>,
-    K: Sink<SinkItem=Vec<u8>, SinkError=EK>,
+    M: Stream<Item=Vec<u8>> + std::marker::Unpin,
+    K: Sink<SinkItem=Vec<u8>, SinkError=EK> + std::marker::Unpin,
 {
     // TODO: How to perform greceful shutdown of sinks?
     // Is there a way to do it?
@@ -136,21 +133,17 @@ where
     let timer_stream = await!(timer_client.request_timer_stream())
         .map_err(|_| SecureChannelError::RequestTimerStreamError)?;
     let timer_stream = timer_stream.map(|_| SecureChannelEvent::TimerTick)
-        .map_err(|_| SecureChannelError::TimerStreamError)
-        .chain(stream::once(Ok(SecureChannelEvent::ReceiverClosed)));
+        .chain(stream::once(future::ready(SecureChannelEvent::ReceiverClosed)));
 
     let reader = reader.map(SecureChannelEvent::Reader)
-        .map_err(|_| SecureChannelError::ReaderError)
-        .chain(stream::once(Ok(SecureChannelEvent::ReceiverClosed)));
+        .chain(stream::once(future::ready(SecureChannelEvent::ReceiverClosed)));
     let from_user = from_user.map(SecureChannelEvent::User)
-        .map_err(|_| SecureChannelError::FromUserError)
-        .chain(stream::once(Ok(SecureChannelEvent::ReceiverClosed)));
+        .chain(stream::once(future::ready(SecureChannelEvent::ReceiverClosed)));
 
     let mut cur_ticks_to_rekey = ticks_to_rekey;
     let events = reader.select(from_user).select(timer_stream);
 
-    #[async]
-    for event in events {
+    while let Some(event) = await!(events.next()) {
         match event {
             SecureChannelEvent::Reader(data) => {
                 let hi_output = dh_state.handle_incoming(&EncryptedData(data), &*rng)
@@ -159,17 +152,17 @@ where
                     cur_ticks_to_rekey = ticks_to_rekey;
                 }
                 if let Some(send_message) = hi_output.opt_send_message {
-                    writer = await!(writer.send(send_message.0))
+                    await!(writer.send(send_message.0))
                         .map_err(|_| SecureChannelError::WriterError)?;
                 }
                 if let Some(incoming_message) = hi_output.opt_incoming_message {
-                    to_user = await!(to_user.send(incoming_message.0))
+                    await!(to_user.send(incoming_message.0))
                         .map_err(|_| SecureChannelError::WriterError)?;
                 }
             },
             SecureChannelEvent::User(data) => {
                 let enc_data = dh_state.create_outgoing(&PlainData(data), &*rng);
-                writer = await!(writer.send(enc_data.0))
+                await!(writer.send(enc_data.0))
                     .map_err(|_| SecureChannelError::WriterError)?;
             },
             SecureChannelEvent::TimerTick => {
@@ -182,7 +175,7 @@ where
                     Err(ScStateError::RekeyInProgress) => continue,
                     Err(_) => unreachable!(),
                 };
-                writer = await!(writer.send(enc_data.0))
+                await!(writer.send(enc_data.0))
                     .map_err(|_| SecureChannelError::WriterError)?;
                 cur_ticks_to_rekey = ticks_to_rekey;
             },
@@ -193,19 +186,18 @@ where
 }
 
 
-#[async]
-pub fn create_secure_channel<EM, EK, M: 'static,K: 'static,R: CryptoRandom + 'static>(reader: M, writer: K, 
+pub async fn create_secure_channel<EK, M: 'static,K: 'static,R: CryptoRandom + 'static>(reader: M, writer: K, 
                               identity_client: IdentityClient,
                               opt_expected_remote: Option<PublicKey>,
                               rng: Rc<R>,
                               timer_client: TimerClient,
                               ticks_to_rekey: usize,
-                              handle: Handle)
+                              spawner: impl Spawn)
     -> Result<SecureChannel, SecureChannelError>
 where
     R: CryptoRandom,
-    M: Stream<Item=Vec<u8>, Error=EM>,
-    K: Sink<SinkItem=Vec<u8>, SinkError=EK>,
+    M: Stream<Item=Vec<u8>> + std::marker::Unpin + std::marker::Send,
+    K: Sink<SinkItem=Vec<u8>, SinkError=EK> + std::marker::Unpin + std::marker::Send,
 {
 
     let (dh_state, reader, writer) = await!(initial_exchange(
@@ -226,16 +218,12 @@ where
                                       ticks_to_rekey,
                                       timer_client);
 
-    let sc_loop_report_error = sc_loop.then(|res| {
-        match res {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                error!("Secure Channel error: {:?}", e);
-                Ok(())
-            },
+    let sc_loop_report_error = sc_loop.map(|res| {
+        if let Err(e) = res {
+            error!("Secure Channel error: {:?}", e);
         }
     });
-    handle.spawn(sc_loop_report_error);
+    spawner.spawn(sc_loop_report_error);
 
     Ok(SecureChannel {
         sender: user_sender,
@@ -250,7 +238,6 @@ where
 mod tests {
     use super::*;
     use timer::create_timer_incoming;
-    use futures::prelude::{async, await};
     use futures::Future;
     use futures::sync::oneshot;
     use tokio_core::reactor::Core;
@@ -259,36 +246,34 @@ mod tests {
                             generate_pkcs8_key_pair};
     use identity::{create_identity, IdentityClient};
 
-    #[async]
-    fn secure_channel1(fut_sc: impl Future<Item=SecureChannel, Error=SecureChannelError> + 'static,
+    async fn secure_channel1(fut_sc: impl Future<Item=SecureChannel, Error=SecureChannelError> + 'static,
                        mut tick_sender: mpsc::Sender<()>,
                        output_sender: oneshot::Sender<bool>) -> Result<(),()> {
         let SecureChannel {sender, receiver} = await!(fut_sc).unwrap();
-        let sender = await!(sender.send(vec![0,1,2,3,4,5])).unwrap();
-        let (data, receiver) = await!(read_from_reader(receiver)).unwrap();
+        await!(sender.send(vec![0,1,2,3,4,5])).unwrap();
+        let data = await!(receiver.next()).unwrap();
         assert_eq!(data, vec![5,4,3]);
 
         // Move time forward, to cause rekying:
         for _ in 0_usize .. 20 {
-            tick_sender = await!(tick_sender.send(())).unwrap();
+            await!(tick_sender.send(())).unwrap();
         }
-        let sender = await!(sender.send(vec![0,1,2])).unwrap();
+        await!(sender.send(vec![0,1,2])).unwrap();
 
         output_sender.send(true);
         Ok(())
     }
 
-    #[async]
-    fn secure_channel2(fut_sc: impl Future<Item=SecureChannel, Error=SecureChannelError> + 'static,
+    async fn secure_channel2(fut_sc: impl Future<Item=SecureChannel, Error=SecureChannelError> + 'static,
                        tick_sender: mpsc::Sender<()>,
                        output_sender: oneshot::Sender<bool>) -> Result<(),()> {
 
         let SecureChannel {sender, receiver} = await!(fut_sc).unwrap();
-        let (data, receiver) = await!(read_from_reader(receiver)).unwrap();
+        let data = await!(receiver.next()).unwrap();
         assert_eq!(data, vec![0,1,2,3,4,5]);
-        let sender = await!(sender.send(vec![5,4,3])).unwrap();
+        await!(sender.send(vec![5,4,3])).unwrap();
 
-        let (data, receiver) = await!(read_from_reader(receiver)).unwrap();
+        let data = await!(receiver.next()).unwrap();
         assert_eq!(data, vec![0,1,2]);
 
         output_sender.send(true);

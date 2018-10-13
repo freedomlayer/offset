@@ -1,6 +1,5 @@
 use std::mem;
 use std::rc::Rc;
-use futures::prelude::{async, await};
 use byteorder::{BigEndian, ByteOrder};
 
 use crypto::crypto_rand::{RandValue, CryptoRandom};
@@ -85,8 +84,7 @@ impl ScStateInitial {
         (sc_state_initial, exchange_rand_nonce)
     }
 
-    #[async]
-    pub fn handle_exchange_rand_nonce<R: CryptoRandom + 'static>(self, 
+    pub async fn handle_exchange_rand_nonce<R: CryptoRandom + 'static>(self, 
                                                              exchange_rand_nonce: ExchangeRandNonce, 
                                                              identity_client: IdentityClient, rng:Rc<R>) 
                                                             -> Result<(ScStateHalf, ExchangeDh), ScStateError> {
@@ -320,7 +318,6 @@ impl ScState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::prelude::{async, await};
     use futures::Future;
     use tokio_core::reactor::Core;
     use crypto::test_utils::FixedByteRandom;
@@ -328,8 +325,7 @@ mod tests {
     use identity::create_identity;
     use identity::IdentityClient;
 
-    #[async]
-    fn run_basic_sc_state(identity_client1: IdentityClient, identity_client2: IdentityClient) -> Result<(ScState, ScState),()> {
+    async fn run_basic_sc_state(identity_client1: IdentityClient, identity_client2: IdentityClient) -> Result<(ScState, ScState),()> {
         let rng1 = Rc::new(FixedByteRandom { byte: 0x1 });
         let rng2 = Rc::new(FixedByteRandom { byte: 0x2 });
         let local_public_key1 = await!(identity_client1.request_public_key()).unwrap();
