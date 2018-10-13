@@ -281,11 +281,9 @@ name = "cswitch-timer"
 version = "0.1.0"
 dependencies = [
  "bytes 0.4.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cswitch-utils 0.1.0",
  "futures-preview 0.3.0-alpha.7 (git+https://github.com/rust-lang-nursery/futures-rs?rev=a25e51e)",
- "futures-util-preview 0.3.0-alpha.7 (git+https://github.com/rust-lang-nursery/futures-rs?rev=a25e51e)",
  "log 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-timer 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -298,6 +296,7 @@ dependencies = [
  "futures-preview 0.3.0-alpha.7 (git+https://github.com/rust-lang-nursery/futures-rs?rev=a25e51e)",
  "log 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.70 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-codec 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-core 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-io 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",

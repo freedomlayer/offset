@@ -22,13 +22,12 @@
 
 // #![deny(warnings)]
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 use futures::stream;
-use futures_util::compat::{Stream01CompatExt};
-use tokio_timer::Interval;
+use utils::futures_compat::create_interval;
 
 
 #[derive(Debug)]
@@ -120,17 +119,14 @@ where
                 }
             },
             TimerEvent::Request(timer_request) => {
-                println!("Timer: Got request");
                 let (tick_sender, tick_receiver) = mpsc::channel(0);
                 tick_senders.push(tick_sender);
                 let _ = dbg!(timer_request.response_sender.send(tick_receiver));
             },
             TimerEvent::IncomingDone => {
-                println!("IncomingDone!");
                 break;
             },
             TimerEvent::RequestsDone => {
-                println!("RequestsDone!");
                 requests_done = true;
             },
         };
@@ -160,10 +156,7 @@ where
 /// Create a timer service that ticks every `dur`.
 pub fn create_timer(dur: Duration, spawner: impl Spawn) -> Result<TimerClient, TimerError> {
 
-    let interval = Interval::new(Instant::now() + dur, dur)
-        .compat()
-        .map(|_| ());
-
+    let interval = create_interval(dur);
     create_timer_incoming(interval, spawner)
 }
 
@@ -172,12 +165,9 @@ pub fn create_timer(dur: Duration, spawner: impl Spawn) -> Result<TimerClient, T
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time;
+    use std::time::{Duration, Instant};
     use futures::executor::LocalPool;
     use futures::future::FutureObj;
-    use tokio_timer::Timeout;
-    use futures_util::compat::{Future01CompatExt};
-    use futures_01::Future;
     // use core::pin::Pin;
 
     #[test]
@@ -185,7 +175,7 @@ mod tests {
         let mut local_pool = LocalPool::new();
         let spawner = local_pool.spawner();
 
-        let dur = Duration::from_millis(10);
+        let dur = Duration::from_millis(1);
         let timer_client = create_timer(dur, spawner).unwrap();
 
         let timer_stream = local_pool.run_until(timer_client.clone().request_timer_stream()).unwrap();
@@ -193,40 +183,13 @@ mod tests {
         local_pool.run_until(wait_fut);
     }
 
-    #[test]
-    fn test_timeout() {
-        let mut local_pool = LocalPool::new();
-        let spawner = local_pool.spawner();
-
-        let my_timeout = Timeout::new((), Duration::from_millis(1000)).compat();
-        /*
-        let my_fut = my_timeout
-            .map(|_| {
-                println!("Hello!");
-            });
-            */
-        local_pool.run_until(my_timeout);
-
-        /*
-        let dur = Duration::new(1,0);
-        let interval = Interval::new(Instant::now(), dur)
-            .compat()
-            .map(|_| ());
-
-        let my_fut = interval.for_each(|_| {
-            println!("Interval tick!");
-            future::ready(())
-        });
-        local_pool.run_until(my_fut);
-        */
-    }
 
     #[test]
     fn test_timer_twice() {
         let mut local_pool = LocalPool::new();
         let spawner = local_pool.spawner();
 
-        let dur = Duration::from_millis(100);
+        let dur = Duration::from_millis(1);
         let timer_client = create_timer(dur, spawner).unwrap();
 
         let timer_stream = local_pool.run_until(timer_client.clone().request_timer_stream()).unwrap();
@@ -273,7 +236,6 @@ mod tests {
             senders.push(sender);
 
             let receiver = receiver.map(|_| {
-                println!("Receiver done!");
                 ()
             });
 
@@ -285,19 +247,16 @@ mod tests {
 
         spawner.spawn(joined_receivers.map(|_| sender_done.send(()).unwrap())).unwrap();
 
-        let start = time::Instant::now();
-        for i in 0 .. TIMER_CLIENT_NUM {
+        let start = Instant::now();
+        for _ in 0 .. TIMER_CLIENT_NUM {
             let sender = senders.pop().unwrap();
-            println!("Creating client number {} ...",i);
             let new_client = local_pool.run_until(timer_client.clone().request_timer_stream()).unwrap();
-            println!("Client number {}", i);
             let client_wait = new_client.take(u64::from(TICKS)).collect::<Vec<TimerTick>>();
             let client_fut = client_wait.map(move |_| {
-                // let elapsed = start.elapsed();
-                // assert!(elapsed >= dur * TICKS * 2 / 3);
-                // assert!(elapsed < dur * TICKS * 2);
+                let elapsed = start.elapsed();
+                assert!(elapsed >= dur * TICKS * 2 / 3);
+                assert!(elapsed < dur * TICKS * 2);
                 sender.send(()).unwrap();
-                println!("Client {} done!",i);
                 ()
             });
 

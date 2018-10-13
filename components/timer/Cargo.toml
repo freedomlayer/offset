@@ -14,9 +14,8 @@ bytes = "0.4"
 # futures-preview = "0.3.0-alpha.7"
 # futures-util-preview = {version = "0.3.0-alpha.7", features = ["compat"]}
 futures-preview = { git = "https://github.com/rust-lang-nursery/futures-rs", rev = "a25e51e" }
-futures-util-preview = { git = "https://github.com/rust-lang-nursery/futures-rs", rev = "a25e51e", features = ["compat"] }
-tokio-timer = "0.2.7"
-futures_01 = { version = "0.1.25", package = "futures"}
+
+utils = { path = "../utils", version = "0.1.0" , package = "cswitch-utils"}
 
 [dev-dependencies]
 
