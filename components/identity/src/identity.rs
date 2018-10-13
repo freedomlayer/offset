@@ -61,7 +61,7 @@ mod tests {
         // Start the Identity service:
         let mut local_pool = LocalPool::new();
         let mut spawner = local_pool.spawner();
-        spawner.spawn(sm.then(|_| future::ready(())));
+        spawner.spawn(sm.then(|_| future::ready(()))).unwrap();
 
         // Query the security module twice to check for consistency
         for _ in 0 .. 2 {
@@ -92,7 +92,7 @@ mod tests {
         let (requests_sender, sm) = create_identity(identity);
         let mut local_pool = LocalPool::new();
         let mut spawner = local_pool.spawner();
-        spawner.spawn(sm.then(|_| future::ready(())));
+        spawner.spawn(sm.then(|_| future::ready(()))).unwrap();
 
         // Get a signature from the service
         let my_message = b"This is my message!";
@@ -123,7 +123,7 @@ mod tests {
         let (requests_sender, sm) = create_identity(identity);
         let mut local_pool = LocalPool::new();
         let mut spawner = local_pool.spawner();
-        spawner.spawn(sm.then(|_| future::ready(())));
+        spawner.spawn(sm.then(|_| future::ready(()))).unwrap();
 
         // Get the public key from the service
         let my_message = b"This is my message!";

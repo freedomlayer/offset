@@ -1,4 +1,4 @@
-use futures::{Future, SinkExt, TryFutureExt};
+use futures::{Future, Sink, SinkExt, TryFutureExt};
 use futures::channel::{mpsc, oneshot};
 
 use crypto::identity::{PublicKey, Signature};
@@ -16,6 +16,18 @@ pub struct IdentityClient {
     requests_sender: mpsc::Sender<ToIdentity>,
 }
 
+/// A helper function to allow sending into a sink while consuming the sink.
+/// Futures 3.0's Sink::send function takes a mutable reference to the sink instead of consuming
+/// it. 
+/// See: https://users.rust-lang.org/t/discarding-unused-cloned-sender-futures-3-0/21228
+async fn send_to_sink<S, T, E>(mut sink: S , item: T) -> Result<S, E>
+where
+    S: Sink<SinkItem=T, SinkError=E> + std::marker::Unpin + 'static,
+{
+    await!(sink.send(item))?;
+    Ok(sink)
+}
+
 impl IdentityClient {
     pub fn new(requests_sender: mpsc::Sender<ToIdentity>) -> Self {
         IdentityClient { requests_sender }
@@ -27,9 +39,7 @@ impl IdentityClient {
         request: ToIdentity,
         rx: oneshot::Receiver<R>,
     ) -> impl Future<Output=Result<R, IdentityClientError>> {
-        self.requests_sender
-            .clone()
-            .send(request)
+        send_to_sink(self.requests_sender.clone(), request)
             .map_err(|_| IdentityClientError::RequestSendFailed)
             .and_then(|_| {
                 rx.map_err(|oneshot::Canceled| IdentityClientError::OneshotReceiverCanceled)
@@ -92,7 +102,7 @@ mod tests {
         // Start the Identity service:
         let mut local_pool = LocalPool::new();
         let mut spawner = local_pool.spawner();
-        spawner.spawn(sm.then(|_| future::ready(())));
+        spawner.spawn(sm.then(|_| future::ready(()))).unwrap();
 
         let public_key1 = local_pool.run_until(smc.request_public_key()).unwrap();
         let public_key2 = local_pool.run_until(smc.request_public_key()).unwrap();
@@ -117,7 +127,7 @@ mod tests {
         // Start the Identity service:
         let mut local_pool = LocalPool::new();
         let mut spawner = local_pool.spawner();
-        spawner.spawn(sm.then(|_| future::ready(())));
+        spawner.spawn(sm.then(|_| future::ready(()))).unwrap();
 
         let public_key = local_pool.run_until(smc.request_public_key()).unwrap();
         let signature = local_pool.run_until(smc.request_signature(my_message.to_vec())).unwrap();
