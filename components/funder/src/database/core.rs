@@ -9,7 +9,7 @@ use serde::de::DeserializeOwned;
 use serde_json;
 use atomicwrites;
 
-use state::{FunderMutation, FunderState};
+use crate::state::{FunderMutation, FunderState};
 
 pub enum DbCoreError {
     ReadError(io::Error),

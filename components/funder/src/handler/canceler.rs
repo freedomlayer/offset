@@ -1,5 +1,3 @@
-use futures::prelude::{async, await};
-
 use crypto::identity::{PublicKey, Signature};
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
@@ -19,8 +17,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
     /// Create a (signed) failure message for a given request_id.
     /// We are the reporting_public_key for this failure message.
-    #[async]
-    fn create_failure_message(self, pending_local_request: PendingFriendRequest) 
+    async fn create_failure_message(self, pending_local_request: PendingFriendRequest) 
         -> Result<(Self, FailureSendFunds), !> {
 
         let rand_nonce = RandValue::new(&*self.rng);
@@ -45,8 +42,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
     }
 
     /// Reply to a request message with failure.
-    #[async]
-    pub fn reply_with_failure(self, 
+    pub async fn reply_with_failure(self, 
                           remote_public_key: PublicKey,
                           request_send_funds: RequestSendFunds) -> Result<Self, !> {
 
@@ -64,8 +60,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
     /// Cancel outgoing local requests that are already inside the token channel (Possibly already
     /// communicated to the remote side).
-    #[async]
-    pub fn cancel_local_pending_requests(mut self, 
+    pub async fn cancel_local_pending_requests(mut self, 
                                      friend_public_key: PublicKey) -> Result<Self, !> {
 
         let friend = self.get_friend(&friend_public_key).unwrap();
@@ -120,8 +115,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         Ok(fself)
     }
 
-    #[async]
-    pub fn cancel_pending_requests(mut self,
+    pub async fn cancel_pending_requests(mut self,
                                friend_public_key: PublicKey)
                         -> Result<Self, !> {
 
@@ -159,8 +153,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         Ok(fself)
     }
 
-    #[async]
-    pub fn cancel_pending_user_requests(mut self,
+    pub async fn cancel_pending_user_requests(mut self,
                                friend_public_key: PublicKey)
                         -> Result<Self, !> {
 

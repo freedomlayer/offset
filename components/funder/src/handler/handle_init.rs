@@ -1,4 +1,3 @@
-use futures::prelude::{async, await};
 use crypto::crypto_rand::CryptoRandom;
 
 use super::MutableFunderHandler;

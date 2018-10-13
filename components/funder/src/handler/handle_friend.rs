@@ -1,7 +1,5 @@
 use std::convert::TryFrom;
 
-use futures::prelude::{async, await};
-
 use num_bigint::BigUint;
 use num_traits::ToPrimitive;
 
@@ -148,8 +146,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
     /// Create a (signed) failure message for a given request_id.
     /// We are the reporting_public_key for this failure message.
-    #[async]
-    fn create_response_message(self, request_send_funds: RequestSendFunds) 
+    async fn create_response_message(self, request_send_funds: RequestSendFunds) 
         -> Result<(Self, ResponseSendFunds), !> {
 
         let rand_nonce = RandValue::new(&*self.rng);
@@ -170,8 +167,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         Ok((self, response_send_funds))
     }
 
-    #[async]
-    fn handle_request_send_funds(mut self, 
+    async fn handle_request_send_funds(mut self, 
                                remote_public_key: PublicKey,
                                mut request_send_funds: RequestSendFunds) -> Result<Self, !> {
 
@@ -266,8 +262,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         }
     }
 
-    #[async]
-    fn handle_failure_send_funds(mut self, 
+    async fn handle_failure_send_funds(mut self, 
                                remote_public_key: &PublicKey,
                                failure_send_funds: FailureSendFunds,
                                pending_request: PendingFriendRequest)
@@ -304,8 +299,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
     }
 
     /// Process valid incoming operations from remote side.
-    #[async]
-    fn handle_move_token_output(mut self, 
+    async fn handle_move_token_output(mut self, 
                                 remote_public_key: PublicKey,
                                 incoming_messages: Vec<IncomingMessage> )
                         -> Result<Self, !> {
@@ -336,8 +330,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
     }
 
     /// Handle an error with incoming move token.
-    #[async]
-    fn handle_move_token_error(mut self,
+    async fn handle_move_token_error(mut self,
                                remote_public_key: PublicKey,
                                receive_move_token_error: ReceiveMoveTokenError) -> Result<Self, !> {
 
@@ -372,8 +365,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
 
     /// Handle success with incoming move token.
-    #[async]
-    fn handle_move_token_success(mut self,
+    async fn handle_move_token_success(mut self,
                                remote_public_key: PublicKey,
                                receive_move_token_output: ReceiveMoveTokenOutput,
                                token_wanted: bool) 
@@ -407,8 +399,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
     }
 
 
-    #[async]
-    fn handle_move_token_request(mut self, 
+    async fn handle_move_token_request(mut self, 
                          remote_public_key: PublicKey,
                          friend_move_token_request: FriendMoveTokenRequest) -> Result<Self,HandleFriendError> {
 
@@ -446,8 +437,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         })
     }
 
-    #[async]
-    fn handle_inconsistency_error(self, 
+    async fn handle_inconsistency_error(self, 
                                   remote_public_key: PublicKey,
                                   remote_reset_terms: ResetTerms)
                                     -> Result<Self, HandleFriendError> {
@@ -493,8 +483,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         Ok(fself)
     }
 
-    #[async]
-    pub fn handle_friend_message(mut self, 
+    pub async fn handle_friend_message(mut self, 
                                    remote_public_key: PublicKey, 
                                    friend_message: FriendMessage)
                                         -> Result<Self, HandleFriendError> {

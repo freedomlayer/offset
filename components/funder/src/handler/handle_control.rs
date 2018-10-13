@@ -1,6 +1,4 @@
 #![allow(unused)]
-use futures::prelude::{async, await};
-
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 use crypto::hash::HashResult;
@@ -63,8 +61,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         Ok(())
     }
 
-    #[async]
-    fn control_reset_friend_channel(mut self, 
+    async fn control_reset_friend_channel(mut self, 
                                     reset_friend_channel: ResetFriendChannel) 
         -> Result<Self, HandleControlError> {
 
@@ -140,10 +137,9 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         Ok(())
     }
 
-    #[async]
     /// This is a violent operation, as it removes all the known state with the remote friend.  
     /// An inconsistency will occur if the friend is added again.
-    fn control_remove_friend(mut self, remove_friend: RemoveFriend) 
+    async fn control_remove_friend(mut self, remove_friend: RemoveFriend) 
         -> Result<Self, HandleControlError> {
 
         // Make sure that friend exists:
@@ -354,8 +350,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
     }
 
 
-    #[async]
-    pub fn handle_control_message(mut self, 
+    pub async fn handle_control_message(mut self, 
                                   funder_config: IncomingControlMessage<A>) 
         -> Result<Self, HandleControlError> {
 

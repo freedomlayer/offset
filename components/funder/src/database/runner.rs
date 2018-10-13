@@ -1,15 +1,14 @@
 #![allow(unused)]
 
 use std::marker::Send;
-use futures::prelude::{async, await};
-use futures::sync::{oneshot, mpsc};
+use futures::channel::{oneshot, mpsc};
 use futures::Stream;
 use futures_cpupool::CpuPool;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use state::{FunderMutation, FunderState};
+use crate::state::{FunderMutation, FunderState};
 use super::core::{DbCore, DbCoreError};
 
 /*
@@ -91,8 +90,7 @@ impl<A: Clone + Serialize + DeserializeOwned + Send + Sync + 'static> DbRunner<A
         }
     }
 
-    #[async]
-    pub fn mutate(self, funder_mutations: Vec<FunderMutation<A>>) -> Result<Self, DbRunnerError> {
+    pub async fn mutate(self, funder_mutations: Vec<FunderMutation<A>>) -> Result<Self, DbRunnerError> {
         let DbRunner {pool, db_core} = self;
         let db_core = await!(pool.spawn_fn(move || apply_funder_mutations(db_core, funder_mutations)))
             .map_err(DbRunnerError::DbCoreError)?;

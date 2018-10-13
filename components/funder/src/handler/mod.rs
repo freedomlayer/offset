@@ -5,8 +5,6 @@ mod handle_init;
 mod sender;
 mod canceler;
 
-use futures::prelude::{async, await};
-
 use std::rc::Rc;
 use identity::IdentityClient;
 
@@ -159,8 +157,7 @@ fn gen_mutable<A:Clone, R: CryptoRandom>(identity_client: IdentityClient,
     }
 }
 
-#[async]
-pub fn funder_handle_message<A: Clone + 'static, R: CryptoRandom + 'static>(
+pub async fn funder_handle_message<A: Clone + 'static, R: CryptoRandom + 'static>(
                       identity_client: IdentityClient,
                       rng: Rc<R>,
                       funder_state: FunderState<A>,
