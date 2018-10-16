@@ -2,9 +2,12 @@ use std::iter;
 use std::marker::Unpin;
 
 use futures::{future, Future, FutureExt, stream, 
-    Stream, StreamExt, Sink, SinkExt};
+    Stream, StreamExt, Sink, SinkExt,
+    select};
 
-use crypto::identity::PublicKey;
+use futures::channel::mpsc;
+
+use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 use timer::{TimerTick, TimerClient};
 use utils::int_convert::usize_to_u64;
 
@@ -26,8 +29,8 @@ fn dispatch_conn<M,K,KE>(receiver: M, sender: K, public_key: PublicKey, first_ms
                               impl Stream<Item=TunnelMessage>,
                               impl Sink<SinkItem=TunnelMessage,SinkError=()>>>
 where
-    M: Stream<Item=Vec<u8>>,
-    K: Sink<SinkItem=Vec<u8>, SinkError=KE>,
+    M: Stream<Item=Vec<u8>> + Unpin,
+    K: Sink<SinkItem=Vec<u8>, SinkError=KE> + Unpin,
 {
     let sender = sender.sink_map_err(|_| ());
     let inner = match deserialize_init_connection(&first_msg).ok()? {
@@ -63,6 +66,17 @@ where
     })
 }
 
+pub async fn select<T, F1, F2>(mut fut1: F1, mut fut2: F2) -> T
+where
+    F1: Future<Output=T> + Unpin,
+    F2: Future<Output=T> + Unpin,
+{
+    select! {
+        fut1 => fut1,
+        fut2 => fut2,
+    }
+}
+
 fn process_conn<M,K,KE,TS>(receiver: M, 
                 sender: K, 
                 public_key: PublicKey,
@@ -81,7 +95,7 @@ where
     TS: Stream<Item=TimerTick> + Unpin,
 {
     let conn_timeout_ticks = usize_to_u64(conn_timeout_ticks).unwrap();
-    let fut_receiver = 
+    let mut fut_receiver = 
         receiver
         .into_future()
         .then(|(opt_first_msg, receiver)| {
@@ -91,7 +105,7 @@ where
             })
         });
 
-    let fut_time = timer_stream
+    let mut fut_time = timer_stream
         .take(conn_timeout_ticks)
         .for_each(|_| {
             future::ready(())
@@ -100,11 +114,7 @@ where
             None
         });
 
-    // TODO: Use the select! macro instead.
-    fut_receiver
-        .select(fut_time)
-        .map_err(|_| ())
-        .and_then(|(value, _last_future)| future::ready(Some(value)))
+    select(fut_receiver, fut_time)
 }
 
 
@@ -126,14 +136,26 @@ where
     M: Stream<Item=Vec<u8>> + Unpin,
     K: Sink<SinkItem=Vec<u8>, SinkError=KE> + Unpin,
 {
+
     let timer_streams = stream::iter::<_>(iter::repeat(()))
         .map(move |()| timer_client.clone().request_timer_stream());
 
-    incoming_conns.zip(timer_streams)
-    .map(move |((receiver, sender, public_key), timer_stream)|
+    incoming_conns
+    .zip(timer_streams)
+    .map(move |((receiver, sender, public_key), timer_stream)| {
+        // TODO: Did this for the purpose of making the code compile.
+        // Remove the next 3 lines later:
+        
+        /*
+        let (sender, receiver) = mpsc::channel(0);
+        let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
+        let (_dummy_sender, timer_stream) = mpsc::channel(0);
+        */
         process_conn(receiver, sender, public_key, 
-                     timer_stream, conn_timeout_ticks))
+                     timer_stream, conn_timeout_ticks)
+    })
     .filter_map(|opt_conn| opt_conn)
+
 }
 
 

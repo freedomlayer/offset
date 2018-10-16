@@ -1,20 +1,21 @@
 use std::marker::Unpin;
 use std::collections::{HashMap, HashSet};
-use futures::{future, Future, FutureExt, stream, Stream, StreamExt, Sink, SinkExt};
+use futures::{future, Future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 
 use timer::{TimerTick, TimerClient};
 use crypto::identity::PublicKey;
+use utils::futures_compat::send_to_sink;
 
 use proto::relay::messages::{TunnelMessage, RelayListenIn, 
     RelayListenOut, RejectConnection, IncomingConnection};
 
-use super::types::{IncomingConn, IncomingConnInner, 
+use crate::types::{IncomingConn, IncomingConnInner, 
     IncomingAccept};
 
-use super::listener::listener_keepalive;
-use super::tunnel::tunnel_loop;
+use crate::listener::listener_keepalive;
+use crate::tunnel::tunnel_loop;
 
 struct ConnPair<M,K> {
     receiver: M,
@@ -80,17 +81,17 @@ fn handle_accept<MT,KT,MA,KA,TCL,TS>(listeners: &mut HashMap<PublicKey, Listener
                             acceptor_public_key: PublicKey,
                             incoming_accept: IncomingAccept<MA,KA>,
                             // TODO: This should be a oneshot:
-                            tunnel_closed_sender: TCL,
+                            mut tunnel_closed_sender: TCL,
                             timer_stream: TS,
                             keepalive_ticks: usize,
-                            spawner: impl Spawn) -> Result<(), RelayServerError>
+                            mut spawner: impl Spawn) -> Result<(), RelayServerError>
 where
-    MT: Stream<Item=TunnelMessage> + 'static,
-    KT: Sink<SinkItem=TunnelMessage,SinkError=()> + 'static,
-    MA: Stream<Item=TunnelMessage> + 'static,
-    KA: Sink<SinkItem=TunnelMessage,SinkError=()> + 'static,
-    TCL: Sink<SinkItem=TunnelClosed, SinkError=()> + 'static,
-    TS: Stream<Item=TimerTick> + 'static,
+    MT: Stream<Item=TunnelMessage> + Unpin + Send + 'static,
+    KT: Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin + Send + 'static,
+    MA: Stream<Item=TunnelMessage> + Unpin + Send + 'static,
+    KA: Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin + Send + 'static,
+    TCL: Sink<SinkItem=TunnelClosed, SinkError=()> + Unpin + Send + 'static,
+    TS: Stream<Item=TimerTick> + Unpin + Send + 'static,
 {
     let listener = match listeners.get_mut(&acceptor_public_key) {
         Some(listener) => listener,
@@ -116,9 +117,8 @@ where
             init_public_key: c_accept_public_key,
             listen_public_key: acceptor_public_key,
         };
-        tunnel_closed_sender
-            .send(tunnel_closed)
-            .then(|_| Ok(()))
+        send_to_sink(tunnel_closed_sender, tunnel_closed)
+            .then(|_| future::ready(()))
     });
     listener.tunnels.insert(accept_public_key);
     spawner.spawn(tunnel_fut);
@@ -129,7 +129,7 @@ where
 pub async fn relay_server<ML,KL,MA,KA,MC,KC,S>(timer_client: TimerClient, 
                 incoming_conns: S,
                 keepalive_ticks: usize,
-                spawner: impl Spawn + Clone) -> Result<(), RelayServerError> 
+                mut spawner: impl Spawn + Clone) -> Result<(), RelayServerError> 
 where
     ML: Stream<Item=RelayListenIn> + Unpin + Send,
     KL: Sink<SinkItem=RelayListenOut,SinkError=()> + Unpin + Send,
@@ -152,7 +152,7 @@ where
 
     let (event_sender, event_receiver) = mpsc::channel::<RelayServerEvent<_,_,_,_,_,_>>(0);
 
-    let relay_server_events = timer_stream
+    let mut relay_server_events = timer_stream
         .select(incoming_conns)
         .select(event_receiver);
 
@@ -182,24 +182,30 @@ where
                         
                         // Change the sender to be an mpsc::Sender, so that we can use the
                         // try_send() function.
-                        let (mpsc_sender, mpsc_receiver) = mpsc::channel::<IncomingConnection>(0);
+                        let (mpsc_sender, mut mpsc_receiver) = mpsc::channel::<IncomingConnection>(0);
                         spawner.spawn(
-                            sender
-                                .sink_map_err(|_| ())
-                                .send_all(&mut mpsc_receiver)
-                                .then(|_| future::ready(()))
+                            async move {
+                                let mut sender = sender.sink_map_err(|_| ());
+                                await!(sender
+                                    .send_all(&mut mpsc_receiver)
+                                    .then(|_| future::ready(())))
+                            }
                         );
                         let listener = Listener::new(mpsc_sender);
                         listeners.insert(public_key.clone(), listener);
                         let c_public_key = public_key.clone();
-                        let receiver = receiver
+                        let mut receiver = receiver
                             .map(move |reject_connection| RelayServerEvent::ListenerMessage(
                                     (c_public_key.clone(), reject_connection)))
                             .chain(stream::once(future::ready(RelayServerEvent::ListenerClosed(public_key.clone()))));
-                        spawner.spawn(c_event_sender
-                                     .sink_map_err(|_| ())
+                        spawner.spawn(
+                            async move {
+                                let mut c_event_sender = c_event_sender.sink_map_err(|_| ());
+                                await!(c_event_sender
                                      .send_all(&mut receiver)
-                                     .then(|_| future::ready(())));
+                                     .then(|_| future::ready(())))
+                            }
+                        );
                     },
                     IncomingConnInner::Accept(incoming_accept) => {
                         let tunnel_closed_sender = c_event_sender

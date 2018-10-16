@@ -1,6 +1,6 @@
 #![allow(unused)]
 use std::marker::Unpin;
-use futures::{future, stream, Stream, StreamExt, Sink, Future, SinkExt};
+use futures::{future, Future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use timer::TimerTick;
@@ -46,15 +46,15 @@ where
         .map(|_| ListenerEvent::TimerTick)
         .chain(stream::once(future::ready(ListenerEvent::TimerClosed)));
 
-    let outgoing_messages = outgoing_messages
+    let mut outgoing_messages = outgoing_messages
         .map(|incoming_connection| ListenerEvent::OutgoingMessage(incoming_connection))
         .chain(stream::once(future::ready(ListenerEvent::OutgoingMessagesClosed)));
 
-    let listener_receiver = listener_receiver
+    let mut listener_receiver = listener_receiver
         .map(|relay_listen_in| ListenerEvent::ListenerReceiver(relay_listen_in))
         .chain(stream::once(future::ready(ListenerEvent::ListenerReceiverClosed)));
 
-    let listener_events = timer_stream
+    let mut listener_events = timer_stream
         .select(outgoing_messages)
         .select(listener_receiver);
 
@@ -113,27 +113,28 @@ pub fn listener_keepalive<M,K,KE,TS>(listener_receiver: M,
                       listener_sender: K,
                       timer_stream: TS,
                       keepalive_ticks: usize,
-                      spawner: impl Spawn)
+                      mut spawner: impl Spawn)
                                        -> (mpsc::Receiver<RejectConnection>,
                                            mpsc::Sender<IncomingConnection>)
 where
-    M: Stream<Item=RelayListenIn> + 'static,
-    K: Sink<SinkItem=RelayListenOut,SinkError=KE> + 'static,
-    TS: Stream<Item=TimerTick> + 'static,
+    M: Stream<Item=RelayListenIn> + Unpin + Send + 'static,
+    K: Sink<SinkItem=RelayListenOut,SinkError=KE> + Unpin + Send + 'static,
+    TS: Stream<Item=TimerTick> + Unpin + Send + 'static,
 {
     let (new_listener_sender, outgoing_messages) = mpsc::channel::<IncomingConnection>(0);
     let (incoming_messages, new_listener_receiver) = mpsc::channel::<RejectConnection>(0);
-    let listener_fut = listener_loop(listener_receiver.map_err(|_| ()),
+    let listener_fut = listener_loop(listener_receiver,
                   listener_sender.sink_map_err(|_| ()),
-                  outgoing_messages.map_err(|_| ()),
+                  outgoing_messages,
                   incoming_messages.sink_map_err(|_| ()),
                   timer_stream,
                   keepalive_ticks);
 
-    spawner.spawn(listener_fut.map_err(|e| {
+    let spawn_fut = listener_fut.map_err(|e| {
         error!("listener_loop() error: {:?}", e);
         ()
-    }));
+    }).then(|_| future::ready(()));
+    spawner.spawn(spawn_fut);
     
     (new_listener_receiver, new_listener_sender)
 }

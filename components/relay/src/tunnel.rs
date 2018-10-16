@@ -50,7 +50,7 @@ where
     let receiver2 = receiver2.map(TunnelEvent::Receiver2)
         .chain(stream::once(future::ready(TunnelEvent::Receiver2Closed)));
 
-    let tunnel_events = timer_stream.select(receiver1).select(receiver2);
+    let mut tunnel_events = timer_stream.select(receiver1).select(receiver2);
 
     while let Some(tunnel_event) = await!(tunnel_events.next()) {
         match tunnel_event {

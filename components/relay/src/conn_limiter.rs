@@ -1,7 +1,8 @@
 #![allow(unused)]
+use std::marker::Unpin;
 use core::pin::Pin;
 use futures::channel::oneshot;
-use futures::{Stream, Sink, Poll};
+use futures::{Stream, StreamExt, Sink, Poll};
 use futures::task::LocalWaker;
 
 use crypto::identity::PublicKey;
@@ -21,11 +22,11 @@ impl<T> Tracked<T> {
     }
 }
 
-impl<T> Stream for Tracked<T> where T: Stream {
+impl<T> Stream for Tracked<T> where T: Stream + Unpin {
     type Item = T::Item;
 
-    fn poll_next(self: Pin<&mut Self>, lw: &LocalWaker) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut self.inner).poll(lw)
+    fn poll_next(mut self: Pin<&mut Self>, lw: &LocalWaker) -> Poll<Option<Self::Item>> {
+        self.inner.poll_next_unpin(lw)
     }
 }
 
