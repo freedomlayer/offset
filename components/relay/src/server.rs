@@ -1,6 +1,6 @@
 use std::marker::Unpin;
 use std::collections::{HashMap, HashSet};
-use futures::{future, Future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, SinkExt};
+use futures::{future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 
@@ -81,7 +81,7 @@ fn handle_accept<MT,KT,MA,KA,TCL,TS>(listeners: &mut HashMap<PublicKey, Listener
                             acceptor_public_key: PublicKey,
                             incoming_accept: IncomingAccept<MA,KA>,
                             // TODO: This should be a oneshot:
-                            mut tunnel_closed_sender: TCL,
+                            tunnel_closed_sender: TCL,
                             timer_stream: TS,
                             keepalive_ticks: usize,
                             mut spawner: impl Spawn) -> Result<(), RelayServerError>
@@ -121,7 +121,7 @@ where
             .then(|_| future::ready(()))
     });
     listener.tunnels.insert(accept_public_key);
-    spawner.spawn(tunnel_fut);
+    spawner.spawn(tunnel_fut).unwrap();
     Ok(())
 }
 
@@ -190,7 +190,7 @@ where
                                     .send_all(&mut mpsc_receiver)
                                     .then(|_| future::ready(())))
                             }
-                        );
+                        ).unwrap();
                         let listener = Listener::new(mpsc_sender);
                         listeners.insert(public_key.clone(), listener);
                         let c_public_key = public_key.clone();
@@ -205,7 +205,7 @@ where
                                      .send_all(&mut receiver)
                                      .then(|_| future::ready(())))
                             }
-                        );
+                        ).unwrap();
                     },
                     IncomingConnInner::Accept(incoming_accept) => {
                         let tunnel_closed_sender = c_event_sender
