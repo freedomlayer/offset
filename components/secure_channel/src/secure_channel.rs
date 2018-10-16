@@ -240,7 +240,7 @@ mod tests {
     use futures::Future;
     use futures::channel::oneshot;
 
-    use futures::executor::LocalPool;
+    use futures::executor::ThreadPool;
     use futures::task::SpawnExt;
 
     use crypto::test_utils::DummyRandom;
@@ -252,7 +252,7 @@ mod tests {
     async fn secure_channel1(fut_sc: impl Future<Output=Result<SecureChannel, SecureChannelError>> + 'static,
                        mut tick_sender: mpsc::Sender<()>,
                        output_sender: oneshot::Sender<bool>) {
-        let SecureChannel {sender, receiver} = await!(fut_sc).unwrap();
+        let SecureChannel {mut sender, mut receiver} = await!(fut_sc).unwrap();
         await!(sender.send(vec![0,1,2,3,4,5])).unwrap();
         let data = await!(receiver.next()).unwrap();
         assert_eq!(data, vec![5,4,3]);
@@ -270,7 +270,7 @@ mod tests {
                        tick_sender: mpsc::Sender<()>,
                        output_sender: oneshot::Sender<bool>) {
 
-        let SecureChannel {sender, receiver} = await!(fut_sc).unwrap();
+        let SecureChannel {mut sender, mut receiver} = await!(fut_sc).unwrap();
         let data = await!(receiver.next()).unwrap();
         assert_eq!(data, vec![0,1,2,3,4,5]);
         await!(sender.send(vec![5,4,3])).unwrap();
@@ -284,12 +284,11 @@ mod tests {
     #[test]
     fn test_secure_channel_basic() {
         // Start the Identity service:
-        let mut local_pool = LocalPool::new();
-        let mut spawner = local_pool.spawner();
+        let mut thread_pool = ThreadPool::new().unwrap();
 
         // Create a mock time service:
         let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+        let timer_client = create_timer_incoming(tick_receiver, thread_pool.clone()).unwrap();
 
         let rng1 = DummyRandom::new(&[1u8]);
         let pkcs8 = generate_pkcs8_key_pair(&rng1);
@@ -305,8 +304,8 @@ mod tests {
         let (requests_sender2, identity_server2) = create_identity(identity2);
         let identity_client2 = IdentityClient::new(requests_sender2);
 
-        spawner.spawn(identity_server1.then(|_| future::ready(())));
-        spawner.spawn(identity_server2.then(|_| future::ready(())));
+        thread_pool.spawn(identity_server1.then(|_| future::ready(()))).unwrap();
+        thread_pool.spawn(identity_server2.then(|_| future::ready(()))).unwrap();
 
         let (sender1, receiver2) = mpsc::channel::<Vec<u8>>(0);
         let (sender2, receiver1) = mpsc::channel::<Vec<u8>>(0);
@@ -321,7 +320,7 @@ mod tests {
                               rng1.clone(),
                               timer_client.clone(),
                               ticks_to_rekey,
-                              spawner.clone());
+                              thread_pool.clone());
 
         let fut_sc2 = create_secure_channel(receiver2,
                               sender2.sink_map_err(|_| ()),
@@ -330,16 +329,16 @@ mod tests {
                               rng2.clone(),
                               timer_client.clone(),
                               ticks_to_rekey,
-                              spawner.clone());
+                              thread_pool.clone());
 
         let (output_sender1, output_receiver1) = oneshot::channel::<bool>();
         let (output_sender2, output_receiver2) = oneshot::channel::<bool>();
 
-        spawner.spawn(secure_channel1(fut_sc1, tick_sender.clone(), output_sender1));
-        spawner.spawn(secure_channel2(fut_sc2, tick_sender.clone(), output_sender2));
+        thread_pool.spawn(secure_channel1(fut_sc1, tick_sender.clone(), output_sender1)).unwrap();
+        thread_pool.spawn(secure_channel2(fut_sc2, tick_sender.clone(), output_sender2)).unwrap();
 
-        assert_eq!(true, local_pool.run_until(output_receiver1).unwrap());
-        assert_eq!(true, local_pool.run_until(output_receiver2).unwrap());
+        assert_eq!(true, thread_pool.run(output_receiver1).unwrap());
+        assert_eq!(true, thread_pool.run(output_receiver2).unwrap());
     }
 }
 

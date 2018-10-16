@@ -318,8 +318,8 @@ impl ScState {
 mod tests {
     use super::*;
     // use tokio_core::reactor::Core;
-    use futures::{future, Future, FutureExt};
-    use futures::executor::LocalPool;
+    use futures::{future, FutureExt};
+    use futures::executor::ThreadPool;
     use futures::task::SpawnExt;
     use crypto::test_utils::DummyRandom;
     use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair};
@@ -415,13 +415,12 @@ mod tests {
         let identity_client2 = IdentityClient::new(requests_sender2);
 
         // Start the Identity service:
-        let mut local_pool = LocalPool::new();
-        let mut spawner = local_pool.spawner();
-        spawner.spawn(identity_server1.then(|_| future::ready(())));
-        spawner.spawn(identity_server2.then(|_| future::ready(())));
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.spawn(identity_server1.then(|_| future::ready(()))).unwrap();
+        thread_pool.spawn(identity_server2.then(|_| future::ready(()))).unwrap();
 
         let (sc_state1, sc_state2) = 
-            local_pool.run_until(run_basic_sc_state(identity_client1, identity_client2)).unwrap();
+            thread_pool.run(run_basic_sc_state(identity_client1, identity_client2)).unwrap();
 
         (sc_state1, sc_state2, rng1, rng2)
     }
