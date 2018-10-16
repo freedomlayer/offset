@@ -100,6 +100,7 @@ where
             None
         });
 
+    // TODO: Use the select! macro instead.
     fut_receiver
         .select(fut_time)
         .map_err(|_| ())
