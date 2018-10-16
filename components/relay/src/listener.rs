@@ -142,9 +142,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::sync::{mpsc, oneshot};
+    use futures::channel::{mpsc, oneshot};
     use futures::Future;
-    use tokio_core::reactor::Core;
+    use futures::executor::ThreadPool;
     use timer::create_timer_incoming;
     use utils::async_test_utils::{receive, ReceiveError};
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
@@ -158,59 +158,47 @@ mod tests {
 
         // Make sure that keepalives are sent on time:
         for i in 0 .. 8usize {
-            tick_sender = await!(tick_sender.send(())).unwrap();
+            await!(tick_sender.send(())).unwrap();
         }
 
-        let (msg, new_receiver) = await!(receive(receiver)).unwrap();
-        receiver = new_receiver;
+        let msg = await!(receiver.next()).unwrap();
         assert_eq!(msg, RelayListenOut::KeepAlive);
 
         // Check send/receive messages:
         let public_key = PublicKey::from(&[0xee; PUBLIC_KEY_LEN]);
-        wsender = await!(wsender.send(IncomingConnection(public_key.clone()))).unwrap();
+        await!(wsender.send(IncomingConnection(public_key.clone())));
 
-        let (msg, new_receiver) = await!(receive(receiver)).unwrap();
-        receiver = new_receiver;
+        let msg = await!(receiver.next()).unwrap();
         assert_eq!(msg, RelayListenOut::IncomingConnection(IncomingConnection(public_key)));
 
         let public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
-        sender = await!(sender.send(RelayListenIn::RejectConnection(RejectConnection(public_key.clone())))).unwrap();
+        await!(sender.send(RelayListenIn::RejectConnection(RejectConnection(public_key.clone())))).unwrap();
 
-        let (msg, new_wreceiver) = await!(receive(wreceiver)).unwrap();
-        wreceiver = new_wreceiver;
+        let msg = await!(wreceiver.next()).unwrap();
         assert_eq!(msg, RejectConnection(public_key));
 
         // Check that lack of keepalives causes disconnection:
         for i in 0 .. 7usize {
-            tick_sender = await!(tick_sender.send(())).unwrap();
+            await!(tick_sender.send(())).unwrap();
         }
 
         let public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
-        sender = await!(sender.send(RelayListenIn::KeepAlive)).unwrap();
+        await!(sender.send(RelayListenIn::KeepAlive)).unwrap();
 
-        tick_sender = await!(tick_sender.send(())).unwrap();
+        await!(tick_sender.send(())).unwrap();
 
-        let (msg, new_receiver) = await!(receive(receiver)).unwrap();
-        receiver = new_receiver;
+        let msg = await!(receiver.next()).unwrap();
         assert_eq!(msg, RelayListenOut::KeepAlive);
 
         for i in 0 .. 15usize {
-            tick_sender = await!(tick_sender.send(())).unwrap();
+            await!(tick_sender.send(())).unwrap();
         }
 
-        let (msg, new_receiver) = await!(receive(receiver)).unwrap();
-        receiver = new_receiver;
+        let msg = await!(receiver.next()).unwrap();
         assert_eq!(msg, RelayListenOut::KeepAlive);
 
-        if let Err(ReceiveError::Closed) = await!(receive(receiver)) {
-        } else { 
-            unreachable!();
-        }
-
-        if let Err(ReceiveError::Closed) = await!(receive(wreceiver)) {
-        } else { 
-            unreachable!();
-        }
+        assert!(await!(receiver.next()).is_none());
+        assert!(await!(wreceiver.next()).is_none());
 
         // Note: senders and receivers inside generators are seem to be dropped before the end of
         // the scope. Beware.
@@ -225,12 +213,11 @@ mod tests {
 
     #[test]
     fn test_listener_keepalive_basic() {
-        let mut core = Core::new().unwrap();
-        let handle = core.handle();
+        let mut thread_pool = ThreadPool::new().unwrap();
 
         // Create a mock time service:
         let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let timer_client = create_timer_incoming(tick_receiver, &handle).unwrap();
+        let timer_client = create_timer_incoming(tick_receiver, thread_pool.clone()).unwrap();
 
         /*      a     c 
          * a_ca | <-- | c_ca
@@ -241,16 +228,16 @@ mod tests {
         let (a_ac, c_ac) = mpsc::channel::<RelayListenOut>(0);
         let (c_ca, a_ca) = mpsc::channel::<RelayListenIn>(0);
 
-        let timer_stream = core.run(timer_client.request_timer_stream()).unwrap();
+        let timer_stream = thread_pool.run(timer_client.request_timer_stream()).unwrap();
 
         let keepalive_ticks = 16;
         let (w_a_ca, w_a_ac) = listener_keepalive(a_ca, 
                                   a_ac,
                                   timer_stream,
                                   keepalive_ticks,
-                                  &handle);
+                                  thread_pool.clone());
 
-        core.run(
+        thread_pool.run(
             run_listener_keepalive_basic(
                 w_a_ca, w_a_ac,
                 c_ac, c_ca,

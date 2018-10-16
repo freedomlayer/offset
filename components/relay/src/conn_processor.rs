@@ -164,9 +164,10 @@ where
 mod tests {
     use super::*;
 
-    use futures::sync::{mpsc, oneshot};
+    use futures::channel::{mpsc, oneshot};
     use futures::Future;
-    use tokio_core::reactor::{Core, Handle};
+    use futures::executor::ThreadPool;
+    use futures::task::{Spawn, SpawnExt};
 
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
     use timer::create_timer_incoming;
@@ -180,7 +181,7 @@ mod tests {
         let first_msg = InitConnection::Listen;
         let ser_first_msg = serialize_init_connection(&first_msg);
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let incoming_conn = dispatch_conn(receiver.map_err(|_| ()), 
+        let incoming_conn = dispatch_conn(receiver,
                                           sender.sink_map_err(|_| ()), 
                                           public_key.clone(), ser_first_msg).unwrap();
         assert_eq!(incoming_conn.public_key, public_key);
@@ -194,7 +195,7 @@ mod tests {
         let first_msg = InitConnection::Accept(accept_public_key.clone());
         let ser_first_msg = serialize_init_connection(&first_msg);
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let incoming_conn = dispatch_conn(receiver.map_err(|_| ()), 
+        let incoming_conn = dispatch_conn(receiver,
                                           sender.sink_map_err(|_| ()), 
                                           public_key.clone(), ser_first_msg).unwrap();
         assert_eq!(incoming_conn.public_key, public_key);
@@ -209,7 +210,7 @@ mod tests {
         let first_msg = InitConnection::Connect(connect_public_key.clone());
         let ser_first_msg = serialize_init_connection(&first_msg);
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let incoming_conn = dispatch_conn(receiver.map_err(|_| ()), 
+        let incoming_conn = dispatch_conn(receiver,
                                           sender.sink_map_err(|_| ()), 
                                           public_key.clone(), ser_first_msg).unwrap();
         assert_eq!(incoming_conn.public_key, public_key);
@@ -225,7 +226,7 @@ mod tests {
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let ser_first_msg = b"This is an invalid message".to_vec();
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let res = dispatch_conn(receiver.map_err(|_| ()), 
+        let res = dispatch_conn(receiver,
                                           sender.sink_map_err(|_| ()), 
                                           public_key.clone(), ser_first_msg);
         assert!(res.is_none());
@@ -233,20 +234,18 @@ mod tests {
 
     #[test]
     fn test_conn_processor_basic() {
-        let mut core = Core::new().unwrap();
-        let handle = core.handle();
+        let mut thread_pool = ThreadPool::new().unwrap();
 
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let timer_client = create_timer_incoming(tick_receiver, &handle).unwrap();
+        let timer_client = create_timer_incoming(tick_receiver, thread_pool.clone()).unwrap();
 
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
         let (local_sender, _remote_receiver) = mpsc::channel::<Vec<u8>>(0);
         let (remote_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
 
-        let incoming_conns = stream::iter_ok::<_, ()>(
-            vec![(local_receiver, local_sender, public_key.clone())])
-            .map_err(|_| ());
+        let incoming_conns = stream::iter::<_>(
+            vec![(local_receiver, local_sender, public_key.clone())]);
 
         let conn_timeout_ticks = 16;
         let processed_conns = conn_processor(timer_client, 
@@ -255,33 +254,32 @@ mod tests {
 
         let first_msg = InitConnection::Listen;
         let ser_first_msg = serialize_init_connection(&first_msg);
-        handle.spawn(remote_sender
+        thread_pool.spawn(remote_sender
                      .send(ser_first_msg)
-                     .then(|res| {
+                     .map(|res| {
                          match res {
-                             Ok(_remote_sender) => Ok(()),
+                             Ok(_remote_sender) => (),
                              Err(_) => unreachable!("Sending first message failed!"),
                          }
                      })
         );
-        // handle.spawn(first_message_sender(remote_sender, ser_first_msg));
 
-        let (conn, processed_conns) =  core.run(receive(processed_conns)).unwrap();
+
+        let (conn, processed_conns) =  thread_pool.run(receive(processed_conns)).unwrap();
         assert_eq!(conn.public_key, public_key);
         match conn.inner {
             IncomingConnInner::Listen(_incoming_listen) => {},
             _ => panic!("Incorrect processed conn"),
         };
 
-        let closed_error = core.run(receive(processed_conns));
-        assert_eq!(closed_error.err().unwrap(), ReceiveError::Closed);
+        assert!(thread_pool.run(receive(processed_conns)).is_none());
     }
 
-    async fn task_process_conn_timeout(handle: Handle) -> Result<(),()> {
+    async fn task_process_conn_timeout(spawner: impl Spawn + Clone + 'static) -> Result<(),()> {
 
         // Create a mock time service:
         let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let timer_client = create_timer_incoming(tick_receiver, &handle).unwrap();
+        let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
 
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
         let (local_sender, remote_receiver) = mpsc::channel::<Vec<u8>>(0);
@@ -296,22 +294,18 @@ mod tests {
                                              public_key.clone(),
                                              timer_stream,
                                              conn_timeout_ticks);
-        handle.spawn(fut_incoming_conn
+        spawner.spawn(fut_incoming_conn
             .then(|res| {
                 res_sender.send(res).ok().unwrap();
-                Ok(())
+                future::ready(())
             }));
 
         for _ in 0 .. 16usize {
-            tick_sender = await!(tick_sender.send(())).unwrap();
+            await!(tick_sender.send(())).unwrap();
         }
 
-        let closed_error = await!(receive(remote_receiver));
-        assert_eq!(closed_error.err().unwrap(), ReceiveError::Closed);
-
-
-        assert!(await!(res_receiver).unwrap().unwrap().is_none());
-
+        assert!(await!(remote_receiver.next()).is_none());
+        assert!(await!(res_receiver).unwrap().is_none());
 
         let first_msg = InitConnection::Listen;
         let ser_first_msg = serialize_init_connection(&first_msg);
@@ -322,8 +316,7 @@ mod tests {
 
     #[test]
     fn test_process_conn_timeout() {
-        let mut core = Core::new().unwrap();
-        let handle = core.handle();
-        core.run(task_process_conn_timeout(handle)).unwrap();
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_process_conn_timeout(thread_pool.clone())).unwrap();
     }
 }

@@ -297,7 +297,9 @@ mod tests {
     use super::*;
     use futures::channel::{mpsc};
     use futures::Future;
-    use futures::task::{ThreadPool, Spawn, SpawnExt};
+    use futures::executor::ThreadPool;
+    use futures::task::{Spawn, SpawnExt};
+
 
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
     use timer::create_timer_incoming;
@@ -305,7 +307,7 @@ mod tests {
     use super::super::types::{IncomingListen, 
         IncomingConnect, IncomingAccept};
 
-    async fn task_relay_server_connect(spawner: impl Spawn) -> Result<(),()> {
+    async fn task_relay_server_connect(spawner: impl Spawn + Clone + Send) -> Result<(),()> {
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
@@ -325,6 +327,7 @@ mod tests {
                     println!("relay_server() error: {:?}", e);
                     ()
                 })
+                .map(|_| ())
         );
 
         /*      a          c          b
@@ -342,7 +345,7 @@ mod tests {
         let b_public_key = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
 
         let incoming_listen_a = IncomingListen {
-            receiver: c_ac.map_err(|_| ()),
+            receiver: c_ac,
             sender: c_ca.sink_map_err(|_| ()),
         };
         let incoming_conn_a = IncomingConn {
@@ -350,10 +353,10 @@ mod tests {
             inner: IncomingConnInner::Listen(incoming_listen_a),
         };
 
-        let outgoing_conns = await!(outgoing_conns.send(incoming_conn_a)).unwrap();
+        await!(outgoing_conns.send(incoming_conn_a)).unwrap();
 
         let incoming_connect_b = IncomingConnect {
-            receiver: c_bc.map_err(|_| ()),
+            receiver: c_bc,
             sender: c_cb.sink_map_err(|_| ()),
             connect_public_key: a_public_key.clone(),
         };
@@ -362,9 +365,9 @@ mod tests {
             inner: IncomingConnInner::Connect(incoming_connect_b),
         };
 
-        let outgoing_conns = await!(outgoing_conns.send(incoming_conn_b)).unwrap();
+        await!(outgoing_conns.send(incoming_conn_b)).unwrap();
 
-        let (msg, _new_a_ca) = await!(receive(a_ca)).unwrap();
+        let msg = await!(a_ca.next()).unwrap();
         assert_eq!(msg, RelayListenOut::IncomingConnection(
                 IncomingConnection(b_public_key.clone())));
 
@@ -373,7 +376,7 @@ mod tests {
         let (c_ca1, mut a_ca1) = mpsc::channel::<TunnelMessage>(0);
 
         let incoming_accept_a = IncomingAccept {
-            receiver: c_ac1.map_err(|_| ()),
+            receiver: c_ac1,
             sender: c_ca1.sink_map_err(|_| ()),
             accept_public_key: b_public_key.clone(),
         };
@@ -384,19 +387,17 @@ mod tests {
 
         let _outgoing_conns = await!(outgoing_conns.send(incoming_conn_accept_a)).unwrap();
 
-        a_ac1 = await!(a_ac1.send(TunnelMessage::Message(vec![1,2,3]))).unwrap();
-        let (msg, new_b_cb) = await!(receive(b_cb)).unwrap();
-        b_cb = new_b_cb;
+        await!(a_ac1.send(TunnelMessage::Message(vec![1,2,3]))).unwrap();
+        let msg = await!(b_cb.next()).unwrap();
         assert_eq!(msg, TunnelMessage::Message(vec![1,2,3]));
 
-        b_bc = await!(b_bc.send(TunnelMessage::Message(vec![4,3,2,1]))).unwrap();
-        let (msg, new_a_ca1) = await!(receive(a_ca1)).unwrap();
-        a_ca1 = new_a_ca1;
+        await!(b_bc.send(TunnelMessage::Message(vec![4,3,2,1]))).unwrap();
+        let msg = await!(a_ca1.next()).unwrap();
         assert_eq!(msg, TunnelMessage::Message(vec![4,3,2,1]));
 
         // If one side's sender is dropped, the other side's receiver will be notified:
         drop(b_bc);
-        assert_eq!(ReceiveError::Closed, await!(receive(a_ca1)).err().unwrap());
+        assert!(await!(a_ca1.next()).is_none());
 
         // Drop here, to make sure values are not automatically dropped earlier:
         drop(a_ac);
@@ -414,7 +415,7 @@ mod tests {
     }
 
     
-    async fn task_relay_server_reject(spawner: impl Spawn) -> Result<(),()> {
+    async fn task_relay_server_reject(spawner: impl Spawn + Clone + Send) -> Result<(),()> {
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
@@ -434,6 +435,7 @@ mod tests {
                     println!("relay_server() error: {:?}", e);
                     ()
                 })
+                .map(|_| ())
         );
 
         /*      a          c          b
@@ -451,7 +453,7 @@ mod tests {
         let b_public_key = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
 
         let incoming_listen_a = IncomingListen {
-            receiver: c_ac.map_err(|_| ()),
+            receiver: c_ac,
             sender: c_ca.sink_map_err(|_| ()),
         };
         let incoming_conn_a = IncomingConn {
@@ -459,10 +461,10 @@ mod tests {
             inner: IncomingConnInner::Listen(incoming_listen_a),
         };
 
-        outgoing_conns = await!(outgoing_conns.send(incoming_conn_a)).unwrap();
+        await!(outgoing_conns.send(incoming_conn_a)).unwrap();
 
         let incoming_connect_b = IncomingConnect {
-            receiver: c_bc.map_err(|_| ()),
+            receiver: c_bc,
             sender: c_cb.sink_map_err(|_| ()),
             connect_public_key: a_public_key.clone(),
         };
@@ -471,10 +473,9 @@ mod tests {
             inner: IncomingConnInner::Connect(incoming_connect_b),
         };
 
-        outgoing_conns = await!(outgoing_conns.send(incoming_conn_b)).unwrap();
+        await!(outgoing_conns.send(incoming_conn_b)).unwrap();
 
-        let (msg, new_a_ca) = await!(receive(a_ca)).unwrap();
-        a_ca = new_a_ca;
+        let msg = await!(a_ca.next()).unwrap();
         assert_eq!(msg, RelayListenOut::IncomingConnection(
                 IncomingConnection(b_public_key.clone())));
 
@@ -486,7 +487,7 @@ mod tests {
             let (c_ca1, _a_ca1) = mpsc::channel::<TunnelMessage>(0);
 
             let incoming_accept_a = IncomingAccept {
-                receiver: c_ac1.map_err(|_| ()),
+                receiver: c_ac1,
                 sender: c_ca1.sink_map_err(|_| ()),
                 accept_public_key: b_public_key.clone(),
             };
@@ -494,16 +495,16 @@ mod tests {
                 public_key: a_public_key.clone(),
                 inner: IncomingConnInner::Accept(incoming_accept_a),
             };
-            outgoing_conns = await!(outgoing_conns.send(incoming_conn_accept_a)).unwrap();
+            await!(outgoing_conns.send(incoming_conn_accept_a)).unwrap();
         }
 
         // A rejects B's connection:
         let reject_connection = RelayListenIn::RejectConnection(
             RejectConnection(b_public_key));
-        a_ac = await!(a_ac.send(reject_connection)).unwrap();
+        await!(a_ac.send(reject_connection)).unwrap();
 
         // B should be notified that the connection is closed:
-        assert_eq!(ReceiveError::Closed, await!(receive(b_cb)).err().unwrap());
+        assert!(await!(b_cb.next()).is_none());
 
         // Drop here, to make sure values are not automatically dropped earlier:
         drop(a_ac);

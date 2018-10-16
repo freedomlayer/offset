@@ -104,9 +104,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::sync::mpsc;
-    use futures::Future;
-    use tokio_core::reactor::Core;
+    use futures::channel::mpsc;
+    use futures::{Future, FutureExt};
+    use futures::executor::ThreadPool;
+    use futures::task::{Spawn, SpawnExt};
     use timer::create_timer_incoming;
     use utils::async_test_utils::{receive, ReceiveError};
 
@@ -119,48 +120,42 @@ mod tests {
 
         // Send and receive messages:
         // (KeepAlive messages are not passed to the other side)
-        sender_a = await!(sender_a.send(TunnelMessage::KeepAlive)).unwrap();
-        sender_a = await!(sender_a.send(TunnelMessage::KeepAlive)).unwrap();
+        await!(sender_a.send(TunnelMessage::KeepAlive)).unwrap();
+        await!(sender_a.send(TunnelMessage::KeepAlive)).unwrap();
 
-        sender_a = await!(sender_a.send(TunnelMessage::Message(vec![1,2,3,4]))).unwrap();
-        let (msg, new_receiver_b) = await!(receive(receiver_b)).unwrap();
-        receiver_b = new_receiver_b;
+        await!(sender_a.send(TunnelMessage::Message(vec![1,2,3,4]))).unwrap();
+        let msg = await!(receiver_b.next()).unwrap();
         assert_eq!(msg, TunnelMessage::Message(vec![1,2,3,4]));
-        sender_b = await!(sender_b.send(TunnelMessage::KeepAlive)).unwrap();
+        await!(sender_b.send(TunnelMessage::KeepAlive)).unwrap();
 
-        sender_b = await!(sender_b.send(TunnelMessage::Message(vec![5,6,7]))).unwrap();
-        let (msg, new_receiver_a) = await!(receive(receiver_a)).unwrap();
-        receiver_a = new_receiver_a;
+        await!(sender_b.send(TunnelMessage::Message(vec![5,6,7]))).unwrap();
+        let msg = await!(receiver_a.next()).unwrap();
         assert_eq!(msg, TunnelMessage::Message(vec![5,6,7]));
 
         // We should get keepalive after some time passes:
         for _ in 0 .. 8usize {
-            tick_sender = await!(tick_sender.send(())).unwrap();
+            await!(tick_sender.send(())).unwrap();
         }
-        let (msg, new_receiver_a) = await!(receive(receiver_a)).unwrap();
-        receiver_a = new_receiver_a;
+        let msg = await!(receiver_a.next()).unwrap();
         assert_eq!(msg, TunnelMessage::KeepAlive);
 
-        let (msg, new_receiver_b) = await!(receive(receiver_b)).unwrap();
-        receiver_b = new_receiver_b;
+        let msg = await!(receiver_b.next()).unwrap();
         assert_eq!(msg, TunnelMessage::KeepAlive);
 
         for _ in 0 .. 7usize {
-            tick_sender = await!(tick_sender.send(())).unwrap();
+            await!(tick_sender.send(())).unwrap();
         }
         // Send a keepalive, so that we won't get disconnected:
-        sender_a = await!(sender_a.send(TunnelMessage::KeepAlive)).unwrap();
-        sender_b = await!(sender_b.send(TunnelMessage::KeepAlive)).unwrap();
+        await!(sender_a.send(TunnelMessage::KeepAlive)).unwrap();
+        await!(sender_b.send(TunnelMessage::KeepAlive)).unwrap();
 
         // Wait one tick:
-        tick_sender = await!(tick_sender.send(())).unwrap();
+        await!(tick_sender.send(())).unwrap();
 
-        let (msg, new_receiver_a) = await!(receive(receiver_a)).unwrap();
-        receiver_a = new_receiver_a;
+        let msg = await!(receiver_a.next()).unwrap();
         assert_eq!(msg, TunnelMessage::KeepAlive);
 
-        let (msg, new_receiver_b) = await!(receive(receiver_b)).unwrap();
-        receiver_b = new_receiver_b;
+        let msg = await!(receiver_b.next()).unwrap();
         assert_eq!(msg, TunnelMessage::KeepAlive);
 
         // Send a message from A to B. 
@@ -168,52 +163,38 @@ mod tests {
         // B will be disconnected 15 ticks from now.
         // A will get a keepalive 8 ticks from now.
         // B will get a keepalive 8 ticks from now.
-        sender_a = await!(sender_a.send(TunnelMessage::Message(vec![8,8,8]))).unwrap();
-        let (msg, new_receiver_b) = await!(receive(receiver_b)).unwrap();
-        receiver_b = new_receiver_b;
+        await!(sender_a.send(TunnelMessage::Message(vec![8,8,8]))).unwrap();
+        let msg = await!(receiver_b.next()).unwrap();
         assert_eq!(msg, TunnelMessage::Message(vec![8,8,8]));
 
         for _ in 0 .. 8usize {
-            tick_sender = await!(tick_sender.send(())).unwrap();
+            await!(tick_sender.send(())).unwrap();
         }
 
-        let (msg, new_receiver_b) = await!(receive(receiver_b)).unwrap();
-        receiver_b = new_receiver_b;
+        let msg = await!(receiver_b.next()).unwrap();
         assert_eq!(msg, TunnelMessage::KeepAlive);
 
-        let (msg, new_receiver_a) = await!(receive(receiver_a)).unwrap();
-        receiver_a = new_receiver_a;
+        let msg = await!(receiver_a.next()).unwrap();
         assert_eq!(msg, TunnelMessage::KeepAlive);
 
         for _ in 0 .. 7usize {
-            tick_sender = await!(tick_sender.send(())).unwrap();
+            await!(tick_sender.send(())).unwrap();
         }
 
         // B timeouts here. As a result the whole tunnel is closed:
-        let err = match await!(receive(receiver_b)) {
-            Ok(_) => unreachable!(),
-            Err(e) => e
-        };
-        assert_eq!(err, ReceiveError::Closed);
-
-        let err = match await!(receive(receiver_a)) {
-            Ok(_) => unreachable!(),
-            Err(e) => e
-        };
-        assert_eq!(err, ReceiveError::Closed);
+        assert!(await!(receiver_b.next()).is_none());
+        assert!(await!(receiver_a.next()).is_none());
 
         Ok(())
-
     }
 
     #[test]
     fn test_tunnel_basic() {
-        let mut core = Core::new().unwrap();
-        let handle = core.handle();
+        let mut thread_pool = ThreadPool::new().unwrap();
 
         // Create a mock time service:
         let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let timer_client = create_timer_incoming(tick_receiver, &handle).unwrap();
+        let timer_client = create_timer_incoming(tick_receiver, thread_pool.clone()).unwrap();
 
         /*      a          c          b
          * a_ca | <-- c_ca | c_cb --> | b_cb
@@ -227,19 +208,19 @@ mod tests {
         let (c_cb, b_cb) = mpsc::channel::<TunnelMessage>(0);
 
         let keepalive_ticks = 16;
-        let timer_stream = core.run(timer_client.request_timer_stream()).unwrap();
+        let timer_stream = thread_pool.run(timer_client.request_timer_stream()).unwrap();
 
         let tloop = tunnel_loop(c_ac, c_ca, 
                                 c_bc, c_cb,
                                 timer_stream,
                                 keepalive_ticks);
-        handle.spawn(tloop.then(|e| {
+        thread_pool.spawn(tloop.then(|e| {
             println!("tloop error occured: {:?}", e);
-            Ok(())
+            future::ready(())
         }));
 
 
-        core.run(
+        thread_pool.run(
             run_tunnel_basic(a_ca,a_ac,
                              b_cb,b_bc,
                              tick_sender)
