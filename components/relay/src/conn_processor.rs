@@ -20,12 +20,12 @@ use proto::relay::serialize::{deserialize_init_connection, deserialize_relay_lis
 
 
 fn dispatch_conn<M,K,KE>(receiver: M, sender: K, public_key: PublicKey, first_msg: Vec<u8>) 
-    -> Option<IncomingConn<impl Stream<Item=RelayListenIn>,
-                              impl Sink<SinkItem=RelayListenOut,SinkError=()>,
-                              impl Stream<Item=TunnelMessage>,
-                              impl Sink<SinkItem=TunnelMessage,SinkError=()>,
-                              impl Stream<Item=TunnelMessage>,
-                              impl Sink<SinkItem=TunnelMessage,SinkError=()>>>
+    -> Option<IncomingConn<impl Stream<Item=RelayListenIn> + Unpin,
+                              impl Sink<SinkItem=RelayListenOut,SinkError=()> + Unpin,
+                              impl Stream<Item=TunnelMessage> + Unpin,
+                              impl Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin,
+                              impl Stream<Item=TunnelMessage> + Unpin,
+                              impl Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin>>
 where
     M: Stream<Item=Vec<u8>> + Unpin,
     K: Sink<SinkItem=Vec<u8>, SinkError=KE> + Unpin,
@@ -82,12 +82,12 @@ fn process_conn<M,K,KE,TS>(receiver: M,
                 public_key: PublicKey,
                 timer_stream: TS,
                 conn_timeout_ticks: usize) -> impl Future<Output=Option<
-                             IncomingConn<impl Stream<Item=RelayListenIn>,
-                                          impl Sink<SinkItem=RelayListenOut,SinkError=()>,
-                                          impl Stream<Item=TunnelMessage>,
-                                          impl Sink<SinkItem=TunnelMessage,SinkError=()>,
-                                          impl Stream<Item=TunnelMessage>,
-                                          impl Sink<SinkItem=TunnelMessage,SinkError=()>>>>
+                             IncomingConn<impl Stream<Item=RelayListenIn> + Unpin,
+                                          impl Sink<SinkItem=RelayListenOut,SinkError=()> + Unpin,
+                                          impl Stream<Item=TunnelMessage> + Unpin,
+                                          impl Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin,
+                                          impl Stream<Item=TunnelMessage> + Unpin,
+                                          impl Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin>>> + Unpin
 
 where
     M: Stream<Item=Vec<u8>> + Unpin,
@@ -115,6 +115,7 @@ where
         });
 
     // select(fut_receiver, fut_time)
+    // NOTE: This select is probably not Unpin. Maybe we need to implement our own?
     async move {
         select! {
             fut_receiver => fut_receiver,
@@ -251,6 +252,7 @@ mod tests {
         let processed_conns = conn_processor(timer_client, 
                        incoming_conns, 
                        conn_timeout_ticks);
+
 
         let first_msg = InitConnection::Listen;
         let ser_first_msg = serialize_init_connection(&first_msg);
