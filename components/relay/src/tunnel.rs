@@ -1,5 +1,5 @@
-use futures::prelude::{async, await};
-use futures::{Stream, stream, Sink};
+use std::marker::Unpin;
+use futures::{future, stream, Stream, StreamExt, Sink, SinkExt};
 use timer::TimerTick;
 use proto::relay::messages::TunnelMessage;
 
@@ -20,24 +20,23 @@ pub enum TunnelEvent {
     Receiver1Closed,
     Receiver2Closed,
     TimerTick,
+    TimerClosed,
 }
 
-#[async]
-pub fn tunnel_loop<R1,S1,R2,S2,ER1,ES1,ER2,ES2,TS>(receiver1: R1, mut sender1: S1,
+pub async fn tunnel_loop<R1,S1,R2,S2,ES1,ES2,TS>(receiver1: R1, mut sender1: S1,
                             receiver2: R2, mut sender2: S2,
                             timer_stream: TS, 
                             keepalive_ticks: usize) -> Result<(), TunnelError> 
 where
-    R1: Stream<Item=TunnelMessage, Error=ER1> + 'static,
-    S1: Sink<SinkItem=TunnelMessage, SinkError=ES1> + 'static,
-    R2: Stream<Item=TunnelMessage, Error=ER2> + 'static,
-    S2: Sink<SinkItem=TunnelMessage, SinkError=ES2> + 'static,
-    TS: Stream<Item=TimerTick,Error=()> + 'static,
+    R1: Stream<Item=TunnelMessage> + Unpin + 'static,
+    S1: Sink<SinkItem=TunnelMessage, SinkError=ES1> + Unpin + 'static,
+    R2: Stream<Item=TunnelMessage> + Unpin + 'static,
+    S2: Sink<SinkItem=TunnelMessage, SinkError=ES2> + Unpin + 'static,
+    TS: Stream<Item=TimerTick> + Unpin + 'static,
 {
 
     let timer_stream = timer_stream.map(|_| TunnelEvent::TimerTick)
-        .map_err(|_| TunnelError::TimerStream)
-        .chain(stream::once(Err(TunnelError::TimerClosed)));
+        .chain(stream::once(future::ready(TunnelEvent::TimerClosed)));
 
     // Ticks left until we drop the connection due to inactivity.
     let mut ticks_to_timeout1: usize = keepalive_ticks;
@@ -47,22 +46,19 @@ where
     let mut ticks_to_keepalive2: usize = keepalive_ticks / 2;
 
     let receiver1 = receiver1.map(TunnelEvent::Receiver1)
-        .map_err(|_| TunnelError::TunnelReceiver)
-        .chain(stream::once(Ok(TunnelEvent::Receiver1Closed)));
+        .chain(stream::once(future::ready(TunnelEvent::Receiver1Closed)));
     let receiver2 = receiver2.map(TunnelEvent::Receiver2)
-        .map_err(|_| TunnelError::TunnelReceiver)
-        .chain(stream::once(Ok(TunnelEvent::Receiver2Closed)));
+        .chain(stream::once(future::ready(TunnelEvent::Receiver2Closed)));
 
     let tunnel_events = timer_stream.select(receiver1).select(receiver2);
 
-    #[async]
-    for tunnel_event in tunnel_events {
+    while let Some(tunnel_event) = await!(tunnel_events.next()) {
         match tunnel_event {
             TunnelEvent::Receiver1(tun_msg) => {
                 match tun_msg {
                     TunnelMessage::KeepAlive => ticks_to_timeout1 = keepalive_ticks,
                     TunnelMessage::Message(msg) => {
-                        sender2 = await!(sender2.send(TunnelMessage::Message(msg)))
+                        await!(sender2.send(TunnelMessage::Message(msg)))
                             .map_err(|_| TunnelError::Sender)?;
                         ticks_to_keepalive1 = keepalive_ticks / 2;
                     },
@@ -72,7 +68,7 @@ where
                 match tun_msg {
                     TunnelMessage::KeepAlive => ticks_to_timeout2 = keepalive_ticks,
                     TunnelMessage::Message(msg) => {
-                        sender1 = await!(sender1.send(TunnelMessage::Message(msg)))
+                        await!(sender1.send(TunnelMessage::Message(msg)))
                             .map_err(|_| TunnelError::Sender)?;
                         ticks_to_keepalive2 = keepalive_ticks / 2;
                     },
@@ -87,18 +83,19 @@ where
                 }
                 ticks_to_keepalive1 = ticks_to_keepalive1.saturating_sub(1);
                 if ticks_to_keepalive1 == 0 {
-                    sender1 = await!(sender1.send(TunnelMessage::KeepAlive))
+                    await!(sender1.send(TunnelMessage::KeepAlive))
                         .map_err(|_| TunnelError::Sender)?;
                     ticks_to_keepalive1 = keepalive_ticks / 2;
                 }
 
                 ticks_to_keepalive2 = ticks_to_keepalive2.saturating_sub(1);
                 if ticks_to_keepalive2 == 0 {
-                    sender2 = await!(sender2.send(TunnelMessage::KeepAlive))
+                    await!(sender2.send(TunnelMessage::KeepAlive))
                         .map_err(|_| TunnelError::Sender)?;
                     ticks_to_keepalive2 = keepalive_ticks / 2;
                 }
             },
+            TunnelEvent::TimerClosed => return Err(TunnelError::TimerClosed),
         }
     }
     unreachable!();
@@ -107,15 +104,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::prelude::{async, await};
     use futures::sync::mpsc;
     use futures::Future;
     use tokio_core::reactor::Core;
     use timer::create_timer_incoming;
     use utils::async_test_utils::{receive, ReceiveError};
 
-    #[async]
-    fn run_tunnel_basic(mut receiver_a: mpsc::Receiver<TunnelMessage>, 
+    async fn run_tunnel_basic(mut receiver_a: mpsc::Receiver<TunnelMessage>, 
                      mut sender_a: mpsc::Sender<TunnelMessage>,
                      mut receiver_b: mpsc::Receiver<TunnelMessage>, 
                      mut sender_b:  mpsc::Sender<TunnelMessage>,

@@ -1,15 +1,11 @@
 use crypto::identity::PublicKey;
 
-// M: Stream<Item=RelayListenIn, Error=()>,
-// K: Sink<SinkItem=RelayListenOut, SinkError=()>,
 #[allow(unused)]
 pub struct IncomingListen<M,K> {
     pub receiver: M,
     pub sender: K,
 }
 
-// M: Stream<Item=TunnelMessage, Error=()>>,
-// K: Sink<SinkItem=TunnelMessage, SinkError=()>>,
 #[allow(unused)]
 pub struct IncomingAccept<M,K> {
     pub receiver: M,
@@ -17,8 +13,6 @@ pub struct IncomingAccept<M,K> {
     pub accept_public_key: PublicKey,
 }
 
-// M: Stream<Item=TunnelMessage, Error=()>,
-// K: SinkItem=TunnelMessage, SinkError=()>,
 #[allow(unused)]
 pub struct IncomingConnect<M,K> {
     pub receiver: M,

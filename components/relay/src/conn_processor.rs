@@ -1,6 +1,8 @@
 use std::iter;
+use std::marker::Unpin;
 
-use futures::{stream, Stream, Sink, Future};
+use futures::{future, Future, FutureExt, stream, 
+    Stream, StreamExt, Sink, SinkExt};
 
 use crypto::identity::PublicKey;
 use timer::{TimerTick, TimerClient};
@@ -16,36 +18,41 @@ use proto::relay::serialize::{deserialize_init_connection, deserialize_relay_lis
 
 
 
-fn dispatch_conn<M,K,ME,KE>(receiver: M, sender: K, public_key: PublicKey, first_msg: Vec<u8>) 
-    -> Option<IncomingConn<impl Stream<Item=RelayListenIn,Error=()>,
+fn dispatch_conn<M,K,KE>(receiver: M, sender: K, public_key: PublicKey, first_msg: Vec<u8>) 
+    -> Option<IncomingConn<impl Stream<Item=RelayListenIn>,
                               impl Sink<SinkItem=RelayListenOut,SinkError=()>,
-                              impl Stream<Item=TunnelMessage,Error=()>,
+                              impl Stream<Item=TunnelMessage>,
                               impl Sink<SinkItem=TunnelMessage,SinkError=()>,
-                              impl Stream<Item=TunnelMessage,Error=()>,
+                              impl Stream<Item=TunnelMessage>,
                               impl Sink<SinkItem=TunnelMessage,SinkError=()>>>
 where
-    M: Stream<Item=Vec<u8>, Error=ME>,
+    M: Stream<Item=Vec<u8>>,
     K: Sink<SinkItem=Vec<u8>, SinkError=KE>,
 {
     let sender = sender.sink_map_err(|_| ());
-    let receiver = receiver.map_err(|_| ());
     let inner = match deserialize_init_connection(&first_msg).ok()? {
         InitConnection::Listen => {
             IncomingConnInner::Listen(IncomingListen {
-                receiver: receiver.and_then(|data| deserialize_relay_listen_in(&data).map_err(|_| ())),
-                sender: sender.with(|msg| Ok(serialize_relay_listen_out(&msg))),
+                receiver: receiver.map(|data| deserialize_relay_listen_in(&data))
+                    .take_while(|res| future::ready(res.is_ok()))
+                    .map(|res| res.unwrap()),
+                sender: sender.with(|msg| future::ready(Ok(serialize_relay_listen_out(&msg)))),
             })
         },
         InitConnection::Accept(accept_public_key) => 
             IncomingConnInner::Accept(IncomingAccept {
-                receiver: receiver.and_then(|data| deserialize_tunnel_message(&data).map_err(|_| ())),
-                sender: sender.with(|msg| Ok(serialize_tunnel_message(&msg))),
+                receiver: receiver.map(|data| deserialize_tunnel_message(&data))
+                    .take_while(|res| future::ready(res.is_ok()))
+                    .map(|res| res.unwrap()),
+                sender: sender.with(|msg| future::ready(Ok(serialize_tunnel_message(&msg)))),
                 accept_public_key,
             }),
         InitConnection::Connect(connect_public_key) => 
             IncomingConnInner::Connect(IncomingConnect {
-                receiver: receiver.and_then(|data| deserialize_tunnel_message(&data).map_err(|_| ())),
-                sender: sender.with(|msg| Ok(serialize_tunnel_message(&msg))),
+                receiver: receiver.map(|data| deserialize_tunnel_message(&data))
+                    .take_while(|res| future::ready(res.is_ok()))
+                    .map(|res| res.unwrap()),
+                sender: sender.with(|msg| future::ready(Ok(serialize_tunnel_message(&msg)))),
                 connect_public_key,
             }),
     };
@@ -56,44 +63,38 @@ where
     })
 }
 
-fn process_conn<M,K,ME,KE,TS>(receiver: M, 
+fn process_conn<M,K,KE,TS>(receiver: M, 
                 sender: K, 
                 public_key: PublicKey,
                 timer_stream: TS,
-                conn_timeout_ticks: usize) -> impl Future<Item=Option<
-                             IncomingConn<impl Stream<Item=RelayListenIn,Error=()>,
+                conn_timeout_ticks: usize) -> impl Future<Output=Option<
+                             IncomingConn<impl Stream<Item=RelayListenIn>,
                                           impl Sink<SinkItem=RelayListenOut,SinkError=()>,
-                                          impl Stream<Item=TunnelMessage,Error=()>,
+                                          impl Stream<Item=TunnelMessage>,
                                           impl Sink<SinkItem=TunnelMessage,SinkError=()>,
-                                          impl Stream<Item=TunnelMessage,Error=()>,
-                                          impl Sink<SinkItem=TunnelMessage,SinkError=()>>>,
-                        Error=()>
+                                          impl Stream<Item=TunnelMessage>,
+                                          impl Sink<SinkItem=TunnelMessage,SinkError=()>>>>
 
 where
-    M: Stream<Item=Vec<u8>, Error=ME>,
-    K: Sink<SinkItem=Vec<u8>, SinkError=KE>,
-    TS: Stream<Item=TimerTick, Error=()>,
+    M: Stream<Item=Vec<u8>> + Unpin,
+    K: Sink<SinkItem=Vec<u8>, SinkError=KE> + Unpin,
+    TS: Stream<Item=TimerTick> + Unpin,
 {
     let conn_timeout_ticks = usize_to_u64(conn_timeout_ticks).unwrap();
     let fut_receiver = 
         receiver
         .into_future()
-        .then(|res| {
-            Ok(match res {
-                Ok((opt_first_msg, receiver)) => {
-                    match opt_first_msg {
-                        Some(first_msg) => dispatch_conn(receiver, sender, public_key, first_msg),
-                        None => None,
-                    }
-                },
-                Err(_) => None,
+        .then(|(opt_first_msg, receiver)| {
+            future::ready(match opt_first_msg {
+                Some(first_msg) => dispatch_conn(receiver, sender, public_key, first_msg),
+                None => None,
             })
         });
 
     let fut_time = timer_stream
         .take(conn_timeout_ticks)
         .for_each(|_| {
-            Ok(())
+            future::ready(())
         })
         .map(|_| {
             None
@@ -102,7 +103,7 @@ where
     fut_receiver
         .select(fut_time)
         .map_err(|_| ())
-        .and_then(|(value, _last_future)| Ok(value))
+        .and_then(|(value, _last_future)| future::ready(Some(value)))
 }
 
 
@@ -110,32 +111,25 @@ where
 /// For each connection obtain the first message, and prepare the correct type according to this
 /// first messages.
 /// If waiting for the first message takes too long, discard the connection.
-pub fn conn_processor<T,M,K,TE,ME,KE>(timer_client: TimerClient,
+pub fn conn_processor<T,M,K,KE>(timer_client: TimerClient,
                     incoming_conns: T,
                     conn_timeout_ticks: usize) -> impl Stream<
-                        Item=IncomingConn<impl Stream<Item=RelayListenIn,Error=()>,
+                        Item=IncomingConn<impl Stream<Item=RelayListenIn>,
                                           impl Sink<SinkItem=RelayListenOut,SinkError=()>,
-                                          impl Stream<Item=TunnelMessage,Error=()>,
+                                          impl Stream<Item=TunnelMessage>,
                                           impl Sink<SinkItem=TunnelMessage,SinkError=()>,
-                                          impl Stream<Item=TunnelMessage,Error=()>,
-                                          impl Sink<SinkItem=TunnelMessage,SinkError=()>>,
-                        Error=()>
+                                          impl Stream<Item=TunnelMessage>,
+                                          impl Sink<SinkItem=TunnelMessage,SinkError=()>>>
 where
-    T: Stream<Item=(M, K, PublicKey), Error=TE>,
-    M: Stream<Item=Vec<u8>, Error=ME>,
-    K: Sink<SinkItem=Vec<u8>, SinkError=KE>,
+    T: Stream<Item=(M, K, PublicKey)> + Unpin,
+    M: Stream<Item=Vec<u8>> + Unpin,
+    K: Sink<SinkItem=Vec<u8>, SinkError=KE> + Unpin,
 {
-    let incoming_conns = incoming_conns.map_err(|_| ())
-        .then(|res| res);
-    let timer_streams = stream::iter_ok::<_, ()>(iter::repeat(()))
-        .map_err(|_| ())
-        .and_then(move |()| {
-            timer_client.clone().request_timer_stream()
-                .map_err(|_| ())
-        });
+    let timer_streams = stream::iter::<_>(iter::repeat(()))
+        .map(move |()| timer_client.clone().request_timer_stream());
 
     incoming_conns.zip(timer_streams)
-    .and_then(move |((receiver, sender, public_key), timer_stream)|
+    .map(move |((receiver, sender, public_key), timer_stream)|
         process_conn(receiver, sender, public_key, 
                      timer_stream, conn_timeout_ticks))
     .filter_map(|opt_conn| opt_conn)
@@ -146,7 +140,6 @@ where
 mod tests {
     use super::*;
 
-    use futures::prelude::{async, await};
     use futures::sync::{mpsc, oneshot};
     use futures::Future;
     use tokio_core::reactor::{Core, Handle};
@@ -260,8 +253,7 @@ mod tests {
         assert_eq!(closed_error.err().unwrap(), ReceiveError::Closed);
     }
 
-    #[async]
-    fn task_process_conn_timeout(handle: Handle) -> Result<(),()> {
+    async fn task_process_conn_timeout(handle: Handle) -> Result<(),()> {
 
         // Create a mock time service:
         let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
