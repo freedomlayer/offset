@@ -1,3 +1,4 @@
+use std::marker::Unpin;
 use futures::{Stream, StreamExt};
 
 #[derive(Debug, Eq, PartialEq)]
@@ -7,15 +8,11 @@ pub enum ReceiveError {
 }
 
 /// Util function to read one item from a Stream, asynchronously.
-pub async fn receive<T, M: 'static>(reader: M) -> Option<(T, M)>
-    where M: Stream<Item=T> + std::marker::Unpin,
+pub async fn receive<T, M: 'static>(mut reader: M) -> Option<(T, M)>
+    where M: Stream<Item=T> + Unpin
 {
-    match await!(reader.into_future()) {
-        (opt_reader_message, ret_reader) => {
-            match opt_reader_message {
-                Some(reader_message) => Some((reader_message, ret_reader)),
-                None => None
-            }
-        },
+    match await!(reader.next()) {
+        Some(reader_msg) => Some((reader_msg, reader)),
+        None => None,
     }
 }
