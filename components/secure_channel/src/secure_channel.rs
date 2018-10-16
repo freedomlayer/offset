@@ -1,6 +1,5 @@
 #![allow(unused)]
 
-use std::rc::Rc;
 use futures::{future, stream, Stream, StreamExt, 
     Sink, SinkExt, Future, FutureExt};
 use futures::task::{Spawn, SpawnExt};
@@ -53,10 +52,10 @@ async fn read_from_reader<M: 'static>(reader: M) -> Result<(Vec<u8>, M), SecureC
 }
 */
 
-async fn initial_exchange<EK, M: 'static,K: 'static,R: CryptoRandom + 'static>(reader: M, writer: K, 
+async fn initial_exchange<EK, M: 'static,K: 'static,R: CryptoRandom + 'static>(mut reader: M, mut writer: K, 
                               identity_client: IdentityClient,
                               opt_expected_remote: Option<PublicKey>,
-                              rng: Rc<R>)
+                              rng: R)
                             -> Result<(ScState, M, K), SecureChannelError>
 where
     R: CryptoRandom,
@@ -66,7 +65,7 @@ where
     let local_public_key = await!(identity_client.request_public_key())
         .map_err(|_| SecureChannelError::IdentityFailure)?;
 
-    let (dh_state_initial, exchange_rand_nonce) = ScStateInitial::new(&local_public_key, &*rng);
+    let (dh_state_initial, exchange_rand_nonce) = ScStateInitial::new(&local_public_key, &rng);
     let ser_exchange_rand_nonce = serialize_exchange_rand_nonce(&exchange_rand_nonce);
     await!(writer.send(ser_exchange_rand_nonce))
         .map_err(|_| SecureChannelError::WriterError)?;
@@ -80,7 +79,7 @@ where
     let (dh_state_half, exchange_dh) = await!(dh_state_initial.handle_exchange_rand_nonce(
                                                 exchange_rand_nonce,
                                                 identity_client.clone(),
-                                                Rc::clone(&rng)))
+                                                rng.clone()))
         .map_err(SecureChannelError::HandleExchangeRandNonceError)?;
 
     if let Some(expected_remote) = opt_expected_remote {
@@ -118,7 +117,7 @@ async fn secure_channel_loop<EK, M: 'static,K: 'static, R: CryptoRandom + 'stati
                               reader: M, mut writer: K, 
                               from_user: mpsc::Receiver<Vec<u8>>,
                               mut to_user: mpsc::Sender<Vec<u8>>,
-                              rng: Rc<R>,
+                              rng: R,
                               ticks_to_rekey: usize,
                               timer_client: TimerClient)
     -> Result<!, SecureChannelError>
@@ -141,12 +140,12 @@ where
         .chain(stream::once(future::ready(SecureChannelEvent::ReceiverClosed)));
 
     let mut cur_ticks_to_rekey = ticks_to_rekey;
-    let events = reader.select(from_user).select(timer_stream);
+    let mut events = reader.select(from_user).select(timer_stream);
 
     while let Some(event) = await!(events.next()) {
         match event {
             SecureChannelEvent::Reader(data) => {
-                let hi_output = dh_state.handle_incoming(&EncryptedData(data), &*rng)
+                let hi_output = dh_state.handle_incoming(&EncryptedData(data), &rng)
                     .map_err(|_| SecureChannelError::HandleIncomingError)?;
                 if hi_output.rekey_occured {
                     cur_ticks_to_rekey = ticks_to_rekey;
@@ -161,7 +160,7 @@ where
                 }
             },
             SecureChannelEvent::User(data) => {
-                let enc_data = dh_state.create_outgoing(&PlainData(data), &*rng);
+                let enc_data = dh_state.create_outgoing(&PlainData(data), &rng);
                 await!(writer.send(enc_data.0))
                     .map_err(|_| SecureChannelError::WriterError)?;
             },
@@ -170,7 +169,7 @@ where
                     cur_ticks_to_rekey = new_cur_ticks_to_rekey;
                     continue;
                 }
-                let enc_data = match dh_state.create_rekey(&*rng) {
+                let enc_data = match dh_state.create_rekey(&rng) {
                     Ok(enc_data) => enc_data,
                     Err(ScStateError::RekeyInProgress) => continue,
                     Err(_) => unreachable!(),
@@ -189,10 +188,10 @@ where
 pub async fn create_secure_channel<EK, M: 'static,K: 'static,R: CryptoRandom + 'static>(reader: M, writer: K, 
                               identity_client: IdentityClient,
                               opt_expected_remote: Option<PublicKey>,
-                              rng: Rc<R>,
+                              rng: R,
                               timer_client: TimerClient,
                               ticks_to_rekey: usize,
-                              spawner: impl Spawn)
+                              mut spawner: impl Spawn)
     -> Result<SecureChannel, SecureChannelError>
 where
     R: CryptoRandom,
@@ -205,7 +204,7 @@ where
                                                 writer, 
                                                 identity_client, 
                                                 opt_expected_remote, 
-                                                Rc::clone(&rng)))?;
+                                                rng.clone()))?;
 
     let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(0);
     let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(0);
@@ -214,7 +213,7 @@ where
                                       reader, writer,
                                       from_user,
                                       to_user,
-                                      rng,
+                                      rng.clone(),
                                       ticks_to_rekey,
                                       timer_client);
 
@@ -239,16 +238,20 @@ mod tests {
     use super::*;
     use timer::create_timer_incoming;
     use futures::Future;
-    use futures::sync::oneshot;
-    use tokio_core::reactor::Core;
-    use crypto::test_utils::FixedByteRandom;
+    use futures::channel::oneshot;
+
+    use futures::executor::LocalPool;
+    use futures::task::SpawnExt;
+
+    use crypto::test_utils::DummyRandom;
+    use crypto::crypto_rand::RngContainer;
     use crypto::identity::{Identity, SoftwareEd25519Identity,
                             generate_pkcs8_key_pair};
     use identity::{create_identity, IdentityClient};
 
-    async fn secure_channel1(fut_sc: impl Future<Item=SecureChannel, Error=SecureChannelError> + 'static,
+    async fn secure_channel1(fut_sc: impl Future<Output=Result<SecureChannel, SecureChannelError>> + 'static,
                        mut tick_sender: mpsc::Sender<()>,
-                       output_sender: oneshot::Sender<bool>) -> Result<(),()> {
+                       output_sender: oneshot::Sender<bool>) {
         let SecureChannel {sender, receiver} = await!(fut_sc).unwrap();
         await!(sender.send(vec![0,1,2,3,4,5])).unwrap();
         let data = await!(receiver.next()).unwrap();
@@ -261,12 +264,11 @@ mod tests {
         await!(sender.send(vec![0,1,2])).unwrap();
 
         output_sender.send(true);
-        Ok(())
     }
 
-    async fn secure_channel2(fut_sc: impl Future<Item=SecureChannel, Error=SecureChannelError> + 'static,
+    async fn secure_channel2(fut_sc: impl Future<Output=Result<SecureChannel, SecureChannelError>> + 'static,
                        tick_sender: mpsc::Sender<()>,
-                       output_sender: oneshot::Sender<bool>) -> Result<(),()> {
+                       output_sender: oneshot::Sender<bool>) {
 
         let SecureChannel {sender, receiver} = await!(fut_sc).unwrap();
         let data = await!(receiver.next()).unwrap();
@@ -277,42 +279,38 @@ mod tests {
         assert_eq!(data, vec![0,1,2]);
 
         output_sender.send(true);
-        Ok(())
     }
 
     #[test]
     fn test_secure_channel_basic() {
         // Start the Identity service:
-        let mut core = Core::new().unwrap();
-        let handle = core.handle();
+        let mut local_pool = LocalPool::new();
+        let mut spawner = local_pool.spawner();
 
         // Create a mock time service:
         let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let timer_client = create_timer_incoming(tick_receiver, &handle).unwrap();
+        let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
 
-        let rng1 = FixedByteRandom { byte: 0x1 };
+        let rng1 = DummyRandom::new(&[1u8]);
         let pkcs8 = generate_pkcs8_key_pair(&rng1);
         let identity1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
         let public_key1 = identity1.get_public_key();
         let (requests_sender1, identity_server1) = create_identity(identity1);
         let identity_client1 = IdentityClient::new(requests_sender1);
 
-        let rng2 = FixedByteRandom { byte: 0x2 };
+        let rng2 = DummyRandom::new(&[2u8]);
         let pkcs8 = generate_pkcs8_key_pair(&rng2);
         let identity2 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
         let public_key2 = identity2.get_public_key();
         let (requests_sender2, identity_server2) = create_identity(identity2);
         let identity_client2 = IdentityClient::new(requests_sender2);
 
-        handle.spawn(identity_server1.then(|_| Ok(())));
-        handle.spawn(identity_server2.then(|_| Ok(())));
+        spawner.spawn(identity_server1.then(|_| future::ready(())));
+        spawner.spawn(identity_server2.then(|_| future::ready(())));
 
         let (sender1, receiver2) = mpsc::channel::<Vec<u8>>(0);
         let (sender2, receiver1) = mpsc::channel::<Vec<u8>>(0);
 
-
-        let rc_rng1 = Rc::new(rng1);
-        let rc_rng2 = Rc::new(rng2);
 
         let ticks_to_rekey: usize = 16;
 
@@ -320,28 +318,28 @@ mod tests {
                               sender1.sink_map_err(|_| ()),
                               identity_client1,
                               Some(public_key2),
-                              Rc::clone(&rc_rng1),
+                              rng1.clone(),
                               timer_client.clone(),
                               ticks_to_rekey,
-                              handle.clone());
+                              spawner.clone());
 
         let fut_sc2 = create_secure_channel(receiver2,
                               sender2.sink_map_err(|_| ()),
                               identity_client2,
                               Some(public_key1),
-                              Rc::clone(&rc_rng2),
+                              rng2.clone(),
                               timer_client.clone(),
                               ticks_to_rekey,
-                              handle.clone());
+                              spawner.clone());
 
         let (output_sender1, output_receiver1) = oneshot::channel::<bool>();
         let (output_sender2, output_receiver2) = oneshot::channel::<bool>();
 
-        handle.spawn(secure_channel1(fut_sc1, tick_sender.clone(), output_sender1));
-        handle.spawn(secure_channel2(fut_sc2, tick_sender.clone(), output_sender2));
+        spawner.spawn(secure_channel1(fut_sc1, tick_sender.clone(), output_sender1));
+        spawner.spawn(secure_channel2(fut_sc2, tick_sender.clone(), output_sender2));
 
-        assert_eq!(true, core.run(output_receiver1).unwrap());
-        assert_eq!(true, core.run(output_receiver2).unwrap());
+        assert_eq!(true, local_pool.run_until(output_receiver1).unwrap());
+        assert_eq!(true, local_pool.run_until(output_receiver2).unwrap());
     }
 }
 
