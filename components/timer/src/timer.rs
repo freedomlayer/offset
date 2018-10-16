@@ -106,14 +106,12 @@ where
     let mut requests_done = false;
 
     while let Some(event) = await!(events.next()) {
-        // dbg!(tick_senders.len());
         match event {
             TimerEvent::Incoming => {
                 let mut temp_tick_senders = Vec::new();
                 temp_tick_senders.append(&mut tick_senders);
                 for mut tick_sender in temp_tick_senders {
                     if let Ok(()) = await!(tick_sender.send(TimerTick)) {
-                        dbg!("Timer sending tick");
                         tick_senders.push(tick_sender);
                     }
                 }
@@ -121,7 +119,7 @@ where
             TimerEvent::Request(timer_request) => {
                 let (tick_sender, tick_receiver) = mpsc::channel(0);
                 tick_senders.push(tick_sender);
-                let _ = dbg!(timer_request.response_sender.send(tick_receiver));
+                let _ = timer_request.response_sender.send(tick_receiver);
             },
             TimerEvent::IncomingDone => {
                 break;
@@ -134,7 +132,6 @@ where
             break;
         }
     }
-    dbg!("Timer exited!");
     Ok(())
 }
 
