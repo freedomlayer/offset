@@ -137,7 +137,7 @@ where
     KA: Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin + Send, 
     MC: Stream<Item=TunnelMessage> + Unpin + Send,
     KC: Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin + Send,
-    S: Stream<Item=IncomingConn<ML,KL,MA,KA,MC,KC>> + Unpin + 'static,
+    S: Stream<Item=IncomingConn<ML,KL,MA,KA,MC,KC>> + Unpin,
 {
 
     let timer_stream = await!(timer_client.clone().request_timer_stream())
