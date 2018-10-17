@@ -109,7 +109,7 @@ where
                 timer_stream,
                 keepalive_ticks)
     .map_err(|e| {
-        println!("tunnel_loop() error: {:?}", e);
+        error!("tunnel_loop() error: {:?}", e);
         ()
     })
     .then(move |_| {
