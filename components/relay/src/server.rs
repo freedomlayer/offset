@@ -324,7 +324,7 @@ mod tests {
         spawner.spawn(
             fut_relay_server
                 .map_err(|e| {
-                    println!("relay_server() error: {:?}", e);
+                    // println!("relay_server() error: {:?}", e);
                     ()
                 })
                 .map(|_| ())
@@ -432,7 +432,7 @@ mod tests {
         spawner.spawn(
             fut_relay_server
                 .map_err(|e| {
-                    println!("relay_server() error: {:?}", e);
+                    // println!("relay_server() error: {:?}", e);
                     ()
                 })
                 .map(|_| ())
