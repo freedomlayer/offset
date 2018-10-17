@@ -12,7 +12,7 @@ use utils::int_convert::usize_to_u64;
 
 use proto::relay::messages::{InitConnection, TunnelMessage, 
     RelayListenIn, RelayListenOut};
-use super::types::{IncomingConn, IncomingConnInner, 
+use crate::types::{IncomingConn, IncomingConnInner, 
     IncomingListen, IncomingAccept, IncomingConnect};
 use proto::relay::serialize::{deserialize_init_connection, deserialize_relay_listen_in,
                         serialize_relay_listen_out, serialize_tunnel_message,
