@@ -10,16 +10,16 @@ pub enum InitConnection {
     Connect(PublicKey),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct RejectConnection(pub PublicKey);
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum RelayListenIn {
     KeepAlive,
     RejectConnection(RejectConnection),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct IncomingConnection(pub PublicKey);
 
 #[derive(Debug, PartialEq, Eq)]
