@@ -1,7 +1,7 @@
 # CSwitch
 
 [![Build Status](https://travis-ci.com/realcr/cswitch.svg?branch=master)](https://travis-ci.com/realcr/cswitch)
-[![codecov](https://codecov.io/gh/kamyuentse/cswitch/branch/master/graph/badge.svg?token=8wnbKAjDFl)](https://codecov.io/gh/kamyuentse/cswitch)
+[![codecov](https://codecov.io/gh/realcr/cswitch/branch/master/graph/badge.svg)](https://codecov.io/gh/realcr/cswitch)
 [![Gitter chat](https://badges.gitter.im/freedomlayer/cswitch.svg)](https://gitter.im/freedomlayer/cswitch)
 
 **Credit Switching** is a decentralized payment infrastructure, relying on real
