@@ -1,7 +1,9 @@
 use std::thread;
+use std::marker::Unpin;
 use std::time::{Duration, Instant};
 use futures::sink::{SinkExt, Sink};
 use futures::channel::mpsc;
+use futures::{stream, StreamExt, Future, FutureExt};
 use tokio::prelude::{Sink as TokioSink, Stream as TokioStream, Future as TokioFuture};
 use tokio::timer::Interval;
 
@@ -36,6 +38,20 @@ where
 {
     await!(sink.send(item))?;
     Ok(sink)
+}
+
+
+/// A futures select function that outputs an Unpin future.
+pub fn future_select<T>(a: impl Future<Output=T> + Unpin,
+                        b: impl Future<Output=T> + Unpin) -> impl Future<Output=T> + Unpin {
+
+    let s_a = stream::once(a);
+    let s_b = stream::once(b);
+    let s = s_a.select(s_b);
+    s.into_future()
+        .map(|(opt_item, _s)| {
+            opt_item.unwrap()
+        })
 }
 
 
