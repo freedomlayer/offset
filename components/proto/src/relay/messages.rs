@@ -28,7 +28,7 @@ pub enum RelayListenOut {
     IncomingConnection(IncomingConnection),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TunnelMessage {
     KeepAlive,
     Message(Vec<u8>),

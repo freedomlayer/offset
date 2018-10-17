@@ -1,5 +1,6 @@
 use std::marker::Unpin;
 use futures::{future, stream, Stream, StreamExt, Sink, SinkExt};
+use futures::channel::mpsc;
 use timer::TimerTick;
 use proto::relay::messages::TunnelMessage;
 
@@ -13,7 +14,7 @@ pub enum TunnelError {
     TimerClosed,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TunnelEvent {
     Receiver1(TunnelMessage),
     Receiver2(TunnelMessage),
@@ -23,10 +24,11 @@ pub enum TunnelEvent {
     TimerClosed,
 }
 
-pub async fn tunnel_loop<R1,S1,R2,S2,ES1,ES2,TS>(receiver1: R1, mut sender1: S1,
+async fn inner_tunnel_loop<R1,S1,R2,S2,ES1,ES2,TS>(receiver1: R1, mut sender1: S1,
                             receiver2: R2, mut sender2: S2,
                             timer_stream: TS, 
-                            keepalive_ticks: usize) -> Result<(), TunnelError> 
+                            keepalive_ticks: usize,
+                            mut opt_event_sender: Option<mpsc::Sender<TunnelEvent>>) -> Result<(), TunnelError> 
 where
     R1: Stream<Item=TunnelMessage> + Unpin + 'static,
     S1: Sink<SinkItem=TunnelMessage, SinkError=ES1> + Unpin + 'static,
@@ -53,6 +55,9 @@ where
     let mut tunnel_events = timer_stream.select(receiver1).select(receiver2);
 
     while let Some(tunnel_event) = await!(tunnel_events.next()) {
+        if let Some(ref mut event_sender) = opt_event_sender {
+            await!(event_sender.send(tunnel_event.clone())).unwrap();
+        }
         match tunnel_event {
             TunnelEvent::Receiver1(tun_msg) => {
                 match tun_msg {
@@ -101,6 +106,24 @@ where
     unreachable!();
 }
 
+pub async fn tunnel_loop<R1,S1,R2,S2,ES1,ES2,TS>(receiver1: R1, sender1: S1,
+                            receiver2: R2, sender2: S2,
+                            timer_stream: TS, 
+                            keepalive_ticks: usize) -> Result<(), TunnelError>
+where
+    R1: Stream<Item=TunnelMessage> + Unpin + 'static,
+    S1: Sink<SinkItem=TunnelMessage, SinkError=ES1> + Unpin + 'static,
+    R2: Stream<Item=TunnelMessage> + Unpin + 'static,
+    S2: Sink<SinkItem=TunnelMessage, SinkError=ES2> + Unpin + 'static,
+    TS: Stream<Item=TimerTick> + Unpin + 'static,
+{
+    await!(inner_tunnel_loop(receiver1, sender1,
+                      receiver2, sender2,
+                      timer_stream,
+                      keepalive_ticks,
+                      None))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -115,26 +138,33 @@ mod tests {
                      mut sender_a: mpsc::Sender<TunnelMessage>,
                      mut receiver_b: mpsc::Receiver<TunnelMessage>, 
                      mut sender_b:  mpsc::Sender<TunnelMessage>,
-                     mut tick_sender: mpsc::Sender<()>) 
-        -> Result<(), ()> {
+                     mut tick_sender: mpsc::Sender<()>,
+                     mut event_receiver: mpsc::Receiver<TunnelEvent>) {
 
         // Send and receive messages:
         // (KeepAlive messages are not passed to the other side)
         await!(sender_a.send(TunnelMessage::KeepAlive)).unwrap();
+        let _ = await!(event_receiver.next());
         await!(sender_a.send(TunnelMessage::KeepAlive)).unwrap();
+        let _ = await!(event_receiver.next());
+
 
         await!(sender_a.send(TunnelMessage::Message(vec![1,2,3,4]))).unwrap();
+        let _ = await!(event_receiver.next());
         let msg = await!(receiver_b.next()).unwrap();
         assert_eq!(msg, TunnelMessage::Message(vec![1,2,3,4]));
         await!(sender_b.send(TunnelMessage::KeepAlive)).unwrap();
+        let _ = await!(event_receiver.next());
 
         await!(sender_b.send(TunnelMessage::Message(vec![5,6,7]))).unwrap();
+        let _ = await!(event_receiver.next());
         let msg = await!(receiver_a.next()).unwrap();
         assert_eq!(msg, TunnelMessage::Message(vec![5,6,7]));
 
         // We should get keepalive after some time passes:
         for _ in 0 .. 8usize {
             await!(tick_sender.send(())).unwrap();
+            let _ = await!(event_receiver.next());
         }
         let msg = await!(receiver_a.next()).unwrap();
         assert_eq!(msg, TunnelMessage::KeepAlive);
@@ -144,13 +174,17 @@ mod tests {
 
         for _ in 0 .. 7usize {
             await!(tick_sender.send(())).unwrap();
+            let _ = await!(event_receiver.next());
         }
         // Send a keepalive, so that we won't get disconnected:
         await!(sender_a.send(TunnelMessage::KeepAlive)).unwrap();
+        let _ = await!(event_receiver.next());
         await!(sender_b.send(TunnelMessage::KeepAlive)).unwrap();
+        let _ = await!(event_receiver.next());
 
         // Wait one tick:
         await!(tick_sender.send(())).unwrap();
+        let _ = await!(event_receiver.next());
 
         let msg = await!(receiver_a.next()).unwrap();
         assert_eq!(msg, TunnelMessage::KeepAlive);
@@ -164,11 +198,13 @@ mod tests {
         // A will get a keepalive 8 ticks from now.
         // B will get a keepalive 8 ticks from now.
         await!(sender_a.send(TunnelMessage::Message(vec![8,8,8]))).unwrap();
+        let _ = await!(event_receiver.next());
         let msg = await!(receiver_b.next()).unwrap();
         assert_eq!(msg, TunnelMessage::Message(vec![8,8,8]));
 
         for _ in 0 .. 8usize {
             await!(tick_sender.send(())).unwrap();
+            let _ = await!(event_receiver.next());
         }
 
         let msg = await!(receiver_b.next()).unwrap();
@@ -179,13 +215,13 @@ mod tests {
 
         for _ in 0 .. 7usize {
             await!(tick_sender.send(())).unwrap();
+            let _ = await!(event_receiver.next());
         }
 
         // B timeouts here. As a result the whole tunnel is closed:
         assert!(await!(receiver_b.next()).is_none());
         assert!(await!(receiver_a.next()).is_none());
 
-        Ok(())
     }
 
     #[test]
@@ -210,12 +246,16 @@ mod tests {
         let keepalive_ticks = 16;
         let timer_stream = thread_pool.run(timer_client.request_timer_stream()).unwrap();
 
-        let tloop = tunnel_loop(c_ac, c_ca, 
+        // For debugging events:
+        let (event_sender, event_receiver) = mpsc::channel(0);
+
+        let tloop = inner_tunnel_loop(c_ac, c_ca, 
                                 c_bc, c_cb,
                                 timer_stream,
-                                keepalive_ticks);
-        thread_pool.spawn(tloop.then(|e| {
-            println!("tloop error occured: {:?}", e);
+                                keepalive_ticks,
+                                Some(event_sender));
+        thread_pool.spawn(tloop.then(|_e| {
+            // println!("tloop error occured: {:?}", e);
             future::ready(())
         })).unwrap();
 
@@ -223,8 +263,9 @@ mod tests {
         thread_pool.run(
             run_tunnel_basic(a_ca,a_ac,
                              b_cb,b_bc,
-                             tick_sender)
-        ).unwrap();
+                             tick_sender,
+                             event_receiver)
+        );
     }
 }
 
