@@ -105,11 +105,11 @@ where
 mod tests {
     use super::*;
     use futures::channel::mpsc;
-    use futures::{Future, FutureExt};
+    use futures::{FutureExt};
     use futures::executor::ThreadPool;
-    use futures::task::{Spawn, SpawnExt};
+    use futures::task::{SpawnExt};
+
     use timer::create_timer_incoming;
-    use utils::async_test_utils::{receive, ReceiveError};
 
     async fn run_tunnel_basic(mut receiver_a: mpsc::Receiver<TunnelMessage>, 
                      mut sender_a: mpsc::Sender<TunnelMessage>,
@@ -217,7 +217,7 @@ mod tests {
         thread_pool.spawn(tloop.then(|e| {
             println!("tloop error occured: {:?}", e);
             future::ready(())
-        }));
+        })).unwrap();
 
 
         thread_pool.run(

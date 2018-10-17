@@ -307,12 +307,12 @@ mod tests {
     use super::super::types::{IncomingListen, 
         IncomingConnect, IncomingAccept};
 
-    async fn task_relay_server_connect(spawner: impl Spawn + Clone + Send) -> Result<(),()> {
+    async fn task_relay_server_connect(mut spawner: impl Spawn + Clone + Send) -> Result<(),()> {
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
 
-        let (outgoing_conns, incoming_conns) = mpsc::channel::<_>(0);
+        let (mut outgoing_conns, incoming_conns) = mpsc::channel::<_>(0);
 
         let keepalive_ticks: usize = 16;
 
@@ -337,7 +337,7 @@ mod tests {
         */
 
         let (a_ac, c_ac) = mpsc::channel::<RelayListenIn>(0);
-        let (c_ca, a_ca) = mpsc::channel::<RelayListenOut>(0);
+        let (c_ca, mut a_ca) = mpsc::channel::<RelayListenOut>(0);
         let (mut b_bc, c_bc) = mpsc::channel::<TunnelMessage>(0);
         let (c_cb, mut b_cb) = mpsc::channel::<TunnelMessage>(0);
 
@@ -415,7 +415,7 @@ mod tests {
     }
 
     
-    async fn task_relay_server_reject(spawner: impl Spawn + Clone + Send) -> Result<(),()> {
+    async fn task_relay_server_reject(mut spawner: impl Spawn + Clone + Send) -> Result<(),()> {
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
@@ -447,7 +447,7 @@ mod tests {
         let (mut a_ac, c_ac) = mpsc::channel::<RelayListenIn>(0);
         let (c_ca, mut a_ca) = mpsc::channel::<RelayListenOut>(0);
         let (b_bc, c_bc) = mpsc::channel::<TunnelMessage>(0);
-        let (c_cb, b_cb) = mpsc::channel::<TunnelMessage>(0);
+        let (c_cb, mut b_cb) = mpsc::channel::<TunnelMessage>(0);
 
         let a_public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
         let b_public_key = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);

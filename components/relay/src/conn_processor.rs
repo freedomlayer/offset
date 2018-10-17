@@ -1,5 +1,6 @@
 use std::iter;
 use std::marker::Unpin;
+use core::pin::Pin;
 
 use futures::{future, Future, FutureExt, stream, 
     Stream, StreamExt, Sink, SinkExt,
@@ -87,7 +88,7 @@ fn process_conn<M,K,KE,TS>(receiver: M,
                                           impl Stream<Item=TunnelMessage> + Unpin,
                                           impl Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin,
                                           impl Stream<Item=TunnelMessage> + Unpin,
-                                          impl Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin>>> + Unpin
+                                          impl Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin>>>
 
 where
     M: Stream<Item=Vec<u8>> + Unpin,
@@ -243,7 +244,7 @@ mod tests {
 
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
         let (local_sender, _remote_receiver) = mpsc::channel::<Vec<u8>>(0);
-        let (remote_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
+        let (mut remote_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
 
         let incoming_conns = stream::iter::<_>(
             vec![(local_receiver, local_sender, public_key.clone())]);
@@ -253,17 +254,22 @@ mod tests {
                        incoming_conns, 
                        conn_timeout_ticks);
 
+        let processed_conns = Box::pinned(processed_conns);
+
 
         let first_msg = InitConnection::Listen;
         let ser_first_msg = serialize_init_connection(&first_msg);
-        thread_pool.spawn(remote_sender
+        thread_pool.spawn(
+            async move {
+                await!(remote_sender
                      .send(ser_first_msg)
                      .map(|res| {
                          match res {
                              Ok(_remote_sender) => (),
                              Err(_) => unreachable!("Sending first message failed!"),
                          }
-                     })
+                     }))
+            }
         );
 
 
@@ -277,15 +283,15 @@ mod tests {
         assert!(thread_pool.run(receive(processed_conns)).is_none());
     }
 
-    async fn task_process_conn_timeout(spawner: impl Spawn + Clone + 'static) -> Result<(),()> {
+    async fn task_process_conn_timeout(mut spawner: impl Spawn + Clone + 'static) -> Result<(),()> {
 
         // Create a mock time service:
         let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
 
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let (local_sender, remote_receiver) = mpsc::channel::<Vec<u8>>(0);
-        let (remote_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
+        let (local_sender, mut remote_receiver) = mpsc::channel::<Vec<u8>>(0);
+        let (mut remote_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
 
         let conn_timeout_ticks = 16;
         let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
