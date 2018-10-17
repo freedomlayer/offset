@@ -12,4 +12,5 @@ extern crate log;
 
 #[allow(unused)]
 mod server;
+mod client;
 
