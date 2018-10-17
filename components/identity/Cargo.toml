@@ -1,18 +1,21 @@
+cargo-features = ["rename-dependency"]
+
 [package]
 name = "cswitch-identity"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 
+edition = "2018"
 
 [dependencies]
 
-cswitch-utils = { path = "../utils", version = "0.1.0" }
-cswitch-crypto = { path = "../crypto", version = "0.1.0" }
+utils = { path = "../utils", version = "0.1.0", package = "cswitch-utils"}
+crypto = { path = "../crypto", version = "0.1.0" , package = "cswitch-crypto"}
 
-futures = "0.1"
-tokio-core = "0.1"
-futures-await = "0.1"
-
+# futures = "0.1.25"
+# tokio-core = "0.1"
+# futures-await = "0.1"
+futures-preview = { git = "https://github.com/rust-lang-nursery/futures-rs", rev = "a25e51e" }
 
 [dev-dependencies]
 

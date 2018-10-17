@@ -2,7 +2,7 @@
 //!
 //! ## Introduction
 //!
-//! The timer based on broadcast model. It send time tick to all clients
+//! The timer is based on broadcast model. It sends time tick to all clients
 //! periodically.
 //!
 //! ## The Timer Message Format
@@ -22,14 +22,15 @@
 
 // #![deny(warnings)]
 
-use std::{time::Duration};
+use std::time::Duration;
 use futures::prelude::*;
-use futures::prelude::{async, await};
-use futures::sync::{mpsc, oneshot};
+use futures::channel::{mpsc, oneshot};
+use futures::task::{Spawn, SpawnExt};
 use futures::stream;
+use utils::futures_compat::create_interval;
 
-use tokio_core::reactor::{Handle, Interval};
 
+#[derive(Debug)]
 pub struct TimerTick;
 
 #[derive(Debug)]
@@ -50,6 +51,12 @@ struct TimerRequest {
     response_sender: oneshot::Sender<mpsc::Receiver<TimerTick>>,
 }
 
+impl std::fmt::Debug for TimerRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "TimerRequest")
+    }
+}
+
 #[derive(Clone)]
 pub struct TimerClient {
     sender: mpsc::Sender<TimerRequest>,
@@ -62,8 +69,7 @@ impl TimerClient {
         }
     }
 
-    #[async]
-    pub fn request_timer_stream(self) -> Result<mpsc::Receiver<TimerTick>, TimerClientError> {
+    pub async fn request_timer_stream(mut self) -> Result<mpsc::Receiver<TimerTick>, TimerClientError> {
         let (response_sender, response_receiver) = oneshot::channel();
         let timer_request = TimerRequest { response_sender };
         let _ = match await!(self.sender.send(timer_request)) {
@@ -77,6 +83,7 @@ impl TimerClient {
     }
 }
 
+#[derive(Debug)]
 enum TimerEvent {
     Incoming,
     IncomingDone,
@@ -84,31 +91,27 @@ enum TimerEvent {
     RequestsDone,
 }
 
-#[async]
-fn timer_loop<M: 'static>(incoming: M, from_client: mpsc::Receiver<TimerRequest>) -> Result<(), TimerError> 
+async fn timer_loop<M>(incoming: M, from_client: mpsc::Receiver<TimerRequest>) -> Result<(), TimerError> 
 where
-    M: Stream<Item=(), Error=()>,
+    M: Stream<Item=()> + std::marker::Unpin,
 {
     let incoming = incoming.map(|_| TimerEvent::Incoming)
-        .map_err(|_| TimerError::IncomingError)
-        .chain(stream::once(Ok(TimerEvent::IncomingDone)));
+        .chain(stream::once(future::ready(TimerEvent::IncomingDone)));
     let from_client = from_client.map(|timer_request| TimerEvent::Request(timer_request))
-        .map_err(|_| TimerError::IncomingRequestsError)
-        .chain(stream::once(Ok(TimerEvent::RequestsDone)));
+        .chain(stream::once(future::ready(TimerEvent::RequestsDone)));
 
     // TODO: What happens if one of the two streams (incoming, from_client) is closed?
-    let events = incoming.select(from_client);
+    let mut events = incoming.select(from_client);
     let mut tick_senders: Vec<mpsc::Sender<TimerTick>> = Vec::new();
     let mut requests_done = false;
 
-    #[async]
-    for event in events {
+    while let Some(event) = await!(events.next()) {
         match event {
             TimerEvent::Incoming => {
                 let mut temp_tick_senders = Vec::new();
                 temp_tick_senders.append(&mut tick_senders);
-                for tick_sender in temp_tick_senders {
-                    if let Ok(tick_sender) = await!(tick_sender.send(TimerTick)) {
+                for mut tick_sender in temp_tick_senders {
+                    if let Ok(()) = await!(tick_sender.send(TimerTick)) {
                         tick_senders.push(tick_sender);
                     }
                 }
@@ -118,9 +121,13 @@ where
                 tick_senders.push(tick_sender);
                 let _ = timer_request.response_sender.send(tick_receiver);
             },
-            TimerEvent::IncomingDone => break,
-            TimerEvent::RequestsDone => requests_done = true,
-        }
+            TimerEvent::IncomingDone => {
+                break;
+            },
+            TimerEvent::RequestsDone => {
+                requests_done = true;
+            },
+        };
         if requests_done && tick_senders.is_empty() {
             break;
         }
@@ -130,22 +137,24 @@ where
 
 /// Create a timer service that broadcasts everything from the incoming Stream.
 /// Useful for testing, as this function allows full control on the rate of incoming signals.
-pub fn create_timer_incoming<M: 'static>(incoming: M, handle: &Handle) -> Result<TimerClient, TimerError> 
+pub fn create_timer_incoming<M>(incoming: M, mut spawner: impl Spawn) -> Result<TimerClient, TimerError> 
 where
-    M: Stream<Item=(), Error=()>,
+    M: Stream<Item=()> + std::marker::Unpin + std::marker::Send + 'static,
 {
     let (sender, receiver) = mpsc::channel::<TimerRequest>(0);
     let timer_loop_future = timer_loop(incoming, receiver);
-    handle.spawn(timer_loop_future.then(|_| Ok(())));
+    let total_fut = timer_loop_future
+        .map_err(|e| error!("timer loop error: {:?}",e))
+        .then(|_| future::ready(()));
+    spawner.spawn(total_fut).unwrap();
     Ok(TimerClient::new(sender))
 }
 
 /// Create a timer service that ticks every `dur`.
-pub fn create_timer(dur: Duration, handle: &Handle) -> Result<TimerClient, TimerError> {
-    let interval = Interval::new(dur, handle)
-        .map_err(|_| TimerError::IntervalCreationError)?;
+pub fn create_timer(dur: Duration, spawner: impl Spawn) -> Result<TimerClient, TimerError> {
 
-    create_timer_incoming(interval.map_err(|_| ()), handle)
+    let interval = create_interval(dur);
+    create_timer_incoming(interval, spawner)
 }
 
 
@@ -153,44 +162,105 @@ pub fn create_timer(dur: Duration, handle: &Handle) -> Result<TimerClient, Timer
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time;
-    use futures::prelude::{async, await};
-    use futures::future::join_all;
-    use tokio_core::reactor::Core;
+    use std::time::{Duration, Instant};
+    use futures::executor::LocalPool;
+    use futures::future::FutureObj;
+    // use core::pin::Pin;
 
     #[test]
-    fn test_timer_basic() {
-        let mut core = Core::new().unwrap();
-        let handle = core.handle();
+    fn test_timer_single() {
+        let mut local_pool = LocalPool::new();
+        let spawner = local_pool.spawner();
 
+        let dur = Duration::from_millis(1);
+        let timer_client = create_timer(dur, spawner).unwrap();
+
+        let timer_stream = local_pool.run_until(timer_client.clone().request_timer_stream()).unwrap();
+        let wait_fut = timer_stream.take(10).collect::<Vec<TimerTick>>();
+        local_pool.run_until(wait_fut);
+    }
+
+
+    #[test]
+    fn test_timer_twice() {
+        let mut local_pool = LocalPool::new();
+        let spawner = local_pool.spawner();
+
+        let dur = Duration::from_millis(1);
+        let timer_client = create_timer(dur, spawner).unwrap();
+
+        let timer_stream = local_pool.run_until(timer_client.clone().request_timer_stream()).unwrap();
+        let wait_fut = timer_stream.take(10).collect::<Vec<TimerTick>>();
+        local_pool.run_until(wait_fut);
+
+        let timer_stream = local_pool.run_until(timer_client.clone().request_timer_stream()).unwrap();
+        let wait_fut = timer_stream.take(10).collect::<Vec<TimerTick>>();
+        local_pool.run_until(wait_fut);
+    }
+
+    #[test]
+    fn test_timer_create_multiple_streams() {
+        let mut local_pool = LocalPool::new();
+        let spawner = local_pool.spawner();
+
+        // Create a mock time service:
+        let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
+        let timer_client = create_timer_incoming(tick_receiver, spawner).unwrap();
+
+        let mut timer_streams = Vec::new();
+        for _ in 0 .. 10 {
+            let timer_stream = local_pool.run_until(timer_client.clone().request_timer_stream()).unwrap();
+            timer_streams.push(timer_stream);
+        }
+    }
+
+    #[test]
+    fn test_timer_multiple() {
+        let mut local_pool = LocalPool::new();
+        let mut spawner = local_pool.spawner();
 
         let dur = Duration::from_millis(10);
-        let timer_client = create_timer(dur, &handle).unwrap();
+        let timer_client = create_timer(dur, spawner.clone()).unwrap();
 
-        const TICKS: u32 = 20;
-        const TIMER_CLIENT_NUM: usize = 50;
+        const TICKS: u32 = 4;
+        const TIMER_CLIENT_NUM: usize = 2;
 
-        let clients = (0..TIMER_CLIENT_NUM)
-            .map(|_| core.run(timer_client.clone().request_timer_stream()).unwrap())
-            .step_by(2)
-            .collect::<Vec<_>>();
+        let mut senders = Vec::new();
+        let mut joined_receivers = FutureObj::from(future::ready(()).boxed());
 
-        assert_eq!(clients.len(), TIMER_CLIENT_NUM / 2);
+        for _ in 0 .. TIMER_CLIENT_NUM {
+            let (sender, receiver) = oneshot::channel::<()>();
+            senders.push(sender);
 
-        let start = time::Instant::now();
-        let clients_fut = clients
-            .into_iter()
-            .map(|client| client.take(u64::from(TICKS)).collect().and_then(|_| {
-                    let elapsed = start.elapsed();
-                    assert!(elapsed >= dur * TICKS * 2 / 3);
-                    assert!(elapsed < dur * TICKS * 2);
-                    Ok(())
-            }))
-            .collect::<Vec<_>>();
+            let receiver = receiver.map(|_| {
+                ()
+            });
 
-        let task = join_all(clients_fut);
+            let new_join = joined_receivers.join(receiver).map(|_| ());
+            joined_receivers = FutureObj::from(new_join.boxed());
+        }
 
-        assert!(core.run(task).is_ok());
+        let (sender_done, receiver_done) = oneshot::channel::<()>();
+
+        spawner.spawn(joined_receivers.map(|_| sender_done.send(()).unwrap())).unwrap();
+
+        let start = Instant::now();
+        for _ in 0 .. TIMER_CLIENT_NUM {
+            let sender = senders.pop().unwrap();
+            let new_client = local_pool.run_until(timer_client.clone().request_timer_stream()).unwrap();
+            let client_wait = new_client.take(u64::from(TICKS)).collect::<Vec<TimerTick>>();
+            let client_fut = client_wait.map(move |_| {
+                let elapsed = start.elapsed();
+                assert!(elapsed >= dur * TICKS * 2 / 3);
+                assert!(elapsed < dur * TICKS * 2);
+                sender.send(()).unwrap();
+                ()
+            });
+
+            spawner.spawn(client_fut).unwrap();
+        }
+
+        local_pool.run_until(receiver_done).unwrap();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////
@@ -202,34 +272,28 @@ mod tests {
         Error,
     }
 
-    #[async]
     /// Util function to read from a Stream
-    fn receive<T, EM, M: 'static>(reader: M) -> Result<(T, M), ReadError>
-        where M: Stream<Item=T, Error=EM>,
+    async fn receive<T, M: 'static>(reader: M) -> Result<(T, M), ReadError>
+        where M: Stream<Item=T> + std::marker::Unpin,
     {
-        match await!(reader.into_future()) {
-            Ok((opt_reader_message, ret_reader)) => {
-                match opt_reader_message {
-                    Some(reader_message) => Ok((reader_message, ret_reader)),
-                    None => return Err(ReadError::Closed),
-                }
-            },
-            Err(_) => return Err(ReadError::Error),
+        let (opt_reader_message, ret_reader) = await!(reader.into_future());
+        match opt_reader_message {
+            Some(reader_message) => Ok((reader_message, ret_reader)),
+            None => return Err(ReadError::Closed),
         }
     }
 
     struct CustomTick;
 
-    #[async]
-    fn task_ticks_receiver<S>(mut tick_sender: S,
+    async fn task_ticks_receiver<S>(mut tick_sender: S,
                            timer_client: TimerClient) -> Result<(), ()> 
     where
-        S: Sink<SinkItem=(), SinkError=()> + 'static
+        S: Sink<SinkItem=(), SinkError=()> + std::marker::Unpin + 'static
     {
         let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
         let mut timer_stream = timer_stream.map(|_| CustomTick);
         for _ in 0 .. 8usize {
-            tick_sender = await!(tick_sender.send(())).unwrap();
+            await!(tick_sender.send(())).unwrap();
             let (_, new_timer_stream) = await!(receive(timer_stream)).unwrap();
             timer_stream = new_timer_stream;
         }
@@ -244,15 +308,15 @@ mod tests {
 
     #[test]
     fn test_create_timer_incoming() {
-        let mut core = Core::new().unwrap();
-        let handle = core.handle();
+        let mut local_pool = LocalPool::new();
+        let spawner = local_pool.spawner();
 
         // Create a mock time service:
         let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let timer_client = create_timer_incoming(tick_receiver, &handle).unwrap();
+        let timer_client = create_timer_incoming(tick_receiver, spawner).unwrap();
 
         let tick_sender = tick_sender.sink_map_err(|_| ());
-        core.run(task_ticks_receiver(tick_sender, timer_client)).unwrap();
+        local_pool.run_until(task_ticks_receiver(tick_sender, timer_client)).unwrap();
 
     }
 }

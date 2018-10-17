@@ -1,14 +1,21 @@
+cargo-features = ["rename-dependency"]
+
 [package]
 name = "cswitch-timer"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
+edition = "2018"
 
 [dependencies]
 
+log = "0.4"
+
 bytes = "0.4"
-futures = "0.1"
-tokio-core = "0.1"
-futures-await = "0.1"
+# futures-preview = "0.3.0-alpha.7"
+# futures-util-preview = {version = "0.3.0-alpha.7", features = ["compat"]}
+futures-preview = { git = "https://github.com/rust-lang-nursery/futures-rs", rev = "a25e51e" }
+
+utils = { path = "../utils", version = "0.1.0" , package = "cswitch-utils"}
 
 [dev-dependencies]
 

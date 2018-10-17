@@ -1,6 +1,4 @@
 use std::mem;
-use std::rc::Rc;
-use futures::prelude::{async, await};
 use byteorder::{BigEndian, ByteOrder};
 
 use crypto::crypto_rand::{RandValue, CryptoRandom};
@@ -85,17 +83,16 @@ impl ScStateInitial {
         (sc_state_initial, exchange_rand_nonce)
     }
 
-    #[async]
-    pub fn handle_exchange_rand_nonce<R: CryptoRandom + 'static>(self, 
+    pub async fn handle_exchange_rand_nonce<R: CryptoRandom + 'static>(self, 
                                                              exchange_rand_nonce: ExchangeRandNonce, 
-                                                             identity_client: IdentityClient, rng:Rc<R>) 
+                                                             identity_client: IdentityClient, rng: R) 
                                                             -> Result<(ScStateHalf, ExchangeDh), ScStateError> {
 
-        let dh_private_key = DhPrivateKey::new(&*rng)
+        let dh_private_key = DhPrivateKey::new(&rng)
             .map_err(|_| ScStateError::PrivateKeyGenFailure)?;
         let dh_public_key = dh_private_key.compute_public_key()
                 .map_err(|_| ScStateError::DhPublicKeyComputeFailure)?;;
-        let local_salt = Salt::new(&*rng)
+        let local_salt = Salt::new(&rng)
             .map_err(|_| ScStateError::SaltGenFailure)?;
 
         let sc_state_half = ScStateHalf {
@@ -320,27 +317,27 @@ impl ScState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::prelude::{async, await};
-    use futures::Future;
-    use tokio_core::reactor::Core;
-    use crypto::test_utils::FixedByteRandom;
+    // use tokio_core::reactor::Core;
+    use futures::{future, FutureExt};
+    use futures::executor::ThreadPool;
+    use futures::task::SpawnExt;
+    use crypto::test_utils::DummyRandom;
     use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair};
     use identity::create_identity;
     use identity::IdentityClient;
 
-    #[async]
-    fn run_basic_sc_state(identity_client1: IdentityClient, identity_client2: IdentityClient) -> Result<(ScState, ScState),()> {
-        let rng1 = Rc::new(FixedByteRandom { byte: 0x1 });
-        let rng2 = Rc::new(FixedByteRandom { byte: 0x2 });
+    async fn run_basic_sc_state(identity_client1: IdentityClient, identity_client2: IdentityClient) -> Result<(ScState, ScState),()> {
+        let rng1 = DummyRandom::new(&[1u8]);
+        let rng2 = DummyRandom::new(&[2u8]);
         let local_public_key1 = await!(identity_client1.request_public_key()).unwrap();
         let local_public_key2 = await!(identity_client2.request_public_key()).unwrap();
-        let (sc_state_initial1, exchange_rand_nonce1) = ScStateInitial::new(&local_public_key1, &*rng1);
-        let (sc_state_initial2, exchange_rand_nonce2) = ScStateInitial::new(&local_public_key2, &*rng2);
+        let (sc_state_initial1, exchange_rand_nonce1) = ScStateInitial::new(&local_public_key1, &rng1);
+        let (sc_state_initial2, exchange_rand_nonce2) = ScStateInitial::new(&local_public_key2, &rng2);
 
         let (sc_state_half1, exchange_dh1) = 
-            await!(sc_state_initial1.handle_exchange_rand_nonce(exchange_rand_nonce2, identity_client1.clone(), Rc::clone(&rng1))).unwrap();
+            await!(sc_state_initial1.handle_exchange_rand_nonce(exchange_rand_nonce2, identity_client1.clone(), rng1.clone())).unwrap();
         let (sc_state_half2, exchange_dh2) = 
-            await!(sc_state_initial2.handle_exchange_rand_nonce(exchange_rand_nonce1, identity_client2.clone(), Rc::clone(&rng2))).unwrap();
+            await!(sc_state_initial2.handle_exchange_rand_nonce(exchange_rand_nonce1, identity_client2.clone(), rng2.clone())).unwrap();
         
         let sc_state1 = sc_state_half1.handle_exchange_dh(exchange_dh2).unwrap();
         let sc_state2 = sc_state_half2.handle_exchange_dh(exchange_dh1).unwrap();
@@ -404,27 +401,26 @@ mod tests {
         assert_eq!(incoming_output2.opt_incoming_message, None);
     }
 
-    fn prepare_dh_test() -> (ScState, ScState, FixedByteRandom, FixedByteRandom) {
-        let rng1 = FixedByteRandom { byte: 0x1 };
+    fn prepare_dh_test() -> (ScState, ScState, DummyRandom, DummyRandom) {
+        let rng1 = DummyRandom::new(&[1u8]);
         let pkcs8 = generate_pkcs8_key_pair(&rng1);
         let identity1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
         let (requests_sender1, identity_server1) = create_identity(identity1);
         let identity_client1 = IdentityClient::new(requests_sender1);
 
-        let rng2 = FixedByteRandom { byte: 0x2 };
+        let rng2 = DummyRandom::new(&[2u8]);
         let pkcs8 = generate_pkcs8_key_pair(&rng2);
         let identity2 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
         let (requests_sender2, identity_server2) = create_identity(identity2);
         let identity_client2 = IdentityClient::new(requests_sender2);
 
         // Start the Identity service:
-        let mut core = Core::new().unwrap();
-        let handle = core.handle();
-        handle.spawn(identity_server1.then(|_| Ok(())));
-        handle.spawn(identity_server2.then(|_| Ok(())));
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.spawn(identity_server1.then(|_| future::ready(()))).unwrap();
+        thread_pool.spawn(identity_server2.then(|_| future::ready(()))).unwrap();
 
         let (sc_state1, sc_state2) = 
-            core.run(run_basic_sc_state(identity_client1, identity_client2)).unwrap();
+            thread_pool.run(run_basic_sc_state(identity_client1, identity_client2)).unwrap();
 
         (sc_state1, sc_state2, rng1, rng2)
     }

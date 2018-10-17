@@ -1,23 +1,23 @@
 
 use std::rc::Rc;
-use futures::prelude::{async, await};
-use futures::{sync::mpsc, Stream, stream, Sink};
+use futures::channel::mpsc;
+use futures::{Stream, stream, Sink, SinkExt, StreamExt};
 use futures_cpupool::CpuPool;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-
-use state::FunderState;
-use ephemeral::FunderEphemeral;
-use handler::{funder_handle_message, 
-    FunderHandlerOutput, FunderHandlerError};
-use types::{FunderOutgoing, FunderIncoming, ResponseReceived,
-                    FunderOutgoingControl, FunderOutgoingComm};
-use database::{DbCore, DbRunner, DbRunnerError};
-
 use crypto::crypto_rand::CryptoRandom;
 use identity::IdentityClient;
+
+use crate::state::FunderState;
+use crate::ephemeral::FunderEphemeral;
+use crate::handler::{funder_handle_message, 
+    FunderHandlerOutput, FunderHandlerError};
+use crate::types::{FunderOutgoing, FunderIncoming, ResponseReceived,
+                    FunderOutgoingControl, FunderOutgoingComm};
+use crate::database::{DbCore, DbRunner, DbRunnerError};
+
 
 
 enum FunderError {
@@ -39,8 +39,7 @@ struct Funder<A: Clone, R> {
 }
 
 impl<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: CryptoRandom + 'static> Funder<A,R> {
-    #[async]
-    fn run(mut self) -> Result<!, FunderError> {
+    async fn run(mut self) -> Result<!, FunderError> {
 
         let Funder {identity_client,
                     rng,
@@ -61,15 +60,9 @@ impl<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: CryptoR
 
         loop {
             // Read one message from incoming messages:
-            let funder_message = match await!(incoming_messages.into_future()) {
-                Ok((opt_funder_message, ret_incoming_messages)) => {
-                    incoming_messages = ret_incoming_messages;
-                    match opt_funder_message {
-                        Some(funder_message) => funder_message,
-                        None => return Err(FunderError::IncomingMessagesClosed),
-                    }
-                },
-                Err(_) => return Err(FunderError::IncomingMessagesError),
+            let funder_message = match await!(incoming_messages.next()) {
+                Some(funder_message) => funder_message,
+                None => return Err(FunderError::IncomingMessagesClosed),
             };
 
             // Process message:
@@ -96,17 +89,15 @@ impl<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: CryptoR
             funder_ephemeral = handler_output.ephemeral;
 
             // Send outgoing communication messages:
-            let comm_stream = stream::iter_ok::<_, ()>(handler_output.outgoing_comms);
-            let (ret_comm_sender, _) = await!(comm_sender.send_all(comm_stream))
+            let mut comm_stream = stream::iter::<_>(handler_output.outgoing_comms);
+            await!(comm_sender.send_all(&mut comm_stream))
                 .map_err(|_| FunderError::SendCommError)?;
-            comm_sender = ret_comm_sender;
 
 
             // Send outgoing control messages:
-            let control_stream = stream::iter_ok::<_, ()>(handler_output.outgoing_control);
-            let (ret_control_sender, _) = await!(control_sender.send_all(control_stream))
+            let mut control_stream = stream::iter::<_>(handler_output.outgoing_control);
+            await!(control_sender.send_all(&mut control_stream))
                 .map_err(|_| FunderError::SendControlError)?;
-            control_sender = ret_control_sender;
 
         }
     }

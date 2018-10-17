@@ -1,4 +1,3 @@
-use futures::prelude::{async, await};
 use crypto::crypto_rand::CryptoRandom;
 
 use super::MutableFunderHandler;
@@ -16,8 +15,7 @@ pub enum HandleLivenessError {
 #[allow(unused)]
 impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
-    #[async]
-    pub fn handle_liveness_message(mut self, 
+    pub async fn handle_liveness_message(mut self, 
                                   liveness_message: IncomingLivenessMessage) 
         -> Result<Self, HandleLivenessError> {
 

@@ -1,7 +1,9 @@
 #![allow(unused)]
-use futures::sync::oneshot;
-use futures::prelude::{async, await};
-use futures::{Stream, Sink, Poll};
+use std::marker::Unpin;
+use core::pin::Pin;
+use futures::channel::oneshot;
+use futures::{Stream, StreamExt, Sink, Poll};
+use futures::task::LocalWaker;
 
 use crypto::identity::PublicKey;
 
@@ -20,12 +22,11 @@ impl<T> Tracked<T> {
     }
 }
 
-impl<T> Stream for Tracked<T> where T: Stream {
+impl<T> Stream for Tracked<T> where T: Stream + Unpin {
     type Item = T::Item;
-    type Error = T::Error;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        self.inner.poll()
+    fn poll_next(mut self: Pin<&mut Self>, lw: &LocalWaker) -> Poll<Option<Self::Item>> {
+        self.inner.poll_next_unpin(lw)
     }
 }
 
@@ -41,13 +42,12 @@ impl<T> Drop for Tracked<T> {
 }
 
 
-#[async]
-fn conn_limiter<M,K,ME,KE,T,TE>(
+async fn conn_limiter<M,K,KE,T>(
                 incoming_conns: T,
                 max_conns: usize) -> Result<(),()>
 where
-    T: Stream<Item=(M, K, PublicKey), Error=TE>,
-    M: Stream<Item=Vec<u8>, Error=ME>,
+    T: Stream<Item=(M, K, PublicKey)>,
+    M: Stream<Item=Vec<u8>>,
     K: Sink<SinkItem=Vec<u8>, SinkError=KE>,
 {
     let mut cur_conns: usize = 0;

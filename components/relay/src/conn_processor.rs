@@ -1,6 +1,10 @@
 use std::iter;
+use std::marker::Unpin;
+use core::pin::Pin;
 
-use futures::{stream, Stream, Sink, Future};
+use futures::{future, Future, FutureExt, stream, 
+    Stream, StreamExt, Sink, SinkExt,
+    select};
 
 use crypto::identity::PublicKey;
 use timer::{TimerTick, TimerClient};
@@ -16,36 +20,41 @@ use proto::relay::serialize::{deserialize_init_connection, deserialize_relay_lis
 
 
 
-fn dispatch_conn<M,K,ME,KE>(receiver: M, sender: K, public_key: PublicKey, first_msg: Vec<u8>) 
-    -> Option<IncomingConn<impl Stream<Item=RelayListenIn,Error=()>,
-                              impl Sink<SinkItem=RelayListenOut,SinkError=()>,
-                              impl Stream<Item=TunnelMessage,Error=()>,
-                              impl Sink<SinkItem=TunnelMessage,SinkError=()>,
-                              impl Stream<Item=TunnelMessage,Error=()>,
-                              impl Sink<SinkItem=TunnelMessage,SinkError=()>>>
+fn dispatch_conn<M,K,KE>(receiver: M, sender: K, public_key: PublicKey, first_msg: Vec<u8>) 
+    -> Option<IncomingConn<impl Stream<Item=RelayListenIn> + Unpin,
+                              impl Sink<SinkItem=RelayListenOut,SinkError=()> + Unpin,
+                              impl Stream<Item=TunnelMessage> + Unpin,
+                              impl Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin,
+                              impl Stream<Item=TunnelMessage> + Unpin,
+                              impl Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin>>
 where
-    M: Stream<Item=Vec<u8>, Error=ME>,
-    K: Sink<SinkItem=Vec<u8>, SinkError=KE>,
+    M: Stream<Item=Vec<u8>> + Unpin,
+    K: Sink<SinkItem=Vec<u8>, SinkError=KE> + Unpin,
 {
     let sender = sender.sink_map_err(|_| ());
-    let receiver = receiver.map_err(|_| ());
     let inner = match deserialize_init_connection(&first_msg).ok()? {
         InitConnection::Listen => {
             IncomingConnInner::Listen(IncomingListen {
-                receiver: receiver.and_then(|data| deserialize_relay_listen_in(&data).map_err(|_| ())),
-                sender: sender.with(|msg| Ok(serialize_relay_listen_out(&msg))),
+                receiver: receiver.map(|data| deserialize_relay_listen_in(&data))
+                    .take_while(|res| future::ready(res.is_ok()))
+                    .map(|res| res.unwrap()),
+                sender: sender.with(|msg| future::ready(Ok(serialize_relay_listen_out(&msg)))),
             })
         },
         InitConnection::Accept(accept_public_key) => 
             IncomingConnInner::Accept(IncomingAccept {
-                receiver: receiver.and_then(|data| deserialize_tunnel_message(&data).map_err(|_| ())),
-                sender: sender.with(|msg| Ok(serialize_tunnel_message(&msg))),
+                receiver: receiver.map(|data| deserialize_tunnel_message(&data))
+                    .take_while(|res| future::ready(res.is_ok()))
+                    .map(|res| res.unwrap()),
+                sender: sender.with(|msg| future::ready(Ok(serialize_tunnel_message(&msg)))),
                 accept_public_key,
             }),
         InitConnection::Connect(connect_public_key) => 
             IncomingConnInner::Connect(IncomingConnect {
-                receiver: receiver.and_then(|data| deserialize_tunnel_message(&data).map_err(|_| ())),
-                sender: sender.with(|msg| Ok(serialize_tunnel_message(&msg))),
+                receiver: receiver.map(|data| deserialize_tunnel_message(&data))
+                    .take_while(|res| future::ready(res.is_ok()))
+                    .map(|res| res.unwrap()),
+                sender: sender.with(|msg| future::ready(Ok(serialize_tunnel_message(&msg)))),
                 connect_public_key,
             }),
     };
@@ -56,89 +65,100 @@ where
     })
 }
 
-fn process_conn<M,K,ME,KE,TS>(receiver: M, 
+/*
+pub async fn select<T, F1, F2>(mut fut1: F1, mut fut2: F2) -> T
+where
+    F1: Future<Output=T> + Unpin,
+    F2: Future<Output=T> + Unpin,
+{
+    select! {
+        fut1 => fut1,
+        fut2 => fut2,
+    }
+}
+*/
+
+fn process_conn<M,K,KE,TS>(receiver: M, 
                 sender: K, 
                 public_key: PublicKey,
                 timer_stream: TS,
-                conn_timeout_ticks: usize) -> impl Future<Item=Option<
-                             IncomingConn<impl Stream<Item=RelayListenIn,Error=()>,
-                                          impl Sink<SinkItem=RelayListenOut,SinkError=()>,
-                                          impl Stream<Item=TunnelMessage,Error=()>,
-                                          impl Sink<SinkItem=TunnelMessage,SinkError=()>,
-                                          impl Stream<Item=TunnelMessage,Error=()>,
-                                          impl Sink<SinkItem=TunnelMessage,SinkError=()>>>,
-                        Error=()>
+                conn_timeout_ticks: usize) -> impl Future<Output=Option<
+                             IncomingConn<impl Stream<Item=RelayListenIn> + Unpin,
+                                          impl Sink<SinkItem=RelayListenOut,SinkError=()> + Unpin,
+                                          impl Stream<Item=TunnelMessage> + Unpin,
+                                          impl Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin,
+                                          impl Stream<Item=TunnelMessage> + Unpin,
+                                          impl Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin>>>
 
 where
-    M: Stream<Item=Vec<u8>, Error=ME>,
-    K: Sink<SinkItem=Vec<u8>, SinkError=KE>,
-    TS: Stream<Item=TimerTick, Error=()>,
+    M: Stream<Item=Vec<u8>> + Unpin,
+    K: Sink<SinkItem=Vec<u8>, SinkError=KE> + Unpin,
+    TS: Stream<Item=TimerTick> + Unpin,
 {
     let conn_timeout_ticks = usize_to_u64(conn_timeout_ticks).unwrap();
-    let fut_receiver = 
+    let mut fut_receiver = 
         receiver
         .into_future()
-        .then(|res| {
-            Ok(match res {
-                Ok((opt_first_msg, receiver)) => {
-                    match opt_first_msg {
-                        Some(first_msg) => dispatch_conn(receiver, sender, public_key, first_msg),
-                        None => None,
-                    }
-                },
-                Err(_) => None,
+        .then(|(opt_first_msg, receiver)| {
+            future::ready(match opt_first_msg {
+                Some(first_msg) => dispatch_conn(receiver, sender, public_key, first_msg),
+                None => None,
             })
         });
 
-    let fut_time = timer_stream
+    let mut fut_time = timer_stream
         .take(conn_timeout_ticks)
         .for_each(|_| {
-            Ok(())
+            future::ready(())
         })
         .map(|_| {
             None
         });
 
-    fut_receiver
-        .select(fut_time)
-        .map_err(|_| ())
-        .and_then(|(value, _last_future)| Ok(value))
+    // select(fut_receiver, fut_time)
+    // NOTE: This select is probably not Unpin. Maybe we need to implement our own?
+    async move {
+        select! {
+            fut_receiver => fut_receiver,
+            fut_time => fut_time,
+        }
+    }
 }
+
 
 
 /// Process incoming connections
 /// For each connection obtain the first message, and prepare the correct type according to this
 /// first messages.
 /// If waiting for the first message takes too long, discard the connection.
-pub fn conn_processor<T,M,K,TE,ME,KE>(timer_client: TimerClient,
+pub fn conn_processor<T,M,K,KE>(timer_client: TimerClient,
                     incoming_conns: T,
                     conn_timeout_ticks: usize) -> impl Stream<
-                        Item=IncomingConn<impl Stream<Item=RelayListenIn,Error=()>,
+                        Item=IncomingConn<impl Stream<Item=RelayListenIn>,
                                           impl Sink<SinkItem=RelayListenOut,SinkError=()>,
-                                          impl Stream<Item=TunnelMessage,Error=()>,
+                                          impl Stream<Item=TunnelMessage>,
                                           impl Sink<SinkItem=TunnelMessage,SinkError=()>,
-                                          impl Stream<Item=TunnelMessage,Error=()>,
-                                          impl Sink<SinkItem=TunnelMessage,SinkError=()>>,
-                        Error=()>
+                                          impl Stream<Item=TunnelMessage>,
+                                          impl Sink<SinkItem=TunnelMessage,SinkError=()>>>
 where
-    T: Stream<Item=(M, K, PublicKey), Error=TE>,
-    M: Stream<Item=Vec<u8>, Error=ME>,
-    K: Sink<SinkItem=Vec<u8>, SinkError=KE>,
+    T: Stream<Item=(M, K, PublicKey)> + Unpin,
+    M: Stream<Item=Vec<u8>> + Unpin,
+    K: Sink<SinkItem=Vec<u8>, SinkError=KE> + Unpin,
 {
-    let incoming_conns = incoming_conns.map_err(|_| ())
-        .then(|res| res);
-    let timer_streams = stream::iter_ok::<_, ()>(iter::repeat(()))
-        .map_err(|_| ())
-        .and_then(move |()| {
-            timer_client.clone().request_timer_stream()
-                .map_err(|_| ())
-        });
 
-    incoming_conns.zip(timer_streams)
-    .and_then(move |((receiver, sender, public_key), timer_stream)|
+    let timer_streams = stream::iter::<_>(iter::repeat(()))
+        .then(move |()| timer_client.clone().request_timer_stream())
+        .map(|res| res.unwrap());
+
+
+    incoming_conns
+    .zip(timer_streams)
+    .map(move |((receiver, sender, public_key), timer_stream)| {
         process_conn(receiver, sender, public_key, 
-                     timer_stream, conn_timeout_ticks))
+                     timer_stream, conn_timeout_ticks)
+    })
     .filter_map(|opt_conn| opt_conn)
+
 }
 
 
@@ -146,10 +166,10 @@ where
 mod tests {
     use super::*;
 
-    use futures::prelude::{async, await};
-    use futures::sync::{mpsc, oneshot};
+    use futures::channel::{mpsc, oneshot};
     use futures::Future;
-    use tokio_core::reactor::{Core, Handle};
+    use futures::executor::ThreadPool;
+    use futures::task::{Spawn, SpawnExt};
 
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
     use timer::create_timer_incoming;
@@ -163,7 +183,7 @@ mod tests {
         let first_msg = InitConnection::Listen;
         let ser_first_msg = serialize_init_connection(&first_msg);
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let incoming_conn = dispatch_conn(receiver.map_err(|_| ()), 
+        let incoming_conn = dispatch_conn(receiver,
                                           sender.sink_map_err(|_| ()), 
                                           public_key.clone(), ser_first_msg).unwrap();
         assert_eq!(incoming_conn.public_key, public_key);
@@ -177,7 +197,7 @@ mod tests {
         let first_msg = InitConnection::Accept(accept_public_key.clone());
         let ser_first_msg = serialize_init_connection(&first_msg);
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let incoming_conn = dispatch_conn(receiver.map_err(|_| ()), 
+        let incoming_conn = dispatch_conn(receiver,
                                           sender.sink_map_err(|_| ()), 
                                           public_key.clone(), ser_first_msg).unwrap();
         assert_eq!(incoming_conn.public_key, public_key);
@@ -192,7 +212,7 @@ mod tests {
         let first_msg = InitConnection::Connect(connect_public_key.clone());
         let ser_first_msg = serialize_init_connection(&first_msg);
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let incoming_conn = dispatch_conn(receiver.map_err(|_| ()), 
+        let incoming_conn = dispatch_conn(receiver,
                                           sender.sink_map_err(|_| ()), 
                                           public_key.clone(), ser_first_msg).unwrap();
         assert_eq!(incoming_conn.public_key, public_key);
@@ -208,7 +228,7 @@ mod tests {
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let ser_first_msg = b"This is an invalid message".to_vec();
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let res = dispatch_conn(receiver.map_err(|_| ()), 
+        let res = dispatch_conn(receiver,
                                           sender.sink_map_err(|_| ()), 
                                           public_key.clone(), ser_first_msg);
         assert!(res.is_none());
@@ -216,60 +236,62 @@ mod tests {
 
     #[test]
     fn test_conn_processor_basic() {
-        let mut core = Core::new().unwrap();
-        let handle = core.handle();
+        let mut thread_pool = ThreadPool::new().unwrap();
 
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let timer_client = create_timer_incoming(tick_receiver, &handle).unwrap();
+        let timer_client = create_timer_incoming(tick_receiver, thread_pool.clone()).unwrap();
 
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
         let (local_sender, _remote_receiver) = mpsc::channel::<Vec<u8>>(0);
-        let (remote_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
+        let (mut remote_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
 
-        let incoming_conns = stream::iter_ok::<_, ()>(
-            vec![(local_receiver, local_sender, public_key.clone())])
-            .map_err(|_| ());
+        let incoming_conns = stream::iter::<_>(
+            vec![(local_receiver, local_sender, public_key.clone())]);
 
         let conn_timeout_ticks = 16;
         let processed_conns = conn_processor(timer_client, 
                        incoming_conns, 
                        conn_timeout_ticks);
 
+        let processed_conns = Box::pinned(processed_conns);
+
+
         let first_msg = InitConnection::Listen;
         let ser_first_msg = serialize_init_connection(&first_msg);
-        handle.spawn(remote_sender
+        thread_pool.spawn(
+            async move {
+                await!(remote_sender
                      .send(ser_first_msg)
-                     .then(|res| {
+                     .map(|res| {
                          match res {
-                             Ok(_remote_sender) => Ok(()),
+                             Ok(_remote_sender) => (),
                              Err(_) => unreachable!("Sending first message failed!"),
                          }
-                     })
+                     }))
+            }
         );
-        // handle.spawn(first_message_sender(remote_sender, ser_first_msg));
 
-        let (conn, processed_conns) =  core.run(receive(processed_conns)).unwrap();
+
+        let (conn, processed_conns) =  thread_pool.run(receive(processed_conns)).unwrap();
         assert_eq!(conn.public_key, public_key);
         match conn.inner {
             IncomingConnInner::Listen(_incoming_listen) => {},
             _ => panic!("Incorrect processed conn"),
         };
 
-        let closed_error = core.run(receive(processed_conns));
-        assert_eq!(closed_error.err().unwrap(), ReceiveError::Closed);
+        assert!(thread_pool.run(receive(processed_conns)).is_none());
     }
 
-    #[async]
-    fn task_process_conn_timeout(handle: Handle) -> Result<(),()> {
+    async fn task_process_conn_timeout(mut spawner: impl Spawn + Clone + 'static) -> Result<(),()> {
 
         // Create a mock time service:
         let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let timer_client = create_timer_incoming(tick_receiver, &handle).unwrap();
+        let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
 
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let (local_sender, remote_receiver) = mpsc::channel::<Vec<u8>>(0);
-        let (remote_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
+        let (local_sender, mut remote_receiver) = mpsc::channel::<Vec<u8>>(0);
+        let (mut remote_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
 
         let conn_timeout_ticks = 16;
         let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
@@ -280,22 +302,18 @@ mod tests {
                                              public_key.clone(),
                                              timer_stream,
                                              conn_timeout_ticks);
-        handle.spawn(fut_incoming_conn
+        spawner.spawn(fut_incoming_conn
             .then(|res| {
                 res_sender.send(res).ok().unwrap();
-                Ok(())
+                future::ready(())
             }));
 
         for _ in 0 .. 16usize {
-            tick_sender = await!(tick_sender.send(())).unwrap();
+            await!(tick_sender.send(())).unwrap();
         }
 
-        let closed_error = await!(receive(remote_receiver));
-        assert_eq!(closed_error.err().unwrap(), ReceiveError::Closed);
-
-
-        assert!(await!(res_receiver).unwrap().unwrap().is_none());
-
+        assert!(await!(remote_receiver.next()).is_none());
+        assert!(await!(res_receiver).unwrap().is_none());
 
         let first_msg = InitConnection::Listen;
         let ser_first_msg = serialize_init_connection(&first_msg);
@@ -306,8 +324,7 @@ mod tests {
 
     #[test]
     fn test_process_conn_timeout() {
-        let mut core = Core::new().unwrap();
-        let handle = core.handle();
-        core.run(task_process_conn_timeout(handle)).unwrap();
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_process_conn_timeout(thread_pool.clone())).unwrap();
     }
 }

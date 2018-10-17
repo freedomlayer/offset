@@ -1,12 +1,45 @@
 use std::collections::VecDeque;
+use std::sync::Arc;
+use std::ops::Deref;
 
 use ring::rand::SecureRandom;
+use ring::error::Unspecified;
 
 pub const RAND_VALUE_LEN: usize = 16;
 
 define_fixed_bytes!(RandValue, RAND_VALUE_LEN);
 
-pub trait CryptoRandom: SecureRandom {}
+pub trait CryptoRandom: SecureRandom + Clone + Sync + Send {}
+
+#[derive(Clone)]
+pub struct RngContainer<R> {
+    arc_rng: Arc<R>,
+}
+
+impl<R: CryptoRandom> RngContainer<R> {
+    pub fn new(rng: R) -> RngContainer<R> {
+        RngContainer {
+            arc_rng: Arc::new(rng),
+        }
+    }
+}
+
+
+impl<R: SecureRandom> SecureRandom for RngContainer<R> {
+    fn fill(&self, dest: &mut [u8]) -> Result<(), Unspecified> {
+        (*self.arc_rng).fill(dest)
+    }
+}
+
+impl<R: CryptoRandom> CryptoRandom for RngContainer<R> {}
+
+impl<R> Deref for RngContainer<R> {
+    type Target = R;
+
+    fn deref(&self) -> &Self::Target {
+        &*self.arc_rng
+    }
+}
 
 
 impl RandValue {

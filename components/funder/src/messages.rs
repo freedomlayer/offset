@@ -1,4 +1,4 @@
-use futures::sync::oneshot;
+use futures::channel::oneshot;
 use bytes::Bytes;
 
 use crypto::identity::PublicKey;
