@@ -10,7 +10,6 @@
 #[macro_use]
 extern crate log;
 
-mod types;
 #[allow(unused)]
 mod server;
 

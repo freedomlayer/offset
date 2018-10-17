@@ -11,12 +11,13 @@ use utils::futures_compat::send_to_sink;
 use proto::relay::messages::{TunnelMessage, RelayListenIn, 
     RelayListenOut, RejectConnection, IncomingConnection};
 
-use crate::types::{IncomingConn, IncomingConnInner, 
+use self::types::{IncomingConn, IncomingConnInner, 
     IncomingAccept};
 
 use self::listener::listener_keepalive;
 use self::tunnel::tunnel_loop;
 
+mod types;
 mod listener;
 mod tunnel;
 mod conn_limiter;
@@ -310,7 +311,7 @@ mod tests {
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
     use timer::create_timer_incoming;
     use utils::async_test_utils::{receive, ReceiveError};
-    use super::super::types::{IncomingListen, 
+    use super::types::{IncomingListen, 
         IncomingConnect, IncomingAccept};
 
     async fn task_relay_server_connect(mut spawner: impl Spawn + Clone + Send) -> Result<(),()> {
