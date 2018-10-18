@@ -19,7 +19,7 @@ pub struct AccessControl {
 }
 
 #[derive(Debug)]
-struct ApplyOpError;
+pub struct ApplyOpError;
 
 impl AccessControl {
     pub fn new() -> AccessControl {
