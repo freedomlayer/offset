@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-CODECOV_TOKEN="97f1d206-36ff-41f6-8cc8-0b2ed8a48a2d"
+# CODECOV_TOKEN Must be set at this point.
 
 if [[ "$KCOV" == "1" ]]; then
     travis/trusty/install-kcov.sh
