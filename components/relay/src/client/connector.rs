@@ -20,7 +20,7 @@ pub struct ConnPair<Item> {
 pub trait Connector {
     type Address;
     type Item;
-    fn connect(&mut self, address: Self::Address) -> FutureObj<Result<ConnPair<Self::Item>,()>>;
+    fn connect(&mut self, address: Self::Address) -> FutureObj<Option<ConnPair<Self::Item>>>;
 }
 
 #[derive(Debug)]
@@ -57,7 +57,7 @@ where
         -> Result<ConnPair<Vec<u8>>, RelayConnectorError> {
 
         let mut conn_pair = await!(self.connector.connect(relay_address))
-            .map_err(|_| RelayConnectorError::InnerConnectorError)?;
+            .ok_or(RelayConnectorError::InnerConnectorError)?;
 
         // Send an InitConnection::Connect(PublicKey) message to remote side:
         let init_connection = InitConnection::Connect(remote_public_key);
@@ -114,10 +114,10 @@ where
     type Address = (A, PublicKey);
     type Item = Vec<u8>;
 
-    fn connect(&mut self, address: Self::Address) -> FutureObj<Result<ConnPair<Self::Item>,()>> {
+    fn connect(&mut self, address: Self::Address) -> FutureObj<Option<ConnPair<Self::Item>>> {
         let (relay_address, remote_public_key) = address;
         let relay_connect = self.relay_connect(relay_address, remote_public_key)
-            .map_err(|_| ());
+            .map(|res| res.ok());
         FutureObj::new(relay_connect.boxed())
     }
 }
