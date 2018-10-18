@@ -133,7 +133,7 @@ where
 }
 
  
-pub async fn relay_server<ML,KL,MA,KA,MC,KC,S>(timer_client: TimerClient, 
+pub async fn relay_server<ML,KL,MA,KA,MC,KC,S>(mut timer_client: TimerClient, 
                 incoming_conns: S,
                 keepalive_ticks: usize,
                 mut spawner: impl Spawn + Clone) -> Result<(), RelayServerError> 
@@ -147,7 +147,7 @@ where
     S: Stream<Item=IncomingConn<ML,KL,MA,KA,MC,KC>> + Unpin,
 {
 
-    let timer_stream = await!(timer_client.clone().request_timer_stream())
+    let timer_stream = await!(timer_client.request_timer_stream())
         .map_err(|_| RelayServerError::RequestTimerStreamError)?;
     let timer_stream = timer_stream
         .map(|_| RelayServerEvent::TimerTick)
@@ -170,7 +170,7 @@ where
         let c_event_sender = event_sender
             .clone()
             .sink_map_err(|_| ());
-        let c_timer_client = timer_client.clone();
+        let mut c_timer_client = timer_client.clone();
         match relay_server_event {
             RelayServerEvent::IncomingConn(incoming_conn) => {
                 let IncomingConn {public_key, inner} = incoming_conn;

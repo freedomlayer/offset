@@ -131,7 +131,7 @@ where
 /// For each connection obtain the first message, and prepare the correct type according to this
 /// first messages.
 /// If waiting for the first message takes too long, discard the connection.
-pub fn conn_processor<T,M,K,KE>(timer_client: TimerClient,
+pub fn conn_processor<T,M,K,KE>(mut timer_client: TimerClient,
                     incoming_conns: T,
                     conn_timeout_ticks: usize) -> impl Stream<
                         Item=IncomingConn<impl Stream<Item=RelayListenIn>,
@@ -147,7 +147,10 @@ where
 {
 
     let timer_streams = stream::iter::<_>(iter::repeat(()))
-        .then(move |()| timer_client.clone().request_timer_stream())
+        .then(move |()| {
+            let mut c_timer_client = timer_client.clone();
+            async move {await!(c_timer_client.request_timer_stream())}
+        })
         .map(|res| res.unwrap());
 
 
@@ -287,7 +290,7 @@ mod tests {
 
         // Create a mock time service:
         let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+        let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
 
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
         let (local_sender, mut remote_receiver) = mpsc::channel::<Vec<u8>>(0);

@@ -69,13 +69,12 @@ impl TimerClient {
         }
     }
 
-    pub async fn request_timer_stream(mut self) -> Result<mpsc::Receiver<TimerTick>, TimerClientError> {
+    pub async fn request_timer_stream(&mut self) -> Result<mpsc::Receiver<TimerTick>, TimerClientError> {
         let (response_sender, response_receiver) = oneshot::channel();
         let timer_request = TimerRequest { response_sender };
-        let _ = match await!(self.sender.send(timer_request)) {
-            Ok(sender) => Ok(sender),
-            Err(_) => Err(TimerClientError::SendFailure),
-        }?;
+        await!(self.sender.send(timer_request))
+            .map_err(|_| TimerClientError::SendFailure)?;        
+
         match await!(response_receiver) {
             Ok(timer_stream) => Ok(timer_stream),
             Err(_) => Err(TimerClientError::ResponseCanceled),
@@ -286,7 +285,7 @@ mod tests {
     struct CustomTick;
 
     async fn task_ticks_receiver<S>(mut tick_sender: S,
-                           timer_client: TimerClient) -> Result<(), ()> 
+                           mut timer_client: TimerClient) -> Result<(), ()> 
     where
         S: Sink<SinkItem=(), SinkError=()> + std::marker::Unpin + 'static
     {
