@@ -96,8 +96,8 @@ where
                 ticks_to_send_keepalive = keepalive_ticks / 2;
             },
             ClientTunnelEvent::TimerTick => {
-                ticks_to_close.saturating_sub(1);
-                ticks_to_send_keepalive.saturating_sub(1);
+                ticks_to_close = ticks_to_close.saturating_sub(1);
+                ticks_to_send_keepalive = ticks_to_send_keepalive.saturating_sub(1);
                 if ticks_to_close == 0 {
                     return Err(ClientTunnelError::RemoteTimeout);
                 }
