@@ -1,6 +1,5 @@
-use std::marker::PhantomData;
 use crypto::identity::PublicKey;
-use futures::{future, Future, FutureExt, TryFutureExt, Stream, StreamExt, Sink, SinkExt};
+use futures::{future, FutureExt, TryFutureExt, StreamExt, SinkExt};
 use futures::future::FutureObj;
 use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
@@ -44,6 +43,7 @@ where
     C: Connector<Address=A, Item=Vec<u8>>,
     S: Spawn,
 {
+    #[allow(unused)]
     pub fn new(connector: C, spawner: S, timer_client: TimerClient, keepalive_ticks: usize) -> RelayConnector<C,S> {
         RelayConnector {
             connector,

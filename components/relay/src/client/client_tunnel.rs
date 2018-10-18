@@ -1,7 +1,7 @@
 use std::marker::Unpin;
 use futures::{future, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::channel::mpsc;
-use proto::relay::messages::{InitConnection, TunnelMessage};
+use proto::relay::messages::TunnelMessage;
 use timer::TimerTick;
 
 #[derive(Debug)]
@@ -108,7 +108,6 @@ where
                     ticks_to_send_keepalive = keepalive_ticks / 2;
                 }
             },
-
             ClientTunnelEvent::TimerClosed => return Err(ClientTunnelError::TimerClosed),
             ClientTunnelEvent::TunnelChannelClosed |
             ClientTunnelEvent::UserChannelClosed => break,
