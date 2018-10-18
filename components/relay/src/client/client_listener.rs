@@ -1,5 +1,7 @@
 use std::collections::HashSet;
 use futures::{future, Stream, StreamExt, Sink, SinkExt};
+use futures::task::{Spawn, SpawnExt};
+use futures::channel::mpsc;
 
 use crypto::identity::PublicKey;
 use proto::relay::messages::{InitConnection, RelayListenOut, IncomingConnection};
@@ -9,6 +11,7 @@ use proto::relay::serialize::{serialize_init_connection,
 use timer::TimerClient;
 use super::connector::{Connector, ConnPair};
 
+#[derive(Clone, Debug)]
 enum AccessControlOp {
     Clear,
     Add(PublicKey),
@@ -66,19 +69,31 @@ pub enum ClientListenerError {
     SendInitConnectionError,
     ConnectionFailure,
     ConnectionTimedOut,
+    TimerClosed,
 }
 
+
+#[derive(Debug, Clone)]
 enum ClientListenerEvent {
     TimerTick,
-
+    TimerClosed,
+    AccessControlOp(AccessControlOp),
+    AccessControlClosed,
+    ServerMessage(RelayListenOut),
+    ServerClosed,
 }
 
-pub async fn client_listener<C, IAC>(mut connector: C,
+async fn inner_client_listener<C,IAC,CS,CSE>(mut connector: C,
                                 incoming_access_control: IAC,
-                                mut timer_client: TimerClient) -> Result<(), ClientListenerError>
+                                connections_sender: CS,
+                                mut timer_client: TimerClient,
+                                spawner: impl Spawn,
+                                opt_event_sender: Option<mpsc::Sender<ClientListenerEvent>>) 
+    -> Result<(), ClientListenerError>
 where
     C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>>,
     IAC: Stream<Item=AccessControlOp>,
+    CS: Sink<SinkItem=ConnPair<Vec<u8>, Vec<u8>>, SinkError=CSE>
 {
     let timer_stream = await!(timer_client.request_timer_stream())
         .map_err(|_|  ClientListenerError::RequestTimerStreamError)?;
@@ -109,6 +124,8 @@ where
     }).map(|opt| opt.unwrap());
 
     let mut access_control = AccessControl::new();
+
+    // TODO: Select all streams here, to create a main stream of events:
 
     while let Some(relay_listen_out) = await!(receiver.next()) {
         match relay_listen_out {
