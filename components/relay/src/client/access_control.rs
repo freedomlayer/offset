@@ -51,6 +51,14 @@ impl AccessControl {
         }
         Ok(())
     }
+
+    /// Check if a certain public key is allowed.
+    pub fn is_allowed(&self, public_key: &PublicKey) -> bool {
+        match &self.inner {
+            InnerAccessControl::All => true,
+            InnerAccessControl::Only(only) => only.contains(public_key)
+        }
+    }
 }
 
 
