@@ -130,6 +130,7 @@ where
                 match relay_listen_out {
                     RelayListenOut::KeepAlive => {},
                     RelayListenOut::IncomingConnection(IncomingConnection(public_key)) => {
+                        unimplemented!();
                         // TODO:
                         // handle_incoming_connection(...)
                         // Possibly create a separate function for this part.
