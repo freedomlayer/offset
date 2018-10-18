@@ -12,7 +12,6 @@ where
     UFTS: Sink<SinkItem=Vec<u8>, SinkError=UFTSE>,
     UTTR: Stream<Item=Vec<u8>>,
 {
-    // TODO: Take keepalive related argument somehow.
     // TODO:
     // - Forwared TunnelMessages.
     // - Handle keepalives:
