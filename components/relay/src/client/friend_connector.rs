@@ -30,7 +30,7 @@ pub struct FriendConnector<C,S> {
 
 impl<A: 'static,C,S> FriendConnector<C,S> 
 where
-    C: Connector<Address=A, Item=Vec<u8>>,
+    C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>>,
     S: Spawn,
 {
     #[allow(unused)]
@@ -44,7 +44,7 @@ where
     }
 
     async fn relay_connect(&mut self, relay_address: A, remote_public_key: PublicKey) 
-        -> Result<ConnPair<Vec<u8>>, FriendConnectorError> {
+        -> Result<ConnPair<Vec<u8>,Vec<u8>>, FriendConnectorError> {
 
         let mut conn_pair = await!(self.connector.connect(relay_address))
             .ok_or(FriendConnectorError::InnerConnectorError)?;
@@ -98,13 +98,14 @@ where
 impl<A,C,S> Connector for FriendConnector<C,S> 
 where
     A: Sync + Send + 'static,
-    C: Connector<Address=A, Item=Vec<u8>> + Sync + Send,
+    C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Sync + Send,
     S: Spawn + Sync + Send,
 {
     type Address = (A, PublicKey);
-    type Item = Vec<u8>;
+    type SendItem = Vec<u8>;
+    type RecvItem = Vec<u8>;
 
-    fn connect(&mut self, address: (A, PublicKey)) -> FutureObj<Option<ConnPair<Self::Item>>> {
+    fn connect(&mut self, address: (A, PublicKey)) -> FutureObj<Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
         let (relay_address, remote_public_key) = address;
         let relay_connect = self.relay_connect(relay_address, remote_public_key)
             .map(|res| res.ok());
