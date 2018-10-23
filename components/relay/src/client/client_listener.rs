@@ -207,3 +207,25 @@ where
     Ok(())
 }
 
+
+/// Listen for incoming connections from a relay.
+pub async fn client_listener<C,IAC,CS,CSE>(connector: C,
+                                incoming_access_control: IAC,
+                                connections_sender: CS,
+                                keepalive_ticks: usize,
+                                timer_client: TimerClient,
+                                spawner: impl Spawn)
+    -> Result<(), ClientListenerError>
+where
+    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send,
+    IAC: Stream<Item=AccessControlOp> + Unpin,
+    CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + Clone + Send,
+{
+    await!(inner_client_listener(connector,
+                                 incoming_access_control,
+                                 connections_sender,
+                                 keepalive_ticks,
+                                 timer_client,
+                                 spawner,
+                                 None))
+}
