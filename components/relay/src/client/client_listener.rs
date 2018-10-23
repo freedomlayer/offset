@@ -1,5 +1,4 @@
 use std::marker::Unpin;
-use std::sync::Arc;
 
 use futures::{future, Future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::task::{Spawn, SpawnExt};
@@ -49,14 +48,14 @@ enum AcceptConnectionError {
 }
 
 async fn accept_connection<C,CS, CSE>(public_key: PublicKey, 
-                           arc_connector: Arc<C>,
+                           connector: C,
                            mut pending_reject_sender: mpsc::Sender<PublicKey>,
                            mut connections_sender: CS) -> Result<(), AcceptConnectionError> 
 where
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + 'static,
     C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Send,
 {
-    let mut conn_pair = match await!(arc_connector.connect(())) {
+    let mut conn_pair = match await!(connector.connect(())) {
         Some(conn_pair) => conn_pair,
         None => {
             // Notify about connection failure:
@@ -84,16 +83,15 @@ async fn inner_client_listener<C,IAC,CS,CSE>(mut connector: C,
                                 mut opt_event_sender: Option<mpsc::Sender<ClientListenerEvent>>) 
     -> Result<(), ClientListenerError>
 where
-    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Send + Sync,
+    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Send + Sync + Clone,
     IAC: Stream<Item=AccessControlOp> + Unpin,
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + Clone + Send,
 {
 
-    let arc_connector = Arc::new(connector);
     let timer_stream = await!(timer_client.request_timer_stream())
         .map_err(|_|  ClientListenerError::RequestTimerStreamError)?;
 
-    let conn_pair = match await!(arc_connector.connect(())) {
+    let conn_pair = match await!(connector.connect(())) {
         Some(conn_pair) => conn_pair,
         None => return Err(ClientListenerError::ConnectionFailure),
     };
@@ -183,10 +181,9 @@ where
                             ticks_to_send_keepalive = keepalive_ticks / 2;
                         } else {
                             // We will attempt to accept the connection
-                            // let fut_conn_pair = &*arc_connector.connect(());
                             let fut_accept = accept_connection(
                                 public_key,
-                                Arc::clone(&arc_connector),
+                                connector.clone(),
                                 pending_reject_sender.clone(),
                                 connections_sender.clone())
                             .map_err(|e| {
