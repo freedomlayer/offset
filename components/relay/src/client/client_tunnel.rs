@@ -146,7 +146,7 @@ mod tests {
                            timer_stream,
                            keepalive_ticks,
                            Some(event_sender))
-            .map_err(|e| println!("client_tunnel error: {:?}", e))
+            // .map_err(|e| println!("client_tunnel error: {:?}", e))
             .map(|_| ());
 
         spawner.spawn(fut_client_tunnel).unwrap();

@@ -116,3 +116,89 @@ where
 }
 
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+    use std::marker::PhantomData;
+    use futures::executor::ThreadPool;
+
+    use timer::{create_timer_incoming};
+    use crypto::identity::{PUBLIC_KEY_LEN};
+
+    /// A connector that contains only one pre-created connection.
+    struct DummyConnector<SI,RI,A> {
+        // Note: Mutex is used here for interior mutability (of connect() trait method)
+        mutex_opt_conn_pair: Mutex<Option<ConnPair<SI,RI>>>,
+        phantom_a: PhantomData<A>
+    }
+
+    impl<SI,RI,A> DummyConnector<SI,RI,A> {
+        fn new(conn_pair: ConnPair<SI,RI>) -> Self {
+            DummyConnector { 
+                mutex_opt_conn_pair: Mutex::new(Some(conn_pair)),
+                phantom_a: PhantomData,
+            }
+        }
+    }
+
+    impl<SI,RI,A> Connector for DummyConnector<SI,RI,A> 
+    where
+        SI: Send,
+        RI: Send,
+    {
+        type Address = A;
+        type SendItem = SI;
+        type RecvItem = RI;
+
+        fn connect(&self, _address: A) -> FutureObj<Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
+            let mut guard = self.mutex_opt_conn_pair.lock().unwrap();
+            let opt_conn_pair = guard.take();
+            let future_obj = FutureObj::new(future::ready(opt_conn_pair).boxed());
+            future_obj
+            
+        }
+    }
+
+    fn connector_checker(c: impl Connector + Sync + Send) {
+        drop(c);
+    }
+
+    async fn task_client_connector_basic(spawner: impl Spawn + Clone + Sync + Send) {
+        // Create a mock time service:
+        let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
+        let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+
+        let keepalive_ticks = 16;
+        let (local_sender, mut relay_receiver) = mpsc::channel::<Vec<u8>>(0);
+        let (relay_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
+
+        let connector: DummyConnector<_,_,u32> = DummyConnector::new(ConnPair {
+            sender: local_sender,
+            receiver: local_receiver,
+        });
+
+        let client_connector = ClientConnector::new(
+            connector,
+            spawner.clone(),
+            timer_client,
+            keepalive_ticks);
+
+        // connector_checker(client_connector);
+
+        let address: u32 = 15;
+        let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
+        let conn_pair = await!(client_connector.connect((address, public_key))).unwrap();
+
+        await!(relay_receiver.next()).unwrap();
+    }
+
+    #[test]
+    fn test_client_connector_basic() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_client_connector_basic(thread_pool.clone()));
+    }
+
+}
+

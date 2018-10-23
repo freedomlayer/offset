@@ -138,12 +138,12 @@ pub async fn relay_server<ML,KL,MA,KA,MC,KC,S>(mut timer_client: TimerClient,
                 keepalive_ticks: usize,
                 mut spawner: impl Spawn + Clone) -> Result<(), RelayServerError> 
 where
-    ML: Stream<Item=RelayListenIn> + Unpin + Send,
-    KL: Sink<SinkItem=RelayListenOut,SinkError=()> + Unpin + Send,
-    MA: Stream<Item=TunnelMessage> + Unpin + Send,
-    KA: Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin + Send, 
-    MC: Stream<Item=TunnelMessage> + Unpin + Send,
-    KC: Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin + Send,
+    ML: Stream<Item=RelayListenIn> + Unpin + Send + 'static,
+    KL: Sink<SinkItem=RelayListenOut,SinkError=()> + Unpin + Send + 'static,
+    MA: Stream<Item=TunnelMessage> + Unpin + Send + 'static,
+    KA: Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin + Send + 'static, 
+    MC: Stream<Item=TunnelMessage> + Unpin + Send + 'static,
+    KC: Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin + Send + 'static,
     S: Stream<Item=IncomingConn<ML,KL,MA,KA,MC,KC>> + Unpin,
 {
 
@@ -314,7 +314,7 @@ mod tests {
     use super::types::{IncomingListen, 
         IncomingConnect, IncomingAccept};
 
-    async fn task_relay_server_connect(mut spawner: impl Spawn + Clone + Send) -> Result<(),()> {
+    async fn task_relay_server_connect(mut spawner: impl Spawn + Clone + Send + 'static) -> Result<(),()> {
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
@@ -422,7 +422,7 @@ mod tests {
     }
 
     
-    async fn task_relay_server_reject(mut spawner: impl Spawn + Clone + Send) -> Result<(),()> {
+    async fn task_relay_server_reject(mut spawner: impl Spawn + Clone + Send + 'static) -> Result<(),()> {
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();

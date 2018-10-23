@@ -185,7 +185,7 @@ where
 }
 
 
-pub async fn create_secure_channel<EK, M: 'static,K: 'static,R: CryptoRandom + 'static>(reader: M, writer: K, 
+pub async fn create_secure_channel<EK: 'static, M: 'static,K: 'static,R: CryptoRandom + 'static>(reader: M, writer: K, 
                               identity_client: IdentityClient,
                               opt_expected_remote: Option<PublicKey>,
                               rng: R,

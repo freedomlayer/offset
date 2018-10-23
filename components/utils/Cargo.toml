@@ -11,7 +11,8 @@ async_mutex = { git = "https://github.com/realcr/async_mutex", rev = "a1d973ed7"
 
 bytes = "0.4"
 # futures-preview = "0.3.0-alpha.7"
-futures-preview = { git = "https://github.com/rust-lang-nursery/futures-rs", rev = "a25e51e", features = ["compat"] }
+# futures-preview = { git = "https://github.com/rust-lang-nursery/futures-rs", rev = "a25e51e", features = ["compat"] }
+futures-preview = { version = "0.3.0-alpha.9", features=["compat"]}
 
 tokio-io = "0.1"
 tokio-core = "0.1"

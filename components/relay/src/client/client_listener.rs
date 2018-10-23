@@ -158,13 +158,14 @@ async fn inner_client_listener<C,IAC,CS,CSE>(mut connector: C,
                                 connections_sender: CS,
                                 keepalive_ticks: usize,
                                 mut timer_client: TimerClient,
-                                mut spawner: impl Spawn + Clone + Send,
+                                mut spawner: impl Spawn + Clone + Send + 'static,
                                 mut opt_event_sender: Option<mpsc::Sender<ClientListenerEvent>>) 
     -> Result<(), ClientListenerError>
 where
-    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Send + Sync + Clone,
+    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Send + Sync + Clone + 'static,
     IAC: Stream<Item=AccessControlOp> + Unpin,
-    CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + Clone + Send,
+    CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + Clone + Send + 'static,
+    CSE: 'static
 {
 
     let timer_stream = await!(timer_client.request_timer_stream())
@@ -295,12 +296,13 @@ pub async fn client_listener<C,IAC,CS,CSE>(connector: C,
                                 connections_sender: CS,
                                 keepalive_ticks: usize,
                                 timer_client: TimerClient,
-                                spawner: impl Spawn + Clone + Send)
+                                spawner: impl Spawn + Clone + Send + 'static)
     -> Result<(), ClientListenerError>
 where
-    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync,
+    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
     IAC: Stream<Item=AccessControlOp> + Unpin,
-    CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + Clone + Send,
+    CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + Clone + Send + 'static,
+    CSE: 'static,
 {
     await!(inner_client_listener(connector,
                                  incoming_access_control,
