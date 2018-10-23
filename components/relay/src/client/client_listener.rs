@@ -8,11 +8,13 @@ use crypto::identity::PublicKey;
 use proto::relay::messages::{InitConnection, RelayListenOut, RelayListenIn, 
     IncomingConnection, RejectConnection};
 use proto::relay::serialize::{serialize_init_connection,
-    serialize_relay_listen_in, deserialize_relay_listen_out};
+    serialize_relay_listen_in, deserialize_relay_listen_out,
+    serialize_tunnel_message, deserialize_tunnel_message};
 
 use timer::TimerClient;
 use super::connector::{Connector, ConnPair};
 use super::access_control::{AccessControl, AccessControlOp};
+use super::client_tunnel::client_tunnel;
 
 
 #[derive(Debug)]
@@ -45,12 +47,47 @@ enum AcceptConnectionError {
     PendingRejectSenderError,
     SendInitConnectionError,
     SendConnPairError,
+    RequestTimerStreamError,
+    SpawnError,
+}
+
+/// Convert a Sink to an mpsc::Sender<T>
+/// This is done to overcome some compiler type limitations.
+fn to_mpsc_sender<T,SI,SE>(mut sink: SI, mut spawner: impl Spawn) -> mpsc::Sender<T> 
+where
+    SI: Sink<SinkItem=T, SinkError=SE> + Unpin + Send + 'static,
+    T: Send + 'static,
+{
+    let (sender, mut receiver) = mpsc::channel::<T>(0);
+    let fut = async move {
+        await!(sink.send_all(&mut receiver))
+    }.map(|_| ());
+    spawner.spawn(fut).unwrap();
+    sender
+}
+
+/// Convert a Stream to an mpsc::Receiver<T>
+/// This is done to overcome some compiler type limitations.
+fn to_mpsc_receiver<T,ST,SE>(mut stream: ST, mut spawner: impl Spawn) -> mpsc::Receiver<T> 
+where
+    ST: Stream<Item=T> + Unpin + Send + 'static,
+    T: Send + 'static,
+{
+    let (mut sender, receiver) = mpsc::channel::<T>(0);
+    let fut = async move {
+        await!(sender.send_all(&mut stream))
+    }.map(|_| ());
+    spawner.spawn(fut).unwrap();
+    receiver
 }
 
 async fn accept_connection<C,CS, CSE>(public_key: PublicKey, 
                            connector: C,
                            mut pending_reject_sender: mpsc::Sender<PublicKey>,
-                           mut connections_sender: CS) -> Result<(), AcceptConnectionError> 
+                           mut connections_sender: CS,
+                           keepalive_ticks: usize,
+                           mut timer_client: TimerClient,
+                           mut spawner: impl Spawn) -> Result<(), AcceptConnectionError> 
 where
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + 'static,
     C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Send,
@@ -68,6 +105,44 @@ where
     await!(conn_pair.sender.send(ser_init_connection))
         .map_err(|_| AcceptConnectionError::SendInitConnectionError)?;
 
+    let ConnPair {sender, receiver} = conn_pair;
+
+    // Add serialization for sender:
+    let to_tunnel_sender = sender
+        .sink_map_err(|_| ())
+        .with(|vec| -> future::Ready<Result<_,()>> {
+            future::ready(Ok(serialize_tunnel_message(&vec)))
+        });
+
+    // Add deserialization for receiver:
+    let from_tunnel_receiver = receiver.map(|tunnel_message| {
+        deserialize_tunnel_message(&tunnel_message).ok()
+    }).take_while(|opt_vec| {
+        future::ready(opt_vec.is_some())
+    }).map(|opt_vec| opt_vec.unwrap());
+
+
+    // Deal with the keepalives:
+    let (user_from_tunnel_sender, user_from_tunnel_receiver) = mpsc::channel::<Vec<u8>>(0);
+    let (user_to_tunnel_sender, user_to_tunnel_receiver) = mpsc::channel::<Vec<u8>>(0);
+
+    let timer_stream = await!(timer_client.request_timer_stream())
+        .map_err(|_| AcceptConnectionError::RequestTimerStreamError)?;
+    let fut_client_tunnel = client_tunnel(to_tunnel_sender, from_tunnel_receiver, 
+                           user_from_tunnel_sender, user_to_tunnel_receiver,
+                           timer_stream,
+                           keepalive_ticks)
+        .map_err(|e| error!("client_tunnel error: {:?}",e))
+        .map(|_| ());
+
+    spawner.spawn(fut_client_tunnel)
+        .map_err(|_| AcceptConnectionError::SpawnError)?;
+
+    let conn_pair = ConnPair {
+        sender: user_to_tunnel_sender,
+        receiver: user_from_tunnel_receiver,
+    };
+
     await!(connections_sender.send((public_key, conn_pair)))
         .map_err(|_| AcceptConnectionError::SendConnPairError)?;
     Ok(())
@@ -79,7 +154,7 @@ async fn inner_client_listener<C,IAC,CS,CSE>(mut connector: C,
                                 connections_sender: CS,
                                 keepalive_ticks: usize,
                                 mut timer_client: TimerClient,
-                                mut spawner: impl Spawn,
+                                mut spawner: impl Spawn + Clone + Send,
                                 mut opt_event_sender: Option<mpsc::Sender<ClientListenerEvent>>) 
     -> Result<(), ClientListenerError>
 where
@@ -185,7 +260,10 @@ where
                                 public_key,
                                 connector.clone(),
                                 pending_reject_sender.clone(),
-                                connections_sender.clone())
+                                connections_sender.clone(),
+                                keepalive_ticks,
+                                timer_client.clone(),
+                                spawner.clone())
                             .map_err(|e| {
                                 error!("Error in accept_connection: {:?}", e);
                             }).map(|_| ());
@@ -213,7 +291,7 @@ pub async fn client_listener<C,IAC,CS,CSE>(connector: C,
                                 connections_sender: CS,
                                 keepalive_ticks: usize,
                                 timer_client: TimerClient,
-                                spawner: impl Spawn)
+                                spawner: impl Spawn + Clone + Send)
     -> Result<(), ClientListenerError>
 where
     C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync,
