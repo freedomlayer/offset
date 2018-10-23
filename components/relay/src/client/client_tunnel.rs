@@ -79,7 +79,7 @@ where
 
     while let Some(event) = await!(events.next()) {
         if let Some(ref mut event_sender) = opt_event_sender {
-            await!(event_sender.send(event.clone())).unwrap();
+            let _ = await!(event_sender.send(event.clone()));
         }
         match event {
             ClientTunnelEvent::MessageFromTunnel(tunnel_message) => {
@@ -116,3 +116,93 @@ where
     Ok(())
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::{FutureExt, TryFutureExt};
+    use futures::executor::ThreadPool;
+    use futures::task::{Spawn, SpawnExt};
+    use timer::{create_timer_incoming};
+
+
+    async fn task_client_tunnel_basic(mut spawner: impl Spawn + Clone) -> Result<(),()> {
+        // Create a mock time service:
+        let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
+        let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+
+        let (event_sender, mut event_receiver) = mpsc::channel(0);
+
+        let (local_sender, mut remote_receiver) = mpsc::channel::<TunnelMessage>(0);
+        let (mut remote_sender, local_receiver) = mpsc::channel::<TunnelMessage>(0);
+
+        let (user_from_tunnel_sender, mut user_from_tunnel_receiver) = mpsc::channel::<Vec<u8>>(0);
+        let (mut user_to_tunnel_sender, user_to_tunnel_receiver) = mpsc::channel::<Vec<u8>>(0);
+
+        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+        let keepalive_ticks = 16;
+        let fut_client_tunnel = inner_client_tunnel(local_sender, local_receiver, 
+                           user_from_tunnel_sender, user_to_tunnel_receiver,
+                           timer_stream,
+                           keepalive_ticks,
+                           Some(event_sender))
+            .map_err(|e| println!("client_tunnel error: {:?}", e))
+            .map(|_| ());
+
+        spawner.spawn(fut_client_tunnel).unwrap();
+
+
+        // Send from user to remote:
+        await!(user_to_tunnel_sender.send(vec![1,2,3])).unwrap();
+        await!(event_receiver.next()).unwrap();
+        match await!(remote_receiver.next()).unwrap() {
+            TunnelMessage::Message(vec) => assert_eq!(vec, vec![1,2,3]),
+            _ => unreachable!(),
+        };
+
+        // User can not see Keepalive messages sent from remote:
+        await!(remote_sender.send(TunnelMessage::KeepAlive)).unwrap();
+        await!(event_receiver.next()).unwrap();
+
+        // Send from remote to user:
+        await!(remote_sender.send(TunnelMessage::Message(vec![3,2,1]))).unwrap();
+        await!(event_receiver.next()).unwrap();
+        let vec = await!(user_from_tunnel_receiver.next()).unwrap();
+        assert_eq!(vec, vec![3,2,1]);        
+
+        // Move time forward
+        for _ in 0 .. 8 {
+            await!(tick_sender.send(())).unwrap();
+            await!(event_receiver.next()).unwrap();
+        }
+
+        // We expect to see a keepalive being sent:
+        match await!(remote_receiver.next()).unwrap() {
+            TunnelMessage::KeepAlive => {},
+            _ => unreachable!(),
+        };
+
+        // Remote sends a keepalive:
+        await!(remote_sender.send(TunnelMessage::KeepAlive)).unwrap();
+        await!(event_receiver.next()).unwrap();
+
+        // Move time forward
+        for _ in 0 .. 16 {
+            await!(tick_sender.send(())).unwrap();
+            await!(event_receiver.next()).unwrap();
+        }
+
+        // Tunnel should be closed, 
+        // because remote haven't sent a keepalive for a long time:
+        let res = await!(user_from_tunnel_receiver.next());
+        assert!(res.is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_client_tunnel_basic() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_client_tunnel_basic(thread_pool.clone())).unwrap();
+    }
+}
