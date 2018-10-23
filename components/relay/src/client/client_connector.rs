@@ -161,10 +161,6 @@ mod tests {
         }
     }
 
-    fn connector_checker(c: impl Connector + Sync + Send) {
-        drop(c);
-    }
-
     async fn task_client_connector_basic(spawner: impl Spawn + Clone + Sync + Send) {
         // Create a mock time service:
         let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
@@ -184,8 +180,6 @@ mod tests {
             spawner.clone(),
             timer_client,
             keepalive_ticks);
-
-        // connector_checker(client_connector);
 
         let address: u32 = 15;
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
