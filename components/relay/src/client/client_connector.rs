@@ -14,28 +14,28 @@ use super::client_tunnel::client_tunnel;
 use super::connector::{Connector, ConnPair};
 
 #[derive(Debug)]
-pub enum FriendConnectorError {
+pub enum ClientConnectorError {
     InnerConnectorError,
     SendInitConnectionError,
     RequestTimerStreamError,
     SpawnClientTunnelError,
 }
 
-pub struct FriendConnector<C,S> {
+pub struct ClientConnector<C,S> {
     connector: C,
     spawner: S,
     timer_client: TimerClient,
     keepalive_ticks: usize,
 }
 
-impl<A: 'static,C,S> FriendConnector<C,S> 
+impl<A: 'static,C,S> ClientConnector<C,S> 
 where
     C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>>,
     S: Spawn,
 {
     #[allow(unused)]
-    pub fn new(connector: C, spawner: S, timer_client: TimerClient, keepalive_ticks: usize) -> FriendConnector<C,S> {
-        FriendConnector {
+    pub fn new(connector: C, spawner: S, timer_client: TimerClient, keepalive_ticks: usize) -> ClientConnector<C,S> {
+        ClientConnector {
             connector,
             spawner,
             timer_client,
@@ -44,16 +44,16 @@ where
     }
 
     async fn relay_connect(&mut self, relay_address: A, remote_public_key: PublicKey) 
-        -> Result<ConnPair<Vec<u8>,Vec<u8>>, FriendConnectorError> {
+        -> Result<ConnPair<Vec<u8>,Vec<u8>>, ClientConnectorError> {
 
         let mut conn_pair = await!(self.connector.connect(relay_address))
-            .ok_or(FriendConnectorError::InnerConnectorError)?;
+            .ok_or(ClientConnectorError::InnerConnectorError)?;
 
         // Send an InitConnection::Connect(PublicKey) message to remote side:
         let init_connection = InitConnection::Connect(remote_public_key);
         let ser_init_connection = serialize_init_connection(&init_connection);
         await!(conn_pair.sender.send(ser_init_connection))
-            .map_err(|_| FriendConnectorError::SendInitConnectionError)?;
+            .map_err(|_| ClientConnectorError::SendInitConnectionError)?;
 
         let ConnPair {sender, receiver} = conn_pair;
 
@@ -75,7 +75,7 @@ where
         let (user_to_tunnel, user_to_tunnel_receiver) = mpsc::channel(0);
 
         let timer_stream = await!(self.timer_client.request_timer_stream())
-            .map_err(|_| FriendConnectorError::RequestTimerStreamError)?;
+            .map_err(|_| ClientConnectorError::RequestTimerStreamError)?;
 
         let client_tunnel = client_tunnel(to_tunnel_sender, from_tunnel_receiver,
                                           user_from_tunnel_sender, user_to_tunnel_receiver,
@@ -86,7 +86,7 @@ where
             }).then(|_| future::ready(()));
 
         self.spawner.spawn(client_tunnel)
-            .map_err(|_| FriendConnectorError::SpawnClientTunnelError)?;
+            .map_err(|_| ClientConnectorError::SpawnClientTunnelError)?;
 
         Ok(ConnPair {
             sender: user_to_tunnel,
@@ -95,7 +95,7 @@ where
     }
 }
 
-impl<A,C,S> Connector for FriendConnector<C,S> 
+impl<A,C,S> Connector for ClientConnector<C,S> 
 where
     A: Sync + Send + 'static,
     C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Sync + Send,
