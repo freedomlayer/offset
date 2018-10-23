@@ -1,4 +1,5 @@
 use std::marker::Unpin;
+use std::sync::Arc;
 
 use futures::{future, Future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::task::{Spawn, SpawnExt};
@@ -47,15 +48,15 @@ enum AcceptConnectionError {
     SendConnPairError,
 }
 
-async fn accept_connection<CS, CSE>(public_key: PublicKey, 
-                           fut_conn_pair: impl Future<Output=Option<ConnPair<Vec<u8>, Vec<u8>>>>,
+async fn accept_connection<C,CS, CSE>(public_key: PublicKey, 
+                           arc_connector: Arc<C>,
                            mut pending_reject_sender: mpsc::Sender<PublicKey>,
                            mut connections_sender: CS) -> Result<(), AcceptConnectionError> 
 where
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + 'static,
+    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Send,
 {
-
-    let mut conn_pair = match await!(fut_conn_pair) {
+    let mut conn_pair = match await!(arc_connector.connect(())) {
         Some(conn_pair) => conn_pair,
         None => {
             // Notify about connection failure:
@@ -83,14 +84,16 @@ async fn inner_client_listener<C,IAC,CS,CSE>(mut connector: C,
                                 mut opt_event_sender: Option<mpsc::Sender<ClientListenerEvent>>) 
     -> Result<(), ClientListenerError>
 where
-    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send,
+    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Send + Sync,
     IAC: Stream<Item=AccessControlOp> + Unpin,
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + Clone + Send,
 {
+
+    let arc_connector = Arc::new(connector);
     let timer_stream = await!(timer_client.request_timer_stream())
         .map_err(|_|  ClientListenerError::RequestTimerStreamError)?;
 
-    let conn_pair = match await!(connector.connect(())) {
+    let conn_pair = match await!(arc_connector.connect(())) {
         Some(conn_pair) => conn_pair,
         None => return Err(ClientListenerError::ConnectionFailure),
     };
@@ -180,11 +183,10 @@ where
                             ticks_to_send_keepalive = keepalive_ticks / 2;
                         } else {
                             // We will attempt to accept the connection
-                            let mut c_connector = connector.clone();
-                            let fut_conn_pair = async move {await!(c_connector.connect(()))};
+                            // let fut_conn_pair = &*arc_connector.connect(());
                             let fut_accept = accept_connection(
                                 public_key,
-                                fut_conn_pair,
+                                Arc::clone(&arc_connector),
                                 pending_reject_sender.clone(),
                                 connections_sender.clone())
                             .map_err(|e| {
@@ -217,7 +219,7 @@ pub async fn client_listener<C,IAC,CS,CSE>(connector: C,
                                 spawner: impl Spawn)
     -> Result<(), ClientListenerError>
 where
-    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send,
+    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync,
     IAC: Stream<Item=AccessControlOp> + Unpin,
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + Clone + Send,
 {

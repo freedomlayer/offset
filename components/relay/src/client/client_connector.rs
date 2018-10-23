@@ -31,7 +31,7 @@ pub struct ClientConnector<C,S> {
 impl<A: 'static,C,S> ClientConnector<C,S> 
 where
     C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>>,
-    S: Spawn,
+    S: Spawn + Clone,
 {
     #[allow(unused)]
     pub fn new(connector: C, spawner: S, timer_client: TimerClient, keepalive_ticks: usize) -> ClientConnector<C,S> {
@@ -43,7 +43,7 @@ where
         }
     }
 
-    async fn relay_connect(&mut self, relay_address: A, remote_public_key: PublicKey) 
+    async fn relay_connect(&self, relay_address: A, remote_public_key: PublicKey) 
         -> Result<ConnPair<Vec<u8>,Vec<u8>>, ClientConnectorError> {
 
         let mut conn_pair = await!(self.connector.connect(relay_address))
@@ -74,7 +74,8 @@ where
         let (user_from_tunnel_sender, user_from_tunnel) = mpsc::channel(0);
         let (user_to_tunnel, user_to_tunnel_receiver) = mpsc::channel(0);
 
-        let timer_stream = await!(self.timer_client.request_timer_stream())
+        let mut c_timer_client = self.timer_client.clone();
+        let timer_stream = await!(c_timer_client.request_timer_stream())
             .map_err(|_| ClientConnectorError::RequestTimerStreamError)?;
 
         let client_tunnel = client_tunnel(to_tunnel_sender, from_tunnel_receiver,
@@ -85,7 +86,8 @@ where
                 error!("client_tunnel error: {:?}", e);
             }).then(|_| future::ready(()));
 
-        self.spawner.spawn(client_tunnel)
+        let mut c_spawner = self.spawner.clone();
+        c_spawner.spawn(client_tunnel)
             .map_err(|_| ClientConnectorError::SpawnClientTunnelError)?;
 
         Ok(ConnPair {
@@ -99,13 +101,13 @@ impl<A,C,S> Connector for ClientConnector<C,S>
 where
     A: Sync + Send + 'static,
     C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Sync + Send,
-    S: Spawn + Sync + Send,
+    S: Spawn + Clone + Sync + Send,
 {
     type Address = (A, PublicKey);
     type SendItem = Vec<u8>;
     type RecvItem = Vec<u8>;
 
-    fn connect(&mut self, address: (A, PublicKey)) -> FutureObj<Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
+    fn connect(&self, address: (A, PublicKey)) -> FutureObj<Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
         let (relay_address, remote_public_key) = address;
         let relay_connect = self.relay_connect(relay_address, remote_public_key)
             .map(|res| res.ok());
