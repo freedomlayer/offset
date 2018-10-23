@@ -120,7 +120,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::{FutureExt, TryFutureExt};
+    use futures::{FutureExt};
     use futures::executor::ThreadPool;
     use futures::task::{Spawn, SpawnExt};
     use timer::{create_timer_incoming};
