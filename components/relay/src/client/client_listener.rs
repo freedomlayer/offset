@@ -102,8 +102,12 @@ where
         },
     };
     let ser_init_connection = serialize_init_connection(&InitConnection::Accept(public_key.clone()));
-    await!(conn_pair.sender.send(ser_init_connection))
-        .map_err(|_| AcceptConnectionError::SendInitConnectionError)?;
+    let send_res = await!(conn_pair.sender.send(ser_init_connection));
+    if let Err(_) = send_res {
+        await!(pending_reject_sender.send(public_key))
+            .map_err(|_| AcceptConnectionError::PendingRejectSenderError)?;
+        return Err(AcceptConnectionError::SendInitConnectionError);
+    }
 
     let ConnPair {sender, receiver} = conn_pair;
 
