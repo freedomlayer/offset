@@ -52,7 +52,7 @@ async fn accept_connection<CS, CSE>(public_key: PublicKey,
                            mut pending_reject_sender: mpsc::Sender<PublicKey>,
                            mut connections_sender: CS) -> Result<(), AcceptConnectionError> 
 where
-    CS: Sink<SinkItem=ConnPair<Vec<u8>, Vec<u8>>, SinkError=CSE> + Unpin + 'static,
+    CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + 'static,
 {
 
     let mut conn_pair = match await!(fut_conn_pair) {
@@ -64,11 +64,11 @@ where
             return Err(AcceptConnectionError::ConnectionFailed);
         },
     };
-    let ser_init_connection = serialize_init_connection(&InitConnection::Accept(public_key));
+    let ser_init_connection = serialize_init_connection(&InitConnection::Accept(public_key.clone()));
     await!(conn_pair.sender.send(ser_init_connection))
         .map_err(|_| AcceptConnectionError::SendInitConnectionError)?;
 
-    await!(connections_sender.send(conn_pair))
+    await!(connections_sender.send((public_key, conn_pair)))
         .map_err(|_| AcceptConnectionError::SendConnPairError)?;
     Ok(())
 }
@@ -85,7 +85,7 @@ async fn inner_client_listener<C,IAC,CS,CSE>(mut connector: C,
 where
     C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send,
     IAC: Stream<Item=AccessControlOp> + Unpin,
-    CS: Sink<SinkItem=ConnPair<Vec<u8>, Vec<u8>>, SinkError=CSE> + Unpin + Clone + Send,
+    CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + Clone + Send,
 {
     let timer_stream = await!(timer_client.request_timer_stream())
         .map_err(|_|  ClientListenerError::RequestTimerStreamError)?;
