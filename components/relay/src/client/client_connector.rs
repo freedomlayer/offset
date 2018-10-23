@@ -126,6 +126,8 @@ mod tests {
 
     use timer::{create_timer_incoming};
     use crypto::identity::{PUBLIC_KEY_LEN};
+    use proto::relay::serialize::deserialize_init_connection;
+    use proto::relay::messages::TunnelMessage;
 
     /// A connector that contains only one pre-created connection.
     struct DummyConnector<SI,RI,A> {
@@ -163,12 +165,12 @@ mod tests {
 
     async fn task_client_connector_basic(spawner: impl Spawn + Clone + Sync + Send) {
         // Create a mock time service:
-        let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+        let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
+        let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
 
         let keepalive_ticks = 16;
         let (local_sender, mut relay_receiver) = mpsc::channel::<Vec<u8>>(0);
-        let (relay_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
+        let (mut relay_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
 
         let connector: DummyConnector<_,_,u32> = DummyConnector::new(ConnPair {
             sender: local_sender,
@@ -183,9 +185,21 @@ mod tests {
 
         let address: u32 = 15;
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let conn_pair = await!(client_connector.connect((address, public_key))).unwrap();
+        let mut conn_pair = await!(client_connector.connect((address, public_key.clone()))).unwrap();
 
-        await!(relay_receiver.next()).unwrap();
+        let vec = await!(relay_receiver.next()).unwrap();
+        let init_connection = deserialize_init_connection(&vec).unwrap();
+        match init_connection {
+            InitConnection::Connect(conn_public_key) => assert_eq!(conn_public_key, public_key),
+            _ => unreachable!(),
+        };
+
+        // local receiver should not be able to see keepalive messages:
+        await!(relay_sender.send(serialize_tunnel_message(&TunnelMessage::KeepAlive))).unwrap();
+
+        await!(relay_sender.send(serialize_tunnel_message(&TunnelMessage::Message(vec![1,2,3])))).unwrap();
+        let vec = await!(conn_pair.receiver.next()).unwrap();
+        assert_eq!(vec, vec![1,2,3]);
     }
 
     #[test]
