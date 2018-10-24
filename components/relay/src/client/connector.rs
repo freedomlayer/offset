@@ -10,6 +10,6 @@ pub trait Connector {
     type Address;
     type SendItem;
     type RecvItem;
-    fn connect(&mut self, address: Self::Address) 
+    fn connect(&self, address: Self::Address) 
         -> FutureObj<Option<ConnPair<Self::SendItem, Self::RecvItem>>>;
 }

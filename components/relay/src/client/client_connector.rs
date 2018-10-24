@@ -43,7 +43,7 @@ where
         }
     }
 
-    async fn relay_connect(&mut self, relay_address: A, remote_public_key: PublicKey) 
+    async fn relay_connect(&self, relay_address: A, remote_public_key: PublicKey) 
         -> Result<ConnPair<Vec<u8>,Vec<u8>>, ClientConnectorError> {
 
         let mut conn_pair = await!(self.connector.connect(relay_address))
@@ -107,7 +107,7 @@ where
     type SendItem = Vec<u8>;
     type RecvItem = Vec<u8>;
 
-    fn connect(&mut self, address: (A, PublicKey)) -> FutureObj<Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
+    fn connect(&self, address: (A, PublicKey)) -> FutureObj<Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
         let (relay_address, remote_public_key) = address;
         let relay_connect = self.relay_connect(relay_address, remote_public_key)
             .map(|res| res.ok());
@@ -154,7 +154,7 @@ mod tests {
         type SendItem = SI;
         type RecvItem = RI;
 
-        fn connect(&mut self, _address: A) -> FutureObj<Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
+        fn connect(&self, _address: A) -> FutureObj<Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
             let mut guard = self.mutex_opt_conn_pair.lock().unwrap();
             let opt_conn_pair = guard.take();
             let future_obj = FutureObj::new(future::ready(opt_conn_pair).boxed());
@@ -177,7 +177,7 @@ mod tests {
             receiver: local_receiver,
         });
 
-        let mut client_connector = ClientConnector::new(
+        let client_connector = ClientConnector::new(
             connector,
             spawner.clone(),
             timer_client,

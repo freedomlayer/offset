@@ -86,7 +86,7 @@ where
 }
 */
 
-async fn connect_with_timeout<C,TS>(mut connector: C,
+async fn connect_with_timeout<C,TS>(connector: C,
                        conn_timeout_ticks: usize,
                        timer_stream: TS) -> Option<ConnPair<Vec<u8>, Vec<u8>>>
 where
