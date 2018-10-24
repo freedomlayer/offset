@@ -120,7 +120,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
     use std::marker::PhantomData;
     use futures::executor::ThreadPool;
 
@@ -128,21 +127,25 @@ mod tests {
     use crypto::identity::{PUBLIC_KEY_LEN};
     use proto::relay::serialize::deserialize_init_connection;
     use proto::relay::messages::TunnelMessage;
+    use utils::async_mutex::AsyncMutex;
 
     /// A connector that contains only one pre-created connection.
     struct DummyConnector<SI,RI,A> {
-        // Note: Mutex is used here for interior mutability (of connect() trait method)
-        mutex_opt_conn_pair: Mutex<Option<ConnPair<SI,RI>>>,
+        amutex_receiver: AsyncMutex<mpsc::Receiver<ConnPair<SI,RI>>>,
         phantom_a: PhantomData<A>
     }
 
     impl<SI,RI,A> DummyConnector<SI,RI,A> {
-        fn new(conn_pair: ConnPair<SI,RI>) -> Self {
+        fn new(receiver: mpsc::Receiver<ConnPair<SI,RI>>) -> Self {
             DummyConnector { 
-                mutex_opt_conn_pair: Mutex::new(Some(conn_pair)),
+                amutex_receiver: AsyncMutex::new(receiver),
                 phantom_a: PhantomData,
             }
         }
+    }
+
+    async fn receive_item<T>(receiver: &mut mpsc::Receiver<T>) -> Option<T> {
+        await!(receiver.next())
     }
 
     impl<SI,RI,A> Connector for DummyConnector<SI,RI,A> 
@@ -155,9 +158,12 @@ mod tests {
         type RecvItem = RI;
 
         fn connect(&self, _address: A) -> FutureObj<Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
-            let mut guard = self.mutex_opt_conn_pair.lock().unwrap();
-            let opt_conn_pair = guard.take();
-            let future_obj = FutureObj::new(future::ready(opt_conn_pair).boxed());
+            let amutex_receiver = self.amutex_receiver.clone();
+            let fut_conn_pair = async move {
+                await!(amutex_receiver.acquire_borrow(receive_item))
+            };
+
+            let future_obj = FutureObj::new(fut_conn_pair.boxed());
             future_obj
             
         }
@@ -172,10 +178,13 @@ mod tests {
         let (local_sender, mut relay_receiver) = mpsc::channel::<Vec<u8>>(0);
         let (mut relay_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
 
-        let connector: DummyConnector<_,_,u32> = DummyConnector::new(ConnPair {
+        let conn_pair = ConnPair {
             sender: local_sender,
             receiver: local_receiver,
-        });
+        };
+        let (mut conn_sender, conn_receiver) = mpsc::channel(1);
+        await!(conn_sender.send(conn_pair)).unwrap();
+        let connector: DummyConnector<_,_,u32> = DummyConnector::new(conn_receiver);
 
         let client_connector = ClientConnector::new(
             connector,

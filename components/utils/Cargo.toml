@@ -7,7 +7,6 @@ edition = "2018"
 [dependencies]
 log = "0.4"
 
-async_mutex = { git = "https://github.com/realcr/async_mutex", rev = "a1d973ed7" }
 
 bytes = "0.4"
 futures-preview = { version = "0.3.0-alpha.9", features=["compat"]}

@@ -16,6 +16,7 @@ pub mod async_adapter;
 pub mod frame_codec;
 pub mod async_test_utils;
 pub mod futures_compat;
+pub mod async_mutex;
 
 
 
