@@ -353,10 +353,25 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use futures::executor::ThreadPool;
+
+
+
+    async fn task_connect_with_timeout(spawner: impl Spawn) {
+        let conn_timeout_ticks = 8;
+        let (timer_sender, timer_stream) = mpsc::channel::<TimerTick>(0);
+        // TODO
+        /*
+        connect_with_timeout(connector,
+                           conn_timeout_ticks,
+                           timer_stream);
+                           */
+    }
 
     #[test]
-    fn test_client_listener_basic() {
-        // TODO: Add test here.
-        // unimplemented!();
+    fn test_connect_with_timeout() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_connect_with_timeout(thread_pool.clone()));
     }
 }
