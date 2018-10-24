@@ -1,6 +1,8 @@
 use std::marker::Unpin;
 
-use futures::{future, Future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, SinkExt};
+use futures::{future, Future, FutureExt, TryFutureExt, 
+    stream, Stream, StreamExt, Sink, SinkExt,
+    select};
 use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
 
@@ -10,8 +12,9 @@ use proto::relay::messages::{InitConnection, RelayListenOut, RelayListenIn,
 use proto::relay::serialize::{serialize_init_connection,
     serialize_relay_listen_in, deserialize_relay_listen_out,
     serialize_tunnel_message, deserialize_tunnel_message};
+use utils::int_convert::usize_to_u64;
 
-use timer::TimerClient;
+use timer::{TimerClient, TimerTick};
 use super::connector::{Connector, ConnPair};
 use super::access_control::{AccessControl, AccessControlOp};
 use super::client_tunnel::client_tunnel;
@@ -51,6 +54,7 @@ enum AcceptConnectionError {
     SpawnError,
 }
 
+/*
 /// Convert a Sink to an mpsc::Sender<T>
 /// This is done to overcome some compiler type limitations.
 fn to_mpsc_sender<T,SI,SE>(mut sink: SI, mut spawner: impl Spawn) -> mpsc::Sender<T> 
@@ -80,11 +84,33 @@ where
     spawner.spawn(fut).unwrap();
     receiver
 }
+*/
+
+async fn connect_with_timeout<C,TS>(connector: C,
+                       conn_timeout_ticks: usize,
+                       timer_stream: TS) -> Option<ConnPair<Vec<u8>, Vec<u8>>>
+where
+    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Send,
+    TS: Stream<Item=TimerTick> + Unpin,
+{
+
+    let conn_timeout_ticks = usize_to_u64(conn_timeout_ticks).unwrap();
+    let mut fut_timeout = timer_stream
+        .take(conn_timeout_ticks)
+        .for_each(|_| future::ready(()));
+    let mut fut_connect = connector.connect(());
+
+    select! {
+        fut_timeout => None,
+        fut_connect => fut_connect,
+    }
+}
 
 async fn accept_connection<C,CS, CSE>(public_key: PublicKey, 
                            connector: C,
                            mut pending_reject_sender: mpsc::Sender<PublicKey>,
                            mut connections_sender: CS,
+                           conn_timeout_ticks: usize,
                            keepalive_ticks: usize,
                            mut timer_client: TimerClient,
                            mut spawner: impl Spawn) -> Result<(), AcceptConnectionError> 
@@ -92,15 +118,22 @@ where
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + 'static,
     C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Send,
 {
-    let mut conn_pair = match await!(connector.connect(())) {
-        Some(conn_pair) => conn_pair,
+
+    let timer_stream = await!(timer_client.request_timer_stream())
+        .map_err(|_| AcceptConnectionError::RequestTimerStreamError)?;
+    let opt_conn_pair = await!(connect_with_timeout(connector,
+                  conn_timeout_ticks,
+                  timer_stream));
+    let mut conn_pair = match opt_conn_pair {
+        Some(conn_pair) => Ok(conn_pair),
         None => {
-            // Notify about connection failure:
-            await!(pending_reject_sender.send(public_key))
+            await!(pending_reject_sender.send(public_key.clone()))
                 .map_err(|_| AcceptConnectionError::PendingRejectSenderError)?;
-            return Err(AcceptConnectionError::ConnectionFailed);
+            Err(AcceptConnectionError::ConnectionFailed)
         },
-    };
+    }?;
+
+    // Send first message:
     let ser_init_connection = serialize_init_connection(&InitConnection::Accept(public_key.clone()));
     let send_res = await!(conn_pair.sender.send(ser_init_connection));
     if let Err(_) = send_res {
@@ -108,6 +141,7 @@ where
             .map_err(|_| AcceptConnectionError::PendingRejectSenderError)?;
         return Err(AcceptConnectionError::SendInitConnectionError);
     }
+
 
     let ConnPair {sender, receiver} = conn_pair;
 
@@ -156,6 +190,7 @@ where
 async fn inner_client_listener<C,IAC,CS,CSE>(mut connector: C,
                                 incoming_access_control: IAC,
                                 connections_sender: CS,
+                                conn_timeout_ticks: usize,
                                 keepalive_ticks: usize,
                                 mut timer_client: TimerClient,
                                 mut spawner: impl Spawn + Clone + Send + 'static,
@@ -266,6 +301,7 @@ where
                                 connector.clone(),
                                 pending_reject_sender.clone(),
                                 connections_sender.clone(),
+                                conn_timeout_ticks,
                                 keepalive_ticks,
                                 timer_client.clone(),
                                 spawner.clone())
@@ -294,6 +330,7 @@ where
 pub async fn client_listener<C,IAC,CS,CSE>(connector: C,
                                 incoming_access_control: IAC,
                                 connections_sender: CS,
+                                conn_timeout_ticks: usize,
                                 keepalive_ticks: usize,
                                 timer_client: TimerClient,
                                 spawner: impl Spawn + Clone + Send + 'static)
@@ -307,6 +344,7 @@ where
     await!(inner_client_listener(connector,
                                  incoming_access_control,
                                  connections_sender,
+                                 conn_timeout_ticks,
                                  keepalive_ticks,
                                  timer_client,
                                  spawner,
