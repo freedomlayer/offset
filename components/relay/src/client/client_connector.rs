@@ -43,7 +43,7 @@ where
         }
     }
 
-    async fn relay_connect(&self, relay_address: A, remote_public_key: PublicKey) 
+    async fn relay_connect(&mut self, relay_address: A, remote_public_key: PublicKey) 
         -> Result<ConnPair<Vec<u8>,Vec<u8>>, ClientConnectorError> {
 
         let mut conn_pair = await!(self.connector.connect(relay_address))
@@ -107,7 +107,7 @@ where
     type SendItem = Vec<u8>;
     type RecvItem = Vec<u8>;
 
-    fn connect(&self, address: (A, PublicKey)) -> FutureObj<Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
+    fn connect(&mut self, address: (A, PublicKey)) -> FutureObj<Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
         let (relay_address, remote_public_key) = address;
         let relay_connect = self.relay_connect(relay_address, remote_public_key)
             .map(|res| res.ok());
@@ -127,25 +127,20 @@ mod tests {
     use crypto::identity::{PUBLIC_KEY_LEN};
     use proto::relay::serialize::deserialize_init_connection;
     use proto::relay::messages::TunnelMessage;
-    use utils::async_mutex::AsyncMutex;
 
     /// A connector that contains only one pre-created connection.
     struct DummyConnector<SI,RI,A> {
-        amutex_receiver: AsyncMutex<mpsc::Receiver<ConnPair<SI,RI>>>,
+        amutex_receiver: mpsc::Receiver<ConnPair<SI,RI>>,
         phantom_a: PhantomData<A>
     }
 
     impl<SI,RI,A> DummyConnector<SI,RI,A> {
         fn new(receiver: mpsc::Receiver<ConnPair<SI,RI>>) -> Self {
             DummyConnector { 
-                amutex_receiver: AsyncMutex::new(receiver),
+                amutex_receiver: receiver,
                 phantom_a: PhantomData,
             }
         }
-    }
-
-    async fn receive_item<T>(receiver: &mut mpsc::Receiver<T>) -> Option<T> {
-        await!(receiver.next())
     }
 
     impl<SI,RI,A> Connector for DummyConnector<SI,RI,A> 
@@ -157,15 +152,10 @@ mod tests {
         type SendItem = SI;
         type RecvItem = RI;
 
-        fn connect(&self, _address: A) -> FutureObj<Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
-            let amutex_receiver = self.amutex_receiver.clone();
-            let fut_conn_pair = async move {
-                await!(amutex_receiver.acquire_borrow(receive_item))
-            };
-
+        fn connect(&mut self, _address: A) -> FutureObj<Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
+            let fut_conn_pair = self.amutex_receiver.next();
             let future_obj = FutureObj::new(fut_conn_pair.boxed());
             future_obj
-            
         }
     }
 
@@ -186,7 +176,7 @@ mod tests {
         await!(conn_sender.send(conn_pair)).unwrap();
         let connector: DummyConnector<_,_,u32> = DummyConnector::new(conn_receiver);
 
-        let client_connector = ClientConnector::new(
+        let mut client_connector = ClientConnector::new(
             connector,
             spawner.clone(),
             timer_client,
