@@ -355,23 +355,70 @@ where
 mod tests {
     use super::*;
     use futures::executor::ThreadPool;
+    use futures::channel::oneshot;
+    use super::super::test_utils::DummyConnector;
 
-
-
-    async fn task_connect_with_timeout(spawner: impl Spawn) {
+    async fn task_connect_with_timeout_basic(spawner: impl Spawn) {
         let conn_timeout_ticks = 8;
         let (timer_sender, timer_stream) = mpsc::channel::<TimerTick>(0);
-        // TODO
-        /*
-        connect_with_timeout(connector,
-                           conn_timeout_ticks,
-                           timer_stream);
-                           */
+        let (mut conn_sender, conn_receiver) = mpsc::channel(0);
+        let connector = DummyConnector::new(conn_receiver);
+
+        let fut_connect = connect_with_timeout(connector,
+                             conn_timeout_ticks,
+                             timer_stream);
+
+
+
+        let (dummy_sender, dummy_receiver) = mpsc::channel::<Vec<u8>>(0);
+        let conn_pair = ConnPair {
+            sender: dummy_sender,
+            receiver: dummy_receiver,
+        };
+        await!(conn_sender.send(conn_pair)).unwrap();
+        assert!(await!(fut_connect).is_some());
     }
 
     #[test]
-    fn test_connect_with_timeout() {
+    fn test_connect_with_timeout_basic() {
         let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_connect_with_timeout(thread_pool.clone()));
+        thread_pool.run(task_connect_with_timeout_basic(thread_pool.clone()));
+    }
+
+    async fn task_connect_with_timeout_timeout(mut spawner: impl Spawn) {
+        let conn_timeout_ticks = 8;
+        let (mut timer_sender, timer_stream) = mpsc::channel::<TimerTick>(0);
+        let (mut conn_sender, conn_receiver) = mpsc::channel(0);
+        let connector = DummyConnector::new(conn_receiver);
+
+        let (res_sender, res_receiver) = oneshot::channel();
+        
+        spawner.spawn(async move {
+            let res = await!(connect_with_timeout(connector,
+                                conn_timeout_ticks,
+                                timer_stream));
+            res_sender.send(res);
+        });
+
+        for _ in 0 .. 8usize {
+            await!(timer_sender.send(TimerTick)).unwrap();
+        }
+
+        let (dummy_sender, dummy_receiver) = mpsc::channel::<Vec<u8>>(0);
+        let conn_pair = ConnPair {
+            sender: dummy_sender,
+            receiver: dummy_receiver,
+        };
+        assert!(await!(res_receiver).unwrap().is_none());
+
+        if let Ok(_) = await!(conn_sender.send(conn_pair)) {
+            unreachable!();
+        }
+    }
+
+    #[test]
+    fn test_connect_with_timeout_timeout() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_connect_with_timeout_timeout(thread_pool.clone()));
     }
 }
