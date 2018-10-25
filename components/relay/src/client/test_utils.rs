@@ -8,6 +8,7 @@ use super::connector::{Connector, ConnPair};
 
 
 /// A connector that contains only one pre-created connection.
+#[derive(Clone)]
 pub struct DummyConnector<SI,RI,A> {
     arc_mut_receiver: Arc<AsyncMutex<mpsc::Receiver<ConnPair<SI,RI>>>>,
     phantom_a: PhantomData<A>
@@ -41,3 +42,4 @@ where
         future_obj
     }
 }
+
