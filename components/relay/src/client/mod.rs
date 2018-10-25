@@ -5,3 +5,6 @@ mod client_tunnel;
 mod client_listener;
 #[allow(unused)]
 mod access_control;
+
+#[cfg(test)]
+mod test_utils;

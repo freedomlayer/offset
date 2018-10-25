@@ -120,44 +120,14 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::marker::PhantomData;
     use futures::executor::ThreadPool;
 
     use timer::{create_timer_incoming};
     use crypto::identity::{PUBLIC_KEY_LEN};
     use proto::relay::serialize::deserialize_init_connection;
     use proto::relay::messages::TunnelMessage;
+    use super::super::test_utils::DummyConnector;
 
-    /// A connector that contains only one pre-created connection.
-    struct DummyConnector<SI,RI,A> {
-        amutex_receiver: mpsc::Receiver<ConnPair<SI,RI>>,
-        phantom_a: PhantomData<A>
-    }
-
-    impl<SI,RI,A> DummyConnector<SI,RI,A> {
-        fn new(receiver: mpsc::Receiver<ConnPair<SI,RI>>) -> Self {
-            DummyConnector { 
-                amutex_receiver: receiver,
-                phantom_a: PhantomData,
-            }
-        }
-    }
-
-    impl<SI,RI,A> Connector for DummyConnector<SI,RI,A> 
-    where
-        SI: Send,
-        RI: Send,
-    {
-        type Address = A;
-        type SendItem = SI;
-        type RecvItem = RI;
-
-        fn connect(&mut self, _address: A) -> FutureObj<Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
-            let fut_conn_pair = self.amutex_receiver.next();
-            let future_obj = FutureObj::new(fut_conn_pair.boxed());
-            future_obj
-        }
-    }
 
     async fn task_client_connector_basic(spawner: impl Spawn + Clone + Sync + Send) {
         // Create a mock time service:
