@@ -134,14 +134,14 @@ where
     }?;
 
     // Send first message:
-    let ser_init_connection = serialize_init_connection(&InitConnection::Accept(public_key.clone()));
+    let ser_init_connection = serialize_init_connection(
+        &InitConnection::Accept(public_key.clone()));
     let send_res = await!(conn_pair.sender.send(ser_init_connection));
     if let Err(_) = send_res {
         await!(pending_reject_sender.send(public_key))
             .map_err(|_| AcceptConnectionError::PendingRejectSenderError)?;
         return Err(AcceptConnectionError::SendInitConnectionError);
     }
-
 
     let ConnPair {sender, receiver} = conn_pair;
 
@@ -356,6 +356,10 @@ mod tests {
     use super::*;
     use futures::executor::ThreadPool;
     use futures::channel::oneshot;
+    use proto::relay::serialize::deserialize_init_connection;
+    use proto::relay::messages::TunnelMessage;
+    use crypto::identity::PUBLIC_KEY_LEN;
+    use timer::create_timer_incoming;
     use super::super::test_utils::DummyConnector;
 
     async fn task_connect_with_timeout_basic(spawner: impl Spawn) {
@@ -421,4 +425,124 @@ mod tests {
         let mut thread_pool = ThreadPool::new().unwrap();
         thread_pool.run(task_connect_with_timeout_timeout(thread_pool.clone()));
     }
+
+
+    async fn task_accept_connection_basic(mut spawner: impl Spawn + Clone + Send + 'static) {
+        let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
+        let (mut conn_sender, conn_receiver) = mpsc::channel(0);
+        let connector = DummyConnector::new(conn_receiver);
+        let (pending_reject_sender, pending_reject_receiver) = mpsc::channel(0);
+        let (connections_sender, mut connections_receiver) = mpsc::channel(0);
+        let conn_timeout_ticks = 8;
+        let keepalive_ticks = 16;
+        let (tick_sender, tick_receiver) = mpsc::channel(0);
+        let timer_client = create_timer_incoming(tick_receiver, spawner.clone())
+            .unwrap();
+
+        let fut_accept = accept_connection(public_key.clone(),
+                           connector,
+                           pending_reject_sender,
+                           connections_sender,
+                           conn_timeout_ticks,
+                           keepalive_ticks,
+                           timer_client,
+                           spawner.clone())
+            .map_err(|e| println!("accept_connection error: {:?}", e))
+            .map(|_| ());
+
+        spawner.spawn(fut_accept);
+
+        let (local_sender, mut remote_receiver) = mpsc::channel(0);
+        let (remote_sender, local_receiver) = mpsc::channel(0);
+
+        let conn_pair = ConnPair {
+            sender: local_sender,
+            receiver: local_receiver,
+        };
+
+        // accept_connection() will try to connect. We prepare a connection:
+        await!(conn_sender.send(conn_pair));
+
+        let vec_init_connection = await!(remote_receiver.next()).unwrap();
+        let init_connection = deserialize_init_connection(&vec_init_connection).unwrap();
+        if let InitConnection::Accept(accept_public_key) = init_connection {
+            assert_eq!(accept_public_key, public_key);
+        } else {
+            unreachable!();
+        }
+
+        // Add serialization for remote sender:
+        let mut ser_remote_sender = remote_sender
+            .sink_map_err(|_| ())
+            .with(|vec| -> future::Ready<Result<_,()>> {
+                future::ready(Ok(serialize_tunnel_message(&vec)))
+            });
+
+        // Add deserialization for remote receiver:
+        let mut ser_remote_receiver = remote_receiver.map(|tunnel_message| {
+            deserialize_tunnel_message(&tunnel_message).ok()
+        }).take_while(|opt_vec| {
+            future::ready(opt_vec.is_some())
+        }).map(|opt_vec| opt_vec.unwrap());
+
+        let (accepted_public_key, mut conn_pair) = await!(connections_receiver.next()).unwrap();
+        assert_eq!(accepted_public_key, public_key);
+
+        await!(conn_pair.sender.send(vec![1,2,3])).unwrap();
+        let res = await!(ser_remote_receiver.next()).unwrap();
+        assert_eq!(res, TunnelMessage::Message(vec![1,2,3]));
+
+        await!(ser_remote_sender.send(TunnelMessage::Message(vec![3,2,1]))).unwrap();
+        let res = await!(conn_pair.receiver.next()).unwrap();
+        assert_eq!(res, vec![3,2,1]);
+    }
+
+    #[test]
+    fn test_accept_connection_basic() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_accept_connection_basic(thread_pool.clone()));
+    }
+
+    async fn task_client_listener_basic(mut spawner: impl Spawn + Clone + Send + 'static) {
+        /*
+        let (mut conn_sender, conn_receiver) = mpsc::channel(0);
+        let connector = DummyConnector::new(conn_receiver);
+        let (pending_reject_sender, pending_reject_receiver) = mpsc::channel(0);
+        let (connections_sender, mut connections_receiver) = mpsc::channel(0);
+        let conn_timeout_ticks = 8;
+        let keepalive_ticks = 16;
+        let (tick_sender, tick_receiver) = mpsc::channel(0);
+        let timer_client = create_timer_incoming(tick_receiver, spawner.clone())
+            .unwrap();
+
+        let (acl_sender, incoming_access_control) = mpsc::channel(0);
+        let (event_sender, event_receiver) = mpsc::channel(0);
+        */
+
+        // TODO: DummyConnector doesn't implement Clone, which is required by
+        // inner_client_listener.
+        /*
+        let fut_listener = inner_client_listener(connector,
+                              incoming_access_control,
+                              connections_sender,
+                              conn_timeout_ticks,
+                              keepalive_ticks,
+                              timer_client,
+                              spawner.clone(),
+                              Some(event_sender))
+            .map_err(|e| println!("inner_client_listener error: {:?}",e))
+            .map(|_| ());
+
+        spawner.spawn(fut_listener).unwrap();
+        */
+
+    }
+
+
+    #[test]
+    fn test_client_listener_basic() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_client_listener_basic(thread_pool.clone()));
+    }
+
 }
