@@ -129,7 +129,7 @@ mod tests {
     use super::super::test_utils::DummyConnector;
 
 
-    async fn task_client_connector_basic(spawner: impl Spawn + Clone + Sync + Send) {
+    async fn task_client_connector_basic(mut spawner: impl Spawn + Clone + Sync + Send + 'static) {
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
@@ -142,9 +142,9 @@ mod tests {
             sender: local_sender,
             receiver: local_receiver,
         };
-        let (mut conn_sender, conn_receiver) = mpsc::channel(1);
-        await!(conn_sender.send(conn_pair)).unwrap();
-        let connector: DummyConnector<_,_,u32> = DummyConnector::new(conn_receiver);
+        let (req_sender, mut req_receiver) = mpsc::channel(0);
+        // await!(conn_sender.send(conn_pair)).unwrap();
+        let connector = DummyConnector::new(req_sender);
 
         let mut client_connector = ClientConnector::new(
             connector,
@@ -154,7 +154,16 @@ mod tests {
 
         let address: u32 = 15;
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let mut conn_pair = await!(client_connector.connect((address, public_key.clone()))).unwrap();
+        let c_public_key = public_key.clone();
+        let fut_conn_pair = spawner.spawn_with_handle(async move {
+            await!(client_connector.connect((address, c_public_key))).unwrap()
+        }).unwrap();
+
+        // Wait for connection request:
+        let req = await!(req_receiver.next()).unwrap();
+        // Reply with a connection:
+        req.reply(conn_pair);
+        let mut conn_pair = await!(fut_conn_pair);
 
         let vec = await!(relay_receiver.next()).unwrap();
         let init_connection = deserialize_init_connection(&vec).unwrap();

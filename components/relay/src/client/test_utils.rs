@@ -1,24 +1,30 @@
-use std::marker::PhantomData;
-use std::sync::Arc;
-use futures::channel::mpsc;
+use futures::channel::{mpsc, oneshot};
 use futures::future::FutureObj;
-use futures::{FutureExt, StreamExt};
-use async_mutex::AsyncMutex;
+use futures::{FutureExt, SinkExt};
 use super::connector::{Connector, ConnPair};
 
+
+pub struct ConnRequest<SI,RI,A> {
+    pub address: A,
+    response_sender: oneshot::Sender<ConnPair<SI,RI>>,
+}
+
+impl<SI,RI,A> ConnRequest<SI,RI,A> {
+    pub fn reply(self, conn_pair: ConnPair<SI,RI>) {
+        self.response_sender.send(conn_pair).ok().unwrap();
+    }
+}
 
 /// A connector that contains only one pre-created connection.
 #[derive(Clone)]
 pub struct DummyConnector<SI,RI,A> {
-    arc_mut_receiver: Arc<AsyncMutex<mpsc::Receiver<ConnPair<SI,RI>>>>,
-    phantom_a: PhantomData<A>
+    req_sender: mpsc::Sender<ConnRequest<SI,RI,A>>,
 }
 
 impl<SI,RI,A> DummyConnector<SI,RI,A> {
-    pub fn new(receiver: mpsc::Receiver<ConnPair<SI,RI>>) -> Self {
+    pub fn new(req_sender: mpsc::Sender<ConnRequest<SI,RI,A>>) -> Self {
         DummyConnector { 
-            arc_mut_receiver: Arc::new(AsyncMutex::new(receiver)),
-            phantom_a: PhantomData,
+            req_sender,
         }
     }
 }
@@ -33,10 +39,16 @@ where
     type SendItem = SI;
     type RecvItem = RI;
 
-    fn connect(&mut self, _address: A) -> FutureObj<Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
+    fn connect(&mut self, address: A) -> FutureObj<Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        let conn_request = ConnRequest {
+            address,
+            response_sender,
+        };
+
         let fut_conn_pair = async move {
-            let mut guard = await!(self.arc_mut_receiver.lock());
-            await!(guard.next())
+            await!(self.req_sender.send(conn_request)).unwrap();
+            await!(response_receiver).ok()
         };
         let future_obj = FutureObj::new(fut_conn_pair.boxed());
         future_obj

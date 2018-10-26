@@ -17,6 +17,3 @@ proto = { path = "../proto", version = "0.1.0" , package = "cswitch-proto" }
 log = "0.4"
 futures-preview = "0.3.0-alpha.9"
 
-[dev-dependencies]
-async-mutex = { git = "https://github.com/realcr/async_mutex", rev = "6e413f519d5e7" }
-

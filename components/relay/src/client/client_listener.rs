@@ -362,25 +362,27 @@ mod tests {
     use timer::create_timer_incoming;
     use super::super::test_utils::DummyConnector;
 
-    async fn task_connect_with_timeout_basic(spawner: impl Spawn) {
+    async fn task_connect_with_timeout_basic(mut spawner: impl Spawn) {
         let conn_timeout_ticks = 8;
         let (timer_sender, timer_stream) = mpsc::channel::<TimerTick>(0);
-        let (mut conn_sender, conn_receiver) = mpsc::channel(0);
-        let connector = DummyConnector::new(conn_receiver);
+        let (req_sender, mut req_receiver) = mpsc::channel(0);
+        let connector = DummyConnector::new(req_sender);
 
         let fut_connect = connect_with_timeout(connector,
                              conn_timeout_ticks,
                              timer_stream);
+        let fut_conn = spawner.spawn_with_handle(fut_connect).unwrap();
 
-
-
+        let req = await!(req_receiver.next()).unwrap();
         let (dummy_sender, dummy_receiver) = mpsc::channel::<Vec<u8>>(0);
         let conn_pair = ConnPair {
             sender: dummy_sender,
             receiver: dummy_receiver,
         };
-        await!(conn_sender.send(conn_pair)).unwrap();
-        assert!(await!(fut_connect).is_some());
+        req.reply(conn_pair);
+
+
+        assert!(await!(fut_conn).is_some());
     }
 
     #[test]
@@ -392,8 +394,8 @@ mod tests {
     async fn task_connect_with_timeout_timeout(mut spawner: impl Spawn) {
         let conn_timeout_ticks = 8;
         let (mut timer_sender, timer_stream) = mpsc::channel::<TimerTick>(0);
-        let (mut conn_sender, conn_receiver) = mpsc::channel(0);
-        let connector = DummyConnector::new(conn_receiver);
+        let (req_sender, mut req_receiver) = mpsc::channel(0);
+        let connector = DummyConnector::new(req_sender);
 
         let (res_sender, res_receiver) = oneshot::channel();
         
@@ -404,20 +406,15 @@ mod tests {
             res_sender.send(res);
         });
 
-        for _ in 0 .. 8usize {
+        let req = await!(req_receiver.next()).unwrap();
+        assert_eq!(req.address, ());
+
+        for _ in 0 .. 8usize { 
             await!(timer_sender.send(TimerTick)).unwrap();
         }
 
-        let (dummy_sender, dummy_receiver) = mpsc::channel::<Vec<u8>>(0);
-        let conn_pair = ConnPair {
-            sender: dummy_sender,
-            receiver: dummy_receiver,
-        };
         assert!(await!(res_receiver).unwrap().is_none());
 
-        if let Ok(_) = await!(conn_sender.send(conn_pair)) {
-            unreachable!();
-        }
     }
 
     #[test]
@@ -429,8 +426,8 @@ mod tests {
 
     async fn task_accept_connection_basic(mut spawner: impl Spawn + Clone + Send + 'static) {
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let (mut conn_sender, conn_receiver) = mpsc::channel(0);
-        let connector = DummyConnector::new(conn_receiver);
+        let (req_sender, mut req_receiver) = mpsc::channel(0);
+        let connector = DummyConnector::new(req_sender);
         let (pending_reject_sender, pending_reject_receiver) = mpsc::channel(0);
         let (connections_sender, mut connections_receiver) = mpsc::channel(0);
         let conn_timeout_ticks = 8;
@@ -461,7 +458,8 @@ mod tests {
         };
 
         // accept_connection() will try to connect. We prepare a connection:
-        await!(conn_sender.send(conn_pair));
+        let req = await!(req_receiver.next()).unwrap();
+        req.reply(conn_pair);
 
         let vec_init_connection = await!(remote_receiver.next()).unwrap();
         let init_connection = deserialize_init_connection(&vec_init_connection).unwrap();
