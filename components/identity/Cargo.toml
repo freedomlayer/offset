@@ -15,7 +15,7 @@ crypto = { path = "../crypto", version = "0.1.0" , package = "cswitch-crypto"}
 # futures = "0.1.25"
 # tokio-core = "0.1"
 # futures-await = "0.1"
-futures-preview = { git = "https://github.com/rust-lang-nursery/futures-rs", rev = "a25e51e" }
+futures-preview = "0.3.0-alpha.9"
 
 [dev-dependencies]
 

@@ -119,7 +119,7 @@ async fn secure_channel_loop<EK, M: 'static,K: 'static, R: CryptoRandom + 'stati
                               mut to_user: mpsc::Sender<Vec<u8>>,
                               rng: R,
                               ticks_to_rekey: usize,
-                              timer_client: TimerClient)
+                              mut timer_client: TimerClient)
     -> Result<!, SecureChannelError>
 where
     R: CryptoRandom,
@@ -185,7 +185,7 @@ where
 }
 
 
-pub async fn create_secure_channel<EK, M: 'static,K: 'static,R: CryptoRandom + 'static>(reader: M, writer: K, 
+pub async fn create_secure_channel<EK: 'static, M: 'static,K: 'static,R: CryptoRandom + 'static>(reader: M, writer: K, 
                               identity_client: IdentityClient,
                               opt_expected_remote: Option<PublicKey>,
                               rng: R,

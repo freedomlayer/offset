@@ -230,7 +230,7 @@ mod tests {
 
         // Create a mock time service:
         let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let timer_client = create_timer_incoming(tick_receiver, thread_pool.clone()).unwrap();
+        let mut timer_client = create_timer_incoming(tick_receiver, thread_pool.clone()).unwrap();
 
         /*      a          c          b
          * a_ca | <-- c_ca | c_cb --> | b_cb

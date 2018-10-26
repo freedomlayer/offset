@@ -15,7 +15,5 @@ timer = { path = "../timer", version = "0.1.0" , package = "cswitch-timer" }
 proto = { path = "../proto", version = "0.1.0" , package = "cswitch-proto" }
 
 log = "0.4"
-futures-preview = { git = "https://github.com/rust-lang-nursery/futures-rs", rev = "a25e51e" }
-
-[dev-dependencies]
+futures-preview = "0.3.0-alpha.9"
 

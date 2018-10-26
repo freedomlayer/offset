@@ -22,7 +22,7 @@ pub enum RelayListenIn {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct IncomingConnection(pub PublicKey);
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum RelayListenOut {
     KeepAlive,
     IncomingConnection(IncomingConnection),
