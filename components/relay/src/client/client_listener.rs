@@ -356,7 +356,9 @@ mod tests {
     use super::*;
     use futures::executor::ThreadPool;
     use futures::channel::oneshot;
-    use proto::relay::serialize::deserialize_init_connection;
+    use proto::relay::serialize::{deserialize_init_connection, 
+        serialize_relay_listen_out, serialize_relay_listen_in,
+        deserialize_relay_listen_in};
     use proto::relay::messages::TunnelMessage;
     use crypto::identity::PUBLIC_KEY_LEN;
     use timer::create_timer_incoming;
@@ -502,10 +504,9 @@ mod tests {
     }
 
     async fn task_client_listener_basic(mut spawner: impl Spawn + Clone + Send + 'static) {
-        /*
-        let (mut conn_sender, conn_receiver) = mpsc::channel(0);
-        let connector = DummyConnector::new(conn_receiver);
-        let (pending_reject_sender, pending_reject_receiver) = mpsc::channel(0);
+        let (req_sender, mut req_receiver) = mpsc::channel(0);
+        let connector = DummyConnector::new(req_sender);
+        // let (pending_reject_sender, pending_reject_receiver) = mpsc::channel::<PublicKey>(0);
         let (connections_sender, mut connections_receiver) = mpsc::channel(0);
         let conn_timeout_ticks = 8;
         let keepalive_ticks = 16;
@@ -513,13 +514,9 @@ mod tests {
         let timer_client = create_timer_incoming(tick_receiver, spawner.clone())
             .unwrap();
 
-        let (acl_sender, incoming_access_control) = mpsc::channel(0);
-        let (event_sender, event_receiver) = mpsc::channel(0);
-        */
+        let (mut acl_sender, incoming_access_control) = mpsc::channel(0);
+        let (event_sender, mut event_receiver) = mpsc::channel(0);
 
-        // TODO: DummyConnector doesn't implement Clone, which is required by
-        // inner_client_listener.
-        /*
         let fut_listener = inner_client_listener(connector,
                               incoming_access_control,
                               connections_sender,
@@ -532,8 +529,76 @@ mod tests {
             .map(|_| ());
 
         spawner.spawn(fut_listener).unwrap();
-        */
 
+        // listener will attempt to start a main connection to the relay:
+        let (mut relay_sender, local_receiver) = mpsc::channel(0);
+        let (local_sender, mut relay_receiver) = mpsc::channel(0);
+        let conn_pair = ConnPair {
+            sender: local_sender,
+            receiver: local_receiver,
+        };
+        let req = await!(req_receiver.next()).unwrap();
+        req.reply(conn_pair);
+
+        // Open access for a certain public key:
+        let public_key_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
+        await!(acl_sender.send(AccessControlOp::Add(public_key_a.clone()))).unwrap();
+        await!(event_receiver.next()).unwrap();
+
+        // First message to the relay should be InitConnection::Listen:
+        let vec_init_connection = await!(relay_receiver.next()).unwrap();
+        let init_connection = deserialize_init_connection(&vec_init_connection).unwrap();
+        if let InitConnection::Listen = init_connection {
+        } else {
+            unreachable!();
+        }
+
+        // Relay will now send a message about incoming connection from a public key that is not
+        // allowed:
+        let public_key_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let relay_listen_out = RelayListenOut::IncomingConnection(
+            IncomingConnection(public_key_b.clone()));
+        let vec_relay_listen_out = serialize_relay_listen_out(&relay_listen_out);
+        await!(relay_sender.send(vec_relay_listen_out)).unwrap();
+        await!(event_receiver.next()).unwrap();
+
+        // Listener will reject the connection:
+        let vec_relay_listen_in = await!(relay_receiver.next()).unwrap();
+        let relay_listen_in = deserialize_relay_listen_in(&vec_relay_listen_in).unwrap();
+        if let RelayListenIn::RejectConnection(
+            RejectConnection(rejected_public_key)) = relay_listen_in {
+            assert_eq!(rejected_public_key, public_key_b);
+        } else {
+            unreachable!();
+        }
+
+        // Relay will now send a message about incoming connection from a public key that is
+        // allowed:
+        let relay_listen_out = RelayListenOut::IncomingConnection(
+            IncomingConnection(public_key_a.clone()));
+        let vec_relay_listen_out = serialize_relay_listen_out(&relay_listen_out);
+        await!(relay_sender.send(vec_relay_listen_out)).unwrap();
+        await!(event_receiver.next()).unwrap();
+
+        // Listener will accept the connection:
+        
+        // Listener will open a connection to the relay:
+        let (mut remote_sender, local_receiver) = mpsc::channel(0);
+        let (local_sender, mut remote_receiver) = mpsc::channel(0);
+        let conn_pair = ConnPair {
+            sender: local_sender,
+            receiver: local_receiver,
+        };
+        let req = await!(req_receiver.next()).unwrap();
+        req.reply(conn_pair);
+
+        let vec_init_connection = await!(remote_receiver.next()).unwrap();
+        let init_connection = deserialize_init_connection(&vec_init_connection).unwrap();
+        if let InitConnection::Accept(accepted_public_key) = init_connection {
+            assert_eq!(accepted_public_key, public_key_a);
+        } else {
+            unreachable!();
+        }
     }
 
 
