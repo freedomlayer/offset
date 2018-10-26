@@ -506,7 +506,6 @@ mod tests {
     async fn task_client_listener_basic(mut spawner: impl Spawn + Clone + Send + 'static) {
         let (req_sender, mut req_receiver) = mpsc::channel(0);
         let connector = DummyConnector::new(req_sender);
-        // let (pending_reject_sender, pending_reject_receiver) = mpsc::channel::<PublicKey>(0);
         let (connections_sender, mut connections_receiver) = mpsc::channel(0);
         let conn_timeout_ticks = 8;
         let keepalive_ticks = 16;
