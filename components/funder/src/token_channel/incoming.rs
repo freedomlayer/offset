@@ -96,9 +96,9 @@ pub fn simulate_process_operations_list(token_channel: &TokenChannel,
     Ok(outputs)
 }
 
-fn process_operation(token_channel: &mut TokenChannel, funds: FriendTcOp) ->
+pub fn process_operation(token_channel: &mut TokenChannel, friend_tc_op: FriendTcOp) ->
     Result<ProcessOperationOutput, ProcessOperationError> {
-    match funds {
+    match friend_tc_op {
         FriendTcOp::EnableRequests =>
             process_enable_requests(token_channel),
         FriendTcOp::DisableRequests =>
