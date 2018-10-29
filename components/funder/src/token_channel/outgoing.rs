@@ -149,6 +149,7 @@ impl OutgoingTc {
         self.token_channel.mutate(&tc_mutation);
         tc_mutations.push(tc_mutation);
 
+
         Ok(tc_mutations)
     }
 
@@ -184,7 +185,9 @@ impl OutgoingTc {
         // Make sure that freeze_links and route_links are compatible in length:
         let freeze_links_len = request_send_funds.freeze_links.len();
         let route_links_len = request_send_funds.route.len();
-        if freeze_links_len != local_index {
+        // Note that the sender of the request also adds his freeze link:
+        // TODO: Check if add 1 here is the right thing to do:
+        if freeze_links_len != local_index + 1 {
             return Err(QueueOperationError::InvalidFreezeLinks);
         }
 
