@@ -72,7 +72,7 @@ impl TcPendingRequests {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct TcRequestsStatus {
     // Local is open/closed for incoming requests:
     pub local: RequestsStatus,
