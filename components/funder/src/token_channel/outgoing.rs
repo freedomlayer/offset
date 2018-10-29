@@ -392,25 +392,3 @@ impl OutgoingTc {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
-
-    #[test]
-    fn test_outgoing_basic() {
-        let local_public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
-        let remote_public_key = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
-        let balance = 0;
-        let token_channel = TokenChannel::new(&local_public_key,
-                                              &remote_public_key,
-                                               balance);
-
-        let max_operations = 8;
-        let mut outgoing = OutgoingTc::new(&token_channel, max_operations);
-        outgoing.queue_operation(FriendTcOp::EnableRequests);
-
-    }
-}
-
-
