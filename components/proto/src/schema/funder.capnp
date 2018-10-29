@@ -9,47 +9,27 @@ using import "common.capnp".Ratio128;
 # Token channel messages
 # ----------------------
 
-struct FriendMoveToken {
+struct MoveToken {
         operations @0: List(FriendOperation);
         oldToken @1: CustomUInt256;
         randNonce @2: CustomUInt128;
 }
 
-# Acknowledge that a FriendMoveToken message was received.
-# Until this message is sent, the remote side will keep resending the
-# last FriendMoveToken message.
-struct FriendMoveTokenAck {
-        ackedToken @0: CustomUInt256;
+struct MoveTokenRequest {
+        friendMoveToken @0: MoveToken;
+        tokenWanted @1: Bool;
 }
 
-# Request the token from remote side.
-struct FriendRequestToken {
-        lastToken @0: CustomUInt256;
-        # Last token we have sent to the remote side.
-        # This allows the remote side to ignore this message if it arrived too
-        # late.
+struct InconsistencyError {
+        resetToken @0: Data;
+        balanceForReset @1: CustomUInt128;
 }
 
-
-struct FriendInconsistencyError {
-        optAck :union {
-                resetToken @0: Data;
-                none @1: Void;
-        }
-        currentToken @2: CustomUInt256;
-        balanceForReset @3: CustomUInt128;
-        # Note that this is actually a signed number (Highest bit is the sign
-        # bit, Two's complement method). TODO: Should we have a separate type,
-        # like CustomInt128?
-}
 
 struct FriendMessage {
         union {
-                friendMoveToken @0: FriendMoveToken;
-                friendMoveTokenAck @1: FriendMoveTokenAck;
-                friendRequestToken @2: FriendRequestToken;
-                friendInconsistencyError @3: FriendInconsistencyError;
-                friendKeepAlive @4: Void;
+                moveTokenRequest @0: MoveTokenRequest;
+                inconsistencyError @1: InconsistencyError;
         }
 }
 
