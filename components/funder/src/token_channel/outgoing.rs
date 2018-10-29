@@ -22,7 +22,7 @@ use super::super::signature_buff::{create_response_signature_buffer,
 
 /// Processes outgoing fundss for a token channel.
 /// Used to batch as many fundss as possible.
-pub struct OutgoingTokenChannel {
+pub struct OutgoingTc {
     token_channel: TokenChannel,
     // We want to limit the amount of bytes we can accumulate into
     // one MoveTokenChannel. Here we count how many bytes left until
@@ -69,9 +69,9 @@ pub struct QueueOperationFailure {
 }
 
 /// A wrapper over a token channel, accumulating fundss to be sent as one transcation.
-impl OutgoingTokenChannel {
-    pub fn new(token_channel: &TokenChannel) -> OutgoingTokenChannel {
-        OutgoingTokenChannel {
+impl OutgoingTc {
+    pub fn new(token_channel: &TokenChannel) -> OutgoingTc {
+        OutgoingTc {
             token_channel: token_channel.clone(),
             tc_mutations: Vec::new(),
             operations: Vec::new(),

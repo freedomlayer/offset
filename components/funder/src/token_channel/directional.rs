@@ -12,7 +12,7 @@ use utils::int_convert::usize_to_u64;
 use super::types::{TokenChannel, TcMutation};
 use super::incoming::{ProcessOperationOutput, ProcessTransListError, 
     simulate_process_operations_list, IncomingMessage};
-use super::outgoing::{OutgoingTokenChannel};
+use super::outgoing::{OutgoingTc};
 
 use super::super::types::{FriendMoveToken, ChannelToken, 
     FriendMoveTokenRequest, ResetTerms};
@@ -307,12 +307,12 @@ impl DirectionalTc {
     }
 
     #[allow(unused)]
-    pub fn begin_outgoing_move_token(&self) -> Option<OutgoingTokenChannel> {
+    pub fn begin_outgoing_move_token(&self) -> Option<OutgoingTc> {
         if let MoveTokenDirection::Outgoing(_) = self.direction {
             return None;
         }
 
-        Some(OutgoingTokenChannel::new(&self.token_channel))
+        Some(OutgoingTc::new(&self.token_channel))
     }
 
 
