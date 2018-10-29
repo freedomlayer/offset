@@ -7,12 +7,14 @@ use crypto::identity::PublicKey;
 use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
 
+use crate::consts::MAX_OPERATIONS_IN_BATCH;
+
 use utils::int_convert::usize_to_u64;
 
 use super::types::{TokenChannel, TcMutation};
 use super::incoming::{ProcessOperationOutput, ProcessTransListError, 
     simulate_process_operations_list, IncomingMessage};
-use super::outgoing::{OutgoingTc};
+use super::outgoing::OutgoingTc;
 
 use super::super::types::{FriendMoveToken, ChannelToken, 
     FriendMoveTokenRequest, ResetTerms};
@@ -312,7 +314,7 @@ impl DirectionalTc {
             return None;
         }
 
-        Some(OutgoingTc::new(&self.token_channel))
+        Some(OutgoingTc::new(&self.token_channel, MAX_OPERATIONS_IN_BATCH))
     }
 
 

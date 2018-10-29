@@ -24,11 +24,11 @@ use super::super::signature_buff::{create_response_signature_buffer,
 /// Used to batch as many fundss as possible.
 pub struct OutgoingTc {
     token_channel: TokenChannel,
-    // We want to limit the amount of bytes we can accumulate into
-    // one MoveTokenChannel. Here we count how many bytes left until
-    // we reach the maximum
     tc_mutations: Vec<TcMutation>,
     operations: Vec<FriendTcOp>,
+    // Used to limit the maximum amount of 
+    // outgoing operations per batch:
+    max_operations: usize,
 }
 
 #[derive(Debug)]
@@ -60,6 +60,7 @@ pub enum QueueOperationError {
     FailureSentFromDest,
     MaxLengthReached,
     RemoteRequestsClosed,
+    MaxOperationsReached,
 }
 
 #[derive(Debug)]
@@ -70,11 +71,12 @@ pub struct QueueOperationFailure {
 
 /// A wrapper over a token channel, accumulating fundss to be sent as one transcation.
 impl OutgoingTc {
-    pub fn new(token_channel: &TokenChannel) -> OutgoingTc {
+    pub fn new(token_channel: &TokenChannel, max_operations: usize) -> OutgoingTc {
         OutgoingTc {
             token_channel: token_channel.clone(),
             tc_mutations: Vec::new(),
             operations: Vec::new(),
+            max_operations,
         }
     }
 
@@ -88,8 +90,13 @@ impl OutgoingTc {
     pub fn queue_operation(&mut self, operation: FriendTcOp) ->
         Result<(), QueueOperationFailure> {
 
-        // Check if we have room for another funds:
-        let approx_bytes_count = operation.approx_bytes_count();
+        // Check if we can push another operation:
+        if self.operations.len() >= self.max_operations {
+            return Err(QueueOperationFailure {
+                operation,
+                error: QueueOperationError::MaxOperationsReached,
+            });
+        }
 
         let res = match operation.clone() {
             FriendTcOp::EnableRequests =>
@@ -381,4 +388,26 @@ impl OutgoingTc {
         Ok(tc_mutations)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
+
+    #[test]
+    fn test_outgoing_basic() {
+        let local_public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
+        let remote_public_key = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let balance = 0;
+        let token_channel = TokenChannel::new(&local_public_key,
+                                              &remote_public_key,
+                                               balance);
+
+        let max_operations = 8;
+        let mut outgoing = OutgoingTc::new(&token_channel, max_operations);
+        outgoing.queue_operation(FriendTcOp::EnableRequests);
+
+    }
+}
+
 
