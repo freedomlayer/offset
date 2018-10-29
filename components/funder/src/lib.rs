@@ -56,3 +56,4 @@ mod handler;
 mod report;
 mod database;
 mod funder;
+mod consts;
