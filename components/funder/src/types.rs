@@ -32,7 +32,7 @@ pub enum FriendStatus {
     Disable = 0,
 }
 
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum RequestsStatus {
     Open,
     Closed,
