@@ -262,13 +262,17 @@ fn process_response_send_funds(token_channel: &mut TokenChannel,
         .ok_or(ProcessOperationError::RequestDoesNotExist)?
         .clone();
 
+    let dest_public_key = pending_request.route.public_keys
+        .last()
+        .unwrap();
+
     let response_signature_buffer = create_response_signature_buffer(
                                         &response_send_funds,
                                         &pending_request);
 
     // Verify response funds signature:
     if !verify_signature(&response_signature_buffer, 
-                             &token_channel.state().idents.remote_public_key,
+                             dest_public_key,
                              &response_send_funds.signature) {
         return Err(ProcessOperationError::InvalidResponseSignature);
     }
