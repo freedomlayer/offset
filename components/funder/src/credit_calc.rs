@@ -16,11 +16,10 @@ use std::convert::TryFrom;
 pub fn credits_on_success(node_index: u32, 
                           route_len: u32,
                           dest_payment: u128) -> Option<u128> {
-
     if node_index == 0 {
         None
     } else {
-        let dist = route_len.checked_sub(node_index)?;
+        let dist = route_len.checked_sub(node_index)?.checked_sub(1)?;
         u128::try_from(dist)?.checked_add(dest_payment)
     }
 }

@@ -1,7 +1,7 @@
 use std::fmt;
 use ring::rand::SecureRandom;
 
-const UID_LEN: usize = 16;
+pub const UID_LEN: usize = 16;
 
 /// An Universally Unique Identifier (UUID).
 define_fixed_bytes!(Uid, UID_LEN);

@@ -7,18 +7,20 @@ use crypto::identity::PublicKey;
 use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
 
+use crate::consts::MAX_OPERATIONS_IN_BATCH;
+
 use utils::int_convert::usize_to_u64;
 
 use super::types::{TokenChannel, TcMutation};
 use super::incoming::{ProcessOperationOutput, ProcessTransListError, 
     simulate_process_operations_list, IncomingMessage};
-use super::outgoing::{OutgoingTokenChannel};
+use super::outgoing::OutgoingTc;
 
 use super::super::types::{FriendMoveToken, ChannelToken, 
     FriendMoveTokenRequest, ResetTerms};
 
 
-// Prefix used for chain hashing of token channel fundss.
+// Prefix used for chain hashing of token channel funds.
 // NEXT is used for hashing for the next move token funds.
 // RESET is used for resetting the token channel.
 // The prefix allows the receiver to distinguish between the two cases.
@@ -307,12 +309,12 @@ impl DirectionalTc {
     }
 
     #[allow(unused)]
-    pub fn begin_outgoing_move_token(&self) -> Option<OutgoingTokenChannel> {
+    pub fn begin_outgoing_move_token(&self) -> Option<OutgoingTc> {
         if let MoveTokenDirection::Outgoing(_) = self.direction {
             return None;
         }
 
-        Some(OutgoingTokenChannel::new(&self.token_channel))
+        Some(OutgoingTc::new(&self.token_channel, MAX_OPERATIONS_IN_BATCH))
     }
 
 

@@ -27,3 +27,56 @@ impl Liveness {
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crypto::identity::{PUBLIC_KEY_LEN};
+
+    #[test]
+    fn test_liveness_basic() {
+        let mut liveness = Liveness::new();
+        let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
+        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let pk_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
+
+        assert!(!liveness.is_online(&pk_a));
+        assert!(!liveness.is_online(&pk_b));
+        assert!(!liveness.is_online(&pk_c));
+
+        liveness.set_online(&pk_a);
+        assert!(liveness.is_online(&pk_a));
+        assert!(!liveness.is_online(&pk_b));
+        assert!(!liveness.is_online(&pk_c));
+
+        liveness.set_online(&pk_a);
+        assert!(liveness.is_online(&pk_a));
+        assert!(!liveness.is_online(&pk_b));
+        assert!(!liveness.is_online(&pk_c));
+
+        liveness.set_online(&pk_b);
+        assert!(liveness.is_online(&pk_a));
+        assert!(liveness.is_online(&pk_b));
+        assert!(!liveness.is_online(&pk_c));
+
+        liveness.set_offline(&pk_c);
+        assert!(liveness.is_online(&pk_a));
+        assert!(liveness.is_online(&pk_b));
+        assert!(!liveness.is_online(&pk_c));
+
+        liveness.set_offline(&pk_b);
+        assert!(liveness.is_online(&pk_a));
+        assert!(!liveness.is_online(&pk_b));
+        assert!(!liveness.is_online(&pk_c));
+
+        liveness.set_offline(&pk_b);
+        assert!(liveness.is_online(&pk_a));
+        assert!(!liveness.is_online(&pk_b));
+        assert!(!liveness.is_online(&pk_c));
+
+        liveness.set_offline(&pk_a);
+        assert!(!liveness.is_online(&pk_a));
+        assert!(!liveness.is_online(&pk_b));
+        assert!(!liveness.is_online(&pk_c));
+    }
+}

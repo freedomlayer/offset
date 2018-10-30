@@ -22,13 +22,13 @@ use super::super::signature_buff::{create_response_signature_buffer,
 
 /// Processes outgoing fundss for a token channel.
 /// Used to batch as many fundss as possible.
-pub struct OutgoingTokenChannel {
+pub struct OutgoingTc {
     token_channel: TokenChannel,
-    // We want to limit the amount of bytes we can accumulate into
-    // one MoveTokenChannel. Here we count how many bytes left until
-    // we reach the maximum
     tc_mutations: Vec<TcMutation>,
     operations: Vec<FriendTcOp>,
+    // Used to limit the maximum amount of 
+    // outgoing operations per batch:
+    max_operations: usize,
 }
 
 #[derive(Debug)]
@@ -60,6 +60,7 @@ pub enum QueueOperationError {
     FailureSentFromDest,
     MaxLengthReached,
     RemoteRequestsClosed,
+    MaxOperationsReached,
 }
 
 #[derive(Debug)]
@@ -69,12 +70,13 @@ pub struct QueueOperationFailure {
 }
 
 /// A wrapper over a token channel, accumulating fundss to be sent as one transcation.
-impl OutgoingTokenChannel {
-    pub fn new(token_channel: &TokenChannel) -> OutgoingTokenChannel {
-        OutgoingTokenChannel {
+impl OutgoingTc {
+    pub fn new(token_channel: &TokenChannel, max_operations: usize) -> OutgoingTc {
+        OutgoingTc {
             token_channel: token_channel.clone(),
             tc_mutations: Vec::new(),
             operations: Vec::new(),
+            max_operations,
         }
     }
 
@@ -88,8 +90,13 @@ impl OutgoingTokenChannel {
     pub fn queue_operation(&mut self, operation: FriendTcOp) ->
         Result<(), QueueOperationFailure> {
 
-        // Check if we have room for another funds:
-        let approx_bytes_count = operation.approx_bytes_count();
+        // Check if we can push another operation:
+        if self.operations.len() >= self.max_operations {
+            return Err(QueueOperationFailure {
+                operation,
+                error: QueueOperationError::MaxOperationsReached,
+            });
+        }
 
         let res = match operation.clone() {
             FriendTcOp::EnableRequests =>
@@ -142,6 +149,7 @@ impl OutgoingTokenChannel {
         self.token_channel.mutate(&tc_mutation);
         tc_mutations.push(tc_mutation);
 
+
         Ok(tc_mutations)
     }
 
@@ -177,7 +185,9 @@ impl OutgoingTokenChannel {
         // Make sure that freeze_links and route_links are compatible in length:
         let freeze_links_len = request_send_funds.freeze_links.len();
         let route_links_len = request_send_funds.route.len();
-        if freeze_links_len != local_index {
+        // Note that the sender of the request also adds his freeze link:
+        // TODO: Check if add 1 here is the right thing to do:
+        if freeze_links_len != local_index + 1 {
             return Err(QueueOperationError::InvalidFreezeLinks);
         }
 
