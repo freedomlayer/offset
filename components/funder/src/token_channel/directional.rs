@@ -259,6 +259,9 @@ impl DirectionalTc {
         // the remote side has already used the next counter.
         ResetTerms {
             reset_token: await!(self.calc_channel_reset_token(identity_client)),
+            // TODO: Should we do something other than wrapping_add(1)?
+            // 2**64 inconsistencies are required for an overflow. We assume that this will never
+            // happen.
             inconsistency_counter: self.get_inconsistency_counter().wrapping_add(1),
             balance_for_reset: self.balance_for_reset(),
         }
