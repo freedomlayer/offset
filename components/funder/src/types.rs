@@ -4,7 +4,7 @@ use byteorder::{WriteBytesExt, BigEndian};
 
 use utils::int_convert::{usize_to_u64};
 
-use crypto::identity::{PublicKey, Signature};
+use crypto::identity::{PublicKey, Signature, verify_signature};
 use crypto::uid::Uid;
 use crypto::crypto_rand::RandValue;
 use crypto::hash;
@@ -45,7 +45,7 @@ pub enum RequestsStatus {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum FriendTcOp {
     EnableRequests,
     DisableRequests,
@@ -64,7 +64,7 @@ pub struct PendingFriendRequest {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct ResponseSendFunds {
     pub request_id: Uid,
     pub rand_nonce: RandValue,
@@ -73,13 +73,13 @@ pub struct ResponseSendFunds {
 
 
 /// The ratio can be numeration / T::max_value(), or 1
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 pub enum Ratio<T> {
     One,
     Numerator(T),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct FunderFreezeLink {
     pub shared_credits: u128,
     pub usable_ratio: Ratio<u128>
@@ -95,7 +95,7 @@ pub struct UserRequestSendFunds {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct RequestSendFunds {
     pub request_id: Uid,
     pub route: FriendsRoute,
@@ -105,7 +105,7 @@ pub struct RequestSendFunds {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct FailureSendFunds {
     pub request_id: Uid,
     pub reporting_public_key: PublicKey,
@@ -121,43 +121,28 @@ pub struct FriendsRoute {
 
 
 #[allow(unused)]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct FriendMoveToken {
     pub operations: Vec<FriendTcOp>,
     pub old_token: Signature,
     pub inconsistency_counter: u64,
     pub move_token_counter: u128,
+    pub balance: i128,
+    pub local_pending_debt: u128,
+    pub remote_pending_debt: u128,
     pub rand_nonce: RandValue,
     pub new_token: Signature,
 }
 
-/// Calculate the next token channel, given values of previous FriendMoveToken funds.
-async fn calc_channel_next_token(friend_move_token: &FriendMoveToken, 
-                                 identity_client: IdentityClient) 
-                        -> Signature {
-
-    let mut contents = Vec::new();
-    contents.write_u64::<BigEndian>(
-        usize_to_u64(friend_move_token.operations.len()).unwrap()).unwrap();
-    for op in &friend_move_token.operations {
-        contents.extend_from_slice(&op.to_bytes());
-    }
-
-    let mut sig_buffer = Vec::new();
-    sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
-    sig_buffer.extend_from_slice(&contents);
-    sig_buffer.extend_from_slice(&friend_move_token.old_token);
-    sig_buffer.write_u64::<BigEndian>(friend_move_token.inconsistency_counter).unwrap();
-    sig_buffer.write_u128::<BigEndian>(friend_move_token.move_token_counter).unwrap();
-    sig_buffer.extend_from_slice(&friend_move_token.rand_nonce);
-    await!(identity_client.request_signature(sig_buffer)).unwrap()
-}
 
 impl FriendMoveToken {
     pub async fn new(operations: Vec<FriendTcOp>,
                  old_token: Signature,
                  inconsistency_counter: u64,
                  move_token_counter: u128,
+                 balance: i128,
+                 local_pending_debt: u128,
+                 remote_pending_debt: u128,
                  rand_nonce: RandValue,
                  identity_client: IdentityClient) -> FriendMoveToken {
 
@@ -166,12 +151,43 @@ impl FriendMoveToken {
             old_token,
             inconsistency_counter: 0,
             move_token_counter: 0,
+            balance,
+            local_pending_debt,
+            remote_pending_debt,
             rand_nonce,
             new_token: Signature::zero(),
         };
-        friend_move_token.new_token = await!(
-            calc_channel_next_token(&friend_move_token, identity_client));
+
+        let sig_buffer = friend_move_token.signature_buff();
+        friend_move_token.new_token = await!(identity_client.request_signature(sig_buffer)).unwrap();
         friend_move_token
+    }
+
+    fn signature_buff(&self) -> Vec<u8> {
+        let mut contents = Vec::new();
+        contents.write_u64::<BigEndian>(
+            usize_to_u64(self.operations.len()).unwrap()).unwrap();
+        for op in &self.operations {
+            contents.extend_from_slice(&op.to_bytes());
+        }
+
+        let mut sig_buffer = Vec::new();
+        sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
+        sig_buffer.extend_from_slice(&contents);
+        sig_buffer.extend_from_slice(&self.old_token);
+        sig_buffer.write_u64::<BigEndian>(self.inconsistency_counter).unwrap();
+        sig_buffer.write_u128::<BigEndian>(self.move_token_counter).unwrap();
+        sig_buffer.write_i128::<BigEndian>(self.balance).unwrap();
+        sig_buffer.write_u128::<BigEndian>(self.local_pending_debt).unwrap();
+        sig_buffer.write_u128::<BigEndian>(self.remote_pending_debt).unwrap();
+        sig_buffer.extend_from_slice(&self.rand_nonce);
+
+        sig_buffer
+    }
+
+    pub fn verify(&self, public_key: &PublicKey) -> bool {
+        let sig_buffer = self.signature_buff();
+        verify_signature(&sig_buffer, public_key, &self.new_token)
     }
 }
 

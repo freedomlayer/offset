@@ -202,13 +202,9 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
 
-        let friend_move_token = await!(FriendMoveToken::new(
-            operations,
-            directional.get_new_token().clone(),
-            directional.get_inconsistency_counter(),
-            directional.get_move_token_counter().wrapping_add(1),
-            rand_nonce,
-            self.identity_client.clone()));
+        let friend_move_token = await!(directional.create_friend_move_token(operations, 
+                                             rand_nonce,
+                                             self.identity_client.clone())).unwrap();
 
         let directional_mutation = DirectionalMutation::SetDirection(
             SetDirection::Outgoing(friend_move_token));

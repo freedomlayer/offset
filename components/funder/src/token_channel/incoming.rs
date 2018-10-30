@@ -72,7 +72,7 @@ pub struct ProcessTransListError {
 }
 
 
-pub fn simulate_process_operations_list(token_channel: &TokenChannel, 
+pub fn process_operations_list(token_channel: &mut TokenChannel, 
                                         operations: Vec<FriendTcOp>) ->
     Result<Vec<ProcessOperationOutput>, ProcessTransListError> {
 
@@ -82,10 +82,9 @@ pub fn simulate_process_operations_list(token_channel: &TokenChannel,
     // Instead, we are operating over a clone:
     // This operation is not very expensive, because we are using immutable data structures
     // (specifically, HashMaps).
-    let mut cloned_token_channel = token_channel.clone();
 
     for (index, funds) in operations.into_iter().enumerate() {
-        match process_operation(&mut cloned_token_channel, funds) {
+        match process_operation(token_channel, funds) {
             Err(e) => return Err(ProcessTransListError {
                 index,
                 process_trans_error: e

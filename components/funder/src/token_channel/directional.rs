@@ -10,13 +10,13 @@ use identity::IdentityClient;
 
 use crate::consts::MAX_OPERATIONS_IN_BATCH;
 
-use super::types::{TokenChannel, TcMutation};
+use crate::token_channel::types::{TokenChannel, TcMutation};
 use super::incoming::{ProcessOperationOutput, ProcessTransListError, 
-    simulate_process_operations_list, IncomingMessage};
+    process_operations_list, IncomingMessage};
 use super::outgoing::OutgoingTc;
 
-use super::super::types::{FriendMoveToken, 
-    FriendMoveTokenRequest, ResetTerms};
+use crate::types::{FriendMoveToken, 
+    FriendMoveTokenRequest, ResetTerms, FriendTcOp};
 
 
 // Prefix used for chain hashing of token channel funds.
@@ -58,6 +58,11 @@ pub struct DirectionalTc {
 pub enum ReceiveMoveTokenError {
     ChainInconsistency,
     InvalidTransaction(ProcessTransListError),
+    InvalidSignature,
+    InvalidStatedBalance,
+    InvalidInconsistencyCounter,
+    MoveTokenCounterOverflow,
+    InvalidMoveTokenCounter,
 }
 
 pub struct MoveTokenReceived {
@@ -111,6 +116,7 @@ fn rand_nonce_from_public_key(public_key: &PublicKey) -> RandValue {
 }
 
 impl DirectionalTc {
+
     #[allow(unused)]
     pub async fn new<'a>(local_public_key: &'a PublicKey, 
                remote_public_key: &'a PublicKey,
@@ -127,6 +133,9 @@ impl DirectionalTc {
             token_from_public_key(&local_public_key),
             inconsistency_counter,
             move_token_counter,
+            token_channel.state().balance.balance,
+            token_channel.state().balance.local_pending_debt,
+            token_channel.state().balance.remote_pending_debt,
             rand_nonce.clone(),
             identity_client));
 
@@ -147,6 +156,28 @@ impl DirectionalTc {
                 token_channel,
             }
         }
+    }
+
+    pub async fn create_friend_move_token(&self,
+                                    operations: Vec<FriendTcOp>,
+                                    rand_nonce: RandValue,
+                                    identity_client: IdentityClient) -> Option<FriendMoveToken> {
+
+        let friend_move_token = match &self.direction {
+            MoveTokenDirection::Incoming(friend_move_token) => friend_move_token,
+            MoveTokenDirection::Outgoing(_) => return None,
+        };
+
+        Some(await!(FriendMoveToken::new(
+            operations,
+            friend_move_token.new_token.clone(),
+            friend_move_token.inconsistency_counter,
+            friend_move_token.move_token_counter.wrapping_add(1),
+            self.get_token_channel().state().balance.balance,
+            self.get_token_channel().state().balance.local_pending_debt,
+            self.get_token_channel().state().balance.remote_pending_debt,
+            rand_nonce,
+            identity_client)))
     }
 
     pub fn new_from_remote_reset(local_public_key: &PublicKey, 
@@ -267,15 +298,80 @@ impl DirectionalTc {
         }
     }
 
+    /// Deal with the case of incoming state turning into outgoing state.
+    fn outgoing_to_incoming(&self, 
+                            old_move_token: &FriendMoveToken, 
+                            new_move_token: FriendMoveToken) 
+        -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
+    
+        // Verify counters:
+        if new_move_token.inconsistency_counter != old_move_token.inconsistency_counter {
+            return Err(ReceiveMoveTokenError::InvalidInconsistencyCounter);
+        }
+
+        let expected_move_token_counter = old_move_token.move_token_counter
+            .checked_add(1)
+            .ok_or(ReceiveMoveTokenError::MoveTokenCounterOverflow)?;
+
+        if new_move_token.move_token_counter != expected_move_token_counter {
+            return Err(ReceiveMoveTokenError::InvalidMoveTokenCounter);
+        }
+
+        let mut token_channel = self.token_channel.clone();
+        let res = process_operations_list(&mut token_channel,
+            new_move_token.operations.clone());
+
+        // Verify balance:
+        if token_channel.state().balance.balance != new_move_token.balance ||
+           token_channel.state().balance.local_pending_debt != new_move_token.local_pending_debt ||
+           token_channel.state().balance.remote_pending_debt != new_move_token.remote_pending_debt {
+            return Err(ReceiveMoveTokenError::InvalidStatedBalance);
+        }
+
+        match res {
+            Ok(outputs) => {
+                let mut move_token_received = MoveTokenReceived {
+                    incoming_messages: Vec::new(),
+                    mutations: Vec::new(),
+                };
+
+                for output in outputs {
+                    let ProcessOperationOutput 
+                        {incoming_message, tc_mutations} = output;
+
+                    if let Some(funds) = incoming_message {
+                        move_token_received.incoming_messages.push(funds);
+                    }
+                    for tc_mutation in tc_mutations {
+                        move_token_received.mutations.push(
+                            DirectionalMutation::TcMutation(tc_mutation));
+                    }
+                }
+                move_token_received.mutations.push(
+                    DirectionalMutation::SetDirection(SetDirection::Incoming(new_move_token)));
+                Ok(ReceiveMoveTokenOutput::Received(move_token_received))
+            },
+            Err(e) => {
+                Err(ReceiveMoveTokenError::InvalidTransaction(e))
+            },
+        }
+    }
+
 
     #[allow(unused)]
     pub fn simulate_receive_move_token(&self, 
                               move_token_msg: FriendMoveToken)
         -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
 
+        // Verify signature:
+        let remote_public_key = &self.get_token_channel().state().idents.remote_public_key;
+        if !move_token_msg.verify(remote_public_key) {
+            return Err(ReceiveMoveTokenError::InvalidSignature);
+        }
+
         match &self.direction {
             MoveTokenDirection::Incoming(friend_move_token) => {
-                if &friend_move_token.new_token == &move_token_msg.new_token {
+                if friend_move_token == &move_token_msg {
                     // Duplicate
                     Ok(ReceiveMoveTokenOutput::Duplicate)
                 } else {
@@ -286,34 +382,7 @@ impl DirectionalTc {
             MoveTokenDirection::Outgoing(ref friend_move_token_request) => {
                 let friend_move_token = &friend_move_token_request.friend_move_token;
                 if &move_token_msg.old_token == self.get_new_token() {
-                    match simulate_process_operations_list(&self.token_channel,
-                        move_token_msg.operations.clone()) {
-                        Ok(outputs) => {
-                            let mut move_token_received = MoveTokenReceived {
-                                incoming_messages: Vec::new(),
-                                mutations: Vec::new(),
-                            };
-
-                            for output in outputs {
-                                let ProcessOperationOutput 
-                                    {incoming_message, tc_mutations} = output;
-
-                                if let Some(funds) = incoming_message {
-                                    move_token_received.incoming_messages.push(funds);
-                                }
-                                for tc_mutation in tc_mutations {
-                                    move_token_received.mutations.push(
-                                        DirectionalMutation::TcMutation(tc_mutation));
-                                }
-                            }
-                            move_token_received.mutations.push(
-                                DirectionalMutation::SetDirection(SetDirection::Incoming(move_token_msg)));
-                            Ok(ReceiveMoveTokenOutput::Received(move_token_received))
-                        },
-                        Err(e) => {
-                            Err(ReceiveMoveTokenError::InvalidTransaction(e))
-                        },
-                    }
+                    self.outgoing_to_incoming(friend_move_token, move_token_msg)
                 } else if friend_move_token.old_token == move_token_msg.new_token {
                     // We should retransmit our move token message to the remote side.
                     Ok(ReceiveMoveTokenOutput::RetransmitOutgoing(friend_move_token.clone()))
