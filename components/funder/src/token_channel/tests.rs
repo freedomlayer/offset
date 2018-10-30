@@ -1,5 +1,8 @@
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
+use crypto::test_utils::DummyRandom;
 use crypto::uid::{Uid, UID_LEN};
+use crypto::identity::{Identity, SoftwareEd25519Identity,
+                        generate_pkcs8_key_pair, SIGNATURE_LEN, Signature};
 #[allow(unused)]
 use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crate::token_channel::types::{/*TcRequestsStatus, */TokenChannel};
@@ -7,6 +10,7 @@ use crate::token_channel::types::{/*TcRequestsStatus, */TokenChannel};
 use crate::types::{RequestsStatus, InvoiceId, INVOICE_ID_LEN, 
     FunderFreezeLink, Ratio, FriendsRoute, 
     RequestSendFunds, ResponseSendFunds, FriendTcOp};
+use crate::signature_buff::create_response_signature_buffer;
 
 use crate::token_channel::outgoing::{OutgoingTc, QueueOperationFailure};
 use crate::token_channel::incoming::{process_operation, ProcessOperationOutput, ProcessOperationError};
@@ -83,11 +87,16 @@ fn test_request_response_send_funds() {
     // Make enough trust from remote side, so that we will be able to send credits:
     apply_incoming(&mut token_channel, FriendTcOp::SetRemoteMaxDebt(100)).unwrap();
 
+    let rng = DummyRandom::new(&[1u8]);
+    let pkcs8 = generate_pkcs8_key_pair(&rng);
+    let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+    let public_key_c = identity.get_public_key();
+
     let request_id = Uid::from(&[3; UID_LEN]);
     let route = FriendsRoute {
         public_keys: vec![PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
                           PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]),
-                          PublicKey::from(&[0xcc; PUBLIC_KEY_LEN])],
+                          public_key_c.clone()],
     };
     let invoice_id = InvoiceId::from(&[0; INVOICE_ID_LEN]);
 
@@ -104,30 +113,36 @@ fn test_request_response_send_funds() {
         freeze_links: vec![funder_freeze_link],
     };
 
+    let pending_request = request_send_funds.create_pending_request();
     apply_outgoing(&mut token_channel, FriendTcOp::RequestSendFunds(request_send_funds)).unwrap();
 
     assert_eq!(token_channel.state().balance.balance, 0);
     assert_eq!(token_channel.state().balance.local_max_debt, 100);
     assert_eq!(token_channel.state().balance.remote_max_debt, 0);
-    assert_eq!(token_channel.state().balance.local_pending_debt, 11);
+    let local_pending_debt = token_channel.state().balance.local_pending_debt;
+    assert!(local_pending_debt > 0);
     assert_eq!(token_channel.state().balance.remote_pending_debt, 0);
 
-    /*
+
     let rand_nonce = RandValue::from(&[5; RAND_VALUE_LEN]);
 
     // TODO: Add signature here:
-    let response_send_funds = ResponseSendFunds {
+    let mut response_send_funds = ResponseSendFunds {
         request_id: request_id.clone(),
         rand_nonce: rand_nonce.clone(),
-        signature: Signature,
+        signature: Signature::from(&[0; SIGNATURE_LEN]),
     };
 
-    apply_incoming(&mut tokne_channel, FriendTcOp::ResponseSendFunds(response_send_funds)).unwrap();
+    let sign_buffer = create_response_signature_buffer(&response_send_funds, 
+                                     &pending_request);
+    response_send_funds.signature = identity.sign_message(&sign_buffer);
 
-    assert_eq!(token_channel.state().balance.balance, -11);
+    apply_incoming(&mut token_channel, FriendTcOp::ResponseSendFunds(response_send_funds)).unwrap();
+
+    let balance = token_channel.state().balance.balance;
+    assert_eq!(balance, -(local_pending_debt as i128));
     assert_eq!(token_channel.state().balance.local_max_debt, 100);
     assert_eq!(token_channel.state().balance.remote_max_debt, 0);
     assert_eq!(token_channel.state().balance.local_pending_debt, 0);
     assert_eq!(token_channel.state().balance.remote_pending_debt, 0);
-    */
 }
