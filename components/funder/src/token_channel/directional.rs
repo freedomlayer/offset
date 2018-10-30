@@ -20,7 +20,7 @@ use super::super::types::{FriendMoveToken, ChannelToken,
     FriendMoveTokenRequest, ResetTerms};
 
 
-// Prefix used for chain hashing of token channel fundss.
+// Prefix used for chain hashing of token channel funds.
 // NEXT is used for hashing for the next move token funds.
 // RESET is used for resetting the token channel.
 // The prefix allows the receiver to distinguish between the two cases.
