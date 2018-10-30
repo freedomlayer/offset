@@ -205,6 +205,8 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
         let friend_move_token = await!(FriendMoveToken::new(
             operations,
             directional.get_new_token().clone(),
+            directional.get_inconsistency_counter(),
+            directional.get_move_token_counter().wrapping_add(1),
             rand_nonce,
             self.identity_client.clone()));
 

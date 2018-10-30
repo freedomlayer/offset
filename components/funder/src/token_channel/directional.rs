@@ -120,9 +120,13 @@ impl DirectionalTc {
         let token_channel = TokenChannel::new(&local_public_key, &remote_public_key, balance);
         let rand_nonce = rand_nonce_from_public_key(&remote_public_key);
 
+        let move_token_counter = 0;
+        let inconsistency_counter = 0;
         let first_move_token_lower = await!(FriendMoveToken::new(
             Vec::new(),
             token_from_public_key(&local_public_key),
+            inconsistency_counter,
+            move_token_counter,
             rand_nonce.clone(),
             identity_client));
 
@@ -201,9 +205,30 @@ impl DirectionalTc {
                                  identity_client))
     }
 
+    pub fn get_inconsistency_counter(&self) -> u64 {
+        let friend_move_token = match &self.direction {
+            MoveTokenDirection::Incoming(friend_move_token) => friend_move_token,
+            MoveTokenDirection::Outgoing(friend_move_token_request) => 
+                &friend_move_token_request.friend_move_token,
+        };
+        friend_move_token.inconsistency_counter
+    }
+
+    pub fn get_move_token_counter(&self) -> u128 {
+        let friend_move_token = match &self.direction {
+            MoveTokenDirection::Incoming(friend_move_token) => friend_move_token,
+            MoveTokenDirection::Outgoing(friend_move_token_request) => 
+                &friend_move_token_request.friend_move_token,
+        };
+        friend_move_token.move_token_counter
+    }
+
     pub async fn get_reset_terms(&self, identity_client: IdentityClient) -> ResetTerms {
+        // We add 2 for the new counter in case 
+        // the remote side has already used the next counter.
         ResetTerms {
             reset_token: await!(self.calc_channel_reset_token(identity_client)),
+            inconsistency_counter: self.get_inconsistency_counter().wrapping_add(1),
             balance_for_reset: self.balance_for_reset(),
         }
     }

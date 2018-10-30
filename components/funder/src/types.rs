@@ -125,6 +125,8 @@ pub struct FriendsRoute {
 pub struct FriendMoveToken {
     pub operations: Vec<FriendTcOp>,
     pub old_token: Signature,
+    pub inconsistency_counter: u64,
+    pub move_token_counter: u128,
     pub rand_nonce: RandValue,
     pub new_token: Signature,
 }
@@ -145,6 +147,8 @@ async fn calc_channel_next_token(friend_move_token: &FriendMoveToken,
     sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
     sig_buffer.extend_from_slice(&contents);
     sig_buffer.extend_from_slice(&friend_move_token.old_token);
+    sig_buffer.write_u64::<BigEndian>(friend_move_token.inconsistency_counter).unwrap();
+    sig_buffer.write_u128::<BigEndian>(friend_move_token.move_token_counter).unwrap();
     sig_buffer.extend_from_slice(&friend_move_token.rand_nonce);
     await!(identity_client.request_signature(sig_buffer)).unwrap()
 }
@@ -152,12 +156,16 @@ async fn calc_channel_next_token(friend_move_token: &FriendMoveToken,
 impl FriendMoveToken {
     pub async fn new(operations: Vec<FriendTcOp>,
                  old_token: Signature,
+                 inconsistency_counter: u64,
+                 move_token_counter: u128,
                  rand_nonce: RandValue,
                  identity_client: IdentityClient) -> FriendMoveToken {
 
         let mut friend_move_token = FriendMoveToken {
             operations,
             old_token,
+            inconsistency_counter: 0,
+            move_token_counter: 0,
             rand_nonce,
             new_token: Signature::zero(),
         };
@@ -518,5 +526,6 @@ pub enum FunderOutgoingComm<A> {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResetTerms {
     pub reset_token: Signature,
+    pub inconsistency_counter: u64,
     pub balance_for_reset: i128,
 }

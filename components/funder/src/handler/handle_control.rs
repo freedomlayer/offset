@@ -81,10 +81,13 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         }?;
 
         let rand_nonce = RandValue::new(&*self.rng);
+        let move_token_counter = 0;
         let friend_move_token = await!(FriendMoveToken::new(
-            Vec::new(), 
             // No operations are required for a reset move token
+            Vec::new(), 
             remote_reset_terms.reset_token.clone(),
+            remote_reset_terms.inconsistency_counter,
+            move_token_counter,
             rand_nonce,
             self.identity_client.clone()));
 
