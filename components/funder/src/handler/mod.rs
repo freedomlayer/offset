@@ -88,8 +88,8 @@ impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
     }
 
     /// Apply a mutation and also remember it.
-    pub async fn apply_mutation(&mut self, messenger_mutation: FunderMutation<A>) {
-        await!(self.state.mutate(&messenger_mutation, self.identity_client.clone()));
+    pub fn apply_mutation(&mut self, messenger_mutation: FunderMutation<A>) {
+        self.state.mutate(&messenger_mutation);
         self.mutations.push(messenger_mutation);
     }
 

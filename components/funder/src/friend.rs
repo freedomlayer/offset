@@ -65,12 +65,10 @@ pub struct FriendState<A> {
 
 #[allow(unused)]
 impl<A:Clone + 'static> FriendState<A> {
-    pub async fn new<'a>(local_public_key: &'a PublicKey,
-               remote_public_key: &'a PublicKey,
-               remote_address: A,
-               identity_client: IdentityClient) -> FriendState<A> {
-        let directional_tc = await!(DirectionalTc::new(local_public_key,
-                                           remote_public_key, identity_client));
+    pub fn new(local_public_key: &PublicKey,
+               remote_public_key: &PublicKey,
+               remote_address: A) -> FriendState<A> {
+        let directional_tc = DirectionalTc::new(local_public_key, remote_public_key);
         FriendState {
             local_public_key: local_public_key.clone(),
             remote_public_key: remote_public_key.clone(),

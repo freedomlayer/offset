@@ -54,10 +54,10 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
     /// Check if channel reset is required (Remove side used the RESET token)
     /// If so, reset the channel.
-    pub async fn try_reset_channel<'a>(&'a mut self, 
-                           friend_public_key: &'a PublicKey,
-                           local_reset_terms: &'a ResetTerms,
-                           friend_move_token: &'a FriendMoveToken) {
+    pub fn try_reset_channel(&mut self, 
+                           friend_public_key: &PublicKey,
+                           local_reset_terms: &ResetTerms,
+                           friend_move_token: &FriendMoveToken) {
 
         // Check if incoming message is an attempt to reset channel.
         // We can know this by checking if old_token is a special value.
@@ -65,7 +65,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             // This is a reset message. We reset the token channel:
             let friend_mutation = FriendMutation::RemoteReset(friend_move_token.clone());
             let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-            await!(self.apply_mutation(messenger_mutation));
+            self.apply_mutation(messenger_mutation);
         }
 
     }

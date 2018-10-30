@@ -70,11 +70,10 @@ impl<A: Clone + Serialize + DeserializeOwned + 'static> DbCore<A> {
     }
 
     /// Apply a mutation over the database, and save it.
-    pub async fn mutate(&mut self, funder_mutations: Vec<FunderMutation<A>>, 
-                        identity_client: IdentityClient) -> Result<(), DbCoreError> {
+    pub fn mutate(&mut self, funder_mutations: Vec<FunderMutation<A>>) -> Result<(), DbCoreError> {
         // Apply mutation to funder_state:
         for funder_mutation in funder_mutations {
-            await!(self.funder_state.mutate(&funder_mutation, identity_client.clone()));
+            self.funder_state.mutate(&funder_mutation);
         }
 
         // Serialize the funder_state:

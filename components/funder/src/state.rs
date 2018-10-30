@@ -55,18 +55,16 @@ impl<A:Clone + 'static> FunderState<A> {
         &self.local_public_key
     }
 
-    pub async fn mutate<'a>(&'a mut self, messenger_mutation: &'a FunderMutation<A>, 
-                        identity_client: IdentityClient) {
+    pub fn mutate(&mut self, messenger_mutation: &FunderMutation<A>) {
         match messenger_mutation {
             FunderMutation::FriendMutation((public_key, friend_mutation)) => {
                 let friend = self.friends.get_mut(&public_key).unwrap();
                 friend.mutate(friend_mutation);
             },
             FunderMutation::AddFriend((friend_public_key, opt_address)) => {
-                let friend = await!(FriendState::new(&self.local_public_key,
+                let friend = FriendState::new(&self.local_public_key,
                                                   friend_public_key,
-                                                  opt_address.clone(),
-                                                  identity_client));
+                                                  opt_address.clone());
                 // Insert friend, but also make sure that we did not remove any existing friend
                 // with the same public key:
                 let _ = self.friends.insert(friend_public_key.clone(), friend).unwrap();

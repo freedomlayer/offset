@@ -116,28 +116,29 @@ fn rand_nonce_from_public_key(public_key: &PublicKey) -> RandValue {
 }
 
 impl DirectionalTc {
-
-    #[allow(unused)]
-    pub async fn new<'a>(local_public_key: &'a PublicKey, 
-               remote_public_key: &'a PublicKey,
-               identity_client: IdentityClient) -> DirectionalTc {
+    pub fn new(local_public_key: &PublicKey, 
+               remote_public_key: &PublicKey) -> DirectionalTc {
 
         let balance = 0;
         let token_channel = TokenChannel::new(&local_public_key, &remote_public_key, balance);
         let rand_nonce = rand_nonce_from_public_key(&remote_public_key);
 
-        let move_token_counter = 0;
-        let inconsistency_counter = 0;
-        let first_move_token_lower = await!(FriendMoveToken::new(
-            Vec::new(),
-            token_from_public_key(&local_public_key),
-            inconsistency_counter,
-            move_token_counter,
-            token_channel.state().balance.balance,
-            token_channel.state().balance.local_pending_debt,
-            token_channel.state().balance.remote_pending_debt,
-            rand_nonce.clone(),
-            identity_client));
+        // This is a special initialization case.
+        // Note that this is the only case where new_token is not a valid signature.
+        // We do this because we want to have synchronization between the two sides of the token
+        // channel, however, the remote side has no means of generating the signature (Because he
+        // doesn't have the private key). Therefore we use a dummy new_token instead.
+        let first_move_token_lower = FriendMoveToken {
+            operations: Vec::new(),
+            old_token: token_from_public_key(&local_public_key),
+            inconsistency_counter: 0, 
+            move_token_counter: 0,
+            balance: 0,
+            local_pending_debt: 0,
+            remote_pending_debt: 0,
+            rand_nonce,
+            new_token: token_from_public_key(&remote_public_key),
+        };
 
         if sha_512_256(&local_public_key) < sha_512_256(&remote_public_key) {
             // We are the first sender
@@ -260,8 +261,7 @@ impl DirectionalTc {
         ResetTerms {
             reset_token: await!(self.calc_channel_reset_token(identity_client)),
             // TODO: Should we do something other than wrapping_add(1)?
-            // 2**64 inconsistencies are required for an overflow. We assume that this will never
-            // happen.
+            // 2**64 inconsistencies are required for an overflow.
             inconsistency_counter: self.get_inconsistency_counter().wrapping_add(1),
             balance_for_reset: self.balance_for_reset(),
         }
@@ -363,18 +363,12 @@ impl DirectionalTc {
 
     #[allow(unused)]
     pub fn simulate_receive_move_token(&self, 
-                              move_token_msg: FriendMoveToken)
+                              new_move_token: FriendMoveToken)
         -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
-
-        // Verify signature:
-        let remote_public_key = &self.get_token_channel().state().idents.remote_public_key;
-        if !move_token_msg.verify(remote_public_key) {
-            return Err(ReceiveMoveTokenError::InvalidSignature);
-        }
 
         match &self.direction {
             MoveTokenDirection::Incoming(friend_move_token) => {
-                if friend_move_token == &move_token_msg {
+                if friend_move_token == &new_move_token {
                     // Duplicate
                     Ok(ReceiveMoveTokenOutput::Duplicate)
                 } else {
@@ -383,10 +377,19 @@ impl DirectionalTc {
                 }
             },
             MoveTokenDirection::Outgoing(ref friend_move_token_request) => {
+                // Verify signature:
+                // Note that we only verify the signature here, and not at the Incoming part.
+                // This allows the genesis move token to occur smoothly, even though its signature
+                // is not correct.
+                let remote_public_key = &self.get_token_channel().state().idents.remote_public_key;
+                if !new_move_token.verify(remote_public_key) {
+                    return Err(ReceiveMoveTokenError::InvalidSignature);
+                }
+
                 let friend_move_token = &friend_move_token_request.friend_move_token;
-                if &move_token_msg.old_token == self.get_new_token() {
-                    self.outgoing_to_incoming(friend_move_token, move_token_msg)
-                } else if friend_move_token.old_token == move_token_msg.new_token {
+                if &new_move_token.old_token == self.get_new_token() {
+                    self.outgoing_to_incoming(friend_move_token, new_move_token)
+                } else if friend_move_token.old_token == new_move_token.new_token {
                     // We should retransmit our move token message to the remote side.
                     Ok(ReceiveMoveTokenOutput::RetransmitOutgoing(friend_move_token.clone()))
                 } else {
