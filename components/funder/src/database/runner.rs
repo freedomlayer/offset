@@ -2,13 +2,15 @@
 
 use std::marker::Send;
 use futures::channel::{oneshot, mpsc};
-use futures::{future, Stream};
+use futures::{future, FutureExt, Stream};
 use futures::task::SpawnExt;
 // use futures_cpupool::CpuPool;
 use futures::executor::ThreadPool;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+
+use identity::IdentityClient;
 
 use crate::state::{FunderMutation, FunderState};
 use super::core::{DbCore, DbCoreError};
@@ -32,10 +34,12 @@ pub enum DbServiceError {
 }
 */
 
-fn apply_funder_mutations<A: Clone + Serialize + DeserializeOwned>(
-    mut db_core: DbCore<A>, funder_mutations: Vec<FunderMutation<A>>) -> Result<DbCore<A>,DbCoreError> {
+async fn apply_funder_mutations<A: Clone + Serialize + DeserializeOwned + 'static>(
+    mut db_core: DbCore<A>, 
+    funder_mutations: Vec<FunderMutation<A>>,
+    identity_client: IdentityClient) -> Result<DbCore<A>,DbCoreError> {
 
-    db_core.mutate(funder_mutations)?;
+    await!(db_core.mutate(funder_mutations, identity_client))?;
     Ok(db_core)
 }
 
@@ -91,9 +95,11 @@ impl<A: Clone + Serialize + DeserializeOwned + Send + Sync + 'static> DbRunner<A
         }
     }
 
-    pub async fn mutate(self, funder_mutations: Vec<FunderMutation<A>>) -> Result<Self, DbRunnerError> {
+    pub async fn mutate(self, funder_mutations: Vec<FunderMutation<A>>, 
+                        identity_client: IdentityClient) -> Result<Self, DbRunnerError> {
         let DbRunner {mut pool, db_core} = self;
-        let fut_apply_db_mutation = future::lazy(move |_| apply_funder_mutations(db_core, funder_mutations));
+        let fut_apply_db_mutation = future::lazy(move |_| ())
+            .then(|_| apply_funder_mutations(db_core, funder_mutations, identity_client));
         let handle = pool.spawn_with_handle(fut_apply_db_mutation).unwrap();
         let db_core = await!(handle)
             .map_err(DbRunnerError::DbCoreError)?;

@@ -18,7 +18,7 @@ use self::handle_friend::HandleFriendError;
 use self::handle_liveness::HandleLivenessError;
 use super::token_channel::directional::{ReceiveMoveTokenError};
 use super::types::{FriendMoveToken, FriendsRoute, 
-    IncomingControlMessage, IncomingLivenessMessage, ChannelToken,
+    IncomingControlMessage, IncomingLivenessMessage,
     FriendMoveTokenRequest, FunderOutgoing, FunderIncoming,
     FunderOutgoingComm, FunderOutgoingControl, FunderIncomingComm,
     ResponseReceived};
@@ -57,7 +57,7 @@ pub struct MutableFunderHandler<A:Clone,R> {
     responses_received: Vec<ResponseReceived>,
 }
 
-impl<A:Clone,R> MutableFunderHandler<A,R> {
+impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
     pub fn state(&self) -> &FunderState<A> {
         &self.state
     }
@@ -88,8 +88,8 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
     }
 
     /// Apply a mutation and also remember it.
-    pub fn apply_mutation(&mut self, messenger_mutation: FunderMutation<A>) {
-        self.state.mutate(&messenger_mutation);
+    pub async fn apply_mutation(&mut self, messenger_mutation: FunderMutation<A>) {
+        await!(self.state.mutate(&messenger_mutation, self.identity_client.clone()));
         self.mutations.push(messenger_mutation);
     }
 
@@ -172,10 +172,9 @@ pub async fn funder_handle_message<A: Clone + 'static, R: CryptoRandom + 'static
 
     let state = funder_state.clone();
     let ephemeral = funder_ephemeral.clone();
-    let mutable_handler = match funder_incoming {
+    match funder_incoming {
         FunderIncoming::Init =>  {
             mutable_handler.handle_init();
-            mutable_handler
         },
         FunderIncoming::Control(control_message) =>
             await!(mutable_handler

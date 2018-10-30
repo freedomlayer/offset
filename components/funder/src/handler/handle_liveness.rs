@@ -15,11 +15,11 @@ pub enum HandleLivenessError {
 #[allow(unused)]
 impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
-    pub async fn handle_liveness_message(mut self, 
+    pub async fn handle_liveness_message(&mut self, 
                                   liveness_message: IncomingLivenessMessage) 
-        -> Result<Self, HandleLivenessError> {
+        -> Result<(), HandleLivenessError> {
 
-        let fself = match liveness_message {
+        match liveness_message {
             IncomingLivenessMessage::Online(friend_public_key) => {
                 // Find friend:
                 let friend = match self.get_friend(&friend_public_key) {
@@ -49,7 +49,6 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 };
 
                 self.ephemeral.liveness.set_online(&friend_public_key);
-                self
             },
             IncomingLivenessMessage::Offline(friend_public_key) => {
                 // Find friend:
@@ -63,14 +62,13 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 }?;
                 self.ephemeral.liveness.set_offline(&friend_public_key);
                 // Cancel all messages pending for this friend.
-                let fself = await!(self.cancel_pending_requests(
-                        friend_public_key.clone()))?;
-                let mut fself = await!(fself.cancel_pending_user_requests(
-                        friend_public_key.clone()))?;
-                fself
+                await!(self.cancel_pending_requests(
+                        friend_public_key.clone()));
+                await!(self.cancel_pending_user_requests(
+                        friend_public_key.clone()));
             },
         };
-        Ok(fself)
+        Ok(())
     }
 
 }

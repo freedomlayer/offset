@@ -3,20 +3,19 @@
 use std::convert::TryFrom;
 use byteorder::{BigEndian, WriteBytesExt};
 
-use crypto::identity::PublicKey;
+use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
 use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
+use identity::IdentityClient;
 
 use crate::consts::MAX_OPERATIONS_IN_BATCH;
-
-use utils::int_convert::usize_to_u64;
 
 use super::types::{TokenChannel, TcMutation};
 use super::incoming::{ProcessOperationOutput, ProcessTransListError, 
     simulate_process_operations_list, IncomingMessage};
 use super::outgoing::OutgoingTc;
 
-use super::super::types::{FriendMoveToken, ChannelToken, 
+use super::super::types::{FriendMoveToken, 
     FriendMoveTokenRequest, ResetTerms};
 
 
@@ -24,7 +23,7 @@ use super::super::types::{FriendMoveToken, ChannelToken,
 // NEXT is used for hashing for the next move token funds.
 // RESET is used for resetting the token channel.
 // The prefix allows the receiver to distinguish between the two cases.
-const TOKEN_NEXT: &[u8] = b"NEXT";
+// const TOKEN_NEXT: &[u8] = b"NEXT";
 const TOKEN_RESET: &[u8] = b"RESET";
 
 
@@ -32,12 +31,12 @@ const TOKEN_RESET: &[u8] = b"RESET";
 /// Indicate the direction of the move token funds.
 #[derive(Clone, Serialize, Deserialize)]
 pub enum MoveTokenDirection {
-    Incoming(ChannelToken), // new_token
+    Incoming(FriendMoveToken),
     Outgoing(FriendMoveTokenRequest),
 }
 
 pub enum SetDirection {
-    Incoming(ChannelToken), // new_token
+    Incoming(FriendMoveToken), 
     Outgoing(FriendMoveToken),
 }
 
@@ -75,91 +74,84 @@ pub enum ReceiveMoveTokenOutput {
 }
 
 
-/// Calculate the next token channel, given values of previous FriendMoveToken funds.
-fn calc_channel_next_token(move_token_funds: &FriendMoveToken) 
-                        -> ChannelToken {
-
-    let mut contents = Vec::new();
-    contents.write_u64::<BigEndian>(
-        usize_to_u64(move_token_funds.operations.len()).unwrap()).unwrap();
-    for op in &move_token_funds.operations {
-        contents.extend_from_slice(&op.to_bytes());
-    }
-
-    let mut hash_buffer = Vec::new();
-    hash_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
-    hash_buffer.extend_from_slice(&contents);
-    hash_buffer.extend_from_slice(&move_token_funds.old_token);
-    hash_buffer.extend_from_slice(&move_token_funds.rand_nonce);
-    let hash_result = sha_512_256(&hash_buffer);
-    ChannelToken::from(hash_result.as_array_ref())
-}
 
 /// Calculate the token to be used for resetting the channel.
 #[allow(unused)]
-pub fn calc_channel_reset_token(new_token: &ChannelToken,
-                      balance_for_reset: i128) -> ChannelToken {
+pub async fn calc_channel_reset_token(new_token: &Signature,
+                      balance_for_reset: i128,
+                      identity_client: IdentityClient) -> Signature {
 
-    let mut hash_buffer = Vec::new();
-    hash_buffer.extend_from_slice(&sha_512_256(TOKEN_RESET));
-    hash_buffer.extend_from_slice(&new_token);
-    hash_buffer.write_i128::<BigEndian>(balance_for_reset).unwrap();
-    let hash_result = sha_512_256(&hash_buffer);
-    ChannelToken::from(hash_result.as_array_ref())
+    let mut sig_buffer = Vec::new();
+    sig_buffer.extend_from_slice(&sha_512_256(TOKEN_RESET));
+    sig_buffer.extend_from_slice(&new_token);
+    sig_buffer.write_i128::<BigEndian>(balance_for_reset).unwrap();
+    await!(identity_client.request_signature(sig_buffer)).unwrap()
 }
 
+/// Create a token from a public key
+/// Currently this function puts the public key in the beginning of the signature buffer,
+/// as the public key is shorter than a signature.
+/// Possibly change this in the future (Maybe use a hash to spread the public key over all the
+/// bytes of the signature)
+///
+/// Note that the output here is not a real signature. This function is used for the first
+/// deterministic initialization of a token channel.
+fn token_from_public_key(public_key: &PublicKey) -> Signature {
+    let mut buff = [0; SIGNATURE_LEN];
+    buff[0 .. PUBLIC_KEY_LEN].copy_from_slice(public_key);
+    Signature::from(buff)
+}
+
+/// Generate a random nonce from public key.
+/// Note that the result here is not really a random nonce. This function is used for the first
+/// deterministic initialization of a token channel.
+fn rand_nonce_from_public_key(public_key: &PublicKey) -> RandValue {
+    let public_key_hash = sha_512_256(public_key);
+    RandValue::try_from(&public_key_hash.as_ref()[.. RAND_VALUE_LEN]).unwrap()
+}
 
 impl DirectionalTc {
     #[allow(unused)]
-    pub fn new(local_public_key: &PublicKey, 
-               remote_public_key: &PublicKey) -> DirectionalTc {
+    pub async fn new<'a>(local_public_key: &'a PublicKey, 
+               remote_public_key: &'a PublicKey,
+               identity_client: IdentityClient) -> DirectionalTc {
 
-        let mut hash_buffer: Vec<u8> = Vec::new();
+        let balance = 0;
+        let token_channel = TokenChannel::new(&local_public_key, &remote_public_key, balance);
+        let rand_nonce = rand_nonce_from_public_key(&remote_public_key);
 
-        let local_pk_hash = sha_512_256(local_public_key);
-        let remote_pk_hash = sha_512_256(remote_public_key);
-        let new_token_channel = TokenChannel::new(local_public_key, remote_public_key, 0);
+        let first_move_token_lower = await!(FriendMoveToken::new(
+            Vec::new(),
+            token_from_public_key(&local_public_key),
+            rand_nonce.clone(),
+            identity_client));
 
-        let rand_nonce = RandValue::try_from(&remote_pk_hash.as_ref()[.. RAND_VALUE_LEN]).unwrap();
-
-        let first_move_token_lower = FriendMoveToken {
-            operations: Vec::new(),
-            old_token: ChannelToken::from(local_pk_hash.as_array_ref()),
-            rand_nonce: rand_nonce.clone(),
-        };
-
-        // Calculate hash(FirstMoveTokenLower):
-        let new_token = calc_channel_next_token(&first_move_token_lower);
-
-        if local_pk_hash < remote_pk_hash {
+        if sha_512_256(&local_public_key) < sha_512_256(&remote_public_key) {
             // We are the first sender
             let friend_move_token_request = FriendMoveTokenRequest {
-                friend_move_token: FriendMoveToken {
-                    operations: Vec::new(),
-                    old_token: ChannelToken::from(local_pk_hash.as_array_ref()),
-                    rand_nonce,
-                },
+                friend_move_token: first_move_token_lower.clone(),
                 token_wanted: false,
             };
             DirectionalTc {
                 direction: MoveTokenDirection::Outgoing(friend_move_token_request),
-                token_channel: new_token_channel,
+                token_channel,
             }
         } else {
             // We are the second sender
             DirectionalTc {
-                direction: MoveTokenDirection::Incoming(new_token),
-                token_channel: new_token_channel,
+                direction: MoveTokenDirection::Incoming(first_move_token_lower),
+                token_channel,
             }
         }
     }
 
     pub fn new_from_remote_reset(local_public_key: &PublicKey, 
                       remote_public_key: &PublicKey, 
-                      new_token: &ChannelToken, 
+                      reset_move_token: &FriendMoveToken,
                       balance: i128) -> DirectionalTc {
+
         DirectionalTc {
-            direction: MoveTokenDirection::Incoming(new_token.clone()),
+            direction: MoveTokenDirection::Incoming(reset_move_token.clone()),
             token_channel: TokenChannel::new(local_public_key, remote_public_key, balance),
         }
     }
@@ -193,23 +185,25 @@ impl DirectionalTc {
         self.get_token_channel().state().balance.remote_max_debt
     }
 
-    pub fn new_token(&self) -> ChannelToken {
-        match &self.direction {
-            MoveTokenDirection::Incoming(new_token) => new_token.clone(),
-            MoveTokenDirection::Outgoing(outgoing_move_token) =>
-                calc_channel_next_token(&outgoing_move_token.friend_move_token)
-        }
+    pub fn get_new_token(&self) -> &Signature {
+        let friend_move_token = match &self.direction {
+            MoveTokenDirection::Incoming(friend_move_token) => friend_move_token,
+            MoveTokenDirection::Outgoing(friend_move_token_request) => 
+                &friend_move_token_request.friend_move_token,
+        };
+        &friend_move_token.new_token
     }
 
     #[allow(unused)]
-    fn calc_channel_reset_token(&self) -> ChannelToken {
-        calc_channel_reset_token(&self.new_token(),
-                                 self.get_token_channel().balance_for_reset())
+    async fn calc_channel_reset_token(&self, identity_client: IdentityClient) -> Signature {
+        await!(calc_channel_reset_token(&self.get_new_token(),
+                                 self.get_token_channel().balance_for_reset(),
+                                 identity_client))
     }
 
-    pub fn get_reset_terms(&self) -> ResetTerms {
+    pub async fn get_reset_terms(&self, identity_client: IdentityClient) -> ResetTerms {
         ResetTerms {
-            reset_token: self.calc_channel_reset_token(),
+            reset_token: await!(self.calc_channel_reset_token(identity_client)),
             balance_for_reset: self.balance_for_reset(),
         }
     }
@@ -254,12 +248,9 @@ impl DirectionalTc {
                               move_token_msg: FriendMoveToken)
         -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
 
-        // Make sure that the given new_token is valid:
-        let new_token = calc_channel_next_token(&move_token_msg);
-
         match &self.direction {
-            MoveTokenDirection::Incoming(incoming_new_token) => {
-                if new_token == *incoming_new_token {
+            MoveTokenDirection::Incoming(friend_move_token) => {
+                if &friend_move_token.new_token == &move_token_msg.new_token {
                     // Duplicate
                     Ok(ReceiveMoveTokenOutput::Duplicate)
                 } else {
@@ -267,11 +258,11 @@ impl DirectionalTc {
                     Err(ReceiveMoveTokenError::ChainInconsistency)
                 }
             },
-            MoveTokenDirection::Outgoing(ref outgoing_move_token) => {
-                let friend_move_token = &outgoing_move_token.friend_move_token;
-                if move_token_msg.old_token == self.new_token() {
+            MoveTokenDirection::Outgoing(ref friend_move_token_request) => {
+                let friend_move_token = &friend_move_token_request.friend_move_token;
+                if &move_token_msg.old_token == self.get_new_token() {
                     match simulate_process_operations_list(&self.token_channel,
-                        move_token_msg.operations) {
+                        move_token_msg.operations.clone()) {
                         Ok(outputs) => {
                             let mut move_token_received = MoveTokenReceived {
                                 incoming_messages: Vec::new(),
@@ -291,15 +282,15 @@ impl DirectionalTc {
                                 }
                             }
                             move_token_received.mutations.push(
-                                DirectionalMutation::SetDirection(SetDirection::Incoming(new_token)));
+                                DirectionalMutation::SetDirection(SetDirection::Incoming(move_token_msg)));
                             Ok(ReceiveMoveTokenOutput::Received(move_token_received))
                         },
                         Err(e) => {
                             Err(ReceiveMoveTokenError::InvalidTransaction(e))
                         },
                     }
-                } else if friend_move_token.old_token == new_token {
-                    // We should retransmit our funds to the remote side.
+                } else if friend_move_token.old_token == move_token_msg.new_token {
+                    // We should retransmit our move token message to the remote side.
                     Ok(ReceiveMoveTokenOutput::RetransmitOutgoing(friend_move_token.clone()))
                 } else {
                     Err(ReceiveMoveTokenError::ChainInconsistency)

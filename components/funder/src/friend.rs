@@ -1,13 +1,14 @@
 use im::vector::Vector;
 
-use crypto::identity::PublicKey;
+use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
+use identity::IdentityClient; 
 
 use super::token_channel::directional::{DirectionalMutation, MoveTokenDirection};
 use super::types::{FriendTcOp, FriendStatus, 
     RequestsStatus, RequestSendFunds, FriendMoveToken,
     ResponseSendFunds, FailureSendFunds, UserRequestSendFunds,
-    ChannelToken, ResetTerms};
+    ResetTerms};
 use super::token_channel::directional::DirectionalTc;
 
 
@@ -34,7 +35,7 @@ pub enum FriendMutation<A> {
     SetFriendAddr(A),
     LocalReset(FriendMoveToken),
     // The outgoing move token message we have sent to reset the channel.
-    RemoteReset,
+    RemoteReset(FriendMoveToken),
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -63,16 +64,18 @@ pub struct FriendState<A> {
 
 
 #[allow(unused)]
-impl<A:Clone> FriendState<A> {
-    pub fn new(local_public_key: &PublicKey,
-               remote_public_key: &PublicKey,
-               remote_address: A) -> FriendState<A> {
+impl<A:Clone + 'static> FriendState<A> {
+    pub async fn new<'a>(local_public_key: &'a PublicKey,
+               remote_public_key: &'a PublicKey,
+               remote_address: A,
+               identity_client: IdentityClient) -> FriendState<A> {
+        let directional_tc = await!(DirectionalTc::new(local_public_key,
+                                           remote_public_key, identity_client));
         FriendState {
             local_public_key: local_public_key.clone(),
             remote_public_key: remote_public_key.clone(),
             remote_address,
-            channel_status: ChannelStatus::Consistent(DirectionalTc::new(local_public_key,
-                                           remote_public_key)),
+            channel_status: ChannelStatus::Consistent(directional_tc),
 
             // The remote_max_debt we want to have. When possible, this will be sent to the remote
             // side.
@@ -159,7 +162,7 @@ impl<A:Clone> FriendState<A> {
                     }
                 }
             },
-            FriendMutation::RemoteReset => {
+            FriendMutation::RemoteReset(reset_move_token) => {
                 // Remote reset was applied (Remote side has given a reset command)
                 match &self.channel_status {
                     ChannelStatus::Consistent(_) => unreachable!(),
@@ -167,7 +170,7 @@ impl<A:Clone> FriendState<A> {
                         let directional = DirectionalTc::new_from_remote_reset(
                             &self.local_public_key,
                             &self.remote_public_key,
-                            &local_reset_terms.reset_token,
+                            &reset_move_token,
                             local_reset_terms.balance_for_reset);
                         self.channel_status = ChannelStatus::Consistent(directional);
                     },

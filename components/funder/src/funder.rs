@@ -82,7 +82,7 @@ impl<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: CryptoR
             };
 
             // Send mutations to database:
-            db_runner = await!(db_runner.mutate(handler_output.mutations))
+            db_runner = await!(db_runner.mutate(handler_output.mutations, identity_client.clone()))
                 .map_err(FunderError::DbRunnerError)?;
             
             // Keep new funder_ephemeral:

@@ -14,6 +14,7 @@ pub fn sha_512_256(data: &[u8]) -> HashResult {
     HashResult(inner)
 }
 
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -55,7 +55,7 @@ impl OperationsBatch {
 
 
 
-impl<A:Clone,R: CryptoRandom> MutableFunderHandler<A,R> {
+impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
     /// Queue as many messages as possible into available token channel.
     fn queue_outgoing_operations(&mut self,
                            remote_public_key: &PublicKey,
@@ -158,8 +158,8 @@ impl<A:Clone,R: CryptoRandom> MutableFunderHandler<A,R> {
                 FriendMessage::MoveTokenRequest(friend_move_token_request))));
     }
 
-    fn send_friend_move_token(&mut self,
-                           remote_public_key: &PublicKey,
+    async fn send_friend_move_token<'a>(&'a mut self,
+                           remote_public_key: &'a PublicKey,
                            operations: Vec<FriendTcOp>)
                 -> Result<(), QueueOperationFailure> {
 
@@ -201,11 +201,12 @@ impl<A:Clone,R: CryptoRandom> MutableFunderHandler<A,R> {
             ChannelStatus::Consistent(directional) => directional,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
-        let friend_move_token = FriendMoveToken {
+
+        let friend_move_token = await!(FriendMoveToken::new(
             operations,
-            old_token: directional.new_token().clone(),
+            directional.get_new_token().clone(),
             rand_nonce,
-        };
+            self.identity_client.clone()));
 
         let directional_mutation = DirectionalMutation::SetDirection(
             SetDirection::Outgoing(friend_move_token));
@@ -239,8 +240,8 @@ impl<A:Clone,R: CryptoRandom> MutableFunderHandler<A,R> {
     /// message should cause the pending request to be removed.
     ///
     /// Returns whether a move token message is scheduled for the remote side.
-    fn send_through_token_channel(&mut self, 
-                                  remote_public_key: &PublicKey,
+    async fn send_through_token_channel<'a>(&'a mut self, 
+                                  remote_public_key: &'a PublicKey,
                                   send_mode: SendMode) -> bool {
 
         let friend = self.get_friend(remote_public_key).unwrap();
@@ -257,8 +258,8 @@ impl<A:Clone,R: CryptoRandom> MutableFunderHandler<A,R> {
 
         let may_send_empty = if let SendMode::EmptyAllowed = send_mode {true} else {false};
         if may_send_empty || !operations.is_empty() {
-            self.send_friend_move_token(
-                remote_public_key, operations).unwrap();
+            await!(self.send_friend_move_token(
+                remote_public_key, operations)).unwrap();
             true
         } else {
             false

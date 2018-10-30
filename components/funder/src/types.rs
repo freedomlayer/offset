@@ -8,10 +8,16 @@ use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
 use crypto::crypto_rand::RandValue;
 use crypto::hash;
-use crypto::hash::HashResult;
+use crypto::hash::{HashResult, sha_512_256};
+
+use identity::IdentityClient;
 
 use super::messages::ResponseSendFundsResult;
 use super::report::FunderReport;
+
+// Prefix used for chain hashing of token channel funds.
+// NEXT is used for hashing for the next move token funds.
+const TOKEN_NEXT: &[u8] = b"NEXT";
 
 
 pub const INVOICE_ID_LEN: usize = 32;
@@ -19,11 +25,11 @@ pub const INVOICE_ID_LEN: usize = 32;
 /// The universal unique identifier of an invoice.
 define_fixed_bytes!(InvoiceId, INVOICE_ID_LEN);
 
-pub const CHANNEL_TOKEN_LEN: usize = 32;
+// pub const CHANNEL_TOKEN_LEN: usize = 32;
+// define_fixed_bytes!(ChannelToken, CHANNEL_TOKEN_LEN);
 
-/// The hash of the previous message sent over the token channel.
-define_fixed_bytes!(ChannelToken, CHANNEL_TOKEN_LEN);
-
+// The hash of the previous message sent over the token channel.
+// struct ChannelToken(Signature);
 
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -118,12 +124,48 @@ pub struct FriendsRoute {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct FriendMoveToken {
     pub operations: Vec<FriendTcOp>,
-    pub old_token: ChannelToken,
+    pub old_token: Signature,
     pub rand_nonce: RandValue,
+    pub new_token: Signature,
 }
 
+/// Calculate the next token channel, given values of previous FriendMoveToken funds.
+async fn calc_channel_next_token(friend_move_token: &FriendMoveToken, 
+                                 identity_client: IdentityClient) 
+                        -> Signature {
 
+    let mut contents = Vec::new();
+    contents.write_u64::<BigEndian>(
+        usize_to_u64(friend_move_token.operations.len()).unwrap()).unwrap();
+    for op in &friend_move_token.operations {
+        contents.extend_from_slice(&op.to_bytes());
+    }
 
+    let mut sig_buffer = Vec::new();
+    sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
+    sig_buffer.extend_from_slice(&contents);
+    sig_buffer.extend_from_slice(&friend_move_token.old_token);
+    sig_buffer.extend_from_slice(&friend_move_token.rand_nonce);
+    await!(identity_client.request_signature(sig_buffer)).unwrap()
+}
+
+impl FriendMoveToken {
+    pub async fn new(operations: Vec<FriendTcOp>,
+                 old_token: Signature,
+                 rand_nonce: RandValue,
+                 identity_client: IdentityClient) -> FriendMoveToken {
+
+        let mut friend_move_token = FriendMoveToken {
+            operations,
+            old_token,
+            rand_nonce,
+            new_token: Signature::zero(),
+        };
+        friend_move_token.new_token = await!(
+            calc_channel_next_token(&friend_move_token, identity_client));
+        friend_move_token
+    }
+}
 
 
 impl FriendsRoute {
@@ -335,7 +377,7 @@ pub struct SetFriendRemoteMaxDebt {
 
 pub struct ResetFriendChannel {
     pub friend_public_key: PublicKey,
-    pub current_token: ChannelToken,
+    pub current_token: Signature,
 }
 
 pub struct SetFriendAddr<A> {
@@ -423,7 +465,7 @@ pub struct FriendMoveTokenRequest {
 
 #[allow(unused)]
 pub struct FriendInconsistencyError {
-    pub reset_token: ChannelToken,
+    pub reset_token: Signature,
     pub balance_for_reset: i128,
 }
 
@@ -475,6 +517,6 @@ pub enum FunderOutgoingComm<A> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResetTerms {
-    pub reset_token: ChannelToken,
+    pub reset_token: Signature,
     pub balance_for_reset: i128,
 }
