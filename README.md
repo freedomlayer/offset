@@ -1,17 +1,18 @@
-# CSwitch
+# Offst payment engine
 
 [![Build Status](https://travis-ci.com/realcr/cswitch.svg?branch=master)](https://travis-ci.com/realcr/cswitch)
 [![codecov](https://codecov.io/gh/realcr/cswitch/branch/master/graph/badge.svg)](https://codecov.io/gh/realcr/cswitch)
 [![Gitter chat](https://badges.gitter.im/freedomlayer/cswitch.svg)](https://gitter.im/freedomlayer/cswitch)
 
-**Credit Switching** is a decentralized payment infrastructure, relying on real
-world trust between people. CSwitch is a Credit Switching engine written in Rust.
+**Offst** is a decentralized payment infrastructure, relying on real
+world trust between people. See [Offst's
+blog](https://www.freedomlayer.org/offst/) for more information.
 
-CSwitch is still a work in progress, and is not yet ready for use in production.
+Warning: Offst is still a work in progress, and is not yet ready for use in production.
 
 ## Setting up development environment
 
-Theoretically CSwitch should work anywhere Rust works (Windows, Linux, MacOS).
+Theoretically Offst should work anywhere Rust works (Windows, Linux, MacOS).
 
 ### Dependencies
 
