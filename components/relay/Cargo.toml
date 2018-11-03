@@ -1,7 +1,7 @@
 cargo-features = ["rename-dependency"]
 
 [package]
-name = "cswitch-relay"
+name = "offst-relay"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 
@@ -9,10 +9,10 @@ edition = "2018"
 
 [dependencies]
 
-utils = { path = "../utils", version = "0.1.0", package = "cswitch-utils" }
-crypto = { path = "../crypto", version = "0.1.0", package = "cswitch-crypto" }
-timer = { path = "../timer", version = "0.1.0" , package = "cswitch-timer" }
-proto = { path = "../proto", version = "0.1.0" , package = "cswitch-proto" }
+utils = { path = "../utils", version = "0.1.0", package = "offst-utils" }
+crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
+timer = { path = "../timer", version = "0.1.0" , package = "offst-timer" }
+proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
 
 log = "0.4"
 futures-preview = "0.3.0-alpha.9"

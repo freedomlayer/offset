@@ -4,7 +4,7 @@
 extern crate ring;
 extern crate bytes;
 #[macro_use]
-extern crate cswitch_utils as utils;
+extern crate offst_utils as utils;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;

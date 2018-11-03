@@ -4,7 +4,7 @@
 extern crate capnp;
 extern crate byteorder;
 
-extern crate cswitch_crypto as crypto;
+extern crate offst_crypto as crypto;
 
 #[macro_use]
 pub mod macros;

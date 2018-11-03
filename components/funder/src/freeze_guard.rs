@@ -29,11 +29,11 @@ impl FriendFreezeGuard {
 #[derive(Clone)]
 pub struct FreezeGuard {
     local_public_key: PublicKey,
-    // Total amount of credits frozen from A to B through this CSwitch node.
+    // Total amount of credits frozen from A to B through this Offst node.
     // ```
     // A --> ... --> X --> B
     // ```
-    // A could be any node, B must be a friend of this CSwitch node.
+    // A could be any node, B must be a friend of this Offst node.
     frozen_to: ImHashMap<PublicKey, FriendFreezeGuard>,
     //                         ^ B                 
 }
@@ -167,8 +167,8 @@ impl FreezeGuard {
         }
     }
 
-    /// Get the amount of credits frozen from <from_pk> to <to_pk> going through this CSwitch node,
-    /// where <to_pk> is a friend of this CSwitch node.
+    /// Get the amount of credits frozen from <from_pk> to <to_pk> going through this Offst node,
+    /// where <to_pk> is a friend of this Offst node.
     fn get_frozen(&self, subroute: &[PublicKey]) -> u128 {
         if subroute.len() < 2 {
             unreachable!();

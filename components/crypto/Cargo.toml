@@ -1,11 +1,11 @@
 [package]
-name = "cswitch-crypto"
+name = "offst-crypto"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 
 [dependencies]
 
-cswitch-utils = { path = "../utils", version = "0.1.0" }
+offst-utils = { path = "../utils", version = "0.1.0" }
 
 rand = "0.5"
 ring = "=0.13.0-alpha"

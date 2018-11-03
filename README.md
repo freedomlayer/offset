@@ -1,8 +1,8 @@
 # Offst payment engine
 
 [![Build Status](https://travis-ci.com/freedomlayer/offst.svg?branch=master)](https://travis-ci.com/freedomlayer/offst)
-[![codecov](https://codecov.io/gh/realcr/cswitch/branch/master/graph/badge.svg)](https://codecov.io/gh/realcr/cswitch)
-[![Gitter chat](https://badges.gitter.im/freedomlayer/cswitch.svg)](https://gitter.im/freedomlayer/cswitch)
+[![codecov](https://codecov.io/gh/realcr/offst/branch/master/graph/badge.svg)](https://codecov.io/gh/realcr/offst)
+[![Gitter chat](https://badges.gitter.im/freedomlayer/offst.svg)](https://gitter.im/freedomlayer/offst)
 
 **Offst** is a decentralized payment infrastructure, relying on real
 world trust between people. See [Offst's

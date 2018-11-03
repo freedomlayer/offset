@@ -8,8 +8,8 @@
 extern crate futures;
 // extern crate tokio_core;
 
-// extern crate cswitch_crypto as crypto;
-// extern crate cswitch_utils as utils;
+// extern crate offst_crypto as crypto;
+// extern crate offst_utils as utils;
 
 mod identity;
 mod client;
