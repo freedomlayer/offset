@@ -1,6 +1,6 @@
 # Offst payment engine
 
-[![Build Status](https://travis-ci.com/realcr/cswitch.svg?branch=master)](https://travis-ci.com/realcr/cswitch)
+[![Build Status](https://travis-ci.com/freedomlayer/offst.svg?branch=master)](https://travis-ci.com/freedomlayer/offst)
 [![codecov](https://codecov.io/gh/realcr/cswitch/branch/master/graph/badge.svg)](https://codecov.io/gh/realcr/cswitch)
 [![Gitter chat](https://badges.gitter.im/freedomlayer/cswitch.svg)](https://gitter.im/freedomlayer/cswitch)
 
