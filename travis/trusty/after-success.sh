@@ -13,7 +13,7 @@ if [[ "$KCOV" == "1" ]]; then
         ${HOME}/kcov-${TARGET}/bin/kcov \
             --verify \
             --exclude-path=/usr/include \
-            --include-pattern="cswitch/src" \
+            --include-pattern="offst/src" \
             target/kcov \
             ${exe}
     done

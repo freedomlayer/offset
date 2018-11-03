@@ -38,8 +38,8 @@ extern crate serde_derive;
 
 #[macro_use]
 extern crate utils;
-// extern crate cswitch_crypto as crypto;
-// extern crate cswitch_identity as identity;
+// extern crate offst_crypto as crypto;
+// extern crate offst_identity as identity;
 
 
 pub mod messages;

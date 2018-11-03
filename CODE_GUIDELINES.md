@@ -1,12 +1,12 @@
-# Guidelines for CSwitch code
+# Guidelines for Offst code
 
-This document contains the main values and priorities when writing CSwitch
+This document contains the main values and priorities when writing Offst
 code. If you are unsure about a design or technical decision, this document
 might be able to help you reach a decision.
 
 ## Priorities
 
-The main priorities to consider when writing code in CSwitch are as follows (In
+The main priorities to consider when writing code in Offst are as follows (In
 this order):
 
 1. Security and safety
@@ -18,7 +18,7 @@ this order):
 
 ### Security and Safety
 
-CSwitch is used for passing credits between people. Therefore safety is of
+Offst is used for passing credits between people. Therefore safety is of
 highest priority.
 
 - When two possible designs are possible, always choose the safer design.
