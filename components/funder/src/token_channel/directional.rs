@@ -168,28 +168,6 @@ impl DirectionalTc {
         }
     }
 
-    pub async fn create_friend_move_token(&self,
-                                    operations: Vec<FriendTcOp>,
-                                    rand_nonce: RandValue,
-                                    identity_client: IdentityClient) -> Option<FriendMoveToken> {
-
-        let friend_move_token = match &self.direction {
-            MoveTokenDirection::Incoming(friend_move_token) => friend_move_token,
-            MoveTokenDirection::Outgoing(_) => return None,
-        };
-
-        Some(await!(FriendMoveToken::new(
-            operations,
-            friend_move_token.new_token.clone(),
-            friend_move_token.inconsistency_counter,
-            friend_move_token.move_token_counter.wrapping_add(1),
-            self.get_token_channel().state().balance.balance,
-            self.get_token_channel().state().balance.local_pending_debt,
-            self.get_token_channel().state().balance.remote_pending_debt,
-            rand_nonce,
-            identity_client)))
-    }
-
     pub fn new_from_remote_reset(local_public_key: &PublicKey, 
                       remote_public_key: &PublicKey, 
                       reset_move_token: &FriendMoveToken,
@@ -221,6 +199,29 @@ impl DirectionalTc {
         }
     }
 
+    pub async fn create_friend_move_token(&self,
+                                    operations: Vec<FriendTcOp>,
+                                    rand_nonce: RandValue,
+                                    identity_client: IdentityClient) -> Option<FriendMoveToken> {
+
+        let friend_move_token = match &self.direction {
+            MoveTokenDirection::Incoming(friend_move_token) => friend_move_token,
+            MoveTokenDirection::Outgoing(_) => return None,
+        };
+
+        Some(await!(FriendMoveToken::new(
+            operations,
+            friend_move_token.new_token.clone(),
+            friend_move_token.inconsistency_counter,
+            friend_move_token.move_token_counter.wrapping_add(1),
+            self.get_token_channel().state().balance.balance,
+            self.get_token_channel().state().balance.local_pending_debt,
+            self.get_token_channel().state().balance.remote_pending_debt,
+            rand_nonce,
+            identity_client)))
+    }
+
+
     fn get_cur_move_token(&self) -> &FriendMoveToken {
         match &self.direction {
             MoveTokenDirection::Incoming(friend_move_token) => friend_move_token,
@@ -251,26 +252,8 @@ impl DirectionalTc {
         &self.token_channel
     }
 
-    #[allow(unused)]
-    fn balance_for_reset(&self) -> i128 {
-        self.get_token_channel().balance_for_reset()
-    }
-
     pub fn remote_max_debt(&self) -> u128 {
         self.get_token_channel().state().balance.remote_max_debt
-    }
-
-
-    /// Get the most recent token. Note that this could be incoming or outgoing token.
-    pub fn get_new_token(&self) -> &Signature {
-        &self.get_cur_move_token().new_token
-    }
-
-    #[allow(unused)]
-    async fn calc_channel_reset_token(&self, identity_client: IdentityClient) -> Signature {
-        await!(calc_channel_reset_token(&self.get_new_token(),
-                                 self.get_token_channel().balance_for_reset(),
-                                 identity_client))
     }
 
     pub fn get_inconsistency_counter(&self) -> u64 {
@@ -281,15 +264,20 @@ impl DirectionalTc {
         self.get_cur_move_token().move_token_counter
     }
 
+
     pub async fn get_reset_terms(&self, identity_client: IdentityClient) -> ResetTerms {
         // We add 2 for the new counter in case 
         // the remote side has already used the next counter.
+        let reset_token = await!(calc_channel_reset_token(
+                                &self.get_cur_move_token().new_token,
+                                 self.get_token_channel().balance_for_reset(),
+                                 identity_client));
         ResetTerms {
-            reset_token: await!(self.calc_channel_reset_token(identity_client)),
+            reset_token,
             // TODO: Should we do something other than wrapping_add(1)?
             // 2**64 inconsistencies are required for an overflow.
             inconsistency_counter: self.get_inconsistency_counter().wrapping_add(1),
-            balance_for_reset: self.balance_for_reset(),
+            balance_for_reset: self.get_token_channel().balance_for_reset(),
         }
     }
 
@@ -419,7 +407,7 @@ impl DirectionalTc {
 
 
                 let friend_move_token = &outgoing_move_token.outgoing_move_token_request.friend_move_token;
-                if &new_move_token.old_token == self.get_new_token() {
+                if &new_move_token.old_token == &self.get_cur_move_token().new_token {
                     self.outgoing_to_incoming(friend_move_token, new_move_token)
                 } else if friend_move_token.old_token == new_move_token.new_token {
                     // We should retransmit our move token message to the remote side.
@@ -431,7 +419,6 @@ impl DirectionalTc {
         }
     }
 
-    #[allow(unused)]
     pub fn begin_outgoing_move_token(&self) -> Option<OutgoingTc> {
         if let MoveTokenDirection::Outgoing(_) = self.direction {
             return None;
@@ -441,7 +428,8 @@ impl DirectionalTc {
     }
 
 
-    #[allow(unused)]
+    /// Get the current outgoing move token
+    /// If current state is not outgoing, returns None
     pub fn get_outgoing_move_token(&self) -> Option<FriendMoveTokenRequest> {
         match self.direction {
             MoveTokenDirection::Incoming(_)=> None,
