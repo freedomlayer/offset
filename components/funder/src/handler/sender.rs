@@ -1,21 +1,18 @@
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
-use super::{
-    MutableFunderHandler, MAX_MOVE_TOKEN_LENGTH};
+use super::{MutableFunderHandler, MAX_MOVE_TOKEN_LENGTH};
 
-use super::super::state::{FunderState, FunderMutation};
-
-use super::super::types::{FriendTcOp, RequestSendFunds, 
+use crate::state::{FunderState, FunderMutation};
+use crate::types::{FriendTcOp, RequestSendFunds, 
     ResponseSendFunds, FailureSendFunds, 
     FriendMoveToken, RequestsStatus, FriendMoveTokenRequest,
     FriendMessage, FunderOutgoingComm};
-use super::super::mutual_credit::outgoing::{QueueOperationFailure,
+use crate::mutual_credit::outgoing::{QueueOperationFailure,
     QueueOperationError};
 
-use super::super::friend::{FriendMutation, ResponseOp, ChannelStatus};
-
-use super::super::token_channel::{TcMutation, TcDirection, SetDirection};
+use crate::friend::{FriendMutation, ResponseOp, ChannelStatus};
+use crate::token_channel::{TcMutation, TcDirection, SetDirection};
 
 pub enum SendMode {
     EmptyAllowed,
