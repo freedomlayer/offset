@@ -26,22 +26,6 @@ use crate::types::{FriendMoveToken,
 // const TOKEN_NEXT: &[u8] = b"NEXT";
 const TOKEN_RESET: &[u8] = b"RESET";
 
-/*
-#[derive(Clone, Serialize, Deserialize)]
-pub struct OutgoingMoveToken {
-    pub outgoing_move_token_request: FriendMoveTokenRequest,
-    pub opt_prev_incoming_move_token: Option<FriendMoveToken>,
-}
-
-
-/// Indicate the direction of the move token funds.
-#[derive(Clone, Serialize, Deserialize)]
-pub enum MoveTokenDirection {
-    Incoming(FriendMoveToken),
-    Outgoing(OutgoingMoveToken),
-}
-*/
-
 pub enum SetDirection {
     Incoming(FriendMoveToken), 
     Outgoing(FriendMoveToken),
