@@ -22,7 +22,7 @@ pub enum ResponseOp {
 #[allow(unused)]
 pub enum FriendMutation<A> {
     DirectionalMutation(DirectionalMutation),
-    SetChannelStatus((ResetTerms, Option<ResetTerms>)), // (local_reset_terms, opt_remote_reset_terms)
+    SetChannelStatus(ChannelStatus),
     SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatus),
     PushBackPendingRequest(RequestSendFunds),
@@ -39,10 +39,18 @@ pub enum FriendMutation<A> {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
+pub struct ChannelInconsistent {
+    pub opt_last_incoming_move_token: Option<FriendMoveToken>,
+    pub local_reset_terms: ResetTerms,
+    pub opt_remote_reset_terms: Option<ResetTerms>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub enum ChannelStatus {
-    Inconsistent((ResetTerms, Option<ResetTerms>)), // local_reset_terms, remote_reset_terms
+    Inconsistent(ChannelInconsistent),
     Consistent(DirectionalTc),
 }
+
 
 #[allow(unused)]
 #[derive(Clone, Serialize, Deserialize)]
@@ -112,7 +120,7 @@ impl<A:Clone + 'static> FriendState<A> {
                 }
             },
             FriendMutation::SetChannelStatus(channel_status) => {
-                self.channel_status = ChannelStatus::Inconsistent(channel_status.clone());
+                self.channel_status = channel_status.clone();
             },
             FriendMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
                 self.wanted_remote_max_debt = *wanted_remote_max_debt;
@@ -148,28 +156,39 @@ impl<A:Clone + 'static> FriendState<A> {
                 // Local reset was applied (We sent a reset from the control line)
                 match &self.channel_status {
                     ChannelStatus::Consistent(_) => unreachable!(),
-                    ChannelStatus::Inconsistent((local_reset_terms, None)) => unreachable!(),
-                    ChannelStatus::Inconsistent((local_reset_terms, Some(remote_reset_terms))) => {
-                        assert_eq!(reset_move_token.old_token, remote_reset_terms.reset_token);
-                        let directional = DirectionalTc::new_from_local_reset(
-                            &self.local_public_key,
-                            &self.remote_public_key,
-                            &reset_move_token,
-                            remote_reset_terms.balance_for_reset);
-                        self.channel_status = ChannelStatus::Consistent(directional);
-                    }
+                    ChannelStatus::Inconsistent(channel_inconsistent) => {
+                        let ChannelInconsistent {
+                            opt_last_incoming_move_token,
+                            local_reset_terms,
+                            opt_remote_reset_terms,
+                        } = channel_inconsistent;
+
+                        match opt_remote_reset_terms {
+                            None => unreachable!(),
+                            Some(remote_reset_terms) => {
+                                assert_eq!(reset_move_token.old_token, remote_reset_terms.reset_token);
+                                let directional = DirectionalTc::new_from_local_reset(
+                                    &self.local_public_key,
+                                    &self.remote_public_key,
+                                    &reset_move_token,
+                                    remote_reset_terms.balance_for_reset,
+                                    opt_last_incoming_move_token.clone());
+                                self.channel_status = ChannelStatus::Consistent(directional);
+                            },
+                        }
+                    },
                 }
             },
             FriendMutation::RemoteReset(reset_move_token) => {
                 // Remote reset was applied (Remote side has given a reset command)
                 match &self.channel_status {
                     ChannelStatus::Consistent(_) => unreachable!(),
-                    ChannelStatus::Inconsistent((local_reset_terms, _)) => {
+                    ChannelStatus::Inconsistent(channel_inconsistent) => {
                         let directional = DirectionalTc::new_from_remote_reset(
                             &self.local_public_key,
                             &self.remote_public_key,
                             &reset_move_token,
-                            local_reset_terms.balance_for_reset);
+                            channel_inconsistent.local_reset_terms.balance_for_reset);
                         self.channel_status = ChannelStatus::Consistent(directional);
                     },
                 }

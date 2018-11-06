@@ -27,7 +27,7 @@ use super::super::types::{RequestSendFunds, ResponseSendFunds,
 
 use super::super::state::FunderMutation;
 use super::super::friend::{FriendState, FriendMutation, 
-    ResponseOp, ChannelStatus};
+    ResponseOp, ChannelStatus, ChannelInconsistent};
 
 use super::super::signature_buff::{create_response_signature_buffer, prepare_receipt};
 use super::super::messages::ResponseSendFundsResult;
@@ -325,6 +325,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             ChannelStatus::Consistent(directional) => directional,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
+        let opt_last_incoming_move_token = directional.get_last_incoming_move_token().cloned();
         // Send an InconsistencyError message to remote side:
         let local_reset_terms = await!(directional.get_reset_terms(self.identity_client.clone()));
 
@@ -332,7 +333,12 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 FriendMessage::InconsistencyError(local_reset_terms.clone()))));
 
         // Keep outgoing InconsistencyError message details in memory:
-        let friend_mutation = FriendMutation::SetChannelStatus((local_reset_terms, None));
+        let channel_inconsistent = ChannelInconsistent {
+            opt_last_incoming_move_token,
+            local_reset_terms,
+            opt_remote_reset_terms: None,
+        };
+        let friend_mutation = FriendMutation::SetChannelStatus(ChannelStatus::Inconsistent(channel_inconsistent));
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
 
@@ -392,9 +398,9 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
         let directional = match &friend.channel_status {
             ChannelStatus::Consistent(directional) => directional,
-            ChannelStatus::Inconsistent((local_reset_terms, _)) => {
+            ChannelStatus::Inconsistent(channel_inconsistent) => {
                 self.try_reset_channel(&remote_public_key, 
-                                       &local_reset_terms.clone(),
+                                       &channel_inconsistent.local_reset_terms.clone(),
                                        &friend_move_token_request.friend_move_token);
                 return Ok(());
             }
@@ -441,19 +447,30 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
         // Obtain information about our reset terms:
         let friend = self.get_friend(&remote_public_key).unwrap();
-        let (should_send_outgoing, new_local_reset_terms) = match &friend.channel_status {
+        let (should_send_outgoing, 
+             new_local_reset_terms, 
+             opt_last_incoming_move_token) = match &friend.channel_status {
             ChannelStatus::Consistent(directional) => {
                 if !directional.is_outgoing() {
                     return Err(HandleFriendError::InconsistencyWhenTokenOwned);
                 }
-                (true, await!(directional.get_reset_terms(self.identity_client.clone())))
+                (true, 
+                 await!(directional.get_reset_terms(self.identity_client.clone())),
+                 directional.get_last_incoming_move_token().cloned())
             },
-            ChannelStatus::Inconsistent((local_reset_terms, _)) => (false, local_reset_terms.clone()),
+            ChannelStatus::Inconsistent(channel_inconsistent) => 
+                (false, 
+                 channel_inconsistent.local_reset_terms.clone(),
+                 channel_inconsistent.opt_last_incoming_move_token.clone()),
         };
 
-
-        let friend_mutation = FriendMutation::SetChannelStatus(
-            (new_local_reset_terms.clone(), Some(new_remote_reset_terms)));
+        // Keep outgoing InconsistencyError message details in memory:
+        let channel_inconsistent = ChannelInconsistent {
+            opt_last_incoming_move_token,
+            local_reset_terms: new_local_reset_terms.clone(),
+            opt_remote_reset_terms: Some(new_remote_reset_terms),
+        };
+        let friend_mutation = FriendMutation::SetChannelStatus(ChannelStatus::Inconsistent(channel_inconsistent));
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
 

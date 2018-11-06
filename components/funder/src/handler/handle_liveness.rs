@@ -41,10 +41,10 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                             self.transmit_outgoing(&friend_public_key);
                         }
                     },
-                    ChannelStatus::Inconsistent((local_reset_terms, _)) => {
+                    ChannelStatus::Inconsistent(channel_inconsistent) => {
                         self.add_outgoing_comm(
                             FunderOutgoingComm::FriendMessage((friend_public_key.clone(),
-                                FriendMessage::InconsistencyError(local_reset_terms.clone()))));
+                                FriendMessage::InconsistencyError(channel_inconsistent.local_reset_terms.clone()))));
                     },
                 };
 

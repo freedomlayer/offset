@@ -2,7 +2,7 @@ use im::hashmap::HashMap as ImHashMap;
 
 use crypto::identity::PublicKey;
 
-use super::friend::{FriendState, ChannelStatus};
+use super::friend::{FriendState, ChannelStatus, ChannelInconsistent};
 use super::state::FunderState;
 use super::types::{RequestsStatus, FriendStatus, ResetTerms};
 use super::token_channel::types::{TcBalance, TcRequestsStatus, TokenChannel};
@@ -29,7 +29,7 @@ pub struct DirectionalTcReport {
 
 #[derive(Clone)]
 pub enum ChannelStatusReport {
-    Inconsistent((ResetTerms, Option<ResetTerms>)), // local_reset_terms, remote_reset_terms
+    Inconsistent(ChannelInconsistent),
     Consistent(DirectionalTcReport),
 }
 
@@ -64,7 +64,7 @@ fn create_tc_report(token_channel: &TokenChannel) -> TcReport {
 
 fn create_friend_report<A: Clone>(friend_state: &FriendState<A>) -> FriendReport<A> {
     let channel_status = match &friend_state.channel_status {
-        ChannelStatus::Inconsistent(reset_terms_tuple) => ChannelStatusReport::Inconsistent(reset_terms_tuple.clone()),
+        ChannelStatus::Inconsistent(channel_inconsistent) => ChannelStatusReport::Inconsistent(channel_inconsistent.clone()),
         ChannelStatus::Consistent(directional) => {
             let direction = match directional.direction {
                 MoveTokenDirection::Incoming(_) => DirectionReport::Incoming,

@@ -70,12 +70,16 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
         let remote_reset_terms = match &friend.channel_status {
             ChannelStatus::Consistent(_) => Err(HandleControlError::NotInvitedToReset),
-            ChannelStatus::Inconsistent((_, None)) => Err(HandleControlError::NotInvitedToReset),
-            ChannelStatus::Inconsistent((_, Some(remote_reset_terms))) => {
-                if (remote_reset_terms.reset_token != reset_friend_channel.current_token)  {
-                    Err(HandleControlError::ResetTokenMismatch)
-                } else {
-                    Ok(remote_reset_terms)
+            ChannelStatus::Inconsistent(channel_inconsistent) => {
+                match &channel_inconsistent.opt_remote_reset_terms {
+                    None => Err(HandleControlError::NotInvitedToReset),
+                    Some(remote_reset_terms) => {
+                        if (remote_reset_terms.reset_token != reset_friend_channel.current_token)  {
+                            Err(HandleControlError::ResetTokenMismatch)
+                        } else {
+                            Ok(remote_reset_terms)
+                        }
+                    },
                 }
             },
         }?;

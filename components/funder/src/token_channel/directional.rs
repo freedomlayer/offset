@@ -26,13 +26,18 @@ use crate::types::{FriendMoveToken,
 // const TOKEN_NEXT: &[u8] = b"NEXT";
 const TOKEN_RESET: &[u8] = b"RESET";
 
+#[derive(Clone, Serialize, Deserialize)]
+pub struct OutgoingMoveToken {
+    pub outgoing_move_token_request: FriendMoveTokenRequest,
+    pub opt_prev_incoming_move_token: Option<FriendMoveToken>,
+}
 
 
 /// Indicate the direction of the move token funds.
 #[derive(Clone, Serialize, Deserialize)]
 pub enum MoveTokenDirection {
     Incoming(FriendMoveToken),
-    Outgoing(FriendMoveTokenRequest),
+    Outgoing(OutgoingMoveToken),
 }
 
 pub enum SetDirection {
@@ -146,8 +151,12 @@ impl DirectionalTc {
                 friend_move_token: first_move_token_lower.clone(),
                 token_wanted: false,
             };
+            let outgoing_move_token = OutgoingMoveToken {
+                outgoing_move_token_request: friend_move_token_request,
+                opt_prev_incoming_move_token: None,
+            };
             DirectionalTc {
-                direction: MoveTokenDirection::Outgoing(friend_move_token_request),
+                direction: MoveTokenDirection::Outgoing(outgoing_move_token),
                 token_channel,
             }
         } else {
@@ -195,15 +204,45 @@ impl DirectionalTc {
     pub fn new_from_local_reset(local_public_key: &PublicKey, 
                       remote_public_key: &PublicKey, 
                       reset_move_token: &FriendMoveToken,
-                      balance: i128) -> DirectionalTc {
+                      balance: i128,
+                      opt_last_incoming_move_token: Option<FriendMoveToken>) -> DirectionalTc {
 
         let friend_move_token_request = FriendMoveTokenRequest {
             friend_move_token: reset_move_token.clone(),
             token_wanted: false,
         };
+        let outgoing_move_token = OutgoingMoveToken {
+            outgoing_move_token_request: friend_move_token_request,
+            opt_prev_incoming_move_token: opt_last_incoming_move_token,
+        };
         DirectionalTc {
-            direction: MoveTokenDirection::Outgoing(friend_move_token_request),
+            direction: MoveTokenDirection::Outgoing(outgoing_move_token),
             token_channel: TokenChannel::new(local_public_key, remote_public_key, balance),
+        }
+    }
+
+    fn get_cur_move_token(&self) -> &FriendMoveToken {
+        match &self.direction {
+            MoveTokenDirection::Incoming(friend_move_token) => friend_move_token,
+            MoveTokenDirection::Outgoing(outgoing_move_token) => 
+                &outgoing_move_token
+                    .outgoing_move_token_request
+                    .friend_move_token,
+        }
+    }
+
+    /// Get the last incoming move token
+    /// If no such incoming move token exists (Maybe this is the beginning of the relationship),
+    /// returns None.
+    pub fn get_last_incoming_move_token(&self) -> Option<&FriendMoveToken> {
+        match &self.direction {
+            MoveTokenDirection::Incoming(friend_move_token) => Some(friend_move_token),
+            MoveTokenDirection::Outgoing(outgoing_move_token) => {
+                match &outgoing_move_token.opt_prev_incoming_move_token {
+                    None => None,
+                    Some(prev_incoming_move_token) => Some(prev_incoming_move_token),
+                }
+            },
         }
     }
 
@@ -221,13 +260,9 @@ impl DirectionalTc {
         self.get_token_channel().state().balance.remote_max_debt
     }
 
+
     pub fn get_new_token(&self) -> &Signature {
-        let friend_move_token = match &self.direction {
-            MoveTokenDirection::Incoming(friend_move_token) => friend_move_token,
-            MoveTokenDirection::Outgoing(friend_move_token_request) => 
-                &friend_move_token_request.friend_move_token,
-        };
-        &friend_move_token.new_token
+        &self.get_cur_move_token().new_token
     }
 
     #[allow(unused)]
@@ -238,21 +273,11 @@ impl DirectionalTc {
     }
 
     pub fn get_inconsistency_counter(&self) -> u64 {
-        let friend_move_token = match &self.direction {
-            MoveTokenDirection::Incoming(friend_move_token) => friend_move_token,
-            MoveTokenDirection::Outgoing(friend_move_token_request) => 
-                &friend_move_token_request.friend_move_token,
-        };
-        friend_move_token.inconsistency_counter
+        self.get_cur_move_token().inconsistency_counter
     }
 
     pub fn get_move_token_counter(&self) -> u128 {
-        let friend_move_token = match &self.direction {
-            MoveTokenDirection::Incoming(friend_move_token) => friend_move_token,
-            MoveTokenDirection::Outgoing(friend_move_token_request) => 
-                &friend_move_token_request.friend_move_token,
-        };
-        friend_move_token.move_token_counter
+        self.get_cur_move_token().move_token_counter
     }
 
     pub async fn get_reset_terms(&self, identity_client: IdentityClient) -> ResetTerms {
@@ -283,18 +308,23 @@ impl DirectionalTc {
                 self.direction = match set_direction {
                     SetDirection::Incoming(new_token) => MoveTokenDirection::Incoming(new_token.clone()),
                     SetDirection::Outgoing(friend_move_token) => {
-                        MoveTokenDirection::Outgoing(FriendMoveTokenRequest {
+                        let friend_move_token_request = FriendMoveTokenRequest {
                             friend_move_token: friend_move_token.clone(),
                             token_wanted: false,
-                        })
+                        };
+                        let outgoing_move_token = OutgoingMoveToken {
+                            outgoing_move_token_request: friend_move_token_request,
+                            opt_prev_incoming_move_token: self.get_last_incoming_move_token().cloned(),
+                        };
+                        MoveTokenDirection::Outgoing(outgoing_move_token)
                     }
                 };
             },
             DirectionalMutation::SetTokenWanted => {
                 match self.direction {
                     MoveTokenDirection::Incoming(_) => unreachable!(),
-                    MoveTokenDirection::Outgoing(ref mut friend_move_token_request) => {
-                        friend_move_token_request.token_wanted = true;
+                    MoveTokenDirection::Outgoing(ref mut outgoing_move_token) => {
+                        outgoing_move_token.outgoing_move_token_request.token_wanted = true;
                     },
                 }
             },
@@ -376,7 +406,7 @@ impl DirectionalTc {
                     Err(ReceiveMoveTokenError::ChainInconsistency)
                 }
             },
-            MoveTokenDirection::Outgoing(ref friend_move_token_request) => {
+            MoveTokenDirection::Outgoing(ref outgoing_move_token) => {
                 // Verify signature:
                 // Note that we only verify the signature here, and not at the Incoming part.
                 // This allows the genesis move token to occur smoothly, even though its signature
@@ -386,7 +416,8 @@ impl DirectionalTc {
                     return Err(ReceiveMoveTokenError::InvalidSignature);
                 }
 
-                let friend_move_token = &friend_move_token_request.friend_move_token;
+
+                let friend_move_token = &outgoing_move_token.outgoing_move_token_request.friend_move_token;
                 if &new_move_token.old_token == self.get_new_token() {
                     self.outgoing_to_incoming(friend_move_token, new_move_token)
                 } else if friend_move_token.old_token == new_move_token.new_token {
@@ -413,8 +444,8 @@ impl DirectionalTc {
     pub fn get_outgoing_move_token(&self) -> Option<FriendMoveTokenRequest> {
         match self.direction {
             MoveTokenDirection::Incoming(_)=> None,
-            MoveTokenDirection::Outgoing(ref friend_move_token_request) => {
-                Some(friend_move_token_request.clone())
+            MoveTokenDirection::Outgoing(ref outgoing_move_token) => {
+                Some(outgoing_move_token.outgoing_move_token_request.clone())
             }
         }
     }

@@ -148,7 +148,7 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
         };
 
         let friend_move_token_request = match &directional.direction {
-            MoveTokenDirection::Outgoing(friend_move_token_request) => friend_move_token_request.clone(),
+            MoveTokenDirection::Outgoing(outgoing_move_token) => outgoing_move_token.outgoing_move_token_request.clone(),
             MoveTokenDirection::Incoming(_) => unreachable!(),
         };
 
@@ -284,7 +284,7 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
                 self.send_through_token_channel(&remote_public_key, send_mode);
             },
             MoveTokenDirection::Outgoing(outgoing_move_token) => {
-                if !outgoing_move_token.token_wanted {
+                if !outgoing_move_token.outgoing_move_token_request.token_wanted {
                     // We don't have the token. We should request it.
                     // Mark that we have sent a request token, to make sure we don't do this again:
                     let directional_mutation = DirectionalMutation::SetTokenWanted;
