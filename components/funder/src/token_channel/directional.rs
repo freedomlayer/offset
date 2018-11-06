@@ -261,6 +261,7 @@ impl DirectionalTc {
     }
 
 
+    /// Get the most recent token. Note that this could be incoming or outgoing token.
     pub fn get_new_token(&self) -> &Signature {
         &self.get_cur_move_token().new_token
     }
