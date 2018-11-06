@@ -15,7 +15,7 @@ use super::super::mutual_credit::incoming::{IncomingResponseSendFunds,
 use super::super::mutual_credit::outgoing::{QueueOperationFailure,
     QueueOperationError};
 use super::super::token_channel::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
-    TcMutation, MoveTokenDirection, MoveTokenReceived, SetDirection};
+    TcMutation, MoveTokenReceived, SetDirection};
 use super::{MutableFunderHandler, FriendMoveTokenRequest};
 use super::super::types::{RequestSendFunds, ResponseSendFunds, 
     FailureSendFunds, FriendMoveToken, 
@@ -81,7 +81,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             ChannelStatus::Consistent(token_channel) => token_channel,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
-        let forward_trust: BigUint = next_tc.mutual_credit.state().balance.remote_max_debt.into();
+        let forward_trust: BigUint = next_tc.get_mutual_credit().state().balance.remote_max_debt.into();
         let total_trust = self.state.get_total_trust();
         let two_pow_128 = BigUint::new(vec![0x1, 0x0u32, 0x0u32, 0x0u32, 0x0u32]);
 
@@ -109,7 +109,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 ChannelStatus::Inconsistent(_) => unreachable!(),
             };
 
-            let prev_trust: BigUint = prev_tc.mutual_credit.state().balance.remote_max_debt.into();
+            let prev_trust: BigUint = prev_tc.get_mutual_credit().state().balance.remote_max_debt.into();
             let numerator = (two_pow_128 * forward_trust) / (total_trust - &prev_trust);
             let usable_ratio = match numerator.to_u128() {
                 Some(num) => Ratio::Numerator(num),

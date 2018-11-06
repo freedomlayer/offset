@@ -4,7 +4,7 @@ use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
 use identity::IdentityClient; 
 
-use super::token_channel::{TcMutation, MoveTokenDirection};
+use super::token_channel::TcMutation;
 use super::types::{FriendTcOp, FriendStatus, 
     RequestsStatus, RequestSendFunds, FriendMoveToken,
     ResponseSendFunds, FailureSendFunds, UserRequestSendFunds,
@@ -100,7 +100,11 @@ impl<A:Clone + 'static> FriendState<A> {
     pub fn get_trust(&self) -> u128 {
         match &self.channel_status {
             ChannelStatus::Consistent(token_channel) =>
-                token_channel.mutual_credit.state().balance.remote_max_debt,
+                token_channel
+                .get_mutual_credit()
+                .state()
+                .balance
+                .remote_max_debt,
             ChannelStatus::Inconsistent(_) => {
                 // TODO; Is this the right return value here?
                 self.wanted_remote_max_debt 

@@ -6,7 +6,7 @@ use super::friend::{FriendState, ChannelStatus, ChannelInconsistent};
 use super::state::FunderState;
 use super::types::{RequestsStatus, FriendStatus, ResetTerms};
 use super::mutual_credit::types::{TcBalance, TcRequestsStatus, MutualCredit};
-use super::token_channel::MoveTokenDirection; 
+use super::token_channel::TcDirection; 
 
 #[derive(Clone)]
 pub struct McReport {
@@ -66,13 +66,13 @@ fn create_friend_report<A: Clone>(friend_state: &FriendState<A>) -> FriendReport
     let channel_status = match &friend_state.channel_status {
         ChannelStatus::Inconsistent(channel_inconsistent) => ChannelStatusReport::Inconsistent(channel_inconsistent.clone()),
         ChannelStatus::Consistent(token_channel) => {
-            let direction = match token_channel.direction {
-                MoveTokenDirection::Incoming(_) => DirectionReport::Incoming,
-                MoveTokenDirection::Outgoing(_) => DirectionReport::Outgoing,
+            let direction = match token_channel.get_direction() {
+                TcDirection::Incoming(_) => DirectionReport::Incoming,
+                TcDirection::Outgoing(_) => DirectionReport::Outgoing,
             };
             let tc_report = TcReport {
                 direction,
-                mutual_credit: create_tc_report(&token_channel.mutual_credit),
+                mutual_credit: create_tc_report(&token_channel.get_mutual_credit()),
             };
             ChannelStatusReport::Consistent(tc_report)
         },

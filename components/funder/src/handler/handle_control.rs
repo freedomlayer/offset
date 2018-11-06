@@ -5,7 +5,7 @@ use crypto::hash::HashResult;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
 use super::super::mutual_credit::types::McMutation;
-use super::super::token_channel::{TcMutation, MoveTokenDirection};
+use super::super::token_channel::TcMutation;
 use super::super::friend::{FriendState, FriendMutation, ChannelStatus};
 use super::super::state::{FunderMutation, FunderState};
 use super::{MutableFunderHandler, 
@@ -303,7 +303,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
         // Check if there is an onging request with the same request_id with this specific friend:
         if token_channel
-            .mutual_credit
+            .get_mutual_credit()
             .state()
             .pending_requests
             .pending_local_requests

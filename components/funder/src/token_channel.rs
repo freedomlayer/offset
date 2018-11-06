@@ -26,6 +26,7 @@ use crate::types::{FriendMoveToken,
 // const TOKEN_NEXT: &[u8] = b"NEXT";
 const TOKEN_RESET: &[u8] = b"RESET";
 
+/*
 #[derive(Clone, Serialize, Deserialize)]
 pub struct OutgoingMoveToken {
     pub outgoing_move_token_request: FriendMoveTokenRequest,
@@ -39,6 +40,7 @@ pub enum MoveTokenDirection {
     Incoming(FriendMoveToken),
     Outgoing(OutgoingMoveToken),
 }
+*/
 
 pub enum SetDirection {
     Incoming(FriendMoveToken), 
@@ -52,11 +54,30 @@ pub enum TcMutation {
     SetTokenWanted,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub struct TcOutgoing {
+    pub mutual_credit: MutualCredit,
+    pub move_token_out: FriendMoveToken,
+    pub token_wanted: bool,
+    pub opt_prev_move_token_in: Option<FriendMoveToken>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct TcIncoming {
+    pub mutual_credit: MutualCredit,
+    pub move_token_in: FriendMoveToken,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub enum TcDirection {
+    Incoming(TcIncoming),
+    Outgoing(TcOutgoing),
+}
+
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TokenChannel {
-    pub direction: MoveTokenDirection,
-    pub mutual_credit: MutualCredit,
+    direction: TcDirection,
 }
 
 #[derive(Debug)]
@@ -147,23 +168,23 @@ impl TokenChannel {
 
         if sha_512_256(&local_public_key) < sha_512_256(&remote_public_key) {
             // We are the first sender
-            let friend_move_token_request = FriendMoveTokenRequest {
-                friend_move_token: first_move_token_lower.clone(),
+            let tc_outgoing = TcOutgoing {
+                mutual_credit,
+                move_token_out: first_move_token_lower,
                 token_wanted: false,
-            };
-            let outgoing_move_token = OutgoingMoveToken {
-                outgoing_move_token_request: friend_move_token_request,
-                opt_prev_incoming_move_token: None,
+                opt_prev_move_token_in: None,
             };
             TokenChannel {
-                direction: MoveTokenDirection::Outgoing(outgoing_move_token),
-                mutual_credit,
+                direction: TcDirection::Outgoing(tc_outgoing),
             }
         } else {
             // We are the second sender
-            TokenChannel {
-                direction: MoveTokenDirection::Incoming(first_move_token_lower),
+            let tc_incoming = TcIncoming {
                 mutual_credit,
+                move_token_in: first_move_token_lower,
+            };
+            TokenChannel {
+                direction: TcDirection::Incoming(tc_incoming),
             }
         }
     }
@@ -173,9 +194,13 @@ impl TokenChannel {
                       reset_move_token: &FriendMoveToken,
                       balance: i128) -> TokenChannel {
 
-        TokenChannel {
-            direction: MoveTokenDirection::Incoming(reset_move_token.clone()),
+        let tc_incoming = TcIncoming {
             mutual_credit: MutualCredit::new(local_public_key, remote_public_key, balance),
+            move_token_in: reset_move_token.clone(),
+        };
+
+        TokenChannel {
+            direction: TcDirection::Incoming(tc_incoming),
         }
     }
 
@@ -185,51 +210,31 @@ impl TokenChannel {
                       balance: i128,
                       opt_last_incoming_move_token: Option<FriendMoveToken>) -> TokenChannel {
 
-        let friend_move_token_request = FriendMoveTokenRequest {
-            friend_move_token: reset_move_token.clone(),
+        let tc_outgoing = TcOutgoing {
+            mutual_credit: MutualCredit::new(local_public_key, remote_public_key, balance),
+            move_token_out: reset_move_token.clone(),
             token_wanted: false,
-        };
-        let outgoing_move_token = OutgoingMoveToken {
-            outgoing_move_token_request: friend_move_token_request,
-            opt_prev_incoming_move_token: opt_last_incoming_move_token,
+            opt_prev_move_token_in: opt_last_incoming_move_token,
         };
         TokenChannel {
-            direction: MoveTokenDirection::Outgoing(outgoing_move_token),
-            mutual_credit: MutualCredit::new(local_public_key, remote_public_key, balance),
+            direction: TcDirection::Outgoing(tc_outgoing),
         }
     }
 
-    pub async fn create_friend_move_token(&self,
-                                    operations: Vec<FriendTcOp>,
-                                    rand_nonce: RandValue,
-                                    identity_client: IdentityClient) -> Option<FriendMoveToken> {
-
-        let friend_move_token = match &self.direction {
-            MoveTokenDirection::Incoming(friend_move_token) => friend_move_token,
-            MoveTokenDirection::Outgoing(_) => return None,
-        };
-
-        Some(await!(FriendMoveToken::new(
-            operations,
-            friend_move_token.new_token.clone(),
-            friend_move_token.inconsistency_counter,
-            friend_move_token.move_token_counter.wrapping_add(1),
-            self.get_mutual_credit().state().balance.balance,
-            self.get_mutual_credit().state().balance.local_pending_debt,
-            self.get_mutual_credit().state().balance.remote_pending_debt,
-            rand_nonce,
-            identity_client)))
-    }
-
-
-    fn get_cur_move_token(&self) -> &FriendMoveToken {
+    /// Get a reference to internal mutual_credit.
+    pub fn get_mutual_credit(&self) -> &MutualCredit {
         match &self.direction {
-            MoveTokenDirection::Incoming(friend_move_token) => friend_move_token,
-            MoveTokenDirection::Outgoing(outgoing_move_token) => 
-                &outgoing_move_token
-                    .outgoing_move_token_request
-                    .friend_move_token,
+            TcDirection::Incoming(tc_incoming) => &tc_incoming.mutual_credit,
+            TcDirection::Outgoing(tc_outgoing) => &tc_outgoing.mutual_credit,
         }
+    }
+
+    pub fn remote_max_debt(&self) -> u128 {
+        self.get_mutual_credit().state().balance.remote_max_debt
+    }
+
+    pub fn get_direction(&self) -> &TcDirection {
+        &self.direction
     }
 
     /// Get the last incoming move token
@@ -237,24 +242,63 @@ impl TokenChannel {
     /// returns None.
     pub fn get_last_incoming_move_token(&self) -> Option<&FriendMoveToken> {
         match &self.direction {
-            MoveTokenDirection::Incoming(friend_move_token) => Some(friend_move_token),
-            MoveTokenDirection::Outgoing(outgoing_move_token) => {
-                match &outgoing_move_token.opt_prev_incoming_move_token {
+            TcDirection::Incoming(tc_incoming) => Some(&tc_incoming.move_token_in),
+            TcDirection::Outgoing(tc_outgoing) => {
+                match &tc_outgoing.opt_prev_move_token_in {
                     None => None,
-                    Some(prev_incoming_move_token) => Some(prev_incoming_move_token),
+                    Some(prev_move_token_in) => Some(prev_move_token_in),
                 }
             },
         }
     }
 
-    /// Get a reference to internal mutual_credit.
-    pub fn get_mutual_credit(&self) -> &MutualCredit {
-        &self.mutual_credit
+    pub fn mutate(&mut self, d_mutation: &TcMutation) {
+        match d_mutation {
+            TcMutation::McMutation(mc_mutation) => {
+                let mutual_credit = match &mut self.direction {
+                    TcDirection::Incoming(tc_incoming) => &mut tc_incoming.mutual_credit,
+                    TcDirection::Outgoing(tc_outgoing) => &mut tc_outgoing.mutual_credit,
+                };
+                mutual_credit.mutate(mc_mutation);
+            },
+            TcMutation::SetDirection(ref set_direction) => {
+                self.direction = match set_direction {
+                    SetDirection::Incoming(friend_move_token) => {
+                        let tc_incoming = TcIncoming {
+                            mutual_credit: self.get_mutual_credit().clone(), // TODO: Remove this clone()
+                            move_token_in: friend_move_token.clone(), 
+                        };
+                        TcDirection::Incoming(tc_incoming)
+                    },
+                    SetDirection::Outgoing(friend_move_token) => {
+                        let tc_outgoing = TcOutgoing {
+                            mutual_credit: self.get_mutual_credit().clone(), // TODO; Remove this clone()
+                            move_token_out: friend_move_token.clone(),
+                            token_wanted: false,
+                            opt_prev_move_token_in: self.get_last_incoming_move_token().cloned()
+                        };
+                        TcDirection::Outgoing(tc_outgoing)
+                    }
+                };
+            },
+            TcMutation::SetTokenWanted => {
+                match self.direction {
+                    TcDirection::Incoming(_) => unreachable!(),
+                    TcDirection::Outgoing(ref mut tc_outgoing) => {
+                        tc_outgoing.token_wanted = true;
+                    },
+                }
+            },
+        }
     }
 
-    pub fn remote_max_debt(&self) -> u128 {
-        self.get_mutual_credit().state().balance.remote_max_debt
+    fn get_cur_move_token(&self) -> &FriendMoveToken {
+        match &self.direction {
+            TcDirection::Incoming(tc_incoming) => &tc_incoming.move_token_in,
+            TcDirection::Outgoing(tc_outgoing) => &tc_outgoing.move_token_out,
+        }
     }
+
 
     pub fn get_inconsistency_counter(&self) -> u64 {
         self.get_cur_move_token().inconsistency_counter
@@ -263,7 +307,6 @@ impl TokenChannel {
     pub fn get_move_token_counter(&self) -> u128 {
         self.get_cur_move_token().move_token_counter
     }
-
 
     pub async fn get_reset_terms(&self, identity_client: IdentityClient) -> ResetTerms {
         // We add 2 for the new counter in case 
@@ -283,55 +326,88 @@ impl TokenChannel {
 
     pub fn is_outgoing(&self) -> bool {
         match self.direction {
-            MoveTokenDirection::Incoming(_) => false,
-            MoveTokenDirection::Outgoing(_) => true,
+            TcDirection::Incoming(_) => false,
+            TcDirection::Outgoing(_) => true,
         }
     }
 
-    pub fn mutate(&mut self, d_mutation: &TcMutation) {
-        match d_mutation {
-            TcMutation::McMutation(mc_mutation) => {
-                self.mutual_credit.mutate(mc_mutation);
+    pub fn simulate_receive_move_token(&self, 
+                              new_move_token: FriendMoveToken)
+        -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
+
+        match &self.direction {
+            TcDirection::Incoming(tc_incoming) => {
+                if &tc_incoming.move_token_in == &new_move_token {
+                    // Duplicate
+                    Ok(ReceiveMoveTokenOutput::Duplicate)
+                } else {
+                    // Inconsistency
+                    Err(ReceiveMoveTokenError::ChainInconsistency)
+                }
             },
-            TcMutation::SetDirection(ref set_direction) => {
-                self.direction = match set_direction {
-                    SetDirection::Incoming(new_token) => MoveTokenDirection::Incoming(new_token.clone()),
-                    SetDirection::Outgoing(friend_move_token) => {
-                        let friend_move_token_request = FriendMoveTokenRequest {
-                            friend_move_token: friend_move_token.clone(),
-                            token_wanted: false,
-                        };
-                        let outgoing_move_token = OutgoingMoveToken {
-                            outgoing_move_token_request: friend_move_token_request,
-                            opt_prev_incoming_move_token: self.get_last_incoming_move_token().cloned(),
-                        };
-                        MoveTokenDirection::Outgoing(outgoing_move_token)
-                    }
-                };
-            },
-            TcMutation::SetTokenWanted => {
-                match self.direction {
-                    MoveTokenDirection::Incoming(_) => unreachable!(),
-                    MoveTokenDirection::Outgoing(ref mut outgoing_move_token) => {
-                        outgoing_move_token.outgoing_move_token_request.token_wanted = true;
-                    },
+            TcDirection::Outgoing(tc_outgoing) => {
+                // Verify signature:
+                // Note that we only verify the signature here, and not at the Incoming part.
+                // This allows the genesis move token to occur smoothly, even though its signature
+                // is not correct.
+                let remote_public_key = &self.get_mutual_credit().state().idents.remote_public_key;
+                if !new_move_token.verify(remote_public_key) {
+                    return Err(ReceiveMoveTokenError::InvalidSignature);
+                }
+
+                // let friend_move_token = &tc_outgoing.move_token_out;
+                if &new_move_token.old_token == &self.get_cur_move_token().new_token {
+                    tc_outgoing.handle_incoming(new_move_token)
+                    // self.outgoing_to_incoming(friend_move_token, new_move_token)
+                } else if tc_outgoing.move_token_out.old_token == new_move_token.new_token {
+                    // We should retransmit our move token message to the remote side.
+                    Ok(ReceiveMoveTokenOutput::RetransmitOutgoing(tc_outgoing.move_token_out.clone()))
+                } else {
+                    Err(ReceiveMoveTokenError::ChainInconsistency)
                 }
             },
         }
     }
+}
 
-    /// Deal with the case of incoming state turning into outgoing state.
-    fn outgoing_to_incoming(&self, 
-                            old_move_token: &FriendMoveToken, 
-                            new_move_token: FriendMoveToken) 
+
+impl TcIncoming {
+    pub async fn create_friend_move_token(&self,
+                                    operations: Vec<FriendTcOp>,
+                                    rand_nonce: RandValue,
+                                    identity_client: IdentityClient) -> FriendMoveToken {
+
+        await!(FriendMoveToken::new(
+            operations,
+            self.move_token_in.new_token.clone(),
+            self.move_token_in.inconsistency_counter,
+            self.move_token_in.move_token_counter.wrapping_add(1),
+            self.mutual_credit.state().balance.balance,
+            self.mutual_credit.state().balance.local_pending_debt,
+            self.mutual_credit.state().balance.remote_pending_debt,
+            rand_nonce,
+            identity_client))
+    }
+
+    pub fn begin_outgoing_move_token(&self) -> OutgoingMc {
+        // TODO; Maybe take max_operations_in_batch as argument instead?
+        OutgoingMc::new(&self.mutual_credit, MAX_OPERATIONS_IN_BATCH)
+    }
+}
+
+
+
+impl TcOutgoing {
+    fn handle_incoming(&self, 
+                        new_move_token: FriendMoveToken) 
         -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
     
         // Verify counters:
-        if new_move_token.inconsistency_counter != old_move_token.inconsistency_counter {
+        if new_move_token.inconsistency_counter != self.move_token_out.inconsistency_counter {
             return Err(ReceiveMoveTokenError::InvalidInconsistencyCounter);
         }
 
-        let expected_move_token_counter = old_move_token.move_token_counter
+        let expected_move_token_counter = self.move_token_out.move_token_counter
             .checked_add(1)
             .ok_or(ReceiveMoveTokenError::MoveTokenCounterOverflow)?;
 
@@ -380,62 +456,12 @@ impl TokenChannel {
     }
 
 
-    #[allow(unused)]
-    pub fn simulate_receive_move_token(&self, 
-                              new_move_token: FriendMoveToken)
-        -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
-
-        match &self.direction {
-            MoveTokenDirection::Incoming(friend_move_token) => {
-                if friend_move_token == &new_move_token {
-                    // Duplicate
-                    Ok(ReceiveMoveTokenOutput::Duplicate)
-                } else {
-                    // Inconsistency
-                    Err(ReceiveMoveTokenError::ChainInconsistency)
-                }
-            },
-            MoveTokenDirection::Outgoing(ref outgoing_move_token) => {
-                // Verify signature:
-                // Note that we only verify the signature here, and not at the Incoming part.
-                // This allows the genesis move token to occur smoothly, even though its signature
-                // is not correct.
-                let remote_public_key = &self.get_mutual_credit().state().idents.remote_public_key;
-                if !new_move_token.verify(remote_public_key) {
-                    return Err(ReceiveMoveTokenError::InvalidSignature);
-                }
-
-
-                let friend_move_token = &outgoing_move_token.outgoing_move_token_request.friend_move_token;
-                if &new_move_token.old_token == &self.get_cur_move_token().new_token {
-                    self.outgoing_to_incoming(friend_move_token, new_move_token)
-                } else if friend_move_token.old_token == new_move_token.new_token {
-                    // We should retransmit our move token message to the remote side.
-                    Ok(ReceiveMoveTokenOutput::RetransmitOutgoing(friend_move_token.clone()))
-                } else {
-                    Err(ReceiveMoveTokenError::ChainInconsistency)
-                }
-            },
-        }
-    }
-
-    pub fn begin_outgoing_move_token(&self) -> Option<OutgoingMc> {
-        if let MoveTokenDirection::Outgoing(_) = self.direction {
-            return None;
-        }
-
-        Some(OutgoingMc::new(&self.mutual_credit, MAX_OPERATIONS_IN_BATCH))
-    }
-
 
     /// Get the current outgoing move token
-    /// If current state is not outgoing, returns None
-    pub fn get_outgoing_move_token(&self) -> Option<FriendMoveTokenRequest> {
-        match self.direction {
-            MoveTokenDirection::Incoming(_)=> None,
-            MoveTokenDirection::Outgoing(ref outgoing_move_token) => {
-                Some(outgoing_move_token.outgoing_move_token_request.clone())
-            }
+    pub fn create_outgoing_move_token_request(&self) -> FriendMoveTokenRequest {
+        FriendMoveTokenRequest {
+            friend_move_token: self.move_token_out.clone(),
+            token_wanted: self.token_wanted,
         }
     }
 }

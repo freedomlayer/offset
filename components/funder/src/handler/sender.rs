@@ -15,7 +15,7 @@ use super::super::mutual_credit::outgoing::{QueueOperationFailure,
 
 use super::super::friend::{FriendMutation, ResponseOp, ChannelStatus};
 
-use super::super::token_channel::{TcMutation, MoveTokenDirection, SetDirection};
+use super::super::token_channel::{TcMutation, TcDirection, SetDirection};
 
 pub enum SendMode {
     EmptyAllowed,
@@ -81,7 +81,7 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
 
         // Open or close requests is needed:
         let local_requests_status = &token_channel
-            .mutual_credit
+            .get_mutual_credit()
             .state()
             .requests_status
             .local;
@@ -146,9 +146,9 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
 
-        let friend_move_token_request = match &token_channel.direction {
-            MoveTokenDirection::Outgoing(outgoing_move_token) => outgoing_move_token.outgoing_move_token_request.clone(),
-            MoveTokenDirection::Incoming(_) => unreachable!(),
+        let friend_move_token_request = match &token_channel.get_direction() {
+            TcDirection::Outgoing(tc_outgoing) => tc_outgoing.create_outgoing_move_token_request(),
+            TcDirection::Incoming(_) => unreachable!(),
         };
 
         // Transmit the current outgoing message:
@@ -168,8 +168,12 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
             ChannelStatus::Consistent(token_channel) => token_channel,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
-        let mut out_tc = token_channel
-            .begin_outgoing_move_token().unwrap();
+        let tc_incoming = match token_channel.get_direction() {
+            TcDirection::Outgoing(_) => unreachable!(),
+            TcDirection::Incoming(tc_incoming) => tc_incoming,
+        };
+
+        let mut out_tc = tc_incoming.begin_outgoing_move_token();
 
         for op in operations {
             out_tc.queue_operation(op)?;
@@ -201,23 +205,33 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
 
-        let friend_move_token = await!(token_channel.create_friend_move_token(operations, 
+        let tc_incoming = match token_channel.get_direction() {
+            TcDirection::Outgoing(_) => unreachable!(),
+            TcDirection::Incoming(tc_incoming) => tc_incoming,
+        };
+
+        let friend_move_token = await!(tc_incoming.create_friend_move_token(operations, 
                                              rand_nonce,
-                                             self.identity_client.clone())).unwrap();
+                                             self.identity_client.clone()));
 
         let tc_mutation = TcMutation::SetDirection(
             SetDirection::Outgoing(friend_move_token));
         let friend_mutation = FriendMutation::TcMutation(tc_mutation);
-        let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-        self.apply_mutation(messenger_mutation);
+        let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+        self.apply_mutation(funder_mutation);
 
         let friend = self.get_friend(remote_public_key).unwrap();
         let token_channel = match &friend.channel_status {
             ChannelStatus::Consistent(token_channel) => token_channel,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
-        let friend_move_token_request = 
-            token_channel.get_outgoing_move_token().unwrap();
+
+        let tc_outgoing = match token_channel.get_direction() {
+            TcDirection::Outgoing(tc_outgoing) => tc_outgoing,
+            TcDirection::Incoming(_) => unreachable!(),
+        };
+
+        let friend_move_token_request = tc_outgoing.create_outgoing_move_token_request();
 
         // Add a task for sending the outgoing move token:
         self.add_outgoing_comm(FunderOutgoingComm::FriendMessage(
@@ -246,8 +260,11 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
             ChannelStatus::Consistent(token_channel) => token_channel,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
-        let out_tc = token_channel
-            .begin_outgoing_move_token().unwrap();
+        let tc_incoming = match token_channel.get_direction() {
+            TcDirection::Outgoing(_) => unreachable!(),
+            TcDirection::Incoming(tc_incoming) => tc_incoming,
+        };
+        let out_tc = tc_incoming.begin_outgoing_move_token();
 
         let mut ops_batch = OperationsBatch::new(MAX_MOVE_TOKEN_LENGTH);
         self.queue_outgoing_operations(remote_public_key, &mut ops_batch);
@@ -276,14 +293,14 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
             ChannelStatus::Inconsistent(_) => return,
         };
 
-        match &token_channel.direction {
-            MoveTokenDirection::Incoming(_) => {
+        match &token_channel.get_direction() {
+            TcDirection::Incoming(_) => {
                 // We have the token. 
                 // Send as many operations as possible to remote side:
                 self.send_through_token_channel(&remote_public_key, send_mode);
             },
-            MoveTokenDirection::Outgoing(outgoing_move_token) => {
-                if !outgoing_move_token.outgoing_move_token_request.token_wanted {
+            TcDirection::Outgoing(tc_outgoing) => {
+                if !tc_outgoing.token_wanted {
                     // We don't have the token. We should request it.
                     // Mark that we have sent a request token, to make sure we don't do this again:
                     let tc_mutation = TcMutation::SetTokenWanted;

@@ -1,7 +1,6 @@
 use crypto::crypto_rand::CryptoRandom;
 
 use super::MutableFunderHandler;
-use super::super::token_channel::MoveTokenDirection;
 use super::super::types::{FriendMessage,
                             FriendInconsistencyError, ChannelerConfig,
                             FriendStatus, ResetTerms,

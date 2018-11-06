@@ -113,7 +113,7 @@ impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
                 ChannelStatus::Inconsistent(_) => continue,
                 ChannelStatus::Consistent(token_channel) => {
                     if token_channel
-                        .mutual_credit
+                        .get_mutual_credit()
                         .state()
                         .pending_requests
                         .pending_remote_requests
