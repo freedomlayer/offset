@@ -67,7 +67,7 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
         let remote_max_debt = match &friend.channel_status {
             ChannelStatus::Consistent(token_channel) => token_channel,
             ChannelStatus::Inconsistent(_) => unreachable!(),
-        }.remote_max_debt();
+        }.get_remote_max_debt();
 
 
         if friend.wanted_remote_max_debt != remote_max_debt {

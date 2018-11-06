@@ -229,7 +229,7 @@ impl TokenChannel {
         }
     }
 
-    pub fn remote_max_debt(&self) -> u128 {
+    pub fn get_remote_max_debt(&self) -> u128 {
         self.get_mutual_credit().state().balance.remote_max_debt
     }
 
