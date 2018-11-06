@@ -13,7 +13,7 @@ use crate::types::{RequestsStatus, InvoiceId, INVOICE_ID_LEN,
 use crate::signature_buff::{create_response_signature_buffer, 
     create_failure_signature_buffer};
 
-use crate::token_channel::outgoing::{OutgoingTc, QueueOperationFailure};
+use crate::token_channel::outgoing::{OutgoingMc, QueueOperationFailure};
 use crate::token_channel::incoming::{process_operation, ProcessOperationOutput, ProcessOperationError};
 
 /// Helper function for applying an outgoing operation over a token channel.
@@ -21,7 +21,7 @@ fn apply_outgoing(mutual_credit: &mut MutualCredit, friend_tc_op: FriendTcOp)
     -> Result<(), QueueOperationFailure> {
 
     let max_operations = 1;
-    let mut outgoing = OutgoingTc::new(mutual_credit, max_operations);
+    let mut outgoing = OutgoingMc::new(mutual_credit, max_operations);
     assert!(outgoing.is_operations_empty());
     outgoing.queue_operation(friend_tc_op)?;
     assert!(!outgoing.is_operations_empty());

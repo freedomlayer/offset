@@ -12,7 +12,7 @@ use utils::safe_arithmetic::SafeArithmetic;
 
 use super::super::token_channel::incoming::{IncomingResponseSendFunds, 
     IncomingFailureSendFunds, IncomingMessage};
-use super::super::token_channel::outgoing::{OutgoingTc, QueueOperationFailure,
+use super::super::token_channel::outgoing::{QueueOperationFailure,
     QueueOperationError};
 use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
     DirectionalMutation, MoveTokenDirection, MoveTokenReceived, SetDirection};

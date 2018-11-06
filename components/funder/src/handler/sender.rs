@@ -10,7 +10,7 @@ use super::super::types::{FriendTcOp, RequestSendFunds,
     ResponseSendFunds, FailureSendFunds, 
     FriendMoveToken, RequestsStatus, FriendMoveTokenRequest,
     FriendMessage, FunderOutgoingComm};
-use super::super::token_channel::outgoing::{OutgoingTc, QueueOperationFailure,
+use super::super::token_channel::outgoing::{QueueOperationFailure,
     QueueOperationError};
 
 use super::super::friend::{FriendMutation, ResponseOp, ChannelStatus};

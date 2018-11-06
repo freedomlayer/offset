@@ -13,7 +13,7 @@ use crate::consts::MAX_OPERATIONS_IN_BATCH;
 use crate::token_channel::types::{MutualCredit, TcMutation};
 use super::incoming::{ProcessOperationOutput, ProcessTransListError, 
     process_operations_list, IncomingMessage};
-use super::outgoing::OutgoingTc;
+use super::outgoing::OutgoingMc;
 
 use crate::types::{FriendMoveToken, 
     FriendMoveTokenRequest, ResetTerms, FriendTcOp};
@@ -419,12 +419,12 @@ impl DirectionalTc {
         }
     }
 
-    pub fn begin_outgoing_move_token(&self) -> Option<OutgoingTc> {
+    pub fn begin_outgoing_move_token(&self) -> Option<OutgoingMc> {
         if let MoveTokenDirection::Outgoing(_) = self.direction {
             return None;
         }
 
-        Some(OutgoingTc::new(&self.mutual_credit, MAX_OPERATIONS_IN_BATCH))
+        Some(OutgoingMc::new(&self.mutual_credit, MAX_OPERATIONS_IN_BATCH))
     }
 
 

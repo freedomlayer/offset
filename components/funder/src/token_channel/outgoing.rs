@@ -22,7 +22,7 @@ use super::super::signature_buff::{create_response_signature_buffer,
 
 /// Processes outgoing fundss for a token channel.
 /// Used to batch as many fundss as possible.
-pub struct OutgoingTc {
+pub struct OutgoingMc {
     mutual_credit: MutualCredit,
     tc_mutations: Vec<TcMutation>,
     operations: Vec<FriendTcOp>,
@@ -70,9 +70,9 @@ pub struct QueueOperationFailure {
 }
 
 /// A wrapper over a token channel, accumulating fundss to be sent as one transcation.
-impl OutgoingTc {
-    pub fn new(mutual_credit: &MutualCredit, max_operations: usize) -> OutgoingTc {
-        OutgoingTc {
+impl OutgoingMc {
+    pub fn new(mutual_credit: &MutualCredit, max_operations: usize) -> OutgoingMc {
+        OutgoingMc {
             mutual_credit: mutual_credit.clone(),
             tc_mutations: Vec::new(),
             operations: Vec::new(),
