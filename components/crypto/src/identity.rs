@@ -11,12 +11,17 @@ pub const SIGNATURE_LEN: usize = 64;
 
 define_fixed_bytes!(PublicKey, PUBLIC_KEY_LEN);
 
-#[derive(Clone, Serialize, Deserialize)]
-pub struct Signature(#[serde(with = "BigArray")] [u8; SIGNATURE_LEN]);
+#[derive(Clone, Serialize, Deserialize)] pub struct Signature(#[serde(with = "BigArray")] [u8; SIGNATURE_LEN]);
 
 impl Signature {
     pub fn zero() -> Signature {
         Signature([0x00u8; SIGNATURE_LEN])
+    }
+}
+
+impl From<[u8; SIGNATURE_LEN]> for Signature {
+    fn from(array: [u8; SIGNATURE_LEN]) -> Self {
+        Signature(array)
     }
 }
 

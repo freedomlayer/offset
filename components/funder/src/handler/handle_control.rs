@@ -4,9 +4,8 @@ use crypto::uid::Uid;
 use crypto::hash::HashResult;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
-use super::super::token_channel::types::TcMutation;
-use super::super::token_channel::directional::{DirectionalMutation, 
-    MoveTokenDirection};
+use super::super::mutual_credit::types::McMutation;
+use super::super::token_channel::TcMutation;
 use super::super::friend::{FriendState, FriendMutation, ChannelStatus};
 use super::super::state::{FunderMutation, FunderState};
 use super::{MutableFunderHandler, 
@@ -16,7 +15,7 @@ use super::super::types::{RequestsStatus, FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel,
     SetFriendAddr, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
     ReceiptAck, FriendsRoute, FriendMoveToken, IncomingControlMessage,
-    FriendTcOp, ChannelToken, InvoiceId, ResponseReceived,
+    FriendTcOp, InvoiceId, ResponseReceived,
     FriendMessage, ChannelerConfig, FunderOutgoingComm, FunderOutgoingControl};
 use super::sender::SendMode;
 
@@ -51,9 +50,9 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         let _friend = self.get_friend(&set_friend_remote_max_debt.friend_public_key)
             .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-        let tc_mutation = TcMutation::SetRemoteMaxDebt(set_friend_remote_max_debt.remote_max_debt);
-        let directional_mutation = DirectionalMutation::TcMutation(tc_mutation);
-        let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
+        let mc_mutation = McMutation::SetRemoteMaxDebt(set_friend_remote_max_debt.remote_max_debt);
+        let tc_mutation = TcMutation::McMutation(mc_mutation);
+        let friend_mutation = FriendMutation::TcMutation(tc_mutation);
         let m_mutation = FunderMutation::FriendMutation(
             (set_friend_remote_max_debt.friend_public_key, friend_mutation));
 
@@ -61,45 +60,58 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         Ok(())
     }
 
-    async fn control_reset_friend_channel(mut self, 
+    async fn control_reset_friend_channel(&mut self, 
                                     reset_friend_channel: ResetFriendChannel) 
-        -> Result<Self, HandleControlError> {
+        -> Result<(), HandleControlError> {
 
         let friend = self.get_friend(&reset_friend_channel.friend_public_key)
             .ok_or(HandleControlError::FriendDoesNotExist)?;
 
         let remote_reset_terms = match &friend.channel_status {
             ChannelStatus::Consistent(_) => Err(HandleControlError::NotInvitedToReset),
-            ChannelStatus::Inconsistent((_, None)) => Err(HandleControlError::NotInvitedToReset),
-            ChannelStatus::Inconsistent((_, Some(remote_reset_terms))) => {
-                if (remote_reset_terms.reset_token != reset_friend_channel.current_token)  {
-                    Err(HandleControlError::ResetTokenMismatch)
-                } else {
-                    Ok(remote_reset_terms)
+            ChannelStatus::Inconsistent(channel_inconsistent) => {
+                match &channel_inconsistent.opt_remote_reset_terms {
+                    None => Err(HandleControlError::NotInvitedToReset),
+                    Some(remote_reset_terms) => {
+                        if (remote_reset_terms.reset_token != reset_friend_channel.current_token)  {
+                            Err(HandleControlError::ResetTokenMismatch)
+                        } else {
+                            Ok(remote_reset_terms)
+                        }
+                    },
                 }
             },
         }?;
 
         let rand_nonce = RandValue::new(&*self.rng);
-        let friend_move_token = FriendMoveToken {
-            operations: Vec::new(), 
-            // No operations are required for a reset move token
-            old_token: remote_reset_terms.reset_token.clone(),
-            rand_nonce,
-        };
+        let move_token_counter = 0;
 
-        let mut fself = await!(self.cancel_local_pending_requests(
-            reset_friend_channel.friend_public_key.clone()))?;
+        let local_pending_debt = 0;
+        let remote_pending_debt = 0;
+
+        let friend_move_token = await!(FriendMoveToken::new(
+            // No operations are required for a reset move token
+            Vec::new(), 
+            remote_reset_terms.reset_token.clone(),
+            remote_reset_terms.inconsistency_counter,
+            move_token_counter,
+            remote_reset_terms.balance_for_reset,
+            local_pending_debt,
+            remote_pending_debt,
+            rand_nonce,
+            self.identity_client.clone()));
+
+        await!(self.cancel_local_pending_requests(
+            reset_friend_channel.friend_public_key.clone()));
 
         let friend_mutation = FriendMutation::LocalReset(friend_move_token.clone());
         let m_mutation = FunderMutation::FriendMutation(
             (reset_friend_channel.friend_public_key.clone(), friend_mutation));
-        fself.apply_mutation(m_mutation);
+        self.apply_mutation(m_mutation);
 
-        fself.transmit_outgoing(&reset_friend_channel.friend_public_key);
+        self.transmit_outgoing(&reset_friend_channel.friend_public_key);
 
-        Ok(fself)
-
+        Ok(())
     }
 
     fn enable_friend(&mut self, 
@@ -139,8 +151,8 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
     /// This is a violent operation, as it removes all the known state with the remote friend.  
     /// An inconsistency will occur if the friend is added again.
-    async fn control_remove_friend(mut self, remove_friend: RemoveFriend) 
-        -> Result<Self, HandleControlError> {
+    async fn control_remove_friend(&mut self, remove_friend: RemoveFriend) 
+        -> Result<(), HandleControlError> {
 
         // Make sure that friend exists:
         let _friend = self.get_friend(&remove_friend.friend_public_key)
@@ -148,19 +160,18 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
         self.disable_friend(&remove_friend.friend_public_key);
 
-        let fself = await!(self.cancel_local_pending_requests(
-            remove_friend.friend_public_key.clone()))?;
-        let fself = await!(fself.cancel_pending_requests(
-                remove_friend.friend_public_key.clone()))?;
-        let mut fself = await!(fself.cancel_pending_user_requests(
-                remove_friend.friend_public_key.clone()))?;
+        await!(self.cancel_local_pending_requests(
+            remove_friend.friend_public_key.clone()));
+        await!(self.cancel_pending_requests(
+                remove_friend.friend_public_key.clone()));
+        await!(self.cancel_pending_user_requests(
+                remove_friend.friend_public_key.clone()));
 
         let m_mutation = FunderMutation::RemoveFriend(
                 remove_friend.friend_public_key.clone());
 
-        fself.apply_mutation(m_mutation);
-                                               
-        Ok(fself)
+        self.apply_mutation(m_mutation);
+        Ok(())
     }
 
     fn control_set_friend_status(&mut self, set_friend_status: SetFriendStatus) 
@@ -285,14 +296,14 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             }
         }
 
-        let directional = match &friend.channel_status {
+        let token_channel = match &friend.channel_status {
             ChannelStatus::Inconsistent(_) => unreachable!(),
-            ChannelStatus::Consistent(directional) => directional
+            ChannelStatus::Consistent(token_channel) => token_channel
         };
 
         // Check if there is an onging request with the same request_id with this specific friend:
-        if directional
-            .token_channel
+        if token_channel
+            .get_mutual_credit()
             .state()
             .pending_requests
             .pending_local_requests
@@ -350,49 +361,40 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
     }
 
 
-    pub async fn handle_control_message(mut self, 
+    pub async fn handle_control_message(&mut self, 
                                   funder_config: IncomingControlMessage<A>) 
-        -> Result<Self, HandleControlError> {
+        -> Result<(), HandleControlError> {
 
 
-        let fself = match funder_config {
+        match funder_config {
             IncomingControlMessage::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) => {
                 self.control_set_friend_remote_max_debt(set_friend_remote_max_debt);
-                self
             },
             IncomingControlMessage::ResetFriendChannel(reset_friend_channel) => {
-                let fself = await!(self.control_reset_friend_channel(reset_friend_channel))?;
-                fself
+                await!(self.control_reset_friend_channel(reset_friend_channel))?;
             },
             IncomingControlMessage::AddFriend(add_friend) => {
                 self.control_add_friend(add_friend);
-                self
             },
             IncomingControlMessage::RemoveFriend(remove_friend) => {
-                let fself = await!(self.control_remove_friend(remove_friend))?;
-                fself
+                await!(self.control_remove_friend(remove_friend))?;
             },
             IncomingControlMessage::SetFriendStatus(set_friend_status) => {
                 self.control_set_friend_status(set_friend_status);
-                self
             },
             IncomingControlMessage::SetRequestsStatus(set_requests_status) => {
                 self.control_set_requests_status(set_requests_status);
-                self
             },
             IncomingControlMessage::SetFriendAddr(set_friend_addr) => {
                 self.control_set_friend_addr(set_friend_addr);
-                self
             },
             IncomingControlMessage::RequestSendFunds(user_request_send_funds) => {
                 self.control_request_send_funds(user_request_send_funds);
-                self
             },
             IncomingControlMessage::ReceiptAck(receipt_ack) => {
                 self.control_receipt_ack(receipt_ack);
-                self
             }
         };
-        Ok(fself)
+        Ok(())
     }
 }

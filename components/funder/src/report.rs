@@ -2,14 +2,14 @@ use im::hashmap::HashMap as ImHashMap;
 
 use crypto::identity::PublicKey;
 
-use super::friend::{FriendState, ChannelStatus};
+use super::friend::{FriendState, ChannelStatus, ChannelInconsistent};
 use super::state::FunderState;
 use super::types::{RequestsStatus, FriendStatus, ResetTerms};
-use super::token_channel::types::{TcBalance, TcRequestsStatus, TokenChannel};
-use super::token_channel::directional::MoveTokenDirection; 
+use super::mutual_credit::types::{TcBalance, TcRequestsStatus, MutualCredit};
+use super::token_channel::TcDirection; 
 
 #[derive(Clone)]
-pub struct TcReport {
+pub struct McReport {
     pub balance: TcBalance,
     pub requests_status: TcRequestsStatus,
 }
@@ -21,16 +21,16 @@ pub enum DirectionReport {
 }
 
 #[derive(Clone)]
-pub struct DirectionalTcReport {
+pub struct TcReport {
     pub direction: DirectionReport,
     // Equals Sha512/256(FriendMoveToken)
-    pub token_channel: TcReport,
+    pub mutual_credit: McReport,
 }
 
 #[derive(Clone)]
 pub enum ChannelStatusReport {
-    Inconsistent((ResetTerms, Option<ResetTerms>)), // local_reset_terms, remote_reset_terms
-    Consistent(DirectionalTcReport),
+    Inconsistent(ChannelInconsistent),
+    Consistent(TcReport),
 }
 
 #[derive(Clone)]
@@ -55,26 +55,26 @@ pub struct FunderReport<A: Clone> {
 
 }
 
-fn create_tc_report(token_channel: &TokenChannel) -> TcReport {
-    TcReport {
-        balance: token_channel.state().balance.clone(),
-        requests_status: token_channel.state().requests_status.clone(),
+fn create_tc_report(mutual_credit: &MutualCredit) -> McReport {
+    McReport {
+        balance: mutual_credit.state().balance.clone(),
+        requests_status: mutual_credit.state().requests_status.clone(),
     }
 }
 
 fn create_friend_report<A: Clone>(friend_state: &FriendState<A>) -> FriendReport<A> {
     let channel_status = match &friend_state.channel_status {
-        ChannelStatus::Inconsistent(reset_terms_tuple) => ChannelStatusReport::Inconsistent(reset_terms_tuple.clone()),
-        ChannelStatus::Consistent(directional) => {
-            let direction = match directional.direction {
-                MoveTokenDirection::Incoming(_) => DirectionReport::Incoming,
-                MoveTokenDirection::Outgoing(_) => DirectionReport::Outgoing,
+        ChannelStatus::Inconsistent(channel_inconsistent) => ChannelStatusReport::Inconsistent(channel_inconsistent.clone()),
+        ChannelStatus::Consistent(token_channel) => {
+            let direction = match token_channel.get_direction() {
+                TcDirection::Incoming(_) => DirectionReport::Incoming,
+                TcDirection::Outgoing(_) => DirectionReport::Outgoing,
             };
-            let directional = DirectionalTcReport {
+            let tc_report = TcReport {
                 direction,
-                token_channel: create_tc_report(&directional.token_channel),
+                mutual_credit: create_tc_report(&token_channel.get_mutual_credit()),
             };
-            ChannelStatusReport::Consistent(directional)
+            ChannelStatusReport::Consistent(tc_report)
         },
     };
 

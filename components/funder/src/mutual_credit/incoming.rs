@@ -10,7 +10,7 @@ use super::super::credit_calc::CreditCalculator;
 use super::super::signature_buff::{create_response_signature_buffer, 
     verify_failure_signature};
 
-use super::types::{TokenChannel, MAX_FUNDER_DEBT, TcMutation};
+use super::types::{MutualCredit, MAX_FUNDER_DEBT, McMutation};
 
 
 /*
@@ -39,7 +39,7 @@ pub enum IncomingMessage {
 #[allow(unused)]
 pub struct ProcessOperationOutput {
     pub incoming_message: Option<IncomingMessage>,
-    pub tc_mutations: Vec<TcMutation>,
+    pub mc_mutations: Vec<McMutation>,
 }
 
 
@@ -72,20 +72,19 @@ pub struct ProcessTransListError {
 }
 
 
-pub fn simulate_process_operations_list(token_channel: &TokenChannel, 
+pub fn process_operations_list(mutual_credit: &mut MutualCredit, 
                                         operations: Vec<FriendTcOp>) ->
     Result<Vec<ProcessOperationOutput>, ProcessTransListError> {
 
     let mut outputs = Vec::new();
 
-    // We do not change the original TokenChannel. 
+    // We do not change the original MutualCredit. 
     // Instead, we are operating over a clone:
     // This operation is not very expensive, because we are using immutable data structures
     // (specifically, HashMaps).
-    let mut cloned_token_channel = token_channel.clone();
 
     for (index, funds) in operations.into_iter().enumerate() {
-        match process_operation(&mut cloned_token_channel, funds) {
+        match process_operation(mutual_credit, funds) {
             Err(e) => return Err(ProcessTransListError {
                 index,
                 process_trans_error: e
@@ -96,79 +95,79 @@ pub fn simulate_process_operations_list(token_channel: &TokenChannel,
     Ok(outputs)
 }
 
-pub fn process_operation(token_channel: &mut TokenChannel, friend_tc_op: FriendTcOp) ->
+pub fn process_operation(mutual_credit: &mut MutualCredit, friend_tc_op: FriendTcOp) ->
     Result<ProcessOperationOutput, ProcessOperationError> {
     match friend_tc_op {
         FriendTcOp::EnableRequests =>
-            process_enable_requests(token_channel),
+            process_enable_requests(mutual_credit),
         FriendTcOp::DisableRequests =>
-            process_disable_requests(token_channel),
+            process_disable_requests(mutual_credit),
         FriendTcOp::SetRemoteMaxDebt(proposed_max_debt) =>
-            process_set_remote_max_debt(token_channel, proposed_max_debt),
+            process_set_remote_max_debt(mutual_credit, proposed_max_debt),
         FriendTcOp::RequestSendFunds(request_send_funds) =>
-            process_request_send_funds(token_channel, request_send_funds),
+            process_request_send_funds(mutual_credit, request_send_funds),
         FriendTcOp::ResponseSendFunds(response_send_funds) =>
-            process_response_send_funds(token_channel, response_send_funds),
+            process_response_send_funds(mutual_credit, response_send_funds),
         FriendTcOp::FailureSendFunds(failure_send_funds) =>
-            process_failure_send_funds(token_channel, failure_send_funds),
+            process_failure_send_funds(mutual_credit, failure_send_funds),
     }
 }
 
-fn process_enable_requests(token_channel: &mut TokenChannel) ->
+fn process_enable_requests(mutual_credit: &mut MutualCredit) ->
     Result<ProcessOperationOutput, ProcessOperationError> {
 
     let mut op_output = ProcessOperationOutput {
         incoming_message: None,
-        tc_mutations: Vec::new(),
+        mc_mutations: Vec::new(),
     };
-    let tc_mutation = TcMutation::SetRemoteRequestsStatus(RequestsStatus::Open);
-    token_channel.mutate(&tc_mutation);
-    op_output.tc_mutations.push(tc_mutation);
+    let tc_mutation = McMutation::SetRemoteRequestsStatus(RequestsStatus::Open);
+    mutual_credit.mutate(&tc_mutation);
+    op_output.mc_mutations.push(tc_mutation);
 
     Ok(op_output)
 }
 
-fn process_disable_requests(token_channel: &mut TokenChannel) ->
+fn process_disable_requests(mutual_credit: &mut MutualCredit) ->
     Result<ProcessOperationOutput, ProcessOperationError> {
 
     let mut op_output = ProcessOperationOutput {
         incoming_message: None,
-        tc_mutations: Vec::new(),
+        mc_mutations: Vec::new(),
     };
 
-    match token_channel.state().requests_status.remote {
+    match mutual_credit.state().requests_status.remote {
         RequestsStatus::Open => {
-            let tc_mutation = TcMutation::SetRemoteRequestsStatus(RequestsStatus::Closed);
-            token_channel.mutate(&tc_mutation);
-            op_output.tc_mutations.push(tc_mutation);
+            let tc_mutation = McMutation::SetRemoteRequestsStatus(RequestsStatus::Closed);
+            mutual_credit.mutate(&tc_mutation);
+            op_output.mc_mutations.push(tc_mutation);
             Ok(op_output)
         },
         RequestsStatus::Closed => Err(ProcessOperationError::RequestsAlreadyDisabled),
     }
 }
 
-fn process_set_remote_max_debt(token_channel: &mut TokenChannel,
+fn process_set_remote_max_debt(mutual_credit: &mut MutualCredit,
                                proposed_max_debt: u128) -> 
     Result<ProcessOperationOutput, ProcessOperationError> {
 
     let mut op_output = ProcessOperationOutput {
         incoming_message: None,
-        tc_mutations: Vec::new(),
+        mc_mutations: Vec::new(),
     };
 
     if proposed_max_debt > MAX_FUNDER_DEBT {
         Err(ProcessOperationError::RemoteMaxDebtTooLarge(proposed_max_debt))
     } else {
-        let tc_mutation = TcMutation::SetLocalMaxDebt(proposed_max_debt);
-        token_channel.mutate(&tc_mutation);
-        op_output.tc_mutations.push(tc_mutation);
+        let tc_mutation = McMutation::SetLocalMaxDebt(proposed_max_debt);
+        mutual_credit.mutate(&tc_mutation);
+        op_output.mc_mutations.push(tc_mutation);
         Ok(op_output)
     }
 }
 
 
 /// Process an incoming RequestSendFunds
-fn process_request_send_funds(token_channel: &mut TokenChannel,
+fn process_request_send_funds(mutual_credit: &mut MutualCredit,
                                 request_send_funds: RequestSendFunds)
     -> Result<ProcessOperationOutput, ProcessOperationError> {
 
@@ -179,8 +178,8 @@ fn process_request_send_funds(token_channel: &mut TokenChannel,
 
     // Find ourselves on the route. If we are not there, abort.
     let remote_index = request_send_funds.route.find_pk_pair(
-        &token_channel.state().idents.remote_public_key, 
-        &token_channel.state().idents.local_public_key)
+        &mutual_credit.state().idents.remote_public_key, 
+        &mutual_credit.state().idents.local_public_key)
         .ok_or(ProcessOperationError::PkPairNotInRoute)?;
 
     // Make sure that freeze_links and route_links are compatible in length:
@@ -190,7 +189,7 @@ fn process_request_send_funds(token_channel: &mut TokenChannel,
     }
 
     // Make sure that we are open to requests:
-    if let RequestsStatus::Open = token_channel.state().requests_status.local {
+    if let RequestsStatus::Open = mutual_credit.state().requests_status.local {
         return Err(ProcessOperationError::LocalRequestsClosed);
     }
 
@@ -209,10 +208,10 @@ fn process_request_send_funds(token_channel: &mut TokenChannel,
         .ok_or(ProcessOperationError::CreditCalculatorFailure)?;
 
     // Make sure we can freeze the credits
-    let new_remote_pending_debt = token_channel.state().balance.remote_pending_debt
+    let new_remote_pending_debt = mutual_credit.state().balance.remote_pending_debt
         .checked_add(own_freeze_credits).ok_or(ProcessOperationError::CreditsCalcOverflow)?;
 
-    if new_remote_pending_debt > token_channel.state().balance.remote_max_debt {
+    if new_remote_pending_debt > mutual_credit.state().balance.remote_max_debt {
         return Err(ProcessOperationError::InsufficientTrust);
     }
 
@@ -220,7 +219,7 @@ fn process_request_send_funds(token_channel: &mut TokenChannel,
     // information here to check this. In addition, even if it turns out we can't freeze those
     // credits, we don't want to create a token channel inconsistency.         
     
-    let p_remote_requests = &token_channel.state().pending_requests.pending_remote_requests;
+    let p_remote_requests = &mutual_credit.state().pending_requests.pending_remote_requests;
     // Make sure that we don't have this request as a pending request already:
     if p_remote_requests.contains_key(&request_send_funds.request_id) {
         return Err(ProcessOperationError::RequestAlreadyExists);
@@ -231,29 +230,29 @@ fn process_request_send_funds(token_channel: &mut TokenChannel,
 
     let mut op_output = ProcessOperationOutput {
         incoming_message: Some(IncomingMessage::Request(request_send_funds)),
-        tc_mutations: Vec::new(),
+        mc_mutations: Vec::new(),
     };
 
-    let tc_mutation = TcMutation::InsertRemotePendingRequest(pending_friend_request);
-    token_channel.mutate(&tc_mutation);
-    op_output.tc_mutations.push(tc_mutation);
+    let tc_mutation = McMutation::InsertRemotePendingRequest(pending_friend_request);
+    mutual_credit.mutate(&tc_mutation);
+    op_output.mc_mutations.push(tc_mutation);
 
     // If we are here, we can freeze the credits:
-    let tc_mutation = TcMutation::SetRemotePendingDebt(new_remote_pending_debt);
-    token_channel.mutate(&tc_mutation);
-    op_output.tc_mutations.push(tc_mutation);
+    let tc_mutation = McMutation::SetRemotePendingDebt(new_remote_pending_debt);
+    mutual_credit.mutate(&tc_mutation);
+    op_output.mc_mutations.push(tc_mutation);
 
     Ok(op_output)
 
 }
 
-fn process_response_send_funds(token_channel: &mut TokenChannel,
+fn process_response_send_funds(mutual_credit: &mut MutualCredit,
                                  response_send_funds: ResponseSendFunds) ->
     Result<ProcessOperationOutput, ProcessOperationError> {
 
     // Make sure that id exists in local_pending hashmap, 
     // and access saved request details.
-    let local_pending_requests = &token_channel.state().pending_requests.pending_local_requests;
+    let local_pending_requests = &mutual_credit.state().pending_requests.pending_local_requests;
 
     // Obtain pending request:
     // TODO: Possibly get rid of clone() here for optimization later
@@ -285,15 +284,15 @@ fn process_response_send_funds(token_channel: &mut TokenChannel,
 
     // Find ourselves on the route. If we are not there, abort.
     let local_index = pending_request.route.find_pk_pair(
-        &token_channel.state().idents.local_public_key, 
-        &token_channel.state().idents.remote_public_key).unwrap();
+        &mutual_credit.state().idents.local_public_key, 
+        &mutual_credit.state().idents.remote_public_key).unwrap();
 
-    let mut tc_mutations = Vec::new();
+    let mut mc_mutations = Vec::new();
 
     // Remove entry from local_pending hashmap:
-    let tc_mutation = TcMutation::RemoveLocalPendingRequest(response_send_funds.request_id);
-    token_channel.mutate(&tc_mutation);
-    tc_mutations.push(tc_mutation);
+    let tc_mutation = McMutation::RemoveLocalPendingRequest(response_send_funds.request_id);
+    mutual_credit.mutate(&tc_mutation);
+    mc_mutations.push(tc_mutation);
 
     let remote_index = usize_to_u32(local_index.checked_add(1).unwrap()).unwrap();
     let success_credits = credit_calc.credits_on_success(remote_index).unwrap();
@@ -301,22 +300,22 @@ fn process_response_send_funds(token_channel: &mut TokenChannel,
 
     // Decrease frozen credits and decrease balance:
     let new_local_pending_debt = 
-        token_channel.state().balance.local_pending_debt
+        mutual_credit.state().balance.local_pending_debt
         .checked_sub(freeze_credits)
         .unwrap();
 
-    let tc_mutation = TcMutation::SetLocalPendingDebt(new_local_pending_debt);
-    token_channel.mutate(&tc_mutation);
-    tc_mutations.push(tc_mutation);
+    let tc_mutation = McMutation::SetLocalPendingDebt(new_local_pending_debt);
+    mutual_credit.mutate(&tc_mutation);
+    mc_mutations.push(tc_mutation);
 
     let new_balance = 
-        token_channel.state().balance.balance
+        mutual_credit.state().balance.balance
         .checked_sub_unsigned(success_credits)
         .unwrap();
 
-    let tc_mutation = TcMutation::SetBalance(new_balance);
-    token_channel.mutate(&tc_mutation);
-    tc_mutations.push(tc_mutation);
+    let tc_mutation = McMutation::SetBalance(new_balance);
+    mutual_credit.mutate(&tc_mutation);
+    mc_mutations.push(tc_mutation);
 
     let incoming_message = Some(
         IncomingMessage::Response(
@@ -329,17 +328,17 @@ fn process_response_send_funds(token_channel: &mut TokenChannel,
 
     Ok(ProcessOperationOutput {
         incoming_message,
-        tc_mutations,
+        mc_mutations,
     })
 }
 
-fn process_failure_send_funds(token_channel: &mut TokenChannel,
+fn process_failure_send_funds(mutual_credit: &mut MutualCredit,
                                 failure_send_funds: FailureSendFunds) ->
     Result<ProcessOperationOutput, ProcessOperationError> {
     
     // Make sure that id exists in local_pending hashmap, 
     // and access saved request details.
-    let local_pending_requests = &token_channel.state().pending_requests.pending_local_requests;
+    let local_pending_requests = &mutual_credit.state().pending_requests.pending_local_requests;
 
     // Obtain pending request:
     let pending_request = local_pending_requests
@@ -350,8 +349,8 @@ fn process_failure_send_funds(token_channel: &mut TokenChannel,
 
     // Find ourselves on the route. If we are not there, abort.
     let local_index = pending_request.route.find_pk_pair(
-        &token_channel.state().idents.local_public_key, 
-        &token_channel.state().idents.remote_public_key).unwrap();
+        &mutual_credit.state().idents.local_public_key, 
+        &mutual_credit.state().idents.remote_public_key).unwrap();
 
     // Make sure that reporting node public key is:
     //  - inside the route
@@ -375,12 +374,12 @@ fn process_failure_send_funds(token_channel: &mut TokenChannel,
     let credit_calc = CreditCalculator::new(route_len,
                                             pending_request.dest_payment);
 
-    let mut tc_mutations = Vec::new();
+    let mut mc_mutations = Vec::new();
 
     // Remove entry from local_pending hashmap:
-    let tc_mutation = TcMutation::RemoveLocalPendingRequest(failure_send_funds.request_id);
-    token_channel.mutate(&tc_mutation);
-    tc_mutations.push(tc_mutation);
+    let tc_mutation = McMutation::RemoveLocalPendingRequest(failure_send_funds.request_id);
+    mutual_credit.mutate(&tc_mutation);
+    mc_mutations.push(tc_mutation);
 
 
     let remote_index = usize_to_u32(local_index.checked_add(1).unwrap()).unwrap();
@@ -392,20 +391,20 @@ fn process_failure_send_funds(token_channel: &mut TokenChannel,
 
     // Decrease frozen credits and decrease balance:
     let new_local_pending_debt = 
-        token_channel.state().balance.local_pending_debt.checked_sub(freeze_credits)
+        mutual_credit.state().balance.local_pending_debt.checked_sub(freeze_credits)
         .unwrap();
 
-    let tc_mutation = TcMutation::SetLocalPendingDebt(new_local_pending_debt);
-    token_channel.mutate(&tc_mutation);
-    tc_mutations.push(tc_mutation);
+    let tc_mutation = McMutation::SetLocalPendingDebt(new_local_pending_debt);
+    mutual_credit.mutate(&tc_mutation);
+    mc_mutations.push(tc_mutation);
 
     let new_balance = 
-        token_channel.state().balance.balance.checked_sub_unsigned(failure_credits)
+        mutual_credit.state().balance.balance.checked_sub_unsigned(failure_credits)
         .unwrap();
 
-    let tc_mutation = TcMutation::SetBalance(new_balance);
-    token_channel.mutate(&tc_mutation);
-    tc_mutations.push(tc_mutation);
+    let tc_mutation = McMutation::SetBalance(new_balance);
+    mutual_credit.mutate(&tc_mutation);
+    mc_mutations.push(tc_mutation);
     
     // Return Failure funds.
     let incoming_message = Some(
@@ -419,7 +418,7 @@ fn process_failure_send_funds(token_channel: &mut TokenChannel,
 
     Ok(ProcessOperationOutput {
         incoming_message,
-        tc_mutations,
+        mc_mutations,
     })
 
 }

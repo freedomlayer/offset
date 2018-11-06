@@ -91,7 +91,7 @@ impl TcRequestsStatus {
 
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct TokenChannelState {
+pub struct MutualCreditState {
     pub idents: TcIdents,
     pub balance: TcBalance,
     pub pending_requests: TcPendingRequests,
@@ -99,11 +99,11 @@ pub struct TokenChannelState {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct TokenChannel {
-    state: TokenChannelState,
+pub struct MutualCredit {
+    state: MutualCreditState,
 }
 
-pub enum TcMutation {
+pub enum McMutation {
     SetLocalRequestsStatus(RequestsStatus),
     SetRemoteRequestsStatus(RequestsStatus),
     SetLocalMaxDebt(u128),
@@ -118,13 +118,13 @@ pub enum TcMutation {
 }
 
 
-impl TokenChannel {
+impl MutualCredit {
     pub fn new(local_public_key: &PublicKey, 
            remote_public_key: &PublicKey, 
-           balance: i128) -> TokenChannel {
+           balance: i128) -> MutualCredit {
 
-        TokenChannel {
-            state: TokenChannelState {
+        MutualCredit {
+            state: MutualCreditState {
                 idents: TcIdents {
                     local_public_key: local_public_key.clone(),
                     remote_public_key: remote_public_key.clone(),
@@ -144,33 +144,33 @@ impl TokenChannel {
             .expect("Overflow when calculating balance_for_reset")
     }
 
-    pub fn state(&self) -> &TokenChannelState {
+    pub fn state(&self) -> &MutualCreditState {
         &self.state
     }
 
-    pub fn mutate(&mut self, tc_mutation: &TcMutation) {
+    pub fn mutate(&mut self, tc_mutation: &McMutation) {
         match tc_mutation {
-            TcMutation::SetLocalRequestsStatus(requests_status) => 
+            McMutation::SetLocalRequestsStatus(requests_status) => 
                 self.set_local_requests_status(requests_status.clone()),
-            TcMutation::SetRemoteRequestsStatus(requests_status) => 
+            McMutation::SetRemoteRequestsStatus(requests_status) => 
                 self.set_remote_requests_status(requests_status.clone()),
-            TcMutation::SetLocalMaxDebt(proposed_max_debt) => 
+            McMutation::SetLocalMaxDebt(proposed_max_debt) => 
                 self.set_local_max_debt(*proposed_max_debt),
-            TcMutation::SetRemoteMaxDebt(proposed_max_debt) => 
+            McMutation::SetRemoteMaxDebt(proposed_max_debt) => 
                 self.set_remote_max_debt(*proposed_max_debt),
-            TcMutation::SetBalance(balance) => 
+            McMutation::SetBalance(balance) => 
                 self.set_balance(*balance),
-            TcMutation::InsertLocalPendingRequest(pending_friend_request) =>
+            McMutation::InsertLocalPendingRequest(pending_friend_request) =>
                 self.insert_local_pending_request(pending_friend_request),
-            TcMutation::RemoveLocalPendingRequest(request_id) =>
+            McMutation::RemoveLocalPendingRequest(request_id) =>
                 self.remove_local_pending_request(request_id),
-            TcMutation::InsertRemotePendingRequest(pending_friend_request) =>
+            McMutation::InsertRemotePendingRequest(pending_friend_request) =>
                 self.insert_remote_pending_request(pending_friend_request),
-            TcMutation::RemoveRemotePendingRequest(request_id) =>
+            McMutation::RemoveRemotePendingRequest(request_id) =>
                 self.remove_remote_pending_request(request_id),
-            TcMutation::SetLocalPendingDebt(local_pending_debt) =>
+            McMutation::SetLocalPendingDebt(local_pending_debt) =>
                 self.set_local_pending_debt(*local_pending_debt),
-            TcMutation::SetRemotePendingDebt(remote_pending_debt) =>
+            McMutation::SetRemotePendingDebt(remote_pending_debt) =>
                 self.set_remote_pending_debt(*remote_pending_debt),
         }
     }

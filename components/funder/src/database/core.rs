@@ -9,6 +9,8 @@ use serde::de::DeserializeOwned;
 use serde_json;
 use atomicwrites;
 
+use identity::IdentityClient;
+
 use crate::state::{FunderMutation, FunderState};
 
 pub enum DbCoreError {
@@ -42,7 +44,7 @@ pub struct DbCore<A: Clone> {
 
 
 #[allow(unused)]
-impl<A: Clone + Serialize + DeserializeOwned> DbCore<A> {
+impl<A: Clone + Serialize + DeserializeOwned + 'static> DbCore<A> {
     pub fn new(db_conn: DbConn) -> Result<DbCore<A>, DbCoreError> {
 
         // TODO: Should create a new funder_state here if does not exist?

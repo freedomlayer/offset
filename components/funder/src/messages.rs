@@ -1,13 +1,14 @@
 use futures::channel::oneshot;
 use bytes::Bytes;
 
-use crypto::identity::PublicKey;
+use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
 
 use super::types::{RequestsStatus, FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel,
     SetFriendAddr, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
-    ReceiptAck, SendFundsReceipt, ChannelToken, InvoiceId};
+    ReceiptAck, SendFundsReceipt, InvoiceId};
+
 
 
 /*
@@ -23,7 +24,7 @@ pub struct FriendUpdated {
 */
 
 pub struct FriendInconsistent {
-    current_token: ChannelToken,
+    current_token: Signature,
     balance_for_reset: i128,
 }
 

@@ -2,13 +2,15 @@
 
 use std::marker::Send;
 use futures::channel::{oneshot, mpsc};
-use futures::{future, Stream};
+use futures::{future, FutureExt, Stream};
 use futures::task::SpawnExt;
 // use futures_cpupool::CpuPool;
 use futures::executor::ThreadPool;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+
+use identity::IdentityClient;
 
 use crate::state::{FunderMutation, FunderState};
 use super::core::{DbCore, DbCoreError};
@@ -32,8 +34,9 @@ pub enum DbServiceError {
 }
 */
 
-fn apply_funder_mutations<A: Clone + Serialize + DeserializeOwned>(
-    mut db_core: DbCore<A>, funder_mutations: Vec<FunderMutation<A>>) -> Result<DbCore<A>,DbCoreError> {
+fn apply_funder_mutations<A: Clone + Serialize + DeserializeOwned + 'static>(
+    mut db_core: DbCore<A>, 
+    funder_mutations: Vec<FunderMutation<A>>) -> Result<DbCore<A>,DbCoreError> {
 
     db_core.mutate(funder_mutations)?;
     Ok(db_core)

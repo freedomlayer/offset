@@ -16,9 +16,9 @@ use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError};
 use self::handle_friend::HandleFriendError;
 use self::handle_liveness::HandleLivenessError;
-use super::token_channel::directional::{ReceiveMoveTokenError};
+use super::token_channel::ReceiveMoveTokenError;
 use super::types::{FriendMoveToken, FriendsRoute, 
-    IncomingControlMessage, IncomingLivenessMessage, ChannelToken,
+    IncomingControlMessage, IncomingLivenessMessage,
     FriendMoveTokenRequest, FunderOutgoing, FunderIncoming,
     FunderOutgoingComm, FunderOutgoingControl, FunderIncomingComm,
     ResponseReceived};
@@ -57,7 +57,7 @@ pub struct MutableFunderHandler<A:Clone,R> {
     responses_received: Vec<ResponseReceived>,
 }
 
-impl<A:Clone,R> MutableFunderHandler<A,R> {
+impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
     pub fn state(&self) -> &FunderState<A> {
         &self.state
     }
@@ -111,9 +111,9 @@ impl<A:Clone,R> MutableFunderHandler<A,R> {
         for (friend_public_key, friend) in self.state.get_friends() {
             match &friend.channel_status {
                 ChannelStatus::Inconsistent(_) => continue,
-                ChannelStatus::Consistent(directional) => {
-                    if directional
-                        .token_channel
+                ChannelStatus::Consistent(token_channel) => {
+                    if token_channel
+                        .get_mutual_credit()
                         .state()
                         .pending_requests
                         .pending_remote_requests
@@ -172,10 +172,9 @@ pub async fn funder_handle_message<A: Clone + 'static, R: CryptoRandom + 'static
 
     let state = funder_state.clone();
     let ephemeral = funder_ephemeral.clone();
-    let mutable_handler = match funder_incoming {
+    match funder_incoming {
         FunderIncoming::Init =>  {
             mutable_handler.handle_init();
-            mutable_handler
         },
         FunderIncoming::Control(control_message) =>
             await!(mutable_handler

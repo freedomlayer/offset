@@ -4,14 +4,20 @@ use byteorder::{WriteBytesExt, BigEndian};
 
 use utils::int_convert::{usize_to_u64};
 
-use crypto::identity::{PublicKey, Signature};
+use crypto::identity::{PublicKey, Signature, verify_signature};
 use crypto::uid::Uid;
 use crypto::crypto_rand::RandValue;
 use crypto::hash;
-use crypto::hash::HashResult;
+use crypto::hash::{HashResult, sha_512_256};
+
+use identity::IdentityClient;
 
 use super::messages::ResponseSendFundsResult;
 use super::report::FunderReport;
+
+// Prefix used for chain hashing of token channel funds.
+// NEXT is used for hashing for the next move token funds.
+const TOKEN_NEXT: &[u8] = b"NEXT";
 
 
 pub const INVOICE_ID_LEN: usize = 32;
@@ -19,11 +25,11 @@ pub const INVOICE_ID_LEN: usize = 32;
 /// The universal unique identifier of an invoice.
 define_fixed_bytes!(InvoiceId, INVOICE_ID_LEN);
 
-pub const CHANNEL_TOKEN_LEN: usize = 32;
+// pub const CHANNEL_TOKEN_LEN: usize = 32;
+// define_fixed_bytes!(ChannelToken, CHANNEL_TOKEN_LEN);
 
-/// The hash of the previous message sent over the token channel.
-define_fixed_bytes!(ChannelToken, CHANNEL_TOKEN_LEN);
-
+// The hash of the previous message sent over the token channel.
+// struct ChannelToken(Signature);
 
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -39,7 +45,7 @@ pub enum RequestsStatus {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum FriendTcOp {
     EnableRequests,
     DisableRequests,
@@ -58,7 +64,7 @@ pub struct PendingFriendRequest {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct ResponseSendFunds {
     pub request_id: Uid,
     pub rand_nonce: RandValue,
@@ -67,13 +73,13 @@ pub struct ResponseSendFunds {
 
 
 /// The ratio can be numeration / T::max_value(), or 1
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 pub enum Ratio<T> {
     One,
     Numerator(T),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct FunderFreezeLink {
     pub shared_credits: u128,
     pub usable_ratio: Ratio<u128>
@@ -89,7 +95,7 @@ pub struct UserRequestSendFunds {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct RequestSendFunds {
     pub request_id: Uid,
     pub route: FriendsRoute,
@@ -99,7 +105,7 @@ pub struct RequestSendFunds {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct FailureSendFunds {
     pub request_id: Uid,
     pub reporting_public_key: PublicKey,
@@ -115,15 +121,75 @@ pub struct FriendsRoute {
 
 
 #[allow(unused)]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct FriendMoveToken {
     pub operations: Vec<FriendTcOp>,
-    pub old_token: ChannelToken,
+    pub old_token: Signature,
+    pub inconsistency_counter: u64,
+    pub move_token_counter: u128,
+    pub balance: i128,
+    pub local_pending_debt: u128,
+    pub remote_pending_debt: u128,
     pub rand_nonce: RandValue,
+    pub new_token: Signature,
 }
 
 
+impl FriendMoveToken {
+    pub async fn new(operations: Vec<FriendTcOp>,
+                 old_token: Signature,
+                 inconsistency_counter: u64,
+                 move_token_counter: u128,
+                 balance: i128,
+                 local_pending_debt: u128,
+                 remote_pending_debt: u128,
+                 rand_nonce: RandValue,
+                 identity_client: IdentityClient) -> FriendMoveToken {
 
+        let mut friend_move_token = FriendMoveToken {
+            operations,
+            old_token,
+            inconsistency_counter: 0,
+            move_token_counter: 0,
+            balance,
+            local_pending_debt,
+            remote_pending_debt,
+            rand_nonce,
+            new_token: Signature::zero(),
+        };
+
+        let sig_buffer = friend_move_token.signature_buff();
+        friend_move_token.new_token = await!(identity_client.request_signature(sig_buffer)).unwrap();
+        friend_move_token
+    }
+
+    fn signature_buff(&self) -> Vec<u8> {
+        let mut contents = Vec::new();
+        contents.write_u64::<BigEndian>(
+            usize_to_u64(self.operations.len()).unwrap()).unwrap();
+        for op in &self.operations {
+            contents.extend_from_slice(&op.to_bytes());
+        }
+
+        let mut sig_buffer = Vec::new();
+        sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
+        sig_buffer.extend_from_slice(&contents);
+        sig_buffer.extend_from_slice(&self.old_token);
+        sig_buffer.write_u64::<BigEndian>(self.inconsistency_counter).unwrap();
+        sig_buffer.write_u128::<BigEndian>(self.move_token_counter).unwrap();
+        sig_buffer.write_i128::<BigEndian>(self.balance).unwrap();
+        sig_buffer.write_u128::<BigEndian>(self.local_pending_debt).unwrap();
+        sig_buffer.write_u128::<BigEndian>(self.remote_pending_debt).unwrap();
+        sig_buffer.extend_from_slice(&self.rand_nonce);
+
+        sig_buffer
+    }
+
+    pub fn verify(&self, public_key: &PublicKey) -> bool {
+        let sig_buffer = self.signature_buff();
+        verify_signature(&sig_buffer, public_key, &self.new_token)
+    }
+}
 
 
 impl FriendsRoute {
@@ -335,7 +401,7 @@ pub struct SetFriendRemoteMaxDebt {
 
 pub struct ResetFriendChannel {
     pub friend_public_key: PublicKey,
-    pub current_token: ChannelToken,
+    pub current_token: Signature,
 }
 
 pub struct SetFriendAddr<A> {
@@ -423,7 +489,7 @@ pub struct FriendMoveTokenRequest {
 
 #[allow(unused)]
 pub struct FriendInconsistencyError {
-    pub reset_token: ChannelToken,
+    pub reset_token: Signature,
     pub balance_for_reset: i128,
 }
 
@@ -475,6 +541,7 @@ pub enum FunderOutgoingComm<A> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResetTerms {
-    pub reset_token: ChannelToken,
+    pub reset_token: Signature,
+    pub inconsistency_counter: u64,
     pub balance_for_reset: i128,
 }

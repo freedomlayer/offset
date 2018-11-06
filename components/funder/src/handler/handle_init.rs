@@ -1,7 +1,6 @@
 use crypto::crypto_rand::CryptoRandom;
 
 use super::MutableFunderHandler;
-use super::super::token_channel::directional::MoveTokenDirection;
 use super::super::types::{FriendMessage,
                             FriendInconsistencyError, ChannelerConfig,
                             FriendStatus, ResetTerms,
@@ -11,7 +10,7 @@ pub enum HandleInitError {
 }
 
 #[allow(unused)]
-impl<A: Clone, R: CryptoRandom> MutableFunderHandler<A,R> {
+impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
 
     pub fn handle_init(&mut self) {
         let mut enabled_friends = Vec::new();

@@ -5,6 +5,9 @@ use num_traits::identities::Zero;
 
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
+
+use identity::IdentityClient;
+
 use super::friend::{FriendState, FriendMutation};
 use super::types::SendFundsReceipt;
 
@@ -28,7 +31,7 @@ pub enum FunderMutation<A> {
 
 
 #[allow(unused)]
-impl<A:Clone> FunderState<A> {
+impl<A:Clone + 'static> FunderState<A> {
     pub fn new() -> FunderState<A> {
         // TODO: Initialize from database somehow.
         unreachable!();
