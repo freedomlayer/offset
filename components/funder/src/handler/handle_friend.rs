@@ -10,12 +10,12 @@ use crypto::uid::Uid;
 use utils::safe_arithmetic::SafeArithmetic;
 
 
-use super::super::token_channel::incoming::{IncomingResponseSendFunds, 
+use super::super::mutual_credit::incoming::{IncomingResponseSendFunds, 
     IncomingFailureSendFunds, IncomingMessage};
-use super::super::token_channel::outgoing::{QueueOperationFailure,
+use super::super::mutual_credit::outgoing::{QueueOperationFailure,
     QueueOperationError};
-use super::super::token_channel::directional::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
-    DirectionalMutation, MoveTokenDirection, MoveTokenReceived, SetDirection};
+use super::super::token_channel::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
+    TcMutation, MoveTokenDirection, MoveTokenReceived, SetDirection};
 use super::{MutableFunderHandler, FriendMoveTokenRequest};
 use super::super::types::{RequestSendFunds, ResponseSendFunds, 
     FailureSendFunds, FriendMoveToken, 
@@ -371,8 +371,8 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                     move_token_received;
 
                 // Apply all mutations:
-                for directional_mutation in mutations {
-                    let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
+                for tc_mutation in mutations {
+                    let friend_mutation = FriendMutation::TcMutation(tc_mutation);
                     let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
                     self.apply_mutation(messenger_mutation);
                 }

@@ -10,10 +10,10 @@ use identity::IdentityClient;
 
 use crate::consts::MAX_OPERATIONS_IN_BATCH;
 
-use crate::token_channel::types::{MutualCredit, McMutation};
-use super::incoming::{ProcessOperationOutput, ProcessTransListError, 
+use crate::mutual_credit::types::{MutualCredit, McMutation};
+use crate::mutual_credit::incoming::{ProcessOperationOutput, ProcessTransListError, 
     process_operations_list, IncomingMessage};
-use super::outgoing::OutgoingMc;
+use crate::mutual_credit::outgoing::OutgoingMc;
 
 use crate::types::{FriendMoveToken, 
     FriendMoveTokenRequest, ResetTerms, FriendTcOp};
@@ -46,7 +46,7 @@ pub enum SetDirection {
 }
 
 #[allow(unused)]
-pub enum DirectionalMutation {
+pub enum TcMutation {
     McMutation(McMutation),
     SetDirection(SetDirection),
     SetTokenWanted,
@@ -54,7 +54,7 @@ pub enum DirectionalMutation {
 
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct DirectionalTc {
+pub struct TokenChannel {
     pub direction: MoveTokenDirection,
     pub mutual_credit: MutualCredit,
 }
@@ -72,7 +72,7 @@ pub enum ReceiveMoveTokenError {
 
 pub struct MoveTokenReceived {
     pub incoming_messages: Vec<IncomingMessage>,
-    pub mutations: Vec<DirectionalMutation>,
+    pub mutations: Vec<TcMutation>,
 }
 
 
@@ -120,9 +120,9 @@ fn rand_nonce_from_public_key(public_key: &PublicKey) -> RandValue {
     RandValue::try_from(&public_key_hash.as_ref()[.. RAND_VALUE_LEN]).unwrap()
 }
 
-impl DirectionalTc {
+impl TokenChannel {
     pub fn new(local_public_key: &PublicKey, 
-               remote_public_key: &PublicKey) -> DirectionalTc {
+               remote_public_key: &PublicKey) -> TokenChannel {
 
         let balance = 0;
         let mutual_credit = MutualCredit::new(&local_public_key, &remote_public_key, balance);
@@ -155,13 +155,13 @@ impl DirectionalTc {
                 outgoing_move_token_request: friend_move_token_request,
                 opt_prev_incoming_move_token: None,
             };
-            DirectionalTc {
+            TokenChannel {
                 direction: MoveTokenDirection::Outgoing(outgoing_move_token),
                 mutual_credit,
             }
         } else {
             // We are the second sender
-            DirectionalTc {
+            TokenChannel {
                 direction: MoveTokenDirection::Incoming(first_move_token_lower),
                 mutual_credit,
             }
@@ -171,9 +171,9 @@ impl DirectionalTc {
     pub fn new_from_remote_reset(local_public_key: &PublicKey, 
                       remote_public_key: &PublicKey, 
                       reset_move_token: &FriendMoveToken,
-                      balance: i128) -> DirectionalTc {
+                      balance: i128) -> TokenChannel {
 
-        DirectionalTc {
+        TokenChannel {
             direction: MoveTokenDirection::Incoming(reset_move_token.clone()),
             mutual_credit: MutualCredit::new(local_public_key, remote_public_key, balance),
         }
@@ -183,7 +183,7 @@ impl DirectionalTc {
                       remote_public_key: &PublicKey, 
                       reset_move_token: &FriendMoveToken,
                       balance: i128,
-                      opt_last_incoming_move_token: Option<FriendMoveToken>) -> DirectionalTc {
+                      opt_last_incoming_move_token: Option<FriendMoveToken>) -> TokenChannel {
 
         let friend_move_token_request = FriendMoveTokenRequest {
             friend_move_token: reset_move_token.clone(),
@@ -193,7 +193,7 @@ impl DirectionalTc {
             outgoing_move_token_request: friend_move_token_request,
             opt_prev_incoming_move_token: opt_last_incoming_move_token,
         };
-        DirectionalTc {
+        TokenChannel {
             direction: MoveTokenDirection::Outgoing(outgoing_move_token),
             mutual_credit: MutualCredit::new(local_public_key, remote_public_key, balance),
         }
@@ -288,12 +288,12 @@ impl DirectionalTc {
         }
     }
 
-    pub fn mutate(&mut self, d_mutation: &DirectionalMutation) {
+    pub fn mutate(&mut self, d_mutation: &TcMutation) {
         match d_mutation {
-            DirectionalMutation::McMutation(mc_mutation) => {
+            TcMutation::McMutation(mc_mutation) => {
                 self.mutual_credit.mutate(mc_mutation);
             },
-            DirectionalMutation::SetDirection(ref set_direction) => {
+            TcMutation::SetDirection(ref set_direction) => {
                 self.direction = match set_direction {
                     SetDirection::Incoming(new_token) => MoveTokenDirection::Incoming(new_token.clone()),
                     SetDirection::Outgoing(friend_move_token) => {
@@ -309,7 +309,7 @@ impl DirectionalTc {
                     }
                 };
             },
-            DirectionalMutation::SetTokenWanted => {
+            TcMutation::SetTokenWanted => {
                 match self.direction {
                     MoveTokenDirection::Incoming(_) => unreachable!(),
                     MoveTokenDirection::Outgoing(ref mut outgoing_move_token) => {
@@ -366,11 +366,11 @@ impl DirectionalTc {
                     }
                     for mc_mutation in mc_mutations {
                         move_token_received.mutations.push(
-                            DirectionalMutation::McMutation(mc_mutation));
+                            TcMutation::McMutation(mc_mutation));
                     }
                 }
                 move_token_received.mutations.push(
-                    DirectionalMutation::SetDirection(SetDirection::Incoming(new_move_token)));
+                    TcMutation::SetDirection(SetDirection::Incoming(new_move_token)));
                 Ok(ReceiveMoveTokenOutput::Received(move_token_received))
             },
             Err(e) => {

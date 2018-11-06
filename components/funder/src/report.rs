@@ -5,8 +5,8 @@ use crypto::identity::PublicKey;
 use super::friend::{FriendState, ChannelStatus, ChannelInconsistent};
 use super::state::FunderState;
 use super::types::{RequestsStatus, FriendStatus, ResetTerms};
-use super::token_channel::types::{TcBalance, TcRequestsStatus, MutualCredit};
-use super::token_channel::directional::MoveTokenDirection; 
+use super::mutual_credit::types::{TcBalance, TcRequestsStatus, MutualCredit};
+use super::token_channel::MoveTokenDirection; 
 
 #[derive(Clone)]
 pub struct McReport {

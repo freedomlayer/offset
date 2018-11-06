@@ -5,7 +5,7 @@ use crypto::identity::{Identity, SoftwareEd25519Identity,
                         generate_pkcs8_key_pair, SIGNATURE_LEN, Signature};
 #[allow(unused)]
 use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
-use crate::token_channel::types::{MutualCredit};
+use crate::mutual_credit::types::MutualCredit;
 #[allow(unused)]
 use crate::types::{RequestsStatus, InvoiceId, INVOICE_ID_LEN, 
     FunderFreezeLink, Ratio, FriendsRoute, 
@@ -13,8 +13,8 @@ use crate::types::{RequestsStatus, InvoiceId, INVOICE_ID_LEN,
 use crate::signature_buff::{create_response_signature_buffer, 
     create_failure_signature_buffer};
 
-use crate::token_channel::outgoing::{OutgoingMc, QueueOperationFailure};
-use crate::token_channel::incoming::{process_operation, ProcessOperationOutput, ProcessOperationError};
+use crate::mutual_credit::outgoing::{OutgoingMc, QueueOperationFailure};
+use crate::mutual_credit::incoming::{process_operation, ProcessOperationOutput, ProcessOperationError};
 
 /// Helper function for applying an outgoing operation over a token channel.
 fn apply_outgoing(mutual_credit: &mut MutualCredit, friend_tc_op: FriendTcOp) 

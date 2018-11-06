@@ -51,6 +51,7 @@ mod signature_buff;
 mod friend;
 mod state;
 mod types;
+mod mutual_credit;
 mod token_channel;
 mod handler;
 mod report;

@@ -10,13 +10,12 @@ use super::super::types::{FriendTcOp, RequestSendFunds,
     ResponseSendFunds, FailureSendFunds, 
     FriendMoveToken, RequestsStatus, FriendMoveTokenRequest,
     FriendMessage, FunderOutgoingComm};
-use super::super::token_channel::outgoing::{QueueOperationFailure,
+use super::super::mutual_credit::outgoing::{QueueOperationFailure,
     QueueOperationError};
 
 use super::super::friend::{FriendMutation, ResponseOp, ChannelStatus};
 
-use super::super::token_channel::directional::{DirectionalMutation, 
-    MoveTokenDirection, SetDirection};
+use super::super::token_channel::{TcMutation, MoveTokenDirection, SetDirection};
 
 pub enum SendMode {
     EmptyAllowed,
@@ -179,8 +178,8 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
         let (operations, mc_mutations) = out_tc.done();
 
         for mc_mutation in mc_mutations {
-            let directional_mutation = DirectionalMutation::McMutation(mc_mutation);
-            let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
+            let tc_mutation = TcMutation::McMutation(mc_mutation);
+            let friend_mutation = FriendMutation::TcMutation(tc_mutation);
             let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
             self.apply_mutation(messenger_mutation);
         }
@@ -206,9 +205,9 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
                                              rand_nonce,
                                              self.identity_client.clone())).unwrap();
 
-        let directional_mutation = DirectionalMutation::SetDirection(
+        let directional_mutation = TcMutation::SetDirection(
             SetDirection::Outgoing(friend_move_token));
-        let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
+        let friend_mutation = FriendMutation::TcMutation(directional_mutation);
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
 
@@ -287,8 +286,8 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
                 if !outgoing_move_token.outgoing_move_token_request.token_wanted {
                     // We don't have the token. We should request it.
                     // Mark that we have sent a request token, to make sure we don't do this again:
-                    let directional_mutation = DirectionalMutation::SetTokenWanted;
-                    let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
+                    let directional_mutation = TcMutation::SetTokenWanted;
+                    let friend_mutation = FriendMutation::TcMutation(directional_mutation);
                     let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
                     self.apply_mutation(messenger_mutation);
                     self.transmit_outgoing(remote_public_key);

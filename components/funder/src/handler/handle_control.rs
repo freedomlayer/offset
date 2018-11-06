@@ -4,9 +4,8 @@ use crypto::uid::Uid;
 use crypto::hash::HashResult;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
-use super::super::token_channel::types::McMutation;
-use super::super::token_channel::directional::{DirectionalMutation, 
-    MoveTokenDirection};
+use super::super::mutual_credit::types::McMutation;
+use super::super::token_channel::{TcMutation, MoveTokenDirection};
 use super::super::friend::{FriendState, FriendMutation, ChannelStatus};
 use super::super::state::{FunderMutation, FunderState};
 use super::{MutableFunderHandler, 
@@ -51,9 +50,9 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         let _friend = self.get_friend(&set_friend_remote_max_debt.friend_public_key)
             .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-        let tc_mutation = McMutation::SetRemoteMaxDebt(set_friend_remote_max_debt.remote_max_debt);
-        let directional_mutation = DirectionalMutation::McMutation(tc_mutation);
-        let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
+        let mc_mutation = McMutation::SetRemoteMaxDebt(set_friend_remote_max_debt.remote_max_debt);
+        let tc_mutation = TcMutation::McMutation(mc_mutation);
+        let friend_mutation = FriendMutation::TcMutation(tc_mutation);
         let m_mutation = FunderMutation::FriendMutation(
             (set_friend_remote_max_debt.friend_public_key, friend_mutation));
 
@@ -297,13 +296,13 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             }
         }
 
-        let directional = match &friend.channel_status {
+        let token_channel = match &friend.channel_status {
             ChannelStatus::Inconsistent(_) => unreachable!(),
-            ChannelStatus::Consistent(directional) => directional
+            ChannelStatus::Consistent(token_channel) => token_channel
         };
 
         // Check if there is an onging request with the same request_id with this specific friend:
-        if directional
+        if token_channel
             .mutual_credit
             .state()
             .pending_requests

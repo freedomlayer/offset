@@ -16,7 +16,7 @@ use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError};
 use self::handle_friend::HandleFriendError;
 use self::handle_liveness::HandleLivenessError;
-use super::token_channel::directional::{ReceiveMoveTokenError};
+use super::token_channel::ReceiveMoveTokenError;
 use super::types::{FriendMoveToken, FriendsRoute, 
     IncomingControlMessage, IncomingLivenessMessage,
     FriendMoveTokenRequest, FunderOutgoing, FunderIncoming,
