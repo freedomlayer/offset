@@ -10,7 +10,7 @@ use identity::IdentityClient;
 
 use crate::consts::MAX_OPERATIONS_IN_BATCH;
 
-use crate::token_channel::types::{MutualCredit, TcMutation};
+use crate::token_channel::types::{MutualCredit, McMutation};
 use super::incoming::{ProcessOperationOutput, ProcessTransListError, 
     process_operations_list, IncomingMessage};
 use super::outgoing::OutgoingMc;
@@ -47,7 +47,7 @@ pub enum SetDirection {
 
 #[allow(unused)]
 pub enum DirectionalMutation {
-    TcMutation(TcMutation),
+    McMutation(McMutation),
     SetDirection(SetDirection),
     SetTokenWanted,
 }
@@ -290,8 +290,8 @@ impl DirectionalTc {
 
     pub fn mutate(&mut self, d_mutation: &DirectionalMutation) {
         match d_mutation {
-            DirectionalMutation::TcMutation(tc_mutation) => {
-                self.mutual_credit.mutate(tc_mutation);
+            DirectionalMutation::McMutation(mc_mutation) => {
+                self.mutual_credit.mutate(mc_mutation);
             },
             DirectionalMutation::SetDirection(ref set_direction) => {
                 self.direction = match set_direction {
@@ -359,14 +359,14 @@ impl DirectionalTc {
 
                 for output in outputs {
                     let ProcessOperationOutput 
-                        {incoming_message, tc_mutations} = output;
+                        {incoming_message, mc_mutations} = output;
 
                     if let Some(funds) = incoming_message {
                         move_token_received.incoming_messages.push(funds);
                     }
-                    for tc_mutation in tc_mutations {
+                    for mc_mutation in mc_mutations {
                         move_token_received.mutations.push(
-                            DirectionalMutation::TcMutation(tc_mutation));
+                            DirectionalMutation::McMutation(mc_mutation));
                     }
                 }
                 move_token_received.mutations.push(

@@ -4,7 +4,7 @@ use crypto::uid::Uid;
 use crypto::hash::HashResult;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
-use super::super::token_channel::types::TcMutation;
+use super::super::token_channel::types::McMutation;
 use super::super::token_channel::directional::{DirectionalMutation, 
     MoveTokenDirection};
 use super::super::friend::{FriendState, FriendMutation, ChannelStatus};
@@ -51,8 +51,8 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         let _friend = self.get_friend(&set_friend_remote_max_debt.friend_public_key)
             .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-        let tc_mutation = TcMutation::SetRemoteMaxDebt(set_friend_remote_max_debt.remote_max_debt);
-        let directional_mutation = DirectionalMutation::TcMutation(tc_mutation);
+        let tc_mutation = McMutation::SetRemoteMaxDebt(set_friend_remote_max_debt.remote_max_debt);
+        let directional_mutation = DirectionalMutation::McMutation(tc_mutation);
         let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
         let m_mutation = FunderMutation::FriendMutation(
             (set_friend_remote_max_debt.friend_public_key, friend_mutation));

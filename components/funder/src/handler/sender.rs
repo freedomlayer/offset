@@ -176,10 +176,10 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
             out_tc.queue_operation(op)?;
         }
 
-        let (operations, tc_mutations) = out_tc.done();
+        let (operations, mc_mutations) = out_tc.done();
 
-        for tc_mutation in tc_mutations {
-            let directional_mutation = DirectionalMutation::TcMutation(tc_mutation);
+        for mc_mutation in mc_mutations {
+            let directional_mutation = DirectionalMutation::McMutation(mc_mutation);
             let friend_mutation = FriendMutation::DirectionalMutation(directional_mutation);
             let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
             self.apply_mutation(messenger_mutation);
