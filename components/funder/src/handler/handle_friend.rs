@@ -77,11 +77,11 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         let next_index = index.checked_add(1).unwrap();
         let next_pk = request_send_funds.route.index_to_pk(next_index).unwrap();
         let next_friend = self.state.get_friends().get(&next_pk).unwrap();
-        let next_directional = match &next_friend.channel_status {
-            ChannelStatus::Consistent(directional) => directional,
+        let next_tc = match &next_friend.channel_status {
+            ChannelStatus::Consistent(token_channel) => token_channel,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
-        let forward_trust: BigUint = next_directional.mutual_credit.state().balance.remote_max_debt.into();
+        let forward_trust: BigUint = next_tc.mutual_credit.state().balance.remote_max_debt.into();
         let total_trust = self.state.get_total_trust();
         let two_pow_128 = BigUint::new(vec![0x1, 0x0u32, 0x0u32, 0x0u32, 0x0u32]);
 
@@ -104,12 +104,12 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             let prev_index = index.checked_sub(1).unwrap();
             let prev_pk = request_send_funds.route.index_to_pk(prev_index).unwrap();
             let prev_friend = self.state.get_friends().get(&prev_pk).unwrap();
-            let prev_directional = match &prev_friend.channel_status {
-                ChannelStatus::Consistent(directional) => directional,
+            let prev_tc = match &prev_friend.channel_status {
+                ChannelStatus::Consistent(token_channel) => token_channel,
                 ChannelStatus::Inconsistent(_) => unreachable!(),
             };
 
-            let prev_trust: BigUint = prev_directional.mutual_credit.state().balance.remote_max_debt.into();
+            let prev_trust: BigUint = prev_tc.mutual_credit.state().balance.remote_max_debt.into();
             let numerator = (two_pow_128 * forward_trust) / (total_trust - &prev_trust);
             let usable_ratio = match numerator.to_u128() {
                 Some(num) => Ratio::Numerator(num),
@@ -321,13 +321,13 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                                receive_move_token_error: ReceiveMoveTokenError) {
 
         let friend = self.get_friend(&remote_public_key).unwrap();
-        let directional = match &friend.channel_status {
-            ChannelStatus::Consistent(directional) => directional,
+        let token_channel = match &friend.channel_status {
+            ChannelStatus::Consistent(token_channel) => token_channel,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
-        let opt_last_incoming_move_token = directional.get_last_incoming_move_token().cloned();
+        let opt_last_incoming_move_token = token_channel.get_last_incoming_move_token().cloned();
         // Send an InconsistencyError message to remote side:
-        let local_reset_terms = await!(directional.get_reset_terms(self.identity_client.clone()));
+        let local_reset_terms = await!(token_channel.get_reset_terms(self.identity_client.clone()));
 
         self.add_outgoing_comm(FunderOutgoingComm::FriendMessage((remote_public_key.clone(),
                 FriendMessage::InconsistencyError(local_reset_terms.clone()))));
@@ -396,8 +396,8 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             None => Err(HandleFriendError::FriendDoesNotExist),
         }?;
 
-        let directional = match &friend.channel_status {
-            ChannelStatus::Consistent(directional) => directional,
+        let token_channel = match &friend.channel_status {
+            ChannelStatus::Consistent(token_channel) => token_channel,
             ChannelStatus::Inconsistent(channel_inconsistent) => {
                 self.try_reset_channel(&remote_public_key, 
                                        &channel_inconsistent.local_reset_terms.clone(),
@@ -407,7 +407,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         };
 
         // We will only consider move token messages if we are in a consistent state:
-        let receive_move_token_res = directional.simulate_receive_move_token(
+        let receive_move_token_res = token_channel.simulate_receive_move_token(
             friend_move_token_request.friend_move_token);
         let token_wanted = friend_move_token_request.token_wanted;
 
@@ -450,13 +450,13 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         let (should_send_outgoing, 
              new_local_reset_terms, 
              opt_last_incoming_move_token) = match &friend.channel_status {
-            ChannelStatus::Consistent(directional) => {
-                if !directional.is_outgoing() {
+            ChannelStatus::Consistent(token_channel) => {
+                if !token_channel.is_outgoing() {
                     return Err(HandleFriendError::InconsistencyWhenTokenOwned);
                 }
                 (true, 
-                 await!(directional.get_reset_terms(self.identity_client.clone())),
-                 directional.get_last_incoming_move_token().cloned())
+                 await!(token_channel.get_reset_terms(self.identity_client.clone())),
+                 token_channel.get_last_incoming_move_token().cloned())
             },
             ChannelStatus::Inconsistent(channel_inconsistent) => 
                 (false, 

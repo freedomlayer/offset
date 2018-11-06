@@ -111,8 +111,8 @@ impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
         for (friend_public_key, friend) in self.state.get_friends() {
             match &friend.channel_status {
                 ChannelStatus::Inconsistent(_) => continue,
-                ChannelStatus::Consistent(directional) => {
-                    if directional
+                ChannelStatus::Consistent(token_channel) => {
+                    if token_channel
                         .mutual_credit
                         .state()
                         .pending_requests

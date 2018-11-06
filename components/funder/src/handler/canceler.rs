@@ -63,15 +63,15 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
         let friend = self.get_friend(&friend_public_key).unwrap();
 
-        let directional = match &friend.channel_status {
+        let token_channel = match &friend.channel_status {
             ChannelStatus::Inconsistent(_) => unreachable!(),
-            ChannelStatus::Consistent(directional) => directional,
+            ChannelStatus::Consistent(token_channel) => token_channel,
         };
 
         // Mark all pending requests to this friend as errors.  
         // As the token channel is being reset, we can be sure we will never obtain a response
         // for those requests.
-        let pending_local_requests = directional
+        let pending_local_requests = token_channel
             .mutual_credit
             .state()
             .pending_requests

@@ -21,7 +21,7 @@ pub enum DirectionReport {
 }
 
 #[derive(Clone)]
-pub struct DirectionalTcReport {
+pub struct TcReport {
     pub direction: DirectionReport,
     // Equals Sha512/256(FriendMoveToken)
     pub mutual_credit: McReport,
@@ -30,7 +30,7 @@ pub struct DirectionalTcReport {
 #[derive(Clone)]
 pub enum ChannelStatusReport {
     Inconsistent(ChannelInconsistent),
-    Consistent(DirectionalTcReport),
+    Consistent(TcReport),
 }
 
 #[derive(Clone)]
@@ -65,16 +65,16 @@ fn create_tc_report(mutual_credit: &MutualCredit) -> McReport {
 fn create_friend_report<A: Clone>(friend_state: &FriendState<A>) -> FriendReport<A> {
     let channel_status = match &friend_state.channel_status {
         ChannelStatus::Inconsistent(channel_inconsistent) => ChannelStatusReport::Inconsistent(channel_inconsistent.clone()),
-        ChannelStatus::Consistent(directional) => {
-            let direction = match directional.direction {
+        ChannelStatus::Consistent(token_channel) => {
+            let direction = match token_channel.direction {
                 MoveTokenDirection::Incoming(_) => DirectionReport::Incoming,
                 MoveTokenDirection::Outgoing(_) => DirectionReport::Outgoing,
             };
-            let directional = DirectionalTcReport {
+            let tc_report = TcReport {
                 direction,
-                mutual_credit: create_tc_report(&directional.mutual_credit),
+                mutual_credit: create_tc_report(&token_channel.mutual_credit),
             };
-            ChannelStatusReport::Consistent(directional)
+            ChannelStatusReport::Consistent(tc_report)
         },
     };
 

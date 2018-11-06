@@ -36,8 +36,8 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 }
 
                 match &friend.channel_status {
-                    ChannelStatus::Consistent(directional) => {
-                        if directional.is_outgoing() {
+                    ChannelStatus::Consistent(token_channel) => {
+                        if token_channel.is_outgoing() {
                             self.transmit_outgoing(&friend_public_key);
                         }
                     },
