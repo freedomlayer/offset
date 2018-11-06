@@ -5,11 +5,11 @@ use crypto::identity::PublicKey;
 use super::friend::{FriendState, ChannelStatus, ChannelInconsistent};
 use super::state::FunderState;
 use super::types::{RequestsStatus, FriendStatus, ResetTerms};
-use super::token_channel::types::{TcBalance, TcRequestsStatus, TokenChannel};
+use super::token_channel::types::{TcBalance, TcRequestsStatus, MutualCredit};
 use super::token_channel::directional::MoveTokenDirection; 
 
 #[derive(Clone)]
-pub struct TcReport {
+pub struct McReport {
     pub balance: TcBalance,
     pub requests_status: TcRequestsStatus,
 }
@@ -24,7 +24,7 @@ pub enum DirectionReport {
 pub struct DirectionalTcReport {
     pub direction: DirectionReport,
     // Equals Sha512/256(FriendMoveToken)
-    pub token_channel: TcReport,
+    pub mutual_credit: McReport,
 }
 
 #[derive(Clone)]
@@ -55,10 +55,10 @@ pub struct FunderReport<A: Clone> {
 
 }
 
-fn create_tc_report(token_channel: &TokenChannel) -> TcReport {
-    TcReport {
-        balance: token_channel.state().balance.clone(),
-        requests_status: token_channel.state().requests_status.clone(),
+fn create_tc_report(mutual_credit: &MutualCredit) -> McReport {
+    McReport {
+        balance: mutual_credit.state().balance.clone(),
+        requests_status: mutual_credit.state().requests_status.clone(),
     }
 }
 
@@ -72,7 +72,7 @@ fn create_friend_report<A: Clone>(friend_state: &FriendState<A>) -> FriendReport
             };
             let directional = DirectionalTcReport {
                 direction,
-                token_channel: create_tc_report(&directional.token_channel),
+                mutual_credit: create_tc_report(&directional.mutual_credit),
             };
             ChannelStatusReport::Consistent(directional)
         },

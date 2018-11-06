@@ -10,7 +10,7 @@ use identity::IdentityClient;
 
 use crate::consts::MAX_OPERATIONS_IN_BATCH;
 
-use crate::token_channel::types::{TokenChannel, TcMutation};
+use crate::token_channel::types::{MutualCredit, TcMutation};
 use super::incoming::{ProcessOperationOutput, ProcessTransListError, 
     process_operations_list, IncomingMessage};
 use super::outgoing::OutgoingTc;
@@ -56,7 +56,7 @@ pub enum DirectionalMutation {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct DirectionalTc {
     pub direction: MoveTokenDirection,
-    pub token_channel: TokenChannel,
+    pub mutual_credit: MutualCredit,
 }
 
 #[derive(Debug)]
@@ -125,7 +125,7 @@ impl DirectionalTc {
                remote_public_key: &PublicKey) -> DirectionalTc {
 
         let balance = 0;
-        let token_channel = TokenChannel::new(&local_public_key, &remote_public_key, balance);
+        let mutual_credit = MutualCredit::new(&local_public_key, &remote_public_key, balance);
         let rand_nonce = rand_nonce_from_public_key(&remote_public_key);
 
         // This is a special initialization case.
@@ -157,13 +157,13 @@ impl DirectionalTc {
             };
             DirectionalTc {
                 direction: MoveTokenDirection::Outgoing(outgoing_move_token),
-                token_channel,
+                mutual_credit,
             }
         } else {
             // We are the second sender
             DirectionalTc {
                 direction: MoveTokenDirection::Incoming(first_move_token_lower),
-                token_channel,
+                mutual_credit,
             }
         }
     }
@@ -175,7 +175,7 @@ impl DirectionalTc {
 
         DirectionalTc {
             direction: MoveTokenDirection::Incoming(reset_move_token.clone()),
-            token_channel: TokenChannel::new(local_public_key, remote_public_key, balance),
+            mutual_credit: MutualCredit::new(local_public_key, remote_public_key, balance),
         }
     }
 
@@ -195,7 +195,7 @@ impl DirectionalTc {
         };
         DirectionalTc {
             direction: MoveTokenDirection::Outgoing(outgoing_move_token),
-            token_channel: TokenChannel::new(local_public_key, remote_public_key, balance),
+            mutual_credit: MutualCredit::new(local_public_key, remote_public_key, balance),
         }
     }
 
@@ -214,9 +214,9 @@ impl DirectionalTc {
             friend_move_token.new_token.clone(),
             friend_move_token.inconsistency_counter,
             friend_move_token.move_token_counter.wrapping_add(1),
-            self.get_token_channel().state().balance.balance,
-            self.get_token_channel().state().balance.local_pending_debt,
-            self.get_token_channel().state().balance.remote_pending_debt,
+            self.get_mutual_credit().state().balance.balance,
+            self.get_mutual_credit().state().balance.local_pending_debt,
+            self.get_mutual_credit().state().balance.remote_pending_debt,
             rand_nonce,
             identity_client)))
     }
@@ -247,13 +247,13 @@ impl DirectionalTc {
         }
     }
 
-    /// Get a reference to internal token_channel.
-    pub fn get_token_channel(&self) -> &TokenChannel {
-        &self.token_channel
+    /// Get a reference to internal mutual_credit.
+    pub fn get_mutual_credit(&self) -> &MutualCredit {
+        &self.mutual_credit
     }
 
     pub fn remote_max_debt(&self) -> u128 {
-        self.get_token_channel().state().balance.remote_max_debt
+        self.get_mutual_credit().state().balance.remote_max_debt
     }
 
     pub fn get_inconsistency_counter(&self) -> u64 {
@@ -270,14 +270,14 @@ impl DirectionalTc {
         // the remote side has already used the next counter.
         let reset_token = await!(calc_channel_reset_token(
                                 &self.get_cur_move_token().new_token,
-                                 self.get_token_channel().balance_for_reset(),
+                                 self.get_mutual_credit().balance_for_reset(),
                                  identity_client));
         ResetTerms {
             reset_token,
             // TODO: Should we do something other than wrapping_add(1)?
             // 2**64 inconsistencies are required for an overflow.
             inconsistency_counter: self.get_inconsistency_counter().wrapping_add(1),
-            balance_for_reset: self.get_token_channel().balance_for_reset(),
+            balance_for_reset: self.get_mutual_credit().balance_for_reset(),
         }
     }
 
@@ -291,7 +291,7 @@ impl DirectionalTc {
     pub fn mutate(&mut self, d_mutation: &DirectionalMutation) {
         match d_mutation {
             DirectionalMutation::TcMutation(tc_mutation) => {
-                self.token_channel.mutate(tc_mutation);
+                self.mutual_credit.mutate(tc_mutation);
             },
             DirectionalMutation::SetDirection(ref set_direction) => {
                 self.direction = match set_direction {
@@ -339,14 +339,14 @@ impl DirectionalTc {
             return Err(ReceiveMoveTokenError::InvalidMoveTokenCounter);
         }
 
-        let mut token_channel = self.token_channel.clone();
-        let res = process_operations_list(&mut token_channel,
+        let mut mutual_credit = self.mutual_credit.clone();
+        let res = process_operations_list(&mut mutual_credit,
             new_move_token.operations.clone());
 
         // Verify balance:
-        if token_channel.state().balance.balance != new_move_token.balance ||
-           token_channel.state().balance.local_pending_debt != new_move_token.local_pending_debt ||
-           token_channel.state().balance.remote_pending_debt != new_move_token.remote_pending_debt {
+        if mutual_credit.state().balance.balance != new_move_token.balance ||
+           mutual_credit.state().balance.local_pending_debt != new_move_token.local_pending_debt ||
+           mutual_credit.state().balance.remote_pending_debt != new_move_token.remote_pending_debt {
             return Err(ReceiveMoveTokenError::InvalidStatedBalance);
         }
 
@@ -400,7 +400,7 @@ impl DirectionalTc {
                 // Note that we only verify the signature here, and not at the Incoming part.
                 // This allows the genesis move token to occur smoothly, even though its signature
                 // is not correct.
-                let remote_public_key = &self.get_token_channel().state().idents.remote_public_key;
+                let remote_public_key = &self.get_mutual_credit().state().idents.remote_public_key;
                 if !new_move_token.verify(remote_public_key) {
                     return Err(ReceiveMoveTokenError::InvalidSignature);
                 }
@@ -424,7 +424,7 @@ impl DirectionalTc {
             return None;
         }
 
-        Some(OutgoingTc::new(&self.token_channel, MAX_OPERATIONS_IN_BATCH))
+        Some(OutgoingTc::new(&self.mutual_credit, MAX_OPERATIONS_IN_BATCH))
     }
 
 

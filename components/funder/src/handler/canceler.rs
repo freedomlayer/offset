@@ -72,7 +72,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         // As the token channel is being reset, we can be sure we will never obtain a response
         // for those requests.
         let pending_local_requests = directional
-            .token_channel
+            .mutual_credit
             .state()
             .pending_requests
             .pending_local_requests

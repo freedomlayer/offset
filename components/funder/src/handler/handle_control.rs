@@ -304,7 +304,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
         // Check if there is an onging request with the same request_id with this specific friend:
         if directional
-            .token_channel
+            .mutual_credit
             .state()
             .pending_requests
             .pending_local_requests

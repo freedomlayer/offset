@@ -56,7 +56,7 @@ impl FreezeGuard {
 
         for (_friend_public_key, friend) in &funder_state.friends {
             if let ChannelStatus::Consistent(directional) = &friend.channel_status {
-                let pending_local_requests = &directional.token_channel.state().pending_requests.pending_local_requests;
+                let pending_local_requests = &directional.mutual_credit.state().pending_requests.pending_local_requests;
                 for (_request_id, pending_request) in pending_local_requests {
                     freeze_guard.add_frozen_credit(&pending_request);
                 }

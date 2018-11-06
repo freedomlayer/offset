@@ -91,7 +91,7 @@ impl TcRequestsStatus {
 
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct TokenChannelState {
+pub struct MutualCreditState {
     pub idents: TcIdents,
     pub balance: TcBalance,
     pub pending_requests: TcPendingRequests,
@@ -99,8 +99,8 @@ pub struct TokenChannelState {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct TokenChannel {
-    state: TokenChannelState,
+pub struct MutualCredit {
+    state: MutualCreditState,
 }
 
 pub enum TcMutation {
@@ -118,13 +118,13 @@ pub enum TcMutation {
 }
 
 
-impl TokenChannel {
+impl MutualCredit {
     pub fn new(local_public_key: &PublicKey, 
            remote_public_key: &PublicKey, 
-           balance: i128) -> TokenChannel {
+           balance: i128) -> MutualCredit {
 
-        TokenChannel {
-            state: TokenChannelState {
+        MutualCredit {
+            state: MutualCreditState {
                 idents: TcIdents {
                     local_public_key: local_public_key.clone(),
                     remote_public_key: remote_public_key.clone(),
@@ -144,7 +144,7 @@ impl TokenChannel {
             .expect("Overflow when calculating balance_for_reset")
     }
 
-    pub fn state(&self) -> &TokenChannelState {
+    pub fn state(&self) -> &MutualCreditState {
         &self.state
     }
 

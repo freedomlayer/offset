@@ -100,7 +100,7 @@ impl<A:Clone + 'static> FriendState<A> {
     pub fn get_trust(&self) -> u128 {
         match &self.channel_status {
             ChannelStatus::Consistent(directional) =>
-                directional.token_channel.state().balance.remote_max_debt,
+                directional.mutual_credit.state().balance.remote_max_debt,
             ChannelStatus::Inconsistent(_) => {
                 // TODO; Is this the right return value here?
                 self.wanted_remote_max_debt 

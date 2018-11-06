@@ -82,7 +82,7 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
 
         // Open or close requests is needed:
         let local_requests_status = &directional
-            .token_channel
+            .mutual_credit
             .state()
             .requests_status
             .local;
