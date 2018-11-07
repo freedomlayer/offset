@@ -121,7 +121,7 @@ pub struct FriendsRoute {
 
 
 #[allow(unused)]
-#[derive(PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct FriendMoveToken {
     pub operations: Vec<FriendTcOp>,
     pub old_token: Signature,
