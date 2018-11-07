@@ -55,7 +55,7 @@ pub enum FriendTcOp {
     FailureSendFunds(FailureSendFunds),
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct PendingFriendRequest {
     pub request_id: Uid,
     pub route: FriendsRoute,
@@ -149,8 +149,8 @@ impl FriendMoveToken {
         let mut friend_move_token = FriendMoveToken {
             operations,
             old_token,
-            inconsistency_counter: 0,
-            move_token_counter: 0,
+            inconsistency_counter,
+            move_token_counter,
             balance,
             local_pending_debt,
             remote_pending_debt,
