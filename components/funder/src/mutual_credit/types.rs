@@ -103,6 +103,7 @@ pub struct MutualCredit {
     state: MutualCreditState,
 }
 
+#[derive(Eq, PartialEq, Debug)]
 pub enum McMutation {
     SetLocalRequestsStatus(RequestsStatus),
     SetRemoteRequestsStatus(RequestsStatus),
