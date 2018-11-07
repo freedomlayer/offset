@@ -321,34 +321,10 @@ impl TokenChannel {
 
         match &self.direction {
             TcDirection::Incoming(tc_incoming) => {
-                if &tc_incoming.move_token_in == &new_move_token {
-                    // Duplicate
-                    Ok(ReceiveMoveTokenOutput::Duplicate)
-                } else {
-                    // Inconsistency
-                    Err(ReceiveMoveTokenError::ChainInconsistency)
-                }
+                tc_incoming.handle_incoming(new_move_token)
             },
             TcDirection::Outgoing(tc_outgoing) => {
-                // Verify signature:
-                // Note that we only verify the signature here, and not at the Incoming part.
-                // This allows the genesis move token to occur smoothly, even though its signature
-                // is not correct.
-                let remote_public_key = &self.get_mutual_credit().state().idents.remote_public_key;
-                if !new_move_token.verify(remote_public_key) {
-                    return Err(ReceiveMoveTokenError::InvalidSignature);
-                }
-
-                // let friend_move_token = &tc_outgoing.move_token_out;
-                if &new_move_token.old_token == &self.get_cur_move_token().new_token {
-                    tc_outgoing.handle_incoming(new_move_token)
-                    // self.outgoing_to_incoming(friend_move_token, new_move_token)
-                } else if tc_outgoing.move_token_out.old_token == new_move_token.new_token {
-                    // We should retransmit our move token message to the remote side.
-                    Ok(ReceiveMoveTokenOutput::RetransmitOutgoing(tc_outgoing.move_token_out.clone()))
-                } else {
-                    Err(ReceiveMoveTokenError::ChainInconsistency)
-                }
+                tc_outgoing.handle_incoming(new_move_token)
             },
         }
     }
@@ -356,6 +332,21 @@ impl TokenChannel {
 
 
 impl TcIncoming {
+    /// Handle an incoming move token during Incoming direction:
+    fn handle_incoming(&self, 
+                        new_move_token: FriendMoveToken) 
+        -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
+        // We compare the whole move token message and not just the signature (new_token)
+        // because we don't check the signature in this flow.
+        if &self.move_token_in == &new_move_token {
+            // Duplicate
+            Ok(ReceiveMoveTokenOutput::Duplicate)
+        } else {
+            // Inconsistency
+            Err(ReceiveMoveTokenError::ChainInconsistency)
+        }
+    }
+
     pub async fn create_friend_move_token(&self,
                                     operations: Vec<FriendTcOp>,
                                     rand_nonce: RandValue,
@@ -382,8 +373,34 @@ impl TcIncoming {
 
 
 impl TcOutgoing {
+    /// Handle an incoming move token during Outgoing direction:
     fn handle_incoming(&self, 
                         new_move_token: FriendMoveToken) 
+        -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
+
+        // Verify signature:
+        // Note that we only verify the signature here, and not at the Incoming part.
+        // This allows the genesis move token to occur smoothly, even though its signature
+        // is not correct.
+        let remote_public_key = &self.mutual_credit.state().idents.remote_public_key;
+        if !new_move_token.verify(remote_public_key) {
+            return Err(ReceiveMoveTokenError::InvalidSignature);
+        }
+
+        // let friend_move_token = &tc_outgoing.move_token_out;
+        if &new_move_token.old_token == &self.move_token_out.new_token {
+            self.handle_incoming_token_match(new_move_token)
+            // self.outgoing_to_incoming(friend_move_token, new_move_token)
+        } else if self.move_token_out.old_token == new_move_token.new_token {
+            // We should retransmit our move token message to the remote side.
+            Ok(ReceiveMoveTokenOutput::RetransmitOutgoing(self.move_token_out.clone()))
+        } else {
+            Err(ReceiveMoveTokenError::ChainInconsistency)
+        }
+    }
+
+    fn handle_incoming_token_match(&self,
+                                   new_move_token: FriendMoveToken)
         -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
     
         // Verify counters:
