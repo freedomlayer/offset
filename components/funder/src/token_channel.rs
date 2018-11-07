@@ -532,7 +532,7 @@ mod tests {
         let is_b_a_outgoing = token_channel_b_a.is_outgoing();
         assert!(is_a_b_outgoing ^ is_b_a_outgoing);
 
-        let (out_tc, _out_identity_client, in_tc, in_identity_client) = if is_a_b_outgoing {
+        let (mut out_tc, _out_identity_client, in_tc, in_identity_client) = if is_a_b_outgoing {
             (token_channel_a_b, identity_client1, token_channel_b_a, identity_client2)
         } else {
             (token_channel_b_a, identity_client2, token_channel_a_b, identity_client1)
@@ -586,6 +586,14 @@ mod tests {
             }
         }
         assert!(seen_mc_mutation && seen_set_direction);
+
+        for tc_mutation in &move_token_received.mutations {
+            out_tc.mutate(tc_mutation);
+        }
+
+        assert!(!out_tc.is_outgoing());
+        assert_eq!(out_tc.get_cur_move_token(), &friend_move_token);
+        assert_eq!(out_tc.get_mutual_credit().state().balance.local_max_debt, 100);
     }
 
     #[test]
