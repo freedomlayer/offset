@@ -301,13 +301,13 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 },
                 IncomingMessage::Response(IncomingResponseSendFunds {
                                                 pending_request, incoming_response}) => {
-                    self.ephemeral.freeze_guard.sub_frozen_credit(&pending_request);
+                    self.ephemeral.freeze_guard.sub_frozen_credit(&pending_request.route, pending_request.dest_payment);
                     self.handle_response_send_funds(&remote_public_key, 
                                                   incoming_response, pending_request);
                 },
                 IncomingMessage::Failure(IncomingFailureSendFunds {
                                                 pending_request, incoming_failure}) => {
-                    self.ephemeral.freeze_guard.sub_frozen_credit(&pending_request);
+                    self.ephemeral.freeze_guard.sub_frozen_credit(&pending_request.route, pending_request.dest_payment);
                     await!(self.handle_failure_send_funds(&remote_public_key, 
                                                  incoming_failure, pending_request));
                 },

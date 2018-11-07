@@ -11,7 +11,8 @@ pub struct FunderEphemeral {
 impl FunderEphemeral {
     pub fn new<A: Clone>(funder_state: &FunderState<A>) -> FunderEphemeral {
         FunderEphemeral {
-            freeze_guard: FreezeGuard::new(funder_state),
+            freeze_guard: FreezeGuard::new(&funder_state.local_public_key)
+                .load_funder_state(funder_state),
             liveness: Liveness::new(),
         }
     }

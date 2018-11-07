@@ -6,10 +6,10 @@ use crypto::identity::PublicKey;
 use crypto::hash::{HashResult, sha_512_256};
 use utils::int_convert::usize_to_u32;
 
-use super::credit_calc::CreditCalculator;
-use super::state::FunderState;
-use super::friend::ChannelStatus;
-use super::types::{PendingFriendRequest, RequestSendFunds, Ratio};
+use crate::credit_calc::CreditCalculator;
+use crate::state::FunderState;
+use crate::friend::ChannelStatus;
+use crate::types::{PendingFriendRequest, RequestSendFunds, Ratio, FriendsRoute};
 
 
 #[derive(Clone)]
@@ -48,12 +48,16 @@ fn hash_subroute(subroute: &[PublicKey]) -> HashResult {
 }
 
 impl FreezeGuard {
-    pub fn new<A: Clone>(funder_state: &FunderState<A>) -> FreezeGuard {
-        let mut freeze_guard = FreezeGuard {
-            local_public_key: funder_state.local_public_key.clone(),
+    pub fn new(local_public_key: &PublicKey) -> FreezeGuard {
+        FreezeGuard {
+            local_public_key: local_public_key.clone(),
             frozen_to: ImHashMap::new(),
-        };
+        }
+    }
 
+    pub fn load_funder_state<A: Clone>(mut self, funder_state: &FunderState<A>) -> FreezeGuard {
+        // Local public key should match:
+        assert_eq!(self.local_public_key, funder_state.local_public_key);
         for (_friend_public_key, friend) in &funder_state.friends {
             if let ChannelStatus::Consistent(token_channel) = &friend.channel_status {
                 let pending_local_requests = &token_channel
@@ -62,12 +66,11 @@ impl FreezeGuard {
                     .pending_requests
                     .pending_local_requests;
                 for (_request_id, pending_request) in pending_local_requests {
-                    freeze_guard.add_frozen_credit(&pending_request);
+                    self.add_frozen_credit(&pending_request.route, pending_request.dest_payment);
                 }
             }
         }
-
-        freeze_guard
+        self
     }
     // TODO: Possibly refactor similar code of add/sub frozen credit to be one function that
     // returns an iterator?
@@ -75,30 +78,27 @@ impl FreezeGuard {
     /// A -- ... -- X -- B
     /// ```
     /// Add credits frozen by B of all nodes until us on the route.
-    pub fn add_frozen_credit(&mut self, pending_request: &PendingFriendRequest) {
-        if &self.local_public_key == pending_request.route.public_keys.last().unwrap() {
+    pub fn add_frozen_credit(&mut self, route: &FriendsRoute, dest_payment: u128) {
+        assert!(route.public_keys.contains(&self.local_public_key));
+        if &self.local_public_key == route.public_keys.last().unwrap() {
             // We are the destination. Nothing to do here.
             return;
         }
 
-        let my_index = pending_request.route.pk_to_index(&self.local_public_key).unwrap();
+        let my_index = route.pk_to_index(&self.local_public_key).unwrap();
 
-        let route_len = usize_to_u32(pending_request.route.len()).unwrap();
-        let credit_calc = CreditCalculator::new(route_len,
-                                                pending_request.dest_payment);
+        let route_len = usize_to_u32(route.len()).unwrap();
+        let credit_calc = CreditCalculator::new(route_len, dest_payment);
 
         let next_index = my_index.checked_add(1).unwrap();
-        let next_public_key = pending_request.route
-            .index_to_pk(next_index).unwrap().clone();
+        let next_public_key = route.index_to_pk(next_index).unwrap().clone();
         let friend_freeze_guard = self.frozen_to
             .entry(next_public_key)
             .or_insert_with(FriendFreezeGuard::new);
 
         // Iterate over all nodes from the beginning of the route until our index:
-        for node_index in 0 .. my_index {
-            let node_public_key = pending_request.route
-                .index_to_pk(node_index)
-                .unwrap();
+        for node_index in 0 ..= my_index {
+            let node_public_key = route.index_to_pk(node_index).unwrap();
             
             let next_node_index = usize_to_u32(node_index.checked_add(1).unwrap()).unwrap();
             let credits_to_freeze = credit_calc.credits_to_freeze(next_node_index).unwrap();
@@ -107,7 +107,7 @@ impl FreezeGuard {
                 .entry(node_public_key.clone())
                 .or_insert_with(ImHashMap::new);
 
-            let route_hash = hash_subroute(&pending_request.route.public_keys[node_index .. next_index]);
+            let route_hash = hash_subroute(&route.public_keys[node_index ..= next_index]);
             let route_entry = routes_map
                 .entry(route_hash.clone())
                 .or_insert(0);
@@ -116,28 +116,28 @@ impl FreezeGuard {
         }
     }
 
-    pub fn sub_frozen_credit(&mut self, pending_request: &PendingFriendRequest) {
-        if &self.local_public_key == pending_request.route.public_keys.last().unwrap() {
+    pub fn sub_frozen_credit(&mut self, route: &FriendsRoute, dest_payment: u128) {
+        assert!(route.public_keys.contains(&self.local_public_key));
+        if &self.local_public_key == route.public_keys.last().unwrap() {
             // We are the destination. Nothing to do here.
             return;
         }
 
-        let my_index = pending_request.route.pk_to_index(&self.local_public_key).unwrap();
+        let my_index = route.pk_to_index(&self.local_public_key).unwrap();
 
-        let route_len = usize_to_u32(pending_request.route.len()).unwrap();
-        let credit_calc = CreditCalculator::new(route_len,
-                                                pending_request.dest_payment);
+        let route_len = usize_to_u32(route.len()).unwrap();
+        let credit_calc = CreditCalculator::new(route_len, dest_payment);
 
         let next_index = my_index.checked_add(1).unwrap();
-        let next_public_key = pending_request.route
+        let next_public_key = route
             .index_to_pk(next_index).unwrap().clone();
         let friend_freeze_guard = self.frozen_to
             .get_mut(&next_public_key)
             .unwrap();
 
         // Iterate over all nodes from the beginning of the route until our index:
-        for node_index in 0 .. my_index {
-            let node_public_key = pending_request.route
+        for node_index in 0 ..= my_index {
+            let node_public_key = route
                 .index_to_pk(node_index)
                 .unwrap();
             
@@ -148,7 +148,7 @@ impl FreezeGuard {
                 .get_mut(&node_public_key)
                 .unwrap();
 
-            let route_hash = hash_subroute(&pending_request.route.public_keys[node_index .. next_index]);
+            let route_hash = hash_subroute(&route.public_keys[node_index ..= next_index]);
             let route_entry = routes_map
                 .get_mut(&route_hash)
                 .unwrap();
@@ -171,7 +171,7 @@ impl FreezeGuard {
         }
     }
 
-    /// Get the amount of credits frozen from <from_pk> to <to_pk> going through this Offst node,
+    /// Get the amount of credits frozen from <from_pk> to <to_pk> going through this sub-route,
     /// where <to_pk> is a friend of this Offst node.
     fn get_frozen(&self, subroute: &[PublicKey]) -> u128 {
         if subroute.len() < 2 {
@@ -181,10 +181,10 @@ impl FreezeGuard {
         let to_pk = &subroute[subroute.len().checked_sub(1).unwrap()];
 
         self.frozen_to.get(to_pk)
-            .and_then(|ref friend_freeze_guard| 
-                 friend_freeze_guard.frozen_credits_from.get(from_pk))
+            .and_then(|ref friend_freeze_guard|
+                friend_freeze_guard.frozen_credits_from.get(from_pk))
             .and_then(|ref routes_map|
-                 routes_map.get(&hash_subroute(subroute)).cloned())
+                routes_map.get(&hash_subroute(subroute)).cloned())
             .unwrap_or(0u128)
     }
 
