@@ -78,7 +78,9 @@ impl FreezeGuard {
     /// ```text
     /// A -- ... -- X -- B
     /// ```
-    /// Add credits frozen by B of all nodes until us on the route.
+    /// On the image: X is the local public key, B is a direct friend of X.
+    /// For every node Y along the route, we add the credits Y needs to freeze because of the route
+    /// from A to B.
     pub fn add_frozen_credit(&mut self, route: &FriendsRoute, dest_payment: u128) {
         assert!(route.public_keys.contains(&self.local_public_key));
         if &self.local_public_key == route.public_keys.last().unwrap() {
@@ -117,6 +119,12 @@ impl FreezeGuard {
         }
     }
 
+    /// ```text
+    /// A -- ... -- X -- B
+    /// ```
+    /// On the image: X is the local public key, B is a direct friend of X.
+    /// For every node Y along the route, we subtract the credits Y needs to freeze because of the
+    /// route from A to B. In other words, this method unfreezes frozen credits along this route.
     pub fn sub_frozen_credit(&mut self, route: &FriendsRoute, dest_payment: u128) {
         assert!(route.public_keys.contains(&self.local_public_key));
         if &self.local_public_key == route.public_keys.last().unwrap() {
