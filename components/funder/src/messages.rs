@@ -60,12 +60,6 @@ pub struct FriendInfo {
     status: FriendStatus,
 }
 
-pub struct PendingFriendRequest {
-    pub request_id: Uid,
-    // pub route: FriendsRouteWithCapacity, // TODO: Fill in later
-    pub invoice_id: InvoiceId,
-    pub destination_payment: u128,
-}
 
 // ======== Internal interface ========
 
