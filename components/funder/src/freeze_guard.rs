@@ -233,3 +233,165 @@ impl FreezeGuard {
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
+    use crypto::uid::{Uid, UID_LEN};
+
+    /// Get the amount of credits to be frozen on a route of a certain length
+    /// with certain amount to pay.
+    /// index is the location of the next node. For example, index = 1 will return the amount of
+    /// credits node 0 should freeze.
+    fn credit_freeze(route_len: u32, dest_payment: u128, index: u32) -> u128 {
+        CreditCalculator::new(route_len, dest_payment).credits_to_freeze(index).unwrap()
+    }
+
+    #[test]
+    fn test_get_frozen_basic() {
+        /*
+         * a -- b -- (c) -- d
+        */
+
+        let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
+        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let pk_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
+        let pk_d = PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]);
+
+        let mut freeze_guard = FreezeGuard::new(&pk_c);
+        freeze_guard.add_frozen_credit(&FriendsRoute 
+                                       {public_keys: vec![pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 19);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]);
+        assert_eq!(credit_freeze(4,19,1), guard_frozen);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_b.clone(), pk_c.clone(), pk_d.clone()]);
+        assert_eq!(credit_freeze(4,19,2), guard_frozen);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_c.clone(), pk_d.clone()]);
+        assert_eq!(credit_freeze(4,19,3), guard_frozen);
+
+        freeze_guard.sub_frozen_credit(&FriendsRoute 
+                                       {public_keys: vec![pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 19);
+        let guard_frozen = freeze_guard.get_frozen(&[pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]);
+        assert_eq!(guard_frozen, 0);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_b.clone(), pk_c.clone(), pk_d.clone()]);
+        assert_eq!(guard_frozen, 0);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_c.clone(), pk_d.clone()]);
+        assert_eq!(guard_frozen, 0);
+    }
+
+    #[test]
+    fn test_get_frozen_multiple_requests() {
+        /*
+         * a -- b -- (c) -- d
+        */
+
+        let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
+        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let pk_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
+        let pk_d = PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]);
+
+        let mut freeze_guard = FreezeGuard::new(&pk_c);
+        freeze_guard.add_frozen_credit(&FriendsRoute 
+                                       {public_keys: vec![pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 11);
+        freeze_guard.add_frozen_credit(&FriendsRoute 
+                                       {public_keys: vec![pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 17);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]);
+        assert_eq!(credit_freeze(4,11,1), guard_frozen);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_b.clone(), pk_c.clone(), pk_d.clone()]);
+        assert_eq!(credit_freeze(4,11,2) + credit_freeze(3,17,1), guard_frozen);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_c.clone(), pk_d.clone()]);
+        assert_eq!(credit_freeze(4,11,3) + credit_freeze(3,17,2), guard_frozen);
+
+        freeze_guard.sub_frozen_credit(&FriendsRoute 
+                                       {public_keys: vec![pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 11);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]);
+        assert_eq!(0, guard_frozen);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_b.clone(), pk_c.clone(), pk_d.clone()]);
+        assert_eq!(credit_freeze(3,17,1), guard_frozen);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_c.clone(), pk_d.clone()]);
+        assert_eq!(credit_freeze(3,17,2), guard_frozen);
+
+        freeze_guard.sub_frozen_credit(&FriendsRoute 
+                                       {public_keys: vec![pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 17);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]);
+        assert_eq!(0, guard_frozen);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_b.clone(), pk_c.clone(), pk_d.clone()]);
+        assert_eq!(0, guard_frozen);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_c.clone(), pk_d.clone()]);
+        assert_eq!(0, guard_frozen);
+    }
+
+    #[test]
+    fn test_get_frozen_branch_out() {
+        /*
+         * a -- b -- (c) -- d
+         *      |
+         *      e
+        */
+
+        let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
+        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let pk_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
+        let pk_d = PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]);
+        let pk_e = PublicKey::from(&[0xee; PUBLIC_KEY_LEN]);
+
+        let mut freeze_guard = FreezeGuard::new(&pk_c);
+        freeze_guard.add_frozen_credit(&FriendsRoute 
+                                       {public_keys: vec![pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 11);
+        freeze_guard.add_frozen_credit(&FriendsRoute 
+                                       {public_keys: vec![pk_e.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 17);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]);
+        assert_eq!(credit_freeze(4,11,1), guard_frozen);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_e.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]);
+        assert_eq!(credit_freeze(4,17,1), guard_frozen);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_b.clone(), pk_c.clone(), pk_d.clone()]);
+        assert_eq!(credit_freeze(4,11,2) + credit_freeze(4,17,2), guard_frozen);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_c.clone(), pk_d.clone()]);
+        assert_eq!(credit_freeze(4,11,3) + credit_freeze(4,17,3), guard_frozen);
+
+        freeze_guard.sub_frozen_credit(&FriendsRoute 
+                                       {public_keys: vec![pk_e.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 17);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_e.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]);
+        assert_eq!(0, guard_frozen);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]);
+        assert_eq!(credit_freeze(4,11,1), guard_frozen);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_b.clone(), pk_c.clone(), pk_d.clone()]);
+        assert_eq!(credit_freeze(4,11,2), guard_frozen);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_c.clone(), pk_d.clone()]);
+        assert_eq!(credit_freeze(4,11,3), guard_frozen);
+
+        freeze_guard.sub_frozen_credit(&FriendsRoute 
+                                       {public_keys: vec![pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 11);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]);
+        assert_eq!(0, guard_frozen);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_b.clone(), pk_c.clone(), pk_d.clone()]);
+        assert_eq!(0, guard_frozen);
+
+        let guard_frozen = freeze_guard.get_frozen(&[pk_c.clone(), pk_d.clone()]);
+        assert_eq!(0, guard_frozen);
+    }
+}
