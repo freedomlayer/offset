@@ -105,36 +105,41 @@ fn rand_nonce_from_public_key(public_key: &PublicKey) -> RandValue {
     RandValue::try_from(&public_key_hash.as_ref()[.. RAND_VALUE_LEN]).unwrap()
 }
 
+/// Create an initial move token in the relationship between two public keys.
+/// To canonicalize the initial move token (Having an equal move token for both sides), we sort the
+/// two public keys in some way.
+fn initial_move_token(low_public_key: &PublicKey, high_public_key: &PublicKey) -> FriendMoveToken {
+    // This is a special initialization case.
+    // Note that this is the only case where new_token is not a valid signature.
+    // We do this because we want to have synchronization between the two sides of the token
+    // channel, however, the remote side has no means of generating the signature (Because he
+    // doesn't have the private key). Therefore we use a dummy new_token instead.
+    let rand_nonce = rand_nonce_from_public_key(&high_public_key);
+    FriendMoveToken {
+        operations: Vec::new(),
+        old_token: token_from_public_key(&low_public_key),
+        inconsistency_counter: 0, 
+        move_token_counter: 0,
+        balance: 0,
+        local_pending_debt: 0,
+        remote_pending_debt: 0,
+        rand_nonce,
+        new_token: token_from_public_key(&high_public_key),
+    }
+}
+
 impl TokenChannel {
     pub fn new(local_public_key: &PublicKey, 
                remote_public_key: &PublicKey) -> TokenChannel {
 
         let balance = 0;
         let mutual_credit = MutualCredit::new(&local_public_key, &remote_public_key, balance);
-        let rand_nonce = rand_nonce_from_public_key(&remote_public_key);
-
-        // This is a special initialization case.
-        // Note that this is the only case where new_token is not a valid signature.
-        // We do this because we want to have synchronization between the two sides of the token
-        // channel, however, the remote side has no means of generating the signature (Because he
-        // doesn't have the private key). Therefore we use a dummy new_token instead.
-        let first_move_token_lower = FriendMoveToken {
-            operations: Vec::new(),
-            old_token: token_from_public_key(&local_public_key),
-            inconsistency_counter: 0, 
-            move_token_counter: 0,
-            balance: 0,
-            local_pending_debt: 0,
-            remote_pending_debt: 0,
-            rand_nonce,
-            new_token: token_from_public_key(&remote_public_key),
-        };
 
         if sha_512_256(&local_public_key) < sha_512_256(&remote_public_key) {
             // We are the first sender
             let tc_outgoing = TcOutgoing {
                 mutual_credit,
-                move_token_out: first_move_token_lower,
+                move_token_out: initial_move_token(local_public_key, remote_public_key),
                 token_wanted: false,
                 opt_prev_move_token_in: None,
             };
@@ -145,7 +150,7 @@ impl TokenChannel {
             // We are the second sender
             let tc_incoming = TcIncoming {
                 mutual_credit,
-                move_token_in: first_move_token_lower,
+                move_token_in: initial_move_token(remote_public_key, local_public_key),
             };
             TokenChannel {
                 direction: TcDirection::Incoming(tc_incoming),
