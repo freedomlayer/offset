@@ -444,3 +444,30 @@ impl TcOutgoing {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_initial_direction() {
+        let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
+        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let token_channel_a_b = TokenChannel::new(&pk_a, &pk_b);
+        let token_channel_b_a = TokenChannel::new(&pk_b, &pk_a);
+
+        // Only one can be outgoing:
+        let is_a_b_outgoing = token_channel_a_b.is_outgoing();
+        let is_b_a_outgoing = token_channel_b_a.is_outgoing();
+        assert!(is_a_b_outgoing ^ is_b_a_outgoing);
+
+        let (out_tc, in_tc) = if is_a_b_outgoing {
+            (token_channel_a_b, token_channel_b_a)
+        } else {
+            (token_channel_b_a, token_channel_a_b)
+        };
+
+        assert_eq!(out_tc.get_cur_move_token(), in_tc.get_cur_move_token());
+    }
+}
