@@ -81,7 +81,8 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         let local_public_key = self.state.get_local_public_key().clone();
         // Prepare a list of all remote requests that we need to cancel:
         for (local_request_id, pending_local_request) in pending_local_requests {
-            self.ephemeral.freeze_guard.sub_frozen_credit(&pending_local_request);
+            self.ephemeral.freeze_guard.sub_frozen_credit(
+                &pending_local_request.route, pending_local_request.dest_payment);
 
             let opt_origin_public_key = self.find_request_origin(&local_request_id).cloned();
             let origin_public_key = match opt_origin_public_key {

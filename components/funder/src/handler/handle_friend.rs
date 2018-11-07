@@ -211,7 +211,12 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         self.add_local_freezing_link(&mut request_send_funds);
 
         // Perform DoS protection check:
-        match self.ephemeral.freeze_guard.verify_freezing_links(&request_send_funds) {
+        let verify_res = self.ephemeral
+            .freeze_guard
+            .verify_freezing_links(&request_send_funds.route,
+                                               request_send_funds.dest_payment,
+                                               &request_send_funds.freeze_links);
+        match verify_res {
             Some(()) => {
                 // Add our freezing link, and queue message to the next node.
                 self.forward_request(request_send_funds);
@@ -301,13 +306,13 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 },
                 IncomingMessage::Response(IncomingResponseSendFunds {
                                                 pending_request, incoming_response}) => {
-                    self.ephemeral.freeze_guard.sub_frozen_credit(&pending_request);
+                    self.ephemeral.freeze_guard.sub_frozen_credit(&pending_request.route, pending_request.dest_payment);
                     self.handle_response_send_funds(&remote_public_key, 
                                                   incoming_response, pending_request);
                 },
                 IncomingMessage::Failure(IncomingFailureSendFunds {
                                                 pending_request, incoming_failure}) => {
-                    self.ephemeral.freeze_guard.sub_frozen_credit(&pending_request);
+                    self.ephemeral.freeze_guard.sub_frozen_credit(&pending_request.route, pending_request.dest_payment);
                     await!(self.handle_failure_send_funds(&remote_public_key, 
                                                  incoming_failure, pending_request));
                 },

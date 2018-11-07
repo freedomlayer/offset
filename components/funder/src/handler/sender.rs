@@ -188,9 +188,9 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
         // Update freeze guard about outgoing requests:
         for operation in &operations {
             if let FriendTcOp::RequestSendFunds(request_send_funds) = operation {
-                self.ephemeral.freeze_guard
-                    .add_frozen_credit(
-                        &request_send_funds.create_pending_request());
+                let pending_request = &request_send_funds.create_pending_request();
+                self.ephemeral.freeze_guard.add_frozen_credit(
+                    &pending_request.route, pending_request.dest_payment);
             }
         }
 

@@ -3,6 +3,8 @@
 use std::convert::TryFrom;
 // use utils::int_convert::usize_to_u32;
 
+// TODO: Why do we take node_index and route_len as u32? 
+// Possibly change this in the future?
 
 /// Amount of credit paid to a node that sent a valid Response
 ///
