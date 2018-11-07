@@ -211,7 +211,12 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         self.add_local_freezing_link(&mut request_send_funds);
 
         // Perform DoS protection check:
-        match self.ephemeral.freeze_guard.verify_freezing_links(&request_send_funds) {
+        let verify_res = self.ephemeral
+            .freeze_guard
+            .verify_freezing_links(&request_send_funds.route,
+                                               request_send_funds.dest_payment,
+                                               &request_send_funds.freeze_links);
+        match verify_res {
             Some(()) => {
                 // Add our freezing link, and queue message to the next node.
                 self.forward_request(request_send_funds);

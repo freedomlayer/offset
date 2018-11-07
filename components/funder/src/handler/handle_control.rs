@@ -318,13 +318,20 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
         let mut request_send_funds = user_request_send_funds.to_request();
         self.add_local_freezing_link(&mut request_send_funds);
-        if self.ephemeral.freeze_guard.verify_freezing_links(&request_send_funds).is_some() {
+
+        let verify_res = self.ephemeral
+            .freeze_guard
+            .verify_freezing_links(&request_send_funds.route,
+                                   request_send_funds.dest_payment,
+                                   &request_send_funds.freeze_links);
+
+        if verify_res.is_some() {
             return Err(HandleControlError::BlockedByFreezeGuard);
         }
 
         let friend_mutation = FriendMutation::PushBackPendingUserRequest(request_send_funds);
-        let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-        self.apply_mutation(messenger_mutation);
+        let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+        self.apply_mutation(funder_mutation);
         self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed);
 
         Ok(())

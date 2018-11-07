@@ -9,7 +9,8 @@ use utils::int_convert::usize_to_u32;
 use crate::credit_calc::CreditCalculator;
 use crate::state::FunderState;
 use crate::friend::ChannelStatus;
-use crate::types::{PendingFriendRequest, RequestSendFunds, Ratio, FriendsRoute};
+use crate::types::{PendingFriendRequest, RequestSendFunds, 
+    Ratio, FriendsRoute, FunderFreezeLink};
 
 
 #[derive(Clone)]
@@ -188,37 +189,45 @@ impl FreezeGuard {
             .unwrap_or(0u128)
     }
 
-    pub fn verify_freezing_links(&self, request_send_funds: &RequestSendFunds) -> Option<()> {
-        let my_index = request_send_funds.route.pk_to_index(&self.local_public_key).unwrap();
-        // TODO: Do we ever get here as the destination of the request_send_funds?
+    /// ```text
+    /// A -- ... -- X -- B
+    /// ```
+    /// X is the local public key. B is a direct friend of X.
+    /// For any node Y along the route from A to X, we make sure that B does not freeze too many
+    /// credits for this node. In other words, we save Y from freezing too many credits for B.
+    pub fn verify_freezing_links(&self, route: &FriendsRoute, 
+                                 dest_payment: u128, 
+                                 freeze_links: &[FunderFreezeLink]) -> Option<()> {
+        assert_eq!(freeze_links.len().checked_add(1).unwrap(), route.len());
+        let my_index = route.pk_to_index(&self.local_public_key).unwrap();
+        // TODO: Do we ever get here as the destination of the route?
         let next_index = my_index.checked_add(1).unwrap();
-        assert_eq!(next_index, request_send_funds.freeze_links.len());
+        assert_eq!(next_index, freeze_links.len());
 
-        let route_len = usize_to_u32(request_send_funds.route.len()).unwrap();
-        let credit_calc = CreditCalculator::new(route_len,
-                                                request_send_funds.dest_payment);
+        let route_len = usize_to_u32(route.len()).unwrap();
+        let credit_calc = CreditCalculator::new(route_len, dest_payment);
 
-        let two_pow_128 = BigUint::new(vec![0x1u32, 0x0u32, 0x0u32, 0x0u32, 0x0u32]);
+        let two_pow_128 = BigUint::new(vec![0x0u32, 0x0u32, 0x0u32, 0x0u32, 0x1u32]);
+        assert_eq!(two_pow_128, BigUint::from(0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffffu128) + BigUint::from(1u128));
 
         // Verify previous freezing links
-        #[allow(needless_range_loop)]
-        for node_findex in 0 .. request_send_funds.freeze_links.len() {
-            let first_freeze_link = &request_send_funds.freeze_links[node_findex];
+        for node_findex in 0 .. freeze_links.len() {
+            let first_freeze_link = &freeze_links[node_findex];
             let mut allowed_credits: BigUint = first_freeze_link.shared_credits.into();
-            for freeze_link in &request_send_funds.freeze_links[
-                node_findex .. request_send_funds.freeze_links.len()] {
+            for freeze_link in &freeze_links[
+                node_findex .. freeze_links.len()] {
                 
                 allowed_credits = match freeze_link.usable_ratio {
                     Ratio::One => allowed_credits,
                     Ratio::Numerator(num) => {
-                        let b_num: BigUint = num.into();
+                        let b_num = BigUint::from(num);
                         allowed_credits * b_num / &two_pow_128
                     },
                 };
             }
             
-            let subroute = &request_send_funds.route
-                .public_keys[node_findex .. next_index];
+            let subroute = &route
+                .public_keys[node_findex ..= next_index];
             let old_frozen = self.get_frozen(subroute);
 
             let node_findex = usize_to_u32(node_findex).unwrap();
