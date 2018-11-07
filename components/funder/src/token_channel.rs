@@ -81,8 +81,6 @@ pub enum ReceiveMoveTokenOutput {
 }
 
 
-
-
 /// Create a token from a public key
 /// Currently this function puts the public key in the beginning of the signature buffer,
 /// as the public key is shorter than a signature.
@@ -449,6 +447,14 @@ impl TcOutgoing {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::executor::ThreadPool;
+    use futures::{future, FutureExt};
+    use futures::task::SpawnExt;
+    use identity::{create_identity, IdentityClient};
+
+    use crypto::test_utils::DummyRandom;
+    use crypto::identity::{SoftwareEd25519Identity,
+                            generate_pkcs8_key_pair};
 
     #[test]
     fn test_initial_direction() {
@@ -457,7 +463,7 @@ mod tests {
         let token_channel_a_b = TokenChannel::new(&pk_a, &pk_b);
         let token_channel_b_a = TokenChannel::new(&pk_b, &pk_a);
 
-        // Only one can be outgoing:
+        // Only one of those token channels is outgoing:
         let is_a_b_outgoing = token_channel_a_b.is_outgoing();
         let is_b_a_outgoing = token_channel_b_a.is_outgoing();
         assert!(is_a_b_outgoing ^ is_b_a_outgoing);
@@ -469,5 +475,103 @@ mod tests {
         };
 
         assert_eq!(out_tc.get_cur_move_token(), in_tc.get_cur_move_token());
+        let tc_outgoing = match out_tc.get_direction() {
+            TcDirection::Outgoing(tc_outgoing) => tc_outgoing,
+            TcDirection::Incoming(_) => unreachable!(),
+        };
+        assert!(!tc_outgoing.token_wanted);
+        assert!(tc_outgoing.opt_prev_move_token_in.is_none());
+    }
+
+    async fn task_simulate_receive_move_token_basic(identity_client1: IdentityClient, 
+                                  identity_client2: IdentityClient) {
+
+        let pk_a = await!(identity_client1.request_public_key()).unwrap();
+        let pk_b = await!(identity_client2.request_public_key()).unwrap();
+        let token_channel_a_b = TokenChannel::new(&pk_a, &pk_b);
+        let token_channel_b_a = TokenChannel::new(&pk_b, &pk_a);
+
+        // Only one of those token channels is outgoing:
+        let is_a_b_outgoing = token_channel_a_b.is_outgoing();
+        let is_b_a_outgoing = token_channel_b_a.is_outgoing();
+        assert!(is_a_b_outgoing ^ is_b_a_outgoing);
+
+        let (out_tc, _out_identity_client, in_tc, in_identity_client) = if is_a_b_outgoing {
+            (token_channel_a_b, identity_client1, token_channel_b_a, identity_client2)
+        } else {
+            (token_channel_b_a, identity_client2, token_channel_a_b, identity_client1)
+        };
+
+        let _out_pk = out_tc.get_mutual_credit().state().idents.local_public_key.clone();
+        let _in_pk = in_tc.get_mutual_credit().state().idents.local_public_key.clone();
+
+        let tc_incoming = match in_tc.get_direction() {
+            TcDirection::Incoming(tc_incoming) => tc_incoming,
+            TcDirection::Outgoing(_) => unreachable!(),
+        };
+        let mut outgoing_mc = tc_incoming.begin_outgoing_move_token();
+        let friend_tc_op = FriendTcOp::SetRemoteMaxDebt(100);
+        outgoing_mc.queue_operation(friend_tc_op).unwrap();
+        let (operations, _mc_mutations) = outgoing_mc.done();
+        let rand_nonce = RandValue::from(&[5; RAND_VALUE_LEN]);
+        let friend_move_token = await!(tc_incoming.create_friend_move_token(operations, 
+                                                    rand_nonce, 
+                                                    in_identity_client.clone()));
+
+        let receive_move_token_output = 
+            out_tc.simulate_receive_move_token(friend_move_token.clone()).unwrap();
+
+        let move_token_received = match receive_move_token_output {
+            ReceiveMoveTokenOutput::Received(move_token_received) => move_token_received,
+            _ => unreachable!(),
+        };
+
+        assert!(move_token_received.incoming_messages.is_empty());
+        assert_eq!(move_token_received.mutations.len(), 2);
+
+        let mut seen_mc_mutation = false;
+        let mut seen_set_direction = false;
+
+        for i in 0 .. 2 {
+            match &move_token_received.mutations[i] {
+                TcMutation::McMutation(mc_mutation) => {
+                    seen_mc_mutation = true;
+                    assert_eq!(mc_mutation, &McMutation::SetLocalMaxDebt(100));
+                },
+                TcMutation::SetDirection(set_direction) => {
+                    seen_set_direction = true;
+                    match set_direction {
+                        SetDirection::Incoming(incoming_friend_move_token) =>
+                            assert_eq!(&friend_move_token, incoming_friend_move_token),
+                        _ => unreachable!(),
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+        assert!(seen_mc_mutation && seen_set_direction);
+    }
+
+    #[test]
+    fn test_simulate_receive_move_token_basic() {
+        // Start identity service:
+        let mut thread_pool = ThreadPool::new().unwrap();
+
+        let rng1 = DummyRandom::new(&[1u8]);
+        let pkcs8 = generate_pkcs8_key_pair(&rng1);
+        let identity1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        let (requests_sender1, identity_server1) = create_identity(identity1);
+        let identity_client1 = IdentityClient::new(requests_sender1);
+
+        let rng2 = DummyRandom::new(&[2u8]);
+        let pkcs8 = generate_pkcs8_key_pair(&rng2);
+        let identity2 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        let (requests_sender2, identity_server2) = create_identity(identity2);
+        let identity_client2 = IdentityClient::new(requests_sender2);
+
+        thread_pool.spawn(identity_server1.then(|_| future::ready(()))).unwrap();
+        thread_pool.spawn(identity_server2.then(|_| future::ready(()))).unwrap();
+
+        thread_pool.run(task_simulate_receive_move_token_basic(identity_client1, identity_client2));
     }
 }
