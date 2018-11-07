@@ -411,4 +411,95 @@ mod tests {
         let guard_frozen = freeze_guard.get_frozen(&[pk_c.clone(), pk_d.clone()]);
         assert_eq!(0, guard_frozen);
     }
+
+    #[test]
+    fn test_verify_freezing_links_basic() {
+        /*
+         * a -- b -- (c) -- d
+         *      |
+         *      e
+        */
+
+        let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
+        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let pk_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
+        let pk_d = PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]);
+        let pk_e = PublicKey::from(&[0xee; PUBLIC_KEY_LEN]);
+
+        let mut freeze_guard = FreezeGuard::new(&pk_c);
+        freeze_guard.add_frozen_credit(&FriendsRoute 
+                                       {public_keys: vec![pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 11);
+        freeze_guard.add_frozen_credit(&FriendsRoute 
+                                       {public_keys: vec![pk_e.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 17);
+
+        let frozen_b = freeze_guard.get_frozen(&[pk_b.clone(), pk_c.clone(), pk_d.clone()]);
+        let frozen_c = freeze_guard.get_frozen(&[pk_c.clone(), pk_d.clone()]);
+        let half = Ratio::Numerator(0x8000_0000_0000_0000_0000_0000_0000_0000);
+
+
+        // -- Freezing not allowed, c -- d
+        let route = FriendsRoute {public_keys: vec![pk_c.clone(), pk_d.clone()]};
+        let freeze_link_c = FunderFreezeLink {
+            shared_credits: (frozen_c + credit_freeze(2,9,1) - 1)* 2,
+            usable_ratio: half.clone(), // Half
+        };
+        let freeze_links = vec![freeze_link_c];
+        let res = freeze_guard.verify_freezing_links(&route, 9, &freeze_links);
+        assert!(res.is_none());
+
+
+        // -- Freezing allowed: c -- d
+        let route = FriendsRoute {public_keys: vec![pk_c.clone(), pk_d.clone()]};
+        let freeze_link_c = FunderFreezeLink {
+            shared_credits: (frozen_c + credit_freeze(2,9,1)) * 2,
+            usable_ratio: half.clone(), // Half
+        };
+        let freeze_links = vec![freeze_link_c];
+        let res = freeze_guard.verify_freezing_links(&route, 9, &freeze_links);
+        assert!(res.is_some());
+
+
+        // -- Freezing not allowed: b -- c -- d
+        let route = FriendsRoute {public_keys: vec![pk_b.clone(), pk_c.clone(), pk_d.clone()]};
+        let freeze_link_b = FunderFreezeLink {
+            shared_credits: (frozen_b + credit_freeze(3,9,1) - 1) * 4,  // <-- should be not enough
+            usable_ratio: half.clone(), // Half
+        };
+        let freeze_link_c = FunderFreezeLink {
+            shared_credits: (frozen_c + credit_freeze(3,9,2)) * 2,
+            usable_ratio: half.clone(), // Half
+        };
+        let freeze_links = vec![freeze_link_b, freeze_link_c];
+        let res = freeze_guard.verify_freezing_links(&route, 9, &freeze_links);
+        assert!(res.is_none());
+
+        // -- Freezing not allowed: b -- c -- d
+        let route = FriendsRoute {public_keys: vec![pk_b.clone(), pk_c.clone(), pk_d.clone()]};
+        let freeze_link_b = FunderFreezeLink {
+            shared_credits: (frozen_b + credit_freeze(3,9,1)) * 4,
+            usable_ratio: half.clone(), // Half
+        };
+        let freeze_link_c = FunderFreezeLink {
+            shared_credits: (frozen_c + credit_freeze(3,9,2) - 1) * 2,  // <-- should be not enough
+            usable_ratio: half.clone(), // Half
+        };
+        let freeze_links = vec![freeze_link_b, freeze_link_c];
+        let res = freeze_guard.verify_freezing_links(&route, 9, &freeze_links);
+        assert!(res.is_none());
+
+
+        // -- Freezing allowed: b -- c -- d
+        let route = FriendsRoute {public_keys: vec![pk_b.clone(), pk_c.clone(), pk_d.clone()]};
+        let freeze_link_b = FunderFreezeLink {
+            shared_credits: (frozen_b + credit_freeze(3,9,1)) * 4,
+            usable_ratio: half.clone(), // Half
+        };
+        let freeze_link_c = FunderFreezeLink {
+            shared_credits: (frozen_c + credit_freeze(3,9,2)) * 2,
+            usable_ratio: half.clone(), // Half
+        };
+        let freeze_links = vec![freeze_link_b, freeze_link_c];
+        let res = freeze_guard.verify_freezing_links(&route, 9, &freeze_links);
+        assert!(res.is_some());
+    }
 }
