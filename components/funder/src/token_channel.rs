@@ -483,6 +483,42 @@ mod tests {
         assert!(tc_outgoing.opt_prev_move_token_in.is_none());
     }
 
+    #[test]
+    fn test_set_token_wanted() {
+        let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
+        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let token_channel_a_b = TokenChannel::new(&pk_a, &pk_b);
+        let token_channel_b_a = TokenChannel::new(&pk_b, &pk_a);
+
+        // Only one of those token channels is outgoing:
+        let is_a_b_outgoing = token_channel_a_b.is_outgoing();
+        let is_b_a_outgoing = token_channel_b_a.is_outgoing();
+        assert!(is_a_b_outgoing ^ is_b_a_outgoing);
+
+        let (mut out_tc, _in_tc) = if is_a_b_outgoing {
+            (token_channel_a_b, token_channel_b_a)
+        } else {
+            (token_channel_b_a, token_channel_a_b)
+        };
+
+        // First token is in not wanted state:
+        let tc_outgoing = match out_tc.get_direction() {
+            TcDirection::Outgoing(tc_outgoing) => tc_outgoing,
+            TcDirection::Incoming(_) => unreachable!(),
+        };
+        assert!(!tc_outgoing.token_wanted);
+
+        let tc_mutation = TcMutation::SetTokenWanted;
+        out_tc.mutate(&tc_mutation);
+
+        // Then token is in wanted state:
+        let tc_outgoing = match out_tc.get_direction() {
+            TcDirection::Outgoing(tc_outgoing) => tc_outgoing,
+            TcDirection::Incoming(_) => unreachable!(),
+        };
+        assert!(tc_outgoing.token_wanted);
+    }
+
     async fn task_simulate_receive_move_token_basic(identity_client1: IdentityClient, 
                                   identity_client2: IdentityClient) {
 
