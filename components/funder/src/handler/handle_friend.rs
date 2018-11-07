@@ -1,23 +1,27 @@
 use std::convert::TryFrom;
 
+use byteorder::{BigEndian, WriteBytesExt};
+
 use num_bigint::BigUint;
 use num_traits::ToPrimitive;
 
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
+use crypto::hash::sha_512_256;
+
+use identity::IdentityClient;
 
 use utils::safe_arithmetic::SafeArithmetic;
 
-
-use super::super::mutual_credit::incoming::{IncomingResponseSendFunds, 
+use crate::mutual_credit::incoming::{IncomingResponseSendFunds, 
     IncomingFailureSendFunds, IncomingMessage};
-use super::super::mutual_credit::outgoing::{QueueOperationFailure,
+use crate::mutual_credit::outgoing::{QueueOperationFailure,
     QueueOperationError};
-use super::super::token_channel::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
-    TcMutation, MoveTokenReceived, SetDirection};
-use super::{MutableFunderHandler, FriendMoveTokenRequest};
-use super::super::types::{RequestSendFunds, ResponseSendFunds, 
+use crate::token_channel::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
+    TcMutation, MoveTokenReceived, SetDirection, TokenChannel};
+
+use crate::types::{RequestSendFunds, ResponseSendFunds, 
     FailureSendFunds, FriendMoveToken, 
     FunderFreezeLink, 
     PendingFriendRequest, Ratio, RequestsStatus, SendFundsReceipt,
@@ -25,12 +29,14 @@ use super::super::types::{RequestSendFunds, ResponseSendFunds,
     FriendMessage, ResponseReceived, ResetTerms,
     FunderOutgoingControl, FunderOutgoingComm};
 
-use super::super::state::FunderMutation;
-use super::super::friend::{FriendState, FriendMutation, 
+use crate::state::FunderMutation;
+use crate::friend::{FriendState, FriendMutation, 
     ResponseOp, ChannelStatus, ChannelInconsistent};
 
-use super::super::signature_buff::{create_response_signature_buffer, prepare_receipt};
-use super::super::messages::ResponseSendFundsResult;
+use crate::signature_buff::{create_response_signature_buffer, prepare_receipt};
+use crate::messages::ResponseSendFundsResult;
+
+use super::{MutableFunderHandler, FriendMoveTokenRequest};
 use super::sender::SendMode;
 
 
@@ -46,6 +52,43 @@ pub enum HandleFriendError {
     NotInconsistent,
     ResetTokenMismatch,
     InconsistencyWhenTokenOwned,
+}
+
+// Prefix used for chain hashing of token channel funds.
+// NEXT is used for hashing for the next move token funds.
+// RESET is used for resetting the token channel.
+// The prefix allows the receiver to distinguish between the two cases.
+// const TOKEN_NEXT: &[u8] = b"NEXT";
+const TOKEN_RESET: &[u8] = b"RESET";
+
+/// Calculate the token to be used for resetting the channel.
+#[allow(unused)]
+pub async fn calc_channel_reset_token(new_token: &Signature,
+                      balance_for_reset: i128,
+                      identity_client: IdentityClient) -> Signature {
+
+    let mut sig_buffer = Vec::new();
+    sig_buffer.extend_from_slice(&sha_512_256(TOKEN_RESET));
+    sig_buffer.extend_from_slice(&new_token);
+    sig_buffer.write_i128::<BigEndian>(balance_for_reset).unwrap();
+    await!(identity_client.request_signature(sig_buffer)).unwrap()
+}
+
+pub async fn get_reset_terms(token_channel: &TokenChannel, 
+                             identity_client: IdentityClient) -> ResetTerms {
+    // We add 2 for the new counter in case 
+    // the remote side has already used the next counter.
+    let reset_token = await!(calc_channel_reset_token(
+                             token_channel.get_new_token(),
+                             token_channel.get_mutual_credit().balance_for_reset(),
+                             identity_client));
+    ResetTerms {
+        reset_token,
+        // TODO: Should we do something other than wrapping_add(1)?
+        // 2**64 inconsistencies are required for an overflow.
+        inconsistency_counter: token_channel.get_inconsistency_counter().wrapping_add(1),
+        balance_for_reset: token_channel.get_mutual_credit().balance_for_reset(),
+    }
 }
 
 
@@ -320,6 +363,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         }
     }
 
+
     /// Handle an error with incoming move token.
     async fn handle_move_token_error(&mut self,
                                remote_public_key: PublicKey,
@@ -332,7 +376,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         };
         let opt_last_incoming_move_token = token_channel.get_last_incoming_move_token().cloned();
         // Send an InconsistencyError message to remote side:
-        let local_reset_terms = await!(token_channel.get_reset_terms(self.identity_client.clone()));
+        let local_reset_terms = await!(get_reset_terms(&token_channel, self.identity_client.clone()));
 
         self.add_outgoing_comm(FunderOutgoingComm::FriendMessage((remote_public_key.clone(),
                 FriendMessage::InconsistencyError(local_reset_terms.clone()))));
@@ -460,7 +504,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                     return Err(HandleFriendError::InconsistencyWhenTokenOwned);
                 }
                 (true, 
-                 await!(token_channel.get_reset_terms(self.identity_client.clone())),
+                 await!(get_reset_terms(&token_channel, self.identity_client.clone())),
                  token_channel.get_last_incoming_move_token().cloned())
             },
             ChannelStatus::Inconsistent(channel_inconsistent) => 

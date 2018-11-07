@@ -1,7 +1,6 @@
 #![warn(unused)]
 
 use std::convert::TryFrom;
-use byteorder::{BigEndian, WriteBytesExt};
 
 use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
 use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
@@ -16,15 +15,8 @@ use crate::mutual_credit::incoming::{ProcessOperationOutput, ProcessTransListErr
 use crate::mutual_credit::outgoing::OutgoingMc;
 
 use crate::types::{FriendMoveToken, 
-    FriendMoveTokenRequest, ResetTerms, FriendTcOp};
+    FriendMoveTokenRequest, FriendTcOp};
 
-
-// Prefix used for chain hashing of token channel funds.
-// NEXT is used for hashing for the next move token funds.
-// RESET is used for resetting the token channel.
-// The prefix allows the receiver to distinguish between the two cases.
-// const TOKEN_NEXT: &[u8] = b"NEXT";
-const TOKEN_RESET: &[u8] = b"RESET";
 
 pub enum SetDirection {
     Incoming(FriendMoveToken), 
@@ -90,18 +82,6 @@ pub enum ReceiveMoveTokenOutput {
 
 
 
-/// Calculate the token to be used for resetting the channel.
-#[allow(unused)]
-pub async fn calc_channel_reset_token(new_token: &Signature,
-                      balance_for_reset: i128,
-                      identity_client: IdentityClient) -> Signature {
-
-    let mut sig_buffer = Vec::new();
-    sig_buffer.extend_from_slice(&sha_512_256(TOKEN_RESET));
-    sig_buffer.extend_from_slice(&new_token);
-    sig_buffer.write_i128::<BigEndian>(balance_for_reset).unwrap();
-    await!(identity_client.request_signature(sig_buffer)).unwrap()
-}
 
 /// Create a token from a public key
 /// Currently this function puts the public key in the beginning of the signature buffer,
@@ -292,19 +272,12 @@ impl TokenChannel {
         self.get_cur_move_token().move_token_counter
     }
 
-    pub async fn get_reset_terms(&self, identity_client: IdentityClient) -> ResetTerms {
-        // We add 2 for the new counter in case 
-        // the remote side has already used the next counter.
-        let reset_token = await!(calc_channel_reset_token(
-                                &self.get_cur_move_token().new_token,
-                                 self.get_mutual_credit().balance_for_reset(),
-                                 identity_client));
-        ResetTerms {
-            reset_token,
-            // TODO: Should we do something other than wrapping_add(1)?
-            // 2**64 inconsistencies are required for an overflow.
-            inconsistency_counter: self.get_inconsistency_counter().wrapping_add(1),
-            balance_for_reset: self.get_mutual_credit().balance_for_reset(),
+    /// Get the current new token (Either incoming or outgoing)
+    /// This is the most recent token in the chain.
+    pub fn get_new_token(&self) -> &Signature {
+        match &self.direction {
+            TcDirection::Incoming(tc_incoming) => &tc_incoming.move_token_in.new_token,
+            TcDirection::Outgoing(tc_outgoing) => &tc_outgoing.move_token_out.new_token,
         }
     }
 
