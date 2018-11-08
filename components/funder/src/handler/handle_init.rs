@@ -61,7 +61,6 @@ mod tests {
         let mut state = FunderState::new(&local_pk);
         let f_mutation = FunderMutation::AddFriend((pk_b, 3u32)); // second arg is address
         state.mutate(&f_mutation);
-        /*
 
         let ephemeral = FunderEphemeral::new(&state);
         let rng = DummyRandom::new(&[2u8]);
@@ -75,7 +74,6 @@ mod tests {
             outgoing_comms: Vec::new(),
             responses_received: Vec::new(),
         };
-        */
     }
 
     #[test]
