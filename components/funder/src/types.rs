@@ -44,6 +44,16 @@ pub enum RequestsStatus {
     Closed,
 }
 
+impl RequestsStatus {
+    pub fn is_open(&self) -> bool {
+        if let RequestsStatus::Open = self {
+            true
+        } else {
+            false
+        }
+    }
+}
+
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum FriendTcOp {
