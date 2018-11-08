@@ -70,6 +70,7 @@ pub enum ReceiveMoveTokenError {
 pub struct MoveTokenReceived {
     pub incoming_messages: Vec<IncomingMessage>,
     pub mutations: Vec<TcMutation>,
+    pub remote_requests_closed: bool,
 }
 
 
@@ -414,25 +415,42 @@ impl TcOutgoing {
 
         match res {
             Ok(outputs) => {
-                let mut move_token_received = MoveTokenReceived {
-                    incoming_messages: Vec::new(),
-                    mutations: Vec::new(),
-                };
+                let initial_remote_requests = self
+                                                .mutual_credit
+                                                .state()
+                                                .requests_status
+                                                .remote
+                                                .is_open();
 
+                let mut incoming_messages = Vec::new();
+                let mut mutations =  Vec::new();
+
+                let mut final_remote_requests: bool = initial_remote_requests;
                 for output in outputs {
                     let ProcessOperationOutput 
                         {incoming_message, mc_mutations} = output;
 
                     if let Some(funds) = incoming_message {
-                        move_token_received.incoming_messages.push(funds);
+                        incoming_messages.push(funds);
                     }
                     for mc_mutation in mc_mutations {
-                        move_token_received.mutations.push(
+                        if let McMutation::SetRemoteRequestsStatus(requests_status) = &mc_mutation {
+                            final_remote_requests = requests_status.is_open();
+                        }
+                        mutations.push(
                             TcMutation::McMutation(mc_mutation));
                     }
                 }
-                move_token_received.mutations.push(
+                mutations.push(
                     TcMutation::SetDirection(SetDirection::Incoming(new_move_token)));
+
+                let move_token_received = MoveTokenReceived {
+                    incoming_messages,
+                    mutations,
+                    // Were the remote requests initially open and now it is closed?
+                    remote_requests_closed: final_remote_requests && !initial_remote_requests,
+                };
+
                 Ok(ReceiveMoveTokenOutput::Received(move_token_received))
             },
             Err(e) => {
