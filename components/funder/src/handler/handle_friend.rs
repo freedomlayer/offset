@@ -23,7 +23,7 @@ use crate::token_channel::{ReceiveMoveTokenOutput, ReceiveMoveTokenError,
 
 use crate::types::{RequestSendFunds, ResponseSendFunds, 
     FailureSendFunds, FriendMoveToken, 
-    FunderFreezeLink, 
+    FreezeLink, 
     PendingFriendRequest, Ratio, RequestsStatus, SendFundsReceipt,
     FriendInconsistencyError,
     FriendMessage, ResponseReceived, ResetTerms,
@@ -137,7 +137,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 None => Ratio::One,
             };
 
-            FunderFreezeLink {
+            FreezeLink {
                 shared_credits: total_trust.to_u128().unwrap_or(u128::max_value()),
                 usable_ratio,
             }
@@ -160,7 +160,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             };
 
             let shared_credits = prev_trust.to_u128().unwrap_or(u128::max_value());
-            FunderFreezeLink {
+            FreezeLink {
                 shared_credits,
                 usable_ratio,
             }

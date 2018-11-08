@@ -8,7 +8,7 @@ use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crate::mutual_credit::types::MutualCredit;
 #[allow(unused)]
 use crate::types::{RequestsStatus, InvoiceId, INVOICE_ID_LEN, 
-    FunderFreezeLink, Ratio, FriendsRoute, 
+    FreezeLink, Ratio, FriendsRoute, 
     RequestSendFunds, ResponseSendFunds, FailureSendFunds, FriendTcOp};
 use crate::signature_buff::{create_response_signature_buffer, 
     create_failure_signature_buffer};
@@ -101,7 +101,7 @@ fn test_request_response_send_funds() {
     };
     let invoice_id = InvoiceId::from(&[0; INVOICE_ID_LEN]);
 
-    let funder_freeze_link = FunderFreezeLink {
+    let funder_freeze_link = FreezeLink {
         shared_credits: 80,
         usable_ratio: Ratio::One,
     };
@@ -175,7 +175,7 @@ fn test_request_failure_send_funds() {
     };
     let invoice_id = InvoiceId::from(&[0; INVOICE_ID_LEN]);
 
-    let funder_freeze_link = FunderFreezeLink {
+    let funder_freeze_link = FreezeLink {
         shared_credits: 80,
         usable_ratio: Ratio::One,
     };

@@ -80,7 +80,7 @@ pub enum Ratio<T> {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct FunderFreezeLink {
+pub struct FreezeLink {
     pub shared_credits: u128,
     pub usable_ratio: Ratio<u128>
 }
@@ -101,7 +101,7 @@ pub struct RequestSendFunds {
     pub route: FriendsRoute,
     pub dest_payment: u128,
     pub invoice_id: InvoiceId,
-    pub freeze_links: Vec<FunderFreezeLink>,
+    pub freeze_links: Vec<FreezeLink>,
 }
 
 
@@ -279,7 +279,7 @@ impl Ratio<u128> {
     }
 }
 
-impl FunderFreezeLink {
+impl FreezeLink {
     fn to_bytes(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.write_u128::<BigEndian>(self.shared_credits)

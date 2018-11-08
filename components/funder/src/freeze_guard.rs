@@ -10,7 +10,7 @@ use crate::credit_calc::CreditCalculator;
 use crate::state::FunderState;
 use crate::friend::ChannelStatus;
 use crate::types::{PendingFriendRequest, RequestSendFunds, 
-    Ratio, FriendsRoute, FunderFreezeLink};
+    Ratio, FriendsRoute, FreezeLink};
 
 
 #[derive(Clone)]
@@ -205,7 +205,7 @@ impl FreezeGuard {
     /// credits for this node. In other words, we save Y from freezing too many credits for B.
     pub fn verify_freezing_links(&self, route: &FriendsRoute, 
                                  dest_payment: u128, 
-                                 freeze_links: &[FunderFreezeLink]) -> Option<()> {
+                                 freeze_links: &[FreezeLink]) -> Option<()> {
         assert_eq!(freeze_links.len().checked_add(1).unwrap(), route.len());
         let my_index = route.pk_to_index(&self.local_public_key).unwrap();
         // TODO: Do we ever get here as the destination of the route?
@@ -439,7 +439,7 @@ mod tests {
 
         // -- Freezing not allowed, c -- d
         let route = FriendsRoute {public_keys: vec![pk_c.clone(), pk_d.clone()]};
-        let freeze_link_c = FunderFreezeLink {
+        let freeze_link_c = FreezeLink {
             shared_credits: (frozen_c + credit_freeze(2,9,1) - 1)* 2,
             usable_ratio: half.clone(), // Half
         };
@@ -450,7 +450,7 @@ mod tests {
 
         // -- Freezing allowed: c -- d
         let route = FriendsRoute {public_keys: vec![pk_c.clone(), pk_d.clone()]};
-        let freeze_link_c = FunderFreezeLink {
+        let freeze_link_c = FreezeLink {
             shared_credits: (frozen_c + credit_freeze(2,9,1)) * 2,
             usable_ratio: half.clone(), // Half
         };
@@ -461,11 +461,11 @@ mod tests {
 
         // -- Freezing not allowed: b -- c -- d
         let route = FriendsRoute {public_keys: vec![pk_b.clone(), pk_c.clone(), pk_d.clone()]};
-        let freeze_link_b = FunderFreezeLink {
+        let freeze_link_b = FreezeLink {
             shared_credits: (frozen_b + credit_freeze(3,9,1) - 1) * 4,  // <-- should be not enough
             usable_ratio: half.clone(), // Half
         };
-        let freeze_link_c = FunderFreezeLink {
+        let freeze_link_c = FreezeLink {
             shared_credits: (frozen_c + credit_freeze(3,9,2)) * 2,
             usable_ratio: half.clone(), // Half
         };
@@ -475,11 +475,11 @@ mod tests {
 
         // -- Freezing not allowed: b -- c -- d
         let route = FriendsRoute {public_keys: vec![pk_b.clone(), pk_c.clone(), pk_d.clone()]};
-        let freeze_link_b = FunderFreezeLink {
+        let freeze_link_b = FreezeLink {
             shared_credits: (frozen_b + credit_freeze(3,9,1)) * 4,
             usable_ratio: half.clone(), // Half
         };
-        let freeze_link_c = FunderFreezeLink {
+        let freeze_link_c = FreezeLink {
             shared_credits: (frozen_c + credit_freeze(3,9,2) - 1) * 2,  // <-- should be not enough
             usable_ratio: half.clone(), // Half
         };
@@ -490,11 +490,11 @@ mod tests {
 
         // -- Freezing allowed: b -- c -- d
         let route = FriendsRoute {public_keys: vec![pk_b.clone(), pk_c.clone(), pk_d.clone()]};
-        let freeze_link_b = FunderFreezeLink {
+        let freeze_link_b = FreezeLink {
             shared_credits: (frozen_b + credit_freeze(3,9,1)) * 4,
             usable_ratio: half.clone(), // Half
         };
-        let freeze_link_c = FunderFreezeLink {
+        let freeze_link_c = FreezeLink {
             shared_credits: (frozen_c + credit_freeze(3,9,2)) * 2,
             usable_ratio: half.clone(), // Half
         };
