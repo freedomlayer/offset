@@ -102,8 +102,8 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
             };
             ops_batch.add(pending_op)?;
             let friend_mutation = FriendMutation::PopFrontPendingResponse;
-            let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-            self.apply_mutation(messenger_mutation);
+            let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+            self.apply_mutation(funder_mutation);
         }
 
         let friend = self.get_friend(remote_public_key).unwrap();
@@ -115,8 +115,8 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
             let pending_op = FriendTcOp::RequestSendFunds(pending_request);
             ops_batch.add(pending_op)?;
             let friend_mutation = FriendMutation::PopFrontPendingRequest;
-            let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-            self.apply_mutation(messenger_mutation);
+            let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+            self.apply_mutation(funder_mutation);
         }
 
         let friend = self.get_friend(remote_public_key).unwrap();
@@ -127,8 +127,8 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
             let request_op = FriendTcOp::RequestSendFunds(request_send_funds);
             ops_batch.add(request_op)?;
             let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
-            let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-            self.apply_mutation(messenger_mutation);
+            let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+            self.apply_mutation(funder_mutation);
         }
         Some(())
     }
@@ -181,8 +181,8 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
         for mc_mutation in mc_mutations {
             let tc_mutation = TcMutation::McMutation(mc_mutation);
             let friend_mutation = FriendMutation::TcMutation(tc_mutation);
-            let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-            self.apply_mutation(messenger_mutation);
+            let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+            self.apply_mutation(funder_mutation);
         }
 
         // Update freeze guard about outgoing requests:
@@ -302,8 +302,8 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
                     // Mark that we have sent a request token, to make sure we don't do this again:
                     let tc_mutation = TcMutation::SetTokenWanted;
                     let friend_mutation = FriendMutation::TcMutation(tc_mutation);
-                    let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-                    self.apply_mutation(messenger_mutation);
+                    let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+                    self.apply_mutation(funder_mutation);
                     self.transmit_outgoing(remote_public_key);
                 }
             },
