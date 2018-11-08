@@ -674,6 +674,6 @@ mod tests {
     }
 
 
-    // TODO:
+    // TODO: Add more tests.
     // - Test behaviour of Duplicate, ChainInconsistency
 }

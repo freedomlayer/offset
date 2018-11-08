@@ -51,7 +51,7 @@ pub struct MutableFunderHandler<A:Clone,R> {
     state: FunderState<A>,
     pub ephemeral: FunderEphemeral,
     pub identity_client: IdentityClient,
-    pub rng: Rc<R>,
+    pub rng: Rc<R>, // Can we be more generic and remove this Rc?
     mutations: Vec<FunderMutation<A>>,
     outgoing_comms: Vec<FunderOutgoingComm<A>>,
     responses_received: Vec<ResponseReceived>,
