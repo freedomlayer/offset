@@ -126,6 +126,12 @@ fn initial_move_token(low_public_key: &PublicKey, high_public_key: &PublicKey) -
     }
 }
 
+/// Check if one public key is "lower" than another.
+/// This is used to decide which side begins the token channel.
+pub fn is_public_key_lower(pk1: &PublicKey, pk2: &PublicKey) -> bool {
+    sha_512_256(pk1) < sha_512_256(pk2)
+}
+
 impl TokenChannel {
     pub fn new(local_public_key: &PublicKey, 
                remote_public_key: &PublicKey) -> TokenChannel {
@@ -133,7 +139,7 @@ impl TokenChannel {
         let balance = 0;
         let mutual_credit = MutualCredit::new(&local_public_key, &remote_public_key, balance);
 
-        if sha_512_256(&local_public_key) < sha_512_256(&remote_public_key) {
+        if is_public_key_lower(&local_public_key, &remote_public_key) {
             // We are the first sender
             let tc_outgoing = TcOutgoing {
                 mutual_credit,
