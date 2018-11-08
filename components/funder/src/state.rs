@@ -67,7 +67,8 @@ impl<A:Clone + 'static> FunderState<A> {
                                                   opt_address.clone());
                 // Insert friend, but also make sure that we did not remove any existing friend
                 // with the same public key:
-                let _ = self.friends.insert(friend_public_key.clone(), friend).unwrap();
+                let res = self.friends.insert(friend_public_key.clone(), friend);
+                assert!(res.is_none());
 
             },
             FunderMutation::RemoveFriend(public_key) => {
