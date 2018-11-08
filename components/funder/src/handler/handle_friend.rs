@@ -387,7 +387,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             local_reset_terms,
             opt_remote_reset_terms: None,
         };
-        let friend_mutation = FriendMutation::SetChannelStatus(ChannelStatus::Inconsistent(channel_inconsistent));
+        let friend_mutation = FriendMutation::SetInconsistent(channel_inconsistent);
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
 
@@ -519,7 +519,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             local_reset_terms: new_local_reset_terms.clone(),
             opt_remote_reset_terms: Some(new_remote_reset_terms),
         };
-        let friend_mutation = FriendMutation::SetChannelStatus(ChannelStatus::Inconsistent(channel_inconsistent));
+        let friend_mutation = FriendMutation::SetInconsistent(channel_inconsistent);
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
 
