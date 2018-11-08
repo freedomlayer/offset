@@ -327,6 +327,9 @@ impl TcIncoming {
                                     operations: Vec<FriendTcOp>,
                                     rand_nonce: RandValue,
                                     identity_client: IdentityClient) -> FriendMoveToken {
+        // TODO: How to make this check happen only in debug?
+        let identity_pk = await!(identity_client.request_public_key()).unwrap();
+        assert_eq!(&identity_pk, &self.mutual_credit.state().idents.local_public_key);
 
         await!(FriendMoveToken::new(
             operations,
@@ -519,43 +522,62 @@ mod tests {
         assert!(tc_outgoing.token_wanted);
     }
 
-    async fn task_simulate_receive_move_token_basic(identity_client1: IdentityClient, 
-                                  identity_client2: IdentityClient) {
+    /// Sort the two identity client.
+    /// The result will be a pair where the first is initially configured to have outgoing message,
+    /// and the second is initially configured to have incoming message.
+    async fn sort_sides(identity_client1: IdentityClient,
+                        identity_client2: IdentityClient) 
+        -> (IdentityClient, IdentityClient) {
 
-        let pk_a = await!(identity_client1.request_public_key()).unwrap();
-        let pk_b = await!(identity_client2.request_public_key()).unwrap();
-        let token_channel_a_b = TokenChannel::new(&pk_a, &pk_b);
-        let token_channel_b_a = TokenChannel::new(&pk_b, &pk_a);
-
-        // Only one of those token channels is outgoing:
-        let is_a_b_outgoing = token_channel_a_b.is_outgoing();
-        let is_b_a_outgoing = token_channel_b_a.is_outgoing();
-        assert!(is_a_b_outgoing ^ is_b_a_outgoing);
-
-        let (mut out_tc, _out_identity_client, in_tc, in_identity_client) = if is_a_b_outgoing {
-            (token_channel_a_b, identity_client1, token_channel_b_a, identity_client2)
+        let pk1 = await!(identity_client1.request_public_key()).unwrap();
+        let pk2 = await!(identity_client2.request_public_key()).unwrap();
+        let token_channel12 = TokenChannel::new(&pk1, &pk2); // (local, remote)
+        if token_channel12.is_outgoing() {
+            (identity_client1, identity_client2)
         } else {
-            (token_channel_b_a, identity_client2, token_channel_a_b, identity_client1)
-        };
+            (identity_client2, identity_client1)
 
-        let _out_pk = out_tc.get_mutual_credit().state().idents.local_public_key.clone();
-        let _in_pk = in_tc.get_mutual_credit().state().idents.local_public_key.clone();
+        }
+    }
 
-        let tc_incoming = match in_tc.get_direction() {
-            TcDirection::Incoming(tc_incoming) => tc_incoming,
+    /// Before: tc1: outgoing, tc2: incoming
+    /// Send SetRemoteMaxDebt: tc2 -> tc1
+    /// After: tc1: incoming, tc2: outgoing
+    async fn set_remote_max_debt21<'a>(_identity_client1: &'a mut IdentityClient,
+                            identity_client2: &'a mut IdentityClient,
+                            tc1: &'a mut TokenChannel,
+                            tc2: &'a mut TokenChannel) {
+
+        assert!(tc1.is_outgoing());
+        assert!(!tc2.is_outgoing());
+
+        let tc2_incoming = match tc2.get_direction() {
+            TcDirection::Incoming(tc2_incoming) => tc2_incoming,
             TcDirection::Outgoing(_) => unreachable!(),
         };
-        let mut outgoing_mc = tc_incoming.begin_outgoing_move_token();
+        let mut outgoing_mc = tc2_incoming.begin_outgoing_move_token();
         let friend_tc_op = FriendTcOp::SetRemoteMaxDebt(100);
         outgoing_mc.queue_operation(friend_tc_op).unwrap();
-        let (operations, _mc_mutations) = outgoing_mc.done();
+        let (operations, mc_mutations) = outgoing_mc.done();
+
+
         let rand_nonce = RandValue::from(&[5; RAND_VALUE_LEN]);
-        let friend_move_token = await!(tc_incoming.create_friend_move_token(operations, 
+        let friend_move_token = await!(tc2_incoming.create_friend_move_token(operations, 
                                                     rand_nonce, 
-                                                    in_identity_client.clone()));
+                                                    identity_client2.clone()));
+
+        for mc_mutation in mc_mutations {
+            println!("tc_mutation: {:?}", mc_mutation);
+            tc2.mutate(&TcMutation::McMutation(mc_mutation));
+        }
+        let tc_mutation = TcMutation::SetDirection(
+            SetDirection::Outgoing(friend_move_token.clone()));
+        tc2.mutate(&tc_mutation);
+
+        assert!(tc2.is_outgoing());
 
         let receive_move_token_output = 
-            out_tc.simulate_receive_move_token(friend_move_token.clone()).unwrap();
+            tc1.simulate_receive_move_token(friend_move_token.clone()).unwrap();
 
         let move_token_received = match receive_move_token_output {
             ReceiveMoveTokenOutput::Received(move_token_received) => move_token_received,
@@ -588,12 +610,44 @@ mod tests {
         assert!(seen_mc_mutation && seen_set_direction);
 
         for tc_mutation in &move_token_received.mutations {
-            out_tc.mutate(tc_mutation);
+            tc1.mutate(tc_mutation);
         }
 
-        assert!(!out_tc.is_outgoing());
-        assert_eq!(out_tc.get_cur_move_token(), &friend_move_token);
-        assert_eq!(out_tc.get_mutual_credit().state().balance.local_max_debt, 100);
+        assert!(!tc1.is_outgoing());
+        assert_eq!(tc1.get_cur_move_token(), &friend_move_token);
+        assert_eq!(tc1.get_mutual_credit().state().balance.local_max_debt, 100);
+
+    }
+
+
+    /// This tests sends a SetRemoteMaxDebt(100) in both ways.
+    async fn task_simulate_receive_move_token_basic(identity_client1: IdentityClient, 
+                                  identity_client2: IdentityClient) {
+
+        let (mut identity_client1, mut identity_client2) = 
+            await!(sort_sides(identity_client1, identity_client2));
+
+        let pk1 = await!(identity_client1.request_public_key()).unwrap();
+        let pk2 = await!(identity_client2.request_public_key()).unwrap();
+        let mut tc1 = TokenChannel::new(&pk1, &pk2); // (local, remote)
+        let mut tc2 = TokenChannel::new(&pk2, &pk1); // (local, remote)
+
+        // Current state:  tc1 --> tc2
+        // tc1: outgoing
+        // tc2: incoming
+        await!(set_remote_max_debt21(&mut identity_client1,
+                              &mut identity_client2,
+                              &mut tc1,
+                              &mut tc2));
+
+        // Current state:  tc2 --> tc1
+        // tc1: incoming
+        // tc2: outgoing
+        await!(set_remote_max_debt21(&mut identity_client2,
+                              &mut identity_client1,
+                              &mut tc2,
+                              &mut tc1));
+
     }
 
     #[test]
@@ -618,4 +672,8 @@ mod tests {
 
         thread_pool.run(task_simulate_receive_move_token_basic(identity_client1, identity_client2));
     }
+
+
+    // TODO:
+    // - Test behaviour of Duplicate, ChainInconsistency
 }
