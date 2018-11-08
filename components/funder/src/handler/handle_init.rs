@@ -42,6 +42,7 @@ mod tests {
     use crate::handler::gen_mutable;
     use crate::state::{FunderState, FunderMutation};
     use crate::ephemeral::FunderEphemeral;
+    use crate::friend::FriendMutation;
 
     use futures::executor::ThreadPool;
     use futures::{future, FutureExt};
@@ -61,8 +62,15 @@ mod tests {
         let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
 
         let mut state = FunderState::new(&local_pk);
+
+        // Add a remote friend:
         let f_mutation = FunderMutation::AddFriend((pk_b.clone(), 3u32)); // second arg is address
         state.mutate(&f_mutation);
+
+        // Enable the remote friend:
+        let friend_mutation = FriendMutation::SetStatus(FriendStatus::Enable);
+        let funder_mutation = FunderMutation::FriendMutation((pk_b.clone(), friend_mutation));
+        state.mutate(&funder_mutation);
 
         let ephemeral = FunderEphemeral::new(&state);
         let rng = DummyRandom::new(&[2u8]);
