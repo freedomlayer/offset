@@ -32,10 +32,15 @@ pub enum FunderMutation<A> {
 
 #[allow(unused)]
 impl<A:Clone + 'static> FunderState<A> {
-    pub fn new() -> FunderState<A> {
-        // TODO: Initialize from database somehow.
-        unreachable!();
+    pub fn new(local_public_key: &PublicKey) -> FunderState<A> {
+        FunderState {
+            local_public_key: local_public_key.clone(),
+            friends: ImHashMap::new(),
+            ready_receipts: ImHashMap::new(),
+        }
     }
+
+    // TODO: Add code for initialization from database?
 
     /// Get total trust (in credits) we put on all the friends together.
     pub fn get_total_trust(&self) -> BigUint {
