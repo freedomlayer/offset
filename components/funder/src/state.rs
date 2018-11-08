@@ -46,6 +46,9 @@ impl<A:Clone + 'static> FunderState<A> {
     pub fn get_total_trust(&self) -> BigUint {
         let mut sum: BigUint = BigUint::zero();
         for friend in self.friends.values() {
+            // Note that we care more about the wanted_remote_max_debt than the actual
+            // remote_max_debt in this case. The trust is derived from what the user wants to
+            // happen.
             let trust: BigUint = friend.wanted_remote_max_debt.into();
             sum += trust;
         }
