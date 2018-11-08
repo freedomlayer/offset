@@ -21,7 +21,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         -> FailureSendFunds {
 
         let rand_nonce = RandValue::new(&*self.rng);
-        let local_public_key = self.state.get_local_public_key().clone();
+        let local_public_key = self.state.local_public_key.clone();
 
         let mut failure_send_funds = FailureSendFunds {
             request_id: pending_local_request.request_id,
@@ -78,7 +78,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             .pending_local_requests
             .clone();
 
-        let local_public_key = self.state.get_local_public_key().clone();
+        let local_public_key = self.state.local_public_key.clone();
         // Prepare a list of all remote requests that we need to cancel:
         for (local_request_id, pending_local_request) in pending_local_requests {
             self.ephemeral.freeze_guard.sub_frozen_credit(

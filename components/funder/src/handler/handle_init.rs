@@ -14,7 +14,7 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
 
     pub fn handle_init(&mut self) {
         let mut enabled_friends = Vec::new();
-        for (friend_public_key, friend) in self.state.get_friends() {
+        for (friend_public_key, friend) in &self.state.friends {
             match friend.status {
                 FriendStatus::Enable => {
                     enabled_friends.push((friend.remote_public_key.clone(),

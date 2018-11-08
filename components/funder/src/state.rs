@@ -47,14 +47,6 @@ impl<A:Clone + 'static> FunderState<A> {
         sum
     }
 
-    pub fn get_friends(&self) -> &ImHashMap<PublicKey, FriendState<A>> {
-        &self.friends
-    }
-
-    pub fn get_local_public_key(&self) -> &PublicKey {
-        &self.local_public_key
-    }
-
     pub fn mutate(&mut self, messenger_mutation: &FunderMutation<A>) {
         match messenger_mutation {
             FunderMutation::FriendMutation((public_key, friend_mutation)) => {

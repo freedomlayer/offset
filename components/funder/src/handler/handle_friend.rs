@@ -114,12 +114,12 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
     }
 
     pub fn add_local_freezing_link(&self, request_send_funds: &mut RequestSendFunds) {
-        let index = request_send_funds.route.pk_to_index(self.state.get_local_public_key())
+        let index = request_send_funds.route.pk_to_index(&self.state.local_public_key)
             .unwrap();
         assert_eq!(request_send_funds.freeze_links.len(), index);
         let next_index = index.checked_add(1).unwrap();
         let next_pk = request_send_funds.route.index_to_pk(next_index).unwrap();
-        let next_friend = self.state.get_friends().get(&next_pk).unwrap();
+        let next_friend = self.state.friends.get(&next_pk).unwrap();
         let next_tc = match &next_friend.channel_status {
             ChannelStatus::Consistent(token_channel) => token_channel,
             ChannelStatus::Inconsistent(_) => unreachable!(),
@@ -146,7 +146,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             // We are not the first node on the route:
             let prev_index = index.checked_sub(1).unwrap();
             let prev_pk = request_send_funds.route.index_to_pk(prev_index).unwrap();
-            let prev_friend = self.state.get_friends().get(&prev_pk).unwrap();
+            let prev_friend = self.state.friends.get(&prev_pk).unwrap();
             let prev_tc = match &prev_friend.channel_status {
                 ChannelStatus::Consistent(token_channel) => token_channel,
                 ChannelStatus::Inconsistent(_) => unreachable!(),
@@ -174,7 +174,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
     /// Forward a request message to the relevant friend and token channel.
     fn forward_request(&mut self, mut request_send_funds: RequestSendFunds) {
-        let index = request_send_funds.route.pk_to_index(self.state.get_local_public_key())
+        let index = request_send_funds.route.pk_to_index(&self.state.local_public_key)
             .unwrap();
         let next_index = index.checked_add(1).unwrap();
         let next_pk = request_send_funds.route.index_to_pk(next_index).unwrap();
@@ -193,7 +193,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         -> Result<ResponseSendFunds, !> {
 
         let rand_nonce = RandValue::new(&*self.rng);
-        let local_public_key = self.state.get_local_public_key().clone();
+        let local_public_key = self.state.local_public_key.clone();
 
         let mut response_send_funds = ResponseSendFunds {
             request_id: request_send_funds.request_id,
@@ -217,7 +217,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         // Find ourselves on the route. If we are not there, abort.
         let remote_index = request_send_funds.route.find_pk_pair(
             &remote_public_key, 
-            self.state.get_local_public_key()).unwrap();
+            &self.state.local_public_key).unwrap();
 
         let local_index = remote_index.checked_add(1).unwrap();
         let next_index = local_index.checked_add(1).unwrap();
@@ -235,7 +235,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
         // The node on the route has to be one of our friends:
         let next_public_key = request_send_funds.route.index_to_pk(next_index).unwrap();
-        let friend_exists = !self.state.get_friends().contains_key(next_public_key);
+        let friend_exists = !self.state.friends.contains_key(next_public_key);
 
         // This friend must be considered online for us to forward the message.
         // If we forward the request to an offline friend, the request could be stuck for a long
