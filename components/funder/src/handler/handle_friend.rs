@@ -24,7 +24,7 @@ use crate::token_channel::{ReceiveMoveTokenOutput, ReceiveMoveTokenError,
 use crate::types::{RequestSendFunds, ResponseSendFunds, 
     FailureSendFunds, FriendMoveToken, 
     FreezeLink, 
-    PendingFriendRequest, Ratio, RequestsStatus, SendFundsReceipt,
+    PendingFriendRequest, Ratio, SendFundsReceipt,
     FriendInconsistencyError,
     FriendMessage, ResponseReceived, ResetTerms,
     FunderOutgoingControl, FunderOutgoingComm};
@@ -416,7 +416,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 self.transmit_outgoing(&remote_public_key);
             },
             ReceiveMoveTokenOutput::Received(move_token_received) => {
-                let MoveTokenReceived {incoming_messages, mutations} = 
+                let MoveTokenReceived {incoming_messages, mutations, remote_requests_closed} = 
                     move_token_received;
 
                 // Apply all mutations:
@@ -424,6 +424,16 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                     let friend_mutation = FriendMutation::TcMutation(tc_mutation);
                     let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
                     self.apply_mutation(messenger_mutation);
+                }
+
+                // If remote requests were previously open, and now they were closed:
+                if remote_requests_closed {
+                    // Cancel all messages pending for this friend. 
+                    // We don't want the senders of the requests to wait.
+                    await!(self.cancel_pending_requests(
+                            remote_public_key.clone()));
+                    await!(self.cancel_pending_user_requests(
+                            remote_public_key.clone()));
                 }
 
                 await!(self.handle_move_token_output(remote_public_key.clone(),
