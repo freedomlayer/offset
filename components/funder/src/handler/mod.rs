@@ -133,10 +133,22 @@ impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
         if !self.ephemeral.liveness.is_online(friend_public_key) {
             return false;
         }
-        match friend.channel_status {
-            ChannelStatus::Consistent(_) => true,
-            ChannelStatus::Inconsistent(_) => false,
+        if let ChannelStatus::Inconsistent(_) = friend.channel_status {
+            return false;
         }
+
+        // Make sure that the channel is consistent:
+        let token_channel = match &friend.channel_status {
+            ChannelStatus::Inconsistent(_) => return false,
+            ChannelStatus::Consistent(token_channel) => token_channel,
+        };
+
+        // Make sure that the remote side has open requests:
+        token_channel
+            .get_mutual_credit()
+            .state()
+            .requests_status.remote
+            .is_open()
     }
 
 }
