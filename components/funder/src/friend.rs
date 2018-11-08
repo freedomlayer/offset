@@ -91,7 +91,7 @@ impl<A:Clone + 'static> FriendState<A> {
             // send price). When possible, this will be updated with the TokenChannel.
             pending_requests: Vector::new(),
             pending_responses: Vector::new(),
-            status: FriendStatus::Enable,
+            status: FriendStatus::Disable,
             pending_user_requests: Vector::new(),
         }
     }
