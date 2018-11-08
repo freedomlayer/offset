@@ -39,6 +39,7 @@ mod tests {
 
     use std::rc::Rc;
 
+    use crate::handler::gen_mutable;
     use crate::state::{FunderState, FunderMutation};
     use crate::ephemeral::FunderEphemeral;
 
@@ -53,26 +54,42 @@ mod tests {
                             PublicKey};
 
 
+
     async fn task_handle_init_basic(identity_client: IdentityClient) {
 
         let local_pk = await!(identity_client.request_public_key()).unwrap();
         let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
 
         let mut state = FunderState::new(&local_pk);
-        let f_mutation = FunderMutation::AddFriend((pk_b, 3u32)); // second arg is address
+        let f_mutation = FunderMutation::AddFriend((pk_b.clone(), 3u32)); // second arg is address
         state.mutate(&f_mutation);
 
         let ephemeral = FunderEphemeral::new(&state);
         let rng = DummyRandom::new(&[2u8]);
 
-        let mutable_funder_handler = MutableFunderHandler {
-            state,
-            ephemeral,
-            identity_client: identity_client.clone(),
-            rng: Rc::new(rng),
-            mutations: Vec::new(),
-            outgoing_comms: Vec::new(),
-            responses_received: Vec::new(),
+        let mut mutable_funder_handler = gen_mutable(identity_client,
+                    Rc::new(rng),
+                    &state,
+                    &ephemeral);
+
+        mutable_funder_handler.handle_init();
+
+        let mut funder_handler_output = mutable_funder_handler.done();
+        assert!(funder_handler_output.mutations.is_empty());
+        assert!(funder_handler_output.outgoing_control.is_empty());
+        assert_eq!(funder_handler_output.outgoing_comms.len(),1);
+        let out_comm = funder_handler_output.outgoing_comms.pop().unwrap();
+
+        let channeler_config = match out_comm {
+            FunderOutgoingComm::ChannelerConfig(channeler_config) => channeler_config,
+            _ => unreachable!(),
+        };
+        match channeler_config {
+            ChannelerConfig::AddFriend((pk, addr)) => {
+                assert_eq!(addr, 3u32);
+                assert_eq!(pk, pk_b);
+            },
+            _ => unreachable!(),
         };
     }
 
