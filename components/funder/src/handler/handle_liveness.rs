@@ -82,7 +82,7 @@ mod tests {
     use crate::handler::gen_mutable;
     use crate::state::{FunderState, FunderMutation};
     use crate::ephemeral::FunderEphemeral;
-    use crate::token_channel::is_public_key_lower;
+    use crate::token_channel::{is_public_key_lower, TcDirection};
     use crate::types::{ChannelerConfig, FriendStatus};
     use crate::friend::FriendMutation;
 
@@ -127,6 +127,11 @@ mod tests {
         };
         assert!(token_channel.is_outgoing());
 
+        let move_token_out = match token_channel.get_direction() {
+            TcDirection::Outgoing(tc_outgoing) => tc_outgoing.move_token_out.clone(),
+            _ => unreachable!(),
+        };
+
         let ephemeral = FunderEphemeral::new(&state);
         let rng = DummyRandom::new(&[2u8]);
 
@@ -146,18 +151,20 @@ mod tests {
         assert_eq!(funder_handler_output.outgoing_comms.len(),1);
         let out_comm = funder_handler_output.outgoing_comms.pop().unwrap();
 
-        /*
-        let channeler_config = match out_comm {
-            FunderOutgoingComm::ChannelerConfig(channeler_config) => channeler_config,
+        let (public_key, friend_message) = match out_comm {
+            FunderOutgoingComm::FriendMessage(x) => x,
             _ => unreachable!(),
         };
-        match channeler_config {
-            ChannelerConfig::AddFriend(friend_tuple) => {
-                assert_eq!(friend_tuple, (remote_pk, 3u32));
-            },
+
+        assert_eq!(public_key, remote_pk);
+
+        let friend_move_token_request = match friend_message {
+            FriendMessage::MoveTokenRequest(friend_move_token_request) => friend_move_token_request,
             _ => unreachable!(),
         };
-        */
+
+        assert!(!friend_move_token_request.token_wanted);
+        assert_eq!(&friend_move_token_request.friend_move_token, &move_token_out);
     }
 
     #[test]
