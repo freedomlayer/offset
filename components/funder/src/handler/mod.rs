@@ -5,6 +5,9 @@ mod handle_init;
 mod sender;
 mod canceler;
 
+#[cfg(test)]
+mod tests;
+
 use std::rc::Rc;
 use identity::IdentityClient;
 
