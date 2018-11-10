@@ -22,7 +22,7 @@ pub enum ResponseOp {
 #[allow(unused)]
 pub enum FriendMutation<A> {
     TcMutation(TcMutation),
-    SetChannelStatus(ChannelStatus),
+    SetInconsistent(ChannelInconsistent),
     SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatus),
     PushBackPendingRequest(RequestSendFunds),
@@ -91,26 +91,9 @@ impl<A:Clone + 'static> FriendState<A> {
             // send price). When possible, this will be updated with the TokenChannel.
             pending_requests: Vector::new(),
             pending_responses: Vector::new(),
-            status: FriendStatus::Enable,
+            status: FriendStatus::Disable,
             pending_user_requests: Vector::new(),
         }
-    }
-
-    /// Return how much (in credits) we trust this friend.
-    pub fn get_trust(&self) -> u128 {
-        match &self.channel_status {
-            ChannelStatus::Consistent(token_channel) =>
-                token_channel
-                .get_mutual_credit()
-                .state()
-                .balance
-                .remote_max_debt,
-            ChannelStatus::Inconsistent(_) => {
-                // TODO; Is this the right return value here?
-                self.wanted_remote_max_debt 
-            },
-        }
-
     }
 
     #[allow(unused)]
@@ -123,8 +106,8 @@ impl<A:Clone + 'static> FriendState<A> {
                     ChannelStatus::Inconsistent(_) => unreachable!(),
                 }
             },
-            FriendMutation::SetChannelStatus(channel_status) => {
-                self.channel_status = channel_status.clone();
+            FriendMutation::SetInconsistent(channel_inconsistent) => {
+                self.channel_status = ChannelStatus::Inconsistent(channel_inconsistent.clone());
             },
             FriendMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
                 self.wanted_remote_max_debt = *wanted_remote_max_debt;

@@ -244,7 +244,6 @@ mod tests {
     use futures::task::SpawnExt;
 
     use crypto::test_utils::DummyRandom;
-    use crypto::crypto_rand::RngContainer;
     use crypto::identity::{Identity, SoftwareEd25519Identity,
                             generate_pkcs8_key_pair};
     use identity::{create_identity, IdentityClient};

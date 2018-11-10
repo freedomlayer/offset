@@ -1,36 +1,42 @@
 use std::convert::TryFrom;
 
+use byteorder::{BigEndian, WriteBytesExt};
+
 use num_bigint::BigUint;
 use num_traits::ToPrimitive;
 
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
+use crypto::hash::sha_512_256;
+
+use identity::IdentityClient;
 
 use utils::safe_arithmetic::SafeArithmetic;
 
-
-use super::super::mutual_credit::incoming::{IncomingResponseSendFunds, 
+use crate::mutual_credit::incoming::{IncomingResponseSendFunds, 
     IncomingFailureSendFunds, IncomingMessage};
-use super::super::mutual_credit::outgoing::{QueueOperationFailure,
+use crate::mutual_credit::outgoing::{QueueOperationFailure,
     QueueOperationError};
-use super::super::token_channel::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
-    TcMutation, MoveTokenReceived, SetDirection};
-use super::{MutableFunderHandler, FriendMoveTokenRequest};
-use super::super::types::{RequestSendFunds, ResponseSendFunds, 
+use crate::token_channel::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
+    TcMutation, MoveTokenReceived, SetDirection, TokenChannel};
+
+use crate::types::{RequestSendFunds, ResponseSendFunds, 
     FailureSendFunds, FriendMoveToken, 
-    FunderFreezeLink, 
-    PendingFriendRequest, Ratio, RequestsStatus, SendFundsReceipt,
+    FreezeLink, 
+    PendingFriendRequest, Ratio, SendFundsReceipt,
     FriendInconsistencyError,
     FriendMessage, ResponseReceived, ResetTerms,
     FunderOutgoingControl, FunderOutgoingComm};
 
-use super::super::state::FunderMutation;
-use super::super::friend::{FriendState, FriendMutation, 
+use crate::state::FunderMutation;
+use crate::friend::{FriendState, FriendMutation, 
     ResponseOp, ChannelStatus, ChannelInconsistent};
 
-use super::super::signature_buff::{create_response_signature_buffer, prepare_receipt};
-use super::super::messages::ResponseSendFundsResult;
+use crate::signature_buff::{create_response_signature_buffer, prepare_receipt};
+use crate::messages::ResponseSendFundsResult;
+
+use super::{MutableFunderHandler, FriendMoveTokenRequest};
 use super::sender::SendMode;
 
 
@@ -46,6 +52,43 @@ pub enum HandleFriendError {
     NotInconsistent,
     ResetTokenMismatch,
     InconsistencyWhenTokenOwned,
+}
+
+// Prefix used for chain hashing of token channel funds.
+// NEXT is used for hashing for the next move token funds.
+// RESET is used for resetting the token channel.
+// The prefix allows the receiver to distinguish between the two cases.
+// const TOKEN_NEXT: &[u8] = b"NEXT";
+const TOKEN_RESET: &[u8] = b"RESET";
+
+/// Calculate the token to be used for resetting the channel.
+#[allow(unused)]
+pub async fn calc_channel_reset_token(new_token: &Signature,
+                      balance_for_reset: i128,
+                      identity_client: IdentityClient) -> Signature {
+
+    let mut sig_buffer = Vec::new();
+    sig_buffer.extend_from_slice(&sha_512_256(TOKEN_RESET));
+    sig_buffer.extend_from_slice(&new_token);
+    sig_buffer.write_i128::<BigEndian>(balance_for_reset).unwrap();
+    await!(identity_client.request_signature(sig_buffer)).unwrap()
+}
+
+pub async fn get_reset_terms(token_channel: &TokenChannel, 
+                             identity_client: IdentityClient) -> ResetTerms {
+    // We add 2 for the new counter in case 
+    // the remote side has already used the next counter.
+    let reset_token = await!(calc_channel_reset_token(
+                             token_channel.get_new_token(),
+                             token_channel.get_mutual_credit().balance_for_reset(),
+                             identity_client));
+    ResetTerms {
+        reset_token,
+        // TODO: Should we do something other than wrapping_add(1)?
+        // 2**64 inconsistencies are required for an overflow.
+        inconsistency_counter: token_channel.get_inconsistency_counter().wrapping_add(1),
+        balance_for_reset: token_channel.get_mutual_credit().balance_for_reset(),
+    }
 }
 
 
@@ -71,12 +114,12 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
     }
 
     pub fn add_local_freezing_link(&self, request_send_funds: &mut RequestSendFunds) {
-        let index = request_send_funds.route.pk_to_index(self.state.get_local_public_key())
+        let index = request_send_funds.route.pk_to_index(&self.state.local_public_key)
             .unwrap();
         assert_eq!(request_send_funds.freeze_links.len(), index);
         let next_index = index.checked_add(1).unwrap();
         let next_pk = request_send_funds.route.index_to_pk(next_index).unwrap();
-        let next_friend = self.state.get_friends().get(&next_pk).unwrap();
+        let next_friend = self.state.friends.get(&next_pk).unwrap();
         let next_tc = match &next_friend.channel_status {
             ChannelStatus::Consistent(token_channel) => token_channel,
             ChannelStatus::Inconsistent(_) => unreachable!(),
@@ -94,7 +137,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 None => Ratio::One,
             };
 
-            FunderFreezeLink {
+            FreezeLink {
                 shared_credits: total_trust.to_u128().unwrap_or(u128::max_value()),
                 usable_ratio,
             }
@@ -103,7 +146,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             // We are not the first node on the route:
             let prev_index = index.checked_sub(1).unwrap();
             let prev_pk = request_send_funds.route.index_to_pk(prev_index).unwrap();
-            let prev_friend = self.state.get_friends().get(&prev_pk).unwrap();
+            let prev_friend = self.state.friends.get(&prev_pk).unwrap();
             let prev_tc = match &prev_friend.channel_status {
                 ChannelStatus::Consistent(token_channel) => token_channel,
                 ChannelStatus::Inconsistent(_) => unreachable!(),
@@ -117,7 +160,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             };
 
             let shared_credits = prev_trust.to_u128().unwrap_or(u128::max_value());
-            FunderFreezeLink {
+            FreezeLink {
                 shared_credits,
                 usable_ratio,
             }
@@ -131,7 +174,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
     /// Forward a request message to the relevant friend and token channel.
     fn forward_request(&mut self, mut request_send_funds: RequestSendFunds) {
-        let index = request_send_funds.route.pk_to_index(self.state.get_local_public_key())
+        let index = request_send_funds.route.pk_to_index(&self.state.local_public_key)
             .unwrap();
         let next_index = index.checked_add(1).unwrap();
         let next_pk = request_send_funds.route.index_to_pk(next_index).unwrap();
@@ -150,7 +193,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         -> Result<ResponseSendFunds, !> {
 
         let rand_nonce = RandValue::new(&*self.rng);
-        let local_public_key = self.state.get_local_public_key().clone();
+        let local_public_key = self.state.local_public_key.clone();
 
         let mut response_send_funds = ResponseSendFunds {
             request_id: request_send_funds.request_id,
@@ -174,7 +217,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         // Find ourselves on the route. If we are not there, abort.
         let remote_index = request_send_funds.route.find_pk_pair(
             &remote_public_key, 
-            self.state.get_local_public_key()).unwrap();
+            &self.state.local_public_key).unwrap();
 
         let local_index = remote_index.checked_add(1).unwrap();
         let next_index = local_index.checked_add(1).unwrap();
@@ -192,7 +235,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
         // The node on the route has to be one of our friends:
         let next_public_key = request_send_funds.route.index_to_pk(next_index).unwrap();
-        let friend_exists = !self.state.get_friends().contains_key(next_public_key);
+        let friend_exists = !self.state.friends.contains_key(next_public_key);
 
         // This friend must be considered online for us to forward the message.
         // If we forward the request to an offline friend, the request could be stuck for a long
@@ -320,6 +363,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         }
     }
 
+
     /// Handle an error with incoming move token.
     async fn handle_move_token_error(&mut self,
                                remote_public_key: PublicKey,
@@ -332,7 +376,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         };
         let opt_last_incoming_move_token = token_channel.get_last_incoming_move_token().cloned();
         // Send an InconsistencyError message to remote side:
-        let local_reset_terms = await!(token_channel.get_reset_terms(self.identity_client.clone()));
+        let local_reset_terms = await!(get_reset_terms(&token_channel, self.identity_client.clone()));
 
         self.add_outgoing_comm(FunderOutgoingComm::FriendMessage((remote_public_key.clone(),
                 FriendMessage::InconsistencyError(local_reset_terms.clone()))));
@@ -343,7 +387,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             local_reset_terms,
             opt_remote_reset_terms: None,
         };
-        let friend_mutation = FriendMutation::SetChannelStatus(ChannelStatus::Inconsistent(channel_inconsistent));
+        let friend_mutation = FriendMutation::SetInconsistent(channel_inconsistent);
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
 
@@ -372,7 +416,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 self.transmit_outgoing(&remote_public_key);
             },
             ReceiveMoveTokenOutput::Received(move_token_received) => {
-                let MoveTokenReceived {incoming_messages, mutations} = 
+                let MoveTokenReceived {incoming_messages, mutations, remote_requests_closed} = 
                     move_token_received;
 
                 // Apply all mutations:
@@ -380,6 +424,16 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                     let friend_mutation = FriendMutation::TcMutation(tc_mutation);
                     let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
                     self.apply_mutation(messenger_mutation);
+                }
+
+                // If remote requests were previously open, and now they were closed:
+                if remote_requests_closed {
+                    // Cancel all messages pending for this friend. 
+                    // We don't want the senders of the requests to wait.
+                    await!(self.cancel_pending_requests(
+                            remote_public_key.clone()));
+                    await!(self.cancel_pending_user_requests(
+                            remote_public_key.clone()));
                 }
 
                 await!(self.handle_move_token_output(remote_public_key.clone(),
@@ -460,7 +514,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                     return Err(HandleFriendError::InconsistencyWhenTokenOwned);
                 }
                 (true, 
-                 await!(token_channel.get_reset_terms(self.identity_client.clone())),
+                 await!(get_reset_terms(&token_channel, self.identity_client.clone())),
                  token_channel.get_last_incoming_move_token().cloned())
             },
             ChannelStatus::Inconsistent(channel_inconsistent) => 
@@ -475,7 +529,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             local_reset_terms: new_local_reset_terms.clone(),
             opt_remote_reset_terms: Some(new_remote_reset_terms),
         };
-        let friend_mutation = FriendMutation::SetChannelStatus(ChannelStatus::Inconsistent(channel_inconsistent));
+        let friend_mutation = FriendMutation::SetInconsistent(channel_inconsistent);
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
 

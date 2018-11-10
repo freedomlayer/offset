@@ -32,27 +32,27 @@ pub enum FunderMutation<A> {
 
 #[allow(unused)]
 impl<A:Clone + 'static> FunderState<A> {
-    pub fn new() -> FunderState<A> {
-        // TODO: Initialize from database somehow.
-        unreachable!();
+    pub fn new(local_public_key: &PublicKey) -> FunderState<A> {
+        FunderState {
+            local_public_key: local_public_key.clone(),
+            friends: ImHashMap::new(),
+            ready_receipts: ImHashMap::new(),
+        }
     }
+
+    // TODO: Add code for initialization from database?
 
     /// Get total trust (in credits) we put on all the friends together.
     pub fn get_total_trust(&self) -> BigUint {
         let mut sum: BigUint = BigUint::zero();
         for friend in self.friends.values() {
-            let trust: BigUint = friend.get_trust().into();
+            // Note that we care more about the wanted_remote_max_debt than the actual
+            // remote_max_debt in this case. The trust is derived from what the user wants to
+            // happen.
+            let trust: BigUint = friend.wanted_remote_max_debt.into();
             sum += trust;
         }
         sum
-    }
-
-    pub fn get_friends(&self) -> &ImHashMap<PublicKey, FriendState<A>> {
-        &self.friends
-    }
-
-    pub fn get_local_public_key(&self) -> &PublicKey {
-        &self.local_public_key
     }
 
     pub fn mutate(&mut self, messenger_mutation: &FunderMutation<A>) {
@@ -67,7 +67,8 @@ impl<A:Clone + 'static> FunderState<A> {
                                                   opt_address.clone());
                 // Insert friend, but also make sure that we did not remove any existing friend
                 // with the same public key:
-                let _ = self.friends.insert(friend_public_key.clone(), friend).unwrap();
+                let res = self.friends.insert(friend_public_key.clone(), friend);
+                assert!(res.is_none());
 
             },
             FunderMutation::RemoveFriend(public_key) => {

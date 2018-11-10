@@ -51,7 +51,7 @@ pub struct MutableFunderHandler<A:Clone,R> {
     state: FunderState<A>,
     pub ephemeral: FunderEphemeral,
     pub identity_client: IdentityClient,
-    pub rng: Rc<R>,
+    pub rng: Rc<R>, // Can we be more generic and remove this Rc?
     mutations: Vec<FunderMutation<A>>,
     outgoing_comms: Vec<FunderOutgoingComm<A>>,
     responses_received: Vec<ResponseReceived>,
@@ -63,7 +63,7 @@ impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
     }
 
     fn get_friend(&self, friend_public_key: &PublicKey) -> Option<&FriendState<A>> {
-        self.state.get_friends().get(&friend_public_key)
+        self.state.friends.get(&friend_public_key)
     }
 
     pub fn done(self) -> FunderHandlerOutput<A> {
@@ -108,7 +108,7 @@ impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
     /// TODO: We need to change this search to be O(1) in the future. Possibly by maintaining a map
     /// between request_id and (friend_public_key, friend).
     pub fn find_request_origin(&self, request_id: &Uid) -> Option<&PublicKey> {
-        for (friend_public_key, friend) in self.state.get_friends() {
+        for (friend_public_key, friend) in &self.state.friends {
             match &friend.channel_status {
                 ChannelStatus::Inconsistent(_) => continue,
                 ChannelStatus::Consistent(token_channel) => {
@@ -133,10 +133,22 @@ impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
         if !self.ephemeral.liveness.is_online(friend_public_key) {
             return false;
         }
-        match friend.channel_status {
-            ChannelStatus::Consistent(_) => true,
-            ChannelStatus::Inconsistent(_) => false,
+        if let ChannelStatus::Inconsistent(_) = friend.channel_status {
+            return false;
         }
+
+        // Make sure that the channel is consistent:
+        let token_channel = match &friend.channel_status {
+            ChannelStatus::Inconsistent(_) => return false,
+            ChannelStatus::Consistent(token_channel) => token_channel,
+        };
+
+        // Make sure that the remote side has open requests:
+        token_channel
+            .get_mutual_credit()
+            .state()
+            .requests_status.remote
+            .is_open()
     }
 
 }

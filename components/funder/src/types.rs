@@ -44,6 +44,16 @@ pub enum RequestsStatus {
     Closed,
 }
 
+impl RequestsStatus {
+    pub fn is_open(&self) -> bool {
+        if let RequestsStatus::Open = self {
+            true
+        } else {
+            false
+        }
+    }
+}
+
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum FriendTcOp {
@@ -55,7 +65,7 @@ pub enum FriendTcOp {
     FailureSendFunds(FailureSendFunds),
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct PendingFriendRequest {
     pub request_id: Uid,
     pub route: FriendsRoute,
@@ -80,7 +90,7 @@ pub enum Ratio<T> {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct FunderFreezeLink {
+pub struct FreezeLink {
     pub shared_credits: u128,
     pub usable_ratio: Ratio<u128>
 }
@@ -101,7 +111,7 @@ pub struct RequestSendFunds {
     pub route: FriendsRoute,
     pub dest_payment: u128,
     pub invoice_id: InvoiceId,
-    pub freeze_links: Vec<FunderFreezeLink>,
+    pub freeze_links: Vec<FreezeLink>,
 }
 
 
@@ -121,7 +131,7 @@ pub struct FriendsRoute {
 
 
 #[allow(unused)]
-#[derive(PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct FriendMoveToken {
     pub operations: Vec<FriendTcOp>,
     pub old_token: Signature,
@@ -149,8 +159,8 @@ impl FriendMoveToken {
         let mut friend_move_token = FriendMoveToken {
             operations,
             old_token,
-            inconsistency_counter: 0,
-            move_token_counter: 0,
+            inconsistency_counter,
+            move_token_counter,
             balance,
             local_pending_debt,
             remote_pending_debt,
@@ -279,7 +289,7 @@ impl Ratio<u128> {
     }
 }
 
-impl FunderFreezeLink {
+impl FreezeLink {
     fn to_bytes(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.write_u128::<BigEndian>(self.shared_credits)
