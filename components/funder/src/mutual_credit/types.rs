@@ -18,7 +18,7 @@ use super::super::types::RequestsStatus;
 pub const MAX_FUNDER_DEBT: u128 = (1 << 127) - 1;
 
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct TcIdents {
     /// My public key
     pub local_public_key: PublicKey,
@@ -26,7 +26,7 @@ pub struct TcIdents {
     pub remote_public_key: PublicKey,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct TcBalance {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
@@ -72,7 +72,7 @@ impl TcPendingRequests {
     }
 }
 
-#[derive(Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Clone, Serialize, Deserialize, Debug)]
 pub struct TcRequestsStatus {
     // Local is open/closed for incoming requests:
     pub local: RequestsStatus,

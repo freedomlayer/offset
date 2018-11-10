@@ -32,7 +32,7 @@ define_fixed_bytes!(InvoiceId, INVOICE_ID_LEN);
 // struct ChannelToken(Signature);
 
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum FriendStatus {
     Enable = 1,
     Disable = 0,
@@ -463,7 +463,7 @@ pub enum IncomingLivenessMessage {
 
 /// A `SendFundsReceipt` is received if a `RequestSendFunds` is successful.
 /// It can be used a proof of payment for a specific `invoice_id`.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct SendFundsReceipt {
     pub response_hash: HashResult,
     // = sha512/256(requestId || sha512/256(route) || randNonce)
@@ -490,7 +490,7 @@ impl SendFundsReceipt {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FriendMoveTokenRequest {
     pub friend_move_token: FriendMoveToken,
     // Do we want the remote side to return the token:
@@ -505,17 +505,20 @@ pub struct FriendInconsistencyError {
 
 
 #[allow(unused)]
+#[derive(Debug)]
 pub enum FriendMessage {
     MoveTokenRequest(FriendMoveTokenRequest),
     InconsistencyError(ResetTerms),
 }
 
 
+#[derive(Debug)]
 pub struct ResponseReceived {
     pub request_id: Uid,
     pub result: ResponseSendFundsResult,
 }
 
+#[derive(Debug)]
 pub enum ChannelerConfig<A> {
     AddFriend((PublicKey, A)),
     RemoveFriend(PublicKey),
@@ -534,16 +537,19 @@ pub enum FunderIncoming<A> {
 }
 
 #[allow(unused)]
+#[derive(Debug)]
 pub enum FunderOutgoing<A: Clone> {
     Control(FunderOutgoingControl<A>),
     Comm(FunderOutgoingComm<A>),
 }
 
+#[derive(Debug)]
 pub enum FunderOutgoingControl<A: Clone> {
     ResponseReceived(ResponseReceived),
     Report(FunderReport<A>),
 }
 
+#[derive(Debug)]
 pub enum FunderOutgoingComm<A> {
     FriendMessage((PublicKey, FriendMessage)),
     ChannelerConfig(ChannelerConfig<A>),

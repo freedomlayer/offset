@@ -18,12 +18,14 @@ use crate::types::{FriendMoveToken,
     FriendMoveTokenRequest, FriendTcOp};
 
 
+#[derive(Debug)]
 pub enum SetDirection {
     Incoming(FriendMoveToken), 
     Outgoing(FriendMoveToken),
 }
 
 #[allow(unused)]
+#[derive(Debug)]
 pub enum TcMutation {
     McMutation(McMutation),
     SetDirection(SetDirection),

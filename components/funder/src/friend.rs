@@ -13,13 +13,14 @@ use super::token_channel::TokenChannel;
 
 
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum ResponseOp {
     Response(ResponseSendFunds),
     Failure(FailureSendFunds),
 }
 
 #[allow(unused)]
+#[derive(Debug)]
 pub enum FriendMutation<A> {
     TcMutation(TcMutation),
     SetInconsistent(ChannelInconsistent),
@@ -38,7 +39,7 @@ pub enum FriendMutation<A> {
     RemoteReset(FriendMoveToken),
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ChannelInconsistent {
     pub opt_last_incoming_move_token: Option<FriendMoveToken>,
     pub local_reset_terms: ResetTerms,

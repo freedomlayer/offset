@@ -36,6 +36,7 @@ pub enum FriendEvent {
 }
 */
 
+#[derive(Debug)]
 pub enum ResponseSendFundsResult {
     Success(SendFundsReceipt),
     Failure(PublicKey), // Reporting public key.
