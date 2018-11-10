@@ -13,7 +13,8 @@ use crypto::identity::{SoftwareEd25519Identity,
                         PublicKey};
 
 use crate::token_channel::{is_public_key_lower, TcDirection};
-use crate::types::{FunderIncoming, IncomingControlMessage, AddFriend};
+use crate::types::{FunderIncoming, IncomingControlMessage, 
+    AddFriend, ChannelerConfig};
 
 
 async fn task_handler_pair_basic(identity_client1: IdentityClient, 
@@ -71,17 +72,31 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
                           state1.clone(),
                           ephemeral1,
                           funder_incoming)).unwrap();
-    let FunderHandlerOutput {ephemeral: ephemeral1, mutations, outgoing_comms, outgoing_control}
+    let FunderHandlerOutput {ephemeral: ephemeral1, mut mutations, mut outgoing_comms, outgoing_control}
         = funder_handler_output;
-    // TODO: Find out about:
-    // - Mutations happening here.
-    // - outgoing_comms here.
-    // - outgoing control here.
+
     assert_eq!(mutations.len(), 1);
-    // assert!(outgoing_comms.is_empty());
-    // println!("{:?}", outgoing_comms[0]);
-    // assert!(outgoing_control.is_empty());
-    
+    let mutation = mutations.pop().unwrap();
+    if let FunderMutation::AddFriend((pk, a)) = mutation {
+        assert_eq!(pk, pk2);
+        assert_eq!(a, 22);
+    } else {
+        unreachable!();
+    }
+
+    assert_eq!(outgoing_comms.len(), 1);
+    let outgoing_comm = outgoing_comms.pop().unwrap();
+    if let FunderOutgoingComm::ChannelerConfig(ChannelerConfig::AddFriend((pk, a))) = outgoing_comm {
+        assert_eq!(pk, pk2);
+        assert_eq!(a, 22);
+    } else {
+        unreachable!();
+    }
+
+    // We expect that a report will be sent:
+    assert_eq!(outgoing_control.len(), 1);
+
+    // TODO: Continue here.
 
 }
 
