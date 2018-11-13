@@ -64,7 +64,9 @@ async fn inner_funder<A: Serialize + DeserializeOwned + Send + Sync + Clone + 's
     let incoming_comm = incoming_comm
         .map(|incoming_comm_msg| FunderEvent::FunderIncoming(FunderIncoming::Comm(incoming_comm_msg)))
         .chain(stream::once(future::ready(FunderEvent::IncomingCommClosed)));
-    let mut incoming_messages = incoming_control.select(incoming_comm);
+    // Chain the Init message first:
+    let mut incoming_messages = stream::once(future::ready(FunderEvent::FunderIncoming(FunderIncoming::Init)))
+        .chain(incoming_control.select(incoming_comm));
 
     while let Some(funder_event) = await!(incoming_messages.next()) {
         // For testing:
