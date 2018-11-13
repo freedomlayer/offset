@@ -11,12 +11,14 @@ use identity::{create_identity, IdentityClient};
 use crypto::test_utils::DummyRandom;
 use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair};
 use crypto::crypto_rand::{RngContainer, CryptoRandom};
+use crypto::uid::{Uid, UID_LEN};
 
 use crate::token_channel::{is_public_key_lower};
 
 use crate::types::{FunderIncoming, IncomingControlMessage, 
     AddFriend, IncomingLivenessMessage, FriendStatus,
-    SetFriendStatus, FriendMessage, SetFriendRemoteMaxDebt};
+    SetFriendStatus, FriendMessage, SetFriendRemoteMaxDebt,
+    FriendsRoute, UserRequestSendFunds, InvoiceId, INVOICE_ID_LEN};
 
 
 /// A helper function. Applies an incoming funder message, updating state and ephemeral
@@ -153,9 +155,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     await!(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  rng.clone(), identity_client2.clone())).unwrap();
 
-    println!("Node1 receives control message to set remote max debt:");
 
-    // TODO:
     // Node1 receives control message to set remote max debt:
     let set_friend_remote_max_debt = SetFriendRemoteMaxDebt {
         friend_public_key: pk2.clone(),
@@ -218,28 +218,90 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
         _ => unreachable!(),
     };
 
-    // Node2: Receive friend_message from Node1:
+    // Node2: Receive friend_message (With SetRemoteMaxDebt) from Node1:
     let funder_incoming = FunderIncoming::Comm(IncomingCommMessage::Friend((pk1.clone(), friend_message)));
     let (_outgoing_comms, _outgoing_control) = await!(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  rng.clone(), identity_client2.clone())).unwrap();
 
-    /*
-    // TODO:
-    // Node1 receives control message to send credit
+    let friend2 = state1.friends.get(&pk2).unwrap();
+    let remote_max_debt = match &friend2.channel_status {
+        ChannelStatus::Consistent(token_channel) 
+            => token_channel.get_mutual_credit().state().balance.remote_max_debt,
+        _ => unreachable!(),
+    };
+    assert_eq!(remote_max_debt, 100);
+
+    let friend1 = state2.friends.get(&pk1).unwrap();
+    let local_max_debt = match &friend1.channel_status {
+        ChannelStatus::Consistent(token_channel) 
+            => token_channel.get_mutual_credit().state().balance.local_max_debt,
+        _ => unreachable!(),
+    };
+    assert_eq!(local_max_debt, 100);
+
+    // Node2 receives control message to send funds to Node1:
     let user_request_send_funds = UserRequestSendFunds {
         request_id: Uid::from(&[3; UID_LEN]),
-        route: FriendsRoute { public_keys: vec![pk1.clone(), pk2.clone()] },
-        invoice_id: InvoiceId::from(&[0; INVOICE_ID_LEN]),
+        route: FriendsRoute { public_keys: vec![pk2.clone(), pk1.clone()] },
+        invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
         dest_payment: 20,
     };
     let incoming_control_message = IncomingControlMessage::RequestSendFunds(user_request_send_funds);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
-    await!(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
-                                 rng.clone(), identity_client1.clone())).unwrap();
-     */
+    let (outgoing_comms, _outgoing_control) = await!(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+                                 rng.clone(), identity_client2.clone())).unwrap();
 
+    // Node2 sends a RequestSendFunds to Node1:
+    assert_eq!(outgoing_comms.len(), 1);
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk1);
+                let friend_move_token = &move_token_request.friend_move_token;
+                assert_eq!(friend_move_token.balance, 0);
+                assert_eq!(friend_move_token.local_pending_debt, 20);
+                assert_eq!(friend_move_token.remote_pending_debt, 0);
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        },
+        _ => unreachable!(),
+    };
+
+
+    // Node1 receives RequestSendFunds from Node2:
+    let funder_incoming = FunderIncoming::Comm(IncomingCommMessage::Friend((pk2.clone(), friend_message)));
+    let (outgoing_comms, _outgoing_control) = await!(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
+                                 rng.clone(), identity_client1.clone())).unwrap();
+
+    // Node1 sends a ResponseSendFunds to Node2:
+    assert_eq!(outgoing_comms.len(), 1);
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk2);
+                let friend_move_token = &move_token_request.friend_move_token;
+                assert_eq!(friend_move_token.balance, 20);
+                assert_eq!(friend_move_token.local_pending_debt, 0);
+                assert_eq!(friend_move_token.remote_pending_debt, 0);
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        },
+        _ => unreachable!(),
+    };
+
+
+    // Node2 receives ResponseSendFunds from Node1:
+    let funder_incoming = FunderIncoming::Comm(IncomingCommMessage::Friend((pk1.clone(), friend_message)));
+    let (_outgoing_comms, _outgoing_control) = await!(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+                                 rng.clone(), identity_client2.clone())).unwrap();
+
+    
     // Node1 sends a message to Node2, requesting for the token.
-    // Node2 sends back and empty message, containing the token.
+    // Node2 sends back an empty message, containing the token.
     // Node1 sends a request to Node2.
     // Node2 sends a response to Node1.
     // Both state1 and state2 reflect the moving of the funds.
