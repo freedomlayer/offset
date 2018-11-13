@@ -58,7 +58,6 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             (set_friend_remote_max_debt.friend_public_key.clone(), friend_mutation));
 
         self.apply_mutation(m_mutation);
-        dbg!("before try_send_channel()");
         await!(self.try_send_channel(&set_friend_remote_max_debt.friend_public_key, SendMode::EmptyNotAllowed));
         Ok(())
     }
