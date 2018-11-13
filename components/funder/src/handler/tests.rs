@@ -330,4 +330,62 @@ fn test_handler_pair_basic() {
     thread_pool.run(task_handler_pair_basic(identity_client1, identity_client2));
 }
 
+async fn task_reproduce_overflow(identity_client1: IdentityClient, 
+                                 identity_client2: IdentityClient) {
+    // Sort the identities. identity_client1 will be the first sender:
+    let pk1 = await!(identity_client1.request_public_key()).unwrap();
+    let pk2 = await!(identity_client2.request_public_key()).unwrap();
+    let (identity_client1, pk1, identity_client2, pk2) = if is_public_key_lower(&pk1, &pk2) {
+        (identity_client1, pk1, identity_client2, pk2)
+    } else {
+        (identity_client2, pk2, identity_client1, pk1)
+    };
+
+    let mut state1 = FunderState::<u32>::new(&pk1);
+    let mut ephemeral1 = FunderEphemeral::new(&state1);
+    let mut state2 = FunderState::<u32>::new(&pk2);
+    let mut ephemeral2 = FunderEphemeral::new(&state2);
+
+    let rng = RngContainer::new(DummyRandom::new(&[3u8]));
+
+    // Initialize 1:
+    let funder_incoming = FunderIncoming::Init;
+    await!(apply_funder_incoming(funder_incoming.clone(), &mut state1, &mut ephemeral1, rng.clone(), identity_client1.clone())).unwrap();
+    await!(apply_funder_incoming(funder_incoming.clone(), &mut state1, &mut ephemeral1, rng.clone(), identity_client1.clone())).unwrap();
+    await!(apply_funder_incoming(funder_incoming.clone(), &mut state1, &mut ephemeral1, rng.clone(), identity_client1.clone())).unwrap();
+    await!(apply_funder_incoming(funder_incoming.clone(), &mut state1, &mut ephemeral1, rng.clone(), identity_client1.clone())).unwrap();
+    await!(apply_funder_incoming(funder_incoming.clone(), &mut state1, &mut ephemeral1, rng.clone(), identity_client1.clone())).unwrap();
+    await!(apply_funder_incoming(funder_incoming.clone(), &mut state1, &mut ephemeral1, rng.clone(), identity_client1.clone())).unwrap();
+    await!(apply_funder_incoming(funder_incoming.clone(), &mut state1, &mut ephemeral1, rng.clone(), identity_client1.clone())).unwrap();
+    await!(apply_funder_incoming(funder_incoming.clone(), &mut state1, &mut ephemeral1, rng.clone(), identity_client1.clone())).unwrap();
+    await!(apply_funder_incoming(funder_incoming.clone(), &mut state1, &mut ephemeral1, rng.clone(), identity_client1.clone())).unwrap();
+    await!(apply_funder_incoming(funder_incoming.clone(), &mut state1, &mut ephemeral1, rng.clone(), identity_client1.clone())).unwrap();
+    await!(apply_funder_incoming(funder_incoming.clone(), &mut state1, &mut ephemeral1, rng.clone(), identity_client1.clone())).unwrap();
+    await!(apply_funder_incoming(funder_incoming.clone(), &mut state1, &mut ephemeral1, rng.clone(), identity_client1.clone())).unwrap();
+    await!(apply_funder_incoming(funder_incoming.clone(), &mut state1, &mut ephemeral1, rng.clone(), identity_client1.clone())).unwrap();
+    await!(apply_funder_incoming(funder_incoming.clone(), &mut state1, &mut ephemeral1, rng.clone(), identity_client1.clone())).unwrap();
+    await!(apply_funder_incoming(funder_incoming.clone(), &mut state1, &mut ephemeral1, rng.clone(), identity_client1.clone())).unwrap();
+}
+
+#[test]
+fn test_reproduce_overflow() {
+    let mut thread_pool = ThreadPool::new().unwrap();
+
+    let rng1 = DummyRandom::new(&[1u8]);
+    let pkcs8 = generate_pkcs8_key_pair(&rng1);
+    let identity1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+    let (requests_sender1, identity_server1) = create_identity(identity1);
+    let identity_client1 = IdentityClient::new(requests_sender1);
+    thread_pool.spawn(identity_server1.then(|_| future::ready(()))).unwrap();
+
+    let rng2 = DummyRandom::new(&[2u8]);
+    let pkcs8 = generate_pkcs8_key_pair(&rng2);
+    let identity2 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+    let (requests_sender2, identity_server2) = create_identity(identity2);
+    let identity_client2 = IdentityClient::new(requests_sender2);
+    thread_pool.spawn(identity_server2.then(|_| future::ready(()))).unwrap();
+
+    thread_pool.run(task_reproduce_overflow(identity_client1, identity_client2));
+}
+
 // TODO: Add a test about inconsistency and resolving it.
