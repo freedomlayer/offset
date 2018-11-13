@@ -124,7 +124,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
                                  rng.clone(), identity_client1.clone())).unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
-    match &outgoing_comms[0] {
+    let friend_message = match &outgoing_comms[0] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);
@@ -134,15 +134,33 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 0);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
+
             } else {
                 unreachable!();
             }
+            friend_message.clone()
         },
         _ => unreachable!(),
     };
 
-    // TODO: Continue here.
+    // Node2: Notify that Node1 is alive
+    let incoming_liveness_message = IncomingLivenessMessage::Online(pk1.clone());
+    let funder_incoming = FunderIncoming::Comm(IncomingCommMessage::Liveness(incoming_liveness_message));
+    let (outgoing_comms, outgoing_control) = await!(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+                                 rng.clone(), identity_client2.clone())).unwrap();
 
+    // Node2: Receive friend_message from Node1:
+    let funder_incoming = FunderIncoming::Comm(IncomingCommMessage::Friend((pk1.clone(), friend_message)));
+    await!(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+                                 rng.clone(), identity_client2.clone())).unwrap();
+
+    // TODO:
+    // Node1 receives control message to send credit
+    // Node1 sends a message to Node2, requesting for the token.
+    // Node2 sends back and empty message, containing the token.
+    // Node1 sends a request to Node2.
+    // Node2 sends a response to Node1.
+    // Both state1 and state2 reflect the moving of the funds.
 }
 
 #[test]
@@ -165,3 +183,5 @@ fn test_handler_pair_basic() {
 
     thread_pool.run(task_handler_pair_basic(identity_client1, identity_client2));
 }
+
+// TODO: Add a test about inconsistency and resolving it.
