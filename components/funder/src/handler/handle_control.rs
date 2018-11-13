@@ -42,21 +42,29 @@ pub enum HandleControlError {
 #[allow(unused)]
 impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
-    fn control_set_friend_remote_max_debt(&mut self, 
+    async fn control_set_friend_remote_max_debt(&mut self, 
                                             set_friend_remote_max_debt: SetFriendRemoteMaxDebt) 
         -> Result<(), HandleControlError> {
 
         // Make sure that friend exists:
-        let _friend = self.get_friend(&set_friend_remote_max_debt.friend_public_key)
+        let friend = self.get_friend(&set_friend_remote_max_debt.friend_public_key)
             .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-        let mc_mutation = McMutation::SetRemoteMaxDebt(set_friend_remote_max_debt.remote_max_debt);
-        let tc_mutation = TcMutation::McMutation(mc_mutation);
-        let friend_mutation = FriendMutation::TcMutation(tc_mutation);
+        if friend.wanted_remote_max_debt == set_friend_remote_max_debt.remote_max_debt {
+            // Wanted remote max debt is already set to this value. Nothing to do here.
+            return Ok(())
+        }
+
+        // We only set the wanted remote max debt here. The actual remote max debt will be changed
+        // only when we manage to send a move token message containing the SetRemoteMaxDebt
+        // operation.
+        let friend_mutation = FriendMutation::SetWantedRemoteMaxDebt(set_friend_remote_max_debt.remote_max_debt);
         let m_mutation = FunderMutation::FriendMutation(
-            (set_friend_remote_max_debt.friend_public_key, friend_mutation));
+            (set_friend_remote_max_debt.friend_public_key.clone(), friend_mutation));
 
         self.apply_mutation(m_mutation);
+        dbg!("before try_send_channel()");
+        await!(self.try_send_channel(&set_friend_remote_max_debt.friend_public_key, SendMode::EmptyNotAllowed));
         Ok(())
     }
 
