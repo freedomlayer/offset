@@ -13,11 +13,13 @@ use crypto::identity::{SoftwareEd25519Identity,
                         generate_pkcs8_key_pair, PUBLIC_KEY_LEN,
                         PublicKey};
 use crypto::crypto_rand::{RngContainer, CryptoRandom};
+use crypto::uid::{Uid, UID_LEN};
 
 use crate::token_channel::{is_public_key_lower, TcDirection};
 use crate::types::{FunderIncoming, IncomingControlMessage, 
     AddFriend, ChannelerConfig, IncomingLivenessMessage, FriendStatus,
-    SetFriendStatus, FriendMessage};
+    SetFriendStatus, FriendMessage, UserRequestSendFunds,
+    InvoiceId, INVOICE_ID_LEN, SetFriendRemoteMaxDebt};
 
 
 /// A helper function. Applies an incoming funder message, updating state and ephemeral
@@ -154,8 +156,91 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     await!(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  rng.clone(), identity_client2.clone())).unwrap();
 
+    println!("Node1 receives control message to set remote max debt:");
+
+    // TODO:
+    // Node1 receives control message to set remote max debt:
+    let set_friend_remote_max_debt = SetFriendRemoteMaxDebt {
+        friend_public_key: pk2.clone(),
+        remote_max_debt: 100,
+    };
+    let incoming_control_message = IncomingControlMessage::SetFriendRemoteMaxDebt(set_friend_remote_max_debt);
+    let funder_incoming = FunderIncoming::Control(incoming_control_message);
+    let (outgoing_comms, outgoing_control) = await!(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
+                                 rng.clone(), identity_client1.clone())).unwrap();
+    // Node1 wants to obtain the token, so it resends the last outgoing move token with
+    // token_wanted = true:
+    assert_eq!(outgoing_comms.len(), 1);
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk2);
+                assert_eq!(move_token_request.token_wanted, true);
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        },
+        _ => unreachable!(),
+    };
+
+    // Node2: Receive friend_message (request for token) from Node1:
+    let funder_incoming = FunderIncoming::Comm(IncomingCommMessage::Friend((pk1.clone(), friend_message)));
+    let (outgoing_comms, outgoing_control) = await!(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+                                 rng.clone(), identity_client2.clone())).unwrap();
+    assert_eq!(outgoing_comms.len(), 1);
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk1);
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        },
+        _ => unreachable!(),
+    };
+
+    // Node1: Receive friend_message from Node2:
+    let funder_incoming = FunderIncoming::Comm(IncomingCommMessage::Friend((pk2.clone(), friend_message)));
+    let (outgoing_comms, outgoing_control) = await!(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
+                                 rng.clone(), identity_client1.clone())).unwrap();
+
+    // Now that Node1 has the token, it will now send the SetRemoteMaxDebt message to Node2:
+    assert_eq!(outgoing_comms.len(), 1);
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk2);
+                assert_eq!(move_token_request.token_wanted, false);
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        },
+        _ => unreachable!(),
+    };
+
+    // Node2: Receive friend_message from Node1:
+    let funder_incoming = FunderIncoming::Comm(IncomingCommMessage::Friend((pk1.clone(), friend_message)));
+    let (outgoing_comms, outgoing_control) = await!(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+                                 rng.clone(), identity_client2.clone())).unwrap();
+
+    /*
     // TODO:
     // Node1 receives control message to send credit
+    let user_request_send_funds = UserRequestSendFunds {
+        request_id: Uid::from(&[3; UID_LEN]),
+        route: FriendsRoute { public_keys: vec![pk1.clone(), pk2.clone()] },
+        invoice_id: InvoiceId::from(&[0; INVOICE_ID_LEN]),
+        dest_payment: 20,
+    };
+    let incoming_control_message = IncomingControlMessage::RequestSendFunds(user_request_send_funds);
+    let funder_incoming = FunderIncoming::Control(incoming_control_message);
+    await!(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
+                                 rng.clone(), identity_client1.clone())).unwrap();
+     */
+
     // Node1 sends a message to Node2, requesting for the token.
     // Node2 sends back and empty message, containing the token.
     // Node1 sends a request to Node2.

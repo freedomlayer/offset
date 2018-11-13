@@ -8,7 +8,6 @@ mod canceler;
 #[cfg(test)]
 mod tests;
 
-use std::rc::Rc;
 use identity::IdentityClient;
 
 use crypto::uid::Uid;
@@ -19,17 +18,13 @@ use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError};
 use self::handle_friend::HandleFriendError;
 use self::handle_liveness::HandleLivenessError;
-use super::token_channel::ReceiveMoveTokenError;
-use super::types::{FriendMoveToken, FriendsRoute, 
-    IncomingControlMessage, IncomingLivenessMessage,
-    FriendMoveTokenRequest, FunderOutgoing, FunderIncoming,
+use super::types::{FriendMoveTokenRequest, FunderIncoming,
     FunderOutgoingComm, FunderOutgoingControl, IncomingCommMessage,
     ResponseReceived};
 use super::ephemeral::FunderEphemeral;
 use super::friend::{FriendState, ChannelStatus};
 use super::report::create_report;
 
-use super::messages::{FunderCommand, ResponseSendFundsResult};
 
 // Approximate maximum size of a MOVE_TOKEN message.
 // TODO: Where to put this constant? Do we have more like this one?
@@ -61,9 +56,11 @@ pub struct MutableFunderHandler<A:Clone,R> {
 }
 
 impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
+    /*
     pub fn state(&self) -> &FunderState<A> {
         &self.state
     }
+    */
 
     fn get_friend(&self, friend_public_key: &PublicKey) -> Option<&FriendState<A>> {
         self.state.friends.get(&friend_public_key)
@@ -185,8 +182,6 @@ pub async fn funder_handle_message<A: Clone + 'static, R: CryptoRandom + 'static
                                           &funder_state,
                                           &funder_ephemeral);
 
-    let state = funder_state.clone();
-    let ephemeral = funder_ephemeral.clone();
     match funder_incoming {
         FunderIncoming::Init =>  {
             mutable_handler.handle_init();

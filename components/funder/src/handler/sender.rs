@@ -3,13 +3,10 @@ use crypto::crypto_rand::{RandValue, CryptoRandom};
 
 use super::{MutableFunderHandler, MAX_MOVE_TOKEN_LENGTH};
 
-use crate::state::{FunderState, FunderMutation};
-use crate::types::{FriendTcOp, RequestSendFunds, 
-    ResponseSendFunds, FailureSendFunds, 
-    FriendMoveToken, RequestsStatus, FriendMoveTokenRequest,
-    FriendMessage, FunderOutgoingComm};
-use crate::mutual_credit::outgoing::{QueueOperationFailure,
-    QueueOperationError};
+use crate::state::{FunderMutation};
+use crate::types::{FriendTcOp, 
+    RequestsStatus, FriendMessage, FunderOutgoingComm};
+use crate::mutual_credit::outgoing::{QueueOperationFailure};
 
 use crate::friend::{FriendMutation, ResponseOp, ChannelStatus};
 use crate::token_channel::{TcMutation, TcDirection, SetDirection};
@@ -252,16 +249,7 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
                                   remote_public_key: &'a PublicKey,
                                   send_mode: SendMode) -> bool {
 
-        let friend = self.get_friend(remote_public_key).unwrap();
-        let token_channel = match &friend.channel_status {
-            ChannelStatus::Consistent(token_channel) => token_channel,
-            ChannelStatus::Inconsistent(_) => unreachable!(),
-        };
-        let tc_incoming = match token_channel.get_direction() {
-            TcDirection::Outgoing(_) => unreachable!(),
-            TcDirection::Incoming(tc_incoming) => tc_incoming,
-        };
-        let out_tc = tc_incoming.begin_outgoing_move_token();
+        let _friend = self.get_friend(remote_public_key).unwrap();
 
         let mut ops_batch = OperationsBatch::new(MAX_MOVE_TOKEN_LENGTH);
         self.queue_outgoing_operations(remote_public_key, &mut ops_batch);
@@ -278,8 +266,8 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
     }
 
     /// Try to send whatever possible through a friend channel.
-    pub fn try_send_channel(&mut self,
-                        remote_public_key: &PublicKey,
+    pub async fn try_send_channel<'a>(&'a mut self,
+                        remote_public_key: &'a PublicKey,
                         send_mode: SendMode) {
 
         let friend = self.get_friend(remote_public_key).unwrap();
@@ -294,7 +282,7 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
             TcDirection::Incoming(_) => {
                 // We have the token. 
                 // Send as many operations as possible to remote side:
-                self.send_through_token_channel(&remote_public_key, send_mode);
+                await!(self.send_through_token_channel(&remote_public_key, send_mode));
             },
             TcDirection::Outgoing(tc_outgoing) => {
                 if !tc_outgoing.token_wanted {

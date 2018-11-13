@@ -1,13 +1,10 @@
 use crypto::crypto_rand::CryptoRandom;
 
 use super::MutableFunderHandler;
-use super::super::types::{FriendMessage,
-                            FriendInconsistencyError, ChannelerConfig,
-                            FriendStatus, ResetTerms,
+use super::super::types::{ChannelerConfig,
+                            FriendStatus,
                             FunderOutgoingComm};
 
-pub enum HandleInitError {
-}
 
 #[allow(unused)]
 impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {

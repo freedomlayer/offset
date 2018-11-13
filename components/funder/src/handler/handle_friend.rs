@@ -1,5 +1,3 @@
-use std::convert::TryFrom;
-
 use byteorder::{BigEndian, WriteBytesExt};
 
 use num_bigint::BigUint;
@@ -7,30 +5,25 @@ use num_traits::ToPrimitive;
 
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 use crypto::identity::{PublicKey, Signature};
-use crypto::uid::Uid;
 use crypto::hash::sha_512_256;
 
 use identity::IdentityClient;
 
-use utils::safe_arithmetic::SafeArithmetic;
 
 use crate::mutual_credit::incoming::{IncomingResponseSendFunds, 
     IncomingFailureSendFunds, IncomingMessage};
-use crate::mutual_credit::outgoing::{QueueOperationFailure,
-    QueueOperationError};
 use crate::token_channel::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
-    TcMutation, MoveTokenReceived, SetDirection, TokenChannel};
+    MoveTokenReceived, TokenChannel};
 
 use crate::types::{RequestSendFunds, ResponseSendFunds, 
     FailureSendFunds, FriendMoveToken, 
     FreezeLink, 
-    PendingFriendRequest, Ratio, SendFundsReceipt,
-    FriendInconsistencyError,
+    PendingFriendRequest, Ratio,
     FriendMessage, ResponseReceived, ResetTerms,
-    FunderOutgoingControl, FunderOutgoingComm};
+    FunderOutgoingComm};
 
 use crate::state::FunderMutation;
-use crate::friend::{FriendState, FriendMutation, 
+use crate::friend::{FriendMutation, 
     ResponseOp, ChannelStatus, ChannelInconsistent};
 
 use crate::signature_buff::{create_response_signature_buffer, prepare_receipt};
@@ -173,7 +166,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
     }
 
     /// Forward a request message to the relevant friend and token channel.
-    fn forward_request(&mut self, mut request_send_funds: RequestSendFunds) {
+    async fn forward_request(&mut self, mut request_send_funds: RequestSendFunds) {
         let index = request_send_funds.route.pk_to_index(&self.state.local_public_key)
             .unwrap();
         let next_index = index.checked_add(1).unwrap();
@@ -184,7 +177,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         let friend_mutation = FriendMutation::PushBackPendingRequest(request_send_funds.clone());
         let messenger_mutation = FunderMutation::FriendMutation((next_pk.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
-        self.try_send_channel(&next_pk, SendMode::EmptyNotAllowed);
+        await!(self.try_send_channel(&next_pk, SendMode::EmptyNotAllowed));
     }
 
     /// Create a (signed) failure message for a given request_id.
@@ -273,8 +266,8 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
     }
 
 
-    fn handle_response_send_funds(&mut self, 
-                               remote_public_key: &PublicKey,
+    async fn handle_response_send_funds<'a>(&'a mut self, 
+                               remote_public_key: &'a PublicKey,
                                response_send_funds: ResponseSendFunds,
                                pending_request: PendingFriendRequest) {
 
@@ -301,7 +294,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 let friend_mutation = FriendMutation::PushBackPendingResponse(response_op);
                 let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
                 self.apply_mutation(messenger_mutation);
-                self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed);
+                await!(self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed));
             },
         }
     }
@@ -331,7 +324,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
                 let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
                 self.apply_mutation(messenger_mutation);
-                self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed);
+                await!(self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed));
             },
         };
     }
@@ -350,8 +343,8 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 IncomingMessage::Response(IncomingResponseSendFunds {
                                                 pending_request, incoming_response}) => {
                     self.ephemeral.freeze_guard.sub_frozen_credit(&pending_request.route, pending_request.dest_payment);
-                    self.handle_response_send_funds(&remote_public_key, 
-                                                  incoming_response, pending_request);
+                    await!(self.handle_response_send_funds(&remote_public_key, 
+                                                  incoming_response, pending_request));
                 },
                 IncomingMessage::Failure(IncomingFailureSendFunds {
                                                 pending_request, incoming_failure}) => {
@@ -409,6 +402,8 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                                receive_move_token_output: ReceiveMoveTokenOutput,
                                token_wanted: bool) {
 
+        println!("handle_move_token_success");
+
         match receive_move_token_output {
             ReceiveMoveTokenOutput::Duplicate => {},
             ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token) => {
@@ -438,10 +433,12 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
                 await!(self.handle_move_token_output(remote_public_key.clone(),
                                                incoming_messages));
-                let send_mode = match token_wanted {true => SendMode::EmptyAllowed, false => SendMode::EmptyNotAllowed};
-                self.try_send_channel(&remote_public_key, send_mode);
             },
         }
+        let send_mode = match token_wanted {true => SendMode::EmptyAllowed, false => SendMode::EmptyNotAllowed};
+        println!("Got here!");
+        println!("token_wanted = {}", token_wanted);
+        await!(self.try_send_channel(&remote_public_key, send_mode));
     }
 
 
