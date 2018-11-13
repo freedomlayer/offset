@@ -54,7 +54,7 @@ pub struct MutableFunderHandler<A:Clone,R> {
     state: FunderState<A>,
     pub ephemeral: FunderEphemeral,
     pub identity_client: IdentityClient,
-    pub rng: Rc<R>, // Can we be more generic and remove this Rc?
+    pub rng: R, // Can we be more generic and remove this Rc?
     mutations: Vec<FunderMutation<A>>,
     outgoing_comms: Vec<FunderOutgoingComm<A>>,
     responses_received: Vec<ResponseReceived>,
@@ -157,7 +157,7 @@ impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
 }
 
 fn gen_mutable<A:Clone, R: CryptoRandom>(identity_client: IdentityClient,
-                       rng: Rc<R>,
+                       rng: R,
                        funder_state: &FunderState<A>,
                        funder_ephemeral: &FunderEphemeral) -> MutableFunderHandler<A,R> {
 
@@ -174,7 +174,7 @@ fn gen_mutable<A:Clone, R: CryptoRandom>(identity_client: IdentityClient,
 
 pub async fn funder_handle_message<A: Clone + 'static, R: CryptoRandom + 'static>(
                       identity_client: IdentityClient,
-                      rng: Rc<R>,
+                      rng: R,
                       funder_state: FunderState<A>,
                       funder_ephemeral: FunderEphemeral,
                       funder_incoming: FunderIncoming<A>) 

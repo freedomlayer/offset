@@ -40,7 +40,7 @@ enum FunderEvent<A> {
 
 async fn inner_funder<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: CryptoRandom + 'static>(
     identity_client: IdentityClient,
-    rng: Rc<R>,
+    rng: R,
     incoming_control: mpsc::Receiver<IncomingControlMessage<A>>,
     incoming_comm: mpsc::Receiver<IncomingCommMessage>,
     control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
@@ -120,7 +120,7 @@ async fn inner_funder<A: Serialize + DeserializeOwned + Send + Sync + Clone + 's
 
 pub async fn funder<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: CryptoRandom + 'static>(
     identity_client: IdentityClient,
-    rng: Rc<R>,
+    rng: R,
     incoming_control: mpsc::Receiver<IncomingControlMessage<A>>,
     incoming_comm: mpsc::Receiver<IncomingCommMessage>,
     control_sender: mpsc::Sender<FunderOutgoingControl<A>>,

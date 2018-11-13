@@ -1,5 +1,4 @@
 use super::*;
-use std::rc::Rc;
 
 use futures::executor::ThreadPool;
 use futures::{future, FutureExt};
@@ -11,6 +10,7 @@ use crypto::test_utils::DummyRandom;
 use crypto::identity::{SoftwareEd25519Identity,
                         generate_pkcs8_key_pair, PUBLIC_KEY_LEN,
                         PublicKey};
+use crypto::crypto_rand::RngContainer;
 
 use crate::token_channel::{is_public_key_lower, TcDirection};
 use crate::types::{FunderIncoming, IncomingControlMessage, 
@@ -33,7 +33,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     let state2 = FunderState::<u32>::new(&pk2);
     let ephemeral2 = FunderEphemeral::new(&state2);
 
-    let rc_rng = Rc::new(DummyRandom::new(&[3u8]));
+    let rc_rng = RngContainer::new(DummyRandom::new(&[3u8]));
     // Initialize 1:
     let funder_incoming = FunderIncoming::Init;
     let funder_handler_output = await!(funder_handle_message(identity_client1.clone(),

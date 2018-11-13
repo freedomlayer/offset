@@ -83,7 +83,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             },
         }?;
 
-        let rand_nonce = RandValue::new(&*self.rng);
+        let rand_nonce = RandValue::new(&self.rng);
         let move_token_counter = 0;
 
         let local_pending_debt = 0;

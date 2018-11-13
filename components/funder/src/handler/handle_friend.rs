@@ -192,7 +192,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
     async fn create_response_message(&self, request_send_funds: RequestSendFunds) 
         -> Result<ResponseSendFunds, !> {
 
-        let rand_nonce = RandValue::new(&*self.rng);
+        let rand_nonce = RandValue::new(&self.rng);
         let local_public_key = self.state.local_public_key.clone();
 
         let mut response_send_funds = ResponseSendFunds {

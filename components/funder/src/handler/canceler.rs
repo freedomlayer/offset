@@ -20,7 +20,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
     async fn create_failure_message(&self, pending_local_request: PendingFriendRequest) 
         -> FailureSendFunds {
 
-        let rand_nonce = RandValue::new(&*self.rng);
+        let rand_nonce = RandValue::new(&self.rng);
         let local_public_key = self.state.local_public_key.clone();
 
         let mut failure_send_funds = FailureSendFunds {
