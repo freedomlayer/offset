@@ -67,7 +67,7 @@ async fn inner_funder<A: Serialize + DeserializeOwned + Send + Sync + Clone + 's
     while let Some(funder_event) = await!(incoming_messages.next()) {
         // For testing:
         if let Some(ref mut event_sender) = opt_event_sender {
-            await!(event_sender.send(funder_event.clone()));
+            await!(event_sender.send(funder_event.clone())).unwrap();
         }
         // Read one message from incoming messages:
         let funder_incoming = match funder_event {
