@@ -23,7 +23,7 @@ use super::token_channel::ReceiveMoveTokenError;
 use super::types::{FriendMoveToken, FriendsRoute, 
     IncomingControlMessage, IncomingLivenessMessage,
     FriendMoveTokenRequest, FunderOutgoing, FunderIncoming,
-    FunderOutgoingComm, FunderOutgoingControl, FunderIncomingComm,
+    FunderOutgoingComm, FunderOutgoingControl, IncomingCommMessage,
     ResponseReceived};
 use super::ephemeral::FunderEphemeral;
 use super::friend::{FriendState, ChannelStatus};
@@ -197,11 +197,11 @@ pub async fn funder_handle_message<A: Clone + 'static, R: CryptoRandom + 'static
                 .map_err(FunderHandlerError::HandleControlError)?,
         FunderIncoming::Comm(incoming_comm) => {
             match incoming_comm {
-                FunderIncomingComm::Liveness(liveness_message) =>
+                IncomingCommMessage::Liveness(liveness_message) =>
                     await!(mutable_handler
                         .handle_liveness_message(liveness_message))
                         .map_err(FunderHandlerError::HandleLivenessError)?,
-                FunderIncomingComm::Friend((origin_public_key, friend_message)) => 
+                IncomingCommMessage::Friend((origin_public_key, friend_message)) => 
                     await!(mutable_handler
                         .handle_friend_message(origin_public_key, friend_message))
                         .map_err(FunderHandlerError::HandleFriendError)?,
