@@ -6,8 +6,6 @@ use num_traits::identities::Zero;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
-use identity::IdentityClient;
-
 use super::friend::{FriendState, FriendMutation};
 use super::types::SendFundsReceipt;
 

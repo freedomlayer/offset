@@ -9,8 +9,6 @@ use serde::de::DeserializeOwned;
 use serde_json;
 use atomicwrites;
 
-use identity::IdentityClient;
-
 use crate::state::{FunderMutation, FunderState};
 
 #[derive(Debug)]

@@ -9,8 +9,7 @@ use utils::int_convert::usize_to_u32;
 use crate::credit_calc::CreditCalculator;
 use crate::state::FunderState;
 use crate::friend::ChannelStatus;
-use crate::types::{PendingFriendRequest, RequestSendFunds, 
-    Ratio, FriendsRoute, FreezeLink};
+use crate::types::{Ratio, FriendsRoute, FreezeLink};
 
 
 #[derive(Clone)]

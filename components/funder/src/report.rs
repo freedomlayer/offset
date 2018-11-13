@@ -4,7 +4,7 @@ use crypto::identity::PublicKey;
 
 use super::friend::{FriendState, ChannelStatus, ChannelInconsistent};
 use super::state::FunderState;
-use super::types::{RequestsStatus, FriendStatus, ResetTerms};
+use super::types::{RequestsStatus, FriendStatus};
 use super::mutual_credit::types::{TcBalance, TcRequestsStatus, MutualCredit};
 use super::token_channel::TcDirection; 
 

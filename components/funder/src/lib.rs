@@ -4,10 +4,10 @@
 #![feature(try_from)]
 #![feature(generators)]
 #![feature(never_type)]
+#![feature(dbg_macro)]
 #![cfg_attr(not(feature = "cargo-clippy"), allow(unknown_lints))]
 
 // TODO: Remove this later:
-#![allow(dead_code, unused)]
 
 // extern crate byteorder;
 // extern crate bytes;

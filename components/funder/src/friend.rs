@@ -1,13 +1,11 @@
 use im::vector::Vector;
 
-use crypto::identity::{PublicKey, Signature};
-use crypto::uid::Uid;
-use identity::IdentityClient; 
+use crypto::identity::PublicKey;
 
 use super::token_channel::TcMutation;
-use super::types::{FriendTcOp, FriendStatus, 
+use super::types::{FriendStatus, 
     RequestsStatus, RequestSendFunds, FriendMoveToken,
-    ResponseSendFunds, FailureSendFunds, UserRequestSendFunds,
+    ResponseSendFunds, FailureSendFunds,
     ResetTerms};
 use super::token_channel::TokenChannel;
 

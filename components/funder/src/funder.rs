@@ -1,8 +1,6 @@
 
-use std::rc::Rc;
 use futures::channel::mpsc;
-use futures::{future, Stream, stream, Sink, SinkExt, StreamExt};
-use futures_cpupool::CpuPool;
+use futures::{future, stream, SinkExt, StreamExt};
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -10,11 +8,9 @@ use serde::de::DeserializeOwned;
 use crypto::crypto_rand::CryptoRandom;
 use identity::IdentityClient;
 
-use crate::state::FunderState;
 use crate::ephemeral::FunderEphemeral;
-use crate::handler::{funder_handle_message, 
-    FunderHandlerOutput, FunderHandlerError};
-use crate::types::{FunderOutgoing, FunderIncoming, ResponseReceived,
+use crate::handler::{funder_handle_message};
+use crate::types::{FunderIncoming,
                     FunderOutgoingControl, FunderOutgoingComm,
                     IncomingControlMessage, IncomingCommMessage};
 use crate::database::{DbCore, DbRunner, DbRunnerError};
@@ -120,6 +116,7 @@ async fn inner_funder<A: Serialize + DeserializeOwned + Send + Sync + Clone + 's
 }
 
 
+#[allow(unused)]
 pub async fn funder<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: CryptoRandom + 'static>(
     identity_client: IdentityClient,
     rng: R,

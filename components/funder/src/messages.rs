@@ -1,13 +1,12 @@
 use futures::channel::oneshot;
 use bytes::Bytes;
 
-use crypto::identity::{PublicKey, Signature};
-use crypto::uid::Uid;
+use crypto::identity::PublicKey;
 
-use super::types::{RequestsStatus, FriendStatus, UserRequestSendFunds,
+use super::types::{UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel,
     SetFriendAddr, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
-    ReceiptAck, SendFundsReceipt, InvoiceId};
+    SendFundsReceipt};
 
 
 
@@ -23,12 +22,12 @@ pub struct FriendUpdated {
 }
 */
 
+/*
 pub struct FriendInconsistent {
     current_token: Signature,
     balance_for_reset: i128,
 }
 
-/*
 pub enum FriendEvent {
     FriendUpdated(FriendUpdated),
     FriendRemoved,
@@ -55,11 +54,13 @@ pub struct FriendStateUpdate {
 */
 
 // TODO: Can we merge this with FriendInfoFromDB
+/*
 pub struct FriendInfo {
     friend_public_key: PublicKey,
     wanted_remote_max_debt: u128,
     status: FriendStatus,
 }
+*/
 
 
 // ======== Internal interface ========
@@ -77,6 +78,7 @@ pub struct FriendsRouteWithCapacity {
 */
 
 
+#[allow(unused)]
 pub struct CtrlRequestSendFunds {
     // Note that it is the sender's responsibility to randomly generate a request_id.
     // This is important to make sure send funds requests can be tracked by the sending
@@ -112,6 +114,7 @@ pub enum FunderToChanneler<A> {
 
 
 
+#[allow(unused)]
 pub enum FunderCommand<A> {
     AddFriend(AddFriend<A>),
     RemoveFriend(RemoveFriend),
