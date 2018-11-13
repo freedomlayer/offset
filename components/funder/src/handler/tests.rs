@@ -246,10 +246,17 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
         invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
         dest_payment: 20,
     };
+
+
     let incoming_control_message = IncomingControlMessage::RequestSendFunds(user_request_send_funds);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
-    let (outgoing_comms, _outgoing_control) = await!(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
-                                 rng.clone(), identity_client2.clone())).unwrap();
+    loop {}
+    let fut = apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+                                 rng.clone(), identity_client2.clone());
+    let (outgoing_comms, _outgoing_control) = await!(fut).unwrap();
+
+
+    /*
 
     // Node2 sends a RequestSendFunds to Node1:
     assert_eq!(outgoing_comms.len(), 1);
@@ -298,13 +305,8 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     let funder_incoming = FunderIncoming::Comm(IncomingCommMessage::Friend((pk1.clone(), friend_message)));
     let (_outgoing_comms, _outgoing_control) = await!(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  rng.clone(), identity_client2.clone())).unwrap();
+    */
 
-    
-    // Node1 sends a message to Node2, requesting for the token.
-    // Node2 sends back an empty message, containing the token.
-    // Node1 sends a request to Node2.
-    // Node2 sends a response to Node1.
-    // Both state1 and state2 reflect the moving of the funds.
 }
 
 #[test]
