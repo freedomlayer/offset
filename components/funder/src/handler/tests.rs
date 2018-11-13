@@ -1,5 +1,7 @@
 use super::*;
 
+use std::mem;
+
 use futures::executor::ThreadPool;
 use futures::{future, FutureExt};
 use futures::task::SpawnExt;
@@ -10,12 +12,39 @@ use crypto::test_utils::DummyRandom;
 use crypto::identity::{SoftwareEd25519Identity,
                         generate_pkcs8_key_pair, PUBLIC_KEY_LEN,
                         PublicKey};
-use crypto::crypto_rand::RngContainer;
+use crypto::crypto_rand::{RngContainer, CryptoRandom};
 
 use crate::token_channel::{is_public_key_lower, TcDirection};
 use crate::types::{FunderIncoming, IncomingControlMessage, 
-    AddFriend, ChannelerConfig};
+    AddFriend, ChannelerConfig, IncomingLivenessMessage, FriendStatus,
+    SetFriendStatus, FriendMessage};
 
+
+/// A helper function. Applies an incoming funder message, updating state and ephemeral
+/// accordingly:
+async fn apply_funder_incoming<'a,A: Clone + 'static,R: CryptoRandom + 'static>(funder_incoming: FunderIncoming<A>,
+                               mut state: &'a mut FunderState<A>, 
+                               mut ephemeral: &'a mut FunderEphemeral, 
+                               rng: R, 
+                               identity_client: IdentityClient) 
+                -> Result<(Vec<FunderOutgoingComm<A>>, Vec<FunderOutgoingControl<A>>), FunderHandlerError> {
+
+    let funder_handler_output = await!(funder_handle_message(identity_client,
+                          rng,
+                          state.clone(),
+                          ephemeral.clone(),
+                          funder_incoming))?;
+
+    let FunderHandlerOutput {ephemeral: mut new_ephemeral, mut mutations, mut outgoing_comms, outgoing_control}
+        = funder_handler_output;
+    let _ = mem::replace(ephemeral, new_ephemeral);
+
+    // Mutate the state according to the mutations:
+    for mutation in &mutations {
+        state.mutate(mutation);
+    }
+    Ok((outgoing_comms, outgoing_control))
+}
 
 async fn task_handler_pair_basic(identity_client1: IdentityClient, 
                                  identity_client2: IdentityClient) {
@@ -28,73 +57,89 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
         (identity_client2, pk2, identity_client1, pk1)
     };
 
-    let state1 = FunderState::<u32>::new(&pk1);
-    let ephemeral1 = FunderEphemeral::new(&state1);
-    let state2 = FunderState::<u32>::new(&pk2);
-    let ephemeral2 = FunderEphemeral::new(&state2);
+    let mut state1 = FunderState::<u32>::new(&pk1);
+    let mut ephemeral1 = FunderEphemeral::new(&state1);
+    let mut state2 = FunderState::<u32>::new(&pk2);
+    let mut ephemeral2 = FunderEphemeral::new(&state2);
 
-    let rc_rng = RngContainer::new(DummyRandom::new(&[3u8]));
+    let rng = RngContainer::new(DummyRandom::new(&[3u8]));
+
     // Initialize 1:
     let funder_incoming = FunderIncoming::Init;
-    let funder_handler_output = await!(funder_handle_message(identity_client1.clone(),
-                          rc_rng.clone(),
-                          state1.clone(),
-                          ephemeral1,
-                          funder_incoming)).unwrap();
-    let FunderHandlerOutput {ephemeral: ephemeral1, mutations, outgoing_comms, outgoing_control}
-        = funder_handler_output;
-    assert!(mutations.is_empty());
-    assert!(outgoing_comms.is_empty());
-    assert!(outgoing_control.is_empty());
+    await!(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
+                                 rng.clone(), identity_client1.clone())).unwrap();
 
     // Initialize 2:
     let funder_incoming = FunderIncoming::Init;
-    let funder_handler_output = await!(funder_handle_message(identity_client2.clone(),
-                          rc_rng.clone(),
-                          state2.clone(),
-                          ephemeral2,
-                          funder_incoming)).unwrap();
-    let FunderHandlerOutput {ephemeral: ephemeral2, mutations, outgoing_comms, outgoing_control}
-        = funder_handler_output;
-    assert!(mutations.is_empty());
-    assert!(outgoing_comms.is_empty());
-    assert!(outgoing_control.is_empty());
+    await!(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+                                 rng.clone(), identity_client2.clone())).unwrap();
 
-    // Add friend 1:
+    // Node1: Add friend 2:
     let add_friend = AddFriend {
         friend_public_key: pk2.clone(),
         address: 22u32,
     };
     let incoming_control_message = IncomingControlMessage::AddFriend(add_friend);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
-    let funder_handler_output = await!(funder_handle_message(identity_client1.clone(),
-                          rc_rng.clone(),
-                          state1.clone(),
-                          ephemeral1,
-                          funder_incoming)).unwrap();
-    let FunderHandlerOutput {ephemeral: ephemeral1, mut mutations, mut outgoing_comms, outgoing_control}
-        = funder_handler_output;
+    await!(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
+                                 rng.clone(), identity_client1.clone())).unwrap();
 
-    assert_eq!(mutations.len(), 1);
-    let mutation = mutations.pop().unwrap();
-    if let FunderMutation::AddFriend((pk, a)) = mutation {
-        assert_eq!(pk, pk2);
-        assert_eq!(a, 22);
-    } else {
-        unreachable!();
-    }
+    // Node1: Enable friend 2:
+    let set_friend_status = SetFriendStatus {
+        friend_public_key: pk2.clone(),
+        status: FriendStatus::Enable,
+    };
+    let incoming_control_message = IncomingControlMessage::SetFriendStatus(set_friend_status);
+    let funder_incoming = FunderIncoming::Control(incoming_control_message);
+    await!(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
+                                 rng.clone(), identity_client1.clone())).unwrap();
+
+    // Node2: Add friend 1:
+    let add_friend = AddFriend {
+        friend_public_key: pk1.clone(),
+        address: 11u32,
+    };
+    let incoming_control_message = IncomingControlMessage::AddFriend(add_friend);
+    let funder_incoming = FunderIncoming::Control(incoming_control_message);
+    await!(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+                                 rng.clone(), identity_client2.clone())).unwrap();
+
+
+    // Node2: enable friend 1:
+    let set_friend_status = SetFriendStatus {
+        friend_public_key: pk1.clone(),
+        status: FriendStatus::Enable,
+    };
+    let incoming_control_message = IncomingControlMessage::SetFriendStatus(set_friend_status);
+    let funder_incoming = FunderIncoming::Control(incoming_control_message);
+    await!(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+                                 rng.clone(), identity_client2.clone())).unwrap();
+
+
+    // Node1: Notify that Node2 is alive
+    // We expect that Node1 will resend his outgoing message when he is notified that Node1 is online.
+    let incoming_liveness_message = IncomingLivenessMessage::Online(pk2.clone());
+    let funder_incoming = FunderIncoming::Comm(IncomingCommMessage::Liveness(incoming_liveness_message));
+    let (outgoing_comms, outgoing_control) = await!(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
+                                 rng.clone(), identity_client1.clone())).unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
-    let outgoing_comm = outgoing_comms.pop().unwrap();
-    if let FunderOutgoingComm::ChannelerConfig(ChannelerConfig::AddFriend((pk, a))) = outgoing_comm {
-        assert_eq!(pk, pk2);
-        assert_eq!(a, 22);
-    } else {
-        unreachable!();
-    }
+    match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk2);
+                assert_eq!(move_token_request.token_wanted, false);
 
-    // We expect that a report will be sent:
-    assert_eq!(outgoing_control.len(), 1);
+                let friend_move_token = &move_token_request.friend_move_token;
+                assert_eq!(friend_move_token.move_token_counter, 0);
+                assert_eq!(friend_move_token.inconsistency_counter, 0);
+                assert_eq!(friend_move_token.balance, 0);
+            } else {
+                unreachable!();
+            }
+        },
+        _ => unreachable!(),
+    };
 
     // TODO: Continue here.
 
