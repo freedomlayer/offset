@@ -254,7 +254,6 @@ impl FreezeGuard {
 mod tests {
     use super::*;
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
-    use crypto::uid::{Uid, UID_LEN};
 
     /// Get the amount of credits to be frozen on a route of a certain length
     /// with certain amount to pay.

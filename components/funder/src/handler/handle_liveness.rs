@@ -81,7 +81,7 @@ mod tests {
     use crate::state::{FunderState, FunderMutation};
     use crate::ephemeral::FunderEphemeral;
     use crate::token_channel::{is_public_key_lower, TcDirection};
-    use crate::types::{ChannelerConfig, FriendStatus};
+    use crate::types::FriendStatus;
     use crate::friend::FriendMutation;
 
     use futures::executor::ThreadPool;
@@ -91,8 +91,7 @@ mod tests {
 
     use crypto::test_utils::DummyRandom;
     use crypto::identity::{SoftwareEd25519Identity,
-                            generate_pkcs8_key_pair, PUBLIC_KEY_LEN,
-                            PublicKey};
+                            generate_pkcs8_key_pair};
     use crypto::crypto_rand::RngContainer;
 
 
@@ -102,7 +101,7 @@ mod tests {
         let pk1 = await!(identity_client1.request_public_key()).unwrap();
         let pk2 = await!(identity_client2.request_public_key()).unwrap();
 
-        let (local_identity, local_pk, remote_identity, remote_pk) = if is_public_key_lower(&pk1, &pk2) {
+        let (local_identity, local_pk, _remote_identity, remote_pk) = if is_public_key_lower(&pk1, &pk2) {
             (identity_client1, pk1, identity_client2, pk2)
         } else {
             (identity_client2, pk2, identity_client1, pk1)
