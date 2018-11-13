@@ -13,6 +13,7 @@ use identity::IdentityClient;
 
 use crate::state::{FunderMutation, FunderState};
 
+#[derive(Debug)]
 pub enum DbCoreError {
     ReadError(io::Error),
     WriteError(atomicwrites::Error<io::Error>),

@@ -76,6 +76,7 @@ pub fn db_service<A: Clone + Serialize + DeserializeOwned + Send + Sync + 'stati
 }
 */
 
+#[derive(Debug)]
 pub enum DbRunnerError {
     DbCoreError(DbCoreError),
 }
