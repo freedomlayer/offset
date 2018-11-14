@@ -328,9 +328,10 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                                    request_send_funds.dest_payment,
                                    &request_send_funds.freeze_links);
 
-        if verify_res.is_some() {
+        if verify_res.is_none() {
             return Err(HandleControlError::BlockedByFreezeGuard);
         }
+
 
         let friend_mutation = FriendMutation::PushBackPendingUserRequest(request_send_funds);
         let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
