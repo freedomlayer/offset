@@ -69,6 +69,7 @@ pub enum ReceiveMoveTokenError {
     InvalidMoveTokenCounter,
 }
 
+#[derive(Debug)]
 pub struct MoveTokenReceived {
     pub incoming_messages: Vec<IncomingMessage>,
     pub mutations: Vec<TcMutation>,
@@ -76,6 +77,7 @@ pub struct MoveTokenReceived {
 }
 
 
+#[derive(Debug)]
 pub enum ReceiveMoveTokenOutput {
     Duplicate,
     RetransmitOutgoing(FriendMoveToken),

@@ -19,16 +19,19 @@ pub struct IncomingRequestSendFunds {
 }
 */
 
+#[derive(Debug)]
 pub struct IncomingResponseSendFunds {
     pub pending_request: PendingFriendRequest,
     pub incoming_response: ResponseSendFunds,
 }
 
+#[derive(Debug)]
 pub struct IncomingFailureSendFunds {
     pub pending_request: PendingFriendRequest,
     pub incoming_failure: FailureSendFunds,
 }
 
+#[derive(Debug)]
 pub enum IncomingMessage {
     Request(RequestSendFunds),
     Response(IncomingResponseSendFunds),
