@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use crypto::identity::verify_signature;
 use crypto::hash;
 
-use utils::safe_arithmetic::SafeArithmetic;
+use utils::safe_arithmetic::SafeUnsignedArithmetic;
 use utils::int_convert::usize_to_u32;
 
 use super::types::{MutualCredit, McMutation, 

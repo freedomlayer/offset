@@ -8,7 +8,7 @@ use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 
-use utils::safe_arithmetic::SafeArithmetic;
+use utils::safe_arithmetic::SafeUnsignedArithmetic;
 
 use super::super::types::PendingFriendRequest;
 use super::super::types::RequestsStatus;

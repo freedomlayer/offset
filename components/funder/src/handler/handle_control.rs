@@ -202,7 +202,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         Ok(())
     }
 
-    fn control_set_requests_status(&mut self, set_requests_status: SetRequestsStatus) 
+    async fn control_set_requests_status(&mut self, set_requests_status: SetRequestsStatus) 
         -> Result<(), HandleControlError> {
 
         // Make sure that friend exists:
@@ -211,9 +211,10 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
         let friend_mutation = FriendMutation::SetWantedLocalRequestsStatus(set_requests_status.status);
         let m_mutation = FunderMutation::FriendMutation(
-            (set_requests_status.friend_public_key, friend_mutation));
+            (set_requests_status.friend_public_key.clone(), friend_mutation));
 
         self.apply_mutation(m_mutation);
+        await!(self.try_send_channel(&set_requests_status.friend_public_key, SendMode::EmptyNotAllowed));
         Ok(())
     }
 
@@ -392,7 +393,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 self.control_set_friend_status(set_friend_status);
             },
             IncomingControlMessage::SetRequestsStatus(set_requests_status) => {
-                self.control_set_requests_status(set_requests_status);
+                await!(self.control_set_requests_status(set_requests_status));
             },
             IncomingControlMessage::SetFriendAddr(set_friend_addr) => {
                 self.control_set_friend_addr(set_friend_addr);
