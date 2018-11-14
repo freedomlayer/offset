@@ -52,7 +52,7 @@ pub enum ProcessOperationError {
     /// Trying to set the invoiceId, while already expecting another invoice id.
     PkPairNotInRoute,
     /// The Route contains some public key twice.
-    DuplicateNodesInRoute,
+    InvalidRoute,
     RequestsAlreadyDisabled,
     RouteTooLong,
     InsufficientTrust,
@@ -174,9 +174,8 @@ fn process_request_send_funds(mutual_credit: &mut MutualCredit,
                                 request_send_funds: RequestSendFunds)
     -> Result<ProcessOperationOutput, ProcessOperationError> {
 
-    // Make sure that the route does not contains cycles/duplicates:
-    if !request_send_funds.route.is_cycle_free() {
-        return Err(ProcessOperationError::DuplicateNodesInRoute);
+    if !request_send_funds.route.is_valid() {
+        return Err(ProcessOperationError::InvalidRoute);
     }
 
     // Find ourselves on the route. If we are not there, abort.

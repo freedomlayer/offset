@@ -215,17 +215,29 @@ impl FriendsRoute {
         self.public_keys.len()
     }
 
-    /// Check if every node shows up in the route at most once.
-    /// This makes sure no cycles are present
-    pub fn is_cycle_free(&self) -> bool {
-        // All seen public keys:
+    /// Check if the route is valid.
+    /// A valid route must have at least 2 nodes, and is in one of the following forms:
+    /// A -- B -- C -- D -- E -- F -- A   (Single cycle, first == last)
+    /// A -- B -- C -- D -- E -- F        (A route with no repetitions)
+    pub fn is_valid(&self) -> bool {
+        if self.public_keys.len() < 2 {
+            return false;
+        }
+
         let mut seen = HashSet::new();
-        for public_key in &self.public_keys {
+        for public_key in &self.public_keys[.. self.public_keys.len() - 1] {
             if !seen.insert(public_key.clone()) {
-                return false
+                return false;
             }
         }
-        true
+        let last_pk = &self.public_keys[self.public_keys.len() - 1];
+        if last_pk == &self.public_keys[0] {
+            // The last public key closes a cycle
+            true
+        } else {
+            // A route with no repetitions
+            seen.insert(last_pk.clone())
+        }
     }
 
     /// Find two consecutive public keys (pk1, pk2) inside a friends route.
