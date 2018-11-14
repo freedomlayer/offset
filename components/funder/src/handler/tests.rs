@@ -18,7 +18,8 @@ use crate::token_channel::{is_public_key_lower};
 use crate::types::{FunderIncoming, IncomingControlMessage, 
     AddFriend, IncomingLivenessMessage, FriendStatus,
     SetFriendStatus, FriendMessage, SetFriendRemoteMaxDebt,
-    FriendsRoute, UserRequestSendFunds, InvoiceId, INVOICE_ID_LEN};
+    FriendsRoute, UserRequestSendFunds, InvoiceId, INVOICE_ID_LEN, 
+    SetRequestsStatus, RequestsStatus};
 
 
 /// A helper function. Applies an incoming funder message, updating state and ephemeral
@@ -244,45 +245,123 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     assert_eq!(local_max_debt, 100);
 
     // Node2 receives control message to send funds to Node1:
+    // But Node1's requests are not open, therefore Node2 will return a ResponseReceived with
+    // failure through the outgoing control:
     let user_request_send_funds = UserRequestSendFunds {
         request_id: Uid::from(&[3; UID_LEN]),
         route: FriendsRoute { public_keys: vec![pk2.clone(), pk1.clone()] },
         invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
         dest_payment: 20,
     };
-
-
     let incoming_control_message = IncomingControlMessage::RequestSendFunds(user_request_send_funds);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
+    let (outgoing_comms, outgoing_control) = await!(Box::pinned(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+                                 rng.clone(), identity_client2.clone()))).unwrap();
+
+    // Node2 will not send the RequestFunds message to Node1, because he knows Node1 is
+    // not ready:
+    assert_eq!(outgoing_comms.len(), 0);
+    assert_eq!(outgoing_control.len(), 1);
+
+    // Checking the current requests status on the mutual credit:
+    let friend2 = state1.friends.get(&pk2).unwrap();
+    let mutual_credit_state = match &friend2.channel_status {
+        ChannelStatus::Consistent(token_channel) 
+            => token_channel.get_mutual_credit().state(),
+        _ => unreachable!(),
+    };
+    assert_eq!(mutual_credit_state.requests_status.local, RequestsStatus::Closed);
+    assert_eq!(mutual_credit_state.requests_status.remote, RequestsStatus::Closed);
+
+    // Node1 gets a control message to declare his requests are open,
+    // However, Node1 doesn't have the token at this moment.
+    let set_requests_status = SetRequestsStatus {
+        friend_public_key: pk2.clone(),
+        status: RequestsStatus::Open,
+    };
+    let incoming_control_message = IncomingControlMessage::SetRequestsStatus(set_requests_status);
+    let funder_incoming = FunderIncoming::Control(incoming_control_message);
+    let (outgoing_comms, _outgoing_control) = await!(Box::pinned(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
+                                 rng.clone(), identity_client1.clone()))).unwrap();
+
+    // Node1 will request the token:
+    assert_eq!(outgoing_comms.len(), 1);
+    let friend_message = if let FunderOutgoingComm::FriendMessage((_pk, friend_message)) = &outgoing_comms[0] {
+        friend_message.clone()
+    } else { unreachable!(); };
+
+    // Node2 receives the request_token message:
+    let funder_incoming = FunderIncoming::Comm(IncomingCommMessage::Friend((pk1.clone(), friend_message)));
+    let (outgoing_comms, _outgoing_control) = await!(Box::pinned(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+                                 rng.clone(), identity_client2.clone()))).unwrap();
+
+    assert_eq!(outgoing_comms.len(), 1);
+    let friend_message = if let FunderOutgoingComm::FriendMessage((_pk, friend_message)) = &outgoing_comms[0] {
+        friend_message.clone()
+    } else { unreachable!(); };
+
+    // Node1 receives the token from Node2:
+    let funder_incoming = FunderIncoming::Comm(IncomingCommMessage::Friend((pk2.clone(), friend_message)));
+    let (outgoing_comms, _outgoing_control) = await!(Box::pinned(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
+                                 rng.clone(), identity_client1.clone()))).unwrap();
+
+    // Node1 declares that his requests are open:
+    let friend_message = if let FunderOutgoingComm::FriendMessage((_pk, friend_message)) = &outgoing_comms[0] {
+        friend_message.clone()
+    } else { unreachable!(); };
+
+    // Node2 receives the set requests open message:
+    let funder_incoming = FunderIncoming::Comm(IncomingCommMessage::Friend((pk1.clone(), friend_message)));
     let (_outgoing_comms, _outgoing_control) = await!(Box::pinned(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  rng.clone(), identity_client2.clone()))).unwrap();
 
 
-    /*
-
-    // Node2 sends a RequestSendFunds to Node1:
-    assert_eq!(outgoing_comms.len(), 1);
-    let friend_message = match &outgoing_comms[0] {
-        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
-            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
-                assert_eq!(pk, &pk1);
-                let friend_move_token = &move_token_request.friend_move_token;
-                assert_eq!(friend_move_token.balance, 0);
-                assert_eq!(friend_move_token.local_pending_debt, 20);
-                assert_eq!(friend_move_token.remote_pending_debt, 0);
-            } else {
-                unreachable!();
-            }
-            friend_message.clone()
-        },
+    // Checking the current requests status on the mutual credit for Node1:
+    let friend2 = state1.friends.get(&pk2).unwrap();
+    let mutual_credit_state = match &friend2.channel_status {
+        ChannelStatus::Consistent(token_channel) 
+            => token_channel.get_mutual_credit().state(),
         _ => unreachable!(),
     };
+    assert_eq!(mutual_credit_state.requests_status.local, RequestsStatus::Open);
+    assert_eq!(mutual_credit_state.requests_status.remote, RequestsStatus::Closed);
+
+    // Checking the current requests status on the mutual credit for Node2:
+    let friend1 = state2.friends.get(&pk1).unwrap();
+    let mutual_credit_state = match &friend1.channel_status {
+        ChannelStatus::Consistent(token_channel) 
+            => token_channel.get_mutual_credit().state(),
+        _ => unreachable!(),
+    };
+    assert_eq!(mutual_credit_state.requests_status.local, RequestsStatus::Closed);
+    assert_eq!(mutual_credit_state.requests_status.remote, RequestsStatus::Open);
 
 
+    // Node2 receives control message to send funds to Node1:
+    println!("Node2 receives control message to send funds to Node1:");
+    let user_request_send_funds = UserRequestSendFunds {
+        request_id: Uid::from(&[3; UID_LEN]),
+        route: FriendsRoute { public_keys: vec![pk2.clone(), pk1.clone()] },
+        invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
+        dest_payment: 20,
+    };
+    let incoming_control_message = IncomingControlMessage::RequestSendFunds(user_request_send_funds);
+    let funder_incoming = FunderIncoming::Control(incoming_control_message);
+    println!("Before await!");
+    let (outgoing_comms, _outgoing_control) = await!(Box::pinned(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+                                 rng.clone(), identity_client2.clone()))).unwrap();
+    println!("After await!");
+
+    // Node2 will send a RequestFunds message to Node1
+    assert_eq!(outgoing_comms.len(), 1);
+
+    //=================================================
+
+    /*
     // Node1 receives RequestSendFunds from Node2:
     let funder_incoming = FunderIncoming::Comm(IncomingCommMessage::Friend((pk2.clone(), friend_message)));
-    let (outgoing_comms, _outgoing_control) = await!(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
-                                 rng.clone(), identity_client1.clone())).unwrap();
+    let (outgoing_comms, _outgoing_control) = await!(Box::pinned(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
+                                 rng.clone(), identity_client1.clone()))).unwrap();
 
     // Node1 sends a ResponseSendFunds to Node2:
     assert_eq!(outgoing_comms.len(), 1);
@@ -305,10 +384,10 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
 
     // Node2 receives ResponseSendFunds from Node1:
     let funder_incoming = FunderIncoming::Comm(IncomingCommMessage::Friend((pk1.clone(), friend_message)));
-    let (_outgoing_comms, _outgoing_control) = await!(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
-                                 rng.clone(), identity_client2.clone())).unwrap();
-    */
+    let (_outgoing_comms, _outgoing_control) = await!(Box::pinned(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+                                 rng.clone(), identity_client2.clone()))).unwrap();
 
+     */
 }
 
 #[test]

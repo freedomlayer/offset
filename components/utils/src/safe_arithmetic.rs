@@ -1,5 +1,5 @@
 
-pub trait SafeArithmetic: Copy {
+pub trait SafeUnsignedArithmetic: Copy {
     type Unsigned;
 
     fn checked_add_unsigned(self, u: Self::Unsigned) -> Option<Self>;
@@ -8,9 +8,19 @@ pub trait SafeArithmetic: Copy {
     fn saturating_sub_unsigned(self, u: Self::Unsigned) -> Self;
 }
 
-macro_rules! impl_safe_arithmetic {
+
+pub trait SafeSignedArithmetic: Copy {
+    type Signed;
+
+    fn checked_add_signed(self, u: Self::Signed) -> Option<Self>;
+    fn checked_sub_signed(self, u: Self::Signed) -> Option<Self>;
+    fn saturating_add_signed(self, u: Self::Signed) -> Self;
+    fn saturating_sub_signed(self, u: Self::Signed) -> Self;
+}
+
+macro_rules! impl_safe_unsigned_arithmetic {
     ( $i:ty, $u:ty ) => {
-        impl SafeArithmetic for $i {
+        impl SafeUnsignedArithmetic for $i {
             type Unsigned = $u;
             fn checked_add_unsigned(self, u: $u) -> Option<$i> {
                 let u_half = (u / 2) as $i;
@@ -44,11 +54,54 @@ macro_rules! impl_safe_arithmetic {
     }
 }
 
-impl_safe_arithmetic!(i8, u8);
-impl_safe_arithmetic!(i16, u16);
-impl_safe_arithmetic!(i32, u32);
-impl_safe_arithmetic!(i64, u64);
-impl_safe_arithmetic!(i128, u128);
+impl_safe_unsigned_arithmetic!(i8, u8);
+impl_safe_unsigned_arithmetic!(i16, u16);
+impl_safe_unsigned_arithmetic!(i32, u32);
+impl_safe_unsigned_arithmetic!(i64, u64);
+impl_safe_unsigned_arithmetic!(i128, u128);
+
+macro_rules! impl_safe_signed_arithmetic {
+    ( $u:ty, $i:ty ) => {
+        impl SafeSignedArithmetic for $u {
+            type Signed = $i;
+            fn checked_add_signed(self, s: $i) -> Option<$u> {
+                if s >= 0 {
+                    self.checked_add(s as $u)
+                } else {
+                    self.checked_sub((-s) as $u)
+                }
+            }
+
+            fn checked_sub_signed(self, s: $i) -> Option<$u> {
+                if s >= 0 {
+                    self.checked_sub(s as $u)
+                } else {
+                    self.checked_add((-s) as $u)
+                }
+            }
+            fn saturating_add_signed(self, s: $i) -> $u {
+                if s >= 0 {
+                    self.saturating_add(s as $u)
+                } else {
+                    self.saturating_sub((-s) as $u)
+                }
+            }
+            fn saturating_sub_signed(self, s: $i) -> $u {
+                if s >= 0 {
+                    self.saturating_sub(s as $u)
+                } else {
+                    self.saturating_add((-s) as $u)
+                }
+            }
+        }
+    }
+}
+
+impl_safe_signed_arithmetic!(u8, i8);
+impl_safe_signed_arithmetic!(u16, i16);
+impl_safe_signed_arithmetic!(u32, i32);
+impl_safe_signed_arithmetic!(u64, i64);
+impl_safe_signed_arithmetic!(u128, i128);
 
 #[cfg(test)]
 mod tests {
