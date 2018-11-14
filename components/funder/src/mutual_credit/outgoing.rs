@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use crypto::identity::verify_signature;
 use crypto::hash;
 
-use utils::safe_arithmetic::SafeArithmetic;
+use utils::safe_arithmetic::SafeSignedArithmetic;
 use utils::int_convert::usize_to_u32;
 
 use super::types::{MutualCredit, McMutation, 
@@ -192,7 +192,7 @@ impl OutgoingMc {
         }
 
         // Make sure that remote side is open to requests:
-        if let RequestsStatus::Open = self.mutual_credit.state().requests_status.remote {
+        if !self.mutual_credit.state().requests_status.remote.is_open() {
             return Err(QueueOperationError::RemoteRequestsClosed);
         }
 

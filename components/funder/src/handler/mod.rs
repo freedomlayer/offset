@@ -5,7 +5,9 @@ mod handle_init;
 mod sender;
 mod canceler;
 
-use std::rc::Rc;
+#[cfg(test)]
+mod tests;
+
 use identity::IdentityClient;
 
 use crypto::uid::Uid;
@@ -16,17 +18,13 @@ use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError};
 use self::handle_friend::HandleFriendError;
 use self::handle_liveness::HandleLivenessError;
-use super::token_channel::ReceiveMoveTokenError;
-use super::types::{FriendMoveToken, FriendsRoute, 
-    IncomingControlMessage, IncomingLivenessMessage,
-    FriendMoveTokenRequest, FunderOutgoing, FunderIncoming,
-    FunderOutgoingComm, FunderOutgoingControl, FunderIncomingComm,
+use super::types::{FriendMoveTokenRequest, FunderIncoming,
+    FunderOutgoingComm, FunderOutgoingControl, IncomingCommMessage,
     ResponseReceived};
 use super::ephemeral::FunderEphemeral;
 use super::friend::{FriendState, ChannelStatus};
 use super::report::create_report;
 
-use super::messages::{FunderCommand, ResponseSendFundsResult};
 
 // Approximate maximum size of a MOVE_TOKEN message.
 // TODO: Where to put this constant? Do we have more like this one?
@@ -51,16 +49,18 @@ pub struct MutableFunderHandler<A:Clone,R> {
     state: FunderState<A>,
     pub ephemeral: FunderEphemeral,
     pub identity_client: IdentityClient,
-    pub rng: Rc<R>, // Can we be more generic and remove this Rc?
+    pub rng: R, // Can we be more generic and remove this Rc?
     mutations: Vec<FunderMutation<A>>,
     outgoing_comms: Vec<FunderOutgoingComm<A>>,
     responses_received: Vec<ResponseReceived>,
 }
 
 impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
+    /*
     pub fn state(&self) -> &FunderState<A> {
         &self.state
     }
+    */
 
     fn get_friend(&self, friend_public_key: &PublicKey) -> Option<&FriendState<A>> {
         self.state.friends.get(&friend_public_key)
@@ -154,7 +154,7 @@ impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
 }
 
 fn gen_mutable<A:Clone, R: CryptoRandom>(identity_client: IdentityClient,
-                       rng: Rc<R>,
+                       rng: R,
                        funder_state: &FunderState<A>,
                        funder_ephemeral: &FunderEphemeral) -> MutableFunderHandler<A,R> {
 
@@ -171,7 +171,7 @@ fn gen_mutable<A:Clone, R: CryptoRandom>(identity_client: IdentityClient,
 
 pub async fn funder_handle_message<A: Clone + 'static, R: CryptoRandom + 'static>(
                       identity_client: IdentityClient,
-                      rng: Rc<R>,
+                      rng: R,
                       funder_state: FunderState<A>,
                       funder_ephemeral: FunderEphemeral,
                       funder_incoming: FunderIncoming<A>) 
@@ -182,8 +182,6 @@ pub async fn funder_handle_message<A: Clone + 'static, R: CryptoRandom + 'static
                                           &funder_state,
                                           &funder_ephemeral);
 
-    let state = funder_state.clone();
-    let ephemeral = funder_ephemeral.clone();
     match funder_incoming {
         FunderIncoming::Init =>  {
             mutable_handler.handle_init();
@@ -194,11 +192,11 @@ pub async fn funder_handle_message<A: Clone + 'static, R: CryptoRandom + 'static
                 .map_err(FunderHandlerError::HandleControlError)?,
         FunderIncoming::Comm(incoming_comm) => {
             match incoming_comm {
-                FunderIncomingComm::Liveness(liveness_message) =>
+                IncomingCommMessage::Liveness(liveness_message) =>
                     await!(mutable_handler
                         .handle_liveness_message(liveness_message))
                         .map_err(FunderHandlerError::HandleLivenessError)?,
-                FunderIncomingComm::Friend((origin_public_key, friend_message)) => 
+                IncomingCommMessage::Friend((origin_public_key, friend_message)) => 
                     await!(mutable_handler
                         .handle_friend_message(origin_public_key, friend_message))
                         .map_err(FunderHandlerError::HandleFriendError)?,

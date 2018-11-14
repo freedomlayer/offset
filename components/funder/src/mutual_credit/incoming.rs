@@ -1,7 +1,7 @@
 use crypto::identity::verify_signature;
 
 use utils::int_convert::usize_to_u32;
-use utils::safe_arithmetic::SafeArithmetic;
+use utils::safe_arithmetic::SafeSignedArithmetic;
 
 use super::super::types::{ResponseSendFunds, FailureSendFunds, RequestSendFunds,
                           FriendTcOp, PendingFriendRequest, RequestsStatus};
@@ -19,16 +19,19 @@ pub struct IncomingRequestSendFunds {
 }
 */
 
+#[derive(Debug)]
 pub struct IncomingResponseSendFunds {
     pub pending_request: PendingFriendRequest,
     pub incoming_response: ResponseSendFunds,
 }
 
+#[derive(Debug)]
 pub struct IncomingFailureSendFunds {
     pub pending_request: PendingFriendRequest,
     pub incoming_failure: FailureSendFunds,
 }
 
+#[derive(Debug)]
 pub enum IncomingMessage {
     Request(RequestSendFunds),
     Response(IncomingResponseSendFunds),
@@ -189,7 +192,7 @@ fn process_request_send_funds(mutual_credit: &mut MutualCredit,
     }
 
     // Make sure that we are open to requests:
-    if let RequestsStatus::Open = mutual_credit.state().requests_status.local {
+    if !mutual_credit.state().requests_status.local.is_open() {
         return Err(ProcessOperationError::LocalRequestsClosed);
     }
 

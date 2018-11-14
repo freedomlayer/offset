@@ -17,6 +17,7 @@ pub fn usize_to_u32(num: usize) -> Option<u32> {
     }
 }
 
+// TODO: Possibly replace Option<u64> with u64 in the future?
 #[cfg(any(target_pointer_width = "8", 
           target_pointer_width = "16", 
           target_pointer_width = "32",

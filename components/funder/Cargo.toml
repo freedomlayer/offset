@@ -17,7 +17,6 @@ identity = { path = "../identity", version = "0.1.0", package = "offst-identity"
 log = "0.4"
 pretty_env_logger = "0.2"
 
-rand = "0.5"
 untrusted = "0.6"
 
 bytes = "0.4"

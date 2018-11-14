@@ -1,25 +1,25 @@
 use im::vector::Vector;
 
-use crypto::identity::{PublicKey, Signature};
-use crypto::uid::Uid;
-use identity::IdentityClient; 
+use crypto::identity::PublicKey;
+use utils::safe_arithmetic::SafeUnsignedArithmetic;
 
 use super::token_channel::TcMutation;
-use super::types::{FriendTcOp, FriendStatus, 
+use super::types::{FriendStatus, 
     RequestsStatus, RequestSendFunds, FriendMoveToken,
-    ResponseSendFunds, FailureSendFunds, UserRequestSendFunds,
+    ResponseSendFunds, FailureSendFunds,
     ResetTerms};
 use super::token_channel::TokenChannel;
 
 
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum ResponseOp {
     Response(ResponseSendFunds),
     Failure(FailureSendFunds),
 }
 
 #[allow(unused)]
+#[derive(Debug)]
 pub enum FriendMutation<A> {
     TcMutation(TcMutation),
     SetInconsistent(ChannelInconsistent),
@@ -38,7 +38,7 @@ pub enum FriendMutation<A> {
     RemoteReset(FriendMoveToken),
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ChannelInconsistent {
     pub opt_last_incoming_move_token: Option<FriendMoveToken>,
     pub local_reset_terms: ResetTerms,
@@ -94,6 +94,29 @@ impl<A:Clone + 'static> FriendState<A> {
             status: FriendStatus::Disable,
             pending_user_requests: Vector::new(),
         }
+    }
+
+    /// Find the shared credits we have with this friend.
+    /// This value is used for freeze guard calculations.
+    /// This value is the capacity shared between the rest of the friends.
+    ///
+    /// ```text
+    ///         ---B
+    ///        /
+    /// A--*--O-----C
+    ///        \
+    ///         ---D
+    /// ```
+    /// In the picture above, the shared credits between O and A will be shared between the nodes
+    /// B, C and D.
+    ///
+    pub fn get_shared_credits(&self) -> u128 {
+        let balance = match &self.channel_status {
+            ChannelStatus::Consistent(token_channel) =>
+                &token_channel.get_mutual_credit().state().balance,
+            ChannelStatus::Inconsistent(channel_inconsistent) => return 0,
+        };
+        balance.local_max_debt.saturating_add_signed(balance.balance)
     }
 
     #[allow(unused)]

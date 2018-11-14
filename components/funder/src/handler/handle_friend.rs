@@ -1,36 +1,26 @@
-use std::convert::TryFrom;
-
 use byteorder::{BigEndian, WriteBytesExt};
-
-use num_bigint::BigUint;
-use num_traits::ToPrimitive;
 
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 use crypto::identity::{PublicKey, Signature};
-use crypto::uid::Uid;
 use crypto::hash::sha_512_256;
 
 use identity::IdentityClient;
 
-use utils::safe_arithmetic::SafeArithmetic;
 
 use crate::mutual_credit::incoming::{IncomingResponseSendFunds, 
     IncomingFailureSendFunds, IncomingMessage};
-use crate::mutual_credit::outgoing::{QueueOperationFailure,
-    QueueOperationError};
 use crate::token_channel::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
-    TcMutation, MoveTokenReceived, SetDirection, TokenChannel};
+    MoveTokenReceived, TokenChannel};
 
 use crate::types::{RequestSendFunds, ResponseSendFunds, 
     FailureSendFunds, FriendMoveToken, 
     FreezeLink, 
-    PendingFriendRequest, Ratio, SendFundsReceipt,
-    FriendInconsistencyError,
+    PendingFriendRequest,
     FriendMessage, ResponseReceived, ResetTerms,
-    FunderOutgoingControl, FunderOutgoingComm};
+    FunderOutgoingComm};
 
 use crate::state::FunderMutation;
-use crate::friend::{FriendState, FriendMutation, 
+use crate::friend::{FriendMutation, 
     ResponseOp, ChannelStatus, ChannelInconsistent};
 
 use crate::signature_buff::{create_response_signature_buffer, prepare_receipt};
@@ -113,58 +103,24 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
     }
 
+
     pub fn add_local_freezing_link(&self, request_send_funds: &mut RequestSendFunds) {
         let index = request_send_funds.route.pk_to_index(&self.state.local_public_key)
             .unwrap();
         assert_eq!(request_send_funds.freeze_links.len(), index);
+
         let next_index = index.checked_add(1).unwrap();
         let next_pk = request_send_funds.route.index_to_pk(next_index).unwrap();
-        let next_friend = self.state.friends.get(&next_pk).unwrap();
-        let next_tc = match &next_friend.channel_status {
-            ChannelStatus::Consistent(token_channel) => token_channel,
-            ChannelStatus::Inconsistent(_) => unreachable!(),
+
+        let opt_prev_pk = match index.checked_sub(1) {
+            Some(prev_index) =>
+                Some(request_send_funds.route.index_to_pk(prev_index).unwrap()),
+            None => None,
         };
-        let forward_trust: BigUint = next_tc.get_mutual_credit().state().balance.remote_max_debt.into();
-        let total_trust = self.state.get_total_trust();
-        let two_pow_128 = BigUint::new(vec![0x1, 0x0u32, 0x0u32, 0x0u32, 0x0u32]);
 
-        let funder_freeze_link = if index == 0 {
-            // We are the first node on the route (We initiated this request):
-            
-            let numerator = (two_pow_128 * forward_trust) / &total_trust;
-            let usable_ratio = match numerator.to_u128() {
-                Some(num) => Ratio::Numerator(num),
-                None => Ratio::One,
-            };
-
-            FreezeLink {
-                shared_credits: total_trust.to_u128().unwrap_or(u128::max_value()),
-                usable_ratio,
-            }
-
-        } else {
-            // We are not the first node on the route:
-            let prev_index = index.checked_sub(1).unwrap();
-            let prev_pk = request_send_funds.route.index_to_pk(prev_index).unwrap();
-            let prev_friend = self.state.friends.get(&prev_pk).unwrap();
-            let prev_tc = match &prev_friend.channel_status {
-                ChannelStatus::Consistent(token_channel) => token_channel,
-                ChannelStatus::Inconsistent(_) => unreachable!(),
-            };
-
-            let prev_trust: BigUint = prev_tc.get_mutual_credit().state().balance.remote_max_debt.into();
-            let numerator = (two_pow_128 * forward_trust) / (total_trust - &prev_trust);
-            let usable_ratio = match numerator.to_u128() {
-                Some(num) => Ratio::Numerator(num),
-                None => Ratio::One,
-            };
-
-            let shared_credits = prev_trust.to_u128().unwrap_or(u128::max_value());
-            FreezeLink {
-                shared_credits,
-                usable_ratio,
-            }
-
+        let funder_freeze_link = FreezeLink {
+            shared_credits: self.state.friends.get(&next_pk).unwrap().get_shared_credits(),
+            usable_ratio: self.state.get_usable_ratio(opt_prev_pk, next_pk),
         };
 
         // Add our freeze link
@@ -173,7 +129,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
     }
 
     /// Forward a request message to the relevant friend and token channel.
-    fn forward_request(&mut self, mut request_send_funds: RequestSendFunds) {
+    async fn forward_request(&mut self, mut request_send_funds: RequestSendFunds) {
         let index = request_send_funds.route.pk_to_index(&self.state.local_public_key)
             .unwrap();
         let next_index = index.checked_add(1).unwrap();
@@ -184,7 +140,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         let friend_mutation = FriendMutation::PushBackPendingRequest(request_send_funds.clone());
         let messenger_mutation = FunderMutation::FriendMutation((next_pk.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
-        self.try_send_channel(&next_pk, SendMode::EmptyNotAllowed);
+        await!(self.try_send_channel(&next_pk, SendMode::EmptyNotAllowed));
     }
 
     /// Create a (signed) failure message for a given request_id.
@@ -192,7 +148,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
     async fn create_response_message(&self, request_send_funds: RequestSendFunds) 
         -> Result<ResponseSendFunds, !> {
 
-        let rand_nonce = RandValue::new(&*self.rng);
+        let rand_nonce = RandValue::new(&self.rng);
         let local_public_key = self.state.local_public_key.clone();
 
         let mut response_send_funds = ResponseSendFunds {
@@ -273,8 +229,8 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
     }
 
 
-    fn handle_response_send_funds(&mut self, 
-                               remote_public_key: &PublicKey,
+    async fn handle_response_send_funds<'a>(&'a mut self, 
+                               remote_public_key: &'a PublicKey,
                                response_send_funds: ResponseSendFunds,
                                pending_request: PendingFriendRequest) {
 
@@ -301,7 +257,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 let friend_mutation = FriendMutation::PushBackPendingResponse(response_op);
                 let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
                 self.apply_mutation(messenger_mutation);
-                self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed);
+                await!(self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed));
             },
         }
     }
@@ -331,7 +287,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
                 let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
                 self.apply_mutation(messenger_mutation);
-                self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed);
+                await!(self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed));
             },
         };
     }
@@ -350,8 +306,8 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 IncomingMessage::Response(IncomingResponseSendFunds {
                                                 pending_request, incoming_response}) => {
                     self.ephemeral.freeze_guard.sub_frozen_credit(&pending_request.route, pending_request.dest_payment);
-                    self.handle_response_send_funds(&remote_public_key, 
-                                                  incoming_response, pending_request);
+                    await!(self.handle_response_send_funds(&remote_public_key, 
+                                                  incoming_response, pending_request));
                 },
                 IncomingMessage::Failure(IncomingFailureSendFunds {
                                                 pending_request, incoming_failure}) => {
@@ -438,10 +394,10 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
                 await!(self.handle_move_token_output(remote_public_key.clone(),
                                                incoming_messages));
-                let send_mode = match token_wanted {true => SendMode::EmptyAllowed, false => SendMode::EmptyNotAllowed};
-                self.try_send_channel(&remote_public_key, send_mode);
             },
         }
+        let send_mode = match token_wanted {true => SendMode::EmptyAllowed, false => SendMode::EmptyNotAllowed};
+        await!(self.try_send_channel(&remote_public_key, send_mode));
     }
 
 

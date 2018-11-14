@@ -4,8 +4,8 @@ use crypto::crypto_rand::{RandValue, CryptoRandom};
 use super::{MutableFunderHandler};
 
 use super::super::types::{RequestSendFunds, FailureSendFunds, PendingFriendRequest,
-                            ResponseReceived, FunderOutgoingControl};
-use super::super::signature_buff::{create_failure_signature_buffer, prepare_receipt};
+                            ResponseReceived};
+use super::super::signature_buff::{create_failure_signature_buffer};
 use super::super::friend::{FriendMutation, ResponseOp, ChannelStatus};
 use super::super::state::FunderMutation;
 use super::super::messages::{ResponseSendFundsResult};
@@ -20,7 +20,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
     async fn create_failure_message(&self, pending_local_request: PendingFriendRequest) 
         -> FailureSendFunds {
 
-        let rand_nonce = RandValue::new(&*self.rng);
+        let rand_nonce = RandValue::new(&self.rng);
         let local_public_key = self.state.local_public_key.clone();
 
         let mut failure_send_funds = FailureSendFunds {
@@ -53,7 +53,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_mutation(messenger_mutation);
-        self.try_send_channel(&remote_public_key, SendMode::EmptyNotAllowed);
+        await!(self.try_send_channel(&remote_public_key, SendMode::EmptyNotAllowed));
     }
 
     /// Cancel outgoing local requests that are already inside the token channel (Possibly already
@@ -95,7 +95,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                     let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
                     let messenger_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
                     self.apply_mutation(messenger_mutation);
-                    self.try_send_channel(&origin_public_key, SendMode::EmptyNotAllowed);
+                    await!(self.try_send_channel(&origin_public_key, SendMode::EmptyNotAllowed));
                 },
                 None => {
                     // We are the origin of this request.

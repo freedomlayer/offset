@@ -1,13 +1,10 @@
 use crypto::crypto_rand::CryptoRandom;
 
 use super::MutableFunderHandler;
-use super::super::types::{FriendMessage,
-                            FriendInconsistencyError, ChannelerConfig,
-                            FriendStatus, ResetTerms,
+use super::super::types::{ChannelerConfig,
+                            FriendStatus,
                             FunderOutgoingComm};
 
-pub enum HandleInitError {
-}
 
 #[allow(unused)]
 impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
@@ -37,8 +34,6 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
 mod tests {
     use super::*;
 
-    use std::rc::Rc;
-
     use crate::handler::gen_mutable;
     use crate::state::{FunderState, FunderMutation};
     use crate::ephemeral::FunderEphemeral;
@@ -53,6 +48,7 @@ mod tests {
     use crypto::identity::{SoftwareEd25519Identity,
                             generate_pkcs8_key_pair, PUBLIC_KEY_LEN,
                             PublicKey};
+    use crypto::crypto_rand::RngContainer;
 
 
 
@@ -76,7 +72,7 @@ mod tests {
         let rng = DummyRandom::new(&[2u8]);
 
         let mut mutable_funder_handler = gen_mutable(identity_client,
-                    Rc::new(rng),
+                    RngContainer::new(rng),
                     &state,
                     &ephemeral);
 

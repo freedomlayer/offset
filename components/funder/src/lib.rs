@@ -4,10 +4,10 @@
 #![feature(try_from)]
 #![feature(generators)]
 #![feature(never_type)]
+#![feature(dbg_macro)]
 #![cfg_attr(not(feature = "cargo-clippy"), allow(unknown_lints))]
 
 // TODO: Remove this later:
-#![allow(dead_code, unused)]
 
 // extern crate byteorder;
 // extern crate bytes;
@@ -17,7 +17,6 @@
 extern crate futures_cpupool;
 #[macro_use]
 extern crate log;
-extern crate rand;
 // extern crate rusqlite;
 // extern crate tokio_core;
 // extern crate tokio_io;

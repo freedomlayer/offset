@@ -1,22 +1,17 @@
-#![allow(unused)]
 use crypto::identity::PublicKey;
-use crypto::uid::Uid;
-use crypto::hash::HashResult;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
-use super::super::mutual_credit::types::McMutation;
-use super::super::token_channel::TcMutation;
-use super::super::friend::{FriendState, FriendMutation, ChannelStatus};
-use super::super::state::{FunderMutation, FunderState};
+use super::super::friend::{FriendMutation, ChannelStatus};
+use super::super::state::{FunderMutation};
 use super::{MutableFunderHandler, 
     MAX_MOVE_TOKEN_LENGTH};
 use super::super::messages::ResponseSendFundsResult;
-use super::super::types::{RequestsStatus, FriendStatus, UserRequestSendFunds,
+use super::super::types::{FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel,
     SetFriendAddr, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
-    ReceiptAck, FriendsRoute, FriendMoveToken, IncomingControlMessage,
-    FriendTcOp, InvoiceId, ResponseReceived,
-    FriendMessage, ChannelerConfig, FunderOutgoingComm, FunderOutgoingControl};
+    ReceiptAck, FriendMoveToken, IncomingControlMessage,
+    FriendTcOp, ResponseReceived,
+    ChannelerConfig, FunderOutgoingComm};
 use super::sender::SendMode;
 
 // TODO: Should be an argument of the Funder:
@@ -42,21 +37,28 @@ pub enum HandleControlError {
 #[allow(unused)]
 impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
-    fn control_set_friend_remote_max_debt(&mut self, 
+    async fn control_set_friend_remote_max_debt(&mut self, 
                                             set_friend_remote_max_debt: SetFriendRemoteMaxDebt) 
         -> Result<(), HandleControlError> {
 
         // Make sure that friend exists:
-        let _friend = self.get_friend(&set_friend_remote_max_debt.friend_public_key)
+        let friend = self.get_friend(&set_friend_remote_max_debt.friend_public_key)
             .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-        let mc_mutation = McMutation::SetRemoteMaxDebt(set_friend_remote_max_debt.remote_max_debt);
-        let tc_mutation = TcMutation::McMutation(mc_mutation);
-        let friend_mutation = FriendMutation::TcMutation(tc_mutation);
+        if friend.wanted_remote_max_debt == set_friend_remote_max_debt.remote_max_debt {
+            // Wanted remote max debt is already set to this value. Nothing to do here.
+            return Ok(())
+        }
+
+        // We only set the wanted remote max debt here. The actual remote max debt will be changed
+        // only when we manage to send a move token message containing the SetRemoteMaxDebt
+        // operation.
+        let friend_mutation = FriendMutation::SetWantedRemoteMaxDebt(set_friend_remote_max_debt.remote_max_debt);
         let m_mutation = FunderMutation::FriendMutation(
-            (set_friend_remote_max_debt.friend_public_key, friend_mutation));
+            (set_friend_remote_max_debt.friend_public_key.clone(), friend_mutation));
 
         self.apply_mutation(m_mutation);
+        await!(self.try_send_channel(&set_friend_remote_max_debt.friend_public_key, SendMode::EmptyNotAllowed));
         Ok(())
     }
 
@@ -83,7 +85,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             },
         }?;
 
-        let rand_nonce = RandValue::new(&*self.rng);
+        let rand_nonce = RandValue::new(&self.rng);
         let move_token_counter = 0;
 
         let local_pending_debt = 0;
@@ -200,7 +202,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         Ok(())
     }
 
-    fn control_set_requests_status(&mut self, set_requests_status: SetRequestsStatus) 
+    async fn control_set_requests_status(&mut self, set_requests_status: SetRequestsStatus) 
         -> Result<(), HandleControlError> {
 
         // Make sure that friend exists:
@@ -209,9 +211,10 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
         let friend_mutation = FriendMutation::SetWantedLocalRequestsStatus(set_requests_status.status);
         let m_mutation = FunderMutation::FriendMutation(
-            (set_requests_status.friend_public_key, friend_mutation));
+            (set_requests_status.friend_public_key.clone(), friend_mutation));
 
         self.apply_mutation(m_mutation);
+        await!(self.try_send_channel(&set_requests_status.friend_public_key, SendMode::EmptyNotAllowed));
         Ok(())
     }
 
@@ -246,7 +249,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         Some(())
     }
 
-    fn control_request_send_funds_inner(&mut self, user_request_send_funds: UserRequestSendFunds)
+    async fn control_request_send_funds_inner(&mut self, user_request_send_funds: UserRequestSendFunds)
         -> Result<(), HandleControlError> {
 
         self.check_user_request_valid(&user_request_send_funds)
@@ -325,25 +328,26 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                                    request_send_funds.dest_payment,
                                    &request_send_funds.freeze_links);
 
-        if verify_res.is_some() {
+        if verify_res.is_none() {
             return Err(HandleControlError::BlockedByFreezeGuard);
         }
+
 
         let friend_mutation = FriendMutation::PushBackPendingUserRequest(request_send_funds);
         let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
         self.apply_mutation(funder_mutation);
-        self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed);
+        await!(self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed));
 
         Ok(())
     }
 
 
-    fn control_request_send_funds(&mut self, user_request_send_funds: UserRequestSendFunds) 
+    async fn control_request_send_funds(&mut self, user_request_send_funds: UserRequestSendFunds) 
         -> Result<(), HandleControlError> {
         
         // If we managed to push the message, we return an Ok(()).
         // Otherwise, we return the internal error and return a response failure message.
-        self.control_request_send_funds_inner(user_request_send_funds.clone())
+        await!(self.control_request_send_funds_inner(user_request_send_funds.clone()))
             .map_err(|e| {
                 let response_received = ResponseReceived {
                     request_id: user_request_send_funds.request_id,
@@ -375,7 +379,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
         match funder_config {
             IncomingControlMessage::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) => {
-                self.control_set_friend_remote_max_debt(set_friend_remote_max_debt);
+                await!(self.control_set_friend_remote_max_debt(set_friend_remote_max_debt));
             },
             IncomingControlMessage::ResetFriendChannel(reset_friend_channel) => {
                 await!(self.control_reset_friend_channel(reset_friend_channel))?;
@@ -390,13 +394,13 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 self.control_set_friend_status(set_friend_status);
             },
             IncomingControlMessage::SetRequestsStatus(set_requests_status) => {
-                self.control_set_requests_status(set_requests_status);
+                await!(self.control_set_requests_status(set_requests_status));
             },
             IncomingControlMessage::SetFriendAddr(set_friend_addr) => {
                 self.control_set_friend_addr(set_friend_addr);
             },
             IncomingControlMessage::RequestSendFunds(user_request_send_funds) => {
-                self.control_request_send_funds(user_request_send_funds);
+                await!(self.control_request_send_funds(user_request_send_funds));
             },
             IncomingControlMessage::ReceiptAck(receipt_ack) => {
                 self.control_receipt_ack(receipt_ack);

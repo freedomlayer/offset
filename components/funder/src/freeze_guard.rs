@@ -9,8 +9,7 @@ use utils::int_convert::usize_to_u32;
 use crate::credit_calc::CreditCalculator;
 use crate::state::FunderState;
 use crate::friend::ChannelStatus;
-use crate::types::{PendingFriendRequest, RequestSendFunds, 
-    Ratio, FriendsRoute, FreezeLink};
+use crate::types::{Ratio, FriendsRoute, FreezeLink};
 
 
 #[derive(Clone)]
@@ -255,7 +254,6 @@ impl FreezeGuard {
 mod tests {
     use super::*;
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
-    use crypto::uid::{Uid, UID_LEN};
 
     /// Get the amount of credits to be frozen on a route of a certain length
     /// with certain amount to pay.

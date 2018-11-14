@@ -4,36 +4,36 @@ use crypto::identity::PublicKey;
 
 use super::friend::{FriendState, ChannelStatus, ChannelInconsistent};
 use super::state::FunderState;
-use super::types::{RequestsStatus, FriendStatus, ResetTerms};
+use super::types::{RequestsStatus, FriendStatus};
 use super::mutual_credit::types::{TcBalance, TcRequestsStatus, MutualCredit};
 use super::token_channel::TcDirection; 
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct McReport {
     pub balance: TcBalance,
     pub requests_status: TcRequestsStatus,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum DirectionReport {
     Incoming,
     Outgoing,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TcReport {
     pub direction: DirectionReport,
     // Equals Sha512/256(FriendMoveToken)
     pub mutual_credit: McReport,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ChannelStatusReport {
     Inconsistent(ChannelInconsistent),
     Consistent(TcReport),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FriendReport<A> {
     pub remote_address: A, 
     pub channel_status: ChannelStatusReport,
@@ -48,6 +48,7 @@ pub struct FriendReport<A> {
     // but have not been processed yet. Bounded in size.
 }
 
+#[derive(Debug)]
 pub struct FunderReport<A: Clone> {
     pub friends: ImHashMap<PublicKey, FriendReport<A>>,
     pub num_ready_receipts: usize,
