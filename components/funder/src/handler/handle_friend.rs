@@ -121,6 +121,8 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         let total_trust = self.state.get_total_trust();
         let two_pow_128 = BigUint::new(vec![0x1, 0x0u32, 0x0u32, 0x0u32, 0x0u32]);
 
+        println!("total_trust = {:?}", total_trust);
+        // TODO: Decide what to do in case of total_trust = 0
         let funder_freeze_link = if index == 0 {
             // We are the first node on the route (We initiated this request):
             
@@ -402,8 +404,6 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                                receive_move_token_output: ReceiveMoveTokenOutput,
                                token_wanted: bool) {
 
-        println!("handle_move_token_success");
-
         match receive_move_token_output {
             ReceiveMoveTokenOutput::Duplicate => {},
             ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token) => {
@@ -436,8 +436,6 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             },
         }
         let send_mode = match token_wanted {true => SendMode::EmptyAllowed, false => SendMode::EmptyNotAllowed};
-        println!("Got here!");
-        println!("token_wanted = {}", token_wanted);
         await!(self.try_send_channel(&remote_public_key, send_mode));
     }
 
