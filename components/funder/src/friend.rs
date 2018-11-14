@@ -113,11 +113,10 @@ impl<A:Clone + 'static> FriendState<A> {
     pub fn get_shared_credits(&self) -> u128 {
         let balance = match &self.channel_status {
             ChannelStatus::Consistent(token_channel) =>
-                token_channel.get_mutual_credit().state().balance.balance,
-            ChannelStatus::Inconsistent(channel_inconsistent) =>
-                channel_inconsistent.local_reset_terms.balance_for_reset,
+                &token_channel.get_mutual_credit().state().balance,
+            ChannelStatus::Inconsistent(channel_inconsistent) => return 0,
         };
-        self.wanted_remote_max_debt.checked_sub_signed(balance).unwrap()
+        balance.local_max_debt.saturating_add_signed(balance.balance)
     }
 
     #[allow(unused)]
