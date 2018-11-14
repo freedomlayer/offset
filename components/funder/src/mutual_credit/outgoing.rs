@@ -38,7 +38,7 @@ pub enum QueueOperationError {
     InvalidSendFundsReceiptSignature,
     MissingRemoteInvoiceId,
     InvoiceIdMismatch,
-    DuplicateNodesInRoute,
+    InvalidRoute,
     PkPairNotInRoute,
     InvalidFreezeLinks,
     RemoteIncomingRequestsDisabled,
@@ -171,9 +171,8 @@ impl OutgoingMc {
     fn queue_request_send_funds(&mut self, request_send_funds: RequestSendFunds) ->
         Result<Vec<McMutation>, QueueOperationError> {
 
-        // Make sure that the route does not contains cycles/duplicates:
-        if !request_send_funds.route.is_cycle_free() {
-            return Err(QueueOperationError::DuplicateNodesInRoute);
+        if !request_send_funds.route.is_valid() {
+            return Err(QueueOperationError::InvalidRoute);
         }
 
         // Find ourselves on the route. If we are not there, abort.

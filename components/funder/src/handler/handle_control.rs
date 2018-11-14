@@ -277,7 +277,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
         // We want to have at least two public keys on the route (source and destination).
         // We also want that the public keys on the route are unique.
-        if (route.len() < 2) || !route.is_cycle_free() {
+        if !route.is_valid() {
             return Err(HandleControlError::InvalidRoute);
         }
         let friend_public_key = route.public_keys[1].clone();
