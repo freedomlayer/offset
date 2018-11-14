@@ -49,6 +49,10 @@ async fn apply_funder_incoming<'a,A: Clone + 'static,R: CryptoRandom + 'static>(
 
 async fn task_handler_pair_basic(identity_client1: IdentityClient, 
                                  identity_client2: IdentityClient) {
+    // NOTE: We use Box::pinned() in order to make sure we don't get a too large Future which will
+    // cause a stack overflow. 
+    // See:  https://github.com/rust-lang-nursery/futures-rs/issues/1330 
+    
     // Sort the identities. identity_client1 will be the first sender:
     let pk1 = await!(identity_client1.request_public_key()).unwrap();
     let pk2 = await!(identity_client2.request_public_key()).unwrap();
