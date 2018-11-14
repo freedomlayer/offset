@@ -1,11 +1,13 @@
 use im::hashmap::HashMap as ImHashMap;
 
 use num_bigint::BigUint;
-use num_traits::{ToPrimitive, CheckedSub};
+use num_traits::{ToPrimitive, CheckedSub, pow};
 use num_traits::identities::Zero;
 
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
+
+use utils::int_convert::usize_to_u64;
 
 use super::friend::{FriendState, FriendMutation};
 use super::types::{SendFundsReceipt, Ratio};
@@ -82,14 +84,18 @@ impl<A:Clone + 'static> FunderState<A> {
 
         let next_trust = BigUint::from(self.friends.get(next_pk).unwrap().wanted_remote_max_debt);
 
+
         // Calculate: (next_trust + (s/l)) / (2*s) 
+        //
+        // To lose less accuracy, we will calculate the following:
+        // (2^128 * (next_trust*l + s)) / (2*s*l)
         // in the form of Ratio:
-        let numerator = next_trust + (&s/l);
-        let denominator = s * BigUint::from(2u128);
+        let numerator = BigUint::from(next_trust) * BigUint::from(usize_to_u64(l).unwrap()) + &s;
+        let denominator = BigUint::from(2u128) * &s * BigUint::from(usize_to_u64(l).unwrap());
         assert!(numerator <= denominator);
 
-        let two_pow_128 = BigUint::new(vec![0x1, 0x0u32, 0x0u32, 0x0u32, 0x0u32]);
-        let res_numerator = (two_pow_128 * numerator) / &denominator;
+        let two_pow_128 = pow(BigUint::from(2u128), 128);
+        let res_numerator = (two_pow_128 * numerator) / denominator;
         
         match res_numerator.to_u128() {
             Some(num) => Ratio::Numerator(num),
