@@ -88,6 +88,9 @@ fn test_request_response_send_funds() {
     // Make enough trust from remote side, so that we will be able to send credits:
     apply_incoming(&mut mutual_credit, FriendTcOp::SetRemoteMaxDebt(100)).unwrap();
 
+    // Remote side should open his requests status:
+    apply_incoming(&mut mutual_credit, FriendTcOp::EnableRequests).unwrap();
+
     let rng = DummyRandom::new(&[1u8]);
     let pkcs8 = generate_pkcs8_key_pair(&rng);
     let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
@@ -165,6 +168,9 @@ fn test_request_failure_send_funds() {
 
     // Make enough trust from remote side, so that we will be able to send credits:
     apply_incoming(&mut mutual_credit, FriendTcOp::SetRemoteMaxDebt(100)).unwrap();
+
+    // Remote side should open his requests status:
+    apply_incoming(&mut mutual_credit, FriendTcOp::EnableRequests).unwrap();
 
 
     let request_id = Uid::from(&[3; UID_LEN]);
