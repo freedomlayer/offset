@@ -1,7 +1,7 @@
 use im::vector::Vector;
 
 use crypto::identity::PublicKey;
-use utils::safe_arithmetic::{SafeSignedArithmetic};
+use utils::safe_arithmetic::{SafeUnsignedArithmetic};
 
 use super::token_channel::TcMutation;
 use super::types::{FriendStatus, 
