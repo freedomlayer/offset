@@ -323,8 +323,8 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
             => token_channel.get_mutual_credit().state(),
         _ => unreachable!(),
     };
-    assert_eq!(mutual_credit_state.requests_status.local, RequestsStatus::Open);
-    assert_eq!(mutual_credit_state.requests_status.remote, RequestsStatus::Closed);
+    assert!(mutual_credit_state.requests_status.local.is_open());
+    assert!(!mutual_credit_state.requests_status.remote.is_open());
 
     // Checking the current requests status on the mutual credit for Node2:
     let friend1 = state2.friends.get(&pk1).unwrap();
@@ -333,12 +333,10 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
             => token_channel.get_mutual_credit().state(),
         _ => unreachable!(),
     };
-    assert_eq!(mutual_credit_state.requests_status.local, RequestsStatus::Closed);
-    assert_eq!(mutual_credit_state.requests_status.remote, RequestsStatus::Open);
-
+    assert!(!mutual_credit_state.requests_status.local.is_open());
+    assert!(mutual_credit_state.requests_status.remote.is_open());
 
     // Node2 receives control message to send funds to Node1:
-    println!("Node2 receives control message to send funds to Node1:");
     let user_request_send_funds = UserRequestSendFunds {
         request_id: Uid::from(&[3; UID_LEN]),
         route: FriendsRoute { public_keys: vec![pk2.clone(), pk1.clone()] },
@@ -347,17 +345,16 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     };
     let incoming_control_message = IncomingControlMessage::RequestSendFunds(user_request_send_funds);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
-    println!("Before await!");
     let (outgoing_comms, _outgoing_control) = await!(Box::pinned(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  rng.clone(), identity_client2.clone()))).unwrap();
-    println!("After await!");
+
 
     // Node2 will send a RequestFunds message to Node1
     assert_eq!(outgoing_comms.len(), 1);
+    let friend_message = if let FunderOutgoingComm::FriendMessage((_pk, friend_message)) = &outgoing_comms[0] {
+        friend_message.clone()
+    } else { unreachable!(); };
 
-    //=================================================
-
-    /*
     // Node1 receives RequestSendFunds from Node2:
     let funder_incoming = FunderIncoming::Comm(IncomingCommMessage::Friend((pk2.clone(), friend_message)));
     let (outgoing_comms, _outgoing_control) = await!(Box::pinned(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
@@ -381,13 +378,33 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
         _ => unreachable!(),
     };
 
-
     // Node2 receives ResponseSendFunds from Node1:
     let funder_incoming = FunderIncoming::Comm(IncomingCommMessage::Friend((pk1.clone(), friend_message)));
     let (_outgoing_comms, _outgoing_control) = await!(Box::pinned(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  rng.clone(), identity_client2.clone()))).unwrap();
 
-     */
+    // Current balance from Node1 point of view:
+    let friend2 = state1.friends.get(&pk2).unwrap();
+    let mutual_credit_state = match &friend2.channel_status {
+        ChannelStatus::Consistent(token_channel) 
+            => token_channel.get_mutual_credit().state(),
+        _ => unreachable!(),
+    };
+    assert_eq!(mutual_credit_state.balance.balance, 20);
+    assert_eq!(mutual_credit_state.balance.remote_pending_debt, 0);
+    assert_eq!(mutual_credit_state.balance.local_pending_debt, 0);
+
+    // Current balance from Node2 point of view:
+    let friend1 = state2.friends.get(&pk1).unwrap();
+    let mutual_credit_state = match &friend1.channel_status {
+        ChannelStatus::Consistent(token_channel) 
+            => token_channel.get_mutual_credit().state(),
+        _ => unreachable!(),
+    };
+    assert_eq!(mutual_credit_state.balance.balance, -20);
+    assert_eq!(mutual_credit_state.balance.remote_pending_debt, 0);
+    assert_eq!(mutual_credit_state.balance.local_pending_debt, 0);
+
 }
 
 #[test]
