@@ -189,7 +189,7 @@ fn process_request_send_funds(mutual_credit: &mut MutualCredit,
     }
 
     // Make sure that we are open to requests:
-    if let RequestsStatus::Open = mutual_credit.state().requests_status.local {
+    if !mutual_credit.state().requests_status.local.is_open() {
         return Err(ProcessOperationError::LocalRequestsClosed);
     }
 
