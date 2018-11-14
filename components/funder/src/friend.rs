@@ -1,12 +1,13 @@
 use im::vector::Vector;
 
 use crypto::identity::PublicKey;
+use utils::safe_arithmetic::{SafeSignedArithmetic};
 
 use super::token_channel::TcMutation;
 use super::types::{FriendStatus, 
     RequestsStatus, RequestSendFunds, FriendMoveToken,
     ResponseSendFunds, FailureSendFunds,
-    ResetTerms};
+    ResetTerms, Ratio};
 use super::token_channel::TokenChannel;
 
 
@@ -93,6 +94,20 @@ impl<A:Clone + 'static> FriendState<A> {
             status: FriendStatus::Disable,
             pending_user_requests: Vector::new(),
         }
+    }
+
+    pub fn shared_credits(&self) -> u128 {
+        let balance = match &self.channel_status {
+            ChannelStatus::Consistent(token_channel) =>
+                token_channel.get_mutual_credit().state().balance.balance,
+            ChannelStatus::Inconsistent(channel_inconsistent) =>
+                channel_inconsistent.local_reset_terms.balance_for_reset,
+        };
+        self.wanted_remote_max_debt.checked_sub_signed(balance).unwrap()
+    }
+
+    pub fn usable_ratio(&self) -> Ratio<u128> {
+        unimplemented!();
     }
 
     #[allow(unused)]
