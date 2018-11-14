@@ -1,8 +1,5 @@
 use byteorder::{BigEndian, WriteBytesExt};
 
-use num_bigint::BigUint;
-use num_traits::ToPrimitive;
-
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 use crypto::identity::{PublicKey, Signature};
 use crypto::hash::sha_512_256;
@@ -18,7 +15,7 @@ use crate::token_channel::{ReceiveMoveTokenOutput, ReceiveMoveTokenError,
 use crate::types::{RequestSendFunds, ResponseSendFunds, 
     FailureSendFunds, FriendMoveToken, 
     FreezeLink, 
-    PendingFriendRequest, Ratio,
+    PendingFriendRequest,
     FriendMessage, ResponseReceived, ResetTerms,
     FunderOutgoingComm};
 
