@@ -1,13 +1,14 @@
 use im::hashmap::HashMap as ImHashMap;
 
 use num_bigint::BigUint;
+use num_traits::{ToPrimitive, CheckedSub};
 use num_traits::identities::Zero;
 
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 use super::friend::{FriendState, FriendMutation};
-use super::types::SendFundsReceipt;
+use super::types::{SendFundsReceipt, Ratio};
 
 
 #[allow(unused)]
@@ -38,11 +39,10 @@ impl<A:Clone + 'static> FunderState<A> {
             ready_receipts: ImHashMap::new(),
         }
     }
-
     // TODO: Add code for initialization from database?
-
+    
     /// Get total trust (in credits) we put on all the friends together.
-    pub fn get_total_trust(&self) -> BigUint {
+    fn get_total_trust(&self) -> BigUint {
         let mut sum: BigUint = BigUint::zero();
         for friend in self.friends.values() {
             // Note that we care more about the wanted_remote_max_debt than the actual
@@ -52,6 +52,49 @@ impl<A:Clone + 'static> FunderState<A> {
             sum += trust;
         }
         sum
+    }
+
+    /// Find out how much of the shared credits between `prev_friend` and our node we can let
+    /// `next_friend` use. The result is a ratio between 0 and 1.
+    ///
+    /// We use the formula:
+    /// `(a + (s/l)) / 2s`
+    ///
+    /// Where `a` is the `remote_max_debt` we assigned to `next_friend`, s is the sum of all
+    /// `remote_max_debt`-s of all our friends besides `prev_friend`, plus 1. (We add 1 to avoid
+    /// division by 0)
+    ///
+    /// l is the amount of friends we have, besides prev_friend.
+    pub fn get_usable_ratio(&self, opt_prev_pk: Option<&PublicKey>, next_pk: &PublicKey) -> Ratio<u128> {
+
+        let mut s = self.get_total_trust();
+        let l = self.friends.len();
+        if let Some(prev_pk) = opt_prev_pk {
+            l.checked_sub(1);
+            let prev_friend = self.friends.get(prev_pk).unwrap();
+            let friend_trust = BigUint::from(prev_friend.wanted_remote_max_debt);
+            s = s.checked_sub(&friend_trust).unwrap();
+        }
+
+        // TODO: What happens if we have only one friend?
+        assert!(l > 0);
+        s += BigUint::from(1u128); // Helps avoid division by zero
+
+        let next_trust = BigUint::from(self.friends.get(next_pk).unwrap().wanted_remote_max_debt);
+
+        // Calculate: (next_trust + (s/l)) / (2*s) 
+        // in the form of Ratio:
+        let numerator = next_trust + (&s/l);
+        let denominator = s * BigUint::from(2u128);
+        assert!(numerator <= denominator);
+
+        let two_pow_128 = BigUint::new(vec![0x1, 0x0u32, 0x0u32, 0x0u32, 0x0u32]);
+        let res_numerator = (two_pow_128 * numerator) / &denominator;
+        
+        match res_numerator.to_u128() {
+            Some(num) => Ratio::Numerator(num),
+            None => Ratio::One,
+        }
     }
 
     pub fn mutate(&mut self, messenger_mutation: &FunderMutation<A>) {

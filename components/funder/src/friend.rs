@@ -1,13 +1,13 @@
 use im::vector::Vector;
 
 use crypto::identity::PublicKey;
-use utils::safe_arithmetic::{SafeUnsignedArithmetic};
+use utils::safe_arithmetic::SafeUnsignedArithmetic;
 
 use super::token_channel::TcMutation;
 use super::types::{FriendStatus, 
     RequestsStatus, RequestSendFunds, FriendMoveToken,
     ResponseSendFunds, FailureSendFunds,
-    ResetTerms, Ratio};
+    ResetTerms};
 use super::token_channel::TokenChannel;
 
 
@@ -96,7 +96,21 @@ impl<A:Clone + 'static> FriendState<A> {
         }
     }
 
-    pub fn shared_credits(&self) -> u128 {
+    /// Find the shared credits we have with this friend.
+    /// This value is used for freeze guard calculations.
+    /// This value is the capacity shared between the rest of the friends.
+    ///
+    /// ```text
+    ///         ---B
+    ///        /
+    /// A--*--O-----C
+    ///        \
+    ///         ---D
+    /// ```
+    /// In the picture above, the shared credits between O and A will be shared between the nodes
+    /// B, C and D.
+    ///
+    pub fn get_shared_credits(&self) -> u128 {
         let balance = match &self.channel_status {
             ChannelStatus::Consistent(token_channel) =>
                 token_channel.get_mutual_credit().state().balance.balance,
@@ -104,10 +118,6 @@ impl<A:Clone + 'static> FriendState<A> {
                 channel_inconsistent.local_reset_terms.balance_for_reset,
         };
         self.wanted_remote_max_debt.checked_sub_signed(balance).unwrap()
-    }
-
-    pub fn usable_ratio(&self) -> Ratio<u128> {
-        unimplemented!();
     }
 
     #[allow(unused)]
