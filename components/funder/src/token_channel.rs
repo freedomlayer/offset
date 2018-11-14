@@ -408,13 +408,6 @@ impl TcOutgoing {
         let res = process_operations_list(&mut mutual_credit,
             new_move_token.operations.clone());
 
-        // Verify balance:
-        if mutual_credit.state().balance.balance != new_move_token.balance ||
-           mutual_credit.state().balance.local_pending_debt != new_move_token.local_pending_debt ||
-           mutual_credit.state().balance.remote_pending_debt != new_move_token.remote_pending_debt {
-            return Err(ReceiveMoveTokenError::InvalidStatedBalance);
-        }
-
         match res {
             Ok(outputs) => {
                 let initial_remote_requests = self
@@ -427,6 +420,9 @@ impl TcOutgoing {
                 let mut incoming_messages = Vec::new();
                 let mut mutations =  Vec::new();
 
+                // We apply mutations on this token channel, to verify stated balance values
+                let mut check_mutual_credit = self.mutual_credit.clone();
+
                 let mut final_remote_requests: bool = initial_remote_requests;
                 for output in outputs {
                     let ProcessOperationOutput 
@@ -436,6 +432,7 @@ impl TcOutgoing {
                         incoming_messages.push(funds);
                     }
                     for mc_mutation in mc_mutations {
+                        check_mutual_credit.mutate(&mc_mutation);
                         if let McMutation::SetRemoteRequestsStatus(requests_status) = &mc_mutation {
                             final_remote_requests = requests_status.is_open();
                         }
@@ -443,6 +440,15 @@ impl TcOutgoing {
                             TcMutation::McMutation(mc_mutation));
                     }
                 }
+
+                // Verify stated balances:
+                let check_balance = &check_mutual_credit.state().balance;
+                if check_balance.balance != -new_move_token.balance ||
+                   check_balance.local_pending_debt != new_move_token.remote_pending_debt ||
+                   check_balance.remote_pending_debt != new_move_token.local_pending_debt {
+                    return Err(ReceiveMoveTokenError::InvalidStatedBalance);
+                }
+
                 mutations.push(
                     TcMutation::SetDirection(SetDirection::Incoming(new_move_token)));
 
@@ -593,7 +599,6 @@ mod tests {
                                                     identity_client2.clone()));
 
         for mc_mutation in mc_mutations {
-            println!("tc_mutation: {:?}", mc_mutation);
             tc2.mutate(&TcMutation::McMutation(mc_mutation));
         }
         let tc_mutation = TcMutation::SetDirection(
