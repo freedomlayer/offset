@@ -139,9 +139,9 @@ pub fn is_public_key_lower(pk1: &PublicKey, pk2: &PublicKey) -> bool {
 
 impl TokenChannel {
     pub fn new(local_public_key: &PublicKey, 
-               remote_public_key: &PublicKey) -> TokenChannel {
+               remote_public_key: &PublicKey,
+               balance: i128) -> TokenChannel {
 
-        let balance = 0;
         let mutual_credit = MutualCredit::new(&local_public_key, &remote_public_key, balance);
 
         if is_public_key_lower(&local_public_key, &remote_public_key) {
@@ -170,7 +170,7 @@ impl TokenChannel {
     pub fn new_from_remote_reset(local_public_key: &PublicKey, 
                       remote_public_key: &PublicKey, 
                       reset_move_token: &FriendMoveToken,
-                      balance: i128) -> TokenChannel {
+                      balance: i128) -> TokenChannel { // is balance redundant here?
 
         let tc_incoming = TcIncoming {
             mutual_credit: MutualCredit::new(local_public_key, remote_public_key, balance),
@@ -185,7 +185,7 @@ impl TokenChannel {
     pub fn new_from_local_reset(local_public_key: &PublicKey, 
                       remote_public_key: &PublicKey, 
                       reset_move_token: &FriendMoveToken,
-                      balance: i128,
+                      balance: i128, // Is this redundant?
                       opt_last_incoming_move_token: Option<FriendMoveToken>) -> TokenChannel {
 
         let tc_outgoing = TcOutgoing {
@@ -497,8 +497,8 @@ mod tests {
     fn test_initial_direction() {
         let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
         let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
-        let token_channel_a_b = TokenChannel::new(&pk_a, &pk_b);
-        let token_channel_b_a = TokenChannel::new(&pk_b, &pk_a);
+        let token_channel_a_b = TokenChannel::new(&pk_a, &pk_b, 0i128);
+        let token_channel_b_a = TokenChannel::new(&pk_b, &pk_a, 0i128);
 
         // Only one of those token channels is outgoing:
         let is_a_b_outgoing = token_channel_a_b.is_outgoing();
@@ -524,8 +524,8 @@ mod tests {
     fn test_set_token_wanted() {
         let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
         let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
-        let token_channel_a_b = TokenChannel::new(&pk_a, &pk_b);
-        let token_channel_b_a = TokenChannel::new(&pk_b, &pk_a);
+        let token_channel_a_b = TokenChannel::new(&pk_a, &pk_b, 0i128);
+        let token_channel_b_a = TokenChannel::new(&pk_b, &pk_a, 0i128);
 
         // Only one of those token channels is outgoing:
         let is_a_b_outgoing = token_channel_a_b.is_outgoing();
@@ -565,7 +565,7 @@ mod tests {
 
         let pk1 = await!(identity_client1.request_public_key()).unwrap();
         let pk2 = await!(identity_client2.request_public_key()).unwrap();
-        let token_channel12 = TokenChannel::new(&pk1, &pk2); // (local, remote)
+        let token_channel12 = TokenChannel::new(&pk1, &pk2, 0i128); // (local, remote)
         if token_channel12.is_outgoing() {
             (identity_client1, identity_client2)
         } else {
@@ -662,8 +662,8 @@ mod tests {
 
         let pk1 = await!(identity_client1.request_public_key()).unwrap();
         let pk2 = await!(identity_client2.request_public_key()).unwrap();
-        let mut tc1 = TokenChannel::new(&pk1, &pk2); // (local, remote)
-        let mut tc2 = TokenChannel::new(&pk2, &pk1); // (local, remote)
+        let mut tc1 = TokenChannel::new(&pk1, &pk2, 0i128); // (local, remote)
+        let mut tc2 = TokenChannel::new(&pk2, &pk1, 0i128); // (local, remote)
 
         // Current state:  tc1 --> tc2
         // tc1: outgoing
