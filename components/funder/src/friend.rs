@@ -32,7 +32,7 @@ pub enum FriendMutation<A> {
     PushBackPendingUserRequest(RequestSendFunds),
     PopFrontPendingUserRequest,
     SetStatus(FriendStatus),
-    SetFriendAddr(A),
+    SetFriendInfo((A, String)), // (Address, Name)
     LocalReset(FriendMoveToken),
     // The outgoing move token message we have sent to reset the channel.
     RemoteReset(FriendMoveToken),
@@ -58,6 +58,7 @@ pub struct FriendState<A> {
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,
     pub remote_address: A, 
+    pub name: String,
     pub channel_status: ChannelStatus,
     pub wanted_remote_max_debt: u128,
     pub wanted_local_requests_status: RequestsStatus,
@@ -76,12 +77,14 @@ impl<A:Clone + 'static> FriendState<A> {
     pub fn new(local_public_key: &PublicKey,
                remote_public_key: &PublicKey,
                remote_address: A,
+               name: String,
                balance: i128) -> FriendState<A> {
         let token_channel = TokenChannel::new(local_public_key, remote_public_key, balance);
         FriendState {
             local_public_key: local_public_key.clone(),
             remote_public_key: remote_public_key.clone(),
             remote_address,
+            name,
             channel_status: ChannelStatus::Consistent(token_channel),
 
             // The remote_max_debt we want to have. When possible, this will be sent to the remote
@@ -160,8 +163,9 @@ impl<A:Clone + 'static> FriendState<A> {
             FriendMutation::SetStatus(friend_status) => {
                 self.status = friend_status.clone();
             },
-            FriendMutation::SetFriendAddr(friend_addr) => {
+            FriendMutation::SetFriendInfo((friend_addr, friend_name)) => {
                 self.remote_address = friend_addr.clone();
+                self.name = friend_name.clone();
             },
             FriendMutation::LocalReset(reset_move_token) => {
                 // Local reset was applied (We sent a reset from the control line)

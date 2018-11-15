@@ -25,7 +25,8 @@ pub struct FunderState<A:Clone> {
 #[derive(Debug)]
 pub enum FunderMutation<A> {
     FriendMutation((PublicKey, FriendMutation<A>)),
-    AddFriend((PublicKey, A, i128)), // (friend_public_key, opt_address, balance)
+    AddFriend((PublicKey, A, String, i128)), // (friend_public_key, address, name, balance)
+                                            // TODO: Create a struct for this
     RemoveFriend(PublicKey),
     AddReceipt((Uid, SendFundsReceipt)),  //(request_id, receipt)
     RemoveReceipt(Uid),
@@ -109,10 +110,11 @@ impl<A:Clone + 'static> FunderState<A> {
                 let friend = self.friends.get_mut(&public_key).unwrap();
                 friend.mutate(friend_mutation);
             },
-            FunderMutation::AddFriend((friend_public_key, opt_address, balance)) => {
+            FunderMutation::AddFriend((friend_public_key, address, name, balance)) => {
                 let friend = FriendState::new(&self.local_public_key,
                                                   friend_public_key,
-                                                  opt_address.clone(),
+                                                  address.clone(),
+                                                  name.clone(),
                                                   *balance);
                 // Insert friend, but also make sure that we did not remove any existing friend
                 // with the same public key:

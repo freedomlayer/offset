@@ -109,7 +109,7 @@ mod tests {
 
         let mut state = FunderState::new(&local_pk);
         // Add a remote friend:
-        let funder_mutation = FunderMutation::AddFriend((remote_pk.clone(), 3u32, 0i128)); // second arg is address
+        let funder_mutation = FunderMutation::AddFriend((remote_pk.clone(), 3u32, "remote_pk".into(), 0i128)); // second arg is address
         state.mutate(&funder_mutation);
 
         // Enable the remote friend:

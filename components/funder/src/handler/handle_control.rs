@@ -8,7 +8,7 @@ use super::{MutableFunderHandler,
 use super::super::messages::ResponseSendFundsResult;
 use super::super::types::{FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel,
-    SetFriendAddr, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
+    SetFriendInfo, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
     ReceiptAck, FriendMoveToken, IncomingControlMessage,
     FriendTcOp, ResponseReceived,
     ChannelerConfig, FunderOutgoingComm};
@@ -142,6 +142,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         let m_mutation = FunderMutation::AddFriend((
                 add_friend.friend_public_key.clone(),
                 add_friend.address.clone(),
+                add_friend.name.clone(),
                 add_friend.balance));
 
         self.apply_mutation(m_mutation);
@@ -219,24 +220,24 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         Ok(())
     }
 
-    fn control_set_friend_addr(&mut self, set_friend_addr: SetFriendAddr<A>) 
+    fn control_set_friend_info(&mut self, set_friend_info: SetFriendInfo<A>) 
         -> Result<(), HandleControlError> {
 
         // Make sure that friend exists:
-        let _friend = self.get_friend(&set_friend_addr.friend_public_key)
+        let _friend = self.get_friend(&set_friend_info.friend_public_key)
             .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-        let friend_mutation = FriendMutation::SetFriendAddr(
-            set_friend_addr.address.clone());
+        let friend_mutation = FriendMutation::SetFriendInfo(
+            (set_friend_info.address.clone(), set_friend_info.name.clone()));
         let m_mutation = FunderMutation::FriendMutation(
-            (set_friend_addr.friend_public_key.clone(), friend_mutation));
+            (set_friend_info.friend_public_key.clone(), friend_mutation));
 
         self.apply_mutation(m_mutation);
 
         // Notify Channeler to change the friend's address:
-        self.disable_friend(&set_friend_addr.friend_public_key);
-        self.enable_friend(&set_friend_addr.friend_public_key, 
-                           &set_friend_addr.address);
+        self.disable_friend(&set_friend_info.friend_public_key);
+        self.enable_friend(&set_friend_info.friend_public_key, 
+                           &set_friend_info.address);
 
         Ok(())
     }
@@ -397,8 +398,8 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             IncomingControlMessage::SetRequestsStatus(set_requests_status) => {
                 await!(self.control_set_requests_status(set_requests_status));
             },
-            IncomingControlMessage::SetFriendAddr(set_friend_addr) => {
-                self.control_set_friend_addr(set_friend_addr);
+            IncomingControlMessage::SetFriendInfo(set_friend_info) => {
+                self.control_set_friend_info(set_friend_info);
             },
             IncomingControlMessage::RequestSendFunds(user_request_send_funds) => {
                 await!(self.control_request_send_funds(user_request_send_funds));

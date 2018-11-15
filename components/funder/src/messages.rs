@@ -5,7 +5,7 @@ use crypto::identity::PublicKey;
 
 use super::types::{UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel,
-    SetFriendAddr, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
+    SetFriendInfo, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
     SendFundsReceipt};
 
 
@@ -121,7 +121,7 @@ pub enum FunderCommand<A> {
     SetRequestsStatus(SetRequestsStatus),
     SetFriendStatus(SetFriendStatus),
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
-    SetFriendAddr(SetFriendAddr<A>),
+    SetFriendInfo(SetFriendInfo<A>),
     ResetFriendChannel(ResetFriendChannel),
     RequestSendFunds(CtrlRequestSendFunds),
 }
