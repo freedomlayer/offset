@@ -438,6 +438,7 @@ pub struct SetFriendAddr<A> {
 pub struct AddFriend<A> {
     pub friend_public_key: PublicKey,
     pub address: A,
+    pub balance: i128, // Initial balance
 }
 
 #[derive(Debug, Clone)]

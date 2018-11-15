@@ -75,8 +75,9 @@ pub struct FriendState<A> {
 impl<A:Clone + 'static> FriendState<A> {
     pub fn new(local_public_key: &PublicKey,
                remote_public_key: &PublicKey,
-               remote_address: A) -> FriendState<A> {
-        let token_channel = TokenChannel::new(local_public_key, remote_public_key);
+               remote_address: A,
+               balance: i128) -> FriendState<A> {
+        let token_channel = TokenChannel::new(local_public_key, remote_public_key, balance);
         FriendState {
             local_public_key: local_public_key.clone(),
             remote_public_key: remote_public_key.clone(),
