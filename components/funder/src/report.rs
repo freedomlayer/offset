@@ -195,14 +195,14 @@ pub fn create_funder_mutation_report<A: Clone + 'static>(funder_mutation: &Funde
         FunderMutation::RemoveFriend(friend_public_key) => {
             Some(FunderReportMutation::RemoveFriend(friend_public_key.clone()))
         },
-        FunderMutation::AddReceipt((uid, receipt)) => {
+        FunderMutation::AddReceipt((_uid, _receipt)) => {
             if funder_state_after.ready_receipts.len() != funder_state.ready_receipts.len() {
                 Some(FunderReportMutation::SetNumReadyReceipts(usize_to_u64(funder_state.ready_receipts.len()).unwrap()))
             } else {
                 None
             }
         },
-        FunderMutation::RemoveReceipt(uid) => {
+        FunderMutation::RemoveReceipt(_uid) => {
             if funder_state_after.ready_receipts.len() != funder_state.ready_receipts.len() {
                 Some(FunderReportMutation::SetNumReadyReceipts(usize_to_u64(funder_state.ready_receipts.len()).unwrap()))
             } else {
