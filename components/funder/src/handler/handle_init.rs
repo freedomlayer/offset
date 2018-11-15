@@ -36,6 +36,7 @@ mod tests {
 
     use crate::handler::gen_mutable;
     use crate::state::{FunderState, FunderMutation};
+    use crate::types::AddFriend;
     use crate::ephemeral::FunderEphemeral;
     use crate::friend::FriendMutation;
 
@@ -60,7 +61,13 @@ mod tests {
         let mut state = FunderState::new(&local_pk);
 
         // Add a remote friend:
-        let f_mutation = FunderMutation::AddFriend((pk_b.clone(), 3u32, "pk_b".into(), 0i128)); // second arg is address
+        let add_friend = AddFriend {
+            friend_public_key: pk_b.clone(),
+            address: 3u32,
+            name: "pk_b".into(),
+            balance: 0i128,
+        };
+        let f_mutation = FunderMutation::AddFriend(add_friend);
         state.mutate(&f_mutation);
 
         // Enable the remote friend:

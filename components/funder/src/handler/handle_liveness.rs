@@ -81,7 +81,7 @@ mod tests {
     use crate::state::{FunderState, FunderMutation};
     use crate::ephemeral::FunderEphemeral;
     use crate::token_channel::{is_public_key_lower, TcDirection};
-    use crate::types::FriendStatus;
+    use crate::types::{FriendStatus, AddFriend};
     use crate::friend::FriendMutation;
 
     use futures::executor::ThreadPool;
@@ -109,7 +109,13 @@ mod tests {
 
         let mut state = FunderState::new(&local_pk);
         // Add a remote friend:
-        let funder_mutation = FunderMutation::AddFriend((remote_pk.clone(), 3u32, "remote_pk".into(), 0i128)); // second arg is address
+        let add_friend = AddFriend {
+            friend_public_key: remote_pk.clone(),
+            address: 3u32,
+            name: "remote_pk".into(),
+            balance: 0i128,
+        };
+        let funder_mutation = FunderMutation::AddFriend(add_friend);
         state.mutate(&funder_mutation);
 
         // Enable the remote friend:

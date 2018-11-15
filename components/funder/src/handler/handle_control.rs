@@ -139,14 +139,8 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
     fn control_add_friend(&mut self, add_friend: AddFriend<A>) 
         -> Result<(), HandleControlError> {
 
-        let m_mutation = FunderMutation::AddFriend((
-                add_friend.friend_public_key.clone(),
-                add_friend.address.clone(),
-                add_friend.name.clone(),
-                add_friend.balance));
-
+        let m_mutation = FunderMutation::AddFriend(add_friend.clone());
         self.apply_mutation(m_mutation);
-
         self.enable_friend(&add_friend.friend_public_key,
                            &add_friend.address);
 
