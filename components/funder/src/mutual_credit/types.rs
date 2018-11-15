@@ -18,6 +18,7 @@ use super::super::types::RequestsStatus;
 pub const MAX_FUNDER_DEBT: u128 = (1 << 127) - 1;
 
 
+// TODO: Rename this to McIdents
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct TcIdents {
     /// My public key
@@ -26,6 +27,7 @@ pub struct TcIdents {
     pub remote_public_key: PublicKey,
 }
 
+// TODO: Rename this to McBalance
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct TcBalance {
     /// Amount of credits this side has against the remote side.
