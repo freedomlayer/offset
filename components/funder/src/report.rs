@@ -24,7 +24,6 @@ pub enum DirectionReport {
 #[derive(Clone, Debug)]
 pub struct TcReport {
     pub direction: DirectionReport,
-    // Equals Sha512/256(FriendMoveToken)
     pub mutual_credit: McReport,
 }
 
