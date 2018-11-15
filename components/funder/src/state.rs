@@ -10,10 +10,9 @@ use crypto::uid::Uid;
 use utils::int_convert::usize_to_u64;
 
 use super::friend::{FriendState, FriendMutation};
-use super::types::{SendFundsReceipt, Ratio};
+use super::types::{SendFundsReceipt, Ratio, AddFriend};
 
 
-#[allow(unused)]
 #[derive(Clone, Serialize, Deserialize)]
 pub struct FunderState<A:Clone> {
     pub local_public_key: PublicKey,
@@ -21,11 +20,10 @@ pub struct FunderState<A:Clone> {
     pub ready_receipts: ImHashMap<Uid, SendFundsReceipt>,
 }
 
-#[allow(unused)]
 #[derive(Debug)]
 pub enum FunderMutation<A> {
     FriendMutation((PublicKey, FriendMutation<A>)),
-    AddFriend((PublicKey, A, i128)), // (friend_public_key, opt_address, balance)
+    AddFriend(AddFriend<A>), 
     RemoveFriend(PublicKey),
     AddReceipt((Uid, SendFundsReceipt)),  //(request_id, receipt)
     RemoveReceipt(Uid),
@@ -109,14 +107,15 @@ impl<A:Clone + 'static> FunderState<A> {
                 let friend = self.friends.get_mut(&public_key).unwrap();
                 friend.mutate(friend_mutation);
             },
-            FunderMutation::AddFriend((friend_public_key, opt_address, balance)) => {
+            FunderMutation::AddFriend(add_friend) => {
                 let friend = FriendState::new(&self.local_public_key,
-                                                  friend_public_key,
-                                                  opt_address.clone(),
-                                                  *balance);
+                                                  &add_friend.friend_public_key,
+                                                  add_friend.address.clone(),
+                                                  add_friend.name.clone(),
+                                                  add_friend.balance);
                 // Insert friend, but also make sure that we did not remove any existing friend
                 // with the same public key:
-                let res = self.friends.insert(friend_public_key.clone(), friend);
+                let res = self.friends.insert(add_friend.friend_public_key.clone(), friend);
                 assert!(res.is_none());
 
             },

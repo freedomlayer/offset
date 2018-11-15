@@ -84,6 +84,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     let add_friend = AddFriend {
         friend_public_key: pk2.clone(),
         address: 22u32,
+        name: String::from("pk2"),
         balance: 0i128,
     };
     let incoming_control_message = IncomingControlMessage::AddFriend(add_friend);
@@ -105,6 +106,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     let add_friend = AddFriend {
         friend_public_key: pk1.clone(),
         address: 11u32,
+        name: String::from("pk1"),
         balance: 0i128,
     };
     let incoming_control_message = IncomingControlMessage::AddFriend(add_friend);

@@ -429,15 +429,17 @@ pub struct ResetFriendChannel {
 }
 
 #[derive(Debug, Clone)]
-pub struct SetFriendAddr<A> {
+pub struct SetFriendInfo<A> {
     pub friend_public_key: PublicKey,
     pub address: A,
+    pub name: String,
 }
 
 #[derive(Debug, Clone)]
 pub struct AddFriend<A> {
     pub friend_public_key: PublicKey,
     pub address: A,
+    pub name: String,
     pub balance: i128, // Initial balance
 }
 
@@ -472,7 +474,7 @@ pub enum IncomingControlMessage<A> {
     SetRequestsStatus(SetRequestsStatus),
     SetFriendStatus(SetFriendStatus),
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
-    SetFriendAddr(SetFriendAddr<A>),
+    SetFriendInfo(SetFriendInfo<A>),
     ResetFriendChannel(ResetFriendChannel),
     RequestSendFunds(UserRequestSendFunds),
     ReceiptAck(ReceiptAck),
