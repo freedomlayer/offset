@@ -1,6 +1,7 @@
 use im::hashmap::HashMap as ImHashMap;
 
 use crypto::identity::PublicKey;
+use utils::int_convert::usize_to_u64;
 
 use super::friend::{FriendState, ChannelStatus, ChannelInconsistent};
 use super::state::FunderState;
@@ -40,11 +41,11 @@ pub struct FriendReport<A> {
     pub channel_status: ChannelStatusReport,
     pub wanted_remote_max_debt: u128,
     pub wanted_local_requests_status: RequestsStatus,
-    pub num_pending_responses: usize,
-    pub num_pending_requests: usize,
+    pub num_pending_responses: u64,
+    pub num_pending_requests: u64,
     // Pending operations to be sent to the token channel.
     pub status: FriendStatus,
-    pub num_pending_user_requests: usize,
+    pub num_pending_user_requests: u64,
     // Request that the user has sent to this neighbor, 
     // but have not been processed yet. Bounded in size.
 }
@@ -108,10 +109,10 @@ fn create_friend_report<A: Clone>(friend_state: &FriendState<A>) -> FriendReport
         channel_status,
         wanted_remote_max_debt: friend_state.wanted_remote_max_debt,
         wanted_local_requests_status: friend_state.wanted_local_requests_status.clone(),
-        num_pending_responses: friend_state.pending_responses.len(),
-        num_pending_requests: friend_state.pending_requests.len(),
+        num_pending_responses: usize_to_u64(friend_state.pending_responses.len()).unwrap(),
+        num_pending_requests: usize_to_u64(friend_state.pending_requests.len()).unwrap(),
         status: friend_state.status.clone(),
-        num_pending_user_requests: friend_state.pending_user_requests.len(),
+        num_pending_user_requests: usize_to_u64(friend_state.pending_user_requests.len()).unwrap(),
     }
 }
 
