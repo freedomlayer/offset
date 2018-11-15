@@ -36,6 +36,7 @@ pub enum ChannelStatusReport {
 #[derive(Clone, Debug)]
 pub struct FriendReport<A> {
     pub remote_address: A, 
+    pub name: String,
     pub channel_status: ChannelStatusReport,
     pub wanted_remote_max_debt: u128,
     pub wanted_local_requests_status: RequestsStatus,
@@ -54,6 +55,28 @@ pub struct FunderReport<A: Clone> {
     pub num_ready_receipts: usize,
     pub local_public_key: PublicKey,
 
+}
+
+#[allow(unused)]
+#[derive(Debug)]
+pub enum FriendReportMutation<A> {
+    SetFriendInfo((A, String)),
+    SetChannelStatus(ChannelStatusReport),
+    SetWantedRemoteMaxDebt(u128),
+    SetWantedLocalRequestsStatus(RequestsStatus),
+    SetNumPendingResponses(u64),
+    SetNumPendingRequests(u64),
+    SetFriendStatus(FriendStatus),
+    SetNumPendingUserRequests(u64),
+}
+
+#[allow(unused)]
+#[derive(Debug)]
+pub enum FunderReportMutation<A> {
+    AddFriend((PublicKey, A, String, i128)),
+    RemoveFriend(PublicKey),
+    FriendReportMutation((PublicKey, FriendReportMutation<A>)),
+    SetNumReadyReceipts(u64),
 }
 
 fn create_tc_report(mutual_credit: &MutualCredit) -> McReport {
@@ -79,10 +102,9 @@ fn create_friend_report<A: Clone>(friend_state: &FriendState<A>) -> FriendReport
         },
     };
 
-
-
     FriendReport {
         remote_address: friend_state.remote_address.clone(),
+        name: friend_state.name.clone(),
         channel_status,
         wanted_remote_max_debt: friend_state.wanted_remote_max_debt,
         wanted_local_requests_status: friend_state.wanted_local_requests_status.clone(),
