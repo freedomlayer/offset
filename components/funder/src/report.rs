@@ -1,13 +1,14 @@
 use im::hashmap::HashMap as ImHashMap;
 
-use crypto::identity::PublicKey;
+use crypto::identity::{PublicKey, Signature};
 use utils::int_convert::usize_to_u64;
 
-use crate::friend::{FriendState, ChannelStatus, ChannelInconsistent, FriendMutation};
+use crate::friend::{FriendState, ChannelStatus, FriendMutation};
 use crate::state::{FunderState, FunderMutation};
 use crate::types::{RequestsStatus, FriendStatus, AddFriend, FriendMoveToken};
-use crate::mutual_credit::types::{McBalance, McRequestsStatus, MutualCredit};
-use crate::token_channel::TcDirection; 
+use crate::mutual_credit::types::{McBalance, McRequestsStatus};
+use crate::token_channel::{TokenChannel, TcDirection, TcMutation}; 
+use crate::liveness::Liveness;
 
 #[derive(Clone, Debug)]
 pub enum DirectionReport {
@@ -16,17 +17,35 @@ pub enum DirectionReport {
 }
 
 #[derive(Clone, Debug)]
+pub enum FriendLivenessReport {
+    Online,
+    Offline,
+}
+
+#[derive(Clone, Debug)]
 pub struct TcReport {
     pub direction: DirectionReport,
     pub balance: McBalance,
     pub requests_status: McRequestsStatus,
-    // Last signed statement from remote side:
-    pub opt_last_incoming_move_token: Option<FriendMoveToken>,
+    pub num_local_pending_requests: u64,
+    pub num_remote_pending_requests: u64,
+}
+
+#[derive(Clone, Debug)]
+pub struct ResetTermsReport {
+    reset_token: Signature,
+    balance_for_reset: i128,
+}
+
+#[derive(Clone, Debug)]
+pub struct ChannelInconsistentReport {
+    pub local_reset_terms_balance: i128,
+    pub opt_remote_reset_terms: Option<ResetTermsReport>,
 }
 
 #[derive(Clone, Debug)]
 pub enum ChannelStatusReport {
-    Inconsistent(ChannelInconsistent),
+    Inconsistent(ChannelInconsistentReport),
     Consistent(TcReport),
 }
 
@@ -34,6 +53,10 @@ pub enum ChannelStatusReport {
 pub struct FriendReport<A> {
     pub remote_address: A, 
     pub name: String,
+    // Last message signed by the remote side. 
+    // Can be used as a proof for the last known balance.
+    pub opt_last_incoming_move_token: Option<FriendMoveToken>,
+    pub liveness: FriendLivenessReport, // is the friend online/offline?
     pub channel_status: ChannelStatusReport,
     pub wanted_remote_max_debt: u128,
     pub wanted_local_requests_status: RequestsStatus,
@@ -78,32 +101,51 @@ pub enum FunderReportMutation<A> {
     SetNumReadyReceipts(u64),
 }
 
-fn create_channel_status_report<A: Clone>(channel_status: &ChannelStatus) -> ChannelStatusReport {
-    match channel_status {
-        ChannelStatus::Inconsistent(channel_inconsistent) => 
-            ChannelStatusReport::Inconsistent(channel_inconsistent.clone()),
-        ChannelStatus::Consistent(token_channel) => {
-            let direction = match token_channel.get_direction() {
-                TcDirection::Incoming(_) => DirectionReport::Incoming,
-                TcDirection::Outgoing(_) => DirectionReport::Outgoing,
-            };
-            let tc_report = TcReport {
-                direction,
-                balance: token_channel.get_mutual_credit().state().balance.clone(),
-                requests_status: token_channel.get_mutual_credit().state().requests_status.clone(),
-                opt_last_incoming_move_token: token_channel.get_last_incoming_move_token().cloned(),
-            };
-            ChannelStatusReport::Consistent(tc_report)
-        },
+fn create_token_channel_report(token_channel: &TokenChannel) -> TcReport {
+    let direction = match token_channel.get_direction() {
+        TcDirection::Incoming(_) => DirectionReport::Incoming,
+        TcDirection::Outgoing(_) => DirectionReport::Outgoing,
+    };
+    let mutual_credit_state = token_channel.get_mutual_credit().state();
+    TcReport {
+        direction,
+        balance: mutual_credit_state.balance.clone(),
+        requests_status: mutual_credit_state.requests_status.clone(),
+        num_local_pending_requests: usize_to_u64(mutual_credit_state.pending_requests.pending_local_requests.len()).unwrap(),
+        num_remote_pending_requests: usize_to_u64(mutual_credit_state.pending_requests.pending_remote_requests.len()).unwrap(),
     }
 }
 
-fn create_friend_report<A: Clone>(friend_state: &FriendState<A>) -> FriendReport<A> {
+fn create_channel_status_report<A: Clone>(channel_status: &ChannelStatus) -> ChannelStatusReport {
+    match channel_status {
+        ChannelStatus::Inconsistent(channel_inconsistent) => {
+            let opt_remote_reset_terms = channel_inconsistent.opt_remote_reset_terms
+                .clone()
+                .map(|remote_reset_terms|
+                    ResetTermsReport {
+                        reset_token: remote_reset_terms.reset_token.clone(),
+                        balance_for_reset: remote_reset_terms.balance_for_reset,
+                    }
+                );
+            let channel_inconsistent_report = ChannelInconsistentReport {
+                local_reset_terms_balance: channel_inconsistent.local_reset_terms.balance_for_reset,
+                opt_remote_reset_terms,
+            };
+            ChannelStatusReport::Inconsistent(channel_inconsistent_report)
+        },
+        ChannelStatus::Consistent(token_channel) =>
+            ChannelStatusReport::Consistent(create_token_channel_report(&token_channel)),
+    }
+}
+
+fn create_friend_report<A: Clone>(friend_state: &FriendState<A>, friend_liveness: &FriendLivenessReport) -> FriendReport<A> {
     let channel_status = create_channel_status_report::<A>(&friend_state.channel_status);
 
     FriendReport {
         remote_address: friend_state.remote_address.clone(),
         name: friend_state.name.clone(),
+        opt_last_incoming_move_token: friend_state.channel_status.get_last_incoming_move_token(),
+        liveness: friend_liveness.clone(),
         channel_status,
         wanted_remote_max_debt: friend_state.wanted_remote_max_debt,
         wanted_local_requests_status: friend_state.wanted_local_requests_status.clone(),
@@ -114,10 +156,14 @@ fn create_friend_report<A: Clone>(friend_state: &FriendState<A>) -> FriendReport
     }
 }
 
-pub fn create_report<A: Clone>(funder_state: &FunderState<A>) -> FunderReport<A> {
+pub fn create_report<A: Clone>(funder_state: &FunderState<A>, liveness: &Liveness) -> FunderReport<A> {
     let mut friends = ImHashMap::new();
     for (friend_public_key, friend_state) in &funder_state.friends {
-        let friend_report = create_friend_report(&friend_state);
+        let friend_liveness = match liveness.is_online(friend_public_key) {
+            true => FriendLivenessReport::Online,
+            false => FriendLivenessReport::Offline,
+        };
+        let friend_report = create_friend_report(&friend_state, &friend_liveness);
         friends.insert(friend_public_key.clone(), friend_report);
     }
 
@@ -129,17 +175,27 @@ pub fn create_report<A: Clone>(funder_state: &FunderState<A>) -> FunderReport<A>
 
 }
 
-pub fn create_friend_mutation_report<A: Clone + 'static>(friend_mutation: &FriendMutation<A>,
+// TODO: How to add liveness mutation?
+pub fn create_friend_report_mutation<A: Clone + 'static>(friend_mutation: &FriendMutation<A>,
                                            friend: &FriendState<A>) -> Option<FriendReportMutation<A>> {
 
     let mut friend_after = friend.clone();
     friend_after.mutate(friend_mutation);
 
     match friend_mutation {
-        FriendMutation::TcMutation(tc_mutation) => unimplemented!(), // TODO
-        FriendMutation::SetInconsistent(channel_inconsistent) =>
+        FriendMutation::TcMutation(tc_mutation) => {
+            match tc_mutation {
+                TcMutation::McMutation(_) |
+                TcMutation::SetDirection(_) => {
+                    let channel_status_report = create_channel_status_report::<A>(&friend_after.channel_status);
+                    Some(FriendReportMutation::SetChannelStatus(channel_status_report))
+                },
+                TcMutation::SetTokenWanted => None,
+            }
+        },
+        FriendMutation::SetInconsistent(_channel_inconsistent) =>
             Some(FriendReportMutation::SetChannelStatus(
-                    ChannelStatusReport::Inconsistent(channel_inconsistent.clone()))),
+                    create_channel_status_report::<A>(&friend_after.channel_status))),
         FriendMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) =>
             Some(FriendReportMutation::SetWantedRemoteMaxDebt(*wanted_remote_max_debt)),
         FriendMutation::SetWantedLocalRequestsStatus(requests_status) => 
@@ -166,8 +222,10 @@ pub fn create_friend_mutation_report<A: Clone + 'static>(friend_mutation: &Frien
             Some(FriendReportMutation::SetFriendStatus(friend_status.clone())),
         FriendMutation::SetFriendInfo((address, name)) =>
             Some(FriendReportMutation::SetFriendInfo((address.clone(), name.clone()))),
-        FriendMutation::LocalReset(friend_move_token) => unimplemented!(),  // TODO
-        FriendMutation::RemoteReset(friend_move_token) => unimplemented!(), // TODO
+        FriendMutation::LocalReset(_) |
+        FriendMutation::RemoteReset(_) => 
+            Some(FriendReportMutation::SetChannelStatus(
+                    create_channel_status_report::<A>(&friend_after.channel_status))),
     }
 }
 
@@ -178,7 +236,7 @@ pub fn create_friend_mutation_report<A: Clone + 'static>(friend_mutation: &Frien
 ///
 /// In the future if we simplify Funder's mutations, we might be able discard the `funder_state`
 /// argument here.
-pub fn create_funder_mutation_report<A: Clone + 'static>(funder_mutation: &FunderMutation<A>,
+pub fn create_funder_report_mutation<A: Clone + 'static>(funder_mutation: &FunderMutation<A>,
                                            funder_state: &FunderState<A>) -> Option<FunderReportMutation<A>> {
 
     let mut funder_state_after = funder_state.clone();
@@ -186,7 +244,7 @@ pub fn create_funder_mutation_report<A: Clone + 'static>(funder_mutation: &Funde
     match funder_mutation {
         FunderMutation::FriendMutation((public_key, friend_mutation)) => {
             let friend = funder_state.friends.get(public_key).unwrap();
-            let friend_report_mutation = create_friend_mutation_report(&friend_mutation, &friend)?;
+            let friend_report_mutation = create_friend_report_mutation(&friend_mutation, &friend)?;
             Some(FunderReportMutation::FriendReportMutation((public_key.clone(), friend_report_mutation)))
         },
         FunderMutation::AddFriend(add_friend) => {

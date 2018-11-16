@@ -75,7 +75,7 @@ impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
         // If anything is expected to change with the state, add a report to be sent through the
         // outgoing control channel:
         if !self.mutations.is_empty() {
-            let funder_report = create_report(&self.state);
+            let funder_report = create_report(&self.state, &self.ephemeral.liveness);
             outgoing_control.push(FunderOutgoingControl::Report(funder_report));
         }
 
