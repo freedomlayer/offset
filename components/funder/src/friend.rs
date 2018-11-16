@@ -51,6 +51,17 @@ pub enum ChannelStatus {
     Consistent(TokenChannel),
 }
 
+impl ChannelStatus {
+    pub fn get_last_incoming_move_token(&self) -> Option<FriendMoveToken> {
+        match &self {
+            ChannelStatus::Inconsistent(channel_inconsistent) => 
+                channel_inconsistent.opt_last_incoming_move_token.clone(),
+            ChannelStatus::Consistent(token_channel) => 
+                token_channel.get_last_incoming_move_token().cloned(),
+        }
+    }
+}
+
 
 #[allow(unused)]
 #[derive(Clone, Serialize, Deserialize)]
