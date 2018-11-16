@@ -6,7 +6,7 @@ use utils::int_convert::usize_to_u64;
 use crate::friend::{FriendState, ChannelStatus, ChannelInconsistent, FriendMutation};
 use crate::state::{FunderState, FunderMutation};
 use crate::types::{RequestsStatus, FriendStatus, AddFriend, FriendMoveToken};
-use crate::mutual_credit::types::{TcBalance, TcRequestsStatus, MutualCredit};
+use crate::mutual_credit::types::{McBalance, McRequestsStatus, MutualCredit};
 use crate::token_channel::TcDirection; 
 
 #[derive(Clone, Debug)]
@@ -18,8 +18,8 @@ pub enum DirectionReport {
 #[derive(Clone, Debug)]
 pub struct TcReport {
     pub direction: DirectionReport,
-    pub balance: TcBalance,
-    pub requests_status: TcRequestsStatus,
+    pub balance: McBalance,
+    pub requests_status: McRequestsStatus,
     // Last signed statement from remote side:
     pub opt_last_incoming_move_token: Option<FriendMoveToken>,
 }

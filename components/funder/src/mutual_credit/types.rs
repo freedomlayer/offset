@@ -20,7 +20,7 @@ pub const MAX_FUNDER_DEBT: u128 = (1 << 127) - 1;
 
 // TODO: Rename this to McIdents
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct TcIdents {
+pub struct McIdents {
     /// My public key
     pub local_public_key: PublicKey,
     /// Friend's public key
@@ -29,7 +29,7 @@ pub struct TcIdents {
 
 // TODO: Rename this to McBalance
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct TcBalance {
+pub struct McBalance {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
     pub balance: i128,
@@ -43,9 +43,9 @@ pub struct TcBalance {
     pub remote_pending_debt: u128,
 }
 
-impl TcBalance {
-    fn new(balance: i128) -> TcBalance {
-        TcBalance {
+impl McBalance {
+    fn new(balance: i128) -> McBalance {
+        McBalance {
             balance,
             remote_max_debt: cmp::max(balance, 0) as u128,
             local_max_debt: cmp::min(-balance, 0) as u128,
@@ -58,16 +58,16 @@ impl TcBalance {
 // TODO: Rename pending_local_requests to a shorter name, like local.
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct TcPendingRequests {
+pub struct McPendingRequests {
     /// Pending requests that were opened locally and not yet completed
     pub pending_local_requests: ImHashMap<Uid, PendingFriendRequest>,
     /// Pending requests that were opened remotely and not yet completed
     pub pending_remote_requests: ImHashMap<Uid, PendingFriendRequest>,
 }
 
-impl TcPendingRequests {
-    fn new() -> TcPendingRequests {
-        TcPendingRequests {
+impl McPendingRequests {
+    fn new() -> McPendingRequests {
+        McPendingRequests {
             pending_local_requests: ImHashMap::new(),
             pending_remote_requests: ImHashMap::new(),
         }
@@ -75,16 +75,16 @@ impl TcPendingRequests {
 }
 
 #[derive(Eq, PartialEq, Clone, Serialize, Deserialize, Debug)]
-pub struct TcRequestsStatus {
+pub struct McRequestsStatus {
     // Local is open/closed for incoming requests:
     pub local: RequestsStatus,
     // Remote is open/closed for incoming requests:
     pub remote: RequestsStatus,
 }
 
-impl TcRequestsStatus {
-    fn new() -> TcRequestsStatus {
-        TcRequestsStatus {
+impl McRequestsStatus {
+    fn new() -> McRequestsStatus {
+        McRequestsStatus {
             local: RequestsStatus::Closed,
             remote: RequestsStatus::Closed,
         }
@@ -94,10 +94,10 @@ impl TcRequestsStatus {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct MutualCreditState {
-    pub idents: TcIdents,
-    pub balance: TcBalance,
-    pub pending_requests: TcPendingRequests,
-    pub requests_status: TcRequestsStatus,
+    pub idents: McIdents,
+    pub balance: McBalance,
+    pub pending_requests: McPendingRequests,
+    pub requests_status: McRequestsStatus,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -128,13 +128,13 @@ impl MutualCredit {
 
         MutualCredit {
             state: MutualCreditState {
-                idents: TcIdents {
+                idents: McIdents {
                     local_public_key: local_public_key.clone(),
                     remote_public_key: remote_public_key.clone(),
                 },
-                balance: TcBalance::new(balance),
-                pending_requests: TcPendingRequests::new(),
-                requests_status: TcRequestsStatus::new(),
+                balance: McBalance::new(balance),
+                pending_requests: McPendingRequests::new(),
+                requests_status: McRequestsStatus::new(),
             }
         }
     }
