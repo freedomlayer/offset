@@ -74,7 +74,7 @@ pub struct FriendReport<A> {
 #[derive(Debug)]
 pub struct FunderReport<A: Clone> {
     pub friends: ImHashMap<PublicKey, FriendReport<A>>,
-    pub num_ready_receipts: usize,
+    pub num_ready_receipts: u64,
     pub local_public_key: PublicKey,
 
 }
@@ -92,10 +92,19 @@ pub enum FriendReportMutation<A> {
     SetNumPendingUserRequests(u64),
 }
 
+#[derive(Clone, Debug)]
+pub struct AddFriendReport<A> {
+    pub friend_public_key: PublicKey,
+    pub address: A,
+    pub name: String,
+    pub balance: i128, // Initial balance
+    pub channel_status: ChannelStatusReport,
+}
+
 #[allow(unused)]
 #[derive(Debug)]
 pub enum FunderReportMutation<A> {
-    AddFriend(AddFriend<A>),
+    AddFriend(AddFriendReport<A>),
     RemoveFriend(PublicKey),
     FriendReportMutation((PublicKey, FriendReportMutation<A>)),
     SetNumReadyReceipts(u64),
@@ -169,7 +178,7 @@ pub fn create_report<A: Clone>(funder_state: &FunderState<A>, liveness: &Livenes
 
     FunderReport {
         friends,
-        num_ready_receipts: funder_state.ready_receipts.len(),
+        num_ready_receipts: usize_to_u64(funder_state.ready_receipts.len()).unwrap(),
         local_public_key: funder_state.local_public_key.clone(),
     }
 
@@ -248,7 +257,15 @@ pub fn create_funder_report_mutation<A: Clone + 'static>(funder_mutation: &Funde
             Some(FunderReportMutation::FriendReportMutation((public_key.clone(), friend_report_mutation)))
         },
         FunderMutation::AddFriend(add_friend) => {
-            Some(FunderReportMutation::AddFriend(add_friend.clone()))
+            let friend_after = funder_state_after.friends.get(&add_friend.friend_public_key).unwrap();
+            let add_friend_report = AddFriendReport {
+                friend_public_key: add_friend.friend_public_key.clone(),
+                address: add_friend.address.clone(),
+                name: add_friend.name.clone(),
+                balance: add_friend.balance.clone(), // Initial balance
+                channel_status: create_channel_status_report::<A>(&friend_after.channel_status),
+            };
+            Some(FunderReportMutation::AddFriend(add_friend_report))
         },
         FunderMutation::RemoveFriend(friend_public_key) => {
             Some(FunderReportMutation::RemoveFriend(friend_public_key.clone()))
@@ -267,6 +284,25 @@ pub fn create_funder_report_mutation<A: Clone + 'static>(funder_mutation: &Funde
                 None
             }
         },
+    }
+}
+
+
+impl<A: Clone> FunderReport<A> {
+    fn mutate(&mut self, mutation: &FunderReportMutation<A>) {
+        match mutation {
+            FunderReportMutation::AddFriend(add_friend_report) => {
+                // TODO: AddFriend Should include information about how to build channel_status
+                unimplemented!();
+            },
+            FunderReportMutation::RemoveFriend(friend_public_key) => {
+                let _ = self.friends.remove(&friend_public_key);
+            },
+            FunderReportMutation::FriendReportMutation((friend_public_key, friend_report_mutation)) => unimplemented!(),
+            FunderReportMutation::SetNumReadyReceipts(num_ready_receipts) => {
+                self.num_ready_receipts = *num_ready_receipts;
+            },
+        }
     }
 }
 
