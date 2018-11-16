@@ -51,7 +51,8 @@ pub enum ChannelStatusReport {
 
 #[derive(Clone, Debug)]
 pub struct FriendReport<A> {
-    pub remote_address: A, 
+    pub public_key: PublicKey,
+    pub address: A, 
     pub name: String,
     // Last message signed by the remote side. 
     // Can be used as a proof for the last known balance.
@@ -151,7 +152,8 @@ fn create_friend_report<A: Clone>(friend_state: &FriendState<A>, friend_liveness
     let channel_status = create_channel_status_report::<A>(&friend_state.channel_status);
 
     FriendReport {
-        remote_address: friend_state.remote_address.clone(),
+        public_key: friend_state.remote_public_key.clone(),
+        address: friend_state.remote_address.clone(),
         name: friend_state.name.clone(),
         opt_last_incoming_move_token: friend_state.channel_status.get_last_incoming_move_token(),
         liveness: friend_liveness.clone(),
