@@ -1,5 +1,3 @@
-use super::*;
-
 use std::collections::{HashMap, HashSet};
 
 use futures::channel::mpsc;
@@ -12,7 +10,7 @@ use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair,
 use crypto::test_utils::DummyRandom;
 use identity::{create_identity, IdentityClient};
 
-
+use crate::funder::funder_loop;
 use crate::types::{FunderOutgoingComm, IncomingCommMessage, 
     ChannelerConfig, FunderOutgoingControl, IncomingControlMessage,
     IncomingLivenessMessage};
@@ -101,19 +99,49 @@ async fn router<A: Send + 'static>(incoming_new_node: mpsc::Receiver<NewNode<A>>
     }
 }
 
-/*
-struct NodeControl<A> {
-    identity_client: IdentityClient,
+struct NodeControl<A: Clone> {
     public_key: PublicKey,
     send_control: mpsc::Sender<IncomingControlMessage<A>>,
     recv_control: mpsc::Receiver<FunderOutgoingControl<A>>,
 }
-*/
 
 async fn task_funder_basic(identity_clients: Vec<IdentityClient>, 
                            mut spawner: impl Spawn + Clone + Send + 'static) {
     let (send_new_node, recv_new_node) = mpsc::channel::<NewNode<u32>>(0);
     spawner.spawn(router(recv_new_node, spawner.clone()));
+
+    let (send_control, incoming_control) = mpsc::channel(0);
+    let (control_sender, recv_control) = mpsc::channel(0);
+
+    let node_controls = Vec::new();
+
+    // Avoid problems with casting to u8:
+    assert!(identity_clients.len() < 256);
+
+    for i in 0 .. identity_clients.len() {
+        let (send_comm, incoming_comm) = mpsc::channel(0);
+        let (comm_sender, recv_comm) = mpsc::channel(0);
+
+        /*
+        let funder_fut = funder_loop(
+            identity_client[i].clone(),
+            DummyRandom::new(&[i as u8]),
+            incoming_control,
+            incoming_comm,
+            control_sender,
+            comm_sender,
+            db_core);
+
+        // Add back when we know what to do with db_core.
+
+        node_controls.push(NodeControl {
+            public_key: await!(identity_clients[i].request_public_key()).unwrap(),
+            send_control,
+            recv_control,
+        });
+        */
+    }
+
 }
 
 #[test]
