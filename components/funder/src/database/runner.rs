@@ -1,14 +1,11 @@
-use std::marker::Send;
-use futures::channel::{oneshot, mpsc};
-use futures::{future, FutureExt, Stream};
+// use std::marker::Send;
+use futures::{future};
 use futures::task::SpawnExt;
 // use futures_cpupool::CpuPool;
 use futures::executor::ThreadPool;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-
-use identity::IdentityClient;
 
 use crate::state::{FunderMutation, FunderState};
 use super::atomic_db::AtomicDb;
