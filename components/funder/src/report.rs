@@ -5,7 +5,7 @@ use utils::int_convert::usize_to_u64;
 
 use crate::friend::{FriendState, ChannelStatus, FriendMutation};
 use crate::state::{FunderState, FunderMutation};
-use crate::types::{RequestsStatus, FriendStatus, AddFriend, FriendMoveToken};
+use crate::types::{RequestsStatus, FriendStatus, FriendMoveToken};
 use crate::mutual_credit::types::{McBalance, McRequestsStatus};
 use crate::token_channel::{TokenChannel, TcDirection, TcMutation}; 
 use crate::liveness::Liveness;
@@ -91,6 +91,7 @@ pub enum FriendReportMutation<A> {
     SetFriendStatus(FriendStatus),
     SetNumPendingUserRequests(u64),
     SetOptLastIncomingMoveToken(Option<FriendMoveToken>),
+    SetLiveness(FriendLivenessReport),
 }
 
 #[derive(Clone, Debug)]
@@ -102,6 +103,13 @@ pub struct AddFriendReport<A> {
     pub opt_last_incoming_move_token: Option<FriendMoveToken>,
     pub channel_status: ChannelStatusReport,
 }
+
+#[derive(Debug)]
+pub enum ReportMutateError {
+    FriendDoesNotExist,
+    FriendAlreadyExists,
+}
+
 
 #[allow(unused)]
 #[derive(Debug)]
@@ -252,6 +260,7 @@ pub fn create_friend_report_mutations<A: Clone + 'static>(friend_mutation: &Frie
 ///
 /// In the future if we simplify Funder's mutations, we might be able discard the `funder_state`
 /// argument here.
+#[allow(unused)]
 pub fn create_funder_report_mutations<A: Clone + 'static>(funder_mutation: &FunderMutation<A>,
                                            funder_state: &FunderState<A>) -> Vec<FunderReportMutation<A>> {
 
@@ -298,9 +307,48 @@ pub fn create_funder_report_mutations<A: Clone + 'static>(funder_mutation: &Fund
     }
 }
 
+impl<A: Clone> FriendReport<A> {
+    fn mutate(&mut self, mutation: &FriendReportMutation<A>) {
+        match mutation {
+            FriendReportMutation::SetFriendInfo((address, name)) => {
+                self.address = address.clone();
+                self.name = name.clone();
+            },
+            FriendReportMutation::SetChannelStatus(channel_status_report) => {
+                self.channel_status = channel_status_report.clone();
+            },
+            FriendReportMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
+                self.wanted_remote_max_debt = *wanted_remote_max_debt;
+            },
+            FriendReportMutation::SetWantedLocalRequestsStatus(wanted_local_requests_status) => {
+                self.wanted_local_requests_status = wanted_local_requests_status.clone();
+            },
+            FriendReportMutation::SetNumPendingResponses(num_pending_responses) => {
+                self.num_pending_responses = *num_pending_responses;
+            },
+            FriendReportMutation::SetNumPendingRequests(num_pending_requests) => {
+                self.num_pending_requests = *num_pending_requests;
+            },
+            FriendReportMutation::SetFriendStatus(friend_status) => {
+                self.status = friend_status.clone();
+            },
+            FriendReportMutation::SetNumPendingUserRequests(num_pending_user_requests) => {
+                self.num_pending_user_requests = *num_pending_user_requests;
+            },
+            FriendReportMutation::SetOptLastIncomingMoveToken(opt_last_incoming_move_token) => {
+                self.opt_last_incoming_move_token = opt_last_incoming_move_token.clone();
+            },
+            FriendReportMutation::SetLiveness(friend_liveness_report) => {
+                self.liveness = friend_liveness_report.clone();
+            },
+        }
+    }
+}
+
 
 impl<A: Clone> FunderReport<A> {
-    fn mutate(&mut self, mutation: &FunderReportMutation<A>) {
+    #[allow(unused)]
+    fn mutate(&mut self, mutation: &FunderReportMutation<A>) -> Result<(), ReportMutateError> {
         match mutation {
             FunderReportMutation::AddFriend(add_friend_report) => {
                 let friend_report = FriendReport {
@@ -316,14 +364,30 @@ impl<A: Clone> FunderReport<A> {
                     status: FriendStatus::Disable,
                     num_pending_user_requests: 0,
                 };
-                let _ = self.friends.insert(add_friend_report.friend_public_key.clone(), friend_report);
+                if let Some(_) = self.friends.insert(
+                    add_friend_report.friend_public_key.clone(), friend_report) {
+
+                    Err(ReportMutateError::FriendAlreadyExists)
+                } else {
+                    Ok(())
+                }
             },
             FunderReportMutation::RemoveFriend(friend_public_key) => {
-                let _ = self.friends.remove(&friend_public_key);
+                if let None = self.friends.remove(&friend_public_key) {
+                    Err(ReportMutateError::FriendDoesNotExist)
+                } else {
+                    Ok(())
+                }
             },
-            FunderReportMutation::FriendReportMutation((friend_public_key, friend_report_mutation)) => unimplemented!(),
+            FunderReportMutation::FriendReportMutation((friend_public_key, friend_report_mutation)) => {
+                let friend = self.friends.get_mut(friend_public_key)
+                    .ok_or(ReportMutateError::FriendDoesNotExist)?;
+                friend.mutate(friend_report_mutation);
+                Ok(())
+            },
             FunderReportMutation::SetNumReadyReceipts(num_ready_receipts) => {
                 self.num_ready_receipts = *num_ready_receipts;
+                Ok(())
             },
         }
     }
