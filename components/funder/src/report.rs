@@ -99,6 +99,7 @@ pub struct AddFriendReport<A> {
     pub address: A,
     pub name: String,
     pub balance: i128, // Initial balance
+    pub opt_last_incoming_move_token: Option<FriendMoveToken>,
     pub channel_status: ChannelStatusReport,
 }
 
@@ -272,6 +273,7 @@ pub fn create_funder_report_mutations<A: Clone + 'static>(funder_mutation: &Fund
                 address: add_friend.address.clone(),
                 name: add_friend.name.clone(),
                 balance: add_friend.balance.clone(), // Initial balance
+                opt_last_incoming_move_token: friend_after.channel_status.get_last_incoming_move_token().clone(),
                 channel_status: create_channel_status_report::<A>(&friend_after.channel_status),
             };
             vec![FunderReportMutation::AddFriend(add_friend_report)]
@@ -301,8 +303,20 @@ impl<A: Clone> FunderReport<A> {
     fn mutate(&mut self, mutation: &FunderReportMutation<A>) {
         match mutation {
             FunderReportMutation::AddFriend(add_friend_report) => {
-                // TODO: AddFriend Should include information about how to build channel_status
-                unimplemented!();
+                let friend_report = FriendReport {
+                    address: add_friend_report.address.clone(),
+                    name: add_friend_report.name.clone(),
+                    opt_last_incoming_move_token: add_friend_report.opt_last_incoming_move_token.clone(),
+                    liveness: FriendLivenessReport::Offline,
+                    channel_status: add_friend_report.channel_status.clone(),
+                    wanted_remote_max_debt: 0,
+                    wanted_local_requests_status: RequestsStatus::Closed,
+                    num_pending_responses: 0,
+                    num_pending_requests: 0,
+                    status: FriendStatus::Disable,
+                    num_pending_user_requests: 0,
+                };
+                let _ = self.friends.insert(add_friend_report.friend_public_key.clone(), friend_report);
             },
             FunderReportMutation::RemoveFriend(friend_public_key) => {
                 let _ = self.friends.remove(&friend_public_key);
