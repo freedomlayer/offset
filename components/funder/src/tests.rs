@@ -14,7 +14,8 @@ use identity::{create_identity, IdentityClient};
 
 
 use crate::types::{FunderOutgoingComm, IncomingCommMessage, 
-    ChannelerConfig, FunderOutgoingControl, IncomingControlMessage};
+    ChannelerConfig, FunderOutgoingControl, IncomingControlMessage,
+    IncomingLivenessMessage};
 
 #[derive(Debug)]
 struct Node {
@@ -49,10 +50,16 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
         FunderOutgoingComm::ChannelerConfig(channeler_config) => {
             match channeler_config {
                 ChannelerConfig::AddFriend((friend_public_key, _address)) => {
-                    assert!(node.friends.insert(friend_public_key));
+                    assert!(node.friends.insert(friend_public_key.clone()));
+                    let incoming_comm_message = IncomingCommMessage::Liveness(
+                        IncomingLivenessMessage::Online(friend_public_key.clone()));
+                    await!(node.comm_out.send(incoming_comm_message)).unwrap();
                 },
                 ChannelerConfig::RemoveFriend(friend_public_key) => {
                     assert!(node.friends.remove(&friend_public_key));
+                    let incoming_comm_message = IncomingCommMessage::Liveness(
+                        IncomingLivenessMessage::Offline(friend_public_key.clone()));
+                    await!(node.comm_out.send(incoming_comm_message)).unwrap();
                 },
             }
         },
