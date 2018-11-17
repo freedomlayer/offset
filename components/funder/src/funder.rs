@@ -17,7 +17,7 @@ use crate::database::{DbCore, DbRunner, DbRunnerError};
 
 
 #[derive(Debug)]
-enum FunderError {
+pub enum FunderError {
     IncomingControlClosed,
     IncomingCommClosed,
     IncomingMessagesError,
@@ -138,4 +138,5 @@ pub async fn funder<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'sta
            None))
 
 }
+
 
