@@ -342,7 +342,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             ChannelStatus::Consistent(token_channel) => token_channel,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
-        let opt_last_incoming_move_token = token_channel.get_last_incoming_move_token().cloned();
+        let opt_last_incoming_move_token = token_channel.get_last_incoming_move_token_hashed().cloned();
         // Send an InconsistencyError message to remote side:
         let local_reset_terms = await!(get_reset_terms(&token_channel, self.identity_client.clone()));
 
@@ -483,7 +483,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 }
                 (true, 
                  await!(get_reset_terms(&token_channel, self.identity_client.clone())),
-                 token_channel.get_last_incoming_move_token().cloned())
+                 token_channel.get_last_incoming_move_token_hashed().cloned())
             },
             ChannelStatus::Inconsistent(channel_inconsistent) => 
                 (false, 

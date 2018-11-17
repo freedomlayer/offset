@@ -144,6 +144,19 @@ pub struct FriendMoveToken {
     pub new_token: Signature,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct FriendMoveTokenHashed {
+    pub operations_hash: HashResult,
+    pub old_token: Signature,
+    pub inconsistency_counter: u64,
+    pub move_token_counter: u128,
+    pub balance: i128,
+    pub local_pending_debt: u128,
+    pub remote_pending_debt: u128,
+    pub rand_nonce: RandValue,
+    pub new_token: Signature,
+}
+
 
 impl FriendMoveToken {
     pub async fn new(operations: Vec<FriendTcOp>,
@@ -173,17 +186,21 @@ impl FriendMoveToken {
         friend_move_token
     }
 
-    fn signature_buff(&self) -> Vec<u8> {
-        let mut contents = Vec::new();
-        contents.write_u64::<BigEndian>(
+    /// Combine all operations into one hash value.
+    fn operations_hash(&self) -> HashResult {
+        let mut operations_data = Vec::new();
+        operations_data.write_u64::<BigEndian>(
             usize_to_u64(self.operations.len()).unwrap()).unwrap();
         for op in &self.operations {
-            contents.extend_from_slice(&op.to_bytes());
+            operations_data.extend_from_slice(&op.to_bytes());
         }
+        sha_512_256(&operations_data)
+    }
 
+    fn signature_buff(&self) -> Vec<u8> {
         let mut sig_buffer = Vec::new();
         sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
-        sig_buffer.extend_from_slice(&contents);
+        sig_buffer.extend_from_slice(&self.operations_hash());
         sig_buffer.extend_from_slice(&self.old_token);
         sig_buffer.write_u64::<BigEndian>(self.inconsistency_counter).unwrap();
         sig_buffer.write_u128::<BigEndian>(self.move_token_counter).unwrap();
@@ -195,9 +212,27 @@ impl FriendMoveToken {
         sig_buffer
     }
 
+    /// Verify that new_token is a valid signature over the rest of the fields.
     pub fn verify(&self, public_key: &PublicKey) -> bool {
         let sig_buffer = self.signature_buff();
         verify_signature(&sig_buffer, public_key, &self.new_token)
+    }
+
+    /// Create a hashed version of the FriendMoveToken.
+    /// Hashed version contains the hash of the operations instead of the operations themselves,
+    /// hence it is usually shorter.
+    pub fn create_hashed(&self) -> FriendMoveTokenHashed {
+        FriendMoveTokenHashed {
+            operations_hash: self.operations_hash(),
+            old_token: self.old_token.clone(),
+            inconsistency_counter: self.inconsistency_counter,
+            move_token_counter: self.move_token_counter,
+            balance: self.balance,
+            local_pending_debt: self.local_pending_debt,
+            remote_pending_debt: self.remote_pending_debt,
+            rand_nonce: self.rand_nonce.clone(),
+            new_token: self.new_token.clone(),
+        }
     }
 }
 

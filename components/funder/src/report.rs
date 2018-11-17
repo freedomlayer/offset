@@ -5,7 +5,7 @@ use utils::int_convert::usize_to_u64;
 
 use crate::friend::{FriendState, ChannelStatus, FriendMutation};
 use crate::state::{FunderState, FunderMutation};
-use crate::types::{RequestsStatus, FriendStatus, FriendMoveToken};
+use crate::types::{RequestsStatus, FriendStatus, FriendMoveTokenHashed};
 use crate::mutual_credit::types::{McBalance, McRequestsStatus};
 use crate::token_channel::{TokenChannel, TcDirection, TcMutation}; 
 use crate::liveness::LivenessMutation;
@@ -56,7 +56,7 @@ pub struct FriendReport<A> {
     pub name: String,
     // Last message signed by the remote side. 
     // Can be used as a proof for the last known balance.
-    pub opt_last_incoming_move_token: Option<FriendMoveToken>,
+    pub opt_last_incoming_move_token: Option<FriendMoveTokenHashed>,
     pub liveness: FriendLivenessReport, // is the friend online/offline?
     pub channel_status: ChannelStatusReport,
     pub wanted_remote_max_debt: u128,
@@ -91,7 +91,7 @@ pub enum FriendReportMutation<A> {
     SetNumPendingRequests(u64),
     SetFriendStatus(FriendStatus),
     SetNumPendingUserRequests(u64),
-    SetOptLastIncomingMoveToken(Option<FriendMoveToken>),
+    SetOptLastIncomingMoveToken(Option<FriendMoveTokenHashed>),
     SetLiveness(FriendLivenessReport),
 }
 
@@ -101,7 +101,7 @@ pub struct AddFriendReport<A> {
     pub address: A,
     pub name: String,
     pub balance: i128, // Initial balance
-    pub opt_last_incoming_move_token: Option<FriendMoveToken>,
+    pub opt_last_incoming_move_token: Option<FriendMoveTokenHashed>,
     pub channel_status: ChannelStatusReport,
 }
 
@@ -164,7 +164,7 @@ fn create_friend_report<A: Clone>(friend_state: &FriendState<A>, friend_liveness
     FriendReport {
         address: friend_state.remote_address.clone(),
         name: friend_state.name.clone(),
-        opt_last_incoming_move_token: friend_state.channel_status.get_last_incoming_move_token(),
+        opt_last_incoming_move_token: friend_state.channel_status.get_last_incoming_move_token_hashed(),
         liveness: friend_liveness.clone(),
         channel_status,
         wanted_remote_max_debt: friend_state.wanted_remote_max_debt,
@@ -208,7 +208,7 @@ pub fn friend_mutation_to_report_mutations<A: Clone + 'static>(friend_mutation: 
                     let channel_status_report = create_channel_status_report::<A>(&friend_after.channel_status);
                     let set_channel_status = FriendReportMutation::SetChannelStatus(channel_status_report);
                     let set_last_incoming_move_token = FriendReportMutation::SetOptLastIncomingMoveToken(
-                        friend_after.channel_status.get_last_incoming_move_token().clone());
+                        friend_after.channel_status.get_last_incoming_move_token_hashed().clone());
                     vec![set_channel_status, set_last_incoming_move_token]
                 },
                 TcMutation::SetTokenWanted => Vec::new(),
@@ -246,7 +246,7 @@ pub fn friend_mutation_to_report_mutations<A: Clone + 'static>(friend_mutation: 
             let channel_status_report = create_channel_status_report::<A>(&friend_after.channel_status);
             let set_channel_status = FriendReportMutation::SetChannelStatus(channel_status_report);
             let set_last_incoming_move_token = FriendReportMutation::SetOptLastIncomingMoveToken(
-                friend_after.channel_status.get_last_incoming_move_token().clone());
+                friend_after.channel_status.get_last_incoming_move_token_hashed().clone());
             vec![set_channel_status, set_last_incoming_move_token]
         },
     }
@@ -283,7 +283,7 @@ pub fn funder_mutation_to_report_mutations<A: Clone + 'static>(funder_mutation: 
                 address: add_friend.address.clone(),
                 name: add_friend.name.clone(),
                 balance: add_friend.balance.clone(), // Initial balance
-                opt_last_incoming_move_token: friend_after.channel_status.get_last_incoming_move_token().clone(),
+                opt_last_incoming_move_token: friend_after.channel_status.get_last_incoming_move_token_hashed().clone(),
                 channel_status: create_channel_status_report::<A>(&friend_after.channel_status),
             };
             vec![FunderReportMutation::AddFriend(add_friend_report)]
