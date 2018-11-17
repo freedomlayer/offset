@@ -11,6 +11,9 @@ use crate::mutual_credit::outgoing::{QueueOperationFailure};
 use crate::friend::{FriendMutation, ResponseOp, ChannelStatus};
 use crate::token_channel::{TcMutation, TcDirection, SetDirection};
 
+use crate::ephemeral::EphemeralMutation;
+use crate::freeze_guard::FreezeGuardMutation;
+
 pub enum SendMode {
     EmptyAllowed,
     EmptyNotAllowed,
@@ -100,7 +103,7 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
             ops_batch.add(pending_op)?;
             let friend_mutation = FriendMutation::PopFrontPendingResponse;
             let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-            self.apply_mutation(funder_mutation);
+            self.apply_funder_mutation(funder_mutation);
         }
 
         let friend = self.get_friend(remote_public_key).unwrap();
@@ -113,7 +116,7 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
             ops_batch.add(pending_op)?;
             let friend_mutation = FriendMutation::PopFrontPendingRequest;
             let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-            self.apply_mutation(funder_mutation);
+            self.apply_funder_mutation(funder_mutation);
         }
 
         let friend = self.get_friend(remote_public_key).unwrap();
@@ -125,7 +128,7 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
             ops_batch.add(request_op)?;
             let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
             let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-            self.apply_mutation(funder_mutation);
+            self.apply_funder_mutation(funder_mutation);
         }
         Some(())
     }
@@ -179,15 +182,18 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
             let tc_mutation = TcMutation::McMutation(mc_mutation);
             let friend_mutation = FriendMutation::TcMutation(tc_mutation);
             let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-            self.apply_mutation(funder_mutation);
+            self.apply_funder_mutation(funder_mutation);
         }
 
         // Update freeze guard about outgoing requests:
         for operation in &operations {
             if let FriendTcOp::RequestSendFunds(request_send_funds) = operation {
                 let pending_request = &request_send_funds.create_pending_request();
-                self.ephemeral.freeze_guard.add_frozen_credit(
-                    &pending_request.route, pending_request.dest_payment);
+
+                let freeze_guard_mutation = FreezeGuardMutation::AddFrozenCredit(
+                    (pending_request.route.clone(), pending_request.dest_payment));
+                let ephemeral_mutation = EphemeralMutation::FreezeGuardMutation(freeze_guard_mutation);
+                self.apply_ephemeral_mutation(ephemeral_mutation);
             }
         }
 
@@ -212,7 +218,7 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
             SetDirection::Outgoing(friend_move_token));
         let friend_mutation = FriendMutation::TcMutation(tc_mutation);
         let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-        self.apply_mutation(funder_mutation);
+        self.apply_funder_mutation(funder_mutation);
 
         let friend = self.get_friend(remote_public_key).unwrap();
         let token_channel = match &friend.channel_status {
@@ -291,7 +297,7 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
                     let tc_mutation = TcMutation::SetTokenWanted;
                     let friend_mutation = FriendMutation::TcMutation(tc_mutation);
                     let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-                    self.apply_mutation(funder_mutation);
+                    self.apply_funder_mutation(funder_mutation);
                     self.transmit_outgoing(remote_public_key);
                 }
             },

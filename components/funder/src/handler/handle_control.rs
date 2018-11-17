@@ -11,7 +11,7 @@ use super::super::types::{FriendStatus, UserRequestSendFunds,
     SetFriendInfo, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
     ReceiptAck, FriendMoveToken, IncomingControlMessage,
     FriendTcOp, ResponseReceived,
-    ChannelerConfig, FunderOutgoingComm};
+    ChannelerConfig, FunderOutgoingComm, FunderOutgoingControl};
 use super::sender::SendMode;
 
 // TODO: Should be an argument of the Funder:
@@ -57,7 +57,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         let m_mutation = FunderMutation::FriendMutation(
             (set_friend_remote_max_debt.friend_public_key.clone(), friend_mutation));
 
-        self.apply_mutation(m_mutation);
+        self.apply_funder_mutation(m_mutation);
         await!(self.try_send_channel(&set_friend_remote_max_debt.friend_public_key, SendMode::EmptyNotAllowed));
         Ok(())
     }
@@ -109,7 +109,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         let friend_mutation = FriendMutation::LocalReset(friend_move_token.clone());
         let m_mutation = FunderMutation::FriendMutation(
             (reset_friend_channel.friend_public_key.clone(), friend_mutation));
-        self.apply_mutation(m_mutation);
+        self.apply_funder_mutation(m_mutation);
 
         self.transmit_outgoing(&reset_friend_channel.friend_public_key);
 
@@ -140,7 +140,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         -> Result<(), HandleControlError> {
 
         let m_mutation = FunderMutation::AddFriend(add_friend.clone());
-        self.apply_mutation(m_mutation);
+        self.apply_funder_mutation(m_mutation);
         self.enable_friend(&add_friend.friend_public_key,
                            &add_friend.address);
 
@@ -168,7 +168,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         let m_mutation = FunderMutation::RemoveFriend(
                 remove_friend.friend_public_key.clone());
 
-        self.apply_mutation(m_mutation);
+        self.apply_funder_mutation(m_mutation);
         Ok(())
     }
 
@@ -182,7 +182,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         let friend_mutation = FriendMutation::SetStatus(set_friend_status.status.clone());
         let m_mutation = FunderMutation::FriendMutation(
             (set_friend_status.friend_public_key.clone(), friend_mutation));
-        self.apply_mutation(m_mutation);
+        self.apply_funder_mutation(m_mutation);
 
         let friend = self.get_friend(&set_friend_status.friend_public_key)
             .ok_or(HandleControlError::FriendDoesNotExist)?;
@@ -209,7 +209,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         let m_mutation = FunderMutation::FriendMutation(
             (set_requests_status.friend_public_key.clone(), friend_mutation));
 
-        self.apply_mutation(m_mutation);
+        self.apply_funder_mutation(m_mutation);
         await!(self.try_send_channel(&set_requests_status.friend_public_key, SendMode::EmptyNotAllowed));
         Ok(())
     }
@@ -226,7 +226,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         let m_mutation = FunderMutation::FriendMutation(
             (set_friend_info.friend_public_key.clone(), friend_mutation));
 
-        self.apply_mutation(m_mutation);
+        self.apply_funder_mutation(m_mutation);
 
         // Notify Channeler to change the friend's address:
         self.disable_friend(&set_friend_info.friend_public_key);
@@ -259,7 +259,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                 request_id: user_request_send_funds.request_id,
                 result: ResponseSendFundsResult::Success(receipt.clone()),
             };
-            self.add_response_received(response_received);
+            self.add_outgoing_control(FunderOutgoingControl::ResponseReceived(response_received));
             return Ok(());
         }
 
@@ -331,7 +331,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
         let friend_mutation = FriendMutation::PushBackPendingUserRequest(request_send_funds);
         let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-        self.apply_mutation(funder_mutation);
+        self.apply_funder_mutation(funder_mutation);
         await!(self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed));
 
         Ok(())
@@ -349,7 +349,8 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                     request_id: user_request_send_funds.request_id,
                     result: ResponseSendFundsResult::Failure(self.state.local_public_key.clone()),
                 };
-                self.add_response_received(response_received);
+
+                self.add_outgoing_control(FunderOutgoingControl::ResponseReceived(response_received));
                 e
             })
     }
@@ -362,7 +363,7 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             return Err(HandleControlError::ReceiptDoesNotExist);
         }
         let m_mutation = FunderMutation::RemoveReceipt(receipt_ack.request_id);
-        self.apply_mutation(m_mutation);
+        self.apply_funder_mutation(m_mutation);
 
         Ok(())
     }

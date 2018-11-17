@@ -19,11 +19,11 @@ use self::handle_control::{HandleControlError};
 use self::handle_friend::HandleFriendError;
 use self::handle_liveness::HandleLivenessError;
 use super::types::{FriendMoveTokenRequest, FunderIncoming,
-    FunderOutgoingComm, FunderOutgoingControl, IncomingCommMessage,
-    ResponseReceived};
-use super::ephemeral::FunderEphemeral;
+    FunderOutgoingComm, FunderOutgoingControl, IncomingCommMessage};
+use super::ephemeral::{Ephemeral, EphemeralMutation};
 use super::friend::{FriendState, ChannelStatus};
-use super::report::create_report;
+use super::report::{funder_mutation_to_report_mutations, 
+    ephemeral_mutation_to_report_mutations};
 
 
 // Approximate maximum size of a MOVE_TOKEN message.
@@ -39,20 +39,22 @@ pub enum FunderHandlerError {
 }
 
 pub struct FunderHandlerOutput<A: Clone> {
-    pub ephemeral: FunderEphemeral,
-    pub mutations: Vec<FunderMutation<A>>,
+    pub funder_mutations: Vec<FunderMutation<A>>,
+    pub ephemeral_mutations: Vec<EphemeralMutation>,
     pub outgoing_comms: Vec<FunderOutgoingComm<A>>,
     pub outgoing_control: Vec<FunderOutgoingControl<A>>,
 }
 
 pub struct MutableFunderHandler<A:Clone,R> {
     state: FunderState<A>,
-    pub ephemeral: FunderEphemeral,
+    ephemeral: Ephemeral,
     pub identity_client: IdentityClient,
     pub rng: R, // Can we be more generic and remove this Rc?
-    mutations: Vec<FunderMutation<A>>,
+    funder_mutations: Vec<FunderMutation<A>>,
+    ephemeral_mutations: Vec<EphemeralMutation>,
     outgoing_comms: Vec<FunderOutgoingComm<A>>,
-    responses_received: Vec<ResponseReceived>,
+    outgoing_control: Vec<FunderOutgoingControl<A>>,
+    // responses_received: Vec<ResponseReceived>,
 }
 
 impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
@@ -67,39 +69,54 @@ impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
     }
 
     pub fn done(self) -> FunderHandlerOutput<A> {
-        let mut outgoing_control = self.responses_received
-            .into_iter()
-            .map(FunderOutgoingControl::ResponseReceived)
-            .collect::<Vec<FunderOutgoingControl<A>>>();
-
-        // If anything is expected to change with the state, add a report to be sent through the
-        // outgoing control channel:
-        if !self.mutations.is_empty() {
-            let funder_report = create_report(&self.state, &self.ephemeral.liveness);
-            outgoing_control.push(FunderOutgoingControl::Report(funder_report));
+        let mut outgoing_control = self.outgoing_control;
+        // Create differential report according to mutations:
+        let mut report_mutations = Vec::new();
+        let mut temp_state = self.state.clone();
+        for funder_mutation in &self.funder_mutations {
+            report_mutations.extend(funder_mutation_to_report_mutations(funder_mutation, &temp_state));
+            temp_state.mutate(funder_mutation);
+        }
+        for ephemeral_mutation in &self.ephemeral_mutations {
+            report_mutations.extend(ephemeral_mutation_to_report_mutations(ephemeral_mutation));
+        }
+        if !report_mutations.is_empty() {
+            outgoing_control.push(FunderOutgoingControl::ReportMutations(report_mutations));
         }
 
         FunderHandlerOutput {
-            ephemeral: self.ephemeral,
-            mutations: self.mutations,
+            funder_mutations: self.funder_mutations,
+            ephemeral_mutations: self.ephemeral_mutations,
             outgoing_comms: self.outgoing_comms,
-            outgoing_control,
+            outgoing_control: outgoing_control,
         }
     }
 
-    /// Apply a mutation and also remember it.
-    pub fn apply_mutation(&mut self, messenger_mutation: FunderMutation<A>) {
-        self.state.mutate(&messenger_mutation);
-        self.mutations.push(messenger_mutation);
+    /// Apply an Ephemeral mutation and also remember it.
+    pub fn apply_ephemeral_mutation(&mut self, mutation: EphemeralMutation) {
+        self.ephemeral.mutate(&mutation);
+        self.ephemeral_mutations.push(mutation);
+    }
+
+    /// Apply a Funder mutation and also remember it.
+    pub fn apply_funder_mutation(&mut self, mutation: FunderMutation<A>) {
+        self.state.mutate(&mutation);
+        self.funder_mutations.push(mutation);
     }
 
     pub fn add_outgoing_comm(&mut self, outgoing_comm: FunderOutgoingComm<A>) {
         self.outgoing_comms.push(outgoing_comm);
     }
 
-    pub fn add_response_received(&mut self, response_received: ResponseReceived) {
-        self.responses_received.push(response_received);
+    pub fn add_outgoing_control(&mut self, outgoing_control: FunderOutgoingControl<A>) {
+        self.outgoing_control.push(outgoing_control);
     }
+
+    /*
+    pub fn add_response_received(&mut self, response_received: ResponseReceived) {
+        self.add_outgoing_control(FunderOutgoingControl::ResponseReceived(response_received));
+    }
+    */
 
     /// Find the originator of a pending local request.
     /// This should be a pending remote request at some other friend.
@@ -156,16 +173,17 @@ impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
 fn gen_mutable<A:Clone, R: CryptoRandom>(identity_client: IdentityClient,
                        rng: R,
                        funder_state: &FunderState<A>,
-                       funder_ephemeral: &FunderEphemeral) -> MutableFunderHandler<A,R> {
+                       funder_ephemeral: &Ephemeral) -> MutableFunderHandler<A,R> {
 
     MutableFunderHandler {
         state: funder_state.clone(),
         ephemeral: funder_ephemeral.clone(),
         identity_client,
         rng,
-        mutations: Vec::new(),
+        funder_mutations: Vec::new(),
+        ephemeral_mutations: Vec::new(),
         outgoing_comms: Vec::new(),
-        responses_received: Vec::new(),
+        outgoing_control: Vec::new(),
     }
 }
 
@@ -173,7 +191,7 @@ pub async fn funder_handle_message<A: Clone + 'static, R: CryptoRandom + 'static
                       identity_client: IdentityClient,
                       rng: R,
                       funder_state: FunderState<A>,
-                      funder_ephemeral: FunderEphemeral,
+                      funder_ephemeral: Ephemeral,
                       funder_incoming: FunderIncoming<A>) 
         -> Result<FunderHandlerOutput<A>, FunderHandlerError> {
 

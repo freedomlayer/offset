@@ -1,7 +1,5 @@
 use super::*;
 
-use std::mem;
-
 use futures::executor::ThreadPool;
 use futures::{future, FutureExt};
 use futures::task::SpawnExt;
@@ -26,7 +24,7 @@ use crate::types::{FunderIncoming, IncomingControlMessage,
 /// accordingly:
 async fn apply_funder_incoming<'a,A: Clone + 'static,R: CryptoRandom + 'static>(funder_incoming: FunderIncoming<A>,
                                state: &'a mut FunderState<A>, 
-                               ephemeral: &'a mut FunderEphemeral, 
+                               ephemeral: &'a mut Ephemeral, 
                                rng: R, 
                                identity_client: IdentityClient) 
                 -> Result<(Vec<FunderOutgoingComm<A>>, Vec<FunderOutgoingControl<A>>), FunderHandlerError> {
@@ -37,14 +35,19 @@ async fn apply_funder_incoming<'a,A: Clone + 'static,R: CryptoRandom + 'static>(
                           ephemeral.clone(),
                           funder_incoming))?;
 
-    let FunderHandlerOutput {ephemeral: new_ephemeral, mutations, outgoing_comms, outgoing_control}
+    let FunderHandlerOutput {ephemeral_mutations, funder_mutations, outgoing_comms, outgoing_control}
         = funder_handler_output;
-    let _ = mem::replace(ephemeral, new_ephemeral);
 
-    // Mutate the state according to the mutations:
-    for mutation in &mutations {
+    // Mutate FunderState according to the mutations:
+    for mutation in &funder_mutations {
         state.mutate(mutation);
     }
+
+    // Mutate Ephemeral according to the mutations:
+    for mutation in &ephemeral_mutations {
+        ephemeral.mutate(mutation);
+    }
+
     Ok((outgoing_comms, outgoing_control))
 }
 
@@ -64,9 +67,9 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     };
 
     let mut state1 = FunderState::<u32>::new(&pk1);
-    let mut ephemeral1 = FunderEphemeral::new(&state1);
+    let mut ephemeral1 = Ephemeral::new(&state1);
     let mut state2 = FunderState::<u32>::new(&pk2);
-    let mut ephemeral2 = FunderEphemeral::new(&state2);
+    let mut ephemeral2 = Ephemeral::new(&state2);
 
     let rng = RngContainer::new(DummyRandom::new(&[3u8]));
 

@@ -8,7 +8,7 @@ use serde::de::DeserializeOwned;
 use crypto::crypto_rand::CryptoRandom;
 use identity::IdentityClient;
 
-use crate::ephemeral::FunderEphemeral;
+use crate::ephemeral::Ephemeral;
 use crate::handler::{funder_handle_message};
 use crate::types::{FunderIncoming,
                     FunderOutgoingControl, FunderOutgoingComm,
@@ -50,7 +50,7 @@ async fn inner_funder<A: Serialize + DeserializeOwned + Send + Sync + Clone + 's
 
     let funder_state = db_core.state().clone();
     let mut db_runner = DbRunner::new(db_core);
-    let mut funder_ephemeral = FunderEphemeral::new(&funder_state);
+    let mut ephemeral = Ephemeral::new(&funder_state);
     let _ = funder_state;
 
     // Select over all possible events:
@@ -80,7 +80,7 @@ async fn inner_funder<A: Serialize + DeserializeOwned + Send + Sync + Clone + 's
         let res = await!(funder_handle_message(identity_client.clone(),
                               rng.clone(),
                               db_runner.state().clone(),
-                              funder_ephemeral.clone(),
+                              ephemeral.clone(),
                               funder_incoming));
 
         let handler_output = match res {
@@ -93,11 +93,13 @@ async fn inner_funder<A: Serialize + DeserializeOwned + Send + Sync + Clone + 's
         };
 
         // Send mutations to database:
-        db_runner = await!(db_runner.mutate(handler_output.mutations))
+        db_runner = await!(db_runner.mutate(handler_output.funder_mutations))
             .map_err(FunderError::DbRunnerError)?;
         
-        // Keep new funder_ephemeral:
-        funder_ephemeral = handler_output.ephemeral;
+        // Apply ephemeral mutations to our ephemeral:
+        for mutation in &handler_output.ephemeral_mutations {
+            ephemeral.mutate(mutation);
+        }
 
         // Send outgoing communication messages:
         let mut comm_stream = stream::iter::<_>(handler_output.outgoing_comms);

@@ -1,15 +1,18 @@
 use crypto::identity::{PublicKey, Signature};
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
-use super::{MutableFunderHandler};
+use crate::handler::MutableFunderHandler;
 
-use super::super::types::{RequestSendFunds, FailureSendFunds, PendingFriendRequest,
-                            ResponseReceived};
-use super::super::signature_buff::{create_failure_signature_buffer};
-use super::super::friend::{FriendMutation, ResponseOp, ChannelStatus};
-use super::super::state::FunderMutation;
-use super::super::messages::{ResponseSendFundsResult};
+use crate::types::{RequestSendFunds, FailureSendFunds, PendingFriendRequest,
+                            ResponseReceived, FunderOutgoingControl};
+use crate::signature_buff::{create_failure_signature_buffer};
+use crate::friend::{FriendMutation, ResponseOp, ChannelStatus};
+use crate::state::FunderMutation;
+use crate::messages::ResponseSendFundsResult;
 use super::sender::SendMode;
+
+use crate::ephemeral::EphemeralMutation;
+use crate::freeze_guard::FreezeGuardMutation;
 
 
 #[allow(unused)]
@@ -52,7 +55,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         let failure_op = ResponseOp::Failure(failure_send_funds);
         let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
         let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-        self.apply_mutation(messenger_mutation);
+        self.apply_funder_mutation(messenger_mutation);
         await!(self.try_send_channel(&remote_public_key, SendMode::EmptyNotAllowed));
     }
 
@@ -81,8 +84,10 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         let local_public_key = self.state.local_public_key.clone();
         // Prepare a list of all remote requests that we need to cancel:
         for (local_request_id, pending_local_request) in pending_local_requests {
-            self.ephemeral.freeze_guard.sub_frozen_credit(
-                &pending_local_request.route, pending_local_request.dest_payment);
+            let freeze_guard_mutation = FreezeGuardMutation::SubFrozenCredit(
+                (pending_local_request.route.clone(), pending_local_request.dest_payment));
+            let ephemeral_mutation = EphemeralMutation::FreezeGuardMutation(freeze_guard_mutation);
+            self.apply_ephemeral_mutation(ephemeral_mutation);
 
             let opt_origin_public_key = self.find_request_origin(&local_request_id).cloned();
             let origin_public_key = match opt_origin_public_key {
@@ -94,7 +99,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                     let failure_op = ResponseOp::Failure(failure_send_funds);
                     let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
                     let messenger_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
-                    self.apply_mutation(messenger_mutation);
+                    self.apply_funder_mutation(messenger_mutation);
                     await!(self.try_send_channel(&origin_public_key, SendMode::EmptyNotAllowed));
                 },
                 None => {
@@ -104,7 +109,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                         request_id: pending_local_request.request_id,
                         result: ResponseSendFundsResult::Failure(self.state.local_public_key.clone()),
                     };
-                    self.add_response_received(response_received);
+                    self.add_outgoing_control(FunderOutgoingControl::ResponseReceived(response_received));
                 },            
             };
 
@@ -120,7 +125,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         while let Some(pending_request) = pending_requests.pop_front() {
             let friend_mutation = FriendMutation::PopFrontPendingRequest;
             let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-            self.apply_mutation(messenger_mutation);
+            self.apply_funder_mutation(messenger_mutation);
 
             let opt_origin_public_key = self.find_request_origin(&pending_request.request_id).cloned();
             let origin_public_key = match opt_origin_public_key {
@@ -131,7 +136,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                     let failure_op = ResponseOp::Failure(failure_send_funds);
                     let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
                     let messenger_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
-                    self.apply_mutation(messenger_mutation);
+                    self.apply_funder_mutation(messenger_mutation);
                 },
                 None => {
                     // We are the origin of this request:
@@ -139,7 +144,7 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                         request_id: pending_request.request_id,
                         result: ResponseSendFundsResult::Failure(self.state.local_public_key.clone()),
                     };
-                    self.add_response_received(response_received);
+                    self.add_outgoing_control(FunderOutgoingControl::ResponseReceived(response_received));
                 }, 
             };
         }
@@ -154,14 +159,14 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
         while let Some(pending_user_request) = pending_user_requests.pop_front() {
             let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
             let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-            self.apply_mutation(messenger_mutation);
+            self.apply_funder_mutation(messenger_mutation);
 
             // We are the origin of this request:
             let response_received = ResponseReceived {
                 request_id: pending_user_request.request_id,
                 result: ResponseSendFundsResult::Failure(self.state.local_public_key.clone()),
             };
-            self.add_response_received(response_received);
+            self.add_outgoing_control(FunderOutgoingControl::ResponseReceived(response_received));
         }
     }
 }

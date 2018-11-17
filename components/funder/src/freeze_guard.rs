@@ -38,6 +38,11 @@ pub struct FreezeGuard {
     //                         ^ B                 
 }
 
+pub enum FreezeGuardMutation {
+    AddFrozenCredit((FriendsRoute, u128)), // (friends_route, dest_payment)
+    SubFrozenCredit((FriendsRoute, u128)), // (friends_route, dest_payment)
+}
+
 fn hash_subroute(subroute: &[PublicKey]) -> HashResult {
     let mut hash_buffer = Vec::new();
 
@@ -55,6 +60,17 @@ impl FreezeGuard {
         }
     }
 
+    pub fn mutate(&mut self, mutation: &FreezeGuardMutation) {
+        match mutation {
+            FreezeGuardMutation::AddFrozenCredit((friends_route, dest_payment)) =>
+                self.add_frozen_credit(friends_route, *dest_payment),
+            FreezeGuardMutation::SubFrozenCredit((friends_route, dest_payment)) =>
+                self.sub_frozen_credit(friends_route, *dest_payment),
+        }
+    }
+
+    // TODO: Should be moved outside of this structure implementation.
+    // The only public function that allows mutation FreezeGuard should be mutate.
     pub fn load_funder_state<A: Clone>(mut self, funder_state: &FunderState<A>) -> FreezeGuard {
         // Local public key should match:
         assert_eq!(self.local_public_key, funder_state.local_public_key);
@@ -80,7 +96,7 @@ impl FreezeGuard {
     /// On the image: X is the local public key, B is a direct friend of X.
     /// For every node Y along the route, we add the credits Y needs to freeze because of the route
     /// from A to B.
-    pub fn add_frozen_credit(&mut self, route: &FriendsRoute, dest_payment: u128) {
+    fn add_frozen_credit(&mut self, route: &FriendsRoute, dest_payment: u128) {
         assert!(route.public_keys.contains(&self.local_public_key));
         if &self.local_public_key == route.public_keys.last().unwrap() {
             // We are the destination. Nothing to do here.
@@ -124,7 +140,7 @@ impl FreezeGuard {
     /// On the image: X is the local public key, B is a direct friend of X.
     /// For every node Y along the route, we subtract the credits Y needs to freeze because of the
     /// route from A to B. In other words, this method unfreezes frozen credits along this route.
-    pub fn sub_frozen_credit(&mut self, route: &FriendsRoute, dest_payment: u128) {
+    fn sub_frozen_credit(&mut self, route: &FriendsRoute, dest_payment: u128) {
         assert!(route.public_keys.contains(&self.local_public_key));
         if &self.local_public_key == route.public_keys.last().unwrap() {
             // We are the destination. Nothing to do here.

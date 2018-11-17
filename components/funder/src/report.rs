@@ -8,7 +8,8 @@ use crate::state::{FunderState, FunderMutation};
 use crate::types::{RequestsStatus, FriendStatus, FriendMoveToken};
 use crate::mutual_credit::types::{McBalance, McRequestsStatus};
 use crate::token_channel::{TokenChannel, TcDirection, TcMutation}; 
-use crate::liveness::Liveness;
+use crate::liveness::LivenessMutation;
+use crate::ephemeral::{Ephemeral, EphemeralMutation};
 
 #[derive(Clone, Debug)]
 pub enum DirectionReport {
@@ -175,10 +176,10 @@ fn create_friend_report<A: Clone>(friend_state: &FriendState<A>, friend_liveness
     }
 }
 
-pub fn create_report<A: Clone>(funder_state: &FunderState<A>, liveness: &Liveness) -> FunderReport<A> {
+pub fn create_report<A: Clone>(funder_state: &FunderState<A>, ephemeral: &Ephemeral) -> FunderReport<A> {
     let mut friends = ImHashMap::new();
     for (friend_public_key, friend_state) in &funder_state.friends {
-        let friend_liveness = match liveness.is_online(friend_public_key) {
+        let friend_liveness = match ephemeral.liveness.is_online(friend_public_key) {
             true => FriendLivenessReport::Online,
             false => FriendLivenessReport::Offline,
         };
@@ -194,7 +195,7 @@ pub fn create_report<A: Clone>(funder_state: &FunderState<A>, liveness: &Livenes
 }
 
 
-pub fn create_friend_report_mutations<A: Clone + 'static>(friend_mutation: &FriendMutation<A>,
+pub fn friend_mutation_to_report_mutations<A: Clone + 'static>(friend_mutation: &FriendMutation<A>,
                                            friend: &FriendState<A>) -> Vec<FriendReportMutation<A>> {
 
     let mut friend_after = friend.clone();
@@ -261,7 +262,7 @@ pub fn create_friend_report_mutations<A: Clone + 'static>(friend_mutation: &Frie
 /// In the future if we simplify Funder's mutations, we might be able discard the `funder_state`
 /// argument here.
 #[allow(unused)]
-pub fn create_funder_report_mutations<A: Clone + 'static>(funder_mutation: &FunderMutation<A>,
+pub fn funder_mutation_to_report_mutations<A: Clone + 'static>(funder_mutation: &FunderMutation<A>,
                                            funder_state: &FunderState<A>) -> Vec<FunderReportMutation<A>> {
 
     let mut funder_state_after = funder_state.clone();
@@ -269,7 +270,7 @@ pub fn create_funder_report_mutations<A: Clone + 'static>(funder_mutation: &Fund
     match funder_mutation {
         FunderMutation::FriendMutation((public_key, friend_mutation)) => {
             let friend = funder_state.friends.get(public_key).unwrap();
-            create_friend_report_mutations(&friend_mutation, &friend)
+            friend_mutation_to_report_mutations(&friend_mutation, &friend)
                 .into_iter()
                 .map(|friend_report_mutation| 
                      FunderReportMutation::FriendReportMutation((public_key.clone(), friend_report_mutation)))
@@ -302,6 +303,26 @@ pub fn create_funder_report_mutations<A: Clone + 'static>(funder_mutation: &Fund
                 vec![FunderReportMutation::SetNumReadyReceipts(usize_to_u64(funder_state.ready_receipts.len()).unwrap())]
             } else {
                 Vec::new()
+            }
+        },
+    }
+}
+
+pub fn ephemeral_mutation_to_report_mutations<A: Clone>(ephemeral_mutation: &EphemeralMutation) 
+                -> Vec<FunderReportMutation<A>> {
+
+    match ephemeral_mutation {
+        EphemeralMutation::FreezeGuardMutation(_) => Vec::new(),
+        EphemeralMutation::LivenessMutation(liveness_mutation) => {
+            match liveness_mutation {
+                LivenessMutation::SetOnline(public_key) => {
+                    let friend_report_mutation = FriendReportMutation::SetLiveness(FriendLivenessReport::Online);
+                    vec![FunderReportMutation::FriendReportMutation((public_key.clone(), friend_report_mutation))]
+                },
+                LivenessMutation::SetOffline(public_key) => {
+                    let friend_report_mutation = FriendReportMutation::SetLiveness(FriendLivenessReport::Offline);
+                    vec![FunderReportMutation::FriendReportMutation((public_key.clone(), friend_report_mutation))]
+                },
             }
         },
     }
