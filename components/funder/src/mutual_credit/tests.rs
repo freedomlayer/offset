@@ -139,7 +139,7 @@ fn test_request_response_send_funds() {
 
     let sign_buffer = create_response_signature_buffer(&response_send_funds, 
                                      &pending_request);
-    response_send_funds.signature = identity.sign_message(&sign_buffer);
+    response_send_funds.signature = identity.sign(&sign_buffer);
 
     apply_incoming(&mut mutual_credit, FriendTcOp::ResponseSendFunds(response_send_funds)).unwrap();
 
@@ -216,7 +216,7 @@ fn test_request_failure_send_funds() {
 
     let sign_buffer = create_failure_signature_buffer(&failure_send_funds, 
                                      &pending_request);
-    failure_send_funds.signature = identity.sign_message(&sign_buffer);
+    failure_send_funds.signature = identity.sign(&sign_buffer);
 
     apply_incoming(&mut mutual_credit, FriendTcOp::FailureSendFunds(failure_send_funds)).unwrap();
 

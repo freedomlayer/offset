@@ -36,7 +36,7 @@ pub trait Identity {
     // fn verify_signature(&self, message: &[u8],
     //                     public_key: &PublicKey, signature: &Signature) -> bool;
     /// Create a signature for a given message using private key.
-    fn sign_message(&self, message: &[u8]) -> Signature;
+    fn sign(&self, message: &[u8]) -> Signature;
     /// Get our public identity
     fn get_public_key(&self) -> PublicKey;
 }
@@ -64,7 +64,7 @@ pub fn verify_signature(message: &[u8], public_key: &PublicKey, signature: &Sign
 }
 
 impl Identity for SoftwareEd25519Identity {
-    fn sign_message(&self, message: &[u8]) -> Signature {
+    fn sign(&self, message: &[u8]) -> Signature {
         let mut sig_array = [0; SIGNATURE_LEN];
         let sig = self.key_pair.sign(message);
         let sig_ref = sig.as_ref();
@@ -192,7 +192,7 @@ mod tests {
 
         let message = b"This is a message";
 
-        let signature = id.sign_message(message);
+        let signature = id.sign(message);
         let public_key = id.get_public_key();
 
         assert!(verify_signature(message, &public_key, &signature));
@@ -209,7 +209,7 @@ mod tests {
         let id2 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
         let message = b"This is a message";
-        let signature1 = id1.sign_message(message);
+        let signature1 = id1.sign(message);
         let public_key2 = id2.get_public_key();
 
         assert!(!verify_signature(message, &public_key2, &signature1));
