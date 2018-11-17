@@ -34,7 +34,7 @@ enum FunderEvent<A> {
     IncomingCommClosed,
 }
 
-async fn inner_funder<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: CryptoRandom + 'static>(
+async fn inner_funder_loop<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: CryptoRandom + 'static>(
     identity_client: IdentityClient,
     rng: R,
     incoming_control: mpsc::Receiver<IncomingControlMessage<A>>,
@@ -119,7 +119,7 @@ async fn inner_funder<A: Serialize + DeserializeOwned + Send + Sync + Clone + 's
 
 
 #[allow(unused)]
-pub async fn funder<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: CryptoRandom + 'static>(
+pub async fn funder_loop<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: CryptoRandom + 'static>(
     identity_client: IdentityClient,
     rng: R,
     incoming_control: mpsc::Receiver<IncomingControlMessage<A>>,
@@ -128,7 +128,7 @@ pub async fn funder<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'sta
     comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
     db_core: DbCore<A>) -> Result<(), FunderError> {
 
-    await!(inner_funder(identity_client,
+    await!(inner_funder_loop(identity_client,
            rng,
            incoming_control,
            incoming_comm,
