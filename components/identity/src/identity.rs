@@ -20,7 +20,7 @@ pub fn create_identity<I: Identity>(identity: I) -> (mpsc::Sender<ToIdentity>, i
         match request {
             ToIdentity::RequestSignature {message, response_sender} => {
                 let _ = response_sender.send(ResponseSignature {
-                    signature: identity.sign_message(&message),
+                    signature: identity.sign(&message),
                 }); 
                 // It is possible that sending the response didn't work.
                 // We don't care about this.

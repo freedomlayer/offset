@@ -145,6 +145,10 @@ impl MutualCredit {
         self.state.balance.balance
             .checked_add_unsigned(self.state.balance.remote_pending_debt)
             .expect("Overflow when calculating balance_for_reset")
+        // TODO: Is this the correct formula?
+        // Other options:
+        // *    balance
+        // *    balance + remote_pending_debt - local_pending_debt
     }
 
     pub fn state(&self) -> &MutualCreditState {
