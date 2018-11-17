@@ -92,7 +92,7 @@ async fn router<A: Send + 'static>(incoming_new_node: mpsc::Receiver<NewNode<A>>
                 let fut = async move {
                     await!(c_comm_sender.send_all(&mut mapped_comm_in))
                 };
-                spawner.spawn(fut.then(|_| future::ready(())));
+                spawner.spawn(fut.then(|_| future::ready(()))).unwrap();
             },
             RouterEvent::OutgoingComm((src_public_key, outgoing_comm)) => {
                 router_handle_outgoing_comm(&mut nodes, src_public_key, outgoing_comm);
