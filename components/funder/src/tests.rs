@@ -110,6 +110,9 @@ async fn task_funder_basic(identity_clients: Vec<IdentityClient>,
     let (send_new_node, recv_new_node) = mpsc::channel::<NewNode<u32>>(0);
     spawner.spawn(router(recv_new_node, spawner.clone()));
 
+    // TODO: 
+    // Create a mock in memory atomic_db type.
+
     /*
     let (send_control, incoming_control) = mpsc::channel(0);
     let (control_sender, recv_control) = mpsc::channel(0);
@@ -131,7 +134,7 @@ async fn task_funder_basic(identity_clients: Vec<IdentityClient>,
             incoming_comm,
             control_sender,
             comm_sender,
-            db_core);
+            atomic_db);
 
         // Add back when we know what to do with db_core.
 
