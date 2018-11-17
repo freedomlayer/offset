@@ -43,6 +43,7 @@ pub struct FileDb<A: Clone> {
 }
 
 
+#[allow(unused)]
 impl<A: Clone + Serialize + DeserializeOwned + 'static> FileDb<A> {
     pub fn new(db_conn: FileDbConn) -> Result<FileDb<A>, FileDbError> {
 
@@ -65,6 +66,7 @@ impl<A: Clone + Serialize + DeserializeOwned + 'static> FileDb<A> {
 }
 
 
+#[allow(unused)]
 impl<A: Clone + Serialize + DeserializeOwned + 'static> AtomicDb for FileDb<A> {
     type State = FunderState<A>;
     type Mutation = FunderMutation<A>;
