@@ -14,13 +14,13 @@ use crate::mutual_credit::incoming::{ProcessOperationOutput, ProcessTransListErr
     process_operations_list, IncomingMessage};
 use crate::mutual_credit::outgoing::OutgoingMc;
 
-use crate::types::{FriendMoveToken, 
+use crate::types::{FriendMoveToken, FriendMoveTokenHashed,
     FriendMoveTokenRequest, FriendTcOp};
 
 
 #[derive(Debug)]
 pub enum SetDirection {
-    Incoming(FriendMoveToken), 
+    Incoming(FriendMoveTokenHashed), 
     Outgoing(FriendMoveToken),
 }
 
@@ -37,13 +37,13 @@ pub struct TcOutgoing {
     pub mutual_credit: MutualCredit,
     pub move_token_out: FriendMoveToken,
     pub token_wanted: bool,
-    pub opt_prev_move_token_in: Option<FriendMoveToken>,
+    pub opt_prev_move_token_in: Option<FriendMoveTokenHashed>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TcIncoming {
     pub mutual_credit: MutualCredit,
-    pub move_token_in: FriendMoveToken,
+    pub move_token_in: FriendMoveTokenHashed,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -159,7 +159,8 @@ impl TokenChannel {
             // We are the second sender
             let tc_incoming = TcIncoming {
                 mutual_credit,
-                move_token_in: initial_move_token(remote_public_key, local_public_key),
+                move_token_in: initial_move_token(remote_public_key, local_public_key)
+                    .create_hashed(),
             };
             TokenChannel {
                 direction: TcDirection::Incoming(tc_incoming),
@@ -174,7 +175,7 @@ impl TokenChannel {
 
         let tc_incoming = TcIncoming {
             mutual_credit: MutualCredit::new(local_public_key, remote_public_key, balance),
-            move_token_in: reset_move_token.clone(),
+            move_token_in: reset_move_token.create_hashed(),
         };
 
         TokenChannel {
@@ -186,7 +187,7 @@ impl TokenChannel {
                       remote_public_key: &PublicKey, 
                       reset_move_token: &FriendMoveToken,
                       balance: i128, // Is this redundant?
-                      opt_last_incoming_move_token: Option<FriendMoveToken>) -> TokenChannel {
+                      opt_last_incoming_move_token: Option<FriendMoveTokenHashed>) -> TokenChannel {
 
         let tc_outgoing = TcOutgoing {
             mutual_credit: MutualCredit::new(local_public_key, remote_public_key, balance),
@@ -218,7 +219,7 @@ impl TokenChannel {
     /// Get the last incoming move token
     /// If no such incoming move token exists (Maybe this is the beginning of the relationship),
     /// returns None.
-    pub fn get_last_incoming_move_token(&self) -> Option<&FriendMoveToken> {
+    pub fn get_last_incoming_move_token_hashed(&self) -> Option<&FriendMoveTokenHashed> {
         match &self.direction {
             TcDirection::Incoming(tc_incoming) => Some(&tc_incoming.move_token_in),
             TcDirection::Outgoing(tc_outgoing) => {
@@ -241,10 +242,10 @@ impl TokenChannel {
             },
             TcMutation::SetDirection(ref set_direction) => {
                 self.direction = match set_direction {
-                    SetDirection::Incoming(friend_move_token) => {
+                    SetDirection::Incoming(friend_move_token_hashed) => {
                         let tc_incoming = TcIncoming {
                             mutual_credit: self.get_mutual_credit().clone(), // TODO: Remove this clone()
-                            move_token_in: friend_move_token.clone(), 
+                            move_token_in: friend_move_token_hashed.clone(),
                         };
                         TcDirection::Incoming(tc_incoming)
                     },
@@ -253,7 +254,7 @@ impl TokenChannel {
                             mutual_credit: self.get_mutual_credit().clone(), // TODO; Remove this clone()
                             move_token_out: friend_move_token.clone(),
                             token_wanted: false,
-                            opt_prev_move_token_in: self.get_last_incoming_move_token().cloned()
+                            opt_prev_move_token_in: self.get_last_incoming_move_token_hashed().cloned(),
                         };
                         TcDirection::Outgoing(tc_outgoing)
                     }
@@ -270,20 +271,20 @@ impl TokenChannel {
         }
     }
 
-    fn get_cur_move_token(&self) -> &FriendMoveToken {
+    fn get_cur_move_token_hashed(&self) -> FriendMoveTokenHashed {
         match &self.direction {
-            TcDirection::Incoming(tc_incoming) => &tc_incoming.move_token_in,
-            TcDirection::Outgoing(tc_outgoing) => &tc_outgoing.move_token_out,
+            TcDirection::Incoming(tc_incoming) => tc_incoming.move_token_in.clone(),
+            TcDirection::Outgoing(tc_outgoing) => tc_outgoing.move_token_out.create_hashed(),
         }
     }
 
 
     pub fn get_inconsistency_counter(&self) -> u64 {
-        self.get_cur_move_token().inconsistency_counter
+        self.get_cur_move_token_hashed().inconsistency_counter
     }
 
     pub fn get_move_token_counter(&self) -> u128 {
-        self.get_cur_move_token().move_token_counter
+        self.get_cur_move_token_hashed().move_token_counter
     }
 
     /// Get the current new token (Either incoming or outgoing)
@@ -325,7 +326,7 @@ impl TcIncoming {
         -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
         // We compare the whole move token message and not just the signature (new_token)
         // because we don't check the signature in this flow.
-        if &self.move_token_in == &new_move_token {
+        if &self.move_token_in == &new_move_token.create_hashed() {
             // Duplicate
             Ok(ReceiveMoveTokenOutput::Duplicate)
         } else {
@@ -452,7 +453,7 @@ impl TcOutgoing {
                 }
 
                 mutations.push(
-                    TcMutation::SetDirection(SetDirection::Incoming(new_move_token)));
+                    TcMutation::SetDirection(SetDirection::Incoming(new_move_token.create_hashed())));
 
                 let move_token_received = MoveTokenReceived {
                     incoming_messages,
@@ -511,7 +512,7 @@ mod tests {
             (token_channel_b_a, token_channel_a_b)
         };
 
-        assert_eq!(out_tc.get_cur_move_token(), in_tc.get_cur_move_token());
+        assert_eq!(out_tc.get_cur_move_token_hashed(), in_tc.get_cur_move_token_hashed());
         let tc_outgoing = match out_tc.get_direction() {
             TcDirection::Outgoing(tc_outgoing) => tc_outgoing,
             TcDirection::Incoming(_) => unreachable!(),
@@ -633,7 +634,7 @@ mod tests {
                     seen_set_direction = true;
                     match set_direction {
                         SetDirection::Incoming(incoming_friend_move_token) =>
-                            assert_eq!(&friend_move_token, incoming_friend_move_token),
+                            assert_eq!(&friend_move_token.create_hashed(), incoming_friend_move_token),
                         _ => unreachable!(),
                     }
                 }
@@ -647,7 +648,7 @@ mod tests {
         }
 
         assert!(!tc1.is_outgoing());
-        assert_eq!(tc1.get_cur_move_token(), &friend_move_token);
+        assert_eq!(&tc1.get_cur_move_token_hashed(), &friend_move_token.create_hashed());
         assert_eq!(tc1.get_mutual_credit().state().balance.local_max_debt, 100);
 
     }

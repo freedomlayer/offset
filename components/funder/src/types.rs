@@ -144,7 +144,7 @@ pub struct FriendMoveToken {
     pub new_token: Signature,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct FriendMoveTokenHashed {
     pub operations_hash: HashResult,
     pub old_token: Signature,

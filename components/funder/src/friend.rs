@@ -5,8 +5,8 @@ use utils::safe_arithmetic::SafeUnsignedArithmetic;
 
 use super::token_channel::TcMutation;
 use super::types::{FriendStatus, 
-    RequestsStatus, RequestSendFunds, FriendMoveToken,
-    ResponseSendFunds, FailureSendFunds,
+    RequestsStatus, RequestSendFunds, FriendMoveToken, 
+    FriendMoveTokenHashed, ResponseSendFunds, FailureSendFunds,
     ResetTerms};
 use super::token_channel::TokenChannel;
 
@@ -40,7 +40,7 @@ pub enum FriendMutation<A> {
 
 #[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
 pub struct ChannelInconsistent {
-    pub opt_last_incoming_move_token: Option<FriendMoveToken>,
+    pub opt_last_incoming_move_token: Option<FriendMoveTokenHashed>,
     pub local_reset_terms: ResetTerms,
     pub opt_remote_reset_terms: Option<ResetTerms>,
 }
@@ -52,12 +52,12 @@ pub enum ChannelStatus {
 }
 
 impl ChannelStatus {
-    pub fn get_last_incoming_move_token(&self) -> Option<FriendMoveToken> {
+    pub fn get_last_incoming_move_token_hashed(&self) -> Option<FriendMoveTokenHashed> {
         match &self {
             ChannelStatus::Inconsistent(channel_inconsistent) => 
                 channel_inconsistent.opt_last_incoming_move_token.clone(),
             ChannelStatus::Consistent(token_channel) => 
-                token_channel.get_last_incoming_move_token().cloned(),
+                token_channel.get_last_incoming_move_token_hashed().cloned(),
         }
     }
 }
