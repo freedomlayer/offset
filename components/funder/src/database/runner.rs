@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use std::marker::Send;
 use futures::channel::{oneshot, mpsc};
 use futures::{future, FutureExt, Stream};
@@ -13,7 +11,7 @@ use serde::de::DeserializeOwned;
 use identity::IdentityClient;
 
 use crate::state::{FunderMutation, FunderState};
-use super::core::{DbCore, DbCoreError};
+use super::atomic_db::AtomicDb;
 
 /*
 
@@ -34,12 +32,14 @@ pub enum DbServiceError {
 }
 */
 
-fn apply_funder_mutations<A: Clone + Serialize + DeserializeOwned + 'static>(
-    mut db_core: DbCore<A>, 
-    funder_mutations: Vec<FunderMutation<A>>) -> Result<DbCore<A>,DbCoreError> {
-
-    db_core.mutate(funder_mutations)?;
-    Ok(db_core)
+fn apply_funder_mutations<A,D,E>(mut atomic_db: D, 
+    funder_mutations: Vec<FunderMutation<A>>) -> Result<D, D::Error> 
+where
+    A: Clone + Serialize + DeserializeOwned + 'static,
+    D: AtomicDb<State=FunderState<A>, Mutation=FunderMutation<A>, Error=E>,
+{
+    atomic_db.mutate(funder_mutations)?;
+    Ok(atomic_db)
 }
 
 /*
@@ -77,35 +77,47 @@ pub fn db_service<A: Clone + Serialize + DeserializeOwned + Send + Sync + 'stati
 */
 
 #[derive(Debug)]
-pub enum DbRunnerError {
-    DbCoreError(DbCoreError),
+pub enum DbRunnerError<E> {
+    AtomicDbError(E),
 }
 
-pub struct DbRunner<A: Clone> {
+pub struct DbRunner<D> {
     pool: ThreadPool,
-    db_core: DbCore<A>,
+    opt_atomic_db: Option<D>,
 }
 
-impl<A: Clone + Serialize + DeserializeOwned + Send + Sync + 'static> DbRunner<A> {
-    pub fn new(db_core: DbCore<A>) -> DbRunner<A> {
+impl<A,D,E> DbRunner<D> 
+where
+    A: Clone + Serialize + DeserializeOwned + Send + Sync + 'static,
+    D: AtomicDb<State=FunderState<A>, Mutation=FunderMutation<A>, Error=E> + Send + 'static,
+    E: Send + 'static,
+{
+    pub fn new(atomic_db: D) -> DbRunner<D> {
         // Start a pool to run slow database operations:
         DbRunner {
             pool: ThreadPool::new().unwrap(),
-            db_core,
+            opt_atomic_db: Some(atomic_db),
         }
     }
 
-    pub async fn mutate(self, funder_mutations: Vec<FunderMutation<A>>) -> Result<Self, DbRunnerError> {
-        let DbRunner {mut pool, db_core} = self;
-        let fut_apply_db_mutation = future::lazy(move |_| apply_funder_mutations(db_core, funder_mutations));
-        let handle = pool.spawn_with_handle(fut_apply_db_mutation).unwrap();
-        let db_core = await!(handle)
-            .map_err(DbRunnerError::DbCoreError)?;
-        Ok(DbRunner {pool, db_core})
+    pub async fn mutate(&mut self, funder_mutations: Vec<FunderMutation<A>>) -> Result<(), DbRunnerError<E>> {
+        let atomic_db = match self.opt_atomic_db.take() {
+            None => unreachable!(),
+            Some(atomic_db) => atomic_db
+        };
+        let fut_apply_db_mutation = future::lazy(move |_| apply_funder_mutations::<_,_,E>(atomic_db, funder_mutations));
+        let handle = self.pool.spawn_with_handle(fut_apply_db_mutation).unwrap();
+        let atomic_db = await!(handle)
+            .map_err(DbRunnerError::AtomicDbError)?;
+        self.opt_atomic_db = Some(atomic_db);
+        Ok(())
     }
 
-    pub fn state(&self) -> &FunderState<A> {
-        self.db_core.state()
+    pub fn get_state(&self) -> &FunderState<A> {
+        match &self.opt_atomic_db {
+            Some(atomic_db) => atomic_db.get_state(),
+            None => unreachable!(),
+        }
     }
 }
 

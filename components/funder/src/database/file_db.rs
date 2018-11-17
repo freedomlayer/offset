@@ -10,66 +10,73 @@ use serde_json;
 use atomicwrites;
 
 use crate::state::{FunderMutation, FunderState};
+use crate::database::atomic_db::AtomicDb;
 
 #[derive(Debug)]
-pub enum DbCoreError {
+pub enum FileDbError {
     ReadError(io::Error),
     WriteError(atomicwrites::Error<io::Error>),
     DeserializeError(serde_json::error::Error),
     SerializeError(serde_json::error::Error),
 }
 
-pub struct DbConn {
+pub struct FileDbConn {
     /// DbCore file path
     db_path: String,
 }
 
 #[allow(unused)]
-impl DbConn {
-    fn new(db_path: &str) -> DbConn {
-        DbConn {
+impl FileDbConn {
+    fn new(db_path: &str) -> FileDbConn {
+        FileDbConn {
             db_path: String::from(db_path),
         }
     }
 }
 
 #[allow(unused)]
-pub struct DbCore<A: Clone> {
+pub struct FileDb<A: Clone> {
     /// Connection to the database
-    db_conn: DbConn,
+    db_conn: FileDbConn,
     /// Current FunderState represented by the database
     funder_state: FunderState<A>,
 }
 
 
-#[allow(unused)]
-impl<A: Clone + Serialize + DeserializeOwned + 'static> DbCore<A> {
-    pub fn new(db_conn: DbConn) -> Result<DbCore<A>, DbCoreError> {
+impl<A: Clone + Serialize + DeserializeOwned + 'static> FileDb<A> {
+    pub fn new(db_conn: FileDbConn) -> Result<FileDb<A>, FileDbError> {
 
         // TODO: Should create a new funder_state here if does not exist?
         let mut fr = File::open(&db_conn.db_path)
-            .map_err(DbCoreError::ReadError)?;
+            .map_err(FileDbError::ReadError)?;
 
         let mut serialized_str = String::new();
         fr.read_to_string(&mut serialized_str)
-            .map_err(DbCoreError::ReadError)?;
+            .map_err(FileDbError::ReadError)?;
 
         let funder_state: FunderState<A> = serde_json::from_str(&serialized_str)
-            .map_err(DbCoreError::DeserializeError)?;
+            .map_err(FileDbError::DeserializeError)?;
 
-        Ok(DbCore {
+        Ok(FileDb {
             db_conn,
             funder_state,
         })
     }
+}
+
+
+impl<A: Clone + Serialize + DeserializeOwned + 'static> AtomicDb for FileDb<A> {
+    type State = FunderState<A>;
+    type Mutation = FunderMutation<A>;
+    type Error = FileDbError;
 
     /// Get current FunderState represented by the database
-    pub fn state(&self) -> &FunderState<A> {
+    fn get_state(&self) -> &FunderState<A> {
         &self.funder_state
     }
 
-    /// Apply a mutation over the database, and save it.
-    pub fn mutate(&mut self, funder_mutations: Vec<FunderMutation<A>>) -> Result<(), DbCoreError> {
+    /// Apply a set of mutations atomically the database, and save it.
+    fn mutate(&mut self, funder_mutations: Vec<FunderMutation<A>>) -> Result<(), FileDbError> {
         // Apply mutation to funder_state:
         for funder_mutation in funder_mutations {
             self.funder_state.mutate(&funder_mutation);
@@ -77,14 +84,14 @@ impl<A: Clone + Serialize + DeserializeOwned + 'static> DbCore<A> {
 
         // Serialize the funder_state:
         let serialized_str = serde_json::to_string(&self.funder_state)
-            .map_err(DbCoreError::SerializeError)?;
+            .map_err(FileDbError::SerializeError)?;
 
         // Save the new funder_state to file, atomically:
         let af = atomicwrites::AtomicFile::new(
             &self.db_conn.db_path, atomicwrites::AllowOverwrite);
         af.write(|fw| {
             fw.write_all(serialized_str.as_bytes())
-        }).map_err(DbCoreError::WriteError)?;
+        }).map_err(FileDbError::WriteError)?;
         
         Ok(())
     }

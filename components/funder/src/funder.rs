@@ -13,15 +13,16 @@ use crate::handler::{funder_handle_message};
 use crate::types::{FunderIncoming,
                     FunderOutgoingControl, FunderOutgoingComm,
                     IncomingControlMessage, IncomingCommMessage};
-use crate::database::{DbCore, DbRunner, DbRunnerError};
+use crate::state::{FunderState, FunderMutation};
+use crate::database::{AtomicDb, DbRunner, DbRunnerError};
 
 
 #[derive(Debug)]
-pub enum FunderError {
+pub enum FunderError<E> {
     IncomingControlClosed,
     IncomingCommClosed,
     IncomingMessagesError,
-    DbRunnerError(DbRunnerError),
+    DbRunnerError(DbRunnerError<E>),
     SendControlError,
     SendCommError,
 }
@@ -34,22 +35,29 @@ enum FunderEvent<A> {
     IncomingCommClosed,
 }
 
-async fn inner_funder_loop<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: CryptoRandom + 'static>(
+async fn inner_funder_loop<A, R, D, E>(
     identity_client: IdentityClient,
     rng: R,
     incoming_control: mpsc::Receiver<IncomingControlMessage<A>>,
     incoming_comm: mpsc::Receiver<IncomingCommMessage>,
     control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
     comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
-    db_core: DbCore<A>,
-    mut opt_event_sender: Option<mpsc::Sender<FunderEvent<A>>>) -> Result<(), FunderError> {
+    atomic_db: D,
+    mut opt_event_sender: Option<mpsc::Sender<FunderEvent<A>>>) -> Result<(), FunderError<E>> 
+
+where
+    A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static,
+    R: CryptoRandom + 'static,
+    D: AtomicDb<State=FunderState<A>, Mutation=FunderMutation<A>, Error=E> + Send + 'static,
+    E: Send + 'static,
+{
 
     // Transform error type:
     let mut comm_sender = comm_sender.sink_map_err(|_| ());
     let mut control_sender = control_sender.sink_map_err(|_| ());
 
-    let funder_state = db_core.state().clone();
-    let mut db_runner = DbRunner::new(db_core);
+    let funder_state = atomic_db.get_state().clone();
+    let mut db_runner = DbRunner::new(atomic_db);
     let mut ephemeral = Ephemeral::new(&funder_state);
     let _ = funder_state;
 
@@ -79,7 +87,7 @@ async fn inner_funder_loop<A: Serialize + DeserializeOwned + Send + Sync + Clone
         // Process message:
         let res = await!(funder_handle_message(identity_client.clone(),
                               rng.clone(),
-                              db_runner.state().clone(),
+                              db_runner.get_state().clone(),
                               ephemeral.clone(),
                               funder_incoming));
 
@@ -93,7 +101,7 @@ async fn inner_funder_loop<A: Serialize + DeserializeOwned + Send + Sync + Clone
         };
 
         // Send mutations to database:
-        db_runner = await!(db_runner.mutate(handler_output.funder_mutations))
+        await!(db_runner.mutate(handler_output.funder_mutations))
             .map_err(FunderError::DbRunnerError)?;
         
         // Apply ephemeral mutations to our ephemeral:
@@ -119,14 +127,20 @@ async fn inner_funder_loop<A: Serialize + DeserializeOwned + Send + Sync + Clone
 
 
 #[allow(unused)]
-pub async fn funder_loop<A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static, R: CryptoRandom + 'static>(
+pub async fn funder_loop<A,R,D,E>(
     identity_client: IdentityClient,
     rng: R,
     incoming_control: mpsc::Receiver<IncomingControlMessage<A>>,
     incoming_comm: mpsc::Receiver<IncomingCommMessage>,
     control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
     comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
-    db_core: DbCore<A>) -> Result<(), FunderError> {
+    atomic_db: D) -> Result<(), FunderError<E>> 
+where
+    A: Serialize + DeserializeOwned + Send + Sync + Clone + 'static,
+    R: CryptoRandom + 'static,
+    D: AtomicDb<State=FunderState<A>, Mutation=FunderMutation<A>, Error=E> + Send + 'static,
+    E: Send + 'static,
+{
 
     await!(inner_funder_loop(identity_client,
            rng,
@@ -134,7 +148,7 @@ pub async fn funder_loop<A: Serialize + DeserializeOwned + Send + Sync + Clone +
            incoming_comm,
            control_sender,
            comm_sender,
-           db_core,
+           atomic_db,
            None))
 
 }

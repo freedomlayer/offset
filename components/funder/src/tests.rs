@@ -110,8 +110,10 @@ async fn task_funder_basic(identity_clients: Vec<IdentityClient>,
     let (send_new_node, recv_new_node) = mpsc::channel::<NewNode<u32>>(0);
     spawner.spawn(router(recv_new_node, spawner.clone()));
 
+    /*
     let (send_control, incoming_control) = mpsc::channel(0);
     let (control_sender, recv_control) = mpsc::channel(0);
+
 
     let node_controls = Vec::new();
 
@@ -122,7 +124,6 @@ async fn task_funder_basic(identity_clients: Vec<IdentityClient>,
         let (send_comm, incoming_comm) = mpsc::channel(0);
         let (comm_sender, recv_comm) = mpsc::channel(0);
 
-        /*
         let funder_fut = funder_loop(
             identity_client[i].clone(),
             DummyRandom::new(&[i as u8]),
@@ -139,8 +140,8 @@ async fn task_funder_basic(identity_clients: Vec<IdentityClient>,
             send_control,
             recv_control,
         });
-        */
     }
+    */
 
 }
 
