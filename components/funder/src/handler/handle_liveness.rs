@@ -1,9 +1,12 @@
 use crypto::crypto_rand::CryptoRandom;
 
-use super::MutableFunderHandler;
-use super::super::friend::ChannelStatus;
-use super::super::types::{IncomingLivenessMessage, FriendStatus, 
+use crate::handler::MutableFunderHandler;
+use crate::friend::ChannelStatus;
+use crate::types::{IncomingLivenessMessage, FriendStatus, 
     FriendMessage, FunderOutgoingComm};
+
+use crate::ephemeral::EphemeralMutation;
+use crate::liveness::LivenessMutation;
 
 #[derive(Debug)]
 pub enum HandleLivenessError {
@@ -48,7 +51,9 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                     },
                 };
 
-                self.ephemeral.liveness.set_online(&friend_public_key);
+                let liveness_mutation = LivenessMutation::SetOnline(friend_public_key.clone());
+                let ephemeral_mutation = EphemeralMutation::LivenessMutation(liveness_mutation);
+                self.apply_ephemeral_mutation(ephemeral_mutation);
             },
             IncomingLivenessMessage::Offline(friend_public_key) => {
                 // Find friend:
@@ -60,7 +65,10 @@ impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
                     FriendStatus::Enable => Ok(()),
                     FriendStatus::Disable => Err(HandleLivenessError::FriendIsDisabled),
                 }?;
-                self.ephemeral.liveness.set_offline(&friend_public_key);
+                let liveness_mutation = LivenessMutation::SetOffline(friend_public_key.clone());
+                let ephemeral_mutation = EphemeralMutation::LivenessMutation(liveness_mutation);
+                self.apply_ephemeral_mutation(ephemeral_mutation);
+
                 // Cancel all messages pending for this friend.
                 await!(self.cancel_pending_requests(
                         friend_public_key.clone()));
@@ -79,7 +87,7 @@ mod tests {
 
     use crate::handler::gen_mutable;
     use crate::state::{FunderState, FunderMutation};
-    use crate::ephemeral::FunderEphemeral;
+    use crate::ephemeral::Ephemeral;
     use crate::token_channel::{is_public_key_lower, TcDirection};
     use crate::types::{FriendStatus, AddFriend};
     use crate::friend::FriendMutation;
@@ -136,7 +144,7 @@ mod tests {
             _ => unreachable!(),
         };
 
-        let ephemeral = FunderEphemeral::new(&state);
+        let ephemeral = Ephemeral::new(&state);
         let rng = DummyRandom::new(&[2u8]);
 
         let mut mutable_funder_handler = gen_mutable(local_identity,
@@ -150,8 +158,8 @@ mod tests {
 
         // We expect that the local side will send the remote side a message:
         let mut funder_handler_output = mutable_funder_handler.done();
-        assert!(funder_handler_output.mutations.is_empty());
-        assert!(funder_handler_output.outgoing_control.is_empty());
+        assert!(funder_handler_output.funder_mutations.is_empty());
+        assert_eq!(funder_handler_output.outgoing_control.len(), 1);
         assert_eq!(funder_handler_output.outgoing_comms.len(),1);
         let out_comm = funder_handler_output.outgoing_comms.pop().unwrap();
 

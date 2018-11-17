@@ -113,7 +113,7 @@ impl<A:Clone + 'static> FunderState<A> {
                                                   add_friend.address.clone(),
                                                   add_friend.name.clone(),
                                                   add_friend.balance);
-                // Insert friend, but also make sure that we did not remove any existing friend
+                // Insert friend, but also make sure that we didn't override an existing friend
                 // with the same public key:
                 let res = self.friends.insert(add_friend.friend_public_key.clone(), friend);
                 assert!(res.is_none());

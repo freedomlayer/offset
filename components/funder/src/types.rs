@@ -13,7 +13,7 @@ use crypto::hash::{HashResult, sha_512_256};
 use identity::IdentityClient;
 
 use super::messages::ResponseSendFundsResult;
-use super::report::FunderReport;
+use super::report::{FunderReport, FunderReportMutation};
 
 // Prefix used for chain hashing of token channel funds.
 // NEXT is used for hashing for the next move token funds.
@@ -573,6 +573,7 @@ pub enum FunderOutgoing<A: Clone> {
 pub enum FunderOutgoingControl<A: Clone> {
     ResponseReceived(ResponseReceived),
     Report(FunderReport<A>),
+    ReportMutations(Vec<FunderReportMutation<A>>),
 }
 
 #[derive(Debug)]

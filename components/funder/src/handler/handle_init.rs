@@ -1,9 +1,10 @@
 use crypto::crypto_rand::CryptoRandom;
 
-use super::MutableFunderHandler;
-use super::super::types::{ChannelerConfig,
-                            FriendStatus,
-                            FunderOutgoingComm};
+use crate::handler::MutableFunderHandler;
+use crate::types::{ChannelerConfig, FriendStatus, 
+    FunderOutgoingComm, FunderOutgoingControl};
+
+use crate::report::create_report;
 
 
 #[allow(unused)]
@@ -21,6 +22,12 @@ impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
             };
         }
 
+        // Send a report of the current FunderState:
+        // This is a base report. Later reports are differential, and should be built on this base
+        // report.
+        let report = create_report(&self.state, &self.ephemeral);
+        self.add_outgoing_control(FunderOutgoingControl::Report(report));
+
         for enabled_friend in enabled_friends {
             // Notify Channeler:
             let channeler_config = ChannelerConfig::AddFriend(enabled_friend);
@@ -37,7 +44,7 @@ mod tests {
     use crate::handler::gen_mutable;
     use crate::state::{FunderState, FunderMutation};
     use crate::types::AddFriend;
-    use crate::ephemeral::FunderEphemeral;
+    use crate::ephemeral::Ephemeral;
     use crate::friend::FriendMutation;
 
     use futures::executor::ThreadPool;
@@ -75,7 +82,7 @@ mod tests {
         let funder_mutation = FunderMutation::FriendMutation((pk_b.clone(), friend_mutation));
         state.mutate(&funder_mutation);
 
-        let ephemeral = FunderEphemeral::new(&state);
+        let ephemeral = Ephemeral::new(&state);
         let rng = DummyRandom::new(&[2u8]);
 
         let mut mutable_funder_handler = gen_mutable(identity_client,
@@ -86,8 +93,8 @@ mod tests {
         mutable_funder_handler.handle_init();
 
         let mut funder_handler_output = mutable_funder_handler.done();
-        assert!(funder_handler_output.mutations.is_empty());
-        assert!(funder_handler_output.outgoing_control.is_empty());
+        assert!(funder_handler_output.funder_mutations.is_empty());
+        assert_eq!(funder_handler_output.outgoing_control.len(), 1);
         assert_eq!(funder_handler_output.outgoing_comms.len(),1);
         let out_comm = funder_handler_output.outgoing_comms.pop().unwrap();
 
