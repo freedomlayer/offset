@@ -46,6 +46,9 @@ pub struct FunderHandlerOutput<A: Clone> {
 }
 
 pub struct MutableFunderHandler<A:Clone,R> {
+    // TODO: Is there a more elegant way to do this, instead of having two states?
+    // Does ephemeral require an initial ephemeral too?
+    initial_state: FunderState<A>,
     state: FunderState<A>,
     ephemeral: Ephemeral,
     pub identity_client: IdentityClient,
@@ -72,10 +75,10 @@ impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
         let mut outgoing_control = self.outgoing_control;
         // Create differential report according to mutations:
         let mut report_mutations = Vec::new();
-        let mut temp_state = self.state.clone();
+        let mut running_state = self.initial_state.clone();
         for funder_mutation in &self.funder_mutations {
-            report_mutations.extend(funder_mutation_to_report_mutations(funder_mutation, &temp_state));
-            temp_state.mutate(funder_mutation);
+            report_mutations.extend(funder_mutation_to_report_mutations(funder_mutation, &running_state));
+            running_state.mutate(funder_mutation);
         }
         for ephemeral_mutation in &self.ephemeral_mutations {
             report_mutations.extend(ephemeral_mutation_to_report_mutations(ephemeral_mutation));
@@ -176,6 +179,7 @@ fn gen_mutable<A:Clone, R: CryptoRandom>(identity_client: IdentityClient,
                        funder_ephemeral: &Ephemeral) -> MutableFunderHandler<A,R> {
 
     MutableFunderHandler {
+        initial_state: funder_state.clone(),
         state: funder_state.clone(),
         ephemeral: funder_ephemeral.clone(),
         identity_client,
