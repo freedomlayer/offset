@@ -90,6 +90,7 @@ pub enum FriendReportMutation<A> {
     SetNumPendingRequests(u64),
     SetFriendStatus(FriendStatus),
     SetNumPendingUserRequests(u64),
+    SetOptLastIncomingMoveToken(Option<FriendMoveToken>),
 }
 
 #[derive(Clone, Debug)]
@@ -181,62 +182,67 @@ pub fn create_report<A: Clone>(funder_state: &FunderState<A>, liveness: &Livenes
         num_ready_receipts: usize_to_u64(funder_state.ready_receipts.len()).unwrap(),
         local_public_key: funder_state.local_public_key.clone(),
     }
-
 }
 
-// TODO: How to add liveness mutation?
-pub fn create_friend_report_mutation<A: Clone + 'static>(friend_mutation: &FriendMutation<A>,
-                                           friend: &FriendState<A>) -> Option<FriendReportMutation<A>> {
+
+pub fn create_friend_report_mutations<A: Clone + 'static>(friend_mutation: &FriendMutation<A>,
+                                           friend: &FriendState<A>) -> Vec<FriendReportMutation<A>> {
 
     let mut friend_after = friend.clone();
     friend_after.mutate(friend_mutation);
-
     match friend_mutation {
         FriendMutation::TcMutation(tc_mutation) => {
             match tc_mutation {
                 TcMutation::McMutation(_) |
                 TcMutation::SetDirection(_) => {
                     let channel_status_report = create_channel_status_report::<A>(&friend_after.channel_status);
-                    Some(FriendReportMutation::SetChannelStatus(channel_status_report))
+                    let set_channel_status = FriendReportMutation::SetChannelStatus(channel_status_report);
+                    let set_last_incoming_move_token = FriendReportMutation::SetOptLastIncomingMoveToken(
+                        friend_after.channel_status.get_last_incoming_move_token().clone());
+                    vec![set_channel_status, set_last_incoming_move_token]
                 },
-                TcMutation::SetTokenWanted => None,
+                TcMutation::SetTokenWanted => Vec::new(),
             }
         },
-        FriendMutation::SetInconsistent(_channel_inconsistent) =>
-            Some(FriendReportMutation::SetChannelStatus(
-                    create_channel_status_report::<A>(&friend_after.channel_status))),
         FriendMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) =>
-            Some(FriendReportMutation::SetWantedRemoteMaxDebt(*wanted_remote_max_debt)),
+            vec![FriendReportMutation::SetWantedRemoteMaxDebt(*wanted_remote_max_debt)],
         FriendMutation::SetWantedLocalRequestsStatus(requests_status) => 
-            Some(FriendReportMutation::SetWantedLocalRequestsStatus(requests_status.clone())),
+            vec![FriendReportMutation::SetWantedLocalRequestsStatus(requests_status.clone())],
         FriendMutation::PushBackPendingRequest(_request_send_funds) =>
-            Some(FriendReportMutation::SetNumPendingRequests(
-                    usize_to_u64(friend_after.pending_requests.len()).unwrap())),
+            vec![FriendReportMutation::SetNumPendingRequests(
+                    usize_to_u64(friend_after.pending_requests.len()).unwrap())],
         FriendMutation::PopFrontPendingRequest =>
-            Some(FriendReportMutation::SetNumPendingRequests(
-                    usize_to_u64(friend_after.pending_requests.len()).unwrap())),
+            vec![FriendReportMutation::SetNumPendingRequests(
+                    usize_to_u64(friend_after.pending_requests.len()).unwrap())],
         FriendMutation::PushBackPendingResponse(_response_op) =>
-            Some(FriendReportMutation::SetNumPendingResponses(
-                    usize_to_u64(friend_after.pending_responses.len()).unwrap())),
+            vec![FriendReportMutation::SetNumPendingResponses(
+                    usize_to_u64(friend_after.pending_responses.len()).unwrap())],
         FriendMutation::PopFrontPendingResponse => 
-            Some(FriendReportMutation::SetNumPendingResponses(
-                    usize_to_u64(friend_after.pending_responses.len()).unwrap())),
+            vec![FriendReportMutation::SetNumPendingResponses(
+                    usize_to_u64(friend_after.pending_responses.len()).unwrap())],
         FriendMutation::PushBackPendingUserRequest(_request_send_funds) =>
-            Some(FriendReportMutation::SetNumPendingUserRequests(
-                    usize_to_u64(friend_after.pending_user_requests.len()).unwrap())),
+            vec![FriendReportMutation::SetNumPendingUserRequests(
+                    usize_to_u64(friend_after.pending_user_requests.len()).unwrap())],
         FriendMutation::PopFrontPendingUserRequest => 
-            Some(FriendReportMutation::SetNumPendingUserRequests(
-                    usize_to_u64(friend_after.pending_user_requests.len()).unwrap())),
+            vec![FriendReportMutation::SetNumPendingUserRequests(
+                    usize_to_u64(friend_after.pending_user_requests.len()).unwrap())],
         FriendMutation::SetStatus(friend_status) => 
-            Some(FriendReportMutation::SetFriendStatus(friend_status.clone())),
+            vec![FriendReportMutation::SetFriendStatus(friend_status.clone())],
         FriendMutation::SetFriendInfo((address, name)) =>
-            Some(FriendReportMutation::SetFriendInfo((address.clone(), name.clone()))),
+            vec![FriendReportMutation::SetFriendInfo((address.clone(), name.clone()))],
+        FriendMutation::SetInconsistent(_) |
         FriendMutation::LocalReset(_) |
-        FriendMutation::RemoteReset(_) => 
-            Some(FriendReportMutation::SetChannelStatus(
-                    create_channel_status_report::<A>(&friend_after.channel_status))),
+        FriendMutation::RemoteReset(_) => {
+            let channel_status_report = create_channel_status_report::<A>(&friend_after.channel_status);
+            let set_channel_status = FriendReportMutation::SetChannelStatus(channel_status_report);
+            let set_last_incoming_move_token = FriendReportMutation::SetOptLastIncomingMoveToken(
+                friend_after.channel_status.get_last_incoming_move_token().clone());
+            vec![set_channel_status, set_last_incoming_move_token]
+        },
     }
 }
+
+// TODO: How to add liveness mutation?
 
 /// Convert a FunderMutation to FunderReportMutation
 /// FunderReportMutation are simpler than FunderMutations. They do not require reading the current
@@ -245,16 +251,19 @@ pub fn create_friend_report_mutation<A: Clone + 'static>(friend_mutation: &Frien
 ///
 /// In the future if we simplify Funder's mutations, we might be able discard the `funder_state`
 /// argument here.
-pub fn create_funder_report_mutation<A: Clone + 'static>(funder_mutation: &FunderMutation<A>,
-                                           funder_state: &FunderState<A>) -> Option<FunderReportMutation<A>> {
+pub fn create_funder_report_mutations<A: Clone + 'static>(funder_mutation: &FunderMutation<A>,
+                                           funder_state: &FunderState<A>) -> Vec<FunderReportMutation<A>> {
 
     let mut funder_state_after = funder_state.clone();
     funder_state_after.mutate(funder_mutation);
     match funder_mutation {
         FunderMutation::FriendMutation((public_key, friend_mutation)) => {
             let friend = funder_state.friends.get(public_key).unwrap();
-            let friend_report_mutation = create_friend_report_mutation(&friend_mutation, &friend)?;
-            Some(FunderReportMutation::FriendReportMutation((public_key.clone(), friend_report_mutation)))
+            create_friend_report_mutations(&friend_mutation, &friend)
+                .into_iter()
+                .map(|friend_report_mutation| 
+                     FunderReportMutation::FriendReportMutation((public_key.clone(), friend_report_mutation)))
+                .collect::<Vec<_>>()
         },
         FunderMutation::AddFriend(add_friend) => {
             let friend_after = funder_state_after.friends.get(&add_friend.friend_public_key).unwrap();
@@ -265,23 +274,23 @@ pub fn create_funder_report_mutation<A: Clone + 'static>(funder_mutation: &Funde
                 balance: add_friend.balance.clone(), // Initial balance
                 channel_status: create_channel_status_report::<A>(&friend_after.channel_status),
             };
-            Some(FunderReportMutation::AddFriend(add_friend_report))
+            vec![FunderReportMutation::AddFriend(add_friend_report)]
         },
         FunderMutation::RemoveFriend(friend_public_key) => {
-            Some(FunderReportMutation::RemoveFriend(friend_public_key.clone()))
+            vec![FunderReportMutation::RemoveFriend(friend_public_key.clone())]
         },
         FunderMutation::AddReceipt((_uid, _receipt)) => {
             if funder_state_after.ready_receipts.len() != funder_state.ready_receipts.len() {
-                Some(FunderReportMutation::SetNumReadyReceipts(usize_to_u64(funder_state.ready_receipts.len()).unwrap()))
+                vec![FunderReportMutation::SetNumReadyReceipts(usize_to_u64(funder_state.ready_receipts.len()).unwrap())]
             } else {
-                None
+                Vec::new()
             }
         },
         FunderMutation::RemoveReceipt(_uid) => {
             if funder_state_after.ready_receipts.len() != funder_state.ready_receipts.len() {
-                Some(FunderReportMutation::SetNumReadyReceipts(usize_to_u64(funder_state.ready_receipts.len()).unwrap()))
+                vec![FunderReportMutation::SetNumReadyReceipts(usize_to_u64(funder_state.ready_receipts.len()).unwrap())]
             } else {
-                None
+                Vec::new()
             }
         },
     }
