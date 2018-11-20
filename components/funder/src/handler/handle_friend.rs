@@ -242,19 +242,21 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
         match self.find_request_origin(&response_send_funds.request_id).cloned() {
             None => {
                 // We are the origin of this request, and we got a response.
-                // We should pass it back to crypter.
-
-
+                // We provide a receipt to the user:
                 let receipt = prepare_receipt(&response_send_funds,
                                               &pending_request);
 
-                let response_send_funds_result = ResponseSendFundsResult::Success(receipt);
+                let response_send_funds_result = ResponseSendFundsResult::Success(receipt.clone());
                 self.add_outgoing_control(FunderOutgoingControl::ResponseReceived(
                     ResponseReceived {
-                        request_id: pending_request.request_id,
+                        request_id: pending_request.request_id.clone(),
                         result: response_send_funds_result,
                     }
                 ));
+                // We make our own copy of the receipt, in case the user abruptly crashes.
+                // In that case the user will be able to obtain the receipt again later.
+                let funder_mutation = FunderMutation::AddReceipt((pending_request.request_id, receipt));
+                self.apply_funder_mutation(funder_mutation);
             },
             Some(friend_public_key) => {
                 // Queue this response message to another token channel:
