@@ -141,8 +141,6 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
         let m_mutation = FunderMutation::AddFriend(add_friend.clone());
         self.apply_funder_mutation(m_mutation);
-        self.enable_friend(&add_friend.friend_public_key,
-                           &add_friend.address);
 
         Ok(())
     }
