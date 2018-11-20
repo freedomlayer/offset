@@ -8,6 +8,7 @@ pub struct Ephemeral {
     pub liveness: Liveness,
 }
 
+#[derive(Debug)]
 pub enum EphemeralMutation {
     LivenessMutation(LivenessMutation),
     FreezeGuardMutation(FreezeGuardMutation),
