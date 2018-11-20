@@ -260,8 +260,8 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
                 // Queue this response message to another token channel:
                 let response_op = ResponseOp::Response(response_send_funds);
                 let friend_mutation = FriendMutation::PushBackPendingResponse(response_op);
-                let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-                self.apply_funder_mutation(messenger_mutation);
+                let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+                self.apply_funder_mutation(funder_mutation);
                 await!(self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed));
             },
         }
