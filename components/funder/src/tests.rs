@@ -14,7 +14,7 @@ use crypto::test_utils::DummyRandom;
 use identity::{create_identity, IdentityClient};
 
 use crate::state::{FunderState, FunderMutation};
-use crate::funder::{inner_funder_loop, FunderEvent};
+use crate::funder::inner_funder_loop;
 use crate::types::{FunderOutgoingComm, IncomingCommMessage, 
     ChannelerConfig, FunderOutgoingControl, IncomingControlMessage,
     IncomingLivenessMessage, AddFriend, ResponseReceived, FriendStatus,
@@ -22,13 +22,12 @@ use crate::types::{FunderOutgoingComm, IncomingCommMessage,
 use crate::database::AtomicDb;
 use crate::report::{FunderReport, FunderReportMutation, FriendLivenessReport};
 
-
+const CHANNEL_SIZE: usize = 64;
 
 #[derive(Debug)]
-struct Node<A> {
+struct Node {
     friends: HashSet<PublicKey>,
     comm_out: mpsc::Sender<IncomingCommMessage>,
-    event_receiver: mpsc::Receiver<FunderEvent<A>>,
 }
 
 #[derive(Debug)]
@@ -36,7 +35,6 @@ struct NewNode<A> {
     public_key: PublicKey,
     comm_in: mpsc::Receiver<FunderOutgoingComm<A>>,
     comm_out: mpsc::Sender<IncomingCommMessage>,
-    event_receiver: mpsc::Receiver<FunderEvent<A>>,
 }
 
 #[derive(Debug)]
@@ -45,7 +43,7 @@ enum RouterEvent<A> {
     OutgoingComm((PublicKey, FunderOutgoingComm<A>)), // (src_public_key, outgoing_comm)
 }
 
-async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, Node<A>>, 
+async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, Node>, 
                                         src_public_key: PublicKey,
                                         outgoing_comm: FunderOutgoingComm<A>) {
     match outgoing_comm {
@@ -54,7 +52,6 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
             assert!(node.friends.contains(&src_public_key));
             let incoming_comm_message = IncomingCommMessage::Friend((src_public_key.clone(), friend_message));
             await!(node.comm_out.send(incoming_comm_message)).unwrap();
-            await!(node.event_receiver.next()).unwrap();
         },
         FunderOutgoingComm::ChannelerConfig(channeler_config) => {
             match channeler_config {
@@ -70,12 +67,10 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
                         let incoming_comm_message = IncomingCommMessage::Liveness(
                             IncomingLivenessMessage::Online(src_public_key.clone()));
                         await!(remote_node_comm_out.send(incoming_comm_message)).unwrap();
-                        await!(nodes.get_mut(&friend_public_key).unwrap().event_receiver.next()).unwrap();
 
                         let incoming_comm_message = IncomingCommMessage::Liveness(
                             IncomingLivenessMessage::Online(friend_public_key.clone()));
                         await!(comm_out.send(incoming_comm_message)).unwrap();
-                        await!(nodes.get_mut(&src_public_key).unwrap().event_receiver.next()).unwrap();
                     }
                 },
                 ChannelerConfig::RemoveFriend(friend_public_key) => {
@@ -87,7 +82,6 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
                         let incoming_comm_message = IncomingCommMessage::Liveness(
                             IncomingLivenessMessage::Offline(friend_public_key.clone()));
                         await!(comm_out.send(incoming_comm_message)).unwrap();
-                        await!(nodes.get_mut(&friend_public_key).unwrap().event_receiver.next()).unwrap();
                     }
                 },
             }
@@ -98,9 +92,8 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
 /// A future that forwards communication between nodes. Used for testing.
 /// Simulates the Channeler interface
 async fn router<A: Send + 'static + std::fmt::Debug>(incoming_new_node: mpsc::Receiver<NewNode<A>>, 
-                                                     mut spawner: impl Spawn + Clone,
-                                                     mut event_sender: mpsc::Sender<()>) {
-    let mut nodes: HashMap<PublicKey, Node<A>> = HashMap::new();
+                                                     mut spawner: impl Spawn + Clone) {
+    let mut nodes: HashMap<PublicKey, Node> = HashMap::new();
     let (comm_sender, comm_receiver) = mpsc::channel::<(PublicKey, FunderOutgoingComm<A>)>(0);
 
     let incoming_new_node = incoming_new_node
@@ -111,11 +104,10 @@ async fn router<A: Send + 'static + std::fmt::Debug>(incoming_new_node: mpsc::Re
     let mut events = incoming_new_node.select(comm_receiver);
 
     while let Some(event) = await!(events.next()) {
-        // println!("\n--------\nRouter: event = {:?}", event);
         match event {
             RouterEvent::NewNode(new_node) => {
-                let NewNode {public_key, comm_in, comm_out, event_receiver} = new_node;
-                nodes.insert(public_key.clone(), Node { friends: HashSet::new(), comm_out, event_receiver});
+                let NewNode {public_key, comm_in, comm_out} = new_node;
+                nodes.insert(public_key.clone(), Node { friends: HashSet::new(), comm_out});
 
                 let c_public_key = public_key.clone();
                 let mut c_comm_sender = comm_sender.clone();
@@ -130,8 +122,6 @@ async fn router<A: Send + 'static + std::fmt::Debug>(incoming_new_node: mpsc::Re
                 await!(router_handle_outgoing_comm(&mut nodes, src_public_key, outgoing_comm));
             }
         };
-        await!(event_sender.send(())).unwrap();
-        // println!("Router: Done event");
     }
 }
 
@@ -202,14 +192,13 @@ impl<A: Clone> NodeControl<A> {
 /// This allows having a conversation between any two nodes.
 async fn create_node_controls<A>(num_nodes: usize, 
                               mut spawner: impl Spawn + Clone + Send + 'static) 
-                                -> (mpsc::Receiver<()>, Vec<NodeControl<A>>)
+                                -> Vec<NodeControl<A>>
 where 
     A: Serialize + DeserializeOwned + Send + Sync + Clone + std::fmt::Debug + 'static,
 {
 
-    let (event_sender, event_receiver) = mpsc::channel(0);
     let (mut send_new_node, recv_new_node) = mpsc::channel::<NewNode<A>>(0);
-    spawner.spawn(router(recv_new_node, spawner.clone(), event_sender)).unwrap();
+    spawner.spawn(router(recv_new_node, spawner.clone())).unwrap();
 
     // Avoid problems with casting to u8:
     assert!(num_nodes < 256);
@@ -229,13 +218,11 @@ where
 
         let mock_db = MockDb::<A>::new(funder_state);
 
-        let (send_control, incoming_control) = mpsc::channel(0);
-        let (control_sender, mut recv_control) = mpsc::channel(0);
+        let (send_control, incoming_control) = mpsc::channel(CHANNEL_SIZE);
+        let (control_sender, mut recv_control) = mpsc::channel(CHANNEL_SIZE);
 
-        let (send_comm, incoming_comm) = mpsc::channel(0);
-        let (comm_sender, recv_comm) = mpsc::channel(0);
-
-        let (event_sender, mut event_receiver) = mpsc::channel(0);
+        let (send_comm, incoming_comm) = mpsc::channel(CHANNEL_SIZE);
+        let (comm_sender, recv_comm) = mpsc::channel(CHANNEL_SIZE);
 
         let funder_fut = inner_funder_loop(
             identity_client.clone(),
@@ -245,11 +232,10 @@ where
             control_sender,
             comm_sender,
             mock_db,
-            Some(event_sender));
+            None);
 
         spawner.spawn(funder_fut.then(|_| future::ready(()))).unwrap();
 
-        await!(event_receiver.next()).unwrap();
         let base_report = match await!(recv_control.next()).unwrap() {
             FunderOutgoingControl::Report(report) => report,
             _ => unreachable!(),
@@ -259,7 +245,6 @@ where
             public_key: public_key.clone(),
             comm_in: recv_comm,
             comm_out: send_comm,
-            event_receiver,
         };
         await!(send_new_node.send(new_node)).unwrap();
 
@@ -270,12 +255,12 @@ where
             report: base_report,
         });
     }
-    (event_receiver, node_controls)
+    node_controls
 }
 
 async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     let num_nodes = 2;
-    let (mut event_receiver, mut node_controls) = await!(create_node_controls(num_nodes, spawner));
+    let mut node_controls = await!(create_node_controls(num_nodes, spawner));
 
     // --------------
     assert_eq!(node_controls[0].report.friends.len(), 0);
@@ -287,7 +272,6 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     };
     await!(node_controls[0].send(IncomingControlMessage::AddFriend(add_friend))).unwrap();
     await!(node_controls[0].recv()).unwrap();
-    await!(event_receiver.next()).unwrap();
     assert_eq!(node_controls[0].report.friends.len(), 1);
 
     // --------------
@@ -301,7 +285,6 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
 
     await!(node_controls[1].send(IncomingControlMessage::AddFriend(add_friend))).unwrap();
     await!(node_controls[1].recv()).unwrap();
-    await!(event_receiver.next()).unwrap();
 
     assert_eq!(node_controls[1].report.friends.len(), 1);
 
@@ -312,7 +295,6 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     };
     await!(node_controls[0].send(IncomingControlMessage::SetFriendStatus(set_friend_status))).unwrap();
     await!(node_controls[0].recv()).unwrap();
-    await!(event_receiver.next()).unwrap();
 
     // --------------
     let set_friend_status = SetFriendStatus {
@@ -321,8 +303,6 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     };
     await!(node_controls[1].send(IncomingControlMessage::SetFriendStatus(set_friend_status))).unwrap();
     await!(node_controls[1].recv()).unwrap();
-    await!(event_receiver.next()).unwrap();
-    await!(event_receiver.next()).unwrap();
     await!(node_controls[0].recv()).unwrap();
     await!(node_controls[1].recv()).unwrap();
 
