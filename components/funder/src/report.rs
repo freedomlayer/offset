@@ -293,14 +293,14 @@ pub fn funder_mutation_to_report_mutations<A: Clone + 'static>(funder_mutation: 
         },
         FunderMutation::AddReceipt((_uid, _receipt)) => {
             if funder_state_after.ready_receipts.len() != funder_state.ready_receipts.len() {
-                vec![FunderReportMutation::SetNumReadyReceipts(usize_to_u64(funder_state.ready_receipts.len()).unwrap())]
+                vec![FunderReportMutation::SetNumReadyReceipts(usize_to_u64(funder_state_after.ready_receipts.len()).unwrap())]
             } else {
                 Vec::new()
             }
         },
         FunderMutation::RemoveReceipt(_uid) => {
             if funder_state_after.ready_receipts.len() != funder_state.ready_receipts.len() {
-                vec![FunderReportMutation::SetNumReadyReceipts(usize_to_u64(funder_state.ready_receipts.len()).unwrap())]
+                vec![FunderReportMutation::SetNumReadyReceipts(usize_to_u64(funder_state_after.ready_receipts.len()).unwrap())]
             } else {
                 Vec::new()
             }
