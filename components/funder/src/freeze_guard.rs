@@ -38,6 +38,7 @@ pub struct FreezeGuard {
     //                         ^ B                 
 }
 
+#[derive(Debug)]
 pub enum FreezeGuardMutation {
     AddFrozenCredit((FriendsRoute, u128)), // (friends_route, dest_payment)
     SubFrozenCredit((FriendsRoute, u128)), // (friends_route, dest_payment)
