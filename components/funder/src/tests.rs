@@ -22,6 +22,11 @@ use crate::types::{FunderOutgoingComm, IncomingCommMessage,
 use crate::database::AtomicDb;
 use crate::report::{FunderReport, FunderReportMutation, FriendLivenessReport};
 
+// This is required to make sure the tests are not stuck.
+//
+// We could instead have CHANNEL_SIZE = 0 with some kind of (event_sender, event_receiver) pair, to make
+// sure an asynchronous event was fully processed before continuing with the next one, but this
+// approach makes tests difficult to write.
 const CHANNEL_SIZE: usize = 64;
 
 #[derive(Debug)]
