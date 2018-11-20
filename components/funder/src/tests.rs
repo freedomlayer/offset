@@ -22,7 +22,8 @@ use crate::types::{FunderOutgoingComm, IncomingCommMessage,
     IncomingLivenessMessage, AddFriend, ResponseReceived, FriendStatus,
     SetFriendStatus, RequestsStatus, SetRequestsStatus,
     SetFriendRemoteMaxDebt, FriendsRoute, UserRequestSendFunds,
-    InvoiceId, INVOICE_ID_LEN, ResponseSendFundsResult};
+    InvoiceId, INVOICE_ID_LEN, ResponseSendFundsResult,
+    ReceiptAck};
 use crate::database::AtomicDb;
 use crate::report::{FunderReport, FunderReportMutation, FriendLivenessReport,
                     ChannelStatusReport};
@@ -435,10 +436,6 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     await!(node_controls[1].recv_until(pred));
 
     // Send credits 0 --> 1
-    let set_requests_status = SetRequestsStatus {
-        friend_public_key: node_controls[1].public_key.clone(),
-        status: RequestsStatus::Open,
-    };
     let user_request_send_funds = UserRequestSendFunds {
         request_id: Uid::from(&[3; UID_LEN]),
         route: FriendsRoute { public_keys: vec![
@@ -456,8 +453,30 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
         ResponseSendFundsResult::Success(send_funds_receipt) => send_funds_receipt,
     };
 
-    // await!(node_controls[0].send(IncomingControlMessage::ReceiptAck(user_request_send_funds))).unwrap();
-    // let response_received = await!(node_controls[0].recv_until_response()).unwrap();
+    let receipt_ack = ReceiptAck {
+        request_id: Uid::from(&[3; UID_LEN]),
+        receipt_signature: receipt.signature.clone(),
+    };
+    await!(node_controls[0].send(IncomingControlMessage::ReceiptAck(receipt_ack))).unwrap();
+
+    let pred = |report: &FunderReport<_>| report.num_ready_receipts == 0;
+    await!(node_controls[0].recv_until(pred));
+
+    // Verify expected balances:
+    let friend = node_controls[0].report.friends.get(&pk1).unwrap();
+    let tc_report = match &friend.channel_status {
+       ChannelStatusReport::Consistent(tc_report) => tc_report,
+       _ => unreachable!(),
+    };
+    // TODO: Fix problem here. Why is the balance not 3?
+    assert_eq!(tc_report.balance.balance, 3);
+
+    let friend = node_controls[1].report.friends.get(&pk0).unwrap();
+    let tc_report = match &friend.channel_status {
+       ChannelStatusReport::Consistent(tc_report) => tc_report,
+       _ => unreachable!(),
+    };
+    assert_eq!(tc_report.balance.balance, -3);
 }
 
 #[test]
