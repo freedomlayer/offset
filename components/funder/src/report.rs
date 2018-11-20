@@ -369,7 +369,7 @@ impl<A: Clone> FriendReport<A> {
 
 impl<A: Clone> FunderReport<A> {
     #[allow(unused)]
-    fn mutate(&mut self, mutation: &FunderReportMutation<A>) -> Result<(), ReportMutateError> {
+    pub fn mutate(&mut self, mutation: &FunderReportMutation<A>) -> Result<(), ReportMutateError> {
         match mutation {
             FunderReportMutation::AddFriend(add_friend_report) => {
                 let friend_report = FriendReport {
