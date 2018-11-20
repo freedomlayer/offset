@@ -18,7 +18,7 @@ use crate::funder::inner_funder_loop;
 use crate::types::{FunderOutgoingComm, IncomingCommMessage, 
     ChannelerConfig, FunderOutgoingControl, IncomingControlMessage,
     IncomingLivenessMessage, AddFriend, ResponseReceived, FriendStatus,
-    SetFriendStatus};
+    SetFriendStatus, RequestsStatus, SetRequestsStatus};
 use crate::database::AtomicDb;
 use crate::report::{FunderReport, FunderReportMutation, FriendLivenessReport};
 
@@ -323,6 +323,25 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     } else {
         unreachable!();
     }
+
+    // --------
+    let set_requests_status = SetRequestsStatus {
+        friend_public_key: node_controls[1].public_key.clone(),
+        status: RequestsStatus::Open,
+    };
+    await!(node_controls[0].send(IncomingControlMessage::SetRequestsStatus(set_requests_status))).unwrap();
+
+    // --------
+    let set_requests_status = SetRequestsStatus {
+        friend_public_key: node_controls[0].public_key.clone(),
+        status: RequestsStatus::Open,
+    };
+    await!(node_controls[1].send(IncomingControlMessage::SetRequestsStatus(set_requests_status))).unwrap();
+
+    await!(node_controls[0].recv()).unwrap();
+    await!(node_controls[1].recv()).unwrap();
+    await!(node_controls[0].recv()).unwrap();
+    await!(node_controls[1].recv()).unwrap();
 
 }
 
