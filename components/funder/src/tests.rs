@@ -326,11 +326,19 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     await!(node_controls[0].recv()).unwrap();
     await!(node_controls[1].recv()).unwrap();
 
+    // Both sides should be online:
     let friend_report1 = node_controls[1].report.friends.get(&node_controls[0].public_key).unwrap();
     if let FriendLivenessReport::Online = friend_report1.liveness {
     } else {
         unreachable!();
     }
+
+    let friend_report0 = node_controls[0].report.friends.get(&node_controls[1].public_key).unwrap();
+    if let FriendLivenessReport::Online = friend_report0.liveness {
+    } else {
+        unreachable!();
+    }
+
 }
 
 #[test]
