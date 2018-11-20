@@ -14,19 +14,21 @@ use crypto::test_utils::DummyRandom;
 use identity::{create_identity, IdentityClient};
 
 use crate::state::{FunderState, FunderMutation};
-use crate::funder::funder_loop;
+use crate::funder::{inner_funder_loop, FunderEvent};
 use crate::types::{FunderOutgoingComm, IncomingCommMessage, 
     ChannelerConfig, FunderOutgoingControl, IncomingControlMessage,
-    IncomingLivenessMessage, AddFriend, ResponseReceived};
+    IncomingLivenessMessage, AddFriend, ResponseReceived, FriendStatus,
+    SetFriendStatus};
 use crate::database::AtomicDb;
-use crate::report::FunderReport;
+use crate::report::{FunderReport, FunderReportMutation, FriendLivenessReport};
 
 
 
 #[derive(Debug)]
-struct Node {
+struct Node<A> {
     friends: HashSet<PublicKey>,
     comm_out: mpsc::Sender<IncomingCommMessage>,
+    event_receiver: mpsc::Receiver<FunderEvent<A>>,
 }
 
 #[derive(Debug)]
@@ -34,6 +36,7 @@ struct NewNode<A> {
     public_key: PublicKey,
     comm_in: mpsc::Receiver<FunderOutgoingComm<A>>,
     comm_out: mpsc::Sender<IncomingCommMessage>,
+    event_receiver: mpsc::Receiver<FunderEvent<A>>,
 }
 
 #[derive(Debug)]
@@ -42,16 +45,16 @@ enum RouterEvent<A> {
     OutgoingComm((PublicKey, FunderOutgoingComm<A>)), // (src_public_key, outgoing_comm)
 }
 
-async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, Node>, 
+async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, Node<A>>, 
                                         src_public_key: PublicKey,
                                         outgoing_comm: FunderOutgoingComm<A>) {
-
     match outgoing_comm {
         FunderOutgoingComm::FriendMessage((dest_public_key, friend_message)) => {
-            let node = nodes.get_mut(&src_public_key).unwrap();
-            assert!(node.friends.contains(&dest_public_key));
+            let node = nodes.get_mut(&dest_public_key).unwrap();
+            assert!(node.friends.contains(&src_public_key));
             let incoming_comm_message = IncomingCommMessage::Friend((src_public_key.clone(), friend_message));
             await!(node.comm_out.send(incoming_comm_message)).unwrap();
+            await!(node.event_receiver.next()).unwrap();
         },
         FunderOutgoingComm::ChannelerConfig(channeler_config) => {
             match channeler_config {
@@ -61,16 +64,18 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
                     let mut comm_out = node.comm_out.clone();
 
                     let remote_node = nodes.get(&friend_public_key).unwrap();
+                    let mut remote_node_comm_out = remote_node.comm_out.clone();
                     if remote_node.friends.contains(&src_public_key) {
                         // If there is a match, notify both sides about online state:
                         let incoming_comm_message = IncomingCommMessage::Liveness(
-                            IncomingLivenessMessage::Online(friend_public_key.clone()));
-                        await!(comm_out.send(incoming_comm_message)).unwrap();
-
-                        let mut remote_node_comm_out = remote_node.comm_out.clone();
-                        let incoming_comm_message = IncomingCommMessage::Liveness(
                             IncomingLivenessMessage::Online(src_public_key.clone()));
                         await!(remote_node_comm_out.send(incoming_comm_message)).unwrap();
+                        await!(nodes.get_mut(&friend_public_key).unwrap().event_receiver.next()).unwrap();
+
+                        let incoming_comm_message = IncomingCommMessage::Liveness(
+                            IncomingLivenessMessage::Online(friend_public_key.clone()));
+                        await!(comm_out.send(incoming_comm_message)).unwrap();
+                        await!(nodes.get_mut(&src_public_key).unwrap().event_receiver.next()).unwrap();
                     }
                 },
                 ChannelerConfig::RemoveFriend(friend_public_key) => {
@@ -82,6 +87,7 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
                         let incoming_comm_message = IncomingCommMessage::Liveness(
                             IncomingLivenessMessage::Offline(friend_public_key.clone()));
                         await!(comm_out.send(incoming_comm_message)).unwrap();
+                        await!(nodes.get_mut(&friend_public_key).unwrap().event_receiver.next()).unwrap();
                     }
                 },
             }
@@ -91,8 +97,10 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
 
 /// A future that forwards communication between nodes. Used for testing.
 /// Simulates the Channeler interface
-async fn router<A: Send + 'static + std::fmt::Debug>(incoming_new_node: mpsc::Receiver<NewNode<A>>, mut spawner: impl Spawn + Clone) {
-    let mut nodes: HashMap<PublicKey, Node> = HashMap::new();
+async fn router<A: Send + 'static + std::fmt::Debug>(incoming_new_node: mpsc::Receiver<NewNode<A>>, 
+                                                     mut spawner: impl Spawn + Clone,
+                                                     mut event_sender: mpsc::Sender<()>) {
+    let mut nodes: HashMap<PublicKey, Node<A>> = HashMap::new();
     let (comm_sender, comm_receiver) = mpsc::channel::<(PublicKey, FunderOutgoingComm<A>)>(0);
 
     let incoming_new_node = incoming_new_node
@@ -103,24 +111,27 @@ async fn router<A: Send + 'static + std::fmt::Debug>(incoming_new_node: mpsc::Re
     let mut events = incoming_new_node.select(comm_receiver);
 
     while let Some(event) = await!(events.next()) {
+        // println!("\n--------\nRouter: event = {:?}", event);
         match event {
             RouterEvent::NewNode(new_node) => {
-                let NewNode {public_key, comm_in, comm_out} = new_node;
-                nodes.insert(public_key.clone(), Node { friends: HashSet::new(), comm_out });
+                let NewNode {public_key, comm_in, comm_out, event_receiver} = new_node;
+                nodes.insert(public_key.clone(), Node { friends: HashSet::new(), comm_out, event_receiver});
 
                 let c_public_key = public_key.clone();
                 let mut c_comm_sender = comm_sender.clone();
-                let mut mapped_comm_in = comm_in.map(move |funder_outgoing_comm| 
+                let mut mapped_comm_in = comm_in.map(move |funder_outgoing_comm|
                                                  (c_public_key.clone(), funder_outgoing_comm));
                 let fut = async move {
-                    await!(c_comm_sender.send_all(&mut mapped_comm_in))
+                    await!(c_comm_sender.send_all(&mut mapped_comm_in)).unwrap()
                 };
                 spawner.spawn(fut.then(|_| future::ready(()))).unwrap();
             },
             RouterEvent::OutgoingComm((src_public_key, outgoing_comm)) => {
-                router_handle_outgoing_comm(&mut nodes, src_public_key, outgoing_comm);
+                await!(router_handle_outgoing_comm(&mut nodes, src_public_key, outgoing_comm));
             }
-        }
+        };
+        await!(event_sender.send(())).unwrap();
+        // println!("Router: Done event");
     }
 }
 
@@ -128,13 +139,13 @@ struct MockDb<A: Clone> {
     state: FunderState<A>,
 }
 
-impl<A: Clone> MockDb<A> {
+impl<A: Clone + std::fmt::Debug> MockDb<A> {
     fn new(state: FunderState<A>) -> MockDb<A> {
         MockDb { state }
     }
 }
 
-impl<A: Clone + 'static> AtomicDb for MockDb<A> {
+impl<A: Clone + 'static + std::fmt::Debug> AtomicDb for MockDb<A> {
     type State = FunderState<A>;
     type Mutation = FunderMutation<A>;
     type Error = ();
@@ -158,8 +169,9 @@ struct NodeControl<A: Clone> {
     report: FunderReport<A>,
 }
 
-enum NodeRecv {
-    ReportMutations,
+#[derive(Debug)]
+enum NodeRecv<A> {
+    ReportMutations(Vec<FunderReportMutation<A>>),
     ResponseReceived(ResponseReceived),
 }
 
@@ -170,15 +182,15 @@ impl<A: Clone> NodeControl<A> {
             .map(|_| ())
     }
 
-    async fn recv(&mut self) -> Option<NodeRecv> {
+    async fn recv(&mut self) -> Option<NodeRecv<A>> {
         let funder_outgoing_control = await!(self.recv_control.next())?;
         match funder_outgoing_control {
             FunderOutgoingControl::Report(_) => unreachable!(),
             FunderOutgoingControl::ReportMutations(mutations) => {
-                for mutation in mutations {
+                for mutation in &mutations {
                     self.report.mutate(&mutation).unwrap();
                 }
-                Some(NodeRecv::ReportMutations)
+                Some(NodeRecv::ReportMutations(mutations))
             },
             FunderOutgoingControl::ResponseReceived(response_received) =>
                 Some(NodeRecv::ResponseReceived(response_received)),
@@ -190,13 +202,14 @@ impl<A: Clone> NodeControl<A> {
 /// This allows having a conversation between any two nodes.
 async fn create_node_controls<A>(num_nodes: usize, 
                               mut spawner: impl Spawn + Clone + Send + 'static) 
-                                -> Vec<NodeControl<A>> 
+                                -> (mpsc::Receiver<()>, Vec<NodeControl<A>>)
 where 
     A: Serialize + DeserializeOwned + Send + Sync + Clone + std::fmt::Debug + 'static,
 {
 
+    let (event_sender, event_receiver) = mpsc::channel(0);
     let (mut send_new_node, recv_new_node) = mpsc::channel::<NewNode<A>>(0);
-    spawner.spawn(router(recv_new_node, spawner.clone())).unwrap();
+    spawner.spawn(router(recv_new_node, spawner.clone(), event_sender)).unwrap();
 
     // Avoid problems with casting to u8:
     assert!(num_nodes < 256);
@@ -222,28 +235,33 @@ where
         let (send_comm, incoming_comm) = mpsc::channel(0);
         let (comm_sender, recv_comm) = mpsc::channel(0);
 
-        let funder_fut = funder_loop(
+        let (event_sender, mut event_receiver) = mpsc::channel(0);
+
+        let funder_fut = inner_funder_loop(
             identity_client.clone(),
             DummyRandom::new(&[i as u8]),
             incoming_control,
             incoming_comm,
             control_sender,
             comm_sender,
-            mock_db);
+            mock_db,
+            Some(event_sender));
 
         spawner.spawn(funder_fut.then(|_| future::ready(()))).unwrap();
+
+        await!(event_receiver.next()).unwrap();
+        let base_report = match await!(recv_control.next()).unwrap() {
+            FunderOutgoingControl::Report(report) => report,
+            _ => unreachable!(),
+        };
 
         let new_node = NewNode {
             public_key: public_key.clone(),
             comm_in: recv_comm,
             comm_out: send_comm,
+            event_receiver,
         };
-
         await!(send_new_node.send(new_node)).unwrap();
-        let base_report = match await!(recv_control.next()).unwrap() {
-            FunderOutgoingControl::Report(report) => report,
-            _ => unreachable!(),
-        };
 
         node_controls.push(NodeControl {
             public_key: await!(identity_client.request_public_key()).unwrap(),
@@ -252,25 +270,67 @@ where
             report: base_report,
         });
     }
-    node_controls
+    (event_receiver, node_controls)
 }
 
 async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
-    let num_nodes = 5;
-    let mut node_controls = await!(create_node_controls(num_nodes, spawner));
+    let num_nodes = 2;
+    let (mut event_receiver, mut node_controls) = await!(create_node_controls(num_nodes, spawner));
 
+    // --------------
+    assert_eq!(node_controls[0].report.friends.len(), 0);
     let add_friend = AddFriend {
         friend_public_key: node_controls[1].public_key.clone(),
         address: 1u32,
         name: "node1".into(),
         balance: 8, 
     };
-
-
-    await!(node_controls[0].send(IncomingControlMessage::AddFriend(add_friend)));
+    await!(node_controls[0].send(IncomingControlMessage::AddFriend(add_friend))).unwrap();
     await!(node_controls[0].recv()).unwrap();
+    await!(event_receiver.next()).unwrap();
     assert_eq!(node_controls[0].report.friends.len(), 1);
 
+    // --------------
+    assert_eq!(node_controls[1].report.friends.len(), 0);
+    let add_friend = AddFriend {
+        friend_public_key: node_controls[0].public_key.clone(),
+        address: 0u32,
+        name: "node0".into(),
+        balance: -8, 
+    };
+
+    await!(node_controls[1].send(IncomingControlMessage::AddFriend(add_friend))).unwrap();
+    await!(node_controls[1].recv()).unwrap();
+    await!(event_receiver.next()).unwrap();
+
+    assert_eq!(node_controls[1].report.friends.len(), 1);
+
+    // --------------
+    let set_friend_status = SetFriendStatus {
+        friend_public_key: node_controls[1].public_key.clone(),
+        status: FriendStatus::Enable,
+    };
+    await!(node_controls[0].send(IncomingControlMessage::SetFriendStatus(set_friend_status))).unwrap();
+    await!(node_controls[0].recv()).unwrap();
+    await!(event_receiver.next()).unwrap();
+
+    // --------------
+    let set_friend_status = SetFriendStatus {
+        friend_public_key: node_controls[0].public_key.clone(),
+        status: FriendStatus::Enable,
+    };
+    await!(node_controls[1].send(IncomingControlMessage::SetFriendStatus(set_friend_status))).unwrap();
+    await!(node_controls[1].recv()).unwrap();
+    await!(event_receiver.next()).unwrap();
+    await!(event_receiver.next()).unwrap();
+    await!(node_controls[0].recv()).unwrap();
+    await!(node_controls[1].recv()).unwrap();
+
+    let friend_report1 = node_controls[1].report.friends.get(&node_controls[0].public_key).unwrap();
+    if let FriendLivenessReport::Online = friend_report1.liveness {
+    } else {
+        unreachable!();
+    }
 }
 
 #[test]

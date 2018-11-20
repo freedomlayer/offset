@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use crypto::crypto_rand::CryptoRandom;
 
 use crate::handler::MutableFunderHandler;
@@ -8,7 +9,7 @@ use crate::report::create_report;
 
 
 #[allow(unused)]
-impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
+impl<A: Clone + Debug + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
 
     pub fn handle_init(&mut self) {
         let mut enabled_friends = Vec::new();

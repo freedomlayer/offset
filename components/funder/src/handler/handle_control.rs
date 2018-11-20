@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
@@ -35,7 +37,7 @@ pub enum HandleControlError {
 
 
 #[allow(unused)]
-impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
+impl<A:Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
     async fn control_set_friend_remote_max_debt(&mut self, 
                                             set_friend_remote_max_debt: SetFriendRemoteMaxDebt) 
@@ -370,7 +372,6 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
     pub async fn handle_control_message(&mut self, 
                                   funder_config: IncomingControlMessage<A>) 
         -> Result<(), HandleControlError> {
-
 
         match funder_config {
             IncomingControlMessage::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) => {

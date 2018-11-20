@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crypto::identity::{PublicKey, Signature};
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
@@ -16,7 +18,7 @@ use crate::freeze_guard::FreezeGuardMutation;
 
 
 #[allow(unused)]
-impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
+impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
     /// Create a (signed) failure message for a given request_id.
     /// We are the reporting_public_key for this failure message.

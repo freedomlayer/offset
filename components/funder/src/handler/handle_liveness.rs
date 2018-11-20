@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use crypto::crypto_rand::CryptoRandom;
 
 use crate::handler::MutableFunderHandler;
@@ -16,7 +17,7 @@ pub enum HandleLivenessError {
 }
 
 #[allow(unused)]
-impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
+impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
     pub async fn handle_liveness_message(&mut self, 
                                   liveness_message: IncomingLivenessMessage) 

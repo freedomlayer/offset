@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
@@ -51,7 +52,7 @@ impl OperationsBatch {
 
 
 
-impl<A: Clone + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
+impl<A: Clone + Debug + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
     /// Queue as many messages as possible into available token channel.
     fn queue_outgoing_operations(&mut self,
                            remote_public_key: &PublicKey,

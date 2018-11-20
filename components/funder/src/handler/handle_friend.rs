@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use byteorder::{BigEndian, WriteBytesExt};
 
 use crypto::crypto_rand::{RandValue, CryptoRandom};
@@ -87,7 +88,7 @@ pub async fn get_reset_terms(token_channel: &TokenChannel,
 
 
 #[allow(unused)]
-impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
+impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
     /// Check if channel reset is required (Remove side used the RESET token)
     /// If so, reset the channel.
