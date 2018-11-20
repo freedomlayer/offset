@@ -1,5 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+
 use futures::channel::mpsc;
 use futures::executor::ThreadPool;
 use futures::task::{Spawn, SpawnExt};
@@ -10,10 +13,15 @@ use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair,
 use crypto::test_utils::DummyRandom;
 use identity::{create_identity, IdentityClient};
 
+use crate::state::{FunderState, FunderMutation};
 use crate::funder::funder_loop;
 use crate::types::{FunderOutgoingComm, IncomingCommMessage, 
     ChannelerConfig, FunderOutgoingControl, IncomingControlMessage,
-    IncomingLivenessMessage};
+    IncomingLivenessMessage, AddFriend, ResponseReceived};
+use crate::database::AtomicDb;
+use crate::report::FunderReport;
+
+
 
 #[derive(Debug)]
 struct Node {
@@ -66,7 +74,7 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
 
 /// A future that forwards communication between nodes. Used for testing.
 /// Simulates the Channeler interface
-async fn router<A: Send + 'static>(incoming_new_node: mpsc::Receiver<NewNode<A>>, mut spawner: impl Spawn + Clone) {
+async fn router<A: Send + 'static + std::fmt::Debug>(incoming_new_node: mpsc::Receiver<NewNode<A>>, mut spawner: impl Spawn + Clone) {
     let mut nodes: HashMap<PublicKey, Node> = HashMap::new();
     let (comm_sender, comm_receiver) = mpsc::channel::<(PublicKey, FunderOutgoingComm<A>)>(0);
 
@@ -99,70 +107,157 @@ async fn router<A: Send + 'static>(incoming_new_node: mpsc::Receiver<NewNode<A>>
     }
 }
 
-struct NodeControl<A: Clone> {
-    public_key: PublicKey,
-    send_control: mpsc::Sender<IncomingControlMessage<A>>,
-    recv_control: mpsc::Receiver<FunderOutgoingControl<A>>,
+struct MockDb<A: Clone> {
+    state: FunderState<A>,
 }
 
-async fn task_funder_basic(identity_clients: Vec<IdentityClient>, 
-                           mut spawner: impl Spawn + Clone + Send + 'static) {
-    let (send_new_node, recv_new_node) = mpsc::channel::<NewNode<u32>>(0);
-    spawner.spawn(router(recv_new_node, spawner.clone()));
+impl<A: Clone> MockDb<A> {
+    fn new(state: FunderState<A>) -> MockDb<A> {
+        MockDb { state }
+    }
+}
 
-    // TODO: 
-    // Create a mock in memory atomic_db type.
+impl<A: Clone + 'static> AtomicDb for MockDb<A> {
+    type State = FunderState<A>;
+    type Mutation = FunderMutation<A>;
+    type Error = ();
 
-    /*
-    let (send_control, incoming_control) = mpsc::channel(0);
-    let (control_sender, recv_control) = mpsc::channel(0);
+    fn get_state(&self) -> &FunderState<A> {
+        &self.state
+    }
 
+    fn mutate(&mut self, mutations: Vec<FunderMutation<A>>) -> Result<(), ()> {
+        for mutation in mutations {
+            self.state.mutate(&mutation);
+        }
+        Ok(())
+    }
+}
 
-    let node_controls = Vec::new();
+struct NodeControl<A: Clone> {
+    pub public_key: PublicKey,
+    send_control: mpsc::Sender<IncomingControlMessage<A>>,
+    recv_control: mpsc::Receiver<FunderOutgoingControl<A>>,
+    report: FunderReport<A>,
+}
+
+enum NodeRecv {
+    ReportMutations,
+    ResponseReceived(ResponseReceived),
+}
+
+impl<A: Clone> NodeControl<A> {
+    async fn send(&mut self, msg: IncomingControlMessage<A>) -> Option<()> {
+        await!(self.send_control.send(msg))
+            .ok()
+            .map(|_| ())
+    }
+
+    async fn recv(&mut self) -> Option<NodeRecv> {
+        let funder_outgoing_control = await!(self.recv_control.next())?;
+        match funder_outgoing_control {
+            FunderOutgoingControl::Report(_) => unreachable!(),
+            FunderOutgoingControl::ReportMutations(mutations) => {
+                for mutation in mutations {
+                    self.report.mutate(&mutation).unwrap();
+                }
+                Some(NodeRecv::ReportMutations)
+            },
+            FunderOutgoingControl::ResponseReceived(response_received) =>
+                Some(NodeRecv::ResponseReceived(response_received)),
+        }
+    }
+}
+
+/// Create a few node_controls, together with a router connecting them all.
+/// This allows having a conversation between any two nodes.
+async fn create_node_controls<A>(num_nodes: usize, 
+                              mut spawner: impl Spawn + Clone + Send + 'static) 
+                                -> Vec<NodeControl<A>> 
+where 
+    A: Serialize + DeserializeOwned + Send + Sync + Clone + std::fmt::Debug + 'static,
+{
+
+    let (mut send_new_node, recv_new_node) = mpsc::channel::<NewNode<A>>(0);
+    spawner.spawn(router(recv_new_node, spawner.clone())).unwrap();
 
     // Avoid problems with casting to u8:
-    assert!(identity_clients.len() < 256);
+    assert!(num_nodes < 256);
+    let mut node_controls: Vec<NodeControl<A>> = Vec::new();
 
-    for i in 0 .. identity_clients.len() {
+    for i in 0 .. num_nodes {
+        let rng = DummyRandom::new(&[i as u8]);
+        let pkcs8 = generate_pkcs8_key_pair(&rng);
+        let identity1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        let (requests_sender, identity_server) = create_identity(identity1);
+        let identity_client = IdentityClient::new(requests_sender);
+        spawner.spawn(identity_server.then(|_| future::ready(()))).unwrap();
+
+
+        let public_key = await!(identity_client.request_public_key()).unwrap();
+        let funder_state = FunderState::new(&public_key);
+
+        let mock_db = MockDb::<A>::new(funder_state);
+
+        let (send_control, incoming_control) = mpsc::channel(0);
+        let (control_sender, mut recv_control) = mpsc::channel(0);
+
         let (send_comm, incoming_comm) = mpsc::channel(0);
         let (comm_sender, recv_comm) = mpsc::channel(0);
 
         let funder_fut = funder_loop(
-            identity_client[i].clone(),
+            identity_client.clone(),
             DummyRandom::new(&[i as u8]),
             incoming_control,
             incoming_comm,
             control_sender,
             comm_sender,
-            atomic_db);
+            mock_db);
 
-        // Add back when we know what to do with db_core.
+        spawner.spawn(funder_fut.then(|_| future::ready(()))).unwrap();
+
+        let new_node = NewNode {
+            public_key: public_key.clone(),
+            comm_in: recv_comm,
+            comm_out: send_comm,
+        };
+
+        await!(send_new_node.send(new_node)).unwrap();
+        let base_report = match await!(recv_control.next()).unwrap() {
+            FunderOutgoingControl::Report(report) => report,
+            _ => unreachable!(),
+        };
 
         node_controls.push(NodeControl {
-            public_key: await!(identity_clients[i].request_public_key()).unwrap(),
+            public_key: await!(identity_client.request_public_key()).unwrap(),
             send_control,
             recv_control,
+            report: base_report,
         });
     }
-    */
+    node_controls
+}
+
+async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
+    let num_nodes = 5;
+    let mut node_controls = await!(create_node_controls(num_nodes, spawner));
+
+    let add_friend = AddFriend {
+        friend_public_key: node_controls[1].public_key.clone(),
+        address: 1u32,
+        name: "node1".into(),
+        balance: 8, 
+    };
+
+
+    await!(node_controls[0].send(IncomingControlMessage::AddFriend(add_friend)));
+    await!(node_controls[0].recv()).unwrap();
+    assert_eq!(node_controls[0].report.friends.len(), 1);
 
 }
 
 #[test]
 fn test_funder_basic() {
     let mut thread_pool = ThreadPool::new().unwrap();
-
-    let mut identity_clients = Vec::new();
-
-    for i in 0 .. 6u8 {
-        let rng = DummyRandom::new(&[i]);
-        let pkcs8 = generate_pkcs8_key_pair(&rng);
-        let identity1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
-        let (requests_sender, identity_server) = create_identity(identity1);
-        let identity_client = IdentityClient::new(requests_sender);
-        thread_pool.spawn(identity_server.then(|_| future::ready(()))).unwrap();
-        identity_clients.push(identity_client);
-    }
-
-    thread_pool.run(task_funder_basic(identity_clients, thread_pool.clone()));
+    thread_pool.run(task_funder_basic(thread_pool.clone()));
 }
