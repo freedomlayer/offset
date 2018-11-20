@@ -7,13 +7,13 @@ use super::super::friend::{FriendMutation, ChannelStatus};
 use super::super::state::{FunderMutation};
 use super::{MutableFunderHandler, 
     MAX_MOVE_TOKEN_LENGTH};
-use super::super::messages::ResponseSendFundsResult;
 use super::super::types::{FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel,
     SetFriendInfo, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
     ReceiptAck, FriendMoveToken, IncomingControlMessage,
     FriendTcOp, ResponseReceived,
-    ChannelerConfig, FunderOutgoingComm, FunderOutgoingControl};
+    ChannelerConfig, FunderOutgoingComm, FunderOutgoingControl,
+    ResponseSendFundsResult};
 use super::sender::SendMode;
 
 // TODO: Should be an argument of the Funder:

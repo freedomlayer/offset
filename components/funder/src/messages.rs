@@ -6,7 +6,7 @@ use crypto::identity::PublicKey;
 use super::types::{UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel,
     SetFriendInfo, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
-    SendFundsReceipt};
+    ResponseSendFundsResult};
 
 
 
@@ -35,11 +35,6 @@ pub enum FriendEvent {
 }
 */
 
-#[derive(Debug)]
-pub enum ResponseSendFundsResult {
-    Success(SendFundsReceipt),
-    Failure(PublicKey), // Reporting public key.
-}
 
 pub struct CtrlResponseSendFunds {
     pub result: ResponseSendFundsResult,

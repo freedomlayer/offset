@@ -17,7 +17,7 @@ pub enum DirectionReport {
     Outgoing,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FriendLivenessReport {
     Online,
     Offline,

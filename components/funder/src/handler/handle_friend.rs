@@ -19,14 +19,14 @@ use crate::types::{RequestSendFunds, ResponseSendFunds,
     PendingFriendRequest,
     FriendMessage, ResponseReceived, ResetTerms,
     FunderOutgoingComm,
-    FunderOutgoingControl};
+    FunderOutgoingControl,
+    ResponseSendFundsResult};
 
 use crate::state::FunderMutation;
 use crate::friend::{FriendMutation, 
     ResponseOp, ChannelStatus, ChannelInconsistent};
 
 use crate::signature_buff::{create_response_signature_buffer, prepare_receipt};
-use crate::messages::ResponseSendFundsResult;
 
 use crate::ephemeral::EphemeralMutation;
 use crate::freeze_guard::FreezeGuardMutation;
@@ -446,6 +446,7 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
                                              token_wanted));
             },
             Err(receive_move_token_error) => {
+                println!("!!!! {:?}", receive_move_token_error);
                 await!(self.handle_move_token_error(remote_public_key,
                                              receive_move_token_error));
             },

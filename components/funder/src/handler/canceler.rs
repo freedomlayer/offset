@@ -6,11 +6,11 @@ use crypto::crypto_rand::{RandValue, CryptoRandom};
 use crate::handler::MutableFunderHandler;
 
 use crate::types::{RequestSendFunds, FailureSendFunds, PendingFriendRequest,
-                            ResponseReceived, FunderOutgoingControl};
+                            ResponseReceived, FunderOutgoingControl,
+                            ResponseSendFundsResult};
 use crate::signature_buff::{create_failure_signature_buffer};
 use crate::friend::{FriendMutation, ResponseOp, ChannelStatus};
 use crate::state::FunderMutation;
-use crate::messages::ResponseSendFundsResult;
 use super::sender::SendMode;
 
 use crate::ephemeral::EphemeralMutation;

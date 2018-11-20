@@ -11,8 +11,6 @@ use crypto::hash;
 use crypto::hash::{HashResult, sha_512_256};
 
 use identity::IdentityClient;
-
-use super::messages::ResponseSendFundsResult;
 use super::report::{FunderReport, FunderReportMutation};
 
 // Prefix used for chain hashing of token channel funds.
@@ -32,7 +30,7 @@ define_fixed_bytes!(InvoiceId, INVOICE_ID_LEN);
 // struct ChannelToken(Signature);
 
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum FriendStatus {
     Enable = 1,
     Disable = 0,
@@ -570,6 +568,12 @@ pub enum FriendMessage {
     InconsistencyError(ResetTerms),
 }
 
+
+#[derive(Debug)]
+pub enum ResponseSendFundsResult {
+    Success(SendFundsReceipt),
+    Failure(PublicKey), // Reporting public key.
+}
 
 #[derive(Debug)]
 pub struct ResponseReceived {
