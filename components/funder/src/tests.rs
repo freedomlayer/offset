@@ -46,9 +46,9 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
                                         src_public_key: PublicKey,
                                         outgoing_comm: FunderOutgoingComm<A>) {
 
-    let node = nodes.get_mut(&src_public_key).unwrap();
     match outgoing_comm {
         FunderOutgoingComm::FriendMessage((dest_public_key, friend_message)) => {
+            let node = nodes.get_mut(&src_public_key).unwrap();
             assert!(node.friends.contains(&dest_public_key));
             let incoming_comm_message = IncomingCommMessage::Friend((src_public_key.clone(), friend_message));
             await!(node.comm_out.send(incoming_comm_message)).unwrap();
@@ -56,16 +56,33 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
         FunderOutgoingComm::ChannelerConfig(channeler_config) => {
             match channeler_config {
                 ChannelerConfig::AddFriend((friend_public_key, _address)) => {
+                    let node = nodes.get_mut(&src_public_key).unwrap();
                     assert!(node.friends.insert(friend_public_key.clone()));
-                    let incoming_comm_message = IncomingCommMessage::Liveness(
-                        IncomingLivenessMessage::Online(friend_public_key.clone()));
-                    await!(node.comm_out.send(incoming_comm_message)).unwrap();
+                    let mut comm_out = node.comm_out.clone();
+
+                    let remote_node = nodes.get(&friend_public_key).unwrap();
+                    if remote_node.friends.contains(&src_public_key) {
+                        // If there is a match, notify both sides about online state:
+                        let incoming_comm_message = IncomingCommMessage::Liveness(
+                            IncomingLivenessMessage::Online(friend_public_key.clone()));
+                        await!(comm_out.send(incoming_comm_message)).unwrap();
+
+                        let mut remote_node_comm_out = remote_node.comm_out.clone();
+                        let incoming_comm_message = IncomingCommMessage::Liveness(
+                            IncomingLivenessMessage::Online(src_public_key.clone()));
+                        await!(remote_node_comm_out.send(incoming_comm_message)).unwrap();
+                    }
                 },
                 ChannelerConfig::RemoveFriend(friend_public_key) => {
+                    let node = nodes.get_mut(&src_public_key).unwrap();
                     assert!(node.friends.remove(&friend_public_key));
-                    let incoming_comm_message = IncomingCommMessage::Liveness(
-                        IncomingLivenessMessage::Offline(friend_public_key.clone()));
-                    await!(node.comm_out.send(incoming_comm_message)).unwrap();
+                    let mut comm_out = node.comm_out.clone();
+
+                    if nodes.get(&friend_public_key).unwrap().friends.contains(&src_public_key) {
+                        let incoming_comm_message = IncomingCommMessage::Liveness(
+                            IncomingLivenessMessage::Offline(friend_public_key.clone()));
+                        await!(comm_out.send(incoming_comm_message)).unwrap();
+                    }
                 },
             }
         },
