@@ -324,6 +324,7 @@ impl TcIncoming {
     fn handle_incoming(&self, 
                         new_move_token: FriendMoveToken) 
         -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
+
         // We compare the whole move token message and not just the signature (new_token)
         // because we don't check the signature in this flow.
         if &self.move_token_in == &new_move_token.create_hashed() {
@@ -369,16 +370,6 @@ impl TcOutgoing {
                         new_move_token: FriendMoveToken) 
         -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
 
-        // Verify signature:
-        // Note that we only verify the signature here, and not at the Incoming part.
-        // This allows the genesis move token to occur smoothly, even though its signature
-        // is not correct.
-        let remote_public_key = &self.mutual_credit.state().idents.remote_public_key;
-        if !new_move_token.verify(remote_public_key) {
-            return Err(ReceiveMoveTokenError::InvalidSignature);
-        }
-
-        // let friend_move_token = &tc_outgoing.move_token_out;
         if &new_move_token.old_token == &self.move_token_out.new_token {
             self.handle_incoming_token_match(new_move_token)
             // self.outgoing_to_incoming(friend_move_token, new_move_token)
@@ -393,6 +384,15 @@ impl TcOutgoing {
     fn handle_incoming_token_match(&self,
                                    new_move_token: FriendMoveToken)
         -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
+
+        // Verify signature:
+        // Note that we only verify the signature here, and not at the Incoming part.
+        // This allows the genesis move token to occur smoothly, even though its signature
+        // is not correct.
+        let remote_public_key = &self.mutual_credit.state().idents.remote_public_key;
+        if !new_move_token.verify(remote_public_key) {
+            return Err(ReceiveMoveTokenError::InvalidSignature);
+        }
     
         // Verify counters:
         if new_move_token.inconsistency_counter != self.move_token_out.inconsistency_counter {
