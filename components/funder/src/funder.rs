@@ -100,9 +100,11 @@ where
             },
         };
 
-        // Send mutations to database:
-        await!(db_runner.mutate(handler_output.funder_mutations))
-            .map_err(FunderError::DbRunnerError)?;
+        if !handler_output.funder_mutations.is_empty() {
+            // If there are any mutations, send them to the database:
+            await!(db_runner.mutate(handler_output.funder_mutations))
+                .map_err(FunderError::DbRunnerError)?;
+        }
         
         // Apply ephemeral mutations to our ephemeral:
         for mutation in &handler_output.ephemeral_mutations {
