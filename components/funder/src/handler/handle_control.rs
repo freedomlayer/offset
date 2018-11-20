@@ -30,6 +30,7 @@ pub enum HandleControlError {
     RequestAlreadyInProgress,
     PendingUserRequestsFull,
     ReceiptDoesNotExist,
+    ReceiptSignatureMismatch,
     UserRequestInvalid,
     FriendNotReady,
     BlockedByFreezeGuard,
@@ -359,9 +360,16 @@ impl<A:Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler<
     fn control_receipt_ack(&mut self, receipt_ack: ReceiptAck) 
         -> Result<(), HandleControlError> {
 
-        if !self.state.ready_receipts.contains_key(&receipt_ack.request_id) {
-            return Err(HandleControlError::ReceiptDoesNotExist);
+        let receipt = self.state.ready_receipts.get(&receipt_ack.request_id)
+            .ok_or(HandleControlError::ReceiptDoesNotExist)?;
+
+        // Make sure that the provided signature matches the one we have at the ready receipt.
+        // We do this to make sure the user doesn't send a receipt ack before he actually got the
+        // receipt (The user can not predit the receipt_signature ahead of time)
+        if receipt_ack.receipt_signature != receipt.signature {
+            return Err(HandleControlError::ReceiptSignatureMismatch);
         }
+
         let m_mutation = FunderMutation::RemoveReceipt(receipt_ack.request_id);
         self.apply_funder_mutation(m_mutation);
 

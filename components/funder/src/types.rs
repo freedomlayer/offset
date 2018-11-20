@@ -497,7 +497,7 @@ pub struct SetRequestsStatus {
 #[derive(Debug, Clone)]
 pub struct ReceiptAck {
     pub request_id: Uid,
-    pub receipt_hash: HashResult,
+    pub receipt_signature: Signature,
 }
 
 #[derive(Debug, Clone)]
