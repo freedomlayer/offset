@@ -13,13 +13,15 @@ use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair};
 use crypto::crypto_rand::{RngContainer, CryptoRandom};
 use crypto::uid::{Uid, UID_LEN};
 
+use proto::funder::messages::{FriendMessage, FriendsRoute, 
+    InvoiceId, INVOICE_ID_LEN};
+
 use crate::token_channel::{is_public_key_lower};
 
 use crate::types::{FunderIncoming, FunderIncomingControl, 
     AddFriend, IncomingLivenessMessage, FriendStatus,
-    SetFriendStatus, FriendMessage, SetFriendRemoteMaxDebt,
-    FriendsRoute, UserRequestSendFunds, InvoiceId, INVOICE_ID_LEN, 
-    SetRequestsStatus, RequestsStatus};
+    SetFriendStatus, SetFriendRemoteMaxDebt,
+    UserRequestSendFunds, SetRequestsStatus, RequestsStatus};
 
 
 /// A helper function. Applies an incoming funder message, updating state and ephemeral

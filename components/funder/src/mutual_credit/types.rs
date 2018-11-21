@@ -2,16 +2,11 @@ use std::cmp;
 
 use im::hashmap::HashMap as ImHashMap;
 
-// use num_bigint::BigUint;
-
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
-
-
 use utils::safe_arithmetic::SafeSignedArithmetic;
 
-use super::super::types::PendingFriendRequest;
-use super::super::types::RequestsStatus;
+use crate::types::{PendingFriendRequest, RequestsStatus};
 
 /// The maximum possible funder debt.
 /// We don't use the full u128 because i128 can not go beyond this value.

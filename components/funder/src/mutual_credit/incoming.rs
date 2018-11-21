@@ -3,11 +3,12 @@ use crypto::identity::verify_signature;
 use utils::int_convert::usize_to_u32;
 use utils::safe_arithmetic::SafeSignedArithmetic;
 
-use super::super::types::{ResponseSendFunds, FailureSendFunds, RequestSendFunds,
-                          FriendTcOp, PendingFriendRequest, RequestsStatus};
+use proto::funder::messages::{RequestSendFunds, ResponseSendFunds, FailureSendFunds,
+    FriendTcOp};
+use crate::types::{PendingFriendRequest, RequestsStatus, create_pending_request};
 
-use super::super::credit_calc::CreditCalculator;
-use super::super::signature_buff::{create_response_signature_buffer, 
+use crate::credit_calc::CreditCalculator;
+use crate::signature_buff::{create_response_signature_buffer, 
     verify_failure_signature};
 
 use super::types::{MutualCredit, MAX_FUNDER_DEBT, McMutation};
@@ -228,7 +229,7 @@ fn process_request_send_funds(mutual_credit: &mut MutualCredit,
     }
 
     // Add pending request funds:
-    let pending_friend_request = request_send_funds.create_pending_request();
+    let pending_friend_request = create_pending_request(&request_send_funds);
 
     let mut op_output = ProcessOperationOutput {
         incoming_message: Some(IncomingMessage::Request(request_send_funds)),

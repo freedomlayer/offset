@@ -2,11 +2,12 @@ use std::fmt::Debug;
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
+use proto::funder::messages::{FriendTcOp, FriendMessage};
+
 use super::{MutableFunderHandler, MAX_MOVE_TOKEN_LENGTH};
 
 use crate::state::{FunderMutation};
-use crate::types::{FriendTcOp, 
-    RequestsStatus, FriendMessage, FunderOutgoingComm};
+use crate::types::{RequestsStatus, FunderOutgoingComm, create_pending_request};
 use crate::mutual_credit::outgoing::{QueueOperationFailure};
 
 use crate::friend::{FriendMutation, ResponseOp, ChannelStatus};
@@ -189,7 +190,7 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
         // Update freeze guard about outgoing requests:
         for operation in &operations {
             if let FriendTcOp::RequestSendFunds(request_send_funds) = operation {
-                let pending_request = &request_send_funds.create_pending_request();
+                let pending_request = &create_pending_request(&request_send_funds);
 
                 let freeze_guard_mutation = FreezeGuardMutation::AddFrozenCredit(
                     (pending_request.route.clone(), pending_request.dest_payment));

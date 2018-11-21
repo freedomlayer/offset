@@ -3,17 +3,19 @@ use std::fmt::Debug;
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
-use super::super::friend::{FriendMutation, ChannelStatus};
-use super::super::state::{FunderMutation};
+use proto::funder::messages::FriendTcOp;
+
+use crate::friend::{FriendMutation, ChannelStatus};
+use crate::state::{FunderMutation};
 use super::{MutableFunderHandler, 
     MAX_MOVE_TOKEN_LENGTH};
-use super::super::types::{FriendStatus, UserRequestSendFunds,
+use crate::types::{FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel,
     SetFriendInfo, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
-    ReceiptAck, FriendMoveToken, FunderIncomingControl,
-    FriendTcOp, ResponseReceived,
+    ReceiptAck, FunderIncomingControl,
+    ResponseReceived,
     ChannelerConfig, FunderOutgoingComm, FunderOutgoingControl,
-    ResponseSendFundsResult};
+    ResponseSendFundsResult, create_friend_move_token};
 use super::sender::SendMode;
 
 // TODO: Should be an argument of the Funder:
@@ -93,8 +95,7 @@ impl<A:Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler<
 
         let local_pending_debt = 0;
         let remote_pending_debt = 0;
-
-        let friend_move_token = await!(FriendMoveToken::new(
+        let friend_move_token = await!(create_friend_move_token(
             // No operations are required for a reset move token
             Vec::new(), 
             remote_reset_terms.reset_token.clone(),

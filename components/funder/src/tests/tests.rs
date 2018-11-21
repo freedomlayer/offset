@@ -4,9 +4,11 @@ use futures::task::Spawn;
 use crypto::identity::PublicKey;
 use crypto::uid::{Uid, UID_LEN};
 
+use proto::funder::messages::{FriendsRoute, InvoiceId, INVOICE_ID_LEN};
+
 use crate::types::{FunderIncomingControl, FriendStatus,
-    RequestsStatus, FriendsRoute, UserRequestSendFunds,
-    InvoiceId, INVOICE_ID_LEN, ResponseSendFundsResult,
+    RequestsStatus, UserRequestSendFunds,
+    ResponseSendFundsResult,
     ReceiptAck, ResetFriendChannel};
 use crate::report::{FunderReport,
                     ChannelStatusReport};

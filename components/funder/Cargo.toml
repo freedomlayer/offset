@@ -13,6 +13,7 @@ edition = "2018"
 utils = { path = "../utils", version = "0.1.0", package = "offst-utils"}
 crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto"}
 identity = { path = "../identity", version = "0.1.0", package = "offst-identity" }
+proto = { path = "../proto", version = "0.1.0", package = "offst-proto" }
 
 log = "0.4"
 pretty_env_logger = "0.2"

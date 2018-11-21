@@ -7,20 +7,21 @@ use crypto::hash::sha_512_256;
 
 use identity::IdentityClient;
 
+use proto::funder::messages::{RequestSendFunds, ResponseSendFunds,
+    FailureSendFunds, FriendMoveToken, FreezeLink, FriendMessage,
+    FriendMoveTokenRequest, ResetTerms};
 
 use crate::mutual_credit::incoming::{IncomingResponseSendFunds, 
     IncomingFailureSendFunds, IncomingMessage};
 use crate::token_channel::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
     MoveTokenReceived, TokenChannel};
 
-use crate::types::{RequestSendFunds, ResponseSendFunds, 
-    FailureSendFunds, FriendMoveToken, 
-    FreezeLink, 
-    PendingFriendRequest,
-    FriendMessage, ResponseReceived, ResetTerms,
+use crate::types::{PendingFriendRequest,
+    ResponseReceived,
     FunderOutgoingComm,
     FunderOutgoingControl,
-    ResponseSendFundsResult};
+    ResponseSendFundsResult,
+    create_pending_request};
 
 use crate::state::FunderMutation;
 use crate::friend::{FriendMutation, 
@@ -31,7 +32,7 @@ use crate::signature_buff::{create_response_signature_buffer, prepare_receipt};
 use crate::ephemeral::EphemeralMutation;
 use crate::freeze_guard::FreezeGuardMutation;
 
-use super::{MutableFunderHandler, FriendMoveTokenRequest};
+use super::{MutableFunderHandler};
 use super::sender::SendMode;
 
 
@@ -163,7 +164,7 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
         };
 
         let response_signature_buffer = create_response_signature_buffer(&response_send_funds,
-                        &request_send_funds.create_pending_request());
+                        &create_pending_request(&request_send_funds));
 
         response_send_funds.signature = await!(self.identity_client.request_signature(response_signature_buffer))
             .unwrap();

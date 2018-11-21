@@ -1,10 +1,12 @@
 use std::fmt::Debug;
 use crypto::crypto_rand::CryptoRandom;
 
+use proto::funder::messages::FriendMessage;
+
 use crate::handler::MutableFunderHandler;
 use crate::friend::ChannelStatus;
 use crate::types::{IncomingLivenessMessage, FriendStatus, 
-    FriendMessage, FunderOutgoingComm};
+    FunderOutgoingComm};
 
 use crate::ephemeral::EphemeralMutation;
 use crate::liveness::LivenessMutation;

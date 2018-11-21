@@ -2,13 +2,12 @@ use im::vector::Vector;
 
 use crypto::identity::PublicKey;
 use utils::safe_arithmetic::SafeUnsignedArithmetic;
+use proto::funder::messages::{FriendMoveToken, RequestSendFunds,
+    ResponseSendFunds, FailureSendFunds, ResetTerms};
 
-use super::token_channel::TcMutation;
-use super::types::{FriendStatus, 
-    RequestsStatus, RequestSendFunds, FriendMoveToken, 
-    FriendMoveTokenHashed, ResponseSendFunds, FailureSendFunds,
-    ResetTerms};
-use super::token_channel::TokenChannel;
+use crate::token_channel::{TcMutation, TokenChannel};
+use crate::types::{FriendStatus, RequestsStatus, FriendMoveTokenHashed};
+
 
 
 

@@ -7,6 +7,8 @@ use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
 use identity::IdentityClient;
 
+use proto::funder::messages::{FriendMoveToken, FriendTcOp, FriendMoveTokenRequest};
+
 use crate::consts::MAX_OPERATIONS_IN_BATCH;
 
 use crate::mutual_credit::types::{MutualCredit, McMutation};
@@ -14,8 +16,8 @@ use crate::mutual_credit::incoming::{ProcessOperationOutput, ProcessTransListErr
     process_operations_list, IncomingMessage};
 use crate::mutual_credit::outgoing::OutgoingMc;
 
-use crate::types::{FriendMoveToken, FriendMoveTokenHashed,
-    FriendMoveTokenRequest, FriendTcOp};
+use crate::types::{FriendMoveTokenHashed, create_friend_move_token,
+                    create_hashed, verify_friend_move_token};
 
 
 #[derive(Debug)]
@@ -161,9 +163,8 @@ impl TokenChannel {
             // We are the second sender
             let tc_incoming = TcIncoming {
                 mutual_credit,
-                move_token_in: initial_move_token(remote_public_key, local_public_key, 
-                                                  balance.checked_neg().unwrap())
-                                                    .create_hashed(),
+                move_token_in: create_hashed(&initial_move_token(remote_public_key, local_public_key, 
+                                                  balance.checked_neg().unwrap())),
             };
             TokenChannel {
                 direction: TcDirection::Incoming(tc_incoming),
@@ -178,7 +179,7 @@ impl TokenChannel {
 
         let tc_incoming = TcIncoming {
             mutual_credit: MutualCredit::new(local_public_key, remote_public_key, balance),
-            move_token_in: reset_move_token.create_hashed(),
+            move_token_in: create_hashed(&reset_move_token),
         };
 
         TokenChannel {
@@ -277,7 +278,7 @@ impl TokenChannel {
     fn get_cur_move_token_hashed(&self) -> FriendMoveTokenHashed {
         match &self.direction {
             TcDirection::Incoming(tc_incoming) => tc_incoming.move_token_in.clone(),
-            TcDirection::Outgoing(tc_outgoing) => tc_outgoing.move_token_out.create_hashed(),
+            TcDirection::Outgoing(tc_outgoing) => create_hashed(&tc_outgoing.move_token_out),
         }
     }
 
@@ -330,7 +331,7 @@ impl TcIncoming {
 
         // We compare the whole move token message and not just the signature (new_token)
         // because we don't check the signature in this flow.
-        if &self.move_token_in == &new_move_token.create_hashed() {
+        if &self.move_token_in == &create_hashed(&new_move_token) {
             // Duplicate
             Ok(ReceiveMoveTokenOutput::Duplicate)
         } else {
@@ -347,7 +348,7 @@ impl TcIncoming {
         let identity_pk = await!(identity_client.request_public_key()).unwrap();
         assert_eq!(&identity_pk, &self.mutual_credit.state().idents.local_public_key);
 
-        await!(FriendMoveToken::new(
+        await!(create_friend_move_token(
             operations,
             self.move_token_in.new_token.clone(),
             self.move_token_in.inconsistency_counter,
@@ -393,7 +394,7 @@ impl TcOutgoing {
         // This allows the genesis move token to occur smoothly, even though its signature
         // is not correct.
         let remote_public_key = &self.mutual_credit.state().idents.remote_public_key;
-        if !new_move_token.verify(remote_public_key) {
+        if !verify_friend_move_token(&new_move_token, remote_public_key) {
             return Err(ReceiveMoveTokenError::InvalidSignature);
         }
     
@@ -456,7 +457,7 @@ impl TcOutgoing {
                 }
 
                 mutations.push(
-                    TcMutation::SetDirection(SetDirection::Incoming(new_move_token.create_hashed())));
+                    TcMutation::SetDirection(SetDirection::Incoming(create_hashed(&new_move_token))));
 
                 let move_token_received = MoveTokenReceived {
                     incoming_messages,
@@ -637,7 +638,7 @@ mod tests {
                     seen_set_direction = true;
                     match set_direction {
                         SetDirection::Incoming(incoming_friend_move_token) =>
-                            assert_eq!(&friend_move_token.create_hashed(), incoming_friend_move_token),
+                            assert_eq!(&create_hashed(&friend_move_token), incoming_friend_move_token),
                         _ => unreachable!(),
                     }
                 }
@@ -651,7 +652,7 @@ mod tests {
         }
 
         assert!(!tc1.is_outgoing());
-        assert_eq!(&tc1.get_cur_move_token_hashed(), &friend_move_token.create_hashed());
+        assert_eq!(&tc1.get_cur_move_token_hashed(), &create_hashed(&friend_move_token));
         assert_eq!(tc1.get_mutual_credit().state().balance.local_max_debt, 100);
 
     }

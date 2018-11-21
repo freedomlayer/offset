@@ -3,11 +3,15 @@ use std::fmt::Debug;
 use crypto::identity::{PublicKey, Signature};
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
+use proto::funder::messages::{RequestSendFunds, FailureSendFunds};
+
 use crate::handler::MutableFunderHandler;
 
-use crate::types::{RequestSendFunds, FailureSendFunds, PendingFriendRequest,
-                            ResponseReceived, FunderOutgoingControl,
-                            ResponseSendFundsResult};
+
+use crate::types::{PendingFriendRequest,
+                    ResponseReceived, FunderOutgoingControl,
+                    ResponseSendFundsResult,
+                    create_pending_request};
 use crate::signature_buff::{create_failure_signature_buffer};
 use crate::friend::{FriendMutation, ResponseOp, ChannelStatus};
 use crate::state::FunderMutation;
@@ -51,7 +55,7 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
                           remote_public_key: PublicKey,
                           request_send_funds: RequestSendFunds) {
 
-        let pending_request = request_send_funds.create_pending_request();
+        let pending_request = create_pending_request(&request_send_funds);
         let failure_send_funds = await!(self.create_failure_message(pending_request));
 
         let failure_op = ResponseOp::Failure(failure_send_funds);
@@ -132,7 +136,7 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
             let opt_origin_public_key = self.find_request_origin(&pending_request.request_id).cloned();
             let origin_public_key = match opt_origin_public_key {
                 Some(origin_public_key) => {
-                    let pending_request = pending_request.create_pending_request();
+                    let pending_request = create_pending_request(&pending_request);
                     let failure_send_funds = await!(self.create_failure_message(pending_request));
 
                     let failure_op = ResponseOp::Failure(failure_send_funds);

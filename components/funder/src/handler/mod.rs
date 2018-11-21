@@ -19,7 +19,7 @@ use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError};
 use self::handle_friend::HandleFriendError;
 use self::handle_liveness::HandleLivenessError;
-use super::types::{FriendMoveTokenRequest, FunderIncoming,
+use super::types::{FunderIncoming,
     FunderOutgoingComm, FunderOutgoingControl, FunderIncomingComm};
 use super::ephemeral::{Ephemeral, EphemeralMutation};
 use super::friend::{FriendState, ChannelStatus};
