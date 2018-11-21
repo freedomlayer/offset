@@ -139,12 +139,11 @@ async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'stati
     await!(node_controls[1].set_requests_status(&public_keys[0], RequestsStatus::Open));
     await!(node_controls[2].set_requests_status(&public_keys[1], RequestsStatus::Open));
 
-    // Wait until alive:
-    await!(node_controls[0].wait_until_alive(&public_keys[1]));
-    await!(node_controls[1].wait_until_alive(&public_keys[0]));
-    await!(node_controls[1].wait_until_alive(&public_keys[2]));
-    await!(node_controls[2].wait_until_alive(&public_keys[1]));
-
+    // Wait until route is ready (Online + Consistent + open requests)
+    // Note: We don't need the other direction to be ready, because the request is sent
+    // along the following route: 0 --> 1 --> 2
+    await!(node_controls[0].wait_until_ready(&public_keys[1]));
+    await!(node_controls[1].wait_until_ready(&public_keys[2]));
 
     // Send credits 0 --> 2
     let user_request_send_funds = UserRequestSendFunds {
