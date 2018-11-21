@@ -422,6 +422,13 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
                          remote_public_key: PublicKey,
                          friend_move_token_request: FriendMoveTokenRequest) -> Result<(),HandleFriendError> {
 
+        /*
+        println!("{}: handle_move_token_request from {}", 
+                 self.state.local_public_key[0],
+                 remote_public_key[0]);
+        println!("\n{:?}", friend_move_token_request);
+        */
+
         // Find friend:
         let friend = match self.get_friend(&remote_public_key) {
             Some(friend) => Ok(friend),
@@ -450,7 +457,7 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
                                              token_wanted));
             },
             Err(receive_move_token_error) => {
-                println!("!!!! {:?}", receive_move_token_error);
+                // println!("!!!! {:?}", receive_move_token_error);
                 await!(self.handle_move_token_error(remote_public_key,
                                              receive_move_token_error));
             },
