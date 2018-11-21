@@ -41,7 +41,6 @@ extern crate utils;
 // extern crate offst_identity as identity;
 
 
-pub mod messages;
 mod liveness;
 mod ephemeral;
 mod credit_calc;
