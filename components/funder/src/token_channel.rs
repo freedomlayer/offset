@@ -111,7 +111,9 @@ fn rand_nonce_from_public_key(public_key: &PublicKey) -> RandValue {
 /// Create an initial move token in the relationship between two public keys.
 /// To canonicalize the initial move token (Having an equal move token for both sides), we sort the
 /// two public keys in some way.
-fn initial_move_token(low_public_key: &PublicKey, high_public_key: &PublicKey) -> FriendMoveToken {
+fn initial_move_token(low_public_key: &PublicKey, 
+                      high_public_key: &PublicKey,
+                      balance: i128) -> FriendMoveToken {
     // This is a special initialization case.
     // Note that this is the only case where new_token is not a valid signature.
     // We do this because we want to have synchronization between the two sides of the token
@@ -123,7 +125,7 @@ fn initial_move_token(low_public_key: &PublicKey, high_public_key: &PublicKey) -
         old_token: token_from_public_key(&low_public_key),
         inconsistency_counter: 0, 
         move_token_counter: 0,
-        balance: 0,
+        balance,
         local_pending_debt: 0,
         remote_pending_debt: 0,
         rand_nonce,
@@ -148,7 +150,7 @@ impl TokenChannel {
             // We are the first sender
             let tc_outgoing = TcOutgoing {
                 mutual_credit,
-                move_token_out: initial_move_token(local_public_key, remote_public_key),
+                move_token_out: initial_move_token(local_public_key, remote_public_key, balance),
                 token_wanted: false,
                 opt_prev_move_token_in: None,
             };
@@ -159,8 +161,9 @@ impl TokenChannel {
             // We are the second sender
             let tc_incoming = TcIncoming {
                 mutual_credit,
-                move_token_in: initial_move_token(remote_public_key, local_public_key)
-                    .create_hashed(),
+                move_token_in: initial_move_token(remote_public_key, local_public_key, 
+                                                  balance.checked_neg().unwrap())
+                                                    .create_hashed(),
             };
             TokenChannel {
                 direction: TcDirection::Incoming(tc_incoming),
