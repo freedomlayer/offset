@@ -223,7 +223,7 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
         match verify_res {
             Some(()) => {
                 // Add our freezing link, and queue message to the next node.
-                self.forward_request(request_send_funds);
+                await!(self.forward_request(request_send_funds));
             },
             None => {
                 // Queue a failure message to this token channel:
