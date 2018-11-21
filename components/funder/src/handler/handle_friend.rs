@@ -353,15 +353,6 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
         self.add_outgoing_comm(FunderOutgoingComm::FriendMessage((remote_public_key.clone(),
                 FriendMessage::InconsistencyError(local_reset_terms.clone()))));
 
-        // Keep outgoing InconsistencyError message details in memory:
-        let channel_inconsistent = ChannelInconsistent {
-            opt_last_incoming_move_token,
-            local_reset_terms,
-            opt_remote_reset_terms: None,
-        };
-        let friend_mutation = FriendMutation::SetInconsistent(channel_inconsistent);
-        let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-        self.apply_funder_mutation(messenger_mutation);
 
 
         // Cancel all internal pending requests inside token channel:
@@ -372,6 +363,16 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
                 remote_public_key.clone()));
         await!(self.cancel_pending_user_requests(
                 remote_public_key.clone()));
+
+        // Keep outgoing InconsistencyError message details in memory:
+        let channel_inconsistent = ChannelInconsistent {
+            opt_last_incoming_move_token,
+            local_reset_terms,
+            opt_remote_reset_terms: None,
+        };
+        let friend_mutation = FriendMutation::SetInconsistent(channel_inconsistent);
+        let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+        self.apply_funder_mutation(messenger_mutation);
     }
 
 
