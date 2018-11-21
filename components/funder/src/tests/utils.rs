@@ -19,7 +19,8 @@ use crate::types::{FunderOutgoingComm, IncomingCommMessage,
     IncomingLivenessMessage, ResponseReceived, AddFriend, FriendStatus,
     SetFriendStatus, SetFriendRemoteMaxDebt, RequestsStatus, SetRequestsStatus};
 use crate::database::AtomicDb;
-use crate::report::{FunderReport, FunderReportMutation, ChannelStatusReport};
+use crate::report::{FunderReport, FunderReportMutation, ChannelStatusReport,
+                    FriendLivenessReport};
 
 // This is required to make sure the tests are not stuck.
 //
@@ -291,6 +292,18 @@ impl<A: Clone> NodeControl<A> {
                _ => return false,
            };
            tc_report.requests_status.local == requests_status
+        };
+        await!(self.recv_until(pred));
+    }
+
+    pub async fn wait_until_alive<'a>(&'a mut self, 
+                         friend_public_key: &'a PublicKey) {
+
+        let pred = |report: &FunderReport<_>| {
+           match report.friends.get(&friend_public_key) {
+               None => false,
+               Some(friend) => friend.liveness == FriendLivenessReport::Online,
+           }
         };
         await!(self.recv_until(pred));
     }
