@@ -114,11 +114,6 @@ async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'stati
         .map(|nc| nc.public_key.clone())
         .collect::<Vec<PublicKey>>();
 
-    for i in 0 .. 3 {
-        println!("public_key{}: {}", i, public_keys[i][0]);
-    }
-    println!();
-
     // Add friends:
     await!(node_controls[0].add_friend(&public_keys[1], 1u32, "node1", 8));
     await!(node_controls[1].add_friend(&public_keys[0], 0u32, "node0", -8));
