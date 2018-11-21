@@ -100,7 +100,7 @@ impl<A:Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler<
             remote_reset_terms.reset_token.clone(),
             remote_reset_terms.inconsistency_counter,
             move_token_counter,
-            remote_reset_terms.balance_for_reset,
+            remote_reset_terms.balance_for_reset.checked_neg().unwrap(),
             local_pending_debt,
             remote_pending_debt,
             rand_nonce,
