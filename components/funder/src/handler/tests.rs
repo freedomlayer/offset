@@ -15,7 +15,7 @@ use crypto::uid::{Uid, UID_LEN};
 
 use crate::token_channel::{is_public_key_lower};
 
-use crate::types::{FunderIncoming, IncomingControlMessage, 
+use crate::types::{FunderIncoming, FunderIncomingControl, 
     AddFriend, IncomingLivenessMessage, FriendStatus,
     SetFriendStatus, FriendMessage, SetFriendRemoteMaxDebt,
     FriendsRoute, UserRequestSendFunds, InvoiceId, INVOICE_ID_LEN, 
@@ -92,7 +92,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
         name: String::from("pk2"),
         balance: 0i128,
     };
-    let incoming_control_message = IncomingControlMessage::AddFriend(add_friend);
+    let incoming_control_message = FunderIncomingControl::AddFriend(add_friend);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  rng.clone(), identity_client1.clone())).unwrap();
@@ -102,7 +102,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
         friend_public_key: pk2.clone(),
         status: FriendStatus::Enable,
     };
-    let incoming_control_message = IncomingControlMessage::SetFriendStatus(set_friend_status);
+    let incoming_control_message = FunderIncomingControl::SetFriendStatus(set_friend_status);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pinned(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  rng.clone(), identity_client1.clone()))).unwrap();
@@ -114,7 +114,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
         name: String::from("pk1"),
         balance: 0i128,
     };
-    let incoming_control_message = IncomingControlMessage::AddFriend(add_friend);
+    let incoming_control_message = FunderIncomingControl::AddFriend(add_friend);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pinned(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  rng.clone(), identity_client2.clone()))).unwrap();
@@ -125,7 +125,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
         friend_public_key: pk1.clone(),
         status: FriendStatus::Enable,
     };
-    let incoming_control_message = IncomingControlMessage::SetFriendStatus(set_friend_status);
+    let incoming_control_message = FunderIncomingControl::SetFriendStatus(set_friend_status);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pinned(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  rng.clone(), identity_client2.clone()))).unwrap();
@@ -175,7 +175,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
         friend_public_key: pk2.clone(),
         remote_max_debt: 100,
     };
-    let incoming_control_message = IncomingControlMessage::SetFriendRemoteMaxDebt(set_friend_remote_max_debt);
+    let incoming_control_message = FunderIncomingControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = await!(Box::pinned(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  rng.clone(), identity_client1.clone()))).unwrap();
@@ -262,7 +262,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
         invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
         dest_payment: 20,
     };
-    let incoming_control_message = IncomingControlMessage::RequestSendFunds(user_request_send_funds);
+    let incoming_control_message = FunderIncomingControl::RequestSendFunds(user_request_send_funds);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, outgoing_control) = await!(Box::pinned(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  rng.clone(), identity_client2.clone()))).unwrap();
@@ -288,7 +288,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
         friend_public_key: pk2.clone(),
         status: RequestsStatus::Open,
     };
-    let incoming_control_message = IncomingControlMessage::SetRequestsStatus(set_requests_status);
+    let incoming_control_message = FunderIncomingControl::SetRequestsStatus(set_requests_status);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = await!(Box::pinned(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  rng.clone(), identity_client1.clone()))).unwrap();
@@ -352,7 +352,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
         invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
         dest_payment: 20,
     };
-    let incoming_control_message = IncomingControlMessage::RequestSendFunds(user_request_send_funds);
+    let incoming_control_message = FunderIncomingControl::RequestSendFunds(user_request_send_funds);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = await!(Box::pinned(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  rng.clone(), identity_client2.clone()))).unwrap();

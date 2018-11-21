@@ -13,7 +13,7 @@ use crate::ephemeral::Ephemeral;
 use crate::handler::{funder_handle_message};
 use crate::types::{FunderIncoming,
                     FunderOutgoingControl, FunderOutgoingComm,
-                    IncomingControlMessage, FunderIncomingComm};
+                    FunderIncomingControl, FunderIncomingComm};
 use crate::state::{FunderState, FunderMutation};
 use crate::database::{AtomicDb, DbRunner, DbRunnerError};
 
@@ -39,7 +39,7 @@ pub enum FunderEvent<A> {
 pub async fn inner_funder_loop<A, R, D, E>(
     identity_client: IdentityClient,
     rng: R,
-    incoming_control: mpsc::Receiver<IncomingControlMessage<A>>,
+    incoming_control: mpsc::Receiver<FunderIncomingControl<A>>,
     incoming_comm: mpsc::Receiver<FunderIncomingComm>,
     control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
     comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
@@ -135,7 +135,7 @@ where
 pub async fn funder_loop<A,R,D,E>(
     identity_client: IdentityClient,
     rng: R,
-    incoming_control: mpsc::Receiver<IncomingControlMessage<A>>,
+    incoming_control: mpsc::Receiver<FunderIncomingControl<A>>,
     incoming_comm: mpsc::Receiver<FunderIncomingComm>,
     control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
     comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,

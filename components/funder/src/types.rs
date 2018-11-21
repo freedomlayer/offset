@@ -501,7 +501,7 @@ pub struct ReceiptAck {
 }
 
 #[derive(Debug, Clone)]
-pub enum IncomingControlMessage<A> {
+pub enum FunderIncomingControl<A> {
     AddFriend(AddFriend<A>),
     RemoveFriend(RemoveFriend),
     SetRequestsStatus(SetRequestsStatus),
@@ -597,7 +597,7 @@ pub enum FunderIncomingComm {
 #[derive(Clone, Debug)]
 pub enum FunderIncoming<A> {
     Init,
-    Control(IncomingControlMessage<A>),
+    Control(FunderIncomingControl<A>),
     Comm(FunderIncomingComm),
 }
 

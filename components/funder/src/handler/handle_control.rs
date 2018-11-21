@@ -10,7 +10,7 @@ use super::{MutableFunderHandler,
 use super::super::types::{FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel,
     SetFriendInfo, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
-    ReceiptAck, FriendMoveToken, IncomingControlMessage,
+    ReceiptAck, FriendMoveToken, FunderIncomingControl,
     FriendTcOp, ResponseReceived,
     ChannelerConfig, FunderOutgoingComm, FunderOutgoingControl,
     ResponseSendFundsResult};
@@ -375,35 +375,35 @@ impl<A:Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler<
 
 
     pub async fn handle_control_message(&mut self, 
-                                  funder_config: IncomingControlMessage<A>) 
+                                  funder_config: FunderIncomingControl<A>) 
         -> Result<(), HandleControlError> {
 
         match funder_config {
-            IncomingControlMessage::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) => {
+            FunderIncomingControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) => {
                 await!(self.control_set_friend_remote_max_debt(set_friend_remote_max_debt));
             },
-            IncomingControlMessage::ResetFriendChannel(reset_friend_channel) => {
+            FunderIncomingControl::ResetFriendChannel(reset_friend_channel) => {
                 await!(self.control_reset_friend_channel(reset_friend_channel))?;
             },
-            IncomingControlMessage::AddFriend(add_friend) => {
+            FunderIncomingControl::AddFriend(add_friend) => {
                 self.control_add_friend(add_friend);
             },
-            IncomingControlMessage::RemoveFriend(remove_friend) => {
+            FunderIncomingControl::RemoveFriend(remove_friend) => {
                 await!(self.control_remove_friend(remove_friend))?;
             },
-            IncomingControlMessage::SetFriendStatus(set_friend_status) => {
+            FunderIncomingControl::SetFriendStatus(set_friend_status) => {
                 self.control_set_friend_status(set_friend_status);
             },
-            IncomingControlMessage::SetRequestsStatus(set_requests_status) => {
+            FunderIncomingControl::SetRequestsStatus(set_requests_status) => {
                 await!(self.control_set_requests_status(set_requests_status));
             },
-            IncomingControlMessage::SetFriendInfo(set_friend_info) => {
+            FunderIncomingControl::SetFriendInfo(set_friend_info) => {
                 self.control_set_friend_info(set_friend_info);
             },
-            IncomingControlMessage::RequestSendFunds(user_request_send_funds) => {
+            FunderIncomingControl::RequestSendFunds(user_request_send_funds) => {
                 await!(self.control_request_send_funds(user_request_send_funds));
             },
-            IncomingControlMessage::ReceiptAck(receipt_ack) => {
+            FunderIncomingControl::ReceiptAck(receipt_ack) => {
                 self.control_receipt_ack(receipt_ack);
             }
         };
