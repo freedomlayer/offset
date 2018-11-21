@@ -106,9 +106,6 @@ impl<A:Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler<
             rand_nonce,
             self.identity_client.clone()));
 
-        await!(self.cancel_local_pending_requests(
-            reset_friend_channel.friend_public_key.clone()));
-
         let friend_mutation = FriendMutation::LocalReset(friend_move_token.clone());
         let m_mutation = FunderMutation::FriendMutation(
             (reset_friend_channel.friend_public_key.clone(), friend_mutation));
