@@ -156,9 +156,6 @@ impl<A:Clone + Debug + 'static,R> MutableFunderHandler<A,R> {
         if !self.ephemeral.liveness.is_online(friend_public_key) {
             return false;
         }
-        if let ChannelStatus::Inconsistent(_) = friend.channel_status {
-            return false;
-        }
 
         // Make sure that the channel is consistent:
         let token_channel = match &friend.channel_status {
