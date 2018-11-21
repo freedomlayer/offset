@@ -13,7 +13,7 @@ use crate::ephemeral::Ephemeral;
 use crate::handler::{funder_handle_message};
 use crate::types::{FunderIncoming,
                     FunderOutgoingControl, FunderOutgoingComm,
-                    IncomingControlMessage, IncomingCommMessage};
+                    IncomingControlMessage, FunderIncomingComm};
 use crate::state::{FunderState, FunderMutation};
 use crate::database::{AtomicDb, DbRunner, DbRunnerError};
 
@@ -40,7 +40,7 @@ pub async fn inner_funder_loop<A, R, D, E>(
     identity_client: IdentityClient,
     rng: R,
     incoming_control: mpsc::Receiver<IncomingControlMessage<A>>,
-    incoming_comm: mpsc::Receiver<IncomingCommMessage>,
+    incoming_comm: mpsc::Receiver<FunderIncomingComm>,
     control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
     comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
     atomic_db: D,
@@ -136,7 +136,7 @@ pub async fn funder_loop<A,R,D,E>(
     identity_client: IdentityClient,
     rng: R,
     incoming_control: mpsc::Receiver<IncomingControlMessage<A>>,
-    incoming_comm: mpsc::Receiver<IncomingCommMessage>,
+    incoming_comm: mpsc::Receiver<FunderIncomingComm>,
     control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
     comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
     atomic_db: D) -> Result<(), FunderError<E>> 

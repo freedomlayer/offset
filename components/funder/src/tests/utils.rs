@@ -14,7 +14,7 @@ use identity::{create_identity, IdentityClient};
 
 use crate::state::{FunderState, FunderMutation};
 use crate::funder::inner_funder_loop;
-use crate::types::{FunderOutgoingComm, IncomingCommMessage, 
+use crate::types::{FunderOutgoingComm, FunderIncomingComm, 
     ChannelerConfig, FunderOutgoingControl, IncomingControlMessage,
     IncomingLivenessMessage, ResponseReceived, AddFriend, FriendStatus,
     SetFriendStatus, SetFriendRemoteMaxDebt, RequestsStatus, SetRequestsStatus};
@@ -32,14 +32,14 @@ const CHANNEL_SIZE: usize = 64;
 #[derive(Debug)]
 struct Node {
     friends: HashSet<PublicKey>,
-    comm_out: mpsc::Sender<IncomingCommMessage>,
+    comm_out: mpsc::Sender<FunderIncomingComm>,
 }
 
 #[derive(Debug)]
 struct NewNode<A> {
     public_key: PublicKey,
     comm_in: mpsc::Receiver<FunderOutgoingComm<A>>,
-    comm_out: mpsc::Sender<IncomingCommMessage>,
+    comm_out: mpsc::Sender<FunderIncomingComm>,
 }
 
 #[derive(Debug)]
@@ -55,7 +55,7 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
         FunderOutgoingComm::FriendMessage((dest_public_key, friend_message)) => {
             let node = nodes.get_mut(&dest_public_key).unwrap();
             assert!(node.friends.contains(&src_public_key));
-            let incoming_comm_message = IncomingCommMessage::Friend((src_public_key.clone(), friend_message));
+            let incoming_comm_message = FunderIncomingComm::Friend((src_public_key.clone(), friend_message));
             await!(node.comm_out.send(incoming_comm_message)).unwrap();
         },
         FunderOutgoingComm::ChannelerConfig(channeler_config) => {
@@ -69,11 +69,11 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
                     let mut remote_node_comm_out = remote_node.comm_out.clone();
                     if remote_node.friends.contains(&src_public_key) {
                         // If there is a match, notify both sides about online state:
-                        let incoming_comm_message = IncomingCommMessage::Liveness(
+                        let incoming_comm_message = FunderIncomingComm::Liveness(
                             IncomingLivenessMessage::Online(src_public_key.clone()));
                         await!(remote_node_comm_out.send(incoming_comm_message)).unwrap();
 
-                        let incoming_comm_message = IncomingCommMessage::Liveness(
+                        let incoming_comm_message = FunderIncomingComm::Liveness(
                             IncomingLivenessMessage::Online(friend_public_key.clone()));
                         await!(comm_out.send(incoming_comm_message)).unwrap();
                     }
@@ -84,7 +84,7 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
                     let mut comm_out = node.comm_out.clone();
 
                     if nodes.get(&friend_public_key).unwrap().friends.contains(&src_public_key) {
-                        let incoming_comm_message = IncomingCommMessage::Liveness(
+                        let incoming_comm_message = FunderIncomingComm::Liveness(
                             IncomingLivenessMessage::Offline(friend_public_key.clone()));
                         await!(comm_out.send(incoming_comm_message)).unwrap();
                     }

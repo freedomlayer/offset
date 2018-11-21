@@ -588,7 +588,7 @@ pub enum ChannelerConfig<A> {
 }
 
 #[derive(Debug, Clone)]
-pub enum IncomingCommMessage {
+pub enum FunderIncomingComm {
     Liveness(IncomingLivenessMessage),
     Friend((PublicKey, FriendMessage)),
 }
@@ -598,7 +598,7 @@ pub enum IncomingCommMessage {
 pub enum FunderIncoming<A> {
     Init,
     Control(IncomingControlMessage<A>),
-    Comm(IncomingCommMessage),
+    Comm(FunderIncomingComm),
 }
 
 #[allow(unused)]
