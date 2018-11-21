@@ -7,7 +7,7 @@ use crypto::uid::{Uid, UID_LEN};
 use crate::types::{IncomingControlMessage, FriendStatus,
     RequestsStatus, FriendsRoute, UserRequestSendFunds,
     InvoiceId, INVOICE_ID_LEN, ResponseSendFundsResult,
-    ReceiptAck};
+    ReceiptAck, ResetFriendChannel};
 use crate::report::{FunderReport,
                     ChannelStatusReport};
 use super::utils::create_node_controls;
@@ -307,6 +307,53 @@ async fn task_funder_inconsistency_basic(spawner: impl Spawn + Clone + Send + 's
     };
     await!(node_controls[0].recv_until(pred));
 
+    // Resolve inconsistency
+    // ---------------------
+
+    // Obtain reset terms:
+    let friend = node_controls[0].report.friends.get(&public_keys[1]).unwrap();
+    let channel_inconsistent_report = match &friend.channel_status {
+        ChannelStatusReport::Consistent(_) => unreachable!(),
+        ChannelStatusReport::Inconsistent(channel_inconsistent_report) => 
+            channel_inconsistent_report
+    };
+    let reset_terms_report = match &channel_inconsistent_report.opt_remote_reset_terms {
+        Some(reset_terms_report) => reset_terms_report,
+        None => unreachable!(),
+    };
+
+    let reset_friend_channel = ResetFriendChannel {
+        friend_public_key: public_keys[1].clone(),
+        current_token: reset_terms_report.reset_token.clone(), // TODO: Rename current_token to reset_token?
+    };
+    await!(node_controls[0].send(IncomingControlMessage::ResetFriendChannel(reset_friend_channel))).unwrap();
+
+    // Wait until channel is consistent with the correct balance:
+    let pred = |report: &FunderReport<_>| {
+        let friend = report.friends.get(&public_keys[1]).unwrap();
+        let tc_report = match &friend.channel_status {
+            ChannelStatusReport::Consistent(tc_report) => tc_report,
+            ChannelStatusReport::Inconsistent(_) => return false,
+        };
+        tc_report.balance.balance == 8
+    };
+    await!(node_controls[0].recv_until(pred));
+
+    // Wait until channel is consistent with the correct balance:
+    let pred = |report: &FunderReport<_>| {
+        let friend = report.friends.get(&public_keys[0]).unwrap();
+        let tc_report = match &friend.channel_status {
+            ChannelStatusReport::Consistent(tc_report) => tc_report,
+            ChannelStatusReport::Inconsistent(_) => return false,
+        };
+        tc_report.balance.balance == -8
+    };
+    await!(node_controls[1].recv_until(pred));
+
+    // Make sure that we manage to send messages over the token channel after resolving the
+    // inconsistency:
+    await!(node_controls[0].set_remote_max_debt(&public_keys[1], 200));
+    await!(node_controls[1].set_remote_max_debt(&public_keys[0], 300));
 }
 
 #[test]
