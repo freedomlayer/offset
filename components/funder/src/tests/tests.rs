@@ -193,3 +193,83 @@ fn test_funder_forward_payment() {
     let mut thread_pool = ThreadPool::new().unwrap();
     thread_pool.run(task_funder_forward_payment(thread_pool.clone()));
 }
+
+async fn task_funder_payment_failure(spawner: impl Spawn + Clone + Send + 'static) {
+    /*
+     * 0 -- 1 -- 2
+     * We will try to send payment from 0 along the route 0 -- 1 -- 2 -- 3,
+     * where 3 does not exist. We expect that node 2 will return a failure response.
+     */
+    let num_nodes = 4;
+    let mut node_controls = await!(create_node_controls(num_nodes, spawner));
+
+    // Create topology:
+    // ----------------
+    let public_keys = node_controls
+        .iter()
+        .map(|nc| nc.public_key.clone())
+        .collect::<Vec<PublicKey>>();
+
+    // Add friends:
+    await!(node_controls[0].add_friend(&public_keys[1], 1u32, "node1", 8));
+    await!(node_controls[1].add_friend(&public_keys[0], 0u32, "node0", -8));
+    await!(node_controls[1].add_friend(&public_keys[2], 2u32, "node2", 6));
+    await!(node_controls[2].add_friend(&public_keys[1], 0u32, "node0", -6));
+
+    // Enable friends:
+    await!(node_controls[0].set_friend_status(&public_keys[1], FriendStatus::Enable));
+    await!(node_controls[1].set_friend_status(&public_keys[0], FriendStatus::Enable));
+    await!(node_controls[1].set_friend_status(&public_keys[2], FriendStatus::Enable));
+    await!(node_controls[2].set_friend_status(&public_keys[1], FriendStatus::Enable));
+
+    // Set remote max debt:
+    await!(node_controls[0].set_remote_max_debt(&public_keys[1], 200));
+    await!(node_controls[1].set_remote_max_debt(&public_keys[0], 100));
+    await!(node_controls[1].set_remote_max_debt(&public_keys[2], 300));
+    await!(node_controls[2].set_remote_max_debt(&public_keys[1], 400));
+
+    // Open requests, allowing this route: 0 --> 1 --> 2
+    await!(node_controls[1].set_requests_status(&public_keys[0], RequestsStatus::Open));
+    await!(node_controls[2].set_requests_status(&public_keys[1], RequestsStatus::Open));
+
+    // Wait until route is ready (Online + Consistent + open requests)
+    // Note: We don't need the other direction to be ready, because the request is sent
+    // along the following route: 0 --> 1 --> 2
+    await!(node_controls[0].wait_until_ready(&public_keys[1]));
+    await!(node_controls[1].wait_until_ready(&public_keys[2]));
+
+
+    // Send credits 0 --> 2
+    let user_request_send_funds = UserRequestSendFunds {
+        request_id: Uid::from(&[3; UID_LEN]),
+        route: FriendsRoute { public_keys: vec![
+            public_keys[0].clone(), 
+            public_keys[1].clone(), 
+            public_keys[2].clone(),
+            public_keys[3].clone()] },
+        invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
+        dest_payment: 20,
+    };
+    await!(node_controls[0].send(IncomingControlMessage::RequestSendFunds(user_request_send_funds))).unwrap();
+    let response_received = await!(node_controls[0].recv_until_response()).unwrap();
+    assert_eq!(response_received.request_id, Uid::from(&[3; UID_LEN]));
+    let reporting_public_key = match response_received.result {
+        ResponseSendFundsResult::Failure(reporting_public_key) => reporting_public_key,
+        ResponseSendFundsResult::Success(_) => unreachable!(),
+    };
+
+    assert_eq!(reporting_public_key, public_keys[2]);
+
+    let friend = node_controls[2].report.friends.get(&public_keys[1]).unwrap();
+    let tc_report = match &friend.channel_status {
+       ChannelStatusReport::Consistent(tc_report) => tc_report,
+       _ => unreachable!(),
+    };
+    assert_eq!(tc_report.balance.balance, -6);
+}
+
+#[test]
+fn test_funder_payment_failure() {
+    let mut thread_pool = ThreadPool::new().unwrap();
+    thread_pool.run(task_funder_payment_failure(thread_pool.clone()));
+}
