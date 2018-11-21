@@ -34,8 +34,8 @@ pub struct TcReport {
 
 #[derive(Clone, Debug)]
 pub struct ResetTermsReport {
-    reset_token: Signature,
-    balance_for_reset: i128,
+    pub reset_token: Signature,
+    pub balance_for_reset: i128,
 }
 
 #[derive(Clone, Debug)]
