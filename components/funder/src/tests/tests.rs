@@ -55,9 +55,6 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     await!(node_controls[0].send(IncomingControlMessage::RequestSendFunds(user_request_send_funds))).unwrap();
     let response_received = await!(node_controls[0].recv_until_response()).unwrap();
 
-    // let pred = |report: &FunderReport<_>| report.num_ready_receipts == 1;
-    // await!(node_controls[0].recv_until(pred));
-
     assert_eq!(response_received.request_id, Uid::from(&[3; UID_LEN]));
     let receipt = match response_received.result {
         ResponseSendFundsResult::Failure(_) => unreachable!(),
@@ -273,3 +270,48 @@ fn test_funder_payment_failure() {
     let mut thread_pool = ThreadPool::new().unwrap();
     thread_pool.run(task_funder_payment_failure(thread_pool.clone()));
 }
+
+/// Test a basic inconsistency between two adjacent nodes
+async fn task_funder_inconsistency_basic(spawner: impl Spawn + Clone + Send + 'static) {
+    let num_nodes = 2;
+    let mut node_controls = await!(create_node_controls(num_nodes, spawner));
+
+    let public_keys = node_controls
+        .iter()
+        .map(|nc| nc.public_key.clone())
+        .collect::<Vec<PublicKey>>();
+
+    // We set incompatible initial balances (non zero sum) to cause an inconsistency:
+    await!(node_controls[0].add_friend(&public_keys[1], 1u32, "node1", 20));
+    await!(node_controls[1].add_friend(&public_keys[0], 0u32, "node0", -8));
+
+    await!(node_controls[0].set_friend_status(&public_keys[1], FriendStatus::Enable));
+    await!(node_controls[1].set_friend_status(&public_keys[0], FriendStatus::Enable));
+
+    // Expect inconsistency, together with reset terms:
+    let pred = |report: &FunderReport<_>| {
+        let friend = report.friends.get(&public_keys[1]).unwrap();
+        let channel_inconsistent_report = match &friend.channel_status {
+            ChannelStatusReport::Consistent(_) => return false,
+            ChannelStatusReport::Inconsistent(channel_inconsistent_report) => 
+                channel_inconsistent_report
+        };
+        if channel_inconsistent_report.local_reset_terms_balance != 20 {
+            return false;
+        }
+        let reset_terms_report = match &channel_inconsistent_report.opt_remote_reset_terms {
+            None => return false,
+            Some(reset_terms_report) => reset_terms_report,
+        };
+        reset_terms_report.balance_for_reset == -8
+    };
+    await!(node_controls[0].recv_until(pred));
+
+}
+
+#[test]
+fn test_funder_inconsistency_basic() {
+    let mut thread_pool = ThreadPool::new().unwrap();
+    thread_pool.run(task_funder_inconsistency_basic(thread_pool.clone()));
+}
+
