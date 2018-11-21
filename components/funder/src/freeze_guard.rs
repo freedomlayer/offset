@@ -38,6 +38,7 @@ pub struct FreezeGuard {
     //                         ^ B                 
 }
 
+#[derive(Debug)]
 pub enum FreezeGuardMutation {
     AddFrozenCredit((FriendsRoute, u128)), // (friends_route, dest_payment)
     SubFrozenCredit((FriendsRoute, u128)), // (friends_route, dest_payment)
@@ -221,7 +222,7 @@ impl FreezeGuard {
     pub fn verify_freezing_links(&self, route: &FriendsRoute, 
                                  dest_payment: u128, 
                                  freeze_links: &[FreezeLink]) -> Option<()> {
-        assert_eq!(freeze_links.len().checked_add(1).unwrap(), route.len());
+        assert!(freeze_links.len().checked_add(1).unwrap() <= route.len());
         let my_index = route.pk_to_index(&self.local_public_key).unwrap();
         // TODO: Do we ever get here as the destination of the route?
         let next_index = my_index.checked_add(1).unwrap();

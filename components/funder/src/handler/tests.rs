@@ -1,5 +1,7 @@
 use super::*;
 
+use std::fmt::Debug;
+
 use futures::executor::ThreadPool;
 use futures::{future, FutureExt};
 use futures::task::SpawnExt;
@@ -22,7 +24,7 @@ use crate::types::{FunderIncoming, IncomingControlMessage,
 
 /// A helper function. Applies an incoming funder message, updating state and ephemeral
 /// accordingly:
-async fn apply_funder_incoming<'a,A: Clone + 'static,R: CryptoRandom + 'static>(funder_incoming: FunderIncoming<A>,
+async fn apply_funder_incoming<'a,A: Clone + Debug + 'static,R: CryptoRandom + 'static>(funder_incoming: FunderIncoming<A>,
                                state: &'a mut FunderState<A>, 
                                ephemeral: &'a mut Ephemeral, 
                                rng: R, 

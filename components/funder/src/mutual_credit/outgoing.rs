@@ -258,10 +258,12 @@ impl OutgoingMc {
         let response_signature_buffer = create_response_signature_buffer(
                                             &response_send_funds,
                                             &pending_request);
+        // The response was signed by the destination node:
+        let dest_public_key = pending_request.route.public_keys.last().unwrap();
 
         // Verify response funds signature:
         if !verify_signature(&response_signature_buffer, 
-                                 &self.mutual_credit.state().idents.local_public_key,
+                                 dest_public_key,
                                  &response_send_funds.signature) {
             return Err(QueueOperationError::InvalidResponseSignature);
         }

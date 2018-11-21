@@ -17,7 +17,7 @@ pub enum DirectionReport {
     Outgoing,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FriendLivenessReport {
     Online,
     Offline,
@@ -34,8 +34,8 @@ pub struct TcReport {
 
 #[derive(Clone, Debug)]
 pub struct ResetTermsReport {
-    reset_token: Signature,
-    balance_for_reset: i128,
+    pub reset_token: Signature,
+    pub balance_for_reset: i128,
 }
 
 #[derive(Clone, Debug)]
@@ -293,14 +293,14 @@ pub fn funder_mutation_to_report_mutations<A: Clone + 'static>(funder_mutation: 
         },
         FunderMutation::AddReceipt((_uid, _receipt)) => {
             if funder_state_after.ready_receipts.len() != funder_state.ready_receipts.len() {
-                vec![FunderReportMutation::SetNumReadyReceipts(usize_to_u64(funder_state.ready_receipts.len()).unwrap())]
+                vec![FunderReportMutation::SetNumReadyReceipts(usize_to_u64(funder_state_after.ready_receipts.len()).unwrap())]
             } else {
                 Vec::new()
             }
         },
         FunderMutation::RemoveReceipt(_uid) => {
             if funder_state_after.ready_receipts.len() != funder_state.ready_receipts.len() {
-                vec![FunderReportMutation::SetNumReadyReceipts(usize_to_u64(funder_state.ready_receipts.len()).unwrap())]
+                vec![FunderReportMutation::SetNumReadyReceipts(usize_to_u64(funder_state_after.ready_receipts.len()).unwrap())]
             } else {
                 Vec::new()
             }
@@ -369,7 +369,7 @@ impl<A: Clone> FriendReport<A> {
 
 impl<A: Clone> FunderReport<A> {
     #[allow(unused)]
-    fn mutate(&mut self, mutation: &FunderReportMutation<A>) -> Result<(), ReportMutateError> {
+    pub fn mutate(&mut self, mutation: &FunderReportMutation<A>) -> Result<(), ReportMutateError> {
         match mutation {
             FunderReportMutation::AddFriend(add_friend_report) => {
                 let friend_report = FriendReport {

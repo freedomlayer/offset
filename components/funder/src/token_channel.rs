@@ -111,7 +111,9 @@ fn rand_nonce_from_public_key(public_key: &PublicKey) -> RandValue {
 /// Create an initial move token in the relationship between two public keys.
 /// To canonicalize the initial move token (Having an equal move token for both sides), we sort the
 /// two public keys in some way.
-fn initial_move_token(low_public_key: &PublicKey, high_public_key: &PublicKey) -> FriendMoveToken {
+fn initial_move_token(low_public_key: &PublicKey, 
+                      high_public_key: &PublicKey,
+                      balance: i128) -> FriendMoveToken {
     // This is a special initialization case.
     // Note that this is the only case where new_token is not a valid signature.
     // We do this because we want to have synchronization between the two sides of the token
@@ -123,7 +125,7 @@ fn initial_move_token(low_public_key: &PublicKey, high_public_key: &PublicKey) -
         old_token: token_from_public_key(&low_public_key),
         inconsistency_counter: 0, 
         move_token_counter: 0,
-        balance: 0,
+        balance,
         local_pending_debt: 0,
         remote_pending_debt: 0,
         rand_nonce,
@@ -148,7 +150,7 @@ impl TokenChannel {
             // We are the first sender
             let tc_outgoing = TcOutgoing {
                 mutual_credit,
-                move_token_out: initial_move_token(local_public_key, remote_public_key),
+                move_token_out: initial_move_token(local_public_key, remote_public_key, balance),
                 token_wanted: false,
                 opt_prev_move_token_in: None,
             };
@@ -159,8 +161,9 @@ impl TokenChannel {
             // We are the second sender
             let tc_incoming = TcIncoming {
                 mutual_credit,
-                move_token_in: initial_move_token(remote_public_key, local_public_key)
-                    .create_hashed(),
+                move_token_in: initial_move_token(remote_public_key, local_public_key, 
+                                                  balance.checked_neg().unwrap())
+                                                    .create_hashed(),
             };
             TokenChannel {
                 direction: TcDirection::Incoming(tc_incoming),
@@ -324,6 +327,7 @@ impl TcIncoming {
     fn handle_incoming(&self, 
                         new_move_token: FriendMoveToken) 
         -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
+
         // We compare the whole move token message and not just the signature (new_token)
         // because we don't check the signature in this flow.
         if &self.move_token_in == &new_move_token.create_hashed() {
@@ -369,16 +373,6 @@ impl TcOutgoing {
                         new_move_token: FriendMoveToken) 
         -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
 
-        // Verify signature:
-        // Note that we only verify the signature here, and not at the Incoming part.
-        // This allows the genesis move token to occur smoothly, even though its signature
-        // is not correct.
-        let remote_public_key = &self.mutual_credit.state().idents.remote_public_key;
-        if !new_move_token.verify(remote_public_key) {
-            return Err(ReceiveMoveTokenError::InvalidSignature);
-        }
-
-        // let friend_move_token = &tc_outgoing.move_token_out;
         if &new_move_token.old_token == &self.move_token_out.new_token {
             self.handle_incoming_token_match(new_move_token)
             // self.outgoing_to_incoming(friend_move_token, new_move_token)
@@ -393,6 +387,15 @@ impl TcOutgoing {
     fn handle_incoming_token_match(&self,
                                    new_move_token: FriendMoveToken)
         -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
+
+        // Verify signature:
+        // Note that we only verify the signature here, and not at the Incoming part.
+        // This allows the genesis move token to occur smoothly, even though its signature
+        // is not correct.
+        let remote_public_key = &self.mutual_credit.state().idents.remote_public_key;
+        if !new_move_token.verify(remote_public_key) {
+            return Err(ReceiveMoveTokenError::InvalidSignature);
+        }
     
         // Verify counters:
         if new_move_token.inconsistency_counter != self.move_token_out.inconsistency_counter {

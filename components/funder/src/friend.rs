@@ -197,7 +197,7 @@ impl<A:Clone + 'static> FriendState<A> {
                                     &self.local_public_key,
                                     &self.remote_public_key,
                                     &reset_move_token,
-                                    remote_reset_terms.balance_for_reset,
+                                    remote_reset_terms.balance_for_reset.checked_neg().unwrap(),
                                     opt_last_incoming_move_token.clone());
                                 self.channel_status = ChannelStatus::Consistent(token_channel);
                             },

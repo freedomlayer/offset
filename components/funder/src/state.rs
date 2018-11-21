@@ -101,8 +101,8 @@ impl<A:Clone + 'static> FunderState<A> {
         }
     }
 
-    pub fn mutate(&mut self, messenger_mutation: &FunderMutation<A>) {
-        match messenger_mutation {
+    pub fn mutate(&mut self, funder_mutation: &FunderMutation<A>) {
+        match funder_mutation {
             FunderMutation::FriendMutation((public_key, friend_mutation)) => {
                 let friend = self.friends.get_mut(&public_key).unwrap();
                 friend.mutate(friend_mutation);

@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
@@ -5,13 +7,13 @@ use super::super::friend::{FriendMutation, ChannelStatus};
 use super::super::state::{FunderMutation};
 use super::{MutableFunderHandler, 
     MAX_MOVE_TOKEN_LENGTH};
-use super::super::messages::ResponseSendFundsResult;
 use super::super::types::{FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel,
     SetFriendInfo, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
     ReceiptAck, FriendMoveToken, IncomingControlMessage,
     FriendTcOp, ResponseReceived,
-    ChannelerConfig, FunderOutgoingComm, FunderOutgoingControl};
+    ChannelerConfig, FunderOutgoingComm, FunderOutgoingControl,
+    ResponseSendFundsResult};
 use super::sender::SendMode;
 
 // TODO: Should be an argument of the Funder:
@@ -28,6 +30,7 @@ pub enum HandleControlError {
     RequestAlreadyInProgress,
     PendingUserRequestsFull,
     ReceiptDoesNotExist,
+    ReceiptSignatureMismatch,
     UserRequestInvalid,
     FriendNotReady,
     BlockedByFreezeGuard,
@@ -35,7 +38,7 @@ pub enum HandleControlError {
 
 
 #[allow(unused)]
-impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
+impl<A:Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
     async fn control_set_friend_remote_max_debt(&mut self, 
                                             set_friend_remote_max_debt: SetFriendRemoteMaxDebt) 
@@ -97,14 +100,11 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
             remote_reset_terms.reset_token.clone(),
             remote_reset_terms.inconsistency_counter,
             move_token_counter,
-            remote_reset_terms.balance_for_reset,
+            remote_reset_terms.balance_for_reset.checked_neg().unwrap(),
             local_pending_debt,
             remote_pending_debt,
             rand_nonce,
             self.identity_client.clone()));
-
-        await!(self.cancel_local_pending_requests(
-            reset_friend_channel.friend_public_key.clone()));
 
         let friend_mutation = FriendMutation::LocalReset(friend_move_token.clone());
         let m_mutation = FunderMutation::FriendMutation(
@@ -141,8 +141,6 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
         let m_mutation = FunderMutation::AddFriend(add_friend.clone());
         self.apply_funder_mutation(m_mutation);
-        self.enable_friend(&add_friend.friend_public_key,
-                           &add_friend.address);
 
         Ok(())
     }
@@ -359,9 +357,16 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
     fn control_receipt_ack(&mut self, receipt_ack: ReceiptAck) 
         -> Result<(), HandleControlError> {
 
-        if !self.state.ready_receipts.contains_key(&receipt_ack.request_id) {
-            return Err(HandleControlError::ReceiptDoesNotExist);
+        let receipt = self.state.ready_receipts.get(&receipt_ack.request_id)
+            .ok_or(HandleControlError::ReceiptDoesNotExist)?;
+
+        // Make sure that the provided signature matches the one we have at the ready receipt.
+        // We do this to make sure the user doesn't send a receipt ack before he actually got the
+        // receipt (The user can not predit the receipt_signature ahead of time)
+        if receipt_ack.receipt_signature != receipt.signature {
+            return Err(HandleControlError::ReceiptSignatureMismatch);
         }
+
         let m_mutation = FunderMutation::RemoveReceipt(receipt_ack.request_id);
         self.apply_funder_mutation(m_mutation);
 
@@ -372,7 +377,6 @@ impl<A:Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
     pub async fn handle_control_message(&mut self, 
                                   funder_config: IncomingControlMessage<A>) 
         -> Result<(), HandleControlError> {
-
 
         match funder_config {
             IncomingControlMessage::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) => {

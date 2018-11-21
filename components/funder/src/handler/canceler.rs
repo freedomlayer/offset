@@ -1,14 +1,16 @@
+use std::fmt::Debug;
+
 use crypto::identity::{PublicKey, Signature};
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
 use crate::handler::MutableFunderHandler;
 
 use crate::types::{RequestSendFunds, FailureSendFunds, PendingFriendRequest,
-                            ResponseReceived, FunderOutgoingControl};
+                            ResponseReceived, FunderOutgoingControl,
+                            ResponseSendFundsResult};
 use crate::signature_buff::{create_failure_signature_buffer};
 use crate::friend::{FriendMutation, ResponseOp, ChannelStatus};
 use crate::state::FunderMutation;
-use crate::messages::ResponseSendFundsResult;
 use super::sender::SendMode;
 
 use crate::ephemeral::EphemeralMutation;
@@ -16,7 +18,7 @@ use crate::freeze_guard::FreezeGuardMutation;
 
 
 #[allow(unused)]
-impl<A: Clone + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
+impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
 
     /// Create a (signed) failure message for a given request_id.
     /// We are the reporting_public_key for this failure message.

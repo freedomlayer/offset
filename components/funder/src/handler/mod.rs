@@ -8,6 +8,7 @@ mod canceler;
 #[cfg(test)]
 mod tests;
 
+use std::fmt::Debug;
 use identity::IdentityClient;
 
 use crypto::uid::Uid;
@@ -60,7 +61,7 @@ pub struct MutableFunderHandler<A:Clone,R> {
     // responses_received: Vec<ResponseReceived>,
 }
 
-impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
+impl<A:Clone + Debug + 'static,R> MutableFunderHandler<A,R> {
     /*
     pub fn state(&self) -> &FunderState<A> {
         &self.state
@@ -80,9 +81,11 @@ impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
             report_mutations.extend(funder_mutation_to_report_mutations(funder_mutation, &running_state));
             running_state.mutate(funder_mutation);
         }
+        
         for ephemeral_mutation in &self.ephemeral_mutations {
             report_mutations.extend(ephemeral_mutation_to_report_mutations(ephemeral_mutation));
         }
+
         if !report_mutations.is_empty() {
             outgoing_control.push(FunderOutgoingControl::ReportMutations(report_mutations));
         }
@@ -153,9 +156,6 @@ impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
         if !self.ephemeral.liveness.is_online(friend_public_key) {
             return false;
         }
-        if let ChannelStatus::Inconsistent(_) = friend.channel_status {
-            return false;
-        }
 
         // Make sure that the channel is consistent:
         let token_channel = match &friend.channel_status {
@@ -173,7 +173,7 @@ impl<A:Clone + 'static,R> MutableFunderHandler<A,R> {
 
 }
 
-fn gen_mutable<A:Clone, R: CryptoRandom>(identity_client: IdentityClient,
+fn gen_mutable<A:Clone + Debug, R: CryptoRandom>(identity_client: IdentityClient,
                        rng: R,
                        funder_state: &FunderState<A>,
                        funder_ephemeral: &Ephemeral) -> MutableFunderHandler<A,R> {
@@ -191,7 +191,7 @@ fn gen_mutable<A:Clone, R: CryptoRandom>(identity_client: IdentityClient,
     }
 }
 
-pub async fn funder_handle_message<A: Clone + 'static, R: CryptoRandom + 'static>(
+pub async fn funder_handle_message<A: Clone + Debug + 'static, R: CryptoRandom + 'static>(
                       identity_client: IdentityClient,
                       rng: R,
                       funder_state: FunderState<A>,
