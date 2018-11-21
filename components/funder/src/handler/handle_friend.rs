@@ -196,7 +196,7 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
 
         // The node on the route has to be one of our friends:
         let next_public_key = request_send_funds.route.index_to_pk(next_index).unwrap();
-        let friend_exists = !self.state.friends.contains_key(next_public_key);
+        let friend_exists = self.state.friends.contains_key(next_public_key);
 
         // This friend must be considered online for us to forward the message.
         // If we forward the request to an offline friend, the request could be stuck for a long
@@ -210,6 +210,7 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
         if !friend_ready {
             await!(self.reply_with_failure(remote_public_key.clone(), 
                                            request_send_funds.clone()));
+            return;
         } 
         // Add our freezing link:
         self.add_local_freezing_link(&mut request_send_funds);
