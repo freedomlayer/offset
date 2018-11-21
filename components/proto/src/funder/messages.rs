@@ -145,8 +145,7 @@ impl Ratio<u128> {
 impl FreezeLink {
     fn to_bytes(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
-        res_bytes.write_u128::<BigEndian>(self.shared_credits)
-            .expect("Could not serialize u64!");
+        res_bytes.write_u128::<BigEndian>(self.shared_credits).unwrap();
         res_bytes.extend_from_slice(&self.usable_ratio.to_bytes());
         res_bytes
     }
@@ -200,8 +199,7 @@ impl FriendTcOp {
             }
             FriendTcOp::SetRemoteMaxDebt(remote_max_debt) => {
                 res_bytes.push(2u8);
-                res_bytes.write_u128::<BigEndian>(*remote_max_debt)
-                    .expect("Failed to serialize u64 (remote_max_debt)");
+                res_bytes.write_u128::<BigEndian>(*remote_max_debt).unwrap();
             }
             FriendTcOp::RequestSendFunds(request_send_funds) => {
                 res_bytes.push(3u8);
