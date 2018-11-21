@@ -296,14 +296,22 @@ impl<A: Clone> NodeControl<A> {
         await!(self.recv_until(pred));
     }
 
-    pub async fn wait_until_alive<'a>(&'a mut self, 
+    pub async fn wait_until_ready<'a>(&'a mut self, 
                          friend_public_key: &'a PublicKey) {
 
         let pred = |report: &FunderReport<_>| {
-           match report.friends.get(&friend_public_key) {
-               None => false,
-               Some(friend) => friend.liveness == FriendLivenessReport::Online,
+           let friend = match report.friends.get(&friend_public_key) {
+               None => return false,
+               Some(friend) => friend,
+           };
+           if friend.liveness != FriendLivenessReport::Online {
+               return false;
            }
+           let tc_report = match &friend.channel_status {
+               ChannelStatusReport::Consistent(tc_report) => tc_report,
+               _ => return false,
+           };
+           tc_report.requests_status.remote == RequestsStatus::Open
         };
         await!(self.recv_until(pred));
     }
