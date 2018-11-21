@@ -40,8 +40,8 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     await!(node_controls[1].set_requests_status(&public_keys[0], RequestsStatus::Open));
 
     // Wait for liveness:
-    await!(node_controls[0].wait_until_alive(&public_keys[1]));
-    await!(node_controls[1].wait_until_alive(&public_keys[0]));
+    await!(node_controls[0].wait_until_ready(&public_keys[1]));
+    await!(node_controls[1].wait_until_ready(&public_keys[0]));
 
     // Send credits 0 --> 1
     let user_request_send_funds = UserRequestSendFunds {
@@ -55,8 +55,8 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     await!(node_controls[0].send(IncomingControlMessage::RequestSendFunds(user_request_send_funds))).unwrap();
     let response_received = await!(node_controls[0].recv_until_response()).unwrap();
 
-    let pred = |report: &FunderReport<_>| report.num_ready_receipts == 1;
-    await!(node_controls[0].recv_until(pred));
+    // let pred = |report: &FunderReport<_>| report.num_ready_receipts == 1;
+    // await!(node_controls[0].recv_until(pred));
 
     assert_eq!(response_received.request_id, Uid::from(&[3; UID_LEN]));
     let receipt = match response_received.result {
@@ -74,19 +74,22 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     await!(node_controls[0].recv_until(pred));
 
     // Verify expected balances:
-    let friend = node_controls[0].report.friends.get(&public_keys[1]).unwrap();
-    let tc_report = match &friend.channel_status {
-       ChannelStatusReport::Consistent(tc_report) => tc_report,
-       _ => unreachable!(),
+    let pred = |report: &FunderReport<_>| {
+       let friend = report.friends.get(&public_keys[1]).unwrap();
+       let tc_report = match &friend.channel_status {
+           ChannelStatusReport::Consistent(tc_report) => tc_report,
+           _ => return false,
+       };
+       tc_report.balance.balance == 3
     };
-    assert_eq!(tc_report.balance.balance, 3);
+    await!(node_controls[0].recv_until(pred));
 
 
     let pred = |report: &FunderReport<_>| {
        let friend = report.friends.get(&public_keys[0]).unwrap();
        let tc_report = match &friend.channel_status {
            ChannelStatusReport::Consistent(tc_report) => tc_report,
-           _ => unreachable!(),
+           _ => return false,
        };
        tc_report.balance.balance == -3
     };
