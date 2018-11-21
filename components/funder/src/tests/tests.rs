@@ -25,16 +25,21 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
         .map(|nc| nc.public_key.clone())
         .collect::<Vec<PublicKey>>();
 
-    await!(node_controls[0].add_friend(&public_keys[1],
-                                1u32, "node1", 8));
+    await!(node_controls[0].add_friend(&public_keys[1], 1u32, "node1", 8));
+    await!(node_controls[1].add_friend(&public_keys[0], 0u32, "node0", -8));
     assert_eq!(node_controls[0].report.friends.len(), 1);
-
-    await!(node_controls[1].add_friend(&public_keys[0],
-                                0u32, "node0", -8));
     assert_eq!(node_controls[1].report.friends.len(), 1);
 
     await!(node_controls[0].set_friend_status(&public_keys[1], FriendStatus::Enable));
     await!(node_controls[1].set_friend_status(&public_keys[0], FriendStatus::Enable));
+
+    // Set remote max debt for both sides:
+    await!(node_controls[0].set_remote_max_debt(&public_keys[1], 200));
+    await!(node_controls[1].set_remote_max_debt(&public_keys[0], 100));
+
+    // Open requests:
+    await!(node_controls[0].set_requests_status(&public_keys[1], RequestsStatus::Open));
+    await!(node_controls[1].set_requests_status(&public_keys[0], RequestsStatus::Open));
 
     // Wait for liveness:
     let pk1 = node_controls[1].public_key.clone();
@@ -48,80 +53,6 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     let pred = |report: &FunderReport<_>| {
        let friend = report.friends.get(&pk0).unwrap();
        friend.liveness == FriendLivenessReport::Online
-    };
-    await!(node_controls[1].recv_until(pred));
-
-    // Set remote max debt:
-    let set_remote_max_debt = SetFriendRemoteMaxDebt {
-        friend_public_key: node_controls[1].public_key.clone(),
-        remote_max_debt: 200,
-    };
-    await!(node_controls[0].send(IncomingControlMessage::SetFriendRemoteMaxDebt(set_remote_max_debt))).unwrap();
-
-    let set_remote_max_debt = SetFriendRemoteMaxDebt {
-        friend_public_key: node_controls[0].public_key.clone(),
-        remote_max_debt: 100,
-    };
-    await!(node_controls[1].send(IncomingControlMessage::SetFriendRemoteMaxDebt(set_remote_max_debt))).unwrap();
-
-    // Wait for remote_max_debt
-    let pk1 = node_controls[1].public_key.clone();
-    let pred = |report: &FunderReport<_>| {
-       let friend = report.friends.get(&pk1).unwrap();
-       let tc_report = match &friend.channel_status {
-           ChannelStatusReport::Consistent(tc_report) => tc_report,
-           _ => unreachable!(),
-       };
-       tc_report.balance.remote_max_debt == 200
-    };
-    await!(node_controls[0].recv_until(pred));
-
-    let pk0 = node_controls[0].public_key.clone();
-    let pred = |report: &FunderReport<_>| {
-       let friend = report.friends.get(&pk0).unwrap();
-       let tc_report = match &friend.channel_status {
-           ChannelStatusReport::Consistent(tc_report) => tc_report,
-           _ => unreachable!(),
-       };
-       tc_report.balance.remote_max_debt == 100
-    };
-    await!(node_controls[1].recv_until(pred));
-
-    // Open requests:
-    let set_requests_status = SetRequestsStatus {
-        friend_public_key: node_controls[1].public_key.clone(),
-        status: RequestsStatus::Open,
-    };
-    await!(node_controls[0].send(IncomingControlMessage::SetRequestsStatus(set_requests_status))).unwrap();
-
-    let set_requests_status = SetRequestsStatus {
-        friend_public_key: node_controls[0].public_key.clone(),
-        status: RequestsStatus::Open,
-    };
-    await!(node_controls[1].send(IncomingControlMessage::SetRequestsStatus(set_requests_status))).unwrap();
-
-    // Wait for open requests:
-    let pk1 = node_controls[1].public_key.clone();
-    let pred = |report: &FunderReport<_>| {
-       let friend = report.friends.get(&pk1).unwrap();
-       let tc_report = match &friend.channel_status {
-           ChannelStatusReport::Consistent(tc_report) => tc_report,
-           _ => unreachable!(),
-       };
-       (tc_report.requests_status.remote == RequestsStatus::Open) &&
-           (tc_report.requests_status.local == RequestsStatus::Open)
-    };
-    await!(node_controls[0].recv_until(pred));
-
-    let pk0 = node_controls[0].public_key.clone();
-    let pred = |report: &FunderReport<_>| {
-       let friend = report.friends.get(&pk0).unwrap();
-       let tc_report = match &friend.channel_status {
-           ChannelStatusReport::Consistent(tc_report) => tc_report,
-           _ => unreachable!(),
-       };
-       (tc_report.requests_status.remote == RequestsStatus::Open) &&
-           (tc_report.requests_status.local == RequestsStatus::Open)
     };
     await!(node_controls[1].recv_until(pred));
 

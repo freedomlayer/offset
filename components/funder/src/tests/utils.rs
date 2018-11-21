@@ -7,8 +7,7 @@ use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
 use futures::{future, FutureExt, StreamExt, SinkExt};
 
-use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair, 
-    PublicKey};
+use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair, PublicKey};
 use crypto::test_utils::DummyRandom;
 
 use identity::{create_identity, IdentityClient};
@@ -18,9 +17,9 @@ use crate::funder::inner_funder_loop;
 use crate::types::{FunderOutgoingComm, IncomingCommMessage, 
     ChannelerConfig, FunderOutgoingControl, IncomingControlMessage,
     IncomingLivenessMessage, ResponseReceived, AddFriend, FriendStatus,
-    SetFriendStatus};
+    SetFriendStatus, SetFriendRemoteMaxDebt, RequestsStatus, SetRequestsStatus};
 use crate::database::AtomicDb;
-use crate::report::{FunderReport, FunderReportMutation};
+use crate::report::{FunderReport, FunderReportMutation, ChannelStatusReport};
 
 // This is required to make sure the tests are not stuck.
 //
@@ -244,6 +243,54 @@ impl<A: Clone> NodeControl<A> {
                None => false,
                Some(friend) => friend.status == status,
            }
+        };
+        await!(self.recv_until(pred));
+    }
+
+    pub async fn set_remote_max_debt<'a>(&'a mut self, 
+                         friend_public_key: &'a PublicKey,
+                         remote_max_debt: u128) {
+
+        let set_remote_max_debt = SetFriendRemoteMaxDebt {
+            friend_public_key: friend_public_key.clone(),
+            remote_max_debt: remote_max_debt,
+        };
+        await!(self.send(IncomingControlMessage::SetFriendRemoteMaxDebt(set_remote_max_debt))).unwrap();
+
+        let pred = |report: &FunderReport<_>| {
+           let friend = match report.friends.get(&friend_public_key) {
+               Some(friend) => friend,
+               None => return false,
+           };
+           let tc_report = match &friend.channel_status {
+               ChannelStatusReport::Consistent(tc_report) => tc_report,
+               _ => return false,
+           };
+           tc_report.balance.remote_max_debt == remote_max_debt
+        };
+        await!(self.recv_until(pred));
+    }
+
+    pub async fn set_requests_status<'a>(&'a mut self, 
+                         friend_public_key: &'a PublicKey,
+                         requests_status: RequestsStatus) {
+
+        let set_requests_status = SetRequestsStatus {
+            friend_public_key: friend_public_key.clone(),
+            status: requests_status.clone(),
+        };
+        await!(self.send(IncomingControlMessage::SetRequestsStatus(set_requests_status))).unwrap();
+
+        let pred = |report: &FunderReport<_>| {
+           let friend = match report.friends.get(&friend_public_key) {
+               Some(friend) => friend,
+               None => return false,
+           };
+           let tc_report = match &friend.channel_status {
+               ChannelStatusReport::Consistent(tc_report) => tc_report,
+               _ => return false,
+           };
+           tc_report.requests_status.local == requests_status
         };
         await!(self.recv_until(pred));
     }
