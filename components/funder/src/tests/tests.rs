@@ -1,6 +1,7 @@
 use futures::executor::ThreadPool;
 use futures::task::Spawn;
 
+use crypto::identity::PublicKey;
 use crypto::uid::{Uid, UID_LEN};
 
 use crate::types::{IncomingControlMessage,
@@ -14,61 +15,26 @@ use crate::report::{FunderReport, FriendLivenessReport,
 use super::utils::create_node_controls;
 
 
+
 async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     let num_nodes = 2;
     let mut node_controls = await!(create_node_controls(num_nodes, spawner));
 
-    // --------------
-    assert_eq!(node_controls[0].report.friends.len(), 0);
-    let add_friend = AddFriend {
-        friend_public_key: node_controls[1].public_key.clone(),
-        address: 1u32,
-        name: "node1".into(),
-        balance: 8, 
-    };
-    await!(node_controls[0].send(IncomingControlMessage::AddFriend(add_friend))).unwrap();
-    await!(node_controls[0].recv_until(|report| report.friends.len() == 1));
+    let public_keys = node_controls
+        .iter()
+        .map(|nc| nc.public_key.clone())
+        .collect::<Vec<PublicKey>>();
+
+    await!(node_controls[0].add_friend(&public_keys[1],
+                                1u32, "node1", 8));
     assert_eq!(node_controls[0].report.friends.len(), 1);
 
-    // --------------
-    assert_eq!(node_controls[1].report.friends.len(), 0);
-    let add_friend = AddFriend {
-        friend_public_key: node_controls[0].public_key.clone(),
-        address: 0u32,
-        name: "node0".into(),
-        balance: -8, 
-    };
-
-    await!(node_controls[1].send(IncomingControlMessage::AddFriend(add_friend))).unwrap();
-    await!(node_controls[1].recv_until(|report| report.friends.len() == 1));
-
+    await!(node_controls[1].add_friend(&public_keys[0],
+                                0u32, "node0", -8));
     assert_eq!(node_controls[1].report.friends.len(), 1);
 
-    // --------------
-    let set_friend_status = SetFriendStatus {
-        friend_public_key: node_controls[1].public_key.clone(),
-        status: FriendStatus::Enable,
-    };
-    await!(node_controls[0].send(IncomingControlMessage::SetFriendStatus(set_friend_status))).unwrap();
-    let pk1 = node_controls[1].public_key.clone();
-    let pred = |report: &FunderReport<_>| {
-       let friend = report.friends.get(&pk1).unwrap();
-       friend.status == FriendStatus::Enable
-    };
-    await!(node_controls[0].recv_until(pred));
-
-    // --------------
-    let set_friend_status = SetFriendStatus {
-        friend_public_key: node_controls[0].public_key.clone(),
-        status: FriendStatus::Enable,
-    };
-    await!(node_controls[1].send(IncomingControlMessage::SetFriendStatus(set_friend_status))).unwrap();
-    let pk0 = node_controls[0].public_key.clone();
-    let pred = |report: &FunderReport<_>| {
-       let friend = report.friends.get(&pk0).unwrap();
-       friend.status == FriendStatus::Enable
-    };
-    await!(node_controls[1].recv_until(pred));
+    await!(node_controls[0].set_friend_status(&public_keys[1], FriendStatus::Enable));
+    await!(node_controls[1].set_friend_status(&public_keys[0], FriendStatus::Enable));
 
     // Wait for liveness:
     let pk1 = node_controls[1].public_key.clone();
@@ -217,9 +183,54 @@ fn test_funder_basic() {
 
 
 async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'static) {
+    /*
+     * 0 -- 1 -- 2
+     */
     let num_nodes = 3;
-    // let mut node_controls = await!(create_node_controls(num_nodes, spawner));
-    assert!(true);
+    let mut node_controls = await!(create_node_controls(num_nodes, spawner));
+
+    // Create topology:
+    //-------------------------
+    // Add friends to 0: (1)
+    let add_friend = AddFriend {
+        friend_public_key: node_controls[1].public_key.clone(),
+        address: 1u32,
+        name: "node1".into(),
+        balance: 8, 
+    };
+    await!(node_controls[0].send(IncomingControlMessage::AddFriend(add_friend))).unwrap();
+    await!(node_controls[0].recv_until(|report| report.friends.len() == 1));
+
+    // Add friends to 1: (0 and 2)
+    let add_friend = AddFriend {
+        friend_public_key: node_controls[0].public_key.clone(),
+        address: 0u32,
+        name: "node0".into(),
+        balance: -8, 
+    };
+    await!(node_controls[1].send(IncomingControlMessage::AddFriend(add_friend))).unwrap();
+    let add_friend = AddFriend {
+        friend_public_key: node_controls[2].public_key.clone(),
+        address: 2u32,
+        name: "node0".into(),
+        balance: 6, 
+    };
+    await!(node_controls[1].send(IncomingControlMessage::AddFriend(add_friend))).unwrap();
+    await!(node_controls[1].recv_until(|report| report.friends.len() == 2));
+
+    // Add friends to 2: (1)
+    let add_friend = AddFriend {
+        friend_public_key: node_controls[1].public_key.clone(),
+        address: 1u32,
+        name: "node1".into(),
+        balance: -6, 
+    };
+    await!(node_controls[2].send(IncomingControlMessage::AddFriend(add_friend))).unwrap();
+    await!(node_controls[2].recv_until(|report| report.friends.len() == 1));
+
+    // Enable friends and open requests
+    // --------------------------------
+
 }
 
 #[test]

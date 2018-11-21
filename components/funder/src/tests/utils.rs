@@ -17,7 +17,8 @@ use crate::state::{FunderState, FunderMutation};
 use crate::funder::inner_funder_loop;
 use crate::types::{FunderOutgoingComm, IncomingCommMessage, 
     ChannelerConfig, FunderOutgoingControl, IncomingControlMessage,
-    IncomingLivenessMessage, ResponseReceived};
+    IncomingLivenessMessage, ResponseReceived, AddFriend, FriendStatus,
+    SetFriendStatus};
 use crate::database::AtomicDb;
 use crate::report::{FunderReport, FunderReportMutation};
 
@@ -210,6 +211,41 @@ impl<A: Clone> NodeControl<A> {
                 NodeRecv::ResponseReceived(response_received) => return Some(response_received),
             };
         }
+    }
+
+    pub async fn add_friend<'a>(&'a mut self, 
+                         friend_public_key: &'a PublicKey,
+                         address: A,
+                         name: &'a str,
+                         balance: i128) {
+
+        let add_friend = AddFriend {
+            friend_public_key: friend_public_key.clone(),
+            address,
+            name: name.into(),
+            balance, 
+        };
+        await!(self.send(IncomingControlMessage::AddFriend(add_friend))).unwrap();
+        let pred = |report: &FunderReport<_>| report.friends.contains_key(&friend_public_key);
+        await!(self.recv_until(pred));
+    }
+
+    pub async fn set_friend_status<'a>(&'a mut self, 
+                         friend_public_key: &'a PublicKey,
+                         status: FriendStatus) {
+
+        let set_friend_status = SetFriendStatus {
+            friend_public_key: friend_public_key.clone(),
+            status: status.clone(),
+        };
+        await!(self.send(IncomingControlMessage::SetFriendStatus(set_friend_status))).unwrap();
+        let pred = |report: &FunderReport<_>| {
+           match report.friends.get(&friend_public_key) {
+               None => false,
+               Some(friend) => friend.status == status,
+           }
+        };
+        await!(self.recv_until(pred));
     }
 }
 
