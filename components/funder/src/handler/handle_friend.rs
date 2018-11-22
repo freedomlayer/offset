@@ -103,8 +103,8 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
         if friend_move_token.old_token == local_reset_terms.reset_token {
             // This is a reset message. We reset the token channel:
             let friend_mutation = FriendMutation::RemoteReset(friend_move_token.clone());
-            let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-            self.apply_funder_mutation(messenger_mutation);
+            let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+            self.apply_funder_mutation(funder_mutation);
         }
 
     }
@@ -144,8 +144,8 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
         // Queue message to the relevant friend. Later this message will be queued to a specific
         // available token channel:
         let friend_mutation = FriendMutation::PushBackPendingRequest(request_send_funds.clone());
-        let messenger_mutation = FunderMutation::FriendMutation((next_pk.clone(), friend_mutation));
-        self.apply_funder_mutation(messenger_mutation);
+        let funder_mutation = FunderMutation::FriendMutation((next_pk.clone(), friend_mutation));
+        self.apply_funder_mutation(funder_mutation);
         await!(self.try_send_channel(&next_pk, SendMode::EmptyNotAllowed));
     }
 
@@ -189,8 +189,8 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
                 .unwrap();
             let response_op = ResponseOp::Response(response_send_funds);
             let friend_mutation = FriendMutation::PushBackPendingResponse(response_op);
-            let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-            self.apply_funder_mutation(messenger_mutation);
+            let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+            self.apply_funder_mutation(funder_mutation);
             return;
         }
 
@@ -294,8 +294,8 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
                 // Queue this failure message to another token channel:
                 let failure_op = ResponseOp::Failure(failure_send_funds);
                 let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
-                let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-                self.apply_funder_mutation(messenger_mutation);
+                let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+                self.apply_funder_mutation(funder_mutation);
                 await!(self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed));
             },
         };
@@ -372,8 +372,8 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
             opt_remote_reset_terms: None,
         };
         let friend_mutation = FriendMutation::SetInconsistent(channel_inconsistent);
-        let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-        self.apply_funder_mutation(messenger_mutation);
+        let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+        self.apply_funder_mutation(funder_mutation);
     }
 
 
@@ -396,8 +396,8 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
                 // Apply all mutations:
                 for tc_mutation in mutations {
                     let friend_mutation = FriendMutation::TcMutation(tc_mutation);
-                    let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-                    self.apply_funder_mutation(messenger_mutation);
+                    let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+                    self.apply_funder_mutation(funder_mutation);
                 }
 
                 // If remote requests were previously open, and now they were closed:
@@ -512,8 +512,8 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
             opt_remote_reset_terms: Some(new_remote_reset_terms),
         };
         let friend_mutation = FriendMutation::SetInconsistent(channel_inconsistent);
-        let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-        self.apply_funder_mutation(messenger_mutation);
+        let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+        self.apply_funder_mutation(funder_mutation);
 
         // Send an outgoing inconsistency message if required:
         if should_send_outgoing {
