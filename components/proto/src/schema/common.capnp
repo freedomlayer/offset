@@ -26,12 +26,32 @@ struct CustomUInt512 {
         x7 @7: UInt64;
 }
 
-# A custom type for a rational 64 bit number.
-struct Ratio64 {
-        union {
-                one @0: Void;
-                numerator @1: UInt64;
-        }
+struct PublicKey {
+        inner @0: CustomUInt256;
+}
+
+struct Signature {
+        inner @0: CustomUInt512;
+}
+
+struct RandNonce {
+        inner @0: CustomUInt128;
+}
+
+struct Balance {
+        inner @0: CustomUInt128;
+}
+
+struct Debt {
+        inner @0: CustomUInt128;
+}
+
+struct Hash {
+        inner @0: CustomUInt256;
+}
+
+struct InvoiceId {
+        inner @0: CustomUInt256;
 }
 
 # A custom type for a rational 128 bit number.
@@ -45,11 +65,11 @@ struct Ratio128 {
 
 # A receipt for payment to the Funder
 struct Receipt {
-        responseHash @0: CustomUInt256;
+        responseHash @0: Hash;
         # = sha512/256(requestId || sha512/256(route) || randNonce)
-        invoiceId @1: CustomUInt256;
-        destPayment @2: CustomUInt128;
-        signature @3: CustomUInt512;
+        invoiceId @1: InvoiceId;
+        destPayment @2: Debt;
+        signature @3: Signature;
         # Signature{key=recipientKey}(
         #   "FUND_SUCCESS" ||
         #   sha512/256(requestId || sha512/256(route) || randNonce) ||
