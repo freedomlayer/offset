@@ -1,4 +1,3 @@
-#![allow(unused)]
 use std::io;
 use std::convert::TryFrom;
 use capnp;
