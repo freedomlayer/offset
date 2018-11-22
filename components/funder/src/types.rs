@@ -6,7 +6,7 @@ use crypto::hash::HashResult;
 
 use proto::funder::messages::{FriendsRoute, InvoiceId, 
     RequestSendFunds, MoveToken, FriendMessage,
-    FriendTcOp, PendingFriendRequest, SendFundsReceipt};
+    FriendTcOp, PendingRequest, SendFundsReceipt};
 
 use proto::funder::signature_buff::{operations_hash, 
     friend_move_token_signature_buff};
@@ -41,8 +41,8 @@ impl RequestsStatus {
 /// Keep information from a RequestSendFunds message.
 /// This information will be used later to deal with a corresponding {Response,Failure}SendFunds messages,
 /// as those messages do not repeat the information sent in the request.
-pub fn create_pending_request(request_send_funds: &RequestSendFunds) -> PendingFriendRequest {
-    PendingFriendRequest {
+pub fn create_pending_request(request_send_funds: &RequestSendFunds) -> PendingRequest {
+    PendingRequest {
         request_id: request_send_funds.request_id,
         route: request_send_funds.route.clone(),
         dest_payment: request_send_funds.dest_payment,
@@ -134,8 +134,8 @@ impl UserRequestSendFunds {
         }
     }
 
-    pub fn create_pending_request(&self) -> PendingFriendRequest {
-        PendingFriendRequest {
+    pub fn create_pending_request(&self) -> PendingRequest {
+        PendingRequest {
             request_id: self.request_id,
             route: self.route.clone(),
             dest_payment: self.dest_payment,

@@ -5,7 +5,7 @@ use crypto::identity::{verify_signature, PublicKey};
 use utils::int_convert::usize_to_u64;
 
 use super::messages::{ResponseSendFunds, FailureSendFunds, 
-    SendFundsReceipt, PendingFriendRequest, MoveToken};
+    SendFundsReceipt, PendingRequest, MoveToken};
 
 pub const FUND_SUCCESS_PREFIX: &[u8] = b"FUND_SUCCESS";
 pub const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
@@ -14,7 +14,7 @@ pub const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
 /// Note that the signature is not just over the Response funds bytes. The signed buffer also
 /// contains information from the Request funds.
 pub fn create_response_signature_buffer(response_send_funds: &ResponseSendFunds,
-                        pending_request: &PendingFriendRequest) -> Vec<u8> {
+                        pending_request: &PendingRequest) -> Vec<u8> {
 
     let mut sbuffer = Vec::new();
 
@@ -36,7 +36,7 @@ pub fn create_response_signature_buffer(response_send_funds: &ResponseSendFunds,
 /// Note that the signature is not just over the Response funds bytes. The signed buffer also
 /// contains information from the Request funds.
 pub fn create_failure_signature_buffer(failure_send_funds: &FailureSendFunds,
-                        pending_request: &PendingFriendRequest) -> Vec<u8> {
+                        pending_request: &PendingRequest) -> Vec<u8> {
 
     let mut sbuffer = Vec::new();
 
@@ -54,7 +54,7 @@ pub fn create_failure_signature_buffer(failure_send_funds: &FailureSendFunds,
 
 /// Verify a failure signature
 pub fn verify_failure_signature(failure_send_funds: &FailureSendFunds,
-                            pending_request: &PendingFriendRequest) -> Option<()> {
+                            pending_request: &PendingRequest) -> Option<()> {
 
     let failure_signature_buffer = create_failure_signature_buffer(
                                         &failure_send_funds,
@@ -73,7 +73,7 @@ pub fn verify_failure_signature(failure_send_funds: &FailureSendFunds,
 }
 
 pub fn prepare_receipt(response_send_funds: &ResponseSendFunds,
-                    pending_request: &PendingFriendRequest) -> SendFundsReceipt {
+                    pending_request: &PendingRequest) -> SendFundsReceipt {
 
     let mut hash_buff = Vec::new();
     hash_buff.extend_from_slice(&pending_request.request_id);

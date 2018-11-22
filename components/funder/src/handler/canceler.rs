@@ -4,7 +4,7 @@ use crypto::identity::{PublicKey, Signature};
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
 use proto::funder::messages::{RequestSendFunds, FailureSendFunds,
-                                PendingFriendRequest};
+                                PendingRequest};
 use proto::funder::signature_buff::{create_failure_signature_buffer};
 
 use crate::handler::MutableFunderHandler;
@@ -26,7 +26,7 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
 
     /// Create a (signed) failure message for a given request_id.
     /// We are the reporting_public_key for this failure message.
-    async fn create_failure_message(&self, pending_local_request: PendingFriendRequest) 
+    async fn create_failure_message(&self, pending_local_request: PendingRequest) 
         -> FailureSendFunds {
 
         let rand_nonce = RandValue::new(&self.rng);

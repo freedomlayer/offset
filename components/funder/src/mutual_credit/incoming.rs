@@ -4,7 +4,7 @@ use utils::int_convert::usize_to_u32;
 use utils::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds, FailureSendFunds,
-    FriendTcOp, PendingFriendRequest};
+    FriendTcOp, PendingRequest};
 use proto::funder::signature_buff::{create_response_signature_buffer, 
     verify_failure_signature};
 
@@ -17,19 +17,19 @@ use super::types::{MutualCredit, MAX_FUNDER_DEBT, McMutation};
 
 /*
 pub struct IncomingRequestSendFunds {
-    pub request: PendingFriendRequest,
+    pub request: PendingRequest,
 }
 */
 
 #[derive(Debug)]
 pub struct IncomingResponseSendFunds {
-    pub pending_request: PendingFriendRequest,
+    pub pending_request: PendingRequest,
     pub incoming_response: ResponseSendFunds,
 }
 
 #[derive(Debug)]
 pub struct IncomingFailureSendFunds {
-    pub pending_request: PendingFriendRequest,
+    pub pending_request: PendingRequest,
     pub incoming_failure: FailureSendFunds,
 }
 

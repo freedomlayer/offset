@@ -11,7 +11,7 @@ use utils::int_convert::usize_to_u32;
 
 use proto::funder::messages::{FriendTcOp, RequestSendFunds, 
     ResponseSendFunds, FailureSendFunds,FriendsRoute,
-    InvoiceId, PendingFriendRequest, SendFundsReceipt};
+    InvoiceId, PendingRequest, SendFundsReceipt};
 use proto::funder::signature_buff::{create_response_signature_buffer, 
     verify_failure_signature};
 

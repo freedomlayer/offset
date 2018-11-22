@@ -9,7 +9,7 @@ use identity::IdentityClient;
 
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds,
     FailureSendFunds, MoveToken, FreezeLink, FriendMessage,
-    MoveTokenRequest, ResetTerms, PendingFriendRequest};
+    MoveTokenRequest, ResetTerms, PendingRequest};
 use proto::funder::signature_buff::{create_response_signature_buffer, prepare_receipt};
 
 use crate::mutual_credit::incoming::{IncomingResponseSendFunds, 
@@ -238,7 +238,7 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
     async fn handle_response_send_funds<'a>(&'a mut self, 
                                remote_public_key: &'a PublicKey,
                                response_send_funds: ResponseSendFunds,
-                               pending_request: PendingFriendRequest) {
+                               pending_request: PendingRequest) {
 
         match self.find_request_origin(&response_send_funds.request_id).cloned() {
             None => {
@@ -273,7 +273,7 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
     async fn handle_failure_send_funds<'a>(&'a mut self, 
                                remote_public_key: &'a PublicKey,
                                failure_send_funds: FailureSendFunds,
-                               pending_request: PendingFriendRequest) {
+                               pending_request: PendingRequest) {
 
         match self.find_request_origin(&failure_send_funds.request_id).cloned() {
             None => {

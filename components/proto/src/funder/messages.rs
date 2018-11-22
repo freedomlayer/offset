@@ -147,7 +147,7 @@ pub struct SendFundsReceipt {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct PendingFriendRequest {
+pub struct PendingRequest {
     pub request_id: Uid,
     pub route: FriendsRoute,
     pub dest_payment: u128,
