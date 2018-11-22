@@ -4,11 +4,12 @@ use crypto::crypto_rand::{RandValue, CryptoRandom};
 
 use proto::funder::messages::{FriendTcOp, FriendMessage};
 
-use super::{MutableFunderHandler, MAX_MOVE_TOKEN_LENGTH};
+use super::MutableFunderHandler;
 
 use crate::state::{FunderMutation};
 use crate::types::{RequestsStatus, FunderOutgoingComm, create_pending_request};
-use crate::mutual_credit::outgoing::{QueueOperationFailure};
+use crate::mutual_credit::outgoing::{QueueOperationFailure, QueueOperationError, OutgoingMc};
+use crate::mutual_credit::types::McMutation;
 
 use crate::friend::{FriendMutation, ResponseOp, ChannelStatus};
 use crate::token_channel::{TcMutation, TcDirection, SetDirection};
@@ -22,42 +23,13 @@ pub enum SendMode {
 }
 
 
-pub struct OperationsBatch {
-    bytes_left: usize,
-    operations: Vec<FriendTcOp>,
-}
-
-impl OperationsBatch {
-    fn new(max_length: usize) -> OperationsBatch {
-        OperationsBatch {
-            bytes_left: max_length,
-            operations: Vec::new(),
-        }
-    }
-
-    /// queue an operation to the batch of operations.
-    /// Make sure that the total length of operations is not too large.
-    fn add(&mut self, operation: FriendTcOp) -> Option<()> {
-        let op_len = operation.approx_bytes_count();
-        let new_bytes_left = self.bytes_left.checked_sub(op_len)?;
-        self.bytes_left = new_bytes_left;
-        self.operations.push(operation);
-        Some(())
-    }
-
-    fn done(self) -> Vec<FriendTcOp> {
-        self.operations
-    }
-}
-
-
-
 
 impl<A: Clone + Debug + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
     /// Queue as many messages as possible into available token channel.
     fn queue_outgoing_operations(&mut self,
                            remote_public_key: &PublicKey,
-                           ops_batch: &mut OperationsBatch) -> Option<()> {
+                           outgoing_mc: &mut OutgoingMc)
+                -> Result<(), QueueOperationFailure> {
 
 
         let friend = self.get_friend(remote_public_key).unwrap();
@@ -70,7 +42,7 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
 
 
         if friend.wanted_remote_max_debt != remote_max_debt {
-            ops_batch.add(FriendTcOp::SetRemoteMaxDebt(friend.wanted_remote_max_debt))?;
+            outgoing_mc.queue_operation(FriendTcOp::SetRemoteMaxDebt(friend.wanted_remote_max_debt))?;
         }
 
         let token_channel = match &friend.channel_status {
@@ -91,7 +63,7 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
             } else {
                 FriendTcOp::DisableRequests
             };
-            ops_batch.add(friend_op)?;
+            outgoing_mc.queue_operation(friend_op)?;
         }
 
         // Send pending responses (responses and failures)
@@ -102,7 +74,7 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
                 ResponseOp::Response(response) => FriendTcOp::ResponseSendFunds(response),
                 ResponseOp::Failure(failure) => FriendTcOp::FailureSendFunds(failure),
             };
-            ops_batch.add(pending_op)?;
+            outgoing_mc.queue_operation(pending_op)?;
             let friend_mutation = FriendMutation::PopFrontPendingResponse;
             let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
             self.apply_funder_mutation(funder_mutation);
@@ -115,7 +87,7 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
         let mut pending_requests = friend.pending_requests.clone();
         while let Some(pending_request) = pending_requests.pop_front() {
             let pending_op = FriendTcOp::RequestSendFunds(pending_request);
-            ops_batch.add(pending_op)?;
+            outgoing_mc.queue_operation(pending_op)?;
             let friend_mutation = FriendMutation::PopFrontPendingRequest;
             let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
             self.apply_funder_mutation(funder_mutation);
@@ -127,12 +99,12 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
         let mut pending_user_requests = friend.pending_user_requests.clone();
         while let Some(request_send_funds) = pending_user_requests.pop_front() {
             let request_op = FriendTcOp::RequestSendFunds(request_send_funds);
-            ops_batch.add(request_op)?;
+            outgoing_mc.queue_operation(request_op)?;
             let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
             let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
             self.apply_funder_mutation(funder_mutation);
         }
-        Some(())
+        Ok(())
     }
 
     /// Transmit the current outgoing friend_move_token.
@@ -158,27 +130,8 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
 
     async fn send_friend_move_token<'a>(&'a mut self,
                            remote_public_key: &'a PublicKey,
-                           operations: Vec<FriendTcOp>)
-                -> Result<(), QueueOperationFailure> {
-
-
-        let friend = self.get_friend(remote_public_key).unwrap();
-        let token_channel = match &friend.channel_status {
-            ChannelStatus::Consistent(token_channel) => token_channel,
-            ChannelStatus::Inconsistent(_) => unreachable!(),
-        };
-        let tc_incoming = match token_channel.get_direction() {
-            TcDirection::Outgoing(_) => unreachable!(),
-            TcDirection::Incoming(tc_incoming) => tc_incoming,
-        };
-
-        let mut out_tc = tc_incoming.begin_outgoing_move_token();
-
-        for op in operations {
-            out_tc.queue_operation(op)?;
-        }
-
-        let (operations, mc_mutations) = out_tc.done();
+                           operations: Vec<FriendTcOp>,
+                           mc_mutations: Vec<McMutation>) {
 
         for mc_mutation in mc_mutations {
             let tc_mutation = TcMutation::McMutation(mc_mutation);
@@ -239,8 +192,6 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
         self.add_outgoing_comm(FunderOutgoingComm::FriendMessage(
             (remote_public_key.clone(),
                 FriendMessage::MoveTokenRequest(friend_move_token_request))));
-
-        Ok(())
     }
 
     /// Compose a large as possible message to send through the token channel to the remote side.
@@ -257,16 +208,30 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
                                   remote_public_key: &'a PublicKey,
                                   send_mode: SendMode) -> bool {
 
-        let _friend = self.get_friend(remote_public_key).unwrap();
+        let friend = self.get_friend(remote_public_key).unwrap();
+        let token_channel = match &friend.channel_status {
+            ChannelStatus::Consistent(token_channel) => token_channel,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
+        let tc_incoming = match token_channel.get_direction() {
+            TcDirection::Outgoing(_) => unreachable!(),
+            TcDirection::Incoming(tc_incoming) => tc_incoming,
+        };
 
-        let mut ops_batch = OperationsBatch::new(MAX_MOVE_TOKEN_LENGTH);
-        self.queue_outgoing_operations(remote_public_key, &mut ops_batch);
-        let operations = ops_batch.done();
+        let mut outgoing_mc = tc_incoming.begin_outgoing_move_token();
+        if let Err(queue_operation_failure) = 
+                self.queue_outgoing_operations(remote_public_key, &mut outgoing_mc) {
+            if let QueueOperationError::MaxOperationsReached = queue_operation_failure.error { 
+            } else {
+                unreachable!();
+            }
+        }
+        let (operations, mc_mutations) = outgoing_mc.done();
 
         let may_send_empty = if let SendMode::EmptyAllowed = send_mode {true} else {false};
         if may_send_empty || !operations.is_empty() {
-            await!(self.send_friend_move_token(
-                remote_public_key, operations)).unwrap();
+            await!(self.send_friend_move_token(remote_public_key, 
+                                               operations, mc_mutations));
             true
         } else {
             false

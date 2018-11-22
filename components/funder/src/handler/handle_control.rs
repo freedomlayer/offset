@@ -3,12 +3,10 @@ use std::fmt::Debug;
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
-use proto::funder::messages::FriendTcOp;
-
 use crate::friend::{FriendMutation, ChannelStatus};
 use crate::state::{FunderMutation};
-use super::{MutableFunderHandler, 
-    MAX_MOVE_TOKEN_LENGTH};
+
+use super::MutableFunderHandler;
 use crate::types::{FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel,
     SetFriendInfo, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
@@ -239,8 +237,9 @@ impl<A:Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler<
                                 user_request_send_funds: &UserRequestSendFunds) 
                                 -> Option<()> {
 
-        let friend_op = FriendTcOp::RequestSendFunds(user_request_send_funds.clone().to_request());
-        MAX_MOVE_TOKEN_LENGTH.checked_sub(friend_op.approx_bytes_count())?;
+        if !user_request_send_funds.route.is_valid() {
+            return None;
+        }
         Some(())
     }
 

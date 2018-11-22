@@ -8,6 +8,8 @@ use crypto::hash::{self, HashResult};
 
 use utils::int_convert::{usize_to_u64};
 
+use super::consts::MAX_ROUTE_LEN;
+
 
 #[allow(unused)]
 pub enum FunderToChanneler<A> {
@@ -235,7 +237,7 @@ impl FriendsRoute {
     /// A -- B -- C -- D -- E -- F -- A   (Single cycle, first == last)
     /// A -- B -- C -- D -- E -- F        (A route with no repetitions)
     pub fn is_valid(&self) -> bool {
-        if self.public_keys.len() < 2 {
+        if (self.public_keys.len() < 2) || (self.public_keys.len() > MAX_ROUTE_LEN) {
             return false;
         }
 

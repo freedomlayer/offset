@@ -35,6 +35,5 @@ mod handler;
 mod report;
 mod database;
 mod funder;
-mod consts;
 #[cfg(test)]
 mod tests;

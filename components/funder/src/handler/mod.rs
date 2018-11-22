@@ -27,11 +27,6 @@ use super::report::{funder_mutation_to_report_mutations,
     ephemeral_mutation_to_report_mutations};
 
 
-// Approximate maximum size of a MOVE_TOKEN message.
-// TODO: Where to put this constant? Do we have more like this one?
-const MAX_MOVE_TOKEN_LENGTH: usize = 0x1000;
-
-
 #[derive(Debug)]
 pub enum FunderHandlerError {
     HandleControlError(HandleControlError),

@@ -8,8 +8,7 @@ use crypto::hash::sha_512_256;
 use identity::IdentityClient;
 
 use proto::funder::messages::{FriendMoveToken, FriendTcOp, FriendMoveTokenRequest};
-
-use crate::consts::MAX_OPERATIONS_IN_BATCH;
+use proto::funder::consts::MAX_OPERATIONS_IN_BATCH;
 
 use crate::mutual_credit::types::{MutualCredit, McMutation};
 use crate::mutual_credit::incoming::{ProcessOperationOutput, ProcessTransListError, 
