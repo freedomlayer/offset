@@ -30,6 +30,10 @@ struct PublicKey {
         inner @0: CustomUInt256;
 }
 
+struct DhPublicKey {
+        inner @0: CustomUInt256;
+}
+
 struct Signature {
         inner @0: CustomUInt512;
 }
@@ -51,6 +55,10 @@ struct Hash {
 }
 
 struct InvoiceId {
+        inner @0: CustomUInt256;
+}
+
+struct Salt {
         inner @0: CustomUInt256;
 }
 

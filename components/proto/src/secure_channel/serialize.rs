@@ -9,7 +9,12 @@ use crypto::crypto_rand::RandValue;
 use crypto::dh::{DhPublicKey, Salt};
 use capnp_custom_int::{read_custom_u_int128, write_custom_u_int128,
                                 read_custom_u_int256, write_custom_u_int256,
-                                read_custom_u_int512, write_custom_u_int512};
+                                read_custom_u_int512, write_custom_u_int512,
+                        write_public_key, read_public_key,
+                        write_rand_nonce, read_rand_nonce,
+                        read_dh_public_key, write_dh_public_key,
+                        write_salt, read_salt,
+                        write_signature, read_signature};
 // use dh_capnp::{plain, exchange_rand_nonce, exchange_dh, rekey};
 use super::messages::{PlainData, ChannelMessage, ChannelContent, 
     ExchangeRandNonce, ExchangeDh, Rekey};
@@ -28,6 +33,12 @@ impl From<capnp::Error> for DhSerializeError {
     }
 }
 
+impl From<capnp::NotInSchema> for DhSerializeError {
+    fn from(e: capnp::NotInSchema) -> DhSerializeError {
+        DhSerializeError::NotInSchema(e)
+    }
+}
+
 impl From<io::Error> for DhSerializeError {
     fn from(e: io::Error) -> DhSerializeError {
         DhSerializeError::IoError(e)
@@ -38,8 +49,8 @@ pub fn serialize_exchange_rand_nonce(exchange_rand_nonce: &ExchangeRandNonce) ->
     let mut builder = capnp::message::Builder::new_default();
     let mut msg = builder.init_root::<dh_capnp::exchange_rand_nonce::Builder>();
 
-    write_custom_u_int128(&exchange_rand_nonce.rand_nonce, &mut msg.reborrow().get_rand_nonce().unwrap());
-    write_custom_u_int256(&exchange_rand_nonce.public_key, &mut msg.reborrow().get_public_key().unwrap());
+    write_rand_nonce(&exchange_rand_nonce.rand_nonce, &mut msg.reborrow().get_rand_nonce().unwrap());
+    write_public_key(&exchange_rand_nonce.public_key, &mut msg.reborrow().get_public_key().unwrap());
 
     let mut serialized_msg = Vec::new();
     serialize_packed::write_message(&mut serialized_msg, &builder).unwrap();
@@ -51,8 +62,8 @@ pub fn deserialize_exchange_rand_nonce(data: &[u8]) -> Result<ExchangeRandNonce,
     let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let msg = reader.get_root::<dh_capnp::exchange_rand_nonce::Reader>()?;
 
-    let rand_nonce = RandValue::try_from(&read_custom_u_int128(&msg.get_rand_nonce()?)[..]).unwrap();
-    let public_key = PublicKey::try_from(&read_custom_u_int256(&msg.get_public_key()?)[..]).unwrap();
+    let rand_nonce = read_rand_nonce(&msg.get_rand_nonce()?)?;
+    let public_key = read_public_key(&msg.get_public_key()?)?;
 
     Ok(ExchangeRandNonce {
         rand_nonce,
@@ -65,10 +76,10 @@ pub fn serialize_exchange_dh(exchange_dh: &ExchangeDh) -> Vec<u8> {
     let mut builder = capnp::message::Builder::new_default();
     let mut msg = builder.init_root::<dh_capnp::exchange_dh::Builder>();
 
-    write_custom_u_int256(&exchange_dh.dh_public_key, &mut msg.reborrow().get_dh_public_key().unwrap());
-    write_custom_u_int128(&exchange_dh.rand_nonce, &mut msg.reborrow().get_rand_nonce().unwrap());
-    write_custom_u_int256(&exchange_dh.key_salt, &mut msg.reborrow().get_key_salt().unwrap());
-    write_custom_u_int512(&exchange_dh.signature, &mut msg.reborrow().get_signature().unwrap());
+    write_dh_public_key(&exchange_dh.dh_public_key, &mut msg.reborrow().get_dh_public_key().unwrap());
+    write_rand_nonce(&exchange_dh.rand_nonce, &mut msg.reborrow().get_rand_nonce().unwrap());
+    write_salt(&exchange_dh.key_salt, &mut msg.reborrow().get_key_salt().unwrap());
+    write_signature(&exchange_dh.signature, &mut msg.reborrow().get_signature().unwrap());
 
     let mut serialized_msg = Vec::new();
     serialize_packed::write_message(&mut serialized_msg, &builder).unwrap();
@@ -80,10 +91,10 @@ pub fn deserialize_exchange_dh(data: &[u8]) -> Result<ExchangeDh, DhSerializeErr
     let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let msg = reader.get_root::<dh_capnp::exchange_dh::Reader>()?;
 
-    let dh_public_key = DhPublicKey::try_from(&read_custom_u_int256(&msg.get_dh_public_key()?)[..]).unwrap();
-    let rand_nonce = RandValue::try_from(&read_custom_u_int128(&msg.get_rand_nonce()?)[..]).unwrap();
-    let key_salt = Salt::try_from(&read_custom_u_int256(&msg.get_key_salt()?)[..]).unwrap();
-    let signature = Signature::try_from(&read_custom_u_int512(&msg.get_signature()?)[..]).unwrap();
+    let dh_public_key = read_dh_public_key(&msg.get_dh_public_key()?)?;
+    let rand_nonce = read_rand_nonce(&msg.get_rand_nonce()?)?;
+    let key_salt = read_salt(&msg.get_key_salt()?)?;
+    let signature = read_signature(&msg.get_signature()?)?;
 
     Ok(ExchangeDh {
         dh_public_key,
@@ -118,8 +129,8 @@ pub fn serialize_channel_message(channel_message: &ChannelMessage) -> Vec<u8> {
     match &channel_message.content {
         ChannelContent::Rekey(rekey) => {
             let mut rekey_msg = content_msg.init_rekey();
-            write_custom_u_int256(&rekey.dh_public_key, &mut rekey_msg.reborrow().get_dh_public_key().unwrap());
-            write_custom_u_int256(&rekey.key_salt, &mut rekey_msg.reborrow().get_key_salt().unwrap());
+            write_dh_public_key(&rekey.dh_public_key, &mut rekey_msg.reborrow().get_dh_public_key().unwrap());
+            write_salt(&rekey.key_salt, &mut rekey_msg.reborrow().get_key_salt().unwrap());
         },
         ChannelContent::User(PlainData(plain_data)) => {
             content_msg.set_user(plain_data);
@@ -140,8 +151,8 @@ pub fn deserialize_channel_message(data: &[u8]) -> Result<ChannelMessage, DhSeri
     let content = match msg.get_content().which() {
         Ok(dh_capnp::channel_message::content::Rekey(rekey)) => {
             let rekey = rekey?;
-            let dh_public_key = DhPublicKey::try_from(&read_custom_u_int256(&rekey.get_dh_public_key()?)[..]).unwrap();
-            let key_salt = Salt::try_from(&read_custom_u_int256(&rekey.get_key_salt()?)[..]).unwrap();
+            let dh_public_key = read_dh_public_key(&rekey.get_dh_public_key()?)?;
+            let key_salt = read_salt(&rekey.get_key_salt()?)?;
             ChannelContent::Rekey(Rekey {
                 dh_public_key,
                 key_salt,

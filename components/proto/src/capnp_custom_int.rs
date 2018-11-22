@@ -3,9 +3,15 @@ use std::convert::TryFrom;
 use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt};
 
 use common_capnp::{custom_u_int128, custom_u_int256, custom_u_int512,
-                    public_key, invoice_id, hash};
+                    public_key, invoice_id, hash, dh_public_key, salt, signature,
+                    rand_nonce};
 
-use crypto::identity::PublicKey;
+use crate::funder::messages::InvoiceId;
+
+use crypto::identity::{PublicKey, Signature};
+use crypto::dh::{DhPublicKey, Salt};
+use crypto::hash::HashResult;
+use crypto::crypto_rand::RandValue;
 
 
 /// Read the underlying bytes from given `CustomUInt128` reader.
@@ -70,16 +76,34 @@ pub fn write_custom_u_int512(from: impl AsRef<[u8]>, to: &mut custom_u_int512::B
     to.set_x7(reader.read_u64::<BigEndian>().unwrap());
 }
 
-pub fn read_public_key(from: &public_key::Reader) -> PublicKey {
-    let inner = from.get_inner().unwrap();
-    let public_key_bytes = &read_custom_u_int256(&inner);
-    PublicKey::try_from(&public_key_bytes[..]).unwrap()
+/// Define read and write functions for basic types
+macro_rules! type_capnp_serde {
+    ($capnp_type:ident, $native_type:ident, $read_func:ident, $write_func:ident, $inner_read_func:ident, $inner_write_func:ident) => {
+
+        pub fn $read_func(from: &$capnp_type::Reader) -> Result<$native_type, capnp::Error>  {
+            let inner = from.get_inner()?;
+            let data_bytes = &$inner_read_func(&inner);
+            Ok($native_type::try_from(&data_bytes[..]).unwrap())
+        }
+
+        pub fn $write_func(from: &$native_type, to: &mut $capnp_type::Builder) {
+            let mut inner = to.reborrow().get_inner().unwrap();
+            $inner_write_func(from, &mut inner);
+        }
+    }
 }
 
+type_capnp_serde!(rand_nonce, RandValue, read_rand_nonce, write_rand_nonce, read_custom_u_int128, write_custom_u_int128);
 
-pub fn write_public_key(from: &PublicKey, to: &mut public_key::Builder) {
-    let mut inner = to.reborrow().get_inner().unwrap();
-    write_custom_u_int256(from, &mut inner);
-}
+// 256 bits:
+type_capnp_serde!(public_key, PublicKey, read_public_key, write_public_key, read_custom_u_int256, write_custom_u_int256);
+type_capnp_serde!(dh_public_key, DhPublicKey, read_dh_public_key, write_dh_public_key, read_custom_u_int256, write_custom_u_int256);
+type_capnp_serde!(salt, Salt, read_salt, write_salt, read_custom_u_int256, write_custom_u_int256);
+type_capnp_serde!(hash, HashResult, read_hash, write_hash, read_custom_u_int256, write_custom_u_int256);
+type_capnp_serde!(invoice_id, InvoiceId, read_invoice_id, write_invoice_id, read_custom_u_int256, write_custom_u_int256);
+
+// 512 bits:
+type_capnp_serde!(signature, Signature, read_signature, write_signature, read_custom_u_int512, write_custom_u_int512);
+
 
 

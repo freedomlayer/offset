@@ -1,11 +1,7 @@
 use std::io;
-use std::convert::TryFrom;
 use capnp;
 use capnp::serialize_packed;
-use crypto::identity::PublicKey;
-use capnp_custom_int::{read_custom_u_int256, 
-                        write_custom_u_int256,
-                        write_public_key,
+use capnp_custom_int::{write_public_key,
                         read_public_key};
 
 use relay_capnp;
@@ -24,6 +20,12 @@ pub enum RelaySerializeError {
 impl From<capnp::Error> for RelaySerializeError {
     fn from(e: capnp::Error) -> RelaySerializeError {
         RelaySerializeError::CapnpError(e)
+    }
+}
+
+impl From<capnp::NotInSchema> for RelaySerializeError {
+    fn from(e: capnp::NotInSchema) -> RelaySerializeError {
+        RelaySerializeError::NotInSchema(e)
     }
 }
 
@@ -63,11 +65,11 @@ pub fn deserialize_init_connection(data: &[u8]) -> Result<InitConnection, RelayS
         Ok(relay_capnp::init_connection::Listen(())) => 
            Ok(InitConnection::Listen),
         Ok(relay_capnp::init_connection::Accept(public_key)) => {
-            let public_key = read_public_key(&(public_key?));
+            let public_key = read_public_key(&(public_key?))?;
             Ok(InitConnection::Accept(public_key))
         },
         Ok(relay_capnp::init_connection::Connect(public_key)) => {
-            let public_key = read_public_key(&(public_key?));
+            let public_key = read_public_key(&(public_key?))?;
             Ok(InitConnection::Connect(public_key))
         },
         Err(e) => Err(RelaySerializeError::NotInSchema(e)),
@@ -100,7 +102,7 @@ pub fn deserialize_relay_listen_in(data: &[u8]) -> Result<RelayListenIn, RelaySe
         Ok(relay_capnp::relay_listen_in::KeepAlive(())) => 
            Ok(RelayListenIn::KeepAlive),
         Ok(relay_capnp::relay_listen_in::RejectConnection(public_key)) => {
-            let public_key = read_public_key(&(public_key?));
+            let public_key = read_public_key(&(public_key?))?;
             Ok(RelayListenIn::RejectConnection(RejectConnection(public_key)))
         },
         Err(e) => Err(RelaySerializeError::NotInSchema(e)),
@@ -133,7 +135,7 @@ pub fn deserialize_relay_listen_out(data: &[u8]) -> Result<RelayListenOut, Relay
         Ok(relay_capnp::relay_listen_out::KeepAlive(())) => 
            Ok(RelayListenOut::KeepAlive),
         Ok(relay_capnp::relay_listen_out::IncomingConnection(public_key)) => {
-            let public_key = read_public_key(&(public_key?));
+            let public_key = read_public_key(&(public_key?))?;
             Ok(RelayListenOut::IncomingConnection(IncomingConnection(public_key)))
         },
         Err(e) => Err(RelaySerializeError::NotInSchema(e)),
@@ -173,6 +175,8 @@ pub fn deserialize_tunnel_message(data: &[u8]) -> Result<TunnelMessage, RelaySer
 mod tests {
     use super::*;
     use crypto::identity::PUBLIC_KEY_LEN;
+    use std::convert::TryFrom;
+    use crypto::identity::PublicKey;
 
     #[test]
     fn test_serialize_init_connection() {
