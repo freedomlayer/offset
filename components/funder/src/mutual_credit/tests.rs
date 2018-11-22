@@ -8,12 +8,12 @@ use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 
 use proto::funder::messages::{InvoiceId, INVOICE_ID_LEN, FreezeLink, Ratio, FriendsRoute, 
     RequestSendFunds, ResponseSendFunds, FailureSendFunds, FriendTcOp};
+use proto::funder::signature_buff::{create_response_signature_buffer, 
+    create_failure_signature_buffer};
 
 use crate::mutual_credit::types::MutualCredit;
 #[allow(unused)]
 use crate::types::{RequestsStatus, create_pending_request};
-use crate::signature_buff::{create_response_signature_buffer, 
-    create_failure_signature_buffer};
 
 use crate::mutual_credit::outgoing::{OutgoingMc, QueueOperationFailure};
 use crate::mutual_credit::incoming::{process_operation, ProcessOperationOutput, ProcessOperationError};

@@ -4,12 +4,13 @@ use utils::int_convert::usize_to_u32;
 use utils::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds, FailureSendFunds,
-    FriendTcOp};
-use crate::types::{PendingFriendRequest, RequestsStatus, create_pending_request};
+    FriendTcOp, PendingFriendRequest};
+use proto::funder::signature_buff::{create_response_signature_buffer, 
+    verify_failure_signature};
+
+use crate::types::{RequestsStatus, create_pending_request};
 
 use crate::credit_calc::CreditCalculator;
-use crate::signature_buff::{create_response_signature_buffer, 
-    verify_failure_signature};
 
 use super::types::{MutualCredit, MAX_FUNDER_DEBT, McMutation};
 

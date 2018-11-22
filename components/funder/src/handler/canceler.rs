@@ -3,16 +3,16 @@ use std::fmt::Debug;
 use crypto::identity::{PublicKey, Signature};
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
-use proto::funder::messages::{RequestSendFunds, FailureSendFunds};
+use proto::funder::messages::{RequestSendFunds, FailureSendFunds,
+                                PendingFriendRequest};
+use proto::funder::signature_buff::{create_failure_signature_buffer};
 
 use crate::handler::MutableFunderHandler;
 
 
-use crate::types::{PendingFriendRequest,
-                    ResponseReceived, FunderOutgoingControl,
+use crate::types::{ResponseReceived, FunderOutgoingControl,
                     ResponseSendFundsResult,
                     create_pending_request};
-use crate::signature_buff::{create_failure_signature_buffer};
 use crate::friend::{FriendMutation, ResponseOp, ChannelStatus};
 use crate::state::FunderMutation;
 use super::sender::SendMode;

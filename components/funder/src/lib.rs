@@ -25,7 +25,6 @@ mod liveness;
 mod ephemeral;
 mod credit_calc;
 mod freeze_guard;
-mod signature_buff; 
 mod friend;
 mod state;
 mod types;

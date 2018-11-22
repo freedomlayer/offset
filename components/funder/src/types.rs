@@ -9,7 +9,7 @@ use crypto::hash::{HashResult, sha_512_256};
 
 use proto::funder::messages::{FriendsRoute, InvoiceId, 
     RequestSendFunds, FriendMoveToken, FriendMessage,
-    FriendTcOp};
+    FriendTcOp, PendingFriendRequest, SendFundsReceipt};
 
 use identity::IdentityClient;
 
@@ -47,16 +47,6 @@ impl RequestsStatus {
             false
         }
     }
-}
-
-
-
-#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct PendingFriendRequest {
-    pub request_id: Uid,
-    pub route: FriendsRoute,
-    pub dest_payment: u128,
-    pub invoice_id: InvoiceId,
 }
 
 pub fn create_pending_request(request_send_funds: &RequestSendFunds) -> PendingFriendRequest {
@@ -264,34 +254,6 @@ pub enum IncomingLivenessMessage {
     Offline(PublicKey),
 }
 
-/// A `SendFundsReceipt` is received if a `RequestSendFunds` is successful.
-/// It can be used a proof of payment for a specific `invoice_id`.
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct SendFundsReceipt {
-    pub response_hash: HashResult,
-    // = sha512/256(requestId || sha512/256(route) || randNonce)
-    pub invoice_id: InvoiceId,
-    pub dest_payment: u128,
-    pub signature: Signature,
-    // Signature{key=recipientKey}(
-    //   "FUND_SUCCESS" ||
-    //   sha512/256(requestId || sha512/256(route) || randNonce) ||
-    //   invoiceId ||
-    //   destPayment
-    // )
-}
-
-
-impl SendFundsReceipt {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.response_hash);
-        res_bytes.extend_from_slice(&self.invoice_id);
-        res_bytes.write_u128::<BigEndian>(self.dest_payment).unwrap();
-        res_bytes.extend_from_slice(&self.signature);
-        res_bytes
-    }
-}
 
 #[allow(unused)]
 pub struct FriendInconsistencyError {

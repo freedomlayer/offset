@@ -1,12 +1,9 @@
-#![warn(unused)]
-
 use byteorder::{BigEndian, WriteBytesExt};
 use crypto::hash;
 use crypto::identity::{verify_signature, PublicKey};
 
-use proto::funder::messages::{ResponseSendFunds, FailureSendFunds};
-use crate::types::{PendingFriendRequest, SendFundsReceipt};
-
+use super::messages::{ResponseSendFunds, FailureSendFunds, 
+    SendFundsReceipt, PendingFriendRequest};
 
 pub const FUND_SUCCESS_PREFIX: &[u8] = b"FUND_SUCCESS";
 pub const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
