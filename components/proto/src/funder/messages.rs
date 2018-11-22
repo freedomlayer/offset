@@ -122,11 +122,15 @@ pub struct FriendMoveTokenRequest {
     pub token_wanted: bool,
 }
 
+
 #[derive(Debug, Clone)]
 pub enum FriendMessage {
     MoveTokenRequest(FriendMoveTokenRequest),
     InconsistencyError(ResetTerms),
 }
+
+// ==================================================================
+// ==================================================================
 
 impl Ratio<u128> {
     fn to_bytes(&self) -> Vec<u8> {
