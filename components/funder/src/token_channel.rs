@@ -9,14 +9,14 @@ use identity::IdentityClient;
 
 use proto::funder::messages::{FriendMoveToken, FriendTcOp, FriendMoveTokenRequest};
 use proto::funder::consts::MAX_OPERATIONS_IN_BATCH;
+use proto::funder::signature_buff::verify_friend_move_token;
 
 use crate::mutual_credit::types::{MutualCredit, McMutation};
 use crate::mutual_credit::incoming::{ProcessOperationOutput, ProcessTransListError, 
     process_operations_list, IncomingMessage};
 use crate::mutual_credit::outgoing::OutgoingMc;
 
-use crate::types::{FriendMoveTokenHashed, create_friend_move_token,
-                    create_hashed, verify_friend_move_token};
+use crate::types::{FriendMoveTokenHashed, create_friend_move_token, create_hashed};
 
 
 #[derive(Debug)]

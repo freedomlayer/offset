@@ -1,30 +1,19 @@
-use byteorder::{WriteBytesExt, BigEndian};
 
-use utils::int_convert::{usize_to_u64};
-
-use crypto::identity::{PublicKey, Signature, verify_signature};
+use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
 use crypto::crypto_rand::RandValue;
-use crypto::hash::{HashResult, sha_512_256};
+use crypto::hash::HashResult;
 
 use proto::funder::messages::{FriendsRoute, InvoiceId, 
     RequestSendFunds, FriendMoveToken, FriendMessage,
     FriendTcOp, PendingFriendRequest, SendFundsReceipt};
 
+use proto::funder::signature_buff::{operations_hash, 
+    friend_move_token_signature_buff};
+
 use identity::IdentityClient;
 
 use super::report::{FunderReport, FunderReportMutation};
-
-// Prefix used for chain hashing of token channel funds.
-// NEXT is used for hashing for the next move token funds.
-const TOKEN_NEXT: &[u8] = b"NEXT";
-
-
-// pub const CHANNEL_TOKEN_LEN: usize = 32;
-// define_fixed_bytes!(ChannelToken, CHANNEL_TOKEN_LEN);
-
-// The hash of the previous message sent over the token channel.
-// struct ChannelToken(Signature);
 
 
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
@@ -49,6 +38,9 @@ impl RequestsStatus {
     }
 }
 
+/// Keep information from a RequestSendFunds message.
+/// This information will be used later to deal with a corresponding {Response,Failure}SendFunds messages,
+/// as those messages do not repeat the information sent in the request.
 pub fn create_pending_request(request_send_funds: &RequestSendFunds) -> PendingFriendRequest {
     PendingFriendRequest {
         request_id: request_send_funds.request_id,
@@ -105,42 +97,11 @@ pub async fn create_friend_move_token(operations: Vec<FriendTcOp>,
         new_token: Signature::zero(),
     };
 
-    let sig_buffer = signature_buff(&friend_move_token);
+    let sig_buffer = friend_move_token_signature_buff(&friend_move_token);
     friend_move_token.new_token = await!(identity_client.request_signature(sig_buffer)).unwrap();
     friend_move_token
 }
 
-/// Combine all operations into one hash value.
-fn operations_hash(friend_move_token: &FriendMoveToken) -> HashResult {
-    let mut operations_data = Vec::new();
-    operations_data.write_u64::<BigEndian>(
-        usize_to_u64(friend_move_token.operations.len()).unwrap()).unwrap();
-    for op in &friend_move_token.operations {
-        operations_data.extend_from_slice(&op.to_bytes());
-    }
-    sha_512_256(&operations_data)
-}
-
-fn signature_buff(friend_move_token: &FriendMoveToken) -> Vec<u8> {
-    let mut sig_buffer = Vec::new();
-    sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
-    sig_buffer.extend_from_slice(&operations_hash(friend_move_token));
-    sig_buffer.extend_from_slice(&friend_move_token.old_token);
-    sig_buffer.write_u64::<BigEndian>(friend_move_token.inconsistency_counter).unwrap();
-    sig_buffer.write_u128::<BigEndian>(friend_move_token.move_token_counter).unwrap();
-    sig_buffer.write_i128::<BigEndian>(friend_move_token.balance).unwrap();
-    sig_buffer.write_u128::<BigEndian>(friend_move_token.local_pending_debt).unwrap();
-    sig_buffer.write_u128::<BigEndian>(friend_move_token.remote_pending_debt).unwrap();
-    sig_buffer.extend_from_slice(&friend_move_token.rand_nonce);
-
-    sig_buffer
-}
-
-/// Verify that new_token is a valid signature over the rest of the fields.
-pub fn verify_friend_move_token(friend_move_token: &FriendMoveToken, public_key: &PublicKey) -> bool {
-    let sig_buffer = signature_buff(friend_move_token);
-    verify_signature(&sig_buffer, public_key, &friend_move_token.new_token)
-}
 
 /// Create a hashed version of the FriendMoveToken.
 /// Hashed version contains the hash of the operations instead of the operations themselves,
