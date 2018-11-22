@@ -5,7 +5,7 @@ use crypto::identity::{verify_signature, PublicKey};
 use utils::int_convert::usize_to_u64;
 
 use super::messages::{ResponseSendFunds, FailureSendFunds, 
-    SendFundsReceipt, PendingFriendRequest, FriendMoveToken};
+    SendFundsReceipt, PendingFriendRequest, MoveToken};
 
 pub const FUND_SUCCESS_PREFIX: &[u8] = b"FUND_SUCCESS";
 pub const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
@@ -108,7 +108,7 @@ pub fn verify_receipt(receipt: &SendFundsReceipt,
 const TOKEN_NEXT: &[u8] = b"NEXT";
 
 /// Combine all operations into one hash value.
-pub fn operations_hash(friend_move_token: &FriendMoveToken) -> HashResult {
+pub fn operations_hash(friend_move_token: &MoveToken) -> HashResult {
     let mut operations_data = Vec::new();
     operations_data.write_u64::<BigEndian>(
         usize_to_u64(friend_move_token.operations.len()).unwrap()).unwrap();
@@ -118,7 +118,7 @@ pub fn operations_hash(friend_move_token: &FriendMoveToken) -> HashResult {
     sha_512_256(&operations_data)
 }
 
-pub fn friend_move_token_signature_buff(friend_move_token: &FriendMoveToken) -> Vec<u8> {
+pub fn friend_move_token_signature_buff(friend_move_token: &MoveToken) -> Vec<u8> {
     let mut sig_buffer = Vec::new();
     sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
     sig_buffer.extend_from_slice(&operations_hash(friend_move_token));
@@ -134,7 +134,7 @@ pub fn friend_move_token_signature_buff(friend_move_token: &FriendMoveToken) -> 
 }
 
 /// Verify that new_token is a valid signature over the rest of the fields.
-pub fn verify_friend_move_token(friend_move_token: &FriendMoveToken, public_key: &PublicKey) -> bool {
+pub fn verify_friend_move_token(friend_move_token: &MoveToken, public_key: &PublicKey) -> bool {
     let sig_buffer = friend_move_token_signature_buff(friend_move_token);
     verify_signature(&sig_buffer, public_key, &friend_move_token.new_token)
 }

@@ -5,7 +5,7 @@ use crypto::crypto_rand::RandValue;
 use crypto::hash::HashResult;
 
 use proto::funder::messages::{FriendsRoute, InvoiceId, 
-    RequestSendFunds, FriendMoveToken, FriendMessage,
+    RequestSendFunds, MoveToken, FriendMessage,
     FriendTcOp, PendingFriendRequest, SendFundsReceipt};
 
 use proto::funder::signature_buff::{operations_hash, 
@@ -62,7 +62,7 @@ pub struct UserRequestSendFunds {
 
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct FriendMoveTokenHashed {
+pub struct MoveTokenHashed {
     pub operations_hash: HashResult,
     pub old_token: Signature,
     pub inconsistency_counter: u64,
@@ -83,9 +83,9 @@ pub async fn create_friend_move_token(operations: Vec<FriendTcOp>,
                  local_pending_debt: u128,
                  remote_pending_debt: u128,
                  rand_nonce: RandValue,
-                 identity_client: IdentityClient) -> FriendMoveToken {
+                 identity_client: IdentityClient) -> MoveToken {
 
-    let mut friend_move_token = FriendMoveToken {
+    let mut friend_move_token = MoveToken {
         operations,
         old_token,
         inconsistency_counter,
@@ -103,11 +103,11 @@ pub async fn create_friend_move_token(operations: Vec<FriendTcOp>,
 }
 
 
-/// Create a hashed version of the FriendMoveToken.
+/// Create a hashed version of the MoveToken.
 /// Hashed version contains the hash of the operations instead of the operations themselves,
 /// hence it is usually shorter.
-pub fn create_hashed(friend_move_token: &FriendMoveToken) -> FriendMoveTokenHashed {
-    FriendMoveTokenHashed {
+pub fn create_hashed(friend_move_token: &MoveToken) -> MoveTokenHashed {
+    MoveTokenHashed {
         operations_hash: operations_hash(friend_move_token),
         old_token: friend_move_token.old_token.clone(),
         inconsistency_counter: friend_move_token.inconsistency_counter,

@@ -2,11 +2,11 @@ use im::vector::Vector;
 
 use crypto::identity::PublicKey;
 use utils::safe_arithmetic::SafeUnsignedArithmetic;
-use proto::funder::messages::{FriendMoveToken, RequestSendFunds,
+use proto::funder::messages::{MoveToken, RequestSendFunds,
     ResponseSendFunds, FailureSendFunds, ResetTerms};
 
 use crate::token_channel::{TcMutation, TokenChannel};
-use crate::types::{FriendStatus, RequestsStatus, FriendMoveTokenHashed};
+use crate::types::{FriendStatus, RequestsStatus, MoveTokenHashed};
 
 
 
@@ -32,14 +32,14 @@ pub enum FriendMutation<A> {
     PopFrontPendingUserRequest,
     SetStatus(FriendStatus),
     SetFriendInfo((A, String)), // (Address, Name)
-    LocalReset(FriendMoveToken),
+    LocalReset(MoveToken),
     // The outgoing move token message we have sent to reset the channel.
-    RemoteReset(FriendMoveToken),
+    RemoteReset(MoveToken),
 }
 
 #[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
 pub struct ChannelInconsistent {
-    pub opt_last_incoming_move_token: Option<FriendMoveTokenHashed>,
+    pub opt_last_incoming_move_token: Option<MoveTokenHashed>,
     pub local_reset_terms: ResetTerms,
     pub opt_remote_reset_terms: Option<ResetTerms>,
 }
@@ -51,7 +51,7 @@ pub enum ChannelStatus {
 }
 
 impl ChannelStatus {
-    pub fn get_last_incoming_move_token_hashed(&self) -> Option<FriendMoveTokenHashed> {
+    pub fn get_last_incoming_move_token_hashed(&self) -> Option<MoveTokenHashed> {
         match &self {
             ChannelStatus::Inconsistent(channel_inconsistent) => 
                 channel_inconsistent.opt_last_incoming_move_token.clone(),

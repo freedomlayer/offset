@@ -8,8 +8,8 @@ use crypto::hash::sha_512_256;
 use identity::IdentityClient;
 
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds,
-    FailureSendFunds, FriendMoveToken, FreezeLink, FriendMessage,
-    FriendMoveTokenRequest, ResetTerms, PendingFriendRequest};
+    FailureSendFunds, MoveToken, FreezeLink, FriendMessage,
+    MoveTokenRequest, ResetTerms, PendingFriendRequest};
 use proto::funder::signature_buff::{create_response_signature_buffer, prepare_receipt};
 
 use crate::mutual_credit::incoming::{IncomingResponseSendFunds, 
@@ -95,7 +95,7 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
     pub fn try_reset_channel(&mut self, 
                            friend_public_key: &PublicKey,
                            local_reset_terms: &ResetTerms,
-                           friend_move_token: &FriendMoveToken) {
+                           friend_move_token: &MoveToken) {
 
         // Check if incoming message is an attempt to reset channel.
         // We can know this by checking if old_token is a special value.
@@ -420,7 +420,7 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
 
     async fn handle_move_token_request(&mut self, 
                          remote_public_key: PublicKey,
-                         friend_move_token_request: FriendMoveTokenRequest) -> Result<(),HandleFriendError> {
+                         friend_move_token_request: MoveTokenRequest) -> Result<(),HandleFriendError> {
 
         /*
         println!("{}: handle_move_token_request from {}", 
