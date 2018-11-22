@@ -1,8 +1,6 @@
 @0xccef24a2bc5520ea;
 
-using import "common.capnp".CustomUInt128;
-using import "common.capnp".CustomUInt256;
-using import "common.capnp".CustomUInt512;
+using import "common.capnp".PublicKey;
 
 
 # First message sent after a connection was encrypted.
@@ -12,9 +10,9 @@ struct InitConnection {
     union {
         listen @0: Void;
         # Listen to connections
-        accept @1: CustomUInt256;
+        accept @1: PublicKey;
         # Accepting connection from <PublicKey>
-        connect @2: CustomUInt256;
+        connect @2: PublicKey;
         # Request for a connection to <PublicKey> 
     }
 }
@@ -22,7 +20,7 @@ struct InitConnection {
 struct RelayListenIn {
     union {
         keepAlive @0: Void;
-        rejectConnection @1: CustomUInt256;
+        rejectConnection @1: PublicKey;
         # Reject incoming connection by PublicKey
     }
 }
@@ -30,7 +28,7 @@ struct RelayListenIn {
 struct RelayListenOut {
     union {
         keepAlive @0: Void;
-        incomingConnection @1: CustomUInt256;
+        incomingConnection @1: PublicKey;
         # Incoming Connection public key
     }
 }

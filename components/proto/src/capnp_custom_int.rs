@@ -1,6 +1,11 @@
 use std::io;
-use common_capnp::{custom_u_int128, custom_u_int256, custom_u_int512};
+use std::convert::TryFrom;
 use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt};
+
+use common_capnp::{custom_u_int128, custom_u_int256, custom_u_int512,
+                    public_key, invoice_id, hash};
+
+use crypto::identity::PublicKey;
 
 
 /// Read the underlying bytes from given `CustomUInt128` reader.
@@ -63,6 +68,18 @@ pub fn write_custom_u_int512(from: impl AsRef<[u8]>, to: &mut custom_u_int512::B
     to.set_x5(reader.read_u64::<BigEndian>().unwrap());
     to.set_x6(reader.read_u64::<BigEndian>().unwrap());
     to.set_x7(reader.read_u64::<BigEndian>().unwrap());
+}
+
+pub fn read_public_key(from: &public_key::Reader) -> PublicKey {
+    let inner = from.get_inner().unwrap();
+    let public_key_bytes = &read_custom_u_int256(&inner);
+    PublicKey::try_from(&public_key_bytes[..]).unwrap()
+}
+
+
+pub fn write_public_key(from: &PublicKey, to: &mut public_key::Builder) {
+    let mut inner = to.reborrow().get_inner().unwrap();
+    write_custom_u_int256(from, &mut inner);
 }
 
 
