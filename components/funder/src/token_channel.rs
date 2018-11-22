@@ -68,6 +68,7 @@ pub enum ReceiveMoveTokenError {
     InvalidInconsistencyCounter,
     MoveTokenCounterOverflow,
     InvalidMoveTokenCounter,
+    TooManyOperations,
 }
 
 #[derive(Debug)]
@@ -309,6 +310,10 @@ impl TokenChannel {
     pub fn simulate_receive_move_token(&self, 
                               new_move_token: FriendMoveToken)
         -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
+
+        if new_move_token.operations.len() > MAX_OPERATIONS_IN_BATCH {
+            return Err(ReceiveMoveTokenError::TooManyOperations);
+        }
 
         match &self.direction {
             TcDirection::Incoming(tc_incoming) => {
