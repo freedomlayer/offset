@@ -4,18 +4,17 @@ use std::convert::TryFrom;
 use capnp;
 use capnp::serialize_packed;
 use dh_capnp;
+
 use crypto::identity::{PublicKey, Signature};
 use crypto::crypto_rand::RandValue;
 use crypto::dh::{DhPublicKey, Salt};
-use capnp_custom_int::{read_custom_u_int128, write_custom_u_int128,
-                                read_custom_u_int256, write_custom_u_int256,
-                                read_custom_u_int512, write_custom_u_int512,
-                        write_public_key, read_public_key,
+
+use crate::capnp_common::{write_public_key, read_public_key,
                         write_rand_nonce, read_rand_nonce,
                         read_dh_public_key, write_dh_public_key,
                         write_salt, read_salt,
                         write_signature, read_signature};
-// use dh_capnp::{plain, exchange_rand_nonce, exchange_dh, rekey};
+
 use super::messages::{PlainData, ChannelMessage, ChannelContent, 
     ExchangeRandNonce, ExchangeDh, Rekey};
 
@@ -103,20 +102,6 @@ pub fn deserialize_exchange_dh(data: &[u8]) -> Result<ExchangeDh, DhSerializeErr
         signature,
     })
 }
-
-/*
-fn serialize_rekey(rekey: &Rekey) -> Result<Vec<u8>, DhSerializeError> {
-    let mut builder = capnp::message::Builder::new_default();
-    let mut msg = builder.init_root::<dh_capnp::rekey::Builder>();
-
-    write_custom_u_int256(&rekey.dh_public_key, &mut msg.reborrow().get_dh_public_key()?);
-    write_custom_u_int256(&rekey.key_salt, &mut msg.reborrow().get_key_salt()?);
-
-    let mut serialized_msg = Vec::new();
-    serialize_packed::write_message(&mut serialized_msg, &builder)?;
-    Ok(serialized_msg)
-}
-*/
 
 pub fn serialize_channel_message(channel_message: &ChannelMessage) -> Vec<u8> {
     let mut builder = capnp::message::Builder::new_default();

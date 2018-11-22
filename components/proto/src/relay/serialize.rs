@@ -1,7 +1,7 @@
 use std::io;
 use capnp;
 use capnp::serialize_packed;
-use capnp_custom_int::{write_public_key,
+use crate::capnp_common::{write_public_key,
                         read_public_key};
 
 use relay_capnp;

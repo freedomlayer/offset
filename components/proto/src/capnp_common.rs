@@ -93,6 +93,7 @@ macro_rules! type_capnp_serde {
     }
 }
 
+// 128 bits:
 type_capnp_serde!(rand_nonce, RandValue, read_rand_nonce, write_rand_nonce, read_custom_u_int128, write_custom_u_int128);
 
 // 256 bits:
