@@ -108,13 +108,13 @@ type_capnp_serde!(invoice_id, InvoiceId, read_invoice_id, write_invoice_id, read
 // 512 bits:
 type_capnp_serde!(signature, Signature, read_signature, write_signature, read_buffer512, write_buffer512);
 
-pub fn read_custom_uint128(from: &custom_u_int128::Reader) -> Result<u128, capnp::Error> {
+pub fn read_custom_u_int128(from: &custom_u_int128::Reader) -> Result<u128, capnp::Error> {
     let inner = from.get_inner()?;
     let data_bytes = read_buffer128(&inner);
     Ok(BigEndian::read_u128(&data_bytes))
 }
 
-pub fn write_custom_uint128(from: u128, to: &mut custom_u_int128::Builder) {
+pub fn write_custom_u_int128(from: u128, to: &mut custom_u_int128::Builder) {
     let mut inner = to.reborrow().get_inner().unwrap();
     let mut data_bytes = Vec::new();
     data_bytes.write_u128::<BigEndian>(from).unwrap();
