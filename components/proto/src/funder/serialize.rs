@@ -9,12 +9,14 @@ use crate::capnp_common::{write_signature, read_signature,
                           write_custom_int128, read_custom_int128,
                           write_custom_u_int128, read_custom_u_int128,
                           write_rand_nonce, read_rand_nonce,
-                          write_uid, read_uid};
+                          write_uid, read_uid,
+                          write_invoice_id, read_invoice_id};
 use funder_capnp;
 
 use super::messages::{FriendMessage, MoveTokenRequest, ResetTerms,
                     MoveToken, FriendTcOp, RequestSendFunds,
-                    ResponseSendFunds, FailureSendFunds};
+                    ResponseSendFunds, FailureSendFunds,
+                    FriendsRoute, FreezeLink};
 
 
 #[derive(Debug)]
@@ -36,11 +38,38 @@ impl From<io::Error> for FunderDeserializeError {
     }
 }
 
+fn ser_friends_route(friend_route: &FriendsRoute,
+                     friends_route_builder: &mut funder_capnp::friends_route::Builder) {
+    unimplemented!();
+}
+
+fn ser_freeze_link(freeze_link: &FreezeLink,
+                   freeze_link_builder: &mut funder_capnp::freeze_link::Builder) {
+    unimplemented!();
+}
+
+
 fn ser_request_send_funds(request_send_funds: &RequestSendFunds,
                           request_send_funds_builder: &mut funder_capnp::request_send_funds_op::Builder) {
     write_uid(&request_send_funds.request_id, 
               &mut request_send_funds_builder.reborrow().init_request_id());
-    unimplemented!();
+
+    let mut route_builder = request_send_funds_builder.reborrow().init_route();
+    ser_friends_route(&request_send_funds.route, &mut route_builder);
+
+    write_custom_u_int128(request_send_funds.dest_payment, 
+              &mut request_send_funds_builder.reborrow().init_dest_payment());
+
+    write_invoice_id(&request_send_funds.invoice_id, 
+              &mut request_send_funds_builder.reborrow().init_invoice_id());
+
+    let freeze_links_len = usize_to_u32(request_send_funds.freeze_links.len()).unwrap();
+    let mut freeze_links_builder = request_send_funds_builder.reborrow().init_freeze_links(freeze_links_len);
+
+    for (index, freeze_link) in request_send_funds.freeze_links.iter().enumerate() {
+        let mut freeze_link_builder = freeze_links_builder.reborrow().get(usize_to_u32(index).unwrap());
+        ser_freeze_link(freeze_link, &mut freeze_link_builder);
+    }
 }
 
 fn ser_response_send_funds(response_send_funds: &ResponseSendFunds,
