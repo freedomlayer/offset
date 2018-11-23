@@ -124,7 +124,7 @@ pub fn write_custom_u_int128(from: u128, to: &mut custom_u_int128::Builder) {
 }
 
 
-pub fn read_custom_int128(from: &custom_u_int128::Reader) -> Result<i128, capnp::Error> {
+pub fn read_custom_int128(from: &custom_int128::Reader) -> Result<i128, capnp::Error> {
     let inner = from.get_inner()?;
     let data_bytes = read_buffer128(&inner);
     Ok(BigEndian::read_i128(&data_bytes))
