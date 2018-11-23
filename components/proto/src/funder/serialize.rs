@@ -231,7 +231,12 @@ pub fn deser_move_token_request(move_token_request_reader: &funder_capnp::move_t
 
 pub fn deser_inconsistency_error(inconsistency_error_reader: &funder_capnp::inconsistency_error::Reader)
     -> Result<ResetTerms, FunderDeserializeError> {
-    unimplemented!();
+
+    Ok(ResetTerms {
+        reset_token: read_signature(&inconsistency_error_reader.get_reset_token()?)?,
+        inconsistency_counter: inconsistency_error_reader.get_inconsistency_counter(),
+        balance_for_reset: read_custom_int128(&inconsistency_error_reader.get_balance_for_reset()?)?,
+    })
 }
 
 pub fn deser_friend_message(friend_message_reader: &funder_capnp::friend_message::Reader) 
