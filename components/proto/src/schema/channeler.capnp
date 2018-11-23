@@ -1,8 +1,8 @@
 @0xbc544d9c10380608;
 
-using import "common.capnp".CustomUInt128;
-using import "common.capnp".CustomUInt256;
-using import "common.capnp".CustomUInt512;
+using import "common.capnp".Buffer128;
+using import "common.capnp".Buffer256;
+using import "common.capnp".Buffer512;
 
 # 4-way handshake
 # ---------------
@@ -12,41 +12,41 @@ using import "common.capnp".CustomUInt512;
 # 4. B -> A: ChannelReady     (hashPrev, Signature(B))
 
 struct InitChannel {
-    randNonce @0: CustomUInt128;
-    publicKey @1: CustomUInt256;
+    randNonce @0: Buffer128;
+    publicKey @1: Buffer256;
 }
 
 struct ExchangePassive {
-    prevHash    @0: CustomUInt256;
-    randNonce   @1: CustomUInt128;
-    publicKey   @2: CustomUInt256;
-    dhPublicKey @3: CustomUInt256;
-    keySalt     @4: CustomUInt256;
-    signature   @5: CustomUInt512;
+    prevHash    @0: Buffer256;
+    randNonce   @1: Buffer128;
+    publicKey   @2: Buffer256;
+    dhPublicKey @3: Buffer256;
+    keySalt     @4: Buffer256;
+    signature   @5: Buffer512;
     # Signature is applied for all the previous fields
     # Signature("ExchangePassive" || fields ...)
 }
 
 struct ExchangeActive {
-        prevHash    @0: CustomUInt256;
-        dhPublicKey @1: CustomUInt256;
-        keySalt     @2: CustomUInt256;
-        signature   @3: CustomUInt512;
+        prevHash    @0: Buffer256;
+        dhPublicKey @1: Buffer256;
+        keySalt     @2: Buffer256;
+        signature   @3: Buffer512;
         # Signature is applied for all the previous fields
         # Signature("ExchangeActive" || fields ...)
 }
 
 struct ChannelReady {
-    prevHash  @0: CustomUInt256;
-    signature @1: CustomUInt512;
+    prevHash  @0: Buffer256;
+    signature @1: Buffer512;
     # Signature is applied for all the previous fields
     # Signature("ChannelReady" || fields ...)
 }
 
 struct UnknownChannel {
-    channelId @0: CustomUInt128;
-    randNonce @1: CustomUInt128;
-    signature @2: CustomUInt512;
+    channelId @0: Buffer128;
+    randNonce @1: Buffer128;
+    signature @2: Buffer512;
     # Signature is applied for all the previous fields.
     # Signature("UnknownChannel" || fields ...)
 }

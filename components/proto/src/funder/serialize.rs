@@ -4,7 +4,7 @@ use std::io;
 use capnp;
 use capnp::serialize_packed;
 use crypto::identity::PublicKey;
-use crate::capnp_common::{};
+use crate::capnp_common::{write_signature, read_signature};
 use funder_capnp;
 
 use super::messages::{FriendMessage, MoveTokenRequest, ResetTerms};
@@ -39,8 +39,7 @@ fn ser_inconsistency_error<'a>(reset_terms: &'a ResetTerms,
                           mut inconsistency_error_builder: funder_capnp::inconsistency_error::Builder<'a>) {
 
     let mut reset_token = inconsistency_error_builder.reborrow().init_reset_token();
-    // TODO:
-    // write_custom_u_int512(&reset_terms.reset_token, &mut reset_token);
+    write_signature(&reset_terms.reset_token, &mut reset_token);
 
     inconsistency_error_builder.set_inconsistency_counter(reset_terms.inconsistency_counter.clone());
 
