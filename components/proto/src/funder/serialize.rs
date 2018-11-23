@@ -226,6 +226,7 @@ pub fn deser_ratio128(from: &funder_capnp::ratio128::Reader) -> Result<Ratio<u12
 pub fn deser_move_token(move_token_reader: &funder_capnp::move_token::Reader) 
     -> Result<MoveToken, FunderDeserializeError> {
 
+    // TODO: Continue here.
     unimplemented!();
 }
 
