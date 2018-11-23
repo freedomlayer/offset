@@ -10,7 +10,8 @@ use crate::capnp_common::{write_signature, read_signature,
                           write_custom_u_int128, read_custom_u_int128,
                           write_rand_nonce, read_rand_nonce,
                           write_uid, read_uid,
-                          write_invoice_id, read_invoice_id};
+                          write_invoice_id, read_invoice_id,
+                          write_public_key, read_public_key};
 use funder_capnp;
 
 use super::messages::{FriendMessage, MoveTokenRequest, ResetTerms,
@@ -74,12 +75,25 @@ fn ser_request_send_funds(request_send_funds: &RequestSendFunds,
 
 fn ser_response_send_funds(response_send_funds: &ResponseSendFunds,
                           response_send_funds_builder: &mut funder_capnp::response_send_funds_op::Builder) {
-    unimplemented!();
+
+    write_uid(&response_send_funds.request_id,
+              &mut response_send_funds_builder.reborrow().init_request_id());
+    write_rand_nonce(&response_send_funds.rand_nonce,
+              &mut response_send_funds_builder.reborrow().init_rand_nonce());
+    write_signature(&response_send_funds.signature,
+              &mut response_send_funds_builder.reborrow().init_signature());
 }
 
 fn ser_failure_send_funds(failure_send_funds: &FailureSendFunds,
                           failure_send_funds_builder: &mut funder_capnp::failure_send_funds_op::Builder) {
-    unimplemented!();
+    write_uid(&failure_send_funds.request_id,
+              &mut failure_send_funds_builder.reborrow().init_request_id());
+    write_public_key(&failure_send_funds.reporting_public_key,
+              &mut failure_send_funds_builder.reborrow().init_reporting_public_key());
+    write_rand_nonce(&failure_send_funds.rand_nonce,
+              &mut failure_send_funds_builder.reborrow().init_rand_nonce());
+    write_signature(&failure_send_funds.signature,
+              &mut failure_send_funds_builder.reborrow().init_signature());
 }
 
 fn ser_operation(operation: &FriendTcOp,
