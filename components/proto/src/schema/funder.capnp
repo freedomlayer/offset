@@ -1,6 +1,5 @@
 @0xe7603b9ac00e2251;
 
-using import "common.capnp".Ratio128;
 using import "common.capnp".Signature;
 using import "common.capnp".PublicKey;
 using import "common.capnp".RandNonce;
@@ -83,6 +82,14 @@ struct FriendMessage {
 struct FriendsRoute {
         nodePublicKeys @0: List(PublicKey);
         # A list of public keys
+}
+
+# A custom type for a rational 128 bit number.
+struct Ratio128 {
+        union {
+                one @0: Void;
+                numerator @1: CustomUInt128;
+        }
 }
 
 struct FreezeLink {

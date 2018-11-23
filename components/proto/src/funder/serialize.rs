@@ -17,7 +17,7 @@ use funder_capnp;
 use super::messages::{FriendMessage, MoveTokenRequest, ResetTerms,
                     MoveToken, FriendTcOp, RequestSendFunds,
                     ResponseSendFunds, FailureSendFunds,
-                    FriendsRoute, FreezeLink};
+                    FriendsRoute, FreezeLink, Ratio};
 
 
 #[derive(Debug)]
@@ -39,14 +39,48 @@ impl From<io::Error> for FunderDeserializeError {
     }
 }
 
+impl From<capnp::NotInSchema> for FunderDeserializeError {
+    fn from(e: capnp::NotInSchema) -> FunderDeserializeError {
+        FunderDeserializeError::NotInSchema(e)
+    }
+}
+
+pub fn deser_ratio128(from: &funder_capnp::ratio128::Reader) -> Result<Ratio<u128>, FunderDeserializeError> {
+    match from.which()? {
+        funder_capnp::ratio128::One(()) => Ok(Ratio::One),
+        funder_capnp::ratio128::Numerator(numerator_reader) => {
+            let numerator = read_custom_u_int128(&numerator_reader?)?;
+            Ok(Ratio::Numerator(numerator))
+        }
+    }
+}
+
 fn ser_friends_route(friend_route: &FriendsRoute,
                      friends_route_builder: &mut funder_capnp::friends_route::Builder) {
     unimplemented!();
 }
 
+
+fn ser_ratio128(ratio: &Ratio<u128>,
+                ratio_builder: &mut funder_capnp::ratio128::Builder) {
+    match ratio {
+        Ratio::One => ratio_builder.set_one(()),
+        Ratio::Numerator(numerator) => {
+            let mut numerator_builder = ratio_builder.reborrow().init_numerator();
+            write_custom_u_int128(*numerator, &mut numerator_builder);
+        }
+    }
+}
+
+
 fn ser_freeze_link(freeze_link: &FreezeLink,
                    freeze_link_builder: &mut funder_capnp::freeze_link::Builder) {
-    unimplemented!();
+
+    write_custom_u_int128(freeze_link.shared_credits, 
+              &mut freeze_link_builder.reborrow().init_shared_credits());
+
+    let mut usable_ratio_builder = freeze_link_builder.reborrow().init_usable_ratio();
+    ser_ratio128(&freeze_link.usable_ratio, &mut usable_ratio_builder);
 }
 
 

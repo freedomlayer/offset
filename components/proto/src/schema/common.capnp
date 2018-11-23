@@ -69,14 +69,6 @@ struct Uid {
         inner @0: Buffer128;
 }
 
-# A custom type for a rational 128 bit number.
-struct Ratio128 {
-        union {
-                one @0: Void;
-                numerator @1: Buffer128;
-        }
-}
-
 
 # A receipt for payment to the Funder
 struct Receipt {
