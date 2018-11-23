@@ -8,7 +8,8 @@ use crate::capnp_common::{write_signature, read_signature,
                             write_custom_int128, read_custom_int128};
 use funder_capnp;
 
-use super::messages::{FriendMessage, MoveTokenRequest, ResetTerms};
+use super::messages::{FriendMessage, MoveTokenRequest, ResetTerms,
+                    MoveToken};
 
 
 #[derive(Debug)]
@@ -30,10 +31,18 @@ impl From<io::Error> for FunderDeserializeError {
     }
 }
 
+fn ser_move_token<'a>(move_token: &'a MoveToken,
+                      move_token_builder: funder_capnp::move_token::Builder<'a>) {
+    unimplemented!();
+}
 
 fn ser_move_token_request<'a>(move_token_request: &'a MoveTokenRequest,
-                          move_token_request_builder: funder_capnp::move_token_request::Builder<'a>) {
-    unimplemented!();
+                          mut move_token_request_builder: funder_capnp::move_token_request::Builder<'a>) {
+
+    let move_token_builder = move_token_request_builder.reborrow().init_move_token();
+    ser_move_token(&move_token_request.friend_move_token, move_token_builder);
+
+    move_token_request_builder.set_token_wanted(move_token_request.token_wanted);
 }
 
 fn ser_inconsistency_error<'a>(reset_terms: &'a ResetTerms,
