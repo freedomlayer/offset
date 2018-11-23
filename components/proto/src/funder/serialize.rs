@@ -12,7 +12,8 @@ use crate::capnp_common::{write_signature, read_signature,
 use funder_capnp;
 
 use super::messages::{FriendMessage, MoveTokenRequest, ResetTerms,
-                    MoveToken, FriendTcOp};
+                    MoveToken, FriendTcOp, RequestSendFunds,
+                    ResponseSendFunds, FailureSendFunds};
 
 
 #[derive(Debug)]
@@ -34,9 +35,44 @@ impl From<io::Error> for FunderDeserializeError {
     }
 }
 
+fn ser_request_send_funds(request_send_funds: &RequestSendFunds,
+                          request_send_funds_builder: &mut funder_capnp::request_send_funds_op::Builder) {
+    unimplemented!();
+}
+
+fn ser_response_send_funds(response_send_funds: &ResponseSendFunds,
+                          response_send_funds_builder: &mut funder_capnp::response_send_funds_op::Builder) {
+    unimplemented!();
+}
+
+fn ser_failure_send_funds(failure_send_funds: &FailureSendFunds,
+                          failure_send_funds_builder: &mut funder_capnp::failure_send_funds_op::Builder) {
+    unimplemented!();
+}
+
 fn ser_operation(operation: &FriendTcOp,
                  operation_builder: &mut funder_capnp::friend_operation::Builder) {
-    unimplemented!();
+
+    match operation {
+        FriendTcOp::EnableRequests => operation_builder.set_enable_requests(()),
+        FriendTcOp::DisableRequests => operation_builder.set_disable_requests(()),
+        FriendTcOp::SetRemoteMaxDebt(remote_max_debt) => {
+            let mut set_remote_max_debt_builder = operation_builder.reborrow().init_set_remote_max_debt();
+            write_custom_u_int128(*remote_max_debt, &mut set_remote_max_debt_builder);
+        },
+        FriendTcOp::RequestSendFunds(request_send_funds) => {
+            let mut request_send_funds_builder = operation_builder.reborrow().init_request_send_funds();
+            ser_request_send_funds(request_send_funds, &mut request_send_funds_builder);
+        },
+        FriendTcOp::ResponseSendFunds(response_send_funds) => {
+            let mut response_send_funds_builder = operation_builder.reborrow().init_response_send_funds();
+            ser_response_send_funds(response_send_funds, &mut response_send_funds_builder);
+        },
+        FriendTcOp::FailureSendFunds(failure_send_funds) => {
+            let mut failure_send_funds_builder = operation_builder.reborrow().init_failure_send_funds();
+            ser_failure_send_funds(failure_send_funds, &mut failure_send_funds_builder);
+        },
+    };
 }
 
 fn ser_move_token(move_token: &MoveToken,
