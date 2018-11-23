@@ -4,7 +4,8 @@ use std::io;
 use capnp;
 use capnp::serialize_packed;
 use crypto::identity::PublicKey;
-use crate::capnp_common::{write_signature, read_signature};
+use crate::capnp_common::{write_signature, read_signature,
+                            write_custom_int128, read_custom_int128};
 use funder_capnp;
 
 use super::messages::{FriendMessage, MoveTokenRequest, ResetTerms};
@@ -44,9 +45,7 @@ fn ser_inconsistency_error<'a>(reset_terms: &'a ResetTerms,
     inconsistency_error_builder.set_inconsistency_counter(reset_terms.inconsistency_counter.clone());
 
     let mut balance_for_reset = inconsistency_error_builder.init_balance_for_reset();
-
-    // TODO; Solve problem with signed/unsigend here (AsRef is not implemented for i128?)
-    // write_custom_u_int128(&reset_terms.balance_for_reset, &mut balance_for_reset);
+    write_custom_int128(reset_terms.balance_for_reset, &mut balance_for_reset);
 }
 
 
