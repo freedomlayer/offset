@@ -45,19 +45,17 @@ impl From<capnp::NotInSchema> for FunderDeserializeError {
     }
 }
 
-pub fn deser_ratio128(from: &funder_capnp::ratio128::Reader) -> Result<Ratio<u128>, FunderDeserializeError> {
-    match from.which()? {
-        funder_capnp::ratio128::One(()) => Ok(Ratio::One),
-        funder_capnp::ratio128::Numerator(numerator_reader) => {
-            let numerator = read_custom_u_int128(&numerator_reader?)?;
-            Ok(Ratio::Numerator(numerator))
-        }
-    }
-}
 
-fn ser_friends_route(friend_route: &FriendsRoute,
+fn ser_friends_route(friends_route: &FriendsRoute,
                      friends_route_builder: &mut funder_capnp::friends_route::Builder) {
-    unimplemented!();
+
+    let public_keys_len = usize_to_u32(friends_route.public_keys.len()).unwrap();
+    let mut public_keys_builder = friends_route_builder.reborrow().init_public_keys(public_keys_len);
+
+    for (index, public_key) in friends_route.public_keys.iter().enumerate() {
+        let mut public_key_builder = public_keys_builder.reborrow().get(usize_to_u32(index).unwrap());
+        write_public_key(public_key, &mut public_key_builder);
+    }
 }
 
 
@@ -212,6 +210,19 @@ fn ser_friend_message(friend_message: &FriendMessage,
     };
 }
 
+// ------------ Deserialization -----------------------
+// ----------------------------------------------------
+
 pub fn deserialize_friend_message(data: &[u8]) -> Result<FriendMessage, FunderDeserializeError> {
     unimplemented!();
+}
+
+pub fn deser_ratio128(from: &funder_capnp::ratio128::Reader) -> Result<Ratio<u128>, FunderDeserializeError> {
+    match from.which()? {
+        funder_capnp::ratio128::One(()) => Ok(Ratio::One),
+        funder_capnp::ratio128::Numerator(numerator_reader) => {
+            let numerator = read_custom_u_int128(&numerator_reader?)?;
+            Ok(Ratio::Numerator(numerator))
+        }
+    }
 }

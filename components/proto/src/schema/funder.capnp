@@ -80,7 +80,7 @@ struct FriendMessage {
 # }
 
 struct FriendsRoute {
-        nodePublicKeys @0: List(PublicKey);
+        publicKeys @0: List(PublicKey);
         # A list of public keys
 }
 
