@@ -137,12 +137,3 @@ pub fn write_custom_int128(from: i128, to: &mut custom_int128::Builder) {
     write_buffer128(&data_bytes, &mut inner);
 }
 
-/*
-
-pub fn write_ratio128(from: i128, to: &mut custom_int128::Builder) {
-    let mut inner = to.reborrow().get_inner().unwrap();
-    let mut data_bytes = Vec::new();
-    data_bytes.write_i128::<BigEndian>(from).unwrap();
-    write_buffer128(&data_bytes, &mut inner);
-}
-*/
