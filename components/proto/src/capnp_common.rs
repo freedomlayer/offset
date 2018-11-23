@@ -4,12 +4,13 @@ use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt, ByteOrder};
 
 use common_capnp::{buffer128, buffer256, buffer512,
                     public_key, invoice_id, hash, dh_public_key, salt, signature,
-                    rand_nonce, custom_u_int128, custom_int128};
+                    rand_nonce, custom_u_int128, custom_int128, uid};
 
 use crate::funder::messages::InvoiceId;
 
 use crypto::identity::{PublicKey, Signature};
 use crypto::dh::{DhPublicKey, Salt};
+use crypto::uid::Uid;
 use crypto::hash::HashResult;
 use crypto::crypto_rand::RandValue;
 
@@ -97,6 +98,7 @@ macro_rules! type_capnp_serde {
 
 // 128 bits:
 type_capnp_serde!(rand_nonce, RandValue, read_rand_nonce, write_rand_nonce, read_buffer128, write_buffer128);
+type_capnp_serde!(uid, Uid, read_uid, write_uid, read_buffer128, write_buffer128);
 
 // 256 bits:
 type_capnp_serde!(public_key, PublicKey, read_public_key, write_public_key, read_buffer256, write_buffer256);

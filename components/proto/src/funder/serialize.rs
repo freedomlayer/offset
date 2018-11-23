@@ -6,9 +6,10 @@ use capnp::serialize_packed;
 use crypto::identity::PublicKey;
 use utils::int_convert::usize_to_u32;
 use crate::capnp_common::{write_signature, read_signature,
-                            write_custom_int128, read_custom_int128,
+                          write_custom_int128, read_custom_int128,
                           write_custom_u_int128, read_custom_u_int128,
-                          write_rand_nonce, read_rand_nonce};
+                          write_rand_nonce, read_rand_nonce,
+                          write_uid, read_uid};
 use funder_capnp;
 
 use super::messages::{FriendMessage, MoveTokenRequest, ResetTerms,
@@ -37,6 +38,8 @@ impl From<io::Error> for FunderDeserializeError {
 
 fn ser_request_send_funds(request_send_funds: &RequestSendFunds,
                           request_send_funds_builder: &mut funder_capnp::request_send_funds_op::Builder) {
+    write_uid(&request_send_funds.request_id, 
+              &mut request_send_funds_builder.reborrow().init_request_id());
     unimplemented!();
 }
 
