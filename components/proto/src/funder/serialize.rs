@@ -213,10 +213,6 @@ fn ser_friend_message(friend_message: &FriendMessage,
 // ------------ Deserialization -----------------------
 // ----------------------------------------------------
 
-pub fn deserialize_friend_message(data: &[u8]) -> Result<FriendMessage, FunderDeserializeError> {
-    unimplemented!();
-}
-
 pub fn deser_ratio128(from: &funder_capnp::ratio128::Reader) -> Result<Ratio<u128>, FunderDeserializeError> {
     match from.which()? {
         funder_capnp::ratio128::One(()) => Ok(Ratio::One),
@@ -225,4 +221,33 @@ pub fn deser_ratio128(from: &funder_capnp::ratio128::Reader) -> Result<Ratio<u12
             Ok(Ratio::Numerator(numerator))
         }
     }
+}
+
+
+pub fn deser_move_token_request(move_token_request_reader: &funder_capnp::move_token_request::Reader) 
+    -> Result<MoveTokenRequest, FunderDeserializeError> {
+    unimplemented!();
+}
+
+pub fn deser_inconsistency_error(inconsistency_error_reader: &funder_capnp::inconsistency_error::Reader)
+    -> Result<ResetTerms, FunderDeserializeError> {
+    unimplemented!();
+}
+
+pub fn deser_friend_message(friend_message_reader: &funder_capnp::friend_message::Reader) 
+    -> Result<FriendMessage, FunderDeserializeError> {
+
+    Ok(match friend_message_reader.which()? {
+        funder_capnp::friend_message::MoveTokenRequest(move_token_request_reader) => {
+            FriendMessage::MoveTokenRequest(deser_move_token_request(&move_token_request_reader?)?)
+        },
+        funder_capnp::friend_message::InconsistencyError(inconsistency_error_reader) => {
+            FriendMessage::InconsistencyError(deser_inconsistency_error(&inconsistency_error_reader?)?)
+        },
+    })
+}
+
+
+pub fn deserialize_friend_message(data: &[u8]) -> Result<FriendMessage, FunderDeserializeError> {
+    unimplemented!();
 }
