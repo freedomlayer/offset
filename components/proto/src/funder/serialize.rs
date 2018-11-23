@@ -223,10 +223,23 @@ pub fn deser_ratio128(from: &funder_capnp::ratio128::Reader) -> Result<Ratio<u12
     }
 }
 
+pub fn deser_move_token(move_token_reader: &funder_capnp::move_token::Reader) 
+    -> Result<MoveToken, FunderDeserializeError> {
+
+    unimplemented!();
+}
+
 
 pub fn deser_move_token_request(move_token_request_reader: &funder_capnp::move_token_request::Reader) 
     -> Result<MoveTokenRequest, FunderDeserializeError> {
-    unimplemented!();
+
+    let move_token_reader = move_token_request_reader.get_move_token()?;
+    let move_token = deser_move_token(&move_token_reader)?;
+
+    Ok(MoveTokenRequest {
+        friend_move_token: move_token,
+        token_wanted: move_token_request_reader.get_token_wanted(),
+    })
 }
 
 pub fn deser_inconsistency_error(inconsistency_error_reader: &funder_capnp::inconsistency_error::Reader)
