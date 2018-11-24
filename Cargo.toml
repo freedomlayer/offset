@@ -3,6 +3,7 @@
 
 members = [
   "components/funder",
+  "components/channeler",
   "components/utils",
   "components/proto",
   "components/crypto",
