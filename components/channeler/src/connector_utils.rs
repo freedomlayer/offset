@@ -55,6 +55,9 @@ pub struct EncryptedConnector<C,R,S> {
     spawner: S,
 }
 
+/// Turns a connector into a connector that yields encrypted connections.
+/// Addresses are changed from A into (PublicKey, A), 
+/// where public_key is the identity of the remot side.
 impl<C,R,S> EncryptedConnector<C,R,S> {
     pub fn new(connector: C, 
                identity_client: IdentityClient,
