@@ -10,3 +10,5 @@ mod channeler;
 mod listener;
 mod connector_utils;
 
+#[macro_use]
+extern crate log;
