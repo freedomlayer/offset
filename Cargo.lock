@@ -493,6 +493,8 @@ dependencies = [
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "offst-crypto 0.1.0",
  "offst-proto 0.1.0",
+ "offst-relay 0.1.0",
+ "offst-secure-channel 0.1.0",
  "offst-timer 0.1.0",
  "offst-utils 0.1.0",
 ]

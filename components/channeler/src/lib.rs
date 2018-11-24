@@ -6,4 +6,5 @@
 #![feature(never_type)]
 #![feature(dbg_macro)]
 
+mod channeler;
 
