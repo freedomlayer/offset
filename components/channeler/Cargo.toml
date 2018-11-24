@@ -11,6 +11,7 @@ edition = "2018"
 
 utils = { path = "../utils", version = "0.1.0", package = "offst-utils" }
 crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
+identity = { path = "../identity", version = "0.1.0" , package = "offst-identity" }
 timer = { path = "../timer", version = "0.1.0" , package = "offst-timer" }
 proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
 relay = { path = "../relay", version = "0.1.0" , package = "offst-relay" }

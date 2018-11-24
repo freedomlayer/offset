@@ -1,8 +1,6 @@
-
 use std::marker::Unpin;
 use futures::{select, future, Stream, StreamExt, Sink};
 use futures::task::Spawn;
-use futures::future::FutureObj;
 
 use proto::funder::messages::{FunderToChanneler, ChannelerToFunder};
 use crypto::identity::PublicKey;
@@ -13,6 +11,8 @@ use utils::int_convert::usize_to_u64;
 use relay::client::connector::{Connector, ConnPair};
 use relay::client::client_listener::{client_listener, ClientListenerError};
 use relay::client::access_control::{AccessControlOp, AccessControl};
+
+use crate::connector_utils::ConstAddressConnector;
 
 pub enum ListenerError {
     RequestTimerStreamError,
@@ -56,38 +56,6 @@ async fn sleep_ticks(ticks: usize, mut timer_client: TimerClient) -> Result<(), 
     Ok(await!(fut))
 }
 
-/// A wrapper for a connector.
-/// Always connects to the same address.
-#[derive(Clone)]
-struct ConstAddressConnector<C,A> {
-    connector: C,
-    address: A,
-}
-
-impl<C,A> ConstAddressConnector<C,A> {
-    fn new(connector: C, address: A) -> ConstAddressConnector<C,A> {
-        ConstAddressConnector {
-            connector,
-            address,
-        }
-    }
-}
-
-
-impl<C,A> Connector for ConstAddressConnector<C,A>
-where
-    C: Connector<Address=A>,
-    A: Clone,
-{
-    type Address = ();
-    type SendItem = C::SendItem;
-    type RecvItem = C::RecvItem;
-
-    fn connect(&mut self, address: ())
-        -> FutureObj<Option<ConnPair<C::SendItem, C::RecvItem>>> {
-        self.connector.connect(self.address.clone())
-    }
-}
 
 /// Connect to relay and keep listening for incoming connections.
 pub async fn listener_loop<A,C,IAC,CS,IA>(mut connector: C,
