@@ -364,3 +364,19 @@ fn test_funder_inconsistency_basic() {
     thread_pool.run(task_funder_inconsistency_basic(thread_pool.clone()));
 }
 
+/// Test setting relay address for local node
+async fn task_funder_set_address(spawner: impl Spawn + Clone + Send + 'static) {
+    let num_nodes = 1;
+    let mut node_controls = await!(create_node_controls(num_nodes, spawner));
+
+    // Change the node's relay address:
+    await!(node_controls[0].set_address(9876u32));
+}
+
+
+#[test]
+fn test_funder_set_address() {
+    let mut thread_pool = ThreadPool::new().unwrap();
+    thread_pool.run(task_funder_set_address(thread_pool.clone()));
+}
+

@@ -219,6 +219,15 @@ impl<A: Clone> NodeControl<A> {
         }
     }
 
+    pub async fn set_address<'a>(&'a mut self, address: A) 
+    where
+        A: PartialEq + Eq,
+    {
+        await!(self.send(FunderIncomingControl::SetAddress(address.clone()))).unwrap();
+        let pred = |report: &FunderReport<_>| report.address == address;
+        await!(self.recv_until(pred));
+    }
+
     pub async fn add_friend<'a>(&'a mut self, 
                          friend_public_key: &'a PublicKey,
                          address: A,
