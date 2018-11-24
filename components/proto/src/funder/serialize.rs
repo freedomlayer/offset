@@ -378,3 +378,109 @@ pub fn deserialize_friend_message(data: &[u8]) -> Result<FriendMessage, FunderDe
 
     deser_friend_message(&friend_message_reader)
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crypto::identity::{Signature, SIGNATURE_LEN, PublicKey, PUBLIC_KEY_LEN};
+    use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
+    use crypto::uid::{Uid, UID_LEN};
+    use crate::funder::messages::{InvoiceId, INVOICE_ID_LEN};
+
+    /// Create an example FriendMessage::MoveTokenRequest:
+    fn create_move_token_request() -> FriendMessage {
+        let route = FriendsRoute {
+            public_keys: vec![
+                PublicKey::from(&[0x5; PUBLIC_KEY_LEN]),
+                PublicKey::from(&[0x6; PUBLIC_KEY_LEN]),
+                PublicKey::from(&[0x7; PUBLIC_KEY_LEN]),
+                PublicKey::from(&[0x8; PUBLIC_KEY_LEN])],
+        };
+
+        let mut freeze_links = Vec::new();
+        freeze_links.push(FreezeLink {
+            shared_credits: 8,
+            usable_ratio: Ratio::One,
+        });
+        freeze_links.push(FreezeLink {
+            shared_credits: 100,
+            usable_ratio: Ratio::Numerator(234234),
+        });
+        freeze_links.push(FreezeLink {
+            shared_credits: 500,
+            usable_ratio: Ratio::Numerator(9876),
+        });
+
+        let request_send_funds = RequestSendFunds {
+            request_id: Uid::from(&[22; UID_LEN]),
+            route,
+            dest_payment: 48,
+            invoice_id: InvoiceId::from(&[0x99; INVOICE_ID_LEN]),
+            freeze_links,
+        };
+        let response_send_funds = ResponseSendFunds {
+            request_id: Uid::from(&[10; UID_LEN]),
+            rand_nonce: RandValue::from(&[0xbb; RAND_VALUE_LEN]),
+            signature: Signature::from(&[3; SIGNATURE_LEN]),
+        };
+
+        let failure_send_funds = FailureSendFunds {
+            request_id: Uid::from(&[10; UID_LEN]),
+            reporting_public_key: PublicKey::from(&[0x11; PUBLIC_KEY_LEN]) ,
+            rand_nonce: RandValue::from(&[0xbb; RAND_VALUE_LEN]),
+            signature: Signature::from(&[3; SIGNATURE_LEN]),
+        };
+
+        let mut operations = vec![FriendTcOp::EnableRequests,
+                                  FriendTcOp::DisableRequests,
+                                  FriendTcOp::SetRemoteMaxDebt(101),
+                                  FriendTcOp::RequestSendFunds(request_send_funds),
+                                  FriendTcOp::ResponseSendFunds(response_send_funds),
+                                  FriendTcOp::FailureSendFunds(failure_send_funds)];
+        let move_token = MoveToken {
+            operations,
+            old_token: Signature::from(&[0; SIGNATURE_LEN]),
+            inconsistency_counter: 2,
+            move_token_counter: 18,
+            balance: -5,
+            local_pending_debt: 20,
+            remote_pending_debt: 80,
+            rand_nonce: RandValue::from(&[0xaa; RAND_VALUE_LEN]),
+            new_token: Signature::from(&[1; SIGNATURE_LEN]),
+        };
+        let move_token_request = MoveTokenRequest {
+            friend_move_token: move_token,
+            token_wanted: true,
+        };
+
+        FriendMessage::MoveTokenRequest(move_token_request)
+    }
+
+    /// Create an example FriendMessage::InconsistencyError
+    fn create_inconsistency_error() -> FriendMessage {
+
+        let reset_terms = ResetTerms {
+            reset_token: Signature::from(&[2; SIGNATURE_LEN]),
+            inconsistency_counter: 9,
+            balance_for_reset: 301,
+        };
+        FriendMessage::InconsistencyError(reset_terms)
+    }
+
+    #[test]
+    fn test_serialize_friend_message_move_token_request() {
+        let friend_message = create_move_token_request();
+        let ser_buff = serialize_friend_message(&friend_message);
+        let friend_message2 = deserialize_friend_message(&ser_buff).unwrap();
+        assert_eq!(friend_message, friend_message2);
+    }
+
+    #[test]
+    fn test_serialize_friend_message_inconsistency_error() {
+        let friend_message = create_inconsistency_error();
+        let ser_buff = serialize_friend_message(&friend_message);
+        let friend_message2 = deserialize_friend_message(&ser_buff).unwrap();
+        assert_eq!(friend_message, friend_message2);
+    }
+}
