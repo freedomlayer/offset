@@ -11,6 +11,7 @@ use utils::int_convert::usize_to_u64;
 
 use relay::client::connector::{Connector, ConnPair};
 use relay::client::client_listener::{client_listener, ClientListenerError};
+use relay::client::client_connector::{ClientConnector};
 
 use crate::listener::listener_loop;
 
@@ -41,11 +42,16 @@ where
     S: Spawn + Clone + Send + Sync + 'static,
 {
 
+    let client_connector = ClientConnector::new(connector.clone(), 
+                                                spawner.clone(), 
+                                                timer_client.clone(), 
+                                                keepalive_ticks);
+
     let (addresses_sender, addresses_receiver) = mpsc::channel(0);
     let (access_control_sender, access_control_receiver) = mpsc::channel(0);
     let (connections_sender, connections_receiver) = mpsc::channel(0);
 
-    let listener_loop_fut = listener_loop(connector,
+    let listener_loop_fut = listener_loop(connector.clone(),
                       address,
                       addresses_receiver,
                       access_control_receiver,
@@ -61,6 +67,8 @@ where
 
     spawner.spawn(listener_loop_fut)
         .map_err(|_| ChannelerError::SpawnError)?;
+
+
 
     unimplemented!();
     // TODO:
