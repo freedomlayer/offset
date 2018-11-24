@@ -1,7 +1,8 @@
 
 use std::marker::Unpin;
-use futures::{future, Stream, StreamExt, Sink};
+use futures::{select, future, Stream, StreamExt, Sink};
 use futures::task::Spawn;
+use futures::future::FutureObj;
 
 use proto::funder::messages::{FunderToChanneler, ChannelerToFunder};
 use crypto::identity::PublicKey;
@@ -18,6 +19,13 @@ pub enum ListenerError {
     TimerClosed,
     AccessControlError,
     SpawnError,
+    IncomingAddressClosed,
+}
+
+pub enum ListenerSelect<A> {
+    ListenerError(ListenerError),
+    IncomingAddress(A),
+    IncomingAddressClosed,
 }
 
 fn convert_client_listener_result(client_listener_result: Result<(), ClientListenerError>) -> Result<(), ListenerError> {
@@ -48,12 +56,43 @@ async fn sleep_ticks(ticks: usize, mut timer_client: TimerClient) -> Result<(), 
     Ok(await!(fut))
 }
 
-// TODO: How to deal with changing address to connect to?
-// Things to think about:
-// - How to cancel the current connection attempt?
-// - How to get information about changed address?
+/// A wrapper for a connector.
+/// Always connects to the same address.
+#[derive(Clone)]
+struct ConstAddressConnector<C,A> {
+    connector: C,
+    address: A,
+}
+
+impl<C,A> ConstAddressConnector<C,A> {
+    fn new(connector: C, address: A) -> ConstAddressConnector<C,A> {
+        ConstAddressConnector {
+            connector,
+            address,
+        }
+    }
+}
+
+
+impl<C,A> Connector for ConstAddressConnector<C,A>
+where
+    C: Connector<Address=A>,
+    A: Clone,
+{
+    type Address = ();
+    type SendItem = C::SendItem;
+    type RecvItem = C::RecvItem;
+
+    fn connect(&mut self, address: ())
+        -> FutureObj<Option<ConnPair<C::SendItem, C::RecvItem>>> {
+        self.connector.connect(self.address.clone())
+    }
+}
+
 /// Connect to relay and keep listening for incoming connections.
-pub async fn listener_loop<C,IAC,CS>(mut connector: C,
+pub async fn listener_loop<A,C,IAC,CS,IA>(mut connector: C,
+                 initial_address: A,
+                 mut incoming_addresses: IA,
                  mut incoming_access_control: IAC,
                  connections_sender: CS,
                  conn_timeout_ticks: usize,
@@ -62,29 +101,63 @@ pub async fn listener_loop<C,IAC,CS>(mut connector: C,
                  timer_client: TimerClient,
                  spawner: impl Spawn + Clone + Send + 'static) -> Result<(), ListenerError> 
 where
-    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Sync + Send + Clone + 'static, 
+    A: Clone + Send + Sync + 'static,
+    C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Sync + Send + Clone + 'static, 
+    IA: Stream<Item=A> + Unpin + 'static,
     IAC: Stream<Item=AccessControlOp> + Unpin + 'static,
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)> + Unpin + Clone + Send + 'static,
 {
     let mut access_control = AccessControl::new();
+    let mut address = initial_address;
     loop {
-        let res = await!(client_listener(connector.clone(),
-                                    &mut access_control,
-                                    &mut incoming_access_control,
-                                    connections_sender.clone(),
-                                    conn_timeout_ticks,
-                                    keepalive_ticks,
-                                    timer_client.clone(),
-                                    spawner.clone()));
+        // TODO: get rid of Box::pinned() later.
+        let mut listener_fut = Box::pinned(async {
+            let const_address_connector = ConstAddressConnector::new(connector.clone(), address.clone());
+            let res = await!(client_listener(const_address_connector,
+                                        &mut access_control,
+                                        &mut incoming_access_control,
+                                        connections_sender.clone(),
+                                        conn_timeout_ticks,
+                                        keepalive_ticks,
+                                        timer_client.clone(),
+                                        spawner.clone()));
 
-        // Exit the loop if the error is fatal:
-        // TODO: Should we unwrap here? We need to make sure that everything stops if a fatal error
-        // occurs here.
-        convert_client_listener_result(res)?;
+            // Exit the loop if the error is fatal:
+            // TODO: Should we unwrap here? We need to make sure that everything stops if a fatal error
+            // occurs here.
+            convert_client_listener_result(res)?;
 
-        // Wait for a while before attempting to connect again:
-        // TODO: Possibly wait here in a smart way? Exponential backoff?
-        await!(sleep_ticks(backoff_ticks, timer_client.clone()))?;
+            // Wait for a while before attempting to connect again:
+            // TODO: Possibly wait here in a smart way? Exponential backoff?
+            await!(sleep_ticks(backoff_ticks, timer_client.clone()))?;
+            Ok(())
+        });
+
+        // TODO: Get rid of Box::pinned() later.
+        let mut new_address_fut = Box::pinned(async {
+            match await!(incoming_addresses.next()) {
+                Some(address) => ListenerSelect::IncomingAddress(address),
+                None => ListenerSelect::IncomingAddressClosed,
+            }
+        });
+
+        // TODO: Could we possibly lose an incoming address with this select?
+        let listener_select = select! {
+            listener_fut => ListenerSelect::ListenerError(listener_fut.err().unwrap()),
+            new_address_fut => new_address_fut,
+        };
+        // TODO: Make code nicer here somehow. Use scopes instead of drop?
+        drop(new_address_fut);
+        drop(listener_fut);
+
+        match listener_select {
+            ListenerSelect::ListenerError(listener_error) => Err(listener_error),
+            ListenerSelect::IncomingAddressClosed => Err(ListenerError::IncomingAddressClosed),
+            ListenerSelect::IncomingAddress(new_address) => {
+                address = new_address;
+                Ok(())
+            }
+        }?;
     }
 }
 
