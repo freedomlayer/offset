@@ -211,7 +211,7 @@ fn ser_friend_message(friend_message: &FriendMessage,
 }
 
 /// Serialize a FriendMessage into a vector of bytes
-fn serialize_friend_message(friend_message: &FriendMessage) -> Vec<u8> {
+pub fn serialize_friend_message(friend_message: &FriendMessage) -> Vec<u8> {
     let mut builder = capnp::message::Builder::new_default();
     let mut friend_message_builder = builder.init_root::<funder_capnp::friend_message::Builder>();
 
@@ -225,7 +225,7 @@ fn serialize_friend_message(friend_message: &FriendMessage) -> Vec<u8> {
 // ------------ Deserialization -----------------------
 // ----------------------------------------------------
 
-pub fn deser_ratio128(from: &funder_capnp::ratio128::Reader) -> Result<Ratio<u128>, FunderDeserializeError> {
+fn deser_ratio128(from: &funder_capnp::ratio128::Reader) -> Result<Ratio<u128>, FunderDeserializeError> {
     match from.which()? {
         funder_capnp::ratio128::One(()) => Ok(Ratio::One),
         funder_capnp::ratio128::Numerator(numerator_reader) => {
@@ -235,7 +235,7 @@ pub fn deser_ratio128(from: &funder_capnp::ratio128::Reader) -> Result<Ratio<u12
     }
 }
 
-pub fn deser_freeze_link(freeze_link_reader: &funder_capnp::freeze_link::Reader)
+fn deser_freeze_link(freeze_link_reader: &funder_capnp::freeze_link::Reader)
     -> Result<FreezeLink, FunderDeserializeError> {
 
     Ok(FreezeLink {
@@ -244,7 +244,7 @@ pub fn deser_freeze_link(freeze_link_reader: &funder_capnp::freeze_link::Reader)
     })
 }
 
-pub fn deser_friends_route(friends_route_reader: &funder_capnp::friends_route::Reader)
+fn deser_friends_route(friends_route_reader: &funder_capnp::friends_route::Reader)
     -> Result<FriendsRoute, FunderDeserializeError> {
 
     let mut public_keys = Vec::new();
@@ -257,7 +257,7 @@ pub fn deser_friends_route(friends_route_reader: &funder_capnp::friends_route::R
     })
 }
 
-pub fn deser_request_send_funds(request_send_funds_reader: &funder_capnp::request_send_funds_op::Reader)
+fn deser_request_send_funds(request_send_funds_reader: &funder_capnp::request_send_funds_op::Reader)
     -> Result<RequestSendFunds, FunderDeserializeError> {
 
     let mut freeze_links = Vec::new();
@@ -274,7 +274,7 @@ pub fn deser_request_send_funds(request_send_funds_reader: &funder_capnp::reques
     })
 }
 
-pub fn deser_response_send_funds(response_send_funds_reader: &funder_capnp::response_send_funds_op::Reader)
+fn deser_response_send_funds(response_send_funds_reader: &funder_capnp::response_send_funds_op::Reader)
     -> Result<ResponseSendFunds, FunderDeserializeError> {
 
     Ok(ResponseSendFunds {
@@ -284,7 +284,7 @@ pub fn deser_response_send_funds(response_send_funds_reader: &funder_capnp::resp
     })
 }
 
-pub fn deser_failure_send_funds(failure_send_funds_reader: &funder_capnp::failure_send_funds_op::Reader)
+fn deser_failure_send_funds(failure_send_funds_reader: &funder_capnp::failure_send_funds_op::Reader)
     -> Result<FailureSendFunds, FunderDeserializeError> {
 
     Ok(FailureSendFunds {
@@ -295,7 +295,7 @@ pub fn deser_failure_send_funds(failure_send_funds_reader: &funder_capnp::failur
     })
 }
 
-pub fn deser_friend_operation(friend_operation_reader: &funder_capnp::friend_operation::Reader)
+fn deser_friend_operation(friend_operation_reader: &funder_capnp::friend_operation::Reader)
     -> Result<FriendTcOp, FunderDeserializeError> {
 
     Ok(match friend_operation_reader.which()? {
@@ -312,7 +312,7 @@ pub fn deser_friend_operation(friend_operation_reader: &funder_capnp::friend_ope
     })
 }
 
-pub fn deser_move_token(move_token_reader: &funder_capnp::move_token::Reader) 
+fn deser_move_token(move_token_reader: &funder_capnp::move_token::Reader) 
     -> Result<MoveToken, FunderDeserializeError> {
 
     let mut operations: Vec<FriendTcOp> = Vec::new();
@@ -334,7 +334,7 @@ pub fn deser_move_token(move_token_reader: &funder_capnp::move_token::Reader)
 }
 
 
-pub fn deser_move_token_request(move_token_request_reader: &funder_capnp::move_token_request::Reader) 
+fn deser_move_token_request(move_token_request_reader: &funder_capnp::move_token_request::Reader) 
     -> Result<MoveTokenRequest, FunderDeserializeError> {
 
     let move_token_reader = move_token_request_reader.get_move_token()?;
@@ -346,7 +346,7 @@ pub fn deser_move_token_request(move_token_request_reader: &funder_capnp::move_t
     })
 }
 
-pub fn deser_inconsistency_error(inconsistency_error_reader: &funder_capnp::inconsistency_error::Reader)
+fn deser_inconsistency_error(inconsistency_error_reader: &funder_capnp::inconsistency_error::Reader)
     -> Result<ResetTerms, FunderDeserializeError> {
 
     Ok(ResetTerms {
@@ -356,7 +356,7 @@ pub fn deser_inconsistency_error(inconsistency_error_reader: &funder_capnp::inco
     })
 }
 
-pub fn deser_friend_message(friend_message_reader: &funder_capnp::friend_message::Reader) 
+fn deser_friend_message(friend_message_reader: &funder_capnp::friend_message::Reader) 
     -> Result<FriendMessage, FunderDeserializeError> {
 
     Ok(match friend_message_reader.which()? {
