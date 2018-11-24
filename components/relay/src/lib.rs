@@ -10,7 +10,6 @@
 #[macro_use]
 extern crate log;
 
-#[allow(unused)]
-mod server;
-mod client;
+pub mod server;
+pub mod client;
 
