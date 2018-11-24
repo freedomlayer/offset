@@ -303,14 +303,12 @@ where
 mod tests {
     use super::*;
     use futures::channel::{mpsc};
-    use futures::Future;
     use futures::executor::ThreadPool;
     use futures::task::{Spawn, SpawnExt};
 
 
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
     use timer::create_timer_incoming;
-    use utils::async_test_utils::{receive, ReceiveError};
     use super::types::{IncomingListen, 
         IncomingConnect, IncomingAccept};
 
@@ -330,12 +328,12 @@ mod tests {
 
         spawner.spawn(
             fut_relay_server
-                .map_err(|e| {
+                .map_err(|_e| {
                     // println!("relay_server() error: {:?}", e);
                     ()
                 })
                 .map(|_| ())
-        );
+        ).unwrap();
 
         /*      a          c          b
          * a_ca | <-- c_ca | c_cb --> | b_cb
@@ -438,12 +436,12 @@ mod tests {
 
         spawner.spawn(
             fut_relay_server
-                .map_err(|e| {
+                .map_err(|_e| {
                     // println!("relay_server() error: {:?}", e);
                     ()
                 })
                 .map(|_| ())
-        );
+        ).unwrap();
 
         /*      a          c          b
          * a_ca | <-- c_ca | c_cb --> | b_cb
