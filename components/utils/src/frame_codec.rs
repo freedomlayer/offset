@@ -28,7 +28,6 @@ const MAX_FRAME_LEN: usize = 1 << 20;
 
 /// Break a stream of bytes into chunks, using prefix length frames.
 /// Every frame begins with a 32 bit length prefix, after which the data follows.
-/// A magic 32 bit value is the beginning of every frame. (TODO: Is the magic a good idea?)
 enum FrameCodecState {
     Empty,
     CollectingLength {
