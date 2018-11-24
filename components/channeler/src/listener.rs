@@ -48,6 +48,10 @@ async fn sleep_ticks(ticks: usize, mut timer_client: TimerClient) -> Result<(), 
     Ok(await!(fut))
 }
 
+// TODO: How to deal with changing address to connect to?
+// Things to think about:
+// - How to cancel the current connection attempt?
+// - How to get information about changed address?
 /// Connect to relay and keep listening for incoming connections.
 pub async fn listener_loop<C,IAC,CS>(mut connector: C,
                  mut incoming_access_control: IAC,

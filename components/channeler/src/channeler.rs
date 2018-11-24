@@ -28,8 +28,14 @@ where
 {
     unimplemented!();
     // TODO:
-    // Loop:
-    // - Attempt to connect to relay using given address
+    // Handle events in a loop:
+    // - from Funder:
+    //      - Message((PublicKey, Vec<u8>)), // (friend_public_key, message)
+    //      - SetAddress(A), 
+    //      - AddFriend((PublicKey, A)), // (friend_public_key, address)
+    //      - RemoveFriend(PublicKey), // friend_public_key
+    // - Incoming connection (from listener)
+    // - Connection established (We initiated this connection)
 }
 
 
