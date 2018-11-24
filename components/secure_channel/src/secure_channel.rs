@@ -17,13 +17,13 @@ use proto::secure_channel::serialize::{serialize_exchange_rand_nonce, deserializ
 use proto::secure_channel::messages::{EncryptedData, PlainData};
 
 
-struct SecureChannel {
-    sender: mpsc::Sender<Vec<u8>>,
-    receiver: mpsc::Receiver<Vec<u8>>,
+pub struct SecureChannel {
+    pub sender: mpsc::Sender<Vec<u8>>,
+    pub receiver: mpsc::Receiver<Vec<u8>>,
 }
 
 #[derive(Debug)]
-enum SecureChannelError {
+pub enum SecureChannelError {
     IdentityFailure,
     WriterError,
     ReaderClosed,
