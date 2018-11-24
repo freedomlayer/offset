@@ -128,7 +128,7 @@ fn ser_failure_send_funds(failure_send_funds: &FailureSendFunds,
               &mut failure_send_funds_builder.reborrow().init_signature());
 }
 
-fn ser_operation(operation: &FriendTcOp,
+fn ser_friend_operation(operation: &FriendTcOp,
                  operation_builder: &mut funder_capnp::friend_operation::Builder) {
 
     match operation {
@@ -160,7 +160,7 @@ fn ser_move_token(move_token: &MoveToken,
     let mut operations_builder = move_token_builder.reborrow().init_operations(operations_len);
     for (index, operation) in move_token.operations.iter().enumerate() {
         let mut operation_builder = operations_builder.reborrow().get(usize_to_u32(index).unwrap());
-        ser_operation(operation, &mut operation_builder);
+        ser_friend_operation(operation, &mut operation_builder);
     }
 
     write_signature(&move_token.old_token, &mut move_token_builder.reborrow().init_old_token());
@@ -223,11 +223,79 @@ pub fn deser_ratio128(from: &funder_capnp::ratio128::Reader) -> Result<Ratio<u12
     }
 }
 
+pub fn deser_freeze_link(freeze_link_reader: &funder_capnp::freeze_link::Reader)
+    -> Result<FreezeLink, FunderDeserializeError> {
+    unimplemented!();
+}
+
+pub fn deser_friends_route(friends_route_reader: &funder_capnp::friends_route::Reader)
+    -> Result<FriendsRoute, FunderDeserializeError> {
+    unimplemented!();
+}
+
+pub fn deser_request_send_funds(request_send_funds_reader: &funder_capnp::request_send_funds_op::Reader)
+    -> Result<RequestSendFunds, FunderDeserializeError> {
+
+    let mut freeze_links = Vec::new();
+    for freeze_link_reader in request_send_funds_reader.get_freeze_links()? {
+        freeze_links.push(deser_freeze_link(&freeze_link_reader)?);
+    }
+
+    Ok(RequestSendFunds {
+        request_id: read_uid(&request_send_funds_reader.get_request_id()?)?,
+        route: deser_friends_route(&request_send_funds_reader.get_route()?)?,
+        dest_payment: read_custom_u_int128(&request_send_funds_reader.get_dest_payment()?)?,
+        invoice_id: read_invoice_id(&request_send_funds_reader.get_invoice_id()?)?,
+        freeze_links,
+    })
+}
+
+pub fn deser_response_send_funds(response_send_funds_reader: &funder_capnp::response_send_funds_op::Reader)
+    -> Result<ResponseSendFunds, FunderDeserializeError> {
+    unimplemented!();
+}
+
+pub fn deser_failure_send_funds(failure_send_funds_reader: &funder_capnp::failure_send_funds_op::Reader)
+    -> Result<FailureSendFunds, FunderDeserializeError> {
+    unimplemented!();
+}
+
+pub fn deser_friend_operation(friend_operation_reader: &funder_capnp::friend_operation::Reader)
+    -> Result<FriendTcOp, FunderDeserializeError> {
+
+    Ok(match friend_operation_reader.which()? {
+        funder_capnp::friend_operation::EnableRequests(()) => FriendTcOp::EnableRequests,
+        funder_capnp::friend_operation::DisableRequests(()) => FriendTcOp::DisableRequests,
+        funder_capnp::friend_operation::SetRemoteMaxDebt(set_remote_max_debt_reader) =>
+            FriendTcOp::SetRemoteMaxDebt(read_custom_u_int128(&set_remote_max_debt_reader?)?),
+        funder_capnp::friend_operation::RequestSendFunds(request_send_funds_reader) =>
+            FriendTcOp::RequestSendFunds(deser_request_send_funds(&request_send_funds_reader?)?),
+        funder_capnp::friend_operation::ResponseSendFunds(response_send_funds_reader) => 
+            FriendTcOp::ResponseSendFunds(deser_response_send_funds(&response_send_funds_reader?)?),
+        funder_capnp::friend_operation::FailureSendFunds(failure_send_funds_reader) => 
+            FriendTcOp::FailureSendFunds(deser_failure_send_funds(&failure_send_funds_reader?)?),
+    })
+}
+
 pub fn deser_move_token(move_token_reader: &funder_capnp::move_token::Reader) 
     -> Result<MoveToken, FunderDeserializeError> {
 
-    // TODO: Continue here.
-    unimplemented!();
+    let mut operations: Vec<FriendTcOp> = Vec::new();
+    for operation_reader in move_token_reader.get_operations()? {
+        operations.push(deser_friend_operation(&operation_reader)?);
+    }
+
+    Ok(MoveToken {
+        operations,
+        old_token: read_signature(&move_token_reader.get_old_token()?)?,
+        inconsistency_counter: move_token_reader.get_inconsistency_counter(),
+        move_token_counter: read_custom_u_int128(&move_token_reader.get_move_token_counter()?)?,
+        balance: read_custom_int128(&move_token_reader.get_balance()?)?,
+        local_pending_debt: read_custom_u_int128(&move_token_reader.get_local_pending_debt()?)?,
+        remote_pending_debt: read_custom_u_int128(&move_token_reader.get_remote_pending_debt()?)?,
+        rand_nonce: read_rand_nonce(&move_token_reader.get_rand_nonce()?)?,
+        new_token: read_signature(&move_token_reader.get_new_token()?)?,
+    })
 }
 
 
