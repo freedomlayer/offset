@@ -14,6 +14,7 @@ use relay::client::access_control::{AccessControlOp, AccessControl};
 
 use crate::connector_utils::ConstAddressConnector;
 
+#[derive(Debug)]
 pub enum ListenerError {
     RequestTimerStreamError,
     TimerClosed,
