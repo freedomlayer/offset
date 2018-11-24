@@ -82,22 +82,22 @@ fn ser_freeze_link(freeze_link: &FreezeLink,
 }
 
 
-fn ser_request_send_funds(request_send_funds: &RequestSendFunds,
-                          request_send_funds_builder: &mut funder_capnp::request_send_funds_op::Builder) {
+fn ser_request_send_funds_op(request_send_funds: &RequestSendFunds,
+                          request_send_funds_op_builder: &mut funder_capnp::request_send_funds_op::Builder) {
     write_uid(&request_send_funds.request_id, 
-              &mut request_send_funds_builder.reborrow().init_request_id());
+              &mut request_send_funds_op_builder.reborrow().init_request_id());
 
-    let mut route_builder = request_send_funds_builder.reborrow().init_route();
+    let mut route_builder = request_send_funds_op_builder.reborrow().init_route();
     ser_friends_route(&request_send_funds.route, &mut route_builder);
 
     write_custom_u_int128(request_send_funds.dest_payment, 
-              &mut request_send_funds_builder.reborrow().init_dest_payment());
+              &mut request_send_funds_op_builder.reborrow().init_dest_payment());
 
     write_invoice_id(&request_send_funds.invoice_id, 
-              &mut request_send_funds_builder.reborrow().init_invoice_id());
+              &mut request_send_funds_op_builder.reborrow().init_invoice_id());
 
     let freeze_links_len = usize_to_u32(request_send_funds.freeze_links.len()).unwrap();
-    let mut freeze_links_builder = request_send_funds_builder.reborrow().init_freeze_links(freeze_links_len);
+    let mut freeze_links_builder = request_send_funds_op_builder.reborrow().init_freeze_links(freeze_links_len);
 
     for (index, freeze_link) in request_send_funds.freeze_links.iter().enumerate() {
         let mut freeze_link_builder = freeze_links_builder.reborrow().get(usize_to_u32(index).unwrap());
@@ -105,27 +105,27 @@ fn ser_request_send_funds(request_send_funds: &RequestSendFunds,
     }
 }
 
-fn ser_response_send_funds(response_send_funds: &ResponseSendFunds,
-                          response_send_funds_builder: &mut funder_capnp::response_send_funds_op::Builder) {
+fn ser_response_send_funds_op(response_send_funds: &ResponseSendFunds,
+                          response_send_funds_op_builder: &mut funder_capnp::response_send_funds_op::Builder) {
 
     write_uid(&response_send_funds.request_id,
-              &mut response_send_funds_builder.reborrow().init_request_id());
+              &mut response_send_funds_op_builder.reborrow().init_request_id());
     write_rand_nonce(&response_send_funds.rand_nonce,
-              &mut response_send_funds_builder.reborrow().init_rand_nonce());
+              &mut response_send_funds_op_builder.reborrow().init_rand_nonce());
     write_signature(&response_send_funds.signature,
-              &mut response_send_funds_builder.reborrow().init_signature());
+              &mut response_send_funds_op_builder.reborrow().init_signature());
 }
 
-fn ser_failure_send_funds(failure_send_funds: &FailureSendFunds,
-                          failure_send_funds_builder: &mut funder_capnp::failure_send_funds_op::Builder) {
+fn ser_failure_send_funds_op(failure_send_funds: &FailureSendFunds,
+                          failure_send_funds_op_builder: &mut funder_capnp::failure_send_funds_op::Builder) {
     write_uid(&failure_send_funds.request_id,
-              &mut failure_send_funds_builder.reborrow().init_request_id());
+              &mut failure_send_funds_op_builder.reborrow().init_request_id());
     write_public_key(&failure_send_funds.reporting_public_key,
-              &mut failure_send_funds_builder.reborrow().init_reporting_public_key());
+              &mut failure_send_funds_op_builder.reborrow().init_reporting_public_key());
     write_rand_nonce(&failure_send_funds.rand_nonce,
-              &mut failure_send_funds_builder.reborrow().init_rand_nonce());
+              &mut failure_send_funds_op_builder.reborrow().init_rand_nonce());
     write_signature(&failure_send_funds.signature,
-              &mut failure_send_funds_builder.reborrow().init_signature());
+              &mut failure_send_funds_op_builder.reborrow().init_signature());
 }
 
 fn ser_friend_operation(operation: &FriendTcOp,
@@ -140,15 +140,15 @@ fn ser_friend_operation(operation: &FriendTcOp,
         },
         FriendTcOp::RequestSendFunds(request_send_funds) => {
             let mut request_send_funds_builder = operation_builder.reborrow().init_request_send_funds();
-            ser_request_send_funds(request_send_funds, &mut request_send_funds_builder);
+            ser_request_send_funds_op(request_send_funds, &mut request_send_funds_builder);
         },
         FriendTcOp::ResponseSendFunds(response_send_funds) => {
             let mut response_send_funds_builder = operation_builder.reborrow().init_response_send_funds();
-            ser_response_send_funds(response_send_funds, &mut response_send_funds_builder);
+            ser_response_send_funds_op(response_send_funds, &mut response_send_funds_builder);
         },
         FriendTcOp::FailureSendFunds(failure_send_funds) => {
             let mut failure_send_funds_builder = operation_builder.reborrow().init_failure_send_funds();
-            ser_failure_send_funds(failure_send_funds, &mut failure_send_funds_builder);
+            ser_failure_send_funds_op(failure_send_funds, &mut failure_send_funds_builder);
         },
     };
 }
@@ -257,41 +257,41 @@ fn deser_friends_route(friends_route_reader: &funder_capnp::friends_route::Reade
     })
 }
 
-fn deser_request_send_funds(request_send_funds_reader: &funder_capnp::request_send_funds_op::Reader)
+fn deser_request_send_funds_op(request_send_funds_op_reader: &funder_capnp::request_send_funds_op::Reader)
     -> Result<RequestSendFunds, FunderDeserializeError> {
 
     let mut freeze_links = Vec::new();
-    for freeze_link_reader in request_send_funds_reader.get_freeze_links()? {
+    for freeze_link_reader in request_send_funds_op_reader.get_freeze_links()? {
         freeze_links.push(deser_freeze_link(&freeze_link_reader)?);
     }
 
     Ok(RequestSendFunds {
-        request_id: read_uid(&request_send_funds_reader.get_request_id()?)?,
-        route: deser_friends_route(&request_send_funds_reader.get_route()?)?,
-        dest_payment: read_custom_u_int128(&request_send_funds_reader.get_dest_payment()?)?,
-        invoice_id: read_invoice_id(&request_send_funds_reader.get_invoice_id()?)?,
+        request_id: read_uid(&request_send_funds_op_reader.get_request_id()?)?,
+        route: deser_friends_route(&request_send_funds_op_reader.get_route()?)?,
+        dest_payment: read_custom_u_int128(&request_send_funds_op_reader.get_dest_payment()?)?,
+        invoice_id: read_invoice_id(&request_send_funds_op_reader.get_invoice_id()?)?,
         freeze_links,
     })
 }
 
-fn deser_response_send_funds(response_send_funds_reader: &funder_capnp::response_send_funds_op::Reader)
+fn deser_response_send_funds_op(response_send_funds_op_reader: &funder_capnp::response_send_funds_op::Reader)
     -> Result<ResponseSendFunds, FunderDeserializeError> {
 
     Ok(ResponseSendFunds {
-        request_id: read_uid(&response_send_funds_reader.get_request_id()?)?,
-        rand_nonce: read_rand_nonce(&response_send_funds_reader.get_rand_nonce()?)?,
-        signature: read_signature(&response_send_funds_reader.get_signature()?)?,
+        request_id: read_uid(&response_send_funds_op_reader.get_request_id()?)?,
+        rand_nonce: read_rand_nonce(&response_send_funds_op_reader.get_rand_nonce()?)?,
+        signature: read_signature(&response_send_funds_op_reader.get_signature()?)?,
     })
 }
 
-fn deser_failure_send_funds(failure_send_funds_reader: &funder_capnp::failure_send_funds_op::Reader)
+fn deser_failure_send_funds_op(failure_send_funds_op_reader: &funder_capnp::failure_send_funds_op::Reader)
     -> Result<FailureSendFunds, FunderDeserializeError> {
 
     Ok(FailureSendFunds {
-        request_id: read_uid(&failure_send_funds_reader.get_request_id()?)?,
-        reporting_public_key: read_public_key(&failure_send_funds_reader.get_reporting_public_key()?)?,
-        rand_nonce: read_rand_nonce(&failure_send_funds_reader.get_rand_nonce()?)?,
-        signature: read_signature(&failure_send_funds_reader.get_signature()?)?,
+        request_id: read_uid(&failure_send_funds_op_reader.get_request_id()?)?,
+        reporting_public_key: read_public_key(&failure_send_funds_op_reader.get_reporting_public_key()?)?,
+        rand_nonce: read_rand_nonce(&failure_send_funds_op_reader.get_rand_nonce()?)?,
+        signature: read_signature(&failure_send_funds_op_reader.get_signature()?)?,
     })
 }
 
@@ -304,11 +304,11 @@ fn deser_friend_operation(friend_operation_reader: &funder_capnp::friend_operati
         funder_capnp::friend_operation::SetRemoteMaxDebt(set_remote_max_debt_reader) =>
             FriendTcOp::SetRemoteMaxDebt(read_custom_u_int128(&set_remote_max_debt_reader?)?),
         funder_capnp::friend_operation::RequestSendFunds(request_send_funds_reader) =>
-            FriendTcOp::RequestSendFunds(deser_request_send_funds(&request_send_funds_reader?)?),
+            FriendTcOp::RequestSendFunds(deser_request_send_funds_op(&request_send_funds_reader?)?),
         funder_capnp::friend_operation::ResponseSendFunds(response_send_funds_reader) => 
-            FriendTcOp::ResponseSendFunds(deser_response_send_funds(&response_send_funds_reader?)?),
+            FriendTcOp::ResponseSendFunds(deser_response_send_funds_op(&response_send_funds_reader?)?),
         funder_capnp::friend_operation::FailureSendFunds(failure_send_funds_reader) => 
-            FriendTcOp::FailureSendFunds(deser_failure_send_funds(&failure_send_funds_reader?)?),
+            FriendTcOp::FailureSendFunds(deser_failure_send_funds_op(&failure_send_funds_reader?)?),
     })
 }
 
