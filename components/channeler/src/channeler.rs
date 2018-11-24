@@ -56,7 +56,7 @@ where
                       timer_client.clone(),
                       spawner.clone())
         .map_err(|e| {
-            error!("[Channeler] listener_loop error: {:?}", e);
+            error!("[Channeler] inner_listener_loop() error: {:?}", e);
         }).then(|_| future::ready(()));
 
     spawner.spawn(listener_loop_fut)
