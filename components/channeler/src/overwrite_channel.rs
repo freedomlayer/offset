@@ -37,6 +37,7 @@ impl<T: Unpin> Future for OverwriteChannel<T> {
             let recv_progress = if let Some(mut receiver) = fself.opt_receiver.take() {
                 match receiver.poll_next_unpin(lw) {
                     Poll::Ready(Some(item)) => {
+                        // We discard the previous item and store the new one:
                         fself.opt_item = Some(item);
                         fself.opt_receiver = Some(receiver);
                         true
@@ -100,5 +101,8 @@ where
     (sender, receiver)
 }
 
-// TODO: Implement this code as a Stream instead of a spawned future. 
-// We should be the receiver.
+// TODO: 
+// - Implement this code as a Stream instead of a spawned future. 
+// We should be the receiver. Is this possible/reasonable?
+//
+// - How to test this code?
