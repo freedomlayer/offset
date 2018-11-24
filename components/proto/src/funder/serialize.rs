@@ -210,6 +210,18 @@ fn ser_friend_message(friend_message: &FriendMessage,
     };
 }
 
+/// Serialize a FriendMessage into a vector of bytes
+fn serialize_friend_message(friend_message: &FriendMessage) -> Vec<u8> {
+    let mut builder = capnp::message::Builder::new_default();
+    let mut friend_message_builder = builder.init_root::<funder_capnp::friend_message::Builder>();
+
+    ser_friend_message(friend_message, &mut friend_message_builder);
+
+    let mut ser_buff = Vec::new();
+    serialize_packed::write_message(&mut ser_buff, &builder).unwrap();
+    ser_buff
+}
+
 // ------------ Deserialization -----------------------
 // ----------------------------------------------------
 
@@ -358,6 +370,11 @@ pub fn deser_friend_message(friend_message_reader: &funder_capnp::friend_message
 }
 
 
+/// Deserialize FriendMessage from an array of bytes
 pub fn deserialize_friend_message(data: &[u8]) -> Result<FriendMessage, FunderDeserializeError> {
-    unimplemented!();
+    let mut cursor = io::Cursor::new(data);
+    let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
+    let friend_message_reader = reader.get_root::<funder_capnp::friend_message::Reader>()?;
+
+    deser_friend_message(&friend_message_reader)
 }
