@@ -1,9 +1,7 @@
 pub mod connector;
 mod client_connector;
 mod client_tunnel;
-#[allow(unused)]
-mod client_listener;
-#[allow(unused)]
+pub mod client_listener;
 pub mod access_control;
 
 #[cfg(test)]

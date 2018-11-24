@@ -7,6 +7,7 @@ pub enum AccessControlOp {
     Remove(PublicKey),
 }
 
+#[derive(Clone, Debug)]
 pub struct AccessControl {
     allowed: HashSet<PublicKey>,
 }
