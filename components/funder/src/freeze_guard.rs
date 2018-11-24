@@ -6,10 +6,11 @@ use crypto::identity::PublicKey;
 use crypto::hash::{HashResult, sha_512_256};
 use utils::int_convert::usize_to_u32;
 
+use proto::funder::messages::{Ratio, FriendsRoute, FreezeLink};
+
 use crate::credit_calc::CreditCalculator;
 use crate::state::FunderState;
 use crate::friend::ChannelStatus;
-use crate::types::{Ratio, FriendsRoute, FreezeLink};
 
 
 #[derive(Clone)]

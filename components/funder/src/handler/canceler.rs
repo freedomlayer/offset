@@ -3,12 +3,16 @@ use std::fmt::Debug;
 use crypto::identity::{PublicKey, Signature};
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
+use proto::funder::messages::{RequestSendFunds, FailureSendFunds,
+                                PendingRequest};
+use proto::funder::signature_buff::{create_failure_signature_buffer};
+
 use crate::handler::MutableFunderHandler;
 
-use crate::types::{RequestSendFunds, FailureSendFunds, PendingFriendRequest,
-                            ResponseReceived, FunderOutgoingControl,
-                            ResponseSendFundsResult};
-use crate::signature_buff::{create_failure_signature_buffer};
+
+use crate::types::{ResponseReceived, FunderOutgoingControl,
+                    ResponseSendFundsResult,
+                    create_pending_request};
 use crate::friend::{FriendMutation, ResponseOp, ChannelStatus};
 use crate::state::FunderMutation;
 use super::sender::SendMode;
@@ -22,7 +26,7 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
 
     /// Create a (signed) failure message for a given request_id.
     /// We are the reporting_public_key for this failure message.
-    async fn create_failure_message(&self, pending_local_request: PendingFriendRequest) 
+    async fn create_failure_message(&self, pending_local_request: PendingRequest) 
         -> FailureSendFunds {
 
         let rand_nonce = RandValue::new(&self.rng);
@@ -51,13 +55,13 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
                           remote_public_key: PublicKey,
                           request_send_funds: RequestSendFunds) {
 
-        let pending_request = request_send_funds.create_pending_request();
+        let pending_request = create_pending_request(&request_send_funds);
         let failure_send_funds = await!(self.create_failure_message(pending_request));
 
         let failure_op = ResponseOp::Failure(failure_send_funds);
         let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
-        let messenger_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-        self.apply_funder_mutation(messenger_mutation);
+        let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+        self.apply_funder_mutation(funder_mutation);
         await!(self.try_send_channel(&remote_public_key, SendMode::EmptyNotAllowed));
     }
 
@@ -100,8 +104,8 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
 
                     let failure_op = ResponseOp::Failure(failure_send_funds);
                     let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
-                    let messenger_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
-                    self.apply_funder_mutation(messenger_mutation);
+                    let funder_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
+                    self.apply_funder_mutation(funder_mutation);
                     await!(self.try_send_channel(&origin_public_key, SendMode::EmptyNotAllowed));
                 },
                 None => {
@@ -126,19 +130,19 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
 
         while let Some(pending_request) = pending_requests.pop_front() {
             let friend_mutation = FriendMutation::PopFrontPendingRequest;
-            let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-            self.apply_funder_mutation(messenger_mutation);
+            let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+            self.apply_funder_mutation(funder_mutation);
 
             let opt_origin_public_key = self.find_request_origin(&pending_request.request_id).cloned();
             let origin_public_key = match opt_origin_public_key {
                 Some(origin_public_key) => {
-                    let pending_request = pending_request.create_pending_request();
+                    let pending_request = create_pending_request(&pending_request);
                     let failure_send_funds = await!(self.create_failure_message(pending_request));
 
                     let failure_op = ResponseOp::Failure(failure_send_funds);
                     let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
-                    let messenger_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
-                    self.apply_funder_mutation(messenger_mutation);
+                    let funder_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
+                    self.apply_funder_mutation(funder_mutation);
                 },
                 None => {
                     // We are the origin of this request:
@@ -160,8 +164,8 @@ impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler
 
         while let Some(pending_user_request) = pending_user_requests.pop_front() {
             let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
-            let messenger_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-            self.apply_funder_mutation(messenger_mutation);
+            let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+            self.apply_funder_mutation(funder_mutation);
 
             // We are the origin of this request:
             let response_received = ResponseReceived {

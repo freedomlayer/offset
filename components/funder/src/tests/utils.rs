@@ -14,8 +14,8 @@ use identity::{create_identity, IdentityClient};
 
 use crate::state::{FunderState, FunderMutation};
 use crate::funder::inner_funder_loop;
-use crate::types::{FunderOutgoingComm, IncomingCommMessage, 
-    ChannelerConfig, FunderOutgoingControl, IncomingControlMessage,
+use crate::types::{FunderOutgoingComm, FunderIncomingComm, 
+    ChannelerConfig, FunderOutgoingControl, FunderIncomingControl,
     IncomingLivenessMessage, ResponseReceived, AddFriend, FriendStatus,
     SetFriendStatus, SetFriendRemoteMaxDebt, RequestsStatus, SetRequestsStatus};
 use crate::database::AtomicDb;
@@ -32,14 +32,14 @@ const CHANNEL_SIZE: usize = 64;
 #[derive(Debug)]
 struct Node {
     friends: HashSet<PublicKey>,
-    comm_out: mpsc::Sender<IncomingCommMessage>,
+    comm_out: mpsc::Sender<FunderIncomingComm>,
 }
 
 #[derive(Debug)]
 struct NewNode<A> {
     public_key: PublicKey,
     comm_in: mpsc::Receiver<FunderOutgoingComm<A>>,
-    comm_out: mpsc::Sender<IncomingCommMessage>,
+    comm_out: mpsc::Sender<FunderIncomingComm>,
 }
 
 #[derive(Debug)]
@@ -55,7 +55,7 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
         FunderOutgoingComm::FriendMessage((dest_public_key, friend_message)) => {
             let node = nodes.get_mut(&dest_public_key).unwrap();
             assert!(node.friends.contains(&src_public_key));
-            let incoming_comm_message = IncomingCommMessage::Friend((src_public_key.clone(), friend_message));
+            let incoming_comm_message = FunderIncomingComm::Friend((src_public_key.clone(), friend_message));
             await!(node.comm_out.send(incoming_comm_message)).unwrap();
         },
         FunderOutgoingComm::ChannelerConfig(channeler_config) => {
@@ -69,11 +69,11 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
                     let mut remote_node_comm_out = remote_node.comm_out.clone();
                     if remote_node.friends.contains(&src_public_key) {
                         // If there is a match, notify both sides about online state:
-                        let incoming_comm_message = IncomingCommMessage::Liveness(
+                        let incoming_comm_message = FunderIncomingComm::Liveness(
                             IncomingLivenessMessage::Online(src_public_key.clone()));
                         await!(remote_node_comm_out.send(incoming_comm_message)).unwrap();
 
-                        let incoming_comm_message = IncomingCommMessage::Liveness(
+                        let incoming_comm_message = FunderIncomingComm::Liveness(
                             IncomingLivenessMessage::Online(friend_public_key.clone()));
                         await!(comm_out.send(incoming_comm_message)).unwrap();
                     }
@@ -84,7 +84,7 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
                     let mut comm_out = node.comm_out.clone();
 
                     if nodes.get(&friend_public_key).unwrap().friends.contains(&src_public_key) {
-                        let incoming_comm_message = IncomingCommMessage::Liveness(
+                        let incoming_comm_message = FunderIncomingComm::Liveness(
                             IncomingLivenessMessage::Offline(friend_public_key.clone()));
                         await!(comm_out.send(incoming_comm_message)).unwrap();
                     }
@@ -159,7 +159,7 @@ impl<A: Clone + 'static + std::fmt::Debug> AtomicDb for MockDb<A> {
 
 pub struct NodeControl<A: Clone> {
     pub public_key: PublicKey,
-    send_control: mpsc::Sender<IncomingControlMessage<A>>,
+    send_control: mpsc::Sender<FunderIncomingControl<A>>,
     recv_control: mpsc::Receiver<FunderOutgoingControl<A>>,
     pub report: FunderReport<A>,
 }
@@ -171,7 +171,7 @@ enum NodeRecv<A> {
 }
 
 impl<A: Clone> NodeControl<A> {
-    pub async fn send(&mut self, msg: IncomingControlMessage<A>) -> Option<()> {
+    pub async fn send(&mut self, msg: FunderIncomingControl<A>) -> Option<()> {
         await!(self.send_control.send(msg))
             .ok()
             .map(|_| ())
@@ -225,7 +225,7 @@ impl<A: Clone> NodeControl<A> {
             name: name.into(),
             balance, 
         };
-        await!(self.send(IncomingControlMessage::AddFriend(add_friend))).unwrap();
+        await!(self.send(FunderIncomingControl::AddFriend(add_friend))).unwrap();
         let pred = |report: &FunderReport<_>| report.friends.contains_key(&friend_public_key);
         await!(self.recv_until(pred));
     }
@@ -238,7 +238,7 @@ impl<A: Clone> NodeControl<A> {
             friend_public_key: friend_public_key.clone(),
             status: status.clone(),
         };
-        await!(self.send(IncomingControlMessage::SetFriendStatus(set_friend_status))).unwrap();
+        await!(self.send(FunderIncomingControl::SetFriendStatus(set_friend_status))).unwrap();
         let pred = |report: &FunderReport<_>| {
            match report.friends.get(&friend_public_key) {
                None => false,
@@ -256,7 +256,7 @@ impl<A: Clone> NodeControl<A> {
             friend_public_key: friend_public_key.clone(),
             remote_max_debt: remote_max_debt,
         };
-        await!(self.send(IncomingControlMessage::SetFriendRemoteMaxDebt(set_remote_max_debt))).unwrap();
+        await!(self.send(FunderIncomingControl::SetFriendRemoteMaxDebt(set_remote_max_debt))).unwrap();
 
         let pred = |report: &FunderReport<_>| {
            let friend = match report.friends.get(&friend_public_key) {
@@ -280,7 +280,7 @@ impl<A: Clone> NodeControl<A> {
             friend_public_key: friend_public_key.clone(),
             status: requests_status.clone(),
         };
-        await!(self.send(IncomingControlMessage::SetRequestsStatus(set_requests_status))).unwrap();
+        await!(self.send(FunderIncomingControl::SetRequestsStatus(set_requests_status))).unwrap();
 
         let pred = |report: &FunderReport<_>| {
            let friend = match report.friends.get(&friend_public_key) {

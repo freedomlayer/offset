@@ -19,17 +19,12 @@ use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError};
 use self::handle_friend::HandleFriendError;
 use self::handle_liveness::HandleLivenessError;
-use super::types::{FriendMoveTokenRequest, FunderIncoming,
-    FunderOutgoingComm, FunderOutgoingControl, IncomingCommMessage};
+use super::types::{FunderIncoming,
+    FunderOutgoingComm, FunderOutgoingControl, FunderIncomingComm};
 use super::ephemeral::{Ephemeral, EphemeralMutation};
 use super::friend::{FriendState, ChannelStatus};
 use super::report::{funder_mutation_to_report_mutations, 
     ephemeral_mutation_to_report_mutations};
-
-
-// Approximate maximum size of a MOVE_TOKEN message.
-// TODO: Where to put this constant? Do we have more like this one?
-const MAX_MOVE_TOKEN_LENGTH: usize = 0x1000;
 
 
 #[derive(Debug)]
@@ -214,11 +209,11 @@ pub async fn funder_handle_message<A: Clone + Debug + 'static, R: CryptoRandom +
                 .map_err(FunderHandlerError::HandleControlError)?,
         FunderIncoming::Comm(incoming_comm) => {
             match incoming_comm {
-                IncomingCommMessage::Liveness(liveness_message) =>
+                FunderIncomingComm::Liveness(liveness_message) =>
                     await!(mutable_handler
                         .handle_liveness_message(liveness_message))
                         .map_err(FunderHandlerError::HandleLivenessError)?,
-                IncomingCommMessage::Friend((origin_public_key, friend_message)) => 
+                FunderIncomingComm::Friend((origin_public_key, friend_message)) => 
                     await!(mutable_handler
                         .handle_friend_message(origin_public_key, friend_message))
                         .map_err(FunderHandlerError::HandleFriendError)?,

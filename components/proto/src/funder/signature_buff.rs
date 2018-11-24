@@ -1,10 +1,11 @@
-#![warn(unused)]
-
 use byteorder::{BigEndian, WriteBytesExt};
-use crypto::hash;
+use crypto::hash::{self, sha_512_256, HashResult};
 use crypto::identity::{verify_signature, PublicKey};
-use super::types::{ResponseSendFunds, FailureSendFunds, 
-    PendingFriendRequest, SendFundsReceipt};
+
+use utils::int_convert::usize_to_u64;
+
+use super::messages::{ResponseSendFunds, FailureSendFunds, 
+    SendFundsReceipt, PendingRequest, MoveToken};
 
 pub const FUND_SUCCESS_PREFIX: &[u8] = b"FUND_SUCCESS";
 pub const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
@@ -13,7 +14,7 @@ pub const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
 /// Note that the signature is not just over the Response funds bytes. The signed buffer also
 /// contains information from the Request funds.
 pub fn create_response_signature_buffer(response_send_funds: &ResponseSendFunds,
-                        pending_request: &PendingFriendRequest) -> Vec<u8> {
+                        pending_request: &PendingRequest) -> Vec<u8> {
 
     let mut sbuffer = Vec::new();
 
@@ -35,7 +36,7 @@ pub fn create_response_signature_buffer(response_send_funds: &ResponseSendFunds,
 /// Note that the signature is not just over the Response funds bytes. The signed buffer also
 /// contains information from the Request funds.
 pub fn create_failure_signature_buffer(failure_send_funds: &FailureSendFunds,
-                        pending_request: &PendingFriendRequest) -> Vec<u8> {
+                        pending_request: &PendingRequest) -> Vec<u8> {
 
     let mut sbuffer = Vec::new();
 
@@ -53,7 +54,7 @@ pub fn create_failure_signature_buffer(failure_send_funds: &FailureSendFunds,
 
 /// Verify a failure signature
 pub fn verify_failure_signature(failure_send_funds: &FailureSendFunds,
-                            pending_request: &PendingFriendRequest) -> Option<()> {
+                            pending_request: &PendingRequest) -> Option<()> {
 
     let failure_signature_buffer = create_failure_signature_buffer(
                                         &failure_send_funds,
@@ -72,7 +73,7 @@ pub fn verify_failure_signature(failure_send_funds: &FailureSendFunds,
 }
 
 pub fn prepare_receipt(response_send_funds: &ResponseSendFunds,
-                    pending_request: &PendingFriendRequest) -> SendFundsReceipt {
+                    pending_request: &PendingRequest) -> SendFundsReceipt {
 
     let mut hash_buff = Vec::new();
     hash_buff.extend_from_slice(&pending_request.request_id);
@@ -101,5 +102,41 @@ pub fn verify_receipt(receipt: &SendFundsReceipt,
     verify_signature(&data, public_key, &receipt.signature)
 }
 
+
+// Prefix used for chain hashing of token channel funds.
+// NEXT is used for hashing for the next move token funds.
+const TOKEN_NEXT: &[u8] = b"NEXT";
+
+/// Combine all operations into one hash value.
+pub fn operations_hash(friend_move_token: &MoveToken) -> HashResult {
+    let mut operations_data = Vec::new();
+    operations_data.write_u64::<BigEndian>(
+        usize_to_u64(friend_move_token.operations.len()).unwrap()).unwrap();
+    for op in &friend_move_token.operations {
+        operations_data.extend_from_slice(&op.to_bytes());
+    }
+    sha_512_256(&operations_data)
+}
+
+pub fn friend_move_token_signature_buff(friend_move_token: &MoveToken) -> Vec<u8> {
+    let mut sig_buffer = Vec::new();
+    sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
+    sig_buffer.extend_from_slice(&operations_hash(friend_move_token));
+    sig_buffer.extend_from_slice(&friend_move_token.old_token);
+    sig_buffer.write_u64::<BigEndian>(friend_move_token.inconsistency_counter).unwrap();
+    sig_buffer.write_u128::<BigEndian>(friend_move_token.move_token_counter).unwrap();
+    sig_buffer.write_i128::<BigEndian>(friend_move_token.balance).unwrap();
+    sig_buffer.write_u128::<BigEndian>(friend_move_token.local_pending_debt).unwrap();
+    sig_buffer.write_u128::<BigEndian>(friend_move_token.remote_pending_debt).unwrap();
+    sig_buffer.extend_from_slice(&friend_move_token.rand_nonce);
+
+    sig_buffer
+}
+
+/// Verify that new_token is a valid signature over the rest of the fields.
+pub fn verify_friend_move_token(friend_move_token: &MoveToken, public_key: &PublicKey) -> bool {
+    let sig_buffer = friend_move_token_signature_buff(friend_move_token);
+    verify_signature(&sig_buffer, public_key, &friend_move_token.new_token)
+}
 
 // TODO: How to test this?

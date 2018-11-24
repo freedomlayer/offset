@@ -2,16 +2,12 @@ use std::cmp;
 
 use im::hashmap::HashMap as ImHashMap;
 
-// use num_bigint::BigUint;
-
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
-
-
 use utils::safe_arithmetic::SafeSignedArithmetic;
 
-use super::super::types::PendingFriendRequest;
-use super::super::types::RequestsStatus;
+use proto::funder::messages::PendingRequest;
+use crate::types::RequestsStatus;
 
 /// The maximum possible funder debt.
 /// We don't use the full u128 because i128 can not go beyond this value.
@@ -60,9 +56,9 @@ impl McBalance {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct McPendingRequests {
     /// Pending requests that were opened locally and not yet completed
-    pub pending_local_requests: ImHashMap<Uid, PendingFriendRequest>,
+    pub pending_local_requests: ImHashMap<Uid, PendingRequest>,
     /// Pending requests that were opened remotely and not yet completed
-    pub pending_remote_requests: ImHashMap<Uid, PendingFriendRequest>,
+    pub pending_remote_requests: ImHashMap<Uid, PendingRequest>,
 }
 
 impl McPendingRequests {
@@ -112,9 +108,9 @@ pub enum McMutation {
     SetLocalMaxDebt(u128),
     SetRemoteMaxDebt(u128),
     SetBalance(i128),
-    InsertLocalPendingRequest(PendingFriendRequest),
+    InsertLocalPendingRequest(PendingRequest),
     RemoveLocalPendingRequest(Uid),
-    InsertRemotePendingRequest(PendingFriendRequest),
+    InsertRemotePendingRequest(PendingRequest),
     RemoveRemotePendingRequest(Uid),
     SetLocalPendingDebt(u128),
     SetRemotePendingDebt(u128),
@@ -202,7 +198,7 @@ impl MutualCredit {
         self.state.balance.balance = balance;
     }
 
-    fn insert_remote_pending_request(&mut self, pending_friend_request: &PendingFriendRequest) {
+    fn insert_remote_pending_request(&mut self, pending_friend_request: &PendingRequest) {
         self.state.pending_requests.pending_remote_requests.insert(
             pending_friend_request.request_id,
             pending_friend_request.clone());
@@ -213,7 +209,7 @@ impl MutualCredit {
             request_id);
     }
 
-    fn insert_local_pending_request(&mut self, pending_friend_request: &PendingFriendRequest) {
+    fn insert_local_pending_request(&mut self, pending_friend_request: &PendingRequest) {
         self.state.pending_requests.pending_local_requests.insert(
             pending_friend_request.request_id,
             pending_friend_request.clone());

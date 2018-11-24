@@ -4,9 +4,11 @@ use futures::task::Spawn;
 use crypto::identity::PublicKey;
 use crypto::uid::{Uid, UID_LEN};
 
-use crate::types::{IncomingControlMessage, FriendStatus,
-    RequestsStatus, FriendsRoute, UserRequestSendFunds,
-    InvoiceId, INVOICE_ID_LEN, ResponseSendFundsResult,
+use proto::funder::messages::{FriendsRoute, InvoiceId, INVOICE_ID_LEN};
+
+use crate::types::{FunderIncomingControl, FriendStatus,
+    RequestsStatus, UserRequestSendFunds,
+    ResponseSendFundsResult,
     ReceiptAck, ResetFriendChannel};
 use crate::report::{FunderReport,
                     ChannelStatusReport};
@@ -52,7 +54,7 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
         invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
         dest_payment: 5,
     };
-    await!(node_controls[0].send(IncomingControlMessage::RequestSendFunds(user_request_send_funds))).unwrap();
+    await!(node_controls[0].send(FunderIncomingControl::RequestSendFunds(user_request_send_funds))).unwrap();
     let response_received = await!(node_controls[0].recv_until_response()).unwrap();
 
     assert_eq!(response_received.request_id, Uid::from(&[3; UID_LEN]));
@@ -65,7 +67,7 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
         request_id: Uid::from(&[3; UID_LEN]),
         receipt_signature: receipt.signature.clone(),
     };
-    await!(node_controls[0].send(IncomingControlMessage::ReceiptAck(receipt_ack))).unwrap();
+    await!(node_controls[0].send(FunderIncomingControl::ReceiptAck(receipt_ack))).unwrap();
 
     let pred = |report: &FunderReport<_>| report.num_ready_receipts == 0;
     await!(node_controls[0].recv_until(pred));
@@ -152,7 +154,7 @@ async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'stati
         invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
         dest_payment: 20,
     };
-    await!(node_controls[0].send(IncomingControlMessage::RequestSendFunds(user_request_send_funds))).unwrap();
+    await!(node_controls[0].send(FunderIncomingControl::RequestSendFunds(user_request_send_funds))).unwrap();
     let response_received = await!(node_controls[0].recv_until_response()).unwrap();
     assert_eq!(response_received.request_id, Uid::from(&[3; UID_LEN]));
     let receipt = match response_received.result {
@@ -165,7 +167,7 @@ async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'stati
         request_id: Uid::from(&[3; UID_LEN]),
         receipt_signature: receipt.signature.clone(),
     };
-    await!(node_controls[0].send(IncomingControlMessage::ReceiptAck(receipt_ack))).unwrap();
+    await!(node_controls[0].send(FunderIncomingControl::ReceiptAck(receipt_ack))).unwrap();
 
     let pred = |report: &FunderReport<_>| report.num_ready_receipts == 0;
     await!(node_controls[0].recv_until(pred));
@@ -247,7 +249,7 @@ async fn task_funder_payment_failure(spawner: impl Spawn + Clone + Send + 'stati
         invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
         dest_payment: 20,
     };
-    await!(node_controls[0].send(IncomingControlMessage::RequestSendFunds(user_request_send_funds))).unwrap();
+    await!(node_controls[0].send(FunderIncomingControl::RequestSendFunds(user_request_send_funds))).unwrap();
     let response_received = await!(node_controls[0].recv_until_response()).unwrap();
     assert_eq!(response_received.request_id, Uid::from(&[3; UID_LEN]));
     let reporting_public_key = match response_received.result {
@@ -326,7 +328,7 @@ async fn task_funder_inconsistency_basic(spawner: impl Spawn + Clone + Send + 's
         friend_public_key: public_keys[1].clone(),
         current_token: reset_terms_report.reset_token.clone(), // TODO: Rename current_token to reset_token?
     };
-    await!(node_controls[0].send(IncomingControlMessage::ResetFriendChannel(reset_friend_channel))).unwrap();
+    await!(node_controls[0].send(FunderIncomingControl::ResetFriendChannel(reset_friend_channel))).unwrap();
 
     // Wait until channel is consistent with the correct balance:
     let pred = |report: &FunderReport<_>| {

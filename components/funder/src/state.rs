@@ -7,10 +7,12 @@ use num_traits::identities::Zero;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
+use proto::funder::messages::{Ratio, SendFundsReceipt};
+
 use utils::int_convert::usize_to_u64;
 
-use super::friend::{FriendState, FriendMutation};
-use super::types::{SendFundsReceipt, Ratio, AddFriend};
+use crate::friend::{FriendState, FriendMutation};
+use crate::types::AddFriend;
 
 
 #[derive(Clone, Serialize, Deserialize)]

@@ -5,7 +5,7 @@ use utils::int_convert::usize_to_u64;
 
 use crate::friend::{FriendState, ChannelStatus, FriendMutation};
 use crate::state::{FunderState, FunderMutation};
-use crate::types::{RequestsStatus, FriendStatus, FriendMoveTokenHashed};
+use crate::types::{RequestsStatus, FriendStatus, MoveTokenHashed};
 use crate::mutual_credit::types::{McBalance, McRequestsStatus};
 use crate::token_channel::{TokenChannel, TcDirection, TcMutation}; 
 use crate::liveness::LivenessMutation;
@@ -56,7 +56,7 @@ pub struct FriendReport<A> {
     pub name: String,
     // Last message signed by the remote side. 
     // Can be used as a proof for the last known balance.
-    pub opt_last_incoming_move_token: Option<FriendMoveTokenHashed>,
+    pub opt_last_incoming_move_token: Option<MoveTokenHashed>,
     pub liveness: FriendLivenessReport, // is the friend online/offline?
     pub channel_status: ChannelStatusReport,
     pub wanted_remote_max_debt: u128,
@@ -91,7 +91,7 @@ pub enum FriendReportMutation<A> {
     SetNumPendingRequests(u64),
     SetFriendStatus(FriendStatus),
     SetNumPendingUserRequests(u64),
-    SetOptLastIncomingMoveToken(Option<FriendMoveTokenHashed>),
+    SetOptLastIncomingMoveToken(Option<MoveTokenHashed>),
     SetLiveness(FriendLivenessReport),
 }
 
@@ -101,7 +101,7 @@ pub struct AddFriendReport<A> {
     pub address: A,
     pub name: String,
     pub balance: i128, // Initial balance
-    pub opt_last_incoming_move_token: Option<FriendMoveTokenHashed>,
+    pub opt_last_incoming_move_token: Option<MoveTokenHashed>,
     pub channel_status: ChannelStatusReport,
 }
 

@@ -9,15 +9,16 @@ use crypto::hash;
 use utils::safe_arithmetic::SafeSignedArithmetic;
 use utils::int_convert::usize_to_u32;
 
+use proto::funder::messages::{FriendTcOp, RequestSendFunds, 
+    ResponseSendFunds, FailureSendFunds,FriendsRoute,
+    InvoiceId, PendingRequest, SendFundsReceipt};
+use proto::funder::signature_buff::{create_response_signature_buffer, 
+    verify_failure_signature};
+
 use super::types::{MutualCredit, McMutation, 
     MAX_FUNDER_DEBT};
-use super::super::credit_calc::CreditCalculator;
-use super::super::types::{FriendTcOp, RequestSendFunds, 
-    ResponseSendFunds, FailureSendFunds,
-    PendingFriendRequest, FriendsRoute, RequestsStatus,
-    SendFundsReceipt, InvoiceId};
-use super::super::signature_buff::{create_response_signature_buffer, 
-    verify_failure_signature};
+use crate::credit_calc::CreditCalculator;
+use crate::types::{RequestsStatus, create_pending_request};
 
 
 /// Processes outgoing fundss for a token channel.
@@ -226,7 +227,7 @@ impl OutgoingMc {
         }
 
         // Add pending request funds:
-        let pending_friend_request = request_send_funds.create_pending_request();
+        let pending_friend_request = create_pending_request(&request_send_funds);
 
         let mut tc_mutations = Vec::new();
         let tc_mutation = McMutation::InsertLocalPendingRequest(pending_friend_request);
