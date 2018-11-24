@@ -135,6 +135,15 @@ impl<A:Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler<
         self.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
     }
 
+    fn control_set_address(&mut self, address: A) {
+        let m_mutation = FunderMutation::SetAddress(address.clone());
+        self.apply_funder_mutation(m_mutation);
+
+        // Notify Channeler about relay address change:
+        let channeler_config = ChannelerConfig::SetAddress(address.clone());
+        self.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
+    }
+
     fn control_add_friend(&mut self, add_friend: AddFriend<A>) 
         -> Result<(), HandleControlError> {
 
@@ -384,6 +393,9 @@ impl<A:Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler<
             },
             FunderIncomingControl::ResetFriendChannel(reset_friend_channel) => {
                 await!(self.control_reset_friend_channel(reset_friend_channel))?;
+            },
+            FunderIncomingControl::SetAddress(address) => {
+                self.control_set_address(address);
             },
             FunderIncomingControl::AddFriend(add_friend) => {
                 self.control_add_friend(add_friend);

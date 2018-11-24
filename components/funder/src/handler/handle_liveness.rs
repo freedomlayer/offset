@@ -118,7 +118,7 @@ mod tests {
             (identity_client2, pk2, identity_client1, pk1)
         };
 
-        let mut state = FunderState::new(&local_pk);
+        let mut state = FunderState::new(&local_pk, &1337u32);
         // Add a remote friend:
         let add_friend = AddFriend {
             friend_public_key: remote_pk.clone(),

@@ -198,6 +198,8 @@ pub struct ReceiptAck {
 
 #[derive(Debug, Clone)]
 pub enum FunderIncomingControl<A> {
+    /// Set relay address used for the local node
+    SetAddress(A),
     AddFriend(AddFriend<A>),
     RemoveFriend(RemoveFriend),
     SetRequestsStatus(SetRequestsStatus),
@@ -237,6 +239,10 @@ pub struct ResponseReceived {
 
 #[derive(Debug)]
 pub enum ChannelerConfig<A> {
+    /// Set relay address for local node
+    /// This is the address the Channeler will connect to 
+    /// and listen for new connections
+    SetAddress(A),
     AddFriend((PublicKey, A)),
     RemoveFriend(PublicKey),
 }

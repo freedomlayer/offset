@@ -66,7 +66,7 @@ mod tests {
         let local_pk = await!(identity_client.request_public_key()).unwrap();
         let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
 
-        let mut state = FunderState::new(&local_pk);
+        let mut state = FunderState::new(&local_pk, &1337u32);
 
         // Add a remote friend:
         let add_friend = AddFriend {

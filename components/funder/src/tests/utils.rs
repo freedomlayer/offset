@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use serde::Serialize;
-use serde::de::DeserializeOwned;
+// use serde::Serialize;
+// use serde::de::DeserializeOwned;
 
 use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
@@ -9,6 +9,8 @@ use futures::{future, FutureExt, StreamExt, SinkExt};
 
 use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair, PublicKey};
 use crypto::test_utils::DummyRandom;
+
+use utils::int_convert::usize_to_u32;
 
 use identity::{create_identity, IdentityClient};
 
@@ -88,6 +90,10 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
                             IncomingLivenessMessage::Offline(friend_public_key.clone()));
                         await!(comm_out.send(incoming_comm_message)).unwrap();
                     }
+                },
+                ChannelerConfig::SetAddress(_address) => {
+                    // Do nothing here. We use a mock router instead of a set of relays,
+                    // so changing the address has no meaning.
                 },
             }
         },
@@ -213,6 +219,15 @@ impl<A: Clone> NodeControl<A> {
         }
     }
 
+    pub async fn set_address<'a>(&'a mut self, address: A) 
+    where
+        A: PartialEq + Eq,
+    {
+        await!(self.send(FunderIncomingControl::SetAddress(address.clone()))).unwrap();
+        let pred = |report: &FunderReport<_>| report.address == address;
+        await!(self.recv_until(pred));
+    }
+
     pub async fn add_friend<'a>(&'a mut self, 
                          friend_public_key: &'a PublicKey,
                          address: A,
@@ -319,19 +334,18 @@ impl<A: Clone> NodeControl<A> {
 
 /// Create a few node_controls, together with a router connecting them all.
 /// This allows having a conversation between any two nodes.
-pub async fn create_node_controls<A>(num_nodes: usize, 
-                              mut spawner: impl Spawn + Clone + Send + 'static) 
-                                -> Vec<NodeControl<A>>
-where 
-    A: Serialize + DeserializeOwned + Send + Sync + Clone + std::fmt::Debug + 'static,
+/// We use A = u32:
+pub async fn create_node_controls(num_nodes: usize, 
+                              mut spawner: impl Spawn + Clone + Send + 'static)
+                                -> Vec<NodeControl<u32>>
 {
 
-    let (mut send_new_node, recv_new_node) = mpsc::channel::<NewNode<A>>(0);
+    let (mut send_new_node, recv_new_node) = mpsc::channel::<NewNode<u32>>(0);
     spawner.spawn(router(recv_new_node, spawner.clone())).unwrap();
 
     // Avoid problems with casting to u8:
     assert!(num_nodes < 256);
-    let mut node_controls: Vec<NodeControl<A>> = Vec::new();
+    let mut node_controls = Vec::new();
 
     for i in 0 .. num_nodes {
         let rng = DummyRandom::new(&[i as u8]);
@@ -343,9 +357,12 @@ where
 
 
         let public_key = await!(identity_client.request_public_key()).unwrap();
-        let funder_state = FunderState::new(&public_key);
+        // We give all the nodes the same relay address. Usually this will not happen, but
+        // it is the easier thing to do in this code (Unless we change it to have specific A type,
+        // for example, u32).
+        let funder_state = FunderState::new(&public_key, &usize_to_u32(i).unwrap());
 
-        let mock_db = MockDb::<A>::new(funder_state);
+        let mock_db = MockDb::new(funder_state);
 
         let (send_control, incoming_control) = mpsc::channel(CHANNEL_SIZE);
         let (control_sender, mut recv_control) = mpsc::channel(CHANNEL_SIZE);
