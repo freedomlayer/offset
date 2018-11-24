@@ -115,7 +115,7 @@ pub struct ResetTerms {
     pub balance_for_reset: i128,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
 pub struct MoveTokenRequest {
     pub friend_move_token: MoveToken,
     // Do we want the remote side to return the token:
@@ -123,7 +123,7 @@ pub struct MoveTokenRequest {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum FriendMessage {
     MoveTokenRequest(MoveTokenRequest),
     InconsistencyError(ResetTerms),
