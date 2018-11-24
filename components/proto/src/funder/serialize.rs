@@ -225,12 +225,24 @@ pub fn deser_ratio128(from: &funder_capnp::ratio128::Reader) -> Result<Ratio<u12
 
 pub fn deser_freeze_link(freeze_link_reader: &funder_capnp::freeze_link::Reader)
     -> Result<FreezeLink, FunderDeserializeError> {
-    unimplemented!();
+
+    Ok(FreezeLink {
+        shared_credits: read_custom_u_int128(&freeze_link_reader.get_shared_credits()?)?,
+        usable_ratio: deser_ratio128(&freeze_link_reader.get_usable_ratio()?)?,
+    })
 }
 
 pub fn deser_friends_route(friends_route_reader: &funder_capnp::friends_route::Reader)
     -> Result<FriendsRoute, FunderDeserializeError> {
-    unimplemented!();
+
+    let mut public_keys = Vec::new();
+    for public_key_reader in friends_route_reader.get_public_keys()? {
+        public_keys.push(read_public_key(&public_key_reader)?);
+    }
+
+    Ok(FriendsRoute {
+        public_keys,
+    })
 }
 
 pub fn deser_request_send_funds(request_send_funds_reader: &funder_capnp::request_send_funds_op::Reader)
@@ -252,12 +264,23 @@ pub fn deser_request_send_funds(request_send_funds_reader: &funder_capnp::reques
 
 pub fn deser_response_send_funds(response_send_funds_reader: &funder_capnp::response_send_funds_op::Reader)
     -> Result<ResponseSendFunds, FunderDeserializeError> {
-    unimplemented!();
+
+    Ok(ResponseSendFunds {
+        request_id: read_uid(&response_send_funds_reader.get_request_id()?)?,
+        rand_nonce: read_rand_nonce(&response_send_funds_reader.get_rand_nonce()?)?,
+        signature: read_signature(&response_send_funds_reader.get_signature()?)?,
+    })
 }
 
 pub fn deser_failure_send_funds(failure_send_funds_reader: &funder_capnp::failure_send_funds_op::Reader)
     -> Result<FailureSendFunds, FunderDeserializeError> {
-    unimplemented!();
+
+    Ok(FailureSendFunds {
+        request_id: read_uid(&failure_send_funds_reader.get_request_id()?)?,
+        reporting_public_key: read_public_key(&failure_send_funds_reader.get_reporting_public_key()?)?,
+        rand_nonce: read_rand_nonce(&failure_send_funds_reader.get_rand_nonce()?)?,
+        signature: read_signature(&failure_send_funds_reader.get_signature()?)?,
+    })
 }
 
 pub fn deser_friend_operation(friend_operation_reader: &funder_capnp::friend_operation::Reader)
