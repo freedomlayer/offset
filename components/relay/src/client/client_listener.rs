@@ -188,6 +188,7 @@ where
 
 
 async fn inner_client_listener<C,IAC,CS,CSE>(mut connector: C,
+                                initial_access_control: AccessControl,
                                 incoming_access_control: IAC,
                                 connections_sender: CS,
                                 conn_timeout_ticks: usize,
@@ -236,7 +237,7 @@ where
         future::ready(opt_relay_listen_out.is_some())
     }).map(|opt| opt.unwrap());
 
-    let mut access_control = AccessControl::new();
+    let mut access_control = initial_access_control;
     // Amount of ticks remaining until we decide to close this connection (Because remote is idle):
     let mut ticks_to_close = keepalive_ticks;
     // Amount of ticks remaining until we need to send a new keepalive (To make sure remote side
@@ -328,6 +329,7 @@ where
 
 /// Listen for incoming connections from a relay.
 pub async fn client_listener<C,IAC,CS,CSE>(connector: C,
+                                initial_access_control: AccessControl,
                                 incoming_access_control: IAC,
                                 connections_sender: CS,
                                 conn_timeout_ticks: usize,
@@ -342,6 +344,7 @@ where
     CSE: 'static,
 {
     await!(inner_client_listener(connector,
+                                 initial_access_control,
                                  incoming_access_control,
                                  connections_sender,
                                  conn_timeout_ticks,
@@ -517,6 +520,7 @@ mod tests {
         let (event_sender, mut event_receiver) = mpsc::channel(0);
 
         let fut_listener = inner_client_listener(connector,
+                              AccessControl::new(),
                               incoming_access_control,
                               connections_sender,
                               conn_timeout_ticks,
