@@ -106,7 +106,7 @@ mod tests {
     use super::*;
     use futures::{stream, StreamExt, SinkExt};
     use futures::executor::ThreadPool;
-    use futures::task::{Spawn, SpawnExt};
+    use futures::task::Spawn;
 
     async fn task_overwrite_sink_send_all(spawner: impl Spawn) {
         // let (sender, mut receiver) = mpsc::channel::<u32>(0);
