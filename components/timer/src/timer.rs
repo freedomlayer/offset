@@ -22,7 +22,6 @@
 
 // #![deny(warnings)]
 
-use core::pin::Pin;
 use std::time::Duration;
 use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
@@ -162,6 +161,7 @@ pub fn create_timer(dur: Duration, spawner: impl Spawn) -> Result<TimerClient, T
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::pin::Pin;
     use std::time::{Duration, Instant};
     use futures::executor::LocalPool;
     // use core::pin::Pin;
