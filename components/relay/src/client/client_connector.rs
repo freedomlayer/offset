@@ -33,7 +33,6 @@ where
     C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>>,
     S: Spawn + Clone,
 {
-    #[allow(unused)]
     pub fn new(connector: C, spawner: S, timer_client: TimerClient, keepalive_ticks: usize) -> ClientConnector<C,S> {
         ClientConnector {
             connector,

@@ -25,14 +25,12 @@ pub enum ClientListenerError {
     RequestTimerStreamError,
     SendInitConnectionError,
     ConnectionFailure,
-    ConnectionTimedOut,
     TimerClosed,
     AccessControlError,
     SendToServerError,
     ServerClosed,
     SpawnError,
 }
-
 
 #[derive(Debug, Clone)]
 enum ClientListenerEvent {
@@ -187,8 +185,10 @@ where
 }
 
 
-async fn inner_client_listener<C,IAC,CS,CSE>(mut connector: C,
-                                incoming_access_control: IAC,
+
+async fn inner_client_listener<'a, C,IAC,CS,CSE>(mut connector: C,
+                                access_control: &'a mut AccessControl,
+                                incoming_access_control: &'a mut IAC,
                                 connections_sender: CS,
                                 conn_timeout_ticks: usize,
                                 keepalive_ticks: usize,
@@ -198,7 +198,7 @@ async fn inner_client_listener<C,IAC,CS,CSE>(mut connector: C,
     -> Result<(), ClientListenerError>
 where
     C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Send + Sync + Clone + 'static,
-    IAC: Stream<Item=AccessControlOp> + Unpin,
+    IAC: Stream<Item=AccessControlOp> + Unpin + 'static,
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + Clone + Send + 'static,
     CSE: 'static
 {
@@ -236,7 +236,6 @@ where
         future::ready(opt_relay_listen_out.is_some())
     }).map(|opt| opt.unwrap());
 
-    let mut access_control = AccessControl::new();
     // Amount of ticks remaining until we decide to close this connection (Because remote is idle):
     let mut ticks_to_close = keepalive_ticks;
     // Amount of ticks remaining until we need to send a new keepalive (To make sure remote side
@@ -327,8 +326,9 @@ where
 
 
 /// Listen for incoming connections from a relay.
-pub async fn client_listener<C,IAC,CS,CSE>(connector: C,
-                                incoming_access_control: IAC,
+pub async fn client_listener<'a, C,IAC,CS,CSE>(connector: C,
+                                access_control: &'a mut AccessControl,
+                                incoming_access_control: &'a mut IAC,
                                 connections_sender: CS,
                                 conn_timeout_ticks: usize,
                                 keepalive_ticks: usize,
@@ -337,11 +337,12 @@ pub async fn client_listener<C,IAC,CS,CSE>(connector: C,
     -> Result<(), ClientListenerError>
 where
     C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
-    IAC: Stream<Item=AccessControlOp> + Unpin,
+    IAC: Stream<Item=AccessControlOp> + Unpin + 'static,
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + Clone + Send + 'static,
     CSE: 'static,
 {
     await!(inner_client_listener(connector,
+                                 access_control,
                                  incoming_access_control,
                                  connections_sender,
                                  conn_timeout_ticks,
@@ -513,19 +514,23 @@ mod tests {
         let timer_client = create_timer_incoming(tick_receiver, spawner.clone())
             .unwrap();
 
-        let (mut acl_sender, incoming_access_control) = mpsc::channel(0);
+        let (mut acl_sender, mut incoming_access_control) = mpsc::channel(0);
         let (event_sender, mut event_receiver) = mpsc::channel(0);
 
-        let fut_listener = inner_client_listener(connector,
-                              incoming_access_control,
+        let c_spawner = spawner.clone();
+        let fut_listener = async move {
+            let mut access_control = AccessControl::new();
+            await!(inner_client_listener(connector,
+                              &mut access_control,
+                              &mut incoming_access_control,
                               connections_sender,
                               conn_timeout_ticks,
                               keepalive_ticks,
                               timer_client,
-                              spawner.clone(),
-                              Some(event_sender))
-            .map_err(|e| println!("inner_client_listener error: {:?}",e))
-            .map(|_| ());
+                              c_spawner,
+                              Some(event_sender)))
+        }.map_err(|e| println!("inner_client_listener error: {:?}",e))
+        .map(|_| ());
 
         spawner.spawn(fut_listener).unwrap();
 

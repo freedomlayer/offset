@@ -9,6 +9,8 @@
 #[macro_use]
 extern crate log;
 
-
 mod state;
-pub mod secure_channel;
+mod secure_channel;
+
+pub use self::secure_channel::{create_secure_channel, 
+    SecureChannelError, SecureChannel};

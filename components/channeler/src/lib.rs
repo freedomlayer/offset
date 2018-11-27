@@ -5,11 +5,11 @@
 #![feature(generators)]
 #![feature(never_type)]
 #![feature(dbg_macro)]
-#![type_length_limit="2097152"]
+
+mod channeler;
+mod listener;
+mod connector_utils;
+mod overwrite_channel;
 
 #[macro_use]
 extern crate log;
-
-pub mod server;
-pub mod client;
-
