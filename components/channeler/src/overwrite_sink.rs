@@ -1,18 +1,22 @@
 use std::marker::Unpin;
 use core::pin::Pin;
-use futures::channel::mpsc;
-use futures::task::{Spawn, SpawnExt, Poll, LocalWaker};
-use futures::{future, Future, FutureExt, select, TryFuture, TryFutureExt, 
-    StreamExt, Sink, SinkExt};
+use futures::task::{Poll, LocalWaker};
+use futures::Sink;
 
-#[derive(Debug)]
-pub enum OverwriteChannelError {
-    SendError,
-}
 
 struct OverwriteSink<S,T> {
     sink: S,
     opt_item: Option<T>,
+}
+
+impl<S,T,E> OverwriteSink<S,T> 
+where
+    S: Sink<SinkItem=T, SinkError=E> + Unpin,
+    T: Unpin,
+{
+    fn new(sink: S) -> OverwriteSink<S,T> {
+        OverwriteSink { sink, opt_item: None }
+    }
 }
 
 impl<S,T,E> Sink for OverwriteSink<S,T> 
@@ -23,17 +27,19 @@ where
     type SinkItem = T;
     type SinkError = E;
 
-    fn poll_ready(self: Pin<&mut Self>, lw: &LocalWaker) -> Poll<Result<(), E>> {
+    fn poll_ready(self: Pin<&mut Self>, _lw: &LocalWaker) -> Poll<Result<(), E>> {
         Poll::Ready(Ok(()))
     }
 
     fn start_send(mut self: Pin<&mut Self>, item: T) -> Result<(), E> {
+        println!("start_send");
         self.opt_item = Some(item);
         Ok(())
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, lw: &LocalWaker
     ) -> Poll<Result<(), E>> {
+        println!("poll_flush");
         let item = if let Some(item) = self.opt_item.take() {
             item
         } else {
@@ -48,19 +54,68 @@ where
             Poll::Ready(Ok(())) => Pin::new(&mut self.sink).start_send(item)?,
             Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
         };
-
         Pin::new(&mut self.sink).poll_flush(lw)
     }
 
-    fn poll_close(
-        self: Pin<&mut Self>, lw: &LocalWaker) -> Poll<Result<(), E>> {
-        self.poll_flush(lw)
+    fn poll_close(mut self: Pin<&mut Self>, lw: &LocalWaker) -> Poll<Result<(), E>> {
+        println!("poll_close");
+        match Pin::new(&mut self).poll_flush(lw) {
+            Poll::Ready(Ok(())) => {},
+            Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+            Poll::Pending => return Poll::Pending,
+        };
+        Pin::new(&mut self.sink).poll_close(lw)
     }
-
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use futures::{stream, StreamExt, SinkExt};
+    use futures::executor::ThreadPool;
+    use futures::task::{Spawn, SpawnExt};
+    use futures::channel::mpsc;
+
+    async fn task_overwrite_sink_send_all() {
+        let (sender, mut receiver) = mpsc::channel::<u32>(0);
+        let mut overwrite_sender = OverwriteSink::new(sender);
+
+        let mut st = stream::iter(3u32 ..= 5);
+        await!(overwrite_sender.send_all(&mut st)).unwrap();
+        assert_eq!(await!(receiver.next()), Some(5));
+        let mut st = stream::iter(6u32 ..= 7);
+        await!(overwrite_sender.send_all(&mut st)).unwrap();
+        assert_eq!(await!(receiver.next()), Some(7));
+        drop(overwrite_sender);
+        assert_eq!(await!(receiver.next()), None);
+    }
+
+    #[test]
+    fn test_overwrite_sink_send_all() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_overwrite_sink_send_all());
+    }
+
+    async fn task_overwrite_sink_single_send() {
+        let (sender, mut receiver) = mpsc::channel::<u32>(0);
+        let mut overwrite_sender = OverwriteSink::new(sender);
+
+        await!(overwrite_sender.send(3)).unwrap();
+        await!(overwrite_sender.send(4)).unwrap();
+        await!(overwrite_sender.send(5)).unwrap();
+        assert_eq!(await!(receiver.next()), Some(5));
+        await!(overwrite_sender.send(6)).unwrap();
+        await!(overwrite_sender.send(7)).unwrap();
+        assert_eq!(await!(receiver.next()), Some(7));
+        drop(overwrite_sender);
+        assert_eq!(await!(receiver.next()), None);
+    }
+
+    #[test]
+    fn test_overwrite_sink_single_send() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_overwrite_sink_single_send());
+    }
 }
 
 
