@@ -2,13 +2,71 @@ use std::marker::Unpin;
 use core::pin::Pin;
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt, Poll, LocalWaker};
-use futures::{future, Future, FutureExt, select, TryFuture, TryFutureExt, StreamExt, SinkExt};
+use futures::{future, Future, FutureExt, select, TryFuture, TryFutureExt, 
+    StreamExt, Sink, SinkExt};
 
 #[derive(Debug)]
 pub enum OverwriteChannelError {
     SendError,
 }
 
+struct OverwriteSink<S,T> {
+    sink: S,
+    opt_item: Option<T>,
+}
+
+impl<S,T,E> Sink for OverwriteSink<S,T> 
+where
+    S: Sink<SinkItem=T, SinkError=E> + Unpin,
+    T: Unpin,
+{
+    type SinkItem = T;
+    type SinkError = E;
+
+    fn poll_ready(self: Pin<&mut Self>, lw: &LocalWaker) -> Poll<Result<(), E>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn start_send(mut self: Pin<&mut Self>, item: T) -> Result<(), E> {
+        self.opt_item = Some(item);
+        Ok(())
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, lw: &LocalWaker
+    ) -> Poll<Result<(), E>> {
+        let item = if let Some(item) = self.opt_item.take() {
+            item
+        } else {
+            return Poll::Ready(Ok(()));
+        };
+
+        match Pin::new(&mut self.sink).poll_ready(lw) {
+            Poll::Pending => {
+                self.opt_item = Some(item);
+                return Poll::Pending;
+            },
+            Poll::Ready(Ok(())) => Pin::new(&mut self.sink).start_send(item)?,
+            Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+        };
+
+        Pin::new(&mut self.sink).poll_flush(lw)
+    }
+
+    fn poll_close(
+        self: Pin<&mut Self>, lw: &LocalWaker) -> Poll<Result<(), E>> {
+        self.poll_flush(lw)
+    }
+
+}
+
+#[cfg(test)]
+mod tests {
+}
+
+
+// ===================================== 
+
+/*
 struct OverwriteChannel<T> {
     opt_item: Option<T>,
     sender: mpsc::Sender<T>,
@@ -100,6 +158,9 @@ where
 
     (sender, receiver)
 }
+
+
+*/
 
 // TODO: 
 // - Implement this code as a Stream instead of a spawned future. 
