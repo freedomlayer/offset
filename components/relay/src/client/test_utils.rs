@@ -1,6 +1,6 @@
+use core::pin::Pin;
 use futures::channel::{mpsc, oneshot};
-use futures::future::FutureObj;
-use futures::{FutureExt, SinkExt};
+use futures::{Future, FutureExt, SinkExt};
 use super::connector::{Connector, ConnPair};
 
 
@@ -39,7 +39,7 @@ where
     type SendItem = SI;
     type RecvItem = RI;
 
-    fn connect(&mut self, address: A) -> FutureObj<Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
+    fn connect<'a>(&'a mut self, address: A) -> Pin<Box<dyn Future<Output=Option<ConnPair<Self::SendItem, Self::RecvItem>>> + Send + 'a>> {
         let (response_sender, response_receiver) = oneshot::channel();
         let conn_request = ConnRequest {
             address,
@@ -50,8 +50,7 @@ where
             await!(self.req_sender.send(conn_request)).unwrap();
             await!(response_receiver).ok()
         };
-        let future_obj = FutureObj::new(fut_conn_pair.boxed());
-        future_obj
+        Box::pinned(fut_conn_pair)
     }
 }
 

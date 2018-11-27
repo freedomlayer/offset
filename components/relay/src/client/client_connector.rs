@@ -1,6 +1,6 @@
+use core::pin::Pin;
 use crypto::identity::PublicKey;
-use futures::{future, FutureExt, TryFutureExt, StreamExt, SinkExt};
-use futures::future::FutureObj;
+use futures::{future, Future, FutureExt, TryFutureExt, StreamExt, SinkExt};
 use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
 
@@ -106,11 +106,13 @@ where
     type SendItem = Vec<u8>;
     type RecvItem = Vec<u8>;
 
-    fn connect(&mut self, address: (A, PublicKey)) -> FutureObj<Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
+    fn connect<'a>(&'a mut self, address: (A, PublicKey)) 
+        -> Pin<Box<dyn Future<Output=Option<ConnPair<Self::SendItem, Self::RecvItem>>> + Send + 'a>> {
+
         let (relay_address, remote_public_key) = address;
         let relay_connect = self.relay_connect(relay_address, remote_public_key)
             .map(|res| res.ok());
-        FutureObj::new(relay_connect.boxed())
+        Box::pinned(relay_connect)
     }
 }
 
