@@ -8,7 +8,7 @@ use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
 use timer::TimerClient;
 use identity::IdentityClient;
-use relay::client::connector::{Connector, ConnPair};
+use relay::client::connector::{BoxFuture, Connector, ConnPair};
 use secure_channel::create_secure_channel;
 
 /// A wrapper for a connector.
@@ -38,8 +38,8 @@ where
     type SendItem = C::SendItem;
     type RecvItem = C::RecvItem;
 
-    fn connect<'a>(&'a mut self, address: ())
-        -> Pin<Box<dyn Future<Output=Option<ConnPair<C::SendItem, C::RecvItem>>> + Send + 'a>> {
+    fn connect(&mut self, address: ()) 
+        -> BoxFuture<'_, Option<ConnPair<C::SendItem, C::RecvItem>>> {
         self.connector.connect(self.address.clone())
     }
 }
@@ -89,8 +89,8 @@ where
     type SendItem = Vec<u8>;
     type RecvItem = Vec<u8>;
 
-    fn connect<'a>(&'a mut self, full_address: (PublicKey, A))
-        -> Pin<Box<dyn Future<Output=Option<ConnPair<C::SendItem, C::RecvItem>>> + Send + 'a>> {
+    fn connect(&mut self, full_address: (PublicKey, A))
+        -> BoxFuture<'_, Option<ConnPair<C::SendItem, C::RecvItem>>> {
 
         let (public_key, address) = full_address;
         let fut = async move {

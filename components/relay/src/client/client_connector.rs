@@ -11,7 +11,7 @@ use proto::relay::serialize::{serialize_init_connection, serialize_tunnel_messag
 use timer::TimerClient;
 
 use super::client_tunnel::client_tunnel;
-use super::connector::{Connector, ConnPair};
+use super::connector::{BoxFuture, Connector, ConnPair};
 
 #[derive(Debug)]
 pub enum ClientConnectorError {
@@ -106,8 +106,8 @@ where
     type SendItem = Vec<u8>;
     type RecvItem = Vec<u8>;
 
-    fn connect<'a>(&'a mut self, address: (A, PublicKey)) 
-        -> Pin<Box<dyn Future<Output=Option<ConnPair<Self::SendItem, Self::RecvItem>>> + Send + 'a>> {
+    fn connect(&mut self, address: (A, PublicKey)) 
+        -> BoxFuture<'_, Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
 
         let (relay_address, remote_public_key) = address;
         let relay_connect = self.relay_connect(relay_address, remote_public_key)
