@@ -1,6 +1,5 @@
-use core::pin::Pin;
 use crypto::identity::PublicKey;
-use futures::{future, Future, FutureExt, TryFutureExt, StreamExt, SinkExt};
+use futures::{future, FutureExt, TryFutureExt, StreamExt, SinkExt};
 use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
 
