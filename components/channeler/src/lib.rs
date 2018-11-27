@@ -9,7 +9,7 @@
 mod channeler;
 mod listener;
 mod connector_utils;
-mod overwrite_sink;
+mod overwrite_channel;
 
 #[macro_use]
 extern crate log;
