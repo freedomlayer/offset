@@ -1,5 +1,5 @@
 use std::marker::Unpin;
-use futures::{select, future, Stream, StreamExt, Sink};
+use futures::{select, future, FutureExt, Stream, StreamExt, Sink};
 use futures::task::Spawn;
 
 use proto::funder::messages::{FunderToChanneler, ChannelerToFunder};
@@ -100,7 +100,7 @@ where
             // TODO: Possibly wait here in a smart way? Exponential backoff?
             await!(sleep_ticks(backoff_ticks, timer_client.clone()))?;
             Ok(())
-        });
+        }).fuse();
 
         // TODO: Get rid of Box::pinned() later.
         let mut new_address_fut = Box::pinned(async {
@@ -108,12 +108,12 @@ where
                 Some(address) => ListenerSelect::IncomingAddress(address),
                 None => ListenerSelect::IncomingAddressClosed,
             }
-        });
+        }).fuse();
 
         // TODO: Could we possibly lose an incoming address with this select?
         let listener_select = select! {
-            listener_fut => ListenerSelect::ListenerError(listener_fut.err().unwrap()),
-            new_address_fut => new_address_fut,
+            listener_fut = listener_fut => ListenerSelect::ListenerError(listener_fut.err().unwrap()),
+            new_address_fut = new_address_fut => new_address_fut,
         };
         // TODO: Make code nicer here somehow. Use scopes instead of drop?
         drop(new_address_fut);

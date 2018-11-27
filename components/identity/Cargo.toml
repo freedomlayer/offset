@@ -1,5 +1,3 @@
-cargo-features = ["rename-dependency"]
-
 [package]
 name = "offst-identity"
 version = "0.1.0"
@@ -15,7 +13,8 @@ crypto = { path = "../crypto", version = "0.1.0" , package = "offst-crypto"}
 # futures = "0.1.25"
 # tokio-core = "0.1"
 # futures-await = "0.1"
-futures-preview = "0.3.0-alpha.9"
+# futures-preview = "0.3.0-alpha.9"
+futures-preview = { git = "https://github.com/rust-lang-nursery/futures-rs", rev = "5d87cce202" }
 
 [dev-dependencies]
 

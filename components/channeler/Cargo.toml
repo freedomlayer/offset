@@ -1,5 +1,3 @@
-cargo-features = ["rename-dependency"]
-
 [package]
 name = "offst-channeler"
 version = "0.1.0"
@@ -18,5 +16,6 @@ relay = { path = "../relay", version = "0.1.0" , package = "offst-relay" }
 secure_channel = { path = "../secure_channel", version = "0.1.0" , package = "offst-secure-channel" }
 
 log = "0.4"
-futures-preview = "0.3.0-alpha.9"
+# futures-preview = "0.3.0-alpha.9"
+futures-preview = { git = "https://github.com/rust-lang-nursery/futures-rs", rev = "5d87cce202" }
 

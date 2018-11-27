@@ -22,6 +22,7 @@
 
 // #![deny(warnings)]
 
+use core::pin::Pin;
 use std::time::Duration;
 use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
@@ -163,7 +164,6 @@ mod tests {
     use super::*;
     use std::time::{Duration, Instant};
     use futures::executor::LocalPool;
-    use futures::future::FutureObj;
     // use core::pin::Pin;
 
     #[test]
@@ -225,7 +225,7 @@ mod tests {
         const TIMER_CLIENT_NUM: usize = 2;
 
         let mut senders = Vec::new();
-        let mut joined_receivers = FutureObj::from(future::ready(()).boxed());
+        let mut joined_receivers = Box::pinned(future::ready(())) as Pin<Box<dyn Future<Output=()> + Send>>;
 
         for _ in 0 .. TIMER_CLIENT_NUM {
             let (sender, receiver) = oneshot::channel::<()>();
@@ -236,7 +236,7 @@ mod tests {
             });
 
             let new_join = joined_receivers.join(receiver).map(|_| ());
-            joined_receivers = FutureObj::from(new_join.boxed());
+            joined_receivers = Box::pinned(new_join) as Pin<Box<Future<Output=()> + Send>>;
         }
 
         let (sender_done, receiver_done) = oneshot::channel::<()>();

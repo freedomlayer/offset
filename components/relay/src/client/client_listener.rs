@@ -95,12 +95,13 @@ where
     let conn_timeout_ticks = usize_to_u64(conn_timeout_ticks).unwrap();
     let mut fut_timeout = timer_stream
         .take(conn_timeout_ticks)
-        .for_each(|_| future::ready(()));
-    let mut fut_connect = connector.connect(());
+        .for_each(|_| future::ready(()))
+        .fuse();
+    let mut fut_connect = connector.connect(()).fuse();
 
     select! {
-        fut_timeout => None,
-        fut_connect => fut_connect,
+        fut_timeout = fut_timeout => None,
+        fut_connect = fut_connect => fut_connect,
     }
 }
 
@@ -507,7 +508,7 @@ mod tests {
     async fn task_client_listener_basic(mut spawner: impl Spawn + Clone + Send + 'static) {
         let (req_sender, mut req_receiver) = mpsc::channel(0);
         let connector = DummyConnector::new(req_sender);
-        let (connections_sender, mut connections_receiver) = mpsc::channel(0);
+        let (connections_sender, connections_receiver) = mpsc::channel(0);
         let conn_timeout_ticks = 8;
         let keepalive_ticks = 16;
         let (tick_sender, tick_receiver) = mpsc::channel(0);
@@ -587,7 +588,7 @@ mod tests {
         // Listener will accept the connection:
         
         // Listener will open a connection to the relay:
-        let (mut remote_sender, local_receiver) = mpsc::channel(0);
+        let (remote_sender, local_receiver) = mpsc::channel(0);
         let (local_sender, mut remote_receiver) = mpsc::channel(0);
         let conn_pair = ConnPair {
             sender: local_sender,

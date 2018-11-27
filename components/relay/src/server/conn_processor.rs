@@ -119,8 +119,8 @@ where
     // NOTE: This select is probably not Unpin. Maybe we need to implement our own?
     async move {
         select! {
-            fut_receiver => fut_receiver,
-            fut_time => fut_time,
+            fut_receiver = fut_receiver => fut_receiver,
+            fut_time = fut_time => fut_time,
         }
     }
 }
