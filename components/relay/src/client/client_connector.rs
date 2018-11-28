@@ -105,7 +105,9 @@ mod tests {
     use timer::{create_timer_incoming};
     use crypto::identity::{PUBLIC_KEY_LEN};
     use proto::relay::serialize::deserialize_init_connection;
-    use proto::relay::messages::TunnelMessage;
+    use proto::keepalive::messages::KaMessage;
+    use proto::keepalive::serialize::serialize_ka_message;
+
     use super::super::test_utils::DummyConnector;
 
 
@@ -153,9 +155,11 @@ mod tests {
         };
 
         // local receiver should not be able to see keepalive messages:
-        await!(relay_sender.send(serialize_tunnel_message(&TunnelMessage::KeepAlive))).unwrap();
+        let ka_message = KaMessage::KeepAlive;
+        await!(relay_sender.send(serialize_ka_message(&ka_message))).unwrap();
 
-        await!(relay_sender.send(serialize_tunnel_message(&TunnelMessage::Message(vec![1,2,3])))).unwrap();
+        let ka_message = KaMessage::Message(vec![1,2,3]);
+        await!(relay_sender.send(serialize_ka_message(&ka_message))).unwrap();
         let vec = await!(conn_pair.receiver.next()).unwrap();
         assert_eq!(vec, vec![1,2,3]);
     }

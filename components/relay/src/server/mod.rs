@@ -345,10 +345,10 @@ mod tests {
          * a_ac | --> c_ac | c_bc <-- | b_bc
         */
 
-        let (a_ac, c_ac) = mpsc::channel::<RelayListenIn>(0);
-        let (c_ca, mut a_ca) = mpsc::channel::<RelayListenOut>(0);
-        let (mut b_bc, c_bc) = mpsc::channel::<TunnelMessage>(0);
-        let (c_cb, mut b_cb) = mpsc::channel::<TunnelMessage>(0);
+        let (a_ac, c_ac) = mpsc::channel::<RejectConnection>(0);
+        let (c_ca, mut a_ca) = mpsc::channel::<IncomingConnection>(0);
+        let (mut b_bc, c_bc) = mpsc::channel::<Vec<u8>>(0);
+        let (c_cb, mut b_cb) = mpsc::channel::<Vec<u8>>(0);
 
         let a_public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
         let b_public_key = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
@@ -377,12 +377,11 @@ mod tests {
         await!(outgoing_conns.send(incoming_conn_b)).unwrap();
 
         let msg = await!(a_ca.next()).unwrap();
-        assert_eq!(msg, RelayListenOut::IncomingConnection(
-                IncomingConnection(b_public_key.clone())));
+        assert_eq!(msg, IncomingConnection { public_key: b_public_key.clone() });
 
         // Open a new connection to Accept:
-        let (mut a_ac1, c_ac1) = mpsc::channel::<TunnelMessage>(0);
-        let (c_ca1, mut a_ca1) = mpsc::channel::<TunnelMessage>(0);
+        let (mut a_ac1, c_ac1) = mpsc::channel::<Vec<u8>>(0);
+        let (c_ca1, mut a_ca1) = mpsc::channel::<Vec<u8>>(0);
 
         let incoming_accept_a = IncomingAccept {
             receiver: c_ac1,
@@ -396,13 +395,13 @@ mod tests {
 
         let _outgoing_conns = await!(outgoing_conns.send(incoming_conn_accept_a)).unwrap();
 
-        await!(a_ac1.send(TunnelMessage::Message(vec![1,2,3]))).unwrap();
+        await!(a_ac1.send(vec![1,2,3])).unwrap();
         let msg = await!(b_cb.next()).unwrap();
-        assert_eq!(msg, TunnelMessage::Message(vec![1,2,3]));
+        assert_eq!(msg, vec![1,2,3]);
 
-        await!(b_bc.send(TunnelMessage::Message(vec![4,3,2,1]))).unwrap();
+        await!(b_bc.send(vec![4,3,2,1])).unwrap();
         let msg = await!(a_ca1.next()).unwrap();
-        assert_eq!(msg, TunnelMessage::Message(vec![4,3,2,1]));
+        assert_eq!(msg, vec![4,3,2,1]);
 
         // If one side's sender is dropped, the other side's receiver will be notified:
         drop(b_bc);
@@ -453,10 +452,10 @@ mod tests {
          * a_ac | --> c_ac | c_bc <-- | b_bc
         */
 
-        let (mut a_ac, c_ac) = mpsc::channel::<RelayListenIn>(0);
-        let (c_ca, mut a_ca) = mpsc::channel::<RelayListenOut>(0);
-        let (b_bc, c_bc) = mpsc::channel::<TunnelMessage>(0);
-        let (c_cb, mut b_cb) = mpsc::channel::<TunnelMessage>(0);
+        let (mut a_ac, c_ac) = mpsc::channel::<RejectConnection>(0);
+        let (c_ca, mut a_ca) = mpsc::channel::<IncomingConnection>(0);
+        let (b_bc, c_bc) = mpsc::channel::<Vec<u8>>(0);
+        let (c_cb, mut b_cb) = mpsc::channel::<Vec<u8>>(0);
 
         let a_public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
         let b_public_key = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
@@ -485,15 +484,14 @@ mod tests {
         await!(outgoing_conns.send(incoming_conn_b)).unwrap();
 
         let msg = await!(a_ca.next()).unwrap();
-        assert_eq!(msg, RelayListenOut::IncomingConnection(
-                IncomingConnection(b_public_key.clone())));
+        assert_eq!(msg, IncomingConnection { public_key: b_public_key.clone() });
 
         // This is done to help the compiler deduce the types for 
         // IncomingConn:
         if false {
             // Open a new connection to Accept:
-            let (_a_ac1, c_ac1) = mpsc::channel::<TunnelMessage>(0);
-            let (c_ca1, _a_ca1) = mpsc::channel::<TunnelMessage>(0);
+            let (_a_ac1, c_ac1) = mpsc::channel::<Vec<u8>>(0);
+            let (c_ca1, _a_ca1) = mpsc::channel::<Vec<u8>>(0);
 
             let incoming_accept_a = IncomingAccept {
                 receiver: c_ac1,
@@ -508,8 +506,7 @@ mod tests {
         }
 
         // A rejects B's connection:
-        let reject_connection = RelayListenIn::RejectConnection(
-            RejectConnection(b_public_key));
+        let reject_connection = RejectConnection { public_key: b_public_key };
         await!(a_ac.send(reject_connection)).unwrap();
 
         // B should be notified that the connection is closed:

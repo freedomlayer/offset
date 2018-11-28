@@ -309,10 +309,9 @@ mod tests {
     use super::*;
     use futures::executor::ThreadPool;
     use futures::channel::oneshot;
-    use proto::relay::serialize::{deserialize_init_connection, 
-        serialize_relay_listen_out, serialize_relay_listen_in,
-        deserialize_relay_listen_in};
-    use proto::relay::messages::TunnelMessage;
+    use proto::keepalive::messages::KaMessage;
+    use proto::keepalive::serialize::{serialize_ka_message, deserialize_ka_message};
+    use proto::relay::serialize::{deserialize_init_connection};
     use crypto::identity::PUBLIC_KEY_LEN;
     use timer::create_timer_incoming;
     use super::super::test_utils::DummyConnector;
@@ -424,28 +423,18 @@ mod tests {
             unreachable!();
         }
 
-        // Add serialization for remote sender:
-        let mut ser_remote_sender = remote_sender
-            .sink_map_err(|_| ())
-            .with(|vec| -> future::Ready<Result<_,()>> {
-                future::ready(Ok(serialize_tunnel_message(&vec)))
-            });
-
-        // Add deserialization for remote receiver:
-        let mut ser_remote_receiver = remote_receiver.map(|tunnel_message| {
-            deserialize_tunnel_message(&tunnel_message).ok()
-        }).take_while(|opt_vec| {
-            future::ready(opt_vec.is_some())
-        }).map(|opt_vec| opt_vec.unwrap());
+        let mut ser_remote_sender = remote_sender;
+        let mut ser_remote_receiver = remote_receiver;
 
         let (accepted_public_key, mut conn_pair) = await!(connections_receiver.next()).unwrap();
         assert_eq!(accepted_public_key, public_key);
 
         await!(conn_pair.sender.send(vec![1,2,3])).unwrap();
         let res = await!(ser_remote_receiver.next()).unwrap();
-        assert_eq!(res, TunnelMessage::Message(vec![1,2,3]));
+        assert_eq!(res, serialize_ka_message(&KaMessage::Message(vec![1,2,3])));
 
-        await!(ser_remote_sender.send(TunnelMessage::Message(vec![3,2,1]))).unwrap();
+        let vec_ka_message = serialize_ka_message(&KaMessage::Message(vec![3,2,1]));
+        await!(ser_remote_sender.send(vec_ka_message)).unwrap();
         let res = await!(conn_pair.receiver.next()).unwrap();
         assert_eq!(res, vec![3,2,1]);
     }
@@ -512,28 +501,21 @@ mod tests {
         // Relay will now send a message about incoming connection from a public key that is not
         // allowed:
         let public_key_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
-        let relay_listen_out = RelayListenOut::IncomingConnection(
-            IncomingConnection(public_key_b.clone()));
-        let vec_relay_listen_out = serialize_relay_listen_out(&relay_listen_out);
-        await!(relay_sender.send(vec_relay_listen_out)).unwrap();
+        let relay_listen_out = IncomingConnection { public_key: public_key_b.clone() };
+        let vec_incoming_connection = serialize_incoming_connection(&relay_listen_out);
+        await!(relay_sender.send(vec_incoming_connection)).unwrap();
         await!(event_receiver.next()).unwrap();
 
         // Listener will reject the connection:
         let vec_relay_listen_in = await!(relay_receiver.next()).unwrap();
-        let relay_listen_in = deserialize_relay_listen_in(&vec_relay_listen_in).unwrap();
-        if let RelayListenIn::RejectConnection(
-            RejectConnection(rejected_public_key)) = relay_listen_in {
-            assert_eq!(rejected_public_key, public_key_b);
-        } else {
-            unreachable!();
-        }
+        let reject_connection = deserialize_reject_connection(&vec_relay_listen_in).unwrap();
+        assert_eq!(reject_connection.public_key, public_key_b);
 
         // Relay will now send a message about incoming connection from a public key that is
         // allowed:
-        let relay_listen_out = RelayListenOut::IncomingConnection(
-            IncomingConnection(public_key_a.clone()));
-        let vec_relay_listen_out = serialize_relay_listen_out(&relay_listen_out);
-        await!(relay_sender.send(vec_relay_listen_out)).unwrap();
+        let incoming_connection = IncomingConnection { public_key: public_key_a.clone() };
+        let vec_incoming_connection = serialize_incoming_connection(&incoming_connection);
+        await!(relay_sender.send(vec_incoming_connection)).unwrap();
         await!(event_receiver.next()).unwrap();
 
         // Listener will accept the connection:

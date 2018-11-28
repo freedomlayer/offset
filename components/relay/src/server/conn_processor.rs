@@ -87,7 +87,7 @@ where
 }
 */
 
-async fn process_conn<M,K,KE>(receiver: M, 
+async fn process_conn<M,K,KE>(mut receiver: M, 
                 sender: K, 
                 public_key: PublicKey,
                 mut timer_client: TimerClient,
@@ -106,34 +106,33 @@ where
     K: Sink<SinkItem=Vec<u8>, SinkError=KE> + Unpin + Send + 'static,
 {
 
-    let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
-    let mut fut_receiver = 
-        receiver
-        .into_future()
-        .then(|(opt_first_msg, receiver)| {
-            future::ready(match opt_first_msg {
-                Some(first_msg) => dispatch_conn(receiver, sender, public_key, first_msg, 
-                                                 timer_stream, keepalive_ticks, spawner),
-                None => None,
-            })
-        });
-
-    let mut fut_receiver = Box::pinned(fut_receiver);
+    let mut c_timer_client = timer_client.clone();
+    let mut fut_receiver = Box::pinned(async move {
+        if let Some(first_msg) = await!(receiver.next()) {
+            let timer_stream = await!(c_timer_client.request_timer_stream()).unwrap();
+            dispatch_conn(receiver, sender, public_key, first_msg, 
+                         timer_stream, keepalive_ticks, spawner)
+        } else {
+            None
+        }
+    }).fuse();
 
     let conn_timeout_ticks = usize_to_u64(conn_timeout_ticks).unwrap();
     // TODO; Error handling here?
+    println!("process_conn2");
     let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+    println!("process_conn3");
     let mut fut_time = timer_stream
         .take(conn_timeout_ticks)
         .for_each(|_| {
+            println!("for_each tick!");
             future::ready(())
         })
         .map(|_| {
             None
         });
 
-    // select(fut_receiver, fut_time)
-    // NOTE: This select is probably not Unpin. Maybe we need to implement our own?
+    println!("process_conn4");
     select! {
         fut_receiver = fut_receiver => fut_receiver,
         fut_time = fut_time => fut_time,
@@ -189,15 +188,24 @@ mod tests {
 
     use proto::relay::serialize::serialize_init_connection;
 
-    #[test]
-    fn test_dispatch_conn_basic() {
+    async fn task_dispatch_conn_basic(spawner: impl Spawn + Clone) {
+        // Create a mock time service:
+        let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
+        let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+        let keepalive_ticks = 8;
+
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let first_msg = InitConnection::Listen;
         let ser_first_msg = serialize_init_connection(&first_msg);
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
+        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
         let incoming_conn = dispatch_conn(receiver,
                                           sender.sink_map_err(|_| ()), 
-                                          public_key.clone(), ser_first_msg).unwrap();
+                                          public_key.clone(), ser_first_msg,
+                                          timer_stream,
+                                          keepalive_ticks,
+                                          spawner.clone()).unwrap();
+
         assert_eq!(incoming_conn.public_key, public_key);
         match incoming_conn.inner {
             IncomingConnInner::Listen(_incoming_listen) => {},
@@ -209,9 +217,13 @@ mod tests {
         let first_msg = InitConnection::Accept(accept_public_key.clone());
         let ser_first_msg = serialize_init_connection(&first_msg);
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
+        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
         let incoming_conn = dispatch_conn(receiver,
                                           sender.sink_map_err(|_| ()), 
-                                          public_key.clone(), ser_first_msg).unwrap();
+                                          public_key.clone(), ser_first_msg,
+                                          timer_stream,
+                                          keepalive_ticks,
+                                          spawner.clone()).unwrap();
         assert_eq!(incoming_conn.public_key, public_key);
         match incoming_conn.inner {
             IncomingConnInner::Accept(incoming_accept) => 
@@ -224,9 +236,13 @@ mod tests {
         let first_msg = InitConnection::Connect(connect_public_key.clone());
         let ser_first_msg = serialize_init_connection(&first_msg);
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
+        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
         let incoming_conn = dispatch_conn(receiver,
                                           sender.sink_map_err(|_| ()), 
-                                          public_key.clone(), ser_first_msg).unwrap();
+                                          public_key.clone(), ser_first_msg,
+                                          timer_stream,
+                                          keepalive_ticks,
+                                          spawner.clone()).unwrap();
         assert_eq!(incoming_conn.public_key, public_key);
         match incoming_conn.inner {
             IncomingConnInner::Connect(incoming_connect) => 
@@ -234,16 +250,36 @@ mod tests {
             _ => panic!("Wrong IncomingConnInner"),
         };
     }
-
+    
     #[test]
-    fn test_dispatch_conn_invalid_first_msg() {
+    fn test_dispatch_conn_basic() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_dispatch_conn_basic(thread_pool.clone()));
+    }
+
+    async fn task_dispatch_conn_invalid_first_msg(spawner: impl Spawn + Clone) {
+        // Create a mock time service:
+        let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
+        let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+        let keepalive_ticks = 8;
+
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let ser_first_msg = b"This is an invalid message".to_vec();
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let res = dispatch_conn(receiver,
-                                          sender.sink_map_err(|_| ()), 
-                                          public_key.clone(), ser_first_msg);
+        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+        let res = dispatch_conn(receiver, 
+                                sender.sink_map_err(|_| ()), 
+                                public_key.clone(), ser_first_msg,
+                                timer_stream,
+                                keepalive_ticks,
+                                spawner);
         assert!(res.is_none());
+    }
+
+    #[test]
+    fn test_dispatch_conn_invalid_first_msg() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_dispatch_conn_invalid_first_msg(thread_pool.clone()));
     }
 
     #[test]
@@ -262,9 +298,13 @@ mod tests {
             vec![(local_receiver, local_sender, public_key.clone())]);
 
         let conn_timeout_ticks = 16;
+        let keepalive_ticks = 8;
         let processed_conns = conn_processor(timer_client, 
                        incoming_conns, 
-                       conn_timeout_ticks);
+                       keepalive_ticks,
+                       conn_timeout_ticks,
+                       thread_pool.clone());
+
 
         let processed_conns = Box::pinned(processed_conns);
 
@@ -295,7 +335,7 @@ mod tests {
         assert!(thread_pool.run(receive(processed_conns)).is_none());
     }
 
-    async fn task_process_conn_timeout(mut spawner: impl Spawn + Clone + 'static) -> Result<(),()> {
+    async fn task_process_conn_timeout(mut spawner: impl Spawn + Clone + Send + 'static) {
 
         // Create a mock time service:
         let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
@@ -305,38 +345,44 @@ mod tests {
         let (local_sender, mut remote_receiver) = mpsc::channel::<Vec<u8>>(0);
         let (mut remote_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
 
+        let keepalive_ticks = 8;
         let conn_timeout_ticks = 16;
-        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
 
         let (res_sender, res_receiver) = oneshot::channel();
         let fut_incoming_conn = process_conn(local_receiver, 
                                              local_sender, 
                                              public_key.clone(),
-                                             timer_stream,
-                                             conn_timeout_ticks);
+                                             timer_client.clone(),
+                                             keepalive_ticks,
+                                             conn_timeout_ticks,
+                                             spawner.clone());
+
+
         spawner.spawn(fut_incoming_conn
             .then(|res| {
                 res_sender.send(res).ok().unwrap();
                 future::ready(())
             }));
 
-        for _ in 0 .. 16usize {
+        for i in 0 .. 16usize {
+            println!("i = {}", i);
             await!(tick_sender.send(())).unwrap();
         }
+        println!("Done loop");
 
         assert!(await!(remote_receiver.next()).is_none());
+        println!("after remote_receiver.next()");
         assert!(await!(res_receiver).unwrap().is_none());
 
         let first_msg = InitConnection::Listen;
         let ser_first_msg = serialize_init_connection(&first_msg);
         let res = await!(remote_sender.send(ser_first_msg));
         assert!(res.is_err());
-        Ok(())
     }
 
     #[test]
     fn test_process_conn_timeout() {
         let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_process_conn_timeout(thread_pool.clone())).unwrap();
+        thread_pool.run(task_process_conn_timeout(thread_pool.clone()));
     }
 }
