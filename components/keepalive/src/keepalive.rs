@@ -1,7 +1,8 @@
 use std::marker::Unpin;
-use futures::{future, stream, Stream, StreamExt, Sink, SinkExt};
+use futures::{future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::channel::mpsc;
-use timer::TimerTick;
+use futures::task::{Spawn, SpawnExt};
+use timer::{TimerTick, TimerClient};
 
 use proto::keepalive::messages::KaMessage;
 use proto::keepalive::serialize::{serialize_ka_message, 
@@ -15,6 +16,7 @@ pub enum KeepAliveError {
     SendToUserError,
     SendToRemoteError,
     DeserializeError,
+
 }
 
 #[derive(Debug, Clone)]
@@ -124,6 +126,35 @@ where
     }
     Ok(())
 }
+
+pub async fn keepalive_channel<TR, FR>(to_remote: TR, from_remote: FR, 
+                  mut timer_client: TimerClient,
+                  keepalive_ticks: usize,
+                  mut spawner: impl Spawn) 
+    -> Result<(mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>), KeepAliveError> 
+where
+    TR: Sink<SinkItem=Vec<u8>> + Unpin + Send + 'static,
+    FR: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
+{
+    let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+
+    let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(0);
+    let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(0);
+
+    let keepalive_fut = inner_keepalive_loop(to_remote, from_remote,
+                            to_user, from_user,
+                            timer_stream,
+                            keepalive_ticks,
+                            None)
+            .map_err(|e| error!("[KeepAlive] inner_keepalive_loop() error: {:?}", e))
+            .then(|_| future::ready(()));
+
+    spawner.spawn(keepalive_fut).unwrap();
+
+    Ok((user_sender, user_receiver))
+}
+
+
 
 
 #[cfg(test)]
