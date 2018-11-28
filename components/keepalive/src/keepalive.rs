@@ -134,7 +134,7 @@ pub fn keepalive_channel<TR, FR, TS>(to_remote: TR, from_remote: FR,
                   timer_stream: TS,
                   keepalive_ticks: usize,
                   mut spawner: impl Spawn) 
-    -> Result<(mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>), KeepAliveError> 
+    -> (mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>)
 where
     TR: Sink<SinkItem=Vec<u8>> + Unpin + Send + 'static,
     FR: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
@@ -153,7 +153,7 @@ where
 
     spawner.spawn(keepalive_fut).unwrap();
 
-    Ok((user_sender, user_receiver))
+    (user_sender, user_receiver)
 }
 
 
@@ -265,13 +265,13 @@ mod tests {
         let (mut a_sender, mut a_receiver) = keepalive_channel(a_sender, a_receiver,
                   timer_stream,
                   keepalive_ticks,
-                  spawner.clone()).unwrap();
+                  spawner.clone());
 
         let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
         let (mut b_sender, mut b_receiver) = keepalive_channel(b_sender, b_receiver,
                   timer_stream,
                   keepalive_ticks,
-                  spawner.clone()).unwrap();
+                  spawner.clone());
 
         await!(a_sender.send(vec![1,2,3])).unwrap();
         assert_eq!(await!(b_receiver.next()).unwrap(), vec![1,2,3]);
