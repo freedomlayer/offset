@@ -29,6 +29,7 @@ enum KeepAliveEvent {
     MessageFromUser(Vec<u8>),
 }
 
+/*
 /// Run the keepalive maintenance, exposing to the user the ability to send and receive Vec<u8>
 /// frames.
 pub async fn keepalive_loop<TR,FR,TU,FU,TS>(to_remote: TR, from_remote: FR, 
@@ -48,6 +49,7 @@ where
                         keepalive_ticks,
                         None))
 }
+*/
 
 
 async fn inner_keepalive_loop<TR,FR,TU,FU,TS>(mut to_remote: TR, from_remote: FR, 
