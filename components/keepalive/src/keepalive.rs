@@ -2,7 +2,7 @@ use std::marker::Unpin;
 use futures::{future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
-use timer::{TimerTick, TimerClient};
+use timer::TimerTick;
 
 use proto::keepalive::messages::KaMessage;
 use proto::keepalive::serialize::{serialize_ka_message, 
