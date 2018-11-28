@@ -129,6 +129,7 @@ where
     Ok(())
 }
 
+/// Wrap a channel of communication, taking care of keepalives.
 pub fn keepalive_channel<TR, FR, TS>(to_remote: TR, from_remote: FR, 
                   timer_stream: TS,
                   keepalive_ticks: usize,
