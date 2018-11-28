@@ -18,7 +18,7 @@ pub enum FunderToChanneler<A> {
     /// Set address for relay used by local node
     SetAddress(A), 
     /// Request to add a new friend
-    AddFriend((PublicKey, A)), // (friend_public_key, address)
+    AddFriend((PublicKey, Option<A>)), // (friend_public_key, address)
     /// Request to remove a friend
     RemoveFriend(PublicKey), // friend_public_key
 }

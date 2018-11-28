@@ -85,7 +85,7 @@ async fn handle_from_funder<A>(channeler_state: &mut ChannelerState<A>,
         FunderToChanneler::SetAddress(address) =>
             await!(channeler_state.addresses_sender.send(address))
                 .map_err(|_| ChannelerError::AddressSendFailed),
-        FunderToChanneler::AddFriend((public_key, address)) => unimplemented!(),
+        FunderToChanneler::AddFriend((public_key, opt_address)) => unimplemented!(),
         FunderToChanneler::RemoveFriend(public_key) => {
             channeler_state.friends.remove(&public_key);
             Ok(())
