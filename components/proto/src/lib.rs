@@ -19,6 +19,7 @@ pub mod capnp_common;
 pub mod relay;
 pub mod secure_channel;
 pub mod funder;
+pub mod keepalive;
 
 
 
@@ -27,3 +28,4 @@ include_schema!(common_capnp, "common_capnp");
 include_schema!(dh_capnp, "dh_capnp");
 include_schema!(relay_capnp, "relay_capnp");
 include_schema!(funder_capnp, "funder_capnp");
+include_schema!(keepalive_capnp, "keepalive_capnp");

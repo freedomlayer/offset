@@ -16,6 +16,7 @@ fn main() {
         "src/schema/common.capnp",
         "src/schema/funder.capnp",
         "src/schema/dh.capnp",
-        "src/schema/relay.capnp"
+        "src/schema/relay.capnp",
+        "src/schema/keepalive.capnp"
     }
 }
