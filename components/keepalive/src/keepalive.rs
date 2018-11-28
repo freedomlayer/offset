@@ -23,7 +23,7 @@ pub enum KeepAliveError {
 enum KeepAliveEvent {
     TimerTick,
     TimerClosed,
-    TunnelChannelClosed,
+    RemoteChannelClosed,
     UserChannelClosed,
     MessageFromRemote(Vec<u8>),
     MessageFromUser(Vec<u8>),
@@ -68,7 +68,7 @@ where
 
     let from_remote = from_remote
         .map(|ka_message| KeepAliveEvent::MessageFromRemote(ka_message))
-        .chain(stream::once(future::ready(KeepAliveEvent::TunnelChannelClosed)));
+        .chain(stream::once(future::ready(KeepAliveEvent::RemoteChannelClosed)));
 
     let from_user = from_user
         .map(|vec| KeepAliveEvent::MessageFromUser(vec))
@@ -120,7 +120,7 @@ where
                 }
             },
             KeepAliveEvent::TimerClosed => return Err(KeepAliveError::TimerClosed),
-            KeepAliveEvent::TunnelChannelClosed |
+            KeepAliveEvent::RemoteChannelClosed |
             KeepAliveEvent::UserChannelClosed => break,
         }
     }
