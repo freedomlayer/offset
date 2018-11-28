@@ -11,4 +11,6 @@ extern crate log;
 
 mod keepalive;
 
+pub use self::keepalive::keepalive_channel;
+
 
