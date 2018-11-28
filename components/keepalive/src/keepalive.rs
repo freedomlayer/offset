@@ -13,7 +13,7 @@ pub enum KeepAliveError {
     TimerClosed,
     RemoteTimeout,
     SendToUserError,
-    SendToTunnelError,
+    SendToRemoteError,
     DeserializeError,
 }
 
@@ -100,7 +100,7 @@ where
                 let ka_message = KaMessage::Message(message);
                 let ser_ka_message = serialize_ka_message(&ka_message);
                 await!(to_remote.send(ser_ka_message))
-                    .map_err(|_| KeepAliveError::SendToTunnelError)?;
+                    .map_err(|_| KeepAliveError::SendToRemoteError)?;
                 ticks_to_send_keepalive = keepalive_ticks / 2;
             },
             KeepAliveEvent::TimerTick => {
@@ -113,7 +113,7 @@ where
                     let ka_message = KaMessage::KeepAlive;
                     let ser_ka_message = serialize_ka_message(&ka_message);
                     await!(to_remote.send(ser_ka_message))
-                        .map_err(|_| KeepAliveError::SendToTunnelError)?;
+                        .map_err(|_| KeepAliveError::SendToRemoteError)?;
                     ticks_to_send_keepalive = keepalive_ticks / 2;
                 }
             },
