@@ -103,27 +103,34 @@ where
         Some(listener) => listener,
         None => return Err(RelayServerError::ListeningNotInProgress),
     };
-    let IncomingAccept {receiver, sender, accept_public_key} = incoming_accept;
-    let conn_pair = 
+    let IncomingAccept {mut receiver, mut sender, accept_public_key} = incoming_accept;
+    let mut conn_pair = 
         match listener.half_tunnels.remove(&accept_public_key) {
             Some(HalfTunnel {conn_pair, ..}) => conn_pair,
             None => return Err(RelayServerError::NoPendingHalfTunnel),
         };
     let c_accept_public_key = accept_public_key.clone();
 
-    let send_fut1 = conn_pair.sender.send_all(&mut receiver)
-        .map_err(|e| error!("send_fut1 error: {:?}", e))
-        .then(|_| future::ready(()));
-    let send_fut2 = sender.send_all(&mut conn_pair.receiver)
-        .map_err(|e| error!("send_fut2 error: {:?}", e))
-        .then(move |_| {
-            let tunnel_closed = TunnelClosed {
-                init_public_key: c_accept_public_key,
-                listen_public_key: acceptor_public_key,
-            };
-            send_to_sink(tunnel_closed_sender, tunnel_closed)
-                .then(|_| future::ready(()))
-        });
+    let ConnPair {sender: mut remote_sender, 
+        receiver: mut remote_receiver} = conn_pair;
+
+    let send_fut1 = async move {
+        await!(remote_sender.send_all(&mut receiver)
+            .map_err(|e| error!("send_fut1 error: {:?}", e))
+            .then(|_| future::ready(())))
+    };
+    let send_fut2 = async move {
+        await!(sender.send_all(&mut remote_receiver)
+            .map_err(|e| error!("send_fut2 error: {:?}", e))
+            .then(move |_| {
+                let tunnel_closed = TunnelClosed {
+                    init_public_key: c_accept_public_key,
+                    listen_public_key: acceptor_public_key,
+                };
+                send_to_sink(tunnel_closed_sender, tunnel_closed)
+                    .then(|_| future::ready(()))
+            }))
+    };
 
     spawner.spawn(send_fut1).unwrap();
     spawner.spawn(send_fut2).unwrap();
@@ -181,12 +188,8 @@ where
                         let timer_stream = await!(c_timer_client.request_timer_stream())
                             .map_err(|_| RelayServerError::RequestTimerStreamError)?;
 
-                        // TODO: Make sure that the types make sense here:
-                        let (receiver, sender) = keepalive_channel(incoming_listen.sender,
-                                          incoming_listen.receiver,
-                                          timer_stream,
-                                          keepalive_ticks,
-                                          spawner.clone());
+                        let sender = incoming_listen.sender;
+                        let receiver = incoming_listen.receiver;
                         
                         // Change the sender to be an mpsc::Sender, so that we can use the
                         // try_send() function.

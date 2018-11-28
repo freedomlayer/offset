@@ -2,9 +2,11 @@ use std::iter;
 use std::marker::Unpin;
 use core::pin::Pin;
 
+use keepalive::keepalive_channel;
 use futures::{future, Future, FutureExt, stream, 
     Stream, StreamExt, Sink, SinkExt,
     select};
+use futures::task::Spawn;
 
 use crypto::identity::PublicKey;
 use timer::{TimerTick, TimerClient};
@@ -13,12 +15,17 @@ use utils::int_convert::usize_to_u64;
 use proto::relay::messages::{InitConnection, RejectConnection, IncomingConnection};
 use super::types::{IncomingConn, IncomingConnInner, 
     IncomingListen, IncomingAccept, IncomingConnect};
-use proto::relay::serialize::{serialize_reject_connection, deserialize_reject_connection,
-                             serialize_incoming_connection, deserialize_init_connection};
+use proto::relay::serialize::{serialize_incoming_connection, deserialize_reject_connection,
+                             deserialize_init_connection};
 
 
 
-fn dispatch_conn<M,K,KE>(receiver: M, sender: K, public_key: PublicKey, first_msg: Vec<u8>) 
+fn dispatch_conn<M,K,KE,TS>(receiver: M, sender: K, 
+                         public_key: PublicKey, 
+                         first_msg: Vec<u8>,
+                         timer_stream: TS,
+                         keepalive_ticks: usize,
+                         spawner: impl Spawn) 
     -> Option<IncomingConn<impl Stream<Item=RejectConnection> + Unpin,
                               impl Sink<SinkItem=IncomingConnection,SinkError=()> + Unpin,
                               impl Stream<Item=Vec<u8>> + Unpin,
@@ -26,9 +33,17 @@ fn dispatch_conn<M,K,KE>(receiver: M, sender: K, public_key: PublicKey, first_ms
                               impl Stream<Item=Vec<u8>> + Unpin,
                               impl Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin>>
 where
-    M: Stream<Item=Vec<u8>> + Unpin,
-    K: Sink<SinkItem=Vec<u8>, SinkError=KE> + Unpin,
+    M: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
+    K: Sink<SinkItem=Vec<u8>, SinkError=KE> + Unpin + Send + 'static,
+    TS: Stream<Item=TimerTick> + Unpin + Send + 'static,
 {
+
+    let (sender, receiver) = keepalive_channel(sender,
+                      receiver,
+                      timer_stream,
+                      keepalive_ticks,
+                      spawner);
+
     let sender = sender.sink_map_err(|_| ());
     let inner = match deserialize_init_connection(&first_msg).ok()? {
         InitConnection::Listen => {
@@ -72,34 +87,42 @@ where
 }
 */
 
-fn process_conn<M,K,KE,TS>(receiver: M, 
+async fn process_conn<M,K,KE>(receiver: M, 
                 sender: K, 
                 public_key: PublicKey,
-                timer_stream: TS,
-                conn_timeout_ticks: usize) -> impl Future<Output=Option<
+                mut timer_client: TimerClient,
+                keepalive_ticks: usize,
+                conn_timeout_ticks: usize,
+                spawner: impl Spawn) -> Option<
                              IncomingConn<impl Stream<Item=RejectConnection> + Unpin,
                                           impl Sink<SinkItem=IncomingConnection,SinkError=()> + Unpin,
                                           impl Stream<Item=Vec<u8>> + Unpin,
                                           impl Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin,
                                           impl Stream<Item=Vec<u8>> + Unpin,
-                                          impl Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin>>>
+                                          impl Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin>>
 
 where
-    M: Stream<Item=Vec<u8>> + Unpin,
-    K: Sink<SinkItem=Vec<u8>, SinkError=KE> + Unpin,
-    TS: Stream<Item=TimerTick> + Unpin,
+    M: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
+    K: Sink<SinkItem=Vec<u8>, SinkError=KE> + Unpin + Send + 'static,
 {
-    let conn_timeout_ticks = usize_to_u64(conn_timeout_ticks).unwrap();
+
+    let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
     let mut fut_receiver = 
         receiver
         .into_future()
         .then(|(opt_first_msg, receiver)| {
             future::ready(match opt_first_msg {
-                Some(first_msg) => dispatch_conn(receiver, sender, public_key, first_msg),
+                Some(first_msg) => dispatch_conn(receiver, sender, public_key, first_msg, 
+                                                 timer_stream, keepalive_ticks, spawner),
                 None => None,
             })
         });
 
+    let mut fut_receiver = Box::pinned(fut_receiver);
+
+    let conn_timeout_ticks = usize_to_u64(conn_timeout_ticks).unwrap();
+    // TODO; Error handling here?
+    let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
     let mut fut_time = timer_stream
         .take(conn_timeout_ticks)
         .for_each(|_| {
@@ -111,11 +134,9 @@ where
 
     // select(fut_receiver, fut_time)
     // NOTE: This select is probably not Unpin. Maybe we need to implement our own?
-    async move {
-        select! {
-            fut_receiver = fut_receiver => fut_receiver,
-            fut_time = fut_time => fut_time,
-        }
+    select! {
+        fut_receiver = fut_receiver => fut_receiver,
+        fut_time = fut_time => fut_time,
     }
 }
 
@@ -127,7 +148,9 @@ where
 /// If waiting for the first message takes too long, discard the connection.
 pub fn conn_processor<T,M,K,KE>(mut timer_client: TimerClient,
                     incoming_conns: T,
-                    conn_timeout_ticks: usize) -> impl Stream<
+                    keepalive_ticks: usize,
+                    conn_timeout_ticks: usize,
+                    spawner: impl Spawn + Clone) -> impl Stream<
                         Item=IncomingConn<impl Stream<Item=RejectConnection>,
                                           impl Sink<SinkItem=IncomingConnection,SinkError=()>,
                                           impl Stream<Item=Vec<u8>>,
@@ -136,25 +159,17 @@ pub fn conn_processor<T,M,K,KE>(mut timer_client: TimerClient,
                                           impl Sink<SinkItem=Vec<u8>,SinkError=()>>>
 where
     T: Stream<Item=(M, K, PublicKey)> + Unpin,
-    M: Stream<Item=Vec<u8>> + Unpin,
-    K: Sink<SinkItem=Vec<u8>, SinkError=KE> + Unpin,
+    M: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
+    K: Sink<SinkItem=Vec<u8>, SinkError=KE> + Unpin + Send + 'static,
 {
 
-    let timer_streams = stream::iter::<_>(iter::repeat(()))
-        .then(move |()| {
-            let mut c_timer_client = timer_client.clone();
-            async move {await!(c_timer_client.request_timer_stream())}
-        })
-        .map(|res| res.unwrap());
-
-
     incoming_conns
-    .zip(timer_streams)
-    .map(move |((receiver, sender, public_key), timer_stream)| {
-        process_conn(receiver, sender, public_key, 
-                     timer_stream, conn_timeout_ticks)
-    })
-    .filter_map(|opt_conn| opt_conn)
+        .map(move |(receiver, sender, public_key)| {
+            process_conn(receiver, sender, public_key, 
+                         timer_client.clone(), keepalive_ticks, 
+                         conn_timeout_ticks, spawner.clone())
+        })
+        .filter_map(|opt_conn| opt_conn)
 
 }
 
