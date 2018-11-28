@@ -166,7 +166,7 @@ mod tests {
     use timer::create_timer_incoming;
 
 
-    async fn task_keepalive_loop_basic(mut spawner: impl Spawn + Clone) -> Result<(),()> {
+    async fn task_keepalive_loop_basic(mut spawner: impl Spawn + Clone) {
         // Create a mock time service:
         let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
@@ -231,17 +231,69 @@ mod tests {
             await!(event_receiver.next()).unwrap();
         }
 
-        // Tunnel should be closed, 
+        // Channel should be closed, 
         // because remote haven't sent a keepalive for a long time:
         let res = await!(user_receiver.next());
         assert!(res.is_none());
-
-        Ok(())
     }
 
     #[test]
     fn test_keepalive_loop_basic() {
         let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_keepalive_loop_basic(thread_pool.clone())).unwrap();
+        thread_pool.run(task_keepalive_loop_basic(thread_pool.clone()));
+    }
+
+
+    async fn task_keepalive_channel_basic(spawner: impl Spawn + Clone) {
+        // Create a mock time service:
+        let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
+        let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+
+        let keepalive_ticks = 16;
+
+        /*       A     B
+         *   --> | --> | -->
+         *       |     |
+         *   <-- | <-- | <--
+        */ 
+
+        let (a_sender, b_receiver) = mpsc::channel(0);
+        let (b_sender, a_receiver) = mpsc::channel(0);
+
+        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+        let (mut a_sender, mut a_receiver) = keepalive_channel(a_sender, a_receiver,
+                  timer_stream,
+                  keepalive_ticks,
+                  spawner.clone()).unwrap();
+
+        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+        let (mut b_sender, mut b_receiver) = keepalive_channel(b_sender, b_receiver,
+                  timer_stream,
+                  keepalive_ticks,
+                  spawner.clone()).unwrap();
+
+        await!(a_sender.send(vec![1,2,3])).unwrap();
+        assert_eq!(await!(b_receiver.next()).unwrap(), vec![1,2,3]);
+
+        await!(b_sender.send(vec![3,2,1])).unwrap();
+        assert_eq!(await!(a_receiver.next()).unwrap(), vec![3,2,1]);
+
+        // Move some time forward
+        for _ in 0 .. (keepalive_ticks / 2) + 1 {
+            await!(tick_sender.send(())).unwrap();
+        }
+
+        await!(a_sender.send(vec![1,2,3])).unwrap();
+        assert_eq!(await!(b_receiver.next()).unwrap(), vec![1,2,3]);
+
+        await!(b_sender.send(vec![3,2,1])).unwrap();
+        assert_eq!(await!(a_receiver.next()).unwrap(), vec![3,2,1]);
+
+    }
+
+    #[test]
+    fn test_keepalive_channel_basic() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_keepalive_channel_basic(thread_pool.clone()));
     }
 }
