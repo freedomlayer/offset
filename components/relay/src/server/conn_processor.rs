@@ -10,23 +10,21 @@ use crypto::identity::PublicKey;
 use timer::{TimerTick, TimerClient};
 use utils::int_convert::usize_to_u64;
 
-use proto::relay::messages::{InitConnection, TunnelMessage, 
-    RelayListenIn, RelayListenOut};
+use proto::relay::messages::{InitConnection, RejectConnection, IncomingConnection};
 use super::types::{IncomingConn, IncomingConnInner, 
     IncomingListen, IncomingAccept, IncomingConnect};
-use proto::relay::serialize::{deserialize_init_connection, deserialize_relay_listen_in,
-                        serialize_relay_listen_out, serialize_tunnel_message,
-                        deserialize_tunnel_message};
+use proto::relay::serialize::{serialize_reject_connection, deserialize_reject_connection,
+                             serialize_incoming_connection, deserialize_init_connection};
 
 
 
 fn dispatch_conn<M,K,KE>(receiver: M, sender: K, public_key: PublicKey, first_msg: Vec<u8>) 
-    -> Option<IncomingConn<impl Stream<Item=RelayListenIn> + Unpin,
-                              impl Sink<SinkItem=RelayListenOut,SinkError=()> + Unpin,
-                              impl Stream<Item=TunnelMessage> + Unpin,
-                              impl Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin,
-                              impl Stream<Item=TunnelMessage> + Unpin,
-                              impl Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin>>
+    -> Option<IncomingConn<impl Stream<Item=RejectConnection> + Unpin,
+                              impl Sink<SinkItem=IncomingConnection,SinkError=()> + Unpin,
+                              impl Stream<Item=Vec<u8>> + Unpin,
+                              impl Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin,
+                              impl Stream<Item=Vec<u8>> + Unpin,
+                              impl Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin>>
 where
     M: Stream<Item=Vec<u8>> + Unpin,
     K: Sink<SinkItem=Vec<u8>, SinkError=KE> + Unpin,
@@ -35,26 +33,22 @@ where
     let inner = match deserialize_init_connection(&first_msg).ok()? {
         InitConnection::Listen => {
             IncomingConnInner::Listen(IncomingListen {
-                receiver: receiver.map(|data| deserialize_relay_listen_in(&data))
+                receiver: receiver.map(|data| deserialize_reject_connection(&data))
                     .take_while(|res| future::ready(res.is_ok()))
                     .map(|res| res.unwrap()),
-                sender: sender.with(|msg| future::ready(Ok(serialize_relay_listen_out(&msg)))),
+                sender: sender.with(|msg| future::ready(Ok(serialize_incoming_connection(&msg)))),
             })
         },
         InitConnection::Accept(accept_public_key) => 
             IncomingConnInner::Accept(IncomingAccept {
-                receiver: receiver.map(|data| deserialize_tunnel_message(&data))
-                    .take_while(|res| future::ready(res.is_ok()))
-                    .map(|res| res.unwrap()),
-                sender: sender.with(|msg| future::ready(Ok(serialize_tunnel_message(&msg)))),
+                receiver,
+                sender,
                 accept_public_key,
             }),
         InitConnection::Connect(connect_public_key) => 
             IncomingConnInner::Connect(IncomingConnect {
-                receiver: receiver.map(|data| deserialize_tunnel_message(&data))
-                    .take_while(|res| future::ready(res.is_ok()))
-                    .map(|res| res.unwrap()),
-                sender: sender.with(|msg| future::ready(Ok(serialize_tunnel_message(&msg)))),
+                receiver,
+                sender,
                 connect_public_key,
             }),
     };
@@ -83,12 +77,12 @@ fn process_conn<M,K,KE,TS>(receiver: M,
                 public_key: PublicKey,
                 timer_stream: TS,
                 conn_timeout_ticks: usize) -> impl Future<Output=Option<
-                             IncomingConn<impl Stream<Item=RelayListenIn> + Unpin,
-                                          impl Sink<SinkItem=RelayListenOut,SinkError=()> + Unpin,
-                                          impl Stream<Item=TunnelMessage> + Unpin,
-                                          impl Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin,
-                                          impl Stream<Item=TunnelMessage> + Unpin,
-                                          impl Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin>>>
+                             IncomingConn<impl Stream<Item=RejectConnection> + Unpin,
+                                          impl Sink<SinkItem=IncomingConnection,SinkError=()> + Unpin,
+                                          impl Stream<Item=Vec<u8>> + Unpin,
+                                          impl Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin,
+                                          impl Stream<Item=Vec<u8>> + Unpin,
+                                          impl Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin>>>
 
 where
     M: Stream<Item=Vec<u8>> + Unpin,
@@ -134,12 +128,12 @@ where
 pub fn conn_processor<T,M,K,KE>(mut timer_client: TimerClient,
                     incoming_conns: T,
                     conn_timeout_ticks: usize) -> impl Stream<
-                        Item=IncomingConn<impl Stream<Item=RelayListenIn>,
-                                          impl Sink<SinkItem=RelayListenOut,SinkError=()>,
-                                          impl Stream<Item=TunnelMessage>,
-                                          impl Sink<SinkItem=TunnelMessage,SinkError=()>,
-                                          impl Stream<Item=TunnelMessage>,
-                                          impl Sink<SinkItem=TunnelMessage,SinkError=()>>>
+                        Item=IncomingConn<impl Stream<Item=RejectConnection>,
+                                          impl Sink<SinkItem=IncomingConnection,SinkError=()>,
+                                          impl Stream<Item=Vec<u8>>,
+                                          impl Sink<SinkItem=Vec<u8>,SinkError=()>,
+                                          impl Stream<Item=Vec<u8>>,
+                                          impl Sink<SinkItem=Vec<u8>,SinkError=()>>>
 where
     T: Stream<Item=(M, K, PublicKey)> + Unpin,
     M: Stream<Item=Vec<u8>> + Unpin,

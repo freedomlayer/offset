@@ -3,13 +3,13 @@ use futures::{future, FutureExt, TryFutureExt, StreamExt, SinkExt};
 use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
 
+use keepalive::keepalive_channel;
+
 use proto::relay::messages::{InitConnection};
-use proto::relay::serialize::{serialize_init_connection, serialize_tunnel_message,
-    deserialize_tunnel_message};
+use proto::relay::serialize::serialize_init_connection;
 
 use timer::TimerClient;
 
-use super::client_tunnel::client_tunnel;
 use super::connector::{BoxFuture, Connector, ConnPair};
 
 #[derive(Debug)]
@@ -55,38 +55,18 @@ where
 
         let ConnPair {sender, receiver} = conn_pair;
 
-        // Deserialize receiver's messages:
-        let from_tunnel_receiver = receiver.map(|vec| {
-            deserialize_tunnel_message(&vec).ok()
-        }).take_while(|opt_tunnel_message| {
-            future::ready(opt_tunnel_message.is_some())
-        }).map(|opt| opt.unwrap());
-
-        // Serialize sender's messages:
-        let to_tunnel_sender = sender
-            .sink_map_err(|_| ())
-            .with(|tunnel_message| -> future::Ready<Result<Vec<u8>, ()>> {
-                future::ready(Ok(serialize_tunnel_message(&tunnel_message)))
-            });
-
-        let (user_from_tunnel_sender, user_from_tunnel) = mpsc::channel(0);
-        let (user_to_tunnel, user_to_tunnel_receiver) = mpsc::channel(0);
+        let from_tunnel_receiver = receiver;
+        let to_tunnel_sender = sender;
 
         let mut c_timer_client = self.timer_client.clone();
         let timer_stream = await!(c_timer_client.request_timer_stream())
             .map_err(|_| ClientConnectorError::RequestTimerStreamError)?;
 
-        let client_tunnel = client_tunnel(to_tunnel_sender, from_tunnel_receiver,
-                                          user_from_tunnel_sender, user_to_tunnel_receiver,
-                                          timer_stream,
-                                          self.keepalive_ticks)
-            .map_err(|e| {
-                error!("client_tunnel error: {:?}", e);
-            }).then(|_| future::ready(()));
-
-        let mut c_spawner = self.spawner.clone();
-        c_spawner.spawn(client_tunnel)
-            .map_err(|_| ClientConnectorError::SpawnClientTunnelError)?;
+        let (user_to_tunnel, user_from_tunnel) = 
+            keepalive_channel(to_tunnel_sender, from_tunnel_receiver,
+                          timer_stream,
+                          self.keepalive_ticks,
+                          self.spawner.clone());
 
         Ok(ConnPair {
             sender: user_to_tunnel,

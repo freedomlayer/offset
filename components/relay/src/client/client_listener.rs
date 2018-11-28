@@ -6,18 +6,19 @@ use futures::{future, Future, FutureExt, TryFutureExt,
 use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
 
+use keepalive::keepalive_channel;
+
 use crypto::identity::PublicKey;
-use proto::relay::messages::{InitConnection, RelayListenOut, RelayListenIn, 
-    IncomingConnection, RejectConnection};
+use proto::relay::messages::{InitConnection, IncomingConnection, RejectConnection};
 use proto::relay::serialize::{serialize_init_connection,
-    serialize_relay_listen_in, deserialize_relay_listen_out,
-    serialize_tunnel_message, deserialize_tunnel_message};
+    serialize_incoming_connection, deserialize_incoming_connection,
+    serialize_reject_connection, deserialize_reject_connection};
 use utils::int_convert::usize_to_u64;
 
 use timer::{TimerClient, TimerTick};
 use super::connector::{Connector, ConnPair};
 use super::access_control::{AccessControl, AccessControlOp};
-use super::client_tunnel::client_tunnel;
+
 
 
 #[derive(Debug)]
@@ -34,10 +35,8 @@ pub enum ClientListenerError {
 
 #[derive(Debug, Clone)]
 enum ClientListenerEvent {
-    TimerTick,
-    TimerClosed,
     AccessControlOp(AccessControlOp),
-    ServerMessage(RelayListenOut),
+    ServerMessage(IncomingConnection),
     ServerClosed,
     PendingReject(PublicKey),
 }
@@ -112,7 +111,7 @@ async fn accept_connection<C,CS, CSE>(public_key: PublicKey,
                            conn_timeout_ticks: usize,
                            keepalive_ticks: usize,
                            mut timer_client: TimerClient,
-                           mut spawner: impl Spawn) -> Result<(), AcceptConnectionError> 
+                           mut spawner: impl Spawn + Clone) -> Result<(), AcceptConnectionError> 
 where
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + 'static,
     C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Send,
@@ -144,36 +143,19 @@ where
 
     let ConnPair {sender, receiver} = conn_pair;
 
-    // Add serialization for sender:
-    let to_tunnel_sender = sender
-        .sink_map_err(|_| ())
-        .with(|vec| -> future::Ready<Result<_,()>> {
-            future::ready(Ok(serialize_tunnel_message(&vec)))
-        });
+    let to_tunnel_sender = sender;
+    let from_tunnel_receiver = receiver;
 
-    // Add deserialization for receiver:
-    let from_tunnel_receiver = receiver.map(|tunnel_message| {
-        deserialize_tunnel_message(&tunnel_message).ok()
-    }).take_while(|opt_vec| {
-        future::ready(opt_vec.is_some())
-    }).map(|opt_vec| opt_vec.unwrap());
-
-
-    // Deal with the keepalives:
-    let (user_from_tunnel_sender, user_from_tunnel_receiver) = mpsc::channel::<Vec<u8>>(0);
-    let (user_to_tunnel_sender, user_to_tunnel_receiver) = mpsc::channel::<Vec<u8>>(0);
 
     let timer_stream = await!(timer_client.request_timer_stream())
         .map_err(|_| AcceptConnectionError::RequestTimerStreamError)?;
-    let fut_client_tunnel = client_tunnel(to_tunnel_sender, from_tunnel_receiver, 
-                           user_from_tunnel_sender, user_to_tunnel_receiver,
-                           timer_stream,
-                           keepalive_ticks)
-        .map_err(|e| error!("client_tunnel error: {:?}",e))
-        .map(|_| ());
 
-    spawner.spawn(fut_client_tunnel)
-        .map_err(|_| AcceptConnectionError::SpawnError)?;
+
+    let (user_to_tunnel_sender, user_from_tunnel_receiver) = 
+                keepalive_channel(to_tunnel_sender, from_tunnel_receiver,
+                      timer_stream,
+                      keepalive_ticks,
+                      spawner.clone());
 
     let conn_pair = ConnPair {
         sender: user_to_tunnel_sender,
@@ -227,26 +209,16 @@ where
     let mut sender = sender
         .sink_map_err(|_| ())
         .with(|vec| -> future::Ready<Result<_,()>> {
-            future::ready(Ok(serialize_relay_listen_in(&vec)))
+            future::ready(Ok(serialize_reject_connection(&vec)))
         });
 
     // Add deserialization for receiver:
-    let receiver = receiver.map(|relay_listen_out| {
-        deserialize_relay_listen_out(&relay_listen_out).ok()
-    }).take_while(|opt_relay_listen_out| {
-        future::ready(opt_relay_listen_out.is_some())
+    let receiver = receiver.map(|ser_incoming_connection| {
+        deserialize_incoming_connection(&ser_incoming_connection).ok()
+    }).take_while(|opt_incoming_connection| {
+        future::ready(opt_incoming_connection.is_some())
     }).map(|opt| opt.unwrap());
 
-    // Amount of ticks remaining until we decide to close this connection (Because remote is idle):
-    let mut ticks_to_close = keepalive_ticks;
-    // Amount of ticks remaining until we need to send a new keepalive (To make sure remote side
-    // knows we are alive).
-    let mut ticks_to_send_keepalive = keepalive_ticks / 2;
-
-
-    let timer_stream = timer_stream
-        .map(|_| ClientListenerEvent::TimerTick)
-        .chain(stream::once(future::ready(ClientListenerEvent::TimerClosed)));
 
     let incoming_access_control = incoming_access_control
         .map(|access_control_op| ClientListenerEvent::AccessControlOp(access_control_op));
@@ -258,8 +230,7 @@ where
     let pending_reject_receiver = pending_reject_receiver
         .map(ClientListenerEvent::PendingReject);
 
-    let mut events = timer_stream
-        .select(incoming_access_control)
+    let mut events = incoming_access_control
         .select(server_receiver)
         .select(pending_reject_receiver);
 
@@ -268,56 +239,36 @@ where
             await!(event_sender.send(event.clone()));
         }
         match event {
-            ClientListenerEvent::TimerTick => {
-                ticks_to_close = ticks_to_close.saturating_sub(1);
-                ticks_to_send_keepalive = ticks_to_send_keepalive.saturating_sub(1);
-                if ticks_to_close == 0 {
-                    break;
-                }
-                if ticks_to_send_keepalive == 0 {
-                    await!(sender.send(RelayListenIn::KeepAlive))
-                        .map_err(|_| ClientListenerError::SendToServerError)?;
-                    ticks_to_send_keepalive = keepalive_ticks / 2;
-                }
-            },
-            ClientListenerEvent::TimerClosed => return Err(ClientListenerError::TimerClosed),
             ClientListenerEvent::AccessControlOp(access_control_op) => {
                 access_control.apply_op(access_control_op)
                     .map_err(|_| ClientListenerError::AccessControlError)?;
             },
-            ClientListenerEvent::ServerMessage(relay_listen_out) => {
-                ticks_to_close = keepalive_ticks;
-                match relay_listen_out {
-                    RelayListenOut::KeepAlive => {},
-                    RelayListenOut::IncomingConnection(IncomingConnection(public_key)) => {
-                        if !access_control.is_allowed(&public_key) {
-                            await!(sender.send(RelayListenIn::RejectConnection(RejectConnection(public_key))))
-                                .map_err(|_| ClientListenerError::SendToServerError)?;
-                            ticks_to_send_keepalive = keepalive_ticks / 2;
-                        } else {
-                            // We will attempt to accept the connection
-                            let fut_accept = accept_connection(
-                                public_key,
-                                connector.clone(),
-                                pending_reject_sender.clone(),
-                                connections_sender.clone(),
-                                conn_timeout_ticks,
-                                keepalive_ticks,
-                                timer_client.clone(),
-                                spawner.clone())
-                            .map_err(|e| {
-                                error!("Error in accept_connection: {:?}", e);
-                            }).map(|_| ());
-                            spawner.spawn(fut_accept)
-                                .map_err(|_| ClientListenerError::SpawnError)?;
-                        }
-                    }
+            ClientListenerEvent::ServerMessage(incoming_connection) => {
+                let public_key = incoming_connection.public_key.clone();
+                if !access_control.is_allowed(&public_key) {
+                    await!(sender.send(RejectConnection { public_key }))
+                        .map_err(|_| ClientListenerError::SendToServerError)?;
+                } else {
+                    // We will attempt to accept the connection
+                    let fut_accept = accept_connection(
+                        public_key,
+                        connector.clone(),
+                        pending_reject_sender.clone(),
+                        connections_sender.clone(),
+                        conn_timeout_ticks,
+                        keepalive_ticks,
+                        timer_client.clone(),
+                        spawner.clone())
+                    .map_err(|e| {
+                        error!("Error in accept_connection: {:?}", e);
+                    }).map(|_| ());
+                    spawner.spawn(fut_accept)
+                        .map_err(|_| ClientListenerError::SpawnError)?;
                 }
             },
             ClientListenerEvent::PendingReject(public_key) => {
-                await!(sender.send(RelayListenIn::RejectConnection(RejectConnection(public_key))))
+                await!(sender.send(RejectConnection { public_key }))
                     .map_err(|_| ClientListenerError::SendToServerError)?;
-                ticks_to_send_keepalive = keepalive_ticks / 2;
             },
             ClientListenerEvent::ServerClosed => return Err(ClientListenerError::ServerClosed),
         }

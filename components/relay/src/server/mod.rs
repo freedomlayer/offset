@@ -4,22 +4,21 @@ use futures::{future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, 
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 
+use keepalive::keepalive_channel;
+
 use timer::{TimerTick, TimerClient};
 use crypto::identity::PublicKey;
 use utils::futures_compat::send_to_sink;
 
-use proto::relay::messages::{TunnelMessage, RelayListenIn, 
-    RelayListenOut, RejectConnection, IncomingConnection};
+use proto::relay::messages::{RejectConnection, IncomingConnection};
 
 use self::types::{IncomingConn, IncomingConnInner, 
     IncomingAccept};
 
-use self::listener::listener_keepalive;
-use self::tunnel::tunnel_loop;
 
 mod types;
-mod listener;
-mod tunnel;
+// mod listener;
+// mod tunnel;
 mod conn_limiter;
 
 #[allow(unused)]
@@ -93,10 +92,10 @@ fn handle_accept<MT,KT,MA,KA,TCL,TS>(listeners: &mut HashMap<PublicKey, Listener
                             keepalive_ticks: usize,
                             mut spawner: impl Spawn) -> Result<(), RelayServerError>
 where
-    MT: Stream<Item=TunnelMessage> + Unpin + Send + 'static,
-    KT: Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin + Send + 'static,
-    MA: Stream<Item=TunnelMessage> + Unpin + Send + 'static,
-    KA: Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin + Send + 'static,
+    MT: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
+    KT: Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin + Send + 'static,
+    MA: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
+    KA: Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin + Send + 'static,
     TCL: Sink<SinkItem=TunnelClosed, SinkError=()> + Unpin + Send + 'static,
     TS: Stream<Item=TimerTick> + Unpin + Send + 'static,
 {
@@ -111,24 +110,24 @@ where
             None => return Err(RelayServerError::NoPendingHalfTunnel),
         };
     let c_accept_public_key = accept_public_key.clone();
-    let tunnel_fut = tunnel_loop(conn_pair.receiver, conn_pair.sender,
-                receiver, sender,
-                timer_stream,
-                keepalive_ticks)
-    .map_err(|e| {
-        error!("tunnel_loop() error: {:?}", e);
-        ()
-    })
-    .then(move |_| {
-        let tunnel_closed = TunnelClosed {
-            init_public_key: c_accept_public_key,
-            listen_public_key: acceptor_public_key,
-        };
-        send_to_sink(tunnel_closed_sender, tunnel_closed)
-            .then(|_| future::ready(()))
-    });
-    listener.tunnels.insert(accept_public_key);
-    spawner.spawn(tunnel_fut).unwrap();
+
+    let send_fut1 = conn_pair.sender.send_all(&mut receiver)
+        .map_err(|e| error!("send_fut1 error: {:?}", e))
+        .then(|_| future::ready(()));
+    let send_fut2 = sender.send_all(&mut conn_pair.receiver)
+        .map_err(|e| error!("send_fut2 error: {:?}", e))
+        .then(move |_| {
+            let tunnel_closed = TunnelClosed {
+                init_public_key: c_accept_public_key,
+                listen_public_key: acceptor_public_key,
+            };
+            send_to_sink(tunnel_closed_sender, tunnel_closed)
+                .then(|_| future::ready(()))
+        });
+
+    spawner.spawn(send_fut1).unwrap();
+    spawner.spawn(send_fut2).unwrap();
+
     Ok(())
 }
 
@@ -138,12 +137,12 @@ pub async fn relay_server<ML,KL,MA,KA,MC,KC,S>(mut timer_client: TimerClient,
                 keepalive_ticks: usize,
                 mut spawner: impl Spawn + Clone) -> Result<(), RelayServerError> 
 where
-    ML: Stream<Item=RelayListenIn> + Unpin + Send + 'static,
-    KL: Sink<SinkItem=RelayListenOut,SinkError=()> + Unpin + Send + 'static,
-    MA: Stream<Item=TunnelMessage> + Unpin + Send + 'static,
-    KA: Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin + Send + 'static, 
-    MC: Stream<Item=TunnelMessage> + Unpin + Send + 'static,
-    KC: Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin + Send + 'static,
+    ML: Stream<Item=RejectConnection> + Unpin + Send + 'static,
+    KL: Sink<SinkItem=IncomingConnection,SinkError=()> + Unpin + Send + 'static,
+    MA: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
+    KA: Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin + Send + 'static, 
+    MC: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
+    KC: Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin + Send + 'static,
     S: Stream<Item=IncomingConn<ML,KL,MA,KA,MC,KC>> + Unpin,
 {
 
@@ -181,11 +180,13 @@ where
                         }
                         let timer_stream = await!(c_timer_client.request_timer_stream())
                             .map_err(|_| RelayServerError::RequestTimerStreamError)?;
-                        let (receiver, sender) = listener_keepalive(incoming_listen.receiver,
-                                              incoming_listen.sender,
-                                              timer_stream,
-                                              keepalive_ticks,
-                                              spawner.clone());
+
+                        // TODO: Make sure that the types make sense here:
+                        let (receiver, sender) = keepalive_channel(incoming_listen.sender,
+                                          incoming_listen.receiver,
+                                          timer_stream,
+                                          keepalive_ticks,
+                                          spawner.clone());
                         
                         // Change the sender to be an mpsc::Sender, so that we can use the
                         // try_send() function.
@@ -244,7 +245,7 @@ where
                         };
                         if let Some(sender) = &mut listener.opt_sender {
                             // Try to send a message to listener about new pending connection:
-                            if let Ok(()) = sender.try_send(IncomingConnection(public_key.clone())) {
+                            if let Ok(()) = sender.try_send(IncomingConnection {public_key: public_key.clone() }) {
                                 listener.half_tunnels.insert(public_key.clone(), half_tunnel);
                             }
                         }
@@ -262,7 +263,7 @@ where
                     listeners.remove(&tunnel_closed.listen_public_key);
                 }
             },
-            RelayServerEvent::ListenerMessage((public_key, RejectConnection(rejected_public_key))) => {
+            RelayServerEvent::ListenerMessage((public_key, RejectConnection {public_key: rejected_public_key} )) => {
                 let listener = match listeners.get_mut(&public_key) {
                     Some(listener) => listener,
                     None => continue,

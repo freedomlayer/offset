@@ -1,4 +1,3 @@
-#![allow(unused)]
 use crypto::identity::PublicKey;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -11,25 +10,11 @@ pub enum InitConnection {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct RejectConnection(pub PublicKey);
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum RelayListenIn {
-    KeepAlive,
-    RejectConnection(RejectConnection),
+pub struct RejectConnection {
+    pub public_key: PublicKey,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct IncomingConnection(pub PublicKey);
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum RelayListenOut {
-    KeepAlive,
-    IncomingConnection(IncomingConnection),
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum TunnelMessage {
-    KeepAlive,
-    Message(Vec<u8>),
+pub struct IncomingConnection  {
+    pub public_key: PublicKey,
 }

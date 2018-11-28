@@ -2,7 +2,6 @@ use std::marker::Unpin;
 use futures::{future, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::channel::mpsc;
 use timer::TimerTick;
-use proto::relay::messages::TunnelMessage;
 
 #[derive(Debug)]
 pub enum TunnelError {
@@ -23,6 +22,7 @@ pub enum TunnelEvent {
     TimerTick,
     TimerClosed,
 }
+/*
 
 async fn inner_tunnel_loop<R1,S1,R2,S2,ES1,ES2,TS>(receiver1: R1, mut sender1: S1,
                             receiver2: R2, mut sender2: S2,
@@ -105,6 +105,25 @@ where
     }
     unreachable!();
 }
+
+pub async fn tunnel_loop<R1,S1,R2,S2,ES1,ES2,TS>(receiver1: R1, sender1: S1,
+                            receiver2: R2, sender2: S2,
+                            timer_stream: TS, 
+                            keepalive_ticks: usize) -> Result<(), TunnelError>
+where
+    R1: Stream<Item=TunnelMessage> + Unpin + 'static,
+    S1: Sink<SinkItem=TunnelMessage, SinkError=ES1> + Unpin + 'static,
+    R2: Stream<Item=TunnelMessage> + Unpin + 'static,
+    S2: Sink<SinkItem=TunnelMessage, SinkError=ES2> + Unpin + 'static,
+    TS: Stream<Item=TimerTick> + Unpin + 'static,
+{
+    await!(inner_tunnel_loop(receiver1, sender1,
+                      receiver2, sender2,
+                      timer_stream,
+                      keepalive_ticks,
+                      None))
+}
+*/
 
 pub async fn tunnel_loop<R1,S1,R2,S2,ES1,ES2,TS>(receiver1: R1, sender1: S1,
                             receiver2: R2, sender2: S2,
