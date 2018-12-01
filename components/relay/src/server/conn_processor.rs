@@ -87,6 +87,34 @@ where
 }
 */
 
+/// Wraps a future with a timeout.
+/// If the future finishes before the timeout with value v, Some(v) is returned.
+/// Otherwise, None is returned.
+async fn future_timeout<T, F, TS>(fut: F, 
+                        timer_stream: TS,
+                        time_ticks: usize) -> Option<T>
+where
+    TS: Stream<Item=TimerTick> + Unpin + Send + 'static,
+    F: Future<Output=T> + Unpin,
+{
+    let time_ticks_u64 = usize_to_u64(time_ticks).unwrap();
+    let mut fut_time = timer_stream
+        .take(time_ticks_u64)
+        .for_each(|_| {
+            future::ready(())
+        })
+        .map(|_| {
+            None
+        });
+
+    let mut fut = fut.fuse();
+
+    select! {
+        fut = fut => Some(fut),
+        fut_time = fut_time => fut_time,
+    }
+}
+
 async fn process_conn<M,K,KE>(mut receiver: M, 
                 sender: K, 
                 public_key: PublicKey,
@@ -115,28 +143,10 @@ where
         } else {
             None
         }
-    }).fuse();
+    });
 
-    let conn_timeout_ticks = usize_to_u64(conn_timeout_ticks).unwrap();
-    // TODO; Error handling here?
-    println!("process_conn2");
     let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
-    println!("process_conn3");
-    let mut fut_time = timer_stream
-        .take(conn_timeout_ticks)
-        .for_each(|_| {
-            println!("for_each tick!");
-            future::ready(())
-        })
-        .map(|_| {
-            None
-        });
-
-    println!("process_conn4");
-    select! {
-        fut_receiver = fut_receiver => fut_receiver,
-        fut_time = fut_time => fut_time,
-    }
+    await!(future_timeout(fut_receiver, timer_stream, conn_timeout_ticks))?
 }
 
 
@@ -335,54 +345,52 @@ mod tests {
         assert!(thread_pool.run(receive(processed_conns)).is_none());
     }
 
-    async fn task_process_conn_timeout(mut spawner: impl Spawn + Clone + Send + 'static) {
-
+    async fn task_future_timeout_on_time(mut spawner: impl Spawn + Clone + Send + 'static) {
         // Create a mock time service:
         let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
 
-        let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let (local_sender, mut remote_receiver) = mpsc::channel::<Vec<u8>>(0);
-        let (mut remote_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
+        let (sender, receiver) = oneshot::channel::<()>();
+        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+        let receiver = receiver.map(|res| res.unwrap());
+        let timeout_fut = spawner.spawn_with_handle(future_timeout(receiver, timer_stream, 8)).unwrap();
 
-        let keepalive_ticks = 8;
-        let conn_timeout_ticks = 16;
-
-        let (res_sender, res_receiver) = oneshot::channel();
-        let fut_incoming_conn = process_conn(local_receiver, 
-                                             local_sender, 
-                                             public_key.clone(),
-                                             timer_client.clone(),
-                                             keepalive_ticks,
-                                             conn_timeout_ticks,
-                                             spawner.clone());
-
-
-        spawner.spawn(fut_incoming_conn
-            .then(|res| {
-                res_sender.send(res).ok().unwrap();
-                future::ready(())
-            }));
-
-        for i in 0 .. 16usize {
-            println!("i = {}", i);
+        for i in 0 .. 7usize {
             await!(tick_sender.send(())).unwrap();
         }
-        println!("Done loop");
 
-        assert!(await!(remote_receiver.next()).is_none());
-        println!("after remote_receiver.next()");
-        assert!(await!(res_receiver).unwrap().is_none());
-
-        let first_msg = InitConnection::Listen;
-        let ser_first_msg = serialize_init_connection(&first_msg);
-        let res = await!(remote_sender.send(ser_first_msg));
-        assert!(res.is_err());
+        sender.send(());
+        assert_eq!(await!(timeout_fut), Some(()));
     }
 
     #[test]
-    fn test_process_conn_timeout() {
+    fn test_future_timeout_on_time() {
         let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_process_conn_timeout(thread_pool.clone()));
+        thread_pool.run(task_future_timeout_on_time(thread_pool.clone()));
     }
+
+    async fn task_future_timeout_late(mut spawner: impl Spawn + Clone + Send + 'static) {
+        // Create a mock time service:
+        let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
+        let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+
+        let (sender, receiver) = oneshot::channel::<()>();
+        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+        let receiver = receiver.map(|res| res.unwrap());
+        let timeout_fut = spawner.spawn_with_handle(future_timeout(receiver, timer_stream, 8)).unwrap();
+
+        for i in 0 .. 8usize {
+            await!(tick_sender.send(())).unwrap();
+        }
+
+        sender.send(());
+        assert_eq!(await!(timeout_fut), Some(()));
+    }
+
+    #[test]
+    fn test_future_timeout_late() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_future_timeout_late(thread_pool.clone()));
+    }
+
 }
