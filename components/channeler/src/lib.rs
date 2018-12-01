@@ -8,6 +8,7 @@
 
 mod channeler;
 mod listener;
+mod connector;
 mod connector_utils;
 mod overwrite_channel;
 

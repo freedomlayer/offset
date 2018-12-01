@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use futures::{future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::task::{Spawn, SpawnExt};
-use futures::channel::mpsc;
+use futures::channel::{oneshot, mpsc};
 
 use proto::funder::messages::{FunderToChanneler, ChannelerToFunder};
 use crypto::identity::PublicKey;
@@ -23,7 +23,7 @@ pub enum ChannelerEvent<A> {
     IncomingConnection((PublicKey, ConnPair<Vec<u8>, Vec<u8>>)),
     ConnectionEstablished(()),
     IncomingMessage((PublicKey, Vec<u8>)),
-    FriendReceiverClosed((PublicKey, u64)), // (friend_public_key, generation)
+    FriendReceiverClosed(PublicKey), 
 }
 
 pub enum ChannelerError {
@@ -32,13 +32,28 @@ pub enum ChannelerError {
     AddressSendFailed,
 }
 
+struct Friend<A> {
+    opt_address: Option<A>,
+    state: FriendState,
+}
+
+struct FriendConnected {
+    sender: Option<mpsc::Sender<Vec<u8>>>,
+}
+
+struct FriendInitiating {
+    closer: oneshot::Sender<()>,
+}
+
+enum FriendState {
+    Connected(FriendConnected),
+    Initiating(FriendInitiating),
+    Listening,
+}
+
+
 pub struct ConnectedFriend {
     sender: mpsc::Sender<Vec<u8>>,
-    // generation is used to avoid problems of delayed removal.
-    // As ConnectedFriend could be removed due to various reasons (Failed send, closed receiver),
-    // we fear the possibility of an old removal command removing a newer generation
-    // ConnectedFriend. Having a generation field allows to mitigate this problem.
-    generation: u64,
 }
 
 pub struct ChannelerState<A> {
@@ -46,7 +61,6 @@ pub struct ChannelerState<A> {
     addresses_sender: mpsc::Sender<A>,
     access_control_sender: mpsc::Sender<AccessControlOp>,
     event_sender: mpsc::Sender<ChannelerEvent<A>>,
-    generation: u64,
 }
 
 impl<A> ChannelerState<A> {
@@ -58,7 +72,6 @@ impl<A> ChannelerState<A> {
             addresses_sender,
             access_control_sender,
             event_sender,
-            generation: 0,
         }
     }
 }
@@ -159,19 +172,16 @@ where
             ChannelerEvent::IncomingConnection((public_key, conn_pair)) => { 
                 let ConnPair {sender, mut receiver} = conn_pair;
 
-                let generation = channeler_state.generation;
                 let connected_friend = ConnectedFriend { 
                     sender, 
-                    generation,
                 };
                 channeler_state.friends.insert(public_key.clone(), connected_friend);
-                channeler_state.generation = channeler_state.generation.wrapping_add(1);
 
                 let c_public_key = public_key.clone();
                 let mut receiver = receiver
                     .map(move |message| ChannelerEvent::IncomingMessage((c_public_key.clone(), message)))
                     .chain(stream::once(future::ready(
-                                ChannelerEvent::FriendReceiverClosed((public_key.clone(), generation)))));
+                                ChannelerEvent::FriendReceiverClosed(public_key.clone()))));
                 let mut c_event_sender = channeler_state.event_sender.clone();
                 let fut = async move {
                     await!(c_event_sender.send_all(&mut receiver))
@@ -188,11 +198,8 @@ where
                 await!(to_funder.send(message))
                     .map_err(|_| ChannelerError::SendToFunderFailed)?;
             },
-            ChannelerEvent::FriendReceiverClosed((public_key, generation)) => {
+            ChannelerEvent::FriendReceiverClosed(public_key) => {
                 if let Some(connected_friend) = channeler_state.friends.get(&public_key) {
-                    if connected_friend.generation != generation {
-                        return Ok(());
-                    }
                 } else {
                     return Ok(())
                 }
