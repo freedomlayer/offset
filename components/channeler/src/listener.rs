@@ -5,6 +5,7 @@ use futures::task::Spawn;
 use proto::funder::messages::{FunderToChanneler, ChannelerToFunder};
 use crypto::identity::PublicKey;
 use timer::TimerClient;
+use timer::utils::sleep_ticks;
 
 use utils::int_convert::usize_to_u64;
 
@@ -17,6 +18,7 @@ use crate::connector_utils::ConstAddressConnector;
 #[derive(Debug)]
 pub enum ListenerError {
     RequestTimerStreamError,
+    SleepTicksError,
     TimerClosed,
     AccessControlError,
     SpawnError,
@@ -45,16 +47,6 @@ fn convert_client_listener_result(client_listener_result: Result<(), ClientListe
         Err(ClientListenerError::SendToServerError) |
         Err(ClientListenerError::ServerClosed) => Ok(()),
     }
-}
-
-async fn sleep_ticks(ticks: usize, mut timer_client: TimerClient) -> Result<(), ListenerError> {
-    let timer_stream = await!(timer_client.request_timer_stream())
-        .map_err(|_| ListenerError::RequestTimerStreamError)?;
-    let ticks_u64 = usize_to_u64(ticks).unwrap();
-    let fut = timer_stream
-        .take(ticks_u64)
-        .for_each(|_| future::ready(()));
-    Ok(await!(fut))
 }
 
 
@@ -98,7 +90,8 @@ where
 
             // Wait for a while before attempting to connect again:
             // TODO: Possibly wait here in a smart way? Exponential backoff?
-            await!(sleep_ticks(backoff_ticks, timer_client.clone()))?;
+            await!(sleep_ticks(backoff_ticks, timer_client.clone()))
+                .map_err(|_| ListenerError::SleepTicksError)?;
             Ok(())
         }).fuse();
 

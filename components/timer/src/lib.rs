@@ -8,6 +8,8 @@
 #[macro_use]
 extern crate log;
 
-pub mod timer;
+mod timer;
+pub mod utils;
 
-pub use self::timer::{TimerTick, TimerClient, create_timer_incoming};
+pub use self::timer::{TimerTick, TimerClient, 
+    create_timer_incoming, create_timer};

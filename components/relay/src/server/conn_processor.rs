@@ -10,6 +10,7 @@ use futures::task::Spawn;
 
 use crypto::identity::PublicKey;
 use timer::{TimerTick, TimerClient};
+use timer::utils::future_timeout;
 use utils::int_convert::usize_to_u64;
 
 use proto::relay::messages::{InitConnection, RejectConnection, IncomingConnection};
@@ -72,47 +73,6 @@ where
         public_key,
         inner,
     })
-}
-
-/*
-pub async fn select<T, F1, F2>(mut fut1: F1, mut fut2: F2) -> T
-where
-    F1: Future<Output=T> + Unpin,
-    F2: Future<Output=T> + Unpin,
-{
-    select! {
-        fut1 => fut1,
-        fut2 => fut2,
-    }
-}
-*/
-
-/// Wraps a future with a timeout.
-/// If the future finishes before the timeout with value v, Some(v) is returned.
-/// Otherwise, None is returned.
-async fn future_timeout<T, F, TS>(fut: F, 
-                        timer_stream: TS,
-                        time_ticks: usize) -> Option<T>
-where
-    TS: Stream<Item=TimerTick> + Unpin + Send + 'static,
-    F: Future<Output=T> + Unpin,
-{
-    let time_ticks_u64 = usize_to_u64(time_ticks).unwrap();
-    let mut fut_time = timer_stream
-        .take(time_ticks_u64)
-        .for_each(|_| {
-            future::ready(())
-        })
-        .map(|_| {
-            None
-        });
-
-    let mut fut = fut.fuse();
-
-    select! {
-        fut = fut => Some(fut),
-        fut_time = fut_time => fut_time,
-    }
 }
 
 async fn process_conn<M,K,KE>(mut receiver: M, 
@@ -343,54 +303,6 @@ mod tests {
         };
 
         assert!(thread_pool.run(receive(processed_conns)).is_none());
-    }
-
-    async fn task_future_timeout_on_time(mut spawner: impl Spawn + Clone + Send + 'static) {
-        // Create a mock time service:
-        let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
-
-        let (sender, receiver) = oneshot::channel::<()>();
-        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
-        let receiver = receiver.map(|res| res.unwrap());
-        let timeout_fut = spawner.spawn_with_handle(future_timeout(receiver, timer_stream, 8)).unwrap();
-
-        for i in 0 .. 7usize {
-            await!(tick_sender.send(())).unwrap();
-        }
-
-        sender.send(());
-        assert_eq!(await!(timeout_fut), Some(()));
-    }
-
-    #[test]
-    fn test_future_timeout_on_time() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_future_timeout_on_time(thread_pool.clone()));
-    }
-
-    async fn task_future_timeout_late(mut spawner: impl Spawn + Clone + Send + 'static) {
-        // Create a mock time service:
-        let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
-
-        let (sender, receiver) = oneshot::channel::<()>();
-        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
-        let receiver = receiver.map(|res| res.unwrap());
-        let timeout_fut = spawner.spawn_with_handle(future_timeout(receiver, timer_stream, 8)).unwrap();
-
-        for i in 0 .. 8usize {
-            await!(tick_sender.send(())).unwrap();
-        }
-
-        sender.send(());
-        assert_eq!(await!(timeout_fut), Some(()));
-    }
-
-    #[test]
-    fn test_future_timeout_late() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_future_timeout_late(thread_pool.clone()));
     }
 
 }
