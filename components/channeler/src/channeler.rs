@@ -17,6 +17,7 @@ use relay::client::client_connector::{ClientConnector};
 use relay::client::access_control::AccessControlOp;
 
 use crate::listen::listen_loop;
+use crate::connect::connect;
 
 pub enum ChannelerEvent<A> {
     FromFunder(FunderToChanneler<A>),
@@ -42,7 +43,7 @@ struct FriendConnected {
 }
 
 struct FriendInitiating {
-    closer: oneshot::Sender<()>,
+    close_sender: oneshot::Sender<()>,
 }
 
 enum FriendState {
@@ -113,7 +114,42 @@ async fn handle_from_funder<A>(channeler_state: &mut ChannelerState<A>,
         FunderToChanneler::SetAddress(address) =>
             await!(channeler_state.addresses_sender.send(address))
                 .map_err(|_| ChannelerError::AddressSendFailed),
-        FunderToChanneler::AddFriend((public_key, opt_address)) => unimplemented!(),
+        FunderToChanneler::AddFriend((public_key, opt_address)) => {
+            let friend_state = match opt_address {
+                Some(address) => {
+                    let (close_sender, close_receiver) = oneshot::channel::<()>();
+
+                    // TODO: spawn a connect future here:
+                    // TODO: Add more things into channeler_state. For example,
+                    // we are missing spawner, timer_client, keepalive_ticks, backoff_ticks etc.
+                    
+                    unimplemented!();
+                    /*
+                    let connect_fut = connect(connector,
+                            address,
+                            public_key,
+                            keepalive_ticks: usize,
+                            backoff_ticks: usize,
+                            timer_client,
+                            close_receiver,
+                            spawner: S) -> Result<ConnPair<Vec<u8>, Vec<u8>>, ConnectError>
+                    */
+
+                    FriendState::Initiating(FriendInitiating {
+                        close_sender,
+                    })
+                },
+                None => FriendState::Listening,
+            };
+            let friend = Friend {
+                opt_address,
+                state: friend_state,
+            };
+            // TODO: What to do if there is already a friend with the given public key?
+            // Current idea: Write an error using error!, and do nothing?
+            channeler_state.friends.insert(public_key, friend);
+            Ok(())
+        },
         FunderToChanneler::RemoveFriend(public_key) => {
             channeler_state.friends.remove(&public_key);
             Ok(())
