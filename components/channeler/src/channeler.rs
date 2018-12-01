@@ -38,7 +38,7 @@ struct Friend<A> {
 }
 
 struct FriendConnected {
-    sender: Option<mpsc::Sender<Vec<u8>>>,
+    opt_sender: Option<mpsc::Sender<Vec<u8>>>,
 }
 
 struct FriendInitiating {
@@ -51,13 +51,8 @@ enum FriendState {
     Listening,
 }
 
-
-pub struct ConnectedFriend {
-    sender: mpsc::Sender<Vec<u8>>,
-}
-
 pub struct ChannelerState<A> {
-    friends: HashMap<PublicKey, ConnectedFriend>,
+    friends: HashMap<PublicKey, Friend<A>>,
     addresses_sender: mpsc::Sender<A>,
     access_control_sender: mpsc::Sender<AccessControlOp>,
     event_sender: mpsc::Sender<ChannelerEvent<A>>,
@@ -82,17 +77,37 @@ async fn handle_from_funder<A>(channeler_state: &mut ChannelerState<A>,
 
     match funder_to_channeler {
         FunderToChanneler::Message((public_key, message)) => {
-            let mut connected_friend = match channeler_state.friends.remove(&public_key) {
-                Some(connected_friend) => connected_friend,
+            let mut friend = match channeler_state.friends.get_mut(&public_key) {
+                Some(friend) => friend,
                 None => {
                     error!("Attempt to send a message to unavailable friend: {:?}", public_key);
                     return Ok(());
                 },
             };
-            if let Ok(()) = await!(connected_friend.sender.send(message)) {
-                channeler_state.friends.insert(public_key, connected_friend);
-            }             
-            // Note: In a case of failure the friend is removed from the connected friends map.
+
+            let friend_connected = match &mut friend.state {
+                FriendState::Listening |
+                FriendState::Initiating(_) => {
+                    error!("Attempt to send a message to unconnected friend: {:?}", public_key);
+                    return Ok(());
+                },
+                FriendState::Connected(friend_connected) => friend_connected,
+            };
+
+            let mut sender = match friend_connected.opt_sender.take() {
+                None => {
+                    error!("No sender exists for friend: {:?}", public_key);
+                    return Ok(());
+                }
+                Some(sender) => sender,
+            };
+
+            if let Ok(()) = await!(sender.send(message)) {
+                    friend_connected.opt_sender = Some(sender);
+            } else {
+                error!("Error sending message to friend: {:?}", public_key);
+            }
+
             Ok(())
         },
         FunderToChanneler::SetAddress(address) =>
@@ -172,10 +187,14 @@ where
             ChannelerEvent::IncomingConnection((public_key, conn_pair)) => { 
                 let ConnPair {sender, mut receiver} = conn_pair;
 
-                let connected_friend = ConnectedFriend { 
-                    sender, 
+                let friend = match channeler_state.friends.get_mut(&public_key) {
+                    None => continue,
+                    Some(friend) => friend,
                 };
-                channeler_state.friends.insert(public_key.clone(), connected_friend);
+                let friend_connected = FriendConnected { 
+                    opt_sender: Some(sender),
+                };
+                friend.state = FriendState::Connected(friend_connected);
 
                 let c_public_key = public_key.clone();
                 let mut receiver = receiver
