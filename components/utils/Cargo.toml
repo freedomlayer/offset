@@ -10,7 +10,8 @@ log = "0.4"
 
 bytes = "0.4"
 # futures-preview = { version = "0.3.0-alpha.9", features=["compat"]}
-futures-preview = { git = "https://github.com/rust-lang-nursery/futures-rs", rev = "5d87cce202", features = ["compat"] }
+# futures-preview = { git = "https://github.com/rust-lang-nursery/futures-rs", rev = "5d87cce202", features = ["compat"] }
+futures-preview = {version = "0.3.0-alpha.10", features = ["compat"] }
 
 tokio-io = "0.1"
 tokio-core = "0.1"
