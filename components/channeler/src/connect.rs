@@ -26,14 +26,14 @@ pub async fn connect<A,C,S>(connector: C,
                 keepalive_ticks: usize,
                 backoff_ticks: usize,
                 timer_client: TimerClient,
-                closer: oneshot::Receiver<()>,
+                close_receiver: oneshot::Receiver<()>,
                 spawner: S) -> Result<ConnPair<Vec<u8>, Vec<u8>>, ConnectError>
 where
     A: Sync + Send + Clone + 'static,
     C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
     S: Spawn + Clone + Sync + Send,
 {
-    let mut closer = closer.map(|_| ConnectSelect::Canceled).fuse();
+    let mut close_receiver = close_receiver.map(|_| ConnectSelect::Canceled).fuse();
 
     loop {
         let mut client_connector = ClientConnector::new(connector.clone(), spawner.clone(), timer_client.clone(), keepalive_ticks);
@@ -53,7 +53,7 @@ where
 
         let select_res = select! {
             connect_fut = connect_fut => connect_fut?,
-            closer = closer => closer,
+            close_receiver = close_receiver => close_receiver,
         };
 
         match select_res {
