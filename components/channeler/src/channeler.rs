@@ -16,7 +16,7 @@ use relay::client::client_listener::{client_listener, ClientListenerError};
 use relay::client::client_connector::{ClientConnector};
 use relay::client::access_control::AccessControlOp;
 
-use crate::listener::listener_loop;
+use crate::listen::listen_loop;
 
 pub enum ChannelerEvent<A> {
     FromFunder(FunderToChanneler<A>),
@@ -138,7 +138,7 @@ where
     let (connections_sender, connections_receiver) = mpsc::channel::<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>(0);
 
 
-    let listener_loop_fut = listener_loop(connector.clone(),
+    let listen_loop_fut = listen_loop(connector.clone(),
                       address,
                       addresses_receiver,
                       access_control_receiver,
@@ -149,10 +149,10 @@ where
                       timer_client.clone(),
                       spawner.clone())
         .map_err(|e| {
-            error!("[Channeler] listener_loop() error: {:?}", e);
+            error!("[Channeler] listen_loop() error: {:?}", e);
         }).then(|_| future::ready(()));
 
-    spawner.spawn(listener_loop_fut)
+    spawner.spawn(listen_loop_fut)
         .map_err(|_| ChannelerError::SpawnError)?;
 
     let from_funder = from_funder

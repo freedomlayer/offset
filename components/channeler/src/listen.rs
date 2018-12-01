@@ -16,7 +16,7 @@ use relay::client::access_control::{AccessControlOp, AccessControl};
 use crate::connector_utils::ConstAddressConnector;
 
 #[derive(Debug)]
-pub enum ListenerError {
+pub enum ListenError {
     RequestTimerStreamError,
     SleepTicksError,
     TimerClosed,
@@ -25,23 +25,23 @@ pub enum ListenerError {
     IncomingAddressClosed,
 }
 
-pub enum ListenerSelect<A> {
-    ListenerError(ListenerError),
+pub enum ListenSelect<A> {
+    ListenError(ListenError),
     IncomingAddress(A),
     IncomingAddressClosed,
 }
 
-fn convert_client_listener_result(client_listener_result: Result<(), ClientListenerError>) -> Result<(), ListenerError> {
+fn convert_client_listener_result(client_listener_result: Result<(), ClientListenerError>) -> Result<(), ListenError> {
     match client_listener_result {
         Ok(()) => unreachable!(),
         Err(ClientListenerError::RequestTimerStreamError) => 
-            Err(ListenerError::RequestTimerStreamError),
+            Err(ListenError::RequestTimerStreamError),
         Err(ClientListenerError::TimerClosed) => 
-            Err(ListenerError::TimerClosed),
+            Err(ListenError::TimerClosed),
         Err(ClientListenerError::AccessControlError) =>
-            Err(ListenerError::AccessControlError),
+            Err(ListenError::AccessControlError),
         Err(ClientListenerError::SpawnError) =>
-            Err(ListenerError::SpawnError),
+            Err(ListenError::SpawnError),
         Err(ClientListenerError::SendInitConnectionError) |
         Err(ClientListenerError::ConnectionFailure) |
         Err(ClientListenerError::SendToServerError) |
@@ -51,7 +51,7 @@ fn convert_client_listener_result(client_listener_result: Result<(), ClientListe
 
 
 /// Connect to relay and keep listening for incoming connections.
-pub async fn listener_loop<A,C,IAC,CS,IA>(mut connector: C,
+pub async fn listen_loop<A,C,IAC,CS,IA>(mut connector: C,
                  initial_address: A,
                  mut incoming_addresses: IA,
                  mut incoming_access_control: IAC,
@@ -60,7 +60,7 @@ pub async fn listener_loop<A,C,IAC,CS,IA>(mut connector: C,
                  keepalive_ticks: usize,
                  backoff_ticks: usize,
                  timer_client: TimerClient,
-                 spawner: impl Spawn + Clone + Send + 'static) -> Result<(), ListenerError> 
+                 spawner: impl Spawn + Clone + Send + 'static) -> Result<(), ListenError> 
 where
     A: Clone + Send + Sync + 'static,
     C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Sync + Send + Clone + 'static, 
@@ -91,21 +91,21 @@ where
             // Wait for a while before attempting to connect again:
             // TODO: Possibly wait here in a smart way? Exponential backoff?
             await!(sleep_ticks(backoff_ticks, timer_client.clone()))
-                .map_err(|_| ListenerError::SleepTicksError)?;
+                .map_err(|_| ListenError::SleepTicksError)?;
             Ok(())
         }).fuse();
 
         // TODO: Get rid of Box::pinned() later.
         let mut new_address_fut = Box::pinned(async {
             match await!(incoming_addresses.next()) {
-                Some(address) => ListenerSelect::IncomingAddress(address),
-                None => ListenerSelect::IncomingAddressClosed,
+                Some(address) => ListenSelect::IncomingAddress(address),
+                None => ListenSelect::IncomingAddressClosed,
             }
         }).fuse();
 
         // TODO: Could we possibly lose an incoming address with this select?
         let listener_select = select! {
-            listener_fut = listener_fut => ListenerSelect::ListenerError(listener_fut.err().unwrap()),
+            listener_fut = listener_fut => ListenSelect::ListenError(listener_fut.err().unwrap()),
             new_address_fut = new_address_fut => new_address_fut,
         };
         // TODO: Make code nicer here somehow. Use scopes instead of drop?
@@ -113,9 +113,9 @@ where
         drop(listener_fut);
 
         match listener_select {
-            ListenerSelect::ListenerError(listener_error) => Err(listener_error),
-            ListenerSelect::IncomingAddressClosed => Err(ListenerError::IncomingAddressClosed),
-            ListenerSelect::IncomingAddress(new_address) => {
+            ListenSelect::ListenError(listener_error) => Err(listener_error),
+            ListenSelect::IncomingAddressClosed => Err(ListenError::IncomingAddressClosed),
+            ListenSelect::IncomingAddress(new_address) => {
                 address = new_address;
                 Ok(())
             }
