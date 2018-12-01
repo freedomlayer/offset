@@ -9,31 +9,7 @@ use relay_capnp;
 use super::messages::{InitConnection, 
     RejectConnection, IncomingConnection};
 
-#[derive(Debug)]
-pub enum RelaySerializeError {
-    CapnpError(capnp::Error),
-    NotInSchema(capnp::NotInSchema),
-    IoError(io::Error),
-}
-
-
-impl From<capnp::Error> for RelaySerializeError {
-    fn from(e: capnp::Error) -> RelaySerializeError {
-        RelaySerializeError::CapnpError(e)
-    }
-}
-
-impl From<capnp::NotInSchema> for RelaySerializeError {
-    fn from(e: capnp::NotInSchema) -> RelaySerializeError {
-        RelaySerializeError::NotInSchema(e)
-    }
-}
-
-impl From<io::Error> for RelaySerializeError {
-    fn from(e: io::Error) -> RelaySerializeError {
-        RelaySerializeError::IoError(e)
-    }
-}
+use crate::serialize::SerializeError;
 
 pub fn serialize_init_connection(init_connection: &InitConnection) -> Vec<u8> {
     let mut builder = capnp::message::Builder::new_default();
@@ -56,7 +32,7 @@ pub fn serialize_init_connection(init_connection: &InitConnection) -> Vec<u8> {
     serialized_msg
 }
 
-pub fn deserialize_init_connection(data: &[u8]) -> Result<InitConnection, RelaySerializeError> {
+pub fn deserialize_init_connection(data: &[u8]) -> Result<InitConnection, SerializeError> {
     let mut cursor = io::Cursor::new(data);
     let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let msg = reader.get_root::<relay_capnp::init_connection::Reader>()?;
@@ -72,7 +48,7 @@ pub fn deserialize_init_connection(data: &[u8]) -> Result<InitConnection, RelayS
             let public_key = read_public_key(&(public_key?))?;
             Ok(InitConnection::Connect(public_key))
         },
-        Err(e) => Err(RelaySerializeError::NotInSchema(e)),
+        Err(e) => Err(SerializeError::NotInSchema(e)),
     }
 }
 
@@ -87,7 +63,7 @@ pub fn serialize_reject_connection(reject_connection: &RejectConnection) -> Vec<
     serialized_msg
 }
 
-pub fn deserialize_reject_connection(data: &[u8]) -> Result<RejectConnection, RelaySerializeError> {
+pub fn deserialize_reject_connection(data: &[u8]) -> Result<RejectConnection, SerializeError> {
     let mut cursor = io::Cursor::new(data);
     let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let msg = reader.get_root::<relay_capnp::reject_connection::Reader>()?;
@@ -107,7 +83,7 @@ pub fn serialize_incoming_connection(incoming_connection: &IncomingConnection) -
     serialized_msg
 }
 
-pub fn deserialize_incoming_connection(data: &[u8]) -> Result<IncomingConnection, RelaySerializeError> {
+pub fn deserialize_incoming_connection(data: &[u8]) -> Result<IncomingConnection, SerializeError> {
     let mut cursor = io::Cursor::new(data);
     let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let msg = reader.get_root::<relay_capnp::incoming_connection::Reader>()?;

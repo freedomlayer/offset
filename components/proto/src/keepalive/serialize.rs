@@ -3,34 +3,8 @@ use capnp;
 use capnp::serialize_packed;
 use keepalive_capnp;
 
+use crate::serialize::SerializeError;
 use super::messages::KaMessage;
-
-
-#[derive(Debug)]
-pub enum KeepAliveSerializeError {
-    CapnpError(capnp::Error),
-    NotInSchema(capnp::NotInSchema),
-    IoError(io::Error),
-}
-
-
-impl From<capnp::Error> for KeepAliveSerializeError {
-    fn from(e: capnp::Error) -> KeepAliveSerializeError {
-        KeepAliveSerializeError::CapnpError(e)
-    }
-}
-
-impl From<capnp::NotInSchema> for KeepAliveSerializeError {
-    fn from(e: capnp::NotInSchema) -> KeepAliveSerializeError {
-        KeepAliveSerializeError::NotInSchema(e)
-    }
-}
-
-impl From<io::Error> for KeepAliveSerializeError {
-    fn from(e: io::Error) -> KeepAliveSerializeError {
-        KeepAliveSerializeError::IoError(e)
-    }
-}
 
 
 pub fn serialize_ka_message(ka_message: &KaMessage) -> Vec<u8> {
@@ -47,7 +21,7 @@ pub fn serialize_ka_message(ka_message: &KaMessage) -> Vec<u8> {
     serialized_msg
 }
 
-pub fn deserialize_ka_message(data: &[u8]) -> Result<KaMessage, KeepAliveSerializeError> {
+pub fn deserialize_ka_message(data: &[u8]) -> Result<KaMessage, SerializeError> {
     let mut cursor = io::Cursor::new(data);
     let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let msg = reader.get_root::<keepalive_capnp::ka_message::Reader>()?;
@@ -57,7 +31,7 @@ pub fn deserialize_ka_message(data: &[u8]) -> Result<KaMessage, KeepAliveSeriali
            Ok(KaMessage::KeepAlive),
         Ok(keepalive_capnp::ka_message::Message(opt_message_reader)) =>
             Ok(KaMessage::Message(Vec::from(opt_message_reader?))),
-        Err(e) => Err(KeepAliveSerializeError::NotInSchema(e)),
+        Err(e) => Err(SerializeError::NotInSchema(e)),
     }
 }
 

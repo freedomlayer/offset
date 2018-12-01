@@ -20,6 +20,7 @@ pub mod relay;
 pub mod secure_channel;
 pub mod funder;
 pub mod keepalive;
+pub mod serialize;
 
 
 
