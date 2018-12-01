@@ -15,5 +15,4 @@ keepalive = { path = "../keepalive", version = "0.1.0" , package = "offst-keepal
 
 log = "0.4"
 futures-preview = "0.3.0-alpha.10"
-# futures-preview = { git = "https://github.com/rust-lang-nursery/futures-rs", rev = "5d87cce202" }
 
