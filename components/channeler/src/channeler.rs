@@ -139,7 +139,10 @@ async fn handle_from_funder<A>(channeler_state: &mut ChannelerState<A>,
                         close_sender,
                     })
                 },
-                None => FriendState::Listening,
+                None => {
+                    FriendState::Listening
+                    // TODO: should add friend to access control here.
+                },
             };
             let friend = Friend {
                 opt_address,
@@ -151,6 +154,7 @@ async fn handle_from_funder<A>(channeler_state: &mut ChannelerState<A>,
             Ok(())
         },
         FunderToChanneler::RemoveFriend(public_key) => {
+            // TODO: should remove friend from access control here.
             channeler_state.friends.remove(&public_key);
             Ok(())
         },
