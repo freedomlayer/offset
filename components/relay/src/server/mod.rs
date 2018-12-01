@@ -17,8 +17,6 @@ use self::types::{IncomingConn, IncomingConnInner,
 
 
 mod types;
-// mod listener;
-// mod tunnel;
 mod conn_limiter;
 
 #[allow(unused)]
