@@ -20,6 +20,8 @@ pub enum ClientConnectorError {
     SpawnClientTunnelError,
 }
 
+/// ClientConnector is an end-to-end connector to a remote node.
+/// It relies on a given connector C to a relay.
 pub struct ClientConnector<C,S> {
     connector: C,
     spawner: S,
