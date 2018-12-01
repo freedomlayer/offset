@@ -358,7 +358,7 @@ mod tests {
                                 conn_timeout_ticks,
                                 timer_stream));
             res_sender.send(res);
-        });
+        }).unwrap();
 
         let req = await!(req_receiver.next()).unwrap();
         assert_eq!(req.address, ());
@@ -401,7 +401,7 @@ mod tests {
             .map_err(|e| println!("accept_connection error: {:?}", e))
             .map(|_| ());
 
-        spawner.spawn(fut_accept);
+        spawner.spawn(fut_accept).unwrap();
 
         let (local_sender, mut remote_receiver) = mpsc::channel(0);
         let (remote_sender, local_receiver) = mpsc::channel(0);
