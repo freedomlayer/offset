@@ -6,8 +6,13 @@ use futures::task::{Spawn, SpawnExt};
 use futures::channel::{oneshot, mpsc};
 
 use proto::funder::messages::{FunderToChanneler, ChannelerToFunder};
+
 use crypto::identity::PublicKey;
+use crypto::crypto_rand::CryptoRandom;
+
 use timer::TimerClient;
+
+use identity::IdentityClient;
 
 use relay::client::connector::{Connector, ConnPair};
 use relay::client::access_control::AccessControlOp;
@@ -55,13 +60,15 @@ enum FriendState {
     Listening,
 }
 
-struct Channeler<A,C,TF,S> {
+struct Channeler<A,C,TF,R,S> {
     friends: HashMap<PublicKey, Friend<A>>,
     connector: C,
     to_funder: TF,
     timer_client: TimerClient,
     keepalive_ticks: usize,
     backoff_ticks: usize,
+    identity_client: IdentityClient,
+    rng: R,
     spawner: S,
     addresses_sender: mpsc::Sender<A>,
     access_control_sender: mpsc::Sender<AccessControlOp>,
@@ -69,11 +76,12 @@ struct Channeler<A,C,TF,S> {
     connection_established_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>,
 }
 
-impl<A,C,TF,S> Channeler<A,C,TF,S> 
+impl<A,C,TF,R,S> Channeler<A,C,TF,R,S> 
 where
     A: Clone + Send + Sync + 'static,
     C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
     TF: Sink<SinkItem=ChannelerToFunder> + Unpin,
+    R: CryptoRandom,
     S: Spawn + Clone + Send + Sync + 'static,
 {
     fn new(connector: C, 
@@ -81,11 +89,13 @@ where
            timer_client: TimerClient,
            keepalive_ticks: usize,
            backoff_ticks: usize,
+           identity_client: IdentityClient,
+           rng: R,
            spawner: S,
            addresses_sender: mpsc::Sender<A>,
            access_control_sender: mpsc::Sender<AccessControlOp>,
            friend_event_sender: mpsc::Sender<FriendEvent>,
-           connection_established_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>) -> Channeler<A,C,TF,S> {
+           connection_established_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>) -> Channeler<A,C,TF,R,S> {
         
 
         Channeler { 
@@ -95,6 +105,8 @@ where
             timer_client,
             keepalive_ticks,
             backoff_ticks,
+            identity_client,
+            rng,
             spawner,
             addresses_sender,
             access_control_sender,
@@ -104,13 +116,14 @@ where
     }
 }
 
-fn spawn_friend<A,C,TF,S>(channeler: &mut Channeler<A,C,TF,S>, 
+fn spawn_friend<A,C,TF,R,S>(channeler: &mut Channeler<A,C,TF,R,S>, 
                               public_key: PublicKey, opt_address: Option<A>) 
     -> Result<Friend<A>, ChannelerError>
 where
     A: Clone + Send + Sync + 'static,
     C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
     TF: Sink<SinkItem=ChannelerToFunder> + Unpin,
+    R: CryptoRandom + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
     let friend_state = match opt_address.clone() {
@@ -121,6 +134,8 @@ where
             let c_keepalive_ticks = channeler.keepalive_ticks;
             let c_backoff_ticks = channeler.backoff_ticks;
             let c_timer_client = channeler.timer_client.clone();
+            let c_identity_client = channeler.identity_client.clone();
+            let c_rng = channeler.rng.clone();
             let c_spawner = channeler.spawner.clone();
             let mut c_connection_established_sender = channeler.connection_established_sender.clone();
 
@@ -134,6 +149,8 @@ where
                     c_backoff_ticks,
                     c_timer_client,
                     close_receiver,
+                    c_identity_client,
+                    c_rng,
                     c_spawner));
 
                 match res {
@@ -142,7 +159,6 @@ where
                             .map_err(|_| ChannelerError::SendConnectionEstablishedFailed)?;
                     },
                     Err(ConnectError::Canceled) => {},
-                    Err(ConnectError::SleepTicksError) => unreachable!(),
                 };
                 Ok(())
             }.map_err(|e: ChannelerError| panic!("Error in connect_fut: {:?}", e))
@@ -166,13 +182,14 @@ where
     Ok(friend)
 }
 
-async fn handle_from_funder<A,C,TF,S>(channeler: &mut Channeler<A,C,TF,S>, 
+async fn handle_from_funder<A,C,TF,R,S>(channeler: &mut Channeler<A,C,TF,R,S>, 
                          funder_to_channeler: FunderToChanneler<A>) 
     -> Result<(), ChannelerError>  
 where
     A: Clone + Send + Sync + 'static,
     C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
     TF: Sink<SinkItem=ChannelerToFunder> + Unpin,
+    R: CryptoRandom + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
 
@@ -246,7 +263,7 @@ where
     }
 }
 
-async fn inner_channeler_loop<FF,TF,C,A,S>(address: A,
+async fn inner_channeler_loop<FF,TF,C,A,R,S>(address: A,
                         from_funder: FF, 
                         to_funder: TF,
                         conn_timeout_ticks: usize,
@@ -254,12 +271,15 @@ async fn inner_channeler_loop<FF,TF,C,A,S>(address: A,
                         backoff_ticks: usize,
                         timer_client: TimerClient,
                         connector: C,
+                        identity_client: IdentityClient,
+                        rng: R,
                         spawner: S) -> Result<(), ChannelerError>
 where
     A: Clone + Send + Sync + 'static,
     C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
     FF: Stream<Item=FunderToChanneler<A>> + Unpin,
     TF: Sink<SinkItem=ChannelerToFunder> + Unpin,
+    R: CryptoRandom + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
 
@@ -273,6 +293,8 @@ where
                                        timer_client,
                                        keepalive_ticks,
                                        backoff_ticks,
+                                       identity_client,
+                                       rng,
                                        spawner,
                                        addresses_sender, 
                                        access_control_sender,

@@ -3,15 +3,25 @@ use futures::task::Spawn;
 use futures::{FutureExt, select};
 
 use crypto::identity::PublicKey;
+use crypto::crypto_rand::CryptoRandom;
+
+use identity::IdentityClient;
+
 use timer::TimerClient;
 use timer::utils::sleep_ticks;
 
 use relay::client::connector::{Connector, ConnPair};
 use relay::client::client_connector::ClientConnector;
 
+use secure_channel::create_secure_channel;
+
+// TODO: Move this to proto/src/consts.rs:
+
+/// Amount of ticks to wait before rekeying a secure channel.
+pub const TICKS_TO_REKEY: usize = 60 * 60 * 2; // 1 hour given that TICK is half a second.
+
 pub enum ConnectError {
     Canceled,
-    SleepTicksError,
 }
 
 enum ConnectSelect {
@@ -20,32 +30,69 @@ enum ConnectSelect {
     Connected(ConnPair<Vec<u8>,Vec<u8>>),
 }
 
-pub async fn connect<A,C,S>(connector: C,
+pub async fn secure_connect<C,A,R,S>(mut client_connector: C,
+                            timer_client: TimerClient,
+                            address: A,
+                            public_key: PublicKey,
+                            identity_client: IdentityClient,
+                            rng: R,
+                            spawner: S) -> Option<ConnPair<Vec<u8>, Vec<u8>>>
+where
+    A: Clone,
+    C: Connector<Address=(A, PublicKey), SendItem=Vec<u8>, RecvItem=Vec<u8>>,
+    R: CryptoRandom + 'static,
+    S: Spawn + Clone + Sync + Send,
+{
+    let conn_pair = await!(client_connector.connect((address, public_key.clone())))?;
+    match await!(create_secure_channel(conn_pair.sender, conn_pair.receiver,
+                          identity_client,
+                          Some(public_key.clone()),
+                          rng,
+                          timer_client,
+                          TICKS_TO_REKEY,
+                          spawner)) {
+        Ok((sender, receiver)) => Some(ConnPair {sender, receiver}),
+        Err(e) => {
+            error!("Error in create_secure_channel: {:?}", e);
+            None
+        },
+    }
+}
+
+pub async fn connect<A,C,S,R>(connector: C,
                 address: A, 
                 public_key: PublicKey, 
                 keepalive_ticks: usize,
                 backoff_ticks: usize,
                 timer_client: TimerClient,
                 close_receiver: oneshot::Receiver<()>,
+                identity_client: IdentityClient,
+                rng: R,
                 spawner: S) -> Result<ConnPair<Vec<u8>, Vec<u8>>, ConnectError>
 where
     A: Sync + Send + Clone + 'static,
     C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
+    R: CryptoRandom + 'static,
     S: Spawn + Clone + Sync + Send,
 {
     let mut close_receiver = close_receiver.map(|_| ConnectSelect::Canceled).fuse();
 
     loop {
-        let mut client_connector = ClientConnector::new(connector.clone(), spawner.clone(), timer_client.clone(), keepalive_ticks);
+        let mut client_connector = ClientConnector::new(
+            connector.clone(), spawner.clone(), timer_client.clone(), keepalive_ticks);
         let c_timer_client = timer_client.clone();
         let c_address = address.clone();
         let c_public_key = public_key.clone();
+        let c_identity_client = identity_client.clone();
+        let c_rng = rng.clone();
+        let c_spawner = spawner.clone();
+
         let mut connect_fut = Box::pinned(async move { 
-            Ok(match await!(client_connector.connect((c_address, c_public_key))) {
+            Ok(match await!(secure_connect(client_connector, c_timer_client.clone(), c_address, 
+                                           c_public_key, c_identity_client, c_rng, c_spawner)) {
                 Some(conn_pair) => ConnectSelect::Connected(conn_pair),
                 None => {
-                    await!(sleep_ticks(backoff_ticks, c_timer_client))
-                        .map_err(|_| ConnectError::SleepTicksError)?;
+                    await!(sleep_ticks(backoff_ticks, c_timer_client)).unwrap();
                     ConnectSelect::ConnectFailed
                 }
             })
