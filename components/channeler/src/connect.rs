@@ -18,6 +18,7 @@ use relay::client::client_connector::ClientConnector;
 use secure_channel::create_secure_channel;
 
 
+#[derive(Debug)]
 pub enum ConnectError {
     Canceled,
 }
