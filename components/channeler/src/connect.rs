@@ -75,36 +75,21 @@ where
 {
     let mut close_receiver = close_receiver.map(|_| ConnectSelect::Canceled).fuse();
 
-    loop {
-        let client_connector = ClientConnector::new(
-            connector.clone(), spawner.clone(), timer_client.clone(), keepalive_ticks);
-        let c_timer_client = timer_client.clone();
-        let c_address = address.clone();
-        let c_public_key = public_key.clone();
-        let c_identity_client = identity_client.clone();
-        let c_rng = rng.clone();
-        let c_spawner = spawner.clone();
+    let client_connector = ClientConnector::new(
+        connector.clone(), spawner.clone(), timer_client.clone(), keepalive_ticks);
 
-        let mut connect_fut = Box::pinned(async move { 
-            Ok(match await!(secure_connect(client_connector, c_timer_client.clone(), c_address, 
-                                           c_public_key, c_identity_client, c_rng, c_spawner)) {
-                Some(conn_pair) => ConnectSelect::Connected(conn_pair),
-                None => {
-                    await!(sleep_ticks(backoff_ticks, c_timer_client)).unwrap();
-                    ConnectSelect::ConnectFailed
-                }
-            })
-        }).fuse();
+    let mut connect_fut = Box::pinned(async move { 
+        loop {
+            match await!(secure_connect(client_connector.clone(), timer_client.clone(), address.clone(), 
+                                           public_key.clone(), identity_client.clone(), rng.clone(), spawner.clone())) {
+                Some(conn_pair) => return conn_pair,
+                None => await!(sleep_ticks(backoff_ticks, timer_client.clone())).unwrap(),
+            }
+        }
+    }).fuse();
 
-        let select_res = select! {
-            connect_fut = connect_fut => connect_fut?,
-            close_receiver = close_receiver => close_receiver,
-        };
-
-        match select_res {
-            ConnectSelect::Canceled => return Err(ConnectError::Canceled),
-            ConnectSelect::ConnectFailed => {}, // In this case we try again
-            ConnectSelect::Connected(conn_pair) => return Ok(conn_pair),
-        };
+    select! {
+        connect_fut = connect_fut => Ok(connect_fut),
+        _close_receiver = close_receiver => Err(ConnectError::Canceled),
     }
 }
