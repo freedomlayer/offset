@@ -355,7 +355,8 @@ where
                 let (friend_sender, friend_receiver) = mpsc::channel(0);
                 channeler.spawner.spawn(overwrite_send_all(sender, friend_receiver)
                               .map_err(|e| error!("overwrite_send_all() error: {:?}", e))
-                              .map(|_| ()));
+                              .map(|_| ()))
+                    .map_err(|_| ChannelerError::SpawnError)?;
 
 
                 let friend = match channeler.friends.get_mut(&public_key) {
