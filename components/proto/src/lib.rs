@@ -15,6 +15,7 @@ extern crate bytes;
 
 #[macro_use]
 pub mod macros;
+pub mod consts;
 pub mod capnp_common;
 pub mod relay;
 pub mod secure_channel;

@@ -8,7 +8,7 @@ use crypto::hash::{self, HashResult};
 
 use utils::int_convert::{usize_to_u64};
 
-use super::consts::MAX_ROUTE_LEN;
+use crate::consts::MAX_ROUTE_LEN;
 
 
 #[allow(unused)]
