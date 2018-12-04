@@ -1,13 +1,10 @@
 use std::marker::Unpin;
-use futures::{select, future, FutureExt, Stream, StreamExt, Sink};
+use futures::{select, FutureExt, Stream, StreamExt, Sink};
 use futures::task::Spawn;
 
-use proto::funder::messages::{FunderToChanneler, ChannelerToFunder};
 use crypto::identity::PublicKey;
 use timer::TimerClient;
 use timer::utils::sleep_ticks;
-
-use utils::int_convert::usize_to_u64;
 
 use relay::client::connector::{Connector, ConnPair};
 use relay::client::client_listener::{client_listener, ClientListenerError};
@@ -51,7 +48,7 @@ fn convert_client_listener_result(client_listener_result: Result<(), ClientListe
 
 
 /// Connect to relay and keep listening for incoming connections.
-pub async fn listen_loop<A,C,IAC,CS,IA>(mut connector: C,
+pub async fn listen_loop<A,C,IAC,CS,IA>(connector: C,
                  initial_address: A,
                  mut incoming_addresses: IA,
                  mut incoming_access_control: IAC,

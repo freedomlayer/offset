@@ -9,11 +9,7 @@ use proto::funder::messages::{FunderToChanneler, ChannelerToFunder};
 use crypto::identity::PublicKey;
 use timer::TimerClient;
 
-use utils::int_convert::usize_to_u64;
-
 use relay::client::connector::{Connector, ConnPair};
-use relay::client::client_listener::{client_listener, ClientListenerError};
-use relay::client::client_connector::{ClientConnector};
 use relay::client::access_control::AccessControlOp;
 
 use crate::listen::listen_loop;
@@ -182,7 +178,7 @@ where
 
     match funder_to_channeler {
         FunderToChanneler::Message((public_key, message)) => {
-            let mut friend = match channeler.friends.get_mut(&public_key) {
+            let friend = match channeler.friends.get_mut(&public_key) {
                 Some(friend) => friend,
                 None => {
                     error!("Attempt to send a message to unavailable friend: {:?}", public_key);
@@ -252,13 +248,13 @@ where
 
 async fn inner_channeler_loop<FF,TF,C,A,S>(address: A,
                         from_funder: FF, 
-                        mut to_funder: TF,
+                        to_funder: TF,
                         conn_timeout_ticks: usize,
                         keepalive_ticks: usize,
                         backoff_ticks: usize,
                         timer_client: TimerClient,
                         connector: C,
-                        mut spawner: S) -> Result<(), ChannelerError>
+                        spawner: S) -> Result<(), ChannelerError>
 where
     A: Clone + Send + Sync + 'static,
     C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
@@ -282,11 +278,6 @@ where
                                        access_control_sender,
                                        friend_event_sender,
                                        connection_established_sender);
-
-    let client_connector = ClientConnector::new(channeler.connector.clone(), 
-                                                channeler.spawner.clone(), 
-                                                channeler.timer_client.clone(), 
-                                                channeler.keepalive_ticks);
 
     let (connections_sender, connections_receiver) = mpsc::channel::<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>(0);
 
@@ -331,7 +322,7 @@ where
                 await!(handle_from_funder(&mut channeler, funder_to_channeler))?,
             ChannelerEvent::IncomingConnection((public_key, conn_pair)) |
             ChannelerEvent::ConnectionEstablished((public_key, conn_pair)) => { 
-                let ConnPair {sender, mut receiver} = conn_pair;
+                let ConnPair {sender, receiver} = conn_pair;
 
                 let friend = match channeler.friends.get_mut(&public_key) {
                     None => {

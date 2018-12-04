@@ -1,8 +1,4 @@
-use core::pin::Pin;
-
-use futures::{Future, FutureExt};
 use futures::task::Spawn;
-use futures::future;
 
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
@@ -38,7 +34,7 @@ where
     type SendItem = C::SendItem;
     type RecvItem = C::RecvItem;
 
-    fn connect(&mut self, address: ()) 
+    fn connect(&mut self, _address: ()) 
         -> BoxFuture<'_, Option<ConnPair<C::SendItem, C::RecvItem>>> {
         self.connector.connect(self.address.clone())
     }
