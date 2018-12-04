@@ -1,14 +1,22 @@
 use std::marker::Unpin;
-use futures::{select, FutureExt, Stream, StreamExt, Sink};
-use futures::task::Spawn;
+use futures::{select, FutureExt, Stream, StreamExt, Sink, SinkExt};
+use futures::task::{Spawn, SpawnExt};
+use futures::channel::mpsc;
+
+use proto::consts::TICKS_TO_REKEY;
 
 use crypto::identity::PublicKey;
+use crypto::crypto_rand::CryptoRandom;
 use timer::TimerClient;
 use timer::utils::sleep_ticks;
+
+use identity::IdentityClient;
 
 use relay::client::connector::{Connector, ConnPair};
 use relay::client::client_listener::{client_listener, ClientListenerError};
 use relay::client::access_control::{AccessControlOp, AccessControl};
+
+use secure_channel::create_secure_channel;
 
 use crate::connector_utils::ConstAddressConnector;
 
@@ -46,9 +54,47 @@ fn convert_client_listener_result(client_listener_result: Result<(), ClientListe
     }
 }
 
+/// Encrypt incoming plain connections
+///
+/// We require this logic because it is inefficient to perform handshake for the connections serially.
+/// For example: It is possible that connection A arrives before connection B, but performing
+/// handshake for A takes longer than it takes for B.
+pub async fn conn_encryptor<R,S>(mut plain_connections_receiver: mpsc::Receiver<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>,
+                            encrypted_connections_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>,
+                            timer_client: TimerClient,
+                            identity_client: IdentityClient,
+                            rng: R,
+                            mut spawner: S)
+where
+    R: CryptoRandom + 'static,
+    S: Spawn + Clone + Send + 'static,
+{
+    while let Some((public_key, conn_pair)) = await!(plain_connections_receiver.next()) {
+        let secure_channel_fut = create_secure_channel(conn_pair.sender, conn_pair.receiver,
+                              identity_client.clone(),
+                              Some(public_key.clone()),
+                              rng.clone(),
+                              timer_client.clone(),
+                              TICKS_TO_REKEY,
+                              spawner.clone());
+        let mut c_encrypted_connections_sender = encrypted_connections_sender.clone();
+        spawner.spawn(async move {
+            match await!(secure_channel_fut) {
+                Ok((sender, receiver)) => {
+                    let conn_pair = ConnPair {sender, receiver};
+                    await!(c_encrypted_connections_sender.send((public_key, conn_pair)))
+                        .map_err(|e| error!("conn_encryptor(): Can not send through encrypted_connections_sender"));
+                },
+                Err(e) => 
+                    error!("conn_encryptor(): error in create_secure_channel(): {:?}", e),
+            }
+        });
+    }
+}
+
 
 /// Connect to relay and keep listening for incoming connections.
-pub async fn listen_loop<A,C,IAC,CS,IA>(connector: C,
+pub async fn listen_loop<A,C,IAC,CS,IA,S>(connector: C,
                  initial_address: A,
                  mut incoming_addresses: IA,
                  mut incoming_access_control: IAC,
@@ -57,18 +103,19 @@ pub async fn listen_loop<A,C,IAC,CS,IA>(connector: C,
                  keepalive_ticks: usize,
                  backoff_ticks: usize,
                  timer_client: TimerClient,
-                 spawner: impl Spawn + Clone + Send + 'static) -> Result<(), ListenError> 
+                 spawner: S) -> Result<(), ListenError> 
 where
     A: Clone + Send + Sync + 'static,
     C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Sync + Send + Clone + 'static, 
     IA: Stream<Item=A> + Unpin + 'static,
     IAC: Stream<Item=AccessControlOp> + Unpin + 'static,
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)> + Unpin + Clone + Send + 'static,
+    S: Spawn + Clone + Send + 'static,
 {
     let mut access_control = AccessControl::new();
     let mut address = initial_address;
     loop {
-        // TODO: get rid of Box::pinned() later.
+        // TODO: get rid of Box::pinned() later ?
         let mut listener_fut = Box::pinned(async {
             let const_address_connector = ConstAddressConnector::new(connector.clone(), address.clone());
             let res = await!(client_listener(const_address_connector,
