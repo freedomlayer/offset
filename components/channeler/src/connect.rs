@@ -2,6 +2,8 @@ use futures::channel::oneshot;
 use futures::task::Spawn;
 use futures::{FutureExt, select};
 
+use proto::consts::TICKS_TO_REKEY;
+
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
 
@@ -15,10 +17,6 @@ use relay::client::client_connector::ClientConnector;
 
 use secure_channel::create_secure_channel;
 
-// TODO: Move this to proto/src/consts.rs:
-
-/// Amount of ticks to wait before rekeying a secure channel.
-pub const TICKS_TO_REKEY: usize = 60 * 60 * 2; // 1 hour given that TICK is half a second.
 
 pub enum ConnectError {
     Canceled,
