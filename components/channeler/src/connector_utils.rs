@@ -91,8 +91,8 @@ where
         let (public_key, address) = full_address;
         let fut = async move {
             let conn_pair = await!(self.connector.connect(address))?;
-            let secure_channel = await!(create_secure_channel(
-                                      conn_pair.receiver, conn_pair.sender, 
+            let (sender, receiver) = await!(create_secure_channel(
+                                      conn_pair.sender, conn_pair.receiver, 
                                       self.identity_client.clone(),
                                       Some(public_key.clone()),
                                       self.rng.clone(),
@@ -100,10 +100,7 @@ where
                                       self.ticks_to_rekey,
                                       self.spawner.clone()))
                                     .ok()?;
-            Some(ConnPair {
-                sender: secure_channel.sender,
-                receiver: secure_channel.receiver,
-            })
+            Some(ConnPair { sender, receiver })
         };
         Box::pinned(fut)
     }
