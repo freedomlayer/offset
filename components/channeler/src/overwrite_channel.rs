@@ -1,8 +1,7 @@
 use std::marker::Unpin;
 use core::pin::Pin;
-use futures::task::{Poll, LocalWaker, Spawn, SpawnExt};
-use futures::channel::mpsc;
-use futures::{future, Future, FutureExt, TryFutureExt, Stream, StreamExt, Sink, SinkExt};
+use futures::task::{Poll, LocalWaker};
+use futures::{Future, Stream, StreamExt, Sink};
 
 struct OverwriteChannel<T,M,K> {
     opt_item: Option<T>,
@@ -101,7 +100,10 @@ mod tests {
     use super::*;
     use futures::{stream, StreamExt, SinkExt};
     use futures::executor::ThreadPool;
-    use futures::task::Spawn;
+    use futures::channel::mpsc;
+    use futures::task::{Spawn, SpawnExt};
+    use futures::{FutureExt, TryFutureExt};
+
 
     fn overwrite_channel<T,S>(mut spawner: S) -> (mpsc::Sender<T>, mpsc::Receiver<T>) 
     where
