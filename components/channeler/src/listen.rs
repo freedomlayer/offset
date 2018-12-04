@@ -31,7 +31,7 @@ pub enum ListenError {
     Canceled,
 }
 
-pub enum ListenSelect {
+enum ListenSelect {
     ListenError(ListenError),
     Canceled,
 }
