@@ -59,13 +59,14 @@ fn convert_client_listener_result(client_listener_result: Result<(), ClientListe
 /// We require this logic because it is inefficient to perform handshake for the connections serially.
 /// For example: It is possible that connection A arrives before connection B, but performing
 /// handshake for A takes longer than it takes for B.
-pub async fn conn_encryptor<R,S>(mut plain_connections_receiver: mpsc::Receiver<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>,
-                            encrypted_connections_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>,
+pub async fn conn_encryptor<CS,R,S>(mut plain_connections_receiver: mpsc::Receiver<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>,
+                            encrypted_connections_sender: CS,
                             timer_client: TimerClient,
                             identity_client: IdentityClient,
                             rng: R,
                             mut spawner: S)
 where
+    CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)> + Unpin + Clone + Send + 'static,
     R: CryptoRandom + 'static,
     S: Spawn + Clone + Send + 'static,
 {
@@ -82,19 +83,20 @@ where
             match await!(secure_channel_fut) {
                 Ok((sender, receiver)) => {
                     let conn_pair = ConnPair {sender, receiver};
-                    await!(c_encrypted_connections_sender.send((public_key, conn_pair)))
-                        .map_err(|e| error!("conn_encryptor(): Can not send through encrypted_connections_sender"));
+                    if let Err(_e) = await!(c_encrypted_connections_sender.send((public_key, conn_pair))) {
+                        error!("conn_encryptor(): Can not send through encrypted_connections_sender");
+                    }
                 },
                 Err(e) => 
                     error!("conn_encryptor(): error in create_secure_channel(): {:?}", e),
             }
-        });
+        }).unwrap();
     }
 }
 
 
 /// Connect to relay and keep listening for incoming connections.
-pub async fn listen_loop<A,C,IAC,CS,IA,S>(connector: C,
+pub async fn listen_loop<A,C,IAC,CS,IA,R,S>(connector: C,
                  initial_address: A,
                  mut incoming_addresses: IA,
                  mut incoming_access_control: IAC,
@@ -103,17 +105,30 @@ pub async fn listen_loop<A,C,IAC,CS,IA,S>(connector: C,
                  keepalive_ticks: usize,
                  backoff_ticks: usize,
                  timer_client: TimerClient,
-                 spawner: S) -> Result<(), ListenError> 
+                 identity_client: IdentityClient,
+                 rng: R,
+                 mut spawner: S) -> Result<(), ListenError> 
 where
     A: Clone + Send + Sync + 'static,
     C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Sync + Send + Clone + 'static, 
     IA: Stream<Item=A> + Unpin + 'static,
     IAC: Stream<Item=AccessControlOp> + Unpin + 'static,
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)> + Unpin + Clone + Send + 'static,
+    R: CryptoRandom + 'static,
     S: Spawn + Clone + Send + 'static,
 {
     let mut access_control = AccessControl::new();
     let mut address = initial_address;
+
+    let (plain_connections_sender, plain_connections_receiver) = mpsc::channel(0);
+    spawner.spawn(conn_encryptor(plain_connections_receiver, 
+                                 connections_sender, // Sends encrypted connections
+                                 timer_client.clone(),
+                                 identity_client,
+                                 rng,
+                                 spawner.clone()))
+        .map_err(|_| ListenError::SpawnError)?;
+
     loop {
         // TODO: get rid of Box::pinned() later ?
         let mut listener_fut = Box::pinned(async {
@@ -121,7 +136,7 @@ where
             let res = await!(client_listener(const_address_connector,
                                         &mut access_control,
                                         &mut incoming_access_control,
-                                        connections_sender.clone(),
+                                        plain_connections_sender.clone(),
                                         conn_timeout_ticks,
                                         keepalive_ticks,
                                         timer_client.clone(),

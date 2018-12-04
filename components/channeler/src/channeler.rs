@@ -293,8 +293,8 @@ where
                                        timer_client,
                                        keepalive_ticks,
                                        backoff_ticks,
-                                       identity_client,
-                                       rng,
+                                       identity_client.clone(),
+                                       rng.clone(),
                                        spawner,
                                        addresses_sender, 
                                        access_control_sender,
@@ -313,6 +313,8 @@ where
                       channeler.keepalive_ticks,
                       channeler.backoff_ticks,
                       channeler.timer_client.clone(),
+                      identity_client,
+                      rng,
                       channeler.spawner.clone())
         .map_err(|e| {
             panic!("[Channeler] listen_loop() error: {:?}", e);
