@@ -82,6 +82,9 @@ where
     }
 }
 
+/// Attempt to send all messages from coming from the receiver stream through the sender sink.
+/// If a message is pending to be sent and a new message arrives, it overwrites the old message.
+/// For example: a sequence 1,2,3,4,5,6,7 may be received as 1,2,5,7
 pub fn overwrite_send_all<T,E,M,K>(sender: K, receiver: M) 
     -> impl Future<Output=Result<(), E>>
 
