@@ -1,7 +1,7 @@
 use std::marker::Unpin;
 use futures::{select, FutureExt, Stream, StreamExt, Sink, SinkExt};
 use futures::task::{Spawn, SpawnExt};
-use futures::channel::mpsc;
+use futures::channel::{mpsc, oneshot};
 
 use proto::consts::TICKS_TO_REKEY;
 
@@ -28,14 +28,15 @@ pub enum ListenError {
     AccessControlError,
     SpawnError,
     IncomingAddressClosed,
+    Canceled,
 }
 
-pub enum ListenSelect<A> {
+enum ListenSelect {
     ListenError(ListenError),
-    IncomingAddress(A),
-    IncomingAddressClosed,
+    Canceled,
 }
 
+/// Distinguish between fatal and non-fatal errors
 fn convert_client_listener_result(client_listener_result: Result<(), ClientListenerError>) -> Result<(), ListenError> {
     match client_listener_result {
         Ok(()) => unreachable!(),
@@ -96,11 +97,15 @@ where
 
 
 /// Connect to relay and keep listening for incoming connections.
-pub async fn listen_loop<A,C,IAC,CS,IA,R,S>(connector: C,
-                 initial_address: A,
-                 mut incoming_addresses: IA,
+/// Aborts in one of the following cases:
+/// - Canceled through close_receiver.
+/// - A fatal error occured.
+pub async fn listen_loop<A,C,IAC,CS,R,S>(connector: C,
+                 address: A,
                  mut incoming_access_control: IAC,
                  connections_sender: CS,
+                 close_receiver: oneshot::Receiver<()>,
+                 mut access_control: AccessControl,
                  conn_timeout_ticks: usize,
                  keepalive_ticks: usize,
                  backoff_ticks: usize,
@@ -111,15 +116,11 @@ pub async fn listen_loop<A,C,IAC,CS,IA,R,S>(connector: C,
 where
     A: Clone + Send + Sync + 'static,
     C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Sync + Send + Clone + 'static, 
-    IA: Stream<Item=A> + Unpin + 'static,
     IAC: Stream<Item=AccessControlOp> + Unpin + 'static,
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)> + Unpin + Clone + Send + 'static,
     R: CryptoRandom + 'static,
     S: Spawn + Clone + Send + 'static,
 {
-    let mut access_control = AccessControl::new();
-    let mut address = initial_address;
-
     let (plain_connections_sender, plain_connections_receiver) = mpsc::channel(0);
     spawner.spawn(conn_encryptor(plain_connections_receiver, 
                                  connections_sender, // Sends encrypted connections
@@ -129,9 +130,9 @@ where
                                  spawner.clone()))
         .map_err(|_| ListenError::SpawnError)?;
 
-    loop {
-        // TODO: get rid of Box::pinned() later ?
-        let mut listener_fut = Box::pinned(async {
+    // TODO: get rid of Box::pinned() later ?
+    let mut listener_fut = Box::pinned(async {
+        loop {
             let const_address_connector = ConstAddressConnector::new(connector.clone(), address.clone());
             let res = await!(client_listener(const_address_connector,
                                         &mut access_control,
@@ -151,34 +152,23 @@ where
             // TODO: Possibly wait here in a smart way? Exponential backoff?
             await!(sleep_ticks(backoff_ticks, timer_client.clone()))
                 .map_err(|_| ListenError::SleepTicksError)?;
-            Ok(())
-        }).fuse();
+        }
+        // This is a hack to help the compiler know that the return type
+        // here is Result<(),_>
+        #[allow(unreachable_code)]
+        Ok(())
+    }).fuse();
 
-        // TODO: Get rid of Box::pinned() later.
-        let mut new_address_fut = Box::pinned(async {
-            match await!(incoming_addresses.next()) {
-                Some(address) => ListenSelect::IncomingAddress(address),
-                None => ListenSelect::IncomingAddressClosed,
-            }
-        }).fuse();
+    let mut close_fut = close_receiver.fuse();
 
-        // TODO: Could we possibly lose an incoming address with this select?
-        let listener_select = select! {
-            listener_fut = listener_fut => ListenSelect::ListenError(listener_fut.err().unwrap()),
-            new_address_fut = new_address_fut => new_address_fut,
-        };
-        // TODO: Make code nicer here somehow. Use scopes instead of drop?
-        drop(new_address_fut);
-        drop(listener_fut);
+    let listener_select = select! {
+        listener_fut = listener_fut => ListenSelect::ListenError(listener_fut.err().unwrap()),
+        _close_fut = close_fut => ListenSelect::Canceled,
+    };
 
-        match listener_select {
-            ListenSelect::ListenError(listener_error) => Err(listener_error),
-            ListenSelect::IncomingAddressClosed => Err(ListenError::IncomingAddressClosed),
-            ListenSelect::IncomingAddress(new_address) => {
-                address = new_address;
-                Ok(())
-            }
-        }?;
+    match listener_select {
+        ListenSelect::ListenError(listener_error) => Err(listener_error),
+        ListenSelect::Canceled => Err(ListenError::Canceled),
     }
 }
 

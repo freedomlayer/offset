@@ -219,12 +219,12 @@ impl<A: Clone> NodeControl<A> {
         }
     }
 
-    pub async fn set_address<'a>(&'a mut self, address: A) 
+    pub async fn set_address<'a>(&'a mut self, opt_address: Option<A>) 
     where
         A: PartialEq + Eq,
     {
-        await!(self.send(FunderIncomingControl::SetAddress(address.clone()))).unwrap();
-        let pred = |report: &FunderReport<_>| report.address == address;
+        await!(self.send(FunderIncomingControl::SetAddress(opt_address.clone()))).unwrap();
+        let pred = |report: &FunderReport<_>| report.opt_address == opt_address;
         await!(self.recv_until(pred));
     }
 
@@ -360,7 +360,7 @@ pub async fn create_node_controls(num_nodes: usize,
         // We give all the nodes the same relay address. Usually this will not happen, but
         // it is the easier thing to do in this code (Unless we change it to have specific A type,
         // for example, u32).
-        let funder_state = FunderState::new(&public_key, &usize_to_u32(i).unwrap());
+        let funder_state = FunderState::new(&public_key, Some(&usize_to_u32(i).unwrap()));
 
         let mock_db = MockDb::new(funder_state);
 

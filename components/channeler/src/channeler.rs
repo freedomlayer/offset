@@ -15,7 +15,7 @@ use timer::TimerClient;
 use identity::IdentityClient;
 
 use relay::client::connector::{Connector, ConnPair};
-use relay::client::access_control::AccessControlOp;
+use relay::client::access_control::{AccessControl, AccessControlOp};
 
 use crate::listen::listen_loop;
 use crate::connect::{connect, ConnectError};
@@ -23,8 +23,7 @@ use crate::overwrite_channel::overwrite_send_all;
 
 pub enum ChannelerEvent<A> {
     FromFunder(FunderToChanneler<A>),
-    IncomingConnection((PublicKey, ConnPair<Vec<u8>, Vec<u8>>)),
-    ConnectionEstablished((PublicKey, ConnPair<Vec<u8>, Vec<u8>>)),
+    Connection((PublicKey, ConnPair<Vec<u8>, Vec<u8>>)),
     FriendEvent(FriendEvent),
 }
 
@@ -52,6 +51,7 @@ struct FriendConnected {
 }
 
 struct FriendInitiating {
+    #[allow(unused)]
     close_sender: oneshot::Sender<()>,
 }
 
@@ -61,20 +61,31 @@ enum FriendState {
     Listening,
 }
 
+struct Listening {
+    #[allow(unused)]
+    close_sender: oneshot::Sender<()>,
+    access_control_sender: mpsc::Sender<AccessControlOp>,
+}
+
+enum ListenState {
+    Listening(Listening), 
+    Idle,
+}
+
 struct Channeler<A,C,TF,R,S> {
     friends: HashMap<PublicKey, Friend<A>>,
+    listen_state: ListenState,
     connector: C,
     to_funder: TF,
     timer_client: TimerClient,
+    conn_timeout_ticks: usize,
     keepalive_ticks: usize,
     backoff_ticks: usize,
     identity_client: IdentityClient,
     rng: R,
     spawner: S,
-    addresses_sender: mpsc::Sender<A>,
-    access_control_sender: mpsc::Sender<AccessControlOp>,
     friend_event_sender: mpsc::Sender<FriendEvent>,
-    connection_established_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>,
+    connections_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>,
 }
 
 impl<A,C,TF,R,S> Channeler<A,C,TF,R,S> 
@@ -88,32 +99,43 @@ where
     fn new(connector: C, 
            to_funder: TF,
            timer_client: TimerClient,
+           conn_timeout_ticks: usize,
            keepalive_ticks: usize,
            backoff_ticks: usize,
            identity_client: IdentityClient,
            rng: R,
            spawner: S,
-           addresses_sender: mpsc::Sender<A>,
-           access_control_sender: mpsc::Sender<AccessControlOp>,
            friend_event_sender: mpsc::Sender<FriendEvent>,
-           connection_established_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>) -> Channeler<A,C,TF,R,S> {
+           connections_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>) -> Channeler<A,C,TF,R,S> {
         
 
         Channeler { 
             friends: HashMap::new(),
+            listen_state: ListenState::Idle,
             connector,
             to_funder,
             timer_client,
+            conn_timeout_ticks,
             keepalive_ticks,
             backoff_ticks,
             identity_client,
             rng,
             spawner,
-            addresses_sender,
-            access_control_sender,
             friend_event_sender,
-            connection_established_sender,
+            connections_sender,
         }
+    }
+
+    /// Create AccessControl according to current configured friends.
+    /// Only listening friends are included.
+    fn create_access_control(&self) -> AccessControl {
+        let mut access_control = AccessControl::new();
+        for (public_key, friend) in &self.friends {
+            if friend.opt_address.is_none() {
+                access_control.apply_op(AccessControlOp::Add(public_key.clone())).unwrap();
+            }
+        }
+        access_control
     }
 }
 
@@ -138,7 +160,7 @@ where
             let c_identity_client = channeler.identity_client.clone();
             let c_rng = channeler.rng.clone();
             let c_spawner = channeler.spawner.clone();
-            let mut c_connection_established_sender = channeler.connection_established_sender.clone();
+            let mut c_connections_sender = channeler.connections_sender.clone();
 
             let c_public_key = public_key.clone();
 
@@ -156,7 +178,7 @@ where
 
                 match res {
                     Ok(conn_pair) => {
-                        await!(c_connection_established_sender.send((c_public_key.clone(), conn_pair)))
+                        await!(c_connections_sender.send((c_public_key.clone(), conn_pair)))
                             .map_err(|_| ChannelerError::SendConnectionEstablishedFailed)?;
                     },
                     Err(ConnectError::Canceled) => {},
@@ -229,9 +251,45 @@ where
 
             Ok(())
         },
-        FunderToChanneler::SetAddress(address) => {
-            await!(channeler.addresses_sender.send(address))
-                .map_err(|_| ChannelerError::AddressSendFailed)?;
+        FunderToChanneler::SetAddress(opt_address) => {
+            match opt_address {
+                Some(address) => {
+                    let (close_sender, close_receiver) = oneshot::channel();
+                    let (access_control_sender, access_control_receiver) = mpsc::channel(0);
+
+                    let listen_loop_fut = listen_loop(channeler.connector.clone(),
+                                      address,
+                                      access_control_receiver,
+                                      channeler.connections_sender.clone(),
+                                      close_receiver,
+                                      channeler.create_access_control(),
+                                      channeler.conn_timeout_ticks,
+                                      channeler.keepalive_ticks,
+                                      channeler.backoff_ticks,
+                                      channeler.timer_client.clone(),
+                                      channeler.identity_client.clone(),
+                                      channeler.rng.clone(),
+                                      channeler.spawner.clone())
+                        .map_err(|e| {
+                            panic!("[Channeler] listen_loop() error: {:?}", e);
+                        }).map(|_| ());
+
+                    channeler.spawner.spawn(listen_loop_fut)
+                        .map_err(|_| ChannelerError::SpawnError)?;
+
+                    let listening = Listening {
+                        close_sender,
+                        access_control_sender,
+                    };
+
+                    channeler.listen_state = ListenState::Listening(listening);
+                },
+                None => {
+                    channeler.listen_state = ListenState::Idle;
+                    // Note: This should also destory the current listening task (If there is any), 
+                    // because the close_sender is being dropped.
+                },
+            }
             Ok(())
         },
         FunderToChanneler::AddFriend((public_key, opt_address)) => {
@@ -243,8 +301,10 @@ where
             channeler.friends.insert(public_key.clone(), friend);
 
             if let Some(_) = opt_address {
-                await!(channeler.access_control_sender.send(AccessControlOp::Add(public_key.clone())))
-                                .map_err(|_| ChannelerError::SendAccessControlFailed)?;
+                if let ListenState::Listening(ref mut listening) = channeler.listen_state {
+                    await!(listening.access_control_sender.send(AccessControlOp::Add(public_key.clone())))
+                                    .map_err(|_| ChannelerError::SendAccessControlFailed)?;
+                }
             }
             Ok(())
         },
@@ -254,8 +314,10 @@ where
                 None => error!("Friend {:?} does not exist! Aborting.", public_key),
                 Some(friend) => {
                     if let None = friend.opt_address {
-                        await!(channeler.access_control_sender.send(AccessControlOp::Remove(public_key)))
-                                        .map_err(|_| ChannelerError::SendAccessControlFailed)?;
+                        if let ListenState::Listening(listening) = &mut channeler.listen_state {
+                            await!(listening.access_control_sender.send(AccessControlOp::Remove(public_key)))
+                                            .map_err(|_| ChannelerError::SendAccessControlFailed)?;
+                        }
                     }
                 }
             }
@@ -264,7 +326,8 @@ where
     }
 }
 
-async fn inner_channeler_loop<FF,TF,C,A,R,S>(address: A,
+#[allow(unused)]
+async fn channeler_loop<FF,TF,C,A,R,S>(
                         from_funder: FF, 
                         to_funder: TF,
                         conn_timeout_ticks: usize,
@@ -284,69 +347,40 @@ where
     S: Spawn + Clone + Send + Sync + 'static,
 {
 
-    let (addresses_sender, addresses_receiver) = mpsc::channel(0);
-    let (access_control_sender, access_control_receiver) = mpsc::channel(0);
     let (friend_event_sender, friend_event_receiver) = mpsc::channel::<FriendEvent>(0);
-    let (connection_established_sender, connection_established_receiver) = mpsc::channel(0);
+    let (connections_sender, connections_receiver) = mpsc::channel::<(PublicKey, ConnPair<Vec<u8>,Vec<u8>>)>(0);
 
     let mut channeler = Channeler::new(connector, 
                                        to_funder,
                                        timer_client,
+                                       conn_timeout_ticks,
                                        keepalive_ticks,
                                        backoff_ticks,
                                        identity_client.clone(),
                                        rng.clone(),
                                        spawner,
-                                       addresses_sender, 
-                                       access_control_sender,
                                        friend_event_sender,
-                                       connection_established_sender);
+                                       connections_sender);
 
-    let (connections_sender, connections_receiver) = mpsc::channel::<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>(0);
-
-
-    let listen_loop_fut = listen_loop(channeler.connector.clone(),
-                      address,
-                      addresses_receiver,
-                      access_control_receiver,
-                      connections_sender,
-                      conn_timeout_ticks,
-                      channeler.keepalive_ticks,
-                      channeler.backoff_ticks,
-                      channeler.timer_client.clone(),
-                      identity_client,
-                      rng,
-                      channeler.spawner.clone())
-        .map_err(|e| {
-            panic!("[Channeler] listen_loop() error: {:?}", e);
-        }).map(|_| ());
-
-    channeler.spawner.spawn(listen_loop_fut)
-        .map_err(|_| ChannelerError::SpawnError)?;
 
     let from_funder = from_funder
         .map(|funder_to_channeler| ChannelerEvent::FromFunder(funder_to_channeler));
 
-    let connections_receiver = connections_receiver
-        .map(|incoming_conn| ChannelerEvent::IncomingConnection::<A>(incoming_conn));
-
     let friend_event_receiver = friend_event_receiver
         .map(|friend_event| ChannelerEvent::FriendEvent(friend_event));
 
-    let connection_established_receiver = connection_established_receiver
-        .map(|(public_key, conn_pair)| ChannelerEvent::ConnectionEstablished((public_key, conn_pair)));
+    let connections_receiver = connections_receiver
+        .map(|(public_key, conn_pair)| ChannelerEvent::Connection((public_key, conn_pair)));
 
     let mut events = from_funder
-        .select(connections_receiver)
         .select(friend_event_receiver)
-        .select(connection_established_receiver);
+        .select(connections_receiver);
 
     while let Some(event) = await!(events.next()) {
         match event {
             ChannelerEvent::FromFunder(funder_to_channeler) => 
                 await!(handle_from_funder(&mut channeler, funder_to_channeler))?,
-            ChannelerEvent::IncomingConnection((public_key, conn_pair)) |
-            ChannelerEvent::ConnectionEstablished((public_key, conn_pair)) => { 
+            ChannelerEvent::Connection((public_key, conn_pair)) => { 
                 let ConnPair {sender, receiver} = conn_pair;
 
                 // We use an overwrite channel to make sure we are never stuck on trying to send a

@@ -18,8 +18,9 @@ use crate::types::AddFriend;
 #[derive(Clone, Serialize, Deserialize)]
 pub struct FunderState<A:Clone> {
     pub local_public_key: PublicKey,
-    /// Address of relay we are going to connect to:
-    pub address: A,
+    /// Address of relay we are going to connect to.
+    /// None means that no address was configured.
+    pub opt_address: Option<A>,
     pub friends: ImHashMap<PublicKey, FriendState<A>>,
     pub ready_receipts: ImHashMap<Uid, SendFundsReceipt>,
 }
@@ -27,7 +28,7 @@ pub struct FunderState<A:Clone> {
 #[derive(Debug)]
 pub enum FunderMutation<A> {
     FriendMutation((PublicKey, FriendMutation<A>)),
-    SetAddress(A),
+    SetAddress(Option<A>),
     AddFriend(AddFriend<A>), 
     RemoveFriend(PublicKey),
     AddReceipt((Uid, SendFundsReceipt)),  //(request_id, receipt)
@@ -37,10 +38,10 @@ pub enum FunderMutation<A> {
 
 #[allow(unused)]
 impl<A:Clone + 'static> FunderState<A> {
-    pub fn new(local_public_key: &PublicKey, address: &A) -> FunderState<A> {
+    pub fn new(local_public_key: &PublicKey, opt_address: Option<&A>) -> FunderState<A> {
         FunderState {
             local_public_key: local_public_key.clone(),
-            address: address.clone(),
+            opt_address: opt_address.cloned(),
             friends: ImHashMap::new(),
             ready_receipts: ImHashMap::new(),
         }
@@ -113,8 +114,8 @@ impl<A:Clone + 'static> FunderState<A> {
                 let friend = self.friends.get_mut(&public_key).unwrap();
                 friend.mutate(friend_mutation);
             },
-            FunderMutation::SetAddress(address) => {
-                self.address = address.clone();
+            FunderMutation::SetAddress(opt_address) => {
+                self.opt_address = opt_address.clone();
             }
             FunderMutation::AddFriend(add_friend) => {
                 let friend = FriendState::new(&self.local_public_key,

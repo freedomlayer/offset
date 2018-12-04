@@ -22,6 +22,7 @@ pub enum ClientConnectorError {
 
 /// ClientConnector is an end-to-end connector to a remote node.
 /// It relies on a given connector C to a relay.
+#[derive(Clone)]
 pub struct ClientConnector<C,S> {
     connector: C,
     spawner: S,

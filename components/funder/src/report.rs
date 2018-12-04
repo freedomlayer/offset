@@ -75,7 +75,7 @@ pub struct FriendReport<A> {
 #[derive(Debug)]
 pub struct FunderReport<A: Clone> {
     pub local_public_key: PublicKey,
-    pub address: A,
+    pub opt_address: Option<A>,
     pub friends: ImHashMap<PublicKey, FriendReport<A>>,
     pub num_ready_receipts: u64,
 }
@@ -115,7 +115,7 @@ pub enum ReportMutateError {
 #[allow(unused)]
 #[derive(Debug)]
 pub enum FunderReportMutation<A> {
-    SetAddress(A),
+    SetAddress(Option<A>),
     AddFriend(AddFriendReport<A>),
     RemoveFriend(PublicKey),
     FriendReportMutation((PublicKey, FriendReportMutation<A>)),
@@ -190,7 +190,7 @@ pub fn create_report<A: Clone>(funder_state: &FunderState<A>, ephemeral: &Epheme
 
     FunderReport {
         local_public_key: funder_state.local_public_key.clone(),
-        address: funder_state.address.clone(),
+        opt_address: funder_state.opt_address.clone(),
         friends,
         num_ready_receipts: usize_to_u64(funder_state.ready_receipts.len()).unwrap(),
     }
@@ -278,8 +278,8 @@ pub fn funder_mutation_to_report_mutations<A: Clone + 'static>(funder_mutation: 
                      FunderReportMutation::FriendReportMutation((public_key.clone(), friend_report_mutation)))
                 .collect::<Vec<_>>()
         },
-        FunderMutation::SetAddress(address) => {
-            vec![FunderReportMutation::SetAddress(address.clone())]
+        FunderMutation::SetAddress(opt_address) => {
+            vec![FunderReportMutation::SetAddress(opt_address.clone())]
         },
         FunderMutation::AddFriend(add_friend) => {
             let friend_after = funder_state_after.friends.get(&add_friend.friend_public_key).unwrap();
@@ -376,8 +376,8 @@ impl<A: Clone> FunderReport<A> {
     #[allow(unused)]
     pub fn mutate(&mut self, mutation: &FunderReportMutation<A>) -> Result<(), ReportMutateError> {
         match mutation {
-            FunderReportMutation::SetAddress(address) => {
-                self.address = address.clone();
+            FunderReportMutation::SetAddress(opt_address) => {
+                self.opt_address = opt_address.clone();
                 Ok(())
             },
             FunderReportMutation::AddFriend(add_friend_report) => {

@@ -16,7 +16,8 @@ pub enum FunderToChanneler<A> {
     /// Send a message to a friend
     Message((PublicKey, Vec<u8>)), // (friend_public_key, message)
     /// Set address for relay used by local node
-    SetAddress(A), 
+    /// None means that no address is configured.
+    SetAddress(Option<A>), 
     /// Request to add a new friend
     AddFriend((PublicKey, Option<A>)), // (friend_public_key, address)
     /// Request to remove a friend

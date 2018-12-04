@@ -139,12 +139,12 @@ where
         self.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
     }
 
-    fn control_set_address(&mut self, address: A) {
-        let m_mutation = FunderMutation::SetAddress(address.clone());
+    fn control_set_address(&mut self, opt_address: Option<A>) {
+        let m_mutation = FunderMutation::SetAddress(opt_address.clone());
         self.apply_funder_mutation(m_mutation);
 
         // Notify Channeler about relay address change:
-        let channeler_config = ChannelerConfig::SetAddress(address.clone());
+        let channeler_config = ChannelerConfig::SetAddress(opt_address.clone());
         self.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
     }
 
@@ -405,8 +405,8 @@ where
             FunderIncomingControl::ResetFriendChannel(reset_friend_channel) => {
                 await!(self.control_reset_friend_channel(reset_friend_channel))?;
             },
-            FunderIncomingControl::SetAddress(address) => {
-                self.control_set_address(address);
+            FunderIncomingControl::SetAddress(opt_address) => {
+                self.control_set_address(opt_address);
             },
             FunderIncomingControl::AddFriend(add_friend) => {
                 self.control_add_friend(add_friend);
