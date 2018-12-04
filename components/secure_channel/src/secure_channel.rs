@@ -185,18 +185,20 @@ where
 }
 
 
-pub async fn create_secure_channel<EK: 'static, M: 'static,K: 'static,R: CryptoRandom + 'static>(reader: M, writer: K, 
+pub async fn create_secure_channel<EK,M,K,R,S>(reader: M, writer: K, 
                               identity_client: IdentityClient,
                               opt_expected_remote: Option<PublicKey>,
                               rng: R,
                               timer_client: TimerClient,
                               ticks_to_rekey: usize,
-                              mut spawner: impl Spawn)
+                              mut spawner: S)
     -> Result<SecureChannel, SecureChannelError>
 where
-    R: CryptoRandom,
-    M: Stream<Item=Vec<u8>> + std::marker::Unpin + std::marker::Send,
-    K: Sink<SinkItem=Vec<u8>, SinkError=EK> + std::marker::Unpin + std::marker::Send,
+    EK: 'static,
+    M: Stream<Item=Vec<u8>> + std::marker::Unpin + std::marker::Send + 'static,
+    K: Sink<SinkItem=Vec<u8>, SinkError=EK> + std::marker::Unpin + std::marker::Send + 'static,
+    R: CryptoRandom + 'static,
+    S: Spawn,
 {
 
     let (dh_state, reader, writer) = await!(initial_exchange(
