@@ -24,7 +24,11 @@ pub enum SendMode {
 
 
 
-impl<A: Clone + Debug + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
+impl<A,R> MutableFunderHandler<A,R> 
+where
+    A: Clone + Debug + PartialEq + Eq + 'static,
+    R: CryptoRandom,
+{
     /// Queue as many messages as possible into available token channel.
     fn queue_outgoing_operations(&mut self,
                            remote_public_key: &PublicKey,

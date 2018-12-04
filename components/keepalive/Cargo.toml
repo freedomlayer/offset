@@ -1,5 +1,5 @@
 [package]
-name = "offst-relay"
+name = "offst-keepalive"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 
@@ -11,7 +11,6 @@ utils = { path = "../utils", version = "0.1.0", package = "offst-utils" }
 crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
 timer = { path = "../timer", version = "0.1.0" , package = "offst-timer" }
 proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
-keepalive = { path = "../keepalive", version = "0.1.0" , package = "offst-keepalive" }
 
 log = "0.4"
 futures-preview = "0.3.0-alpha.10"

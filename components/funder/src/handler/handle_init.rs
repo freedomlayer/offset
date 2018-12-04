@@ -9,7 +9,11 @@ use crate::report::create_report;
 
 
 #[allow(unused)]
-impl<A: Clone + Debug + 'static, R: CryptoRandom> MutableFunderHandler<A,R> {
+impl<A,R> MutableFunderHandler<A,R> 
+where
+    A: Clone + Debug + PartialEq + Eq + 'static,
+    R: CryptoRandom,
+{
 
     pub fn handle_init(&mut self) {
         let mut enabled_friends = Vec::new();

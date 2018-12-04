@@ -10,11 +10,7 @@ edition = "2018"
 utils = { path = "../utils", version = "0.1.0", package = "offst-utils"}
 crypto = { path = "../crypto", version = "0.1.0" , package = "offst-crypto"}
 
-# futures = "0.1.25"
-# tokio-core = "0.1"
-# futures-await = "0.1"
-# futures-preview = "0.3.0-alpha.9"
-futures-preview = { git = "https://github.com/rust-lang-nursery/futures-rs", rev = "5d87cce202" }
+futures-preview = "0.3.0-alpha.10"
 
 [dev-dependencies]
 

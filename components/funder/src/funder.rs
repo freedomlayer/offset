@@ -47,7 +47,7 @@ pub async fn inner_funder_loop<A, R, D, E>(
     mut opt_event_sender: Option<mpsc::Sender<FunderEvent<A>>>) -> Result<(), FunderError<E>> 
 
 where
-    A: Serialize + DeserializeOwned + Send + Sync + Clone + Debug + 'static,
+    A: Serialize + DeserializeOwned + Send + Sync + Clone + Debug + PartialEq + Eq + 'static,
     R: CryptoRandom + 'static,
     D: AtomicDb<State=FunderState<A>, Mutation=FunderMutation<A>, Error=E> + Send + 'static,
     E: Send + 'static,
@@ -141,7 +141,7 @@ pub async fn funder_loop<A,R,D,E>(
     comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
     atomic_db: D) -> Result<(), FunderError<E>> 
 where
-    A: Serialize + DeserializeOwned + Send + Sync + Clone + Debug + 'static,
+    A: Serialize + DeserializeOwned + Send + Sync + Clone + Debug + PartialEq + Eq + 'static,
     R: CryptoRandom + 'static,
     D: AtomicDb<State=FunderState<A>, Mutation=FunderMutation<A>, Error=E> + Send + 'static,
     E: Send + 'static,

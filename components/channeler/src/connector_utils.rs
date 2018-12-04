@@ -1,14 +1,10 @@
-use core::pin::Pin;
-
-use futures::{Future, FutureExt};
 use futures::task::Spawn;
-use futures::future;
 
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
 use timer::TimerClient;
 use identity::IdentityClient;
-use relay::client::connector::{Connector, ConnPair};
+use relay::client::connector::{BoxFuture, Connector, ConnPair};
 use secure_channel::create_secure_channel;
 
 /// A wrapper for a connector.
@@ -38,8 +34,8 @@ where
     type SendItem = C::SendItem;
     type RecvItem = C::RecvItem;
 
-    fn connect<'a>(&'a mut self, address: ())
-        -> Pin<Box<dyn Future<Output=Option<ConnPair<C::SendItem, C::RecvItem>>> + Send + 'a>> {
+    fn connect(&mut self, _address: ()) 
+        -> BoxFuture<'_, Option<ConnPair<C::SendItem, C::RecvItem>>> {
         self.connector.connect(self.address.clone())
     }
 }
@@ -89,14 +85,14 @@ where
     type SendItem = Vec<u8>;
     type RecvItem = Vec<u8>;
 
-    fn connect<'a>(&'a mut self, full_address: (PublicKey, A))
-        -> Pin<Box<dyn Future<Output=Option<ConnPair<C::SendItem, C::RecvItem>>> + Send + 'a>> {
+    fn connect(&mut self, full_address: (PublicKey, A))
+        -> BoxFuture<'_, Option<ConnPair<C::SendItem, C::RecvItem>>> {
 
         let (public_key, address) = full_address;
         let fut = async move {
             let conn_pair = await!(self.connector.connect(address))?;
-            let secure_channel = await!(create_secure_channel(
-                                      conn_pair.receiver, conn_pair.sender, 
+            let (sender, receiver) = await!(create_secure_channel(
+                                      conn_pair.sender, conn_pair.receiver, 
                                       self.identity_client.clone(),
                                       Some(public_key.clone()),
                                       self.rng.clone(),
@@ -104,10 +100,7 @@ where
                                       self.ticks_to_rekey,
                                       self.spawner.clone()))
                                     .ok()?;
-            Some(ConnPair {
-                sender: secure_channel.sender,
-                receiver: secure_channel.receiver,
-            })
+            Some(ConnPair { sender, receiver })
         };
         Box::pinned(fut)
     }

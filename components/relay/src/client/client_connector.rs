@@ -1,17 +1,16 @@
-use core::pin::Pin;
 use crypto::identity::PublicKey;
-use futures::{future, Future, FutureExt, TryFutureExt, StreamExt, SinkExt};
+use futures::{future, FutureExt, TryFutureExt, StreamExt, SinkExt};
 use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
 
+use keepalive::keepalive_channel;
+
 use proto::relay::messages::{InitConnection};
-use proto::relay::serialize::{serialize_init_connection, serialize_tunnel_message,
-    deserialize_tunnel_message};
+use proto::relay::serialize::serialize_init_connection;
 
 use timer::TimerClient;
 
-use super::client_tunnel::client_tunnel;
-use super::connector::{Connector, ConnPair};
+use super::connector::{BoxFuture, Connector, ConnPair};
 
 #[derive(Debug)]
 pub enum ClientConnectorError {
@@ -21,6 +20,8 @@ pub enum ClientConnectorError {
     SpawnClientTunnelError,
 }
 
+/// ClientConnector is an end-to-end connector to a remote node.
+/// It relies on a given connector C to a relay.
 pub struct ClientConnector<C,S> {
     connector: C,
     spawner: S,
@@ -56,38 +57,18 @@ where
 
         let ConnPair {sender, receiver} = conn_pair;
 
-        // Deserialize receiver's messages:
-        let from_tunnel_receiver = receiver.map(|vec| {
-            deserialize_tunnel_message(&vec).ok()
-        }).take_while(|opt_tunnel_message| {
-            future::ready(opt_tunnel_message.is_some())
-        }).map(|opt| opt.unwrap());
-
-        // Serialize sender's messages:
-        let to_tunnel_sender = sender
-            .sink_map_err(|_| ())
-            .with(|tunnel_message| -> future::Ready<Result<Vec<u8>, ()>> {
-                future::ready(Ok(serialize_tunnel_message(&tunnel_message)))
-            });
-
-        let (user_from_tunnel_sender, user_from_tunnel) = mpsc::channel(0);
-        let (user_to_tunnel, user_to_tunnel_receiver) = mpsc::channel(0);
+        let from_tunnel_receiver = receiver;
+        let to_tunnel_sender = sender;
 
         let mut c_timer_client = self.timer_client.clone();
         let timer_stream = await!(c_timer_client.request_timer_stream())
             .map_err(|_| ClientConnectorError::RequestTimerStreamError)?;
 
-        let client_tunnel = client_tunnel(to_tunnel_sender, from_tunnel_receiver,
-                                          user_from_tunnel_sender, user_to_tunnel_receiver,
-                                          timer_stream,
-                                          self.keepalive_ticks)
-            .map_err(|e| {
-                error!("client_tunnel error: {:?}", e);
-            }).then(|_| future::ready(()));
-
-        let mut c_spawner = self.spawner.clone();
-        c_spawner.spawn(client_tunnel)
-            .map_err(|_| ClientConnectorError::SpawnClientTunnelError)?;
+        let (user_to_tunnel, user_from_tunnel) = 
+            keepalive_channel(to_tunnel_sender, from_tunnel_receiver,
+                          timer_stream,
+                          self.keepalive_ticks,
+                          self.spawner.clone());
 
         Ok(ConnPair {
             sender: user_to_tunnel,
@@ -106,8 +87,8 @@ where
     type SendItem = Vec<u8>;
     type RecvItem = Vec<u8>;
 
-    fn connect<'a>(&'a mut self, address: (A, PublicKey)) 
-        -> Pin<Box<dyn Future<Output=Option<ConnPair<Self::SendItem, Self::RecvItem>>> + Send + 'a>> {
+    fn connect(&mut self, address: (A, PublicKey)) 
+        -> BoxFuture<'_, Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
 
         let (relay_address, remote_public_key) = address;
         let relay_connect = self.relay_connect(relay_address, remote_public_key)
@@ -126,7 +107,9 @@ mod tests {
     use timer::{create_timer_incoming};
     use crypto::identity::{PUBLIC_KEY_LEN};
     use proto::relay::serialize::deserialize_init_connection;
-    use proto::relay::messages::TunnelMessage;
+    use proto::keepalive::messages::KaMessage;
+    use proto::keepalive::serialize::serialize_ka_message;
+
     use super::super::test_utils::DummyConnector;
 
 
@@ -174,9 +157,11 @@ mod tests {
         };
 
         // local receiver should not be able to see keepalive messages:
-        await!(relay_sender.send(serialize_tunnel_message(&TunnelMessage::KeepAlive))).unwrap();
+        let ka_message = KaMessage::KeepAlive;
+        await!(relay_sender.send(serialize_ka_message(&ka_message))).unwrap();
 
-        await!(relay_sender.send(serialize_tunnel_message(&TunnelMessage::Message(vec![1,2,3])))).unwrap();
+        let ka_message = KaMessage::Message(vec![1,2,3]);
+        await!(relay_sender.send(serialize_ka_message(&ka_message))).unwrap();
         let vec = await!(conn_pair.receiver.next()).unwrap();
         assert_eq!(vec, vec![1,2,3]);
     }

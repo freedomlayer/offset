@@ -88,7 +88,11 @@ pub async fn get_reset_terms(token_channel: &TokenChannel,
 
 
 #[allow(unused)]
-impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
+impl<A,R> MutableFunderHandler<A,R> 
+where
+    A: Clone + Debug + Eq + PartialEq + 'static,
+    R: CryptoRandom + 'static,
+{
 
     /// Check if channel reset is required (Remove side used the RESET token)
     /// If so, reset the channel.

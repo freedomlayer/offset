@@ -4,22 +4,19 @@ use futures::{future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, 
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 
+use keepalive::keepalive_channel;
+
 use timer::{TimerTick, TimerClient};
 use crypto::identity::PublicKey;
 use utils::futures_compat::send_to_sink;
 
-use proto::relay::messages::{TunnelMessage, RelayListenIn, 
-    RelayListenOut, RejectConnection, IncomingConnection};
+use proto::relay::messages::{RejectConnection, IncomingConnection};
 
 use self::types::{IncomingConn, IncomingConnInner, 
     IncomingAccept};
 
-use self::listener::listener_keepalive;
-use self::tunnel::tunnel_loop;
 
 mod types;
-mod listener;
-mod tunnel;
 mod conn_limiter;
 
 #[allow(unused)]
@@ -93,10 +90,10 @@ fn handle_accept<MT,KT,MA,KA,TCL,TS>(listeners: &mut HashMap<PublicKey, Listener
                             keepalive_ticks: usize,
                             mut spawner: impl Spawn) -> Result<(), RelayServerError>
 where
-    MT: Stream<Item=TunnelMessage> + Unpin + Send + 'static,
-    KT: Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin + Send + 'static,
-    MA: Stream<Item=TunnelMessage> + Unpin + Send + 'static,
-    KA: Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin + Send + 'static,
+    MT: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
+    KT: Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin + Send + 'static,
+    MA: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
+    KA: Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin + Send + 'static,
     TCL: Sink<SinkItem=TunnelClosed, SinkError=()> + Unpin + Send + 'static,
     TS: Stream<Item=TimerTick> + Unpin + Send + 'static,
 {
@@ -104,31 +101,38 @@ where
         Some(listener) => listener,
         None => return Err(RelayServerError::ListeningNotInProgress),
     };
-    let IncomingAccept {receiver, sender, accept_public_key} = incoming_accept;
-    let conn_pair = 
+    let IncomingAccept {mut receiver, mut sender, accept_public_key} = incoming_accept;
+    let mut conn_pair = 
         match listener.half_tunnels.remove(&accept_public_key) {
             Some(HalfTunnel {conn_pair, ..}) => conn_pair,
             None => return Err(RelayServerError::NoPendingHalfTunnel),
         };
     let c_accept_public_key = accept_public_key.clone();
-    let tunnel_fut = tunnel_loop(conn_pair.receiver, conn_pair.sender,
-                receiver, sender,
-                timer_stream,
-                keepalive_ticks)
-    .map_err(|e| {
-        error!("tunnel_loop() error: {:?}", e);
-        ()
-    })
-    .then(move |_| {
-        let tunnel_closed = TunnelClosed {
-            init_public_key: c_accept_public_key,
-            listen_public_key: acceptor_public_key,
-        };
-        send_to_sink(tunnel_closed_sender, tunnel_closed)
-            .then(|_| future::ready(()))
-    });
-    listener.tunnels.insert(accept_public_key);
-    spawner.spawn(tunnel_fut).unwrap();
+
+    let ConnPair {sender: mut remote_sender, 
+        receiver: mut remote_receiver} = conn_pair;
+
+    let send_fut1 = async move {
+        await!(remote_sender.send_all(&mut receiver)
+            .map_err(|e| error!("send_fut1 error: {:?}", e))
+            .then(|_| future::ready(())))
+    };
+    let send_fut2 = async move {
+        await!(sender.send_all(&mut remote_receiver)
+            .map_err(|e| error!("send_fut2 error: {:?}", e))
+            .then(move |_| {
+                let tunnel_closed = TunnelClosed {
+                    init_public_key: c_accept_public_key,
+                    listen_public_key: acceptor_public_key,
+                };
+                send_to_sink(tunnel_closed_sender, tunnel_closed)
+                    .then(|_| future::ready(()))
+            }))
+    };
+
+    spawner.spawn(send_fut1).unwrap();
+    spawner.spawn(send_fut2).unwrap();
+
     Ok(())
 }
 
@@ -138,12 +142,12 @@ pub async fn relay_server<ML,KL,MA,KA,MC,KC,S>(mut timer_client: TimerClient,
                 keepalive_ticks: usize,
                 mut spawner: impl Spawn + Clone) -> Result<(), RelayServerError> 
 where
-    ML: Stream<Item=RelayListenIn> + Unpin + Send + 'static,
-    KL: Sink<SinkItem=RelayListenOut,SinkError=()> + Unpin + Send + 'static,
-    MA: Stream<Item=TunnelMessage> + Unpin + Send + 'static,
-    KA: Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin + Send + 'static, 
-    MC: Stream<Item=TunnelMessage> + Unpin + Send + 'static,
-    KC: Sink<SinkItem=TunnelMessage,SinkError=()> + Unpin + Send + 'static,
+    ML: Stream<Item=RejectConnection> + Unpin + Send + 'static,
+    KL: Sink<SinkItem=IncomingConnection,SinkError=()> + Unpin + Send + 'static,
+    MA: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
+    KA: Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin + Send + 'static, 
+    MC: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
+    KC: Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin + Send + 'static,
     S: Stream<Item=IncomingConn<ML,KL,MA,KA,MC,KC>> + Unpin,
 {
 
@@ -181,11 +185,9 @@ where
                         }
                         let timer_stream = await!(c_timer_client.request_timer_stream())
                             .map_err(|_| RelayServerError::RequestTimerStreamError)?;
-                        let (receiver, sender) = listener_keepalive(incoming_listen.receiver,
-                                              incoming_listen.sender,
-                                              timer_stream,
-                                              keepalive_ticks,
-                                              spawner.clone());
+
+                        let sender = incoming_listen.sender;
+                        let receiver = incoming_listen.receiver;
                         
                         // Change the sender to be an mpsc::Sender, so that we can use the
                         // try_send() function.
@@ -244,7 +246,7 @@ where
                         };
                         if let Some(sender) = &mut listener.opt_sender {
                             // Try to send a message to listener about new pending connection:
-                            if let Ok(()) = sender.try_send(IncomingConnection(public_key.clone())) {
+                            if let Ok(()) = sender.try_send(IncomingConnection {public_key: public_key.clone() }) {
                                 listener.half_tunnels.insert(public_key.clone(), half_tunnel);
                             }
                         }
@@ -262,7 +264,7 @@ where
                     listeners.remove(&tunnel_closed.listen_public_key);
                 }
             },
-            RelayServerEvent::ListenerMessage((public_key, RejectConnection(rejected_public_key))) => {
+            RelayServerEvent::ListenerMessage((public_key, RejectConnection {public_key: rejected_public_key} )) => {
                 let listener = match listeners.get_mut(&public_key) {
                     Some(listener) => listener,
                     None => continue,
@@ -341,10 +343,10 @@ mod tests {
          * a_ac | --> c_ac | c_bc <-- | b_bc
         */
 
-        let (a_ac, c_ac) = mpsc::channel::<RelayListenIn>(0);
-        let (c_ca, mut a_ca) = mpsc::channel::<RelayListenOut>(0);
-        let (mut b_bc, c_bc) = mpsc::channel::<TunnelMessage>(0);
-        let (c_cb, mut b_cb) = mpsc::channel::<TunnelMessage>(0);
+        let (a_ac, c_ac) = mpsc::channel::<RejectConnection>(0);
+        let (c_ca, mut a_ca) = mpsc::channel::<IncomingConnection>(0);
+        let (mut b_bc, c_bc) = mpsc::channel::<Vec<u8>>(0);
+        let (c_cb, mut b_cb) = mpsc::channel::<Vec<u8>>(0);
 
         let a_public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
         let b_public_key = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
@@ -373,12 +375,11 @@ mod tests {
         await!(outgoing_conns.send(incoming_conn_b)).unwrap();
 
         let msg = await!(a_ca.next()).unwrap();
-        assert_eq!(msg, RelayListenOut::IncomingConnection(
-                IncomingConnection(b_public_key.clone())));
+        assert_eq!(msg, IncomingConnection { public_key: b_public_key.clone() });
 
         // Open a new connection to Accept:
-        let (mut a_ac1, c_ac1) = mpsc::channel::<TunnelMessage>(0);
-        let (c_ca1, mut a_ca1) = mpsc::channel::<TunnelMessage>(0);
+        let (mut a_ac1, c_ac1) = mpsc::channel::<Vec<u8>>(0);
+        let (c_ca1, mut a_ca1) = mpsc::channel::<Vec<u8>>(0);
 
         let incoming_accept_a = IncomingAccept {
             receiver: c_ac1,
@@ -392,13 +393,13 @@ mod tests {
 
         let _outgoing_conns = await!(outgoing_conns.send(incoming_conn_accept_a)).unwrap();
 
-        await!(a_ac1.send(TunnelMessage::Message(vec![1,2,3]))).unwrap();
+        await!(a_ac1.send(vec![1,2,3])).unwrap();
         let msg = await!(b_cb.next()).unwrap();
-        assert_eq!(msg, TunnelMessage::Message(vec![1,2,3]));
+        assert_eq!(msg, vec![1,2,3]);
 
-        await!(b_bc.send(TunnelMessage::Message(vec![4,3,2,1]))).unwrap();
+        await!(b_bc.send(vec![4,3,2,1])).unwrap();
         let msg = await!(a_ca1.next()).unwrap();
-        assert_eq!(msg, TunnelMessage::Message(vec![4,3,2,1]));
+        assert_eq!(msg, vec![4,3,2,1]);
 
         // If one side's sender is dropped, the other side's receiver will be notified:
         drop(b_bc);
@@ -449,10 +450,10 @@ mod tests {
          * a_ac | --> c_ac | c_bc <-- | b_bc
         */
 
-        let (mut a_ac, c_ac) = mpsc::channel::<RelayListenIn>(0);
-        let (c_ca, mut a_ca) = mpsc::channel::<RelayListenOut>(0);
-        let (b_bc, c_bc) = mpsc::channel::<TunnelMessage>(0);
-        let (c_cb, mut b_cb) = mpsc::channel::<TunnelMessage>(0);
+        let (mut a_ac, c_ac) = mpsc::channel::<RejectConnection>(0);
+        let (c_ca, mut a_ca) = mpsc::channel::<IncomingConnection>(0);
+        let (b_bc, c_bc) = mpsc::channel::<Vec<u8>>(0);
+        let (c_cb, mut b_cb) = mpsc::channel::<Vec<u8>>(0);
 
         let a_public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
         let b_public_key = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
@@ -481,15 +482,14 @@ mod tests {
         await!(outgoing_conns.send(incoming_conn_b)).unwrap();
 
         let msg = await!(a_ca.next()).unwrap();
-        assert_eq!(msg, RelayListenOut::IncomingConnection(
-                IncomingConnection(b_public_key.clone())));
+        assert_eq!(msg, IncomingConnection { public_key: b_public_key.clone() });
 
         // This is done to help the compiler deduce the types for 
         // IncomingConn:
         if false {
             // Open a new connection to Accept:
-            let (_a_ac1, c_ac1) = mpsc::channel::<TunnelMessage>(0);
-            let (c_ca1, _a_ca1) = mpsc::channel::<TunnelMessage>(0);
+            let (_a_ac1, c_ac1) = mpsc::channel::<Vec<u8>>(0);
+            let (c_ca1, _a_ca1) = mpsc::channel::<Vec<u8>>(0);
 
             let incoming_accept_a = IncomingAccept {
                 receiver: c_ac1,
@@ -504,8 +504,7 @@ mod tests {
         }
 
         // A rejects B's connection:
-        let reject_connection = RelayListenIn::RejectConnection(
-            RejectConnection(b_public_key));
+        let reject_connection = RejectConnection { public_key: b_public_key };
         await!(a_ac.send(reject_connection)).unwrap();
 
         // B should be notified that the connection is closed:

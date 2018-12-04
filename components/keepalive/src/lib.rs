@@ -2,14 +2,15 @@
 #![feature(futures_api, pin, async_await, await_macro, arbitrary_self_types)]
 #![feature(nll)]
 #![feature(try_from)]
+#![feature(generators)]
 #![feature(never_type)]
 #![feature(dbg_macro)]
 
 #[macro_use]
 extern crate log;
 
-mod timer;
-pub mod utils;
+mod keepalive;
 
-pub use self::timer::{TimerTick, TimerClient, 
-    create_timer_incoming, create_timer};
+pub use self::keepalive::keepalive_channel;
+
+

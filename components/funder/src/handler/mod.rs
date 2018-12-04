@@ -56,7 +56,10 @@ pub struct MutableFunderHandler<A:Clone,R> {
     // responses_received: Vec<ResponseReceived>,
 }
 
-impl<A:Clone + Debug + 'static,R> MutableFunderHandler<A,R> {
+impl<A,R> MutableFunderHandler<A,R> 
+where
+    A: Clone + Debug + PartialEq + Eq + 'static,
+{
     /*
     pub fn state(&self) -> &FunderState<A> {
         &self.state
@@ -186,13 +189,17 @@ fn gen_mutable<A:Clone + Debug, R: CryptoRandom>(identity_client: IdentityClient
     }
 }
 
-pub async fn funder_handle_message<A: Clone + Debug + 'static, R: CryptoRandom + 'static>(
+pub async fn funder_handle_message<A,R>(
                       identity_client: IdentityClient,
                       rng: R,
                       funder_state: FunderState<A>,
                       funder_ephemeral: Ephemeral,
                       funder_incoming: FunderIncoming<A>) 
-        -> Result<FunderHandlerOutput<A>, FunderHandlerError> {
+        -> Result<FunderHandlerOutput<A>, FunderHandlerError> 
+where
+    A: Clone + Debug + PartialEq + Eq + 'static,
+    R: CryptoRandom + 'static,
+{
 
     let mut mutable_handler = gen_mutable(identity_client.clone(),
                                           rng.clone(),

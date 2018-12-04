@@ -17,11 +17,6 @@ use proto::secure_channel::serialize::{serialize_exchange_rand_nonce, deserializ
 use proto::secure_channel::messages::{EncryptedData, PlainData};
 
 
-pub struct SecureChannel {
-    pub sender: mpsc::Sender<Vec<u8>>,
-    pub receiver: mpsc::Receiver<Vec<u8>>,
-}
-
 #[derive(Debug)]
 pub enum SecureChannelError {
     IdentityFailure,
@@ -40,23 +35,12 @@ pub enum SecureChannelError {
     HandleIncomingError,
 }
 
-/*
-/// Read one message from reader
-async fn read_from_reader<M: 'static>(reader: M) -> Result<(Vec<u8>, M), SecureChannelError>
-    where M: Stream<Item=Vec<u8>>,
-{
-    match await!(reader.next()) {
-        Some(reader_message) => Ok((reader_message, ret_reader)),
-        None => return Err(SecureChannelError::ReaderClosed),
-    }
-}
-*/
 
-async fn initial_exchange<EK, M: 'static,K: 'static,R: CryptoRandom + 'static>(mut reader: M, mut writer: K, 
+async fn initial_exchange<EK, M: 'static,K: 'static,R: CryptoRandom + 'static>(mut writer: K, mut reader: M,
                               identity_client: IdentityClient,
                               opt_expected_remote: Option<PublicKey>,
                               rng: R)
-                            -> Result<(ScState, M, K), SecureChannelError>
+                            -> Result<(ScState, K, M), SecureChannelError>
 where
     R: CryptoRandom,
     M: Stream<Item=Vec<u8>> + std::marker::Unpin,
@@ -100,7 +84,7 @@ where
     let dh_state = dh_state_half.handle_exchange_dh(exchange_dh)
         .map_err(SecureChannelError::HandleExchangeScStateError)?;
 
-    Ok((dh_state, reader, writer))
+    Ok((dh_state, writer, reader))
 }
 
 enum SecureChannelEvent {
@@ -114,7 +98,7 @@ enum SecureChannelEvent {
 
 async fn secure_channel_loop<EK, M: 'static,K: 'static, R: CryptoRandom + 'static>(
                               mut dh_state: ScState,
-                              reader: M, mut writer: K, 
+                              mut writer: K, reader: M, 
                               from_user: mpsc::Receiver<Vec<u8>>,
                               mut to_user: mpsc::Sender<Vec<u8>>,
                               rng: R,
@@ -185,23 +169,34 @@ where
 }
 
 
-pub async fn create_secure_channel<EK: 'static, M: 'static,K: 'static,R: CryptoRandom + 'static>(reader: M, writer: K, 
+/// Wrap an existing communication channel (writer, reader) with an encryption layer.
+/// Returns back a pair of (writer, reader) that allows to send messages using the encryption
+/// layer.
+///
+/// opt_expected_remote is the expected identity of the remote side. `None` means that any remote
+/// identity is permitted. `Some(public_key)` means that only the identity `public_key` is allowed.
+///
+/// `ticks_to_rekey` is the amount of time ticks it takes to issue a rekey, changing the symmetric
+/// key used for the encryption.
+pub async fn create_secure_channel<EK,M,K,R,S>(writer: K, reader: M,
                               identity_client: IdentityClient,
                               opt_expected_remote: Option<PublicKey>,
                               rng: R,
                               timer_client: TimerClient,
                               ticks_to_rekey: usize,
-                              mut spawner: impl Spawn)
-    -> Result<SecureChannel, SecureChannelError>
+                              mut spawner: S)
+    -> Result<(mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>), SecureChannelError>
 where
-    R: CryptoRandom,
-    M: Stream<Item=Vec<u8>> + std::marker::Unpin + std::marker::Send,
-    K: Sink<SinkItem=Vec<u8>, SinkError=EK> + std::marker::Unpin + std::marker::Send,
+    EK: 'static,
+    M: Stream<Item=Vec<u8>> + std::marker::Unpin + std::marker::Send + 'static,
+    K: Sink<SinkItem=Vec<u8>, SinkError=EK> + std::marker::Unpin + std::marker::Send + 'static,
+    R: CryptoRandom + 'static,
+    S: Spawn,
 {
 
-    let (dh_state, reader, writer) = await!(initial_exchange(
-                                                reader, 
+    let (dh_state, writer, reader) = await!(initial_exchange(
                                                 writer, 
+                                                reader, 
                                                 identity_client, 
                                                 opt_expected_remote, 
                                                 rng.clone()))?;
@@ -210,7 +205,7 @@ where
     let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(0);
 
     let sc_loop = secure_channel_loop(dh_state, 
-                                      reader, writer,
+                                      writer, reader,
                                       from_user,
                                       to_user,
                                       rng.clone(),
@@ -224,13 +219,8 @@ where
     });
     spawner.spawn(sc_loop_report_error);
 
-    Ok(SecureChannel {
-        sender: user_sender,
-        receiver: user_receiver,
-    })
+    Ok((user_sender, user_receiver))
 }
-
-// TODO: How to make SecureChannel behave like tokio's TcpStream?
 
 
 #[cfg(test)]
@@ -248,10 +238,10 @@ mod tests {
                             generate_pkcs8_key_pair};
     use identity::{create_identity, IdentityClient};
 
-    async fn secure_channel1(fut_sc: impl Future<Output=Result<SecureChannel, SecureChannelError>> + 'static,
+    async fn secure_channel1(fut_sc: impl Future<Output=Result<(mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>), SecureChannelError>> + 'static,
                        mut tick_sender: mpsc::Sender<()>,
                        output_sender: oneshot::Sender<bool>) {
-        let SecureChannel {mut sender, mut receiver} = await!(fut_sc).unwrap();
+        let (mut sender, mut receiver) = await!(fut_sc).unwrap();
         await!(sender.send(vec![0,1,2,3,4,5])).unwrap();
         let data = await!(receiver.next()).unwrap();
         assert_eq!(data, vec![5,4,3]);
@@ -265,11 +255,11 @@ mod tests {
         output_sender.send(true);
     }
 
-    async fn secure_channel2(fut_sc: impl Future<Output=Result<SecureChannel, SecureChannelError>> + 'static,
+    async fn secure_channel2(fut_sc: impl Future<Output=Result<(mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>), SecureChannelError>> + 'static,
                        tick_sender: mpsc::Sender<()>,
                        output_sender: oneshot::Sender<bool>) {
 
-        let SecureChannel {mut sender, mut receiver} = await!(fut_sc).unwrap();
+        let (mut sender, mut receiver) = await!(fut_sc).unwrap();
         let data = await!(receiver.next()).unwrap();
         assert_eq!(data, vec![0,1,2,3,4,5]);
         await!(sender.send(vec![5,4,3])).unwrap();
@@ -312,8 +302,9 @@ mod tests {
 
         let ticks_to_rekey: usize = 16;
 
-        let fut_sc1 = create_secure_channel(receiver1, 
+        let fut_sc1 = create_secure_channel(
                               sender1.sink_map_err(|_| ()),
+                              receiver1, 
                               identity_client1,
                               Some(public_key2),
                               rng1.clone(),
@@ -321,8 +312,9 @@ mod tests {
                               ticks_to_rekey,
                               thread_pool.clone());
 
-        let fut_sc2 = create_secure_channel(receiver2,
+        let fut_sc2 = create_secure_channel(
                               sender2.sink_map_err(|_| ()),
+                              receiver2,
                               identity_client2,
                               Some(public_key1),
                               rng2.clone(),

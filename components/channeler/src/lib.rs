@@ -7,7 +7,8 @@
 #![feature(dbg_macro)]
 
 mod channeler;
-mod listener;
+mod listen;
+mod connect;
 mod connector_utils;
 mod overwrite_channel;
 

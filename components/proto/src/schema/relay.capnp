@@ -17,26 +17,14 @@ struct InitConnection {
     }
 }
 
-struct RelayListenIn {
-    union {
-        keepAlive @0: Void;
-        rejectConnection @1: PublicKey;
+# Client -> Relay
+struct RejectConnection {
+        publicKey @0: PublicKey;
         # Reject incoming connection by PublicKey
-    }
 }
 
-struct RelayListenOut {
-    union {
-        keepAlive @0: Void;
-        incomingConnection @1: PublicKey;
+# Relay -> Client
+struct IncomingConnection {
+        publicKey @0: PublicKey;
         # Incoming Connection public key
-    }
 }
-
-struct TunnelMessage {
-    union {
-        keepAlive @0: Void;
-        message @1: Data;
-        # Send a message through the Tunnel
-    }
-} 

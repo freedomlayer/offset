@@ -6,34 +6,10 @@ use crate::capnp_common::{write_public_key,
 
 use relay_capnp;
 
-use super::messages::{InitConnection, RelayListenIn, 
-    RelayListenOut, TunnelMessage, RejectConnection, IncomingConnection};
+use super::messages::{InitConnection, 
+    RejectConnection, IncomingConnection};
 
-#[derive(Debug)]
-pub enum RelaySerializeError {
-    CapnpError(capnp::Error),
-    NotInSchema(capnp::NotInSchema),
-    IoError(io::Error),
-}
-
-
-impl From<capnp::Error> for RelaySerializeError {
-    fn from(e: capnp::Error) -> RelaySerializeError {
-        RelaySerializeError::CapnpError(e)
-    }
-}
-
-impl From<capnp::NotInSchema> for RelaySerializeError {
-    fn from(e: capnp::NotInSchema) -> RelaySerializeError {
-        RelaySerializeError::NotInSchema(e)
-    }
-}
-
-impl From<io::Error> for RelaySerializeError {
-    fn from(e: io::Error) -> RelaySerializeError {
-        RelaySerializeError::IoError(e)
-    }
-}
+use crate::serialize::SerializeError;
 
 pub fn serialize_init_connection(init_connection: &InitConnection) -> Vec<u8> {
     let mut builder = capnp::message::Builder::new_default();
@@ -56,7 +32,7 @@ pub fn serialize_init_connection(init_connection: &InitConnection) -> Vec<u8> {
     serialized_msg
 }
 
-pub fn deserialize_init_connection(data: &[u8]) -> Result<InitConnection, RelaySerializeError> {
+pub fn deserialize_init_connection(data: &[u8]) -> Result<InitConnection, SerializeError> {
     let mut cursor = io::Cursor::new(data);
     let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let msg = reader.get_root::<relay_capnp::init_connection::Reader>()?;
@@ -72,104 +48,49 @@ pub fn deserialize_init_connection(data: &[u8]) -> Result<InitConnection, RelayS
             let public_key = read_public_key(&(public_key?))?;
             Ok(InitConnection::Connect(public_key))
         },
-        Err(e) => Err(RelaySerializeError::NotInSchema(e)),
+        Err(e) => Err(SerializeError::NotInSchema(e)),
     }
 }
 
-pub fn serialize_relay_listen_in(relay_listen_in: &RelayListenIn) -> Vec<u8> {
+pub fn serialize_reject_connection(reject_connection: &RejectConnection) -> Vec<u8> {
     let mut builder = capnp::message::Builder::new_default();
-    let mut msg = builder.init_root::<relay_capnp::relay_listen_in::Builder>();
+    let msg = builder.init_root::<relay_capnp::reject_connection::Builder>();
 
-    match relay_listen_in {
-        RelayListenIn::KeepAlive => msg.set_keep_alive(()),
-        RelayListenIn::RejectConnection(RejectConnection(public_key)) => {
-            let mut reject_connection = msg.init_reject_connection();
-            write_public_key(&public_key, &mut reject_connection);
-        }
-    }
+    write_public_key(&reject_connection.public_key, &mut msg.init_public_key());
 
     let mut serialized_msg = Vec::new();
     serialize_packed::write_message(&mut serialized_msg, &builder).unwrap();
     serialized_msg
 }
 
-pub fn deserialize_relay_listen_in(data: &[u8]) -> Result<RelayListenIn, RelaySerializeError> {
+pub fn deserialize_reject_connection(data: &[u8]) -> Result<RejectConnection, SerializeError> {
     let mut cursor = io::Cursor::new(data);
     let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
-    let msg = reader.get_root::<relay_capnp::relay_listen_in::Reader>()?;
+    let msg = reader.get_root::<relay_capnp::reject_connection::Reader>()?;
 
-    match msg.which() {
-        Ok(relay_capnp::relay_listen_in::KeepAlive(())) => 
-           Ok(RelayListenIn::KeepAlive),
-        Ok(relay_capnp::relay_listen_in::RejectConnection(public_key)) => {
-            let public_key = read_public_key(&(public_key?))?;
-            Ok(RelayListenIn::RejectConnection(RejectConnection(public_key)))
-        },
-        Err(e) => Err(RelaySerializeError::NotInSchema(e)),
-    }
+    let public_key = read_public_key(&(msg.get_public_key()?))?;
+    Ok(RejectConnection { public_key })
 }
 
-pub fn serialize_relay_listen_out(relay_listen_out: &RelayListenOut) -> Vec<u8> {
+pub fn serialize_incoming_connection(incoming_connection: &IncomingConnection) -> Vec<u8> {
     let mut builder = capnp::message::Builder::new_default();
-    let mut msg = builder.init_root::<relay_capnp::relay_listen_out::Builder>();
+    let msg = builder.init_root::<relay_capnp::incoming_connection::Builder>();
 
-    match relay_listen_out {
-        RelayListenOut::KeepAlive => msg.set_keep_alive(()),
-        RelayListenOut::IncomingConnection(IncomingConnection(public_key)) => {
-            let mut incoming_connection = msg.init_incoming_connection();
-            write_public_key(&public_key, &mut incoming_connection);
-        }
-    }
+    write_public_key(&incoming_connection.public_key, &mut msg.init_public_key());
 
     let mut serialized_msg = Vec::new();
     serialize_packed::write_message(&mut serialized_msg, &builder).unwrap();
     serialized_msg
 }
 
-pub fn deserialize_relay_listen_out(data: &[u8]) -> Result<RelayListenOut, RelaySerializeError> {
+pub fn deserialize_incoming_connection(data: &[u8]) -> Result<IncomingConnection, SerializeError> {
     let mut cursor = io::Cursor::new(data);
     let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
-    let msg = reader.get_root::<relay_capnp::relay_listen_out::Reader>()?;
+    let msg = reader.get_root::<relay_capnp::incoming_connection::Reader>()?;
 
-    match msg.which() {
-        Ok(relay_capnp::relay_listen_out::KeepAlive(())) => 
-           Ok(RelayListenOut::KeepAlive),
-        Ok(relay_capnp::relay_listen_out::IncomingConnection(public_key)) => {
-            let public_key = read_public_key(&(public_key?))?;
-            Ok(RelayListenOut::IncomingConnection(IncomingConnection(public_key)))
-        },
-        Err(e) => Err(RelaySerializeError::NotInSchema(e)),
-    }
+    let public_key = read_public_key(&(msg.get_public_key()?))?;
+    Ok(IncomingConnection { public_key })
 }
-pub fn serialize_tunnel_message(tunnel_message: &TunnelMessage) -> Vec<u8> {
-    let mut builder = capnp::message::Builder::new_default();
-    let mut msg = builder.init_root::<relay_capnp::tunnel_message::Builder>();
-
-    match tunnel_message {
-        TunnelMessage::KeepAlive => msg.set_keep_alive(()),
-        TunnelMessage::Message(message) => msg.set_message(message),
-    }
-
-    let mut serialized_msg = Vec::new();
-    serialize_packed::write_message(&mut serialized_msg, &builder).unwrap();
-    serialized_msg
-}
-
-pub fn deserialize_tunnel_message(data: &[u8]) -> Result<TunnelMessage, RelaySerializeError> {
-    let mut cursor = io::Cursor::new(data);
-    let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
-    let msg = reader.get_root::<relay_capnp::tunnel_message::Reader>()?;
-
-    match msg.which() {
-        Ok(relay_capnp::tunnel_message::KeepAlive(())) => 
-           Ok(TunnelMessage::KeepAlive),
-        Ok(relay_capnp::tunnel_message::Message(message)) => 
-           Ok(TunnelMessage::Message(message?.to_vec())),
-        Err(e) => Err(RelaySerializeError::NotInSchema(e)),
-    }
-}
-
-
 
 #[cfg(test)]
 mod tests {
@@ -199,43 +120,20 @@ mod tests {
     }
 
     #[test]
-    fn test_serialize_relay_listen_in() {
-        let msg = RelayListenIn::KeepAlive;
-        let serialized = serialize_relay_listen_in(&msg);
-        let msg2 = deserialize_relay_listen_in(&serialized[..]).unwrap();
-        assert_eq!(msg, msg2);
-
-        let public_key = PublicKey::try_from(&[0x02u8; PUBLIC_KEY_LEN][..]).unwrap();
-        let msg = RelayListenIn::RejectConnection(RejectConnection(public_key));
-        let serialized = serialize_relay_listen_in(&msg);
-        let msg2 = deserialize_relay_listen_in(&serialized[..]).unwrap();
+    fn test_serialize_reject_connection() {
+        let public_key = PublicKey::try_from(&[0x55u8; PUBLIC_KEY_LEN][..]).unwrap();
+        let msg = RejectConnection { public_key };
+        let serialized = serialize_reject_connection(&msg);
+        let msg2 = deserialize_reject_connection(&serialized[..]).unwrap();
         assert_eq!(msg, msg2);
     }
 
     #[test]
-    fn test_serialize_relay_listen_out() {
-        let msg = RelayListenOut::KeepAlive;
-        let serialized = serialize_relay_listen_out(&msg);
-        let msg2 = deserialize_relay_listen_out(&serialized[..]).unwrap();
-        assert_eq!(msg, msg2);
-
-        let public_key = PublicKey::try_from(&[0x02u8; PUBLIC_KEY_LEN][..]).unwrap();
-        let msg = RelayListenOut::IncomingConnection(IncomingConnection(public_key));
-        let serialized = serialize_relay_listen_out(&msg);
-        let msg2 = deserialize_relay_listen_out(&serialized[..]).unwrap();
-        assert_eq!(msg, msg2);
-    }
-
-    #[test]
-    fn test_serialize_tunnel_message() {
-        let msg = TunnelMessage::KeepAlive;
-        let serialized = serialize_tunnel_message(&msg);
-        let msg2 = deserialize_tunnel_message(&serialized[..]).unwrap();
-        assert_eq!(msg, msg2);
-
-        let msg = TunnelMessage::Message(b"Hello world".to_vec());
-        let serialized = serialize_tunnel_message(&msg);
-        let msg2 = deserialize_tunnel_message(&serialized[..]).unwrap();
+    fn test_serialize_incoming_connection() {
+        let public_key = PublicKey::try_from(&[0x55u8; PUBLIC_KEY_LEN][..]).unwrap();
+        let msg = IncomingConnection { public_key };
+        let serialized = serialize_incoming_connection(&msg);
+        let msg2 = deserialize_incoming_connection(&serialized[..]).unwrap();
         assert_eq!(msg, msg2);
     }
 }

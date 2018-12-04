@@ -19,32 +19,7 @@ use super::messages::{FriendMessage, MoveTokenRequest, ResetTerms,
                     ResponseSendFunds, FailureSendFunds,
                     FriendsRoute, FreezeLink, Ratio};
 
-
-#[derive(Debug)]
-pub enum FunderDeserializeError {
-    CapnpError(capnp::Error),
-    NotInSchema(capnp::NotInSchema),
-    IoError(io::Error),
-}
-
-impl From<capnp::Error> for FunderDeserializeError {
-    fn from(e: capnp::Error) -> FunderDeserializeError {
-        FunderDeserializeError::CapnpError(e)
-    }
-}
-
-impl From<io::Error> for FunderDeserializeError {
-    fn from(e: io::Error) -> FunderDeserializeError {
-        FunderDeserializeError::IoError(e)
-    }
-}
-
-impl From<capnp::NotInSchema> for FunderDeserializeError {
-    fn from(e: capnp::NotInSchema) -> FunderDeserializeError {
-        FunderDeserializeError::NotInSchema(e)
-    }
-}
-
+use crate::serialize::SerializeError;
 
 fn ser_friends_route(friends_route: &FriendsRoute,
                      friends_route_builder: &mut funder_capnp::friends_route::Builder) {
@@ -225,7 +200,7 @@ pub fn serialize_friend_message(friend_message: &FriendMessage) -> Vec<u8> {
 // ------------ Deserialization -----------------------
 // ----------------------------------------------------
 
-fn deser_ratio128(from: &funder_capnp::ratio128::Reader) -> Result<Ratio<u128>, FunderDeserializeError> {
+fn deser_ratio128(from: &funder_capnp::ratio128::Reader) -> Result<Ratio<u128>, SerializeError> {
     match from.which()? {
         funder_capnp::ratio128::One(()) => Ok(Ratio::One),
         funder_capnp::ratio128::Numerator(numerator_reader) => {
@@ -236,7 +211,7 @@ fn deser_ratio128(from: &funder_capnp::ratio128::Reader) -> Result<Ratio<u128>, 
 }
 
 fn deser_freeze_link(freeze_link_reader: &funder_capnp::freeze_link::Reader)
-    -> Result<FreezeLink, FunderDeserializeError> {
+    -> Result<FreezeLink, SerializeError> {
 
     Ok(FreezeLink {
         shared_credits: read_custom_u_int128(&freeze_link_reader.get_shared_credits()?)?,
@@ -245,7 +220,7 @@ fn deser_freeze_link(freeze_link_reader: &funder_capnp::freeze_link::Reader)
 }
 
 fn deser_friends_route(friends_route_reader: &funder_capnp::friends_route::Reader)
-    -> Result<FriendsRoute, FunderDeserializeError> {
+    -> Result<FriendsRoute, SerializeError> {
 
     let mut public_keys = Vec::new();
     for public_key_reader in friends_route_reader.get_public_keys()? {
@@ -258,7 +233,7 @@ fn deser_friends_route(friends_route_reader: &funder_capnp::friends_route::Reade
 }
 
 fn deser_request_send_funds_op(request_send_funds_op_reader: &funder_capnp::request_send_funds_op::Reader)
-    -> Result<RequestSendFunds, FunderDeserializeError> {
+    -> Result<RequestSendFunds, SerializeError> {
 
     let mut freeze_links = Vec::new();
     for freeze_link_reader in request_send_funds_op_reader.get_freeze_links()? {
@@ -275,7 +250,7 @@ fn deser_request_send_funds_op(request_send_funds_op_reader: &funder_capnp::requ
 }
 
 fn deser_response_send_funds_op(response_send_funds_op_reader: &funder_capnp::response_send_funds_op::Reader)
-    -> Result<ResponseSendFunds, FunderDeserializeError> {
+    -> Result<ResponseSendFunds, SerializeError> {
 
     Ok(ResponseSendFunds {
         request_id: read_uid(&response_send_funds_op_reader.get_request_id()?)?,
@@ -285,7 +260,7 @@ fn deser_response_send_funds_op(response_send_funds_op_reader: &funder_capnp::re
 }
 
 fn deser_failure_send_funds_op(failure_send_funds_op_reader: &funder_capnp::failure_send_funds_op::Reader)
-    -> Result<FailureSendFunds, FunderDeserializeError> {
+    -> Result<FailureSendFunds, SerializeError> {
 
     Ok(FailureSendFunds {
         request_id: read_uid(&failure_send_funds_op_reader.get_request_id()?)?,
@@ -296,7 +271,7 @@ fn deser_failure_send_funds_op(failure_send_funds_op_reader: &funder_capnp::fail
 }
 
 fn deser_friend_operation(friend_operation_reader: &funder_capnp::friend_operation::Reader)
-    -> Result<FriendTcOp, FunderDeserializeError> {
+    -> Result<FriendTcOp, SerializeError> {
 
     Ok(match friend_operation_reader.which()? {
         funder_capnp::friend_operation::EnableRequests(()) => FriendTcOp::EnableRequests,
@@ -313,7 +288,7 @@ fn deser_friend_operation(friend_operation_reader: &funder_capnp::friend_operati
 }
 
 fn deser_move_token(move_token_reader: &funder_capnp::move_token::Reader) 
-    -> Result<MoveToken, FunderDeserializeError> {
+    -> Result<MoveToken, SerializeError> {
 
     let mut operations: Vec<FriendTcOp> = Vec::new();
     for operation_reader in move_token_reader.get_operations()? {
@@ -335,7 +310,7 @@ fn deser_move_token(move_token_reader: &funder_capnp::move_token::Reader)
 
 
 fn deser_move_token_request(move_token_request_reader: &funder_capnp::move_token_request::Reader) 
-    -> Result<MoveTokenRequest, FunderDeserializeError> {
+    -> Result<MoveTokenRequest, SerializeError> {
 
     let move_token_reader = move_token_request_reader.get_move_token()?;
     let move_token = deser_move_token(&move_token_reader)?;
@@ -347,7 +322,7 @@ fn deser_move_token_request(move_token_request_reader: &funder_capnp::move_token
 }
 
 fn deser_inconsistency_error(inconsistency_error_reader: &funder_capnp::inconsistency_error::Reader)
-    -> Result<ResetTerms, FunderDeserializeError> {
+    -> Result<ResetTerms, SerializeError> {
 
     Ok(ResetTerms {
         reset_token: read_signature(&inconsistency_error_reader.get_reset_token()?)?,
@@ -357,7 +332,7 @@ fn deser_inconsistency_error(inconsistency_error_reader: &funder_capnp::inconsis
 }
 
 fn deser_friend_message(friend_message_reader: &funder_capnp::friend_message::Reader) 
-    -> Result<FriendMessage, FunderDeserializeError> {
+    -> Result<FriendMessage, SerializeError> {
 
     Ok(match friend_message_reader.which()? {
         funder_capnp::friend_message::MoveTokenRequest(move_token_request_reader) => {
@@ -371,7 +346,7 @@ fn deser_friend_message(friend_message_reader: &funder_capnp::friend_message::Re
 
 
 /// Deserialize FriendMessage from an array of bytes
-pub fn deserialize_friend_message(data: &[u8]) -> Result<FriendMessage, FunderDeserializeError> {
+pub fn deserialize_friend_message(data: &[u8]) -> Result<FriendMessage, SerializeError> {
     let mut cursor = io::Cursor::new(data);
     let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let friend_message_reader = reader.get_root::<funder_capnp::friend_message::Reader>()?;

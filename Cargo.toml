@@ -11,4 +11,5 @@ members = [
   "components/timer",
   "components/relay",
   "components/secure_channel",
+  "components/keepalive",
 ]
