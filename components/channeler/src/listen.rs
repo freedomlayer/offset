@@ -36,6 +36,7 @@ enum ListenSelect {
     Canceled,
 }
 
+/// Distinguish between fatal and non-fatal errors
 fn convert_client_listener_result(client_listener_result: Result<(), ClientListenerError>) -> Result<(), ListenError> {
     match client_listener_result {
         Ok(()) => unreachable!(),
@@ -158,15 +159,12 @@ where
         Ok(())
     }).fuse();
 
-    // TODO: Get rid of Box::pinned() later.
     let mut close_fut = close_receiver.fuse();
 
-    // TODO: Could we possibly lose an incoming address with this select?
     let listener_select = select! {
         listener_fut = listener_fut => ListenSelect::ListenError(listener_fut.err().unwrap()),
         _close_fut = close_fut => ListenSelect::Canceled,
     };
-
 
     match listener_select {
         ListenSelect::ListenError(listener_error) => Err(listener_error),
