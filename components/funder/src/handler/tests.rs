@@ -74,9 +74,9 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
         (identity_client2, pk2, identity_client1, pk1)
     };
 
-    let mut state1 = FunderState::<u32>::new(&pk1, &1337u32);
+    let mut state1 = FunderState::<u32>::new(&pk1, Some(&1337u32));
     let mut ephemeral1 = Ephemeral::new(&state1);
-    let mut state2 = FunderState::<u32>::new(&pk2, &1338u32);
+    let mut state2 = FunderState::<u32>::new(&pk2, Some(&1338u32));
     let mut ephemeral2 = Ephemeral::new(&state2);
 
     let rng = RngContainer::new(DummyRandom::new(&[3u8]));
