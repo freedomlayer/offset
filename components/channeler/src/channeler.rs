@@ -51,6 +51,7 @@ struct FriendConnected {
 }
 
 struct FriendInitiating {
+    #[allow(unused)]
     close_sender: oneshot::Sender<()>,
 }
 
@@ -61,6 +62,7 @@ enum FriendState {
 }
 
 struct Listening {
+    #[allow(unused)]
     close_sender: oneshot::Sender<()>,
     access_control_sender: mpsc::Sender<AccessControlOp>,
 }
@@ -71,7 +73,6 @@ enum ListenState {
 }
 
 struct Channeler<A,C,TF,R,S> {
-    opt_address: Option<A>,
     friends: HashMap<PublicKey, Friend<A>>,
     listen_state: ListenState,
     connector: C,
@@ -109,7 +110,6 @@ where
         
 
         Channeler { 
-            opt_address: None,
             friends: HashMap::new(),
             listen_state: ListenState::Idle,
             connector,
@@ -132,7 +132,7 @@ where
         let mut access_control = AccessControl::new();
         for (public_key, friend) in &self.friends {
             if friend.opt_address.is_none() {
-                access_control.apply_op(AccessControlOp::Add(public_key.clone()));
+                access_control.apply_op(AccessControlOp::Add(public_key.clone())).unwrap();
             }
         }
         access_control

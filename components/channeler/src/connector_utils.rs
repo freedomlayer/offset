@@ -56,6 +56,7 @@ pub struct EncryptedConnector<C,R,S> {
 /// Addresses are changed from A into (PublicKey, A), 
 /// where public_key is the identity of the remot side.
 impl<C,R,S> EncryptedConnector<C,R,S> {
+    #[allow(unused)]
     pub fn new(connector: C, 
                identity_client: IdentityClient,
                rng: R,

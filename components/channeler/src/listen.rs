@@ -103,7 +103,7 @@ pub async fn listen_loop<A,C,IAC,CS,R,S>(connector: C,
                  address: A,
                  mut incoming_access_control: IAC,
                  connections_sender: CS,
-                 mut close_receiver: oneshot::Receiver<()>,
+                 close_receiver: oneshot::Receiver<()>,
                  mut access_control: AccessControl,
                  conn_timeout_ticks: usize,
                  keepalive_ticks: usize,
@@ -152,6 +152,9 @@ where
             await!(sleep_ticks(backoff_ticks, timer_client.clone()))
                 .map_err(|_| ListenError::SleepTicksError)?;
         }
+        // This is a hack to help the compiler know that the return type
+        // here is Result<(),_>
+        #[allow(unreachable_code)]
         Ok(())
     }).fuse();
 
@@ -161,7 +164,7 @@ where
     // TODO: Could we possibly lose an incoming address with this select?
     let listener_select = select! {
         listener_fut = listener_fut => ListenSelect::ListenError(listener_fut.err().unwrap()),
-        close_fut = close_fut => ListenSelect::Canceled,
+        _close_fut = close_fut => ListenSelect::Canceled,
     };
 
 

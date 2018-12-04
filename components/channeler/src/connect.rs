@@ -76,7 +76,7 @@ where
     let mut close_receiver = close_receiver.map(|_| ConnectSelect::Canceled).fuse();
 
     loop {
-        let mut client_connector = ClientConnector::new(
+        let client_connector = ClientConnector::new(
             connector.clone(), spawner.clone(), timer_client.clone(), keepalive_ticks);
         let c_timer_client = timer_client.clone();
         let c_address = address.clone();
