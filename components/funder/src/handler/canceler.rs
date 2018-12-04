@@ -22,7 +22,11 @@ use crate::freeze_guard::FreezeGuardMutation;
 
 
 #[allow(unused)]
-impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
+impl<A,R> MutableFunderHandler<A,R> 
+where
+    A: Clone + Debug + PartialEq + Eq + 'static,
+    R: CryptoRandom + 'static,
+{
 
     /// Create a (signed) failure message for a given request_id.
     /// We are the reporting_public_key for this failure message.

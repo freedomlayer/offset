@@ -19,7 +19,11 @@ pub enum HandleLivenessError {
 }
 
 #[allow(unused)]
-impl<A: Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
+impl<A,R> MutableFunderHandler<A,R> 
+where
+    A: Clone + Debug + PartialEq + Eq + 'static,
+    R: CryptoRandom + 'static,
+{
 
     pub async fn handle_liveness_message(&mut self, 
                                   liveness_message: IncomingLivenessMessage) 

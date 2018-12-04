@@ -38,7 +38,11 @@ pub enum HandleControlError {
 
 
 #[allow(unused)]
-impl<A:Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler<A,R> {
+impl<A, R> MutableFunderHandler<A,R> 
+where
+    A: Clone + Debug + 'static + PartialEq + Eq,
+    R: CryptoRandom + 'static,
+{
 
     async fn control_set_friend_remote_max_debt(&mut self, 
                                             set_friend_remote_max_debt: SetFriendRemoteMaxDebt) 
@@ -224,8 +228,13 @@ impl<A:Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler<
         -> Result<(), HandleControlError> {
 
         // Make sure that friend exists:
-        let _friend = self.get_friend(&set_friend_info.friend_public_key)
+        let friend = self.get_friend(&set_friend_info.friend_public_key)
             .ok_or(HandleControlError::FriendDoesNotExist)?;
+
+        let old_address = friend.remote_address.clone();
+
+        // TODO: Should we only apply mutation in case at least one of: address, name
+        // are different?
 
         let friend_mutation = FriendMutation::SetFriendInfo(
             (set_friend_info.address.clone(), set_friend_info.name.clone()));
@@ -234,10 +243,12 @@ impl<A:Clone + Debug + 'static, R: CryptoRandom + 'static> MutableFunderHandler<
 
         self.apply_funder_mutation(m_mutation);
 
-        // Notify Channeler to change the friend's address:
-        self.disable_friend(&set_friend_info.friend_public_key);
-        self.enable_friend(&set_friend_info.friend_public_key, 
-                           &set_friend_info.address);
+        if set_friend_info.address != old_address {
+            // Notify Channeler to change the friend's address:
+            self.disable_friend(&set_friend_info.friend_public_key);
+            self.enable_friend(&set_friend_info.friend_public_key, 
+                               &set_friend_info.address);
+        }
 
         Ok(())
     }

@@ -26,12 +26,16 @@ use crate::types::{FunderIncoming, FunderIncomingControl,
 
 /// A helper function. Applies an incoming funder message, updating state and ephemeral
 /// accordingly:
-async fn apply_funder_incoming<'a,A: Clone + Debug + 'static,R: CryptoRandom + 'static>(funder_incoming: FunderIncoming<A>,
+async fn apply_funder_incoming<'a,A,R>(funder_incoming: FunderIncoming<A>,
                                state: &'a mut FunderState<A>, 
                                ephemeral: &'a mut Ephemeral, 
                                rng: R, 
                                identity_client: IdentityClient) 
-                -> Result<(Vec<FunderOutgoingComm<A>>, Vec<FunderOutgoingControl<A>>), FunderHandlerError> {
+                -> Result<(Vec<FunderOutgoingComm<A>>, Vec<FunderOutgoingControl<A>>), FunderHandlerError> 
+where
+    A: Clone + Debug + Eq + PartialEq + 'static,
+    R: CryptoRandom + 'static,
+{
 
     let funder_handler_output = await!(funder_handle_message(identity_client,
                           rng,
