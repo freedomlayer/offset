@@ -19,6 +19,7 @@ use relay::client::access_control::AccessControlOp;
 
 use crate::listen::listen_loop;
 use crate::connect::{connect, ConnectError};
+use crate::overwrite_channel::overwrite_send_all;
 
 pub enum ChannelerEvent<A> {
     FromFunder(FunderToChanneler<A>),
@@ -348,6 +349,15 @@ where
             ChannelerEvent::ConnectionEstablished((public_key, conn_pair)) => { 
                 let ConnPair {sender, receiver} = conn_pair;
 
+                // We use an overwrite channel to make sure we are never stuck on trying to send a
+                // message to remote friend. A friend only needs to know the most recent message,
+                // so previous pending messages may be discarded.
+                let (friend_sender, friend_receiver) = mpsc::channel(0);
+                channeler.spawner.spawn(overwrite_send_all(sender, friend_receiver)
+                              .map_err(|e| error!("overwrite_send_all() error: {:?}", e))
+                              .map(|_| ()));
+
+
                 let friend = match channeler.friends.get_mut(&public_key) {
                     None => {
                         error!("Incoming message from a non listed friend {:?}", public_key);
@@ -361,7 +371,7 @@ where
                 }
 
                 let friend_connected = FriendConnected { 
-                    opt_sender: Some(sender),
+                    opt_sender: Some(friend_sender),
                 };
                 friend.state = FriendState::Connected(friend_connected);
 
