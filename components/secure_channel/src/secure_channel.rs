@@ -52,11 +52,11 @@ async fn read_from_reader<M: 'static>(reader: M) -> Result<(Vec<u8>, M), SecureC
 }
 */
 
-async fn initial_exchange<EK, M: 'static,K: 'static,R: CryptoRandom + 'static>(mut reader: M, mut writer: K, 
+async fn initial_exchange<EK, M: 'static,K: 'static,R: CryptoRandom + 'static>(mut writer: K, mut reader: M,
                               identity_client: IdentityClient,
                               opt_expected_remote: Option<PublicKey>,
                               rng: R)
-                            -> Result<(ScState, M, K), SecureChannelError>
+                            -> Result<(ScState, K, M), SecureChannelError>
 where
     R: CryptoRandom,
     M: Stream<Item=Vec<u8>> + std::marker::Unpin,
@@ -100,7 +100,7 @@ where
     let dh_state = dh_state_half.handle_exchange_dh(exchange_dh)
         .map_err(SecureChannelError::HandleExchangeScStateError)?;
 
-    Ok((dh_state, reader, writer))
+    Ok((dh_state, writer, reader))
 }
 
 enum SecureChannelEvent {
@@ -114,7 +114,7 @@ enum SecureChannelEvent {
 
 async fn secure_channel_loop<EK, M: 'static,K: 'static, R: CryptoRandom + 'static>(
                               mut dh_state: ScState,
-                              reader: M, mut writer: K, 
+                              mut writer: K, reader: M, 
                               from_user: mpsc::Receiver<Vec<u8>>,
                               mut to_user: mpsc::Sender<Vec<u8>>,
                               rng: R,
@@ -185,7 +185,7 @@ where
 }
 
 
-pub async fn create_secure_channel<EK,M,K,R,S>(reader: M, writer: K, 
+pub async fn create_secure_channel<EK,M,K,R,S>(writer: K, reader: M,
                               identity_client: IdentityClient,
                               opt_expected_remote: Option<PublicKey>,
                               rng: R,
@@ -201,9 +201,9 @@ where
     S: Spawn,
 {
 
-    let (dh_state, reader, writer) = await!(initial_exchange(
-                                                reader, 
+    let (dh_state, writer, reader) = await!(initial_exchange(
                                                 writer, 
+                                                reader, 
                                                 identity_client, 
                                                 opt_expected_remote, 
                                                 rng.clone()))?;
@@ -212,7 +212,7 @@ where
     let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(0);
 
     let sc_loop = secure_channel_loop(dh_state, 
-                                      reader, writer,
+                                      writer, reader,
                                       from_user,
                                       to_user,
                                       rng.clone(),
@@ -314,8 +314,9 @@ mod tests {
 
         let ticks_to_rekey: usize = 16;
 
-        let fut_sc1 = create_secure_channel(receiver1, 
+        let fut_sc1 = create_secure_channel(
                               sender1.sink_map_err(|_| ()),
+                              receiver1, 
                               identity_client1,
                               Some(public_key2),
                               rng1.clone(),
@@ -323,8 +324,9 @@ mod tests {
                               ticks_to_rekey,
                               thread_pool.clone());
 
-        let fut_sc2 = create_secure_channel(receiver2,
+        let fut_sc2 = create_secure_channel(
                               sender2.sink_map_err(|_| ()),
+                              receiver2,
                               identity_client2,
                               Some(public_key1),
                               rng2.clone(),
