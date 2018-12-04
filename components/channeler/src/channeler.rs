@@ -23,8 +23,12 @@ pub enum ChannelerEvent<A> {
     FromFunder(FunderToChanneler<A>),
     IncomingConnection((PublicKey, ConnPair<Vec<u8>, Vec<u8>>)),
     ConnectionEstablished(()),
+    FriendEvent(FriendEvent),
+}
+
+pub enum FriendEvent {
     IncomingMessage((PublicKey, Vec<u8>)),
-    FriendReceiverClosed(PublicKey), 
+    ReceiverClosed(PublicKey),
 }
 
 pub enum ChannelerError {
@@ -52,33 +56,58 @@ enum FriendState {
     Listening,
 }
 
-pub struct ChannelerState<A> {
+pub struct Channeler<A,C,TF,S> {
     friends: HashMap<PublicKey, Friend<A>>,
+    connector: C,
+    to_funder: TF,
+    timer_client: TimerClient,
+    keepalive_ticks: usize,
+    backoff_ticks: usize,
+    spawner: S,
     addresses_sender: mpsc::Sender<A>,
     access_control_sender: mpsc::Sender<AccessControlOp>,
-    event_sender: mpsc::Sender<ChannelerEvent<A>>,
+    friend_event_sender: mpsc::Sender<FriendEvent>,
 }
 
-impl<A> ChannelerState<A> {
-    fn new(addresses_sender: mpsc::Sender<A>,
+impl<A,C,TF,S> Channeler<A,C,TF,S> 
+where
+    A: Clone + Send + Sync + 'static,
+    C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
+    TF: Sink<SinkItem=ChannelerToFunder> + Unpin,
+    S: Spawn + Clone + Send + Sync + 'static,
+{
+    fn new(connector: C, 
+           to_funder: TF,
+           timer_client: TimerClient,
+           keepalive_ticks: usize,
+           backoff_ticks: usize,
+           spawner: S,
+           addresses_sender: mpsc::Sender<A>,
            access_control_sender: mpsc::Sender<AccessControlOp>,
-           event_sender: mpsc::Sender<ChannelerEvent<A>>) -> ChannelerState<A> {
-        ChannelerState { 
+           friend_event_sender: mpsc::Sender<FriendEvent>) -> Channeler<A,C,TF,S> {
+
+        Channeler { 
             friends: HashMap::new(),
+            connector,
+            to_funder,
+            timer_client,
+            keepalive_ticks,
+            backoff_ticks,
+            spawner,
             addresses_sender,
             access_control_sender,
-            event_sender,
+            friend_event_sender,
         }
     }
 }
 
-async fn handle_from_funder<A>(channeler_state: &mut ChannelerState<A>, 
+async fn handle_from_funder<A,C,TF,S>(channeler: &mut Channeler<A,C,TF,S>, 
                          funder_to_channeler: FunderToChanneler<A>) 
     -> Result<(), ChannelerError>  {
 
     match funder_to_channeler {
         FunderToChanneler::Message((public_key, message)) => {
-            let mut friend = match channeler_state.friends.get_mut(&public_key) {
+            let mut friend = match channeler.friends.get_mut(&public_key) {
                 Some(friend) => friend,
                 None => {
                     error!("Attempt to send a message to unavailable friend: {:?}", public_key);
@@ -112,7 +141,7 @@ async fn handle_from_funder<A>(channeler_state: &mut ChannelerState<A>,
             Ok(())
         },
         FunderToChanneler::SetAddress(address) =>
-            await!(channeler_state.addresses_sender.send(address))
+            await!(channeler.addresses_sender.send(address))
                 .map_err(|_| ChannelerError::AddressSendFailed),
         FunderToChanneler::AddFriend((public_key, opt_address)) => {
             let friend_state = match opt_address {
@@ -120,7 +149,7 @@ async fn handle_from_funder<A>(channeler_state: &mut ChannelerState<A>,
                     let (close_sender, close_receiver) = oneshot::channel::<()>();
 
                     // TODO: spawn a connect future here:
-                    // TODO: Add more things into channeler_state. For example,
+                    // TODO: Add more things into channeler. For example,
                     // we are missing spawner, timer_client, keepalive_ticks, backoff_ticks etc.
                     
                     unimplemented!();
@@ -150,12 +179,12 @@ async fn handle_from_funder<A>(channeler_state: &mut ChannelerState<A>,
             };
             // TODO: What to do if there is already a friend with the given public key?
             // Current idea: Write an error using error!, and do nothing?
-            channeler_state.friends.insert(public_key, friend);
+            channeler.friends.insert(public_key, friend);
             Ok(())
         },
         FunderToChanneler::RemoveFriend(public_key) => {
             // TODO: should remove friend from access control here.
-            channeler_state.friends.remove(&public_key);
+            channeler.friends.remove(&public_key);
             Ok(())
         },
     }
@@ -180,34 +209,41 @@ where
 
     let (addresses_sender, addresses_receiver) = mpsc::channel(0);
     let (access_control_sender, access_control_receiver) = mpsc::channel(0);
-    let (event_sender, event_receiver) = mpsc::channel(0);
-    let mut channeler_state = ChannelerState::new(addresses_sender, 
-                                                  access_control_sender,
-                                                  event_sender);
+    let (friend_event_sender, friend_event_receiver) = mpsc::channel::<FriendEvent>(0);
 
-    let client_connector = ClientConnector::new(connector.clone(), 
-                                                spawner.clone(), 
-                                                timer_client.clone(), 
-                                                keepalive_ticks);
+    let mut channeler = Channeler::new(connector, 
+                                       to_funder,
+                                       timer_client,
+                                       keepalive_ticks,
+                                       backoff_ticks,
+                                       spawner,
+                                       addresses_sender, 
+                                       access_control_sender,
+                                       friend_event_sender);
+
+    let client_connector = ClientConnector::new(channeler.connector.clone(), 
+                                                channeler.spawner.clone(), 
+                                                channeler.timer_client.clone(), 
+                                                channeler.keepalive_ticks);
 
     let (connections_sender, connections_receiver) = mpsc::channel::<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>(0);
 
 
-    let listen_loop_fut = listen_loop(connector.clone(),
+    let listen_loop_fut = listen_loop(channeler.connector.clone(),
                       address,
                       addresses_receiver,
                       access_control_receiver,
                       connections_sender,
                       conn_timeout_ticks,
-                      keepalive_ticks,
-                      backoff_ticks,
-                      timer_client.clone(),
-                      spawner.clone())
+                      channeler.keepalive_ticks,
+                      channeler.backoff_ticks,
+                      channeler.timer_client.clone(),
+                      channeler.spawner.clone())
         .map_err(|e| {
             error!("[Channeler] listen_loop() error: {:?}", e);
         }).then(|_| future::ready(()));
 
-    spawner.spawn(listen_loop_fut)
+    channeler.spawner.spawn(listen_loop_fut)
         .map_err(|_| ChannelerError::SpawnError)?;
 
     let from_funder = from_funder
@@ -216,18 +252,21 @@ where
     let connections_receiver = connections_receiver
         .map(|incoming_conn| ChannelerEvent::IncomingConnection::<A>(incoming_conn));
 
+    let friend_event_receiver = friend_event_receiver
+        .map(|friend_event| ChannelerEvent::FriendEvent(friend_event));
+
     let mut events = from_funder
         .select(connections_receiver)
-        .select(event_receiver);
+        .select(friend_event_receiver);
 
     while let Some(event) = await!(events.next()) {
         match event {
             ChannelerEvent::FromFunder(funder_to_channeler) => 
-                await!(handle_from_funder(&mut channeler_state, funder_to_channeler))?,
+                await!(handle_from_funder(&mut channeler, funder_to_channeler))?,
             ChannelerEvent::IncomingConnection((public_key, conn_pair)) => { 
                 let ConnPair {sender, mut receiver} = conn_pair;
 
-                let friend = match channeler_state.friends.get_mut(&public_key) {
+                let friend = match channeler.friends.get_mut(&public_key) {
                     None => continue,
                     Some(friend) => friend,
                 };
@@ -238,35 +277,35 @@ where
 
                 let c_public_key = public_key.clone();
                 let mut receiver = receiver
-                    .map(move |message| ChannelerEvent::IncomingMessage((c_public_key.clone(), message)))
+                    .map(move |message| FriendEvent::IncomingMessage((c_public_key.clone(), message)))
                     .chain(stream::once(future::ready(
-                                ChannelerEvent::FriendReceiverClosed(public_key.clone()))));
-                let mut c_event_sender = channeler_state.event_sender.clone();
+                                FriendEvent::ReceiverClosed(public_key.clone()))));
+                let mut c_friend_event_sender = channeler.friend_event_sender.clone();
                 let fut = async move {
-                    await!(c_event_sender.send_all(&mut receiver))
+                    await!(c_friend_event_sender.send_all(&mut receiver))
                 }.then(|_| future::ready(()));
-                spawner.spawn(fut).unwrap();
+                channeler.spawner.spawn(fut).unwrap();
 
                 let message = ChannelerToFunder::Online(public_key);
-                await!(to_funder.send(message))
+                await!(channeler.to_funder.send(message))
                     .map_err(|_| ChannelerError::SendToFunderFailed)?;
             },
             ChannelerEvent::ConnectionEstablished(()) => unimplemented!(),
-            ChannelerEvent::IncomingMessage((public_key, data)) => {
+            ChannelerEvent::FriendEvent(FriendEvent::IncomingMessage((public_key, data))) => {
                 let message = ChannelerToFunder::Message((public_key, data));
-                await!(to_funder.send(message))
+                await!(channeler.to_funder.send(message))
                     .map_err(|_| ChannelerError::SendToFunderFailed)?;
             },
-            ChannelerEvent::FriendReceiverClosed(public_key) => {
-                if let Some(connected_friend) = channeler_state.friends.get(&public_key) {
+            ChannelerEvent::FriendEvent(FriendEvent::ReceiverClosed(public_key)) => {
+                if let Some(connected_friend) = channeler.friends.get(&public_key) {
                 } else {
                     return Ok(())
                 }
 
-                let res = channeler_state.friends.remove(&public_key);
+                let res = channeler.friends.remove(&public_key);
                 assert!(res.is_none()); // We expect that we removed an existing friend
                 let message = ChannelerToFunder::Offline(public_key);
-                await!(to_funder.send(message))
+                await!(channeler.to_funder.send(message))
                     .map_err(|_| ChannelerError::SendToFunderFailed)?;
             },
         };
