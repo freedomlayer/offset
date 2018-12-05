@@ -94,10 +94,20 @@ mod tests {
 
     use timer::create_timer_incoming;
     use crypto::crypto_rand::RngContainer;
+    use crypto::identity::PUBLIC_KEY_LEN;
 
     use common::dummy_connector::{DummyConnector, ConnRequest};
+    use common::conn::IdentityConnTransform;
 
-    async fn task_channeler_connector_basic(mut spawner: impl Spawn + Clone) {
+
+    fn consume_connector(connector: impl Connector) {
+        drop(connector);
+    }
+
+    async fn task_channeler_connector_basic<S>(mut spawner: S) 
+    where
+        S: Spawn + Clone + Sync + Send,
+    {
 
         // Create a mock time service:
         let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
@@ -106,18 +116,25 @@ mod tests {
         let backoff_ticks = 2;
 
         let (conn_request_sender, conn_request_receiver) = mpsc::channel::<ConnRequest<Vec<u8>,Vec<u8>,u32>>(0);
-        let connector = DummyConnector::new(conn_request_sender);
+        let client_connector = DummyConnector::new(conn_request_sender);
 
-        /*
+        use futures::channel::oneshot;
+
+        // We don't need encryption for this test:
+        let encrypt_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,Option<PublicKey>>::new();
+
+        // consume_connector(client_connector);
+
         let channeler_connector = ChannelerConnector::new(
             client_connector,
             encrypt_transform,
             backoff_ticks,
             timer_client,
             spawner);
-            */
 
-        // channeler_connector.connect((0x1337, public_key));
+        let public_key_b = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
+        channeler_connector.connect((0x1337, public_key_b));
+
         // TODO: Finish here
 
     }
