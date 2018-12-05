@@ -157,7 +157,6 @@ where
 
         let mut spawner = self.spawner.clone();
 
-        // TODO: Is there a less hacky way to do this?:
         let listen_loop_fut = async move {
             await!(self.listen_loop(relay_address,
                    access_control_receiver,
