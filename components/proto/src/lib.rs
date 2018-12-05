@@ -5,8 +5,8 @@ extern crate capnp;
 extern crate byteorder;
 
 #[macro_use]
-extern crate offst_utils as utils;
-extern crate offst_crypto as crypto;
+extern crate common;
+extern crate crypto;
 
 extern crate serde;
 #[macro_use]

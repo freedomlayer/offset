@@ -6,7 +6,7 @@ use crypto::crypto_rand::RandValue;
 use crypto::uid::Uid;
 use crypto::hash::{self, HashResult};
 
-use utils::int_convert::{usize_to_u64};
+use common::int_convert::{usize_to_u64};
 
 use crate::consts::MAX_ROUTE_LEN;
 
