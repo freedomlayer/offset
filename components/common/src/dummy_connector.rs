@@ -1,6 +1,6 @@
 use core::pin::Pin;
 use futures::channel::{mpsc, oneshot};
-use futures::{Future, FutureExt, SinkExt};
+use futures::{Future, SinkExt};
 use crate::conn::{Connector, ConnPair};
 
 
