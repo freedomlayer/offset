@@ -283,33 +283,6 @@ where
 }
 
 
-/// Listen for incoming connections from a relay.
-pub async fn client_listener<'a, C,IAC,CS,CSE>(connector: C,
-                                access_control: &'a mut AccessControl,
-                                incoming_access_control: &'a mut IAC,
-                                connections_sender: CS,
-                                conn_timeout_ticks: usize,
-                                keepalive_ticks: usize,
-                                timer_client: TimerClient,
-                                spawner: impl Spawn + Clone + Send + 'static)
-    -> Result<(), ClientListenerError>
-where
-    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
-    IAC: Stream<Item=AccessControlOp> + Unpin + 'static,
-    CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + Clone + Send + 'static,
-    CSE: 'static,
-{
-    await!(inner_client_listener(connector,
-                                 access_control,
-                                 incoming_access_control,
-                                 connections_sender,
-                                 conn_timeout_ticks,
-                                 keepalive_ticks,
-                                 timer_client,
-                                 spawner,
-                                 None))
-}
-
 #[derive(Clone)]
 pub struct ClientListener<C,S> {
     connector: C,
@@ -617,5 +590,8 @@ mod tests {
         let mut thread_pool = ThreadPool::new().unwrap();
         thread_pool.run(task_client_listener_basic(thread_pool.clone()));
     }
+
+
+    // TODO: Add a test for ClientListener.
 
 }
