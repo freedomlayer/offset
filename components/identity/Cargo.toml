@@ -7,7 +7,7 @@ edition = "2018"
 
 [dependencies]
 
-utils = { path = "../utils", version = "0.1.0", package = "offst-utils"}
+utils = { path = "../common", version = "0.1.0", package = "offst-common" }
 crypto = { path = "../crypto", version = "0.1.0" , package = "offst-crypto"}
 
 futures-preview = "0.3.0-alpha.10"
