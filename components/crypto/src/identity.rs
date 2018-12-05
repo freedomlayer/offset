@@ -3,7 +3,7 @@ extern crate untrusted;
 use ring::signature;
 
 use super::CryptoError;
-use utils::big_array::BigArray;
+use common::big_array::BigArray;
 use crypto_rand::CryptoRandom;
 
 pub const PUBLIC_KEY_LEN: usize = 32;
