@@ -9,8 +9,7 @@ use proto::funder::messages::{FunderToChanneler, ChannelerToFunder};
 
 use crypto::identity::PublicKey;
 
-use common::connector::{Connector, ConnPair};
-use common::listener::Listener;
+use common::conn::{Listener, Connector, ConnPair};
 
 use relay::client::access_control::{AccessControl, AccessControlOp};
 

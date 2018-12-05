@@ -10,7 +10,7 @@ use proto::relay::serialize::serialize_init_connection;
 
 use timer::TimerClient;
 
-use common::connector::{BoxFuture, Connector, ConnPair};
+use common::conn::{BoxFuture, Connector, ConnPair};
 
 #[derive(Debug)]
 pub enum ClientConnectorError {

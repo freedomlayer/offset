@@ -12,8 +12,7 @@ use timer::utils::sleep_ticks;
 
 use identity::IdentityClient;
 
-use common::listener::Listener;
-use common::connector::ConnPair;
+use common::conn::{Listener, ConnPair};
 use relay::client::access_control::{AccessControlOp, AccessControl};
 
 use secure_channel::create_secure_channel;

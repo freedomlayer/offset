@@ -17,6 +17,24 @@ pub trait Connector {
         -> BoxFuture<'_, Option<ConnPair<Self::SendItem, Self::RecvItem>>>;
 }
 
+pub trait Listener {
+    type Connection;
+    type Config;
+    type Arg;
+
+    fn listen(self, arg: Self::Arg) -> (mpsc::Sender<Self::Config>, 
+                             mpsc::Receiver<Self::Connection>);
+}
+
+pub trait ConnTransform {
+    type SendItem;
+    type RecvItem;
+    fn transform(&mut self, conn_pair: ConnPair<Self::SendItem, Self::RecvItem>) 
+        -> BoxFuture<'_, Option<ConnPair<Self::SendItem, Self::RecvItem>>>;
+}
+
+
+
 
 
 /// A wrapper for a connector.
