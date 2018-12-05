@@ -27,7 +27,7 @@ use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 use futures::stream;
-use utils::futures_compat::create_interval;
+use common::futures_compat::create_interval;
 
 
 #[derive(Debug)]
