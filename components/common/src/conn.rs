@@ -32,8 +32,9 @@ pub trait ConnTransform {
     type OldRecvItem;
     type NewSendItem;
     type NewRecvItem;
+    type Arg;
 
-    fn transform(&mut self, conn_pair: ConnPair<Self::OldSendItem, Self::OldRecvItem>) 
+    fn transform(&mut self, arg: Self::Arg, conn_pair: ConnPair<Self::OldSendItem, Self::OldRecvItem>) 
         -> BoxFuture<'_, Option<ConnPair<Self::NewSendItem, Self::NewRecvItem>>>;
 }
 
