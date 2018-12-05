@@ -13,7 +13,7 @@ use proto::relay::messages::{InitConnection, IncomingConnection, RejectConnectio
 use proto::relay::serialize::{serialize_init_connection,
     serialize_incoming_connection, deserialize_incoming_connection,
     serialize_reject_connection, deserialize_reject_connection};
-use utils::int_convert::usize_to_u64;
+use common::int_convert::usize_to_u64;
 
 use timer::{TimerClient, TimerTick};
 use super::connector::{Connector, ConnPair};

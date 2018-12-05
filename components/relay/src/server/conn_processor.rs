@@ -11,7 +11,7 @@ use futures::task::Spawn;
 use crypto::identity::PublicKey;
 use timer::{TimerTick, TimerClient};
 use timer::utils::future_timeout;
-use utils::int_convert::usize_to_u64;
+use common::int_convert::usize_to_u64;
 
 use proto::relay::messages::{InitConnection, RejectConnection, IncomingConnection};
 use super::types::{IncomingConn, IncomingConnInner, 
@@ -154,7 +154,7 @@ mod tests {
 
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
     use timer::create_timer_incoming;
-    use utils::async_test_utils::{receive, ReceiveError};
+    use common::async_test_utils::{receive, ReceiveError};
 
     use proto::relay::serialize::serialize_init_connection;
 
