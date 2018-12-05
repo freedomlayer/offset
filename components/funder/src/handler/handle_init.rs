@@ -33,8 +33,12 @@ where
         let report = create_report(&self.state, &self.ephemeral);
         self.add_outgoing_control(FunderOutgoingControl::Report(report));
 
+        // Notify Channeler about current address:
+        let channeler_config = ChannelerConfig::SetAddress(self.state.opt_address.clone());
+        self.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
+
+        // Notify channeler about all enabled friends:
         for enabled_friend in enabled_friends {
-            // Notify Channeler:
             let channeler_config = ChannelerConfig::AddFriend(enabled_friend);
             self.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
         }
@@ -100,9 +104,24 @@ mod tests {
         let mut funder_handler_output = mutable_funder_handler.done();
         assert!(funder_handler_output.funder_mutations.is_empty());
         assert_eq!(funder_handler_output.outgoing_control.len(), 1);
-        assert_eq!(funder_handler_output.outgoing_comms.len(),1);
-        let out_comm = funder_handler_output.outgoing_comms.pop().unwrap();
+        assert_eq!(funder_handler_output.outgoing_comms.len(),2);
 
+        // SetAddress:
+        let out_comm = funder_handler_output.outgoing_comms.remove(0);
+        let channeler_config = match out_comm {
+            FunderOutgoingComm::ChannelerConfig(channeler_config) => channeler_config,
+            _ => unreachable!(),
+        };
+        println!("channeler_config = {:?}", channeler_config);
+        match channeler_config {
+            ChannelerConfig::SetAddress(opt_address) => {
+                assert_eq!(opt_address, Some(1337u32));
+            },
+            _ => unreachable!(),
+        };
+
+        // AddFriend:
+        let out_comm = funder_handler_output.outgoing_comms.remove(0);
         let channeler_config = match out_comm {
             FunderOutgoingComm::ChannelerConfig(channeler_config) => channeler_config,
             _ => unreachable!(),
