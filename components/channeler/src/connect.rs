@@ -114,6 +114,8 @@ mod tests {
     use super::*;
     use futures::executor::ThreadPool;
     use futures::channel::mpsc;
+    use futures::FutureExt;
+    use futures::task::SpawnExt;
 
     use crypto::test_utils::DummyRandom;
     use crypto::identity::{SoftwareEd25519Identity,
@@ -123,8 +125,9 @@ mod tests {
     use timer::create_timer_incoming;
     use crypto::crypto_rand::RngContainer;
 
-    async fn task_channeler_connector_basic(spawner: impl Spawn + Clone) {
-        /*
+    use common::dummy_connector::{DummyConnector, ConnRequest};
+
+    async fn task_channeler_connector_basic(mut spawner: impl Spawn + Clone) {
         // Create a mock time service:
         let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
@@ -134,9 +137,15 @@ mod tests {
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
         let (requests_sender, identity_server) = create_identity(identity);
         let identity_client = IdentityClient::new(requests_sender);
+        spawner.spawn(identity_server.map(|_| ())).unwrap();
+
+        let public_key = await!(identity_client.request_public_key()).unwrap();
 
         let backoff_ticks = 2;
         let keepalive_ticks = 8;
+
+        let (conn_request_sender, conn_request_receiver) = mpsc::channel::<ConnRequest<Vec<u8>,Vec<u8>,u32>>(0);
+        let connector = DummyConnector::new(conn_request_sender);
 
         let channeler_connector = ChannelerConnector::new(
             connector,
@@ -146,7 +155,9 @@ mod tests {
             identity_client,
             rng,
             spawner);
-            */
+
+        // channeler_connector.connect((0x1337, public_key));
+        // TODO: Finish here
 
     }
 
