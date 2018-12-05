@@ -1,7 +1,7 @@
 use std::marker::Unpin;
 use std::collections::HashMap;
 
-use futures::{future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, SinkExt};
+use futures::{select, future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::task::{Spawn, SpawnExt};
 use futures::channel::{oneshot, mpsc};
 
@@ -17,8 +17,8 @@ use identity::IdentityClient;
 use relay::client::connector::{Connector, ConnPair};
 use relay::client::access_control::{AccessControl, AccessControlOp};
 
-use crate::listen::listen_loop;
-use crate::connect::{connect, ConnectError};
+use crate::listen::{listen_loop, Listener};
+use crate::connect::{ConnectError};
 use crate::overwrite_channel::overwrite_send_all;
 
 pub enum ChannelerEvent<A> {
@@ -62,8 +62,6 @@ enum FriendState {
 }
 
 struct Listening {
-    #[allow(unused)]
-    close_sender: oneshot::Sender<()>,
     access_control_sender: mpsc::Sender<AccessControlOp>,
 }
 
@@ -72,55 +70,40 @@ enum ListenState {
     Idle,
 }
 
-struct Channeler<A,C,TF,R,S> {
+struct Channeler<A,C,L,S,TF> {
     friends: HashMap<PublicKey, Friend<A>>,
     listen_state: ListenState,
     connector: C,
-    to_funder: TF,
-    timer_client: TimerClient,
-    conn_timeout_ticks: usize,
-    keepalive_ticks: usize,
-    backoff_ticks: usize,
-    identity_client: IdentityClient,
-    rng: R,
+    listener: L,
     spawner: S,
+    to_funder: TF,
     friend_event_sender: mpsc::Sender<FriendEvent>,
     connections_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>,
 }
 
-impl<A,C,TF,R,S> Channeler<A,C,TF,R,S> 
+impl<A,C,L,S,TF> Channeler<A,C,L,S,TF> 
 where
     A: Clone + Send + Sync + 'static,
-    C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
-    TF: Sink<SinkItem=ChannelerToFunder> + Unpin,
-    R: CryptoRandom,
+    C: Connector<Address=(A, PublicKey), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
+    L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
+    TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
 {
     fn new(connector: C, 
-           to_funder: TF,
-           timer_client: TimerClient,
-           conn_timeout_ticks: usize,
-           keepalive_ticks: usize,
-           backoff_ticks: usize,
-           identity_client: IdentityClient,
-           rng: R,
+           listener: L,
            spawner: S,
+           to_funder: TF,
            friend_event_sender: mpsc::Sender<FriendEvent>,
-           connections_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>) -> Channeler<A,C,TF,R,S> {
+           connections_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>) -> Channeler<A,C,L,S,TF> {
         
 
         Channeler { 
             friends: HashMap::new(),
             listen_state: ListenState::Idle,
             connector,
-            to_funder,
-            timer_client,
-            conn_timeout_ticks,
-            keepalive_ticks,
-            backoff_ticks,
-            identity_client,
-            rng,
+            listener,
             spawner,
+            to_funder,
             friend_event_sender,
             connections_sender,
         }
@@ -139,55 +122,40 @@ where
     }
 }
 
-fn spawn_friend<A,C,TF,R,S>(channeler: &mut Channeler<A,C,TF,R,S>, 
+fn spawn_friend<A,C,L,S,TF>(channeler: &mut Channeler<A,C,L,S,TF>,
                               public_key: PublicKey, opt_address: Option<A>) 
     -> Result<Friend<A>, ChannelerError>
 where
     A: Clone + Send + Sync + 'static,
-    C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
-    TF: Sink<SinkItem=ChannelerToFunder> + Unpin,
-    R: CryptoRandom + 'static,
+    C: Connector<Address=(A, PublicKey), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
+    L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
+    TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
 {
     let friend_state = match opt_address.clone() {
         Some(address) => {
-            let (close_sender, close_receiver) = oneshot::channel::<()>();
 
-            let c_connector = channeler.connector.clone();
-            let c_keepalive_ticks = channeler.keepalive_ticks;
-            let c_backoff_ticks = channeler.backoff_ticks;
-            let c_timer_client = channeler.timer_client.clone();
-            let c_identity_client = channeler.identity_client.clone();
-            let c_rng = channeler.rng.clone();
-            let c_spawner = channeler.spawner.clone();
+            let mut c_connector = channeler.connector.clone();
             let mut c_connections_sender = channeler.connections_sender.clone();
 
-            let c_public_key = public_key.clone();
+            let (close_sender, close_receiver) = oneshot::channel::<()>();
 
-            let connect_fut = async move {
-                let res = await!(connect(c_connector.clone(),
-                    address,
-                    c_public_key.clone(),
-                    c_keepalive_ticks,
-                    c_backoff_ticks,
-                    c_timer_client,
-                    close_receiver,
-                    c_identity_client,
-                    c_rng,
-                    c_spawner));
-
-                match res {
-                    Ok(conn_pair) => {
-                        await!(c_connections_sender.send((c_public_key.clone(), conn_pair)))
-                            .map_err(|_| ChannelerError::SendConnectionEstablishedFailed)?;
-                    },
-                    Err(ConnectError::Canceled) => {},
+            let cancellable_fut = async move {
+                let connect_fut = c_connector.connect((address, public_key.clone()));
+                let select_res = select! {
+                    _close_receiver = close_receiver.fuse() => None,
+                    connect_fut = connect_fut.fuse() => Some(connect_fut.unwrap())
                 };
-                Ok(())
-            }.map_err(|e: ChannelerError| panic!("Error in connect_fut: {:?}", e))
-            .map(|_| ());
+                match select_res {
+                    Some(conn_pair) => {
+                        await!(c_connections_sender.send((public_key.clone(), conn_pair)))
+                            .map_err(|_| unreachable!());
+                    },
+                    None => {/* Canceled */},
+                };
+            };
 
-            channeler.spawner.spawn(connect_fut)
+            channeler.spawner.spawn(cancellable_fut)
                 .map_err(|_| ChannelerError::SpawnError)?;
 
             FriendState::Initiating(FriendInitiating {
@@ -205,15 +173,15 @@ where
     Ok(friend)
 }
 
-async fn handle_from_funder<A,C,TF,R,S>(channeler: &mut Channeler<A,C,TF,R,S>, 
+async fn handle_from_funder<A,C,L,S,TF>(channeler: &mut Channeler<A,C,L,S,TF>,
                          funder_to_channeler: FunderToChanneler<A>) 
     -> Result<(), ChannelerError>  
 where
     A: Clone + Send + Sync + 'static,
-    C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
-    TF: Sink<SinkItem=ChannelerToFunder> + Unpin,
-    R: CryptoRandom + 'static,
+    C: Connector<Address=(A, PublicKey), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
+    L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
+    TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
 {
 
     match funder_to_channeler {
@@ -254,31 +222,15 @@ where
         FunderToChanneler::SetAddress(opt_address) => {
             match opt_address {
                 Some(address) => {
-                    let (close_sender, close_receiver) = oneshot::channel();
-                    let (access_control_sender, access_control_receiver) = mpsc::channel(0);
-
-                    let listen_loop_fut = listen_loop(channeler.connector.clone(),
-                                      address,
-                                      access_control_receiver,
-                                      channeler.connections_sender.clone(),
-                                      close_receiver,
-                                      channeler.create_access_control(),
-                                      channeler.conn_timeout_ticks,
-                                      channeler.keepalive_ticks,
-                                      channeler.backoff_ticks,
-                                      channeler.timer_client.clone(),
-                                      channeler.identity_client.clone(),
-                                      channeler.rng.clone(),
-                                      channeler.spawner.clone())
-                        .map_err(|e| {
-                            panic!("[Channeler] listen_loop() error: {:?}", e);
-                        }).map(|_| ());
-
-                    channeler.spawner.spawn(listen_loop_fut)
-                        .map_err(|_| ChannelerError::SpawnError)?;
+                    let c_listener = channeler.listener.clone();
+                    let (access_control_sender, mut connections_receiver) = 
+                        c_listener.listen((address, channeler.create_access_control()));
+                    let mut c_connections_sender = channeler.connections_sender.clone();
+                    channeler.spawner.spawn(async move {
+                        await!(c_connections_sender.send_all(&mut connections_receiver).map(|_| ()))
+                    });
 
                     let listening = Listening {
-                        close_sender,
                         access_control_sender,
                     };
 
@@ -327,23 +279,18 @@ where
 }
 
 #[allow(unused)]
-async fn channeler_loop<FF,TF,C,A,R,S>(
+async fn channeler_loop<FF,TF,A,C,L,S>(
                         from_funder: FF, 
                         to_funder: TF,
-                        conn_timeout_ticks: usize,
-                        keepalive_ticks: usize,
-                        backoff_ticks: usize,
-                        timer_client: TimerClient,
                         connector: C,
-                        identity_client: IdentityClient,
-                        rng: R,
+                        listener: L,
                         spawner: S) -> Result<(), ChannelerError>
 where
-    A: Clone + Send + Sync + 'static,
-    C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
     FF: Stream<Item=FunderToChanneler<A>> + Unpin,
-    TF: Sink<SinkItem=ChannelerToFunder> + Unpin,
-    R: CryptoRandom + 'static,
+    TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
+    A: Clone + Send + Sync + 'static,
+    C: Connector<Address=(A, PublicKey), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
+    L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
 {
 
@@ -351,14 +298,9 @@ where
     let (connections_sender, connections_receiver) = mpsc::channel::<(PublicKey, ConnPair<Vec<u8>,Vec<u8>>)>(0);
 
     let mut channeler = Channeler::new(connector, 
-                                       to_funder,
-                                       timer_client,
-                                       conn_timeout_ticks,
-                                       keepalive_ticks,
-                                       backoff_ticks,
-                                       identity_client.clone(),
-                                       rng.clone(),
+                                       listener,
                                        spawner,
+                                       to_funder,
                                        friend_event_sender,
                                        connections_sender);
 
@@ -453,3 +395,56 @@ where
     Ok(())
 }
 
+
+#[cfg(test)]
+mod tests {
+    /*
+    use super::*;
+    use futures::executor::ThreadPool;
+
+    use crypto::test_utils::DummyRandom;
+    use crypto::identity::{SoftwareEd25519Identity,
+                            generate_pkcs8_key_pair, PUBLIC_KEY_LEN,
+                            PublicKey};
+    use identity::create_identity;
+    use timer::create_timer_incoming;
+    use crypto::crypto_rand::RngContainer;
+
+    async fn task_channeler_loop_basic(spawner: impl Spawn + Clone) {
+
+        // Create a mock time service:
+        let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
+        let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+
+        let rng = RngContainer::new(DummyRandom::new(&[1u8]));
+        let pkcs8 = generate_pkcs8_key_pair(&rng);
+        let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        let (requests_sender, identity_server) = create_identity(identity);
+        let identity_client = IdentityClient::new(requests_sender);
+
+        let conn_timeout_ticks = 16;
+        let keepalive_ticks = 8;
+        let backoff_ticks = 2;
+
+        let (funder_sender, from_funder) = mpsc::channel(0);
+        let (to_funder, funder_receiver) = mpsc::channel(0);
+
+        channeler_loop(from_funder,
+                        to_funder,
+                        conn_timeout_ticks,
+                        keepalive_ticks,
+                        backoff_ticks,
+                        timer_client.clone(),
+                        connector: C,
+                        identity_client,
+                        rng,
+                        spawner.clone())
+    }
+
+    #[test]
+    fn test_channeler_loop_basic() {
+        let thread_pool = ThreadPool::new().unwrap();
+        thread_pool.spawn(task_channeler_loop_basic(thread_pool.clone()));
+    }
+    */
+}
