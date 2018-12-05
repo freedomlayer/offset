@@ -18,4 +18,5 @@ pub mod async_test_utils;
 pub mod futures_compat;
 pub mod connector;
 pub mod listener;
+pub mod dummy_connector;
 

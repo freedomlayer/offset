@@ -111,7 +111,7 @@ mod tests {
     use proto::keepalive::messages::KaMessage;
     use proto::keepalive::serialize::serialize_ka_message;
 
-    use super::super::test_utils::DummyConnector;
+    use common::dummy_connector::DummyConnector;
 
 
     async fn task_client_connector_basic(mut spawner: impl Spawn + Clone + Sync + Send + 'static) {

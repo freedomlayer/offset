@@ -364,7 +364,7 @@ mod tests {
     use proto::relay::serialize::{deserialize_init_connection};
     use crypto::identity::PUBLIC_KEY_LEN;
     use timer::create_timer_incoming;
-    use super::super::test_utils::DummyConnector;
+    use common::dummy_connector::DummyConnector;
 
     async fn task_connect_with_timeout_basic(mut spawner: impl Spawn) {
         let conn_timeout_ticks = 8;

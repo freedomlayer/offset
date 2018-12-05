@@ -108,3 +108,51 @@ where
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::executor::ThreadPool;
+    use futures::channel::mpsc;
+
+    use crypto::test_utils::DummyRandom;
+    use crypto::identity::{SoftwareEd25519Identity,
+                            generate_pkcs8_key_pair, PUBLIC_KEY_LEN,
+                            PublicKey};
+    use identity::create_identity;
+    use timer::create_timer_incoming;
+    use crypto::crypto_rand::RngContainer;
+
+    async fn task_channeler_connector_basic(spawner: impl Spawn + Clone) {
+        /*
+        // Create a mock time service:
+        let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
+        let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+
+        let rng = RngContainer::new(DummyRandom::new(&[1u8]));
+        let pkcs8 = generate_pkcs8_key_pair(&rng);
+        let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        let (requests_sender, identity_server) = create_identity(identity);
+        let identity_client = IdentityClient::new(requests_sender);
+
+        let backoff_ticks = 2;
+        let keepalive_ticks = 8;
+
+        let channeler_connector = ChannelerConnector::new(
+            connector,
+            keepalive_ticks,
+            backoff_ticks,
+            timer_client,
+            identity_client,
+            rng,
+            spawner);
+            */
+
+    }
+
+    #[test]
+    fn test_channeler_connector_basic() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_channeler_connector_basic(thread_pool.clone()));
+    }
+}

@@ -1,7 +1,7 @@
 use core::pin::Pin;
 use futures::channel::{mpsc, oneshot};
 use futures::{Future, FutureExt, SinkExt};
-use common::connector::{Connector, ConnPair};
+use crate::connector::{Connector, ConnPair};
 
 
 pub struct ConnRequest<SI,RI,A> {
