@@ -5,8 +5,9 @@ use crypto::crypto_rand::CryptoRandom;
 use timer::TimerClient;
 use identity::IdentityClient;
 use common::conn::{BoxFuture, Connector, ConnPair};
-use secure_channel::create_secure_channel;
+// use secure_channel::create_secure_channel;
 
+/*
 
 #[derive(Clone)]
 pub struct EncryptedConnector<C,R,S> {
@@ -17,6 +18,7 @@ pub struct EncryptedConnector<C,R,S> {
     ticks_to_rekey: usize,
     spawner: S,
 }
+
 
 /// Turns a connector into a connector that yields encrypted connections.
 /// Addresses are changed from A into (PublicKey, A), 
@@ -72,3 +74,4 @@ where
         Box::pinned(fut)
     }
 }
+*/
