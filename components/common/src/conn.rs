@@ -1,6 +1,7 @@
+use std::marker::PhantomData;
 use core::pin::Pin;
 use futures::channel::mpsc;
-use futures::Future;
+use futures::{future, Future};
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
@@ -74,3 +75,44 @@ where
         self.connector.connect(self.address.clone())
     }
 }
+
+
+
+/// The Identity connection transformation.
+/// Returns exactly the same connection it has received.
+pub struct IdentityConnTransform<SI,RI,ARG> {
+    phantom_send_item: PhantomData<SI>,
+    phantom_recv_item: PhantomData<RI>,
+    phantom_arg: PhantomData<ARG>,
+}
+
+impl<SI,RI,ARG> IdentityConnTransform<SI,RI,ARG> {
+    pub fn new() -> IdentityConnTransform<SI,RI,ARG> {
+        IdentityConnTransform {
+            phantom_send_item: PhantomData,
+            phantom_recv_item: PhantomData,
+            phantom_arg: PhantomData,
+        }
+    }
+
+}
+
+
+impl<SI,RI,ARG> ConnTransform for IdentityConnTransform<SI,RI,ARG> 
+where
+    SI: Send,
+    RI: Send,
+{
+    type OldSendItem = SI;
+    type OldRecvItem = RI;
+    type NewSendItem = SI;
+    type NewRecvItem = RI;
+    type Arg = ARG;
+
+    fn transform(&mut self, _arg: ARG, conn_pair: ConnPair<SI,RI>) 
+        -> BoxFuture<'_, Option<ConnPair<SI,RI>>> {
+
+        Box::pinned(future::ready(Some(conn_pair)))
+    }
+}
+
