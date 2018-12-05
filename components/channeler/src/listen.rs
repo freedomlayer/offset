@@ -1,5 +1,5 @@
 use std::marker::Unpin;
-use futures::{select, FutureExt, Stream, StreamExt, Sink, SinkExt};
+use futures::{select, FutureExt, TryFutureExt, Stream, StreamExt, Sink, SinkExt};
 use futures::task::{Spawn, SpawnExt};
 use futures::channel::{mpsc, oneshot};
 
@@ -171,4 +171,124 @@ where
         ListenSelect::Canceled => Err(ListenError::Canceled),
     }
 }
+
+
+pub trait Listener {
+    type Connection;
+    type Config;
+    type Arg;
+
+    fn listen(self, arg: Self::Arg) -> (mpsc::Sender<Self::Config>, 
+                             mpsc::Receiver<Self::Connection>);
+}
+
+#[derive(Clone)]
+pub struct ChannelerListener<A,C,R,S> {
+    connector: C,
+    address: A,
+    conn_timeout_ticks: usize,
+    keepalive_ticks: usize,
+    backoff_ticks: usize,
+    timer_client: TimerClient,
+    identity_client: IdentityClient,
+    rng: R,
+    spawner: S,
+}
+
+impl<A,C,R,S> ChannelerListener<A,C,R,S>
+where
+    A: Clone + Send + Sync + 'static,
+    C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Sync + Send + Clone + 'static, 
+    R: CryptoRandom + 'static,
+    S: Spawn + Clone + Send + 'static,
+{
+    fn new() -> ChannelerListener<A,C,R,S> {
+        unimplemented!();
+    }
+
+    async fn listen_loop(&mut self, relay_address: A,
+                   mut access_control_receiver: mpsc::Receiver<AccessControlOp>,
+                   connections_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>,Vec<u8>>)>,
+                   mut access_control: AccessControl)
+                    -> Result<(), ListenError> {
+
+        let (plain_connections_sender, plain_connections_receiver) = mpsc::channel(0);
+        self.spawner.spawn(conn_encryptor(plain_connections_receiver, 
+                                     connections_sender, // Sends encrypted connections
+                                     self.timer_client.clone(),
+                                     self.identity_client.clone(),
+                                     self.rng.clone(),
+                                     self.spawner.clone()))
+            .map_err(|_| ListenError::SpawnError)?;
+
+        // TODO: get rid of Box::pinned() later ?
+        loop {
+            let const_address_connector = ConstAddressConnector::new(self.connector.clone(), 
+                                                                     relay_address.clone());
+            let res = await!(client_listener(const_address_connector,
+                                        &mut access_control,
+                                        &mut access_control_receiver,
+                                        plain_connections_sender.clone(),
+                                        self.conn_timeout_ticks,
+                                        self.keepalive_ticks,
+                                        self.timer_client.clone(),
+                                        self.spawner.clone()));
+
+            // Exit the loop if the error is fatal:
+            // TODO: Should we unwrap here? We need to make sure that everything stops if a fatal error
+            // occurs here.
+            convert_client_listener_result(res)?;
+
+            // Wait for a while before attempting to connect again:
+            // TODO: Possibly wait here in a smart way? Exponential backoff?
+            await!(sleep_ticks(self.backoff_ticks, self.timer_client.clone()))
+                .map_err(|_| ListenError::SleepTicksError)?;
+        }
+        // This is a hack to help the compiler know that the return type
+        // here is Result<(),_>
+        #[allow(unreachable_code)]
+        Ok(())
+
+    }
+}
+
+impl<A,C,R,S> Listener for ChannelerListener<A,C,R,S> 
+where
+    A: Clone + Send + Sync + 'static,
+    C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Sync + Send + Clone + 'static, 
+    R: CryptoRandom + 'static,
+    S: Spawn + Clone + Send + 'static,
+{
+    type Connection = (PublicKey, ConnPair<Vec<u8>,Vec<u8>>);
+    type Config = AccessControlOp;
+    type Arg = (A, AccessControl);
+
+    fn listen(mut self, arg: (A, AccessControl)) -> (mpsc::Sender<AccessControlOp>, 
+                             mpsc::Receiver<Self::Connection>) {
+
+        let (relay_address, access_control) = arg;
+
+        let (access_control_sender, access_control_receiver) = mpsc::channel(0);
+        let (connections_sender, connections_receiver) = mpsc::channel(0);
+
+        let mut spawner = self.spawner.clone();
+
+        // TODO: Is there a less hacky way to do this?:
+        let listen_loop_fut = async move {
+            await!(self.listen_loop(relay_address,
+                   access_control_receiver,
+                   connections_sender,
+                   access_control)
+            .map_err(|e| error!("listen_loop() error: {:?}", e))
+            .map(|_| ()))
+        };
+
+        // A failure will be detected when the user of this listener
+        // tries to read from connection_receiver:
+        let _ = spawner.spawn(listen_loop_fut);
+
+        (access_control_sender, connections_receiver)
+    }
+}
+
 
