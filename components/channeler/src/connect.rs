@@ -1,6 +1,4 @@
-use futures::channel::oneshot;
 use futures::task::Spawn;
-use futures::{FutureExt, select};
 
 use proto::consts::TICKS_TO_REKEY;
 
@@ -17,17 +15,6 @@ use relay::client::client_connector::ClientConnector;
 
 use secure_channel::create_secure_channel;
 
-
-#[derive(Debug)]
-pub enum ConnectError {
-    Canceled,
-}
-
-enum ConnectSelect {
-    Canceled,
-    ConnectFailed,
-    Connected(ConnPair<Vec<u8>,Vec<u8>>),
-}
 
 async fn secure_connect<C,A,R,S>(mut client_connector: C,
                             timer_client: TimerClient,
