@@ -8,17 +8,11 @@ use futures::channel::{oneshot, mpsc};
 use proto::funder::messages::{FunderToChanneler, ChannelerToFunder};
 
 use crypto::identity::PublicKey;
-use crypto::crypto_rand::CryptoRandom;
-
-use timer::TimerClient;
-
-use identity::IdentityClient;
 
 use relay::client::connector::{Connector, ConnPair};
 use relay::client::access_control::{AccessControl, AccessControlOp};
 
-use crate::listen::{listen_loop, Listener};
-use crate::connect::{ConnectError};
+use crate::listen::Listener;
 use crate::overwrite_channel::overwrite_send_all;
 
 pub enum ChannelerEvent<A> {
