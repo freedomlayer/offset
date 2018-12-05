@@ -13,7 +13,7 @@ use common::conn::{Listener, ConnPair, ConnTransform};
 use relay::client::access_control::{AccessControlOp, AccessControl};
 
 #[derive(Debug)]
-pub enum ListenError {
+enum ListenError {
     SleepTicksError,
     SpawnError,
 }
@@ -23,7 +23,7 @@ pub enum ListenError {
 /// We require this logic because it is inefficient to perform handshake for the connections serially.
 /// For example: It is possible that connection A arrives before connection B, but performing
 /// handshake for A takes longer than it takes for B.
-pub async fn conn_encryptor<CS,T,S>(mut plain_connections_receiver: mpsc::Receiver<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>,
+async fn conn_encryptor<CS,T,S>(mut plain_connections_receiver: mpsc::Receiver<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>,
                             encrypt_transform: T,
                             encrypted_connections_sender: CS,
                             mut spawner: S)
