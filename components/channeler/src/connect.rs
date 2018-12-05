@@ -45,6 +45,7 @@ where
     }
 }
 
+#[derive(Clone)]
 pub struct ChannelerConnector<C,R,S> {
     connector: C,
     keepalive_ticks: usize,
