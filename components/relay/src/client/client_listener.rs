@@ -17,7 +17,7 @@ use common::int_convert::usize_to_u64;
 use common::listener::Listener;
 
 use timer::{TimerClient, TimerTick};
-use common::connector::{Connector, ConnPair};
+use common::connector::{Connector, ConnPair, ConstAddressConnector};
 use super::access_control::{AccessControl, AccessControlOp};
 
 
@@ -312,24 +312,31 @@ impl<C,S> ClientListener<C,S> {
     }
 }
 
-impl <C,S> Listener for ClientListener<C,S> 
+impl <A,C,S> Listener for ClientListener<C,S> 
 where
-    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
+    A: Clone + Send + Sync + 'static,
+    C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
     S: Spawn + Clone + Send + 'static,
 {
     type Connection = (PublicKey, ConnPair<Vec<u8>, Vec<u8>>);
     type Config = AccessControlOp;
-    type Arg = AccessControl;
+    type Arg = (A, AccessControl);
 
-    fn listen(self, mut access_control: AccessControl) -> (mpsc::Sender<AccessControlOp>, 
+    fn listen(self, arg: (A, AccessControl)) -> (mpsc::Sender<AccessControlOp>, 
                              mpsc::Receiver<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>) {
+
+        let (relay_address, mut access_control) = arg;
 
         let mut c_spawner = self.spawner.clone();
         let (access_control_sender, mut access_control_receiver) = mpsc::channel(0);
         let (connections_sender, connections_receiver) = mpsc::channel(0);
 
+        let const_connector = ConstAddressConnector::new(
+            self.connector.clone(),
+            relay_address);
+
         let fut = async move {
-            await!(inner_client_listener(self.connector,
+            await!(inner_client_listener(const_connector,
                                  &mut access_control,
                                  &mut access_control_receiver,
                                  connections_sender,
