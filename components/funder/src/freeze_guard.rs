@@ -4,7 +4,7 @@ use num_bigint::BigUint;
 
 use crypto::identity::PublicKey;
 use crypto::hash::{HashResult, sha_512_256};
-use utils::int_convert::usize_to_u32;
+use common::int_convert::usize_to_u32;
 
 use proto::funder::messages::{Ratio, FriendsRoute, FreezeLink};
 

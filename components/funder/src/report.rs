@@ -1,7 +1,7 @@
 use im::hashmap::HashMap as ImHashMap;
 
 use crypto::identity::{PublicKey, Signature};
-use utils::int_convert::usize_to_u64;
+use common::int_convert::usize_to_u64;
 
 use crate::friend::{FriendState, ChannelStatus, FriendMutation};
 use crate::state::{FunderState, FunderMutation};

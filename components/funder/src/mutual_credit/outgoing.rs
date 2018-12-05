@@ -6,8 +6,8 @@ use std::collections::VecDeque;
 use crypto::identity::verify_signature;
 use crypto::hash;
 
-use utils::safe_arithmetic::SafeSignedArithmetic;
-use utils::int_convert::usize_to_u32;
+use common::safe_arithmetic::SafeSignedArithmetic;
+use common::int_convert::usize_to_u32;
 
 use proto::funder::messages::{FriendTcOp, RequestSendFunds, 
     ResponseSendFunds, FailureSendFunds,FriendsRoute,

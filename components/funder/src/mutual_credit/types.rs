@@ -4,7 +4,7 @@ use im::hashmap::HashMap as ImHashMap;
 
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
-use utils::safe_arithmetic::SafeSignedArithmetic;
+use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::funder::messages::PendingRequest;
 use crate::types::RequestsStatus;

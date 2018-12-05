@@ -1,7 +1,7 @@
 use crypto::identity::verify_signature;
 
-use utils::int_convert::usize_to_u32;
-use utils::safe_arithmetic::SafeSignedArithmetic;
+use common::int_convert::usize_to_u32;
+use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds, FailureSendFunds,
     FriendTcOp, PendingRequest};
