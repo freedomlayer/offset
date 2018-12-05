@@ -29,7 +29,7 @@ enum ConnectSelect {
     Connected(ConnPair<Vec<u8>,Vec<u8>>),
 }
 
-pub async fn secure_connect<C,A,R,S>(mut client_connector: C,
+async fn secure_connect<C,A,R,S>(mut client_connector: C,
                             timer_client: TimerClient,
                             address: A,
                             public_key: PublicKey,
@@ -122,6 +122,7 @@ where
 
 
 
+/*
 pub async fn connect<A,C,S,R>(connector: C,
                 address: A, 
                 public_key: PublicKey, 
@@ -158,4 +159,5 @@ where
         _close_receiver = close_receiver => Err(ConnectError::Canceled),
     }
 }
+*/
 
