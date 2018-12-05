@@ -118,7 +118,7 @@ where
                     }
                 }
                 (access_control, access_control_receiver)
-            }).unwrap();
+            }).map_err(|_| ListenError::SpawnError)?;
 
             let fut_connections_send_all = 
                 plain_connections_sender.send_all(&mut connections_receiver);
