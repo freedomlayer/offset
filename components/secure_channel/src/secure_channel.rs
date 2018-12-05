@@ -20,7 +20,7 @@ use proto::secure_channel::messages::{EncryptedData, PlainData};
 
 
 #[derive(Debug)]
-pub enum SecureChannelError {
+enum SecureChannelError {
     IdentityFailure,
     WriterError,
     ReaderClosed,
@@ -180,7 +180,7 @@ where
 ///
 /// `ticks_to_rekey` is the amount of time ticks it takes to issue a rekey, changing the symmetric
 /// key used for the encryption.
-pub async fn create_secure_channel<EK,M,K,R,S>(writer: K, reader: M,
+async fn create_secure_channel<EK,M,K,R,S>(writer: K, reader: M,
                               identity_client: IdentityClient,
                               opt_expected_remote: Option<PublicKey>,
                               rng: R,
