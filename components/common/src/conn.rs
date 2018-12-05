@@ -80,6 +80,7 @@ where
 
 /// The Identity connection transformation.
 /// Returns exactly the same connection it has received.
+#[derive(Clone)]
 pub struct IdentityConnTransform<SI,RI,ARG> {
     phantom_send_item: PhantomData<SI>,
     phantom_recv_item: PhantomData<RI>,
