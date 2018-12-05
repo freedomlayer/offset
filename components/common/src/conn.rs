@@ -6,14 +6,17 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 pub type ConnPair<SendItem, RecvItem> = (mpsc::Sender<SendItem>,mpsc::Receiver<RecvItem>);
 
+/// connect to a remote entity
 pub trait Connector {
     type Address;
     type SendItem;
     type RecvItem;
+
     fn connect(&mut self, address: Self::Address) 
         -> BoxFuture<'_, Option<ConnPair<Self::SendItem, Self::RecvItem>>>;
 }
 
+/// Listen to connections from remote entities
 pub trait Listener {
     type Connection;
     type Config;
@@ -23,6 +26,7 @@ pub trait Listener {
                              mpsc::Receiver<Self::Connection>);
 }
 
+/// Transform a connection into another connection
 pub trait ConnTransform {
     type OldSendItem;
     type OldRecvItem;
