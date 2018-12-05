@@ -12,9 +12,6 @@ pub struct AccessControl {
     allowed: HashSet<PublicKey>,
 }
 
-#[derive(Debug)]
-pub struct ApplyOpError;
-
 impl AccessControl {
     pub fn new() -> AccessControl {
         AccessControl {
@@ -22,7 +19,7 @@ impl AccessControl {
         }
     }
 
-    pub fn apply_op(&mut self, allowed_op: AccessControlOp) -> Result<(), ApplyOpError> {
+    pub fn apply_op(&mut self, allowed_op: AccessControlOp) {
         match allowed_op {
             AccessControlOp::Add(public_key) => {
                 self.allowed.insert(public_key);
@@ -31,7 +28,6 @@ impl AccessControl {
                 self.allowed.remove(&public_key);
             }
         }
-        Ok(())
     }
 
     /// Check if a certain public key is allowed.

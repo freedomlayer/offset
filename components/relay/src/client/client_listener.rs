@@ -243,10 +243,8 @@ where
             await!(event_sender.send(event.clone()));
         }
         match event {
-            ClientListenerEvent::AccessControlOp(access_control_op) => {
-                access_control.apply_op(access_control_op)
-                    .map_err(|_| ClientListenerError::AccessControlError)?;
-            },
+            ClientListenerEvent::AccessControlOp(access_control_op) =>
+                access_control.apply_op(access_control_op),
             ClientListenerEvent::ServerMessage(incoming_connection) => {
                 let public_key = incoming_connection.public_key.clone();
                 if !access_control.is_allowed(&public_key) {

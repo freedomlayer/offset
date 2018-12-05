@@ -110,7 +110,7 @@ where
         let mut access_control = AccessControl::new();
         for (public_key, friend) in &self.friends {
             if friend.opt_address.is_none() {
-                access_control.apply_op(AccessControlOp::Add(public_key.clone())).unwrap();
+                access_control.apply_op(AccessControlOp::Add(public_key.clone()));
             }
         }
         access_control
