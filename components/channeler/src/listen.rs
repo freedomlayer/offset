@@ -48,6 +48,8 @@ fn convert_client_listener_result(client_listener_result: Result<(), ClientListe
             Err(ListenError::AccessControlError),
         Err(ClientListenerError::SpawnError) =>
             Err(ListenError::SpawnError),
+        Err(ClientListenerError::AccessControlClosed) =>
+            Err(ListenError::Canceled),
         Err(ClientListenerError::SendInitConnectionError) |
         Err(ClientListenerError::ConnectionFailure) |
         Err(ClientListenerError::SendToServerError) |
