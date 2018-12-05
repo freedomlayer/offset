@@ -14,6 +14,7 @@ use proto::relay::serialize::{serialize_init_connection,
     serialize_incoming_connection, deserialize_incoming_connection,
     serialize_reject_connection, deserialize_reject_connection};
 use common::int_convert::usize_to_u64;
+use common::listener::Listener;
 
 use timer::{TimerClient, TimerTick};
 use common::connector::{Connector, ConnPair};
@@ -307,6 +308,72 @@ where
                                  timer_client,
                                  spawner,
                                  None))
+}
+
+#[derive(Clone)]
+pub struct ClientListener<C,S> {
+    connector: C,
+    access_control: AccessControl,
+    conn_timeout_ticks: usize,
+    keepalive_ticks: usize,
+    timer_client: TimerClient,
+    spawner: S,
+}
+
+impl<C,S> ClientListener<C,S> {
+    pub fn new(connector: C,
+           access_control: AccessControl,
+           conn_timeout_ticks: usize,
+           keepalive_ticks: usize,
+           timer_client: TimerClient,
+           spawner: S) -> ClientListener<C,S> {
+
+        ClientListener {
+            connector,
+            access_control,
+            conn_timeout_ticks,
+            keepalive_ticks,
+            timer_client,
+            spawner,
+        }
+    }
+}
+
+impl <C,S> Listener for ClientListener<C,S> 
+where
+    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
+    S: Spawn + Clone + Send + 'static,
+{
+    type Connection = (PublicKey, ConnPair<Vec<u8>, Vec<u8>>);
+    type Config = AccessControlOp;
+    type Arg = AccessControl;
+
+    fn listen(self, mut access_control: AccessControl) -> (mpsc::Sender<AccessControlOp>, 
+                             mpsc::Receiver<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>) {
+
+        let mut c_spawner = self.spawner.clone();
+        let (access_control_sender, mut access_control_receiver) = mpsc::channel(0);
+        let (connections_sender, connections_receiver) = mpsc::channel(0);
+
+        let fut = async move {
+            await!(inner_client_listener(self.connector,
+                                 &mut access_control,
+                                 &mut access_control_receiver,
+                                 connections_sender,
+                                 self.conn_timeout_ticks,
+                                 self.keepalive_ticks,
+                                 self.timer_client,
+                                 self.spawner,
+                                 None)
+                        .map_err(|e| error!("inner_client_listener() error: {:?}", e))
+                        .map(|_| ()))
+        };
+
+        let _ = c_spawner.spawn(fut);
+
+        (access_control_sender, connections_receiver)
+    }
+
 }
 
 #[cfg(test)]
