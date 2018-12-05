@@ -28,6 +28,7 @@ pub enum ClientListenerError {
     ConnectionFailure,
     TimerClosed,
     AccessControlError,
+    AccessControlClosed,
     SendToServerError,
     ServerClosed,
     SpawnError,
@@ -36,6 +37,7 @@ pub enum ClientListenerError {
 #[derive(Debug, Clone)]
 enum ClientListenerEvent {
     AccessControlOp(AccessControlOp),
+    AccessControlClosed,
     ServerMessage(IncomingConnection),
     ServerClosed,
     PendingReject(PublicKey),
@@ -221,7 +223,8 @@ where
 
 
     let incoming_access_control = incoming_access_control
-        .map(|access_control_op| ClientListenerEvent::AccessControlOp(access_control_op));
+        .map(|access_control_op| ClientListenerEvent::AccessControlOp(access_control_op))
+        .chain(stream::once(future::ready(ClientListenerEvent::AccessControlClosed)));
 
     let server_receiver = receiver
         .map(ClientListenerEvent::ServerMessage)
@@ -271,6 +274,8 @@ where
                     .map_err(|_| ClientListenerError::SendToServerError)?;
             },
             ClientListenerEvent::ServerClosed => return Err(ClientListenerError::ServerClosed),
+            ClientListenerEvent::AccessControlClosed =>
+                return Err(ClientListenerError::AccessControlClosed),
         }
     }
     Ok(())
