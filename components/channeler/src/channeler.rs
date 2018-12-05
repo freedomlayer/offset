@@ -317,7 +317,7 @@ where
             ChannelerEvent::FromFunder(funder_to_channeler) => 
                 await!(handle_from_funder(&mut channeler, funder_to_channeler))?,
             ChannelerEvent::Connection((public_key, conn_pair)) => { 
-                let ConnPair {sender, receiver} = conn_pair;
+                let (sender, receiver) = conn_pair;
 
                 // We use an overwrite channel to make sure we are never stuck on trying to send a
                 // message to remote friend. A friend only needs to know the most recent message,

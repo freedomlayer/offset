@@ -133,17 +133,17 @@ where
         },
     }?;
 
+    let (mut sender, receiver) = conn_pair;
+
     // Send first message:
     let ser_init_connection = serialize_init_connection(
         &InitConnection::Accept(public_key.clone()));
-    let send_res = await!(conn_pair.sender.send(ser_init_connection));
+    let send_res = await!(sender.send(ser_init_connection));
     if let Err(_) = send_res {
         await!(pending_reject_sender.send(public_key))
             .map_err(|_| AcceptConnectionError::PendingRejectSenderError)?;
         return Err(AcceptConnectionError::SendInitConnectionError);
     }
-
-    let ConnPair {sender, receiver} = conn_pair;
 
     let to_tunnel_sender = sender;
     let from_tunnel_receiver = receiver;
@@ -159,12 +159,7 @@ where
                       keepalive_ticks,
                       spawner.clone());
 
-    let conn_pair = ConnPair {
-        sender: user_to_tunnel_sender,
-        receiver: user_from_tunnel_receiver,
-    };
-
-    await!(connections_sender.send((public_key, conn_pair)))
+    await!(connections_sender.send((public_key, (user_to_tunnel_sender, user_from_tunnel_receiver))))
         .map_err(|_| AcceptConnectionError::SendConnPairError)?;
     Ok(())
 }
@@ -201,7 +196,7 @@ where
     // be received at pending_reject_receiver
     let (pending_reject_sender, pending_reject_receiver) = mpsc::channel::<PublicKey>(0);
 
-    let ConnPair {mut sender, receiver} = conn_pair;
+    let (mut sender, receiver) = conn_pair;
     let ser_init_connection = serialize_init_connection(&InitConnection::Listen);
 
     await!(sender.send(ser_init_connection))
@@ -378,10 +373,7 @@ mod tests {
 
         let req = await!(req_receiver.next()).unwrap();
         let (dummy_sender, dummy_receiver) = mpsc::channel::<Vec<u8>>(0);
-        let conn_pair = ConnPair {
-            sender: dummy_sender,
-            receiver: dummy_receiver,
-        };
+        let conn_pair = (dummy_sender, dummy_receiver);
         req.reply(conn_pair);
 
 
@@ -455,10 +447,7 @@ mod tests {
         let (local_sender, mut remote_receiver) = mpsc::channel(0);
         let (remote_sender, local_receiver) = mpsc::channel(0);
 
-        let conn_pair = ConnPair {
-            sender: local_sender,
-            receiver: local_receiver,
-        };
+        let conn_pair = (local_sender, local_receiver);
 
         // accept_connection() will try to connect. We prepare a connection:
         let req = await!(req_receiver.next()).unwrap();
@@ -478,13 +467,15 @@ mod tests {
         let (accepted_public_key, mut conn_pair) = await!(connections_receiver.next()).unwrap();
         assert_eq!(accepted_public_key, public_key);
 
-        await!(conn_pair.sender.send(vec![1,2,3])).unwrap();
+        let (mut sender, mut receiver) = conn_pair;
+
+        await!(sender.send(vec![1,2,3])).unwrap();
         let res = await!(ser_remote_receiver.next()).unwrap();
         assert_eq!(res, serialize_ka_message(&KaMessage::Message(vec![1,2,3])));
 
         let vec_ka_message = serialize_ka_message(&KaMessage::Message(vec![3,2,1]));
         await!(ser_remote_sender.send(vec_ka_message)).unwrap();
-        let res = await!(conn_pair.receiver.next()).unwrap();
+        let res = await!(receiver.next()).unwrap();
         assert_eq!(res, vec![3,2,1]);
     }
 
@@ -527,10 +518,7 @@ mod tests {
         // listener will attempt to start a main connection to the relay:
         let (mut relay_sender, local_receiver) = mpsc::channel(0);
         let (local_sender, mut relay_receiver) = mpsc::channel(0);
-        let conn_pair = ConnPair {
-            sender: local_sender,
-            receiver: local_receiver,
-        };
+        let conn_pair = (local_sender, local_receiver);
         let req = await!(req_receiver.next()).unwrap();
         req.reply(conn_pair);
 
@@ -572,10 +560,8 @@ mod tests {
         // Listener will open a connection to the relay:
         let (remote_sender, local_receiver) = mpsc::channel(0);
         let (local_sender, mut remote_receiver) = mpsc::channel(0);
-        let conn_pair = ConnPair {
-            sender: local_sender,
-            receiver: local_receiver,
-        };
+        let conn_pair = (local_sender, local_receiver);
+
         let req = await!(req_receiver.next()).unwrap();
         req.reply(conn_pair);
 

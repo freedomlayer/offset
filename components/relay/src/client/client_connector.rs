@@ -47,16 +47,14 @@ where
     async fn relay_connect(&mut self, relay_address: A, remote_public_key: PublicKey) 
         -> Result<ConnPair<Vec<u8>,Vec<u8>>, ClientConnectorError> {
 
-        let mut conn_pair = await!(self.connector.connect(relay_address))
+        let (mut sender, receiver) = await!(self.connector.connect(relay_address))
             .ok_or(ClientConnectorError::InnerConnectorError)?;
 
         // Send an InitConnection::Connect(PublicKey) message to remote side:
         let init_connection = InitConnection::Connect(remote_public_key);
         let ser_init_connection = serialize_init_connection(&init_connection);
-        await!(conn_pair.sender.send(ser_init_connection))
+        await!(sender.send(ser_init_connection))
             .map_err(|_| ClientConnectorError::SendInitConnectionError)?;
-
-        let ConnPair {sender, receiver} = conn_pair;
 
         let from_tunnel_receiver = receiver;
         let to_tunnel_sender = sender;
@@ -71,10 +69,7 @@ where
                           self.keepalive_ticks,
                           self.spawner.clone());
 
-        Ok(ConnPair {
-            sender: user_to_tunnel,
-            receiver: user_from_tunnel,
-        })
+        Ok((user_to_tunnel, user_from_tunnel))
     }
 }
 
@@ -123,10 +118,7 @@ mod tests {
         let (local_sender, mut relay_receiver) = mpsc::channel::<Vec<u8>>(0);
         let (mut relay_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
 
-        let conn_pair = ConnPair {
-            sender: local_sender,
-            receiver: local_receiver,
-        };
+        let conn_pair = (local_sender, local_receiver);
         let (req_sender, mut req_receiver) = mpsc::channel(0);
         // await!(conn_sender.send(conn_pair)).unwrap();
         let connector = DummyConnector::new(req_sender);
@@ -163,7 +155,8 @@ mod tests {
 
         let ka_message = KaMessage::Message(vec![1,2,3]);
         await!(relay_sender.send(serialize_ka_message(&ka_message))).unwrap();
-        let vec = await!(conn_pair.receiver.next()).unwrap();
+        let (ref _sender, ref mut receiver) = conn_pair;
+        let vec = await!(receiver.next()).unwrap();
         assert_eq!(vec, vec![1,2,3]);
     }
 

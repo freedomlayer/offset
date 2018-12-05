@@ -29,15 +29,15 @@ where
     R: CryptoRandom + 'static,
     S: Spawn + Clone + Sync + Send,
 {
-    let conn_pair = await!(client_connector.connect((address, public_key.clone())))?;
-    match await!(create_secure_channel(conn_pair.sender, conn_pair.receiver,
+    let (sender, receiver) = await!(client_connector.connect((address, public_key.clone())))?;
+    match await!(create_secure_channel(sender, receiver,
                           identity_client,
                           Some(public_key.clone()),
                           rng,
                           timer_client,
                           TICKS_TO_REKEY,
                           spawner)) {
-        Ok((sender, receiver)) => Some(ConnPair {sender, receiver}),
+        Ok((sender, receiver)) => Some((sender, receiver)),
         Err(e) => {
             error!("Error in create_secure_channel: {:?}", e);
             None

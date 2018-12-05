@@ -39,8 +39,8 @@ where
     R: CryptoRandom + 'static,
     S: Spawn + Clone + Send + 'static,
 {
-    while let Some((public_key, conn_pair)) = await!(plain_connections_receiver.next()) {
-        let secure_channel_fut = create_secure_channel(conn_pair.sender, conn_pair.receiver,
+    while let Some((public_key, (sender, receiver))) = await!(plain_connections_receiver.next()) {
+        let secure_channel_fut = create_secure_channel(sender, receiver,
                               identity_client.clone(),
                               Some(public_key.clone()),
                               rng.clone(),
@@ -51,7 +51,7 @@ where
         spawner.spawn(async move {
             match await!(secure_channel_fut) {
                 Ok((sender, receiver)) => {
-                    let conn_pair = ConnPair {sender, receiver};
+                    let conn_pair = (sender, receiver);
                     if let Err(_e) = await!(c_encrypted_connections_sender.send((public_key, conn_pair))) {
                         error!("conn_encryptor(): Can not send through encrypted_connections_sender");
                     }

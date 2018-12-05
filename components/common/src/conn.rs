@@ -4,10 +4,7 @@ use futures::Future;
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
-pub struct ConnPair<SendItem, RecvItem> {
-    pub sender: mpsc::Sender<SendItem>,
-    pub receiver: mpsc::Receiver<RecvItem>,
-}
+pub type ConnPair<SendItem, RecvItem> = (mpsc::Sender<SendItem>,mpsc::Receiver<RecvItem>);
 
 pub trait Connector {
     type Address;
@@ -27,10 +24,13 @@ pub trait Listener {
 }
 
 pub trait ConnTransform {
-    type SendItem;
-    type RecvItem;
-    fn transform(&mut self, conn_pair: ConnPair<Self::SendItem, Self::RecvItem>) 
-        -> BoxFuture<'_, Option<ConnPair<Self::SendItem, Self::RecvItem>>>;
+    type OldSendItem;
+    type OldRecvItem;
+    type NewSendItem;
+    type NewRecvItem;
+
+    fn transform(&mut self, conn_pair: ConnPair<Self::OldSendItem, Self::OldRecvItem>) 
+        -> BoxFuture<'_, Option<ConnPair<Self::NewSendItem, Self::NewRecvItem>>>;
 }
 
 
