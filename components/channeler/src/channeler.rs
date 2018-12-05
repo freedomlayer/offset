@@ -9,10 +9,11 @@ use proto::funder::messages::{FunderToChanneler, ChannelerToFunder};
 
 use crypto::identity::PublicKey;
 
-use relay::client::connector::{Connector, ConnPair};
+use common::connector::{Connector, ConnPair};
+use common::listener::Listener;
+
 use relay::client::access_control::{AccessControl, AccessControlOp};
 
-use crate::listen::Listener;
 use crate::overwrite_channel::overwrite_send_all;
 
 pub enum ChannelerEvent<A> {

@@ -4,7 +4,7 @@ use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
 use timer::TimerClient;
 use identity::IdentityClient;
-use relay::client::connector::{BoxFuture, Connector, ConnPair};
+use common::connector::{BoxFuture, Connector, ConnPair};
 use secure_channel::create_secure_channel;
 
 /// A wrapper for a connector.

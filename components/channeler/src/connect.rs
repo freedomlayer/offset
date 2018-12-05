@@ -12,7 +12,7 @@ use identity::IdentityClient;
 use timer::TimerClient;
 use timer::utils::sleep_ticks;
 
-use relay::client::connector::{Connector, ConnPair, BoxFuture};
+use common::connector::{Connector, ConnPair, BoxFuture};
 use relay::client::client_connector::ClientConnector;
 
 use secure_channel::create_secure_channel;

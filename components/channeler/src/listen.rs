@@ -12,7 +12,8 @@ use timer::utils::sleep_ticks;
 
 use identity::IdentityClient;
 
-use relay::client::connector::{Connector, ConnPair};
+use common::connector::{Connector, ConnPair};
+use common::listener::Listener;
 use relay::client::client_listener::{client_listener, ClientListenerError};
 use relay::client::access_control::{AccessControlOp, AccessControl};
 
@@ -172,16 +173,6 @@ where
         ListenSelect::ListenError(listener_error) => Err(listener_error),
         ListenSelect::Canceled => Err(ListenError::Canceled),
     }
-}
-
-
-pub trait Listener {
-    type Connection;
-    type Config;
-    type Arg;
-
-    fn listen(self, arg: Self::Arg) -> (mpsc::Sender<Self::Config>, 
-                             mpsc::Receiver<Self::Connection>);
 }
 
 #[derive(Clone)]

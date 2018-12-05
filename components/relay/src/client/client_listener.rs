@@ -16,7 +16,7 @@ use proto::relay::serialize::{serialize_init_connection,
 use common::int_convert::usize_to_u64;
 
 use timer::{TimerClient, TimerTick};
-use super::connector::{Connector, ConnPair};
+use common::connector::{Connector, ConnPair};
 use super::access_control::{AccessControl, AccessControlOp};
 
 
