@@ -13,8 +13,23 @@ pub struct ListenRequest<CONN,CONF,AR> {
 /// A test util: A mock Listener.
 #[derive(Clone)]
 pub struct DummyListener<S,CONN,CONF,AR> {
-    spawner: S,
     req_sender: mpsc::Sender<ListenRequest<CONN,CONF,AR>>,
+    spawner: S,
+}
+
+impl<S,CONN,CONF,AR> DummyListener<S,CONN,CONF,AR> 
+where
+    S: Spawn,
+    CONN: Send + 'static,
+    CONF: Send + 'static,
+    AR: Send + 'static,
+{
+    pub fn new(req_sender: mpsc::Sender<ListenRequest<CONN,CONF,AR>>, spawner: S) -> DummyListener<S,CONN,CONF,AR> {
+        DummyListener {
+            req_sender,
+            spawner,
+        }
+    }
 }
 
 impl<S,CONN,CONF,AR> Listener for DummyListener<S,CONN,CONF,AR> 
