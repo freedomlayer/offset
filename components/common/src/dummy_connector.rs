@@ -1,7 +1,6 @@
-use core::pin::Pin;
 use futures::channel::{mpsc, oneshot};
-use futures::{Future, SinkExt};
-use crate::conn::{Connector, ConnPair};
+use futures::SinkExt;
+use crate::conn::{Connector, ConnPair, BoxFuture};
 
 
 pub struct ConnRequest<SI,RI,A> {
@@ -39,7 +38,7 @@ where
     type SendItem = SI;
     type RecvItem = RI;
 
-    fn connect<'a>(&'a mut self, address: A) -> Pin<Box<dyn Future<Output=Option<ConnPair<Self::SendItem, Self::RecvItem>>> + Send + 'a>> {
+    fn connect<'a>(&'a mut self, address: A) -> BoxFuture<'_, Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
         let (response_sender, response_receiver) = oneshot::channel();
         let conn_request = ConnRequest {
             address,
