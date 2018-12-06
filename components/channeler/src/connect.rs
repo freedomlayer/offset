@@ -158,7 +158,6 @@ mod tests {
     {
 
         // Create a mock time service:
-        let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let (mut tick_sender_receiver, timer_client) = dummy_timer_multi_sender(spawner.clone());
 
         let backoff_ticks = 2;
