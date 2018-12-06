@@ -439,7 +439,7 @@ mod tests {
                            keepalive_ticks,
                            timer_client,
                            spawner.clone())
-            .map_err(|e| println!("accept_connection error: {:?}", e))
+            .map_err(|e| error!("accept_connection error: {:?}", e))
             .map(|_| ());
 
         spawner.spawn(fut_accept).unwrap();
@@ -510,7 +510,7 @@ mod tests {
                               timer_client,
                               c_spawner,
                               Some(event_sender)))
-        }.map_err(|e| println!("inner_client_listener error: {:?}",e))
+        }.map_err(|e| error!("inner_client_listener error: {:?}",e))
         .map(|_| ());
 
         spawner.spawn(fut_listener).unwrap();
