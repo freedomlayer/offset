@@ -11,10 +11,24 @@ pub struct ListenRequest<CONN,CONF,AR> {
 }
 
 /// A test util: A mock Listener.
-#[derive(Clone)]
 pub struct DummyListener<S,CONN,CONF,AR> {
     req_sender: mpsc::Sender<ListenRequest<CONN,CONF,AR>>,
     spawner: S,
+}
+
+// TODO: Why didn't the automatic #[derive(Clone)] works for DummyListener?
+// Seemed like it had a problem with having config_receiver inside ListenRequest.
+// This is a workaround for this issue:
+impl<S,CONN,CONF,AR> Clone for DummyListener<S,CONN,CONF,AR> 
+where
+    S: Clone,
+{
+    fn clone(&self) -> DummyListener<S,CONN,CONF,AR> {
+        DummyListener {
+            req_sender: self.req_sender.clone(),
+            spawner: self.spawner.clone(),
+        }
+    }
 }
 
 impl<S,CONN,CONF,AR> DummyListener<S,CONN,CONF,AR> 
