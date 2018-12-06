@@ -135,7 +135,7 @@ mod tests {
             let request = await!(conn_request_receiver.next()).unwrap();
             let (mut local_sender, remote_receiver) = mpsc::channel(0);
             let (remote_sender, mut local_receiver) = mpsc::channel(0);
-            request.reply((remote_sender, remote_receiver));
+            request.reply(Some((remote_sender, remote_receiver)));
             assert_eq!(await!(local_receiver.next()).unwrap(), vec![1,2,3]);
             await!(local_sender.send(vec![3,2,1])).unwrap();
         };

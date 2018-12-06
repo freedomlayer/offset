@@ -374,7 +374,7 @@ mod tests {
         let req = await!(req_receiver.next()).unwrap();
         let (dummy_sender, dummy_receiver) = mpsc::channel::<Vec<u8>>(0);
         let conn_pair = (dummy_sender, dummy_receiver);
-        req.reply(conn_pair);
+        req.reply(Some(conn_pair));
 
 
         assert!(await!(fut_conn).is_some());
@@ -451,7 +451,7 @@ mod tests {
 
         // accept_connection() will try to connect. We prepare a connection:
         let req = await!(req_receiver.next()).unwrap();
-        req.reply(conn_pair);
+        req.reply(Some(conn_pair));
 
         let vec_init_connection = await!(remote_receiver.next()).unwrap();
         let init_connection = deserialize_init_connection(&vec_init_connection).unwrap();
@@ -520,7 +520,7 @@ mod tests {
         let (local_sender, mut relay_receiver) = mpsc::channel(0);
         let conn_pair = (local_sender, local_receiver);
         let req = await!(req_receiver.next()).unwrap();
-        req.reply(conn_pair);
+        req.reply(Some(conn_pair));
 
         // Open access for a certain public key:
         let public_key_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
@@ -563,7 +563,7 @@ mod tests {
         let conn_pair = (local_sender, local_receiver);
 
         let req = await!(req_receiver.next()).unwrap();
-        req.reply(conn_pair);
+        req.reply(Some(conn_pair));
 
         let vec_init_connection = await!(remote_receiver.next()).unwrap();
         let init_connection = deserialize_init_connection(&vec_init_connection).unwrap();

@@ -6,12 +6,12 @@ use crate::conn::{Connector, ConnPair};
 
 pub struct ConnRequest<SI,RI,A> {
     pub address: A,
-    response_sender: oneshot::Sender<ConnPair<SI,RI>>,
+    response_sender: oneshot::Sender<Option<ConnPair<SI,RI>>>,
 }
 
 impl<SI,RI,A> ConnRequest<SI,RI,A> {
-    pub fn reply(self, conn_pair: ConnPair<SI,RI>) {
-        self.response_sender.send(conn_pair).ok().unwrap();
+    pub fn reply(self, opt_conn_pair: Option<ConnPair<SI,RI>>) {
+        self.response_sender.send(opt_conn_pair).ok().unwrap();
     }
 }
 
@@ -48,7 +48,7 @@ where
 
         let fut_conn_pair = async move {
             await!(self.req_sender.send(conn_request)).unwrap();
-            await!(response_receiver).ok()
+            await!(response_receiver).unwrap()
         };
         Box::pinned(fut_conn_pair)
     }

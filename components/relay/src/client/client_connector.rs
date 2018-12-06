@@ -139,7 +139,7 @@ mod tests {
         // Wait for connection request:
         let req = await!(req_receiver.next()).unwrap();
         // Reply with a connection:
-        req.reply(conn_pair);
+        req.reply(Some(conn_pair));
         let mut conn_pair = await!(fut_conn_pair);
 
         let vec = await!(relay_receiver.next()).unwrap();
