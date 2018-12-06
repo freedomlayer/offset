@@ -24,7 +24,9 @@ where
     CONF: Send + 'static,
     AR: Send + 'static,
 {
-    pub fn new(req_sender: mpsc::Sender<ListenRequest<CONN,CONF,AR>>, spawner: S) -> DummyListener<S,CONN,CONF,AR> {
+    pub fn new(req_sender: mpsc::Sender<ListenRequest<CONN,CONF,AR>>, 
+               spawner: S) -> DummyListener<S,CONN,CONF,AR> {
+
         DummyListener {
             req_sender,
             spawner,
