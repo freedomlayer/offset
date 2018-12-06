@@ -30,7 +30,7 @@ use futures::stream;
 use common::futures_compat::create_interval;
 
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct TimerTick;
 
 #[derive(Debug)]
@@ -138,7 +138,7 @@ where
 /// Useful for testing, as this function allows full control on the rate of incoming signals.
 pub fn create_timer_incoming<M>(incoming: M, mut spawner: impl Spawn) -> Result<TimerClient, TimerError> 
 where
-    M: Stream<Item=()> + std::marker::Unpin + std::marker::Send + 'static,
+    M: Stream<Item=()> + std::marker::Unpin + Send + 'static,
 {
     let (sender, receiver) = mpsc::channel::<TimerRequest>(0);
     let timer_loop_future = timer_loop(incoming, receiver);
@@ -147,6 +147,26 @@ where
         .then(|_| future::ready(()));
     spawner.spawn(total_fut).unwrap();
     Ok(TimerClient::new(sender))
+}
+
+/// A test util function. Every time a timer_client.request_timer_stream() is called, 
+/// a new mpsc::Sender<TimerTick> will be received through the receiver.
+/// This provides greater control over the sent timer ticks.
+pub fn dummy_timer_multi_sender(mut spawner: impl Spawn) 
+    -> (mpsc::Receiver<mpsc::Sender<TimerTick>>, TimerClient) {
+
+    let (request_sender, mut request_receiver) = mpsc::channel::<TimerRequest>(0);
+    let (mut tick_sender_sender, tick_sender_receiver) = mpsc::channel(0);
+    spawner.spawn(async move {
+        while let Some(timer_request) = await!(request_receiver.next()) {
+            let (tick_sender, tick_receiver) = mpsc::channel::<TimerTick>(0);
+
+            await!(tick_sender_sender.send(tick_sender)).unwrap();
+            timer_request.response_sender.send(tick_receiver).unwrap();
+        }
+    }).unwrap();
+
+    (tick_sender_receiver, TimerClient::new(request_sender))
 }
 
 /// Create a timer service that ticks every `dur`.
@@ -163,7 +183,7 @@ mod tests {
     use super::*;
     use core::pin::Pin;
     use std::time::{Duration, Instant};
-    use futures::executor::LocalPool;
+    use futures::executor::{LocalPool, ThreadPool};
     // use core::pin::Pin;
 
     #[test]
@@ -317,5 +337,31 @@ mod tests {
         let tick_sender = tick_sender.sink_map_err(|_| ());
         local_pool.run_until(task_ticks_receiver(tick_sender, timer_client)).unwrap();
 
+    }
+
+    async fn task_dummy_timer_multi_sender(spawner: impl Spawn) {
+        let (mut tick_sender_receiver, mut timer_client) = dummy_timer_multi_sender(spawner);
+
+        let timer_stream_fut = async {
+            let mut timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+            for _ in 0 .. 16usize {
+                assert_eq!(await!(timer_stream.next()), Some(TimerTick));
+            }
+            assert_eq!(await!(timer_stream.next()), None);
+        };
+        let tick_sender_fut = async {
+            let mut tick_sender = await!(tick_sender_receiver.next()).unwrap();
+
+            for _ in 0 .. 16usize {
+                await!(tick_sender.send(TimerTick)).unwrap();
+            }
+        };
+        let _ = await!(timer_stream_fut.join(tick_sender_fut));
+    }
+
+    #[test]
+    fn test_dummy_timer_multi_sender() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_dummy_timer_multi_sender(thread_pool.clone()));
     }
 }
