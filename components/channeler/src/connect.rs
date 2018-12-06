@@ -92,7 +92,7 @@ mod tests {
     use futures::{FutureExt, StreamExt, SinkExt};
     use futures::task::SpawnExt;
 
-    use timer::create_timer_incoming;
+    use timer::{create_timer_incoming, dummy_timer_multi_sender, TimerTick};
     use crypto::crypto_rand::RngContainer;
     use crypto::identity::PUBLIC_KEY_LEN;
 
@@ -159,7 +159,7 @@ mod tests {
 
         // Create a mock time service:
         let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+        let (mut tick_sender_receiver, timer_client) = dummy_timer_multi_sender(spawner.clone());
 
         let backoff_ticks = 2;
 
@@ -187,9 +187,11 @@ mod tests {
             // Fail in the first time:
             let request = await!(conn_request_receiver.next()).unwrap();
             request.reply(None);
+            // Wait for a request for a timer stream:
+            let mut tick_sender = await!(tick_sender_receiver.next()).unwrap();
             // Wait enough time to let the client try again:
-            for _ in 0 .. backoff_ticks + 3 { // TODO: Fix this. Not exact!
-                await!(tick_sender.send(())).unwrap();
+            for _ in 0 .. backoff_ticks { 
+                await!(tick_sender.send(TimerTick)).unwrap();
             }
 
             // This time return a connection:
