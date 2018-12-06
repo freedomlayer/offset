@@ -9,18 +9,16 @@ use common::conn::{Connector, ConnPair, BoxFuture, ConnTransform};
 use relay::client::client_connector::ClientConnector;
 
 
-async fn secure_connect<C,T,A,S>(mut client_connector: C,
+async fn secure_connect<C,T,A>(mut client_connector: C,
                             mut encrypt_transform: T,
                             address: A,
-                            public_key: PublicKey,
-                            spawner: S) -> Option<ConnPair<Vec<u8>, Vec<u8>>>
+                            public_key: PublicKey) -> Option<ConnPair<Vec<u8>, Vec<u8>>>
 where
     A: Clone,
     C: Connector<Address=(A, PublicKey), SendItem=Vec<u8>, RecvItem=Vec<u8>>,
     T: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
                      NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>, 
                      Arg=Option<PublicKey>>,
-    S: Spawn + Clone + Sync + Send,
 {
     let (sender, receiver) = await!(client_connector.connect((address, public_key.clone())))?;
     await!(encrypt_transform.transform(Some(public_key), (sender, receiver)))
@@ -73,8 +71,7 @@ where
         Box::pinned(async move {
             loop {
                 match await!(secure_connect(self.client_connector.clone(), self.encrypt_transform.clone(), 
-                                            relay_address.clone(), public_key.clone(), 
-                                            self.spawner.clone())) {
+                                            relay_address.clone(), public_key.clone())) {
                     Some(conn_pair) => return Some(conn_pair),
                     None => await!(sleep_ticks(self.backoff_ticks, self.timer_client.clone())).unwrap(),
                 }
