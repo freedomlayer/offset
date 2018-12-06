@@ -89,7 +89,7 @@ mod tests {
     use super::*;
     use futures::executor::ThreadPool;
     use futures::channel::mpsc;
-    use futures::FutureExt;
+    use futures::{FutureExt, StreamExt, SinkExt};
     use futures::task::SpawnExt;
 
     use timer::create_timer_incoming;
@@ -99,10 +99,6 @@ mod tests {
     use common::dummy_connector::{DummyConnector, ConnRequest};
     use common::conn::IdentityConnTransform;
 
-
-    fn consume_connector(connector: impl Connector) {
-        drop(connector);
-    }
 
     async fn task_channeler_connector_basic<S>(mut spawner: S) 
     where
@@ -115,17 +111,13 @@ mod tests {
 
         let backoff_ticks = 2;
 
-        let (conn_request_sender, conn_request_receiver) = mpsc::channel::<ConnRequest<Vec<u8>,Vec<u8>,u32>>(0);
+        let (conn_request_sender, mut conn_request_receiver) = mpsc::channel::<ConnRequest<Vec<u8>,Vec<u8>,(u32, PublicKey)>>(0);
         let client_connector = DummyConnector::new(conn_request_sender);
-
-        use futures::channel::oneshot;
 
         // We don't need encryption for this test:
         let encrypt_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,Option<PublicKey>>::new();
 
-        // consume_connector(client_connector);
-
-        let channeler_connector = ChannelerConnector::new(
+        let mut channeler_connector = ChannelerConnector::new(
             client_connector,
             encrypt_transform,
             backoff_ticks,
@@ -133,10 +125,22 @@ mod tests {
             spawner);
 
         let public_key_b = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
-        channeler_connector.connect((0x1337, public_key_b));
+        let connect_fut = async {
+            let (mut sender, mut receiver) = await!(channeler_connector.connect((0x1337, public_key_b))).unwrap();
+            await!(sender.send(vec![1,2,3])).unwrap();
+            assert_eq!(await!(receiver.next()).unwrap(), vec![3,2,1]);
+        };
 
-        // TODO: Finish here
+        let server_fut = async {
+            let request = await!(conn_request_receiver.next()).unwrap();
+            let (mut local_sender, remote_receiver) = mpsc::channel(0);
+            let (remote_sender, mut local_receiver) = mpsc::channel(0);
+            request.reply((remote_sender, remote_receiver));
+            assert_eq!(await!(local_receiver.next()).unwrap(), vec![1,2,3]);
+            await!(local_sender.send(vec![3,2,1])).unwrap();
+        };
 
+        let _ = await!(connect_fut.join(server_fut));
     }
 
     #[test]
