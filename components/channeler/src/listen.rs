@@ -1,5 +1,5 @@
 use std::marker::Unpin;
-use futures::{select, FutureExt, TryFutureExt, Stream, StreamExt, Sink, SinkExt};
+use futures::{select, future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
 
@@ -16,7 +16,9 @@ use relay::client::access_control::{AccessControlOp, AccessControl};
 enum ListenError {
     SleepTicksError,
     SpawnError,
+    Canceled,
 }
+
 
 /// Encrypt incoming plain connections
 ///
@@ -50,6 +52,12 @@ where
     }
 }
 
+#[derive(Debug)]
+enum ListenLoopEvent {
+    AccessControlOp(Option<AccessControlOp>),
+    Connection(Option<(PublicKey, ConnPair<Vec<u8>,Vec<u8>>)>),
+}
+
 
 #[derive(Clone)]
 pub struct ChannelerListener<A,L,T,S> {
@@ -72,7 +80,7 @@ where
     S: Spawn + Clone + Send + 'static,
 {
 
-    fn new(client_listener: L,
+    pub fn new(client_listener: L,
            encrypt_transform: T,
            address: A,
            backoff_ticks: usize,
@@ -103,27 +111,41 @@ where
                                               self.spawner.clone()))
                 .map_err(|_| ListenError::SpawnError)?;
 
+
             let (mut access_control_sender, mut connections_receiver) = 
                 self.client_listener.clone().listen((relay_address.clone(), access_control.clone()));
 
-            let fut_access_control_send_all = self.spawner.spawn_with_handle(async move {
-                while let Some(access_control_op) = await!(access_control_receiver.next()) {
-                    access_control.apply_op(access_control_op.clone());
-                    if let Err(_) = await!(access_control_sender.send(access_control_op)) {
-                        break;
+            let fut_loop = async move {
+                loop {
+                    let event = select! {
+                        opt_access_control_op = access_control_receiver.next().fuse() 
+                            => ListenLoopEvent::AccessControlOp(opt_access_control_op),
+                        opt_conn = connections_receiver.next().fuse() => ListenLoopEvent::Connection(opt_conn),
+                    };
+                    match event {
+                        ListenLoopEvent::AccessControlOp(Some(access_control_op)) => {
+                            access_control.apply_op(access_control_op.clone());
+                            if let Err(_) = await!(access_control_sender.send(access_control_op)) {
+                                break;
+                            }
+                        },
+                        ListenLoopEvent::AccessControlOp(None) => return (None, access_control),
+                        ListenLoopEvent::Connection(Some(connection)) => {
+                            await!(plain_connections_sender.send(connection)).unwrap();
+                        },
+                        ListenLoopEvent::Connection(None) => break,
                     }
                 }
-                (access_control, access_control_receiver)
-            }).map_err(|_| ListenError::SpawnError)?;
+                (Some(access_control_receiver), access_control)
+            };
 
-            let fut_connections_send_all = 
-                plain_connections_sender.send_all(&mut connections_receiver);
-
-            let ((res_access_control, res_access_control_receiver), _ ) = 
-                await!(fut_access_control_send_all.join(fut_connections_send_all));
-
-            access_control = res_access_control;
-            access_control_receiver = res_access_control_receiver;
+            let (res_opt_access_control_receiver, res_access_control) = await!(fut_loop);
+            if let Some(res_access_control_receiver) = res_opt_access_control_receiver {
+                access_control_receiver = res_access_control_receiver;
+                access_control = res_access_control;
+            } else {
+                return Err(ListenError::Canceled);
+            }
 
             // Wait for a while before attempting to connect again:
             // TODO: Possibly wait here in a smart way? Exponential backoff?
