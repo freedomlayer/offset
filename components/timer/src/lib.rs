@@ -12,4 +12,4 @@ mod timer;
 pub mod utils;
 
 pub use self::timer::{TimerTick, TimerClient, 
-    create_timer_incoming, create_timer};
+    create_timer_incoming, create_timer, dummy_timer_multi_sender};
