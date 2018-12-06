@@ -182,6 +182,8 @@ mod tests {
     use common::conn::IdentityConnTransform;
     use common::dummy_listener::DummyListener;
 
+    use crypto::identity::PUBLIC_KEY_LEN;
+
     use timer::{create_timer_incoming, dummy_timer_multi_sender, TimerTick};
 
     async fn task_channeler_listener_basic<S>(spawner: S)
@@ -197,9 +199,11 @@ mod tests {
         // Create dummy listener here?
         // let client_listener = DummyListener::new(...)
 
-        let (req_sender, req_receiver) = mpsc::channel(0);
+        let (req_sender, mut req_receiver) = mpsc::channel(0);
         let client_listener = DummyListener::new(req_sender, spawner.clone());
-        client_listener.clone();
+
+        let public_key_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let public_key_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
 
         // We don't need encryption for this test:
         let encrypt_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,Option<PublicKey>>::new();
@@ -213,8 +217,53 @@ mod tests {
             timer_client,
             spawner.clone());
 
-        // TODO: Continue here.
+        let access_control = AccessControl::new();
+        let (mut access_control_sender, mut connections_receiver) = channeler_listener.listen((relay_address, access_control));
 
+        // Inner listener:
+        let client_listener_fut = async {
+            let mut listen_request = await!(req_receiver.next()).unwrap();
+            let (ref arg_relay_address, _) = listen_request.arg;
+            assert_eq!(arg_relay_address, &relay_address);
+
+            // Receive exmaple configuration message:
+            let access_control_op = await!(listen_request.config_receiver.next()).unwrap();
+            assert_eq!(access_control_op, AccessControlOp::Add(public_key_b.clone()));
+
+            // Provide first connection:
+            let (mut local_sender, remote_receiver) = mpsc::channel(0);
+            let (remote_sender, _local_receiver) = mpsc::channel(0);
+            await!(listen_request.conn_sender.send(
+                    (public_key_b.clone(), (remote_sender, remote_receiver)))).unwrap();
+            await!(local_sender.send(vec![1,2,3])).unwrap();
+
+            // Provide second connection:
+            let (_local_sender, remote_receiver) = mpsc::channel(0);
+            let (remote_sender, mut local_receiver) = mpsc::channel(0);
+            await!(listen_request.conn_sender.send(
+                    (public_key_c.clone(), (remote_sender, remote_receiver)))).unwrap();
+            assert_eq!(await!(local_receiver.next()).unwrap(), vec![3,2,1]);
+        };
+
+        // Wrapper listener:
+        let channeler_listener_fut = async {
+            // Send example configuration message:
+            await!(access_control_sender.send(AccessControlOp::Add(public_key_b.clone()))).unwrap();
+
+            // Get first connection:
+            let (public_key, (_sender, mut receiver)) = await!(connections_receiver.next()).unwrap();
+            assert_eq!(public_key, public_key_b);
+            assert_eq!(await!(receiver.next()).unwrap(), vec![1,2,3]);
+
+            // Get second connection:
+            let (public_key, (mut sender, _receiver)) = await!(connections_receiver.next()).unwrap();
+            assert_eq!(public_key, public_key_c);
+            await!(sender.send(vec![3,2,1])).unwrap();
+
+        };
+
+        // Run inner listener and wrapper listener at the same time:
+        await!(client_listener_fut.join(channeler_listener_fut));
     }
 
     #[test]
