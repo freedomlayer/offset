@@ -75,7 +75,7 @@ where
         spawner.spawn(async move {
             let res = await!(req_sender.send(listen_request));
             if let Err(_) = res {
-                println!("Error sending listen_request");
+                error!("Error sending listen_request");
             }
         }).unwrap();
 

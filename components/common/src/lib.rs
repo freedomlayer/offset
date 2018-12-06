@@ -5,6 +5,8 @@
 #![feature(try_from)]
 #![crate_type = "lib"] 
 
+#[macro_use]
+extern crate log;
 
 pub mod int_convert;
 pub mod safe_arithmetic;
