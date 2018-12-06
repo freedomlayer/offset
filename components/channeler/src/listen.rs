@@ -290,6 +290,92 @@ mod tests {
         let mut thread_pool = ThreadPool::new().unwrap();
         thread_pool.run(task_channeler_listener_basic(thread_pool.clone()));
     }
+
+
+    async fn task_channeler_listener_retry<S>(spawner: S)
+    where
+        S: Spawn + Clone + Send + 'static,
+    {
+        // Create a mock time service:
+        let (mut tick_sender_receiver, timer_client) = dummy_timer_multi_sender(spawner.clone());
+
+        let backoff_ticks = 2;
+
+        let (req_sender, mut req_receiver) = mpsc::channel(0);
+        let client_listener = DummyListener::new(req_sender, spawner.clone());
+
+        let public_key_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let public_key_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
+
+        // We don't need encryption for this test:
+        let encrypt_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,Option<PublicKey>>::new();
+        let relay_address = 0x1337u32;
+
+        let channeler_listener = ChannelerListener::new(
+            client_listener,
+            encrypt_transform,
+            relay_address,
+            backoff_ticks,
+            timer_client,
+            spawner.clone());
+
+        let access_control = AccessControl::new();
+        let (_access_control_sender, mut connections_receiver) = channeler_listener.listen((relay_address, access_control));
+
+        // Inner listener:
+        let client_listener_fut = async {
+            let mut listen_request = await!(req_receiver.next()).unwrap();
+            let (ref arg_relay_address, _) = listen_request.arg;
+            assert_eq!(arg_relay_address, &relay_address);
+
+            // Provide first connection:
+            let (_local_sender, remote_receiver) = mpsc::channel(0);
+            let (remote_sender, _local_receiver) = mpsc::channel(0);
+            await!(listen_request.conn_sender.send(
+                    (public_key_b.clone(), (remote_sender, remote_receiver)))).unwrap();
+
+            // Simulate losing connection to relay:
+            drop(listen_request);
+
+            // ChannelerListener will wait `backoff_ticks` before attempting to reconnect
+            // to the relay:
+            let mut tick_sender = await!(tick_sender_receiver.next()).unwrap();
+            for _ in 0 .. backoff_ticks {
+                await!(tick_sender.send(TimerTick)).unwrap();
+            }
+
+            // We expect that ChannelerListener will now attempt to reconnect to relay:
+            let mut listen_request = await!(req_receiver.next()).unwrap();
+            let (ref arg_relay_address, _) = listen_request.arg;
+            assert_eq!(arg_relay_address, &relay_address);
+
+            // Provide second connection:
+            let (_local_sender, remote_receiver) = mpsc::channel(0);
+            let (remote_sender, _local_receiver) = mpsc::channel(0);
+            await!(listen_request.conn_sender.send(
+                    (public_key_c.clone(), (remote_sender, remote_receiver)))).unwrap();
+        };
+
+        // Wrapper listener:
+        let channeler_listener_fut = async {
+            // Get first connection:
+            let (public_key, (_sender, _receiver)) = await!(connections_receiver.next()).unwrap();
+            assert_eq!(public_key, public_key_b);
+
+            // Get second connection:
+            let (public_key, (_sender, _receiver)) = await!(connections_receiver.next()).unwrap();
+            assert_eq!(public_key, public_key_c);
+        };
+
+        // Run inner listener and wrapper listener at the same time:
+        await!(client_listener_fut.join(channeler_listener_fut));
+    }
+
+    #[test]
+    fn test_channeler_listener_retry() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_channeler_listener_retry(thread_pool.clone()));
+    }
 }
 
 
