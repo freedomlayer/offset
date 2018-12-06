@@ -218,9 +218,6 @@ mod tests {
 
         let backoff_ticks = 2;
 
-        // Create dummy listener here?
-        // let client_listener = DummyListener::new(...)
-
         let (req_sender, mut req_receiver) = mpsc::channel(0);
         let client_listener = DummyListener::new(req_sender, spawner.clone());
 
