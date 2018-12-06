@@ -5,9 +5,9 @@ use crate::conn::{Listener};
 
 #[allow(unused)]
 pub struct ListenRequest<CONN,CONF,AR> {
-    conn_sender: mpsc::Sender<CONN>,
-    config_receiver: mpsc::Receiver<CONF>,
-    arg: AR,
+    pub conn_sender: mpsc::Sender<CONN>,
+    pub config_receiver: mpsc::Receiver<CONF>,
+    pub arg: AR,
 }
 
 /// A test util: A mock Listener.
