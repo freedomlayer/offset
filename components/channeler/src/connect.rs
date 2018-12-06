@@ -119,7 +119,7 @@ mod tests {
             timer_client,
             spawner);
 
-        let public_key_b = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
+        let public_key_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
         let connect_fut = async {
             let (mut sender, mut receiver) = await!(channeler_connector.connect((0x1337, public_key_b))).unwrap();
             await!(sender.send(vec![1,2,3])).unwrap();
