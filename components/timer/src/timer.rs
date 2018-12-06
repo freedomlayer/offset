@@ -183,63 +183,58 @@ mod tests {
     use super::*;
     use core::pin::Pin;
     use std::time::{Duration, Instant};
-    use futures::executor::{LocalPool, ThreadPool};
-    // use core::pin::Pin;
+    use futures::executor::ThreadPool;
 
     #[test]
     fn test_timer_single() {
-        let mut local_pool = LocalPool::new();
-        let spawner = local_pool.spawner();
+        let mut thread_pool = ThreadPool::new().unwrap();
 
         let dur = Duration::from_millis(1);
-        let timer_client = create_timer(dur, spawner).unwrap();
+        let timer_client = create_timer(dur, thread_pool.clone()).unwrap();
 
-        let timer_stream = local_pool.run_until(timer_client.clone().request_timer_stream()).unwrap();
+        let timer_stream = thread_pool.run(timer_client.clone().request_timer_stream()).unwrap();
         let wait_fut = timer_stream.take(10).collect::<Vec<TimerTick>>();
-        local_pool.run_until(wait_fut);
+        thread_pool.run(wait_fut);
     }
 
 
     #[test]
     fn test_timer_twice() {
-        let mut local_pool = LocalPool::new();
-        let spawner = local_pool.spawner();
+        let mut thread_pool = ThreadPool::new().unwrap();
 
         let dur = Duration::from_millis(1);
-        let timer_client = create_timer(dur, spawner).unwrap();
+        let timer_client = create_timer(dur, thread_pool.clone()).unwrap();
 
-        let timer_stream = local_pool.run_until(timer_client.clone().request_timer_stream()).unwrap();
+        let timer_stream = thread_pool.run(timer_client.clone().request_timer_stream()).unwrap();
         let wait_fut = timer_stream.take(10).collect::<Vec<TimerTick>>();
-        local_pool.run_until(wait_fut);
+        thread_pool.run(wait_fut);
 
-        let timer_stream = local_pool.run_until(timer_client.clone().request_timer_stream()).unwrap();
+        let timer_stream = thread_pool.run(timer_client.clone().request_timer_stream()).unwrap();
         let wait_fut = timer_stream.take(10).collect::<Vec<TimerTick>>();
-        local_pool.run_until(wait_fut);
+        thread_pool.run(wait_fut);
     }
 
     #[test]
     fn test_timer_create_multiple_streams() {
-        let mut local_pool = LocalPool::new();
-        let spawner = local_pool.spawner();
+        let mut thread_pool = ThreadPool::new().unwrap();
 
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let timer_client = create_timer_incoming(tick_receiver, spawner).unwrap();
+        let timer_client = create_timer_incoming(tick_receiver, thread_pool.clone()).unwrap();
 
         let mut timer_streams = Vec::new();
         for _ in 0 .. 10 {
-            let timer_stream = local_pool.run_until(timer_client.clone().request_timer_stream()).unwrap();
+            let timer_stream = thread_pool.run(timer_client.clone().request_timer_stream()).unwrap();
             timer_streams.push(timer_stream);
         }
     }
 
     #[test]
     fn test_timer_multiple() {
-        let mut local_pool = LocalPool::new();
-        let mut spawner = local_pool.spawner();
+        let mut thread_pool = ThreadPool::new().unwrap();
 
         let dur = Duration::from_millis(10);
-        let timer_client = create_timer(dur, spawner.clone()).unwrap();
+        let timer_client = create_timer(dur, thread_pool.clone()).unwrap();
 
         const TICKS: u32 = 4;
         const TIMER_CLIENT_NUM: usize = 2;
@@ -261,12 +256,12 @@ mod tests {
 
         let (sender_done, receiver_done) = oneshot::channel::<()>();
 
-        spawner.spawn(joined_receivers.map(|_| sender_done.send(()).unwrap())).unwrap();
+        thread_pool.spawn(joined_receivers.map(|_| sender_done.send(()).unwrap())).unwrap();
 
         let start = Instant::now();
         for _ in 0 .. TIMER_CLIENT_NUM {
             let sender = senders.pop().unwrap();
-            let new_client = local_pool.run_until(timer_client.clone().request_timer_stream()).unwrap();
+            let new_client = thread_pool.run(timer_client.clone().request_timer_stream()).unwrap();
             let client_wait = new_client.take(u64::from(TICKS)).collect::<Vec<TimerTick>>();
             let client_fut = client_wait.map(move |_| {
                 let elapsed = start.elapsed();
@@ -276,10 +271,10 @@ mod tests {
                 ()
             });
 
-            spawner.spawn(client_fut).unwrap();
+            thread_pool.spawn(client_fut).unwrap();
         }
 
-        local_pool.run_until(receiver_done).unwrap();
+        thread_pool.run(receiver_done).unwrap();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////
@@ -327,15 +322,14 @@ mod tests {
 
     #[test]
     fn test_create_timer_incoming() {
-        let mut local_pool = LocalPool::new();
-        let spawner = local_pool.spawner();
+        let mut thread_pool = ThreadPool::new().unwrap();
 
         // Create a mock time service:
         let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let timer_client = create_timer_incoming(tick_receiver, spawner).unwrap();
+        let timer_client = create_timer_incoming(tick_receiver, thread_pool.clone()).unwrap();
 
         let tick_sender = tick_sender.sink_map_err(|_| ());
-        local_pool.run_until(task_ticks_receiver(tick_sender, timer_client)).unwrap();
+        thread_pool.run(task_ticks_receiver(tick_sender, timer_client)).unwrap();
 
     }
 
