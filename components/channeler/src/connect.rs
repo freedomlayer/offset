@@ -6,7 +6,6 @@ use timer::TimerClient;
 use timer::utils::sleep_ticks;
 
 use common::conn::{Connector, ConnPair, BoxFuture, ConnTransform};
-use relay::client::client_connector::ClientConnector;
 
 
 async fn secure_connect<C,T,A>(mut client_connector: C,
@@ -87,10 +86,8 @@ mod tests {
     use futures::executor::ThreadPool;
     use futures::channel::mpsc;
     use futures::{FutureExt, StreamExt, SinkExt};
-    use futures::task::SpawnExt;
 
     use timer::{create_timer_incoming, dummy_timer_multi_sender, TimerTick};
-    use crypto::crypto_rand::RngContainer;
     use crypto::identity::PUBLIC_KEY_LEN;
 
     use common::dummy_connector::{DummyConnector, ConnRequest};
@@ -98,13 +95,13 @@ mod tests {
 
 
     /// Check basic connection using the ChannelerConnector.
-    async fn task_channeler_connector_basic<S>(mut spawner: S) 
+    async fn task_channeler_connector_basic<S>(spawner: S) 
     where
         S: Spawn + Clone + Sync + Send,
     {
 
         // Create a mock time service:
-        let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
+        let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
 
         let backoff_ticks = 2;
@@ -149,7 +146,7 @@ mod tests {
 
 
     /// Check connection retry in case of connection failure
-    async fn task_channeler_connector_retry<S>(mut spawner: S) 
+    async fn task_channeler_connector_retry<S>(spawner: S) 
     where
         S: Spawn + Clone + Sync + Send,
     {

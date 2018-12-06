@@ -1,3 +1,4 @@
+/*
 use futures::task::Spawn;
 
 use crypto::identity::PublicKey;
@@ -7,7 +8,6 @@ use identity::IdentityClient;
 use common::conn::{BoxFuture, Connector, ConnPair};
 // use secure_channel::create_secure_channel;
 
-/*
 
 #[derive(Clone)]
 pub struct EncryptedConnector<C,R,S> {
