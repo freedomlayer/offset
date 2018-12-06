@@ -174,4 +174,46 @@ where
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::executor::ThreadPool;
+
+    use common::conn::IdentityConnTransform;
+    use timer::{create_timer_incoming, dummy_timer_multi_sender, TimerTick};
+
+    async fn task_channeler_listener_basic(spawner: impl Spawn + Clone + Send) {
+        // Create a mock time service:
+        let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
+        let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+
+        let backoff_ticks = 2;
+
+        // Create dummy listener here?
+        // let client_listener = DummyListener::new(...)
+
+        // We don't need encryption for this test:
+        let encrypt_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,Option<PublicKey>>::new();
+        let relay_address = 0x1337u32;
+
+        // TODO: Continue writing this test
+        /*
+        let channeler_listener = ChannelerListener::new(
+            client_listener,
+            encrypt_transform,
+            relay_address,
+            backoff_ticks,
+            timer_client,
+            spawner.clone());
+        */
+
+    }
+
+    #[test]
+    fn test_channeler_listener_basic() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_channeler_listener_basic(thread_pool.clone()));
+    }
+}
+
 
