@@ -1,7 +1,7 @@
 use crypto::identity::PublicKey;
 use std::collections::HashSet;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AccessControlOp {
     Add(PublicKey),
     Remove(PublicKey),
