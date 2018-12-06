@@ -120,7 +120,7 @@ where
                     // We select over .next() invocations instead of selecting over streams because
                     // we can't afford to lose access_control_receiver. access_control_receiver lives for the entire outer loop,
                     // and as a receiver it can not be cloned.
-                    // TODO: Find out if we can accidentally lose a access_control_op here.
+                    // TODO: Find out if we can accidentally lose an access_control_op here.
                     let event = select! {
                         opt_access_control_op = access_control_receiver.next().fuse() 
                             => ListenLoopEvent::AccessControlOp(opt_access_control_op),
