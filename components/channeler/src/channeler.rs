@@ -531,13 +531,27 @@ mod tests {
         let conn_request = await!(conn_request_receiver.next()).unwrap();
         assert_eq!(conn_request.address, (0x0u32, pks[0].clone()));
 
-        let (mut pk0_sender, remote_receiver) = mpsc::channel(0);
-        let (remote_sender, mut pk0_receiver) = mpsc::channel(0);
+        let (pk0_sender, remote_receiver) = mpsc::channel(0);
+        let (remote_sender, pk0_receiver) = mpsc::channel(0);
         conn_request.reply(Some((remote_sender, remote_receiver)));
+
+        // Online report:
+        let channeler_to_funder = await!(funder_receiver.next()).unwrap();
+        match channeler_to_funder {
+            ChannelerToFunder::Online(public_key) => assert_eq!(public_key, pks[0]),
+            _ => unreachable!(),
+        };
 
         // Drop pks[0] connection:
         drop(pk0_sender);
         drop(pk0_receiver);
+
+        // Offline report:
+        let channeler_to_funder = await!(funder_receiver.next()).unwrap();
+        match channeler_to_funder {
+            ChannelerToFunder::Offline(public_key) => assert_eq!(public_key, pks[0]),
+            _ => unreachable!(),
+        };
 
         // Remove friend:
         await!(funder_sender.send(FunderToChanneler::RemoveFriend(pks[0].clone()))).unwrap();
