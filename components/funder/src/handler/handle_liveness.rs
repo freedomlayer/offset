@@ -95,7 +95,7 @@ mod tests {
     use crate::handler::gen_mutable;
     use crate::state::{FunderState, FunderMutation};
     use crate::ephemeral::Ephemeral;
-    use crate::token_channel::{is_public_key_lower, TcDirection};
+    use crate::token_channel::TcDirection;
     use crate::types::{FriendStatus, AddFriend};
     use crate::friend::FriendMutation;
 
@@ -106,7 +106,7 @@ mod tests {
 
     use crypto::test_utils::DummyRandom;
     use crypto::identity::{SoftwareEd25519Identity,
-                            generate_pkcs8_key_pair};
+                            generate_pkcs8_key_pair, is_public_key_lower};
     use crypto::crypto_rand::RngContainer;
 
 

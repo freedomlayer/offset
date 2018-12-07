@@ -4,7 +4,8 @@ use ring::signature;
 
 use super::CryptoError;
 use common::big_array::BigArray;
-use crypto_rand::CryptoRandom;
+use crate::crypto_rand::CryptoRandom;
+use crate::hash::sha_512_256;
 
 pub const PUBLIC_KEY_LEN: usize = 32;
 pub const SIGNATURE_LEN: usize = 64;
@@ -12,6 +13,12 @@ pub const SIGNATURE_LEN: usize = 64;
 define_fixed_bytes!(PublicKey, PUBLIC_KEY_LEN);
 
 #[derive(Clone, Serialize, Deserialize)] pub struct Signature(#[serde(with = "BigArray")] [u8; SIGNATURE_LEN]);
+
+/// Check if one public key is "lower" than another.
+/// This is used to decide which side begins the token channel.
+pub fn is_public_key_lower(pk1: &PublicKey, pk2: &PublicKey) -> bool {
+    sha_512_256(pk1) < sha_512_256(pk2)
+}
 
 impl Signature {
     pub fn zero() -> Signature {

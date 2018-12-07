@@ -2,7 +2,8 @@
 
 use std::convert::TryFrom;
 
-use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
+use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, 
+    SIGNATURE_LEN, is_public_key_lower};
 use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
 use identity::IdentityClient;
@@ -133,12 +134,6 @@ fn initial_move_token(low_public_key: &PublicKey,
         rand_nonce,
         new_token: token_from_public_key(&high_public_key),
     }
-}
-
-/// Check if one public key is "lower" than another.
-/// This is used to decide which side begins the token channel.
-pub fn is_public_key_lower(pk1: &PublicKey, pk2: &PublicKey) -> bool {
-    sha_512_256(pk1) < sha_512_256(pk2)
 }
 
 impl TokenChannel {

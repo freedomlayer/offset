@@ -9,14 +9,13 @@ use futures::task::SpawnExt;
 use identity::{create_identity, IdentityClient};
 
 use crypto::test_utils::DummyRandom;
-use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair};
+use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair,
+                        is_public_key_lower};
 use crypto::crypto_rand::{RngContainer, CryptoRandom};
 use crypto::uid::{Uid, UID_LEN};
 
 use proto::funder::messages::{FriendMessage, FriendsRoute, 
     InvoiceId, INVOICE_ID_LEN};
-
-use crate::token_channel::{is_public_key_lower};
 
 use crate::types::{FunderIncoming, FunderIncomingControl, 
     AddFriend, IncomingLivenessMessage, FriendStatus,
