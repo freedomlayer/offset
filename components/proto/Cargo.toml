@@ -6,8 +6,8 @@ build = "build.rs"
 
 [dependencies]
 
-offst-crypto = { path = "../crypto", version = "0.1.0" }
-offst-utils = { path = "../utils", version = "0.1.0"}
+crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
+common = { path = "../common", version = "0.1.0", package = "offst-common" }
 
 capnp = "0.8"
 byteorder = "1.1"

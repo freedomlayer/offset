@@ -8,7 +8,7 @@ use keepalive::keepalive_channel;
 
 use timer::{TimerTick, TimerClient};
 use crypto::identity::PublicKey;
-use utils::futures_compat::send_to_sink;
+use common::futures_compat::send_to_sink;
 
 use proto::relay::messages::{RejectConnection, IncomingConnection};
 

@@ -13,10 +13,10 @@ use proto::relay::messages::{InitConnection, IncomingConnection, RejectConnectio
 use proto::relay::serialize::{serialize_init_connection,
     serialize_incoming_connection, deserialize_incoming_connection,
     serialize_reject_connection, deserialize_reject_connection};
-use utils::int_convert::usize_to_u64;
+use common::int_convert::usize_to_u64;
+use common::conn::{Listener, Connector, ConnPair, ConstAddressConnector};
 
 use timer::{TimerClient, TimerTick};
-use super::connector::{Connector, ConnPair};
 use super::access_control::{AccessControl, AccessControlOp};
 
 
@@ -28,6 +28,7 @@ pub enum ClientListenerError {
     ConnectionFailure,
     TimerClosed,
     AccessControlError,
+    AccessControlClosed,
     SendToServerError,
     ServerClosed,
     SpawnError,
@@ -36,6 +37,7 @@ pub enum ClientListenerError {
 #[derive(Debug, Clone)]
 enum ClientListenerEvent {
     AccessControlOp(AccessControlOp),
+    AccessControlClosed,
     ServerMessage(IncomingConnection),
     ServerClosed,
     PendingReject(PublicKey),
@@ -131,17 +133,17 @@ where
         },
     }?;
 
+    let (mut sender, receiver) = conn_pair;
+
     // Send first message:
     let ser_init_connection = serialize_init_connection(
         &InitConnection::Accept(public_key.clone()));
-    let send_res = await!(conn_pair.sender.send(ser_init_connection));
+    let send_res = await!(sender.send(ser_init_connection));
     if let Err(_) = send_res {
         await!(pending_reject_sender.send(public_key))
             .map_err(|_| AcceptConnectionError::PendingRejectSenderError)?;
         return Err(AcceptConnectionError::SendInitConnectionError);
     }
-
-    let ConnPair {sender, receiver} = conn_pair;
 
     let to_tunnel_sender = sender;
     let from_tunnel_receiver = receiver;
@@ -157,12 +159,7 @@ where
                       keepalive_ticks,
                       spawner.clone());
 
-    let conn_pair = ConnPair {
-        sender: user_to_tunnel_sender,
-        receiver: user_from_tunnel_receiver,
-    };
-
-    await!(connections_sender.send((public_key, conn_pair)))
+    await!(connections_sender.send((public_key, (user_to_tunnel_sender, user_from_tunnel_receiver))))
         .map_err(|_| AcceptConnectionError::SendConnPairError)?;
     Ok(())
 }
@@ -199,7 +196,7 @@ where
     // be received at pending_reject_receiver
     let (pending_reject_sender, pending_reject_receiver) = mpsc::channel::<PublicKey>(0);
 
-    let ConnPair {mut sender, receiver} = conn_pair;
+    let (mut sender, receiver) = conn_pair;
     let ser_init_connection = serialize_init_connection(&InitConnection::Listen);
 
     await!(sender.send(ser_init_connection))
@@ -221,7 +218,8 @@ where
 
 
     let incoming_access_control = incoming_access_control
-        .map(|access_control_op| ClientListenerEvent::AccessControlOp(access_control_op));
+        .map(|access_control_op| ClientListenerEvent::AccessControlOp(access_control_op))
+        .chain(stream::once(future::ready(ClientListenerEvent::AccessControlClosed)));
 
     let server_receiver = receiver
         .map(ClientListenerEvent::ServerMessage)
@@ -239,10 +237,8 @@ where
             await!(event_sender.send(event.clone()));
         }
         match event {
-            ClientListenerEvent::AccessControlOp(access_control_op) => {
-                access_control.apply_op(access_control_op)
-                    .map_err(|_| ClientListenerError::AccessControlError)?;
-            },
+            ClientListenerEvent::AccessControlOp(access_control_op) =>
+                access_control.apply_op(access_control_op),
             ClientListenerEvent::ServerMessage(incoming_connection) => {
                 let public_key = incoming_connection.public_key.clone();
                 if !access_control.is_allowed(&public_key) {
@@ -271,37 +267,85 @@ where
                     .map_err(|_| ClientListenerError::SendToServerError)?;
             },
             ClientListenerEvent::ServerClosed => return Err(ClientListenerError::ServerClosed),
+            ClientListenerEvent::AccessControlClosed =>
+                return Err(ClientListenerError::AccessControlClosed),
         }
     }
     Ok(())
 }
 
 
-/// Listen for incoming connections from a relay.
-pub async fn client_listener<'a, C,IAC,CS,CSE>(connector: C,
-                                access_control: &'a mut AccessControl,
-                                incoming_access_control: &'a mut IAC,
-                                connections_sender: CS,
-                                conn_timeout_ticks: usize,
-                                keepalive_ticks: usize,
-                                timer_client: TimerClient,
-                                spawner: impl Spawn + Clone + Send + 'static)
-    -> Result<(), ClientListenerError>
+#[derive(Clone)]
+pub struct ClientListener<C,S> {
+    connector: C,
+    access_control: AccessControl,
+    conn_timeout_ticks: usize,
+    keepalive_ticks: usize,
+    timer_client: TimerClient,
+    spawner: S,
+}
+
+impl<C,S> ClientListener<C,S> {
+    pub fn new(connector: C,
+           access_control: AccessControl,
+           conn_timeout_ticks: usize,
+           keepalive_ticks: usize,
+           timer_client: TimerClient,
+           spawner: S) -> ClientListener<C,S> {
+
+        ClientListener {
+            connector,
+            access_control,
+            conn_timeout_ticks,
+            keepalive_ticks,
+            timer_client,
+            spawner,
+        }
+    }
+}
+
+impl <A,C,S> Listener for ClientListener<C,S> 
 where
-    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
-    IAC: Stream<Item=AccessControlOp> + Unpin + 'static,
-    CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + Clone + Send + 'static,
-    CSE: 'static,
+    A: Clone + Send + Sync + 'static,
+    C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
+    S: Spawn + Clone + Send + 'static,
 {
-    await!(inner_client_listener(connector,
-                                 access_control,
-                                 incoming_access_control,
+    type Connection = (PublicKey, ConnPair<Vec<u8>, Vec<u8>>);
+    type Config = AccessControlOp;
+    type Arg = (A, AccessControl);
+
+    fn listen(self, arg: (A, AccessControl)) -> (mpsc::Sender<AccessControlOp>, 
+                             mpsc::Receiver<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>) {
+
+        let (relay_address, mut access_control) = arg;
+
+        let mut c_spawner = self.spawner.clone();
+        let (access_control_sender, mut access_control_receiver) = mpsc::channel(0);
+        let (connections_sender, connections_receiver) = mpsc::channel(0);
+
+        let const_connector = ConstAddressConnector::new(
+            self.connector.clone(),
+            relay_address);
+
+        let fut = async move {
+            await!(inner_client_listener(const_connector,
+                                 &mut access_control,
+                                 &mut access_control_receiver,
                                  connections_sender,
-                                 conn_timeout_ticks,
-                                 keepalive_ticks,
-                                 timer_client,
-                                 spawner,
-                                 None))
+                                 self.conn_timeout_ticks,
+                                 self.keepalive_ticks,
+                                 self.timer_client,
+                                 self.spawner,
+                                 None)
+                        .map_err(|e| error!("inner_client_listener() error: {:?}", e))
+                        .map(|_| ()))
+        };
+
+        let _ = c_spawner.spawn(fut);
+
+        (access_control_sender, connections_receiver)
+    }
+
 }
 
 #[cfg(test)]
@@ -314,7 +358,7 @@ mod tests {
     use proto::relay::serialize::{deserialize_init_connection};
     use crypto::identity::PUBLIC_KEY_LEN;
     use timer::create_timer_incoming;
-    use super::super::test_utils::DummyConnector;
+    use common::dummy_connector::DummyConnector;
 
     async fn task_connect_with_timeout_basic(mut spawner: impl Spawn) {
         let conn_timeout_ticks = 8;
@@ -329,11 +373,8 @@ mod tests {
 
         let req = await!(req_receiver.next()).unwrap();
         let (dummy_sender, dummy_receiver) = mpsc::channel::<Vec<u8>>(0);
-        let conn_pair = ConnPair {
-            sender: dummy_sender,
-            receiver: dummy_receiver,
-        };
-        req.reply(conn_pair);
+        let conn_pair = (dummy_sender, dummy_receiver);
+        req.reply(Some(conn_pair));
 
 
         assert!(await!(fut_conn).is_some());
@@ -398,7 +439,7 @@ mod tests {
                            keepalive_ticks,
                            timer_client,
                            spawner.clone())
-            .map_err(|e| println!("accept_connection error: {:?}", e))
+            .map_err(|e| error!("accept_connection error: {:?}", e))
             .map(|_| ());
 
         spawner.spawn(fut_accept).unwrap();
@@ -406,14 +447,11 @@ mod tests {
         let (local_sender, mut remote_receiver) = mpsc::channel(0);
         let (remote_sender, local_receiver) = mpsc::channel(0);
 
-        let conn_pair = ConnPair {
-            sender: local_sender,
-            receiver: local_receiver,
-        };
+        let conn_pair = (local_sender, local_receiver);
 
         // accept_connection() will try to connect. We prepare a connection:
         let req = await!(req_receiver.next()).unwrap();
-        req.reply(conn_pair);
+        req.reply(Some(conn_pair));
 
         let vec_init_connection = await!(remote_receiver.next()).unwrap();
         let init_connection = deserialize_init_connection(&vec_init_connection).unwrap();
@@ -429,13 +467,15 @@ mod tests {
         let (accepted_public_key, mut conn_pair) = await!(connections_receiver.next()).unwrap();
         assert_eq!(accepted_public_key, public_key);
 
-        await!(conn_pair.sender.send(vec![1,2,3])).unwrap();
+        let (mut sender, mut receiver) = conn_pair;
+
+        await!(sender.send(vec![1,2,3])).unwrap();
         let res = await!(ser_remote_receiver.next()).unwrap();
         assert_eq!(res, serialize_ka_message(&KaMessage::Message(vec![1,2,3])));
 
         let vec_ka_message = serialize_ka_message(&KaMessage::Message(vec![3,2,1]));
         await!(ser_remote_sender.send(vec_ka_message)).unwrap();
-        let res = await!(conn_pair.receiver.next()).unwrap();
+        let res = await!(receiver.next()).unwrap();
         assert_eq!(res, vec![3,2,1]);
     }
 
@@ -470,7 +510,7 @@ mod tests {
                               timer_client,
                               c_spawner,
                               Some(event_sender)))
-        }.map_err(|e| println!("inner_client_listener error: {:?}",e))
+        }.map_err(|e| error!("inner_client_listener error: {:?}",e))
         .map(|_| ());
 
         spawner.spawn(fut_listener).unwrap();
@@ -478,12 +518,9 @@ mod tests {
         // listener will attempt to start a main connection to the relay:
         let (mut relay_sender, local_receiver) = mpsc::channel(0);
         let (local_sender, mut relay_receiver) = mpsc::channel(0);
-        let conn_pair = ConnPair {
-            sender: local_sender,
-            receiver: local_receiver,
-        };
+        let conn_pair = (local_sender, local_receiver);
         let req = await!(req_receiver.next()).unwrap();
-        req.reply(conn_pair);
+        req.reply(Some(conn_pair));
 
         // Open access for a certain public key:
         let public_key_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
@@ -523,12 +560,10 @@ mod tests {
         // Listener will open a connection to the relay:
         let (remote_sender, local_receiver) = mpsc::channel(0);
         let (local_sender, mut remote_receiver) = mpsc::channel(0);
-        let conn_pair = ConnPair {
-            sender: local_sender,
-            receiver: local_receiver,
-        };
+        let conn_pair = (local_sender, local_receiver);
+
         let req = await!(req_receiver.next()).unwrap();
-        req.reply(conn_pair);
+        req.reply(Some(conn_pair));
 
         let vec_init_connection = await!(remote_receiver.next()).unwrap();
         let init_connection = deserialize_init_connection(&vec_init_connection).unwrap();
@@ -545,5 +580,8 @@ mod tests {
         let mut thread_pool = ThreadPool::new().unwrap();
         thread_pool.run(task_client_listener_basic(thread_pool.clone()));
     }
+
+
+    // TODO: Add a test for ClientListener.
 
 }

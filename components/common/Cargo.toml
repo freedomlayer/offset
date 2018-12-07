@@ -1,5 +1,5 @@
 [package]
-name = "offst-utils"
+name = "offst-common"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 edition = "2018"

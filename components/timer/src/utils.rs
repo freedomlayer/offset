@@ -1,7 +1,7 @@
 use std::marker::Unpin;
 
 use futures::{select, future, Future, FutureExt, Stream, StreamExt};
-use utils::int_convert::usize_to_u64;
+use common::int_convert::usize_to_u64;
 use crate::timer::{TimerClient, TimerTick};
 
 #[derive(Debug)]

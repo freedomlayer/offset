@@ -1,5 +1,6 @@
 use super::*;
 
+use std::cmp::Ordering;
 use std::fmt::Debug;
 
 use futures::executor::ThreadPool;
@@ -9,14 +10,12 @@ use futures::task::SpawnExt;
 use identity::{create_identity, IdentityClient};
 
 use crypto::test_utils::DummyRandom;
-use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair};
+use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair, compare_public_key};
 use crypto::crypto_rand::{RngContainer, CryptoRandom};
 use crypto::uid::{Uid, UID_LEN};
 
 use proto::funder::messages::{FriendMessage, FriendsRoute, 
     InvoiceId, INVOICE_ID_LEN};
-
-use crate::token_channel::{is_public_key_lower};
 
 use crate::types::{FunderIncoming, FunderIncomingControl, 
     AddFriend, IncomingLivenessMessage, FriendStatus,
@@ -68,7 +67,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     // Sort the identities. identity_client1 will be the first sender:
     let pk1 = await!(identity_client1.request_public_key()).unwrap();
     let pk2 = await!(identity_client2.request_public_key()).unwrap();
-    let (identity_client1, pk1, identity_client2, pk2) = if is_public_key_lower(&pk1, &pk2) {
+    let (identity_client1, pk1, identity_client2, pk2) = if compare_public_key(&pk1, &pk2) == Ordering::Less {
         (identity_client1, pk1, identity_client2, pk2)
     } else {
         (identity_client2, pk2, identity_client1, pk1)

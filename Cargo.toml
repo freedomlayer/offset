@@ -4,7 +4,7 @@
 members = [
   "components/funder",
   "components/channeler",
-  "components/utils",
+  "components/common",
   "components/proto",
   "components/crypto",
   "components/identity",

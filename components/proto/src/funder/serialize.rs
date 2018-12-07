@@ -4,7 +4,7 @@ use std::io;
 use capnp;
 use capnp::serialize_packed;
 use crypto::identity::PublicKey;
-use utils::int_convert::usize_to_u32;
+use common::int_convert::usize_to_u32;
 use crate::capnp_common::{write_signature, read_signature,
                           write_custom_int128, read_custom_int128,
                           write_custom_u_int128, read_custom_u_int128,

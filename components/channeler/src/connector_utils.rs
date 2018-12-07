@@ -1,45 +1,12 @@
+/*
 use futures::task::Spawn;
 
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
 use timer::TimerClient;
 use identity::IdentityClient;
-use relay::client::connector::{BoxFuture, Connector, ConnPair};
-use secure_channel::create_secure_channel;
-
-/// A wrapper for a connector.
-/// Always connects to the same address.
-#[derive(Clone)]
-pub struct ConstAddressConnector<C,A> {
-    connector: C,
-    address: A,
-}
-
-impl<C,A> ConstAddressConnector<C,A> {
-    pub fn new(connector: C, address: A) -> ConstAddressConnector<C,A> {
-        ConstAddressConnector {
-            connector,
-            address,
-        }
-    }
-}
-
-
-impl<C,A> Connector for ConstAddressConnector<C,A>
-where
-    C: Connector<Address=A>,
-    A: Clone,
-{
-    type Address = ();
-    type SendItem = C::SendItem;
-    type RecvItem = C::RecvItem;
-
-    fn connect(&mut self, _address: ()) 
-        -> BoxFuture<'_, Option<ConnPair<C::SendItem, C::RecvItem>>> {
-        self.connector.connect(self.address.clone())
-    }
-}
-
+use common::conn::{BoxFuture, Connector, ConnPair};
+// use secure_channel::create_secure_channel;
 
 
 #[derive(Clone)]
@@ -51,6 +18,7 @@ pub struct EncryptedConnector<C,R,S> {
     ticks_to_rekey: usize,
     spawner: S,
 }
+
 
 /// Turns a connector into a connector that yields encrypted connections.
 /// Addresses are changed from A into (PublicKey, A), 
@@ -91,9 +59,9 @@ where
 
         let (public_key, address) = full_address;
         let fut = async move {
-            let conn_pair = await!(self.connector.connect(address))?;
+            let (plain_sender, plain_receiver) = await!(self.connector.connect(address))?;
             let (sender, receiver) = await!(create_secure_channel(
-                                      conn_pair.sender, conn_pair.receiver, 
+                                      plain_sender, plain_receiver, 
                                       self.identity_client.clone(),
                                       Some(public_key.clone()),
                                       self.rng.clone(),
@@ -101,8 +69,9 @@ where
                                       self.ticks_to_rekey,
                                       self.spawner.clone()))
                                     .ok()?;
-            Some(ConnPair { sender, receiver })
+            Some((sender, receiver))
         };
         Box::pinned(fut)
     }
 }
+*/

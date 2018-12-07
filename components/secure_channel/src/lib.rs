@@ -12,5 +12,4 @@ extern crate log;
 mod state;
 mod secure_channel;
 
-pub use self::secure_channel::{create_secure_channel, 
-    SecureChannelError};
+pub use self::secure_channel::SecureChannel;

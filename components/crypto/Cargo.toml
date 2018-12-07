@@ -5,7 +5,7 @@ authors = ["real <real@freedomlayer.org>"]
 
 [dependencies]
 
-offst-utils = { path = "../utils", version = "0.1.0" }
+common = { path = "../common", version = "0.1.0", package = "offst-common" }
 
 rand = "0.5"
 ring = "=0.13.0-alpha"

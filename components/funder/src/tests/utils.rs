@@ -10,7 +10,7 @@ use futures::{future, FutureExt, StreamExt, SinkExt};
 use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair, PublicKey};
 use crypto::test_utils::DummyRandom;
 
-use utils::int_convert::usize_to_u32;
+use common::int_convert::usize_to_u32;
 
 use identity::{create_identity, IdentityClient};
 

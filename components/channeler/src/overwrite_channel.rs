@@ -159,7 +159,6 @@ mod tests {
         drop(sender);
         let mut last_item = None;
         while let Some(item) = await!(receiver.next()) {
-            println!("item = {:?}", item);
             last_item = Some(item);
         }
         assert_eq!(last_item, Some(7));

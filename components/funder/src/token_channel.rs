@@ -1,8 +1,10 @@
 #![warn(unused)]
 
+use std::cmp::Ordering;
 use std::convert::TryFrom;
 
-use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
+use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, 
+    SIGNATURE_LEN, compare_public_key};
 use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
 use identity::IdentityClient;
@@ -135,12 +137,6 @@ fn initial_move_token(low_public_key: &PublicKey,
     }
 }
 
-/// Check if one public key is "lower" than another.
-/// This is used to decide which side begins the token channel.
-pub fn is_public_key_lower(pk1: &PublicKey, pk2: &PublicKey) -> bool {
-    sha_512_256(pk1) < sha_512_256(pk2)
-}
-
 impl TokenChannel {
     pub fn new(local_public_key: &PublicKey, 
                remote_public_key: &PublicKey,
@@ -148,7 +144,7 @@ impl TokenChannel {
 
         let mutual_credit = MutualCredit::new(&local_public_key, &remote_public_key, balance);
 
-        if is_public_key_lower(&local_public_key, &remote_public_key) {
+        if compare_public_key(&local_public_key, &remote_public_key) == Ordering::Less {
             // We are the first sender
             let tc_outgoing = TcOutgoing {
                 mutual_credit,

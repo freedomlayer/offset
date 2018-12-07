@@ -10,7 +10,7 @@ use proto::relay::serialize::serialize_init_connection;
 
 use timer::TimerClient;
 
-use super::connector::{BoxFuture, Connector, ConnPair};
+use common::conn::{BoxFuture, Connector, ConnPair};
 
 #[derive(Debug)]
 pub enum ClientConnectorError {
@@ -47,16 +47,14 @@ where
     async fn relay_connect(&mut self, relay_address: A, remote_public_key: PublicKey) 
         -> Result<ConnPair<Vec<u8>,Vec<u8>>, ClientConnectorError> {
 
-        let mut conn_pair = await!(self.connector.connect(relay_address))
+        let (mut sender, receiver) = await!(self.connector.connect(relay_address))
             .ok_or(ClientConnectorError::InnerConnectorError)?;
 
         // Send an InitConnection::Connect(PublicKey) message to remote side:
         let init_connection = InitConnection::Connect(remote_public_key);
         let ser_init_connection = serialize_init_connection(&init_connection);
-        await!(conn_pair.sender.send(ser_init_connection))
+        await!(sender.send(ser_init_connection))
             .map_err(|_| ClientConnectorError::SendInitConnectionError)?;
-
-        let ConnPair {sender, receiver} = conn_pair;
 
         let from_tunnel_receiver = receiver;
         let to_tunnel_sender = sender;
@@ -71,10 +69,7 @@ where
                           self.keepalive_ticks,
                           self.spawner.clone());
 
-        Ok(ConnPair {
-            sender: user_to_tunnel,
-            receiver: user_from_tunnel,
-        })
+        Ok((user_to_tunnel, user_from_tunnel))
     }
 }
 
@@ -111,7 +106,7 @@ mod tests {
     use proto::keepalive::messages::KaMessage;
     use proto::keepalive::serialize::serialize_ka_message;
 
-    use super::super::test_utils::DummyConnector;
+    use common::dummy_connector::DummyConnector;
 
 
     async fn task_client_connector_basic(mut spawner: impl Spawn + Clone + Sync + Send + 'static) {
@@ -123,10 +118,7 @@ mod tests {
         let (local_sender, mut relay_receiver) = mpsc::channel::<Vec<u8>>(0);
         let (mut relay_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
 
-        let conn_pair = ConnPair {
-            sender: local_sender,
-            receiver: local_receiver,
-        };
+        let conn_pair = (local_sender, local_receiver);
         let (req_sender, mut req_receiver) = mpsc::channel(0);
         // await!(conn_sender.send(conn_pair)).unwrap();
         let connector = DummyConnector::new(req_sender);
@@ -147,7 +139,7 @@ mod tests {
         // Wait for connection request:
         let req = await!(req_receiver.next()).unwrap();
         // Reply with a connection:
-        req.reply(conn_pair);
+        req.reply(Some(conn_pair));
         let mut conn_pair = await!(fut_conn_pair);
 
         let vec = await!(relay_receiver.next()).unwrap();
@@ -163,7 +155,8 @@ mod tests {
 
         let ka_message = KaMessage::Message(vec![1,2,3]);
         await!(relay_sender.send(serialize_ka_message(&ka_message))).unwrap();
-        let vec = await!(conn_pair.receiver.next()).unwrap();
+        let (ref _sender, ref mut receiver) = conn_pair;
+        let vec = await!(receiver.next()).unwrap();
         assert_eq!(vec, vec![1,2,3]);
     }
 

@@ -2,7 +2,7 @@ use byteorder::{BigEndian, WriteBytesExt};
 use crypto::hash::{self, sha_512_256, HashResult};
 use crypto::identity::{verify_signature, PublicKey};
 
-use utils::int_convert::usize_to_u64;
+use common::int_convert::usize_to_u64;
 
 use super::messages::{ResponseSendFunds, FailureSendFunds, 
     SendFundsReceipt, PendingRequest, MoveToken};

@@ -9,7 +9,7 @@ use crypto::uid::Uid;
 
 use proto::funder::messages::{Ratio, SendFundsReceipt};
 
-use utils::int_convert::usize_to_u64;
+use common::int_convert::usize_to_u64;
 
 use crate::friend::{FriendState, FriendMutation};
 use crate::types::AddFriend;

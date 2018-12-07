@@ -1,17 +1,16 @@
-use core::pin::Pin;
 use futures::channel::{mpsc, oneshot};
-use futures::{Future, FutureExt, SinkExt};
-use super::connector::{Connector, ConnPair};
+use futures::SinkExt;
+use crate::conn::{Connector, ConnPair, BoxFuture};
 
 
 pub struct ConnRequest<SI,RI,A> {
     pub address: A,
-    response_sender: oneshot::Sender<ConnPair<SI,RI>>,
+    response_sender: oneshot::Sender<Option<ConnPair<SI,RI>>>,
 }
 
 impl<SI,RI,A> ConnRequest<SI,RI,A> {
-    pub fn reply(self, conn_pair: ConnPair<SI,RI>) {
-        self.response_sender.send(conn_pair).ok().unwrap();
+    pub fn reply(self, opt_conn_pair: Option<ConnPair<SI,RI>>) {
+        self.response_sender.send(opt_conn_pair).ok().unwrap();
     }
 }
 
@@ -39,7 +38,7 @@ where
     type SendItem = SI;
     type RecvItem = RI;
 
-    fn connect<'a>(&'a mut self, address: A) -> Pin<Box<dyn Future<Output=Option<ConnPair<Self::SendItem, Self::RecvItem>>> + Send + 'a>> {
+    fn connect<'a>(&'a mut self, address: A) -> BoxFuture<'_, Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
         let (response_sender, response_receiver) = oneshot::channel();
         let conn_request = ConnRequest {
             address,
@@ -48,7 +47,7 @@ where
 
         let fut_conn_pair = async move {
             await!(self.req_sender.send(conn_request)).unwrap();
-            await!(response_receiver).ok()
+            await!(response_receiver).ok()?
         };
         Box::pinned(fut_conn_pair)
     }

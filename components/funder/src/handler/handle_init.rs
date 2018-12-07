@@ -112,7 +112,6 @@ mod tests {
             FunderOutgoingComm::ChannelerConfig(channeler_config) => channeler_config,
             _ => unreachable!(),
         };
-        println!("channeler_config = {:?}", channeler_config);
         match channeler_config {
             ChannelerConfig::SetAddress(opt_address) => {
                 assert_eq!(opt_address, Some(1337u32));

@@ -1,10 +1,12 @@
 extern crate untrusted;
 
+use std::cmp::Ordering;
 use ring::signature;
 
 use super::CryptoError;
-use utils::big_array::BigArray;
-use crypto_rand::CryptoRandom;
+use common::big_array::BigArray;
+use crate::crypto_rand::CryptoRandom;
+use crate::hash::sha_512_256;
 
 pub const PUBLIC_KEY_LEN: usize = 32;
 pub const SIGNATURE_LEN: usize = 64;
@@ -12,6 +14,12 @@ pub const SIGNATURE_LEN: usize = 64;
 define_fixed_bytes!(PublicKey, PUBLIC_KEY_LEN);
 
 #[derive(Clone, Serialize, Deserialize)] pub struct Signature(#[serde(with = "BigArray")] [u8; SIGNATURE_LEN]);
+
+/// Check if one public key is "lower" than another.
+/// This is used to decide which side begins the token channel.
+pub fn compare_public_key(pk1: &PublicKey, pk2: &PublicKey) -> Ordering {
+    sha_512_256(pk1).cmp(&sha_512_256(pk2))
+}
 
 impl Signature {
     pub fn zero() -> Signature {

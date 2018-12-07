@@ -2,7 +2,7 @@ use futures::{Future, TryFutureExt};
 use futures::channel::{mpsc, oneshot};
 
 use crypto::identity::{PublicKey, Signature};
-use utils::futures_compat::send_to_sink;
+use common::futures_compat::send_to_sink;
 
 use super::messages::{ToIdentity, ResponseSignature, ResponsePublicKey};
 

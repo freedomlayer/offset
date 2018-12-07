@@ -5,6 +5,8 @@
 #![feature(try_from)]
 #![crate_type = "lib"] 
 
+#[macro_use]
+extern crate log;
 
 pub mod int_convert;
 pub mod safe_arithmetic;
@@ -16,6 +18,7 @@ pub mod async_adapter;
 pub mod frame_codec;
 pub mod async_test_utils;
 pub mod futures_compat;
-
-
+pub mod conn;
+pub mod dummy_connector;
+pub mod dummy_listener;
 

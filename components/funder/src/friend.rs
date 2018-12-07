@@ -1,7 +1,7 @@
 use im::vector::Vector;
 
 use crypto::identity::PublicKey;
-use utils::safe_arithmetic::SafeUnsignedArithmetic;
+use common::safe_arithmetic::SafeUnsignedArithmetic;
 use proto::funder::messages::{MoveToken, RequestSendFunds,
     ResponseSendFunds, FailureSendFunds, ResetTerms};
 
