@@ -281,15 +281,20 @@ mod tests {
             // Send example configuration message:
             await!(access_control_sender.send(AccessControlOp::Add(public_key_b.clone()))).unwrap();
 
-            // Get first connection:
-            let (public_key, (_sender, mut receiver)) = await!(connections_receiver.next()).unwrap();
-            assert_eq!(public_key, public_key_b);
-            assert_eq!(await!(receiver.next()).unwrap(), vec![1,2,3]);
-
-            // Get second connection:
-            let (public_key, (mut sender, _receiver)) = await!(connections_receiver.next()).unwrap();
-            assert_eq!(public_key, public_key_c);
-            await!(sender.send(vec![3,2,1])).unwrap();
+            // Note: connections may arrive out of order (This happens because of the
+            // conn_encryptor)
+            for _ in 0 .. 2 {
+                let (public_key, (mut sender, mut receiver)) = await!(connections_receiver.next()).unwrap();
+                if public_key == public_key_b {
+                    // Get first connection:
+                    // assert_eq!(public_key, public_key_b);
+                    assert_eq!(await!(receiver.next()).unwrap(), vec![1,2,3]);
+                } else if public_key == public_key_c {
+                    // Get second connection:
+                    // assert_eq!(public_key, public_key_c);
+                    await!(sender.send(vec![3,2,1])).unwrap();
+                }
+            }
 
         };
 
