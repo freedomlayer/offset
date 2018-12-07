@@ -1,9 +1,10 @@
 #![warn(unused)]
 
+use std::cmp::Ordering;
 use std::convert::TryFrom;
 
 use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, 
-    SIGNATURE_LEN, is_public_key_lower};
+    SIGNATURE_LEN, compare_public_key};
 use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
 use identity::IdentityClient;
@@ -143,7 +144,7 @@ impl TokenChannel {
 
         let mutual_credit = MutualCredit::new(&local_public_key, &remote_public_key, balance);
 
-        if is_public_key_lower(&local_public_key, &remote_public_key) {
+        if compare_public_key(&local_public_key, &remote_public_key) == Ordering::Less {
             // We are the first sender
             let tc_outgoing = TcOutgoing {
                 mutual_credit,

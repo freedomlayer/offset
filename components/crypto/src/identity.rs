@@ -1,5 +1,6 @@
 extern crate untrusted;
 
+use std::cmp::Ordering;
 use ring::signature;
 
 use super::CryptoError;
@@ -16,8 +17,8 @@ define_fixed_bytes!(PublicKey, PUBLIC_KEY_LEN);
 
 /// Check if one public key is "lower" than another.
 /// This is used to decide which side begins the token channel.
-pub fn is_public_key_lower(pk1: &PublicKey, pk2: &PublicKey) -> bool {
-    sha_512_256(pk1) < sha_512_256(pk2)
+pub fn compare_public_key(pk1: &PublicKey, pk2: &PublicKey) -> Ordering {
+    sha_512_256(pk1).cmp(&sha_512_256(pk2))
 }
 
 impl Signature {
