@@ -47,7 +47,7 @@ where
 
         let fut_conn_pair = async move {
             await!(self.req_sender.send(conn_request)).unwrap();
-            await!(response_receiver).unwrap()
+            await!(response_receiver).ok()?
         };
         Box::pinned(fut_conn_pair)
     }

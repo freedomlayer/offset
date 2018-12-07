@@ -12,6 +12,7 @@ use crate::consts::MAX_ROUTE_LEN;
 
 
 #[allow(unused)]
+#[derive(Debug)]
 pub enum FunderToChanneler<A> {
     /// Send a message to a friend
     Message((PublicKey, Vec<u8>)), // (friend_public_key, message)
@@ -19,12 +20,13 @@ pub enum FunderToChanneler<A> {
     /// None means that no address is configured.
     SetAddress(Option<A>), 
     /// Request to add a new friend
-    AddFriend((PublicKey, Option<A>)), // (friend_public_key, address)
+    AddFriend((PublicKey, A)), // (friend_public_key, address)
     /// Request to remove a friend
     RemoveFriend(PublicKey), // friend_public_key
 }
 
 #[allow(unused)]
+#[derive(Debug)]
 pub enum ChannelerToFunder {
     /// A friend is now online
     Online(PublicKey),
