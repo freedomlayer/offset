@@ -132,6 +132,7 @@ where
     Ok(())
 }
 
+/*
 /// Wrap a channel of communication, taking care of keepalives.
 pub fn keepalive_channel<TR, FR, TS, S>(to_remote: TR, from_remote: FR, 
                   timer_stream: TS,
@@ -160,8 +161,10 @@ where
     (user_sender, user_receiver)
 }
 
+*/
+
 #[derive(Clone)]
-struct KeepAliveChannel<S> {
+pub struct KeepAliveChannel<S> {
     timer_client: TimerClient,
     keepalive_ticks: usize,
     spawner: S,
