@@ -19,6 +19,9 @@ enum ListenError {
     Canceled,
 }
 
+// TODO: conn_encryptor should probably be implemented in a more generic and efficient way.
+// Currently it is possible to perform memory DoS by opening many connections and doing the diffie
+// hellman part very slowly. (Note the spawn being called inside this function).
 
 /// Encrypt incoming plain connections
 ///
