@@ -408,6 +408,7 @@ mod tests {
     use common::dummy_listener::DummyListener;
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
+    /// Test the case of a friend the channeler initiates connection to.
     async fn task_channeler_loop_connect_friend<S>(mut spawner: S)
     where
         S: Spawn + Clone + Send + Sync + 'static,
@@ -537,4 +538,111 @@ mod tests {
         let mut thread_pool = ThreadPool::new().unwrap();
         thread_pool.run(task_channeler_loop_connect_friend(thread_pool.clone()));
     }
+
+    /// Test the case of the channeler waiting for a connection from a friend.
+    async fn task_channeler_loop_listen_friend<S>(mut spawner: S)
+    where
+        S: Spawn + Clone + Send + Sync + 'static,
+    {
+
+        let (mut funder_sender, from_funder) = mpsc::channel(0);
+        let (to_funder, mut funder_receiver) = mpsc::channel(0);
+
+        // We sort the public keys ahead of time, so that we know how to break ties.
+        // Our local public key will be pks[1]. pks[0] < pks[1] < pks[2]
+        //
+        // pks[1] >= pks[0], so pks[0] be an active send friend (We initiate connection)
+        // pks[1] < pks[2], hence pks[2] will be a listen friend. (We wait for him to connect)
+        let mut pks = (0 .. 3)
+            .map(|i| PublicKey::from(&[i; PUBLIC_KEY_LEN]))
+            .collect::<Vec<PublicKey>>();
+        pks.sort_by(compare_public_key);
+
+
+        let (conn_request_sender, mut conn_request_receiver) 
+            = mpsc::channel::<ConnRequest<Vec<u8>,Vec<u8>,(u32, PublicKey)>>(0);
+        let connector = DummyConnector::new(conn_request_sender);
+
+        let (listener_req_sender, mut listener_req_receiver) = mpsc::channel(0);
+        let listener = DummyListener::new(listener_req_sender, spawner.clone());
+
+
+        spawner.spawn(channeler_loop(pks[1].clone(),
+                       from_funder,
+                       to_funder,
+                       connector,
+                       listener,
+                       spawner.clone())
+            .map_err(|e| error!("Error in channeler_loop(): {:?}", e))
+            .map(|_| ())).unwrap();
+
+        // Set address for our relay:
+        await!(funder_sender.send(FunderToChanneler::SetAddress(Some(0x1u32)))).unwrap();
+        let mut listener_request = await!(listener_req_receiver.next()).unwrap();
+        let (ref address, _) = listener_request.arg;
+        assert_eq!(address, &0x1u32);
+
+        // Add a friend:
+        await!(funder_sender.send(FunderToChanneler::AddFriend((pks[2].clone(), 0x2u32)))).unwrap();
+
+        let access_control_op = await!(listener_request.config_receiver.next()).unwrap();
+        assert_eq!(access_control_op, AccessControlOp::Add(pks[2].clone()));
+
+        // Set up connection, exchange messages and close the connection a few times:
+        for _ in 0 .. 3 {
+            // The channeler now listens. It waits for an incoming connection from pks[2]
+            // Set up a connection from pks[2]:
+            let (mut pk2_sender, receiver) = mpsc::channel(0);
+            let (sender, mut pk2_receiver) = mpsc::channel(0);
+            await!(listener_request.conn_sender.send((pks[2].clone(), (sender, receiver)))).unwrap();
+
+            // Friend should be reported as online:
+            let channeler_to_funder = await!(funder_receiver.next()).unwrap();
+            match channeler_to_funder {
+                ChannelerToFunder::Online(public_key) => assert_eq!(public_key, pks[2]),
+                _ => unreachable!(),
+            };
+
+            // Send a message to pks[2]:
+            await!(funder_sender.send(FunderToChanneler::Message((pks[2].clone(), vec![1,2,3])))).unwrap();
+            assert_eq!(await!(pk2_receiver.next()).unwrap(), vec![1,2,3]);
+
+            // Send a message from pks2:
+            await!(pk2_sender.send(vec![3,2,1])).unwrap();
+
+            // We expect to get the message from pks[2]:
+            let channeler_to_funder = await!(funder_receiver.next()).unwrap();
+            match channeler_to_funder {
+                ChannelerToFunder::Message((public_key, message)) => {
+                    assert_eq!(public_key, pks[2]);
+                    assert_eq!(message, vec![3,2,1]);
+                },
+                _ => unreachable!(),
+            };
+
+            // Drop pks[2] connection:
+            drop(pk2_sender);
+            drop(pk2_receiver);
+
+            // Friend should be reported as offline:
+            let channeler_to_funder = await!(funder_receiver.next()).unwrap();
+            match channeler_to_funder {
+                ChannelerToFunder::Offline(public_key) => assert_eq!(public_key, pks[2]),
+                _ => unreachable!(),
+            };
+        }
+
+        // Remove friend:
+        await!(funder_sender.send(FunderToChanneler::RemoveFriend(pks[2].clone()))).unwrap();
+    }
+
+    #[test]
+    fn test_channeler_loop_listen_friend() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_channeler_loop_listen_friend(thread_pool.clone()));
+    }
+
+
+    // TODO: Add tests to make sure access control works properly?
+    // If a friend with a strange public key tries to connect, he should not be able to succeed?
 }
