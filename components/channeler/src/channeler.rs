@@ -444,31 +444,6 @@ mod tests {
             .map_err(|e| error!("Error in channeler_loop(): {:?}", e))
             .map(|_| ())).unwrap();
 
-        /*
-        #[allow(unused)]
-        pub enum FunderToChanneler<A> {
-            /// Send a message to a friend
-            Message((PublicKey, Vec<u8>)), // (friend_public_key, message)
-            /// Set address for relay used by local node
-            /// None means that no address is configured.
-            SetAddress(Option<A>), 
-            /// Request to add a new friend
-            AddFriend((PublicKey, A)), // (friend_public_key, address)
-            /// Request to remove a friend
-            RemoveFriend(PublicKey), // friend_public_key
-        }
-
-        #[allow(unused)]
-        pub enum ChannelerToFunder {
-            /// A friend is now online
-            Online(PublicKey),
-            /// A friend is now offline
-            Offline(PublicKey),
-            /// Incoming message from a remote friend
-            Message((PublicKey, Vec<u8>)), // (friend_public_key, message)
-        }
-        */
-
         // Play with changing relay addresses:
         await!(funder_sender.send(FunderToChanneler::SetAddress(Some(0x1337u32)))).unwrap();
         let listener_request = await!(listener_req_receiver.next()).unwrap();
