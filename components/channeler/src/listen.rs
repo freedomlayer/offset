@@ -97,60 +97,64 @@ where
         }
     }
 
+    async fn listen_iter<'a>(&'a mut self,
+                               mut plain_connections_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>,
+                               mut access_control_sender: mpsc::Sender<AccessControlOp>,
+                               access_control_receiver: &'a mut mpsc::Receiver<AccessControlOp>,
+                               mut connections_receiver: mpsc::Receiver<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>,
+                               access_control: &'a mut AccessControl) -> Option<()> {
+        loop {
+            // We select over .next() invocations instead of selecting over streams because
+            // we can't afford to lose access_control_receiver. access_control_receiver lives for the entire outer loop,
+            // and as a receiver it can not be cloned.
+            // TODO: Find out if we can accidentally lose an access_control_op here.
+            // See: https://users.rust-lang.org/t/possibly-losing-an-item-when-using-select-futures-0-3/22961
+            let event = select! {
+                opt_access_control_op = access_control_receiver.next().fuse() 
+                    => ListenLoopEvent::AccessControlOp(opt_access_control_op),
+                opt_conn = connections_receiver.next().fuse() => ListenLoopEvent::Connection(opt_conn),
+            };
+            match event {
+                ListenLoopEvent::AccessControlOp(Some(access_control_op)) => {
+                    access_control.apply_op(access_control_op.clone());
+                    if let Err(_) = await!(access_control_sender.send(access_control_op)) {
+                        break;
+                    }
+                },
+                ListenLoopEvent::AccessControlOp(None) => return None,
+                ListenLoopEvent::Connection(Some(connection)) => {
+                    await!(plain_connections_sender.send(connection)).unwrap();
+                },
+                ListenLoopEvent::Connection(None) => break,
+            }
+        }
+        Some(())
+    }
+
     async fn listen_loop(&mut self, relay_address: A,
                    mut access_control_receiver: mpsc::Receiver<AccessControlOp>,
                    connections_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>,Vec<u8>>)>,
                    mut access_control: AccessControl)
                     -> Result<!, ListenError> {
 
-        loop {
-            let (mut plain_connections_sender, plain_connections_receiver) = mpsc::channel(0);
-            self.spawner.spawn(conn_encryptor(plain_connections_receiver, 
-                                              self.encrypt_transform.clone(),
-                                              connections_sender.clone(), // Sends encrypted connections
-                                              self.spawner.clone()))
-                .map_err(|_| ListenError::SpawnError)?;
+        let (mut plain_connections_sender, plain_connections_receiver) = mpsc::channel(0);
+        self.spawner.spawn(conn_encryptor(plain_connections_receiver, 
+                                          self.encrypt_transform.clone(),
+                                          connections_sender.clone(), // Sends encrypted connections
+                                          self.spawner.clone()))
+            .map_err(|_| ListenError::SpawnError)?;
 
+        loop {
 
             let (mut access_control_sender, mut connections_receiver) = 
                 self.client_listener.clone().listen((relay_address.clone(), access_control.clone()));
 
-            let fut_loop = async move {
-                loop {
-                    // We select over .next() invocations instead of selecting over streams because
-                    // we can't afford to lose access_control_receiver. access_control_receiver lives for the entire outer loop,
-                    // and as a receiver it can not be cloned.
-                    // TODO: Find out if we can accidentally lose an access_control_op here.
-                    // See: https://users.rust-lang.org/t/possibly-losing-an-item-when-using-select-futures-0-3/22961
-                    let event = select! {
-                        opt_access_control_op = access_control_receiver.next().fuse() 
-                            => ListenLoopEvent::AccessControlOp(opt_access_control_op),
-                        opt_conn = connections_receiver.next().fuse() => ListenLoopEvent::Connection(opt_conn),
-                    };
-                    match event {
-                        ListenLoopEvent::AccessControlOp(Some(access_control_op)) => {
-                            access_control.apply_op(access_control_op.clone());
-                            if let Err(_) = await!(access_control_sender.send(access_control_op)) {
-                                break;
-                            }
-                        },
-                        ListenLoopEvent::AccessControlOp(None) => return (None, access_control),
-                        ListenLoopEvent::Connection(Some(connection)) => {
-                            await!(plain_connections_sender.send(connection)).unwrap();
-                        },
-                        ListenLoopEvent::Connection(None) => break,
-                    }
-                }
-                (Some(access_control_receiver), access_control)
-            };
-
-            let (res_opt_access_control_receiver, res_access_control) = await!(fut_loop);
-            if let Some(res_access_control_receiver) = res_opt_access_control_receiver {
-                access_control_receiver = res_access_control_receiver;
-                access_control = res_access_control;
-            } else {
-                return Err(ListenError::Canceled);
-            }
+            await!(self.listen_iter(plain_connections_sender.clone(),
+                                          access_control_sender,
+                                          &mut access_control_receiver, 
+                                          connections_receiver, 
+                                          &mut access_control))
+                .ok_or(ListenError::Canceled)?;
 
             // Wait for a while before attempting to connect again:
             // TODO: Possibly wait here in a smart way? Exponential backoff?
