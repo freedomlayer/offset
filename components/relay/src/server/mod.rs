@@ -4,8 +4,6 @@ use futures::{future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, 
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 
-use keepalive::keepalive_channel;
-
 use timer::{TimerTick, TimerClient};
 use crypto::identity::PublicKey;
 use common::futures_compat::send_to_sink;
