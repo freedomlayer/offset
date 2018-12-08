@@ -12,7 +12,7 @@ use proto::relay::serialize::{serialize_init_connection,
     deserialize_incoming_connection, serialize_reject_connection};
 use common::int_convert::usize_to_u64;
 use common::conn::{Listener, Connector, ConnPair, 
-    ConstAddressConnector, ConnTransform};
+    ConstAddressConnector, FutTransform};
 
 use timer::{TimerClient, TimerTick};
 use super::access_control::{AccessControl, AccessControlOp};
@@ -104,18 +104,18 @@ where
     }
 }
 
-async fn accept_connection<C,CS,CSE,CT>(public_key: PublicKey, 
+async fn accept_connection<C,CS,CSE,FT>(public_key: PublicKey, 
                            connector: C,
                            mut pending_reject_sender: mpsc::Sender<PublicKey>,
                            mut connections_sender: CS,
-                           mut keepalive_transform: CT,
+                           mut keepalive_transform: FT,
                            conn_timeout_ticks: usize,
                            mut timer_client: TimerClient) -> Result<(), AcceptConnectionError> 
 where
     C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Send,
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + 'static,
-    CT: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
-                      NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>,Arg=()>,
+    FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>, 
+        Output=ConnPair<Vec<u8>,Vec<u8>>>,
 {
 
     let timer_stream = await!(timer_client.request_timer_stream())
@@ -148,7 +148,7 @@ where
     let from_tunnel_receiver = receiver;
 
     let (user_to_tunnel_sender, user_from_tunnel_receiver) = 
-        await!(keepalive_transform.transform((), (to_tunnel_sender, from_tunnel_receiver))).unwrap();
+        await!(keepalive_transform.transform((to_tunnel_sender, from_tunnel_receiver)));
 
     await!(connections_sender.send((public_key, (user_to_tunnel_sender, user_from_tunnel_receiver))))
         .map_err(|_| AcceptConnectionError::SendConnPairError)?;
@@ -157,11 +157,11 @@ where
 
 
 
-async fn inner_client_listener<'a, C,IAC,CS,CSE,CT>(mut connector: C,
+async fn inner_client_listener<'a, C,IAC,CS,CSE,FT>(mut connector: C,
                                 access_control: &'a mut AccessControl,
                                 incoming_access_control: &'a mut IAC,
                                 connections_sender: CS,
-                                keepalive_transform: CT,
+                                keepalive_transform: FT,
                                 conn_timeout_ticks: usize,
                                 timer_client: TimerClient,
                                 mut spawner: impl Spawn + Clone + Send + 'static,
@@ -172,8 +172,8 @@ where
     IAC: Stream<Item=AccessControlOp> + Unpin + 'static,
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + Clone + Send + 'static,
     CSE: 'static,
-    CT: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
-                      NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>,Arg=()> + Send + Clone + 'static,
+    FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>, 
+        Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone + Send + 'static,
 {
     let conn_pair = match await!(connector.connect(())) {
         Some(conn_pair) => conn_pair,
@@ -264,22 +264,22 @@ where
 
 
 #[derive(Clone)]
-pub struct ClientListener<C,CT,S> {
+pub struct ClientListener<C,FT,S> {
     connector: C,
     access_control: AccessControl,
-    keepalive_transform: CT,
+    keepalive_transform: FT,
     conn_timeout_ticks: usize,
     timer_client: TimerClient,
     spawner: S,
 }
 
-impl<C,CT,S> ClientListener<C,CT,S> {
+impl<C,FT,S> ClientListener<C,FT,S> {
     pub fn new(connector: C,
            access_control: AccessControl,
-           keepalive_transform: CT,
+           keepalive_transform: FT,
            conn_timeout_ticks: usize,
            timer_client: TimerClient,
-           spawner: S) -> ClientListener<C,CT,S> {
+           spawner: S) -> ClientListener<C,FT,S> {
 
         ClientListener {
             connector,
@@ -292,13 +292,13 @@ impl<C,CT,S> ClientListener<C,CT,S> {
     }
 }
 
-impl <A,C,CT,S> Listener for ClientListener<C,CT,S> 
+impl <A,C,FT,S> Listener for ClientListener<C,FT,S> 
 where
     A: Clone + Send + Sync + 'static,
     C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
     S: Spawn + Clone + Send + 'static,
-    CT: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
-                      NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>,Arg=()> + Clone + Send + 'static,
+    FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>, 
+        Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone + Send + 'static,
 {
     type Connection = (PublicKey, ConnPair<Vec<u8>, Vec<u8>>);
     type Config = AccessControlOp;
@@ -351,7 +351,7 @@ mod tests {
         deserialize_reject_connection};
 
     use common::dummy_connector::DummyConnector;
-    use common::conn::IdentityConnTransform;
+    use common::conn::FuncFutTransform;
 
     async fn task_connect_with_timeout_basic(mut spawner: impl Spawn) {
         let conn_timeout_ticks = 8;
@@ -424,7 +424,7 @@ mod tests {
             .unwrap();
 
         // We don't need a real keepalive transform for this test:
-        let keepalive_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,()>::new();
+        let keepalive_transform = FuncFutTransform::new(|x| x);
 
         let fut_accept = accept_connection(public_key.clone(),
                            connector,
@@ -489,7 +489,7 @@ mod tests {
 
         let (mut acl_sender, mut incoming_access_control) = mpsc::channel(0);
         let (event_sender, mut event_receiver) = mpsc::channel(0);
-        let keepalive_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,()>::new();
+        let keepalive_transform = FuncFutTransform::new(|x| x);
 
         let c_spawner = spawner.clone();
         let fut_listener = async move {

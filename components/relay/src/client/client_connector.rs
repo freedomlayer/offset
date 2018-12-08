@@ -2,7 +2,7 @@ use crypto::identity::PublicKey;
 use futures::{FutureExt, SinkExt};
 
 use common::conn::{BoxFuture, Connector, 
-    ConnPair, ConnTransform};
+    ConnPair, FutTransform};
 
 use proto::relay::messages::{InitConnection};
 use proto::relay::serialize::serialize_init_connection;
@@ -19,20 +19,19 @@ pub enum ClientConnectorError {
 /// ClientConnector is an end-to-end connector to a remote node.
 /// It relies on a given connector C to a relay.
 #[derive(Clone)]
-pub struct ClientConnector<C,CT> {
+pub struct ClientConnector<C,FT> {
     connector: C,
-    keepalive_transform: CT,
+    keepalive_transform: FT,
 }
 
-impl<A: 'static,C,CT> ClientConnector<C,CT> 
+impl<A: 'static,C,FT> ClientConnector<C,FT> 
 where
     C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>>,
-    CT: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
-                      NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>,
-                      Arg=()>,
+    FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>,
+                     Output=ConnPair<Vec<u8>,Vec<u8>>>,
 {
     pub fn new(connector: C, 
-               keepalive_transform: CT) -> ClientConnector<C,CT> {
+               keepalive_transform: FT) -> ClientConnector<C,FT> {
 
         ClientConnector {
             connector,
@@ -58,19 +57,18 @@ where
         // TODO; Do something about the unwrap here:
         // Maybe change ConnTransform trait to allow force returning something that is not None?
         let (user_to_tunnel, user_from_tunnel) = 
-            await!(self.keepalive_transform.transform((), (to_tunnel_sender, from_tunnel_receiver))).unwrap();
+            await!(self.keepalive_transform.transform((to_tunnel_sender, from_tunnel_receiver)));
 
         Ok((user_to_tunnel, user_from_tunnel))
     }
 }
 
-impl<A,C,CT> Connector for ClientConnector<C,CT> 
+impl<A,C,FT> Connector for ClientConnector<C,FT> 
 where
     A: Sync + Send + 'static,
     C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Sync + Send,
-    CT: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
-                      NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>,
-                      Arg=()> + Send,
+    FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>,
+                     Output=ConnPair<Vec<u8>,Vec<u8>>> + Send,
 {
     type Address = (A, PublicKey);
     type SendItem = Vec<u8>;
@@ -100,7 +98,7 @@ mod tests {
     use proto::relay::serialize::deserialize_init_connection;
 
     use common::dummy_connector::DummyConnector;
-    use common::conn::IdentityConnTransform;
+    use common::conn::FuncFutTransform;
 
     async fn task_client_connector_basic(mut spawner: impl Spawn + Clone + Sync + Send + 'static) {
 
@@ -112,7 +110,8 @@ mod tests {
         // await!(conn_sender.send(conn_pair)).unwrap();
         let connector = DummyConnector::new(req_sender);
 
-        let keepalive_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,()>::new();
+        // keepalive_transform does nothing:
+        let keepalive_transform = FuncFutTransform::new(|x| x);
 
         let mut client_connector = ClientConnector::new(
             connector,
