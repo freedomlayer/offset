@@ -1,5 +1,5 @@
 use std::marker::Unpin;
-use futures::{select, future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, SinkExt};
+use futures::{select, FutureExt, TryFutureExt, StreamExt, Sink, SinkExt};
 use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
 
@@ -8,9 +8,12 @@ use crypto::identity::PublicKey;
 use timer::TimerClient;
 use timer::utils::sleep_ticks;
 
+use common::conn::{Listener, ConnPair, FutTransform};
+use common::access_control::{AccessControlOp, AccessControl};
 
-use common::conn::{Listener, ConnPair, ConnTransform};
-use relay::client::access_control::{AccessControlOp, AccessControl};
+type AccessControlPk = AccessControl<PublicKey>;
+type AccessControlOpPk = AccessControlOp<PublicKey>;
+
 
 #[derive(Debug)]
 enum ListenError {
@@ -34,16 +37,15 @@ async fn conn_encryptor<CS,T,S>(mut plain_connections_receiver: mpsc::Receiver<(
                             mut spawner: S)
 where
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)> + Unpin + Clone + Send + 'static,
-    T: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
-                     NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>, 
-                     Arg=Option<PublicKey>> + Clone + Send + 'static,
+    T: FutTransform<Input=(Option<PublicKey>, ConnPair<Vec<u8>,Vec<u8>>),
+                    Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
     while let Some((public_key, (sender, receiver))) = await!(plain_connections_receiver.next()) {
         let mut c_encrypt_transform = encrypt_transform.clone();
         let mut c_encrypted_connections_sender = encrypted_connections_sender.clone();
         spawner.spawn(async move {
-            match await!(c_encrypt_transform.transform(Some(public_key.clone()), (sender, receiver))) {
+            match await!(c_encrypt_transform.transform((Some(public_key.clone()), (sender, receiver)))) {
                 Some(enc_conn_pair) => {
                     if let Err(_e) = await!(c_encrypted_connections_sender.send((public_key, enc_conn_pair))) {
                         error!("conn_encryptor(): Can not send through encrypted_connections_sender");
@@ -57,7 +59,7 @@ where
 
 #[derive(Debug)]
 enum ListenLoopEvent {
-    AccessControlOp(Option<AccessControlOp>),
+    AccessControlOp(Option<AccessControlOpPk>),
     Connection(Option<(PublicKey, ConnPair<Vec<u8>,Vec<u8>>)>),
 }
 
@@ -76,13 +78,13 @@ impl<A,L,T,S> ChannelerListener<A,L,T,S>
 where
     A: Clone + Send + Sync + 'static,
     L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>,Vec<u8>>), 
-        Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + 'static,
-    T: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
-                     NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>, 
-                     Arg=Option<PublicKey>> + Clone + Send + 'static,
+        Config=AccessControlOpPk, Arg=(A, AccessControlPk)> + Clone + 'static,
+    T: FutTransform<Input=(Option<PublicKey>, ConnPair<Vec<u8>,Vec<u8>>),
+                    Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
 
+    #[allow(unused)]
     pub fn new(client_listener: L,
            encrypt_transform: T,
            address: A,
@@ -102,10 +104,10 @@ where
 
     async fn listen_iter<'a>(&'a mut self,
                                mut plain_connections_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>,
-                               mut access_control_sender: mpsc::Sender<AccessControlOp>,
-                               access_control_receiver: &'a mut mpsc::Receiver<AccessControlOp>,
+                               mut access_control_sender: mpsc::Sender<AccessControlOpPk>,
+                               access_control_receiver: &'a mut mpsc::Receiver<AccessControlOpPk>,
                                mut connections_receiver: mpsc::Receiver<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>,
-                               access_control: &'a mut AccessControl) -> Option<()> {
+                               access_control: &'a mut AccessControlPk) -> Option<()> {
         loop {
             // We select over .next() invocations instead of selecting over streams because
             // we can't afford to lose access_control_receiver. access_control_receiver lives for the entire outer loop,
@@ -135,12 +137,12 @@ where
     }
 
     async fn listen_loop(&mut self, relay_address: A,
-                   mut access_control_receiver: mpsc::Receiver<AccessControlOp>,
+                   mut access_control_receiver: mpsc::Receiver<AccessControlOpPk>,
                    connections_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>,Vec<u8>>)>,
-                   mut access_control: AccessControl)
+                   mut access_control: AccessControlPk)
                     -> Result<!, ListenError> {
 
-        let (mut plain_connections_sender, plain_connections_receiver) = mpsc::channel(0);
+        let (plain_connections_sender, plain_connections_receiver) = mpsc::channel(0);
         self.spawner.spawn(conn_encryptor(plain_connections_receiver, 
                                           self.encrypt_transform.clone(),
                                           connections_sender.clone(), // Sends encrypted connections
@@ -149,7 +151,7 @@ where
 
         loop {
 
-            let (mut access_control_sender, mut connections_receiver) = 
+            let (access_control_sender, connections_receiver) = 
                 self.client_listener.clone().listen((relay_address.clone(), access_control.clone()));
 
             await!(self.listen_iter(plain_connections_sender.clone(),
@@ -171,17 +173,16 @@ impl<A,L,T,S> Listener for ChannelerListener<A,L,T,S>
 where
     A: Clone + Send + Sync + 'static,
     L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>,Vec<u8>>), 
-        Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + Send + 'static,
-    T: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
-                     NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>, 
-                     Arg=Option<PublicKey>> + Clone + Send + 'static,
+        Config=AccessControlOpPk, Arg=(A, AccessControlPk)> + Clone + Send + 'static,
+    T: FutTransform<Input=(Option<PublicKey>, ConnPair<Vec<u8>,Vec<u8>>),
+                    Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
     type Connection = (PublicKey, ConnPair<Vec<u8>,Vec<u8>>);
-    type Config = AccessControlOp;
-    type Arg = (A, AccessControl);
+    type Config = AccessControlOpPk;
+    type Arg = (A, AccessControlPk);
 
-    fn listen(mut self, arg: (A, AccessControl)) -> (mpsc::Sender<AccessControlOp>, 
+    fn listen(mut self, arg: (A, AccessControlPk)) -> (mpsc::Sender<AccessControlOpPk>, 
                              mpsc::Receiver<Self::Connection>) {
 
         let (relay_address, access_control) = arg;
@@ -213,7 +214,7 @@ mod tests {
     use super::*;
     use futures::executor::ThreadPool;
 
-    use common::conn::IdentityConnTransform;
+    use common::conn::FuncFutTransform;
     use common::dummy_listener::DummyListener;
 
     use crypto::identity::PUBLIC_KEY_LEN;
@@ -237,7 +238,7 @@ mod tests {
         let public_key_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
 
         // We don't need encryption for this test:
-        let encrypt_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,Option<PublicKey>>::new();
+        let encrypt_transform = FuncFutTransform::new(|(_opt_public_key, conn_pair)| Some(conn_pair));
         let relay_address = 0x1337u32;
 
         let channeler_listener = ChannelerListener::new(
@@ -248,7 +249,7 @@ mod tests {
             timer_client,
             spawner.clone());
 
-        let access_control = AccessControl::new();
+        let access_control = AccessControlPk::new();
         let (mut access_control_sender, mut connections_receiver) = channeler_listener.listen((relay_address, access_control));
 
         // Inner listener:
@@ -325,7 +326,7 @@ mod tests {
         let public_key_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
 
         // We don't need encryption for this test:
-        let encrypt_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,Option<PublicKey>>::new();
+        let encrypt_transform = FuncFutTransform::new(|(_opt_public_key, conn_pair)| Some(conn_pair));
         let relay_address = 0x1337u32;
 
         let channeler_listener = ChannelerListener::new(
@@ -336,7 +337,7 @@ mod tests {
             timer_client,
             spawner.clone());
 
-        let access_control = AccessControl::new();
+        let access_control = AccessControlPk::new();
         let (_access_control_sender, mut connections_receiver) = channeler_listener.listen((relay_address, access_control));
 
         // Inner listener:

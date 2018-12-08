@@ -7,11 +7,15 @@ use futures::task::{Spawn, SpawnExt};
 use futures::channel::{oneshot, mpsc};
 
 use proto::funder::messages::{FunderToChanneler, ChannelerToFunder};
-use common::conn::{Listener, Connector, ConnPair};
+use common::conn::{Listener, FutTransform, ConnPair};
 use crypto::identity::{PublicKey, compare_public_key};
-use relay::client::access_control::{AccessControl, AccessControlOp};
+
+use common::access_control::{AccessControlOp, AccessControl};
 
 use crate::overwrite_channel::overwrite_send_all;
+
+type AccessControlPk = AccessControl<PublicKey>;
+type AccessControlOpPk = AccessControlOp<PublicKey>;
 
 #[derive(Debug)]
 pub enum ChannelerEvent<A> {
@@ -56,7 +60,7 @@ enum FriendState {
 }
 
 struct Listening {
-    access_control_sender: mpsc::Sender<AccessControlOp>,
+    access_control_sender: mpsc::Sender<AccessControlOpPk>,
 }
 
 enum ListenState {
@@ -79,8 +83,8 @@ struct Channeler<A,C,L,S,TF> {
 impl<A,C,L,S,TF> Channeler<A,C,L,S,TF> 
 where
     A: Clone + Send + Sync + 'static,
-    C: Connector<Address=(A, PublicKey), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
-    L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + Send,
+    C: FutTransform<Input=(A, PublicKey), Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone + Send + Sync + 'static,
+    L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOpPk, Arg=(A, AccessControlPk)> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
 {
@@ -112,10 +116,10 @@ where
         compare_public_key(&self.local_public_key, friend_public_key) == Ordering::Less
     }
 
-    /// Create AccessControl according to current configured friends.
+    /// Create AccessControlPk according to current configured friends.
     /// Only listening friends are included.
-    fn create_access_control(&self) -> AccessControl {
-        let mut access_control = AccessControl::new();
+    fn create_access_control(&self) -> AccessControlPk {
+        let mut access_control = AccessControlPk::new();
         for (public_key, _) in &self.friends {
             if self.is_listen_friend(public_key) {
                 access_control.apply_op(AccessControlOp::Add(public_key.clone()));
@@ -142,18 +146,17 @@ where
 
         let c_address = address.clone();
         let cancellable_fut = async move {
-            let connect_fut = c_connector.connect((c_address, public_key.clone()));
+            let connect_fut = c_connector.transform((c_address, public_key.clone()));
             // Note: We assume that our connector never returns None (Because it will keep trying
             // forever). Therefore we may unwrap connect_fut here. 
             // Maybe we should change the design of the trait to force this behaviour.
             let select_res = select! {
                 _close_receiver = close_receiver.fuse() => None,
-                connect_fut = connect_fut.fuse() => Some(connect_fut.unwrap()),
+                connect_fut = connect_fut.fuse() => Some(connect_fut)
             };
             match select_res {
                 Some(conn_pair) => {
-                    await!(c_connections_sender.send((public_key.clone(), conn_pair)))
-                        .map_err(|_| unreachable!());
+                    await!(c_connections_sender.send((public_key.clone(), conn_pair))).unwrap();
                 },
                 None => {/* Canceled */},
             };
@@ -179,8 +182,8 @@ async fn handle_from_funder<A,C,L,S,TF>(channeler: &mut Channeler<A,C,L,S,TF>,
     -> Result<(), ChannelerError>  
 where
     A: Clone + Send + Sync + 'static,
-    C: Connector<Address=(A, PublicKey), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
-    L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + Send,
+    C: FutTransform<Input=(A, PublicKey), Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone + Send + Sync + 'static,
+    L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOpPk, Arg=(A, AccessControlPk)> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
 {
@@ -291,8 +294,8 @@ where
     FF: Stream<Item=FunderToChanneler<A>> + Unpin,
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
     A: Clone + Send + Sync + 'static + std::fmt::Debug,
-    C: Connector<Address=(A, PublicKey), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
-    L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + Send,
+    C: FutTransform<Input=(A, PublicKey), Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone + Send + Sync + 'static,
+    L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOpPk, Arg=(A, AccessControlPk)> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
 {
 
@@ -404,7 +407,7 @@ mod tests {
     use super::*;
     use futures::executor::ThreadPool;
 
-    use common::dummy_connector::{DummyConnector, ConnRequest};
+    use common::dummy_connector::DummyConnector;
     use common::dummy_listener::DummyListener;
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
@@ -428,8 +431,7 @@ mod tests {
         pks.sort_by(compare_public_key);
 
 
-        let (conn_request_sender, mut conn_request_receiver) 
-            = mpsc::channel::<ConnRequest<Vec<u8>,Vec<u8>,(u32, PublicKey)>>(0);
+        let (conn_request_sender, mut conn_request_receiver) = mpsc::channel(0);
         let connector = DummyConnector::new(conn_request_sender);
 
         let (listener_req_sender, mut listener_req_receiver) = mpsc::channel(0);
@@ -466,7 +468,7 @@ mod tests {
 
         let (mut pk0_sender, remote_receiver) = mpsc::channel(0);
         let (remote_sender, mut pk0_receiver) = mpsc::channel(0);
-        conn_request.reply(Some((remote_sender, remote_receiver)));
+        conn_request.reply((remote_sender, remote_receiver));
 
         // Friend should be reported as online:
         let channeler_to_funder = await!(funder_receiver.next()).unwrap();
@@ -509,7 +511,7 @@ mod tests {
 
         let (pk0_sender, remote_receiver) = mpsc::channel(0);
         let (remote_sender, pk0_receiver) = mpsc::channel(0);
-        conn_request.reply(Some((remote_sender, remote_receiver)));
+        conn_request.reply((remote_sender, remote_receiver));
 
         // Online report:
         let channeler_to_funder = await!(funder_receiver.next()).unwrap();
@@ -559,8 +561,7 @@ mod tests {
         pks.sort_by(compare_public_key);
 
 
-        let (conn_request_sender, mut conn_request_receiver) 
-            = mpsc::channel::<ConnRequest<Vec<u8>,Vec<u8>,(u32, PublicKey)>>(0);
+        let (conn_request_sender, _conn_request_receiver) = mpsc::channel(0);
         let connector = DummyConnector::new(conn_request_sender);
 
         let (listener_req_sender, mut listener_req_receiver) = mpsc::channel(0);

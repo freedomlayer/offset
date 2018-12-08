@@ -7,6 +7,7 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 pub type ConnPair<SendItem, RecvItem> = (mpsc::Sender<SendItem>,mpsc::Receiver<RecvItem>);
 
+/*
 /// connect to a remote entity
 pub trait Connector {
     type Address;
@@ -16,6 +17,7 @@ pub trait Connector {
     fn connect(&mut self, address: Self::Address) 
         -> BoxFuture<'_, Option<ConnPair<Self::SendItem, Self::RecvItem>>>;
 }
+*/
 
 /// Listen to connections from remote entities
 pub trait Listener {
@@ -27,93 +29,108 @@ pub trait Listener {
                              mpsc::Receiver<Self::Connection>);
 }
 
-/// Transform a connection into another connection
-pub trait ConnTransform {
-    type OldSendItem;
-    type OldRecvItem;
-    type NewSendItem;
-    type NewRecvItem;
-    type Arg;
+/// Apply a futuristic function over an input. Returns a boxed future that resolves
+/// to type Output.
+///
+/// Idealy we would have used `FnMut(Input) -> BoxFuture<'_, Output>`,
+/// but implementing FnMut requires first that FnOnce will be implemented, and due to syntactic
+/// lifetime issues we didn't find a way to implement it. See also:
+///
+/// https://users.rust-lang.org/t/implementing-fnmut-with-lifetime/2620
+/// https://stackoverflow.com/questions/32219798/
+///             how-to-implement-fnmut-which-returns-reference-with-lifetime-parameter
+///
+pub trait FutTransform {
+    type Input;
+    type Output;
 
-    fn transform(&mut self, arg: Self::Arg, conn_pair: ConnPair<Self::OldSendItem, Self::OldRecvItem>) 
-        -> BoxFuture<'_, Option<ConnPair<Self::NewSendItem, Self::NewRecvItem>>>;
+    fn transform(&mut self, input: Self::Input)
+        -> BoxFuture<'_, Self::Output>;
 }
 
 
 
-
-
-/// A wrapper for a connector.
-/// Always connects to the same address.
+/// A wrapper for a FutTransform that always gives the same input
 #[derive(Clone)]
-pub struct ConstAddressConnector<C,A> {
-    connector: C,
-    address: A,
+pub struct ConstFutTransform<FT,I> {
+    fut_transform: FT,
+    input: I,
 }
 
-impl<C,A> ConstAddressConnector<C,A> {
-    pub fn new(connector: C, address: A) -> ConstAddressConnector<C,A> {
-        ConstAddressConnector {
-            connector,
-            address,
+impl<FT,I> ConstFutTransform<FT,I> {
+    pub fn new(fut_transform: FT, input: I) -> ConstFutTransform<FT,I> {
+        ConstFutTransform {
+            fut_transform,
+            input,
         }
     }
 }
 
 
-impl<C,A> Connector for ConstAddressConnector<C,A>
+impl<FT,I,O> FutTransform for ConstFutTransform<FT,I>
 where
-    C: Connector<Address=A>,
-    A: Clone,
+    FT: FutTransform<Input=I,Output=O>,
+    I: Clone,
 {
-    type Address = ();
-    type SendItem = C::SendItem;
-    type RecvItem = C::RecvItem;
+    type Input = ();
+    type Output = O;
 
-    fn connect(&mut self, _address: ()) 
-        -> BoxFuture<'_, Option<ConnPair<C::SendItem, C::RecvItem>>> {
-        self.connector.connect(self.address.clone())
+    fn transform(&mut self, _input: ()) 
+        -> BoxFuture<'_, Self::Output> {
+        self.fut_transform.transform(self.input.clone())
     }
 }
 
 
-
-/// The Identity connection transformation.
-/// Returns exactly the same connection it has received.
-#[derive(Clone)]
-pub struct IdentityConnTransform<SI,RI,ARG> {
-    phantom_send_item: PhantomData<SI>,
-    phantom_recv_item: PhantomData<RI>,
-    phantom_arg: PhantomData<ARG>,
+/// Wraps an FnMut type in a type that implements FutTransform.
+/// This could help mocking a FutTransform with a simple non futuristic function.
+pub struct FuncFutTransform<F,I,O> {
+    func: F,
+    phantom_i: PhantomData<I>,
+    phantom_o: PhantomData<O>,
 }
 
-impl<SI,RI,ARG> IdentityConnTransform<SI,RI,ARG> {
-    pub fn new() -> IdentityConnTransform<SI,RI,ARG> {
-        IdentityConnTransform {
-            phantom_send_item: PhantomData,
-            phantom_recv_item: PhantomData,
-            phantom_arg: PhantomData,
+// It seems like deriving Clone automatically doesn't work,
+// so we need to implement manually. Is this a bug in how #[derive(Clone)] works?
+impl<F,I,O> Clone for FuncFutTransform<F,I,O> 
+where
+    F: Clone,
+{
+    fn clone(&self) -> FuncFutTransform<F,I,O> {
+        FuncFutTransform {
+            func: self.func.clone(),
+            phantom_i: self.phantom_i.clone(),
+            phantom_o: self.phantom_o.clone(),
         }
     }
-
 }
 
 
-impl<SI,RI,ARG> ConnTransform for IdentityConnTransform<SI,RI,ARG> 
+impl<F,I,O> FuncFutTransform<F,I,O> 
 where
-    SI: Send,
-    RI: Send,
+    F: FnMut(I) -> O,
+    O: Send,
 {
-    type OldSendItem = SI;
-    type OldRecvItem = RI;
-    type NewSendItem = SI;
-    type NewRecvItem = RI;
-    type Arg = ARG;
-
-    fn transform(&mut self, _arg: ARG, conn_pair: ConnPair<SI,RI>) 
-        -> BoxFuture<'_, Option<ConnPair<SI,RI>>> {
-
-        Box::pinned(future::ready(Some(conn_pair)))
+    pub fn new(func: F) -> FuncFutTransform<F,I,O> {
+        FuncFutTransform {
+            func,
+            phantom_i: PhantomData,
+            phantom_o: PhantomData,
+        }
     }
+}
+
+impl<F,I,O> FutTransform for FuncFutTransform<F,I,O> 
+where
+    F: FnMut(I) -> O,
+    O: Send,
+{
+    type Input = I;
+    type Output = O;
+
+    fn transform(&mut self, input: Self::Input)
+        -> BoxFuture<'_, Self::Output> {
+        Box::pinned(future::ready((self.func)(input)))
+    } 
 }
 

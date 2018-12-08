@@ -1,16 +1,12 @@
 use crypto::identity::PublicKey;
-use futures::{future, FutureExt, TryFutureExt, StreamExt, SinkExt};
-use futures::task::{Spawn, SpawnExt};
-use futures::channel::mpsc;
+use futures::{FutureExt, SinkExt};
 
-use keepalive::keepalive_channel;
+use common::conn::{BoxFuture, 
+    ConnPair, FutTransform};
 
 use proto::relay::messages::{InitConnection};
 use proto::relay::serialize::serialize_init_connection;
 
-use timer::TimerClient;
-
-use common::conn::{BoxFuture, Connector, ConnPair};
 
 #[derive(Debug)]
 pub enum ClientConnectorError {
@@ -23,31 +19,30 @@ pub enum ClientConnectorError {
 /// ClientConnector is an end-to-end connector to a remote node.
 /// It relies on a given connector C to a relay.
 #[derive(Clone)]
-pub struct ClientConnector<C,S> {
+pub struct ClientConnector<C,FT> {
     connector: C,
-    spawner: S,
-    timer_client: TimerClient,
-    keepalive_ticks: usize,
+    keepalive_transform: FT,
 }
 
-impl<A: 'static,C,S> ClientConnector<C,S> 
+impl<A: 'static,C,FT> ClientConnector<C,FT> 
 where
-    C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>>,
-    S: Spawn + Clone,
+    C: FutTransform<Input=A,Output=Option<ConnPair<Vec<u8>,Vec<u8>>>>,
+    FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>,
+                     Output=ConnPair<Vec<u8>,Vec<u8>>>,
 {
-    pub fn new(connector: C, spawner: S, timer_client: TimerClient, keepalive_ticks: usize) -> ClientConnector<C,S> {
+    pub fn new(connector: C, 
+               keepalive_transform: FT) -> ClientConnector<C,FT> {
+
         ClientConnector {
             connector,
-            spawner,
-            timer_client,
-            keepalive_ticks,
+            keepalive_transform,
         }
     }
 
     async fn relay_connect(&mut self, relay_address: A, remote_public_key: PublicKey) 
         -> Result<ConnPair<Vec<u8>,Vec<u8>>, ClientConnectorError> {
 
-        let (mut sender, receiver) = await!(self.connector.connect(relay_address))
+        let (mut sender, receiver) = await!(self.connector.transform(relay_address))
             .ok_or(ClientConnectorError::InnerConnectorError)?;
 
         // Send an InitConnection::Connect(PublicKey) message to remote side:
@@ -59,34 +54,29 @@ where
         let from_tunnel_receiver = receiver;
         let to_tunnel_sender = sender;
 
-        let mut c_timer_client = self.timer_client.clone();
-        let timer_stream = await!(c_timer_client.request_timer_stream())
-            .map_err(|_| ClientConnectorError::RequestTimerStreamError)?;
-
+        // TODO; Do something about the unwrap here:
+        // Maybe change ConnTransform trait to allow force returning something that is not None?
         let (user_to_tunnel, user_from_tunnel) = 
-            keepalive_channel(to_tunnel_sender, from_tunnel_receiver,
-                          timer_stream,
-                          self.keepalive_ticks,
-                          self.spawner.clone());
+            await!(self.keepalive_transform.transform((to_tunnel_sender, from_tunnel_receiver)));
 
         Ok((user_to_tunnel, user_from_tunnel))
     }
 }
 
-impl<A,C,S> Connector for ClientConnector<C,S> 
+impl<A,C,FT> FutTransform for ClientConnector<C,FT> 
 where
     A: Sync + Send + 'static,
-    C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Sync + Send,
-    S: Spawn + Clone + Sync + Send,
+    C: FutTransform<Input=A,Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Send + Sync,
+    FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>,
+                     Output=ConnPair<Vec<u8>,Vec<u8>>> + Send,
 {
-    type Address = (A, PublicKey);
-    type SendItem = Vec<u8>;
-    type RecvItem = Vec<u8>;
+    type Input = (A, PublicKey);
+    type Output = Option<ConnPair<Vec<u8>,Vec<u8>>>;
 
-    fn connect(&mut self, address: (A, PublicKey)) 
-        -> BoxFuture<'_, Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
+    fn transform(&mut self, input: (A, PublicKey)) 
+        -> BoxFuture<'_, Self::Output> {
 
-        let (relay_address, remote_public_key) = address;
+        let (relay_address, remote_public_key) = input;
         let relay_connect = self.relay_connect(relay_address, remote_public_key)
             .map(|res| res.ok());
         Box::pinned(relay_connect)
@@ -99,22 +89,18 @@ where
 mod tests {
     use super::*;
     use futures::executor::ThreadPool;
+    use futures::channel::mpsc;
+    use futures::task::{Spawn, SpawnExt};
+    use futures::StreamExt;
 
-    use timer::{create_timer_incoming};
     use crypto::identity::{PUBLIC_KEY_LEN};
     use proto::relay::serialize::deserialize_init_connection;
-    use proto::keepalive::messages::KaMessage;
-    use proto::keepalive::serialize::serialize_ka_message;
 
     use common::dummy_connector::DummyConnector;
-
+    use common::conn::FuncFutTransform;
 
     async fn task_client_connector_basic(mut spawner: impl Spawn + Clone + Sync + Send + 'static) {
-        // Create a mock time service:
-        let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
 
-        let keepalive_ticks = 16;
         let (local_sender, mut relay_receiver) = mpsc::channel::<Vec<u8>>(0);
         let (mut relay_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
 
@@ -123,17 +109,18 @@ mod tests {
         // await!(conn_sender.send(conn_pair)).unwrap();
         let connector = DummyConnector::new(req_sender);
 
+        // keepalive_transform does nothing:
+        let keepalive_transform = FuncFutTransform::new(|x| x);
+
         let mut client_connector = ClientConnector::new(
             connector,
-            spawner.clone(),
-            timer_client,
-            keepalive_ticks);
+            keepalive_transform);
 
         let address: u32 = 15;
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
         let c_public_key = public_key.clone();
         let fut_conn_pair = spawner.spawn_with_handle(async move {
-            await!(client_connector.connect((address, c_public_key))).unwrap()
+            await!(client_connector.transform((address, c_public_key))).unwrap()
         }).unwrap();
 
         // Wait for connection request:
@@ -149,12 +136,7 @@ mod tests {
             _ => unreachable!(),
         };
 
-        // local receiver should not be able to see keepalive messages:
-        let ka_message = KaMessage::KeepAlive;
-        await!(relay_sender.send(serialize_ka_message(&ka_message))).unwrap();
-
-        let ka_message = KaMessage::Message(vec![1,2,3]);
-        await!(relay_sender.send(serialize_ka_message(&ka_message))).unwrap();
+        await!(relay_sender.send(vec![1,2,3])).unwrap();
         let (ref _sender, ref mut receiver) = conn_pair;
         let vec = await!(receiver.next()).unwrap();
         assert_eq!(vec, vec![1,2,3]);
@@ -165,6 +147,5 @@ mod tests {
         let mut thread_pool = ThreadPool::new().unwrap();
         thread_pool.run(task_client_connector_basic(thread_pool.clone()));
     }
-
 }
 

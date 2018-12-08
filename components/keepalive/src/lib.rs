@@ -5,12 +5,13 @@
 #![feature(generators)]
 #![feature(never_type)]
 #![feature(dbg_macro)]
+#![feature(unboxed_closures)]
 
 #[macro_use]
 extern crate log;
 
 mod keepalive;
 
-pub use self::keepalive::keepalive_channel;
+pub use self::keepalive::KeepAliveChannel;
 
 

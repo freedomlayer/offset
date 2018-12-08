@@ -6,7 +6,7 @@ use futures::task::{Spawn, SpawnExt};
 
 use futures::channel::mpsc;
 
-use common::conn::{ConnTransform, ConnPair, BoxFuture};
+use common::conn::{FutTransform, ConnPair, BoxFuture};
 
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
@@ -250,21 +250,20 @@ impl<R,S> SecureChannel<R,S> {
     }
 }
 
-impl<R,S> ConnTransform for SecureChannel<R,S> 
+impl <R,S> FutTransform for SecureChannel<R,S>
 where
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + Sync,
 {
-    type OldSendItem = Vec<u8>;
-    type OldRecvItem = Vec<u8>;
-    type NewSendItem = Vec<u8>;
-    type NewRecvItem = Vec<u8>;
-    type Arg = Option<PublicKey>;
+    type Input = (Option<PublicKey>, ConnPair<Vec<u8>,Vec<u8>>);
+    type Output = Option<ConnPair<Vec<u8>,Vec<u8>>>;
 
-    fn transform(&mut self, opt_expected_remote: Option<PublicKey>, conn_pair: ConnPair<Vec<u8>, Vec<u8>>) 
+    fn transform(&mut self, input: (Option<PublicKey>, ConnPair<Vec<u8>,Vec<u8>>))
         -> BoxFuture<'_, Option<ConnPair<Vec<u8>, Vec<u8>>>> {
 
+        let (opt_expected_remote, conn_pair) = input;
         let (sender, receiver) = conn_pair;
+
         Box::pinned(async move {
             await!(create_secure_channel(sender, receiver,
                       self.identity_client.clone(),

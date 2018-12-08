@@ -4,9 +4,7 @@ use futures::{future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, 
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 
-use keepalive::keepalive_channel;
-
-use timer::{TimerTick, TimerClient};
+use timer::TimerClient;
 use crypto::identity::PublicKey;
 use common::futures_compat::send_to_sink;
 
@@ -81,13 +79,11 @@ enum RelayServerError {
 }
 
 
-fn handle_accept<MT,KT,MA,KA,TCL,TS>(listeners: &mut HashMap<PublicKey, Listener<MT,KT>>,
+fn handle_accept<MT,KT,MA,KA,TCL>(listeners: &mut HashMap<PublicKey, Listener<MT,KT>>,
                             acceptor_public_key: PublicKey,
                             incoming_accept: IncomingAccept<MA,KA>,
                             // TODO: This should be a oneshot:
                             tunnel_closed_sender: TCL,
-                            timer_stream: TS,
-                            keepalive_ticks: usize,
                             mut spawner: impl Spawn) -> Result<(), RelayServerError>
 where
     MT: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
@@ -95,14 +91,13 @@ where
     MA: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
     KA: Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin + Send + 'static,
     TCL: Sink<SinkItem=TunnelClosed, SinkError=()> + Unpin + Send + 'static,
-    TS: Stream<Item=TimerTick> + Unpin + Send + 'static,
 {
     let listener = match listeners.get_mut(&acceptor_public_key) {
         Some(listener) => listener,
         None => return Err(RelayServerError::ListeningNotInProgress),
     };
     let IncomingAccept {mut receiver, mut sender, accept_public_key} = incoming_accept;
-    let mut conn_pair = 
+    let conn_pair = 
         match listener.half_tunnels.remove(&accept_public_key) {
             Some(HalfTunnel {conn_pair, ..}) => conn_pair,
             None => return Err(RelayServerError::NoPendingHalfTunnel),
@@ -174,7 +169,6 @@ where
         let c_event_sender = event_sender
             .clone()
             .sink_map_err(|_| ());
-        let mut c_timer_client = timer_client.clone();
         match relay_server_event {
             RelayServerEvent::IncomingConn(incoming_conn) => {
                 let IncomingConn {public_key, inner} = incoming_conn;
@@ -183,8 +177,6 @@ where
                         if listeners.contains_key(&public_key) {
                             continue; // Discard Listen connection
                         }
-                        let timer_stream = await!(c_timer_client.request_timer_stream())
-                            .map_err(|_| RelayServerError::RequestTimerStreamError)?;
 
                         let sender = incoming_listen.sender;
                         let receiver = incoming_listen.receiver;
@@ -219,14 +211,10 @@ where
                     IncomingConnInner::Accept(incoming_accept) => {
                         let tunnel_closed_sender = c_event_sender
                             .with(|tunnel_closed| future::ready(Ok(RelayServerEvent::TunnelClosed(tunnel_closed))));
-                        let timer_stream = await!(c_timer_client.request_timer_stream())
-                            .map_err(|_| RelayServerError::RequestTimerStreamError)?;
                         let _ = handle_accept(&mut listeners,
                                       public_key.clone(),
                                       incoming_accept,
                                       tunnel_closed_sender,
-                                      timer_stream,
-                                      keepalive_ticks,
                                       spawner.clone());
                     },
                     IncomingConnInner::Connect(incoming_connect) => {

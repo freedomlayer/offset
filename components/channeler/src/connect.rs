@@ -5,7 +5,7 @@ use crypto::identity::PublicKey;
 use timer::TimerClient;
 use timer::utils::sleep_ticks;
 
-use common::conn::{Connector, ConnPair, BoxFuture, ConnTransform};
+use common::conn::{ConnPair, BoxFuture, FutTransform};
 
 
 async fn secure_connect<C,T,A>(mut client_connector: C,
@@ -14,13 +14,12 @@ async fn secure_connect<C,T,A>(mut client_connector: C,
                             public_key: PublicKey) -> Option<ConnPair<Vec<u8>, Vec<u8>>>
 where
     A: Clone,
-    C: Connector<Address=(A, PublicKey), SendItem=Vec<u8>, RecvItem=Vec<u8>>,
-    T: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
-                     NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>, 
-                     Arg=Option<PublicKey>>,
+    C: FutTransform<Input=(A, PublicKey), Output=Option<ConnPair<Vec<u8>,Vec<u8>>>>,
+    T: FutTransform<Input=(Option<PublicKey>, ConnPair<Vec<u8>,Vec<u8>>),
+                    Output=Option<ConnPair<Vec<u8>,Vec<u8>>>>,
 {
-    let (sender, receiver) = await!(client_connector.connect((address, public_key.clone())))?;
-    await!(encrypt_transform.transform(Some(public_key), (sender, receiver)))
+    let (sender, receiver) = await!(client_connector.transform((address, public_key.clone())))?;
+    await!(encrypt_transform.transform((Some(public_key), (sender, receiver))))
 }
 
 #[derive(Clone)]
@@ -33,6 +32,7 @@ pub struct ChannelerConnector<C,T,S> {
 }
 
 impl<C,T,S> ChannelerConnector<C,T,S> {
+    #[allow(unused)]
     pub fn new(client_connector: C,
                encrypt_transform: T,
                backoff_ticks: usize,
@@ -49,21 +49,19 @@ impl<C,T,S> ChannelerConnector<C,T,S> {
     }
 }
 
-impl<A,C,T,S> Connector for ChannelerConnector<C,T,S> 
+impl<A,C,T,S> FutTransform for ChannelerConnector<C,T,S> 
 where
     A: Sync + Send + Clone + 'static,
-    C: Connector<Address=(A, PublicKey), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
-    T: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
-                     NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>, 
-                     Arg=Option<PublicKey>> + Clone + Send,
+    C: FutTransform<Input=(A, PublicKey), Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send + Sync + 'static,
+    T: FutTransform<Input=(Option<PublicKey>, ConnPair<Vec<u8>,Vec<u8>>),
+                    Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send,
     S: Spawn + Clone + Sync + Send,
 {
-    type Address = (A, PublicKey);
-    type SendItem = Vec<u8>;
-    type RecvItem = Vec<u8>;
+    type Input = (A, PublicKey);
+    type Output = ConnPair<Vec<u8>,Vec<u8>>;
 
-    fn connect(&mut self, address: (A, PublicKey)) 
-        -> BoxFuture<'_, Option<ConnPair<Vec<u8>, Vec<u8>>>> {
+    fn transform(&mut self, address: (A, PublicKey)) 
+        -> BoxFuture<'_, ConnPair<Vec<u8>, Vec<u8>>> {
 
         let (relay_address, public_key) = address;
 
@@ -71,7 +69,7 @@ where
             loop {
                 match await!(secure_connect(self.client_connector.clone(), self.encrypt_transform.clone(), 
                                             relay_address.clone(), public_key.clone())) {
-                    Some(conn_pair) => return Some(conn_pair),
+                    Some(conn_pair) => return conn_pair,
                     None => await!(sleep_ticks(self.backoff_ticks, self.timer_client.clone())).unwrap(),
                 }
             }
@@ -90,8 +88,8 @@ mod tests {
     use timer::{create_timer_incoming, dummy_timer_multi_sender, TimerTick};
     use crypto::identity::PUBLIC_KEY_LEN;
 
-    use common::dummy_connector::{DummyConnector, ConnRequest};
-    use common::conn::IdentityConnTransform;
+    use common::dummy_connector::DummyConnector;
+    use common::conn::FuncFutTransform;
 
 
     /// Check basic connection using the ChannelerConnector.
@@ -106,11 +104,11 @@ mod tests {
 
         let backoff_ticks = 2;
 
-        let (conn_request_sender, mut conn_request_receiver) = mpsc::channel::<ConnRequest<Vec<u8>,Vec<u8>,(u32, PublicKey)>>(0);
+        let (conn_request_sender, mut conn_request_receiver) = mpsc::channel(0);
         let client_connector = DummyConnector::new(conn_request_sender);
 
         // We don't need encryption for this test:
-        let encrypt_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,Option<PublicKey>>::new();
+        let encrypt_transform = FuncFutTransform::new(|(_opt_public_key, conn_pair)| Some(conn_pair));
 
         let mut channeler_connector = ChannelerConnector::new(
             client_connector,
@@ -121,7 +119,7 @@ mod tests {
 
         let public_key_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
         let connect_fut = async {
-            let (mut sender, mut receiver) = await!(channeler_connector.connect((0x1337, public_key_b))).unwrap();
+            let (mut sender, mut receiver) = await!(channeler_connector.transform((0x1337, public_key_b)));
             await!(sender.send(vec![1,2,3])).unwrap();
             assert_eq!(await!(receiver.next()).unwrap(), vec![3,2,1]);
         };
@@ -156,11 +154,11 @@ mod tests {
 
         let backoff_ticks = 2;
 
-        let (conn_request_sender, mut conn_request_receiver) = mpsc::channel::<ConnRequest<Vec<u8>,Vec<u8>,(u32, PublicKey)>>(0);
+        let (conn_request_sender, mut conn_request_receiver) = mpsc::channel(0);
         let client_connector = DummyConnector::new(conn_request_sender);
 
         // We don't need encryption for this test:
-        let encrypt_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,Option<PublicKey>>::new();
+        let encrypt_transform = FuncFutTransform::new(|(_opt_public_key, conn_pair)| Some(conn_pair));
 
         let mut channeler_connector = ChannelerConnector::new(
             client_connector,
@@ -171,7 +169,7 @@ mod tests {
 
         let public_key_b = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
         let connect_fut = async {
-            let (mut sender, mut receiver) = await!(channeler_connector.connect((0x1337, public_key_b))).unwrap();
+            let (mut sender, mut receiver) = await!(channeler_connector.transform((0x1337, public_key_b)));
             await!(sender.send(vec![1,2,3])).unwrap();
             assert_eq!(await!(receiver.next()).unwrap(), vec![3,2,1]);
         };
