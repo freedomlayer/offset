@@ -5,7 +5,7 @@ use crypto::identity::PublicKey;
 use timer::TimerClient;
 use timer::utils::sleep_ticks;
 
-use common::conn::{Connector, ConnPair, BoxFuture, FutTransform};
+use common::conn::{ConnPair, BoxFuture, FutTransform};
 
 
 async fn secure_connect<C,T,A>(mut client_connector: C,
@@ -14,11 +14,11 @@ async fn secure_connect<C,T,A>(mut client_connector: C,
                             public_key: PublicKey) -> Option<ConnPair<Vec<u8>, Vec<u8>>>
 where
     A: Clone,
-    C: Connector<Address=(A, PublicKey), SendItem=Vec<u8>, RecvItem=Vec<u8>>,
+    C: FutTransform<Input=(A, PublicKey), Output=Option<ConnPair<Vec<u8>,Vec<u8>>>>,
     T: FutTransform<Input=(Option<PublicKey>, ConnPair<Vec<u8>,Vec<u8>>),
                     Output=Option<ConnPair<Vec<u8>,Vec<u8>>>>,
 {
-    let (sender, receiver) = await!(client_connector.connect((address, public_key.clone())))?;
+    let (sender, receiver) = await!(client_connector.transform((address, public_key.clone())))?;
     await!(encrypt_transform.transform((Some(public_key), (sender, receiver))))
 }
 
@@ -48,19 +48,18 @@ impl<C,T,S> ChannelerConnector<C,T,S> {
     }
 }
 
-impl<A,C,T,S> Connector for ChannelerConnector<C,T,S> 
+impl<A,C,T,S> FutTransform for ChannelerConnector<C,T,S> 
 where
     A: Sync + Send + Clone + 'static,
-    C: Connector<Address=(A, PublicKey), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input=(A, PublicKey), Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send + Sync + 'static,
     T: FutTransform<Input=(Option<PublicKey>, ConnPair<Vec<u8>,Vec<u8>>),
                     Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send,
     S: Spawn + Clone + Sync + Send,
 {
-    type Address = (A, PublicKey);
-    type SendItem = Vec<u8>;
-    type RecvItem = Vec<u8>;
+    type Input = (A, PublicKey);
+    type Output = Option<ConnPair<Vec<u8>,Vec<u8>>>;
 
-    fn connect(&mut self, address: (A, PublicKey)) 
+    fn transform(&mut self, address: (A, PublicKey)) 
         -> BoxFuture<'_, Option<ConnPair<Vec<u8>, Vec<u8>>>> {
 
         let (relay_address, public_key) = address;
@@ -119,7 +118,7 @@ mod tests {
 
         let public_key_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
         let connect_fut = async {
-            let (mut sender, mut receiver) = await!(channeler_connector.connect((0x1337, public_key_b))).unwrap();
+            let (mut sender, mut receiver) = await!(channeler_connector.transform((0x1337, public_key_b))).unwrap();
             await!(sender.send(vec![1,2,3])).unwrap();
             assert_eq!(await!(receiver.next()).unwrap(), vec![3,2,1]);
         };
@@ -169,7 +168,7 @@ mod tests {
 
         let public_key_b = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
         let connect_fut = async {
-            let (mut sender, mut receiver) = await!(channeler_connector.connect((0x1337, public_key_b))).unwrap();
+            let (mut sender, mut receiver) = await!(channeler_connector.transform((0x1337, public_key_b))).unwrap();
             await!(sender.send(vec![1,2,3])).unwrap();
             assert_eq!(await!(receiver.next()).unwrap(), vec![3,2,1]);
         };

@@ -7,7 +7,7 @@ use futures::task::{Spawn, SpawnExt};
 use futures::channel::{oneshot, mpsc};
 
 use proto::funder::messages::{FunderToChanneler, ChannelerToFunder};
-use common::conn::{Listener, Connector, ConnPair};
+use common::conn::{Listener, FutTransform, ConnPair};
 use crypto::identity::{PublicKey, compare_public_key};
 use relay::client::access_control::{AccessControl, AccessControlOp};
 
@@ -79,7 +79,7 @@ struct Channeler<A,C,L,S,TF> {
 impl<A,C,L,S,TF> Channeler<A,C,L,S,TF> 
 where
     A: Clone + Send + Sync + 'static,
-    C: Connector<Address=(A, PublicKey), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input=(A, PublicKey), Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send + Sync + 'static,
     L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
@@ -142,7 +142,7 @@ where
 
         let c_address = address.clone();
         let cancellable_fut = async move {
-            let connect_fut = c_connector.connect((c_address, public_key.clone()));
+            let connect_fut = c_connector.transform((c_address, public_key.clone()));
             // Note: We assume that our connector never returns None (Because it will keep trying
             // forever). Therefore we may unwrap connect_fut here. 
             // Maybe we should change the design of the trait to force this behaviour.
@@ -179,7 +179,7 @@ async fn handle_from_funder<A,C,L,S,TF>(channeler: &mut Channeler<A,C,L,S,TF>,
     -> Result<(), ChannelerError>  
 where
     A: Clone + Send + Sync + 'static,
-    C: Connector<Address=(A, PublicKey), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input=(A, PublicKey), Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send + Sync + 'static,
     L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
@@ -291,7 +291,7 @@ where
     FF: Stream<Item=FunderToChanneler<A>> + Unpin,
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
     A: Clone + Send + Sync + 'static + std::fmt::Debug,
-    C: Connector<Address=(A, PublicKey), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input=(A, PublicKey), Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send + Sync + 'static,
     L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
 {
