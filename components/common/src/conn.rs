@@ -27,19 +27,6 @@ pub trait Listener {
                              mpsc::Receiver<Self::Connection>);
 }
 
-/// Transform a connection into another connection
-pub trait ConnTransform {
-    type OldSendItem;
-    type OldRecvItem;
-    type NewSendItem;
-    type NewRecvItem;
-    type Arg;
-
-    fn transform(&mut self, arg: Self::Arg, conn_pair: ConnPair<Self::OldSendItem, Self::OldRecvItem>) 
-        -> BoxFuture<'_, Option<ConnPair<Self::NewSendItem, Self::NewRecvItem>>>;
-}
-
-
 /// Apply a futuristic function over an input. Returns a boxed future that resolves
 /// to type Output.
 ///
@@ -94,48 +81,6 @@ where
     }
 }
 
-
-
-
-
-/// The Identity connection transformation.
-/// Returns exactly the same connection it has received.
-#[derive(Clone)]
-pub struct IdentityConnTransform<SI,RI,ARG> {
-    phantom_send_item: PhantomData<SI>,
-    phantom_recv_item: PhantomData<RI>,
-    phantom_arg: PhantomData<ARG>,
-}
-
-impl<SI,RI,ARG> IdentityConnTransform<SI,RI,ARG> {
-    pub fn new() -> IdentityConnTransform<SI,RI,ARG> {
-        IdentityConnTransform {
-            phantom_send_item: PhantomData,
-            phantom_recv_item: PhantomData,
-            phantom_arg: PhantomData,
-        }
-    }
-
-}
-
-
-impl<SI,RI,ARG> ConnTransform for IdentityConnTransform<SI,RI,ARG> 
-where
-    SI: Send,
-    RI: Send,
-{
-    type OldSendItem = SI;
-    type OldRecvItem = RI;
-    type NewSendItem = SI;
-    type NewRecvItem = RI;
-    type Arg = ARG;
-
-    fn transform(&mut self, _arg: ARG, conn_pair: ConnPair<SI,RI>) 
-        -> BoxFuture<'_, Option<ConnPair<SI,RI>>> {
-
-        Box::pinned(future::ready(Some(conn_pair)))
-    }
-}
 
 /// Wraps an FnMut type in a type that implements FutTransform.
 /// This could help mocking a FutTransform with a simple non futuristic function.
