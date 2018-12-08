@@ -2,16 +2,19 @@ use std::iter;
 use std::marker::Unpin;
 use core::pin::Pin;
 
-use keepalive::keepalive_channel;
 use futures::{future, Future, FutureExt, stream, 
     Stream, StreamExt, Sink, SinkExt,
     select};
 use futures::task::Spawn;
+use futures::channel::mpsc;
+
+
+use common::int_convert::usize_to_u64;
+use common::conn::{ConnTransform, ConnPair};
 
 use crypto::identity::PublicKey;
 use timer::{TimerTick, TimerClient};
 use timer::utils::future_timeout;
-use common::int_convert::usize_to_u64;
 
 use proto::relay::messages::{InitConnection, RejectConnection, IncomingConnection};
 use super::types::{IncomingConn, IncomingConnInner, 
@@ -21,12 +24,11 @@ use proto::relay::serialize::{serialize_incoming_connection, deserialize_reject_
 
 
 
-fn dispatch_conn<M,K,KE,TS>(receiver: M, sender: K, 
-                         public_key: PublicKey, 
-                         first_msg: Vec<u8>,
-                         timer_stream: TS,
-                         keepalive_ticks: usize,
-                         spawner: impl Spawn) 
+async fn dispatch_conn<CT>(sender: mpsc::Sender<Vec<u8>>,
+                           receiver: mpsc::Receiver<Vec<u8>>,
+                           public_key: PublicKey, 
+                           first_msg: Vec<u8>,
+                           keepalive_transform: CT)
     -> Option<IncomingConn<impl Stream<Item=RejectConnection> + Unpin,
                               impl Sink<SinkItem=IncomingConnection,SinkError=()> + Unpin,
                               impl Stream<Item=Vec<u8>> + Unpin,
@@ -34,16 +36,11 @@ fn dispatch_conn<M,K,KE,TS>(receiver: M, sender: K,
                               impl Stream<Item=Vec<u8>> + Unpin,
                               impl Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin>>
 where
-    M: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
-    K: Sink<SinkItem=Vec<u8>, SinkError=KE> + Unpin + Send + 'static,
-    TS: Stream<Item=TimerTick> + Unpin + Send + 'static,
+    CT: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
+                      NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>,Arg=()>,
 {
 
-    let (sender, receiver) = keepalive_channel(sender,
-                      receiver,
-                      timer_stream,
-                      keepalive_ticks,
-                      spawner);
+    let (sender, receiver) = await!(keepalive_transform.transform((), (sender, receiver))).unwrap();
 
     let sender = sender.sink_map_err(|_| ());
     let inner = match deserialize_init_connection(&first_msg).ok()? {
@@ -75,13 +72,12 @@ where
     })
 }
 
-async fn process_conn<M,K,KE>(mut receiver: M, 
-                sender: K, 
+async fn process_conn<CT>(mut sender: mpsc::Sender<Vec<u8>>,
+                receiver: mpsc::Receiver<Vec<u8>>,
                 public_key: PublicKey,
-                mut timer_client: TimerClient,
-                keepalive_ticks: usize,
-                conn_timeout_ticks: usize,
-                spawner: impl Spawn) -> Option<
+                keepalive_transform: CT,
+                timer_client: TimerClient,
+                conn_timeout_ticks: usize) -> Option<
                              IncomingConn<impl Stream<Item=RejectConnection> + Unpin,
                                           impl Sink<SinkItem=IncomingConnection,SinkError=()> + Unpin,
                                           impl Stream<Item=Vec<u8>> + Unpin,
@@ -90,16 +86,13 @@ async fn process_conn<M,K,KE>(mut receiver: M,
                                           impl Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin>>
 
 where
-    M: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
-    K: Sink<SinkItem=Vec<u8>, SinkError=KE> + Unpin + Send + 'static,
+    CT: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
+                      NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>,Arg=()>,
 {
-
-    let mut c_timer_client = timer_client.clone();
     let mut fut_receiver = Box::pinned(async move {
         if let Some(first_msg) = await!(receiver.next()) {
-            let timer_stream = await!(c_timer_client.request_timer_stream()).unwrap();
-            dispatch_conn(receiver, sender, public_key, first_msg, 
-                         timer_stream, keepalive_ticks, spawner)
+            await!(dispatch_conn(sender, receiver, public_key, first_msg, 
+                         keepalive_transform))
         } else {
             None
         }
@@ -115,11 +108,10 @@ where
 /// For each connection obtain the first message, and prepare the correct type according to this
 /// first messages.
 /// If waiting for the first message takes too long, discard the connection.
-pub fn conn_processor<T,M,K,KE>(mut timer_client: TimerClient,
-                    incoming_conns: T,
-                    keepalive_ticks: usize,
-                    conn_timeout_ticks: usize,
-                    spawner: impl Spawn + Clone) -> impl Stream<
+pub fn conn_processor<T,CT>(incoming_conns: T,
+                    keepalive_transform: CT,
+                    timer_client: TimerClient,
+                    conn_timeout_ticks: usize) -> impl Stream<
                         Item=IncomingConn<impl Stream<Item=RejectConnection>,
                                           impl Sink<SinkItem=IncomingConnection,SinkError=()>,
                                           impl Stream<Item=Vec<u8>>,
@@ -127,16 +119,16 @@ pub fn conn_processor<T,M,K,KE>(mut timer_client: TimerClient,
                                           impl Stream<Item=Vec<u8>>,
                                           impl Sink<SinkItem=Vec<u8>,SinkError=()>>>
 where
-    T: Stream<Item=(M, K, PublicKey)> + Unpin,
-    M: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
-    K: Sink<SinkItem=Vec<u8>, SinkError=KE> + Unpin + Send + 'static,
+    T: Stream<Item=(ConnPair<Vec<u8>,Vec<u8>>, PublicKey)> + Unpin,
+    CT: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
+                      NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>,Arg=()>,
 {
 
     incoming_conns
-        .map(move |(receiver, sender, public_key)| {
-            process_conn(receiver, sender, public_key, 
-                         timer_client.clone(), keepalive_ticks, 
-                         conn_timeout_ticks, spawner.clone())
+        .map(move |((sender, receiver), public_key)| {
+            process_conn(sender, receiver, public_key, 
+                         keepalive_transform,
+                         timer_client.clone(), conn_timeout_ticks)
         })
         .filter_map(|opt_conn| opt_conn)
 
@@ -155,6 +147,7 @@ mod tests {
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
     use timer::create_timer_incoming;
     use common::async_test_utils::{receive, ReceiveError};
+    use common::conn::IdentityConnTransform;
 
     use proto::relay::serialize::serialize_init_connection;
 
@@ -162,19 +155,17 @@ mod tests {
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
-        let keepalive_ticks = 8;
 
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let first_msg = InitConnection::Listen;
         let ser_first_msg = serialize_init_connection(&first_msg);
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
-        let incoming_conn = dispatch_conn(receiver,
-                                          sender.sink_map_err(|_| ()), 
-                                          public_key.clone(), ser_first_msg,
-                                          timer_stream,
-                                          keepalive_ticks,
-                                          spawner.clone()).unwrap();
+        let keepalive_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,()>::new();
+        let incoming_conn = await!(dispatch_conn(sender, 
+                                          receiver, 
+                                          public_key.clone(), 
+                                          ser_first_msg,
+                                          keepalive_transform)).unwrap();
 
         assert_eq!(incoming_conn.public_key, public_key);
         match incoming_conn.inner {
@@ -187,13 +178,13 @@ mod tests {
         let first_msg = InitConnection::Accept(accept_public_key.clone());
         let ser_first_msg = serialize_init_connection(&first_msg);
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
-        let incoming_conn = dispatch_conn(receiver,
-                                          sender.sink_map_err(|_| ()), 
-                                          public_key.clone(), ser_first_msg,
-                                          timer_stream,
-                                          keepalive_ticks,
-                                          spawner.clone()).unwrap();
+        let keepalive_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,()>::new();
+        let incoming_conn = await!(dispatch_conn(sender, 
+                                          receiver, 
+                                          public_key.clone(), 
+                                          ser_first_msg,
+                                          keepalive_transform)).unwrap();
+
         assert_eq!(incoming_conn.public_key, public_key);
         match incoming_conn.inner {
             IncomingConnInner::Accept(incoming_accept) => 
@@ -206,13 +197,13 @@ mod tests {
         let first_msg = InitConnection::Connect(connect_public_key.clone());
         let ser_first_msg = serialize_init_connection(&first_msg);
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
-        let incoming_conn = dispatch_conn(receiver,
-                                          sender.sink_map_err(|_| ()), 
-                                          public_key.clone(), ser_first_msg,
-                                          timer_stream,
-                                          keepalive_ticks,
-                                          spawner.clone()).unwrap();
+        let keepalive_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,()>::new();
+        let incoming_conn = await!(dispatch_conn(sender, 
+                                          receiver, 
+                                          public_key.clone(), 
+                                          ser_first_msg,
+                                          keepalive_transform)).unwrap();
+
         assert_eq!(incoming_conn.public_key, public_key);
         match incoming_conn.inner {
             IncomingConnInner::Connect(incoming_connect) => 
@@ -231,18 +222,16 @@ mod tests {
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
-        let keepalive_ticks = 8;
 
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let ser_first_msg = b"This is an invalid message".to_vec();
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
-        let res = dispatch_conn(receiver, 
-                                sender.sink_map_err(|_| ()), 
-                                public_key.clone(), ser_first_msg,
-                                timer_stream,
-                                keepalive_ticks,
-                                spawner);
+        let keepalive_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,()>::new();
+        let res = await!(dispatch_conn(sender, 
+                                          receiver, 
+                                          public_key.clone(), 
+                                          ser_first_msg,
+                                          keepalive_transform));
         assert!(res.is_none());
     }
 
@@ -265,15 +254,15 @@ mod tests {
         let (mut remote_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
 
         let incoming_conns = stream::iter::<_>(
-            vec![(local_receiver, local_sender, public_key.clone())]);
+            vec![((local_sender, local_receiver), public_key.clone())]);
 
         let conn_timeout_ticks = 16;
-        let keepalive_ticks = 8;
-        let processed_conns = conn_processor(timer_client, 
-                       incoming_conns, 
-                       keepalive_ticks,
-                       conn_timeout_ticks,
-                       thread_pool.clone());
+        let keepalive_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,()>::new();
+
+        let processed_conns = conn_processor(incoming_conns, 
+                                             keepalive_transform,
+                                             timer_client,
+                                             conn_timeout_ticks);
 
 
         let processed_conns = Box::pinned(processed_conns);
@@ -304,5 +293,4 @@ mod tests {
 
         assert!(thread_pool.run(receive(processed_conns)).is_none());
     }
-
 }
