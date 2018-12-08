@@ -57,10 +57,10 @@ where
     S: Spawn + Clone + Sync + Send,
 {
     type Input = (A, PublicKey);
-    type Output = Option<ConnPair<Vec<u8>,Vec<u8>>>;
+    type Output = ConnPair<Vec<u8>,Vec<u8>>;
 
     fn transform(&mut self, address: (A, PublicKey)) 
-        -> BoxFuture<'_, Option<ConnPair<Vec<u8>, Vec<u8>>>> {
+        -> BoxFuture<'_, ConnPair<Vec<u8>, Vec<u8>>> {
 
         let (relay_address, public_key) = address;
 
@@ -68,7 +68,7 @@ where
             loop {
                 match await!(secure_connect(self.client_connector.clone(), self.encrypt_transform.clone(), 
                                             relay_address.clone(), public_key.clone())) {
-                    Some(conn_pair) => return Some(conn_pair),
+                    Some(conn_pair) => return conn_pair,
                     None => await!(sleep_ticks(self.backoff_ticks, self.timer_client.clone())).unwrap(),
                 }
             }
@@ -103,7 +103,7 @@ mod tests {
 
         let backoff_ticks = 2;
 
-        let (conn_request_sender, mut conn_request_receiver) = mpsc::channel::<ConnRequest<Vec<u8>,Vec<u8>,(u32, PublicKey)>>(0);
+        let (conn_request_sender, mut conn_request_receiver) = mpsc::channel(0);
         let client_connector = DummyConnector::new(conn_request_sender);
 
         // We don't need encryption for this test:
@@ -118,7 +118,7 @@ mod tests {
 
         let public_key_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
         let connect_fut = async {
-            let (mut sender, mut receiver) = await!(channeler_connector.transform((0x1337, public_key_b))).unwrap();
+            let (mut sender, mut receiver) = await!(channeler_connector.transform((0x1337, public_key_b)));
             await!(sender.send(vec![1,2,3])).unwrap();
             assert_eq!(await!(receiver.next()).unwrap(), vec![3,2,1]);
         };
@@ -153,7 +153,7 @@ mod tests {
 
         let backoff_ticks = 2;
 
-        let (conn_request_sender, mut conn_request_receiver) = mpsc::channel::<ConnRequest<Vec<u8>,Vec<u8>,(u32, PublicKey)>>(0);
+        let (conn_request_sender, mut conn_request_receiver) = mpsc::channel(0);
         let client_connector = DummyConnector::new(conn_request_sender);
 
         // We don't need encryption for this test:
@@ -168,7 +168,7 @@ mod tests {
 
         let public_key_b = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
         let connect_fut = async {
-            let (mut sender, mut receiver) = await!(channeler_connector.transform((0x1337, public_key_b))).unwrap();
+            let (mut sender, mut receiver) = await!(channeler_connector.transform((0x1337, public_key_b)));
             await!(sender.send(vec![1,2,3])).unwrap();
             assert_eq!(await!(receiver.next()).unwrap(), vec![3,2,1]);
         };

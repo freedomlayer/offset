@@ -79,7 +79,7 @@ struct Channeler<A,C,L,S,TF> {
 impl<A,C,L,S,TF> Channeler<A,C,L,S,TF> 
 where
     A: Clone + Send + Sync + 'static,
-    C: FutTransform<Input=(A, PublicKey), Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input=(A, PublicKey), Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone + Send + Sync + 'static,
     L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
@@ -148,7 +148,7 @@ where
             // Maybe we should change the design of the trait to force this behaviour.
             let select_res = select! {
                 _close_receiver = close_receiver.fuse() => None,
-                connect_fut = connect_fut.fuse() => Some(connect_fut.unwrap()),
+                connect_fut = connect_fut.fuse() => Some(connect_fut)
             };
             match select_res {
                 Some(conn_pair) => {
@@ -179,7 +179,7 @@ async fn handle_from_funder<A,C,L,S,TF>(channeler: &mut Channeler<A,C,L,S,TF>,
     -> Result<(), ChannelerError>  
 where
     A: Clone + Send + Sync + 'static,
-    C: FutTransform<Input=(A, PublicKey), Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input=(A, PublicKey), Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone + Send + Sync + 'static,
     L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
@@ -291,7 +291,7 @@ where
     FF: Stream<Item=FunderToChanneler<A>> + Unpin,
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
     A: Clone + Send + Sync + 'static + std::fmt::Debug,
-    C: FutTransform<Input=(A, PublicKey), Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input=(A, PublicKey), Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone + Send + Sync + 'static,
     L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
 {
@@ -428,8 +428,7 @@ mod tests {
         pks.sort_by(compare_public_key);
 
 
-        let (conn_request_sender, mut conn_request_receiver) 
-            = mpsc::channel::<ConnRequest<Vec<u8>,Vec<u8>,(u32, PublicKey)>>(0);
+        let (conn_request_sender, mut conn_request_receiver) = mpsc::channel(0);
         let connector = DummyConnector::new(conn_request_sender);
 
         let (listener_req_sender, mut listener_req_receiver) = mpsc::channel(0);
@@ -466,7 +465,7 @@ mod tests {
 
         let (mut pk0_sender, remote_receiver) = mpsc::channel(0);
         let (remote_sender, mut pk0_receiver) = mpsc::channel(0);
-        conn_request.reply(Some((remote_sender, remote_receiver)));
+        conn_request.reply((remote_sender, remote_receiver));
 
         // Friend should be reported as online:
         let channeler_to_funder = await!(funder_receiver.next()).unwrap();
@@ -509,7 +508,7 @@ mod tests {
 
         let (pk0_sender, remote_receiver) = mpsc::channel(0);
         let (remote_sender, pk0_receiver) = mpsc::channel(0);
-        conn_request.reply(Some((remote_sender, remote_receiver)));
+        conn_request.reply((remote_sender, remote_receiver));
 
         // Online report:
         let channeler_to_funder = await!(funder_receiver.next()).unwrap();
@@ -559,8 +558,7 @@ mod tests {
         pks.sort_by(compare_public_key);
 
 
-        let (conn_request_sender, mut conn_request_receiver) 
-            = mpsc::channel::<ConnRequest<Vec<u8>,Vec<u8>,(u32, PublicKey)>>(0);
+        let (conn_request_sender, mut conn_request_receiver) = mpsc::channel(0);
         let connector = DummyConnector::new(conn_request_sender);
 
         let (listener_req_sender, mut listener_req_receiver) = mpsc::channel(0);
