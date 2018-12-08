@@ -1,15 +1,11 @@
 use crypto::identity::PublicKey;
-use futures::{future, FutureExt, TryFutureExt, StreamExt, SinkExt};
-use futures::task::{Spawn, SpawnExt};
-use futures::channel::mpsc;
+use futures::{FutureExt, SinkExt};
 
 use common::conn::{BoxFuture, Connector, 
     ConnPair, ConnTransform};
 
 use proto::relay::messages::{InitConnection};
 use proto::relay::serialize::serialize_init_connection;
-
-use timer::TimerClient;
 
 
 #[derive(Debug)]
@@ -96,19 +92,17 @@ where
 mod tests {
     use super::*;
     use futures::executor::ThreadPool;
+    use futures::channel::mpsc;
+    use futures::task::{Spawn, SpawnExt};
+    use futures::StreamExt;
 
-    use timer::{create_timer_incoming};
     use crypto::identity::{PUBLIC_KEY_LEN};
     use proto::relay::serialize::deserialize_init_connection;
 
     use common::dummy_connector::DummyConnector;
     use common::conn::IdentityConnTransform;
 
-
     async fn task_client_connector_basic(mut spawner: impl Spawn + Clone + Sync + Send + 'static) {
-        // Create a mock time service:
-        let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
 
         let (local_sender, mut relay_receiver) = mpsc::channel::<Vec<u8>>(0);
         let (mut relay_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
