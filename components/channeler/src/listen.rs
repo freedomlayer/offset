@@ -8,9 +8,12 @@ use crypto::identity::PublicKey;
 use timer::TimerClient;
 use timer::utils::sleep_ticks;
 
-
 use common::conn::{Listener, ConnPair, FutTransform};
-use relay::client::access_control::{AccessControlOp, AccessControl};
+use common::access_control::{AccessControlOp, AccessControl};
+
+type AccessControlPk = AccessControl<PublicKey>;
+type AccessControlOpPk = AccessControlOp<PublicKey>;
+
 
 #[derive(Debug)]
 enum ListenError {
@@ -56,7 +59,7 @@ where
 
 #[derive(Debug)]
 enum ListenLoopEvent {
-    AccessControlOp(Option<AccessControlOp>),
+    AccessControlOp(Option<AccessControlOpPk>),
     Connection(Option<(PublicKey, ConnPair<Vec<u8>,Vec<u8>>)>),
 }
 
@@ -75,7 +78,7 @@ impl<A,L,T,S> ChannelerListener<A,L,T,S>
 where
     A: Clone + Send + Sync + 'static,
     L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>,Vec<u8>>), 
-        Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + 'static,
+        Config=AccessControlOpPk, Arg=(A, AccessControlPk)> + Clone + 'static,
     T: FutTransform<Input=(Option<PublicKey>, ConnPair<Vec<u8>,Vec<u8>>),
                     Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
@@ -100,10 +103,10 @@ where
 
     async fn listen_iter<'a>(&'a mut self,
                                mut plain_connections_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>,
-                               mut access_control_sender: mpsc::Sender<AccessControlOp>,
-                               access_control_receiver: &'a mut mpsc::Receiver<AccessControlOp>,
+                               mut access_control_sender: mpsc::Sender<AccessControlOpPk>,
+                               access_control_receiver: &'a mut mpsc::Receiver<AccessControlOpPk>,
                                mut connections_receiver: mpsc::Receiver<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>,
-                               access_control: &'a mut AccessControl) -> Option<()> {
+                               access_control: &'a mut AccessControlPk) -> Option<()> {
         loop {
             // We select over .next() invocations instead of selecting over streams because
             // we can't afford to lose access_control_receiver. access_control_receiver lives for the entire outer loop,
@@ -133,9 +136,9 @@ where
     }
 
     async fn listen_loop(&mut self, relay_address: A,
-                   mut access_control_receiver: mpsc::Receiver<AccessControlOp>,
+                   mut access_control_receiver: mpsc::Receiver<AccessControlOpPk>,
                    connections_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>,Vec<u8>>)>,
-                   mut access_control: AccessControl)
+                   mut access_control: AccessControlPk)
                     -> Result<!, ListenError> {
 
         let (mut plain_connections_sender, plain_connections_receiver) = mpsc::channel(0);
@@ -169,16 +172,16 @@ impl<A,L,T,S> Listener for ChannelerListener<A,L,T,S>
 where
     A: Clone + Send + Sync + 'static,
     L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>,Vec<u8>>), 
-        Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + Send + 'static,
+        Config=AccessControlOpPk, Arg=(A, AccessControlPk)> + Clone + Send + 'static,
     T: FutTransform<Input=(Option<PublicKey>, ConnPair<Vec<u8>,Vec<u8>>),
                     Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
     type Connection = (PublicKey, ConnPair<Vec<u8>,Vec<u8>>);
-    type Config = AccessControlOp;
-    type Arg = (A, AccessControl);
+    type Config = AccessControlOpPk;
+    type Arg = (A, AccessControlPk);
 
-    fn listen(mut self, arg: (A, AccessControl)) -> (mpsc::Sender<AccessControlOp>, 
+    fn listen(mut self, arg: (A, AccessControlPk)) -> (mpsc::Sender<AccessControlOpPk>, 
                              mpsc::Receiver<Self::Connection>) {
 
         let (relay_address, access_control) = arg;
@@ -245,7 +248,7 @@ mod tests {
             timer_client,
             spawner.clone());
 
-        let access_control = AccessControl::new();
+        let access_control = AccessControlPk::new();
         let (mut access_control_sender, mut connections_receiver) = channeler_listener.listen((relay_address, access_control));
 
         // Inner listener:
@@ -333,7 +336,7 @@ mod tests {
             timer_client,
             spawner.clone());
 
-        let access_control = AccessControl::new();
+        let access_control = AccessControlPk::new();
         let (_access_control_sender, mut connections_receiver) = channeler_listener.listen((relay_address, access_control));
 
         // Inner listener:

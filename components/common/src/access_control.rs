@@ -1,38 +1,40 @@
-use crypto::identity::PublicKey;
 use std::collections::HashSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum AccessControlOp {
-    Add(PublicKey),
-    Remove(PublicKey),
+pub enum AccessControlOp<T> {
+    Add(T),
+    Remove(T),
 }
 
 #[derive(Clone, Debug)]
-pub struct AccessControl {
-    allowed: HashSet<PublicKey>,
+pub struct AccessControl<T: std::cmp::Eq + std::hash::Hash> {
+    allowed: HashSet<T>,
 }
 
-impl AccessControl {
-    pub fn new() -> AccessControl {
+impl<T> AccessControl<T> 
+where
+    T: std::cmp::Eq + std::hash::Hash,
+{
+    pub fn new() -> AccessControl<T> {
         AccessControl {
             allowed: HashSet::new(),
         }
     }
 
-    pub fn apply_op(&mut self, allowed_op: AccessControlOp) {
+    pub fn apply_op(&mut self, allowed_op: AccessControlOp<T>) {
         match allowed_op {
-            AccessControlOp::Add(public_key) => {
-                self.allowed.insert(public_key);
+            AccessControlOp::Add(item) => {
+                self.allowed.insert(item);
             }
-            AccessControlOp::Remove(public_key) => {
-                self.allowed.remove(&public_key);
+            AccessControlOp::Remove(item) => {
+                self.allowed.remove(&item);
             }
         }
     }
 
     /// Check if a certain public key is allowed.
-    pub fn is_allowed(&self, public_key: &PublicKey) -> bool {
-        self.allowed.contains(public_key)
+    pub fn is_allowed(&self, item: &T) -> bool {
+        self.allowed.contains(item)
     }
 }
 
@@ -40,12 +42,11 @@ impl AccessControl {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
     #[test]
     fn test_access_control_basic() {
-        let a_public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
-        let b_public_key = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let a_public_key = 0xaa;
+        let b_public_key = 0xbb;
 
         let mut ac = AccessControl::new();
         assert!(!ac.is_allowed(&a_public_key));

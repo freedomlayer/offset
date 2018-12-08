@@ -9,9 +9,13 @@ use futures::channel::{oneshot, mpsc};
 use proto::funder::messages::{FunderToChanneler, ChannelerToFunder};
 use common::conn::{Listener, FutTransform, ConnPair};
 use crypto::identity::{PublicKey, compare_public_key};
-use relay::client::access_control::{AccessControl, AccessControlOp};
+
+use common::access_control::{AccessControlOp, AccessControl};
 
 use crate::overwrite_channel::overwrite_send_all;
+
+type AccessControlPk = AccessControl<PublicKey>;
+type AccessControlOpPk = AccessControlOp<PublicKey>;
 
 #[derive(Debug)]
 pub enum ChannelerEvent<A> {
@@ -56,7 +60,7 @@ enum FriendState {
 }
 
 struct Listening {
-    access_control_sender: mpsc::Sender<AccessControlOp>,
+    access_control_sender: mpsc::Sender<AccessControlOpPk>,
 }
 
 enum ListenState {
@@ -80,7 +84,7 @@ impl<A,C,L,S,TF> Channeler<A,C,L,S,TF>
 where
     A: Clone + Send + Sync + 'static,
     C: FutTransform<Input=(A, PublicKey), Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone + Send + Sync + 'static,
-    L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + Send,
+    L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOpPk, Arg=(A, AccessControlPk)> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
 {
@@ -112,10 +116,10 @@ where
         compare_public_key(&self.local_public_key, friend_public_key) == Ordering::Less
     }
 
-    /// Create AccessControl according to current configured friends.
+    /// Create AccessControlPk according to current configured friends.
     /// Only listening friends are included.
-    fn create_access_control(&self) -> AccessControl {
-        let mut access_control = AccessControl::new();
+    fn create_access_control(&self) -> AccessControlPk {
+        let mut access_control = AccessControlPk::new();
         for (public_key, _) in &self.friends {
             if self.is_listen_friend(public_key) {
                 access_control.apply_op(AccessControlOp::Add(public_key.clone()));
@@ -180,7 +184,7 @@ async fn handle_from_funder<A,C,L,S,TF>(channeler: &mut Channeler<A,C,L,S,TF>,
 where
     A: Clone + Send + Sync + 'static,
     C: FutTransform<Input=(A, PublicKey), Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone + Send + Sync + 'static,
-    L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + Send,
+    L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOpPk, Arg=(A, AccessControlPk)> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
 {
@@ -292,7 +296,7 @@ where
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
     A: Clone + Send + Sync + 'static + std::fmt::Debug,
     C: FutTransform<Input=(A, PublicKey), Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone + Send + Sync + 'static,
-    L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + Send,
+    L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOpPk, Arg=(A, AccessControlPk)> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
 {
 

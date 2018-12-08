@@ -15,8 +15,10 @@ use common::conn::{Listener, ConnPair,
     ConstFutTransform, FutTransform};
 
 use timer::{TimerClient, TimerTick};
-use super::access_control::{AccessControl, AccessControlOp};
+use common::access_control::{AccessControl, AccessControlOp};
 
+type AccessControlPk = AccessControl<PublicKey>;
+type AccessControlOpPk = AccessControlOp<PublicKey>;
 
 
 #[derive(Debug)]
@@ -34,7 +36,7 @@ pub enum ClientListenerError {
 
 #[derive(Debug, Clone)]
 enum ClientListenerEvent {
-    AccessControlOp(AccessControlOp),
+    AccessControlOp(AccessControlOpPk),
     AccessControlClosed,
     ServerMessage(IncomingConnection),
     ServerClosed,
@@ -158,7 +160,7 @@ where
 
 
 async fn inner_client_listener<'a, C,IAC,CS,CSE,FT>(mut connector: C,
-                                access_control: &'a mut AccessControl,
+                                access_control: &'a mut AccessControlPk,
                                 incoming_access_control: &'a mut IAC,
                                 connections_sender: CS,
                                 keepalive_transform: FT,
@@ -169,7 +171,7 @@ async fn inner_client_listener<'a, C,IAC,CS,CSE,FT>(mut connector: C,
     -> Result<(), ClientListenerError>
 where
     C: FutTransform<Input=(), Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Send + Sync + Clone + 'static,
-    IAC: Stream<Item=AccessControlOp> + Unpin + 'static,
+    IAC: Stream<Item=AccessControlOp<PublicKey>> + Unpin + 'static,
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + Clone + Send + 'static,
     CSE: 'static,
     FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>, 
@@ -266,7 +268,7 @@ where
 #[derive(Clone)]
 pub struct ClientListener<C,FT,S> {
     connector: C,
-    access_control: AccessControl,
+    access_control: AccessControlPk,
     keepalive_transform: FT,
     conn_timeout_ticks: usize,
     timer_client: TimerClient,
@@ -275,7 +277,7 @@ pub struct ClientListener<C,FT,S> {
 
 impl<C,FT,S> ClientListener<C,FT,S> {
     pub fn new(connector: C,
-           access_control: AccessControl,
+           access_control: AccessControlPk,
            keepalive_transform: FT,
            conn_timeout_ticks: usize,
            timer_client: TimerClient,
@@ -301,10 +303,10 @@ where
         Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone + Send + 'static,
 {
     type Connection = (PublicKey, ConnPair<Vec<u8>, Vec<u8>>);
-    type Config = AccessControlOp;
-    type Arg = (A, AccessControl);
+    type Config = AccessControlOpPk;
+    type Arg = (A, AccessControlPk);
 
-    fn listen(self, arg: (A, AccessControl)) -> (mpsc::Sender<AccessControlOp>, 
+    fn listen(self, arg: (A, AccessControlPk)) -> (mpsc::Sender<AccessControlOp<PublicKey>>, 
                              mpsc::Receiver<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>) {
 
         let (relay_address, mut access_control) = arg;
@@ -493,7 +495,7 @@ mod tests {
 
         let c_spawner = spawner.clone();
         let fut_listener = async move {
-            let mut access_control = AccessControl::new();
+            let mut access_control = AccessControlPk::new();
             await!(inner_client_listener(connector,
                               &mut access_control,
                               &mut incoming_access_control,
