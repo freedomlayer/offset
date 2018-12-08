@@ -96,6 +96,8 @@ where
 
 
 
+
+
 /// The Identity connection transformation.
 /// Returns exactly the same connection it has received.
 #[derive(Clone)]
@@ -133,5 +135,57 @@ where
 
         Box::pinned(future::ready(Some(conn_pair)))
     }
+}
+
+/// Wraps an FnMut type in a type that implements FutTransform.
+/// This could help mocking a FutTransform with a simple non futuristic function.
+pub struct FuncFutTransform<F,I,O> {
+    func: F,
+    phantom_i: PhantomData<I>,
+    phantom_o: PhantomData<O>,
+}
+
+// It seems like deriving Clone automatically doesn't work,
+// so we need to implement manually. Is this a bug in how #[derive(Clone)] works?
+impl<F,I,O> Clone for FuncFutTransform<F,I,O> 
+where
+    F: Clone,
+{
+    fn clone(&self) -> FuncFutTransform<F,I,O> {
+        FuncFutTransform {
+            func: self.func.clone(),
+            phantom_i: self.phantom_i.clone(),
+            phantom_o: self.phantom_o.clone(),
+        }
+    }
+}
+
+
+impl<F,I,O> FuncFutTransform<F,I,O> 
+where
+    F: FnMut(I) -> O,
+    O: Send,
+{
+    pub fn new(func: F) -> FuncFutTransform<F,I,O> {
+        FuncFutTransform {
+            func,
+            phantom_i: PhantomData,
+            phantom_o: PhantomData,
+        }
+    }
+}
+
+impl<F,I,O> FutTransform for FuncFutTransform<F,I,O> 
+where
+    F: FnMut(I) -> O,
+    O: Send,
+{
+    type Input = I;
+    type Output = O;
+
+    fn transform(&mut self, input: Self::Input)
+        -> BoxFuture<'_, Self::Output> {
+        Box::pinned(future::ready((self.func)(input)))
+    } 
 }
 
