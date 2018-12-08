@@ -72,8 +72,8 @@ pub struct FriendState<A> {
     pub channel_status: ChannelStatus,
     pub wanted_remote_max_debt: u128,
     pub wanted_local_requests_status: RequestsStatus,
-    pub pending_responses: Vector<ResponseOp>,
     pub pending_requests: Vector<RequestSendFunds>,
+    pub pending_responses: Vector<ResponseOp>,
     // Pending operations to be sent to the token channel.
     pub status: FriendStatus,
     pub pending_user_requests: Vector<RequestSendFunds>,
