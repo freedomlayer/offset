@@ -7,6 +7,7 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 pub type ConnPair<SendItem, RecvItem> = (mpsc::Sender<SendItem>,mpsc::Receiver<RecvItem>);
 
+/*
 /// connect to a remote entity
 pub trait Connector {
     type Address;
@@ -16,6 +17,7 @@ pub trait Connector {
     fn connect(&mut self, address: Self::Address) 
         -> BoxFuture<'_, Option<ConnPair<Self::SendItem, Self::RecvItem>>>;
 }
+*/
 
 /// Listen to connections from remote entities
 pub trait Listener {
@@ -48,36 +50,34 @@ pub trait FutTransform {
 
 
 
-/// A wrapper for a connector.
-/// Always connects to the same address.
+/// A wrapper for a FutTransform that always gives the same input
 #[derive(Clone)]
-pub struct ConstAddressConnector<C,A> {
-    connector: C,
-    address: A,
+pub struct ConstFutTransform<FT,I> {
+    fut_transform: FT,
+    input: I,
 }
 
-impl<C,A> ConstAddressConnector<C,A> {
-    pub fn new(connector: C, address: A) -> ConstAddressConnector<C,A> {
-        ConstAddressConnector {
-            connector,
-            address,
+impl<FT,I> ConstFutTransform<FT,I> {
+    pub fn new(fut_transform: FT, input: I) -> ConstFutTransform<FT,I> {
+        ConstFutTransform {
+            fut_transform,
+            input,
         }
     }
 }
 
 
-impl<C,A> Connector for ConstAddressConnector<C,A>
+impl<FT,I,O> FutTransform for ConstFutTransform<FT,I>
 where
-    C: Connector<Address=A>,
-    A: Clone,
+    FT: FutTransform<Input=I,Output=O>,
+    I: Clone,
 {
-    type Address = ();
-    type SendItem = C::SendItem;
-    type RecvItem = C::RecvItem;
+    type Input = ();
+    type Output = O;
 
-    fn connect(&mut self, _address: ()) 
-        -> BoxFuture<'_, Option<ConnPair<C::SendItem, C::RecvItem>>> {
-        self.connector.connect(self.address.clone())
+    fn transform(&mut self, _input: ()) 
+        -> BoxFuture<'_, Self::Output> {
+        self.fut_transform.transform(self.input.clone())
     }
 }
 
