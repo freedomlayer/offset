@@ -6,15 +6,14 @@ use futures::{future, Future, FutureExt, TryFutureExt,
 use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
 
-use keepalive::keepalive_channel;
-
 use crypto::identity::PublicKey;
 use proto::relay::messages::{InitConnection, IncomingConnection, RejectConnection};
 use proto::relay::serialize::{serialize_init_connection,
     serialize_incoming_connection, deserialize_incoming_connection,
     serialize_reject_connection, deserialize_reject_connection};
 use common::int_convert::usize_to_u64;
-use common::conn::{Listener, Connector, ConnPair, ConstAddressConnector};
+use common::conn::{Listener, Connector, ConnPair, 
+    ConstAddressConnector, ConnTransform};
 
 use timer::{TimerClient, TimerTick};
 use super::access_control::{AccessControl, AccessControlOp};
@@ -106,17 +105,18 @@ where
     }
 }
 
-async fn accept_connection<C,CS, CSE>(public_key: PublicKey, 
+async fn accept_connection<C,CS,CSE,CT>(public_key: PublicKey, 
                            connector: C,
                            mut pending_reject_sender: mpsc::Sender<PublicKey>,
                            mut connections_sender: CS,
+                           mut keepalive_transform: CT,
                            conn_timeout_ticks: usize,
-                           keepalive_ticks: usize,
-                           mut timer_client: TimerClient,
-                           mut spawner: impl Spawn + Clone) -> Result<(), AcceptConnectionError> 
+                           mut timer_client: TimerClient) -> Result<(), AcceptConnectionError> 
 where
-    CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + 'static,
     C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Send,
+    CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + 'static,
+    CT: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
+                      NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>,Arg=()>,
 {
 
     let timer_stream = await!(timer_client.request_timer_stream())
@@ -154,10 +154,7 @@ where
 
 
     let (user_to_tunnel_sender, user_from_tunnel_receiver) = 
-                keepalive_channel(to_tunnel_sender, from_tunnel_receiver,
-                      timer_stream,
-                      keepalive_ticks,
-                      spawner.clone());
+        await!(keepalive_transform.transform((), (to_tunnel_sender, from_tunnel_receiver))).unwrap();
 
     await!(connections_sender.send((public_key, (user_to_tunnel_sender, user_from_tunnel_receiver))))
         .map_err(|_| AcceptConnectionError::SendConnPairError)?;
@@ -166,12 +163,12 @@ where
 
 
 
-async fn inner_client_listener<'a, C,IAC,CS,CSE>(mut connector: C,
+async fn inner_client_listener<'a, C,IAC,CS,CSE,CT>(mut connector: C,
                                 access_control: &'a mut AccessControl,
                                 incoming_access_control: &'a mut IAC,
                                 connections_sender: CS,
+                                keepalive_transform: CT,
                                 conn_timeout_ticks: usize,
-                                keepalive_ticks: usize,
                                 mut timer_client: TimerClient,
                                 mut spawner: impl Spawn + Clone + Send + 'static,
                                 mut opt_event_sender: Option<mpsc::Sender<ClientListenerEvent>>) 
@@ -180,7 +177,9 @@ where
     C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Send + Sync + Clone + 'static,
     IAC: Stream<Item=AccessControlOp> + Unpin + 'static,
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + Clone + Send + 'static,
-    CSE: 'static
+    CSE: 'static,
+    CT: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
+                      NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>,Arg=()> + Send + Clone + 'static,
 {
 
     let timer_stream = await!(timer_client.request_timer_stream())
@@ -251,10 +250,9 @@ where
                         connector.clone(),
                         pending_reject_sender.clone(),
                         connections_sender.clone(),
+                        keepalive_transform.clone(),
                         conn_timeout_ticks,
-                        keepalive_ticks,
-                        timer_client.clone(),
-                        spawner.clone())
+                        timer_client.clone())
                     .map_err(|e| {
                         error!("Error in accept_connection: {:?}", e);
                     }).map(|_| ());
@@ -276,39 +274,41 @@ where
 
 
 #[derive(Clone)]
-pub struct ClientListener<C,S> {
+pub struct ClientListener<C,CT,S> {
     connector: C,
     access_control: AccessControl,
+    keepalive_transform: CT,
     conn_timeout_ticks: usize,
-    keepalive_ticks: usize,
     timer_client: TimerClient,
     spawner: S,
 }
 
-impl<C,S> ClientListener<C,S> {
+impl<C,CT,S> ClientListener<C,CT,S> {
     pub fn new(connector: C,
            access_control: AccessControl,
+           keepalive_transform: CT,
            conn_timeout_ticks: usize,
-           keepalive_ticks: usize,
            timer_client: TimerClient,
-           spawner: S) -> ClientListener<C,S> {
+           spawner: S) -> ClientListener<C,CT,S> {
 
         ClientListener {
             connector,
             access_control,
+            keepalive_transform,
             conn_timeout_ticks,
-            keepalive_ticks,
             timer_client,
             spawner,
         }
     }
 }
 
-impl <A,C,S> Listener for ClientListener<C,S> 
+impl <A,C,CT,S> Listener for ClientListener<C,CT,S> 
 where
     A: Clone + Send + Sync + 'static,
     C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
     S: Spawn + Clone + Send + 'static,
+    CT: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
+                      NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>,Arg=()> + Clone + Send + 'static,
 {
     type Connection = (PublicKey, ConnPair<Vec<u8>, Vec<u8>>);
     type Config = AccessControlOp;
@@ -332,8 +332,8 @@ where
                                  &mut access_control,
                                  &mut access_control_receiver,
                                  connections_sender,
+                                 self.keepalive_transform,
                                  self.conn_timeout_ticks,
-                                 self.keepalive_ticks,
                                  self.timer_client,
                                  self.spawner,
                                  None)
@@ -353,16 +353,16 @@ mod tests {
     use super::*;
     use futures::executor::ThreadPool;
     use futures::channel::oneshot;
-    use proto::keepalive::messages::KaMessage;
-    use proto::keepalive::serialize::{serialize_ka_message, deserialize_ka_message};
     use proto::relay::serialize::{deserialize_init_connection};
     use crypto::identity::PUBLIC_KEY_LEN;
     use timer::create_timer_incoming;
+
     use common::dummy_connector::DummyConnector;
+    use common::conn::IdentityConnTransform;
 
     async fn task_connect_with_timeout_basic(mut spawner: impl Spawn) {
         let conn_timeout_ticks = 8;
-        let (timer_sender, timer_stream) = mpsc::channel::<TimerTick>(0);
+        let (_timer_sender, timer_stream) = mpsc::channel::<TimerTick>(0);
         let (req_sender, mut req_receiver) = mpsc::channel(0);
         let connector = DummyConnector::new(req_sender);
 
@@ -398,7 +398,7 @@ mod tests {
             let res = await!(connect_with_timeout(connector,
                                 conn_timeout_ticks,
                                 timer_stream));
-            res_sender.send(res);
+            res_sender.send(res).unwrap();
         }).unwrap();
 
         let req = await!(req_receiver.next()).unwrap();
@@ -426,19 +426,20 @@ mod tests {
         let (pending_reject_sender, pending_reject_receiver) = mpsc::channel(0);
         let (connections_sender, mut connections_receiver) = mpsc::channel(0);
         let conn_timeout_ticks = 8;
-        let keepalive_ticks = 16;
         let (tick_sender, tick_receiver) = mpsc::channel(0);
         let timer_client = create_timer_incoming(tick_receiver, spawner.clone())
             .unwrap();
+
+        // We don't need a real keepalive transform for this test:
+        let keepalive_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,()>::new();
 
         let fut_accept = accept_connection(public_key.clone(),
                            connector,
                            pending_reject_sender,
                            connections_sender,
+                           keepalive_transform,
                            conn_timeout_ticks,
-                           keepalive_ticks,
-                           timer_client,
-                           spawner.clone())
+                           timer_client)
             .map_err(|e| error!("accept_connection error: {:?}", e))
             .map(|_| ());
 
@@ -471,10 +472,9 @@ mod tests {
 
         await!(sender.send(vec![1,2,3])).unwrap();
         let res = await!(ser_remote_receiver.next()).unwrap();
-        assert_eq!(res, serialize_ka_message(&KaMessage::Message(vec![1,2,3])));
+        assert_eq!(res, vec![1,2,3]);
 
-        let vec_ka_message = serialize_ka_message(&KaMessage::Message(vec![3,2,1]));
-        await!(ser_remote_sender.send(vec_ka_message)).unwrap();
+        await!(ser_remote_sender.send(vec![3,2,1])).unwrap();
         let res = await!(receiver.next()).unwrap();
         assert_eq!(res, vec![3,2,1]);
     }
@@ -490,13 +490,13 @@ mod tests {
         let connector = DummyConnector::new(req_sender);
         let (connections_sender, connections_receiver) = mpsc::channel(0);
         let conn_timeout_ticks = 8;
-        let keepalive_ticks = 16;
         let (tick_sender, tick_receiver) = mpsc::channel(0);
         let timer_client = create_timer_incoming(tick_receiver, spawner.clone())
             .unwrap();
 
         let (mut acl_sender, mut incoming_access_control) = mpsc::channel(0);
         let (event_sender, mut event_receiver) = mpsc::channel(0);
+        let keepalive_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,()>::new();
 
         let c_spawner = spawner.clone();
         let fut_listener = async move {
@@ -505,8 +505,8 @@ mod tests {
                               &mut access_control,
                               &mut incoming_access_control,
                               connections_sender,
+                              keepalive_transform,
                               conn_timeout_ticks,
-                              keepalive_ticks,
                               timer_client,
                               c_spawner,
                               Some(event_sender)))

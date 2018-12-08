@@ -28,7 +28,7 @@ async fn dispatch_conn<CT>(sender: mpsc::Sender<Vec<u8>>,
                            receiver: mpsc::Receiver<Vec<u8>>,
                            public_key: PublicKey, 
                            first_msg: Vec<u8>,
-                           keepalive_transform: CT)
+                           mut keepalive_transform: CT)
     -> Option<IncomingConn<impl Stream<Item=RejectConnection> + Unpin,
                               impl Sink<SinkItem=IncomingConnection,SinkError=()> + Unpin,
                               impl Stream<Item=Vec<u8>> + Unpin,
@@ -73,10 +73,10 @@ where
 }
 
 async fn process_conn<CT>(mut sender: mpsc::Sender<Vec<u8>>,
-                receiver: mpsc::Receiver<Vec<u8>>,
+                mut receiver: mpsc::Receiver<Vec<u8>>,
                 public_key: PublicKey,
                 keepalive_transform: CT,
-                timer_client: TimerClient,
+                mut timer_client: TimerClient,
                 conn_timeout_ticks: usize) -> Option<
                              IncomingConn<impl Stream<Item=RejectConnection> + Unpin,
                                           impl Sink<SinkItem=IncomingConnection,SinkError=()> + Unpin,
@@ -121,13 +121,13 @@ pub fn conn_processor<T,CT>(incoming_conns: T,
 where
     T: Stream<Item=(ConnPair<Vec<u8>,Vec<u8>>, PublicKey)> + Unpin,
     CT: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
-                      NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>,Arg=()>,
+                      NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>,Arg=()> + Clone,
 {
 
     incoming_conns
         .map(move |((sender, receiver), public_key)| {
             process_conn(sender, receiver, public_key, 
-                         keepalive_transform,
+                         keepalive_transform.clone(),
                          timer_client.clone(), conn_timeout_ticks)
         })
         .filter_map(|opt_conn| opt_conn)
