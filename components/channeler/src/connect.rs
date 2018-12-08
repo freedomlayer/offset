@@ -32,6 +32,7 @@ pub struct ChannelerConnector<C,T,S> {
 }
 
 impl<C,T,S> ChannelerConnector<C,T,S> {
+    #[allow(unused)]
     pub fn new(client_connector: C,
                encrypt_transform: T,
                backoff_ticks: usize,
@@ -87,7 +88,7 @@ mod tests {
     use timer::{create_timer_incoming, dummy_timer_multi_sender, TimerTick};
     use crypto::identity::PUBLIC_KEY_LEN;
 
-    use common::dummy_connector::{DummyConnector, ConnRequest};
+    use common::dummy_connector::DummyConnector;
     use common::conn::FuncFutTransform;
 
 
@@ -107,7 +108,7 @@ mod tests {
         let client_connector = DummyConnector::new(conn_request_sender);
 
         // We don't need encryption for this test:
-        let encrypt_transform = FuncFutTransform::new(|(opt_public_key, conn_pair)| Some(conn_pair));
+        let encrypt_transform = FuncFutTransform::new(|(_opt_public_key, conn_pair)| Some(conn_pair));
 
         let mut channeler_connector = ChannelerConnector::new(
             client_connector,
@@ -157,7 +158,7 @@ mod tests {
         let client_connector = DummyConnector::new(conn_request_sender);
 
         // We don't need encryption for this test:
-        let encrypt_transform = FuncFutTransform::new(|(opt_public_key, conn_pair)| Some(conn_pair));
+        let encrypt_transform = FuncFutTransform::new(|(_opt_public_key, conn_pair)| Some(conn_pair));
 
         let mut channeler_connector = ChannelerConnector::new(
             client_connector,

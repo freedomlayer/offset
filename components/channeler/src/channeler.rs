@@ -156,8 +156,7 @@ where
             };
             match select_res {
                 Some(conn_pair) => {
-                    await!(c_connections_sender.send((public_key.clone(), conn_pair)))
-                        .map_err(|_| unreachable!());
+                    await!(c_connections_sender.send((public_key.clone(), conn_pair))).unwrap();
                 },
                 None => {/* Canceled */},
             };
@@ -408,7 +407,7 @@ mod tests {
     use super::*;
     use futures::executor::ThreadPool;
 
-    use common::dummy_connector::{DummyConnector, ConnRequest};
+    use common::dummy_connector::DummyConnector;
     use common::dummy_listener::DummyListener;
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
@@ -562,7 +561,7 @@ mod tests {
         pks.sort_by(compare_public_key);
 
 
-        let (conn_request_sender, mut conn_request_receiver) = mpsc::channel(0);
+        let (conn_request_sender, _conn_request_receiver) = mpsc::channel(0);
         let connector = DummyConnector::new(conn_request_sender);
 
         let (listener_req_sender, mut listener_req_receiver) = mpsc::channel(0);

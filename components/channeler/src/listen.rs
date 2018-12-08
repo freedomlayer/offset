@@ -1,5 +1,5 @@
 use std::marker::Unpin;
-use futures::{select, future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, SinkExt};
+use futures::{select, FutureExt, TryFutureExt, StreamExt, Sink, SinkExt};
 use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
 
@@ -84,6 +84,7 @@ where
     S: Spawn + Clone + Send + 'static,
 {
 
+    #[allow(unused)]
     pub fn new(client_listener: L,
            encrypt_transform: T,
            address: A,
@@ -141,7 +142,7 @@ where
                    mut access_control: AccessControlPk)
                     -> Result<!, ListenError> {
 
-        let (mut plain_connections_sender, plain_connections_receiver) = mpsc::channel(0);
+        let (plain_connections_sender, plain_connections_receiver) = mpsc::channel(0);
         self.spawner.spawn(conn_encryptor(plain_connections_receiver, 
                                           self.encrypt_transform.clone(),
                                           connections_sender.clone(), // Sends encrypted connections
@@ -150,7 +151,7 @@ where
 
         loop {
 
-            let (mut access_control_sender, mut connections_receiver) = 
+            let (access_control_sender, connections_receiver) = 
                 self.client_listener.clone().listen((relay_address.clone(), access_control.clone()));
 
             await!(self.listen_iter(plain_connections_sender.clone(),
@@ -237,7 +238,7 @@ mod tests {
         let public_key_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
 
         // We don't need encryption for this test:
-        let encrypt_transform = FuncFutTransform::new(|(opt_public_key, conn_pair)| Some(conn_pair));
+        let encrypt_transform = FuncFutTransform::new(|(_opt_public_key, conn_pair)| Some(conn_pair));
         let relay_address = 0x1337u32;
 
         let channeler_listener = ChannelerListener::new(
@@ -325,7 +326,7 @@ mod tests {
         let public_key_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
 
         // We don't need encryption for this test:
-        let encrypt_transform = FuncFutTransform::new(|(opt_public_key, conn_pair)| Some(conn_pair));
+        let encrypt_transform = FuncFutTransform::new(|(_opt_public_key, conn_pair)| Some(conn_pair));
         let relay_address = 0x1337u32;
 
         let channeler_listener = ChannelerListener::new(
