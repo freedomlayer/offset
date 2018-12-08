@@ -12,11 +12,11 @@ macro_rules! build_schema {
 
 fn main() {
     build_schema!{
-        "src/schema/channeler.capnp",
         "src/schema/common.capnp",
         "src/schema/funder.capnp",
         "src/schema/dh.capnp",
         "src/schema/relay.capnp",
-        "src/schema/keepalive.capnp"
+        "src/schema/keepalive.capnp",
+        "src/schema/app_server.capnp"
     }
 }
