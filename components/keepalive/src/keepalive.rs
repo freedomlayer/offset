@@ -132,36 +132,7 @@ where
     Ok(())
 }
 
-/*
-/// Wrap a channel of communication, taking care of keepalives.
-pub fn keepalive_channel<TR, FR, TS, S>(to_remote: TR, from_remote: FR, 
-                  timer_stream: TS,
-                  keepalive_ticks: usize,
-                  mut spawner: S)
-    -> (mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>)
-where
-    TR: Sink<SinkItem=Vec<u8>> + Unpin + Send + 'static,
-    FR: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
-    TS: Stream<Item=TimerTick> + Unpin + Send + 'static,
-    S: Spawn,
-{
-    let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(0);
-    let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(0);
 
-    let keepalive_fut = inner_keepalive_loop(to_remote, from_remote,
-                            to_user, from_user,
-                            timer_stream,
-                            keepalive_ticks,
-                            None)
-            .map_err(|e| error!("[KeepAlive] inner_keepalive_loop() error: {:?}", e))
-            .then(|_| future::ready(()));
-
-    spawner.spawn(keepalive_fut).unwrap();
-
-    (user_sender, user_receiver)
-}
-
-*/
 
 #[derive(Clone)]
 pub struct KeepAliveChannel<S> {
@@ -226,6 +197,35 @@ mod tests {
     use futures::executor::ThreadPool;
     use futures::task::{Spawn, SpawnExt};
     use timer::create_timer_incoming;
+
+    /// Util function for tests
+    /// Possibly remove it in the future and test the KeepAliveChannel interface directly.
+    fn keepalive_channel<TR, FR, TS, S>(to_remote: TR, from_remote: FR, 
+                      timer_stream: TS,
+                      keepalive_ticks: usize,
+                      mut spawner: S)
+        -> (mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>)
+    where
+        TR: Sink<SinkItem=Vec<u8>> + Unpin + Send + 'static,
+        FR: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
+        TS: Stream<Item=TimerTick> + Unpin + Send + 'static,
+        S: Spawn,
+    {
+        let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(0);
+        let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(0);
+
+        let keepalive_fut = inner_keepalive_loop(to_remote, from_remote,
+                                to_user, from_user,
+                                timer_stream,
+                                keepalive_ticks,
+                                None)
+                .map_err(|e| error!("[KeepAlive] inner_keepalive_loop() error: {:?}", e))
+                .then(|_| future::ready(()));
+
+        spawner.spawn(keepalive_fut).unwrap();
+
+        (user_sender, user_receiver)
+    }
 
 
     async fn task_keepalive_loop_basic(mut spawner: impl Spawn + Clone) {
