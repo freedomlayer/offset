@@ -40,6 +40,24 @@ pub trait ConnTransform {
 }
 
 
+/// Apply a futuristic function over an input. Returns a boxed future that resolves
+/// to type Output.
+///
+/// Idealy we would have used `FnMut(Input) -> BoxFuture<'_, Output>`,
+/// but implementing FnMut requires first that FnOnce will be implemented, and due to syntactic
+/// lifetime issues we didn't find a way to implement it. See also:
+///
+/// https://users.rust-lang.org/t/implementing-fnmut-with-lifetime/2620
+/// https://stackoverflow.com/questions/32219798/
+///             how-to-implement-fnmut-which-returns-reference-with-lifetime-parameter
+///
+pub trait FutTransform {
+    type Input;
+    type Output;
+
+    fn transform(&mut self, input: Self::Input)
+        -> BoxFuture<'_, Self::Output>;
+}
 
 
 
