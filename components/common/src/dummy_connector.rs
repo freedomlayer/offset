@@ -1,6 +1,6 @@
 use futures::channel::{mpsc, oneshot};
 use futures::SinkExt;
-use crate::conn::{Connector, ConnPair, BoxFuture};
+use crate::conn::{FutTransform, ConnPair, BoxFuture};
 
 
 pub struct ConnRequest<SI,RI,A> {
@@ -28,17 +28,16 @@ impl<SI,RI,A> DummyConnector<SI,RI,A> {
     }
 }
 
-impl<SI,RI,A> Connector for DummyConnector<SI,RI,A> 
+impl<SI,RI,A> FutTransform for DummyConnector<SI,RI,A> 
 where
     SI: Send,
     RI: Send,
     A: Send + Sync,
 {
-    type Address = A;
-    type SendItem = SI;
-    type RecvItem = RI;
+    type Input = A;
+    type Output = Option<ConnPair<SI,RI>>;
 
-    fn connect<'a>(&'a mut self, address: A) -> BoxFuture<'_, Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
+    fn transform<'a>(&'a mut self, address: A) -> BoxFuture<'_, Self::Output> {
         let (response_sender, response_receiver) = oneshot::channel();
         let conn_request = ConnRequest {
             address,
