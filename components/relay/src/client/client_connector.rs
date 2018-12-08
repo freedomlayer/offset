@@ -1,7 +1,7 @@
 use crypto::identity::PublicKey;
 use futures::{FutureExt, SinkExt};
 
-use common::conn::{BoxFuture, Connector, 
+use common::conn::{BoxFuture, 
     ConnPair, FutTransform};
 
 use proto::relay::messages::{InitConnection};
@@ -26,7 +26,7 @@ pub struct ClientConnector<C,FT> {
 
 impl<A: 'static,C,FT> ClientConnector<C,FT> 
 where
-    C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>>,
+    C: FutTransform<Input=A,Output=Option<ConnPair<Vec<u8>,Vec<u8>>>>,
     FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>,
                      Output=ConnPair<Vec<u8>,Vec<u8>>>,
 {
@@ -42,7 +42,7 @@ where
     async fn relay_connect(&mut self, relay_address: A, remote_public_key: PublicKey) 
         -> Result<ConnPair<Vec<u8>,Vec<u8>>, ClientConnectorError> {
 
-        let (mut sender, receiver) = await!(self.connector.connect(relay_address))
+        let (mut sender, receiver) = await!(self.connector.transform(relay_address))
             .ok_or(ClientConnectorError::InnerConnectorError)?;
 
         // Send an InitConnection::Connect(PublicKey) message to remote side:
@@ -63,21 +63,20 @@ where
     }
 }
 
-impl<A,C,FT> Connector for ClientConnector<C,FT> 
+impl<A,C,FT> FutTransform for ClientConnector<C,FT> 
 where
     A: Sync + Send + 'static,
-    C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Sync + Send,
+    C: FutTransform<Input=A,Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Send + Sync,
     FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>,
                      Output=ConnPair<Vec<u8>,Vec<u8>>> + Send,
 {
-    type Address = (A, PublicKey);
-    type SendItem = Vec<u8>;
-    type RecvItem = Vec<u8>;
+    type Input = (A, PublicKey);
+    type Output = Option<ConnPair<Vec<u8>,Vec<u8>>>;
 
-    fn connect(&mut self, address: (A, PublicKey)) 
-        -> BoxFuture<'_, Option<ConnPair<Self::SendItem, Self::RecvItem>>> {
+    fn transform(&mut self, input: (A, PublicKey)) 
+        -> BoxFuture<'_, Self::Output> {
 
-        let (relay_address, remote_public_key) = address;
+        let (relay_address, remote_public_key) = input;
         let relay_connect = self.relay_connect(relay_address, remote_public_key)
             .map(|res| res.ok());
         Box::pinned(relay_connect)
@@ -121,7 +120,7 @@ mod tests {
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
         let c_public_key = public_key.clone();
         let fut_conn_pair = spawner.spawn_with_handle(async move {
-            await!(client_connector.connect((address, c_public_key))).unwrap()
+            await!(client_connector.transform((address, c_public_key))).unwrap()
         }).unwrap();
 
         // Wait for connection request:

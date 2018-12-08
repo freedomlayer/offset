@@ -11,8 +11,8 @@ use proto::relay::messages::{InitConnection, IncomingConnection, RejectConnectio
 use proto::relay::serialize::{serialize_init_connection,
     deserialize_incoming_connection, serialize_reject_connection};
 use common::int_convert::usize_to_u64;
-use common::conn::{Listener, Connector, ConnPair, 
-    ConstAddressConnector, FutTransform};
+use common::conn::{Listener, ConnPair, 
+    ConstFutTransform, FutTransform};
 
 use timer::{TimerClient, TimerTick};
 use super::access_control::{AccessControl, AccessControlOp};
@@ -87,7 +87,7 @@ async fn connect_with_timeout<C,TS>(mut connector: C,
                        conn_timeout_ticks: usize,
                        timer_stream: TS) -> Option<ConnPair<Vec<u8>, Vec<u8>>>
 where
-    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Send,
+    C: FutTransform<Input=(), Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Send,
     TS: Stream<Item=TimerTick> + Unpin,
 {
 
@@ -96,7 +96,7 @@ where
         .take(conn_timeout_ticks)
         .for_each(|_| future::ready(()))
         .fuse();
-    let mut fut_connect = connector.connect(()).fuse();
+    let mut fut_connect = connector.transform(()).fuse();
 
     select! {
         _fut_timeout = fut_timeout => None,
@@ -112,7 +112,7 @@ async fn accept_connection<C,CS,CSE,FT>(public_key: PublicKey,
                            conn_timeout_ticks: usize,
                            mut timer_client: TimerClient) -> Result<(), AcceptConnectionError> 
 where
-    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Send,
+    C: FutTransform<Input=(), Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Send,
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + 'static,
     FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>, 
         Output=ConnPair<Vec<u8>,Vec<u8>>>,
@@ -168,14 +168,14 @@ async fn inner_client_listener<'a, C,IAC,CS,CSE,FT>(mut connector: C,
                                 mut opt_event_sender: Option<mpsc::Sender<ClientListenerEvent>>) 
     -> Result<(), ClientListenerError>
 where
-    C: Connector<Address=(), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Send + Sync + Clone + 'static,
+    C: FutTransform<Input=(), Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Send + Sync + Clone + 'static,
     IAC: Stream<Item=AccessControlOp> + Unpin + 'static,
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + Clone + Send + 'static,
     CSE: 'static,
     FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>, 
         Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone + Send + 'static,
 {
-    let conn_pair = match await!(connector.connect(())) {
+    let conn_pair = match await!(connector.transform(())) {
         Some(conn_pair) => conn_pair,
         None => return Err(ClientListenerError::ConnectionFailure),
     };
@@ -295,7 +295,7 @@ impl<C,FT,S> ClientListener<C,FT,S> {
 impl <A,C,FT,S> Listener for ClientListener<C,FT,S> 
 where
     A: Clone + Send + Sync + 'static,
-    C: Connector<Address=A, SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input=A, Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send + Sync + 'static,
     S: Spawn + Clone + Send + 'static,
     FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>, 
         Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone + Send + 'static,
@@ -313,7 +313,7 @@ where
         let (access_control_sender, mut access_control_receiver) = mpsc::channel(0);
         let (connections_sender, connections_receiver) = mpsc::channel(0);
 
-        let const_connector = ConstAddressConnector::new(
+        let const_connector = ConstFutTransform::new(
             self.connector.clone(),
             relay_address);
 
