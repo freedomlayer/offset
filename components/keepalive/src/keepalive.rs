@@ -4,7 +4,7 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use timer::{TimerTick, TimerClient};
 
-use common::conn::{ConnTransform, ConnPair, BoxFuture};
+use common::conn::{FutTransform, ConnPair, BoxFuture};
 
 use proto::keepalive::messages::KaMessage;
 use proto::keepalive::serialize::{serialize_ka_message, 
@@ -141,7 +141,10 @@ pub struct KeepAliveChannel<S> {
     spawner: S,
 }
 
-impl<S> KeepAliveChannel<S> {
+impl<S> KeepAliveChannel<S> 
+where
+    S: Spawn + Send,
+{
     pub fn new(timer_client: TimerClient,
            keepalive_ticks: usize,
            spawner: S) -> KeepAliveChannel<S> {
@@ -152,20 +155,12 @@ impl<S> KeepAliveChannel<S> {
             spawner,
         }
     }
-}
 
-impl<S> ConnTransform for KeepAliveChannel<S> 
-where
-    S: Spawn + Send,
-{
-    type OldSendItem = Vec<u8>;
-    type OldRecvItem = Vec<u8>;
-    type NewSendItem = Vec<u8>;
-    type NewRecvItem = Vec<u8>;
-    type Arg = ();
-
-    fn transform(&mut self, _arg: Self::Arg, conn_pair: ConnPair<Self::OldSendItem, Self::OldRecvItem>) 
-        -> BoxFuture<'_, Option<ConnPair<Self::NewSendItem, Self::NewRecvItem>>> {
+    /// Transform a usual `Vec<u8>` connection end into a connection end that performs
+    /// keepalives automatically. The output `conn_pair` looks exactly like the input pair, however
+    /// it also maintains keepalives.
+    fn transform_keepalive(&mut self, conn_pair: ConnPair<Vec<u8>,Vec<u8>>)
+        -> BoxFuture<'_, ConnPair<Vec<u8>,Vec<u8>>> {
 
         let (to_remote, from_remote) = conn_pair;
 
@@ -183,8 +178,22 @@ where
                     .then(|_| future::ready(()));
 
             self.spawner.spawn(keepalive_fut).unwrap();
-            Some((user_sender, user_receiver))
+            (user_sender, user_receiver)
         })
+    }
+}
+
+
+impl<S> FutTransform for KeepAliveChannel<S> 
+where
+    S: Spawn + Send,
+{
+    type Input = ConnPair<Vec<u8>,Vec<u8>>;
+    type Output = ConnPair<Vec<u8>,Vec<u8>>;
+
+    fn transform(&mut self, input: Self::Input)
+        -> BoxFuture<'_, Self::Output> {
+            self.transform_keepalive(input)
     }
 }
 
