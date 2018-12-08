@@ -9,7 +9,7 @@ use timer::TimerClient;
 use timer::utils::sleep_ticks;
 
 
-use common::conn::{Listener, ConnPair, ConnTransform};
+use common::conn::{Listener, ConnPair, FutTransform};
 use relay::client::access_control::{AccessControlOp, AccessControl};
 
 #[derive(Debug)]
@@ -34,16 +34,15 @@ async fn conn_encryptor<CS,T,S>(mut plain_connections_receiver: mpsc::Receiver<(
                             mut spawner: S)
 where
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)> + Unpin + Clone + Send + 'static,
-    T: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
-                     NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>, 
-                     Arg=Option<PublicKey>> + Clone + Send + 'static,
+    T: FutTransform<Input=(Option<PublicKey>, ConnPair<Vec<u8>,Vec<u8>>),
+                    Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
     while let Some((public_key, (sender, receiver))) = await!(plain_connections_receiver.next()) {
         let mut c_encrypt_transform = encrypt_transform.clone();
         let mut c_encrypted_connections_sender = encrypted_connections_sender.clone();
         spawner.spawn(async move {
-            match await!(c_encrypt_transform.transform(Some(public_key.clone()), (sender, receiver))) {
+            match await!(c_encrypt_transform.transform((Some(public_key.clone()), (sender, receiver)))) {
                 Some(enc_conn_pair) => {
                     if let Err(_e) = await!(c_encrypted_connections_sender.send((public_key, enc_conn_pair))) {
                         error!("conn_encryptor(): Can not send through encrypted_connections_sender");
@@ -77,9 +76,8 @@ where
     A: Clone + Send + Sync + 'static,
     L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>,Vec<u8>>), 
         Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + 'static,
-    T: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
-                     NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>, 
-                     Arg=Option<PublicKey>> + Clone + Send + 'static,
+    T: FutTransform<Input=(Option<PublicKey>, ConnPair<Vec<u8>,Vec<u8>>),
+                    Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
 
@@ -172,9 +170,8 @@ where
     A: Clone + Send + Sync + 'static,
     L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>,Vec<u8>>), 
         Config=AccessControlOp, Arg=(A, AccessControl)> + Clone + Send + 'static,
-    T: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
-                     NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>, 
-                     Arg=Option<PublicKey>> + Clone + Send + 'static,
+    T: FutTransform<Input=(Option<PublicKey>, ConnPair<Vec<u8>,Vec<u8>>),
+                    Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
     type Connection = (PublicKey, ConnPair<Vec<u8>,Vec<u8>>);
@@ -213,7 +210,7 @@ mod tests {
     use super::*;
     use futures::executor::ThreadPool;
 
-    use common::conn::IdentityConnTransform;
+    use common::conn::FuncFutTransform;
     use common::dummy_listener::DummyListener;
 
     use crypto::identity::PUBLIC_KEY_LEN;
@@ -237,7 +234,7 @@ mod tests {
         let public_key_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
 
         // We don't need encryption for this test:
-        let encrypt_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,Option<PublicKey>>::new();
+        let encrypt_transform = FuncFutTransform::new(|(opt_public_key, conn_pair)| Some(conn_pair));
         let relay_address = 0x1337u32;
 
         let channeler_listener = ChannelerListener::new(
@@ -325,7 +322,7 @@ mod tests {
         let public_key_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
 
         // We don't need encryption for this test:
-        let encrypt_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,Option<PublicKey>>::new();
+        let encrypt_transform = FuncFutTransform::new(|(opt_public_key, conn_pair)| Some(conn_pair));
         let relay_address = 0x1337u32;
 
         let channeler_listener = ChannelerListener::new(

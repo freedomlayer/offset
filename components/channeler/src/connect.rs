@@ -5,7 +5,7 @@ use crypto::identity::PublicKey;
 use timer::TimerClient;
 use timer::utils::sleep_ticks;
 
-use common::conn::{Connector, ConnPair, BoxFuture, ConnTransform};
+use common::conn::{Connector, ConnPair, BoxFuture, FutTransform};
 
 
 async fn secure_connect<C,T,A>(mut client_connector: C,
@@ -15,12 +15,11 @@ async fn secure_connect<C,T,A>(mut client_connector: C,
 where
     A: Clone,
     C: Connector<Address=(A, PublicKey), SendItem=Vec<u8>, RecvItem=Vec<u8>>,
-    T: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
-                     NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>, 
-                     Arg=Option<PublicKey>>,
+    T: FutTransform<Input=(Option<PublicKey>, ConnPair<Vec<u8>,Vec<u8>>),
+                    Output=Option<ConnPair<Vec<u8>,Vec<u8>>>>,
 {
     let (sender, receiver) = await!(client_connector.connect((address, public_key.clone())))?;
-    await!(encrypt_transform.transform(Some(public_key), (sender, receiver)))
+    await!(encrypt_transform.transform((Some(public_key), (sender, receiver))))
 }
 
 #[derive(Clone)]
@@ -53,9 +52,8 @@ impl<A,C,T,S> Connector for ChannelerConnector<C,T,S>
 where
     A: Sync + Send + Clone + 'static,
     C: Connector<Address=(A, PublicKey), SendItem=Vec<u8>, RecvItem=Vec<u8>> + Clone + Send + Sync + 'static,
-    T: ConnTransform<OldSendItem=Vec<u8>,OldRecvItem=Vec<u8>,
-                     NewSendItem=Vec<u8>,NewRecvItem=Vec<u8>, 
-                     Arg=Option<PublicKey>> + Clone + Send,
+    T: FutTransform<Input=(Option<PublicKey>, ConnPair<Vec<u8>,Vec<u8>>),
+                    Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send,
     S: Spawn + Clone + Sync + Send,
 {
     type Address = (A, PublicKey);
@@ -91,7 +89,7 @@ mod tests {
     use crypto::identity::PUBLIC_KEY_LEN;
 
     use common::dummy_connector::{DummyConnector, ConnRequest};
-    use common::conn::IdentityConnTransform;
+    use common::conn::FuncFutTransform;
 
 
     /// Check basic connection using the ChannelerConnector.
@@ -110,7 +108,7 @@ mod tests {
         let client_connector = DummyConnector::new(conn_request_sender);
 
         // We don't need encryption for this test:
-        let encrypt_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,Option<PublicKey>>::new();
+        let encrypt_transform = FuncFutTransform::new(|(opt_public_key, conn_pair)| Some(conn_pair));
 
         let mut channeler_connector = ChannelerConnector::new(
             client_connector,
@@ -160,7 +158,7 @@ mod tests {
         let client_connector = DummyConnector::new(conn_request_sender);
 
         // We don't need encryption for this test:
-        let encrypt_transform = IdentityConnTransform::<Vec<u8>,Vec<u8>,Option<PublicKey>>::new();
+        let encrypt_transform = FuncFutTransform::new(|(opt_public_key, conn_pair)| Some(conn_pair));
 
         let mut channeler_connector = ChannelerConnector::new(
             client_connector,
