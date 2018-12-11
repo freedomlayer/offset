@@ -1,4 +1,5 @@
-use crypto::identity::PublicKey;
+use crypto::identity::{PublicKey, Signature};
+use crypto::crypto_rand::RandValue;
 
 use crate::funder::messages::{RequestSendFunds, ResponseSendFunds,
                             ReceiptAck, AddFriend, SetFriendInfo, RemoveFriend,
@@ -6,18 +7,39 @@ use crate::funder::messages::{RequestSendFunds, ResponseSendFunds,
 use crate::report::messages::{FunderReport, FunderReportMutation};
 
 #[allow(unused)]
-enum AppServerToApp<A> {
+#[derive(Debug)]
+pub struct RequestDelegate {
+    pub app_rand_nonce: RandValue,
+}
+
+#[allow(unused)]
+#[derive(Debug)]
+pub struct ResponseDelegate {
+    pub app_public_key: PublicKey,
+    pub app_rand_nonce: RandValue,
+    pub server_rand_nonce: RandValue,
+    pub signature: Signature,
+    // sha512/256(sha512/256("DELEGATE") ||
+    //               appPublicKey ||
+    //               appRandNonce ||
+    //               serverRandNonce)
+}
+
+#[allow(unused)]
+#[derive(Debug)]
+pub enum AppServerToApp<A> {
     /// Funds:
     ResponseSendFunds(ResponseSendFunds),
     /// Reports about current state:
     Report(FunderReport<A>),
     ReportMutations(Vec<FunderReportMutation<A>>),
     /// Response for delegate request:
-    ResponseDelegate(()),
+    ResponseDelegate(ResponseDelegate),
 }
 
 #[allow(unused)]
-enum AppToAppServer<A> {
+#[derive(Debug)]
+pub enum AppToAppServer<A> {
     /// Set relay address to be used locally (Could be empty)
     SetAddress(Option<A>), 
     /// Sending funds:
@@ -34,5 +56,5 @@ enum AppToAppServer<A> {
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
     ResetFriendChannel(ResetFriendChannel),
     /// Delegation:
-    RequestDelegate(()),
+    RequestDelegate(RequestDelegate),
 }
