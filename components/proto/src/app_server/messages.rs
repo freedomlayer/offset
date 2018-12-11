@@ -1,4 +1,8 @@
-use crate::funder::messages::{RequestSendFunds, ResponseSendFunds};
+use crypto::identity::PublicKey;
+
+use crate::funder::messages::{RequestSendFunds, ResponseSendFunds,
+                            ReceiptAck, AddFriend, SetFriendInfo, RemoveFriend,
+                            SetFriendRemoteMaxDebt, ResetFriendChannel};
 use crate::report::messages::{FunderReport, FunderReportMutation};
 
 #[allow(unused)]
@@ -18,17 +22,17 @@ enum AppToAppServer<A> {
     SetAddress(Option<A>), 
     /// Sending funds:
     RequestSendFunds(RequestSendFunds),
-    ReceiptAck(()), // TODO
+    ReceiptAck(ReceiptAck),
     /// Friend management:
-    AddFriend(()), // TODO
-    SetFriendInfo(()),
-    RemoveFriend(()),
-    EnableFriend(()),
-    DisableFriend(()),
-    OpenFriend(()),
-    CloseFriend(()),
-    SetFriendRemoteMaxDebt(()),
-    ResetFriendChannel(()),
+    AddFriend(AddFriend<A>),
+    SetFriendInfo(SetFriendInfo<A>),
+    RemoveFriend(RemoveFriend),
+    EnableFriend(PublicKey),
+    DisableFriend(PublicKey),
+    OpenFriend(PublicKey),
+    CloseFriend(PublicKey),
+    SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
+    ResetFriendChannel(ResetFriendChannel),
     /// Delegation:
     RequestDelegate(()),
 }
