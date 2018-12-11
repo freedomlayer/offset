@@ -6,7 +6,7 @@ use futures::task::{Spawn, SpawnExt};
 
 use futures::channel::mpsc;
 
-use common::conn::{FutTransform, ConnPair, BoxFuture};
+use common::conn::{FutTransform, ConnPairVec, BoxFuture};
 
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
@@ -187,7 +187,7 @@ async fn create_secure_channel<EK,M,K,R,S>(writer: K, reader: M,
                               timer_client: TimerClient,
                               ticks_to_rekey: usize,
                               mut spawner: S)
-    -> Result<(mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>), SecureChannelError>
+    -> Result<(PublicKey, ConnPairVec), SecureChannelError>
 where
     EK: 'static,
     M: Stream<Item=Vec<u8>> + std::marker::Unpin + std::marker::Send + 'static,
@@ -202,6 +202,8 @@ where
                                                 identity_client, 
                                                 opt_expected_remote, 
                                                 rng.clone()))?;
+
+    let remote_public_key = dh_state.get_remote_public_key().clone();
 
     let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(0);
     let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(0);
@@ -221,7 +223,7 @@ where
     });
     spawner.spawn(sc_loop_report_error);
 
-    Ok((user_sender, user_receiver))
+    Ok((remote_public_key, (user_sender, user_receiver)))
 }
 
 #[derive(Clone)]
@@ -255,11 +257,18 @@ where
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + Sync,
 {
-    type Input = (Option<PublicKey>, ConnPair<Vec<u8>,Vec<u8>>);
-    type Output = Option<ConnPair<Vec<u8>,Vec<u8>>>;
+    /// Input:
+    /// - Expected public key of the remote side.
+    /// - (sender, receiver) of the plain channel.
+    type Input = (Option<PublicKey>, ConnPairVec);
+    /// Output:
+    /// - Public key of remote side (Must match the expected public key of remote side if
+    /// specified).
+    /// - (sender, receiver) for the resulting encrypted channel.
+    type Output = Option<(PublicKey, ConnPairVec)>;
 
-    fn transform(&mut self, input: (Option<PublicKey>, ConnPair<Vec<u8>,Vec<u8>>))
-        -> BoxFuture<'_, Option<ConnPair<Vec<u8>, Vec<u8>>>> {
+    fn transform(&mut self, input: (Option<PublicKey>, ConnPairVec))
+        -> BoxFuture<'_, Option<(PublicKey, ConnPairVec)>> {
 
         let (opt_expected_remote, conn_pair) = input;
         let (sender, receiver) = conn_pair;
@@ -293,10 +302,11 @@ mod tests {
                             generate_pkcs8_key_pair};
     use identity::{create_identity, IdentityClient};
 
-    async fn secure_channel1(fut_sc: impl Future<Output=Result<(mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>), SecureChannelError>> + 'static,
+    async fn secure_channel1(fut_sc: impl Future<Output=Result<(PublicKey, ConnPairVec), SecureChannelError>> + 'static,
                        mut tick_sender: mpsc::Sender<()>,
                        output_sender: oneshot::Sender<bool>) {
-        let (mut sender, mut receiver) = await!(fut_sc).unwrap();
+
+        let (public_key, (mut sender, mut receiver)) = await!(fut_sc).unwrap();
         await!(sender.send(vec![0,1,2,3,4,5])).unwrap();
         let data = await!(receiver.next()).unwrap();
         assert_eq!(data, vec![5,4,3]);
@@ -310,11 +320,11 @@ mod tests {
         output_sender.send(true);
     }
 
-    async fn secure_channel2(fut_sc: impl Future<Output=Result<(mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>), SecureChannelError>> + 'static,
+    async fn secure_channel2(fut_sc: impl Future<Output=Result<(PublicKey, ConnPairVec), SecureChannelError>> + 'static,
                        tick_sender: mpsc::Sender<()>,
                        output_sender: oneshot::Sender<bool>) {
 
-        let (mut sender, mut receiver) = await!(fut_sc).unwrap();
+        let (public_key, (mut sender, mut receiver)) = await!(fut_sc).unwrap();
         let data = await!(receiver.next()).unwrap();
         assert_eq!(data, vec![0,1,2,3,4,5]);
         await!(sender.send(vec![5,4,3])).unwrap();
