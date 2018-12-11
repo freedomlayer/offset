@@ -5,7 +5,8 @@ use futures::{future, Future};
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
-pub type ConnPair<SendItem, RecvItem> = (mpsc::Sender<SendItem>,mpsc::Receiver<RecvItem>);
+pub type ConnPair<SendItem, RecvItem> = (mpsc::Sender<SendItem>, mpsc::Receiver<RecvItem>);
+pub type ConnPairVec = ConnPair<Vec<u8>,Vec<u8>>;
 
 /*
 /// connect to a remote entity
