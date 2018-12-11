@@ -1,7 +1,6 @@
 @0xcd5fc5928aa22c39;
 
 using import "funder.capnp".FriendsRoute;
-using import "funder.capnp".FunderSendPrice;
 using import "common.capnp".Uid;
 using import "common.capnp".InvoiceId;
 using import "common.capnp".CustomUInt128;
