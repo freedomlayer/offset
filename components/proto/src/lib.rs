@@ -27,7 +27,8 @@ pub mod report;
 
 
 
-include_schema!(channeler_capnp, "channeler_capnp");
+include_schema!(report_capnp, "report_capnp");
+include_schema!(app_server_capnp, "app_server_capnp");
 include_schema!(common_capnp, "common_capnp");
 include_schema!(dh_capnp, "dh_capnp");
 include_schema!(relay_capnp, "relay_capnp");
