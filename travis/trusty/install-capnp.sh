@@ -2,9 +2,11 @@
 
 CAPNP_INSTALL_PREFIX="${HOME}/capnp"
 
+CAPNP_VERSION="0.7.0"
+
 if [ ! -d "$HOME/capnp/lib" ]; then
-  curl -L https://capnproto.org/capnproto-c++-0.6.1.tar.gz | tar -zxf -
-  pushd capnproto-c++-0.6.1
+  curl -L https://capnproto.org/capnproto-c++-${CAPNP_VERSION}.tar.gz | tar -zxf -
+  pushd capnproto-c++-${CAPNP_VERSION}
   ./configure --prefix=${CAPNP_INSTALL_PREFIX}
   make check -j2
   sudo make install
