@@ -6,9 +6,11 @@ use crypto::crypto_rand::RandValue;
 use crypto::uid::Uid;
 use crypto::hash::{self, HashResult};
 
+
 use common::int_convert::{usize_to_u64};
 
 use crate::consts::MAX_ROUTE_LEN;
+use crate::report::messages::{FunderReport, FunderReportMutation};
 
 
 #[allow(unused)]
@@ -469,3 +471,23 @@ impl UserRequestSendFunds {
     }
 }
 
+#[derive(Debug)]
+pub enum ResponseSendFundsResult {
+    Success(SendFundsReceipt),
+    Failure(PublicKey), // Reporting public key.
+}
+
+
+#[derive(Debug)]
+pub struct ResponseReceived {
+    pub request_id: Uid,
+    pub result: ResponseSendFundsResult,
+}
+
+
+#[derive(Debug)]
+pub enum FunderOutgoingControl<A: Clone> {
+    ResponseReceived(ResponseReceived),
+    Report(FunderReport<A>),
+    ReportMutations(Vec<FunderReportMutation<A>>),
+}

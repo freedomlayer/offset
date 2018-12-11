@@ -15,7 +15,8 @@ use proto::report::messages::{FunderReport, FunderReportMutation, ChannelStatusR
 
 use proto::funder::messages::{FunderIncomingControl,
     AddFriend, FriendStatus, SetFriendStatus, 
-    SetFriendRemoteMaxDebt, RequestsStatus, SetRequestsStatus};
+    SetFriendRemoteMaxDebt, RequestsStatus, SetRequestsStatus, 
+    FunderOutgoingControl, ResponseReceived};
 
 
 use common::int_convert::usize_to_u32;
@@ -29,7 +30,7 @@ use crate::report::funder_report_mutate;
 use crate::database::AtomicDb;
 
 use crate::types::{ChannelerConfig, FunderOutgoingComm, FunderIncomingComm,
-                FunderOutgoingControl, IncomingLivenessMessage, ResponseReceived};
+                IncomingLivenessMessage};
 
 // This is required to make sure the tests are not stuck.
 //

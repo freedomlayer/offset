@@ -1,11 +1,10 @@
 use std::fmt::Debug;
 use crypto::crypto_rand::CryptoRandom;
 
-use proto::funder::messages::FriendStatus;
+use proto::funder::messages::{FriendStatus, FunderOutgoingControl};
 
 use crate::handler::MutableFunderHandler;
-use crate::types::{ChannelerConfig, 
-    FunderOutgoingComm, FunderOutgoingControl};
+use crate::types::{ChannelerConfig, FunderOutgoingComm};
 
 use crate::report::create_report;
 

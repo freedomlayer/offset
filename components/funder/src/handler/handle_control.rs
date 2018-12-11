@@ -9,12 +9,12 @@ use crate::state::{FunderMutation};
 use proto::funder::messages::{FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel, SetFriendInfo, 
     AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus,
-    ReceiptAck, FunderIncomingControl};
+    ReceiptAck, FunderIncomingControl, ResponseReceived, 
+    FunderOutgoingControl, ResponseSendFundsResult};
 
 use super::MutableFunderHandler;
-use crate::types::{ResponseReceived,
-    ChannelerConfig, FunderOutgoingComm, FunderOutgoingControl,
-    ResponseSendFundsResult, create_friend_move_token};
+use crate::types::{ChannelerConfig, FunderOutgoingComm,
+    create_friend_move_token};
 use super::sender::SendMode;
 
 // TODO: Should be an argument of the Funder:

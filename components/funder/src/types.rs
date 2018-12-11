@@ -1,18 +1,15 @@
-
 use crypto::identity::{PublicKey, Signature};
-use crypto::uid::Uid;
 use crypto::crypto_rand::RandValue;
 use crypto::hash::HashResult;
 
 use proto::funder::messages::{RequestSendFunds, MoveToken, FriendMessage,
-    FriendTcOp, PendingRequest, SendFundsReceipt, FunderIncomingControl};
+    FriendTcOp, PendingRequest, FunderIncomingControl, 
+    FunderOutgoingControl};
 
 use proto::funder::signature_buff::{operations_hash, 
     friend_move_token_signature_buff};
 
 use identity::IdentityClient;
-
-use proto::report::messages::{FunderReport, FunderReportMutation};
 
 
 
@@ -91,7 +88,6 @@ pub fn create_hashed(friend_move_token: &MoveToken) -> MoveTokenHashed {
 
 
 
-
 #[derive(Debug, Clone)]
 pub enum IncomingLivenessMessage {
     Online(PublicKey),
@@ -106,17 +102,6 @@ pub struct FriendInconsistencyError {
 }
 
 
-#[derive(Debug)]
-pub enum ResponseSendFundsResult {
-    Success(SendFundsReceipt),
-    Failure(PublicKey), // Reporting public key.
-}
-
-#[derive(Debug)]
-pub struct ResponseReceived {
-    pub request_id: Uid,
-    pub result: ResponseSendFundsResult,
-}
 
 #[derive(Debug)]
 pub enum ChannelerConfig<A> {
@@ -147,13 +132,6 @@ pub enum FunderIncoming<A> {
 pub enum FunderOutgoing<A: Clone> {
     Control(FunderOutgoingControl<A>),
     Comm(FunderOutgoingComm<A>),
-}
-
-#[derive(Debug)]
-pub enum FunderOutgoingControl<A: Clone> {
-    ResponseReceived(ResponseReceived),
-    Report(FunderReport<A>),
-    ReportMutations(Vec<FunderReportMutation<A>>),
 }
 
 #[derive(Debug)]

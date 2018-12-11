@@ -7,11 +7,11 @@ use crypto::uid::{Uid, UID_LEN};
 use proto::funder::messages::{FriendsRoute, InvoiceId, INVOICE_ID_LEN,
                             FunderIncomingControl, FriendStatus,
                             RequestsStatus, UserRequestSendFunds,
-                            ReceiptAck, ResetFriendChannel};
+                            ReceiptAck, ResetFriendChannel,
+                            ResponseSendFundsResult};
 use proto::report::messages::{FunderReport,
                     ChannelStatusReport};
 
-use crate::types::ResponseSendFundsResult;
 use super::utils::create_node_controls;
 
 

@@ -9,7 +9,8 @@ use identity::IdentityClient;
 
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds,
     FailureSendFunds, MoveToken, FreezeLink, FriendMessage,
-    MoveTokenRequest, ResetTerms, PendingRequest};
+    MoveTokenRequest, ResetTerms, PendingRequest, ResponseReceived,
+    FunderOutgoingControl, ResponseSendFundsResult};
 use proto::funder::signature_buff::{create_response_signature_buffer, prepare_receipt};
 
 use crate::mutual_credit::incoming::{IncomingResponseSendFunds, 
@@ -17,11 +18,7 @@ use crate::mutual_credit::incoming::{IncomingResponseSendFunds,
 use crate::token_channel::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
     MoveTokenReceived, TokenChannel};
 
-use crate::types::{ResponseReceived,
-    FunderOutgoingComm,
-    FunderOutgoingControl,
-    ResponseSendFundsResult,
-    create_pending_request};
+use crate::types::{FunderOutgoingComm, create_pending_request};
 
 use crate::state::FunderMutation;
 use crate::friend::{FriendMutation, 
