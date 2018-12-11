@@ -1,13 +1,15 @@
 use std::collections::HashMap;
 use common::int_convert::usize_to_u64;
 
+use proto::funder::messages::{RequestsStatus, FriendStatus};
+
 use proto::report::messages::{DirectionReport, FriendLivenessReport, 
     TcReport, ResetTermsReport, ChannelInconsistentReport, ChannelStatusReport, FriendReport,
     FunderReport, FriendReportMutation, AddFriendReport, FunderReportMutation,
     McRequestsStatusReport, McBalanceReport, RequestsStatusReport, FriendStatusReport,
     MoveTokenHashedReport};
 
-use crate::types::{RequestsStatus, FriendStatus, MoveTokenHashed};
+use crate::types::MoveTokenHashed;
 
 use crate::friend::{FriendState, ChannelStatus, FriendMutation};
 use crate::state::{FunderState, FunderMutation};
@@ -16,19 +18,11 @@ use crate::token_channel::{TokenChannel, TcDirection, TcMutation};
 use crate::liveness::LivenessMutation;
 use crate::ephemeral::{Ephemeral, EphemeralMutation};
 
+#[allow(unused)]
 #[derive(Debug)]
 pub enum ReportMutateError {
     FriendDoesNotExist,
     FriendAlreadyExists,
-}
-
-impl From<&RequestsStatus> for RequestsStatusReport {
-    fn from(requests_status: &RequestsStatus) -> RequestsStatusReport {
-        match requests_status {
-            RequestsStatus::Open => RequestsStatusReport::Open,
-            RequestsStatus::Closed => RequestsStatusReport::Closed,
-        }
-    }
 }
 
 impl From<&McRequestsStatus> for McRequestsStatusReport {
@@ -36,15 +30,6 @@ impl From<&McRequestsStatus> for McRequestsStatusReport {
         McRequestsStatusReport {
             local: (&mc_requests_status.local).into(),
             remote: (&mc_requests_status.remote).into(),
-        }
-    }
-}
-
-impl From<&FriendStatus> for FriendStatusReport {
-    fn from(friend_status: &FriendStatus) -> FriendStatusReport {
-        match friend_status {
-            FriendStatus::Enabled => FriendStatusReport::Enabled,
-            FriendStatus::Disabled => FriendStatusReport::Disabled,
         }
     }
 }
@@ -336,6 +321,7 @@ where
     }
 }
 
+#[allow(unused)]
 pub fn funder_report_mutate<A>(funder_report: &mut FunderReport<A>, mutation: &FunderReportMutation<A>) 
     -> Result<(), ReportMutateError> 
 where

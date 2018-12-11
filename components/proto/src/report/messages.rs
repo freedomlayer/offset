@@ -4,6 +4,7 @@ use crypto::identity::{PublicKey, Signature};
 use crypto::hash::HashResult;
 use crypto::crypto_rand::RandValue;
 
+use crate::funder::messages::{RequestsStatus, FriendStatus};
 
 #[derive(Clone, Debug)]
 pub struct MoveTokenHashedReport {
@@ -159,4 +160,24 @@ pub enum FunderReportMutation<A> {
     RemoveFriend(PublicKey),
     FriendReportMutation((PublicKey, FriendReportMutation<A>)),
     SetNumReadyReceipts(u64),
+}
+
+
+impl From<&FriendStatus> for FriendStatusReport {
+    fn from(friend_status: &FriendStatus) -> FriendStatusReport {
+        match friend_status {
+            FriendStatus::Enabled => FriendStatusReport::Enabled,
+            FriendStatus::Disabled => FriendStatusReport::Disabled,
+        }
+    }
+}
+
+
+impl From<&RequestsStatus> for RequestsStatusReport {
+    fn from(requests_status: &RequestsStatus) -> RequestsStatusReport {
+        match requests_status {
+            RequestsStatus::Open => RequestsStatusReport::Open,
+            RequestsStatus::Closed => RequestsStatusReport::Closed,
+        }
+    }
 }

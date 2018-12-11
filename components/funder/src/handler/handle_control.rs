@@ -6,12 +6,13 @@ use crypto::crypto_rand::{RandValue, CryptoRandom};
 use crate::friend::{FriendMutation, ChannelStatus};
 use crate::state::{FunderMutation};
 
+use proto::funder::messages::{FriendStatus, UserRequestSendFunds,
+    SetFriendRemoteMaxDebt, ResetFriendChannel, SetFriendInfo, 
+    AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus,
+    ReceiptAck, FunderIncomingControl};
+
 use super::MutableFunderHandler;
-use crate::types::{FriendStatus, UserRequestSendFunds,
-    SetFriendRemoteMaxDebt, ResetFriendChannel,
-    SetFriendInfo, AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus, 
-    ReceiptAck, FunderIncomingControl,
-    ResponseReceived,
+use crate::types::{ResponseReceived,
     ChannelerConfig, FunderOutgoingComm, FunderOutgoingControl,
     ResponseSendFundsResult, create_friend_move_token};
 use super::sender::SendMode;

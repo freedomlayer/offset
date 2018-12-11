@@ -15,12 +15,12 @@ use crypto::crypto_rand::{RngContainer, CryptoRandom};
 use crypto::uid::{Uid, UID_LEN};
 
 use proto::funder::messages::{FriendMessage, FriendsRoute, 
-    InvoiceId, INVOICE_ID_LEN};
-
-use crate::types::{FunderIncoming, FunderIncomingControl, 
-    AddFriend, IncomingLivenessMessage, FriendStatus,
+    InvoiceId, INVOICE_ID_LEN, FunderIncomingControl, 
+    AddFriend, FriendStatus,
     SetFriendStatus, SetFriendRemoteMaxDebt,
     UserRequestSendFunds, SetRequestsStatus, RequestsStatus};
+
+use crate::types::{FunderIncoming, IncomingLivenessMessage};
 
 
 /// A helper function. Applies an incoming funder message, updating state and ephemeral

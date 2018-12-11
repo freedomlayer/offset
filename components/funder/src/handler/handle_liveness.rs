@@ -1,11 +1,11 @@
 use std::fmt::Debug;
 use crypto::crypto_rand::CryptoRandom;
 
-use proto::funder::messages::FriendMessage;
+use proto::funder::messages::{FriendMessage, FriendStatus};
 
 use crate::handler::MutableFunderHandler;
 use crate::friend::ChannelStatus;
-use crate::types::{IncomingLivenessMessage, FriendStatus, 
+use crate::types::{IncomingLivenessMessage, 
     FunderOutgoingComm};
 
 use crate::ephemeral::EphemeralMutation;
@@ -94,11 +94,12 @@ mod tests {
 
     use std::cmp::Ordering;
 
+    use proto::funder::messages::{FriendStatus, AddFriend};
+
     use crate::handler::gen_mutable;
     use crate::state::{FunderState, FunderMutation};
     use crate::ephemeral::Ephemeral;
     use crate::token_channel::TcDirection;
-    use crate::types::{FriendStatus, AddFriend};
     use crate::friend::FriendMutation;
 
     use futures::executor::ThreadPool;

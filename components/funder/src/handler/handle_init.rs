@@ -1,8 +1,10 @@
 use std::fmt::Debug;
 use crypto::crypto_rand::CryptoRandom;
 
+use proto::funder::messages::FriendStatus;
+
 use crate::handler::MutableFunderHandler;
-use crate::types::{ChannelerConfig, FriendStatus, 
+use crate::types::{ChannelerConfig, 
     FunderOutgoingComm, FunderOutgoingControl};
 
 use crate::report::create_report;
@@ -50,9 +52,10 @@ where
 mod tests {
     use super::*;
 
+    use proto::funder::messages::AddFriend;
+
     use crate::handler::gen_mutable;
     use crate::state::{FunderState, FunderMutation};
-    use crate::types::AddFriend;
     use crate::ephemeral::Ephemeral;
     use crate::friend::FriendMutation;
 

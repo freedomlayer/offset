@@ -13,6 +13,11 @@ use crypto::test_utils::DummyRandom;
 use proto::report::messages::{FunderReport, FunderReportMutation, ChannelStatusReport,
                     FriendLivenessReport, FriendStatusReport, RequestsStatusReport};
 
+use proto::funder::messages::{FunderIncomingControl,
+    AddFriend, FriendStatus, SetFriendStatus, 
+    SetFriendRemoteMaxDebt, RequestsStatus, SetRequestsStatus};
+
+
 use common::int_convert::usize_to_u32;
 
 use identity::{create_identity, IdentityClient};
@@ -21,11 +26,10 @@ use crate::state::{FunderState, FunderMutation};
 use crate::funder::inner_funder_loop;
 use crate::report::funder_report_mutate;
 
-use crate::types::{FunderOutgoingComm, FunderIncomingComm, 
-    ChannelerConfig, FunderOutgoingControl, FunderIncomingControl,
-    IncomingLivenessMessage, ResponseReceived, AddFriend, FriendStatus,
-    SetFriendStatus, SetFriendRemoteMaxDebt, RequestsStatus, SetRequestsStatus};
 use crate::database::AtomicDb;
+
+use crate::types::{ChannelerConfig, FunderOutgoingComm, FunderIncomingComm,
+                FunderOutgoingControl, IncomingLivenessMessage, ResponseReceived};
 
 // This is required to make sure the tests are not stuck.
 //

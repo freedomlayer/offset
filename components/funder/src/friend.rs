@@ -3,10 +3,11 @@ use im::vector::Vector;
 use crypto::identity::PublicKey;
 use common::safe_arithmetic::SafeUnsignedArithmetic;
 use proto::funder::messages::{MoveToken, RequestSendFunds,
-    ResponseSendFunds, FailureSendFunds, ResetTerms};
+    ResponseSendFunds, FailureSendFunds, ResetTerms,
+    FriendStatus, RequestsStatus};
 
 use crate::token_channel::{TcMutation, TokenChannel};
-use crate::types::{FriendStatus, RequestsStatus, MoveTokenHashed};
+use crate::types::{MoveTokenHashed};
 
 
 #[derive(Clone, Serialize, Deserialize, Debug)]

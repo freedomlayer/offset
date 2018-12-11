@@ -2,12 +2,12 @@ use std::fmt::Debug;
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
-use proto::funder::messages::{FriendTcOp, FriendMessage};
+use proto::funder::messages::{FriendTcOp, FriendMessage, RequestsStatus};
 
 use super::MutableFunderHandler;
 
 use crate::state::{FunderMutation};
-use crate::types::{RequestsStatus, FunderOutgoingComm, create_pending_request};
+use crate::types::{FunderOutgoingComm, create_pending_request};
 use crate::mutual_credit::outgoing::{QueueOperationFailure, QueueOperationError, OutgoingMc};
 use crate::mutual_credit::types::McMutation;
 

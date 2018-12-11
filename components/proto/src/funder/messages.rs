@@ -159,6 +159,8 @@ pub struct PendingRequest {
     pub invoice_id: InvoiceId,
 }
 
+
+
 // ==================================================================
 // ==================================================================
 
@@ -345,3 +347,125 @@ impl SendFundsReceipt {
         res_bytes
     }
 }
+
+// AppServer <-> Funder communication:
+// ===================================
+
+#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
+pub enum FriendStatus {
+    Enabled = 1,
+    Disabled = 0,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
+pub enum RequestsStatus {
+    Open,
+    Closed,
+}
+
+impl RequestsStatus {
+    pub fn is_open(&self) -> bool {
+        if let RequestsStatus::Open = self {
+            true
+        } else {
+            false
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AddFriend<A> {
+    pub friend_public_key: PublicKey,
+    pub address: A,
+    pub name: String,
+    pub balance: i128, // Initial balance
+}
+
+#[derive(Debug, Clone)]
+pub struct RemoveFriend {
+    pub friend_public_key: PublicKey,
+}
+
+#[derive(Debug, Clone)]
+pub struct SetRequestsStatus {
+    pub friend_public_key: PublicKey,
+    pub status: RequestsStatus,
+}
+
+#[derive(Debug, Clone)]
+pub struct SetFriendStatus {
+    pub friend_public_key: PublicKey,
+    pub status: FriendStatus,
+}
+
+#[derive(Debug, Clone)]
+pub struct SetFriendRemoteMaxDebt {
+    pub friend_public_key: PublicKey,
+    pub remote_max_debt: u128,
+}
+
+#[derive(Debug, Clone)]
+pub struct SetFriendInfo<A> {
+    pub friend_public_key: PublicKey,
+    pub address: A,
+    pub name: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ResetFriendChannel {
+    pub friend_public_key: PublicKey,
+    pub current_token: Signature,
+}
+
+/// A request to send funds that originates from the user
+#[derive(Debug, Clone)]
+pub struct UserRequestSendFunds {
+    pub request_id: Uid,
+    pub route: FriendsRoute,
+    pub invoice_id: InvoiceId,
+    pub dest_payment: u128,
+}
+
+
+#[derive(Debug, Clone)]
+pub struct ReceiptAck {
+    pub request_id: Uid,
+    pub receipt_signature: Signature,
+}
+
+#[derive(Debug, Clone)]
+pub enum FunderIncomingControl<A> {
+    /// Set relay address used for the local node
+    SetAddress(Option<A>),
+    AddFriend(AddFriend<A>),
+    RemoveFriend(RemoveFriend),
+    SetRequestsStatus(SetRequestsStatus),
+    SetFriendStatus(SetFriendStatus),
+    SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
+    SetFriendInfo(SetFriendInfo<A>),
+    ResetFriendChannel(ResetFriendChannel),
+    RequestSendFunds(UserRequestSendFunds),
+    ReceiptAck(ReceiptAck),
+}
+
+impl UserRequestSendFunds {
+    pub fn to_request(self) -> RequestSendFunds {
+        RequestSendFunds {
+            request_id: self.request_id,
+            route: self.route,
+            invoice_id: self.invoice_id,
+            dest_payment: self.dest_payment,
+            freeze_links: Vec::new(),
+        }
+    }
+
+    pub fn create_pending_request(&self) -> PendingRequest {
+        PendingRequest {
+            request_id: self.request_id,
+            route: self.route.clone(),
+            dest_payment: self.dest_payment,
+            invoice_id: self.invoice_id.clone(),
+        }
+    }
+}
+
