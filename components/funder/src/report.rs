@@ -43,8 +43,9 @@ impl From<&McRequestsStatus> for McRequestsStatusReport {
 impl From<&FriendStatus> for FriendStatusReport {
     fn from(friend_status: &FriendStatus) -> FriendStatusReport {
         match friend_status {
-            FriendStatus::Enable => FriendStatusReport::Enable,
-            FriendStatus::Disable => FriendStatusReport::Disable,
+            // TODO: Change FriendStatus::Enable to Enabled.
+            FriendStatus::Enable => FriendStatusReport::Enabled,
+            FriendStatus::Disable => FriendStatusReport::Disabled,
         }
     }
 }

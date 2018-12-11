@@ -21,8 +21,8 @@ pub struct MoveTokenHashedReport {
 
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum FriendStatusReport {
-    Enable = 1,
-    Disable = 0,
+    Enabled = 1,
+    Disabled = 0,
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
