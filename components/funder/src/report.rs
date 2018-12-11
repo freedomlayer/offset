@@ -77,46 +77,49 @@ impl From<&MoveTokenHashed> for MoveTokenHashedReport {
     }
 }
 
-
-fn create_token_channel_report(token_channel: &TokenChannel) -> TcReport {
-    let direction = match token_channel.get_direction() {
-        TcDirection::Incoming(_) => DirectionReport::Incoming,
-        TcDirection::Outgoing(_) => DirectionReport::Outgoing,
-    };
-    let mutual_credit_state = token_channel.get_mutual_credit().state();
-    TcReport {
-        direction,
-        balance: McBalanceReport::from(&mutual_credit_state.balance),
-        requests_status: McRequestsStatusReport::from(&mutual_credit_state.requests_status),
-        num_local_pending_requests: usize_to_u64(mutual_credit_state.pending_requests.pending_local_requests.len()).unwrap(),
-        num_remote_pending_requests: usize_to_u64(mutual_credit_state.pending_requests.pending_remote_requests.len()).unwrap(),
+impl From<&TokenChannel> for TcReport {
+    fn from(token_channel: &TokenChannel) -> TcReport {
+        let direction = match token_channel.get_direction() {
+            TcDirection::Incoming(_) => DirectionReport::Incoming,
+            TcDirection::Outgoing(_) => DirectionReport::Outgoing,
+        };
+        let mutual_credit_state = token_channel.get_mutual_credit().state();
+        TcReport {
+            direction,
+            balance: McBalanceReport::from(&mutual_credit_state.balance),
+            requests_status: McRequestsStatusReport::from(&mutual_credit_state.requests_status),
+            num_local_pending_requests: usize_to_u64(mutual_credit_state.pending_requests.pending_local_requests.len()).unwrap(),
+            num_remote_pending_requests: usize_to_u64(mutual_credit_state.pending_requests.pending_remote_requests.len()).unwrap(),
+        }
     }
 }
 
-fn create_channel_status_report<A: Clone>(channel_status: &ChannelStatus) -> ChannelStatusReport {
-    match channel_status {
-        ChannelStatus::Inconsistent(channel_inconsistent) => {
-            let opt_remote_reset_terms = channel_inconsistent.opt_remote_reset_terms
-                .clone()
-                .map(|remote_reset_terms|
-                    ResetTermsReport {
-                        reset_token: remote_reset_terms.reset_token.clone(),
-                        balance_for_reset: remote_reset_terms.balance_for_reset,
-                    }
-                );
-            let channel_inconsistent_report = ChannelInconsistentReport {
-                local_reset_terms_balance: channel_inconsistent.local_reset_terms.balance_for_reset,
-                opt_remote_reset_terms,
-            };
-            ChannelStatusReport::Inconsistent(channel_inconsistent_report)
-        },
-        ChannelStatus::Consistent(token_channel) =>
-            ChannelStatusReport::Consistent(create_token_channel_report(&token_channel)),
+impl From<&ChannelStatus> for ChannelStatusReport {
+    fn from(channel_status: &ChannelStatus) -> ChannelStatusReport {
+        match channel_status {
+            ChannelStatus::Inconsistent(channel_inconsistent) => {
+                let opt_remote_reset_terms = channel_inconsistent.opt_remote_reset_terms
+                    .clone()
+                    .map(|remote_reset_terms|
+                        ResetTermsReport {
+                            reset_token: remote_reset_terms.reset_token.clone(),
+                            balance_for_reset: remote_reset_terms.balance_for_reset,
+                        }
+                    );
+                let channel_inconsistent_report = ChannelInconsistentReport {
+                    local_reset_terms_balance: channel_inconsistent.local_reset_terms.balance_for_reset,
+                    opt_remote_reset_terms,
+                };
+                ChannelStatusReport::Inconsistent(channel_inconsistent_report)
+            },
+            ChannelStatus::Consistent(token_channel) =>
+                ChannelStatusReport::Consistent(TcReport::from(token_channel)),
+        }
     }
 }
 
 fn create_friend_report<A: Clone>(friend_state: &FriendState<A>, friend_liveness: &FriendLivenessReport) -> FriendReport<A> {
-    let channel_status = create_channel_status_report::<A>(&friend_state.channel_status);
+    let channel_status = ChannelStatusReport::from(&friend_state.channel_status);
 
     FriendReport {
         address: friend_state.remote_address.clone(),
@@ -164,7 +167,7 @@ pub fn friend_mutation_to_report_mutations<A: Clone + 'static>(friend_mutation: 
             match tc_mutation {
                 TcMutation::McMutation(_) |
                 TcMutation::SetDirection(_) => {
-                    let channel_status_report = create_channel_status_report::<A>(&friend_after.channel_status);
+                    let channel_status_report = ChannelStatusReport::from(&friend_after.channel_status);
                     let set_channel_status = FriendReportMutation::SetChannelStatus(channel_status_report);
                     let set_last_incoming_move_token = FriendReportMutation::SetOptLastIncomingMoveToken(
                         friend_after.channel_status.get_last_incoming_move_token_hashed()
@@ -203,7 +206,7 @@ pub fn friend_mutation_to_report_mutations<A: Clone + 'static>(friend_mutation: 
         FriendMutation::SetInconsistent(_) |
         FriendMutation::LocalReset(_) |
         FriendMutation::RemoteReset(_) => {
-            let channel_status_report = create_channel_status_report::<A>(&friend_after.channel_status);
+            let channel_status_report = ChannelStatusReport::from(&friend_after.channel_status);
             let set_channel_status = FriendReportMutation::SetChannelStatus(channel_status_report);
             let opt_move_token_hashed_report = friend_after.channel_status.get_last_incoming_move_token_hashed()
                 .map(|move_token_hashed| MoveTokenHashedReport::from(&move_token_hashed));
@@ -250,7 +253,7 @@ pub fn funder_mutation_to_report_mutations<A: Clone + 'static>(funder_mutation: 
                 balance: add_friend.balance.clone(), // Initial balance
                 opt_last_incoming_move_token: friend_after.channel_status.get_last_incoming_move_token_hashed()
                     .map(|move_token_hashed| MoveTokenHashedReport::from(&move_token_hashed)),
-                channel_status: create_channel_status_report::<A>(&friend_after.channel_status),
+                channel_status: ChannelStatusReport::from(&friend_after.channel_status),
             };
             vec![FunderReportMutation::AddFriend(add_friend_report)]
         },
