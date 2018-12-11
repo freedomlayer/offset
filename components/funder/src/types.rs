@@ -13,30 +13,9 @@ use proto::funder::signature_buff::{operations_hash,
 
 use identity::IdentityClient;
 
-use super::report::{FunderReport, FunderReportMutation};
+use proto::report::messages::{FunderReport, FunderReportMutation};
 
 
-#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
-pub enum FriendStatus {
-    Enable = 1,
-    Disable = 0,
-}
-
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
-pub enum RequestsStatus {
-    Open,
-    Closed,
-}
-
-impl RequestsStatus {
-    pub fn is_open(&self) -> bool {
-        if let RequestsStatus::Open = self {
-            true
-        } else {
-            false
-        }
-    }
-}
 
 /// Keep information from a RequestSendFunds message.
 /// This information will be used later to deal with a corresponding {Response,Failure}SendFunds messages,
@@ -60,6 +39,28 @@ pub struct UserRequestSendFunds {
     pub dest_payment: u128,
 }
 
+
+#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
+pub enum FriendStatus {
+    Enable = 1,
+    Disable = 0,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
+pub enum RequestsStatus {
+    Open,
+    Closed,
+}
+
+impl RequestsStatus {
+    pub fn is_open(&self) -> bool {
+        if let RequestsStatus::Open = self {
+            true
+        } else {
+            false
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveTokenHashed {

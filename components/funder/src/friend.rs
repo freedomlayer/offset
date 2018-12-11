@@ -9,8 +9,6 @@ use crate::token_channel::{TcMutation, TokenChannel};
 use crate::types::{FriendStatus, RequestsStatus, MoveTokenHashed};
 
 
-
-
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum ResponseOp {
     Response(ResponseSendFunds),

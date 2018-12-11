@@ -5,13 +5,13 @@ use crypto::identity::PublicKey;
 use crypto::uid::{Uid, UID_LEN};
 
 use proto::funder::messages::{FriendsRoute, InvoiceId, INVOICE_ID_LEN};
+use proto::report::messages::{FunderReport,
+                    ChannelStatusReport};
 
 use crate::types::{FunderIncomingControl, FriendStatus,
     RequestsStatus, UserRequestSendFunds,
     ResponseSendFundsResult,
     ReceiptAck, ResetFriendChannel};
-use crate::report::{FunderReport,
-                    ChannelStatusReport};
 use super::utils::create_node_controls;
 
 
