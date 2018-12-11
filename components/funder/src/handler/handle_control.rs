@@ -201,8 +201,8 @@ where
         let friend_address = friend.remote_address.clone();
 
         match set_friend_status.status {
-            FriendStatus::Enable => self.enable_friend(friend_public_key, &friend_address),
-            FriendStatus::Disable => self.disable_friend(&friend_public_key),
+            FriendStatus::Enabled => self.enable_friend(friend_public_key, &friend_address),
+            FriendStatus::Disabled => self.disable_friend(&friend_public_key),
         };
 
         Ok(())

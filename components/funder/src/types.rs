@@ -42,8 +42,8 @@ pub struct UserRequestSendFunds {
 
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum FriendStatus {
-    Enable = 1,
-    Disable = 0,
+    Enabled = 1,
+    Disabled = 0,
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]

@@ -19,11 +19,11 @@ where
         let mut enabled_friends = Vec::new();
         for (friend_public_key, friend) in &self.state.friends {
             match friend.status {
-                FriendStatus::Enable => {
+                FriendStatus::Enabled => {
                     enabled_friends.push((friend.remote_public_key.clone(),
                         friend.remote_address.clone()));
                 },
-                FriendStatus::Disable => continue,
+                FriendStatus::Disabled => continue,
             };
         }
 
@@ -87,7 +87,7 @@ mod tests {
         state.mutate(&f_mutation);
 
         // Enable the remote friend:
-        let friend_mutation = FriendMutation::SetStatus(FriendStatus::Enable);
+        let friend_mutation = FriendMutation::SetStatus(FriendStatus::Enabled);
         let funder_mutation = FunderMutation::FriendMutation((pk_b.clone(), friend_mutation));
         state.mutate(&funder_mutation);
 

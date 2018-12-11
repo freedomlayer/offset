@@ -43,9 +43,8 @@ impl From<&McRequestsStatus> for McRequestsStatusReport {
 impl From<&FriendStatus> for FriendStatusReport {
     fn from(friend_status: &FriendStatus) -> FriendStatusReport {
         match friend_status {
-            // TODO: Change FriendStatus::Enable to Enabled.
-            FriendStatus::Enable => FriendStatusReport::Enabled,
-            FriendStatus::Disable => FriendStatusReport::Disabled,
+            FriendStatus::Enabled => FriendStatusReport::Enabled,
+            FriendStatus::Disabled => FriendStatusReport::Disabled,
         }
     }
 }
@@ -359,7 +358,7 @@ where
                 wanted_local_requests_status: RequestsStatusReport::from(&RequestsStatus::Closed),
                 num_pending_responses: 0,
                 num_pending_requests: 0,
-                status: FriendStatusReport::from(&FriendStatus::Disable),
+                status: FriendStatusReport::from(&FriendStatus::Disabled),
                 num_pending_user_requests: 0,
             };
             if let Some(_) = funder_report.friends.insert(
