@@ -107,7 +107,7 @@ where
         compare_public_key(&self.local_public_key, friend_public_key) == Ordering::Less
     }
 
-    fn spawn_server(&mut self, public_key: PublicKey, address: A) 
+    pub fn spawn_server(&mut self, public_key: PublicKey, address: A) 
         -> Result<RemoteServer<A>, IndexServerError> {
 
         if self.is_listen_friend(&public_key) {
@@ -145,6 +145,18 @@ where
             address,
             state,
         })
+    }
+
+    pub async fn handle_from_client(&mut self, public_key: PublicKey, client_msg: IndexClientToServer) 
+        -> Result<(), IndexServerError> {
+
+        unimplemented!();
+    }
+
+    pub async fn handle_from_server(&mut self, public_key: PublicKey, server_msg: IndexServerToServer)
+        -> Result<(), IndexServerError> {
+
+        unimplemented!();
     }
 }
 
@@ -225,7 +237,8 @@ where
 
                 index_server.remote_servers.insert(public_key, remote_server);
             },
-            IndexServerEvent::FromServer((public_key, Some(index_server_to_server))) => {},
+            IndexServerEvent::FromServer((public_key, Some(index_server_to_server))) => 
+                await!(index_server.handle_from_server(public_key, index_server_to_server))?,
             IndexServerEvent::FromServer((public_key, None)) => {
                 // Server connection closed
                 let old_server = match index_server.remote_servers.remove(&public_key) {
@@ -261,7 +274,8 @@ where
                 };
                 index_server.clients.insert(public_key, client);
             },
-            IndexServerEvent::FromClient((public_key, Some(index_client_to_server))) => {},
+            IndexServerEvent::FromClient((public_key, Some(index_client_to_server))) =>
+                await!(index_server.handle_from_client(public_key, index_client_to_server))?,
             IndexServerEvent::FromClient((public_key, None)) => {
                 // Client connection closed
                 if let None = index_server.clients.remove(&public_key) {
