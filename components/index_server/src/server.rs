@@ -154,11 +154,21 @@ where
     pub async fn handle_from_client(&mut self, public_key: PublicKey, client_msg: IndexClientToServer) 
         -> Result<(), IndexServerError> {
 
+        match client_msg {
+            IndexClientToServer::MutationsUpdate(mutations_update) => {},
+            IndexClientToServer::RequestFriendsRoute(request_friends_route) => {},
+        }
+
         unimplemented!();
     }
 
     pub async fn handle_from_server(&mut self, public_key: PublicKey, server_msg: IndexServerToServer)
         -> Result<(), IndexServerError> {
+
+        match server_msg {
+            IndexServerToServer::TimeHash(hash) => {},
+            IndexServerToServer::ForwardMutationsUpdate(forward_mutations_update) => {},
+        }
 
         unimplemented!();
     }
