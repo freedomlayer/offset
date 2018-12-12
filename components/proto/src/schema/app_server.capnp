@@ -109,25 +109,6 @@ struct ResetFriendChannel {
         currentToken @1: Signature;
 }
 
-# App -> AppServer
-struct RequestDelegate {
-        appRandNonce @0: RandNonce;
-}
-
-# AppServer -> App
-struct ResponseDelegate {
-        appPublicKey @0: PublicKey;
-        appRandNonce @1: RandNonce;
-        serverRandNonce @2: RandNonce;
-        signature @3: Signature;
-        # sha512/256(sha512/256("DELEGATE") ||
-        #               appPublicKey ||
-        #               appRandNonce ||
-        #               serverRandNonce)
-
-}
-
-
 
 
 #####################################################################
@@ -140,9 +121,6 @@ struct AppServerToApp {
         # Reports about current state:
         report @1: Report;
         reportMutations @2: List(ReportMutation);
-
-        # Response for delegate request:
-        responseDelegate @3: ResponseDelegate;
 
     }
 }
@@ -167,9 +145,6 @@ struct AppToAppServer {
         closeFriend @9: CloseFriend;
         setFriendRemoteMaxDebt @10: SetFriendRemoteMaxDebt;
         resetFriendChannel @11: ResetFriendChannel;
-
-        # Delegation:
-        requestDelegate @12: RequestDelegate;
     }
 }
 
