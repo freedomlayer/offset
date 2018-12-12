@@ -16,6 +16,9 @@ using import "common.capnp".RelayAddress;
 using import "report.capnp".Report;
 using import "report.capnp".ReportMutation;
 
+using import "index.capnp".RequestFriendsRoute;
+using import "index.capnp".ResponseFriendsRoute;
+
 
 # Interface between AppServer and an Application
 ################################################
@@ -122,6 +125,9 @@ struct AppServerToApp {
         report @1: Report;
         reportMutations @2: List(ReportMutation);
 
+        # Routes:
+        responseFriendsRoute @3: ResponseFriendsRoute;
+
     }
 }
 
@@ -145,6 +151,9 @@ struct AppToAppServer {
         closeFriend @9: CloseFriend;
         setFriendRemoteMaxDebt @10: SetFriendRemoteMaxDebt;
         resetFriendChannel @11: ResetFriendChannel;
+
+        # Routes:
+        requestFriendsRoute @12: RequestFriendsRoute;
     }
 }
 
