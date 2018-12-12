@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use futures::{select, FutureExt, SinkExt};
+use futures::{select, FutureExt, StreamExt, SinkExt};
 use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 
@@ -145,20 +145,53 @@ where
 }
 
 
-async fn server_loop<A,SL,SC,CL>(server_listener: SL,
-                       server_connector: SC,
-                       client_listener: CL,
-                       timer_client: TimerClient) -> Result<(), IndexServerError>
+async fn server_loop<A,SL,SC,CL,S>(index_server_config: IndexServerConfig<A>,
+                                 server_listener: SL,
+                                 server_connector: SC,
+                                 client_listener: CL,
+                                 timer_client: TimerClient,
+                                 spawner: S) -> Result<(), IndexServerError>
 where
     SL: Listener<Connection=(PublicKey, ServerConn), Config=(), Arg=()>,
-    SC: FutTransform<Input=(PublicKey, A), Output=ServerConn> + Clone,
+    SC: FutTransform<Input=(PublicKey, A), Output=ServerConn> + Clone + Send + 'static,
     CL: Listener<Connection=(PublicKey, ClientConn), Config=(), Arg=()>,
+    S: Spawn + Send,
+    A: Clone + Send + 'static,
 {
     let (server_listener_config_sender, incoming_server_connections) = server_listener.listen(());
-    let (client_listener_config_sender, incoming_client_connectinos) = client_listener.listen(());
+    let (client_listener_config_sender, incoming_client_connections) = client_listener.listen(());
 
+
+    let (event_sender, event_receiver) = mpsc::channel(0);
+
+    let mut index_server = IndexServer::new(
+               index_server_config,
+               server_connector,
+               event_sender,
+               spawner);
+
+    let incoming_server_connections = incoming_server_connections
+        .map(|server_connection| IndexServerEvent::ServerConnection(server_connection));
+
+    let incoming_client_connections = incoming_client_connections
+        .map(|client_connection| IndexServerEvent::ClientConnection(client_connection));
+
+    let mut events = event_receiver
+        .select(incoming_server_connections)
+        .select(incoming_client_connections);
+
+    while let Some(event) = await!(events.next()) {
+        match event {
+            IndexServerEvent::ServerConnection((public_key, server_conn)) => {},
+            IndexServerEvent::FromServer((public_key, Some(index_server_to_server))) => {},
+            IndexServerEvent::FromServer((public_key, None)) => {},
+            IndexServerEvent::ClientConnection((public_key, client_conn)) => {},
+            IndexServerEvent::FromClient((public_key, Some(index_client_to_server))) => {},
+            IndexServerEvent::FromClient((public_key, None)) => {},
+        }
+        // TODO
+    }
     unimplemented!();
-
 }
 
 
