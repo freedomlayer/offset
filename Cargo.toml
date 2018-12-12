@@ -13,4 +13,6 @@ members = [
   "components/secure_channel",
   "components/keepalive",
   "components/app_server",
+  "components/index_client",
+  "components/index_server",
 ]
