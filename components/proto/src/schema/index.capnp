@@ -110,7 +110,7 @@ struct TimeProofLink {
 
 struct ForwardMutationsUpdate {
         mutationsUpdate @0: MutationsUpdate;
-        timeProof @1: List(TimeProofLink);
+        timeProofChain @1: List(TimeProofLink);
         # A proof that MutationsUpdate was signed recently
         # Receiver should verify:
         # - sha_512_256(hashes[0]) == MutationsUpdate.timeHash,
