@@ -35,11 +35,11 @@ struct LoopToFriendRoute {
 
 # IndexClient -> IndexServer
 struct RequestFriendsRoute {
-        requestRouteId @0: CustomUInt128;
+        requestRouteId @0: Uid;
         capacity @1: CustomUInt128;
         # Wanted capacity for the route. 
         # 0 means we want to optimize for capacity?
-        routeType :union {
+        routeRequest :union {
                 direct @2: DirectRoute;
                 loopFromFriend @3: LoopFromFriendRoute;
                 loopToFriend @4: LoopToFriendRoute;
@@ -53,7 +53,7 @@ struct FriendsRouteWithCapacity {
 
 # IndexServer -> IndexClient
 struct ResponseFriendsRoute {
-        requestRouteId @0: CustomUInt128;
+        requestRouteId @0: Uid;
         routes @1: List(FriendsRouteWithCapacity);
 }
 
@@ -104,7 +104,7 @@ struct TimeProofLink {
         hashes @0: List(Hash);
         # List of hashes that produce a certain hash
         # sha_512_256("TIME_HASH" || hashes)
-        index @1: UInt16;
+        index @1: UInt32;
         # Index pointing to a specific hash on the hashes list.
 }
 
