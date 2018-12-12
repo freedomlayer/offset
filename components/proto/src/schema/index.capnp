@@ -59,6 +59,7 @@ struct ResponseFriendsRoute {
 
 struct UpdateFriend {
         publicKey @0: PublicKey;
+        # Friend's public key
         sendCapacity @1: CustomUInt128;
         # To denote remote requests closed, assign 0 to sendCapacity
         recvCapacity @2: CustomUInt128;
