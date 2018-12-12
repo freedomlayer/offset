@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use futures::{select, FutureExt, StreamExt, SinkExt};
+use futures::{select, future, FutureExt, stream, StreamExt, SinkExt};
 use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 
@@ -44,11 +44,15 @@ struct RemoteServer<A> {
     state: RemoteServerState,
 }
 
+struct Client {
+    opt_sender: Option<mpsc::Sender<IndexServerToClient>>,
+}
 
 struct IndexServer<A,S,SC> {
     local_public_key: PublicKey,
     server_connector: SC,
     remote_servers: HashMap<PublicKey, RemoteServer<A>>,
+    clients: HashMap<PublicKey, Client>,
     event_sender: mpsc::Sender<IndexServerEvent>,
     spawner: S,
 }
@@ -87,11 +91,11 @@ where
             local_public_key,
             server_connector,
             remote_servers: HashMap::new(),
+            clients: HashMap::new(),
             event_sender,
             spawner,
         };
 
-        let mut remote_servers: HashMap<PublicKey, RemoteServer<A>> = HashMap::new();
         for (public_key, address) in trusted_servers.into_iter() {
             let remote_server = index_server.spawn_server(public_key.clone(), address)?;
             index_server.remote_servers.insert(public_key, remote_server);
@@ -168,7 +172,7 @@ where
                index_server_config,
                server_connector,
                event_sender,
-               spawner);
+               spawner)?;
 
     let incoming_server_connections = incoming_server_connections
         .map(|server_connection| IndexServerEvent::ServerConnection(server_connection));
@@ -184,10 +188,48 @@ where
         match event {
             IndexServerEvent::ServerConnection((public_key, server_conn)) => {},
             IndexServerEvent::FromServer((public_key, Some(index_server_to_server))) => {},
-            IndexServerEvent::FromServer((public_key, None)) => {},
-            IndexServerEvent::ClientConnection((public_key, client_conn)) => {},
+            IndexServerEvent::FromServer((public_key, None)) => {
+                // Server connection closed
+                let old_server = match index_server.remote_servers.remove(&public_key) {
+                    None => {
+                        error!("A non existent server {:?} was closed. Aborting.", public_key);
+                        continue;
+                    },
+                    Some(old_server) => old_server,
+                };
+                let server = index_server.spawn_server(public_key.clone(), old_server.address)?;
+                index_server.remote_servers.insert(public_key, server);
+
+            },
+            IndexServerEvent::ClientConnection((public_key, client_conn)) => {
+                if index_server.clients.contains_key(&public_key) {
+                    error!("Client {:?} already connected! Aborting.", public_key);
+                    continue;
+                }
+                let (sender, receiver) = client_conn;
+                let c_public_key = public_key.clone();
+                let mut receiver = receiver
+                    .map(move |index_client_to_server| 
+                         IndexServerEvent::FromClient((c_public_key.clone(), Some(index_client_to_server))))
+                    .chain(stream::once(future::ready(IndexServerEvent::FromClient((public_key.clone(), None)))));
+
+                let mut c_event_sender = index_server.event_sender.clone();
+                index_server.spawner.spawn(async move {
+                    await!(c_event_sender.send_all(&mut receiver));
+                });
+
+                let client = Client {
+                    opt_sender: Some(sender),
+                };
+                index_server.clients.insert(public_key, client);
+            },
             IndexServerEvent::FromClient((public_key, Some(index_client_to_server))) => {},
-            IndexServerEvent::FromClient((public_key, None)) => {},
+            IndexServerEvent::FromClient((public_key, None)) => {
+                // Client connection closed
+                if let None = index_server.clients.remove(&public_key) {
+                    error!("A non existent client {:?} was closed. Aborting.", public_key);
+                }
+            },
         }
         // TODO
     }
