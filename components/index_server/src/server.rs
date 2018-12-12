@@ -103,14 +103,18 @@ where
         Ok(index_server)
     }
 
-    fn is_listen_friend(&self, friend_public_key: &PublicKey) -> bool {
+    /// We divide servers into two types:
+    /// 1. "listen server": A trusted server which has the responsibility of connecting to us.
+    /// 2. "init server": A trusted server for which we have the responsibility to initiate
+    ///    connection to.
+    fn is_listen_server(&self, friend_public_key: &PublicKey) -> bool {
         compare_public_key(&self.local_public_key, friend_public_key) == Ordering::Less
     }
 
     pub fn spawn_server(&mut self, public_key: PublicKey, address: A) 
         -> Result<RemoteServer<A>, IndexServerError> {
 
-        if self.is_listen_friend(&public_key) {
+        if self.is_listen_server(&public_key) {
             return Ok(RemoteServer {
                 address,
                 state: RemoteServerState::Listening,
