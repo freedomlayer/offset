@@ -156,7 +156,7 @@ where
             };
             match select_res {
                 Some(conn_pair) => {
-                    await!(c_connections_sender.send((public_key.clone(), conn_pair))).unwrap();
+                    let _ = await!(c_connections_sender.send((public_key.clone(), conn_pair)));
                 },
                 None => {/* Canceled */},
             };
