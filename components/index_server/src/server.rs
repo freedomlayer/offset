@@ -186,7 +186,45 @@ where
 
     while let Some(event) = await!(events.next()) {
         match event {
-            IndexServerEvent::ServerConnection((public_key, server_conn)) => {},
+            IndexServerEvent::ServerConnection((public_key, server_conn)) => {
+                let mut remote_server = match index_server.remote_servers.remove(&public_key) {
+                    None => {
+                        error!("Non trusted server {:?} attempted connection. Aborting.", public_key);
+                        continue;
+                    },
+                    Some(remote_server) => remote_server,
+                };
+
+
+                match remote_server.state {
+                    RemoteServerState::Connected(_) => {
+                        error!("Server {:?} is already connected! Aborting.", public_key);
+                        index_server.remote_servers.insert(public_key, remote_server);
+                        continue;
+                    },
+                    RemoteServerState::Initiating(_) | 
+                    RemoteServerState::Listening => {},
+                };
+
+                let (sender, receiver) = server_conn;
+
+                remote_server.state = RemoteServerState::Connected(ServerConnected {
+                    opt_sender: Some(sender),
+                });
+
+                let c_public_key = public_key.clone();
+                let mut receiver = receiver
+                    .map(move |msg| IndexServerEvent::FromServer((c_public_key.clone(), Some(msg))))
+                    .chain(stream::once(future::ready(IndexServerEvent::FromServer((public_key.clone(), None)))));
+
+                let mut c_event_sender = index_server.event_sender.clone();
+
+                index_server.spawner.spawn(async move {
+                    let _ = await!(c_event_sender.send_all(&mut receiver));
+                });
+
+                index_server.remote_servers.insert(public_key, remote_server);
+            },
             IndexServerEvent::FromServer((public_key, Some(index_server_to_server))) => {},
             IndexServerEvent::FromServer((public_key, None)) => {
                 // Server connection closed
@@ -209,8 +247,8 @@ where
                 let (sender, receiver) = client_conn;
                 let c_public_key = public_key.clone();
                 let mut receiver = receiver
-                    .map(move |index_client_to_server| 
-                         IndexServerEvent::FromClient((c_public_key.clone(), Some(index_client_to_server))))
+                    .map(move |msg| 
+                         IndexServerEvent::FromClient((c_public_key.clone(), Some(msg))))
                     .chain(stream::once(future::ready(IndexServerEvent::FromClient((public_key.clone(), None)))));
 
                 let mut c_event_sender = index_server.event_sender.clone();
