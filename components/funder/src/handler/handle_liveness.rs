@@ -1,11 +1,11 @@
 use std::fmt::Debug;
 use crypto::crypto_rand::CryptoRandom;
 
-use proto::funder::messages::FriendMessage;
+use proto::funder::messages::{FriendMessage, FriendStatus};
 
 use crate::handler::MutableFunderHandler;
 use crate::friend::ChannelStatus;
-use crate::types::{IncomingLivenessMessage, FriendStatus, 
+use crate::types::{IncomingLivenessMessage, 
     FunderOutgoingComm};
 
 use crate::ephemeral::EphemeralMutation;
@@ -37,8 +37,8 @@ where
                     None => Err(HandleLivenessError::FriendDoesNotExist),
                 }?;
                 match friend.status {
-                    FriendStatus::Enable => Ok(()),
-                    FriendStatus::Disable => Err(HandleLivenessError::FriendIsDisabled),
+                    FriendStatus::Enabled => Ok(()),
+                    FriendStatus::Disabled => Err(HandleLivenessError::FriendIsDisabled),
                 }?;
 
                 if self.ephemeral.liveness.is_online(&friend_public_key) {
@@ -69,8 +69,8 @@ where
                     None => Err(HandleLivenessError::FriendDoesNotExist),
                 }?;
                 match friend.status {
-                    FriendStatus::Enable => Ok(()),
-                    FriendStatus::Disable => Err(HandleLivenessError::FriendIsDisabled),
+                    FriendStatus::Enabled => Ok(()),
+                    FriendStatus::Disabled => Err(HandleLivenessError::FriendIsDisabled),
                 }?;
                 let liveness_mutation = LivenessMutation::SetOffline(friend_public_key.clone());
                 let ephemeral_mutation = EphemeralMutation::LivenessMutation(liveness_mutation);
@@ -94,11 +94,12 @@ mod tests {
 
     use std::cmp::Ordering;
 
+    use proto::funder::messages::{FriendStatus, AddFriend};
+
     use crate::handler::gen_mutable;
     use crate::state::{FunderState, FunderMutation};
     use crate::ephemeral::Ephemeral;
     use crate::token_channel::TcDirection;
-    use crate::types::{FriendStatus, AddFriend};
     use crate::friend::FriendMutation;
 
     use futures::executor::ThreadPool;
@@ -136,7 +137,7 @@ mod tests {
         state.mutate(&funder_mutation);
 
         // Enable the remote friend:
-        let friend_mutation = FriendMutation::SetStatus(FriendStatus::Enable);
+        let friend_mutation = FriendMutation::SetStatus(FriendStatus::Enabled);
         let funder_mutation = FunderMutation::FriendMutation((remote_pk.clone(), friend_mutation));
         state.mutate(&funder_mutation);
 

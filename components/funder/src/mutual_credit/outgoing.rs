@@ -11,14 +11,14 @@ use common::int_convert::usize_to_u32;
 
 use proto::funder::messages::{FriendTcOp, RequestSendFunds, 
     ResponseSendFunds, FailureSendFunds,FriendsRoute,
-    InvoiceId, PendingRequest, SendFundsReceipt};
+    InvoiceId, PendingRequest, SendFundsReceipt, RequestsStatus};
 use proto::funder::signature_buff::{create_response_signature_buffer, 
     verify_failure_signature};
 
 use super::types::{MutualCredit, McMutation, 
     MAX_FUNDER_DEBT};
 use crate::credit_calc::CreditCalculator;
-use crate::types::{RequestsStatus, create_pending_request};
+use crate::types::create_pending_request;
 
 
 /// Processes outgoing fundss for a token channel.

@@ -1,9 +1,10 @@
 use std::fmt::Debug;
 use crypto::crypto_rand::CryptoRandom;
 
+use proto::funder::messages::{FriendStatus, FunderOutgoingControl};
+
 use crate::handler::MutableFunderHandler;
-use crate::types::{ChannelerConfig, FriendStatus, 
-    FunderOutgoingComm, FunderOutgoingControl};
+use crate::types::{ChannelerConfig, FunderOutgoingComm};
 
 use crate::report::create_report;
 
@@ -19,11 +20,11 @@ where
         let mut enabled_friends = Vec::new();
         for (friend_public_key, friend) in &self.state.friends {
             match friend.status {
-                FriendStatus::Enable => {
+                FriendStatus::Enabled => {
                     enabled_friends.push((friend.remote_public_key.clone(),
                         friend.remote_address.clone()));
                 },
-                FriendStatus::Disable => continue,
+                FriendStatus::Disabled => continue,
             };
         }
 
@@ -50,9 +51,10 @@ where
 mod tests {
     use super::*;
 
+    use proto::funder::messages::AddFriend;
+
     use crate::handler::gen_mutable;
     use crate::state::{FunderState, FunderMutation};
-    use crate::types::AddFriend;
     use crate::ephemeral::Ephemeral;
     use crate::friend::FriendMutation;
 
@@ -87,7 +89,7 @@ mod tests {
         state.mutate(&f_mutation);
 
         // Enable the remote friend:
-        let friend_mutation = FriendMutation::SetStatus(FriendStatus::Enable);
+        let friend_mutation = FriendMutation::SetStatus(FriendStatus::Enabled);
         let funder_mutation = FunderMutation::FriendMutation((pk_b.clone(), friend_mutation));
         state.mutate(&funder_mutation);
 

@@ -4,14 +4,14 @@ use futures::task::Spawn;
 use crypto::identity::PublicKey;
 use crypto::uid::{Uid, UID_LEN};
 
-use proto::funder::messages::{FriendsRoute, InvoiceId, INVOICE_ID_LEN};
-
-use crate::types::{FunderIncomingControl, FriendStatus,
-    RequestsStatus, UserRequestSendFunds,
-    ResponseSendFundsResult,
-    ReceiptAck, ResetFriendChannel};
-use crate::report::{FunderReport,
+use proto::funder::messages::{FriendsRoute, InvoiceId, INVOICE_ID_LEN,
+                            FunderIncomingControl, FriendStatus,
+                            RequestsStatus, UserRequestSendFunds,
+                            ReceiptAck, ResetFriendChannel,
+                            ResponseSendFundsResult};
+use proto::report::messages::{FunderReport,
                     ChannelStatusReport};
+
 use super::utils::create_node_controls;
 
 
@@ -30,8 +30,8 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     assert_eq!(node_controls[0].report.friends.len(), 1);
     assert_eq!(node_controls[1].report.friends.len(), 1);
 
-    await!(node_controls[0].set_friend_status(&public_keys[1], FriendStatus::Enable));
-    await!(node_controls[1].set_friend_status(&public_keys[0], FriendStatus::Enable));
+    await!(node_controls[0].set_friend_status(&public_keys[1], FriendStatus::Enabled));
+    await!(node_controls[1].set_friend_status(&public_keys[0], FriendStatus::Enabled));
 
     // Set remote max debt for both sides:
     await!(node_controls[0].set_remote_max_debt(&public_keys[1], 200));
@@ -123,10 +123,10 @@ async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'stati
     await!(node_controls[2].add_friend(&public_keys[1], 0u32, "node0", -6));
 
     // Enable friends:
-    await!(node_controls[0].set_friend_status(&public_keys[1], FriendStatus::Enable));
-    await!(node_controls[1].set_friend_status(&public_keys[0], FriendStatus::Enable));
-    await!(node_controls[1].set_friend_status(&public_keys[2], FriendStatus::Enable));
-    await!(node_controls[2].set_friend_status(&public_keys[1], FriendStatus::Enable));
+    await!(node_controls[0].set_friend_status(&public_keys[1], FriendStatus::Enabled));
+    await!(node_controls[1].set_friend_status(&public_keys[0], FriendStatus::Enabled));
+    await!(node_controls[1].set_friend_status(&public_keys[2], FriendStatus::Enabled));
+    await!(node_controls[2].set_friend_status(&public_keys[1], FriendStatus::Enabled));
 
     // Set remote max debt:
     await!(node_controls[0].set_remote_max_debt(&public_keys[1], 200));
@@ -216,10 +216,10 @@ async fn task_funder_payment_failure(spawner: impl Spawn + Clone + Send + 'stati
     await!(node_controls[2].add_friend(&public_keys[1], 0u32, "node0", -6));
 
     // Enable friends:
-    await!(node_controls[0].set_friend_status(&public_keys[1], FriendStatus::Enable));
-    await!(node_controls[1].set_friend_status(&public_keys[0], FriendStatus::Enable));
-    await!(node_controls[1].set_friend_status(&public_keys[2], FriendStatus::Enable));
-    await!(node_controls[2].set_friend_status(&public_keys[1], FriendStatus::Enable));
+    await!(node_controls[0].set_friend_status(&public_keys[1], FriendStatus::Enabled));
+    await!(node_controls[1].set_friend_status(&public_keys[0], FriendStatus::Enabled));
+    await!(node_controls[1].set_friend_status(&public_keys[2], FriendStatus::Enabled));
+    await!(node_controls[2].set_friend_status(&public_keys[1], FriendStatus::Enabled));
 
     // Set remote max debt:
     await!(node_controls[0].set_remote_max_debt(&public_keys[1], 200));
@@ -287,8 +287,8 @@ async fn task_funder_inconsistency_basic(spawner: impl Spawn + Clone + Send + 's
     await!(node_controls[0].add_friend(&public_keys[1], 1u32, "node1", 20));
     await!(node_controls[1].add_friend(&public_keys[0], 0u32, "node0", -8));
 
-    await!(node_controls[0].set_friend_status(&public_keys[1], FriendStatus::Enable));
-    await!(node_controls[1].set_friend_status(&public_keys[0], FriendStatus::Enable));
+    await!(node_controls[0].set_friend_status(&public_keys[1], FriendStatus::Enabled));
+    await!(node_controls[1].set_friend_status(&public_keys[0], FriendStatus::Enabled));
 
     // Expect inconsistency, together with reset terms:
     let pred = |report: &FunderReport<_>| {

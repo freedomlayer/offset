@@ -10,19 +10,27 @@ use futures::{future, FutureExt, StreamExt, SinkExt};
 use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair, PublicKey};
 use crypto::test_utils::DummyRandom;
 
+use proto::report::messages::{FunderReport, FunderReportMutation, ChannelStatusReport,
+                    FriendLivenessReport, FriendStatusReport, RequestsStatusReport};
+
+use proto::funder::messages::{FunderIncomingControl,
+    AddFriend, FriendStatus, SetFriendStatus, 
+    SetFriendRemoteMaxDebt, RequestsStatus, SetRequestsStatus, 
+    FunderOutgoingControl, ResponseReceived};
+
+
 use common::int_convert::usize_to_u32;
 
 use identity::{create_identity, IdentityClient};
 
 use crate::state::{FunderState, FunderMutation};
 use crate::funder::inner_funder_loop;
-use crate::types::{FunderOutgoingComm, FunderIncomingComm, 
-    ChannelerConfig, FunderOutgoingControl, FunderIncomingControl,
-    IncomingLivenessMessage, ResponseReceived, AddFriend, FriendStatus,
-    SetFriendStatus, SetFriendRemoteMaxDebt, RequestsStatus, SetRequestsStatus};
+use crate::report::funder_report_mutate;
+
 use crate::database::AtomicDb;
-use crate::report::{FunderReport, FunderReportMutation, ChannelStatusReport,
-                    FriendLivenessReport};
+
+use crate::types::{ChannelerConfig, FunderOutgoingComm, FunderIncomingComm,
+                IncomingLivenessMessage};
 
 // This is required to make sure the tests are not stuck.
 //
@@ -189,7 +197,7 @@ impl<A: Clone> NodeControl<A> {
             FunderOutgoingControl::Report(_) => unreachable!(),
             FunderOutgoingControl::ReportMutations(mutations) => {
                 for mutation in &mutations {
-                    self.report.mutate(&mutation).unwrap();
+                    funder_report_mutate(&mut self.report, &mutation).unwrap();
                 }
                 Some(NodeRecv::ReportMutations(mutations))
             },
@@ -257,7 +265,7 @@ impl<A: Clone> NodeControl<A> {
         let pred = |report: &FunderReport<_>| {
            match report.friends.get(&friend_public_key) {
                None => false,
-               Some(friend) => friend.status == status,
+               Some(friend) => friend.status == FriendStatusReport::from(&status),
            }
         };
         await!(self.recv_until(pred));
@@ -306,7 +314,7 @@ impl<A: Clone> NodeControl<A> {
                ChannelStatusReport::Consistent(tc_report) => tc_report,
                _ => return false,
            };
-           tc_report.requests_status.local == requests_status
+           tc_report.requests_status.local == RequestsStatusReport::from(&requests_status)
         };
         await!(self.recv_until(pred));
     }
@@ -326,7 +334,7 @@ impl<A: Clone> NodeControl<A> {
                ChannelStatusReport::Consistent(tc_report) => tc_report,
                _ => return false,
            };
-           tc_report.requests_status.remote == RequestsStatus::Open
+           tc_report.requests_status.remote == RequestsStatusReport::from(&RequestsStatus::Open)
         };
         await!(self.recv_until(pred));
     }

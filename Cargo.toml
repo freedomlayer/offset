@@ -12,4 +12,5 @@ members = [
   "components/relay",
   "components/secure_channel",
   "components/keepalive",
+  "components/app_server",
 ]

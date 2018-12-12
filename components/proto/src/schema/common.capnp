@@ -84,3 +84,16 @@ struct Receipt {
         #   destPayment
         # )
 }
+
+# IP address and port
+# TODO: Should add IPV6?
+struct SocketAddress {
+        address @0: UInt32;
+        port @1: UInt16;
+}
+
+# Authenticated address of a Relay (Includes relay's public key)
+struct RelayAddress {
+        publicKey @0: PublicKey;
+        socketAddress @1: SocketAddress;
+}

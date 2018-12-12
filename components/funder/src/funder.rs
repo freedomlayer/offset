@@ -9,11 +9,12 @@ use serde::de::DeserializeOwned;
 use crypto::crypto_rand::CryptoRandom;
 use identity::IdentityClient;
 
+use proto::funder::messages::{FunderIncomingControl, 
+    FunderOutgoingControl};
+
 use crate::ephemeral::Ephemeral;
 use crate::handler::{funder_handle_message};
-use crate::types::{FunderIncoming,
-                    FunderOutgoingControl, FunderOutgoingComm,
-                    FunderIncomingControl, FunderIncomingComm};
+use crate::types::{FunderIncoming, FunderOutgoingComm, FunderIncomingComm};
 use crate::state::{FunderState, FunderMutation};
 use crate::database::{AtomicDb, DbRunner, DbRunnerError};
 

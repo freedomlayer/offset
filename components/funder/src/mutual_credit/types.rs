@@ -6,8 +6,7 @@ use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
-use proto::funder::messages::PendingRequest;
-use crate::types::RequestsStatus;
+use proto::funder::messages::{PendingRequest, RequestsStatus};
 
 /// The maximum possible funder debt.
 /// We don't use the full u128 because i128 can not go beyond this value.

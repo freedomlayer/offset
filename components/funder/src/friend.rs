@@ -3,12 +3,11 @@ use im::vector::Vector;
 use crypto::identity::PublicKey;
 use common::safe_arithmetic::SafeUnsignedArithmetic;
 use proto::funder::messages::{MoveToken, RequestSendFunds,
-    ResponseSendFunds, FailureSendFunds, ResetTerms};
+    ResponseSendFunds, FailureSendFunds, ResetTerms,
+    FriendStatus, RequestsStatus};
 
 use crate::token_channel::{TcMutation, TokenChannel};
-use crate::types::{FriendStatus, RequestsStatus, MoveTokenHashed};
-
-
+use crate::types::{MoveTokenHashed};
 
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -72,8 +71,8 @@ pub struct FriendState<A> {
     pub channel_status: ChannelStatus,
     pub wanted_remote_max_debt: u128,
     pub wanted_local_requests_status: RequestsStatus,
-    pub pending_responses: Vector<ResponseOp>,
     pub pending_requests: Vector<RequestSendFunds>,
+    pub pending_responses: Vector<ResponseOp>,
     // Pending operations to be sent to the token channel.
     pub status: FriendStatus,
     pub pending_user_requests: Vector<RequestSendFunds>,
@@ -105,7 +104,7 @@ impl<A:Clone + 'static> FriendState<A> {
             // send price). When possible, this will be updated with the TokenChannel.
             pending_requests: Vector::new(),
             pending_responses: Vector::new(),
-            status: FriendStatus::Disable,
+            status: FriendStatus::Disabled,
             pending_user_requests: Vector::new(),
         }
     }

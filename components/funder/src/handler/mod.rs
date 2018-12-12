@@ -15,12 +15,14 @@ use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
 
+use proto::funder::messages::FunderOutgoingControl;
+
 use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError};
 use self::handle_friend::HandleFriendError;
 use self::handle_liveness::HandleLivenessError;
 use super::types::{FunderIncoming,
-    FunderOutgoingComm, FunderOutgoingControl, FunderIncomingComm};
+    FunderOutgoingComm, FunderIncomingComm};
 use super::ephemeral::{Ephemeral, EphemeralMutation};
 use super::friend::{FriendState, ChannelStatus};
 use super::report::{funder_mutation_to_report_mutations, 

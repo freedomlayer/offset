@@ -15,12 +15,12 @@ use crypto::crypto_rand::{RngContainer, CryptoRandom};
 use crypto::uid::{Uid, UID_LEN};
 
 use proto::funder::messages::{FriendMessage, FriendsRoute, 
-    InvoiceId, INVOICE_ID_LEN};
-
-use crate::types::{FunderIncoming, FunderIncomingControl, 
-    AddFriend, IncomingLivenessMessage, FriendStatus,
+    InvoiceId, INVOICE_ID_LEN, FunderIncomingControl, 
+    AddFriend, FriendStatus,
     SetFriendStatus, SetFriendRemoteMaxDebt,
     UserRequestSendFunds, SetRequestsStatus, RequestsStatus};
+
+use crate::types::{FunderIncoming, IncomingLivenessMessage};
 
 
 /// A helper function. Applies an incoming funder message, updating state and ephemeral
@@ -105,7 +105,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     // Node1: Enable friend 2:
     let set_friend_status = SetFriendStatus {
         friend_public_key: pk2.clone(),
-        status: FriendStatus::Enable,
+        status: FriendStatus::Enabled,
     };
     let incoming_control_message = FunderIncomingControl::SetFriendStatus(set_friend_status);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
@@ -128,7 +128,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     // Node2: enable friend 1:
     let set_friend_status = SetFriendStatus {
         friend_public_key: pk1.clone(),
-        status: FriendStatus::Enable,
+        status: FriendStatus::Enabled,
     };
     let incoming_control_message = FunderIncomingControl::SetFriendStatus(set_friend_status);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);

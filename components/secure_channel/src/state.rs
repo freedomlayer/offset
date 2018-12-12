@@ -311,6 +311,11 @@ impl ScState {
                     opt_send_message: None, opt_incoming_message: Some(content) }),
         }
     }
+
+    /// Get the public key of the remote side
+    pub fn get_remote_public_key(&self) -> &PublicKey {
+        &self.remote_public_key
+    }
 }
 
 
