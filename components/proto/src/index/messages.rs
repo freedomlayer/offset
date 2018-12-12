@@ -5,6 +5,7 @@ use crypto::crypto_rand::RandValue;
 
 use crate::funder::messages::FriendsRoute;
 
+#[derive(Debug)]
 pub enum RouteRequest {
     /// Request a direct route of friends from the source node to the destination
     /// node.
@@ -20,41 +21,47 @@ pub enum RouteRequest {
 }
 
 /// IndexClient -> IndexServer
+#[derive(Debug)]
 pub struct RequestFriendsRoute {
-    requestRouteId: Uid,
+    request_route_id: Uid,
     /// Wanted capacity for the route. 
     /// 0 means we want to optimize for capacity?
     capacity: u128,
     route_request: RouteRequest,
 }
 
+#[derive(Debug)]
 pub struct FriendsRouteWithCapacity {
     route: FriendsRoute,
     capacity: u128,
 }
 
 /// IndexServer -> IndexClient
+#[derive(Debug)]
 pub struct ResponseFriendsRoute {
     request_route_id: Uid,
     routes: Vec<FriendsRouteWithCapacity>,
 }
 
+#[derive(Debug)]
 pub struct UpdateFriend {
     /// Friend's public key
     public_key: PublicKey,
     /// To denote remote requests closed, assign 0 to sendCapacity
-    sendCapacity: u128,
+    send_capacity: u128,
     /// To denote local requests closed, assign 0 to recvCapacity
-    recvCapacity: u128,
+    recv_capacity: u128,
 }
 
 
 /// IndexClient -> IndexServer
+#[derive(Debug)]
 pub enum Mutation {
     UpdateFriend(UpdateFriend),
     RemoveFriend(PublicKey),
 }
 
+#[derive(Debug)]
 pub struct MutationsUpdate {
     /// Public key of the node sending the mutations.
     node_public_key: PublicKey,
@@ -80,6 +87,7 @@ pub struct MutationsUpdate {
     signature: Signature,
 }
 
+#[derive(Debug)]
 pub struct TimeProofLink {
     /// List of hashes that produce a certain hash
     /// sha_512_256("TIME_HASH" || hashes)
@@ -88,6 +96,7 @@ pub struct TimeProofLink {
     index: u32,
 }
 
+#[derive(Debug)]
 pub struct ForwardMutationsUpdate {
     mutations_update: MutationsUpdate,
     /// A proof that MutationsUpdate was signed recently
@@ -98,18 +107,21 @@ pub struct ForwardMutationsUpdate {
     time_proof_chain: Vec<TimeProofLink>,
 }
 
+#[derive(Debug)]
 pub enum IndexServerToClient {
     TimeHash(HashResult),
     ResponseFriendsRoute(ResponseFriendsRoute),
 }
 
 
+#[derive(Debug)]
 pub enum IndexClientToServer {
     MutationsUpdate(MutationsUpdate),
     RequestFriendsRoute(RequestFriendsRoute),
 }
 
 
+#[derive(Debug)]
 pub enum IndexServerToServer {
     TimeHash(HashResult),
     ForwardMutationsUpdate(ForwardMutationsUpdate),
