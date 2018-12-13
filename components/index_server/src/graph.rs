@@ -27,6 +27,12 @@ where
     N: cmp::Eq + hash::Hash + Clone,
 {
 
+    pub fn new() -> CapacityGraph<N> {
+        CapacityGraph {
+            nodes: HashMap::new(),
+        }
+    }
+
     /// Add or update edge
     pub fn update_edge(&mut self, a: N, b: N, edge: CapacityEdge) -> Option<CapacityEdge> {
         let mut a_entry = self.nodes.entry(a).or_insert(HashMap::new());
