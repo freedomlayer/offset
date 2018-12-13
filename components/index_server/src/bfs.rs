@@ -84,7 +84,62 @@ mod tests {
         backtrack.insert(10, Some(9));
         backtrack.insert(11, Some(9));
 
-        let route = bfs_backtrack(&11, &backtrack);
-        assert_eq!(route.unwrap(), vec![3,6,8,9,11]);
+        let opt_route = bfs_backtrack(&11, &backtrack);
+        assert_eq!(opt_route.unwrap(), vec![3,6,8,9,11]);
+    }
+
+    #[test]
+    fn test_bfs_backtrack_failure() {
+        let mut backtrack: HashMap<u32, Option<u32>> = HashMap::new();
+        backtrack.insert(2, Some(1));
+        backtrack.insert(3, Some(2));
+
+        // Backtracking should fail, because 1 is not a key at the backtrack map:
+        assert!(bfs_backtrack(&3, &backtrack).is_none());
+    }
+
+    #[test]
+    fn test_bfs_basic() {
+        /*
+         Example graph:
+                            0 --> 1
+                            ^     |
+                            |     |
+               9            |     V
+               ^            3 <-- 2
+               |            |
+               |            V
+               8 <-- 6 <--- 4 --> 5
+                     ^
+                     |
+                     V
+                     7
+        */
+
+        let mut graph = HashMap::new();
+        graph.insert(0u32, vec![1u32]);
+        graph.insert(1, vec![2]);
+        graph.insert(2, vec![3]);
+        graph.insert(3, vec![0,4]);
+        graph.insert(4, vec![5,6]);
+        graph.insert(5, vec![]);
+        graph.insert(6, vec![7,8]);
+        graph.insert(7, vec![6]);
+        graph.insert(8, vec![9]);
+        graph.insert(9, vec![]);
+
+        let get_neighbors = |node: &u32| graph.get(&node).unwrap().iter();
+        assert_eq!(bfs(&0,&1,get_neighbors), Some(vec![0,1]));
+        assert_eq!(bfs(&1,&0,get_neighbors), Some(vec![1,2,3,0]));
+
+        assert_eq!(bfs(&0,&9,get_neighbors), Some(vec![0,1,2,3,4,6,8,9]));
+
+        assert_eq!(bfs(&8,&6,get_neighbors), None);
+        assert_eq!(bfs(&9,&8,get_neighbors), None);
+        assert_eq!(bfs(&5,&4,get_neighbors), None);
+        assert_eq!(bfs(&4,&3,get_neighbors), None);
+
+        assert_eq!(bfs(&6,&7,get_neighbors), Some(vec![6,7]));
+        assert_eq!(bfs(&7,&6,get_neighbors), Some(vec![7,6]));
     }
 }
