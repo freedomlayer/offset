@@ -119,24 +119,43 @@ where
     }
 
     /// A loop from myself through given friend, back to myself.
-    /// self -> neighbor -> ... -> ... -> self
+    /// a -> neighbor -> ... -> ... -> a
     pub fn get_loop_from(&self, a: &N, neighbor: &N, capacity: u128) -> Option<(Vec<N>, u128)> {
         let get_neighbors = move |cur_node: &N| {
+            // The following directed edge is not allowed: (neighbor -> a)
             let cur_node_is_neighbor = cur_node == neighbor;
             self.neighbors_with_send_capacity(cur_node.clone(), capacity)
                 .unwrap()
                 .filter(move |&next_node| !cur_node_is_neighbor || (next_node != a))
         };
 
-        let route = bfs(a, neighbor, get_neighbors)?;
+        let route = bfs(a, a, get_neighbors)?;
+        // We expect that bfs does not return the trivial route (a)
+        assert!(route.len() >= 2);
+
         // We assert that we will always have valid capacity here:
         let capacity = self.get_route_capacity(&route).unwrap();
-
         Some((route, capacity))
     }
 
-    pub fn get_loop_to(&self, a: &N, neighbor: &N, capacity: u128) {
-        unimplemented!();
+    /// A loop from myself back to myself through given friend.
+    /// a -> ... -> ... -> neighbor -> a
+    pub fn get_loop_to(&self, a: &N, neighbor: &N, capacity: u128) -> Option<(Vec<N>, u128)> {
+        let get_neighbors = move |cur_node: &N| {
+            // The following directed edge is not allowed: (a -> neighbor)
+            let cur_node_is_a = cur_node == a;
+            self.neighbors_with_send_capacity(cur_node.clone(), capacity)
+                .unwrap()
+                .filter(move |&next_node| !cur_node_is_a || (next_node != neighbor))
+        };
+
+        let route = bfs(a, a, get_neighbors)?;
+        // We expect that bfs does not return the trivial route (a)
+        assert!(route.len() >= 2);
+
+        // We assert that we will always have valid capacity here:
+        let capacity = self.get_route_capacity(&route).unwrap();
+        Some((route, capacity))
     }
 }
 
