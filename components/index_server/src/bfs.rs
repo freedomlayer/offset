@@ -59,3 +59,32 @@ where
     let backtrack = bfs_loop(src, dst, get_neighbors)?;
     bfs_backtrack(dst, &backtrack)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bfs_backtrack_basic() {
+        let mut backtrack: HashMap<u32, Option<u32>> = HashMap::new();
+        /*
+         *    3 -- 4
+         *     \-- 5 -- 7
+         *     \-- 6 -- 8 -- 9 -- 10
+         *                   \-- 11
+         *
+        */
+        backtrack.insert(3, None);
+        backtrack.insert(4, Some(3));
+        backtrack.insert(5, Some(3));
+        backtrack.insert(6, Some(3));
+        backtrack.insert(7, Some(5));
+        backtrack.insert(8, Some(6));
+        backtrack.insert(9, Some(8));
+        backtrack.insert(10, Some(9));
+        backtrack.insert(11, Some(9));
+
+        let route = bfs_backtrack(&11, &backtrack);
+        assert_eq!(route.unwrap(), vec![3,6,8,9,11]);
+    }
+}
