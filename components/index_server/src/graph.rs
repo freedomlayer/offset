@@ -99,16 +99,44 @@ where
         Some(iter)
     }
 
-    pub fn get_route(&self, a: &N, b: &N, capacity: u128) -> Option<Vec<N>> {
+    /// Calculate the amount of capacity we can send through a route.
+    /// This amount if the minimum of all edge capacities of the route.
+    fn get_route_capacity(&self, route: &[N]) -> Option<u128> {
+        (0 .. route.len().checked_sub(1)?)
+            .map(|i| self.get_send_capacity(&route[i], &route[i+1]))
+            .min()
+    }
+
+    /// Get a route with capacity at least `capacity`. 
+    /// Returns the route together with the capacity it is possible to send through the route.
+    pub fn get_route(&self, a: &N, b: &N, capacity: u128) -> Option<(Vec<N>, u128)> {
         let get_neighbors = |b: &N| self.neighbors_with_send_capacity(b.clone(), capacity).unwrap();
-        bfs(a, b, get_neighbors)
+        let route = bfs(a, b, get_neighbors)?;
+        // We assert that we will always have valid capacity here:
+        let capacity = self.get_route_capacity(&route).unwrap();
+
+        Some((route, capacity))
     }
 
-    pub fn get_loop_from(&self, a: N, b: N, capacity: u128) {
-        unimplemented!();
+    /// A loop from myself through given friend, back to myself.
+    /// self -> neighbor -> ... -> ... -> self
+    pub fn get_loop_from(&self, a: &N, neighbor: &N, capacity: u128) -> Option<(Vec<N>, u128)> {
+        let c_neighbor = neighbor.clone();
+        let cloned_a = a.clone();
+        let get_neighbors = move |cur_node: &N| {
+            self.neighbors_with_send_capacity(cur_node.clone(), capacity)
+                .unwrap()
+                .filter(|&next_node| (cur_node != &c_neighbor) || (next_node != &cloned_a))
+        };
+
+        let route = bfs(a, neighbor, get_neighbors)?;
+        // We assert that we will always have valid capacity here:
+        let capacity = self.get_route_capacity(&route).unwrap();
+
+        Some((route, capacity))
     }
 
-    pub fn get_loop_to(&self, a: N, b: N, capacity: u128) {
+    pub fn get_loop_to(&self, a: &N, neighbor: &N, capacity: u128) {
         unimplemented!();
     }
 }
