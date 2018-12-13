@@ -83,22 +83,21 @@ mod tests {
         thread_pool.run(task_future_timeout_on_time(thread_pool.clone()));
     }
 
-    async fn task_future_timeout_late(mut spawner: impl Spawn + Clone + Send + 'static) {
-        // Create a mock time service:
-        let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
 
+    async fn task_future_timeout_late(mut spawner: impl Spawn + Clone + Send + 'static) {
         let (sender, receiver) = oneshot::channel::<()>();
-        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+
+        let (mut tick_sender, timer_stream) = mpsc::channel(0);
+        let timer_stream = timer_stream.map(|_| TimerTick);
         let receiver = receiver.map(|res| res.unwrap());
         let timeout_fut = spawner.spawn_with_handle(future_timeout(receiver, timer_stream, 8)).unwrap();
 
-        for _ in 0 .. 8usize {
-            await!(tick_sender.send(())).unwrap();
+        for _ in 0 .. 9usize {
+            let _ = await!(tick_sender.send(()));
         }
 
-        sender.send(()).unwrap();
-        assert_eq!(await!(timeout_fut), Some(()));
+        let _ = sender.send(());
+        assert_eq!(await!(timeout_fut), None);
     }
 
     #[test]
