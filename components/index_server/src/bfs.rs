@@ -41,7 +41,7 @@ where
     let mut node = dst;
 
     while let Some(new_node) = backtrack.get(node)? {
-        route.push(node.clone());
+        route.push(new_node.clone());
         node = new_node;
     }
 
