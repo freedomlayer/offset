@@ -165,3 +165,78 @@ where
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_send_capacity_basic() {
+        let mut cg = CapacityGraph::<u32>::new();
+        cg.update_edge(0, 1, (10, 20));
+        cg.update_edge(1, 0, (15, 5));
+
+        assert_eq!(cg.get_send_capacity(&0, &1), cmp::min(5, 10));
+        assert_eq!(cg.get_send_capacity(&1, &0), cmp::min(15, 20));
+    }
+
+    #[test]
+    fn test_get_send_capacity_one_sided() {
+        let mut cg = CapacityGraph::<u32>::new();
+        cg.update_edge(0, 1, (10, 20));
+
+        assert_eq!(cg.get_send_capacity(&0, &1), 0);
+        assert_eq!(cg.get_send_capacity(&1, &0), 0);
+    }
+
+    #[test]
+    fn test_add_remove_edge() {
+        let mut cg = CapacityGraph::<u32>::new();
+        assert_eq!(cg.remove_edge(&0, &1), None);
+        cg.update_edge(0, 1, (10, 20));
+        assert_eq!(cg.nodes.len(), 1);
+
+        assert_eq!(cg.remove_edge(&0, &1), Some((10,20)));
+        assert_eq!(cg.nodes.len(), 0);
+
+        cg.update_edge(0, 1, (10,20));
+        assert_eq!(cg.nodes.len(), 1);
+        cg.remove_node(&1);
+        assert_eq!(cg.nodes.len(), 1);
+    }
+
+    #[test]
+    fn test_get_route() {
+        /*
+         * Example graph:
+         *
+         *    0 --> 1 --> 2 --> 5
+         *          |     ^
+         *          V     |
+         *          3 --> 4
+         *
+        */
+
+        let mut cg = CapacityGraph::<u32>::new();
+
+        cg.update_edge(0, 1, (30, 10));
+        cg.update_edge(1, 0, (10, 30));
+
+        cg.update_edge(1, 2, (10, 10));
+        cg.update_edge(2, 1, (10, 10));
+
+        cg.update_edge(2, 5, (30, 5));
+        cg.update_edge(2, 5, (5, 30));
+
+        cg.update_edge(1, 3, (30, 8));
+        cg.update_edge(3, 1, (8, 30));
+
+        cg.update_edge(3, 4, (30, 6));
+        cg.update_edge(4, 3, (6, 30));
+
+        cg.update_edge(4, 2, (30, 18));
+        cg.update_edge(2, 4, (18, 30));
+
+        assert_eq!(cg.get_route(&0, &5, 25), Some((vec![0,1,3,4,2,5], 30)));
+    }
+}
+
