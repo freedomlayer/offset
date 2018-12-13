@@ -94,7 +94,7 @@ where
         };
 
         let (a_send, _a_recv) = a_b_edge;
-        let (_b_send, b_recv) = a_b_edge;
+        let (_b_send, b_recv) = b_a_edge;
 
         cmp::min(a_send, b_recv)
     }
