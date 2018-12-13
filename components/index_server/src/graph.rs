@@ -118,7 +118,7 @@ where
         Some((route, capacity))
     }
 
-    /// A loop from myself through given friend, back to myself.
+    /// A loop from myself through given neighbor, back to myself.
     /// a -> neighbor -> ... -> ... -> a
     pub fn get_loop_from(&self, a: &N, neighbor: &N, capacity: u128) -> Option<(Vec<N>, u128)> {
         let get_neighbors = move |cur_node: &N| {
@@ -138,7 +138,7 @@ where
         Some((route, capacity))
     }
 
-    /// A loop from myself back to myself through given friend.
+    /// A loop from myself back to myself through given neighbor.
     /// a -> ... -> ... -> neighbor -> a
     pub fn get_loop_to(&self, a: &N, neighbor: &N, capacity: u128) -> Option<(Vec<N>, u128)> {
         let get_neighbors = move |cur_node: &N| {
