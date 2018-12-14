@@ -264,6 +264,11 @@ mod tests {
         assert_eq!(cg.get_route(&0, &5, 25, Some((&4,&3))), Some((vec![0,1,3,4,2,5], 30)));
         // Block an edge not used for the route:
         assert_eq!(cg.get_route(&0, &5, 25, Some((&1,&2))), Some((vec![0,1,3,4,2,5], 30)));
+
+        // Use excluded edge to find a loop from 1 to 1:
+        assert_eq!(cg.get_route(&2, &1, 6, Some((&2,&1))), Some((vec![2,4,3,1], 6)));
+        // Require too much capacity:
+        assert_eq!(cg.get_route(&2, &1, 7, Some((&2,&1))), None);
     }
 }
 
