@@ -250,10 +250,20 @@ mod tests {
         let mut cg = example_capacity_graph();
 
         assert_eq!(cg.get_route(&2, &5, 29, None), Some((vec![2,5], 30)));
-        // assert_eq!(cg.get_route(&2, &5, 30, None), Some((vec![2,5], 30)));
-        // assert_eq!(cg.get_route(&2, &5, 31, None), None);
+        assert_eq!(cg.get_route(&2, &5, 30, None), Some((vec![2,5], 30)));
+        assert_eq!(cg.get_route(&2, &5, 31, None), None);
 
-        // assert_eq!(cg.get_route(&0, &5, 25), Some((vec![0,1,3,4,2,5], 30)));
+        assert_eq!(cg.get_route(&0, &5, 25, None), Some((vec![0,1,3,4,2,5], 30)));
+        assert_eq!(cg.get_route(&0, &5, 29, None), Some((vec![0,1,3,4,2,5], 30)));
+        assert_eq!(cg.get_route(&0, &5, 30, None), Some((vec![0,1,3,4,2,5], 30)));
+        assert_eq!(cg.get_route(&0, &5, 31, None), None);
+
+        // Block an essential edge:
+        assert_eq!(cg.get_route(&0, &5, 25, Some((&3,&4))), None);
+        // Block an essential edge but the at the reversed direction:
+        assert_eq!(cg.get_route(&0, &5, 25, Some((&4,&3))), Some((vec![0,1,3,4,2,5], 30)));
+        // Block an edge not used for the route:
+        assert_eq!(cg.get_route(&0, &5, 25, Some((&1,&2))), Some((vec![0,1,3,4,2,5], 30)));
     }
 }
 
