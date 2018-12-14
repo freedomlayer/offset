@@ -5,29 +5,18 @@ use crypto::crypto_rand::RandValue;
 
 use crate::funder::messages::FriendsRoute;
 
-#[derive(Debug)]
-pub enum RouteRequest {
-    /// Request a direct route of friends from the source node to the destination
-    /// node.
-    Direct((PublicKey, PublicKey)),
-    /// A loop from myself through given friend, back to myself.
-    /// This is used for money rebalance when we owe the friend money.
-    /// self -> friend -> ... -> ... -> self
-    LoopFromFriend(PublicKey),
-    /// A loop from myself back to myself through given friend.
-    /// This is used for money rebalance when the friend owe us money.
-    /// self -> ... -> ... -> friend -> self
-    LoopToFriend(PublicKey),
-}
-
 /// IndexClient -> IndexServer
 #[derive(Debug)]
 pub struct RequestFriendsRoute {
     request_route_id: Uid,
     /// Wanted capacity for the route. 
-    /// 0 means we want to optimize for capacity?
+    /// 0 means we want to optimize for capacity??
     capacity: u128,
-    route_request: RouteRequest,
+    source: PublicKey,
+    destination: PublicKey,
+    /// This directed edge must not show up in the route.
+    /// Useful for finding non trivial directed loops.
+    opt_exclude: Option<(PublicKey, PublicKey)>,
 }
 
 #[derive(Debug)]
