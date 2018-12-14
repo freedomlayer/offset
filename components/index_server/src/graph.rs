@@ -161,8 +161,7 @@ where
         };
         let get_neighbors = |cur_node: &N| {
             let cur_node_is_e_start = Some(cur_node) == opt_e_start;
-            println!("b = {:?}", b);
-            self.neighbors_with_send_capacity(b.clone(), capacity)
+            self.neighbors_with_send_capacity(cur_node.clone(), capacity)
                 .filter(move |&next_node| !cur_node_is_e_start || Some(next_node) != opt_e_end)
         };
         let route = bfs(a, b, get_neighbors)?;
