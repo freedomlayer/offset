@@ -232,7 +232,7 @@ mod tests {
         cg.update_edge(2, 1, (10, 10));
 
         cg.update_edge(2, 5, (30, 5));
-        cg.update_edge(2, 5, (5, 30));
+        cg.update_edge(5, 2, (5, 30));
 
         cg.update_edge(1, 3, (30, 8));
         cg.update_edge(3, 1, (8, 30));
