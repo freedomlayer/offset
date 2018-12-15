@@ -61,6 +61,7 @@ struct IndexServer<A,S,SC> {
 #[derive(Debug)]
 pub enum IndexServerError {
     SpawnError,
+    RequestTimerStreamFailed,
 }
 
 #[derive(Debug)]
@@ -68,7 +69,8 @@ enum IndexServerEvent {
     ServerConnection((PublicKey, ServerConn)),
     FromServer((PublicKey, Option<IndexServerToServer>)),
     ClientConnection((PublicKey, ClientConn)),
-    FromClient((PublicKey, Option<IndexClientToServer>))
+    FromClient((PublicKey, Option<IndexClientToServer>)),
+    TimerTick,
 }
 
 
@@ -172,6 +174,12 @@ where
 
         unimplemented!();
     }
+
+    pub async fn handle_timer_tick(&mut self)
+        -> Result<(), IndexServerError> {
+
+        unimplemented!();
+    }
 }
 
 
@@ -179,7 +187,7 @@ async fn server_loop<A,SL,SC,CL,S>(index_server_config: IndexServerConfig<A>,
                                  server_listener: SL,
                                  server_connector: SC,
                                  client_listener: CL,
-                                 timer_client: TimerClient,
+                                 mut timer_client: TimerClient,
                                  spawner: S) -> Result<(), IndexServerError>
 where
     SL: Listener<Connection=(PublicKey, ServerConn), Config=(), Arg=()>,
@@ -191,6 +199,8 @@ where
     let (server_listener_config_sender, incoming_server_connections) = server_listener.listen(());
     let (client_listener_config_sender, incoming_client_connections) = client_listener.listen(());
 
+    let timer_stream = await!(timer_client.request_timer_stream())
+        .map_err(|_| IndexServerError::RequestTimerStreamFailed)?;
 
     let (event_sender, event_receiver) = mpsc::channel(0);
 
@@ -206,9 +216,13 @@ where
     let incoming_client_connections = incoming_client_connections
         .map(|client_connection| IndexServerEvent::ClientConnection(client_connection));
 
+    let timer_stream = timer_stream
+        .map(|_| IndexServerEvent::TimerTick);
+
     let mut events = event_receiver
         .select(incoming_server_connections)
-        .select(incoming_client_connections);
+        .select(incoming_client_connections)
+        .select(timer_stream);
 
     while let Some(event) = await!(events.next()) {
         match event {
@@ -296,6 +310,7 @@ where
                     error!("A non existent client {:?} was closed. Aborting.", public_key);
                 }
             },
+            IndexServerEvent::TimerTick => await!(index_server.handle_timer_tick())?,
         }
         // TODO
     }
