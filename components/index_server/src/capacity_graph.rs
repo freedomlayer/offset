@@ -22,8 +22,7 @@ pub trait CapacityGraph {
     ///
     /// opt_exclude is an optional edge to exclude (The returned route must not go through this
     /// edge). This can be useful for finding non trivial loops.
-    // TODO: Change this to get_routes() ?
-    fn get_route(&self, a: &Self::Node, b: &Self::Node, capacity: Self::Capacity, opt_exclude: Option<(&Self::Node, &Self::Node)>) 
-        -> Option<CapacityRoute<Self::Node, Self::Capacity>>;
+    fn get_routes(&self, a: &Self::Node, b: &Self::Node, capacity: Self::Capacity, opt_exclude: Option<(&Self::Node, &Self::Node)>) 
+        -> Vec<CapacityRoute<Self::Node, Self::Capacity>>;
 
 }

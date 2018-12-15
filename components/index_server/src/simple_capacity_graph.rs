@@ -2,8 +2,8 @@ use std::{cmp, hash};
 use std::collections::HashMap;
 
 use crate::bfs::bfs;
-use crate::option_iterator::OptionIterator;
 use crate::capacity_graph::{CapacityGraph, CapacityEdge};
+use crate::utils::{option_to_vec, OptionIterator};
 
 
 struct SimpleCapacityGraph<N> {
@@ -74,6 +74,28 @@ where
             .min()
     }
 
+    /// Get a route with capacity at least `capacity`. 
+    /// Returns the route together with the capacity it is possible to send through the route.
+    ///
+    /// opt_exclude is an optional edge to exclude (The returned route must not go through this
+    /// edge). This can be useful for finding non trivial loops.
+    fn get_route(&self, a: &N, b: &N, capacity: u128, opt_exclude: Option<(&N, &N)>) -> Option<(Vec<N>, u128)> {
+        let (opt_e_start, opt_e_end) = match opt_exclude {
+            Some((e_start, e_end)) => (Some(e_start), Some(e_end)),
+            None => (None, None),
+        };
+        let get_neighbors = |cur_node: &N| {
+            let cur_node_is_e_start = Some(cur_node) == opt_e_start;
+            self.neighbors_with_send_capacity(cur_node.clone(), capacity)
+                .filter(move |&next_node| !cur_node_is_e_start || Some(next_node) != opt_e_end)
+        };
+        let route = bfs(a, b, get_neighbors)?;
+        // We assert that we will always have valid capacity here:
+        let capacity = self.get_route_capacity(&route).unwrap();
+
+        Some((route, capacity))
+    }
+
 }
 
 impl<N> CapacityGraph for SimpleCapacityGraph<N> 
@@ -118,26 +140,8 @@ where
         }
     } 
 
-    /// Get a route with capacity at least `capacity`. 
-    /// Returns the route together with the capacity it is possible to send through the route.
-    ///
-    /// opt_exclude is an optional edge to exclude (The returned route must not go through this
-    /// edge). This can be useful for finding non trivial loops.
-    fn get_route(&self, a: &N, b: &N, capacity: u128, opt_exclude: Option<(&N, &N)>) -> Option<(Vec<N>, u128)> {
-        let (opt_e_start, opt_e_end) = match opt_exclude {
-            Some((e_start, e_end)) => (Some(e_start), Some(e_end)),
-            None => (None, None),
-        };
-        let get_neighbors = |cur_node: &N| {
-            let cur_node_is_e_start = Some(cur_node) == opt_e_start;
-            self.neighbors_with_send_capacity(cur_node.clone(), capacity)
-                .filter(move |&next_node| !cur_node_is_e_start || Some(next_node) != opt_e_end)
-        };
-        let route = bfs(a, b, get_neighbors)?;
-        // We assert that we will always have valid capacity here:
-        let capacity = self.get_route_capacity(&route).unwrap();
-
-        Some((route, capacity))
+    fn get_routes(&self, a: &N, b: &N, capacity: u128, opt_exclude: Option<(&N, &N)>) -> Vec<(Vec<N>, u128)> {
+        option_to_vec(self.get_route(a, b, capacity, opt_exclude))
     }
 
 }

@@ -24,14 +24,6 @@ pub enum GraphServiceError {
     LocalSpawnError,
 }
 
-/// Util function to convert Option<T> to Vec<T>.
-/// Some(t) => vec![t], None => vec![]
-fn option_to_vec<T>(opt_t: Option<T>) -> Vec<T> {
-    match opt_t {
-        Some(t) => vec![t],
-        None => vec![],
-    }
-}
 
 /// Process one GraphRequest, and send the response through the provided sender.
 /// This function might perform a long computation and take a long time to complete.
@@ -51,11 +43,10 @@ where
             let _ = sender.send(capacity_graph.remove_node(&a));
         },
         GraphRequest::GetRoutes(a,b,capacity,opt_exclude,sender) => {
-            let opt_route = match opt_exclude {
-                Some((c,d)) => capacity_graph.get_route(&a,&b,capacity, Some((&c, &d))),
-                None => capacity_graph.get_route(&a,&b,capacity, None),
+            let routes = match opt_exclude {
+                Some((c,d)) => capacity_graph.get_routes(&a,&b,capacity, Some((&c, &d))),
+                None => capacity_graph.get_routes(&a,&b,capacity, None),
             };
-            let routes = option_to_vec(opt_route);
             let _ = sender.send(routes);
         },
     }

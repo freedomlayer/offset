@@ -32,5 +32,14 @@ impl<I> OptionIterator<I> {
 }
 
 
-// TODO: add tests
+/// Util function to convert Option<T> to Vec<T>.
+/// Some(t) => vec![t], None => vec![]
+pub fn option_to_vec<T>(opt_t: Option<T>) -> Vec<T> {
+    match opt_t {
+        Some(t) => vec![t],
+        None => vec![],
+    }
+}
 
+
+// TODO: add tests
