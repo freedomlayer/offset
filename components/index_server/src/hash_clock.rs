@@ -14,9 +14,6 @@ const HASH_CLOCK_PREFIX: &[u8] = b"HASH_CLOCK";
 /// produced locally.
 type HashInfo<N> = Vec<(Option<N>, HashResult)>;
 
-/// A vector of hashes combined with an index into the vector.
-pub type HashProof = (Vec<HashResult>, usize);
-
 struct HashClock<N> {
     /// Last hash we received from each neighbor
     neighbor_hashes: HashMap<N, HashResult>,
@@ -103,15 +100,10 @@ where
         tick_hash
     }
 
-    /// Given a tick hash (that was created in this HashClock), create a HashProof for a neighbor.
-    pub fn create_hash_proof(&mut self, tick_hash: HashResult, neighbor: &N) -> Option<HashProof> {
+    /// Given a tick hash (that was created in this HashClock), create a hash proof for a neighbor.
+    pub fn create_hash_proof(&mut self, tick_hash: HashResult) -> Option<Vec<HashResult>> {
         // Make sure that we have the given tick_hash:
         let hash_info = self.last_ticks_map.get(&tick_hash)?;
-
-        // Find the index of the neighbor at the hashes list:
-        let index = hash_info
-            .iter()
-            .position(|(opt_neighbor, _hash_result)| opt_neighbor.as_ref() == Some(neighbor))?;
 
         // Prepare a full list of hashes:
         let hashes = hash_info
@@ -120,24 +112,51 @@ where
             .cloned()
             .collect::<Vec<HashResult>>();
 
-        Some((hashes, index))
+        Some(hashes)
     }
 
     /// Verify a chain of hash proof links.
     /// Each link shows that a certain hash is composed from a list of hashes. 
     /// Eventually one of those hashes is a tick_hash created at this HashClock. 
     /// This proves that the `origin_tick_hash` is recent.
-    pub fn verify_hash_proof_chain(&self, origin_tick_hash: &HashResult, hash_proof_chain: &[HashProof]) 
+    pub fn verify_hash_proof_chain(&self, origin_tick_hash: &HashResult, hash_proof_chain: &[Vec<HashResult>]) 
         -> Option<HashResult> {
 
-        let mut cur_tick_hash = origin_tick_hash;
-        for (hashes, index) in hash_proof_chain {
-            if &hash_hashes(hashes) != cur_tick_hash {
+        /*                       +-/hash0    +-/hash0    +-/hash0
+         *  `origin_tick_hash` --+  hash1    |  hash1    |  hash1 -- found in `last_ticks_map`
+         *                       |  hash2 ---+  hash2    +-\hash2
+         *                       +-\hash3    |  hash3 ---+
+         *                                   +-\hash4
+        */
+
+        // Add origin_tick_hash as a list of 1 hashes in the beginning of hash_proof_chain.
+        // This allows dealing with some edge cases more smoothly.
+        let mut proof_chain: Vec<&[HashResult]> = Vec::new();
+        let first_hashes = &[origin_tick_hash.clone()];
+        proof_chain.push(&first_hashes[..]);
+
+        for hashes in hash_proof_chain {
+            proof_chain.push(hashes);
+        }
+
+        // Calculate hashes of all lists of hashes
+        let hash_res = hash_proof_chain
+            .iter()
+            .map(|hashes| hash_hashes(hashes))
+            .collect::<Vec<_>>();
+
+        for i in 0 .. hash_res.len() {
+            if !proof_chain[i].contains(&hash_res[i]) {
                 return None;
             }
-            cur_tick_hash = hashes.get(*index)?;
         }
-        let _ = self.last_ticks_map.get(cur_tick_hash)?;
-        Some(cur_tick_hash.clone())
+
+        for hash in proof_chain.last().unwrap().iter() {
+            if self.last_ticks_map.contains_key(hash) {
+                return Some(hash.clone());
+            }
+        }
+        None
     }
 }
+
