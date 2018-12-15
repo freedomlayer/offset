@@ -1,9 +1,9 @@
 use std::{cmp, hash};
 use std::collections::HashMap;
 
-use crate::bfs::bfs;
-use crate::capacity_graph::{CapacityGraph, CapacityEdge};
-use crate::utils::{option_to_vec, OptionIterator};
+use super::bfs::bfs;
+use super::capacity_graph::{CapacityGraph, CapacityEdge};
+use super::utils::{option_to_vec, OptionIterator};
 
 
 pub struct SimpleCapacityGraph<N> {

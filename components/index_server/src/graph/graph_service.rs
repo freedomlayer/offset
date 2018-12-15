@@ -3,7 +3,7 @@ use futures::channel::{oneshot, mpsc};
 use futures::task::{Spawn, SpawnExt, SpawnError};
 use futures::{FutureExt, TryFutureExt, StreamExt, SinkExt};
 
-use crate::capacity_graph::{CapacityGraph, CapacityEdge, CapacityRoute};
+use super::capacity_graph::{CapacityGraph, CapacityEdge, CapacityRoute};
 
 enum GraphRequest<N,C> {
     /// Change capacities on a directed edge:
@@ -177,7 +177,7 @@ where
 mod tests {
     use super::*;
     use futures::executor::ThreadPool;
-    use crate::simple_capacity_graph::SimpleCapacityGraph;
+    use super::super::simple_capacity_graph::SimpleCapacityGraph;
 
     async fn task_create_graph_service_basic<S>(spawner: S) 
     where

@@ -10,9 +10,5 @@
 #[macro_use]
 extern crate log;
 
-mod utils;
 mod server;
-mod bfs;
-mod capacity_graph;
-mod simple_capacity_graph;
-mod graph_service;
+mod graph;
