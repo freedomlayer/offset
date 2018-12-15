@@ -99,14 +99,14 @@ impl From<mpsc::SendError> for GraphClientError {
 }
 
 #[derive(Clone)]
-struct GraphClient<N,C> {
+pub struct GraphClient<N,C> {
     requests_sender: mpsc::Sender<GraphRequest<N,C>>,
 }
 
 
 
 impl<N,C> GraphClient<N,C> {
-    pub fn new(requests_sender: mpsc::Sender<GraphRequest<N,C>>) -> Self {
+    fn new(requests_sender: mpsc::Sender<GraphRequest<N,C>>) -> Self {
         GraphClient {
             requests_sender,
         }
