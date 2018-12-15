@@ -3,70 +3,27 @@ use std::collections::HashMap;
 
 use crate::bfs::bfs;
 use crate::option_iterator::OptionIterator;
+use crate::capacity_graph::{CapacityGraph, CapacityEdge};
 
-/*
-use proto::conn::BoxFuture;
 
-trait Graph {
-    type Request;
-    type Mutation;
-
-    fn request(&mut self, request: Self::Request) -> BoxFuture<'_, Self::Response>;
-    fn mutate(&mut self, mutation: Self::Mutation) -> BoxFuture<'_, ()>;
-}
-*/
-
-type CapacityEdge = (u128, u128);
-
-struct CapacityGraph<N> {
-    nodes: HashMap<N,HashMap<N,CapacityEdge>>,
+struct SimpleCapacityGraph<N> {
+    nodes: HashMap<N,HashMap<N,CapacityEdge<u128>>>,
 }
 
 
-impl<N> CapacityGraph<N> 
+impl<N> SimpleCapacityGraph<N> 
 where
     N: cmp::Eq + hash::Hash + Clone + std::fmt::Debug,
 {
 
-    pub fn new() -> CapacityGraph<N> {
-        CapacityGraph {
+    pub fn new() -> SimpleCapacityGraph<N> {
+        SimpleCapacityGraph {
             nodes: HashMap::new(),
         }
     }
 
-    /// Add or update edge
-    pub fn update_edge(&mut self, a: N, b: N, edge: CapacityEdge) -> Option<CapacityEdge> {
-        let mut a_entry = self.nodes.entry(a).or_insert(HashMap::new());
-        a_entry.insert(b, edge)
-    }
-
-    /// Remove an edge from the graph
-    pub fn remove_edge(&mut self, a: &N, b: &N) -> Option<CapacityEdge> {
-        let mut a_map = match self.nodes.get_mut(a) {
-            Some(a_map) => a_map,
-            None => return None,
-        };
-
-        let old_edge = match a_map.remove(b) {
-            Some(edge) => edge,
-            None => return None,
-        };
-
-        if a_map.len() == 0 {
-            self.nodes.remove(a);
-        }
-
-        Some(old_edge)
-    }
-
-    /// Remove a node and all related edges known from him.
-    /// Note: This method will not remove an edge from another node b pointing to a.
-    pub fn remove_node(&mut self, a: &N) -> Option<HashMap<N, CapacityEdge>> {
-        self.nodes.remove(a)
-    } 
-
     /// Get a directed edge (if exists) 
-    fn get_edge(&self, a: &N, b: &N) -> Option<CapacityEdge> {
+    fn get_edge(&self, a: &N, b: &N) -> Option<CapacityEdge<u128>> {
         match self.nodes.get(a) {
             None => None,
             Some(a_map) => {
@@ -117,12 +74,56 @@ where
             .min()
     }
 
+}
+
+impl<N> CapacityGraph for SimpleCapacityGraph<N> 
+where
+    N: cmp::Eq + hash::Hash + Clone + std::fmt::Debug,
+{
+    type Node = N;
+    type Capacity = u128;
+
+
+    /// Add or update edge
+    fn update_edge(&mut self, a: N, b: N, edge: CapacityEdge<u128>) -> Option<CapacityEdge<u128>> {
+        let mut a_entry = self.nodes.entry(a).or_insert(HashMap::new());
+        a_entry.insert(b, edge)
+    }
+
+    /// Remove an edge from the graph
+    fn remove_edge(&mut self, a: &N, b: &N) -> Option<CapacityEdge<u128>> {
+        let mut a_map = match self.nodes.get_mut(a) {
+            Some(a_map) => a_map,
+            None => return None,
+        };
+
+        let old_edge = match a_map.remove(b) {
+            Some(edge) => edge,
+            None => return None,
+        };
+
+        if a_map.len() == 0 {
+            self.nodes.remove(a);
+        }
+
+        Some(old_edge)
+    }
+
+    /// Remove a node and all related edges known from him.
+    /// Note: This method will not remove an edge from another node b pointing to a.
+    fn remove_node(&mut self, a: &N) -> bool {
+        match self.nodes.remove(a) {
+            Some(_) => true,
+            None => false,
+        }
+    } 
+
     /// Get a route with capacity at least `capacity`. 
     /// Returns the route together with the capacity it is possible to send through the route.
     ///
     /// opt_exclude is an optional edge to exclude (The returned route must not go through this
     /// edge). This can be useful for finding non trivial loops.
-    pub fn get_route(&self, a: &N, b: &N, capacity: u128, opt_exclude: Option<(&N, &N)>) -> Option<(Vec<N>, u128)> {
+    fn get_route(&self, a: &N, b: &N, capacity: u128, opt_exclude: Option<(&N, &N)>) -> Option<(Vec<N>, u128)> {
         let (opt_e_start, opt_e_end) = match opt_exclude {
             Some((e_start, e_end)) => (Some(e_start), Some(e_end)),
             None => (None, None),
@@ -138,6 +139,7 @@ where
 
         Some((route, capacity))
     }
+
 }
 
 #[cfg(test)]
@@ -146,7 +148,7 @@ mod tests {
 
     #[test]
     fn test_get_send_capacity_basic() {
-        let mut cg = CapacityGraph::<u32>::new();
+        let mut cg = SimpleCapacityGraph::<u32>::new();
         cg.update_edge(0, 1, (10, 20));
         cg.update_edge(1, 0, (15, 5));
 
@@ -156,7 +158,7 @@ mod tests {
 
     #[test]
     fn test_get_send_capacity_one_sided() {
-        let mut cg = CapacityGraph::<u32>::new();
+        let mut cg = SimpleCapacityGraph::<u32>::new();
         cg.update_edge(0, 1, (10, 20));
 
         assert_eq!(cg.get_send_capacity(&0, &1), 0);
@@ -165,7 +167,7 @@ mod tests {
 
     #[test]
     fn test_add_remove_edge() {
-        let mut cg = CapacityGraph::<u32>::new();
+        let mut cg = SimpleCapacityGraph::<u32>::new();
         assert_eq!(cg.remove_edge(&0, &1), None);
         cg.update_edge(0, 1, (10, 20));
         assert_eq!(cg.nodes.len(), 1);
@@ -179,7 +181,7 @@ mod tests {
         assert_eq!(cg.nodes.len(), 1);
     }
 
-    fn example_capacity_graph() -> CapacityGraph<u32> {
+    fn example_capacity_graph() -> SimpleCapacityGraph<u32> {
         /*
          * Example graph:
          *
@@ -190,7 +192,7 @@ mod tests {
          *
         */
 
-        let mut cg = CapacityGraph::<u32>::new();
+        let mut cg = SimpleCapacityGraph::<u32>::new();
 
         cg.update_edge(0, 1, (30, 10));
         cg.update_edge(1, 0, (10, 30));
