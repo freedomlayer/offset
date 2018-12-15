@@ -31,7 +31,7 @@ fn hash_hashes(hashes: &[HashResult]) -> HashResult {
     let mut bytes_to_hash = Vec::new();
 
     // Start with a constant prefix:
-    bytes_to_hash.extend_from_slice(HASH_CLOCK_PREFIX);
+    bytes_to_hash.extend_from_slice(&sha_512_256(HASH_CLOCK_PREFIX));
 
     // Append prefixes:
     for hash in hashes {
