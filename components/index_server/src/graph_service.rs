@@ -1,6 +1,6 @@
 use futures::executor::ThreadPool;
 use futures::channel::{oneshot, mpsc};
-use futures::task::{Spawn, SpawnExt};
+use futures::task::SpawnExt;
 use futures::{StreamExt, SinkExt};
 
 use crate::capacity_graph::{CapacityGraph, CapacityEdge, CapacityRoute};
@@ -22,8 +22,6 @@ enum GraphRequest<N,C> {
 pub enum GraphServiceError {
     /// Failed to spawn to self ThreadPool
     LocalSpawnError,
-    /// Failed to spawn using provided spawner.
-    SpawnError,
 }
 
 /// Util function to convert Option<T> to Vec<T>.
