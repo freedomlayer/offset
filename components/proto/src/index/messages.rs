@@ -79,10 +79,8 @@ pub struct MutationsUpdate {
 #[derive(Debug)]
 pub struct TimeProofLink {
     /// List of hashes that produce a certain hash
-    /// sha_512_256("TIME_HASH" || hashes)
+    /// sha_512_256("HASH_CLOCK" || hashes)
     hashes: Vec<HashResult>,
-    /// Index pointing to a specific hash on the hashes list.
-    index: u32,
 }
 
 #[derive(Debug)]
