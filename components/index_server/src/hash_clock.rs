@@ -75,6 +75,13 @@ where
         self.neighbor_hashes.insert(neighbor, tick_hash)
     }
 
+    /// Remove a neighbor from the HashClock.
+    pub fn remove_neighbor(&mut self, neighbor: &N) -> Option<HashResult> {
+        self.neighbor_hashes.remove(neighbor)
+    }
+
+    /// Advance the time in the clock by one tick.
+    /// The resulting tick_hash should be sent to all the neighbors.
     pub fn tick(&mut self, rand_value: RandValue) -> HashResult {
         let mut hash_info = Vec::new();
 
