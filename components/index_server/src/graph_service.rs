@@ -20,6 +20,7 @@ enum GraphRequest<N,C> {
 
 #[derive(Debug)]
 pub enum GraphServiceError {
+    CreateThreadPoolError,
     /// Failed to spawn to self ThreadPool
     LocalSpawnError,
 }
@@ -63,7 +64,7 @@ where
     // We create our own thread_pool to be used for long graph computations.
     // We don't want to block the external shared thread pool.
     let mut thread_pool = ThreadPool::new()
-        .map_err(|_| GraphServiceError::LocalSpawnError)?;
+        .map_err(|_| GraphServiceError::CreateThreadPoolError)?;
 
     while let Some(graph_request) = await!(incoming_requests.next()) {
         // Run the graph computation over own pool:
