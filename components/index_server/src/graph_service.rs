@@ -1,7 +1,7 @@
 use futures::executor::ThreadPool;
 use futures::channel::{oneshot, mpsc};
-use futures::task::SpawnExt;
-use futures::{StreamExt, SinkExt};
+use futures::task::{Spawn, SpawnExt, SpawnError};
+use futures::{FutureExt, TryFutureExt, StreamExt, SinkExt};
 
 use crate::capacity_graph::{CapacityGraph, CapacityEdge, CapacityRoute};
 
@@ -154,5 +154,27 @@ impl<N,C> GraphClient<N,C> {
         await!(self.requests_sender.send(GraphRequest::GetRoutes(a,b,capacity,opt_exclude,sender)))?;
         Ok(await!(receiver)?)
     }
+}
+
+/// Spawn a graph service, returning a GraphClient on success.
+/// GraphClient can be cloned to allow multiple clients.
+fn create_graph_service<N,C,CG,S>(capacity_graph: CG, 
+                                  mut spawner: S) -> Result<GraphClient<N,C>, SpawnError>
+where
+    N: Send + 'static,
+    C: Send + 'static,
+    CG: CapacityGraph<Node=N, Capacity=C> + Send + 'static,
+    S: Spawn,
+{
+    let (requests_sender, requests_receiver) = mpsc::channel(0);
+
+    let graph_service_loop_fut = graph_service_loop(
+                                    capacity_graph,
+                                    requests_receiver)
+        .map_err(|e| error!("graph_service_loop() error: {:?}", e))
+        .map(|_| ());
+
+    spawner.spawn(graph_service_loop_fut)?;
+    Ok(GraphClient::new(requests_sender))
 }
 
