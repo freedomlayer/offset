@@ -184,7 +184,7 @@ mod tests {
         let tick_hash3 = hash_clocks[0].verify_expansion_chain(&origin_tick_hash, &[expansion1.clone(), expansion2.clone(), expansion3.clone()]).unwrap();
 
 
-        // Everything is forgotten after last_ticks_max_len ticks:
+        // Everything is forgotten after `last_ticks_max_len` ticks:
         for iter in 0 .. last_ticks_max_len {
             let rand_value = RandValue::from(&[iter as u8; RAND_VALUE_LEN]);
             hash_clocks[0].tick(rand_value);
