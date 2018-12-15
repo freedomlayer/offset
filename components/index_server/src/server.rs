@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use futures::{select, future, FutureExt, stream, StreamExt, SinkExt};
+use futures::{select, future, FutureExt, TryFutureExt, stream, StreamExt, SinkExt};
 use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 
@@ -12,6 +12,9 @@ use timer::TimerClient;
 
 use proto::index::messages::{IndexServerToClient, 
     IndexClientToServer, IndexServerToServer};
+
+use crate::graph::graph_service::{GraphClient, GraphClientError};
+
 
 type ServerConn = ConnPair<IndexServerToServer, IndexServerToServer>;
 type ClientConn = ConnPair<IndexServerToClient, IndexClientToServer>;
@@ -44,15 +47,18 @@ struct RemoteServer<A> {
     state: RemoteServerState,
 }
 
+/*
 struct Client {
     opt_sender: Option<mpsc::Sender<IndexServerToClient>>,
 }
+*/
 
 struct IndexServer<A,S,SC> {
     local_public_key: PublicKey,
     server_connector: SC,
+    graph_client: GraphClient<PublicKey,u128>,
     remote_servers: HashMap<PublicKey, RemoteServer<A>>,
-    clients: HashMap<PublicKey, Client>,
+    clients: HashSet<PublicKey>,
     event_sender: mpsc::Sender<IndexServerEvent>,
     spawner: S,
 }
@@ -62,6 +68,13 @@ struct IndexServer<A,S,SC> {
 pub enum IndexServerError {
     SpawnError,
     RequestTimerStreamFailed,
+    GraphClientError,
+}
+
+impl From<GraphClientError> for IndexServerError {
+    fn from(from: GraphClientError) -> IndexServerError {
+        IndexServerError::GraphClientError
+    }
 }
 
 #[derive(Debug)]
@@ -69,7 +82,7 @@ enum IndexServerEvent {
     ServerConnection((PublicKey, ServerConn)),
     FromServer((PublicKey, Option<IndexServerToServer>)),
     ClientConnection((PublicKey, ClientConn)),
-    FromClient((PublicKey, Option<IndexClientToServer>)),
+    ClientClosed(PublicKey),
     TimerTick,
 }
 
@@ -83,6 +96,7 @@ where
 {
     pub fn new(index_server_config: IndexServerConfig<A>,
                server_connector: SC,
+               graph_client: GraphClient<PublicKey, u128>,
                event_sender: mpsc::Sender<IndexServerEvent>,
                spawner: S) -> Result<IndexServer<A,S,SC>, IndexServerError> {
 
@@ -92,8 +106,9 @@ where
         let mut index_server = IndexServer {
             local_public_key,
             server_connector,
+            graph_client,
             remote_servers: HashMap::new(),
-            clients: HashMap::new(),
+            clients: HashSet::new(),
             event_sender,
             spawner,
         };
@@ -153,17 +168,6 @@ where
         })
     }
 
-    pub async fn handle_from_client(&mut self, public_key: PublicKey, client_msg: IndexClientToServer) 
-        -> Result<(), IndexServerError> {
-
-        match client_msg {
-            IndexClientToServer::MutationsUpdate(mutations_update) => {},
-            IndexClientToServer::RequestFriendsRoute(request_friends_route) => {},
-        }
-
-        unimplemented!();
-    }
-
     pub async fn handle_from_server(&mut self, public_key: PublicKey, server_msg: IndexServerToServer)
         -> Result<(), IndexServerError> {
 
@@ -183,10 +187,44 @@ where
 }
 
 
+async fn client_handler(mut graph_client: GraphClient<PublicKey, u128>,
+                        public_key: PublicKey,
+                        client_conn: ClientConn) 
+    -> Result<(), IndexServerError> {
+
+    let (sender, mut receiver) = client_conn;
+
+    while let Some(client_msg) = await!(receiver.next()) {
+        match client_msg {
+            IndexClientToServer::MutationsUpdate(mutations_update) => {
+                // TODO:
+                // - Update mutations if required (?)
+                // - Feed a ForwardMutationsUpdate to be forwarded to all connected trusted servers.
+                //      - Some sender is required for this?
+                //      - A new IndexServerEvent might be required for this.
+                //      Is there a more elegant way with less senders?
+            },
+            IndexClientToServer::RequestRoutes(request_routes) => {
+                // TODO;
+                // - Calculate routes
+                // - Return routes to client
+                let routes = await!(graph_client.get_routes(request_routes.source.clone(), 
+                                             request_routes.destination.clone(),
+                                             request_routes.capacity,
+                                             request_routes.opt_exclude.clone()))?;
+                // TODO
+            },
+        }
+    }
+    Ok(())
+}
+
+
 async fn server_loop<A,SL,SC,CL,S>(index_server_config: IndexServerConfig<A>,
                                  server_listener: SL,
                                  server_connector: SC,
                                  client_listener: CL,
+                                 graph_client: GraphClient<PublicKey, u128>,
                                  mut timer_client: TimerClient,
                                  spawner: S) -> Result<(), IndexServerError>
 where
@@ -207,6 +245,7 @@ where
     let mut index_server = IndexServer::new(
                index_server_config,
                server_connector,
+               graph_client,
                event_sender,
                spawner)?;
 
@@ -281,33 +320,28 @@ where
 
             },
             IndexServerEvent::ClientConnection((public_key, client_conn)) => {
-                if index_server.clients.contains_key(&public_key) {
+                if index_server.clients.contains(&public_key) {
                     error!("Client {:?} already connected! Aborting.", public_key);
                     continue;
                 }
-                let (sender, receiver) = client_conn;
-                let c_public_key = public_key.clone();
-                let mut receiver = receiver
-                    .map(move |msg| 
-                         IndexServerEvent::FromClient((c_public_key.clone(), Some(msg))))
-                    .chain(stream::once(future::ready(IndexServerEvent::FromClient((public_key.clone(), None)))));
 
                 let mut c_event_sender = index_server.event_sender.clone();
-                index_server.spawner.spawn(async move {
-                    await!(c_event_sender.send_all(&mut receiver));
-                });
+                let c_public_key = public_key.clone();
+                let client_handler_fut = client_handler(index_server.graph_client.clone(),
+                                                        public_key.clone(),
+                                                        client_conn)
+                    .map_err(|e| error!("client_handler() error: {:?}", e))
+                    .then(|_| async move {
+                        await!(c_event_sender.send(IndexServerEvent::ClientClosed(c_public_key)));
+                    });
 
-                let client = Client {
-                    opt_sender: Some(sender),
-                };
-                index_server.clients.insert(public_key, client);
+                index_server.spawner.spawn(client_handler_fut);
+                index_server.clients.insert(public_key);
             },
-            IndexServerEvent::FromClient((public_key, Some(index_client_to_server))) =>
-                await!(index_server.handle_from_client(public_key, index_client_to_server))?,
-            IndexServerEvent::FromClient((public_key, None)) => {
+            IndexServerEvent::ClientClosed(public_key) => {
                 // Client connection closed
-                if let None = index_server.clients.remove(&public_key) {
-                    error!("A non existent client {:?} was closed. Aborting.", public_key);
+                if let false = index_server.clients.remove(&public_key) {
+                    error!("A non existent client {:?} was closed.", public_key);
                 }
             },
             IndexServerEvent::TimerTick => await!(index_server.handle_timer_tick())?,
