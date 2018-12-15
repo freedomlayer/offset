@@ -6,7 +6,7 @@ use crate::capacity_graph::{CapacityGraph, CapacityEdge};
 use crate::utils::{option_to_vec, OptionIterator};
 
 
-struct SimpleCapacityGraph<N> {
+pub struct SimpleCapacityGraph<N> {
     nodes: HashMap<N,HashMap<N,CapacityEdge<u128>>>,
 }
 
