@@ -79,6 +79,7 @@ where
     Ok(())
 }
 
+#[derive(Debug)]
 pub enum GraphClientError {
     SendRequestError,
     ResponseReceiverClosed,
