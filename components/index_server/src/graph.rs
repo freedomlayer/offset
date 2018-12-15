@@ -2,6 +2,7 @@ use std::{cmp, hash};
 use std::collections::HashMap;
 
 use crate::bfs::bfs;
+use crate::option_iterator::OptionIterator;
 
 /*
 use proto::conn::BoxFuture;
@@ -20,39 +21,6 @@ type CapacityEdge = (u128, u128);
 struct CapacityGraph<N> {
     nodes: HashMap<N,HashMap<N,CapacityEdge>>,
 }
-
-/// An iterator that wraps an optional iterator.
-/// If the optional iterator exists, OptionIterator will behave exactly like the underlying
-/// iterator. Otherwise, it will immediately return None.
-///
-/// This iterator is useful for cases where we want a function to be able to either return an
-/// Iterator, or an empty Iterator, and those two iterators must be of the same type. Useful for
-/// functions that return `impl Iterator<...>`.
-struct OptionIterator<I> {
-    opt_iterator: Option<I>,
-}
-
-impl<I,T> Iterator for OptionIterator<I> 
-where
-    I: Iterator<Item=T>,
-{
-    type Item = T;
-    fn next(&mut self) -> Option<T> {
-        match &mut self.opt_iterator {
-            Some(iterator) => iterator.next(),
-            None => None,
-        }
-    }
-}
-
-impl<I> OptionIterator<I> {
-    fn new(opt_iterator: Option<I>) -> OptionIterator<I> {
-        OptionIterator {
-            opt_iterator,
-        }
-    }
-}
-
 
 
 impl<N> CapacityGraph<N> 

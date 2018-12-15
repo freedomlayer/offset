@@ -10,6 +10,7 @@
 #[macro_use]
 extern crate log;
 
+mod option_iterator;
 mod server;
 mod graph;
 mod bfs;
