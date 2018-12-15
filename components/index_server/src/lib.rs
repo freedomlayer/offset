@@ -12,6 +12,7 @@ extern crate log;
 
 mod option_iterator;
 mod server;
-mod graph;
-mod capacity_graph;
 mod bfs;
+mod capacity_graph;
+mod simple_capacity_graph;
+mod graph_service;
