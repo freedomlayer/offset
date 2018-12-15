@@ -171,3 +171,37 @@ where
     Ok(GraphClient::new(requests_sender))
 }
 
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::executor::ThreadPool;
+    use crate::simple_capacity_graph::SimpleCapacityGraph;
+
+    async fn task_create_graph_service_basic<S>(spawner: S) 
+    where
+        S: Spawn,
+    {
+        let capacity_graph = SimpleCapacityGraph::new();
+        let mut graph_client = create_graph_service(capacity_graph, spawner).unwrap();
+
+        await!(graph_client.update_edge(2u32, 5u32, (30, 5))).unwrap();
+        await!(graph_client.update_edge(5, 2, (5, 30))).unwrap();
+
+        assert_eq!(await!(graph_client.get_routes(2, 5, 29, None)).unwrap(), vec![(vec![2,5], 30)]);
+        assert_eq!(await!(graph_client.get_routes(2, 5, 30, None)).unwrap(), vec![(vec![2,5], 30)]);
+        assert_eq!(await!(graph_client.get_routes(2, 5, 31, None)).unwrap(), vec![]);
+
+        assert_eq!(await!(graph_client.remove_edge(2, 5)).unwrap(), Some((30, 5)));
+        assert_eq!(await!(graph_client.remove_node(2)).unwrap(), false);
+        assert_eq!(await!(graph_client.remove_node(5)).unwrap(), true);
+    }
+
+    #[test]
+    fn test_create_graph_service_basic() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+
+        thread_pool.run(task_create_graph_service_basic(thread_pool.clone()));
+    }
+}
