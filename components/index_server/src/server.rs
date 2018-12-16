@@ -34,9 +34,9 @@ pub enum IndexServerError {
     SpawnError,
     RequestTimerStreamFailed,
     GraphClientError,
-    ClientSenderError,
     ClientEventSenderError,
-    ServerSenderError,
+    ClientSenderError,
+    RemoteSendError,
 }
 
 struct IndexServerConfig<A> {
@@ -45,17 +45,32 @@ struct IndexServerConfig<A> {
     trusted_servers: HashMap<PublicKey, A>, 
 }
 
-struct ServerConnected {
-    opt_sender: Option<mpsc::Sender<IndexServerToServer>>,
+/// A connected remote entity
+struct Connected<T> {
+    opt_sender: Option<mpsc::Sender<T>>
 }
 
-impl ServerConnected {
-    fn try_send(&mut self, msg: IndexServerToServer) 
-        -> Result<(), IndexServerError>{
+impl<T> Connected<T> {
+    pub fn new(sender: mpsc::Sender<T>) -> Self {
+        Connected {
+            opt_sender: Some(sender),
+        }
+    }
 
-        if let Some(sender) = &mut self.opt_sender {
-            sender.try_send(msg)
-                .map_err(|_| IndexServerError::ServerSenderError)?;
+    /// Try to queue a message to remote entity. 
+    /// Might fail because the queue is full.
+    ///
+    /// Ignores new send attempts after a real failure occurs.
+    pub fn try_send(&mut self, t: T) 
+        -> Result<(), IndexServerError> {
+
+        if let Some(mut sender) = self.opt_sender.take() {
+            if let Err(e) = sender.try_send(t) {
+                if e.is_full() {
+                    self.opt_sender = Some(sender);
+                }
+                return Err(IndexServerError::RemoteSendError)
+            }
         }
         Ok(())
     }
@@ -66,9 +81,8 @@ struct ServerInitiating {
     close_sender: oneshot::Sender<()>,
 }
 
-
 enum RemoteServerState {
-    Connected(ServerConnected),
+    Connected(Connected<IndexServerToServer>),
     Initiating(ServerInitiating),
     Listening,
 }
@@ -84,7 +98,7 @@ struct IndexServer<A,S,SC,V> {
     graph_client: GraphClient<PublicKey,u128>,
     verifier: V,
     remote_servers: HashMap<PublicKey, RemoteServer<A>>,
-    clients: HashSet<PublicKey>,
+    clients: HashMap<PublicKey, Connected<IndexServerToClient>>,
     event_sender: mpsc::Sender<IndexServerEvent>,
     spawner: S,
 }
@@ -130,7 +144,7 @@ where
             graph_client,
             verifier,
             remote_servers: HashMap::new(),
-            clients: HashSet::new(),
+            clients: HashMap::new(),
             event_sender,
             spawner,
         };
@@ -152,7 +166,9 @@ where
     }
 
     /// Iterate over all connected servers
-    fn iter_connected_servers(&mut self) -> impl Iterator<Item=&mut ServerConnected> {
+    fn iter_connected_servers(&mut self) 
+        -> impl Iterator<Item=&mut Connected<IndexServerToServer>> {
+
         self.remote_servers
             .iter_mut()
             .filter_map(|(_server_public_key, remote_server)| match &mut remote_server.state {
@@ -160,6 +176,15 @@ where
                 RemoteServerState::Initiating(_) | 
                 RemoteServerState::Listening => None,
             })
+    }
+
+    /// Iterate over all connected clients
+    fn iter_connected_clients(&mut self) 
+        -> impl Iterator<Item=&mut Connected<IndexServerToClient>> {
+
+        self.clients
+            .iter_mut()
+            .map(|(_client_public_key, connected_client)| connected_client)
     }
 
     pub fn spawn_server(&mut self, public_key: PublicKey, address: A) 
@@ -289,6 +314,11 @@ where
             let _ = connected_server.try_send(IndexServerToServer::TimeHash(time_hash.clone()));
         }
 
+        // Try to send time tick to all connected clients:
+        for connected_client in self.iter_connected_clients() {
+            let _ = connected_client.try_send(IndexServerToClient::TimeHash(time_hash.clone()));
+        }
+
         // Update the graph service about removed nodes:
         for node_public_key in removed_nodes {
             await!(self.graph_client.remove_node(node_public_key))?;
@@ -361,6 +391,11 @@ where
     let timer_stream = await!(timer_client.request_timer_stream())
         .map_err(|_| IndexServerError::RequestTimerStreamFailed)?;
 
+    // TODO: Create translation between incoming ticks (Which might happen pretty often)
+    // to hash ticks, which should be a bit slower. (For every hash tick we have to send the hash
+    // ticks to all servers). For example, every 16 incoming ticks will translate into one hash
+    // tick.
+
     let (event_sender, event_receiver) = mpsc::channel(0);
 
     let mut index_server = IndexServer::new(
@@ -409,9 +444,7 @@ where
 
                 let (sender, receiver) = server_conn;
 
-                remote_server.state = RemoteServerState::Connected(ServerConnected {
-                    opt_sender: Some(sender),
-                });
+                remote_server.state = RemoteServerState::Connected(Connected::new(sender));
 
                 let c_public_key = public_key.clone();
                 let mut receiver = receiver
@@ -442,10 +475,14 @@ where
 
             },
             IndexServerEvent::ClientConnection((public_key, client_conn)) => {
-                if index_server.clients.contains(&public_key) {
+                if index_server.clients.contains_key(&public_key) {
                     error!("Client {:?} already connected! Aborting.", public_key);
                     continue;
                 }
+
+                // Duplicate the client sender:
+                let (ref sender, _) = client_conn;
+                let c_sender = sender.clone();
 
                 let mut c_event_sender = index_server.event_sender.clone();
                 let c_public_key = public_key.clone();
@@ -459,7 +496,7 @@ where
                     });
 
                 index_server.spawner.spawn(client_handler_fut);
-                index_server.clients.insert(public_key);
+                index_server.clients.insert(public_key, Connected::new(c_sender));
             },
             IndexServerEvent::ClientMutationsUpdate(mutations_update) => {
                 let forward_mutations_update = ForwardMutationsUpdate {
@@ -470,7 +507,7 @@ where
             },
             IndexServerEvent::ClientClosed(public_key) => {
                 // Client connection closed
-                if let false = index_server.clients.remove(&public_key) {
+                if index_server.clients.remove(&public_key).is_none() {
                     error!("A non existent client {:?} was closed.", public_key);
                 }
             },
