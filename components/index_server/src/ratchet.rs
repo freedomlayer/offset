@@ -83,3 +83,52 @@ where
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ratchet_basic() {
+        let mut session_id = 0u128;
+        let mut counter = 0u64;
+        let ticks_to_live = 8;
+
+        let mut ratchet = Ratchet::new(session_id, counter, ticks_to_live);
+        for _ in 0 .. 16 {
+            counter += 1;
+            assert!(ratchet.update(&session_id, counter));
+        }
+
+        // Can not use the old messages for replay:
+        for i in 0 .. 16 {
+            assert!(!ratchet.update(&session_id, i));
+        }
+
+        // Changing session_id = 1u128:
+        session_id = 1u128;
+        counter = 0;
+        for _ in 0 .. 16 {
+            counter += 1;
+            assert!(ratchet.update(&session_id, counter));
+        }
+
+        // Can not use the old messages for replay:
+        for i in 0 .. 16 {
+            assert!(!ratchet.update(&session_id, i));
+        }
+
+        // Going back to session_id == 0u128:
+        session_id = 0u128;
+        counter = 0;
+        for _ in 0 .. 16 {
+            counter += 1;
+            assert!(ratchet.update(&session_id, counter));
+        }
+
+        // Can not use the old messages for replay:
+        for i in 0 .. 16 {
+            assert!(!ratchet.update(&session_id, i));
+        }
+    }
+}
+
