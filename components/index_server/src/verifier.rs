@@ -98,5 +98,13 @@ impl Verifier {
             hashes,
         })
     }
+
+    pub fn tick() -> HashResult {
+        unimplemented!();
+    }
+
+    pub fn neighbor_tick() {
+        unimplemented!();
+    }
 }
 
