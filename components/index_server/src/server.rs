@@ -11,7 +11,11 @@ use crypto::identity::{PublicKey, compare_public_key};
 use timer::TimerClient;
 
 use proto::index::messages::{IndexServerToClient, 
-    IndexClientToServer, IndexServerToServer};
+    IndexClientToServer, IndexServerToServer, 
+    ResponseRoutes, RouteWithCapacity, MutationsUpdate,
+    ForwardMutationsUpdate};
+
+use proto::funder::messages::FriendsRoute;
 
 use crate::graph::graph_service::{GraphClient, GraphClientError};
 
@@ -69,6 +73,8 @@ pub enum IndexServerError {
     SpawnError,
     RequestTimerStreamFailed,
     GraphClientError,
+    ClientSenderError,
+    ClientEventSenderError,
 }
 
 impl From<GraphClientError> for IndexServerError {
@@ -83,6 +89,7 @@ enum IndexServerEvent {
     FromServer((PublicKey, Option<IndexServerToServer>)),
     ClientConnection((PublicKey, ClientConn)),
     ClientClosed(PublicKey),
+    ClientMutationsUpdate(MutationsUpdate),
     TimerTick,
 }
 
@@ -168,12 +175,32 @@ where
         })
     }
 
+    pub async fn handle_forward_mutations_update(&mut self, 
+                                                 opt_server_public_key: Option<PublicKey>,
+                                                 forward_mutations_update: ForwardMutationsUpdate)
+                                                    -> Result<(), IndexServerError> 
+    {
+        // TODO:
+        // - Verify signature.
+        // - Verify time hashes chain
+        // - If a new session: overwrite previous session.
+        // - If counter is greater: increase counter
+        // - Return mutations
+        // - Apply mutations using graph client.
+        // - Forward to all servers
+        //      - What if can't forward to some server? Drop the message?
+        //      - Where do we buffer server messages? (In connector / listener implementation?)
+        unimplemented!();
+    }
+
     pub async fn handle_from_server(&mut self, public_key: PublicKey, server_msg: IndexServerToServer)
         -> Result<(), IndexServerError> {
 
         match server_msg {
             IndexServerToServer::TimeHash(hash) => {},
-            IndexServerToServer::ForwardMutationsUpdate(forward_mutations_update) => {},
+            IndexServerToServer::ForwardMutationsUpdate(forward_mutations_update) => {
+                await!(self.handle_forward_mutations_update(Some(public_key), forward_mutations_update))?;
+            },
         }
 
         unimplemented!();
@@ -189,30 +216,39 @@ where
 
 async fn client_handler(mut graph_client: GraphClient<PublicKey, u128>,
                         public_key: PublicKey,
-                        client_conn: ClientConn) 
+                        client_conn: ClientConn,
+                        mut event_sender: mpsc::Sender<IndexServerEvent>) 
     -> Result<(), IndexServerError> {
 
-    let (sender, mut receiver) = client_conn;
+    let (mut sender, mut receiver) = client_conn;
 
     while let Some(client_msg) = await!(receiver.next()) {
         match client_msg {
             IndexClientToServer::MutationsUpdate(mutations_update) => {
-                // TODO:
-                // - Update mutations if required (?)
-                // - Feed a ForwardMutationsUpdate to be forwarded to all connected trusted servers.
-                //      - Some sender is required for this?
-                //      - A new IndexServerEvent might be required for this.
-                //      Is there a more elegant way with less senders?
+                // Forward to main server future to process:
+                await!(event_sender.send(IndexServerEvent::ClientMutationsUpdate(mutations_update)))
+                    .map_err(|_| IndexServerError::ClientEventSenderError)?;
             },
             IndexClientToServer::RequestRoutes(request_routes) => {
-                // TODO;
-                // - Calculate routes
-                // - Return routes to client
-                let routes = await!(graph_client.get_routes(request_routes.source.clone(), 
+                let route_tuples = await!(graph_client.get_routes(request_routes.source.clone(), 
                                              request_routes.destination.clone(),
                                              request_routes.capacity,
                                              request_routes.opt_exclude.clone()))?;
-                // TODO
+                let routes = route_tuples
+                    .into_iter()
+                    .map(|(route, capacity)| RouteWithCapacity {
+                        route: FriendsRoute { public_keys: route },
+                        capacity,
+                    })
+                    .collect::<Vec<_>>();
+
+                let response_routes = ResponseRoutes {
+                    request_id: request_routes.request_id,
+                    routes,
+                };
+                let message = IndexServerToClient::ResponseRoutes(response_routes);
+                await!(sender.send(message))
+                    .map_err(|_| IndexServerError::ClientSenderError)?;
             },
         }
     }
@@ -329,14 +365,22 @@ where
                 let c_public_key = public_key.clone();
                 let client_handler_fut = client_handler(index_server.graph_client.clone(),
                                                         public_key.clone(),
-                                                        client_conn)
+                                                        client_conn,
+                                                        index_server.event_sender.clone())
                     .map_err(|e| error!("client_handler() error: {:?}", e))
                     .then(|_| async move {
-                        await!(c_event_sender.send(IndexServerEvent::ClientClosed(c_public_key)));
+                        let _ = await!(c_event_sender.send(IndexServerEvent::ClientClosed(c_public_key)));
                     });
 
                 index_server.spawner.spawn(client_handler_fut);
                 index_server.clients.insert(public_key);
+            },
+            IndexServerEvent::ClientMutationsUpdate(mutations_update) => {
+                let forward_mutations_update = ForwardMutationsUpdate {
+                    mutations_update,
+                    time_proof_chain: Vec::new(),
+                };
+                await!(index_server.handle_forward_mutations_update(None, forward_mutations_update))?;
             },
             IndexServerEvent::ClientClosed(public_key) => {
                 // Client connection closed
