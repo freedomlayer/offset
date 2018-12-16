@@ -105,7 +105,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ratchet_basic() {
+    fn test_ratchet_update() {
         let mut session_id = 0u128;
         let mut counter = 0u64;
         let ticks_to_live = 8;
@@ -146,6 +146,36 @@ mod tests {
         for i in 0 .. 16 {
             assert!(!ratchet.update(&session_id, i));
         }
+    }
+
+    #[test]
+    fn test_ratchet_tick() {
+        let mut session_id = 0u128;
+        let ticks_to_live = 8;
+
+        let mut ratchet = Ratchet::new(session_id, 0, ticks_to_live);
+
+        // Successful updates should reset the ratchet's `cur_ticks_to_live`:
+        assert!(ratchet.update(&session_id, 1));
+        for i in 0 .. 7 {
+            assert_eq!(ratchet.tick(), 7 - i);
+        }
+        assert!(ratchet.update(&session_id, 2));
+        for i in 0 .. 7 {
+            assert_eq!(ratchet.tick(), 7 - i);
+        }
+        assert!(ratchet.update(&session_id, 3));
+        for i in 0 .. 7 {
+            assert_eq!(ratchet.tick(), 7 - i);
+        }
+
+        // Unsucessful update does not affect the ratchet's `cur_ticks_to_live`:
+        assert!(!ratchet.update(&session_id, 3));
+        assert_eq!(ratchet.tick(), 0);
+
+        // Successful update reset's `cur_ticks_to_live`:
+        assert!(ratchet.update(&session_id, 4));
+        assert_eq!(ratchet.tick(), 7);
     }
 
 
