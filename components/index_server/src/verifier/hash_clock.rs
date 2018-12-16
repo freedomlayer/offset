@@ -97,7 +97,7 @@ where
     /// Each link shows that a certain hash is composed from a list of hashes. 
     /// Eventually one of those hashes is a tick_hash created at this HashClock. 
     /// This proves that the `origin_tick_hash` is recent.
-    pub fn verify_expansion_chain(&self, origin_tick_hash: &HashResult, expansion_chain: &[Vec<HashResult>]) 
+    pub fn verify_expansion_chain(&self, origin_tick_hash: &HashResult, expansion_chain: &[&[HashResult]]) 
         -> Option<&HashResult> {
 
         /*                       +-/hash0    +-/hash0    +-/hash0
@@ -176,13 +176,13 @@ mod tests {
         let tick_hash1 = hash_clocks[1].verify_expansion_chain(&origin_tick_hash, &[]).unwrap();
 
         let expansion1 = hash_clocks[1].get_expansion(&tick_hash1).unwrap().clone();
-        let tick_hash2 = hash_clocks[2].verify_expansion_chain(&origin_tick_hash, &[expansion1.clone()]).unwrap();
+        let tick_hash2 = hash_clocks[2].verify_expansion_chain(&origin_tick_hash, &[&expansion1]).unwrap();
 
         let expansion2 = hash_clocks[2].get_expansion(&tick_hash2).unwrap().clone();
-        let tick_hash3 = hash_clocks[3].verify_expansion_chain(&origin_tick_hash, &[expansion1.clone(), expansion2.clone()]).unwrap();
+        let tick_hash3 = hash_clocks[3].verify_expansion_chain(&origin_tick_hash, &[&expansion1, &expansion2]).unwrap();
 
         let expansion3 = hash_clocks[3].get_expansion(&tick_hash3).unwrap().clone();
-        let tick_hash3 = hash_clocks[0].verify_expansion_chain(&origin_tick_hash, &[expansion1.clone(), expansion2.clone(), expansion3.clone()]).unwrap();
+        let tick_hash3 = hash_clocks[0].verify_expansion_chain(&origin_tick_hash, &[&expansion1, &expansion2, &expansion3]).unwrap();
 
 
         // Everything is forgotten after `last_ticks_max_len` ticks:
@@ -191,7 +191,7 @@ mod tests {
             hash_clocks[0].tick(rand_value);
         }
 
-        assert!(hash_clocks[0].verify_expansion_chain(&origin_tick_hash, &[expansion1, expansion2, expansion3]).is_none());
+        assert!(hash_clocks[0].verify_expansion_chain(&origin_tick_hash, &[&expansion1, &expansion2, &expansion3]).is_none());
     }
 }
 

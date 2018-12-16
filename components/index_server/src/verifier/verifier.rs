@@ -9,7 +9,7 @@ pub trait Verifier {
     /// - Making sure that the message is not out of order using a ratchet counter.
     fn verify(&mut self, 
                    origin_tick_hash: &HashResult,
-                   expansion_chain: &[Vec<HashResult>],
+                   expansion_chain: &[&[HashResult]],
                    node: &Self::Node,
                    session_id: &Self::SessionId,
                    counter: u64) -> Option<Vec<HashResult>>;

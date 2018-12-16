@@ -216,7 +216,7 @@ where
         let expansion_chain = forward_mutations_update
             .time_proof_chain
             .iter()
-            .map(|time_proof_link| time_proof_link.hashes.clone())
+            .map(|time_proof_link| &time_proof_link.hashes[..])
             .collect::<Vec<_>>();
 
         let mutations_update = &forward_mutations_update.mutations_update;

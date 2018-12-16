@@ -45,7 +45,7 @@ where
 
     fn verify(&mut self, 
                    origin_tick_hash: &HashResult,
-                   expansion_chain: &[Vec<HashResult>],
+                   expansion_chain: &[&[HashResult]],
                    node: &N,
                    session_id: &U,
                    counter: u64) -> Option<Vec<HashResult>> {
