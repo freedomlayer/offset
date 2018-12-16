@@ -77,10 +77,17 @@ where
         }
     }
 
-    pub fn tick(&mut self) {
-        self.ratchets.retain(|_node, ratchet| {
-            ratchet.tick() > 0
-        });
+    pub fn tick(&mut self) -> Vec<N> {
+        let mut removed_nodes = Vec::new();
+        for (node, ratchet) in &mut self.ratchets {
+            if ratchet.tick() == 0 {
+                removed_nodes.push(node.clone());
+            }
+        }
+        for removed_node in &removed_nodes {
+            self.ratchets.remove(removed_node);
+        }
+        removed_nodes
     }
 
     /// Try to update a certain ratchet.
@@ -216,14 +223,15 @@ mod tests {
         assert!(ratchet_pool.update(&1u128, &5u128, 100));
 
         for _ in 0 .. 4 {
-            ratchet_pool.tick();
+            assert_eq!(ratchet_pool.tick(), vec![]);
         }
         assert!(ratchet_pool.update(&1u128, &5u128, 101));
-        for _ in 0 .. 4 {
-            ratchet_pool.tick();
+        for _ in 0 .. 3 {
+            assert_eq!(ratchet_pool.tick(), vec![]);
         }
+        assert_eq!(ratchet_pool.tick(), vec![0u128]);
 
-        // We expectd that node 0u128 was removed, 
+        // We expect that node 0u128 was removed, 
         // but node 1u128 was not removed:
 
         // A proof that node 0u128 removed:
