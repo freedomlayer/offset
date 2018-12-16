@@ -20,7 +20,7 @@ use proto::index::messages::{IndexServerToClient,
 use proto::funder::messages::FriendsRoute;
 
 use crate::graph::graph_service::{GraphClient, GraphClientError};
-use crate::verifier::verifier::Verifier;
+use crate::verifier::Verifier;
 
 
 type ServerConn = ConnPair<IndexServerToServer, IndexServerToServer>;

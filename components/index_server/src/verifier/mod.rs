@@ -1,4 +1,6 @@
 mod hash_clock;
 mod ratchet;
 pub mod simple_verifier;
-pub mod verifier;
+mod verifier;
+
+pub use self::verifier::Verifier;
