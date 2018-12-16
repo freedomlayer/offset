@@ -119,6 +119,17 @@ enum IndexServerEvent {
     TimerTick,
 }
 
+/// We divide servers into two types:
+/// 1. "listen server": A trusted server which has the responsibility of connecting to us.
+/// 2. "init server": A trusted server for which we have the responsibility to initiate
+///    connection to.
+///
+/// Note: This function is not a method of IndexServer because we need to apply it as a filter
+/// for the incoming server connections. Having it as a method of IndexServer will cause borrow
+/// checker problems.
+fn is_listen_server(local_public_key: &PublicKey, friend_public_key: &PublicKey) -> bool {
+    compare_public_key(local_public_key, friend_public_key) == Ordering::Less
+}
 
 
 impl<A,S,SC,V> IndexServer<A,S,SC,V> 
@@ -157,14 +168,6 @@ where
     }
 
 
-    /// We divide servers into two types:
-    /// 1. "listen server": A trusted server which has the responsibility of connecting to us.
-    /// 2. "init server": A trusted server for which we have the responsibility to initiate
-    ///    connection to.
-    fn is_listen_server(&self, friend_public_key: &PublicKey) -> bool {
-        compare_public_key(&self.local_public_key, friend_public_key) == Ordering::Less
-    }
-
     /// Iterate over all connected servers
     fn iter_connected_servers(&mut self) 
         -> impl Iterator<Item=&mut Connected<IndexServerToServer>> {
@@ -190,7 +193,7 @@ where
     pub fn spawn_server(&mut self, public_key: PublicKey, address: A) 
         -> Result<RemoteServer<A>, IndexServerError> {
 
-        if self.is_listen_server(&public_key) {
+        if is_listen_server(&self.local_public_key, &public_key) {
             return Ok(RemoteServer {
                 address,
                 state: RemoteServerState::Listening,
@@ -406,7 +409,11 @@ where
                event_sender,
                spawner)?;
 
+    // We filter the incoming server connections, accepting connections only from servers
+    // that are "listen servers". See docs of `is_listen_server`.
+    let c_local_public_key = index_server.local_public_key.clone();
     let incoming_server_connections = incoming_server_connections
+        .filter(|(server_public_key, _server_conn)| future::ready(is_listen_server(&c_local_public_key, &server_public_key)))
         .map(|server_connection| IndexServerEvent::ServerConnection(server_connection));
 
     let incoming_client_connections = incoming_client_connections
