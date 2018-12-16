@@ -134,12 +134,24 @@ where
         Ok(index_server)
     }
 
+
     /// We divide servers into two types:
     /// 1. "listen server": A trusted server which has the responsibility of connecting to us.
     /// 2. "init server": A trusted server for which we have the responsibility to initiate
     ///    connection to.
     fn is_listen_server(&self, friend_public_key: &PublicKey) -> bool {
         compare_public_key(&self.local_public_key, friend_public_key) == Ordering::Less
+    }
+
+    /// Iterate over all connected servers
+    fn iter_connected_servers(&mut self) -> impl Iterator<Item=&mut ServerConnected> {
+        self.remote_servers
+            .iter_mut()
+            .filter_map(|(_server_public_key, remote_server)| match &mut remote_server.state {
+                RemoteServerState::Connected(server_connected) => Some(server_connected),
+                RemoteServerState::Initiating(_) | 
+                RemoteServerState::Listening => None,
+            })
     }
 
     pub fn spawn_server(&mut self, public_key: PublicKey, address: A) 
@@ -236,6 +248,8 @@ where
 
     pub async fn handle_timer_tick(&mut self)
         -> Result<(), IndexServerError> {
+
+        // let (tick_hash, removed_nodes) = self.verifier.tick();
 
         unimplemented!();
     }
