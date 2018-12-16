@@ -60,9 +60,8 @@ where
         Some(hashes)
     }
 
-    fn tick(&mut self, rand_value: RandValue) -> HashResult {
-        self.ratchet_pool.tick();
-        self.hash_clock.tick(rand_value)
+    fn tick(&mut self, rand_value: RandValue) -> (HashResult, Vec<N>) {
+        (self.hash_clock.tick(rand_value), self.ratchet_pool.tick())
     }
 
     fn neighbor_tick(&mut self, neighbor: N, tick_hash: HashResult) -> Option<HashResult> {
