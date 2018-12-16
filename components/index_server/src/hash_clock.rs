@@ -60,7 +60,7 @@ where
     }
 
     /// Should be called when a new hash is received from a neighbor.
-    pub fn update_neighbor_hash(&mut self, neighbor: N, tick_hash: HashResult) -> Option<HashResult> {
+    pub fn neighbor_tick(&mut self, neighbor: N, tick_hash: HashResult) -> Option<HashResult> {
         self.neighbor_hashes.insert(neighbor, tick_hash)
     }
 
@@ -167,7 +167,7 @@ mod tests {
                     if k == j {
                         continue;
                     }
-                    hash_clocks[k].update_neighbor_hash(j, tick_hash.clone());
+                    hash_clocks[k].neighbor_tick(j, tick_hash.clone());
                 }
             }
         }
