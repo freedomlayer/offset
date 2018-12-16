@@ -6,15 +6,16 @@ use super::ratchet::RatchetPool;
 use super::verifier::Verifier;
 
 
-struct SimpleVerifier<N,U,R> {
-    hash_clock: HashClock<N>,
+struct SimpleVerifier<N,B,U,R> {
+    hash_clock: HashClock<B>,
     ratchet_pool: RatchetPool<N,U>,
     rng: R,
 }
 
-impl<N,U,R> SimpleVerifier<N,U,R> 
+impl<N,B,U,R> SimpleVerifier<N,B,U,R> 
 where
     N: std::cmp::Eq + std::hash::Hash + Clone,
+    B: std::cmp::Eq + std::hash::Hash + Clone,
     U: std::cmp::Eq + Clone,
     R: CryptoRandom,
 {
@@ -34,21 +35,23 @@ where
 
 }
 
-impl<N,U,R> Verifier for SimpleVerifier<N,U,R>
+impl<N,B,U,R> Verifier for SimpleVerifier<N,B,U,R>
 where
     N: std::cmp::Eq + std::hash::Hash + Clone,
+    B: std::cmp::Eq + std::hash::Hash + Clone,
     U: std::cmp::Eq + Clone,
     R: CryptoRandom,
 {
     type Node = N;
+    type Neighbor = B;
     type SessionId = U;
 
     fn verify(&mut self, 
-                   origin_tick_hash: &HashResult,
-                   expansion_chain: &[&[HashResult]],
-                   node: &N,
-                   session_id: &U,
-                   counter: u64) -> Option<Vec<HashResult>> {
+               origin_tick_hash: &HashResult,
+               expansion_chain: &[&[HashResult]],
+               node: &N,
+               session_id: &U,
+               counter: u64) -> Option<Vec<HashResult>> {
 
         // Check the hash time stamp:
         let tick_hash = self.hash_clock.verify_expansion_chain(origin_tick_hash,
@@ -69,11 +72,11 @@ where
         (self.hash_clock.tick(rand_value), self.ratchet_pool.tick())
     }
 
-    fn neighbor_tick(&mut self, neighbor: N, tick_hash: HashResult) -> Option<HashResult> {
+    fn neighbor_tick(&mut self, neighbor: B, tick_hash: HashResult) -> Option<HashResult> {
         self.hash_clock.neighbor_tick(neighbor, tick_hash)
     }
 
-    fn remove_neighbor(&mut self, neighbor: &N) -> Option<HashResult> {
+    fn remove_neighbor(&mut self, neighbor: &B) -> Option<HashResult> {
         self.hash_clock.remove_neighbor(neighbor)
     }
 }

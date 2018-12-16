@@ -110,7 +110,7 @@ where
     A: Clone + Send + 'static,
     S: Spawn + Send, 
     SC: FutTransform<Input=(PublicKey, A), Output=ServerConn> + Clone + Send + 'static,
-    V: Verifier<Node=PublicKey, SessionId=Uid>,
+    V: Verifier<Node=PublicKey, Neighbor=PublicKey, SessionId=Uid>,
 {
     pub fn new(index_server_config: IndexServerConfig<A>,
                server_connector: SC,
@@ -353,7 +353,7 @@ where
     SC: FutTransform<Input=(PublicKey, A), Output=ServerConn> + Clone + Send + 'static,
     CL: Listener<Connection=(PublicKey, ClientConn), Config=(), Arg=()>,
     S: Spawn + Send,
-    V: Verifier<Node=PublicKey, SessionId=Uid>,
+    V: Verifier<Node=PublicKey, Neighbor=PublicKey, SessionId=Uid>,
 {
     let (server_listener_config_sender, incoming_server_connections) = server_listener.listen(());
     let (client_listener_config_sender, incoming_client_connections) = client_listener.listen(());
