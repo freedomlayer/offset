@@ -33,7 +33,7 @@ pub struct ResponseRoutes {
     pub routes: Vec<RouteWithCapacity>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UpdateFriend {
     /// Friend's public key
     pub public_key: PublicKey,
@@ -45,13 +45,13 @@ pub struct UpdateFriend {
 
 
 /// IndexClient -> IndexServer
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Mutation {
     UpdateFriend(UpdateFriend),
     RemoveFriend(PublicKey),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MutationsUpdate {
     /// Public key of the node sending the mutations.
     pub node_public_key: PublicKey,
@@ -77,14 +77,14 @@ pub struct MutationsUpdate {
     pub signature: Signature,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TimeProofLink {
     /// List of hashes that produce a certain hash
     /// sha_512_256("HASH_CLOCK" || hashes)
     pub hashes: Vec<HashResult>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ForwardMutationsUpdate {
     pub mutations_update: MutationsUpdate,
     /// A proof that MutationsUpdate was signed recently
