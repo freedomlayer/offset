@@ -72,6 +72,5 @@ where
     fn remove_neighbor(&mut self, neighbor: &N) -> Option<HashResult> {
         self.hash_clock.remove_neighbor(neighbor)
     }
-
 }
 
