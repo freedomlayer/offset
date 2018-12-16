@@ -13,6 +13,4 @@ extern crate log;
 
 mod server;
 mod graph;
-mod hash_clock;
 mod verifier;
-mod ratchet;

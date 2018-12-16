@@ -1,25 +1,9 @@
 use crypto::hash::HashResult;
 use crypto::crypto_rand::RandValue;
 
-use crate::hash_clock::HashClock;
-use crate::ratchet::RatchetPool;
-
-
-pub trait Verifier {
-    type Node;
-    type SessionId;
-
-    fn verify(&mut self, 
-                   origin_tick_hash: &HashResult,
-                   expansion_chain: &[Vec<HashResult>],
-                   node: &Self::Node,
-                   session_id: &Self::SessionId,
-                   counter: u64) -> Option<Vec<HashResult>>;
-
-    fn tick(&mut self, rand_value: RandValue) -> HashResult;
-    fn neighbor_tick(&mut self, neighbor: Self::Node, tick_hash: HashResult);
-    fn remove_neighbor(&mut self, neighbor: &Self::Node);
-}
+use super::hash_clock::HashClock;
+use super::ratchet::RatchetPool;
+use super::verifier::Verifier;
 
 
 struct SimpleVerifier<N,U> {
@@ -45,7 +29,17 @@ where
         }
     }
 
-    pub fn verify(&mut self, 
+}
+
+impl<N,U> Verifier for SimpleVerifier<N,U>
+where
+    N: std::cmp::Eq + std::hash::Hash + Clone,
+    U: std::cmp::Eq + Clone,
+{
+    type Node = N;
+    type SessionId = U;
+
+    fn verify(&mut self, 
                    origin_tick_hash: &HashResult,
                    expansion_chain: &[Vec<HashResult>],
                    node: &N,
@@ -66,13 +60,18 @@ where
         Some(hashes)
     }
 
-    pub fn tick(&mut self, rand_value: RandValue) -> HashResult {
+    fn tick(&mut self, rand_value: RandValue) -> HashResult {
         self.ratchet_pool.tick();
         self.hash_clock.tick(rand_value)
     }
 
-    pub fn neighbor_tick(&mut self, neighbor: N, tick_hash: HashResult) -> Option<HashResult> {
+    fn neighbor_tick(&mut self, neighbor: N, tick_hash: HashResult) -> Option<HashResult> {
         self.hash_clock.neighbor_tick(neighbor, tick_hash)
     }
+
+    fn remove_neighbor(&mut self, neighbor: &N) -> Option<HashResult> {
+        self.hash_clock.remove_neighbor(neighbor)
+    }
+
 }
 
