@@ -6,7 +6,9 @@ use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 
 use common::conn::{ConnPair, Listener, FutTransform};
+
 use crypto::identity::{PublicKey, compare_public_key};
+use crypto::uid::Uid;
 
 use timer::TimerClient;
 
@@ -18,6 +20,7 @@ use proto::index::messages::{IndexServerToClient,
 use proto::funder::messages::FriendsRoute;
 
 use crate::graph::graph_service::{GraphClient, GraphClientError};
+use crate::verifier::verifier::Verifier;
 
 
 type ServerConn = ConnPair<IndexServerToServer, IndexServerToServer>;
@@ -57,10 +60,11 @@ struct Client {
 }
 */
 
-struct IndexServer<A,S,SC> {
+struct IndexServer<A,S,SC,V> {
     local_public_key: PublicKey,
     server_connector: SC,
     graph_client: GraphClient<PublicKey,u128>,
+    verifier: V,
     remote_servers: HashMap<PublicKey, RemoteServer<A>>,
     clients: HashSet<PublicKey>,
     event_sender: mpsc::Sender<IndexServerEvent>,
@@ -95,17 +99,19 @@ enum IndexServerEvent {
 
 
 
-impl<A,S,SC> IndexServer<A,S,SC> 
+impl<A,S,SC,V> IndexServer<A,S,SC,V> 
 where
     A: Clone + Send + 'static,
     S: Spawn + Send, 
     SC: FutTransform<Input=(PublicKey, A), Output=ServerConn> + Clone + Send + 'static,
+    V: Verifier<Node=PublicKey, SessionId=Uid>,
 {
     pub fn new(index_server_config: IndexServerConfig<A>,
                server_connector: SC,
                graph_client: GraphClient<PublicKey, u128>,
+               verifier: V,
                event_sender: mpsc::Sender<IndexServerEvent>,
-               spawner: S) -> Result<IndexServer<A,S,SC>, IndexServerError> {
+               spawner: S) -> Result<Self, IndexServerError> {
 
         let IndexServerConfig {local_public_key, trusted_servers} 
                 = index_server_config;
@@ -114,6 +120,7 @@ where
             local_public_key,
             server_connector,
             graph_client,
+            verifier,
             remote_servers: HashMap::new(),
             clients: HashSet::new(),
             event_sender,
@@ -180,11 +187,32 @@ where
                                                  forward_mutations_update: ForwardMutationsUpdate)
                                                     -> Result<(), IndexServerError> 
     {
+        // Check the signature:
+        if !forward_mutations_update.mutations_update.verify_signature() {
+            return Ok(())
+        }
+
+        // Make sure that the signature is fresh, and that the message is not out of order:
+        // TODO: Maybe change signature to take a slice of slices intead of having to clone hashes
+        // below? Requires change to Verifier trait interface.
+        let expansion_chain = forward_mutations_update
+            .time_proof_chain
+            .iter()
+            .map(|time_proof_link| time_proof_link.hashes.clone())
+            .collect::<Vec<_>>();
+
+        let mutations_update = &forward_mutations_update.mutations_update;
+        let hashes = match self.verifier.verify(&mutations_update.time_hash, 
+                             &expansion_chain,
+                             &mutations_update.node_public_key,
+                             &mutations_update.session_id,
+                             mutations_update.counter) {
+            Some(hashes) => hashes,
+            None => return Ok(()),
+        };
+
+
         // TODO:
-        // - Verify signature.
-        // - Verify time hashes chain
-        // - If a new session: overwrite previous session.
-        // - If counter is greater: increase counter
         // - Return mutations
         // - Apply mutations using graph client.
         // - Forward to all servers
@@ -256,19 +284,21 @@ async fn client_handler(mut graph_client: GraphClient<PublicKey, u128>,
 }
 
 
-async fn server_loop<A,SL,SC,CL,S>(index_server_config: IndexServerConfig<A>,
+async fn server_loop<A,SL,SC,CL,V,S>(index_server_config: IndexServerConfig<A>,
                                  server_listener: SL,
                                  server_connector: SC,
                                  client_listener: CL,
                                  graph_client: GraphClient<PublicKey, u128>,
+                                 verifier: V,
                                  mut timer_client: TimerClient,
                                  spawner: S) -> Result<(), IndexServerError>
 where
+    A: Clone + Send + 'static,
     SL: Listener<Connection=(PublicKey, ServerConn), Config=(), Arg=()>,
     SC: FutTransform<Input=(PublicKey, A), Output=ServerConn> + Clone + Send + 'static,
     CL: Listener<Connection=(PublicKey, ClientConn), Config=(), Arg=()>,
     S: Spawn + Send,
-    A: Clone + Send + 'static,
+    V: Verifier<Node=PublicKey, SessionId=Uid>,
 {
     let (server_listener_config_sender, incoming_server_connections) = server_listener.listen(());
     let (client_listener_config_sender, incoming_client_connections) = client_listener.listen(());
@@ -282,6 +312,7 @@ where
                index_server_config,
                server_connector,
                graph_client,
+               verifier,
                event_sender,
                spawner)?;
 
