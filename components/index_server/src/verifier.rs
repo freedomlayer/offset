@@ -4,12 +4,30 @@ use crypto::crypto_rand::RandValue;
 use crate::hash_clock::HashClock;
 use crate::ratchet::RatchetPool;
 
-struct Verifier<N,U> {
+
+pub trait Verifier {
+    type Node;
+    type SessionId;
+
+    fn verify(&mut self, 
+                   origin_tick_hash: &HashResult,
+                   expansion_chain: &[Vec<HashResult>],
+                   node: &Self::Node,
+                   session_id: &Self::SessionId,
+                   counter: u64) -> Option<Vec<HashResult>>;
+
+    fn tick(&mut self, rand_value: RandValue) -> HashResult;
+    fn neighbor_tick(&mut self, neighbor: Self::Node, tick_hash: HashResult);
+    fn remove_neighbor(&mut self, neighbor: &Self::Node);
+}
+
+
+struct SimpleVerifier<N,U> {
     hash_clock: HashClock<N>,
     ratchet_pool: RatchetPool<N,U>,
 }
 
-impl<N,U> Verifier<N,U> 
+impl<N,U> SimpleVerifier<N,U> 
 where
     N: std::cmp::Eq + std::hash::Hash + Clone,
     U: std::cmp::Eq + Clone,
@@ -21,7 +39,7 @@ where
        
         assert!(ticks_to_live > 0);
         
-        Verifier {
+        SimpleVerifier {
             hash_clock: HashClock::new(ticks_to_live),
             ratchet_pool: RatchetPool::new(ticks_to_live),
         }
