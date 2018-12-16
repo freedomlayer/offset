@@ -89,8 +89,8 @@ where
     }
 
     /// Given a tick hash (that was created in this HashClock), create a hash proof for a neighbor.
-    pub fn get_expansion(&self, tick_hash: &HashResult) -> Option<&Vec<HashResult>> {
-        self.last_ticks_map.get(tick_hash)
+    pub fn get_expansion(&self, tick_hash: &HashResult) -> Option<&[HashResult]> {
+        self.last_ticks_map.get(tick_hash).map(|expansion| &expansion[..])
     }
 
     /// Verify a chain of hash proof links.
@@ -175,13 +175,13 @@ mod tests {
         let origin_tick_hash = hash_clocks[0].get_neighbor_hash(&1).unwrap().clone();
         let tick_hash1 = hash_clocks[1].verify_expansion_chain(&origin_tick_hash, &[]).unwrap();
 
-        let expansion1 = hash_clocks[1].get_expansion(&tick_hash1).unwrap().clone();
+        let expansion1 = hash_clocks[1].get_expansion(&tick_hash1).unwrap().to_vec();
         let tick_hash2 = hash_clocks[2].verify_expansion_chain(&origin_tick_hash, &[&expansion1]).unwrap();
 
-        let expansion2 = hash_clocks[2].get_expansion(&tick_hash2).unwrap().clone();
+        let expansion2 = hash_clocks[2].get_expansion(&tick_hash2).unwrap().to_vec();
         let tick_hash3 = hash_clocks[3].verify_expansion_chain(&origin_tick_hash, &[&expansion1, &expansion2]).unwrap();
 
-        let expansion3 = hash_clocks[3].get_expansion(&tick_hash3).unwrap().clone();
+        let expansion3 = hash_clocks[3].get_expansion(&tick_hash3).unwrap().to_vec();
         let tick_hash3 = hash_clocks[0].verify_expansion_chain(&origin_tick_hash, &[&expansion1, &expansion2, &expansion3]).unwrap();
 
 

@@ -235,7 +235,7 @@ where
         forward_mutations_update
             .time_proof_chain
             .push(TimeProofLink {
-                hashes,
+                hashes: hashes.to_vec(),
             });
 
         // Apply mutations:

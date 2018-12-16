@@ -51,7 +51,7 @@ where
                expansion_chain: &[&[HashResult]],
                node: &N,
                session_id: &U,
-               counter: u64) -> Option<Vec<HashResult>> {
+               counter: u64) -> Option<&[HashResult]> {
 
         // Check the hash time stamp:
         let tick_hash = self.hash_clock.verify_expansion_chain(origin_tick_hash,
@@ -63,7 +63,7 @@ where
         }
 
         // If we got here, the message was new:
-        let hashes = self.hash_clock.get_expansion(&tick_hash).unwrap().clone();
+        let hashes = self.hash_clock.get_expansion(&tick_hash).unwrap();
         Some(hashes)
     }
 
@@ -114,10 +114,10 @@ mod tests {
         let (tick_hash, _removed) = svs[0].tick();
 
         // Forwarding of a message:
-        let hashes0 = svs[0].verify(&tick_hash, &[], &1234u128, &0u128, 0u64).unwrap();
-        let hashes1 = svs[1].verify(&tick_hash, &[&hashes0], &1234u128, &0u128, 0u64).unwrap();
-        let hashes2 = svs[2].verify(&tick_hash, &[&hashes0, &hashes1], &1234u128, &0u128, 0u64).unwrap();
-        let hashes3 = svs[3].verify(&tick_hash, &[&hashes0, &hashes1, &hashes2], &1234u128, &0u128, 0u64).unwrap();
+        let hashes0 = svs[0].verify(&tick_hash, &[], &1234u128, &0u128, 0u64).unwrap().to_vec();
+        let hashes1 = svs[1].verify(&tick_hash, &[&hashes0], &1234u128, &0u128, 0u64).unwrap().to_vec();
+        let hashes2 = svs[2].verify(&tick_hash, &[&hashes0, &hashes1], &1234u128, &0u128, 0u64).unwrap().to_vec();
+        let hashes3 = svs[3].verify(&tick_hash, &[&hashes0, &hashes1, &hashes2], &1234u128, &0u128, 0u64).unwrap().to_vec();
     }
 
     // TODO: Add more tests?
