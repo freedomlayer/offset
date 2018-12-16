@@ -15,20 +15,15 @@ where
     U: std::cmp::Eq + Clone,
 {
 
-    pub fn new(ratchet_ticks_to_live: usize) -> Self {
-        let last_ticks_max_len = ratchet_ticks_to_live / 2;
-
-        // The length of time ticks list must be smaller than the time we remember a node entry.
-        // This makes sure that a forgotten node entry could not be hijacked using an old replayed
-        // message.
-        assert!(last_ticks_max_len < ratchet_ticks_to_live);
-
-        assert!(last_ticks_max_len > 0);
-        assert!(ratchet_ticks_to_live > 0);
+    pub fn new(ticks_to_live: usize) -> Self {
+        // TODO(Security): Make sure that we don't have an off-by-one here with the decision to have
+        // one ticks_to_live value for both `hash_clock` and `ratchet_pool`.
+       
+        assert!(ticks_to_live > 0);
         
         Verifier {
-            hash_clock: HashClock::new(last_ticks_max_len),
-            ratchet_pool: RatchetPool::new(ratchet_ticks_to_live),
+            hash_clock: HashClock::new(ticks_to_live),
+            ratchet_pool: RatchetPool::new(ticks_to_live),
         }
     }
 
