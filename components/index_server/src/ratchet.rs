@@ -206,5 +206,31 @@ mod tests {
         assert!(ratchet_pool.update(&1u128, &6u128, 205));
         assert!(!ratchet_pool.update(&1u128, &6u128, 205));
     }
+
+    #[test]
+    fn test_ratchet_pool_tick() {
+        let ratchet_ticks_to_live = 8;
+        let mut ratchet_pool = RatchetPool::new(ratchet_ticks_to_live);
+
+        assert!(ratchet_pool.update(&0u128, &0u128, 0));
+        assert!(ratchet_pool.update(&1u128, &5u128, 100));
+
+        for _ in 0 .. 4 {
+            ratchet_pool.tick();
+        }
+        assert!(ratchet_pool.update(&1u128, &5u128, 101));
+        for _ in 0 .. 4 {
+            ratchet_pool.tick();
+        }
+
+        // We expectd that node 0u128 was removed, 
+        // but node 1u128 was not removed:
+
+        // A proof that node 0u128 removed:
+        assert!(ratchet_pool.update(&0u128, &0u128, 0));
+
+        // A proof that node 1u128 was not removed:
+        assert!(!ratchet_pool.update(&1u128, &5u128, 101));
+    }
 }
 
