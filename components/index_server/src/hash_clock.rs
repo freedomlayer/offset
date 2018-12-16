@@ -6,7 +6,7 @@ use std::collections::{HashMap, VecDeque};
 /// Prefix put before hashing a list of hashes:
 const HASH_CLOCK_PREFIX: &[u8] = b"HASH_CLOCK";
 
-struct HashClock<N> {
+pub struct HashClock<N> {
     /// Last hash we received from each neighbor
     neighbor_hashes: HashMap<N, HashResult>,
     /// Maximum length of last_ticks:
@@ -98,7 +98,7 @@ where
     /// Eventually one of those hashes is a tick_hash created at this HashClock. 
     /// This proves that the `origin_tick_hash` is recent.
     pub fn verify_expansion_chain(&self, origin_tick_hash: &HashResult, expansion_chain: &[Vec<HashResult>]) 
-        -> Option<HashResult> {
+        -> Option<&HashResult> {
 
         /*                       +-/hash0    +-/hash0    +-/hash0
          *  `origin_tick_hash` --+  hash1    |  hash1    |  hash1 -- found in `last_ticks_map`
@@ -130,9 +130,10 @@ where
         }
 
         for hash in ex_expansion_chain.last().unwrap().iter() {
-            if self.last_ticks_map.contains_key(hash) {
-                return Some(hash.clone());
-            }
+            match self.last_ticks_map.get_key_value(hash) {
+                Some((hash, _)) => return Some(hash),
+                None => {},
+            };
         }
         None
     }

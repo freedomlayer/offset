@@ -5,6 +5,7 @@
 #![feature(generators)]
 #![feature(never_type)]
 #![feature(dbg_macro)]
+#![feature(map_get_key_value)]
 
 
 #[macro_use]
