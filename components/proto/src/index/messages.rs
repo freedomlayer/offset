@@ -5,6 +5,7 @@ use crypto::crypto_rand::RandValue;
 
 use crate::funder::messages::FriendsRoute;
 
+
 /// IndexClient -> IndexServer
 #[derive(Debug)]
 pub struct RequestRoutes {
@@ -20,7 +21,7 @@ pub struct RequestRoutes {
 }
 
 #[derive(Debug)]
-pub struct FriendsRouteWithCapacity {
+pub struct RouteWithCapacity {
     pub route: FriendsRoute,
     pub capacity: u128,
 }
@@ -29,7 +30,7 @@ pub struct FriendsRouteWithCapacity {
 #[derive(Debug)]
 pub struct ResponseRoutes {
     pub request_id: Uid,
-    pub routes: Vec<FriendsRouteWithCapacity>,
+    pub routes: Vec<RouteWithCapacity>,
 }
 
 #[derive(Debug)]
@@ -113,3 +114,5 @@ pub enum IndexServerToServer {
     TimeHash(HashResult),
     ForwardMutationsUpdate(ForwardMutationsUpdate),
 }
+
+
