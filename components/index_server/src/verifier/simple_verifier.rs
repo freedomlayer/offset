@@ -81,3 +81,44 @@ where
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crypto::test_utils::DummyRandom;
+
+    #[test]
+    fn test_simple_verifier_basic() {
+        let ticks_to_live = 8;
+        let num_verifiers = 4;
+
+        let mut svs = Vec::new();
+
+        for i in 0 .. num_verifiers {
+            let rng = DummyRandom::new(&[i as u8]);
+            svs.push(SimpleVerifier::new(ticks_to_live, rng));
+        }
+
+        for iter in 0 .. ticks_to_live + 1 {
+            for i in 0 .. num_verifiers {
+                let (tick_hash, _removed) = svs[i].tick();
+                for j in 0 .. num_verifiers {
+                    if j == i {
+                        continue;
+                    }
+                    let _ = svs[j].neighbor_tick(i, tick_hash.clone());
+                }
+            }
+        }
+
+        let (tick_hash, _removed) = svs[0].tick();
+
+        // Forwarding of a message:
+        let hashes0 = svs[0].verify(&tick_hash, &[], &1234u128, &0u128, 0u64).unwrap();
+        let hashes1 = svs[1].verify(&tick_hash, &[&hashes0], &1234u128, &0u128, 0u64).unwrap();
+        let hashes2 = svs[2].verify(&tick_hash, &[&hashes0, &hashes1], &1234u128, &0u128, 0u64).unwrap();
+        let hashes3 = svs[3].verify(&tick_hash, &[&hashes0, &hashes1, &hashes2], &1234u128, &0u128, 0u64).unwrap();
+    }
+
+    // TODO: Add more tests?
+}
