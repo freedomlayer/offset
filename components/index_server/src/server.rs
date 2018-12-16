@@ -15,7 +15,7 @@ use timer::TimerClient;
 use proto::index::messages::{IndexServerToClient, 
     IndexClientToServer, IndexServerToServer, 
     ResponseRoutes, RouteWithCapacity, MutationsUpdate,
-    ForwardMutationsUpdate};
+    ForwardMutationsUpdate, Mutation, TimeProofLink};
 
 use proto::funder::messages::FriendsRoute;
 
@@ -27,6 +27,16 @@ type ServerConn = ConnPair<IndexServerToServer, IndexServerToServer>;
 type ClientConn = ConnPair<IndexServerToClient, IndexClientToServer>;
 
 
+#[derive(Debug)]
+pub enum IndexServerError {
+    SpawnError,
+    RequestTimerStreamFailed,
+    GraphClientError,
+    ClientSenderError,
+    ClientEventSenderError,
+    ServerSenderError,
+}
+
 struct IndexServerConfig<A> {
     local_public_key: PublicKey,
     // map: public_key -> server_address
@@ -35,6 +45,18 @@ struct IndexServerConfig<A> {
 
 struct ServerConnected {
     opt_sender: Option<mpsc::Sender<IndexServerToServer>>,
+}
+
+impl ServerConnected {
+    fn try_send(&mut self, msg: IndexServerToServer) 
+        -> Result<(), IndexServerError>{
+
+        if let Some(sender) = &mut self.opt_sender {
+            sender.try_send(msg)
+                .map_err(|_| IndexServerError::ServerSenderError)?;
+        }
+        Ok(())
+    }
 }
 
 struct ServerInitiating {
@@ -54,12 +76,6 @@ struct RemoteServer<A> {
     state: RemoteServerState,
 }
 
-/*
-struct Client {
-    opt_sender: Option<mpsc::Sender<IndexServerToClient>>,
-}
-*/
-
 struct IndexServer<A,S,SC,V> {
     local_public_key: PublicKey,
     server_connector: SC,
@@ -69,16 +85,6 @@ struct IndexServer<A,S,SC,V> {
     clients: HashSet<PublicKey>,
     event_sender: mpsc::Sender<IndexServerEvent>,
     spawner: S,
-}
-
-
-#[derive(Debug)]
-pub enum IndexServerError {
-    SpawnError,
-    RequestTimerStreamFailed,
-    GraphClientError,
-    ClientSenderError,
-    ClientEventSenderError,
 }
 
 impl From<GraphClientError> for IndexServerError {
@@ -196,7 +202,7 @@ where
 
     pub async fn handle_forward_mutations_update(&mut self, 
                                                  opt_server_public_key: Option<PublicKey>,
-                                                 forward_mutations_update: ForwardMutationsUpdate)
+                                                 mut forward_mutations_update: ForwardMutationsUpdate)
                                                     -> Result<(), IndexServerError> 
     {
         // Check the signature:
@@ -223,35 +229,70 @@ where
             None => return Ok(()),
         };
 
+        // The message is valid and fresh.
+        
+        // Add a link to the time proof:
+        forward_mutations_update
+            .time_proof_chain
+            .push(TimeProofLink {
+                hashes,
+            });
 
-        // TODO:
-        // - Return mutations
-        // - Apply mutations using graph client.
-        // - Forward to all servers
-        //      - What if can't forward to some server? Drop the message?
-        //      - Where do we buffer server messages? (In connector / listener implementation?)
-        unimplemented!();
+        // Apply mutations:
+        for mutation in &mutations_update.mutations {
+            match mutation {
+                Mutation::UpdateFriend(update_friend) => {
+                    await!(self.graph_client.update_edge(mutations_update.node_public_key.clone(), 
+                                                  update_friend.public_key.clone(),
+                                                  (update_friend.send_capacity,
+                                                   update_friend.recv_capacity)))?;
+                },
+                Mutation::RemoveFriend(friend_public_key) => {
+                    await!(self.graph_client.remove_edge(mutations_update.node_public_key.clone(), 
+                                                         friend_public_key.clone()))?;
+                },
+            }
+        }
+
+
+        // Try to forward to all connected servers:
+        for connected_server in self.iter_connected_servers() {
+            let _ = connected_server.try_send(
+                IndexServerToServer::ForwardMutationsUpdate(forward_mutations_update.clone()));
+        }
+        Ok(())
     }
 
     pub async fn handle_from_server(&mut self, public_key: PublicKey, server_msg: IndexServerToServer)
         -> Result<(), IndexServerError> {
 
         match server_msg {
-            IndexServerToServer::TimeHash(hash) => {},
+            IndexServerToServer::TimeHash(time_hash) => {
+                let _ = self.verifier.neighbor_tick(public_key, time_hash);
+            },
             IndexServerToServer::ForwardMutationsUpdate(forward_mutations_update) => {
                 await!(self.handle_forward_mutations_update(Some(public_key), forward_mutations_update))?;
             },
-        }
-
-        unimplemented!();
+        };
+        Ok(())
     }
 
     pub async fn handle_timer_tick(&mut self)
         -> Result<(), IndexServerError> {
 
-        // let (tick_hash, removed_nodes) = self.verifier.tick();
+        let (time_hash, removed_nodes) = self.verifier.tick();
 
-        unimplemented!();
+        // Try to send the time tick to all servers. Sending to some of them might fail:
+        for connected_server in self.iter_connected_servers() {
+            let _ = connected_server.try_send(IndexServerToServer::TimeHash(time_hash.clone()));
+        }
+
+        // Update the graph service about removed nodes:
+        for node_public_key in removed_nodes {
+            await!(self.graph_client.remove_node(node_public_key))?;
+        }
+
+        Ok(())
     }
 }
 
@@ -435,9 +476,8 @@ where
             },
             IndexServerEvent::TimerTick => await!(index_server.handle_timer_tick())?,
         }
-        // TODO
     }
-    unimplemented!();
+    Ok(())
 }
 
 
