@@ -7,27 +7,31 @@ struct Ratchet<U> {
     /// For a new session, the counter should begin from 0 and increment by 1 for every MutationsUpdate message.
     /// When a new connection is established, a new sesionId should be randomly generated.
     pub counter: u64,
+    /// Initial value for cur_ticks_to_live
+    pub ticks_to_live: usize,
     /// This number decreases as time progresses.
     /// If it reaches 0, NodeState is removed.
-    pub ticks_to_live: usize,
+    pub cur_ticks_to_live: usize,
 }
 
 impl<U> Ratchet<U> 
 where
     U: std::cmp::Eq + Clone,
 {
-    fn new(session_id: U,
+    pub fn new(session_id: U,
            counter: u64,
            ticks_to_live: usize) -> Self {
 
+        let cur_ticks_to_live = ticks_to_live;
         Ratchet {
             session_id,
             counter,
             ticks_to_live,
+            cur_ticks_to_live,
         }
     }
 
-    fn update(&mut self, session_id: &U, counter: u64) -> bool {
+    fn inner_update(&mut self, session_id: &U, counter: u64) -> bool {
         if &self.session_id != session_id {
             self.session_id = session_id.clone();
             self.counter = counter;
@@ -39,6 +43,20 @@ where
             return true;
         }
         false
+    }
+
+    pub fn update(&mut self, session_id: &U, counter: u64) -> bool {
+        if !self.inner_update(session_id, counter) {
+            false
+        } else {
+            self.cur_ticks_to_live = self.ticks_to_live;
+            true
+        }
+    }
+
+    pub fn tick(&mut self) -> usize {
+        self.cur_ticks_to_live = self.cur_ticks_to_live.saturating_sub(1);
+        self.cur_ticks_to_live
     }
 }
 
@@ -60,9 +78,8 @@ where
     }
 
     pub fn tick(&mut self) {
-        self.ratchets.retain(|node, ratchet| {
-            ratchet.ticks_to_live = ratchet.ticks_to_live.saturating_sub(1);
-            ratchet.ticks_to_live > 0
+        self.ratchets.retain(|_node, ratchet| {
+            ratchet.tick() > 0
         });
     }
 
@@ -129,6 +146,35 @@ mod tests {
         for i in 0 .. 16 {
             assert!(!ratchet.update(&session_id, i));
         }
+    }
+
+
+    #[test]
+    fn test_ratchet_pool_basic() {
+        let ratchet_ticks_to_live = 8;
+        let mut ratchet_pool = RatchetPool::new(ratchet_ticks_to_live);
+
+        assert!(ratchet_pool.update(&0u128, &0u128, 0));
+        assert!(ratchet_pool.update(&0u128, &0u128, 1));
+        assert!(ratchet_pool.update(&0u128, &0u128, 2));
+
+        assert!(ratchet_pool.update(&1u128, &5u128, 100));
+        assert!(ratchet_pool.update(&1u128, &5u128, 101));
+        assert!(ratchet_pool.update(&1u128, &5u128, 102));
+        assert!(ratchet_pool.update(&1u128, &6u128, 200));
+        assert!(ratchet_pool.update(&1u128, &6u128, 201));
+        assert!(ratchet_pool.update(&1u128, &6u128, 202));
+
+        assert!(ratchet_pool.update(&0u128, &0u128, 3));
+        assert!(ratchet_pool.update(&0u128, &0u128, 4));
+        assert!(!ratchet_pool.update(&0u128, &0u128, 3));
+        assert!(!ratchet_pool.update(&0u128, &0u128, 3));
+        assert!(ratchet_pool.update(&0u128, &0u128, 5));
+
+        assert!(ratchet_pool.update(&1u128, &6u128, 203));
+        assert!(ratchet_pool.update(&1u128, &6u128, 204));
+        assert!(ratchet_pool.update(&1u128, &6u128, 205));
+        assert!(!ratchet_pool.update(&1u128, &6u128, 205));
     }
 }
 
