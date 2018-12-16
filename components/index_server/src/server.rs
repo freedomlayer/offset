@@ -1,11 +1,13 @@
+use std::marker::Unpin;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
-use futures::{select, future, FutureExt, TryFutureExt, stream, StreamExt, SinkExt};
+use futures::{select, future, FutureExt, TryFutureExt, stream, 
+    Stream, StreamExt, SinkExt};
 use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 
-use common::conn::{ConnPair, Listener, FutTransform};
+use common::conn::{ConnPair, FutTransform};
 
 use crypto::identity::{PublicKey, compare_public_key};
 use crypto::uid::Uid;
@@ -339,24 +341,22 @@ async fn client_handler(mut graph_client: GraphClient<PublicKey, u128>,
 }
 
 
-async fn server_loop<A,SL,SC,CL,V,S>(index_server_config: IndexServerConfig<A>,
-                                 server_listener: SL,
+async fn server_loop<A,IS,IC,SC,V,S>(index_server_config: IndexServerConfig<A>,
+                                 incoming_server_connections: IS,
+                                 incoming_client_connections: IC,
                                  server_connector: SC,
-                                 client_listener: CL,
                                  graph_client: GraphClient<PublicKey, u128>,
                                  verifier: V,
                                  mut timer_client: TimerClient,
                                  spawner: S) -> Result<(), IndexServerError>
 where
     A: Clone + Send + 'static,
-    SL: Listener<Connection=(PublicKey, ServerConn), Config=(), Arg=()>,
+    IS: Stream<Item=(PublicKey, ServerConn)> + Unpin,
+    IC: Stream<Item=(PublicKey, ClientConn)> + Unpin,
     SC: FutTransform<Input=(PublicKey, A), Output=ServerConn> + Clone + Send + 'static,
-    CL: Listener<Connection=(PublicKey, ClientConn), Config=(), Arg=()>,
     S: Spawn + Send,
     V: Verifier<Node=PublicKey, Neighbor=PublicKey, SessionId=Uid>,
 {
-    let (server_listener_config_sender, incoming_server_connections) = server_listener.listen(());
-    let (client_listener_config_sender, incoming_client_connections) = client_listener.listen(());
 
     let timer_stream = await!(timer_client.request_timer_stream())
         .map_err(|_| IndexServerError::RequestTimerStreamFailed)?;
