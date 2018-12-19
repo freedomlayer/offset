@@ -16,6 +16,8 @@ enum GraphRequest<N,C> {
     /// Get some routes from one node to another of at least certain capacity.
     /// If an exclude directed edge is provided, the routes must not contain this directed edge.
     GetRoutes(N,N,C,Option<(N,N)>, oneshot::Sender<Vec<CapacityRoute<N,C>>>), // (from, to, capacity, opt_exclude)
+    /// Expire old outgoing edges for the specified node
+    Tick(N, oneshot::Sender<()>), 
 }
 
 #[derive(Debug)]
@@ -49,6 +51,9 @@ where
                 None => capacity_graph.get_routes(&a,&b,capacity, None),
             };
             let _ = sender.send(routes);
+        },
+        GraphRequest::Tick(a,sender) => {
+            let _ = sender.send(capacity_graph.tick(&a));
         },
     }
 }
@@ -147,6 +152,13 @@ impl<N,C> GraphClient<N,C> {
         await!(self.requests_sender.send(GraphRequest::GetRoutes(a,b,capacity,opt_exclude,sender)))?;
         Ok(await!(receiver)?)
     }
+
+    /// Remove an edge from the graph
+    pub async fn tick(&mut self, a: N) -> Result<(), GraphClientError> {
+        let (sender, receiver) = oneshot::channel();
+        await!(self.requests_sender.send(GraphRequest::Tick(a,sender)))?;
+        Ok(await!(receiver)?)
+    }
 }
 
 /// Spawn a graph service, returning a GraphClient on success.
@@ -193,9 +205,12 @@ mod tests {
         assert_eq!(await!(graph_client.get_routes(2, 5, 30, None)).unwrap(), vec![(vec![2,5], 30)]);
         assert_eq!(await!(graph_client.get_routes(2, 5, 31, None)).unwrap(), vec![]);
 
+        await!(graph_client.tick(2));
+
         assert_eq!(await!(graph_client.remove_edge(2, 5)).unwrap(), Some((30, 5)));
         assert_eq!(await!(graph_client.remove_node(2)).unwrap(), false);
         assert_eq!(await!(graph_client.remove_node(5)).unwrap(), true);
+
     }
 
     #[test]

@@ -198,8 +198,8 @@ where
         option_to_vec(self.get_route(a, b, capacity, opt_exclude))
     }
 
-    fn tick(&mut self) {
-        for (_node, node_edges) in &mut self.nodes {
+    fn tick(&mut self, a: &N) {
+        if let Some(node_edges) = self.nodes.get_mut(a) {
             node_edges.tick();
         }
     }
@@ -319,16 +319,13 @@ mod tests {
 
         let max_edge_age = max_edge_age(1);
         for i in 0 .. max_edge_age - 1 {
-            cg.tick();
+            cg.tick(&0);
             assert_eq!(cg.get_route(&0, &1, 30, None), Some((vec![0,1], 30)));
             assert_eq!(cg.get_route(&2, &3, 30, None), Some((vec![2,3], 30)));
         }
 
-        cg.update_edge(2, 3, (30, 10));
-        cg.update_edge(3, 2, (10, 30));
-
         // At this point 0->1 and 1->0 should expire, but 2->3 and 3->2 don't expire:
-        cg.tick();
+        cg.tick(&0);
         assert_eq!(cg.get_route(&0, &1, 30, None), None);
         assert_eq!(cg.get_route(&2, &3, 30, None), Some((vec![2,3], 30)));
     }
