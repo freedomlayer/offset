@@ -5,9 +5,63 @@ use super::bfs::bfs;
 use super::capacity_graph::{CapacityGraph, CapacityEdge};
 use super::utils::{option_to_vec, OptionIterator};
 
+/// Amount of ticks an edge could live regardless of coupon collector's approximation.
+/// This is useful to allow the first edges build (nlog(n) is very small for small n).
+const BASE_MAX_EDGE_AGE: u128 = 16;
+
+struct Edge {
+    capacity: CapacityEdge<u128>,
+    age: u128,
+}
+
+impl Edge {
+    fn new(capacity: CapacityEdge<u128>) -> Self {
+        Edge {
+            capacity,
+            age: 0,
+        }
+    }
+}
+
+struct NodeEdges<N> {
+    edges: HashMap<N, Edge>,
+}
+
+impl<N> NodeEdges<N> 
+where
+    N: cmp::Eq + hash::Hash + Clone + std::fmt::Debug,
+{
+    fn new() -> Self {
+        NodeEdges {
+            edges: HashMap::new(),
+        }
+    }
+}
+
+/// Using the coupon collector's approximation, 
+/// after nlog(n) updates (n = self.edges.len()), all the edges should be covered.
+/// Any edge not covered over the last nlog(n) updates should be removed.
+fn max_edge_age(num_edges: usize) -> u128 {
+    let f_num_edges = num_edges as f64;
+    BASE_MAX_EDGE_AGE + (2.0 * f_num_edges * f_num_edges.ln()) as u128
+}
+
+impl<N> NodeEdges<N> 
+where
+    N: cmp::Eq + hash::Hash + Clone + std::fmt::Debug,
+{
+    pub fn tick(&mut self) {
+        let max_edge_age = max_edge_age(self.edges.len());
+
+        self.edges.retain(|_remote_node, edge| {
+            edge.age = edge.age.saturating_add(1);
+            edge.age < max_edge_age
+        });
+    }
+}
 
 pub struct SimpleCapacityGraph<N> {
-    nodes: HashMap<N,HashMap<N,CapacityEdge<u128>>>,
+    nodes: HashMap<N, NodeEdges<N>>,
 }
 
 
@@ -26,10 +80,10 @@ where
     fn get_edge(&self, a: &N, b: &N) -> Option<CapacityEdge<u128>> {
         match self.nodes.get(a) {
             None => None,
-            Some(a_map) => {
-                match a_map.get(b) {
+            Some(a_edges) => {
+                match a_edges.edges.get(b) {
                     None => None,
-                    Some(a_b_edge) => Some(*a_b_edge),
+                    Some(a_b_edge) => Some(a_b_edge.capacity),
                 }
             }
         }
@@ -58,11 +112,11 @@ where
     }
 
     fn neighbors_with_send_capacity(&self, a: N, capacity: u128) -> OptionIterator<impl Iterator<Item=&N>> {
-        let a_map = match self.nodes.get(&a) {
-            Some(a_map) => a_map,
+        let a_edges = match self.nodes.get(&a) {
+            Some(a_edges) => a_edges,
             None => return OptionIterator::new(None),
         };
-        let iter = a_map.keys().filter(move |b| self.get_send_capacity(&a,b) >= capacity);
+        let iter = a_edges.edges.keys().filter(move |b| self.get_send_capacity(&a,b) >= capacity);
         OptionIterator::new(Some(iter))
     }
 
@@ -108,27 +162,27 @@ where
 
     /// Add or update edge
     fn update_edge(&mut self, a: N, b: N, edge: CapacityEdge<u128>) -> Option<CapacityEdge<u128>> {
-        let mut a_entry = self.nodes.entry(a).or_insert(HashMap::new());
-        a_entry.insert(b, edge)
+        let mut a_entry = self.nodes.entry(a).or_insert(NodeEdges::new());
+        a_entry.edges.insert(b, Edge::new(edge)).map(|edge| edge.capacity)
     }
 
     /// Remove an edge from the graph
     fn remove_edge(&mut self, a: &N, b: &N) -> Option<CapacityEdge<u128>> {
-        let mut a_map = match self.nodes.get_mut(a) {
-            Some(a_map) => a_map,
+        let mut a_edges = match self.nodes.get_mut(a) {
+            Some(a_edges) => a_edges,
             None => return None,
         };
 
-        let old_edge = match a_map.remove(b) {
+        let old_edge = match a_edges.edges.remove(b) {
             Some(edge) => edge,
             None => return None,
         };
 
-        if a_map.len() == 0 {
+        if a_edges.edges.len() == 0 {
             self.nodes.remove(a);
         }
 
-        Some(old_edge)
+        Some(old_edge.capacity)
     }
 
     /// Remove a node and all related edges known from him.
@@ -144,6 +198,11 @@ where
         option_to_vec(self.get_route(a, b, capacity, opt_exclude))
     }
 
+    fn tick(&mut self) {
+        for (_node, node_edges) in &mut self.nodes {
+            node_edges.tick();
+        }
+    }
 }
 
 #[cfg(test)]
@@ -243,6 +302,35 @@ mod tests {
         assert_eq!(cg.get_route(&2, &1, 6, Some((&2,&1))), Some((vec![2,4,3,1], 6)));
         // Require too much capacity:
         assert_eq!(cg.get_route(&2, &1, 7, Some((&2,&1))), None);
+    }
+
+    #[test]
+    fn test_simple_capacity_graph_tick() {
+        let mut cg = SimpleCapacityGraph::<u32>::new();
+
+        cg.update_edge(0, 1, (30, 10));
+        cg.update_edge(1, 0, (10, 30));
+
+        cg.update_edge(2, 3, (30, 10));
+        cg.update_edge(3, 2, (10, 30));
+
+        assert_eq!(cg.get_route(&0, &1, 30, None), Some((vec![0,1], 30)));
+        assert_eq!(cg.get_route(&2, &3, 30, None), Some((vec![2,3], 30)));
+
+        let max_edge_age = max_edge_age(1);
+        for i in 0 .. max_edge_age - 1 {
+            cg.tick();
+            assert_eq!(cg.get_route(&0, &1, 30, None), Some((vec![0,1], 30)));
+            assert_eq!(cg.get_route(&2, &3, 30, None), Some((vec![2,3], 30)));
+        }
+
+        cg.update_edge(2, 3, (30, 10));
+        cg.update_edge(3, 2, (10, 30));
+
+        // At this point 0->1 and 1->0 should expire, but 2->3 and 3->2 don't expire:
+        cg.tick();
+        assert_eq!(cg.get_route(&0, &1, 30, None), None);
+        assert_eq!(cg.get_route(&2, &3, 30, None), Some((vec![2,3], 30)));
     }
 }
 
