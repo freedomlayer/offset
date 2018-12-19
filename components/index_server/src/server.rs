@@ -530,12 +530,19 @@ mod tests {
     use futures::task::Spawn;
 
     use crypto::identity::PUBLIC_KEY_LEN;
+    use crypto::test_utils::DummyRandom;
+
+    use common::dummy_connector::DummyConnector;
+
+    // use crate::verifier::dummy_verifier::DummyVerifier;
+    use crate::verifier::simple_verifier::SimpleVerifier;
+
+
 
     async fn task_index_server_loop_basic<S>(spawner: S) 
     where
-        S: Spawn + Clone,
+        S: Spawn + Clone + Send,
     {
-        /*
         let mut server_pks = Vec::new();
         for i in 0 .. 8 {
             server_pks.push(PublicKey::from(&[i as u8; PUBLIC_KEY_LEN]));
@@ -548,7 +555,7 @@ mod tests {
 
 
         let index_server_config = IndexServerConfig {
-            local_public_key: servers_pks[0].clone(),
+            local_public_key: server_pks[0].clone(),
             trusted_servers,
         };
 
@@ -556,22 +563,26 @@ mod tests {
         let (client_connections_sender, incoming_client_connections) = mpsc::channel(0);
 
         let (conn_request_sender, conn_request_receiver) = mpsc::channel(0);
-        let server_connector = DummyConnector::new(conn_requests_sender);
+        let server_connector = DummyConnector::new(conn_request_sender);
 
-        let (tick_sender, timer_stream) = mpsc::channel(0);
+        let (tick_sender, timer_stream) = mpsc::channel::<()>(0);
 
         let (graph_requests_sender, graph_requests_receiver) = mpsc::channel(0);
-        let graph_client = GraphClient::new(requests_sender);
+        let graph_client = GraphClient::new(graph_requests_sender);
+
+        // TODO: Do we have a way to create a mock SimpleVerifier that will work correctly?
+        // Currently DummyVerifier will cause infinite cycles when forwarding messages.
+        let rng = DummyRandom::new(&[0u8]);
+        let verifier = SimpleVerifier::new(8, rng);
 
         let server_loop_fut = server_loop(index_server_config,
                     incoming_server_connections,
                     incoming_client_connections,
                     server_connector,
                     graph_client,
-                    verifier: V, // TODO
+                    verifier,
                     timer_stream,
                     spawner.clone());
-        */
     }
 
     #[test]
