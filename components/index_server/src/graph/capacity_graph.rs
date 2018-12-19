@@ -25,4 +25,6 @@ pub trait CapacityGraph {
     fn get_routes(&self, a: &Self::Node, b: &Self::Node, capacity: Self::Capacity, opt_exclude: Option<(&Self::Node, &Self::Node)>) 
         -> Vec<CapacityRoute<Self::Node, Self::Capacity>>;
 
+    /// Simulate advancement of time. Used to remove old edges.
+    fn tick(&mut self);
 }
