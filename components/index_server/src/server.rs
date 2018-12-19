@@ -385,25 +385,23 @@ async fn client_handler(mut graph_client: GraphClient<PublicKey, u128>,
 }
 
 
-async fn server_loop<A,IS,IC,SC,V,S>(index_server_config: IndexServerConfig<A>,
+async fn server_loop<A,IS,IC,SC,V,TS,S>(index_server_config: IndexServerConfig<A>,
                                  incoming_server_connections: IS,
                                  incoming_client_connections: IC,
                                  server_connector: SC,
                                  graph_client: GraphClient<PublicKey, u128>,
                                  verifier: V,
-                                 mut timer_client: TimerClient,
+                                 mut timer_stream: TS,
                                  spawner: S) -> Result<(), IndexServerError>
 where
     A: Clone + Send + 'static,
     IS: Stream<Item=(PublicKey, ServerConn)> + Unpin,
     IC: Stream<Item=(PublicKey, ClientConn)> + Unpin,
     SC: FutTransform<Input=(PublicKey, A), Output=ServerConn> + Clone + Send + 'static,
-    S: Spawn + Send,
     V: Verifier<Node=PublicKey, Neighbor=PublicKey, SessionId=Uid>,
+    TS: Stream + Unpin,
+    S: Spawn + Send,
 {
-
-    let timer_stream = await!(timer_client.request_timer_stream())
-        .map_err(|_| IndexServerError::RequestTimerStreamFailed)?;
 
     // TODO: Create translation between incoming ticks (Which might happen pretty often)
     // to hash ticks, which should be a bit slower. (For every hash tick we have to send the hash
