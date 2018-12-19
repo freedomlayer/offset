@@ -6,7 +6,7 @@ use super::ratchet::RatchetPool;
 use super::verifier::Verifier;
 
 
-struct SimpleVerifier<N,B,U,R> {
+pub struct SimpleVerifier<N,B,U,R> {
     hash_clock: HashClock<B>,
     ratchet_pool: RatchetPool<N,U>,
     rng: R,
