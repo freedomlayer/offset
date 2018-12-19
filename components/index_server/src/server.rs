@@ -181,17 +181,6 @@ where
             })
     }
 
-    /*
-    /// Iterate over all connected clients
-    fn iter_connected_clients(&mut self) 
-        -> impl Iterator<Item=&mut Connected<IndexServerToClient>> {
-
-        self.clients
-            .iter_mut()
-            .map(|(_client_public_key, connected_client)| connected_client)
-    }
-    */
-
     pub fn spawn_server(&mut self, public_key: PublicKey, address: A) 
         -> Result<RemoteServer<A>, IndexServerError> {
 
