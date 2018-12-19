@@ -35,7 +35,7 @@ impl Mutation {
 }
 
 impl MutationsUpdate {
-    fn signature_buff(&self) -> Vec<u8> {
+    pub fn signature_buff(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.node_public_key);
 
