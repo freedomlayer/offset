@@ -535,4 +535,34 @@ where
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::executor::ThreadPool;
+    use futures::task::Spawn;
+
+    async fn task_index_server_loop_basic<S>(spawner: S) 
+    where
+        S: Spawn,
+    {
+
+        /*u
+    async fn server_loop<A,IS,IC,SC,V,S>(index_server_config: IndexServerConfig<A>,
+                                     incoming_server_connections: IS,
+                                     incoming_client_connections: IC,
+                                     server_connector: SC,
+                                     graph_client: GraphClient<PublicKey, u128>,
+                                     verifier: V,
+                                     mut timer_client: TimerClient,
+                                     spawner: S) -> Result<(), IndexServerError>
+                                     */
+
+    }
+
+    #[test]
+    fn test_index_server_loop_basic() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_index_server_loop_basic(thread_pool.clone()));
+    }
+}
 
