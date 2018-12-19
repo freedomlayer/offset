@@ -4,7 +4,7 @@ use crypto::hash::{HashResult, HASH_RESULT_LEN};
 use super::verifier::Verifier;
 
 
-struct DummyVerifier<N,B,U> {
+pub struct DummyVerifier<N,B,U> {
     phantom_n: PhantomData<N>,
     phantom_b: PhantomData<B>,
     phantom_u: PhantomData<U>,
