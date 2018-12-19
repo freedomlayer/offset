@@ -486,6 +486,7 @@ where
                     },
                     Some(old_server) => old_server,
                 };
+                let _ = index_server.verifier.remove_neighbor(&public_key);
                 let server = index_server.spawn_server(public_key.clone(), old_server.address)?;
                 index_server.remote_servers.insert(public_key, server);
 
