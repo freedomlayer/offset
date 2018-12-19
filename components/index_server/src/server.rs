@@ -529,22 +529,49 @@ mod tests {
     use futures::executor::ThreadPool;
     use futures::task::Spawn;
 
+    use crypto::identity::PUBLIC_KEY_LEN;
+
     async fn task_index_server_loop_basic<S>(spawner: S) 
     where
-        S: Spawn,
+        S: Spawn + Clone,
     {
+        /*
+        let mut server_pks = Vec::new();
+        for i in 0 .. 8 {
+            server_pks.push(PublicKey::from(&[i as u8; PUBLIC_KEY_LEN]));
+        }
+        server_pks.sort_by(compare_public_key);
 
-        /*u
-    async fn server_loop<A,IS,IC,SC,V,S>(index_server_config: IndexServerConfig<A>,
-                                     incoming_server_connections: IS,
-                                     incoming_client_connections: IC,
-                                     server_connector: SC,
-                                     graph_client: GraphClient<PublicKey, u128>,
-                                     verifier: V,
-                                     mut timer_client: TimerClient,
-                                     spawner: S) -> Result<(), IndexServerError>
-                                     */
+        let mut trusted_servers = HashMap::new();
+        trusted_servers.insert(server_pks[1].clone(), 1u32);
+        trusted_servers.insert(server_pks[2].clone(), 2u32);
 
+
+        let index_server_config = IndexServerConfig {
+            local_public_key: servers_pks[0].clone(),
+            trusted_servers,
+        };
+
+        let (server_connections_sender, incoming_server_connections) = mpsc::channel(0);
+        let (client_connections_sender, incoming_client_connections) = mpsc::channel(0);
+
+        let (conn_request_sender, conn_request_receiver) = mpsc::channel(0);
+        let server_connector = DummyConnector::new(conn_requests_sender);
+
+        let (tick_sender, timer_stream) = mpsc::channel(0);
+
+        let (graph_requests_sender, graph_requests_receiver) = mpsc::channel(0);
+        let graph_client = GraphClient::new(requests_sender);
+
+        let server_loop_fut = server_loop(index_server_config,
+                    incoming_server_connections,
+                    incoming_client_connections,
+                    server_connector,
+                    graph_client,
+                    verifier: V, // TODO
+                    timer_stream,
+                    spawner.clone());
+        */
     }
 
     #[test]
