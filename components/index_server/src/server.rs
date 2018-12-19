@@ -170,17 +170,18 @@ where
 
     /// Iterate over all connected servers
     fn iter_connected_servers(&mut self) 
-        -> impl Iterator<Item=&mut Connected<IndexServerToServer>> {
+        -> impl Iterator<Item=(&PublicKey, &mut Connected<IndexServerToServer>)> {
 
         self.remote_servers
             .iter_mut()
-            .filter_map(|(_server_public_key, remote_server)| match &mut remote_server.state {
-                RemoteServerState::Connected(server_connected) => Some(server_connected),
+            .filter_map(|(server_public_key, remote_server)| match &mut remote_server.state {
+                RemoteServerState::Connected(server_connected) => Some((server_public_key, server_connected)),
                 RemoteServerState::Initiating(_) | 
                 RemoteServerState::Listening => None,
             })
     }
 
+    /*
     /// Iterate over all connected clients
     fn iter_connected_clients(&mut self) 
         -> impl Iterator<Item=&mut Connected<IndexServerToClient>> {
@@ -189,6 +190,7 @@ where
             .iter_mut()
             .map(|(_client_public_key, connected_client)| connected_client)
     }
+    */
 
     pub fn spawn_server(&mut self, public_key: PublicKey, address: A) 
         -> Result<RemoteServer<A>, IndexServerError> {
@@ -313,12 +315,12 @@ where
         let (time_hash, removed_nodes) = self.verifier.tick();
 
         // Try to send the time tick to all servers. Sending to some of them might fail:
-        for connected_server in self.iter_connected_servers() {
+        for (_server_public_key, connected_server) in self.iter_connected_servers() {
             let _ = connected_server.try_send(IndexServerToServer::TimeHash(time_hash.clone()));
         }
 
         // Try to send time tick to all connected clients:
-        for connected_client in self.iter_connected_clients() {
+        for (_client_public_key, connected_client) in &mut self.clients {
             let _ = connected_client.try_send(IndexServerToClient::TimeHash(time_hash.clone()));
         }
 
