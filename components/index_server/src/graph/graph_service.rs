@@ -5,7 +5,7 @@ use futures::{FutureExt, TryFutureExt, StreamExt, SinkExt};
 
 use super::capacity_graph::{CapacityGraph, CapacityEdge, CapacityRoute};
 
-enum GraphRequest<N,C> {
+pub enum GraphRequest<N,C> {
     /// Change capacities on a directed edge:
     UpdateEdge(N,N,CapacityEdge<C>, oneshot::Sender<Option<CapacityEdge<C>>>),
     /// Remove a directed edge:
@@ -111,7 +111,7 @@ pub struct GraphClient<N,C> {
 
 
 impl<N,C> GraphClient<N,C> {
-    fn new(requests_sender: mpsc::Sender<GraphRequest<N,C>>) -> Self {
+    pub fn new(requests_sender: mpsc::Sender<GraphRequest<N,C>>) -> Self {
         GraphClient {
             requests_sender,
         }
