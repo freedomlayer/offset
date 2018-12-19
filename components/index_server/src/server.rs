@@ -529,45 +529,55 @@ mod tests {
     use futures::executor::ThreadPool;
     use futures::task::Spawn;
 
-    use crypto::identity::PUBLIC_KEY_LEN;
     use crypto::test_utils::DummyRandom;
+    use crypto::identity::{SoftwareEd25519Identity,
+                            generate_pkcs8_key_pair, PUBLIC_KEY_LEN,
+                            PublicKey, Signature, SIGNATURE_LEN};
+    use crypto::uid::UID_LEN;
+    use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 
+    use identity::{create_identity, IdentityClient};
     use common::dummy_connector::DummyConnector;
+    use proto::index::messages::{RequestRoutes};
 
-    // use crate::verifier::dummy_verifier::DummyVerifier;
+    use crate::graph::graph_service::GraphRequest;
     use crate::verifier::simple_verifier::SimpleVerifier;
 
 
 
-    async fn task_index_server_loop_basic<S>(spawner: S) 
+    fn create_identity_client<S>(mut spawner: S, seed: &[u8]) -> IdentityClient
     where
-        S: Spawn + Clone + Send,
+        S: Spawn,
     {
-        let mut server_pks = Vec::new();
-        for i in 0 .. 8 {
-            server_pks.push(PublicKey::from(&[i as u8; PUBLIC_KEY_LEN]));
-        }
-        server_pks.sort_by(compare_public_key);
+        let rng = DummyRandom::new(&[1u8]);
+        let pkcs8 = generate_pkcs8_key_pair(&rng);
+        let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        let (requests_sender, identity_server) = create_identity(identity);
+        let identity_client = IdentityClient::new(requests_sender);
+        spawner.spawn(identity_server.then(|_| future::ready(()))).unwrap();
+        identity_client
+    }
 
-        let mut trusted_servers = HashMap::new();
-        trusted_servers.insert(server_pks[1].clone(), 1u32);
-        trusted_servers.insert(server_pks[2].clone(), 2u32);
+    async fn task_index_server_loop_single_server<S>(mut spawner: S) 
+    where
+        S: Spawn + Clone + Send + 'static,
+    {
+        let server_pk = PublicKey::from(&[0; PUBLIC_KEY_LEN]);
 
-
-        let index_server_config = IndexServerConfig {
-            local_public_key: server_pks[0].clone(),
-            trusted_servers,
+        let index_server_config: IndexServerConfig<u32> = IndexServerConfig {
+            local_public_key: server_pk.clone(),
+            trusted_servers: HashMap::new(),
         };
 
         let (server_connections_sender, incoming_server_connections) = mpsc::channel(0);
-        let (client_connections_sender, incoming_client_connections) = mpsc::channel(0);
+        let (mut client_connections_sender, incoming_client_connections) = mpsc::channel(0);
 
         let (conn_request_sender, conn_request_receiver) = mpsc::channel(0);
         let server_connector = DummyConnector::new(conn_request_sender);
 
-        let (tick_sender, timer_stream) = mpsc::channel::<()>(0);
+        let (mut tick_sender, timer_stream) = mpsc::channel::<()>(0);
 
-        let (graph_requests_sender, graph_requests_receiver) = mpsc::channel(0);
+        let (graph_requests_sender, mut graph_requests_receiver) = mpsc::channel(0);
         let graph_client = GraphClient::new(graph_requests_sender);
 
         // TODO: Do we have a way to create a mock SimpleVerifier that will work correctly?
@@ -582,13 +592,94 @@ mod tests {
                     graph_client,
                     verifier,
                     timer_stream,
-                    spawner.clone());
+                    spawner.clone())
+            .map_err(|e| error!("Error in server_loop(): {:?}", e))
+            .map(|_| ());
+
+        spawner.spawn(server_loop_fut).unwrap();
+
+        let identity_client = create_identity_client(spawner.clone(), &[1,1]);
+        let client_public_key = await!(identity_client.request_public_key()).unwrap();
+
+        let (mut client_sender, server_receiver) = mpsc::channel(0);
+        let (server_sender, mut client_receiver) = mpsc::channel(0);
+        await!(client_connections_sender.send((client_public_key.clone(), (server_sender, server_receiver)))).unwrap();
+
+
+        // Client requests routes:
+        let request_id = Uid::from(&[0; UID_LEN]);
+        let request_routes = RequestRoutes {
+            request_id: request_id.clone(),
+            capacity: 100,
+            source: PublicKey::from(&[8; PUBLIC_KEY_LEN]),
+            destination: PublicKey::from(&[9; PUBLIC_KEY_LEN]),
+            opt_exclude: None,
+        };
+        await!(client_sender.send(IndexClientToServer::RequestRoutes(request_routes))).unwrap();
+
+        // Handle the graph request:
+        match await!(graph_requests_receiver.next()).unwrap() {
+            GraphRequest::GetRoutes(src, dest, capacity, opt_exclude, response_sender) => {
+                assert_eq!(src, PublicKey::from(&[8; PUBLIC_KEY_LEN]));
+                assert_eq!(dest, PublicKey::from(&[9; PUBLIC_KEY_LEN]));
+                assert_eq!(capacity, 100);
+                assert_eq!(opt_exclude, None);
+                response_sender.send(Vec::new()).unwrap();
+            }
+            _ => unreachable!(),
+        }
+
+        match await!(client_receiver.next()).unwrap() {
+            IndexServerToClient::ResponseRoutes(response_routes) => {
+                assert_eq!(response_routes.request_id, request_id);
+                assert!(response_routes.routes.is_empty());
+            },
+            _ => unreachable!(),
+        };
+
+
+        // Server should periodically send time hashes to the client:
+        await!(tick_sender.send(())).unwrap();
+
+        let time_hash = match await!(client_receiver.next()).unwrap() {
+            IndexServerToClient::TimeHash(time_hash) => time_hash,
+            _ => unreachable!(),
+        };
+
+        // Send mutations update to the server:
+        let mutations = vec![Mutation::RemoveFriend(PublicKey::from(&[11; PUBLIC_KEY_LEN]))];
+
+        let mut mutations_update = MutationsUpdate {
+            node_public_key: client_public_key.clone(),
+            mutations,
+            time_hash,
+            session_id: Uid::from(&[0; UID_LEN]),
+            counter: 0,
+            rand_nonce: RandValue::from(&[0; RAND_VALUE_LEN]),
+            signature: Signature::from(&[0; SIGNATURE_LEN]),
+        };
+
+        // Calculate signature:
+        mutations_update.signature = await!(identity_client.request_signature(
+            mutations_update.signature_buff().clone())).unwrap();
+
+        await!(client_sender.send(IndexClientToServer::MutationsUpdate(mutations_update))).unwrap();
+
+        // Handle the graph request:
+        match await!(graph_requests_receiver.next()).unwrap() {
+            GraphRequest::RemoveEdge(src, dest, response_sender) => {
+                assert_eq!(src, client_public_key);
+                assert_eq!(dest, PublicKey::from(&[11; PUBLIC_KEY_LEN]));
+                response_sender.send(None).unwrap();
+            }
+            _ => unreachable!(),
+        }
     }
 
     #[test]
-    fn test_index_server_loop_basic() {
+    fn test_index_server_loop_single_server() {
         let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_index_server_loop_basic(thread_pool.clone()));
+        thread_pool.run(task_index_server_loop_single_server(thread_pool.clone()));
     }
 }
 
