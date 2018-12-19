@@ -288,7 +288,11 @@ where
 
 
         // Try to forward to all connected servers:
-        for connected_server in self.iter_connected_servers() {
+        for (server_public_key, connected_server) in self.iter_connected_servers() {
+            if Some(server_public_key) == opt_server_public_key.as_ref() {
+                // Don't send back to the server who sent this ForwardMutationsUpdate message
+                continue;
+            }
             let _ = connected_server.try_send(
                 IndexServerToServer::ForwardMutationsUpdate(forward_mutations_update.clone()));
         }
