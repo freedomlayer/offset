@@ -264,6 +264,8 @@ where
         // The message is valid and fresh.
 
         // Expire old edges for `node_public_key`:
+        // Note: This tick happens every time a message is received from this `node_public_key`,
+        // and not every constant amount of time. 
         self.graph_client.tick(mutations_update.node_public_key.clone());
         
         // Add a link to the time proof:
