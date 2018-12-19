@@ -134,7 +134,7 @@ fn is_listen_server(local_public_key: &PublicKey, friend_public_key: &PublicKey)
 
 impl<A,S,SC,V> IndexServer<A,S,SC,V> 
 where
-    A: Clone + Send + 'static,
+    A: Clone + Send + std::fmt::Debug + 'static,
     S: Spawn + Send, 
     SC: FutTransform<Input=(PublicKey, A), Output=ServerConn> + Clone + Send + 'static,
     V: Verifier<Node=PublicKey, Neighbor=PublicKey, SessionId=Uid>,
@@ -191,6 +191,7 @@ where
             })
         }
 
+        println!("{:?}: Initiating connection to server... {:?}", self.local_public_key[0], public_key[0]);
         // We have the responsibility to initiate connection:
         let (close_sender, close_receiver) = oneshot::channel();
         let mut c_server_connector = self.server_connector.clone();
@@ -383,7 +384,7 @@ async fn server_loop<A,IS,IC,SC,V,TS,S>(index_server_config: IndexServerConfig<A
                                  mut timer_stream: TS,
                                  spawner: S) -> Result<(), IndexServerError>
 where
-    A: Clone + Send + 'static,
+    A: Clone + Send + std::fmt::Debug + 'static,
     IS: Stream<Item=(PublicKey, ServerConn)> + Unpin,
     IC: Stream<Item=(PublicKey, ClientConn)> + Unpin,
     SC: FutTransform<Input=(PublicKey, A), Output=ServerConn> + Clone + Send + 'static,
@@ -467,6 +468,7 @@ where
             IndexServerEvent::FromServer((public_key, Some(index_server_to_server))) => 
                 await!(index_server.handle_from_server(public_key, index_server_to_server))?,
             IndexServerEvent::FromServer((public_key, None)) => {
+                println!("{}: Connection closed {}", index_server.local_public_key[0], public_key[0]);
                 // Server connection closed
                 let old_server = match index_server.remote_servers.remove(&public_key) {
                     None => {
@@ -537,7 +539,7 @@ mod tests {
     use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 
     use identity::{create_identity, IdentityClient};
-    use common::dummy_connector::DummyConnector;
+    use common::dummy_connector::{DummyConnector, ConnRequest};
     use proto::index::messages::{RequestRoutes};
 
     use crate::graph::graph_service::GraphRequest;
@@ -680,6 +682,131 @@ mod tests {
     fn test_index_server_loop_single_server() {
         let mut thread_pool = ThreadPool::new().unwrap();
         thread_pool.run(task_index_server_loop_single_server(thread_pool.clone()));
+    }
+
+    // ###########################################################
+    // ###########################################################
+
+    struct TestServer {
+        public_key: PublicKey,
+        server_connections_sender: mpsc::Sender<(PublicKey, ServerConn)>,
+        client_connections_sender: mpsc::Sender<(PublicKey, ClientConn)>,
+        graph_requests_receiver: mpsc::Receiver<GraphRequest<PublicKey, u128>>,
+        server_conn_request_receiver: mpsc::Receiver<ConnRequest<(PublicKey, u8), ServerConn>>,
+    }
+
+    fn create_test_server<S>(server_public_key: PublicKey, 
+                          trusted_servers: &[PublicKey], 
+                          mut spawner: S) 
+        -> TestServer
+
+    where
+        S: Spawn + Clone + Send + 'static,
+    {
+        let trusted_servers = trusted_servers
+            .iter()
+            .enumerate()
+            .map(|(i, public_key)| (public_key.clone(), i as u8))
+            .collect::<HashMap<_,_>>();
+
+        let index_server_config: IndexServerConfig<u8> = IndexServerConfig {
+            local_public_key: server_public_key.clone(),
+            trusted_servers,
+        };
+
+        let (server_connections_sender, incoming_server_connections) = mpsc::channel(0);
+        let (mut client_connections_sender, incoming_client_connections) = mpsc::channel(0);
+
+        let (server_conn_request_sender, server_conn_request_receiver) = mpsc::channel(0);
+        let server_connector = DummyConnector::new(server_conn_request_sender);
+
+        let (mut tick_sender, timer_stream) = mpsc::channel::<()>(0);
+
+        let (graph_requests_sender, mut graph_requests_receiver) = mpsc::channel(0);
+        let graph_client = GraphClient::new(graph_requests_sender);
+
+        let rng = DummyRandom::new(&[0x13, 0x37, server_public_key[0]]);
+        let verifier = SimpleVerifier::new(8, rng);
+
+        let server_loop_fut = server_loop(index_server_config,
+                    incoming_server_connections,
+                    incoming_client_connections,
+                    server_connector,
+                    graph_client,
+                    verifier,
+                    timer_stream,
+                    spawner.clone())
+            .map_err(|e| error!("Error in server_loop(): {:?}", e))
+            .map(|_| ());
+
+        spawner.spawn(server_loop_fut).unwrap();
+
+        TestServer {
+            public_key: server_public_key.clone(),
+            server_connections_sender,
+            client_connections_sender,
+            graph_requests_receiver,
+            server_conn_request_receiver,
+        }
+
+    }
+
+    async fn handle_connect(test_servers: &mut [TestServer], from_index: usize) {
+        let conn_request = await!(test_servers[from_index].server_conn_request_receiver.next()).unwrap();
+        let (a_sender, b_receiver) = mpsc::channel(0);
+        let (b_sender, a_receiver) = mpsc::channel(0);
+
+        let (_dest_public_key, dest_index) = conn_request.address.clone();
+        await!(test_servers[dest_index as usize].server_connections_sender.send(
+                (test_servers[from_index].public_key.clone(), (b_sender, b_receiver)))).unwrap();
+
+        conn_request.reply((a_sender, a_receiver));
+    }
+
+    async fn task_index_server_loop_multi_server<S>(mut spawner: S) 
+    where
+        S: Spawn + Clone + Send + 'static,
+    {
+        /*
+         *  Servers layout: 
+         *
+         *    0 -- 1
+         *    |    |
+         *    2 -- 3 -- 4
+        */
+
+        // Server public keys:
+        let mut spks = (0 .. 5)
+            .map(|i| PublicKey::from(&[i; PUBLIC_KEY_LEN]))
+            .collect::<Vec<_>>();
+
+        // Sort public keys. This helps with testing, because we know how ties will be broken to
+        // decide which server listens and which server initiates connection.
+        spks.sort_by(compare_public_key);
+
+        for (i, spk) in spks.iter().enumerate() {
+            println!("index: {}, spk: {}", i, spk[0]);
+        }
+
+        let mut test_servers = Vec::new();
+        test_servers.push(create_test_server(spks[0].clone(), &[spks[1].clone(),spks[2].clone()], spawner.clone()));
+        test_servers.push(create_test_server(spks[1].clone(), &[spks[0].clone(),spks[3].clone()], spawner.clone()));
+        test_servers.push(create_test_server(spks[2].clone(), &[spks[0].clone(),spks[3].clone()], spawner.clone()));
+        test_servers.push(create_test_server(spks[3].clone(), &[spks[1].clone(),spks[2].clone(),spks[4].clone()], spawner.clone()));
+        test_servers.push(create_test_server(spks[4].clone(), &[spks[3].clone()], spawner.clone()));
+
+        await!(handle_connect(&mut test_servers[..], 4)); // 4 connects to {3}
+        await!(handle_connect(&mut test_servers[..], 3)); // 3 connects to {1,2}
+        await!(handle_connect(&mut test_servers[..], 3));
+        await!(handle_connect(&mut test_servers[..], 3));
+        await!(handle_connect(&mut test_servers[..], 2)); // 2 connects to {0}
+        await!(handle_connect(&mut test_servers[..], 1)); // 1 connects to {0}
+    }
+
+    #[test]
+    fn test_index_server_loop_multi_server() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_index_server_loop_multi_server(thread_pool.clone()));
     }
 }
 
