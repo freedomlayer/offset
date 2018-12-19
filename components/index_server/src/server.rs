@@ -262,6 +262,9 @@ where
         };
 
         // The message is valid and fresh.
+
+        // Expire old edges for `node_public_key`:
+        self.graph_client.tick(mutations_update.node_public_key.clone());
         
         // Add a link to the time proof:
         forward_mutations_update
