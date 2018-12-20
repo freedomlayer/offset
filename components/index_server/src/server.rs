@@ -291,6 +291,10 @@ where
             }
         }
 
+        println!("Try to forward to all connected servers:");
+        println!("@@@@ {:?}", self
+            .iter_connected_servers()
+            .collect::<Vec<_>>().len());
 
         // Try to forward to all connected servers:
         for (server_public_key, connected_server) in self.iter_connected_servers() {
@@ -466,6 +470,8 @@ where
 
                 remote_server.state = RemoteServerState::Connected(Connected::new(sender));
 
+                println!("{}: Received connection from {}", index_server.local_public_key[0], public_key[0]);
+
                 let c_public_key = public_key.clone();
                 let mut receiver = receiver
                     .map(move |msg| IndexServerEvent::FromServer((c_public_key.clone(), Some(msg))))
@@ -478,11 +484,13 @@ where
                 });
 
                 index_server.remote_servers.insert(public_key, remote_server);
+
             },
             IndexServerEvent::FromServer((public_key, Some(index_server_to_server))) => 
                 await!(index_server.handle_from_server(public_key, index_server_to_server))?,
             IndexServerEvent::FromServer((public_key, None)) => {
                 // Server connection closed
+                println!("{}: Server connection closed {}", index_server.local_public_key[0], public_key[0]);
                 let old_server = match index_server.remote_servers.remove(&public_key) {
                     None => {
                         error!("A non existent server {:?} was closed. Aborting.", public_key);
@@ -713,6 +721,7 @@ mod tests {
 
     struct TestServer {
         public_key: PublicKey,
+        tick_sender: mpsc::Sender<()>,
         server_connections_sender: mpsc::Sender<(PublicKey, ServerConn)>,
         client_connections_sender: mpsc::Sender<(PublicKey, ClientConn)>,
         graph_requests_receiver: mpsc::Receiver<GraphRequest<PublicKey, u128>>,
@@ -744,7 +753,7 @@ mod tests {
         let (server_conn_request_sender, server_conn_request_receiver) = mpsc::channel(0);
         let server_connector = DummyConnector::new(server_conn_request_sender);
 
-        let (mut tick_sender, timer_stream) = mpsc::channel::<()>(0);
+        let (tick_sender, timer_stream) = mpsc::channel::<()>(0);
 
         let (graph_requests_sender, mut graph_requests_receiver) = mpsc::channel(0);
         let graph_client = GraphClient::new(graph_requests_sender);
@@ -772,6 +781,7 @@ mod tests {
 
         TestServer {
             public_key: server_public_key.clone(),
+            tick_sender,
             server_connections_sender,
             client_connections_sender,
             graph_requests_receiver,
@@ -791,6 +801,7 @@ mod tests {
 
         conn_request.reply((a_sender, a_receiver));
     }
+
 
     async fn task_index_server_loop_multi_server<S>(mut spawner: S) 
     where
@@ -823,7 +834,110 @@ mod tests {
         await!(handle_connect(&mut test_servers[..], 2)); // 2 connects to {0}
         await!(handle_connect(&mut test_servers[..], 1)); // 1 connects to {0}
 
+
+        // Let some time pass, to fill server's time hash lists.
+        // Without this step it will not be possible to forward messages along long routes.
+        for _ in 0 .. 7usize {
+            for i in 0 .. 5 {
+                await!(test_servers[i].tick_sender.send(())).unwrap();
+            }
+        }
+
         // Connect a client to server 0:
+        let identity_client = create_identity_client(spawner.clone(), &[1,1]);
+        let client_public_key = await!(identity_client.request_public_key()).unwrap();
+
+        let (mut client_sender, server_receiver) = mpsc::channel(0);
+        let (server_sender, mut client_receiver) = mpsc::channel(0);
+        await!(test_servers[0].client_connections_sender.send((client_public_key.clone(), (server_sender, server_receiver)))).unwrap();
+
+        // Client requests routes: We do this to make sure the new client is registered at the
+        // server before we send more time ticks. This will ensure that the server gets
+        // ClientConnected event before the TimeTick event:
+        let request_id = Uid::from(&[0; UID_LEN]);
+        let request_routes = RequestRoutes {
+            request_id: request_id.clone(),
+            capacity: 100,
+            source: PublicKey::from(&[8; PUBLIC_KEY_LEN]),
+            destination: PublicKey::from(&[9; PUBLIC_KEY_LEN]),
+            opt_exclude: None,
+        };
+        await!(client_sender.send(IndexClientToServer::RequestRoutes(request_routes))).unwrap();
+
+        // Handle the graph request:
+        match await!(test_servers[0].graph_requests_receiver.next()).unwrap() {
+            GraphRequest::GetRoutes(src, dest, capacity, opt_exclude, response_sender) => {
+                assert_eq!(src, PublicKey::from(&[8; PUBLIC_KEY_LEN]));
+                assert_eq!(dest, PublicKey::from(&[9; PUBLIC_KEY_LEN]));
+                assert_eq!(capacity, 100);
+                assert_eq!(opt_exclude, None);
+                response_sender.send(Vec::new()).unwrap();
+            }
+            _ => unreachable!(),
+        }
+
+        match await!(client_receiver.next()).unwrap() {
+            IndexServerToClient::ResponseRoutes(response_routes) => {
+                assert_eq!(response_routes.request_id, request_id);
+                assert!(response_routes.routes.is_empty());
+            },
+            _ => unreachable!(),
+        };
+
+
+        // One time iteration for all servers:
+        for i in 0 .. 5 {
+            await!(test_servers[i].tick_sender.send(())).unwrap();
+        }
+
+        // Get time hash sent to the new client:
+        let time_hash0 = match await!(client_receiver.next()).unwrap() {
+            IndexServerToClient::TimeHash(time_hash) => time_hash,
+            _ => unreachable!(),
+        };
+
+
+        // Send mutations update to the server:
+        let mutations = vec![Mutation::RemoveFriend(PublicKey::from(&[11; PUBLIC_KEY_LEN]))];
+
+        let mut mutations_update = MutationsUpdate {
+            node_public_key: client_public_key.clone(),
+            mutations,
+            time_hash: time_hash0.clone(),
+            session_id: Uid::from(&[0; UID_LEN]),
+            counter: 0,
+            rand_nonce: RandValue::from(&[0; RAND_VALUE_LEN]),
+            signature: Signature::from(&[0; SIGNATURE_LEN]),
+        };
+
+        // Calculate signature:
+        mutations_update.signature = await!(identity_client.request_signature(
+            mutations_update.signature_buff().clone())).unwrap();
+
+        await!(client_sender.send(IndexClientToServer::MutationsUpdate(mutations_update))).unwrap();
+
+
+        macro_rules! process_graph_request {
+            ($index:expr) => (
+                match await!(test_servers[$index].graph_requests_receiver.next()).unwrap() {
+                    GraphRequest::RemoveEdge(src, dest, response_sender) => {
+                        assert_eq!(src, client_public_key);
+                        assert_eq!(dest, PublicKey::from(&[11; PUBLIC_KEY_LEN]));
+                        response_sender.send(None).unwrap();
+                    }
+                    _ => unreachable!(),
+                };
+            )
+        }
+
+        process_graph_request!(0);
+        println!("After 0");
+        process_graph_request!(1);
+        println!("After 1");
+        process_graph_request!(3);
+        println!("After 3");
+        process_graph_request!(2);
+        process_graph_request!(4);
 
     }
 
