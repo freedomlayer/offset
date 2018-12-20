@@ -701,8 +701,15 @@ mod tests {
         thread_pool.run(task_index_server_loop_single_server(thread_pool.clone()));
     }
 
+
+
+
     // ###########################################################
     // ###########################################################
+    
+
+
+
 
     struct TestServer {
         public_key: PublicKey,
@@ -712,18 +719,18 @@ mod tests {
         server_conn_request_receiver: mpsc::Receiver<ConnRequest<(PublicKey, u8), ServerConn>>,
     }
 
-    fn create_test_server<S>(server_public_key: PublicKey, 
-                          trusted_servers: &[PublicKey], 
+    fn create_test_server<S>(index: u8, 
+                          trusted_servers: &[u8], 
                           mut spawner: S) 
         -> TestServer
 
     where
         S: Spawn + Clone + Send + 'static,
     {
+        let server_public_key = PublicKey::from(&[index; PUBLIC_KEY_LEN]);
         let trusted_servers = trusted_servers
             .iter()
-            .enumerate()
-            .map(|(i, public_key)| (public_key.clone(), i as u8))
+            .map(|&i| (PublicKey::from(&[i; PUBLIC_KEY_LEN]), i))
             .collect::<HashMap<_,_>>();
 
         let index_server_config: IndexServerConfig<u8> = IndexServerConfig {
@@ -742,18 +749,23 @@ mod tests {
         let (graph_requests_sender, mut graph_requests_receiver) = mpsc::channel(0);
         let graph_client = GraphClient::new(graph_requests_sender);
 
+        let compare_public_key = |pk_a: &PublicKey, pk_b: &PublicKey| pk_a.cmp(pk_b);
+
         let rng = DummyRandom::new(&[0x13, 0x37, server_public_key[0]]);
         let verifier = SimpleVerifier::new(8, rng);
 
+        let c_server_public_key = server_public_key.clone();
         let server_loop_fut = server_loop(index_server_config,
                     incoming_server_connections,
                     incoming_client_connections,
                     server_connector,
                     graph_client,
+                    compare_public_key,
                     verifier,
                     timer_stream,
                     spawner.clone())
-            .map_err(|e| error!("Error in server_loop(): {:?}", e))
+            .map_err(move |e| error!("Error in server_loop() for pk[0] = {}: {:?}", 
+                                  c_server_public_key[0], e))
             .map(|_| ());
 
         spawner.spawn(server_loop_fut).unwrap();
@@ -797,31 +809,29 @@ mod tests {
             .map(|i| PublicKey::from(&[i; PUBLIC_KEY_LEN]))
             .collect::<Vec<_>>();
 
-        // Sort public keys. This helps with testing, because we know how ties will be broken to
-        // decide which server listens and which server initiates connection.
-        spks.sort_by(compare_public_key);
-
-        for (i, spk) in spks.iter().enumerate() {
-            println!("index: {}, spk: {}", i, spk[0]);
-        }
-
         let mut test_servers = Vec::new();
-        test_servers.push(create_test_server(spks[0].clone(), &[spks[1].clone(),spks[2].clone()], spawner.clone()));
-        test_servers.push(create_test_server(spks[1].clone(), &[spks[0].clone(),spks[3].clone()], spawner.clone()));
-        test_servers.push(create_test_server(spks[2].clone(), &[spks[0].clone(),spks[3].clone()], spawner.clone()));
-        test_servers.push(create_test_server(spks[3].clone(), &[spks[1].clone(),spks[2].clone(),spks[4].clone()], spawner.clone()));
-        test_servers.push(create_test_server(spks[4].clone(), &[spks[3].clone()], spawner.clone()));
+        test_servers.push(create_test_server(0, &[1,2], spawner.clone()));
+        test_servers.push(create_test_server(1, &[0,3], spawner.clone()));
+        test_servers.push(create_test_server(2, &[0,3], spawner.clone()));
+        test_servers.push(create_test_server(3, &[1,2,4], spawner.clone()));
+        test_servers.push(create_test_server(4, &[3], spawner.clone()));
 
+        // Let all servers connect:
         await!(handle_connect(&mut test_servers[..], 4)); // 4 connects to {3}
         await!(handle_connect(&mut test_servers[..], 3)); // 3 connects to {1,2}
         await!(handle_connect(&mut test_servers[..], 3));
-        await!(handle_connect(&mut test_servers[..], 3));
         await!(handle_connect(&mut test_servers[..], 2)); // 2 connects to {0}
         await!(handle_connect(&mut test_servers[..], 1)); // 1 connects to {0}
+
+        // Connect a client to server 0:
+
     }
 
     #[test]
     fn test_index_server_loop_multi_server() {
+        // Example of how to run with logs:
+        // RUST_LOG=offst_index_server=info cargo test -p offst-index-server multi  -- --nocapture
+        let _ = env_logger::init();
         let mut thread_pool = ThreadPool::new().unwrap();
         thread_pool.run(task_index_server_loop_multi_server(thread_pool.clone()));
     }
