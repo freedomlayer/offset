@@ -569,6 +569,10 @@ mod tests {
     use crate::verifier::simple_verifier::SimpleVerifier;
 
 
+    /// Size of channel used for channels between servers, or channels between a server and a
+    /// client. A value bigger than 0 is used to make sure try_send() doesn't fail during mutations
+    /// forwarding or when sending time hash ticks.
+    const CHANNEL_SIZE: usize = 16;
 
     fn create_identity_client<S>(mut spawner: S, seed: &[u8]) -> IdentityClient
     where
@@ -630,8 +634,8 @@ mod tests {
         let identity_client = create_identity_client(spawner.clone(), &[1,1]);
         let client_public_key = await!(identity_client.request_public_key()).unwrap();
 
-        let (mut client_sender, server_receiver) = mpsc::channel(0);
-        let (server_sender, mut client_receiver) = mpsc::channel(0);
+        let (mut client_sender, server_receiver) = mpsc::channel(CHANNEL_SIZE);
+        let (server_sender, mut client_receiver) = mpsc::channel(CHANNEL_SIZE);
         await!(client_connections_sender.send((client_public_key.clone(), (server_sender, server_receiver)))).unwrap();
 
 
@@ -794,8 +798,8 @@ mod tests {
 
     async fn handle_connect(test_servers: &mut [TestServer], from_index: usize) {
         let conn_request = await!(test_servers[from_index].server_conn_request_receiver.next()).unwrap();
-        let (a_sender, b_receiver) = mpsc::channel(0);
-        let (b_sender, a_receiver) = mpsc::channel(0);
+        let (a_sender, b_receiver) = mpsc::channel(CHANNEL_SIZE);
+        let (b_sender, a_receiver) = mpsc::channel(CHANNEL_SIZE);
 
         let (_dest_public_key, dest_index) = conn_request.address.clone();
         await!(test_servers[dest_index as usize].server_connections_sender.send(
@@ -849,8 +853,8 @@ mod tests {
         let identity_client = create_identity_client(spawner.clone(), &[1,1]);
         let client_public_key = await!(identity_client.request_public_key()).unwrap();
 
-        let (mut client_sender, server_receiver) = mpsc::channel(0);
-        let (server_sender, mut client_receiver) = mpsc::channel(0);
+        let (mut client_sender, server_receiver) = mpsc::channel(CHANNEL_SIZE);
+        let (server_sender, mut client_receiver) = mpsc::channel(CHANNEL_SIZE);
         await!(test_servers[0].client_connections_sender.send((client_public_key.clone(), (server_sender, server_receiver)))).unwrap();
 
         // Client requests routes: We do this to make sure the new client is registered at the
