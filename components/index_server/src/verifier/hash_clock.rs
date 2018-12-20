@@ -138,6 +138,7 @@ where
         None
     }
 
+    #[allow(unused)]
     pub fn get_neighbor_hash(&self, neighbor: &N) -> Option<&HashResult> {
         self.neighbor_hashes.get(neighbor)
     }
@@ -182,7 +183,7 @@ mod tests {
         let tick_hash3 = hash_clocks[3].verify_expansion_chain(&origin_tick_hash, &[&expansion1, &expansion2]).unwrap();
 
         let expansion3 = hash_clocks[3].get_expansion(&tick_hash3).unwrap().to_vec();
-        let tick_hash3 = hash_clocks[0].verify_expansion_chain(&origin_tick_hash, &[&expansion1, &expansion2, &expansion3]).unwrap();
+        let _tick_hash3 = hash_clocks[0].verify_expansion_chain(&origin_tick_hash, &[&expansion1, &expansion2, &expansion3]).unwrap();
 
 
         // Everything is forgotten after `last_ticks_max_len` ticks:

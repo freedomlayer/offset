@@ -65,6 +65,7 @@ pub struct SimpleCapacityGraph<N> {
 }
 
 
+#[allow(unused)]
 impl<N> SimpleCapacityGraph<N> 
 where
     N: cmp::Eq + hash::Hash + Clone + std::fmt::Debug,
@@ -162,13 +163,13 @@ where
 
     /// Add or update edge
     fn update_edge(&mut self, a: N, b: N, edge: CapacityEdge<u128>) -> Option<CapacityEdge<u128>> {
-        let mut a_entry = self.nodes.entry(a).or_insert(NodeEdges::new());
+        let a_entry = self.nodes.entry(a).or_insert(NodeEdges::new());
         a_entry.edges.insert(b, Edge::new(edge)).map(|edge| edge.capacity)
     }
 
     /// Remove an edge from the graph
     fn remove_edge(&mut self, a: &N, b: &N) -> Option<CapacityEdge<u128>> {
-        let mut a_edges = match self.nodes.get_mut(a) {
+        let a_edges = match self.nodes.get_mut(a) {
             Some(a_edges) => a_edges,
             None => return None,
         };
@@ -280,7 +281,7 @@ mod tests {
 
     #[test]
     fn test_get_route() {
-        let mut cg = example_capacity_graph();
+        let cg = example_capacity_graph();
 
         assert_eq!(cg.get_route(&2, &5, 29, None), Some((vec![2,5], 30)));
         assert_eq!(cg.get_route(&2, &5, 30, None), Some((vec![2,5], 30)));
@@ -318,7 +319,7 @@ mod tests {
         assert_eq!(cg.get_route(&2, &3, 30, None), Some((vec![2,3], 30)));
 
         let max_edge_age = max_edge_age(1);
-        for i in 0 .. max_edge_age - 1 {
+        for _ in 0 .. max_edge_age - 1 {
             cg.tick(&0);
             assert_eq!(cg.get_route(&0, &1, 30, None), Some((vec![0,1], 30)));
             assert_eq!(cg.get_route(&2, &3, 30, None), Some((vec![2,3], 30)));

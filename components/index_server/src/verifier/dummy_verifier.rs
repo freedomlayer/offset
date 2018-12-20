@@ -12,6 +12,7 @@ pub struct DummyVerifier<N,B,U> {
 }
 
 impl<N,B,U> DummyVerifier<N,B,U> {
+    #[allow(unused)]
     pub fn new() -> Self {
         Self {
             phantom_n: PhantomData,
@@ -32,11 +33,11 @@ impl<N,B,U> Verifier for DummyVerifier<N,B,U> {
     type SessionId = U;
 
     fn verify(&mut self, 
-               origin_tick_hash: &HashResult,
-               expansion_chain: &[&[HashResult]],
-               node: &N,
-               session_id: &U,
-               counter: u64) -> Option<&[HashResult]> {
+               _origin_tick_hash: &HashResult,
+               _expansion_chain: &[&[HashResult]],
+               _node: &N,
+               _session_id: &U,
+               _counter: u64) -> Option<&[HashResult]> {
         
         // Everything is successfully verified:
         Some(&self.hash_vec)
@@ -47,12 +48,12 @@ impl<N,B,U> Verifier for DummyVerifier<N,B,U> {
         (HashResult::from(&[0; HASH_RESULT_LEN]), Vec::new())
     }
 
-    fn neighbor_tick(&mut self, neighbor: B, tick_hash: HashResult) -> Option<HashResult> {
+    fn neighbor_tick(&mut self, _n_eighbor: B, _tick_hash: HashResult) -> Option<HashResult> {
         // Nothing happens
         None
     }
 
-    fn remove_neighbor(&mut self, neighbor: &B) -> Option<HashResult> {
+    fn remove_neighbor(&mut self, _neighbor: &B) -> Option<HashResult> {
         // Nothing happens
         None
     }

@@ -1,6 +1,6 @@
 use std::marker::Unpin;
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use futures::{select, future, FutureExt, TryFutureExt, stream, 
     Stream, StreamExt, SinkExt};
@@ -11,8 +11,6 @@ use common::conn::{ConnPair, FutTransform};
 
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
-
-use timer::TimerClient;
 
 use proto::index::messages::{IndexServerToClient, 
     IndexClientToServer, IndexServerToServer, 
@@ -39,7 +37,7 @@ pub enum IndexServerError {
     RemoteSendError,
 }
 
-struct IndexServerConfig<A> {
+pub struct IndexServerConfig<A> {
     local_public_key: PublicKey,
     // map: public_key -> server_address
     trusted_servers: HashMap<PublicKey, A>, 
@@ -112,7 +110,7 @@ struct IndexServer<A,S,SC,V,CMP> {
 }
 
 impl From<GraphClientError> for IndexServerError {
-    fn from(from: GraphClientError) -> IndexServerError {
+    fn from(_from: GraphClientError) -> IndexServerError {
         IndexServerError::GraphClientError
     }
 }
@@ -353,7 +351,7 @@ where
 
 
 async fn client_handler(mut graph_client: GraphClient<PublicKey, u128>,
-                        public_key: PublicKey,
+                        _public_key: PublicKey, // TODO: unused?
                         client_conn: ClientConn,
                         mut event_sender: mpsc::Sender<IndexServerEvent>) 
     -> Result<(), IndexServerError> {
@@ -394,14 +392,15 @@ async fn client_handler(mut graph_client: GraphClient<PublicKey, u128>,
 }
 
 
-async fn server_loop<A,IS,IC,SC,CMP,V,TS,S>(index_server_config: IndexServerConfig<A>,
+#[allow(unused)]
+pub async fn server_loop<A,IS,IC,SC,CMP,V,TS,S>(index_server_config: IndexServerConfig<A>,
                                  incoming_server_connections: IS,
                                  incoming_client_connections: IC,
                                  server_connector: SC,
                                  graph_client: GraphClient<PublicKey, u128>,
                                  compare_public_key: CMP, 
                                  verifier: V,
-                                 mut timer_stream: TS,
+                                 timer_stream: TS,
                                  spawner: S,
                                  mut opt_debug_event_sender: Option<mpsc::Sender<()>>) -> Result<(), IndexServerError>
 where
@@ -485,7 +484,7 @@ where
 
                 index_server.spawner.spawn(async move {
                     let _ = await!(c_event_sender.send_all(&mut receiver));
-                });
+                }).map_err(|_| IndexServerError::SpawnError)?;
 
                 index_server.remote_servers.insert(public_key, remote_server);
 
@@ -527,7 +526,8 @@ where
                         let _ = await!(c_event_sender.send(IndexServerEvent::ClientClosed(c_public_key)));
                     });
 
-                index_server.spawner.spawn(client_handler_fut);
+                index_server.spawner.spawn(client_handler_fut)
+                    .map_err(|_| IndexServerError::SpawnError)?;
                 index_server.clients.insert(public_key, Connected::new(c_sender));
             },
             IndexServerEvent::ClientMutationsUpdate(mutations_update) => {
@@ -585,7 +585,7 @@ mod tests {
     where
         S: Spawn,
     {
-        let rng = DummyRandom::new(&[1u8]);
+        let rng = DummyRandom::new(seed);
         let pkcs8 = generate_pkcs8_key_pair(&rng);
         let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
         let (requests_sender, identity_server) = create_identity(identity);
@@ -605,10 +605,10 @@ mod tests {
             trusted_servers: HashMap::new(),
         };
 
-        let (server_connections_sender, incoming_server_connections) = mpsc::channel(0);
+        let (_server_connections_sender, incoming_server_connections) = mpsc::channel(0);
         let (mut client_connections_sender, incoming_client_connections) = mpsc::channel(0);
 
-        let (conn_request_sender, conn_request_receiver) = mpsc::channel(0);
+        let (conn_request_sender, _conn_request_receiver) = mpsc::channel(0);
         let server_connector = DummyConnector::new(conn_request_sender);
 
         let (mut tick_sender, timer_stream) = mpsc::channel::<()>(0);
@@ -763,14 +763,14 @@ mod tests {
         };
 
         let (server_connections_sender, incoming_server_connections) = mpsc::channel(0);
-        let (mut client_connections_sender, incoming_client_connections) = mpsc::channel(0);
+        let (client_connections_sender, incoming_client_connections) = mpsc::channel(0);
 
         let (server_conn_request_sender, server_conn_request_receiver) = mpsc::channel(0);
         let server_connector = DummyConnector::new(server_conn_request_sender);
 
         let (tick_sender, timer_stream) = mpsc::channel::<()>(0);
 
-        let (graph_requests_sender, mut graph_requests_receiver) = mpsc::channel(0);
+        let (graph_requests_sender, graph_requests_receiver) = mpsc::channel(0);
         let graph_client = GraphClient::new(graph_requests_sender);
 
         let compare_public_key = |pk_a: &PublicKey, pk_b: &PublicKey| pk_a.cmp(pk_b);
@@ -826,7 +826,7 @@ mod tests {
     }
 
 
-    async fn task_index_server_loop_multi_server<S>(mut spawner: S) 
+    async fn task_index_server_loop_multi_server<S>(spawner: S) 
     where
         S: Spawn + Clone + Send + 'static,
     {
@@ -838,10 +838,6 @@ mod tests {
          *    2 -- 3 -- 4
         */
 
-        // Server public keys:
-        let mut spks = (0 .. 5)
-            .map(|i| PublicKey::from(&[i; PUBLIC_KEY_LEN]))
-            .collect::<Vec<_>>();
 
         let mut test_servers = Vec::new();
         test_servers.push(create_test_server(0, &[1,2], spawner.clone()));
@@ -860,7 +856,7 @@ mod tests {
 
         // Let some time pass, to fill server's time hash lists.
         // Without this step it will not be possible to forward messages along long routes.
-        for iter in 0 .. 32usize {
+        for _iter in 0 .. 32usize {
             await!(test_servers[0].tick_sender.send(())).unwrap();
             await!(test_servers[0].debug_event_receiver.next()).unwrap();
             for &j in &[1usize,2] {

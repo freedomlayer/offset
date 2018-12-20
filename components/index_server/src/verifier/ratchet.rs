@@ -157,7 +157,7 @@ mod tests {
 
     #[test]
     fn test_ratchet_tick() {
-        let mut session_id = 0u128;
+        let session_id = 0u128;
         let ticks_to_live = 8;
 
         let mut ratchet = Ratchet::new(session_id, 0, ticks_to_live);

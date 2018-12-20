@@ -92,13 +92,13 @@ pub enum GraphClientError {
 
 
 impl From<oneshot::Canceled> for GraphClientError {
-    fn from(from: oneshot::Canceled) -> GraphClientError {
+    fn from(_from: oneshot::Canceled) -> GraphClientError {
         GraphClientError::ResponseReceiverClosed
     }
 }
 
 impl From<mpsc::SendError> for GraphClientError {
-    fn from(from: mpsc::SendError) -> GraphClientError {
+    fn from(_from: mpsc::SendError) -> GraphClientError {
         GraphClientError::SendRequestError
     }
 }
@@ -163,7 +163,8 @@ impl<N,C> GraphClient<N,C> {
 
 /// Spawn a graph service, returning a GraphClient on success.
 /// GraphClient can be cloned to allow multiple clients.
-fn create_graph_service<N,C,CG,S>(capacity_graph: CG, 
+#[allow(unused)]
+pub fn create_graph_service<N,C,CG,S>(capacity_graph: CG, 
                                   mut spawner: S) -> Result<GraphClient<N,C>, SpawnError>
 where
     N: Send + 'static,
@@ -205,7 +206,7 @@ mod tests {
         assert_eq!(await!(graph_client.get_routes(2, 5, 30, None)).unwrap(), vec![(vec![2,5], 30)]);
         assert_eq!(await!(graph_client.get_routes(2, 5, 31, None)).unwrap(), vec![]);
 
-        await!(graph_client.tick(2));
+        await!(graph_client.tick(2)).unwrap();
 
         assert_eq!(await!(graph_client.remove_edge(2, 5)).unwrap(), Some((30, 5)));
         assert_eq!(await!(graph_client.remove_node(2)).unwrap(), false);

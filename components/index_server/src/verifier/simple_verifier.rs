@@ -20,6 +20,7 @@ where
     R: CryptoRandom,
 {
 
+    #[allow(unused)]
     pub fn new(ticks_to_live: usize, rng: R) -> Self {
         // TODO(Security): Make sure that we don't have an off-by-one here with the decision to have
         // one ticks_to_live value for both `hash_clock` and `ratchet_pool`.
@@ -99,7 +100,7 @@ mod tests {
             svs.push(SimpleVerifier::new(ticks_to_live, rng));
         }
 
-        for iter in 0 .. ticks_to_live + 1 {
+        for _iter in 0 .. ticks_to_live + 1 {
             for i in 0 .. num_verifiers {
                 let (tick_hash, _removed) = svs[i].tick();
                 for j in 0 .. num_verifiers {
@@ -117,7 +118,7 @@ mod tests {
         let hashes0 = svs[0].verify(&tick_hash, &[], &1234u128, &0u128, 0u64).unwrap().to_vec();
         let hashes1 = svs[1].verify(&tick_hash, &[&hashes0], &1234u128, &0u128, 0u64).unwrap().to_vec();
         let hashes2 = svs[2].verify(&tick_hash, &[&hashes0, &hashes1], &1234u128, &0u128, 0u64).unwrap().to_vec();
-        let hashes3 = svs[3].verify(&tick_hash, &[&hashes0, &hashes1, &hashes2], &1234u128, &0u128, 0u64).unwrap().to_vec();
+        let _hashes3 = svs[3].verify(&tick_hash, &[&hashes0, &hashes1, &hashes2], &1234u128, &0u128, 0u64).unwrap().to_vec();
     }
 
     // TODO: Add more tests?
