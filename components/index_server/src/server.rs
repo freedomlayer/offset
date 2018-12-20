@@ -9,7 +9,7 @@ use futures::task::{Spawn, SpawnExt};
 
 use common::conn::{ConnPair, FutTransform};
 
-use crypto::identity::{PublicKey, compare_public_key};
+use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 use timer::TimerClient;
@@ -45,7 +45,9 @@ struct IndexServerConfig<A> {
     trusted_servers: HashMap<PublicKey, A>, 
 }
 
+
 /// A connected remote entity
+#[derive(Debug)]
 struct Connected<T> {
     opt_sender: Option<mpsc::Sender<T>>
 }
@@ -76,27 +78,31 @@ impl<T> Connected<T> {
     }
 }
 
+#[derive(Debug)]
 struct ServerInitiating {
     #[allow(unused)]
     close_sender: oneshot::Sender<()>,
 }
 
+#[derive(Debug)]
 enum RemoteServerState {
     Connected(Connected<IndexServerToServer>),
     Initiating(ServerInitiating),
     Listening,
 }
 
+#[derive(Debug)]
 struct RemoteServer<A> {
     address: A,
     state: RemoteServerState,
 }
 
-struct IndexServer<A,S,SC,V> {
+struct IndexServer<A,S,SC,V,CMP> {
     local_public_key: PublicKey,
     server_connector: SC,
     graph_client: GraphClient<PublicKey,u128>,
     verifier: V,
+    compare_public_key: CMP,
     remote_servers: HashMap<PublicKey, RemoteServer<A>>,
     clients: HashMap<PublicKey, Connected<IndexServerToClient>>,
     event_sender: mpsc::Sender<IndexServerEvent>,
@@ -119,6 +125,7 @@ enum IndexServerEvent {
     TimerTick,
 }
 
+/*
 /// We divide servers into two types:
 /// 1. "listen server": A trusted server which has the responsibility of connecting to us.
 /// 2. "init server": A trusted server for which we have the responsibility to initiate
@@ -130,18 +137,21 @@ enum IndexServerEvent {
 fn is_listen_server(local_public_key: &PublicKey, friend_public_key: &PublicKey) -> bool {
     compare_public_key(local_public_key, friend_public_key) == Ordering::Less
 }
+*/
 
 
-impl<A,S,SC,V> IndexServer<A,S,SC,V> 
+impl<A,S,SC,V,CMP> IndexServer<A,S,SC,V,CMP> 
 where
     A: Clone + Send + std::fmt::Debug + 'static,
     S: Spawn + Send, 
     SC: FutTransform<Input=(PublicKey, A), Output=ServerConn> + Clone + Send + 'static,
     V: Verifier<Node=PublicKey, Neighbor=PublicKey, SessionId=Uid>,
+    CMP: Clone + Fn(&PublicKey, &PublicKey) -> Ordering,
 {
     pub fn new(index_server_config: IndexServerConfig<A>,
                server_connector: SC,
                graph_client: GraphClient<PublicKey, u128>,
+               compare_public_key: CMP, 
                verifier: V,
                event_sender: mpsc::Sender<IndexServerEvent>,
                spawner: S) -> Result<Self, IndexServerError> {
@@ -154,6 +164,7 @@ where
             server_connector,
             graph_client,
             verifier,
+            compare_public_key,
             remote_servers: HashMap::new(),
             clients: HashMap::new(),
             event_sender,
@@ -184,14 +195,13 @@ where
     pub fn spawn_server(&mut self, public_key: PublicKey, address: A) 
         -> Result<RemoteServer<A>, IndexServerError> {
 
-        if is_listen_server(&self.local_public_key, &public_key) {
+        if (self.compare_public_key)(&self.local_public_key, &public_key) == Ordering::Less {
             return Ok(RemoteServer {
                 address,
                 state: RemoteServerState::Listening,
             })
         }
 
-        println!("{:?}: Initiating connection to server... {:?}", self.local_public_key[0], public_key[0]);
         // We have the responsibility to initiate connection:
         let (close_sender, close_receiver) = oneshot::channel();
         let mut c_server_connector = self.server_connector.clone();
@@ -375,11 +385,12 @@ async fn client_handler(mut graph_client: GraphClient<PublicKey, u128>,
 }
 
 
-async fn server_loop<A,IS,IC,SC,V,TS,S>(index_server_config: IndexServerConfig<A>,
+async fn server_loop<A,IS,IC,SC,CMP,V,TS,S>(index_server_config: IndexServerConfig<A>,
                                  incoming_server_connections: IS,
                                  incoming_client_connections: IC,
                                  server_connector: SC,
                                  graph_client: GraphClient<PublicKey, u128>,
+                                 compare_public_key: CMP, 
                                  verifier: V,
                                  mut timer_stream: TS,
                                  spawner: S) -> Result<(), IndexServerError>
@@ -389,6 +400,7 @@ where
     IC: Stream<Item=(PublicKey, ClientConn)> + Unpin,
     SC: FutTransform<Input=(PublicKey, A), Output=ServerConn> + Clone + Send + 'static,
     V: Verifier<Node=PublicKey, Neighbor=PublicKey, SessionId=Uid>,
+    CMP: Clone + Fn(&PublicKey, &PublicKey) -> Ordering,
     TS: Stream + Unpin,
     S: Spawn + Send,
 {
@@ -404,15 +416,18 @@ where
                index_server_config,
                server_connector,
                graph_client,
+               compare_public_key,
                verifier,
                event_sender,
                spawner)?;
 
     // We filter the incoming server connections, accepting connections only from servers
-    // that are "listen servers". See docs of `is_listen_server`.
+    // that are "listen servers".
     let c_local_public_key = index_server.local_public_key.clone();
+    let c_compare_public_key = index_server.compare_public_key.clone();
     let incoming_server_connections = incoming_server_connections
-        .filter(|(server_public_key, _server_conn)| future::ready(is_listen_server(&c_local_public_key, &server_public_key)))
+        .filter(|(server_public_key, _server_conn)| 
+                future::ready(c_compare_public_key(&c_local_public_key, &server_public_key) == Ordering::Less))
         .map(|server_connection| IndexServerEvent::ServerConnection(server_connection));
 
     let incoming_client_connections = incoming_client_connections
@@ -436,7 +451,6 @@ where
                     },
                     Some(remote_server) => remote_server,
                 };
-
 
                 match remote_server.state {
                     RemoteServerState::Connected(_) => {
@@ -468,7 +482,6 @@ where
             IndexServerEvent::FromServer((public_key, Some(index_server_to_server))) => 
                 await!(index_server.handle_from_server(public_key, index_server_to_server))?,
             IndexServerEvent::FromServer((public_key, None)) => {
-                println!("{}: Connection closed {}", index_server.local_public_key[0], public_key[0]);
                 // Server connection closed
                 let old_server = match index_server.remote_servers.remove(&public_key) {
                     None => {
@@ -582,16 +595,20 @@ mod tests {
         let (graph_requests_sender, mut graph_requests_receiver) = mpsc::channel(0);
         let graph_client = GraphClient::new(graph_requests_sender);
 
+        let compare_public_key = |pk_a: &PublicKey, pk_b: &PublicKey| pk_a.cmp(pk_b);
+
         // TODO: Do we have a way to create a mock SimpleVerifier that will work correctly?
         // Currently DummyVerifier will cause infinite cycles when forwarding messages.
         let rng = DummyRandom::new(&[0u8]);
         let verifier = SimpleVerifier::new(8, rng);
+
 
         let server_loop_fut = server_loop(index_server_config,
                     incoming_server_connections,
                     incoming_client_connections,
                     server_connector,
                     graph_client,
+                    compare_public_key,
                     verifier,
                     timer_stream,
                     spawner.clone())
