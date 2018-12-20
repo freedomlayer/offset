@@ -69,10 +69,12 @@ impl<T> Connected<T> {
         if let Some(mut sender) = self.opt_sender.take() {
             if let Err(e) = sender.try_send(t) {
                 if e.is_full() {
+                    warn!("try_send() failed: {:?}", e);
                     self.opt_sender = Some(sender);
                 }
                 return Err(IndexServerError::RemoteSendError)
             }
+            self.opt_sender = Some(sender);
         }
         Ok(())
     }
