@@ -403,7 +403,7 @@ async fn server_loop<A,IS,IC,SC,CMP,V,TS,S>(index_server_config: IndexServerConf
                                  verifier: V,
                                  mut timer_stream: TS,
                                  spawner: S,
-                                 mut opt_event_sender: Option<mpsc::Sender<()>>) -> Result<(), IndexServerError>
+                                 mut opt_debug_event_sender: Option<mpsc::Sender<()>>) -> Result<(), IndexServerError>
 where
     A: Clone + Send + std::fmt::Debug + 'static,
     IS: Stream<Item=(PublicKey, ServerConn)> + Unpin,
@@ -545,8 +545,11 @@ where
             },
             IndexServerEvent::TimerTick => await!(index_server.handle_timer_tick())?,
         }
-        if let Some(ref mut event_sender) = &mut opt_event_sender {
-            let _ = await!(event_sender.send(()));
+        // debug_event_sender is used to control the order of events during testing.
+        // This is useful to have deterministic test results.
+        // Normal code should have no use of this sender, and it should be set to None.
+        if let Some(ref mut debug_event_sender) = &mut opt_debug_event_sender {
+            let _ = await!(debug_event_sender.send(()));
         }
     }
     Ok(())
@@ -737,7 +740,7 @@ mod tests {
         client_connections_sender: mpsc::Sender<(PublicKey, ClientConn)>,
         graph_requests_receiver: mpsc::Receiver<GraphRequest<PublicKey, u128>>,
         server_conn_request_receiver: mpsc::Receiver<ConnRequest<(PublicKey, u8), ServerConn>>,
-        event_receiver: mpsc::Receiver<()>,
+        debug_event_receiver: mpsc::Receiver<()>,
     }
 
     fn create_test_server<S>(index: u8, 
@@ -777,7 +780,7 @@ mod tests {
 
         let c_server_public_key = server_public_key.clone();
 
-        let (event_sender, event_receiver) = mpsc::channel(0);
+        let (debug_event_sender, debug_event_receiver) = mpsc::channel(0);
 
         let server_loop_fut = server_loop(index_server_config,
                     incoming_server_connections,
@@ -788,7 +791,7 @@ mod tests {
                     verifier,
                     timer_stream,
                     spawner.clone(),
-                    Some(event_sender))
+                    Some(debug_event_sender))
             .map_err(move |e| error!("Error in server_loop() for pk[0] = {}: {:?}", 
                                   c_server_public_key[0], e))
             .map(|_| ());
@@ -802,7 +805,7 @@ mod tests {
             client_connections_sender,
             graph_requests_receiver,
             server_conn_request_receiver,
-            event_receiver,
+            debug_event_receiver,
         }
 
     }
@@ -816,10 +819,10 @@ mod tests {
         await!(test_servers[dest_index as usize].server_connections_sender.send(
                 (test_servers[from_index].public_key.clone(), (b_sender, b_receiver)))).unwrap();
 
-        await!(test_servers[dest_index as usize].event_receiver.next()).unwrap();
+        await!(test_servers[dest_index as usize].debug_event_receiver.next()).unwrap();
 
         conn_request.reply((a_sender, a_receiver));
-        await!(test_servers[from_index].event_receiver.next()).unwrap();
+        await!(test_servers[from_index].debug_event_receiver.next()).unwrap();
     }
 
 
@@ -859,33 +862,33 @@ mod tests {
         // Without this step it will not be possible to forward messages along long routes.
         for iter in 0 .. 32usize {
             await!(test_servers[0].tick_sender.send(())).unwrap();
-            await!(test_servers[0].event_receiver.next()).unwrap();
+            await!(test_servers[0].debug_event_receiver.next()).unwrap();
             for &j in &[1usize,2] {
-                await!(test_servers[j].event_receiver.next()).unwrap();
+                await!(test_servers[j].debug_event_receiver.next()).unwrap();
             }
 
             await!(test_servers[1].tick_sender.send(())).unwrap();
-            await!(test_servers[1].event_receiver.next()).unwrap();
+            await!(test_servers[1].debug_event_receiver.next()).unwrap();
             for &j in &[0usize,3] {
-                await!(test_servers[j].event_receiver.next()).unwrap();
+                await!(test_servers[j].debug_event_receiver.next()).unwrap();
             }
 
             await!(test_servers[2].tick_sender.send(())).unwrap();
-            await!(test_servers[2].event_receiver.next()).unwrap();
+            await!(test_servers[2].debug_event_receiver.next()).unwrap();
             for &j in &[0usize,3] {
-                await!(test_servers[j].event_receiver.next()).unwrap();
+                await!(test_servers[j].debug_event_receiver.next()).unwrap();
             }
 
             await!(test_servers[3].tick_sender.send(())).unwrap();
-            await!(test_servers[3].event_receiver.next()).unwrap();
+            await!(test_servers[3].debug_event_receiver.next()).unwrap();
             for &j in &[1usize,2,4] {
-                await!(test_servers[j].event_receiver.next()).unwrap();
+                await!(test_servers[j].debug_event_receiver.next()).unwrap();
             }
 
             await!(test_servers[4].tick_sender.send(())).unwrap();
-            await!(test_servers[4].event_receiver.next()).unwrap();
+            await!(test_servers[4].debug_event_receiver.next()).unwrap();
             for &j in &[3usize] {
-                await!(test_servers[j].event_receiver.next()).unwrap();
+                await!(test_servers[j].debug_event_receiver.next()).unwrap();
             }
         }
 
@@ -897,7 +900,7 @@ mod tests {
         let (mut client_sender, server_receiver) = mpsc::channel(CHANNEL_SIZE);
         let (server_sender, mut client_receiver) = mpsc::channel(CHANNEL_SIZE);
         await!(test_servers[0].client_connections_sender.send((client_public_key.clone(), (server_sender, server_receiver)))).unwrap();
-        await!(test_servers[0].event_receiver.next()).unwrap();
+        await!(test_servers[0].debug_event_receiver.next()).unwrap();
 
         // Client requests routes: We do this to make sure the new client is registered at the
         // server before we send more time ticks. This will ensure that the server gets
@@ -935,9 +938,9 @@ mod tests {
 
         // One time iteration for server 0:
         await!(test_servers[0].tick_sender.send(())).unwrap();
-        await!(test_servers[0].event_receiver.next()).unwrap();
+        await!(test_servers[0].debug_event_receiver.next()).unwrap();
         for &j in &[1usize,2] {
-            await!(test_servers[j].event_receiver.next()).unwrap();
+            await!(test_servers[j].debug_event_receiver.next()).unwrap();
         }
 
         // Get time hash sent to the new client:
@@ -977,7 +980,7 @@ mod tests {
                     }
                     _ => unreachable!(),
                 };
-                await!(test_servers[$index].event_receiver.next()).unwrap();
+                await!(test_servers[$index].debug_event_receiver.next()).unwrap();
             )
         }
 
