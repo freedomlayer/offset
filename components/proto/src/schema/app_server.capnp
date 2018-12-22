@@ -16,6 +16,9 @@ using import "common.capnp".RelayAddress;
 using import "report.capnp".Report;
 using import "report.capnp".ReportMutation;
 
+using import "index.capnp".RequestFriendsRoute;
+using import "index.capnp".ResponseFriendsRoute;
+
 
 # Interface between AppServer and an Application
 ################################################
@@ -109,25 +112,6 @@ struct ResetFriendChannel {
         currentToken @1: Signature;
 }
 
-# App -> AppServer
-struct RequestDelegate {
-        appRandNonce @0: RandNonce;
-}
-
-# AppServer -> App
-struct ResponseDelegate {
-        appPublicKey @0: PublicKey;
-        appRandNonce @1: RandNonce;
-        serverRandNonce @2: RandNonce;
-        signature @3: Signature;
-        # sha512/256(sha512/256("DELEGATE") ||
-        #               appPublicKey ||
-        #               appRandNonce ||
-        #               serverRandNonce)
-
-}
-
-
 
 
 #####################################################################
@@ -141,8 +125,8 @@ struct AppServerToApp {
         report @1: Report;
         reportMutations @2: List(ReportMutation);
 
-        # Response for delegate request:
-        responseDelegate @3: ResponseDelegate;
+        # Routes:
+        responseFriendsRoute @3: ResponseFriendsRoute;
 
     }
 }
@@ -168,8 +152,8 @@ struct AppToAppServer {
         setFriendRemoteMaxDebt @10: SetFriendRemoteMaxDebt;
         resetFriendChannel @11: ResetFriendChannel;
 
-        # Delegation:
-        requestDelegate @12: RequestDelegate;
+        # Routes:
+        requestFriendsRoute @12: RequestFriendsRoute;
     }
 }
 

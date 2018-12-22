@@ -24,6 +24,7 @@ pub mod keepalive;
 pub mod serialize;
 pub mod app_server;
 pub mod report;
+pub mod index;
 
 
 
@@ -34,3 +35,4 @@ include_schema!(dh_capnp, "dh_capnp");
 include_schema!(relay_capnp, "relay_capnp");
 include_schema!(funder_capnp, "funder_capnp");
 include_schema!(keepalive_capnp, "keepalive_capnp");
+include_schema!(index_capnp, "index_capnp");
