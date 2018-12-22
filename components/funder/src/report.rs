@@ -3,7 +3,7 @@ use common::int_convert::usize_to_u64;
 
 use proto::funder::messages::{RequestsStatus, FriendStatus};
 
-use proto::report::messages::{DirectionReport, FriendLivenessReport, 
+use proto::funder::report::{DirectionReport, FriendLivenessReport, 
     TcReport, ResetTermsReport, ChannelInconsistentReport, ChannelStatusReport, FriendReport,
     FunderReport, FriendReportMutation, AddFriendReport, FunderReportMutation,
     McRequestsStatusReport, McBalanceReport, RequestsStatusReport, FriendStatusReport,

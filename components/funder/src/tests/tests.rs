@@ -9,7 +9,7 @@ use proto::funder::messages::{FriendsRoute, InvoiceId, INVOICE_ID_LEN,
                             RequestsStatus, UserRequestSendFunds,
                             ReceiptAck, ResetFriendChannel,
                             ResponseSendFundsResult};
-use proto::report::messages::{FunderReport,
+use proto::funder::report::{FunderReport,
                     ChannelStatusReport};
 
 use super::utils::create_node_controls;

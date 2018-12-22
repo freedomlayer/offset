@@ -23,7 +23,6 @@ pub mod funder;
 pub mod keepalive;
 pub mod serialize;
 pub mod app_server;
-pub mod report;
 pub mod index;
 
 

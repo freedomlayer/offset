@@ -4,7 +4,7 @@ use crypto::hash::HashResult;
 use crypto::crypto_rand::RandValue;
 
 use crate::funder::messages::FriendsRoute;
-use crate::report::messages::FunderReportMutation;
+use crate::funder::report::FunderReportMutation;
 
 
 /// IndexClient -> IndexServer

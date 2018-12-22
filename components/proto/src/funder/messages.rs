@@ -9,8 +9,8 @@ use crypto::hash::{self, HashResult};
 
 use common::int_convert::{usize_to_u64};
 
+use crate::funder::report::{FunderReport, FunderReportMutation};
 use crate::consts::MAX_ROUTE_LEN;
-use crate::report::messages::{FunderReport, FunderReportMutation};
 
 
 #[allow(unused)]

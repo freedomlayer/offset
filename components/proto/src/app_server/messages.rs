@@ -4,7 +4,7 @@ use crypto::crypto_rand::RandValue;
 use crate::funder::messages::{RequestSendFunds, ResponseSendFunds,
                             ReceiptAck, AddFriend, SetFriendInfo, RemoveFriend,
                             SetFriendRemoteMaxDebt, ResetFriendChannel};
-use crate::report::messages::{FunderReport, FunderReportMutation};
+use crate::funder::report::{FunderReport, FunderReportMutation};
 
 #[allow(unused)]
 #[derive(Debug)]
