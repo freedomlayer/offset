@@ -379,7 +379,7 @@ pub async fn create_node_controls(num_nodes: usize,
 
 
         let (send_control, incoming_control) = mpsc::channel(CHANNEL_SIZE);
-        let (control_sender, mut recv_control) = mpsc::channel(CHANNEL_SIZE);
+        let (control_sender, recv_control) = mpsc::channel(CHANNEL_SIZE);
 
         let (send_comm, incoming_comm) = mpsc::channel(CHANNEL_SIZE);
         let (comm_sender, recv_comm) = mpsc::channel(CHANNEL_SIZE);

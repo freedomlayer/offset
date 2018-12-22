@@ -122,6 +122,7 @@ fn create_friend_report<A: Clone>(friend_state: &FriendState<A>, friend_liveness
     }
 }
 
+#[allow(unused)]
 pub fn create_report<A: Clone>(funder_state: &FunderState<A>, ephemeral: &Ephemeral) -> FunderReport<A> {
     let mut friends = HashMap::new();
     for (friend_public_key, friend_state) in &funder_state.friends {

@@ -1,12 +1,10 @@
 use std::fmt::Debug;
 use crypto::crypto_rand::CryptoRandom;
 
-use proto::funder::messages::{FriendStatus, FunderOutgoingControl};
+use proto::funder::messages::FriendStatus;
 
 use crate::handler::MutableFunderHandler;
 use crate::types::{ChannelerConfig, FunderOutgoingComm};
-
-use crate::report::create_report;
 
 
 #[allow(unused)]
@@ -106,7 +104,7 @@ mod tests {
         let mut funder_handler_output = mutable_funder_handler.done();
         assert!(funder_handler_output.funder_mutations.is_empty());
         assert_eq!(funder_handler_output.outgoing_control.len(), 0);
-        assert_eq!(funder_handler_output.outgoing_comms.len(),2);
+        assert_eq!(funder_handler_output.outgoing_comms.len(), 2);
 
         // SetAddress:
         let out_comm = funder_handler_output.outgoing_comms.remove(0);
