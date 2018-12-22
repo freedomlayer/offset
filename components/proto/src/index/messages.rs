@@ -126,12 +126,15 @@ pub enum IndexServerToServer {
 pub struct IndexClientReport<ISA> {
     /// A list of trusted index servers.
     index_servers: Vec<ISA>,
+    /// The server we are currently connected to (None if not connected).
+    connected_server: Option<ISA>,
 }
 
 #[derive(Debug)]
 pub enum IndexClientReportMutation<ISA> {
     AddIndexServer(ISA),
     RemoveIndexServer(ISA),
+    SetConnectedServer(Option<ISA>),
 }
 
 
