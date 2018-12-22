@@ -138,6 +138,7 @@ pub enum IndexClientReportMutation<ISA> {
 #[derive(Debug)]
 pub enum IndexClientToAppServer<ISA> {
     ReportMutations(Vec<IndexClientReportMutation<ISA>>),
+    ResponseRoutes(ResponseRoutes),
 }
 
 #[derive(Debug)]
