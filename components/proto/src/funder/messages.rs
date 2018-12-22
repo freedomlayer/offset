@@ -488,6 +488,6 @@ pub struct ResponseReceived {
 #[derive(Debug)]
 pub enum FunderOutgoingControl<A: Clone> {
     ResponseReceived(ResponseReceived),
-    Report(FunderReport<A>),
+    // Report(FunderReport<A>),
     ReportMutations(Vec<FunderReportMutation<A>>),
 }

@@ -25,7 +25,8 @@ use identity::{create_identity, IdentityClient};
 
 use crate::state::{FunderState, FunderMutation};
 use crate::funder::inner_funder_loop;
-use crate::report::funder_report_mutate;
+use crate::ephemeral::Ephemeral;
+use crate::report::{funder_report_mutate, create_report};
 
 use crate::database::AtomicDb;
 
@@ -194,7 +195,6 @@ impl<A: Clone> NodeControl<A> {
     pub async fn recv(&mut self) -> Option<NodeRecv<A>> {
         let funder_outgoing_control = await!(self.recv_control.next())?;
         match funder_outgoing_control {
-            FunderOutgoingControl::Report(_) => unreachable!(),
             FunderOutgoingControl::ReportMutations(mutations) => {
                 for mutation in &mutations {
                     funder_report_mutate(&mut self.report, &mutation).unwrap();
@@ -369,8 +369,14 @@ pub async fn create_node_controls(num_nodes: usize,
         // it is the easier thing to do in this code (Unless we change it to have specific A type,
         // for example, u32).
         let funder_state = FunderState::new(&public_key, Some(&usize_to_u32(i).unwrap()));
+        let ephemeral = Ephemeral::new(&funder_state);
+        let base_report = create_report(&funder_state, &ephemeral);
+
+        // let report = create_report(&self.state, &self.ephemeral);
+        // self.add_outgoing_control(FunderOutgoingControl::Report(report));
 
         let mock_db = MockDb::new(funder_state);
+
 
         let (send_control, incoming_control) = mpsc::channel(CHANNEL_SIZE);
         let (control_sender, mut recv_control) = mpsc::channel(CHANNEL_SIZE);
@@ -390,10 +396,12 @@ pub async fn create_node_controls(num_nodes: usize,
 
         spawner.spawn(funder_fut.then(|_| future::ready(()))).unwrap();
 
+        /*
         let base_report = match await!(recv_control.next()).unwrap() {
             FunderOutgoingControl::Report(report) => report,
             _ => unreachable!(),
         };
+        */
 
         let new_node = NewNode {
             public_key: public_key.clone(),
