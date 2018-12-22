@@ -122,6 +122,7 @@ pub enum IndexServerToServer {
 // ---------------------------------------------------
 
 #[derive(Debug)]
+/// ISA stands for Index Server Address
 pub struct IndexClientReport<ISA> {
     /// A list of trusted index servers.
     index_servers: Vec<ISA>,
