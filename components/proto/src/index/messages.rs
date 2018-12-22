@@ -27,20 +27,11 @@ pub struct RouteWithCapacity {
     pub capacity: u128,
 }
 
-#[derive(Debug)]
-pub enum ResponseRoutesResult {
-    /// Response was returned from the server 
-    /// (Might be an empty set of routes)
-    Success(Vec<RouteWithCapacity>),
-    /// Request could not be delivered to the index server
-    Failure,
-}
-
 /// IndexServer -> IndexClient
 #[derive(Debug)]
 pub struct ResponseRoutes {
     pub request_id: Uid,
-    pub result: ResponseRoutesResult,
+    pub routes: Vec<RouteWithCapacity>,
 }
 
 #[derive(Debug, Clone)]
@@ -147,6 +138,24 @@ pub enum IndexClientReportMutation<ISA> {
 }
 
 
+// TODO: We need to add a separate ResponseRoutes struct for the interface between 
+// IndexClient and AppServer. It should be different than the ResponseRoutes between index client
+// and server.
+//
+// The IndexClient <-> AppServer ResponseRoutes should be able to fail, and have an internal enum:
+
+/*
+pub enum ResponseRoutesResult {
+    Success(Vec<RouteWithCapacity>),
+    Failure,
+}
+
+#[derive(Debug)]
+pub struct ResponseRoutes {
+    pub request_id: Uid,
+    pub result: ResponseRoutesResult,
+}
+*/
 
 #[derive(Debug)]
 pub enum IndexClientToAppServer<ISA> {
