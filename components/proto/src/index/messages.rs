@@ -122,10 +122,17 @@ pub enum IndexServerToServer {
 // ---------------------------------------------------
 
 #[derive(Debug)]
+pub struct IndexClientReport<ISA> {
+    /// A list of trusted index servers.
+    index_servers: Vec<ISA>,
+}
+
+#[derive(Debug)]
 pub enum IndexClientReportMutation<ISA> {
     AddIndexServer(ISA),
     RemoveIndexServer(ISA),
 }
+
 
 
 #[derive(Debug)]
