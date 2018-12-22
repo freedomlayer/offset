@@ -4,6 +4,7 @@ use crypto::hash::HashResult;
 use crypto::crypto_rand::RandValue;
 
 use crate::funder::messages::FriendsRoute;
+use crate::report::messages::FunderReportMutation;
 
 
 /// IndexClient -> IndexServer
@@ -115,4 +116,28 @@ pub enum IndexServerToServer {
     ForwardMutationsUpdate(ForwardMutationsUpdate),
 }
 
+
+// ---------------------------------------------------
+// IndexClient <--> AppServer communication
+// ---------------------------------------------------
+
+#[derive(Debug)]
+pub enum IndexClientReportMutation<ISA> {
+    AddIndexServer(ISA),
+    RemoveIndexServer(ISA),
+}
+
+
+#[derive(Debug)]
+pub enum IndexClientToAppServer<ISA> {
+    ReportMutations(Vec<IndexClientReportMutation<ISA>>),
+}
+
+#[derive(Debug)]
+pub enum AppServerToIndexClient<ISA,A> {
+    AddIndexServer(ISA),
+    RemoveIndexServer(ISA),
+    RequestRoutes(RequestRoutes),
+    FunderReportMutations(Vec<FunderReportMutation<A>>),
+}
 
