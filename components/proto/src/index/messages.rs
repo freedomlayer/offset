@@ -27,11 +27,20 @@ pub struct RouteWithCapacity {
     pub capacity: u128,
 }
 
+#[derive(Debug)]
+pub enum ResponseRoutesResult {
+    /// Response was returned from the server 
+    /// (Might be an empty set of routes)
+    Success(Vec<RouteWithCapacity>),
+    /// Request could not be delivered to the index server
+    Failure,
+}
+
 /// IndexServer -> IndexClient
 #[derive(Debug)]
 pub struct ResponseRoutes {
     pub request_id: Uid,
-    pub routes: Vec<RouteWithCapacity>,
+    pub result: ResponseRoutesResult,
 }
 
 #[derive(Debug, Clone)]
