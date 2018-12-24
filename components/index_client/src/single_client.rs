@@ -12,9 +12,9 @@ use crypto::identity::{PublicKey, Signature};
 use identity::IdentityClient;
 
 use proto::index_server::messages::{IndexServerToClient, 
-    IndexClientToServer, IndexServerToServer, 
+    IndexClientToServer, 
     ResponseRoutes, RouteWithCapacity, MutationsUpdate,
-    ForwardMutationsUpdate, Mutation, TimeProofLink,
+    Mutation,
     RequestRoutes};
 
 type ServerConn = ConnPair<IndexClientToServer, IndexServerToClient>;
@@ -150,6 +150,7 @@ where
 }
 
 /// Wait for the first time hash sent from the server.
+#[allow(unused)]
 async fn first_server_time_hash(from_server: &mut mpsc::Receiver<IndexServerToClient>)
     -> Result<HashResult, SingleClientError> {
 
@@ -164,6 +165,7 @@ async fn first_server_time_hash(from_server: &mut mpsc::Receiver<IndexServerToCl
     }
 }
 
+#[allow(unused)]
 async fn single_client_loop<IC,R>(server_conn: ServerConn,
                      incoming_control: IC,
                      local_public_key: PublicKey,
@@ -175,7 +177,7 @@ where
     IC: Stream<Item=SingleClientControl> + Unpin,
     R: CryptoRandom,
 {
-    let (to_server, mut from_server) = server_conn;
+    let (to_server, from_server) = server_conn;
 
     let mut single_client = SingleClient::new(local_public_key, 
                                               identity_client,
