@@ -6,7 +6,7 @@ use common::conn::ConnPair;
 use crypto::crypto_rand::RandValue;
 use crypto::hash::HashResult;
 
-use proto::index::messages::{IndexServerToClient, 
+use proto::index_server::messages::{IndexServerToClient, 
     IndexClientToServer, IndexServerToServer, 
     ResponseRoutes, RouteWithCapacity, MutationsUpdate,
     ForwardMutationsUpdate, Mutation, TimeProofLink,

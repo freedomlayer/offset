@@ -12,7 +12,7 @@ use common::conn::{ConnPair, FutTransform};
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
-use proto::index::messages::{IndexServerToClient, 
+use proto::index_server::messages::{IndexServerToClient, 
     IndexClientToServer, IndexServerToServer, 
     ResponseRoutes, RouteWithCapacity, MutationsUpdate,
     ForwardMutationsUpdate, Mutation, TimeProofLink};
@@ -570,7 +570,7 @@ mod tests {
 
     use identity::{create_identity, IdentityClient};
     use common::dummy_connector::{DummyConnector, ConnRequest};
-    use proto::index::messages::{RequestRoutes};
+    use proto::index_server::messages::{RequestRoutes};
 
     use crate::graph::graph_service::GraphRequest;
     use crate::verifier::simple_verifier::SimpleVerifier;
