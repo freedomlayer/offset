@@ -31,6 +31,7 @@ pub enum SingleClientError {
     ServerClosed,
     SendToServerError,
     RequestSignatureFailed,
+    CounterOverflow,
 }
 
 #[derive(Debug)]
@@ -135,9 +136,10 @@ where
                     .map_err(|_| SingleClientError::RequestSignatureFailed)?;
 
                 // Advance counter:
-                // We assume that the counter will never reach the wrapping point,
-                // because it is of size at least 64 bits.
-                self.counter = self.counter.wrapping_add(1);
+                // We assume that the counter will never reach the wrapping point, because it is of
+                // size at least 64 bits, but we still add an error here, just in case.
+                self.counter = self.counter.checked_add(1)
+                    .ok_or(SingleClientError::CounterOverflow)?;
 
                 // Send MutationsUpdate to server:
                 let to_server_message = IndexClientToServer::MutationsUpdate(mutations_update);
