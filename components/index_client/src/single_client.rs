@@ -4,9 +4,12 @@ use futures::{future, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::channel::{oneshot, mpsc};
 
 use common::conn::ConnPair;
-use crypto::crypto_rand::RandValue;
+use crypto::crypto_rand::{RandValue, CryptoRandom};
 use crypto::uid::Uid;
 use crypto::hash::HashResult;
+use crypto::identity::{PublicKey, Signature};
+
+use identity::IdentityClient;
 
 use proto::index_server::messages::{IndexServerToClient, 
     IndexClientToServer, IndexServerToServer, 
@@ -27,6 +30,7 @@ pub enum SingleClientError {
     ControlClosed,
     ServerClosed,
     SendToServerError,
+    RequestSignatureFailed,
 }
 
 #[derive(Debug)]
@@ -37,9 +41,12 @@ enum SingleClientEvent {
     ControlClosed,
 }
 
-struct SingleClient<TS> {
+struct SingleClient<TS,R> {
+    local_public_key: PublicKey,
+    identity_client: IdentityClient,
+    rng: R,
     to_server: TS,
-    session_id: RandValue,
+    session_id: Uid,
     counter: u64,
     /// Last time_hash sent by the server
     /// We use this value to prove that our signatures are recent
@@ -48,15 +55,22 @@ struct SingleClient<TS> {
     open_requests: HashMap<Uid, oneshot::Sender<Vec<RouteWithCapacity>>>,
 }
 
-impl<TS> SingleClient<TS> 
+impl<TS,R> SingleClient<TS,R> 
 where
     TS: Sink<SinkItem=IndexClientToServer> + Unpin,
+    R: CryptoRandom,
 {
-    pub fn new(to_server: TS,
-               session_id: RandValue,
+    pub fn new(local_public_key: PublicKey, 
+               identity_client: IdentityClient, 
+               rng: R,
+               to_server: TS,
+               session_id: Uid,
                server_time_hash: HashResult) -> Self {
 
         SingleClient {
+            local_public_key,
+            identity_client,
+            rng,
             to_server,
             session_id,
             counter: 0,
@@ -77,12 +91,12 @@ where
                 let request_sender = match self.open_requests.remove(&request_id) {
                     Some(request_sender) => request_sender,
                     None => {
-                        warn!("Received a response for unrecognized request id: {:?}", &request_id);
+                        warn!("Received a response for unrecognized request_id: {:?}", &request_id);
                         return Ok(());
                     },
                 };
                 if let Err(_) = request_sender.send(routes) {
-                    warn!("Failed to return response for request: {:?} ", &request_id);
+                    warn!("Failed to return response for request_id: {:?} ", &request_id);
                 }
             },
         }
@@ -104,7 +118,32 @@ where
                 await!(self.to_server.send(to_server_message))
                     .map_err(|_| SingleClientError::SendToServerError)?;
             },
-            SingleClientControl::SendMutations(mutations) => unimplemented!(),
+            SingleClientControl::SendMutations(mutations) => {
+                let mut mutations_update = MutationsUpdate {
+                    node_public_key: self.local_public_key.clone(),
+                    mutations,
+                    time_hash: self.server_time_hash.clone(),
+                    session_id: self.session_id.clone(),
+                    counter: self.counter,
+                    rand_nonce: RandValue::new(&self.rng),
+                    signature: Signature::zero(),
+                };
+
+                // Calculate signature:
+                mutations_update.signature = await!(
+                    self.identity_client.request_signature(mutations_update.signature_buff()))
+                    .map_err(|_| SingleClientError::RequestSignatureFailed)?;
+
+                // Advance counter:
+                // We assume that the counter will never reach the wrapping point,
+                // because it is of size at least 64 bits.
+                self.counter = self.counter.wrapping_add(1);
+
+                // Send MutationsUpdate to server:
+                let to_server_message = IndexClientToServer::MutationsUpdate(mutations_update);
+                await!(self.to_server.send(to_server_message))
+                    .map_err(|_| SingleClientError::SendToServerError)?;
+            },
         }
         Ok(())
     }
@@ -125,18 +164,25 @@ async fn first_server_time_hash(from_server: &mut mpsc::Receiver<IndexServerToCl
     }
 }
 
-async fn single_client_loop<IC>(server_conn: ServerConn,
+async fn single_client_loop<IC,R>(server_conn: ServerConn,
                      incoming_control: IC,
-                     session_id: RandValue,
+                     local_public_key: PublicKey,
+                     identity_client: IdentityClient,
+                     rng: R,
+                     session_id: Uid,
                      first_server_time_hash: HashResult) -> Result<(), SingleClientError>
 where
     IC: Stream<Item=SingleClientControl> + Unpin,
+    R: CryptoRandom,
 {
     let (to_server, mut from_server) = server_conn;
 
-    let mut single_client = SingleClient::new(to_server,
-                                          session_id,
-                                          first_server_time_hash);
+    let mut single_client = SingleClient::new(local_public_key, 
+                                              identity_client,
+                                              rng,
+                                              to_server,
+                                              session_id,
+                                              first_server_time_hash);
 
     let from_server = from_server
         .map(|index_server_to_client| SingleClientEvent::FromServer(index_server_to_client))
@@ -157,7 +203,6 @@ where
                 await!(single_client.handle_control_message(index_client_control))?,
             SingleClientEvent::ControlClosed => return Err(SingleClientError::ControlClosed),
         }
-        // TODO
     }
     Ok(())
 }
