@@ -1,9 +1,11 @@
 use std::marker::Unpin;
-use futures::{future, stream, Stream, StreamExt};
+use std::collections::HashMap;
+use futures::{future, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::channel::{oneshot, mpsc};
 
 use common::conn::ConnPair;
 use crypto::crypto_rand::RandValue;
+use crypto::uid::Uid;
 use crypto::hash::HashResult;
 
 use proto::index_server::messages::{IndexServerToClient, 
@@ -24,6 +26,7 @@ pub enum SingleClientControl {
 pub enum SingleClientError {
     ControlClosed,
     ServerClosed,
+    SendToServerError,
 }
 
 #[derive(Debug)]
@@ -41,12 +44,14 @@ struct SingleClient<TS> {
     /// Last time_hash sent by the server
     /// We use this value to prove that our signatures are recent
     server_time_hash: HashResult,
-    // TODO: Add a data structure for open requests.
-    // How to limit currently open requests while still having a futuristic back pressure
-    // interface? Maybe later?
+    /// Unanswered requests, waiting for a response from the server
+    open_requests: HashMap<Uid, oneshot::Sender<Vec<RouteWithCapacity>>>,
 }
 
-impl<TS> SingleClient<TS> {
+impl<TS> SingleClient<TS> 
+where
+    TS: Sink<SinkItem=IndexClientToServer> + Unpin,
+{
     pub fn new(to_server: TS,
                session_id: RandValue,
                server_time_hash: HashResult) -> Self {
@@ -56,6 +61,7 @@ impl<TS> SingleClient<TS> {
             session_id,
             counter: 0,
             server_time_hash,
+            open_requests: HashMap::new(),
         }
     }
 
@@ -66,7 +72,19 @@ impl<TS> SingleClient<TS> {
 
         match index_server_to_client {
             IndexServerToClient::TimeHash(time_hash) => self.server_time_hash = time_hash,
-            IndexServerToClient::ResponseRoutes(response_routes) => unimplemented!(),
+            IndexServerToClient::ResponseRoutes(response_routes) => {
+                let ResponseRoutes { request_id, routes } = response_routes;
+                let request_sender = match self.open_requests.remove(&request_id) {
+                    Some(request_sender) => request_sender,
+                    None => {
+                        warn!("Received a response for unrecognized request id: {:?}", &request_id);
+                        return Ok(());
+                    },
+                };
+                if let Err(_) = request_sender.send(routes) {
+                    warn!("Failed to return response for request: {:?} ", &request_id);
+                }
+            },
         }
         Ok(())
     }
@@ -77,7 +95,15 @@ impl<TS> SingleClient<TS> {
         -> Result<(), SingleClientError> {
 
         match single_client_control {
-            SingleClientControl::RequestRoutes((request_routes, response_sender)) => unimplemented!(),
+            SingleClientControl::RequestRoutes((request_routes, response_sender)) => {
+                // Add a new open request:
+                self.open_requests.insert(request_routes.request_id.clone(), response_sender);
+
+                // Send request to server:
+                let to_server_message = IndexClientToServer::RequestRoutes(request_routes);
+                await!(self.to_server.send(to_server_message))
+                    .map_err(|_| SingleClientError::SendToServerError)?;
+            },
             SingleClientControl::SendMutations(mutations) => unimplemented!(),
         }
         Ok(())
