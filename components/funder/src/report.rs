@@ -387,6 +387,10 @@ where
 // Conversion to index client mutations and state
 // ----------------------------------------------
 
+// This code is used as glue between FunderReport structure and input mutations given to
+// `index_client`. This allows the offst-index-client crate to not depend on the offst-funder
+// crate.
+
 /// Calculate send and receive capacities for a given `friend_report`.
 fn calc_friend_capacities<A>(friend_report: &FriendReport<A>) -> (u128, u128) {
     if friend_report.status == FriendStatusReport::Disabled || 
