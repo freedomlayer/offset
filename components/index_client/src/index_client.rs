@@ -34,6 +34,7 @@ struct ServerConnected<ISA> {
     opt_control_sender: Option<ControlSender>,
 }
 
+#[derive(Debug)]
 enum ConnStatus<ISA> {
     Empty,
     Connecting(ISA),
@@ -115,7 +116,29 @@ where
                                     -> Result<(), IndexClientError> {
 
         match app_server_to_index_client {
-            AppServerToIndexClient::AddIndexServer(address) => unimplemented!(),
+            AppServerToIndexClient::AddIndexServer(address) => {
+                self.index_servers.push_back(address);
+                if let ConnStatus::Empty = self.conn_status {
+                } else {
+                    return Ok(());
+                }
+
+                // We are here if conn_status is empty.
+                // This means we should initiate connection to an index server
+
+                // Get the first server address:
+                let server_address = self.index_servers.pop_front().unwrap();
+                // Rotate:
+                self.index_servers.push_back(server_address.clone());
+
+                // TODO: Attempt to connect to server
+                // Refactor code that connects to server. Should be called in three places:
+                // - Initialization of IndexClient
+                // - Adding a new index server address
+                // - Losing a connection to an index server.
+
+                unimplemented!();
+            },
             AppServerToIndexClient::RemoveIndexServer(address) => unimplemented!(),
             AppServerToIndexClient::RequestRoutes(request_routes) => unimplemented!(),
             AppServerToIndexClient::ApplyMutations(mutations) => unimplemented!(),
