@@ -441,7 +441,7 @@ where
 
     let update_friend = |public_key: &PublicKey| {
         let mut new_funder_report = funder_report.clone();
-        funder_report_mutate(&mut new_funder_report, funder_report_mutation);
+        funder_report_mutate(&mut new_funder_report, funder_report_mutation).unwrap();
         
         let new_friend_report = new_funder_report.friends
             .get(public_key)
