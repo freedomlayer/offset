@@ -1,6 +1,6 @@
 use futures::{TryFutureExt, FutureExt};
 use futures::task::{Spawn, SpawnExt};
-use futures::channel::mpsc;
+use futures::channel::{mpsc, oneshot};
 
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
@@ -10,9 +10,14 @@ use identity::IdentityClient;
 use common::conn::{BoxFuture, FutTransform};
 
 use crate::single_client::{ServerConn, SingleClientControl,
-                        first_server_time_hash, single_client_loop};
+                        first_server_time_hash, single_client_loop, 
+                        SingleClientError};
 
-struct IndexClientSession<C,R,S> {
+pub type ControlSender = mpsc::Sender<SingleClientControl>;
+pub type CloseReceiver = oneshot::Receiver<Result<(), SingleClientError>>;
+pub type SessionHandle = (ControlSender, CloseReceiver);
+
+pub struct IndexClientSession<C,R,S> {
     connector: C,
     local_public_key: PublicKey,
     identity_client: IdentityClient,
@@ -43,23 +48,28 @@ where
         }
     }
 
-    async fn connect(&mut self, index_server_address: ISA) -> Option<mpsc::Sender<SingleClientControl>> {
+    async fn connect(&mut self, index_server_address: ISA) -> Option<SessionHandle> {
         let (to_server, mut from_server) = await!(self.connector.transform(index_server_address))?;
 
         let first_time_hash = await!(first_server_time_hash(&mut from_server)).ok()?;
         let (control_sender, incoming_control) = mpsc::channel(0);
+
+        let (close_sender, close_receiver) = oneshot::channel();
+
         let single_client_fut = single_client_loop((to_server, from_server),
                            incoming_control,
                            self.local_public_key.clone(),
                            self.identity_client.clone(),
                            self.rng.clone(),
                            first_time_hash)
-            .map_err(|e| error!("single_client_loop() error: {:?}", e))
-            .map(|_| ());
+            .map(|res| { 
+                if let Err(res) = close_sender.send(res) {
+                    error!("Failed to send result from single_client_loop(): {:?}", res);
+                }
+            });
 
         self.spawner.spawn(single_client_fut).ok()?;
-
-        Some(control_sender)
+        Some((control_sender, close_receiver))
     }
 }
 
@@ -70,8 +80,10 @@ where
     S: Spawn + Send,
     R: CryptoRandom + 'static,
 {
+    /// Address of an index server
     type Input = ISA;
-    type Output = Option<mpsc::Sender<SingleClientControl>>;
+    /// A pair: control sender, and a receiver that notifies about disconnection.
+    type Output = Option<SessionHandle>;
 
     fn transform(&mut self, index_server_address: Self::Input) 
         -> BoxFuture<'_, Self::Output> {
