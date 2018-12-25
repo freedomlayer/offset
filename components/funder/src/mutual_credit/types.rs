@@ -1,5 +1,3 @@
-use std::cmp;
-
 use im::hashmap::HashMap as ImHashMap;
 
 use crypto::identity::PublicKey;
@@ -42,8 +40,11 @@ impl McBalance {
     fn new(balance: i128) -> McBalance {
         McBalance {
             balance,
-            remote_max_debt: cmp::max(balance, 0) as u128,
-            local_max_debt: cmp::min(-balance, 0) as u128,
+            /// It is still unknown what will be a good choice of initial
+            /// remote_max_debt and local_max_debt here, given that balance != 0.
+            /// We currently pick the simple choice of having all max_debts equal 0 initially.
+            remote_max_debt: 0,
+            local_max_debt: 0,
             local_pending_debt: 0,
             remote_pending_debt: 0,
         }
