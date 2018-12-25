@@ -17,6 +17,7 @@ pub type ControlSender = mpsc::Sender<SingleClientControl>;
 pub type CloseReceiver = oneshot::Receiver<Result<(), SingleClientError>>;
 pub type SessionHandle = (ControlSender, CloseReceiver);
 
+#[derive(Clone)]
 pub struct IndexClientSession<C,R,S> {
     connector: C,
     local_public_key: PublicKey,
