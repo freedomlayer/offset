@@ -210,3 +210,11 @@ where
     }
     Ok(())
 }
+
+pub trait ClientSession {
+    type IndexServerAddress;
+
+    fn create(index_server_address: Self::IndexServerAddress, session_id: Uid) 
+        -> mpsc::Sender<SingleClientControl>;
+
+}
