@@ -387,14 +387,6 @@ where
 // Conversion to index client mutations and state
 // ----------------------------------------------
 
-pub fn funder_report_to_index_client_state<A>(funder_report: &FunderReport<A>) -> Option<IndexClientState> 
-where
-    A: Clone,
-{
-    unimplemented!();
-}
-
-
 /// Calculate send and receive capacities for a given `friend_report`.
 fn calc_friend_capacities<A>(friend_report: &FriendReport<A>) -> (u128, u128) {
     if friend_report.status == FriendStatusReport::Disabled || 
@@ -426,7 +418,22 @@ fn calc_friend_capacities<A>(friend_report: &FriendReport<A>) -> (u128, u128) {
     (send_capacity, recv_capacity)
 }
 
-fn funder_report_mutation_to_index_client_mutation<A>(funder_report: &FunderReport<A>, 
+pub fn funder_report_to_index_client_state<A>(funder_report: &FunderReport<A>) -> IndexClientState 
+where
+    A: Clone,
+{
+    let friends = funder_report.friends
+        .iter()
+        .map(|(friend_public_key, friend_report)| 
+             (friend_public_key.clone(), calc_friend_capacities(friend_report)))
+        .collect::<HashMap<PublicKey,(u128, u128)>>();
+
+    IndexClientState {
+        friends,
+    }
+}
+
+pub fn funder_report_mutation_to_index_client_mutation<A>(funder_report: &FunderReport<A>, 
                                                       funder_report_mutation: &FunderReportMutation<A>) -> Option<IndexClientMutation> 
 where
     A: Clone,
