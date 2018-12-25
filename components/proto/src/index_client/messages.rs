@@ -9,7 +9,7 @@ use crate::index_server::messages::{RequestRoutes,
 
 #[derive(Debug, Clone)]
 pub struct IndexClientState {
-    friends: HashMap<PublicKey, (u128, u128)>,
+    pub friends: HashMap<PublicKey, (u128, u128)>,
 }
 
 #[derive(Debug, Clone)]
