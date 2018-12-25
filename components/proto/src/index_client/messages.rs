@@ -14,8 +14,6 @@ pub struct IndexClientState {
 
 #[derive(Debug, Clone)]
 pub enum IndexClientMutation {
-    // UpdateSendCapacity((PublicKey, u128)),
-    // UpdateRecvCapacity((PublicKey, u128)),
     UpdateFriend((PublicKey, (u128, u128))),
     RemoveFriend(PublicKey),
 }
