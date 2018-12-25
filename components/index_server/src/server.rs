@@ -15,7 +15,7 @@ use crypto::uid::Uid;
 use proto::index_server::messages::{IndexServerToClient, 
     IndexClientToServer, IndexServerToServer, 
     ResponseRoutes, RouteWithCapacity, MutationsUpdate,
-    ForwardMutationsUpdate, Mutation, TimeProofLink};
+    ForwardMutationsUpdate, IndexMutation, TimeProofLink};
 
 use proto::funder::messages::FriendsRoute;
 
@@ -284,15 +284,15 @@ where
             });
 
         // Apply mutations:
-        for mutation in &mutations_update.mutations {
-            match mutation {
-                Mutation::UpdateFriend(update_friend) => {
+        for index_mutation in &mutations_update.index_mutations {
+            match index_mutation {
+                IndexMutation::UpdateFriend(update_friend) => {
                     await!(self.graph_client.update_edge(mutations_update.node_public_key.clone(), 
                                                   update_friend.public_key.clone(),
                                                   (update_friend.send_capacity,
                                                    update_friend.recv_capacity)))?;
                 },
-                Mutation::RemoveFriend(friend_public_key) => {
+                IndexMutation::RemoveFriend(friend_public_key) => {
                     await!(self.graph_client.remove_edge(mutations_update.node_public_key.clone(), 
                                                          friend_public_key.clone()))?;
                 },
@@ -688,11 +688,11 @@ mod tests {
         };
 
         // Send mutations update to the server:
-        let mutations = vec![Mutation::RemoveFriend(PublicKey::from(&[11; PUBLIC_KEY_LEN]))];
+        let index_mutations = vec![IndexMutation::RemoveFriend(PublicKey::from(&[11; PUBLIC_KEY_LEN]))];
 
         let mut mutations_update = MutationsUpdate {
             node_public_key: client_public_key.clone(),
-            mutations,
+            index_mutations,
             time_hash,
             session_id: Uid::from(&[0; UID_LEN]),
             counter: 0,
@@ -947,11 +947,11 @@ mod tests {
 
 
         // Send mutations update to the server:
-        let mutations = vec![Mutation::RemoveFriend(PublicKey::from(&[11; PUBLIC_KEY_LEN]))];
+        let index_mutations = vec![IndexMutation::RemoveFriend(PublicKey::from(&[11; PUBLIC_KEY_LEN]))];
 
         let mut mutations_update = MutationsUpdate {
             node_public_key: client_public_key.clone(),
-            mutations,
+            index_mutations,
             time_hash: time_hash0.clone(),
             session_id: Uid::from(&[0; UID_LEN]),
             counter: 0,

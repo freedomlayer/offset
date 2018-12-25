@@ -46,7 +46,7 @@ pub struct UpdateFriend {
 
 /// IndexClient -> IndexServer
 #[derive(Debug, Clone)]
-pub enum Mutation {
+pub enum IndexMutation {
     UpdateFriend(UpdateFriend),
     RemoveFriend(PublicKey),
 }
@@ -56,7 +56,7 @@ pub struct MutationsUpdate {
     /// Public key of the node sending the mutations.
     pub node_public_key: PublicKey,
     /// List of mutations to relationships with direct friends.
-    pub mutations : Vec<Mutation>,
+    pub index_mutations : Vec<IndexMutation>,
     /// A time hash (Given by the server previously). 
     /// This is used as time, proving that this message was signed recently.
     pub time_hash: HashResult,
