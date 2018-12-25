@@ -13,6 +13,8 @@ extern crate serde;
 extern crate serde_derive;
 extern crate bytes;
 
+extern crate im;
+
 #[macro_use]
 pub mod macros;
 pub mod consts;

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use im::hashmap::HashMap as ImHashMap;
 
 use crypto::identity::{PublicKey, Signature};
 use crypto::hash::HashResult;
@@ -117,12 +117,12 @@ pub struct FriendReport<A> {
 
 /// A FunderReport is a summary of a FunderState.
 /// It contains the information the Funder exposes to the user apps of the Offst node.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 // TODO: Removed A: Clone here and ImHashMap. Should this struct be cloneable for some reason?
-pub struct FunderReport<A> {
+pub struct FunderReport<A: Clone> {
     pub local_public_key: PublicKey,
     pub opt_address: Option<A>,
-    pub friends: HashMap<PublicKey, FriendReport<A>>,
+    pub friends: ImHashMap<PublicKey, FriendReport<A>>,
     pub num_ready_receipts: u64,
 }
 

@@ -1,5 +1,10 @@
 use std::collections::HashMap;
+use im::hashmap::HashMap as ImHashMap;
+
 use common::int_convert::usize_to_u64;
+use common::safe_arithmetic::{SafeUnsignedArithmetic};
+
+use crypto::identity::PublicKey;
 
 use proto::funder::messages::{RequestsStatus, FriendStatus};
 
@@ -8,6 +13,8 @@ use proto::funder::report::{DirectionReport, FriendLivenessReport,
     FunderReport, FriendReportMutation, AddFriendReport, FunderReportMutation,
     McRequestsStatusReport, McBalanceReport, RequestsStatusReport, FriendStatusReport,
     MoveTokenHashedReport};
+
+use proto::index_client::messages::{IndexClientMutation, IndexClientState};
 
 use crate::types::MoveTokenHashed;
 
@@ -124,7 +131,7 @@ fn create_friend_report<A: Clone>(friend_state: &FriendState<A>, friend_liveness
 
 #[allow(unused)]
 pub fn create_report<A: Clone>(funder_state: &FunderState<A>, ephemeral: &Ephemeral) -> FunderReport<A> {
-    let mut friends = HashMap::new();
+    let mut friends = ImHashMap::new();
     for (friend_public_key, friend_state) in &funder_state.friends {
         let friend_liveness = match ephemeral.liveness.is_online(friend_public_key) {
             true => FriendLivenessReport::Online,
@@ -373,5 +380,77 @@ where
             funder_report.num_ready_receipts = *num_ready_receipts;
             Ok(())
         },
+    }
+}
+
+
+// Conversion to index client mutations and state
+// ----------------------------------------------
+
+pub fn funder_report_to_index_client_state<A>(funder_report: &FunderReport<A>) -> Option<IndexClientState> 
+where
+    A: Clone,
+{
+    unimplemented!();
+}
+
+
+/// Calculate send and receive capacities for a given `friend_report`.
+fn calc_friend_capacities<A>(friend_report: &FriendReport<A>) -> (u128, u128) {
+    if friend_report.status == FriendStatusReport::Disabled || 
+        friend_report.liveness == FriendLivenessReport::Offline {
+        return (0, 0);
+    }
+
+    let tc_report = match &friend_report.channel_status {
+        ChannelStatusReport::Inconsistent(_) => return (0,0),
+        ChannelStatusReport::Consistent(tc_report) => tc_report,
+    };
+
+    let balance = &tc_report.balance;
+
+    let send_capacity = if tc_report.requests_status.remote == RequestsStatusReport::Closed {
+        0
+    } else {
+        balance.local_max_debt.saturating_sub(
+            balance.local_pending_debt.checked_sub_signed(balance.balance).unwrap())
+    };
+
+    let recv_capacity = if tc_report.requests_status.local == RequestsStatusReport::Closed {
+        0
+    } else {
+        balance.remote_max_debt.saturating_sub(
+            balance.remote_pending_debt.checked_add_signed(balance.balance).unwrap())
+    };
+
+    (send_capacity, recv_capacity)
+}
+
+fn funder_report_mutation_to_index_client_mutation<A>(funder_report: &FunderReport<A>, 
+                                                      funder_report_mutation: &FunderReportMutation<A>) -> Option<IndexClientMutation> 
+where
+    A: Clone,
+{
+
+    let update_friend = |public_key: &PublicKey| {
+        let mut new_funder_report = funder_report.clone();
+        funder_report_mutate(&mut new_funder_report, funder_report_mutation);
+        
+        let new_friend_report = new_funder_report.friends
+            .get(public_key)
+            .unwrap(); // We assert that a new friend was added
+
+        let capacities = calc_friend_capacities(new_friend_report);
+        IndexClientMutation::UpdateFriend((public_key.clone(), capacities))
+    };
+
+    match funder_report_mutation {
+        FunderReportMutation::SetAddress(_) | 
+        FunderReportMutation::SetNumReadyReceipts(_) => None,
+        FunderReportMutation::AddFriend(add_friend_report) => 
+            Some(update_friend(&add_friend_report.friend_public_key)),
+        FunderReportMutation::RemoveFriend(public_key) => Some(IndexClientMutation::RemoveFriend(public_key.clone())),
+        FunderReportMutation::FriendReportMutation((public_key, _friend_report_mutation)) =>
+            Some(update_friend(&public_key)),
     }
 }

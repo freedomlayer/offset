@@ -14,7 +14,7 @@ use identity::IdentityClient;
 use proto::index_server::messages::{IndexServerToClient, 
     IndexClientToServer, 
     ResponseRoutes, RouteWithCapacity, MutationsUpdate,
-    Mutation,
+    IndexMutation,
     RequestRoutes};
 
 type ServerConn = ConnPair<IndexClientToServer, IndexServerToClient>;
@@ -22,7 +22,7 @@ type ServerConn = ConnPair<IndexClientToServer, IndexServerToClient>;
 #[derive(Debug)]
 pub enum SingleClientControl {
     RequestRoutes((RequestRoutes, oneshot::Sender<Vec<RouteWithCapacity>>)),
-    SendMutations(Vec<Mutation>),
+    SendMutations(Vec<IndexMutation>),
 }
 
 #[derive(Debug)]
@@ -119,10 +119,10 @@ where
                 await!(self.to_server.send(to_server_message))
                     .map_err(|_| SingleClientError::SendToServerError)?;
             },
-            SingleClientControl::SendMutations(mutations) => {
+            SingleClientControl::SendMutations(index_mutations) => {
                 let mut mutations_update = MutationsUpdate {
                     node_public_key: self.local_public_key.clone(),
-                    mutations,
+                    index_mutations,
                     time_hash: self.server_time_hash.clone(),
                     session_id: self.session_id.clone(),
                     counter: self.counter,

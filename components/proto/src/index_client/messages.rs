@@ -1,11 +1,29 @@
+use std::collections::HashMap;
+
 use crypto::uid::Uid;
-use crate::funder::report::FunderReportMutation;
+use crypto::identity::PublicKey;
+
 use crate::index_server::messages::{RequestRoutes, 
-    RouteWithCapacity};
+    RouteWithCapacity, IndexMutation};
+
+
+#[derive(Debug, Clone)]
+pub struct IndexClientState {
+    friends: HashMap<PublicKey, (u128, u128)>,
+}
+
+#[derive(Debug, Clone)]
+pub enum IndexClientMutation {
+    // UpdateSendCapacity((PublicKey, u128)),
+    // UpdateRecvCapacity((PublicKey, u128)),
+    UpdateFriend((PublicKey, (u128, u128))),
+    RemoveFriend(PublicKey),
+}
 
 // ---------------------------------------------------
 // IndexClient <--> AppServer communication
 // ---------------------------------------------------
+
 
 #[derive(Debug)]
 /// ISA stands for Index Server Address
@@ -42,10 +60,10 @@ pub enum IndexClientToAppServer<ISA> {
 }
 
 #[derive(Debug)]
-pub enum AppServerToIndexClient<ISA,A> {
+pub enum AppServerToIndexClient<ISA> {
     AddIndexServer(ISA),
     RemoveIndexServer(ISA),
     RequestRoutes(RequestRoutes),
-    FunderReportMutations(Vec<FunderReportMutation<A>>),
+    ApplyMutations(Vec<IndexClientMutation>),
 }
 

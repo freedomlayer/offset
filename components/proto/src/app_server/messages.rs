@@ -27,7 +27,7 @@ pub struct ResponseDelegate {
 
 #[allow(unused)]
 #[derive(Debug)]
-pub enum AppServerToApp<A> {
+pub enum AppServerToApp<A: Clone> {
     /// Funds:
     ResponseSendFunds(ResponseSendFunds),
     /// Reports about current state:

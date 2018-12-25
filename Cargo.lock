@@ -630,6 +630,7 @@ dependencies = [
  "bytes 0.4.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "capnp 0.8.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "capnpc 0.8.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "im 12.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "offst-common 0.1.0",
  "offst-crypto 0.1.0",
  "serde 1.0.80 (registry+https://github.com/rust-lang/crates.io-index)",

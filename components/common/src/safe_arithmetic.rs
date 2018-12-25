@@ -13,10 +13,10 @@ pub trait SafeSignedArithmetic: Copy {
 pub trait SafeUnsignedArithmetic: Copy {
     type Signed;
 
-    fn checked_add_signed(self, u: Self::Signed) -> Option<Self>;
-    fn checked_sub_signed(self, u: Self::Signed) -> Option<Self>;
-    fn saturating_add_signed(self, u: Self::Signed) -> Self;
-    fn saturating_sub_signed(self, u: Self::Signed) -> Self;
+    fn checked_add_signed(self, s: Self::Signed) -> Option<Self>;
+    fn checked_sub_signed(self, s: Self::Signed) -> Option<Self>;
+    fn saturating_add_signed(self, s: Self::Signed) -> Self;
+    fn saturating_sub_signed(self, s: Self::Signed) -> Self;
 }
 
 macro_rules! impl_safe_signed_arithmetic {

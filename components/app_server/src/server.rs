@@ -28,12 +28,12 @@ pub enum AppServerEvent<A: Clone> {
     FromApp((u128, Option<AppToAppServer<A>>)), // None means that app was closed
 }
 
-pub struct App<A> {
+pub struct App<A: Clone> {
     public_key: PublicKey,
     opt_sender: Option<mpsc::Sender<AppServerToApp<A>>>,
 }
 
-pub struct AppServer<A,TF> {
+pub struct AppServer<A: Clone,TF> {
     to_funder: TF,
     from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<A>>)>,
     config: AppServerConfig,
@@ -44,7 +44,10 @@ pub struct AppServer<A,TF> {
     apps: HashMap<u128, App<A>>,
 }
 
-impl<A,TF> AppServer<A,TF> {
+impl<A,TF> AppServer<A,TF> 
+where
+    A: Clone,
+{
     pub fn new(to_funder: TF, 
            from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<A>>)>,
            config: AppServerConfig) -> AppServer<A,TF> {
@@ -65,7 +68,7 @@ impl<A,TF> AppServer<A,TF> {
     where
         S: Spawn,
         TF: Sync,
-        A: Send + 'static,
+        A: Clone + Send + 'static,
     {
         let (public_key, (sender, mut receiver)) = incoming_app_connection;
 
