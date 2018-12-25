@@ -4,9 +4,8 @@ use std::collections::HashMap;
 
 use futures::{future, TryFutureExt, FutureExt, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::channel::{oneshot, mpsc};
-use futures::task::{Spawn, SpawnExt};
 
-use common::conn::{ConnPair, BoxFuture, FutTransform};
+use common::conn::ConnPair;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 use crypto::uid::Uid;
 use crypto::hash::HashResult;
@@ -20,7 +19,7 @@ use proto::index_server::messages::{IndexServerToClient,
     IndexMutation,
     RequestRoutes};
 
-type ServerConn = ConnPair<IndexClientToServer, IndexServerToClient>;
+pub type ServerConn = ConnPair<IndexClientToServer, IndexServerToClient>;
 
 #[derive(Debug)]
 pub enum SingleClientControl {
@@ -155,8 +154,7 @@ where
 }
 
 /// Wait for the first time hash sent from the server.
-#[allow(unused)]
-async fn first_server_time_hash(from_server: &mut mpsc::Receiver<IndexServerToClient>)
+pub async fn first_server_time_hash(from_server: &mut mpsc::Receiver<IndexServerToClient>)
     -> Result<HashResult, SingleClientError> {
 
     loop {
@@ -170,8 +168,7 @@ async fn first_server_time_hash(from_server: &mut mpsc::Receiver<IndexServerToCl
     }
 }
 
-#[allow(unused)]
-async fn single_client_loop<IC,R>(server_conn: ServerConn,
+pub async fn single_client_loop<IC,R>(server_conn: ServerConn,
                      incoming_control: IC,
                      local_public_key: PublicKey,
                      identity_client: IdentityClient,
@@ -214,72 +211,4 @@ where
     Ok(())
 }
 
-
-struct SimpleIndexClientSession<C,R,S> {
-    connector: C,
-    local_public_key: PublicKey,
-    identity_client: IdentityClient,
-    rng: R,
-    spawner: S,
-}
-
-impl<ISA,C,R,S> SimpleIndexClientSession<C,R,S> 
-where
-    ISA: 'static,
-    C: FutTransform<Input=ISA, Output=Option<ServerConn>>,
-    R: CryptoRandom + 'static,
-    S: Spawn,
-{
-
-    pub fn new(connector: C,
-               local_public_key: PublicKey,
-               identity_client: IdentityClient,
-               rng: R,
-               spawner: S) -> Self {
-
-        SimpleIndexClientSession {
-            connector,
-            local_public_key,
-            identity_client,
-            rng,
-            spawner,
-        }
-    }
-
-    async fn connect(&mut self, index_server_address: ISA) -> Option<mpsc::Sender<SingleClientControl>> {
-        let (to_server, mut from_server) = await!(self.connector.transform(index_server_address))?;
-
-        let first_time_hash = await!(first_server_time_hash(&mut from_server)).ok()?;
-        let (control_sender, incoming_control) = mpsc::channel(0);
-        let single_client_fut = single_client_loop((to_server, from_server),
-                           incoming_control,
-                           self.local_public_key.clone(),
-                           self.identity_client.clone(),
-                           self.rng.clone(),
-                           first_time_hash)
-            .map_err(|e| error!("single_client_loop() error: {:?}", e))
-            .map(|_| ());
-
-        self.spawner.spawn(single_client_fut).ok()?;
-
-        Some(control_sender)
-    }
-}
-
-impl<ISA,C,R,S> FutTransform for SimpleIndexClientSession<C,R,S> 
-where
-    ISA: Send + 'static,
-    C: FutTransform<Input=ISA, Output=Option<ServerConn>> + Send,
-    S: Spawn + Send,
-    R: CryptoRandom + 'static,
-{
-    type Input = ISA;
-    type Output = Option<mpsc::Sender<SingleClientControl>>;
-
-    fn transform(&mut self, index_server_address: Self::Input) 
-        -> BoxFuture<'_, Self::Output> {
-
-        Box::pinned(self.connect(index_server_address))
-    }
-}
 
