@@ -42,6 +42,9 @@ struct ServerConnecting<ISA> {
 struct ServerConnected<ISA> {
     address: ISA,
     opt_control_sender: Option<ControlSender>,
+    /// Decrementing counter. When reaches 0 we send a SendMutations
+    /// to the server and reset this value to keepalive_ticks:
+    ticks_to_send_keepalive: usize,
 }
 
 #[derive(Debug)]
@@ -55,8 +58,8 @@ enum ConnStatus<ISA> {
 pub enum IndexClientError {
     AppServerClosed,
     SendToAppServerFailed,
-    // SendIndexClientEventFailed,
     SpawnError,
+    RequestTimerStreamError,
 }
 
 #[derive(Debug)]
@@ -66,6 +69,7 @@ enum IndexClientEvent<ISA> {
     IndexServerConnected(ControlSender),
     IndexServerClosed,
     ResponseRoutes((Uid, ResponseRoutesResult)),
+    TimerTick,
 }
 
 
@@ -79,6 +83,7 @@ struct IndexClient<ISA,TAS,ICS,DB,S> {
     index_client_session: ICS,
     max_open_requests: usize,
     num_open_requests: usize,
+    keepalive_ticks: usize,
     conn_status: ConnStatus<ISA>,
     database: DB,
     timer_client: TimerClient,
@@ -99,6 +104,7 @@ where
                index_client_state: IndexClientState,
                index_client_session: ICS,
                max_open_requests: usize,
+               keepalive_ticks: usize,
                database: DB,
                timer_client: TimerClient,
                spawner: S) -> Self { 
@@ -118,6 +124,7 @@ where
             index_client_session,
             max_open_requests,
             num_open_requests: 0,
+            keepalive_ticks,
             conn_status: ConnStatus::Empty,
             database,
             timer_client,
@@ -338,7 +345,8 @@ where
 
         self.conn_status = ConnStatus::Connected(ServerConnected {
             address: address.clone(),
-            opt_control_sender: Some(control_sender)
+            opt_control_sender: Some(control_sender),
+            ticks_to_send_keepalive: self.keepalive_ticks,
         });
     }
 
@@ -362,6 +370,49 @@ where
         await!(self.to_app_server.send(IndexClientToAppServer::ResponseRoutes(client_response_routes)))
             .map_err(|_| IndexClientError::SendToAppServerFailed)
     }
+
+    pub async fn handle_timer_tick(&mut self) -> Result<(), IndexClientError> {
+
+        // Make sure that we are connected to any server:
+        let server_connected = match &mut self.conn_status {
+            ConnStatus::Empty |
+            ConnStatus::Connecting(_) => return Ok(()), // Not connected to server
+            ConnStatus::Connected(server_connected) => server_connected,
+        };
+
+        let mut control_sender = match server_connected.opt_control_sender.take() {
+            Some(control_sender) => control_sender,
+            None => return Ok(()), // Not connected to server
+        };
+
+        server_connected.ticks_to_send_keepalive = 
+            server_connected.ticks_to_send_keepalive.saturating_sub(1);
+
+        if server_connected.ticks_to_send_keepalive != 0 {
+            return Ok(());
+        }
+
+        // Reset the counter:
+        server_connected.ticks_to_send_keepalive = self.keepalive_ticks;
+
+        // We need to send a keepalive. This keepalive is in the form of a SendMutations message
+        // that will be forwarded to all the servers.
+        // If we don't send this periodic keepalive, index server will delete us from their
+        // index.
+
+        // Note that we might send empty mutations Vec in case we have no open friends:
+        // TODO: Check the case of sending friends with (0,0) as capacity.
+        let mut mutations = Vec::new();
+        if let Some(update_friend) = self.seq_index_client_state.next_update() {
+            mutations.push(IndexMutation::UpdateFriend(update_friend));
+        }
+
+        if let Ok(()) = await!(control_sender.send(SingleClientControl::SendMutations(mutations))) {
+            server_connected.opt_control_sender = Some(control_sender);
+        }
+
+        Ok(())
+    }
 }
 
 pub async fn index_client_loop<ISA,FAS,TAS,ICS,DB,S>(from_app_server: FAS,
@@ -370,8 +421,9 @@ pub async fn index_client_loop<ISA,FAS,TAS,ICS,DB,S>(from_app_server: FAS,
                                index_client_state: IndexClientState,
                                index_client_session: ICS,
                                max_open_requests: usize,
+                               keepalive_ticks: usize,
                                database: DB,
-                               timer_client: TimerClient,
+                               mut timer_client: TimerClient,
                                spawner: S) -> Result<(), IndexClientError>
 where
     ISA: Eq + Clone + Send + 'static,
@@ -388,18 +440,24 @@ where
                                             index_client_state,
                                             index_client_session,
                                             max_open_requests, 
+                                            keepalive_ticks,
                                             database,
-                                            timer_client,
+                                            timer_client.clone(),
                                             spawner);
     
     index_client.try_connect_to_server()?;
+
+    let timer_stream = await!(timer_client.request_timer_stream())
+        .map_err(|_| IndexClientError::RequestTimerStreamError)?
+        .map(|_| IndexClientEvent::TimerTick);
 
     let from_app_server = from_app_server
         .map(|app_server_to_index_client| IndexClientEvent::FromAppServer(app_server_to_index_client))
         .chain(stream::once(future::ready(IndexClientEvent::AppServerClosed)));
 
     let mut events = event_receiver
-        .select(from_app_server);
+        .select(from_app_server)
+        .select(timer_stream);
 
     while let Some(event) = await!(events.next()) {
         match event {
@@ -412,6 +470,8 @@ where
                 index_client.handle_index_server_closed()?,
             IndexClientEvent::ResponseRoutes((request_id, response_routes_result)) =>
                 await!(index_client.handle_response_routes(request_id, response_routes_result))?,
+            IndexClientEvent::TimerTick =>
+                await!(index_client.handle_timer_tick())?,
         };
     }
     Ok(())
