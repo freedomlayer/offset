@@ -400,8 +400,10 @@ where
             ticks_to_send_keepalive: self.keepalive_ticks,
         });
 
-        // TODO: Making sure that send_full_state does not continue to work after IndexServerClosed
-        // was received? It is probably true, but this requires some thought.
+        // Sync note: With the obtained SessionHandle (ControlSender, CloseReciever), it is
+        // guaranteed that `control_sender` will stop working, and only then `close_receiver` will
+        // resolve. (See IndexClientSession::connect()) This means that `send_full_state` task will
+        // close before a new connection to a server is established.
         let send_full_state_fut = send_full_state(self.seq_friends_client.clone(), control_sender)
             .map_err(|e| warn!("Error in send_full_state(): {:?}", e))
             .map(|_| ());
