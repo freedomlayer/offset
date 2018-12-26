@@ -1,7 +1,8 @@
 use std::marker::Unpin;
 use std::collections::{VecDeque, HashSet};
 
-use futures::{select, future, FutureExt, stream, Stream, StreamExt, Sink, SinkExt};
+use futures::{select, future, FutureExt, TryFutureExt, 
+    stream, Stream, StreamExt, Sink, SinkExt};
 use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 
@@ -89,6 +90,37 @@ struct IndexClient<ISA,TAS,ICS,DB,S> {
     database: DB,
     timer_client: TimerClient,
     spawner: S,
+}
+
+/// Send our full friends state as mutations to the server. 
+/// We do this in a separate task so that we don't block user requests or incoming funder reports.
+async fn send_full_state(mut seq_friends_client: SeqFriendsClient, 
+                         mut control_sender: ControlSender) -> Result<(), IndexClientError> {
+
+    await!(seq_friends_client.reset_countdown())
+        .map_err(|_| IndexClientError::SeqFriendsError)?;
+
+    loop {
+        let next_update_res = await!(seq_friends_client.next_update())
+            .map_err(|_| IndexClientError::SeqFriendsError)?;
+
+        let (cyclic_countdown, update_friend) = match next_update_res {
+            Some(next_update) => next_update,
+            None => break,
+        };
+
+        // TODO: Maybe send mutations in batches in the future:
+        // However, we need to be careful to not send too many mutations in one batch.
+        let mutations = vec![IndexMutation::UpdateFriend(update_friend)];
+        if let Err(_) = await!(control_sender.send(SingleClientControl::SendMutations(mutations))) {
+            break;
+        }
+
+        if cyclic_countdown == 0 {
+            break;
+        }
+    }
+    Ok(())
 }
 
 impl<ISA,TAS,ICS,DB,S> IndexClient<ISA,TAS,ICS,DB,S> 
@@ -346,21 +378,6 @@ where
         }
     }
 
-    /// Send our full friends state as mutations to the server.
-    /// Returns the sender. 
-    /// If an error occurs during a send attempt, control_sender is dropped and None is returned.
-    async fn send_full_state(&self, mut control_sender: ControlSender) -> Option<ControlSender> {
-        unimplemented!();
-        /*
-        for update_friend in self.seq_index_client_state.full_state_updates() {
-            // TODO: Maybe send mutations in batches in the future:
-            // However, we need to be careful to not send too many mutations in one batch.
-            let mutations = vec![IndexMutation::UpdateFriend(update_friend)];
-            await!(control_sender.send(SingleClientControl::SendMutations(mutations))).ok()?;
-        }
-        Some(control_sender)
-        */
-    }
 
     pub async fn handle_index_server_connected(&mut self, control_sender: ControlSender) 
         -> Result<(), IndexClientError> {
@@ -377,28 +394,21 @@ where
             ConnStatus::Connecting(server_connecting) => server_connecting.address.clone(),
         };
 
-        // TODO; the call to self.send_full_state() might take a long time,
-        // and it is blocking `index_client`. During this time requests from the user will stall
-        // and state reports from the funder may be dropped.
-        match await!(self.send_full_state(control_sender)) {
-            Some(control_sender) => {
-                self.conn_status = ConnStatus::Connected(ServerConnected {
-                    address: address.clone(),
-                    opt_control_sender: Some(control_sender),
-                    ticks_to_send_keepalive: self.keepalive_ticks,
-                });
+        self.conn_status = ConnStatus::Connected(ServerConnected {
+            address: address.clone(),
+            opt_control_sender: Some(control_sender.clone()),
+            ticks_to_send_keepalive: self.keepalive_ticks,
+        });
 
-                // Send report:
-                let index_client_report_mutation = IndexClientReportMutation::SetConnectedServer(Some(address));
-                let report_mutations = vec![index_client_report_mutation];
-                await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(report_mutations)))
-                    .map_err(|_| IndexClientError::SendToAppServerFailed)?;
-            },
-            None => {
-                self.conn_status = ConnStatus::Empty;
-                self.try_connect_to_server()?;
-            }
-        }
+        // TODO: Making sure that send_full_state does not continue to work after IndexServerClosed
+        // was received? It is probably true, but this requires some thought.
+        let send_full_state_fut = send_full_state(self.seq_friends_client.clone(), control_sender)
+            .map_err(|e| warn!("Error in send_full_state(): {:?}", e))
+            .map(|_| ());
+
+        self.spawner.spawn(send_full_state_fut)
+            .map_err(|_| IndexClientError::SpawnError)?;
+
         Ok(())
     }
 
