@@ -1,8 +1,8 @@
 use std::marker::Unpin;
 use std::collections::VecDeque;
 
-use futures::{future, FutureExt, stream, Stream, StreamExt, Sink, SinkExt};
-use futures::channel::mpsc;
+use futures::{select, future, FutureExt, stream, Stream, StreamExt, Sink, SinkExt};
+use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 
 use common::conn::FutTransform;
@@ -37,7 +37,7 @@ struct ServerConnected<ISA> {
 #[derive(Debug)]
 enum ConnStatus<ISA> {
     Empty,
-    Connecting(ISA),
+    Connecting((ISA, oneshot::Sender<()>)),
     Connected(ServerConnected<ISA>),
 }
 
@@ -131,26 +131,34 @@ where
         // Move the chosen address to the end, rotating the addresses VecDeque 1 to the left:
         self.index_servers.push_back(server_address.clone());
 
-        let mut c_event_sender = self.event_sender.clone();
         let mut c_index_client_session = self.index_client_session.clone();
+        let mut c_event_sender = self.event_sender.clone();
 
-        self.conn_status = ConnStatus::Connecting(server_address.clone());
+        let (cancel_sender, cancel_receiver) = oneshot::channel();
+        self.conn_status = ConnStatus::Connecting((server_address.clone(), cancel_sender));
 
-        let connect_fut = async move {
-            match await!(c_index_client_session.transform(server_address)) {
-                Some((control_sender, close_receiver)) => {
-                    let _ = await!(c_event_sender.send(IndexClientEvent::IndexServerConnected(control_sender)));
-                    let _ = await!(close_receiver);
-                    let _ = await!(c_event_sender.send(IndexClientEvent::IndexServerClosed));
-                },
-                None => {
-                    // TODO: Should we report an error here somehow if send fails?
-                    let _ = await!(c_event_sender.send(IndexClientEvent::IndexServerClosed));
-                },
+        // TODO: Can we remove the Box::pinned() from here? How?
+        let connect_fut = Box::pinned(async move {
+            await!(c_index_client_session.transform(server_address))
+        });
+
+        let cancellable_fut = async move {
+            // During the connection stage it is possible to cancel using the `cancel_sender`:
+            let select_res = select! {
+                connect_fut = connect_fut.fuse() => connect_fut,
+                _cancel_receiver = cancel_receiver.fuse() => None,
             };
+
+            // After the connection stage it is possible to close the connection by closing the
+            // control_sender:
+            if let Some((control_sender, close_receiver)) = select_res {
+                let _ = await!(c_event_sender.send(IndexClientEvent::IndexServerConnected(control_sender)));
+                let _ = await!(close_receiver);
+            }
+            let _ = await!(c_event_sender.send(IndexClientEvent::IndexServerClosed));
         };
 
-        self.spawner.spawn(connect_fut)
+        self.spawner.spawn(cancellable_fut)
             .map_err(|_| IndexClientError::SpawnError)
     }
 
@@ -165,13 +173,17 @@ where
                 } else {
                     return Ok(());
                 }
-
                 // We are here if conn_status is empty.
                 // This means we should initiate connection to an index server
                 self.try_connect_to_server()?
-
             },
-            AppServerToIndexClient::RemoveIndexServer(address) => unimplemented!(),
+            AppServerToIndexClient::RemoveIndexServer(address) => {
+                /*
+                match self.conn_status {
+                }
+                */
+                unimplemented!();
+            },
             AppServerToIndexClient::RequestRoutes(request_routes) => unimplemented!(),
             AppServerToIndexClient::ApplyMutations(mutations) => unimplemented!(),
         }
@@ -188,7 +200,7 @@ where
                 error!("Already connected to server!");
                 return;
             }
-            ConnStatus::Connecting(address) => address,
+            ConnStatus::Connecting((address, _cancel_sender)) => address,
         };
 
         self.conn_status = ConnStatus::Connected(ServerConnected {
