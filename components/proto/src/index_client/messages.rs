@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 
-use crate::index_server::messages::{RequestRoutes, RouteWithCapacity};
+use crate::index_server::messages::RouteWithCapacity;
+pub use crate::index_server::messages::RequestRoutes;
 
 
 #[derive(Debug, Clone)]
