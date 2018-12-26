@@ -12,7 +12,8 @@ use crypto::uid::Uid;
 
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer,
                                     IndexClientMutation, IndexClientState,
-                                    ResponseRoutesResult, ClientResponseRoutes};
+                                    ResponseRoutesResult, ClientResponseRoutes,
+                                    RequestRoutes};
 
 use timer::TimerClient;
 
@@ -184,90 +185,108 @@ where
             .map_err(|_| IndexClientError::SendToAppServerFailed)
     }
 
+    pub async fn handle_from_app_server_add_index_server(&mut self, server_address: ISA) -> Result<(), IndexClientError> {
+        // Update database:
+        await!(self.database.transform(IndexClientConfigMutation::AddIndexServer(server_address.clone())));
+
+        self.index_servers.push_back(server_address);
+        if let ConnStatus::Empty = self.conn_status {
+        } else {
+            return Ok(());
+        }
+        // We are here if conn_status is empty.
+        // This means we should initiate connection to an index server
+        self.try_connect_to_server()
+    }
+
+    pub async fn handle_from_app_server_remove_index_server(&mut self, server_address: ISA) -> Result<(), IndexClientError> {
+        // Update database:
+        await!(self.database.transform(IndexClientConfigMutation::RemoveIndexServer(server_address.clone())));
+
+        // Remove address:
+        self.index_servers.retain(|cur_address| cur_address != &server_address);
+
+        // Disconnect a current server connection if it uses the removed address:
+        match &mut self.conn_status {
+            ConnStatus::Empty => {}, // Nothing to do here
+            ConnStatus::Connecting(server_connecting) => {
+                if server_connecting.address == server_address {
+                    if let Some(cancel_sender) = server_connecting.opt_cancel_sender.take() {
+                        let _ = cancel_sender.send(());
+                    }
+                }
+            },
+            ConnStatus::Connected(server_connected) => {
+                server_connected.opt_control_sender.take();
+            },
+        }
+        Ok(())
+    }
+
+    pub async fn handle_from_app_server_request_routes(&mut self, request_routes: RequestRoutes) -> Result<(), IndexClientError> {
+        if self.num_open_requests >= self.max_open_requests {
+            return await!(self.return_response_routes_failure(request_routes.request_id));
+        }
+
+        // Check server connection status:
+        let mut server_connected = match &mut self.conn_status {
+            ConnStatus::Empty |
+            ConnStatus::Connecting(_) => return await!(self.return_response_routes_failure(request_routes.request_id)),
+            ConnStatus::Connected(server_connected) => server_connected,
+        };
+
+        let mut control_sender = match server_connected.opt_control_sender.take() {
+            Some(control_sender) => control_sender,
+            None => return await!(self.return_response_routes_failure(request_routes.request_id)),
+        };
+        
+        let c_request_id = request_routes.request_id.clone();
+        let (response_sender, response_receiver) = oneshot::channel();
+        let single_client_control = SingleClientControl::RequestRoutes((request_routes, response_sender));
+
+        match await!(control_sender.send(single_client_control)) {
+            Ok(()) => server_connected.opt_control_sender = Some(control_sender),
+            Err(_) => return await!(self.return_response_routes_failure(c_request_id)),
+        };
+
+        let mut c_event_sender = self.event_sender.clone();
+        let request_fut = async move {
+            let response_routes_result = match await!(response_receiver) {
+                Ok(routes) => ResponseRoutesResult::Success(routes),
+                Err(_) => ResponseRoutesResult::Failure,
+            };
+            // TODO: Should report error here if failure occurs?
+            let _ = await!(c_event_sender.send(IndexClientEvent::ResponseRoutes((c_request_id, response_routes_result))));
+        };
+
+        self.num_open_requests = self.num_open_requests.saturating_add(1);
+        self.spawner.spawn(request_fut)
+            .map_err(|_| IndexClientError::SpawnError)
+    }
+
+    pub async fn handle_from_app_server_apply_mutations(&mut self, mutations: Vec<IndexClientMutation>) -> Result<(), IndexClientError> {
+        // TODO:
+        // - Apply mutations to state saved here.
+        // - Send to server:
+        //      - new states of friends modified in the received mutations
+        //      - A state of a friend chosen sequentially (or randomly?)
+        unimplemented!();
+    }
+
     pub async fn handle_from_app_server(&mut self, 
                                   app_server_to_index_client: AppServerToIndexClient<ISA>) 
                                     -> Result<(), IndexClientError> {
 
         match app_server_to_index_client {
-            AppServerToIndexClient::AddIndexServer(address) => {
-                // Update database:
-                await!(self.database.transform(IndexClientConfigMutation::AddIndexServer(address.clone())));
-
-                self.index_servers.push_back(address);
-                if let ConnStatus::Empty = self.conn_status {
-                } else {
-                    return Ok(());
-                }
-                // We are here if conn_status is empty.
-                // This means we should initiate connection to an index server
-                self.try_connect_to_server()?
-            },
-            AppServerToIndexClient::RemoveIndexServer(address) => {
-                // Update database:
-                await!(self.database.transform(IndexClientConfigMutation::RemoveIndexServer(address.clone())));
-
-                // Remove address:
-                self.index_servers.retain(|cur_address| cur_address != &address);
-
-                // Disconnect a current server connection if it uses the removed address:
-                match &mut self.conn_status {
-                    ConnStatus::Empty => {}, // Nothing to do here
-                    ConnStatus::Connecting(server_connecting) => {
-                        if server_connecting.address == address {
-                            if let Some(cancel_sender) = server_connecting.opt_cancel_sender.take() {
-                                let _ = cancel_sender.send(());
-                            }
-                        }
-                    },
-                    ConnStatus::Connected(server_connected) => {
-                        server_connected.opt_control_sender.take();
-                    },
-                }
-            },
-            AppServerToIndexClient::RequestRoutes(request_routes) => {
-
-                if self.num_open_requests >= self.max_open_requests {
-                    return await!(self.return_response_routes_failure(request_routes.request_id));
-                }
-
-                // Check server connection status:
-                let mut server_connected = match &mut self.conn_status {
-                    ConnStatus::Empty |
-                    ConnStatus::Connecting(_) => return await!(self.return_response_routes_failure(request_routes.request_id)),
-                    ConnStatus::Connected(server_connected) => server_connected,
-                };
-
-                let mut control_sender = match server_connected.opt_control_sender.take() {
-                    Some(control_sender) => control_sender,
-                    None => return await!(self.return_response_routes_failure(request_routes.request_id)),
-                };
-                
-                let c_request_id = request_routes.request_id.clone();
-                let (response_sender, response_receiver) = oneshot::channel();
-                let single_client_control = SingleClientControl::RequestRoutes((request_routes, response_sender));
-
-                match await!(control_sender.send(single_client_control)) {
-                    Ok(()) => server_connected.opt_control_sender = Some(control_sender),
-                    Err(_) => return await!(self.return_response_routes_failure(c_request_id)),
-                };
-
-                let mut c_event_sender = self.event_sender.clone();
-                let request_fut = async move {
-                    let response_routes_result = match await!(response_receiver) {
-                        Ok(routes) => ResponseRoutesResult::Success(routes),
-                        Err(_) => ResponseRoutesResult::Failure,
-                    };
-                    // TODO: Should report error here if failure occurs?
-                    let _ = await!(c_event_sender.send(IndexClientEvent::ResponseRoutes((c_request_id, response_routes_result))));
-                };
-
-                self.num_open_requests = self.num_open_requests.saturating_add(1);
-                self.spawner.spawn(request_fut)
-                    .map_err(|_| IndexClientError::SpawnError)?;
-            },
-            AppServerToIndexClient::ApplyMutations(mutations) => unimplemented!(),
+            AppServerToIndexClient::AddIndexServer(server_address) => 
+                await!(self.handle_from_app_server_add_index_server(server_address)),
+            AppServerToIndexClient::RemoveIndexServer(server_address) =>
+                await!(self.handle_from_app_server_remove_index_server(server_address)),
+            AppServerToIndexClient::RequestRoutes(request_routes) =>
+                await!(self.handle_from_app_server_request_routes(request_routes)),
+            AppServerToIndexClient::ApplyMutations(mutations) =>
+                await!(self.handle_from_app_server_apply_mutations(mutations)),
         }
-        unimplemented!();
     }
 
     pub fn handle_index_server_connected(&mut self, control_sender: ControlSender) {
