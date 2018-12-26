@@ -111,65 +111,19 @@ where
         }
     }
 
-    pub async fn handle_from_app_server(&mut self, 
-                                  app_server_to_index_client: AppServerToIndexClient<ISA>) 
-                                    -> Result<(), IndexClientError> {
-
-        match app_server_to_index_client {
-            AppServerToIndexClient::AddIndexServer(address) => {
-                self.index_servers.push_back(address);
-                if let ConnStatus::Empty = self.conn_status {
-                } else {
-                    return Ok(());
-                }
-
-                // We are here if conn_status is empty.
-                // This means we should initiate connection to an index server
-
-                // Get the first server address:
-                let server_address = self.index_servers.pop_front().unwrap();
-                // Rotate:
-                self.index_servers.push_back(server_address.clone());
-
-                // TODO: Attempt to connect to server
-                // Refactor code that connects to server. Should be called in three places:
-                // - Initialization of IndexClient
-                // - Adding a new index server address
-                // - Losing a connection to an index server.
-
-                unimplemented!();
-            },
-            AppServerToIndexClient::RemoveIndexServer(address) => unimplemented!(),
-            AppServerToIndexClient::RequestRoutes(request_routes) => unimplemented!(),
-            AppServerToIndexClient::ApplyMutations(mutations) => unimplemented!(),
+    /// Attempt to connect to server.
+    /// If there are no index servers known, do nothing.
+    fn try_connect_to_server(&mut self) -> Result<(), IndexClientError> {
+        // Make sure that conn_status is empty:
+        if let ConnStatus::Empty = self.conn_status {
+        } else {
+            unreachable!();
         }
-        unimplemented!();
-    }
 
-    pub fn handle_index_server_connected(&mut self, control_sender: ControlSender) {
-        let address = match &self.conn_status {
-            ConnStatus::Empty => {
-                error!("Did not attempt to connect!");
-                return;
-            },
-            ConnStatus::Connected(_) => {
-                error!("Already connected to server!");
-                return;
-            }
-            ConnStatus::Connecting(address) => address,
-        };
-
-        self.conn_status = ConnStatus::Connected(ServerConnected {
-            address: address.clone(),
-            opt_control_sender: Some(control_sender)
-        });
-    }
-
-    pub fn handle_index_server_closed(&mut self) -> Result<(), IndexClientError> {
         let server_address = match self.index_servers.pop_front() {
             Some(server_address) => server_address,
             None => {
-                // We don't have any inde servers to connect to:
+                // We don't have any index servers to connect to:
                 self.conn_status = ConnStatus::Empty;
                 return Ok(());
             }
@@ -198,6 +152,55 @@ where
 
         self.spawner.spawn(connect_fut)
             .map_err(|_| IndexClientError::SpawnError)
+    }
+
+    pub async fn handle_from_app_server(&mut self, 
+                                  app_server_to_index_client: AppServerToIndexClient<ISA>) 
+                                    -> Result<(), IndexClientError> {
+
+        match app_server_to_index_client {
+            AppServerToIndexClient::AddIndexServer(address) => {
+                self.index_servers.push_back(address);
+                if let ConnStatus::Empty = self.conn_status {
+                } else {
+                    return Ok(());
+                }
+
+                // We are here if conn_status is empty.
+                // This means we should initiate connection to an index server
+                self.try_connect_to_server()?
+
+            },
+            AppServerToIndexClient::RemoveIndexServer(address) => unimplemented!(),
+            AppServerToIndexClient::RequestRoutes(request_routes) => unimplemented!(),
+            AppServerToIndexClient::ApplyMutations(mutations) => unimplemented!(),
+        }
+        unimplemented!();
+    }
+
+    pub fn handle_index_server_connected(&mut self, control_sender: ControlSender) {
+        let address = match &self.conn_status {
+            ConnStatus::Empty => {
+                error!("Did not attempt to connect!");
+                return;
+            },
+            ConnStatus::Connected(_) => {
+                error!("Already connected to server!");
+                return;
+            }
+            ConnStatus::Connecting(address) => address,
+        };
+
+        self.conn_status = ConnStatus::Connected(ServerConnected {
+            address: address.clone(),
+            opt_control_sender: Some(control_sender)
+        });
+    }
+
+
+    pub fn handle_index_server_closed(&mut self) -> Result<(), IndexClientError> {
+        self.conn_status = ConnStatus::Empty;
+        self.try_connect_to_server()
     }
 
     pub async fn handle_response_routes(&mut self, request_id: Uid, 
@@ -243,6 +246,8 @@ where
                                             database,
                                             timer_client,
                                             spawner);
+    
+    index_client.try_connect_to_server()?;
 
     let from_app_server = from_app_server
         .map(|app_server_to_index_client| IndexClientEvent::FromAppServer(app_server_to_index_client))
