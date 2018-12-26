@@ -13,7 +13,8 @@ use crypto::uid::Uid;
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer,
                                     IndexMutation, IndexClientState,
                                     ResponseRoutesResult, ClientResponseRoutes,
-                                    RequestRoutes, UpdateFriend};
+                                    RequestRoutes, UpdateFriend,
+                                    IndexClientReportMutation};
 
 use timer::TimerClient;
 
@@ -203,7 +204,15 @@ where
         // Update database:
         await!(self.database.transform(IndexClientConfigMutation::AddIndexServer(server_address.clone())));
 
-        self.index_servers.push_back(server_address);
+        // Add new server_address to memory:
+        self.index_servers.push_back(server_address.clone());
+
+        // Send report:
+        let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(server_address);
+        let report_mutations = vec![index_client_report_mutation];
+        await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(report_mutations)))
+            .map_err(|_| IndexClientError::SendToAppServerFailed)?;
+
         if let ConnStatus::Empty = self.conn_status {
         } else {
             return Ok(());
@@ -220,6 +229,12 @@ where
 
         // Remove address:
         self.index_servers.retain(|cur_address| cur_address != &server_address);
+
+        // Send report:
+        let index_client_report_mutation = IndexClientReportMutation::RemoveIndexServer(server_address.clone());
+        let report_mutations = vec![index_client_report_mutation];
+        await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(report_mutations)))
+            .map_err(|_| IndexClientError::SendToAppServerFailed)?;
 
         // Disconnect a current server connection if it uses the removed address:
         match &mut self.conn_status {
@@ -355,7 +370,7 @@ where
                 error!("Already connected to server!");
                 return Ok(());
             }
-            ConnStatus::Connecting(server_connecting) => &server_connecting.address,
+            ConnStatus::Connecting(server_connecting) => server_connecting.address.clone(),
         };
 
         // TODO; the call to self.send_full_state() might take a long time,
@@ -368,6 +383,12 @@ where
                     opt_control_sender: Some(control_sender),
                     ticks_to_send_keepalive: self.keepalive_ticks,
                 });
+
+                // Send report:
+                let index_client_report_mutation = IndexClientReportMutation::SetConnectedServer(Some(address));
+                let report_mutations = vec![index_client_report_mutation];
+                await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(report_mutations)))
+                    .map_err(|_| IndexClientError::SendToAppServerFailed)?;
             },
             None => {
                 self.conn_status = ConnStatus::Empty;
@@ -378,8 +399,15 @@ where
     }
 
 
-    pub fn handle_index_server_closed(&mut self) -> Result<(), IndexClientError> {
+    pub async fn handle_index_server_closed(&mut self) -> Result<(), IndexClientError> {
         self.conn_status = ConnStatus::Empty;
+
+        // Send report:
+        let index_client_report_mutation = IndexClientReportMutation::SetConnectedServer(None);
+        let report_mutations = vec![index_client_report_mutation];
+        await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(report_mutations)))
+            .map_err(|_| IndexClientError::SendToAppServerFailed)?;
+
         self.try_connect_to_server()
     }
 
@@ -494,7 +522,7 @@ where
             IndexClientEvent::IndexServerConnected(control_sender) => 
                 await!(index_client.handle_index_server_connected(control_sender))?,
             IndexClientEvent::IndexServerClosed =>
-                index_client.handle_index_server_closed()?,
+                await!(index_client.handle_index_server_closed())?,
             IndexClientEvent::ResponseRoutes((request_id, response_routes_result)) =>
                 await!(index_client.handle_response_routes(request_id, response_routes_result))?,
             IndexClientEvent::TimerTick =>
