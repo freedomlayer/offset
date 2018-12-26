@@ -14,7 +14,7 @@ use proto::funder::report::{DirectionReport, FriendLivenessReport,
     McRequestsStatusReport, McBalanceReport, RequestsStatusReport, FriendStatusReport,
     MoveTokenHashedReport};
 
-use proto::index_client::messages::{IndexClientMutation, IndexClientState};
+use proto::index_client::messages::{IndexMutation, IndexClientState, UpdateFriend};
 
 use crate::types::MoveTokenHashed;
 
@@ -430,6 +430,7 @@ where
         .iter()
         .map(|(friend_public_key, friend_report)| 
              (friend_public_key.clone(), calc_friend_capacities(friend_report)))
+        .filter(|(_, (send_capacity, recv_capacity))| *send_capacity != 0 || *recv_capacity != 0)
         .collect::<HashMap<PublicKey,(u128, u128)>>();
 
     IndexClientState {
@@ -438,12 +439,12 @@ where
 }
 
 pub fn funder_report_mutation_to_index_client_mutation<A>(funder_report: &FunderReport<A>, 
-                                                      funder_report_mutation: &FunderReportMutation<A>) -> Option<IndexClientMutation> 
+                                                      funder_report_mutation: &FunderReportMutation<A>) -> Option<IndexMutation> 
 where
     A: Clone,
 {
 
-    let update_friend = |public_key: &PublicKey| {
+    let create_update_friend = |public_key: &PublicKey| {
         let mut new_funder_report = funder_report.clone();
         funder_report_mutate(&mut new_funder_report, funder_report_mutation).unwrap();
         
@@ -451,17 +452,22 @@ where
             .get(public_key)
             .unwrap(); // We assert that a new friend was added
 
-        let capacities = calc_friend_capacities(new_friend_report);
-        IndexClientMutation::UpdateFriend((public_key.clone(), capacities))
+        let (send_capacity, recv_capacity) = calc_friend_capacities(new_friend_report);
+        let update_friend = UpdateFriend {
+            public_key: public_key.clone(),
+            send_capacity,
+            recv_capacity,
+        };
+        IndexMutation::UpdateFriend(update_friend)
     };
 
     match funder_report_mutation {
         FunderReportMutation::SetAddress(_) | 
         FunderReportMutation::SetNumReadyReceipts(_) => None,
         FunderReportMutation::AddFriend(add_friend_report) => 
-            Some(update_friend(&add_friend_report.friend_public_key)),
-        FunderReportMutation::RemoveFriend(public_key) => Some(IndexClientMutation::RemoveFriend(public_key.clone())),
+            Some(create_update_friend(&add_friend_report.friend_public_key)),
+        FunderReportMutation::RemoveFriend(public_key) => Some(IndexMutation::RemoveFriend(public_key.clone())),
         FunderReportMutation::FriendReportMutation((public_key, _friend_report_mutation)) =>
-            Some(update_friend(&public_key)),
+            Some(create_update_friend(&public_key)),
     }
 }
