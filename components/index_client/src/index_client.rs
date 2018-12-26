@@ -27,6 +27,12 @@ pub enum IndexClientConfigMutation<ISA> {
     RemoveIndexServer(ISA),
 }
 
+#[derive(Debug)]
+struct ServerConnecting<ISA> {
+    address: ISA,
+    opt_cancel_sender: Option<oneshot::Sender<()>>,
+}
+
 
 #[derive(Debug)]
 struct ServerConnected<ISA> {
@@ -37,7 +43,7 @@ struct ServerConnected<ISA> {
 #[derive(Debug)]
 enum ConnStatus<ISA> {
     Empty,
-    Connecting((ISA, oneshot::Sender<()>)),
+    Connecting(ServerConnecting<ISA>),
     Connected(ServerConnected<ISA>),
 }
 
@@ -76,7 +82,7 @@ struct IndexClient<ISA,TAS,ICS,DB,S> {
 
 impl<ISA,TAS,ICS,DB,S> IndexClient<ISA,TAS,ICS,DB,S> 
 where
-    ISA: Clone + Send + 'static,
+    ISA: Eq + Clone + Send + 'static,
     TAS: Sink<SinkItem=IndexClientToAppServer<ISA>> + Unpin,
     ICS: FutTransform<Input=ISA, Output=Option<SessionHandle>> + Clone + Send + 'static,
     DB: FutTransform<Input=IndexClientConfigMutation<ISA>, Output=Option<()>>,
@@ -135,7 +141,11 @@ where
         let mut c_event_sender = self.event_sender.clone();
 
         let (cancel_sender, cancel_receiver) = oneshot::channel();
-        self.conn_status = ConnStatus::Connecting((server_address.clone(), cancel_sender));
+        let server_connecting = ServerConnecting {
+            address: server_address.clone(),
+            opt_cancel_sender: Some(cancel_sender),
+        };
+        self.conn_status = ConnStatus::Connecting(server_connecting);
 
         // TODO: Can we remove the Box::pinned() from here? How?
         let connect_fut = Box::pinned(async move {
@@ -168,6 +178,9 @@ where
 
         match app_server_to_index_client {
             AppServerToIndexClient::AddIndexServer(address) => {
+                // Update database:
+                await!(self.database.transform(IndexClientConfigMutation::AddIndexServer(address.clone())));
+
                 self.index_servers.push_back(address);
                 if let ConnStatus::Empty = self.conn_status {
                 } else {
@@ -178,11 +191,26 @@ where
                 self.try_connect_to_server()?
             },
             AppServerToIndexClient::RemoveIndexServer(address) => {
-                /*
-                match self.conn_status {
+                // Update database:
+                await!(self.database.transform(IndexClientConfigMutation::RemoveIndexServer(address.clone())));
+
+                // Remove address:
+                self.index_servers.retain(|cur_address| cur_address != &address);
+
+                // Disconnect a current server connection if it uses the removed address:
+                match &mut self.conn_status {
+                    ConnStatus::Empty => {}, // Nothing to do here
+                    ConnStatus::Connecting(server_connecting) => {
+                        if server_connecting.address == address {
+                            if let Some(cancel_sender) = server_connecting.opt_cancel_sender.take() {
+                                let _ = cancel_sender.send(());
+                            }
+                        }
+                    },
+                    ConnStatus::Connected(server_connected) => {
+                        server_connected.opt_control_sender.take();
+                    },
                 }
-                */
-                unimplemented!();
             },
             AppServerToIndexClient::RequestRoutes(request_routes) => unimplemented!(),
             AppServerToIndexClient::ApplyMutations(mutations) => unimplemented!(),
@@ -200,7 +228,7 @@ where
                 error!("Already connected to server!");
                 return;
             }
-            ConnStatus::Connecting((address, _cancel_sender)) => address,
+            ConnStatus::Connecting(server_connecting) => &server_connecting.address,
         };
 
         self.conn_status = ConnStatus::Connected(ServerConnected {
@@ -241,7 +269,7 @@ pub async fn index_client_loop<ISA,FAS,TAS,ICS,DB,S>(from_app_server: FAS,
                                timer_client: TimerClient,
                                spawner: S) -> Result<(), IndexClientError>
 where
-    ISA: Clone + Send + 'static,
+    ISA: Eq + Clone + Send + 'static,
     FAS: Stream<Item=AppServerToIndexClient<ISA>> + Unpin,
     TAS: Sink<SinkItem=IndexClientToAppServer<ISA>> + Unpin,
     ICS: FutTransform<Input=ISA, Output=Option<SessionHandle>> + Clone + Send + 'static,
