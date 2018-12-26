@@ -1,5 +1,5 @@
 use std::marker::Unpin;
-use std::collections::VecDeque;
+use std::collections::{VecDeque, HashSet};
 
 use futures::{select, future, FutureExt, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::channel::{mpsc, oneshot};
@@ -11,7 +11,7 @@ use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer,
-                                    IndexClientMutation, IndexClientState,
+                                    IndexMutation, IndexClientState,
                                     ResponseRoutesResult, ClientResponseRoutes,
                                     RequestRoutes};
 
@@ -80,6 +80,21 @@ struct IndexClient<ISA,TAS,ICS,DB,S> {
     database: DB,
     timer_client: TimerClient,
     spawner: S,
+}
+
+/// Apply a mutation to `index_client_state`.
+fn apply_index_mutation(index_client_state: &mut IndexClientState, 
+                               index_mutation: &IndexMutation) {
+
+    match index_mutation {
+        IndexMutation::UpdateFriend(update_friend) => {
+            let capacity_pair = (update_friend.send_capacity, update_friend.recv_capacity);
+            let _ = index_client_state.friends.insert(update_friend.public_key.clone(), capacity_pair.clone());
+        }
+        IndexMutation::RemoveFriend(public_key) => {
+            let _ = index_client_state.friends.remove(public_key);
+        },
+    }
 }
 
 impl<ISA,TAS,ICS,DB,S> IndexClient<ISA,TAS,ICS,DB,S> 
@@ -185,7 +200,8 @@ where
             .map_err(|_| IndexClientError::SendToAppServerFailed)
     }
 
-    pub async fn handle_from_app_server_add_index_server(&mut self, server_address: ISA) -> Result<(), IndexClientError> {
+    pub async fn handle_from_app_server_add_index_server(&mut self, server_address: ISA) 
+                                                            -> Result<(), IndexClientError> {
         // Update database:
         await!(self.database.transform(IndexClientConfigMutation::AddIndexServer(server_address.clone())));
 
@@ -199,7 +215,8 @@ where
         self.try_connect_to_server()
     }
 
-    pub async fn handle_from_app_server_remove_index_server(&mut self, server_address: ISA) -> Result<(), IndexClientError> {
+    pub async fn handle_from_app_server_remove_index_server(&mut self, server_address: ISA) 
+                                                            -> Result<(), IndexClientError> {
         // Update database:
         await!(self.database.transform(IndexClientConfigMutation::RemoveIndexServer(server_address.clone())));
 
@@ -223,7 +240,8 @@ where
         Ok(())
     }
 
-    pub async fn handle_from_app_server_request_routes(&mut self, request_routes: RequestRoutes) -> Result<(), IndexClientError> {
+    pub async fn handle_from_app_server_request_routes(&mut self, request_routes: RequestRoutes) 
+                                                                -> Result<(), IndexClientError> {
         if self.num_open_requests >= self.max_open_requests {
             return await!(self.return_response_routes_failure(request_routes.request_id));
         }
@@ -264,13 +282,34 @@ where
             .map_err(|_| IndexClientError::SpawnError)
     }
 
-    pub async fn handle_from_app_server_apply_mutations(&mut self, mutations: Vec<IndexClientMutation>) -> Result<(), IndexClientError> {
-        // TODO:
-        // - Apply mutations to state saved here.
-        // - Send to server:
-        //      - new states of friends modified in the received mutations
-        //      - A state of a friend chosen sequentially (or randomly?)
-        unimplemented!();
+    pub async fn handle_from_app_server_apply_mutations(&mut self, mut mutations: Vec<IndexMutation>) 
+                                                                        -> Result<(), IndexClientError> {
+        // Update state:
+        for mutation in &mutations {
+            apply_index_mutation(&mut self.index_client_state, mutation);
+        }
+
+        // Check if server is ready:
+        let server_connected = match &mut self.conn_status {
+            ConnStatus::Empty |
+            ConnStatus::Connecting(_) => return Ok(()), // Server is not ready
+            ConnStatus::Connected(server_connected) => server_connected,
+        };
+
+        let mut control_sender = match server_connected.opt_control_sender.take() {
+            Some(control_sender) => control_sender,
+            None => return Ok(()),
+        };
+
+        // TODO: 
+        // - Append to mutations a state of a friend chosen sequentially (or randomly?)
+        panic!("Not done implementing");
+
+        if let Ok(()) = await!(control_sender.send(SingleClientControl::SendMutations(mutations))) {
+            server_connected.opt_control_sender = Some(control_sender);
+        }
+
+        Ok(())
     }
 
     pub async fn handle_from_app_server(&mut self, 
