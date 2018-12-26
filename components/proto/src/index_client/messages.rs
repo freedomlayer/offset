@@ -4,18 +4,12 @@ use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 
 use crate::index_server::messages::RouteWithCapacity;
-pub use crate::index_server::messages::RequestRoutes;
+pub use crate::index_server::messages::{RequestRoutes, IndexMutation, UpdateFriend};
 
 
 #[derive(Debug, Clone)]
 pub struct IndexClientState {
     pub friends: HashMap<PublicKey, (u128, u128)>,
-}
-
-#[derive(Debug, Clone)]
-pub enum IndexClientMutation {
-    UpdateFriend((PublicKey, (u128, u128))),
-    RemoveFriend(PublicKey),
 }
 
 // ---------------------------------------------------
@@ -62,6 +56,5 @@ pub enum AppServerToIndexClient<ISA> {
     AddIndexServer(ISA),
     RemoveIndexServer(ISA),
     RequestRoutes(RequestRoutes),
-    ApplyMutations(Vec<IndexClientMutation>),
+    ApplyMutations(Vec<IndexMutation>),
 }
-
