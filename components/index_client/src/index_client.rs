@@ -20,6 +20,8 @@ use timer::TimerClient;
 use crate::client_session::{SessionHandle, ControlSender, CloseReceiver};
 use crate::single_client::SingleClientControl;
 
+use crate::seq_state::SeqIndexClientState;
+
 pub struct IndexClientConfig<ISA> {
     index_servers: Vec<ISA>,
 }
@@ -66,82 +68,6 @@ enum IndexClientEvent<ISA> {
     ResponseRoutes((Uid, ResponseRoutesResult)),
 }
 
-struct SeqIndexClientState {
-    index_client_state: IndexClientState,
-    friends_queue: VecDeque<PublicKey>,
-}
-
-fn apply_index_mutation(index_client_state: &mut IndexClientState, 
-                        index_mutation: &IndexMutation) {
-    match index_mutation {
-        IndexMutation::UpdateFriend(update_friend) => {
-            let capacity_pair = (update_friend.send_capacity, update_friend.recv_capacity);
-            let _ = index_client_state.friends.insert(update_friend.public_key.clone(), capacity_pair.clone());
-        }
-        IndexMutation::RemoveFriend(public_key) => {
-            let _ = index_client_state.friends.remove(public_key);
-        },
-    }
-}
-
-impl SeqIndexClientState {
-    pub fn new(index_client_state: IndexClientState) -> Self {
-        let friends_queue = index_client_state.friends
-            .iter()
-            .map(|(public_key, _)| public_key.clone())
-            .collect::<VecDeque<_>>();
-
-        SeqIndexClientState {
-            index_client_state,
-            friends_queue,
-        }
-    }
-
-    pub fn mutate(&mut self, index_mutation: &IndexMutation) {
-        apply_index_mutation(&mut self.index_client_state, index_mutation);
-
-        match index_mutation {
-            IndexMutation::UpdateFriend(update_friend) => {
-                // Put the newly updated friend in the end of the queue:
-                // TODO: Possibly optimize this later. Might be slow:
-                self.friends_queue.retain(|public_key| public_key != &update_friend.public_key);
-                self.friends_queue.push_back(update_friend.public_key.clone());
-            },
-            IndexMutation::RemoveFriend(friend_public_key) => {
-                // Remove from queue:
-                // TODO: Possibly optimize this later. Might be slow:
-                self.friends_queue.retain(|public_key| public_key != friend_public_key);
-            },
-        }
-    }
-
-    /// Return information of some current friend.
-    ///
-    /// Should return all friends after about n calls, where n is the amount of friends.
-    /// This is important as the index server relies on this behaviour. If some friend is not
-    /// returned after a large amount of calls, it will be deleted from the server.
-    pub fn next_friend(&mut self) -> Option<UpdateFriend> {
-        match self.friends_queue.pop_front() {
-            Some(friend_public_key) => {
-                // Move to the end of the queue:
-                self.friends_queue.push_back(friend_public_key.clone());
-
-                let (send_capacity, recv_capacity) = 
-                    self.index_client_state.friends.get(&friend_public_key)
-                        .unwrap()
-                        .clone();
-
-                Some(UpdateFriend {
-                    public_key: friend_public_key,
-                    send_capacity,
-                    recv_capacity,
-                })
-            },
-            None => None,
-        }
-    }
-}
-
 
 struct IndexClient<ISA,TAS,ICS,DB,S> {
     event_sender: mpsc::Sender<IndexClientEvent<ISA>>,
@@ -149,7 +75,7 @@ struct IndexClient<ISA,TAS,ICS,DB,S> {
     /// A cyclic list of index server addresses.
     /// The next index server to be used is the one on the front:
     index_servers: VecDeque<ISA>,
-    index_client_state: IndexClientState,
+    seq_index_client_state: SeqIndexClientState,
     index_client_session: ICS,
     max_open_requests: usize,
     num_open_requests: usize,
@@ -181,11 +107,14 @@ where
                 .into_iter()
                 .collect::<VecDeque<_>>();
 
+        let seq_index_client_state = 
+            SeqIndexClientState::new(index_client_state.friends);
+
         IndexClient {
             event_sender,
             to_app_server,
             index_servers,
-            index_client_state,
+            seq_index_client_state,
             index_client_session,
             max_open_requests,
             num_open_requests: 0,
@@ -348,7 +277,7 @@ where
                                                                         -> Result<(), IndexClientError> {
         // Update state:
         for mutation in &mutations {
-            apply_index_mutation(&mut self.index_client_state, mutation);
+            self.seq_index_client_state.mutate(mutation);
         }
 
         // Check if server is ready:
@@ -363,9 +292,13 @@ where
             None => return Ok(()),
         };
 
-        // TODO: 
-        // - Append to mutations a state of a friend chosen sequentially (or randomly?)
-        panic!("Not done implementing");
+        // Append to mutations a state of a friend chosen sequentially.
+        // Maybe in the future we will find a better way to do this.
+        // This is important in cases where an update was not received by one of the servers.
+        // Eventually this server will get an update from here:
+        if let Some(update_friend) = self.seq_index_client_state.next_update() {
+            mutations.push(IndexMutation::UpdateFriend(update_friend));
+        }
 
         if let Ok(()) = await!(control_sender.send(SingleClientControl::SendMutations(mutations))) {
             server_connected.opt_control_sender = Some(control_sender);
