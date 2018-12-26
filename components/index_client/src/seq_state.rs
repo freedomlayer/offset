@@ -77,5 +77,19 @@ impl SeqIndexClientState {
             None => None,
         }
     }
+
+    pub fn full_state_updates(&self) -> impl Iterator<Item=UpdateFriend> + '_ {
+        self.friends_queue.iter()
+            .map(move |friend_public_key| {
+                let (send_capacity, recv_capacity) = 
+                    self.friends.get(&friend_public_key).unwrap().clone();
+
+                UpdateFriend {
+                    public_key: friend_public_key.clone(),
+                    send_capacity,
+                    recv_capacity,
+                }
+            })
+    }
 }
 
