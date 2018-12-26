@@ -330,24 +330,51 @@ where
         }
     }
 
-    pub fn handle_index_server_connected(&mut self, control_sender: ControlSender) {
+    /// Send our full friends state as mutations to the server.
+    /// Returns the sender. 
+    /// If an error occurs during a send attempt, control_sender is dropped and None is returned.
+    async fn send_full_state(&self, mut control_sender: ControlSender) -> Option<ControlSender> {
+        for update_friend in self.seq_index_client_state.full_state_updates() {
+            // TODO: Maybe send mutations in batches in the future:
+            // However, we need to be careful to not send too many mutations in one batch.
+            let mutations = vec![IndexMutation::UpdateFriend(update_friend)];
+            await!(control_sender.send(SingleClientControl::SendMutations(mutations))).ok()?;
+        }
+        Some(control_sender)
+    }
+
+    pub async fn handle_index_server_connected(&mut self, control_sender: ControlSender) 
+        -> Result<(), IndexClientError> {
+
         let address = match &self.conn_status {
             ConnStatus::Empty => {
                 error!("Did not attempt to connect!");
-                return;
+                return Ok(());
             },
             ConnStatus::Connected(_) => {
                 error!("Already connected to server!");
-                return;
+                return Ok(());
             }
             ConnStatus::Connecting(server_connecting) => &server_connecting.address,
         };
 
-        self.conn_status = ConnStatus::Connected(ServerConnected {
-            address: address.clone(),
-            opt_control_sender: Some(control_sender),
-            ticks_to_send_keepalive: self.keepalive_ticks,
-        });
+        // TODO; the call to self.send_full_state() might take a long time,
+        // and it is blocking `index_client`. During this time requests from the user will stall
+        // and state reports from the funder may be dropped.
+        match await!(self.send_full_state(control_sender)) {
+            Some(control_sender) => {
+                self.conn_status = ConnStatus::Connected(ServerConnected {
+                    address: address.clone(),
+                    opt_control_sender: Some(control_sender),
+                    ticks_to_send_keepalive: self.keepalive_ticks,
+                });
+            },
+            None => {
+                self.conn_status = ConnStatus::Empty;
+                self.try_connect_to_server()?;
+            }
+        }
+        Ok(())
     }
 
 
@@ -465,7 +492,7 @@ where
                 await!(index_client.handle_from_app_server(app_server_to_index_client))?,
             IndexClientEvent::AppServerClosed => return Err(IndexClientError::AppServerClosed),
             IndexClientEvent::IndexServerConnected(control_sender) => 
-                index_client.handle_index_server_connected(control_sender),
+                await!(index_client.handle_index_server_connected(control_sender))?,
             IndexClientEvent::IndexServerClosed =>
                 index_client.handle_index_server_closed()?,
             IndexClientEvent::ResponseRoutes((request_id, response_routes_result)) =>
