@@ -20,8 +20,7 @@ use timer::TimerClient;
 
 use crate::client_session::{SessionHandle, ControlSender, CloseReceiver};
 use crate::single_client::SingleClientControl;
-
-use crate::seq_state::SeqIndexClientState;
+use crate::seq_friends::SeqFriendsClient;
 
 pub struct IndexClientConfig<ISA> {
     index_servers: Vec<ISA>,
@@ -61,6 +60,7 @@ pub enum IndexClientError {
     SendToAppServerFailed,
     SpawnError,
     RequestTimerStreamError,
+    SeqFriendsError,
 }
 
 #[derive(Debug)]
@@ -80,7 +80,7 @@ struct IndexClient<ISA,TAS,ICS,DB,S> {
     /// A cyclic list of index server addresses.
     /// The next index server to be used is the one on the front:
     index_servers: VecDeque<ISA>,
-    seq_index_client_state: SeqIndexClientState,
+    seq_friends_client: SeqFriendsClient,
     index_client_session: ICS,
     max_open_requests: usize,
     num_open_requests: usize,
@@ -102,7 +102,7 @@ where
     pub fn new(event_sender: mpsc::Sender<IndexClientEvent<ISA>>,
                to_app_server: TAS,
                index_client_config: IndexClientConfig<ISA>,
-               index_client_state: IndexClientState,
+               seq_friends_client: SeqFriendsClient,
                index_client_session: ICS,
                max_open_requests: usize,
                keepalive_ticks: usize,
@@ -114,14 +114,11 @@ where
                 .into_iter()
                 .collect::<VecDeque<_>>();
 
-        let seq_index_client_state = 
-            SeqIndexClientState::new(index_client_state.friends);
-
         IndexClient {
             event_sender,
             to_app_server,
             index_servers,
-            seq_index_client_state,
+            seq_friends_client,
             index_client_session,
             max_open_requests,
             num_open_requests: 0,
@@ -299,7 +296,8 @@ where
                                                                         -> Result<(), IndexClientError> {
         // Update state:
         for mutation in &mutations {
-            self.seq_index_client_state.mutate(mutation);
+            await!(self.seq_friends_client.mutate(mutation.clone()))
+                .map_err(|_| IndexClientError::SeqFriendsError)?;
         }
 
         // Check if server is ready:
@@ -318,7 +316,10 @@ where
         // Maybe in the future we will find a better way to do this.
         // This is important in cases where an update was not received by one of the servers.
         // Eventually this server will get an update from here:
-        if let Some(update_friend) = self.seq_index_client_state.next_update() {
+        let next_update_res = await!(self.seq_friends_client.next_update())
+            .map_err(|_| IndexClientError::SeqFriendsError)?;
+
+        if let Some((_cycle_countdown, update_friend)) = next_update_res {
             mutations.push(IndexMutation::UpdateFriend(update_friend));
         }
 
@@ -349,6 +350,8 @@ where
     /// Returns the sender. 
     /// If an error occurs during a send attempt, control_sender is dropped and None is returned.
     async fn send_full_state(&self, mut control_sender: ControlSender) -> Option<ControlSender> {
+        unimplemented!();
+        /*
         for update_friend in self.seq_index_client_state.full_state_updates() {
             // TODO: Maybe send mutations in batches in the future:
             // However, we need to be careful to not send too many mutations in one batch.
@@ -356,6 +359,7 @@ where
             await!(control_sender.send(SingleClientControl::SendMutations(mutations))).ok()?;
         }
         Some(control_sender)
+        */
     }
 
     pub async fn handle_index_server_connected(&mut self, control_sender: ControlSender) 
@@ -458,7 +462,10 @@ where
         // Note that we might send empty mutations Vec in case we have no open friends:
         // TODO: Check the case of sending friends with (0,0) as capacity.
         let mut mutations = Vec::new();
-        if let Some(update_friend) = self.seq_index_client_state.next_update() {
+        let next_update_res = await!(self.seq_friends_client.next_update())
+            .map_err(|_| IndexClientError::SeqFriendsError)?;
+
+        if let Some((_cycle_countdown, update_friend)) = next_update_res {
             mutations.push(IndexMutation::UpdateFriend(update_friend));
         }
 
@@ -473,7 +480,7 @@ where
 pub async fn index_client_loop<ISA,FAS,TAS,ICS,DB,S>(from_app_server: FAS,
                                to_app_server: TAS,
                                mut index_client_config: IndexClientConfig<ISA>,
-                               index_client_state: IndexClientState,
+                               seq_friends_client: SeqFriendsClient,
                                index_client_session: ICS,
                                max_open_requests: usize,
                                keepalive_ticks: usize,
@@ -492,7 +499,7 @@ where
     let mut index_client = IndexClient::new(event_sender, 
                                             to_app_server,
                                             index_client_config,
-                                            index_client_state,
+                                            seq_friends_client,
                                             index_client_session,
                                             max_open_requests, 
                                             keepalive_ticks,

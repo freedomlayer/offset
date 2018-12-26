@@ -13,4 +13,4 @@ extern crate log;
 mod single_client;
 mod index_client;
 mod client_session;
-mod seq_state;
+mod seq_friends;

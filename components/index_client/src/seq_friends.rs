@@ -34,10 +34,12 @@ impl SeqFriends {
             .map(|(public_key, _)| public_key.clone())
             .collect::<VecDeque<_>>();
 
+        let cycle_countdown = friends_queue.len();
+
         SeqFriends {
             friends,
             friends_queue,
-            cycle_countdown: friends_queue.len(),
+            cycle_countdown,
         }
     }
 
@@ -90,14 +92,14 @@ impl SeqFriends {
 }
 
 
-enum SeqFriendsRequest {
+pub enum SeqFriendsRequest {
     Mutate(IndexMutation, oneshot::Sender<()>),
     ResetCountdown(oneshot::Sender<()>),
     NextUpdate(oneshot::Sender<Option<(usize, UpdateFriend)>>),
 }
 
 async fn seq_friends_loop(mut seq_friends: SeqFriends,
-                          requests_receiver: mpsc::Receiver<SeqFriendsRequest>) {
+                          mut requests_receiver: mpsc::Receiver<SeqFriendsRequest>) {
 
     while let Some(request) = await!(requests_receiver.next()) {
         match request {
