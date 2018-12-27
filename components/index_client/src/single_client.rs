@@ -27,7 +27,7 @@ pub enum SingleClientControl {
     SendMutations(Vec<IndexMutation>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum SingleClientError {
     ControlClosed,
     ServerClosed,
@@ -209,6 +209,48 @@ where
         }
     }
     Ok(())
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crypto::hash::HASH_RESULT_LEN;
+    use futures::executor::ThreadPool;
+
+    async fn task_first_server_time_hash() {
+        let (mut to_server, mut from_server) = mpsc::channel(0);
+        let time_hash = HashResult::from(&[1; HASH_RESULT_LEN]);
+
+        let fut_send = to_server.send(IndexServerToClient::TimeHash(time_hash.clone()));
+        let fut_time_hash = first_server_time_hash(&mut from_server);
+        
+        let (_, res_time_hash) = await!(fut_send.join(fut_time_hash));
+        assert_eq!(res_time_hash.unwrap(), time_hash);
+    }
+
+    #[test]
+    fn test_first_server_time_hash() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_first_server_time_hash());
+    }
+
+    async fn task_first_server_time_hash_server_closed() {
+        let (mut to_server, mut from_server) = mpsc::channel(0);
+        drop(to_server);
+
+        let fut_time_hash = first_server_time_hash(&mut from_server);
+        
+        let res_time_hash = await!(fut_time_hash);
+        assert_eq!(res_time_hash, Err(SingleClientError::ServerClosed));
+    }
+
+    #[test]
+    fn test_first_server_time_hash_server_closed() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_first_server_time_hash_server_closed());
+    }
+
 }
 
 
