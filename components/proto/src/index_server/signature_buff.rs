@@ -1,6 +1,7 @@
 use byteorder::{WriteBytesExt, BigEndian};
 use common::int_convert::{usize_to_u64};
 use crypto::identity::verify_signature;
+use crypto::hash;
 
 use super::messages::{UpdateFriend, IndexMutation, MutationsUpdate};
 
@@ -34,9 +35,12 @@ impl IndexMutation {
     }
 }
 
+pub const MUTATIONS_UPDATE_PREFIX: &[u8] = b"MUTATIONS_UPDATE";
+
 impl MutationsUpdate {
     pub fn signature_buff(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&hash::sha_512_256(MUTATIONS_UPDATE_PREFIX));
         res_bytes.extend_from_slice(&self.node_public_key);
 
         res_bytes.write_u64::<BigEndian>(usize_to_u64(self.index_mutations.len()).unwrap()).unwrap();
