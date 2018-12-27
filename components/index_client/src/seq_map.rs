@@ -1,5 +1,8 @@
 use std::collections::{HashMap, VecDeque};
 
+/// A basic map that allows to iterate over all its pairs in a consistent manner. 
+/// This means that calling SeqMap::next() should iterate over all elements of the map, even if
+/// elements are inserted or removed between SeqMap::next() calls.
 pub struct SeqMap<K,V> {
     map: HashMap<K,V>,
     queue: VecDeque<K>,
@@ -45,11 +48,15 @@ where
         self.cycle_countdown = self.queue.len();
     }
 
-    /// Return information of some current friend.
+    /// Returns a pair (key, value) from the map.
     ///
-    /// Should return all friends after about n calls, where n is the amount of friends.
-    /// This is important as the index server relies on this behaviour. If some friend is not
-    /// returned after a large amount of calls, it will be deleted from the server.
+    /// Guaranteed to return all pairs after about n calls, where n is the amount of pairs.
+    /// It is guaranteed that after a reset_countdown() call, the following n next() calls should
+    /// cover all the pairs that existed at the time reset_countdown() was called, even if update()
+    /// and remove() were invoked. 
+    /// 
+    /// The user can know that all pairs were covered by checking if the returned cycle_countdown
+    /// equals 0.
     pub fn next(&mut self) -> Option<(usize, (K,V))> {
         self.queue.pop_front().map(|key| {
             // Move to the end of the queue:
@@ -156,7 +163,8 @@ mod tests {
         let (countdown, _pair) = seq_map.next().unwrap();
         assert_eq!(countdown, 0);
 
-        // We should keep getting 0 countdowns after the first zero was encountered:
+        // We should keep getting 0 countdowns 
+        // after the first zero was encountered:
         for _ in 0 .. 16 {
             let (countdown, _pair) = seq_map.next().unwrap();
             assert_eq!(countdown, 0);
@@ -173,7 +181,8 @@ mod tests {
         let (countdown, _pair) = seq_map.next().unwrap();
         assert_eq!(countdown, 0);
 
-        // We should keep getting 0 countdowns after the first zero was encountered:
+        // We should keep getting 0 countdowns 
+        // after the first zero was encountered:
         for _ in 0 .. 16 {
             let (countdown, _pair) = seq_map.next().unwrap();
             assert_eq!(countdown, 0);
