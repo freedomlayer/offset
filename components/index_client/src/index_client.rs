@@ -61,6 +61,7 @@ pub enum IndexClientError {
     SpawnError,
     RequestTimerStreamError,
     SeqFriendsError,
+    DatabaseError,
 }
 
 #[derive(Debug)]
@@ -232,7 +233,8 @@ where
     pub async fn handle_from_app_server_add_index_server(&mut self, server_address: ISA) 
                                                             -> Result<(), IndexClientError> {
         // Update database:
-        await!(self.database.transform(IndexClientConfigMutation::AddIndexServer(server_address.clone())));
+        await!(self.database.transform(IndexClientConfigMutation::AddIndexServer(server_address.clone())))
+            .ok_or(IndexClientError::DatabaseError)?;
 
         // Add new server_address to memory:
         self.index_servers.push_back(server_address.clone());
@@ -255,7 +257,8 @@ where
     pub async fn handle_from_app_server_remove_index_server(&mut self, server_address: ISA) 
                                                             -> Result<(), IndexClientError> {
         // Update database:
-        await!(self.database.transform(IndexClientConfigMutation::RemoveIndexServer(server_address.clone())));
+        await!(self.database.transform(IndexClientConfigMutation::RemoveIndexServer(server_address.clone())))
+            .ok_or(IndexClientError::DatabaseError)?;
 
         // Remove address:
         self.index_servers.retain(|cur_address| cur_address != &server_address);
