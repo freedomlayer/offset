@@ -25,6 +25,7 @@ pub struct IndexClientConfig<ISA> {
     pub index_servers: Vec<ISA>,
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum IndexClientConfigMutation<ISA> {
     AddIndexServer(ISA),
     RemoveIndexServer(ISA),
@@ -401,6 +402,12 @@ where
             opt_control_sender: Some(control_sender.clone()),
             ticks_to_send_keepalive: self.keepalive_ticks,
         });
+
+        // Send report:
+        let index_client_report_mutation = IndexClientReportMutation::SetConnectedServer(Some(address.clone()));
+        let report_mutations = vec![index_client_report_mutation];
+        await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(report_mutations)))
+            .map_err(|_| IndexClientError::SendToAppServerFailed)?;
 
         // Sync note: With the obtained SessionHandle (ControlSender, CloseReciever), it is
         // guaranteed that `control_sender` will stop working, and only then `close_receiver` will
