@@ -246,6 +246,7 @@ mod tests {
 
     async fn task_first_server_time_hash_server_closed() {
         let (to_server, mut from_server) = mpsc::channel(0);
+        // Simulate closing the connection to the server:
         drop(to_server);
 
         let fut_time_hash = first_server_time_hash(&mut from_server);
