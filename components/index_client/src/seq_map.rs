@@ -56,11 +56,9 @@ where
             self.queue.push_back(key.clone());
 
             let value = self.map.get(&key).unwrap().clone();
-
-            let cycle_countdown = self.cycle_countdown;
             self.cycle_countdown = self.cycle_countdown.saturating_sub(1);
 
-            (cycle_countdown, (key.clone(), value))
+            (self.cycle_countdown, (key.clone(), value))
         })
     }
 }
