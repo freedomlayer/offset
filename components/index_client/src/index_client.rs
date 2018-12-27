@@ -17,8 +17,6 @@ use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServ
                                     RequestRoutes, UpdateFriend,
                                     IndexClientReportMutation};
 
-use timer::TimerClient;
-
 use crate::client_session::{SessionHandle, ControlSender, CloseReceiver};
 use crate::single_client::SingleClientControl;
 use crate::seq_friends::SeqFriendsClient;
@@ -88,7 +86,6 @@ struct IndexClient<ISA,TAS,ICS,DB,S> {
     keepalive_ticks: usize,
     conn_status: ConnStatus<ISA>,
     database: DB,
-    timer_client: TimerClient,
     spawner: S,
 }
 
@@ -139,7 +136,6 @@ where
                max_open_requests: usize,
                keepalive_ticks: usize,
                database: DB,
-               timer_client: TimerClient,
                spawner: S) -> Self { 
 
         let index_servers = index_client_config.index_servers
@@ -157,7 +153,6 @@ where
             keepalive_ticks,
             conn_status: ConnStatus::Empty,
             database,
-            timer_client,
             spawner,
         }
     }
@@ -489,7 +484,7 @@ where
     }
 }
 
-pub async fn index_client_loop<ISA,FAS,TAS,ICS,DB,S>(from_app_server: FAS,
+pub async fn index_client_loop<ISA,FAS,TAS,ICS,DB,TS,S>(from_app_server: FAS,
                                to_app_server: TAS,
                                mut index_client_config: IndexClientConfig<ISA>,
                                seq_friends_client: SeqFriendsClient,
@@ -497,7 +492,7 @@ pub async fn index_client_loop<ISA,FAS,TAS,ICS,DB,S>(from_app_server: FAS,
                                max_open_requests: usize,
                                keepalive_ticks: usize,
                                database: DB,
-                               mut timer_client: TimerClient,
+                               timer_stream: TS,
                                spawner: S) -> Result<(), IndexClientError>
 where
     ISA: Eq + Clone + Send + 'static,
@@ -505,6 +500,7 @@ where
     TAS: Sink<SinkItem=IndexClientToAppServer<ISA>> + Unpin,
     ICS: FutTransform<Input=ISA, Output=Option<SessionHandle>> + Clone + Send + 'static,
     DB: FutTransform<Input=IndexClientConfigMutation<ISA>, Output=Option<()>>,
+    TS: Stream + Unpin,
     S: Spawn,
 {
     let (event_sender, event_receiver) = mpsc::channel(0);
@@ -516,13 +512,11 @@ where
                                             max_open_requests, 
                                             keepalive_ticks,
                                             database,
-                                            timer_client.clone(),
                                             spawner);
     
     index_client.try_connect_to_server()?;
 
-    let timer_stream = await!(timer_client.request_timer_stream())
-        .map_err(|_| IndexClientError::RequestTimerStreamError)?
+    let timer_stream = timer_stream
         .map(|_| IndexClientEvent::TimerTick);
 
     let from_app_server = from_app_server
