@@ -280,7 +280,9 @@ where
                 }
             },
             ConnStatus::Connected(server_connected) => {
-                server_connected.opt_control_sender.take();
+                if server_connected.address == server_address {
+                    server_connected.opt_control_sender.take();
+                }
             },
         }
         Ok(())
