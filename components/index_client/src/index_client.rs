@@ -22,7 +22,7 @@ use crate::single_client::SingleClientControl;
 use crate::seq_friends::SeqFriendsClient;
 
 pub struct IndexClientConfig<ISA> {
-    index_servers: Vec<ISA>,
+    pub index_servers: Vec<ISA>,
 }
 
 pub enum IndexClientConfigMutation<ISA> {
