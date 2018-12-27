@@ -221,10 +221,9 @@ mod tests {
 
     use crypto::test_utils::DummyRandom;
     use crypto::identity::{SoftwareEd25519Identity, 
-        generate_pkcs8_key_pair, compare_public_key, Identity,
+        generate_pkcs8_key_pair, Identity,
         PUBLIC_KEY_LEN};
-    use crypto::crypto_rand::{CryptoRandom};
-    use crypto::uid::{UID_LEN};
+    use crypto::uid::UID_LEN;
 
     use identity::create_identity;
 
