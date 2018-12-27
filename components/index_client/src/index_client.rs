@@ -113,6 +113,8 @@ async fn send_full_state(mut seq_friends_client: SeqFriendsClient,
         if let Err(_) = await!(control_sender.send(SingleClientControl::SendMutations(mutations))) {
             break;
         }
+        // Note that here we can not reset the ticks_to_send_keepalive counter because we are
+        // running as a separate task. We might want to change this in the future.
 
         if cyclic_countdown == 0 {
             break;
@@ -356,6 +358,8 @@ where
         if let Ok(()) = await!(control_sender.send(SingleClientControl::SendMutations(mutations))) {
             server_connected.opt_control_sender = Some(control_sender);
         }
+        // Reset ticks_to_send_keepalive:
+        server_connected.ticks_to_send_keepalive = self.keepalive_ticks;
 
         Ok(())
     }
