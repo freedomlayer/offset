@@ -217,6 +217,16 @@ mod tests {
     use super::*;
     use crypto::hash::HASH_RESULT_LEN;
     use futures::executor::ThreadPool;
+    use futures::task::{Spawn, SpawnExt};
+
+    use crypto::test_utils::DummyRandom;
+    use crypto::identity::{SoftwareEd25519Identity, 
+        generate_pkcs8_key_pair, compare_public_key, Identity,
+        PUBLIC_KEY_LEN};
+    use crypto::crypto_rand::{CryptoRandom};
+    use crypto::uid::{UID_LEN};
+
+    use identity::create_identity;
 
     async fn task_first_server_time_hash() {
         let (mut to_server, mut from_server) = mpsc::channel(0);
@@ -236,7 +246,7 @@ mod tests {
     }
 
     async fn task_first_server_time_hash_server_closed() {
-        let (mut to_server, mut from_server) = mpsc::channel(0);
+        let (to_server, mut from_server) = mpsc::channel(0);
         drop(to_server);
 
         let fut_time_hash = first_server_time_hash(&mut from_server);
@@ -251,6 +261,110 @@ mod tests {
         thread_pool.run(task_first_server_time_hash_server_closed());
     }
 
+    async fn task_single_client_loop_basic<S>(mut spawner: S) 
+    where
+        S: Spawn,
+    {
+        let (mut server_sender, client_receiver) = mpsc::channel(0);
+        let (client_sender, mut server_receiver) = mpsc::channel(0);
+        let (mut control_sender, incoming_control) = mpsc::channel(0);
+
+        // Create identity_client:
+        let rng = DummyRandom::new(&[1u8]);
+        let pkcs8 = generate_pkcs8_key_pair(&rng);
+        let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        let local_public_key = identity.get_public_key();
+        let (requests_sender, identity_server) = create_identity(identity);
+        spawner.spawn(identity_server.map(|_| ())).unwrap();
+        let identity_client = IdentityClient::new(requests_sender);
+
+
+        let server_conn = (client_sender, client_receiver);
+        let rng = DummyRandom::new(&[2u8]);
+        let first_server_time_hash = HashResult::from(&[1; HASH_RESULT_LEN]);
+
+        let loop_fut = single_client_loop(server_conn,
+                           incoming_control,
+                           local_public_key.clone(),
+                           identity_client,
+                           rng,
+                           first_server_time_hash)
+            .map_err(|e| error!("single_client_loop() error: {:?}", e))
+            .map(|_| ());
+
+        spawner.spawn(loop_fut).unwrap();
+
+        // Send some time hashes from server:
+        for i in 2 .. 8 {
+            let time_hash = HashResult::from(&[i; HASH_RESULT_LEN]);
+            await!(server_sender.send(IndexServerToClient::TimeHash(time_hash))).unwrap();
+        }
+
+        // Request routes:
+        let request_routes = RequestRoutes {
+            request_id: Uid::from(&[3; UID_LEN]),
+            capacity: 20,
+            source: PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]),
+            destination: PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]),
+            opt_exclude: None,
+        };
+
+        let (response_sender, response_receiver) = oneshot::channel();
+        let single_client_control = 
+            SingleClientControl::RequestRoutes((request_routes.clone(), response_sender));
+
+        await!(control_sender.send(single_client_control)).unwrap();
+
+        // Request routes is redirected to server:
+        let index_client_to_server = await!(server_receiver.next()).unwrap();
+        match index_client_to_server {
+            IndexClientToServer::RequestRoutes(sent_request_routes) => {
+                assert_eq!(request_routes, sent_request_routes);
+            },
+            _ => unreachable!(),
+        };
+
+        // Server sends response routes:
+        let response_routes = ResponseRoutes {
+            request_id: Uid::from(&[3; UID_LEN]),
+            routes: vec![], // No suitable routes were found
+        };
+
+        await!(server_sender.send(
+                IndexServerToClient::ResponseRoutes(response_routes.clone()))).unwrap();
+
+        // Client receives response routes:
+        let routes = await!(response_receiver).unwrap();
+        assert_eq!(routes, vec![]);
+
+
+        for iter in 0 .. 3 { // Counter should increment every time
+            // Send mutations:
+            await!(control_sender.send(SingleClientControl::SendMutations(vec![]))).unwrap();
+
+            // Mutations should be sent to the server:
+            let index_client_to_server = await!(server_receiver.next()).unwrap();
+            match index_client_to_server {
+                IndexClientToServer::MutationsUpdate(mutations_update) => {
+                    assert_eq!(mutations_update.node_public_key, local_public_key);
+                    assert_eq!(mutations_update.index_mutations, vec![]);
+                    // Counter should match iter:
+                    assert_eq!(mutations_update.counter, iter); 
+                    assert_eq!(mutations_update.time_hash, 
+                               HashResult::from(&[7; HASH_RESULT_LEN]));
+
+                    assert!(mutations_update.verify_signature());
+                },
+                _ => unreachable!(),
+            };
+        }
+    }
+
+    #[test]
+    fn test_single_client_loop_basic() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_single_client_loop_basic(thread_pool.clone()));
+    }
 }
 
 
