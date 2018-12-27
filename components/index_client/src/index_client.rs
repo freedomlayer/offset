@@ -48,7 +48,7 @@ struct ServerConnected<ISA> {
 
 #[derive(Debug)]
 enum ConnStatus<ISA> {
-    Empty,
+    Empty(usize), // ticks_to_reconnect
     Connecting(ServerConnecting<ISA>),
     Connected(ServerConnected<ISA>),
 }
@@ -84,6 +84,7 @@ struct IndexClient<ISA,TAS,ICS,DB,S> {
     max_open_requests: usize,
     num_open_requests: usize,
     keepalive_ticks: usize,
+    backoff_ticks: usize,
     conn_status: ConnStatus<ISA>,
     database: DB,
     spawner: S,
@@ -135,6 +136,7 @@ where
                index_client_session: ICS,
                max_open_requests: usize,
                keepalive_ticks: usize,
+               backoff_ticks: usize,
                database: DB,
                spawner: S) -> Self { 
 
@@ -151,7 +153,8 @@ where
             max_open_requests,
             num_open_requests: 0,
             keepalive_ticks,
-            conn_status: ConnStatus::Empty,
+            backoff_ticks,
+            conn_status: ConnStatus::Empty(backoff_ticks),
             database,
             spawner,
         }
@@ -161,7 +164,7 @@ where
     /// If there are no index servers known, do nothing.
     fn try_connect_to_server(&mut self) -> Result<(), IndexClientError> {
         // Make sure that conn_status is empty:
-        if let ConnStatus::Empty = self.conn_status {
+        if let ConnStatus::Empty(_) = self.conn_status {
         } else {
             unreachable!();
         }
@@ -170,7 +173,7 @@ where
             Some(server_address) => server_address,
             None => {
                 // We don't have any index servers to connect to:
-                self.conn_status = ConnStatus::Empty;
+                self.conn_status = ConnStatus::Empty(0);
                 return Ok(());
             }
         };
@@ -237,7 +240,7 @@ where
         await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(report_mutations)))
             .map_err(|_| IndexClientError::SendToAppServerFailed)?;
 
-        if let ConnStatus::Empty = self.conn_status {
+        if let ConnStatus::Empty(_) = self.conn_status {
         } else {
             return Ok(());
         }
@@ -262,7 +265,7 @@ where
 
         // Disconnect a current server connection if it uses the removed address:
         match &mut self.conn_status {
-            ConnStatus::Empty => {}, // Nothing to do here
+            ConnStatus::Empty(_) => {}, // Nothing to do here
             ConnStatus::Connecting(server_connecting) => {
                 if server_connecting.address == server_address {
                     if let Some(cancel_sender) = server_connecting.opt_cancel_sender.take() {
@@ -285,7 +288,7 @@ where
 
         // Check server connection status:
         let mut server_connected = match &mut self.conn_status {
-            ConnStatus::Empty |
+            ConnStatus::Empty(_) |
             ConnStatus::Connecting(_) => return await!(self.return_response_routes_failure(request_routes.request_id)),
             ConnStatus::Connected(server_connected) => server_connected,
         };
@@ -329,7 +332,7 @@ where
 
         // Check if server is ready:
         let server_connected = match &mut self.conn_status {
-            ConnStatus::Empty |
+            ConnStatus::Empty(_) |
             ConnStatus::Connecting(_) => return Ok(()), // Server is not ready
             ConnStatus::Connected(server_connected) => server_connected,
         };
@@ -378,7 +381,7 @@ where
         -> Result<(), IndexClientError> {
 
         let address = match &self.conn_status {
-            ConnStatus::Empty => {
+            ConnStatus::Empty(_) => {
                 error!("Did not attempt to connect!");
                 return Ok(());
             },
@@ -411,15 +414,13 @@ where
 
 
     pub async fn handle_index_server_closed(&mut self) -> Result<(), IndexClientError> {
-        self.conn_status = ConnStatus::Empty;
+        self.conn_status = ConnStatus::Empty(self.backoff_ticks);
 
         // Send report:
         let index_client_report_mutation = IndexClientReportMutation::SetConnectedServer(None);
         let report_mutations = vec![index_client_report_mutation];
         await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(report_mutations)))
-            .map_err(|_| IndexClientError::SendToAppServerFailed)?;
-
-        self.try_connect_to_server()
+            .map_err(|_| IndexClientError::SendToAppServerFailed)
     }
 
     pub async fn handle_response_routes(&mut self, request_id: Uid, 
@@ -440,10 +441,17 @@ where
     pub async fn handle_timer_tick(&mut self) -> Result<(), IndexClientError> {
 
         // Make sure that we are connected to any server:
-        let server_connected = match &mut self.conn_status {
-            ConnStatus::Empty |
+        let server_connected: &mut ServerConnected<ISA> = match self.conn_status {
+            ConnStatus::Empty(ref mut ticks_to_reconnect) => {
+                // Backoff mechanism for reconnection, so that we don't DoS the index servers.
+                *ticks_to_reconnect = (*ticks_to_reconnect).saturating_sub(1);
+                if *ticks_to_reconnect == 0 {
+                    self.try_connect_to_server();
+                }
+                return Ok(());
+            },
             ConnStatus::Connecting(_) => return Ok(()), // Not connected to server
-            ConnStatus::Connected(server_connected) => server_connected,
+            ConnStatus::Connected(ref mut server_connected) => server_connected,
         };
 
         let mut control_sender = match server_connected.opt_control_sender.take() {
@@ -491,6 +499,7 @@ pub async fn index_client_loop<ISA,FAS,TAS,ICS,DB,TS,S>(from_app_server: FAS,
                                index_client_session: ICS,
                                max_open_requests: usize,
                                keepalive_ticks: usize,
+                               backoff_ticks: usize,
                                database: DB,
                                timer_stream: TS,
                                spawner: S) -> Result<(), IndexClientError>
@@ -511,6 +520,7 @@ where
                                             index_client_session,
                                             max_open_requests, 
                                             keepalive_ticks,
+                                            backoff_ticks,
                                             database,
                                             spawner);
     
