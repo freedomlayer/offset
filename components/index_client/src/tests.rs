@@ -233,6 +233,7 @@ where
 
 #[test]
 fn test_index_client_loop_basic() {
+    let _ = env_logger::init();
     let mut thread_pool = ThreadPool::new().unwrap();
     thread_pool.run(task_index_client_loop_basic(thread_pool.clone()));
 }
