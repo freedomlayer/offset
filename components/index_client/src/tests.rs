@@ -6,7 +6,6 @@ use futures::{FutureExt, TryFutureExt, StreamExt, SinkExt};
 use common::dummy_connector::{DummyConnector, ConnRequest};
 
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
-use crypto::hash::{HashResult, HASH_RESULT_LEN};
 use crypto::uid::{Uid, UID_LEN};
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer,
                                     IndexClientReportMutation, UpdateFriend,
@@ -29,7 +28,9 @@ struct IndexClientControl<ISA> {
     session_receiver: mpsc::Receiver<ConnRequest<ISA,Option<SessionHandle>>>,
     database_receiver: mpsc::Receiver<ConnRequest<IndexClientConfigMutation<ISA>,Option<()>>>,
     tick_sender: mpsc::Sender<()>,
+    #[allow(unused)]
     max_open_requests: usize,
+    #[allow(unused)]
     keepalive_ticks: usize,
     backoff_ticks: usize,
 }
@@ -39,27 +40,27 @@ fn basic_index_client<S>(mut spawner: S) -> IndexClientControl<u32>
 where
     S: Spawn + Clone + Send + 'static,
 {
-    let (mut app_server_sender, from_app_server) = mpsc::channel(0);
-    let (to_app_server, mut app_server_receiver) = mpsc::channel(0);
+    let (app_server_sender, from_app_server) = mpsc::channel(0);
+    let (to_app_server, app_server_receiver) = mpsc::channel(0);
 
     let index_client_config = IndexClientConfig {
         index_servers: vec![0x1337u32],
     };
 
-    let (seq_friends_sender, mut seq_friends_receiver) = mpsc::channel(0);
+    let (seq_friends_sender, seq_friends_receiver) = mpsc::channel(0);
     let seq_friends_client = SeqFriendsClient::new(seq_friends_sender);
 
-    let (session_sender, mut session_receiver) = mpsc::channel(0);
+    let (session_sender, session_receiver) = mpsc::channel(0);
     let index_client_session = DummyConnector::new(session_sender);
 
-    let (database_sender, mut database_receiver) = mpsc::channel(0);
+    let (database_sender, database_receiver) = mpsc::channel(0);
     let database = DummyConnector::new(database_sender);
 
     let max_open_requests = 2;
     let keepalive_ticks = 8;
     let backoff_ticks = 4;
 
-    let (mut tick_sender, timer_stream) = mpsc::channel::<()>(0);
+    let (tick_sender, timer_stream) = mpsc::channel::<()>(0);
 
     let loop_fut = index_client_loop(from_app_server,
                                to_app_server,
@@ -200,7 +201,7 @@ where
 }
 
 
-async fn task_index_client_loop_add_remove_index_server<S>(mut spawner: S) 
+async fn task_index_client_loop_add_remove_index_server<S>(spawner: S) 
 where   
     S: Spawn + Clone + Send + 'static,
 {
@@ -217,7 +218,7 @@ where
 
     
     // We expect that control_receiver will be closed eventually:
-    while let Some(control_message) = await!(control_receiver.next()) { 
+    while let Some(_control_message) = await!(control_receiver.next()) { 
     }
 
     // close_sender should notify that the connection was closed:
@@ -236,8 +237,8 @@ where
     assert_eq!(session_conn_request.address, 0x1339);
 
     // Send a SessionHandle back to the index client:
-    let (control_sender, control_receiver) = mpsc::channel(0);
-    let (close_sender, close_receiver) = oneshot::channel();
+    let (control_sender, _control_receiver) = mpsc::channel(0);
+    let (_close_sender, close_receiver) = oneshot::channel();
     session_conn_request.reply(Some((control_sender, close_receiver)));
 
     // A new connection should be made to 0x1339:
@@ -253,13 +254,13 @@ fn test_index_client_loop_add_remove_index_server() {
 
 
 
-async fn task_index_client_loop_apply_mutations<S>(mut spawner: S) 
+async fn task_index_client_loop_apply_mutations<S>(spawner: S) 
 where   
     S: Spawn + Clone + Send + 'static,
 {
 
     let mut icc = basic_index_client(spawner.clone());
-    let (mut control_receiver, close_sender) = await!(icc.expect_server_connection(0x1337));
+    let (mut control_receiver, _close_sender) = await!(icc.expect_server_connection(0x1337));
 
     let update_friend = UpdateFriend {
         public_key: PublicKey::from(PublicKey::from(&[0xbb; PUBLIC_KEY_LEN])),
@@ -276,7 +277,7 @@ where
     match await!(icc.seq_friends_receiver.next()).unwrap() {
         SeqFriendsRequest::Mutate(index_mutation0, response_sender) => {
             assert_eq!(index_mutation0, index_mutation);
-            response_sender.send(());
+            response_sender.send(()).unwrap();
         },
         _ => unreachable!(),
     };
@@ -314,13 +315,13 @@ fn test_index_client_loop_apply_mutations() {
 
 
 
-async fn task_index_client_loop_request_routes_basic<S>(mut spawner: S) 
+async fn task_index_client_loop_request_routes_basic<S>(spawner: S) 
 where   
     S: Spawn + Clone + Send + 'static,
 {
 
     let mut icc = basic_index_client(spawner.clone());
-    let (mut control_receiver, close_sender) = await!(icc.expect_server_connection(0x1337));
+    let (mut control_receiver, _close_sender) = await!(icc.expect_server_connection(0x1337));
 
 
     let request_routes = RequestRoutes {
@@ -340,7 +341,7 @@ where
         SingleClientControl::RequestRoutes((request_routes0, response_sender)) => {
             assert_eq!(request_routes0, request_routes);
             // Server returns: no routes found:
-            response_sender.send(vec![]);
+            response_sender.send(vec![]).unwrap();
         },
         _ => unreachable!(),
     };
@@ -366,7 +367,7 @@ fn test_index_client_loop_request_routes_basic() {
 }
 
 
-async fn task_index_client_loop_connecting_state<S>(mut spawner: S) 
+async fn task_index_client_loop_connecting_state<S>(spawner: S) 
 where   
     S: Spawn + Clone + Send + 'static,
 {
@@ -398,7 +399,7 @@ where
     match await!(icc.seq_friends_receiver.next()).unwrap() {
         SeqFriendsRequest::Mutate(index_mutation0, response_sender) => {
             assert_eq!(index_mutation0, index_mutation);
-            response_sender.send(());
+            response_sender.send(()).unwrap();
         },
         _ => unreachable!(),
     };
