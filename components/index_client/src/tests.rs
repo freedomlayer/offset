@@ -250,21 +250,63 @@ fn test_index_client_loop_add_remove_index_server() {
 }
 
 
-/*
 
-async fn task_index_client_loop_basic<S>(mut spawner: S) 
+async fn task_index_client_loop_apply_mutations<S>(mut spawner: S) 
 where   
     S: Spawn + Clone + Send + 'static,
 {
 
     let mut icc = basic_index_client(spawner.clone());
     let (mut control_receiver, close_sender) = await!(icc.expect_server_connection(0x1337));
+
+    let update_friend = UpdateFriend {
+        public_key: PublicKey::from(PublicKey::from(&[0xbb; PUBLIC_KEY_LEN])),
+        send_capacity: 200,
+        recv_capacity: 100,
+
+    };
+    let index_mutation = IndexMutation::UpdateFriend(update_friend);
+    let mutations = vec![index_mutation.clone()];
+    await!(icc.app_server_sender.send(
+            AppServerToIndexClient::ApplyMutations(mutations))).unwrap();
+
+    // Wait for a request to mutate seq_friends:
+    match await!(icc.seq_friends_receiver.next()).unwrap() {
+        SeqFriendsRequest::Mutate(index_mutation0, response_sender) => {
+            assert_eq!(index_mutation0, index_mutation);
+            response_sender.send(());
+        },
+        _ => unreachable!(),
+    };
+
+    // Wait for a request for next update from seq_friends.
+    // This is the one extra sequential friend update sent with our update:
+    let next_update_friend = UpdateFriend {
+        public_key: PublicKey::from(PublicKey::from(&[0xcc; PUBLIC_KEY_LEN])),
+        send_capacity: 20,
+        recv_capacity: 30,
+    };
+
+    match await!(icc.seq_friends_receiver.next()).unwrap() {
+        SeqFriendsRequest::NextUpdate(response_sender) => {
+            response_sender.send(Some((0, next_update_friend.clone()))).unwrap();
+        },
+        _ => unreachable!(),
+    };
+
+    // Wait for SendMutations:
+    match await!(control_receiver.next()).unwrap() {
+        SingleClientControl::SendMutations(mutations0) => {
+            let next_update = IndexMutation::UpdateFriend(next_update_friend);
+            assert_eq!(mutations0, vec![index_mutation, next_update]);
+        },
+        _ => unreachable!(),
+    };
 }
 
 
 #[test]
-fn test_index_client_loop_basic() {
+fn test_index_client_loop_apply_mutations() {
     let mut thread_pool = ThreadPool::new().unwrap();
-    thread_pool.run(task_index_client_loop_basic(thread_pool.clone()));
+    thread_pool.run(task_index_client_loop_apply_mutations(thread_pool.clone()));
 }
-*/
