@@ -364,3 +364,76 @@ fn test_index_client_loop_request_routes_basic() {
     let mut thread_pool = ThreadPool::new().unwrap();
     thread_pool.run(task_index_client_loop_request_routes_basic(thread_pool.clone()));
 }
+
+
+async fn task_index_client_loop_connecting_state<S>(mut spawner: S) 
+where   
+    S: Spawn + Clone + Send + 'static,
+{
+    let mut icc = basic_index_client(spawner.clone());
+
+    // Wait for a connection request:
+    let session_conn_request = await!(icc.session_receiver.next()).unwrap();
+    assert_eq!(session_conn_request.address, 0x1337);
+
+    // We got a connection request, but we don't reply.
+    // This leaves IndexClient in "Connecting" state, where it is not yet connected to a server.
+    //
+    // During the "Connecting" state we expect that IndexClient 
+    // will drop ApplyMuatations messages:
+    
+    let update_friend = UpdateFriend {
+        public_key: PublicKey::from(PublicKey::from(&[0xbb; PUBLIC_KEY_LEN])),
+        send_capacity: 200,
+        recv_capacity: 100,
+
+    };
+    let index_mutation = IndexMutation::UpdateFriend(update_friend);
+    let mutations = vec![index_mutation.clone()];
+    await!(icc.app_server_sender.send(
+            AppServerToIndexClient::ApplyMutations(mutations))).unwrap();
+    
+    // Wait for a request to mutate seq_friends. Note that this happens 
+    // even in the "Connecting" state:
+    match await!(icc.seq_friends_receiver.next()).unwrap() {
+        SeqFriendsRequest::Mutate(index_mutation0, response_sender) => {
+            assert_eq!(index_mutation0, index_mutation);
+            response_sender.send(());
+        },
+        _ => unreachable!(),
+    };
+    
+    // During the "Connecting" state we expect that IndexClient
+    // will return a failure for RequestRoutes messages:
+    
+    let request_routes = RequestRoutes {
+        request_id: Uid::from(&[3; UID_LEN]),
+        capacity: 250,
+        source: PublicKey::from(PublicKey::from(&[0xee; PUBLIC_KEY_LEN])),
+        destination: PublicKey::from(PublicKey::from(&[0xff; PUBLIC_KEY_LEN])),
+        opt_exclude: None,
+    };
+
+    // Request routes from IndexClient (From AppServer):
+    await!(icc.app_server_sender.send(
+            AppServerToIndexClient::RequestRoutes(request_routes.clone()))).unwrap();
+
+    // IndexClient returns failure in ResponseRoutes:
+    match await!(icc.app_server_receiver.next()).unwrap() {
+        IndexClientToAppServer::ResponseRoutes(client_response_routes) => {
+            assert_eq!(client_response_routes.request_id, Uid::from(&[3; UID_LEN]));
+            match client_response_routes.result {
+                ResponseRoutesResult::Failure => {},
+                _ => unreachable!(),
+            };
+        },
+        _ => unreachable!(),
+    };
+
+}
+
+#[test]
+fn test_index_client_loop_connecting_state() {
+    let mut thread_pool = ThreadPool::new().unwrap();
+    thread_pool.run(task_index_client_loop_connecting_state(thread_pool.clone()));
+}
