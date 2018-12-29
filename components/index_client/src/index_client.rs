@@ -1,5 +1,5 @@
 use std::marker::Unpin;
-use std::collections::{VecDeque, HashSet};
+use std::collections::{VecDeque};
 
 use futures::{select, future, FutureExt, TryFutureExt, 
     stream, Stream, StreamExt, Sink, SinkExt};
@@ -7,20 +7,19 @@ use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 
 use common::conn::FutTransform;
-
-use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer,
-                                    IndexMutation, IndexClientState,
+                                    IndexMutation,
                                     ResponseRoutesResult, ClientResponseRoutes,
-                                    RequestRoutes, UpdateFriend,
+                                    RequestRoutes,
                                     IndexClientReportMutation};
 
-use crate::client_session::{SessionHandle, ControlSender, CloseReceiver};
+use crate::client_session::{SessionHandle, ControlSender};
 use crate::single_client::SingleClientControl;
 use crate::seq_friends::SeqFriendsClient;
 
+#[allow(unused)]
 pub struct IndexClientConfig<ISA> {
     pub index_servers: Vec<ISA>,
 }
@@ -216,7 +215,7 @@ where
                     send_full_state(c_seq_friends_client, c_control_sender)
                         .map_err(|e| warn!("Error in send_full_state(): {:?}", e))
                         .map(|_| {
-                            sfs_done_sender.send(());
+                            let _ = sfs_done_sender.send(());
                         })
                 );
 
@@ -236,8 +235,8 @@ where
         let mut c_event_sender = self.event_sender.clone();
         let cancellable_fut = async move {
             // During the connection stage it is possible to cancel using the `cancel_sender`:
-            let select_res = select! {
-                connect_fut = connect_fut.fuse() => (),
+            select! {
+                _connect_fut = connect_fut.fuse() => (),
                 _ = cancel_receiver.fuse() => (),
             };
             // Connection was closed or cancelled:
@@ -490,7 +489,7 @@ where
                 // Backoff mechanism for reconnection, so that we don't DoS the index servers.
                 *ticks_to_reconnect = (*ticks_to_reconnect).saturating_sub(1);
                 if *ticks_to_reconnect == 0 {
-                    self.try_connect_to_server();
+                    self.try_connect_to_server()?;
                 }
                 return Ok(());
             },
@@ -536,9 +535,10 @@ where
     }
 }
 
+#[allow(unused)]
 pub async fn index_client_loop<ISA,FAS,TAS,ICS,DB,TS,S>(from_app_server: FAS,
                                to_app_server: TAS,
-                               mut index_client_config: IndexClientConfig<ISA>,
+                               index_client_config: IndexClientConfig<ISA>,
                                seq_friends_client: SeqFriendsClient,
                                index_client_session: ICS,
                                max_open_requests: usize,

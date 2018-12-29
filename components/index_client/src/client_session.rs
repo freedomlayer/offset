@@ -34,6 +34,7 @@ where
     R: CryptoRandom + 'static,
 {
 
+    #[allow(unused)]
     pub fn new(connector: C,
                local_public_key: PublicKey,
                identity_client: IdentityClient,

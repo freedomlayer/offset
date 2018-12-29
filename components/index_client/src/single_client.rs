@@ -2,7 +2,7 @@ use std::marker::Unpin;
 use std::collections::HashMap;
 
 
-use futures::{future, TryFutureExt, FutureExt, stream, Stream, StreamExt, Sink, SinkExt};
+use futures::{future, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::channel::{oneshot, mpsc};
 
 use common::conn::ConnPair;
@@ -218,6 +218,7 @@ mod tests {
     use crypto::hash::HASH_RESULT_LEN;
     use futures::executor::ThreadPool;
     use futures::task::{Spawn, SpawnExt};
+    use futures::{FutureExt, TryFutureExt};
 
     use crypto::test_utils::DummyRandom;
     use crypto::identity::{SoftwareEd25519Identity, 

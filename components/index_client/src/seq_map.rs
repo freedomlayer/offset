@@ -14,6 +14,7 @@ where
     K: std::hash::Hash + std::cmp::Eq + Clone,
     V: Clone,
 {
+    #[allow(unused)]
     pub fn new(map: HashMap<K,V>) -> Self {
         let queue = map
             .iter()
@@ -135,7 +136,7 @@ mod tests {
 
         let mut nexts = Vec::new();
         loop {
-            let (countdown, (key, value)) = seq_map.next().unwrap();
+            let (countdown, (key, _value)) = seq_map.next().unwrap();
             nexts.push(key);
             if countdown == 0 {
                 break;
