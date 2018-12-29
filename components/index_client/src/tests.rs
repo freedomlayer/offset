@@ -7,9 +7,11 @@ use common::dummy_connector::{DummyConnector, ConnRequest};
 
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 use crypto::hash::{HashResult, HASH_RESULT_LEN};
+use crypto::uid::{Uid, UID_LEN};
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer,
                                     IndexClientReportMutation, UpdateFriend,
-                                    IndexMutation};
+                                    IndexMutation, RequestRoutes,
+                                    ResponseRoutesResult};
 
 use crate::index_client::{index_client_loop, IndexClientConfig,
                         IndexClientConfigMutation};
@@ -304,9 +306,61 @@ where
     };
 }
 
-
 #[test]
 fn test_index_client_loop_apply_mutations() {
     let mut thread_pool = ThreadPool::new().unwrap();
     thread_pool.run(task_index_client_loop_apply_mutations(thread_pool.clone()));
+}
+
+
+
+async fn task_index_client_loop_request_routes_basic<S>(mut spawner: S) 
+where   
+    S: Spawn + Clone + Send + 'static,
+{
+
+    let mut icc = basic_index_client(spawner.clone());
+    let (mut control_receiver, close_sender) = await!(icc.expect_server_connection(0x1337));
+
+
+    let request_routes = RequestRoutes {
+        request_id: Uid::from(&[3; UID_LEN]),
+        capacity: 250,
+        source: PublicKey::from(PublicKey::from(&[0xee; PUBLIC_KEY_LEN])),
+        destination: PublicKey::from(PublicKey::from(&[0xff; PUBLIC_KEY_LEN])),
+        opt_exclude: None,
+    };
+
+    // Request routes from IndexClient (From AppServer):
+    await!(icc.app_server_sender.send(
+            AppServerToIndexClient::RequestRoutes(request_routes.clone()))).unwrap();
+
+    // IndexClient forwards the routes request to the server:
+    match await!(control_receiver.next()).unwrap() {
+        SingleClientControl::RequestRoutes((request_routes0, response_sender)) => {
+            assert_eq!(request_routes0, request_routes);
+            // Server returns: no routes found:
+            response_sender.send(vec![]);
+        },
+        _ => unreachable!(),
+    };
+
+    // IndexClient returns the result back to AppServer:
+    match await!(icc.app_server_receiver.next()).unwrap() {
+        IndexClientToAppServer::ResponseRoutes(client_response_routes) => {
+            assert_eq!(client_response_routes.request_id, Uid::from(&[3; UID_LEN]));
+            let routes = match client_response_routes.result {
+                ResponseRoutesResult::Success(routes) => routes,
+                _ => unreachable!(),
+            };
+            assert!(routes.is_empty());
+        },
+        _ => unreachable!(),
+    };
+}
+
+#[test]
+fn test_index_client_loop_request_routes_basic() {
+    let mut thread_pool = ThreadPool::new().unwrap();
+    thread_pool.run(task_index_client_loop_request_routes_basic(thread_pool.clone()));
 }
