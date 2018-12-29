@@ -42,6 +42,10 @@ struct ServerConnecting<ISA> {
 struct ServerConnected<ISA> {
     address: ISA,
     opt_control_sender: Option<ControlSender>,
+    /// A oneshot for closing the connection 
+    /// (closing opt_control_sender is not enough, because send_full_state() task also has a
+    /// sender)
+    opt_cancel_sender: Option<oneshot::Sender<()>>,
     /// Decrementing counter. When reaches 0 we send a SendMutations
     /// to the server and reset this value to keepalive_ticks:
     ticks_to_send_keepalive: usize,
@@ -131,7 +135,7 @@ where
     TAS: Sink<SinkItem=IndexClientToAppServer<ISA>> + Unpin,
     ICS: FutTransform<Input=ISA, Output=Option<SessionHandle>> + Clone + Send + 'static,
     DB: FutTransform<Input=IndexClientConfigMutation<ISA>, Output=Option<()>>,
-    S: Spawn,
+    S: Spawn + Clone + Send + 'static,
 {
     pub fn new(event_sender: mpsc::Sender<IndexClientEvent<ISA>>,
                to_app_server: TAS,
@@ -194,24 +198,56 @@ where
         };
         self.conn_status = ConnStatus::Connecting(server_connecting);
 
+        let c_seq_friends_client = self.seq_friends_client.clone();
+        let mut c_spawner = self.spawner.clone();
+
+        // Canceller for the send_full_state() task:
+        let (sfs_cancel_sender, sfs_cancel_receiver) = oneshot::channel::<()>();
+        let (sfs_done_sender, sfs_done_receiver) = oneshot::channel::<()>();
+
         // TODO: Can we remove the Box::pinned() from here? How?
         let connect_fut = Box::pinned(async move {
-            await!(c_index_client_session.transform(server_address))
+            let res = await!(c_index_client_session.transform(server_address))?;
+            let (control_sender, close_receiver) = res;
+
+            let c_control_sender = control_sender.clone();
+            let send_full_state_cancellable_fut = async move {
+                let send_full_state_fut = Box::pinned(
+                    send_full_state(c_seq_friends_client, c_control_sender)
+                        .map_err(|e| warn!("Error in send_full_state(): {:?}", e))
+                        .map(|_| {
+                            sfs_done_sender.send(());
+                        })
+                );
+
+                select! {
+                    _sfs_cancel_receiver = sfs_cancel_receiver.fuse() => (),
+                    _ = send_full_state_fut.fuse() => (),
+                };
+            };
+
+            c_spawner.spawn(send_full_state_cancellable_fut).ok()?;
+
+            let _ = await!(c_event_sender.send(IndexClientEvent::IndexServerConnected(control_sender)));
+            let _ = await!(close_receiver);
+            Some(())
         });
 
+        let mut c_event_sender = self.event_sender.clone();
         let cancellable_fut = async move {
             // During the connection stage it is possible to cancel using the `cancel_sender`:
             let select_res = select! {
-                connect_fut = connect_fut.fuse() => connect_fut,
-                _cancel_receiver = cancel_receiver.fuse() => None,
+                connect_fut = connect_fut.fuse() => (),
+                _ = cancel_receiver.fuse() => (),
             };
+            // Connection was closed or cancelled:
+            
+            // Cancel send_full_state() task:
+            let _ = sfs_cancel_sender.send(());
+            // Wait until send_full_state() task is done:
+            let _ = await!(sfs_done_receiver);
 
-            // After the connection stage it is possible to close the connection by closing the
-            // control_sender:
-            if let Some((control_sender, close_receiver)) = select_res {
-                let _ = await!(c_event_sender.send(IndexClientEvent::IndexServerConnected(control_sender)));
-                let _ = await!(close_receiver);
-            }
+            // Notify main task about closed connection:
             let _ = await!(c_event_sender.send(IndexClientEvent::IndexServerClosed));
         };
 
@@ -282,6 +318,7 @@ where
             ConnStatus::Connected(server_connected) => {
                 if server_connected.address == server_address {
                     server_connected.opt_control_sender.take();
+                    server_connected.opt_cancel_sender.take();
                 }
             },
         }
@@ -390,7 +427,7 @@ where
     pub async fn handle_index_server_connected(&mut self, control_sender: ControlSender) 
         -> Result<(), IndexClientError> {
 
-        let address = match &self.conn_status {
+        let (address, opt_cancel_sender) = match &mut self.conn_status {
             ConnStatus::Empty(_) => {
                 error!("Did not attempt to connect!");
                 return Ok(());
@@ -399,12 +436,14 @@ where
                 error!("Already connected to server!");
                 return Ok(());
             }
-            ConnStatus::Connecting(server_connecting) => server_connecting.address.clone(),
+            ConnStatus::Connecting(server_connecting) => 
+                (server_connecting.address.clone(), server_connecting.opt_cancel_sender.take()),
         };
 
         self.conn_status = ConnStatus::Connected(ServerConnected {
             address: address.clone(),
             opt_control_sender: Some(control_sender.clone()),
+            opt_cancel_sender,
             ticks_to_send_keepalive: self.keepalive_ticks,
         });
 
@@ -413,17 +452,6 @@ where
         let report_mutations = vec![index_client_report_mutation];
         await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(report_mutations)))
             .map_err(|_| IndexClientError::SendToAppServerFailed)?;
-
-        // Sync note: With the obtained SessionHandle (ControlSender, CloseReciever), it is
-        // guaranteed that `control_sender` will stop working, and only then `close_receiver` will
-        // resolve. (See IndexClientSession::connect()) This means that `send_full_state` task will
-        // close before a new connection to a server is established.
-        let send_full_state_fut = send_full_state(self.seq_friends_client.clone(), control_sender)
-            .map_err(|e| warn!("Error in send_full_state(): {:?}", e))
-            .map(|_| ());
-
-        self.spawner.spawn(send_full_state_fut)
-            .map_err(|_| IndexClientError::SpawnError)?;
 
         Ok(())
     }
@@ -526,7 +554,7 @@ where
     ICS: FutTransform<Input=ISA, Output=Option<SessionHandle>> + Clone + Send + 'static,
     DB: FutTransform<Input=IndexClientConfigMutation<ISA>, Output=Option<()>>,
     TS: Stream + Unpin,
-    S: Spawn,
+    S: Spawn + Clone + Send + 'static,
 {
     let (event_sender, event_receiver) = mpsc::channel(0);
     let mut index_client = IndexClient::new(event_sender, 
