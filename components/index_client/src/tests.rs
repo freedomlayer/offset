@@ -431,6 +431,10 @@ where
         _ => unreachable!(),
     };
 
+    // Graceful shutdown:
+    let IndexClientControl {app_server_sender, mut app_server_receiver, .. } = icc;
+    drop(app_server_sender);
+    assert!(await!(app_server_receiver.next()).is_none());
 }
 
 #[test]
