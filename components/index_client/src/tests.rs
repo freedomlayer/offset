@@ -442,3 +442,5 @@ fn test_index_client_loop_connecting_state() {
     let mut thread_pool = ThreadPool::new().unwrap();
     thread_pool.run(task_index_client_loop_connecting_state(thread_pool.clone()));
 }
+
+// TODO: Add more tests.
