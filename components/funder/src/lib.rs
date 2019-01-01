@@ -1,10 +1,9 @@
 #![crate_type = "lib"] 
-#![feature(futures_api, pin, async_await, await_macro, arbitrary_self_types)]
+#![feature(futures_api, async_await, await_macro, arbitrary_self_types)]
 #![feature(nll)]
 #![feature(try_from)]
 #![feature(generators)]
 #![feature(never_type)]
-#![feature(dbg_macro)]
 #![cfg_attr(not(feature = "cargo-clippy"), allow(unknown_lints))]
 
 extern crate futures_cpupool;
