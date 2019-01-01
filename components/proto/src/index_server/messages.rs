@@ -7,7 +7,7 @@ use crate::funder::messages::FriendsRoute;
 
 
 /// IndexClient -> IndexServer
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct RequestRoutes {
     pub request_id: Uid,
     /// Wanted capacity for the route. 
@@ -20,20 +20,20 @@ pub struct RequestRoutes {
     pub opt_exclude: Option<(PublicKey, PublicKey)>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct RouteWithCapacity {
     pub route: FriendsRoute,
     pub capacity: u128,
 }
 
 /// IndexServer -> IndexClient
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ResponseRoutes {
     pub request_id: Uid,
     pub routes: Vec<RouteWithCapacity>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateFriend {
     /// Friend's public key
     pub public_key: PublicKey,
@@ -45,8 +45,8 @@ pub struct UpdateFriend {
 
 
 /// IndexClient -> IndexServer
-#[derive(Debug, Clone)]
-pub enum Mutation {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IndexMutation {
     UpdateFriend(UpdateFriend),
     RemoveFriend(PublicKey),
 }
@@ -56,7 +56,7 @@ pub struct MutationsUpdate {
     /// Public key of the node sending the mutations.
     pub node_public_key: PublicKey,
     /// List of mutations to relationships with direct friends.
-    pub mutations : Vec<Mutation>,
+    pub index_mutations : Vec<IndexMutation>,
     /// A time hash (Given by the server previously). 
     /// This is used as time, proving that this message was signed recently.
     pub time_hash: HashResult,
@@ -114,5 +114,4 @@ pub enum IndexServerToServer {
     TimeHash(HashResult),
     ForwardMutationsUpdate(ForwardMutationsUpdate),
 }
-
 

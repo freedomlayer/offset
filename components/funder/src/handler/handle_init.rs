@@ -1,12 +1,10 @@
 use std::fmt::Debug;
 use crypto::crypto_rand::CryptoRandom;
 
-use proto::funder::messages::{FriendStatus, FunderOutgoingControl};
+use proto::funder::messages::FriendStatus;
 
 use crate::handler::MutableFunderHandler;
 use crate::types::{ChannelerConfig, FunderOutgoingComm};
-
-use crate::report::create_report;
 
 
 #[allow(unused)]
@@ -31,8 +29,8 @@ where
         // Send a report of the current FunderState:
         // This is a base report. Later reports are differential, and should be built on this base
         // report.
-        let report = create_report(&self.state, &self.ephemeral);
-        self.add_outgoing_control(FunderOutgoingControl::Report(report));
+        // let report = create_report(&self.state, &self.ephemeral);
+        // self.add_outgoing_control(FunderOutgoingControl::Report(report));
 
         // Notify Channeler about current address:
         let channeler_config = ChannelerConfig::SetAddress(self.state.opt_address.clone());
@@ -105,8 +103,8 @@ mod tests {
 
         let mut funder_handler_output = mutable_funder_handler.done();
         assert!(funder_handler_output.funder_mutations.is_empty());
-        assert_eq!(funder_handler_output.outgoing_control.len(), 1);
-        assert_eq!(funder_handler_output.outgoing_comms.len(),2);
+        assert_eq!(funder_handler_output.outgoing_control.len(), 0);
+        assert_eq!(funder_handler_output.outgoing_comms.len(), 2);
 
         // SetAddress:
         let out_comm = funder_handler_output.outgoing_comms.remove(0);

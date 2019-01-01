@@ -1,8 +1,9 @@
 use byteorder::{WriteBytesExt, BigEndian};
 use common::int_convert::{usize_to_u64};
 use crypto::identity::verify_signature;
+use crypto::hash;
 
-use super::messages::{UpdateFriend, Mutation, MutationsUpdate};
+use super::messages::{UpdateFriend, IndexMutation, MutationsUpdate};
 
 // Canonical Serialization (To be used for signatures):
 // ----------------------------------------------------
@@ -17,15 +18,15 @@ impl UpdateFriend {
     }
 }
 
-impl Mutation {
+impl IndexMutation {
     fn to_bytes(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         match self {
-            Mutation::UpdateFriend(update_friend) => {
+            IndexMutation::UpdateFriend(update_friend) => {
                 res_bytes.push(0);
                 res_bytes.extend(update_friend.to_bytes());
             },
-            Mutation::RemoveFriend(public_key) => {
+            IndexMutation::RemoveFriend(public_key) => {
                 res_bytes.push(1);
                 res_bytes.extend_from_slice(public_key);
             },
@@ -34,13 +35,16 @@ impl Mutation {
     }
 }
 
+pub const MUTATIONS_UPDATE_PREFIX: &[u8] = b"MUTATIONS_UPDATE";
+
 impl MutationsUpdate {
     pub fn signature_buff(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&hash::sha_512_256(MUTATIONS_UPDATE_PREFIX));
         res_bytes.extend_from_slice(&self.node_public_key);
 
-        res_bytes.write_u64::<BigEndian>(usize_to_u64(self.mutations.len()).unwrap()).unwrap();
-        for mutation in &self.mutations {
+        res_bytes.write_u64::<BigEndian>(usize_to_u64(self.index_mutations.len()).unwrap()).unwrap();
+        for mutation in &self.index_mutations {
             res_bytes.extend(mutation.to_bytes());
         }
 

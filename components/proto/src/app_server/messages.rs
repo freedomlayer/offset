@@ -4,7 +4,7 @@ use crypto::crypto_rand::RandValue;
 use crate::funder::messages::{RequestSendFunds, ResponseSendFunds,
                             ReceiptAck, AddFriend, SetFriendInfo, RemoveFriend,
                             SetFriendRemoteMaxDebt, ResetFriendChannel};
-use crate::report::messages::{FunderReport, FunderReportMutation};
+use crate::funder::report::{FunderReport, FunderReportMutation};
 
 #[allow(unused)]
 #[derive(Debug)]
@@ -27,7 +27,7 @@ pub struct ResponseDelegate {
 
 #[allow(unused)]
 #[derive(Debug)]
-pub enum AppServerToApp<A> {
+pub enum AppServerToApp<A: Clone> {
     /// Funds:
     ResponseSendFunds(ResponseSendFunds),
     /// Reports about current state:

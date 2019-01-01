@@ -13,6 +13,8 @@ extern crate serde;
 extern crate serde_derive;
 extern crate bytes;
 
+extern crate im;
+
 #[macro_use]
 pub mod macros;
 pub mod consts;
@@ -23,8 +25,8 @@ pub mod funder;
 pub mod keepalive;
 pub mod serialize;
 pub mod app_server;
-pub mod report;
-pub mod index;
+pub mod index_server;
+pub mod index_client;
 
 
 

@@ -9,8 +9,8 @@ use crypto::hash::{self, HashResult};
 
 use common::int_convert::{usize_to_u64};
 
+use crate::funder::report::FunderReportMutation;
 use crate::consts::MAX_ROUTE_LEN;
-use crate::report::messages::{FunderReport, FunderReportMutation};
 
 
 #[allow(unused)]
@@ -488,6 +488,6 @@ pub struct ResponseReceived {
 #[derive(Debug)]
 pub enum FunderOutgoingControl<A: Clone> {
     ResponseReceived(ResponseReceived),
-    Report(FunderReport<A>),
+    // Report(FunderReport<A>),
     ReportMutations(Vec<FunderReportMutation<A>>),
 }
