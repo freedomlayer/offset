@@ -65,7 +65,7 @@ where
 
         let (relay_address, public_key) = address;
 
-        Box::pinned(async move {
+        Box::pin(async move {
             loop {
                 match await!(secure_connect(self.client_connector.clone(), self.encrypt_transform.clone(), 
                                             relay_address.clone(), public_key.clone())) {

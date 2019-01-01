@@ -71,7 +71,7 @@ where
                                     .ok()?;
             Some((sender, receiver))
         };
-        Box::pinned(fut)
+        Box::pin(fut)
     }
 }
 */

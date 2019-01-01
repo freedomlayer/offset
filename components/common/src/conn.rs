@@ -131,7 +131,7 @@ where
 
     fn transform(&mut self, input: Self::Input)
         -> BoxFuture<'_, Self::Output> {
-        Box::pinned(future::ready((self.func)(input)))
+        Box::pin(future::ready((self.func)(input)))
     } 
 }
 

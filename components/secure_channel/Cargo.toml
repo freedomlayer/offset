@@ -16,7 +16,7 @@ proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
 log = "0.4"
 pretty_env_logger = "0.2"
 
-futures-preview = "0.3.0-alpha.10"
+futures-preview = "0.3.0-alpha.11"
 
 byteorder = "1.1"
 

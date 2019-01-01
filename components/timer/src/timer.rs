@@ -240,7 +240,7 @@ mod tests {
         const TIMER_CLIENT_NUM: usize = 2;
 
         let mut senders = Vec::new();
-        let mut joined_receivers = Box::pinned(future::ready(())) as Pin<Box<dyn Future<Output=()> + Send>>;
+        let mut joined_receivers = Box::pin(future::ready(())) as Pin<Box<dyn Future<Output=()> + Send>>;
 
         for _ in 0 .. TIMER_CLIENT_NUM {
             let (sender, receiver) = oneshot::channel::<()>();
@@ -251,7 +251,7 @@ mod tests {
             });
 
             let new_join = joined_receivers.join(receiver).map(|_| ());
-            joined_receivers = Box::pinned(new_join) as Pin<Box<Future<Output=()> + Send>>;
+            joined_receivers = Box::pin(new_join) as Pin<Box<Future<Output=()> + Send>>;
         }
 
         let (sender_done, receiver_done) = oneshot::channel::<()>();

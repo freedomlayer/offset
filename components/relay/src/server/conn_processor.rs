@@ -89,7 +89,7 @@ where
     FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>, 
         Output=ConnPair<Vec<u8>,Vec<u8>>>,
 {
-    let mut fut_receiver = Box::pinned(async move {
+    let mut fut_receiver = Box::pin(async move {
         if let Some(first_msg) = await!(receiver.next()) {
             await!(dispatch_conn(sender, receiver, public_key, first_msg, 
                          keepalive_transform))
@@ -265,7 +265,7 @@ mod tests {
                                              conn_timeout_ticks);
 
 
-        let processed_conns = Box::pinned(processed_conns);
+        let processed_conns = Box::pin(processed_conns);
 
 
         let first_msg = InitConnection::Listen;

@@ -90,7 +90,7 @@ where
     fn transform(&mut self, index_server_address: Self::Input) 
         -> BoxFuture<'_, Self::Output> {
 
-        Box::pinned(self.connect(index_server_address))
+        Box::pin(self.connect(index_server_address))
     }
 }
 
