@@ -34,8 +34,7 @@ pub enum FriendMutation<A> {
     PopFrontPendingUserRequest,
     SetStatus(FriendStatus),
     SetFriendInfo((A, String)),     // (Address, Name)
-    SetLocalAddress(A),             // (address)
-    SetPrevLocalAddress(Option<A>), // (Option<Address>)
+    SetSentLocalAddress(SentLocalAddress<A>),
     LocalReset(MoveToken<A>),
     // The outgoing move token message we have sent to reset the channel.
     RemoteReset(MoveToken<A>),
@@ -68,6 +67,12 @@ where
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SentLocalAddress<A> {
+    NeverSent,
+    Transition((A, A)), // (last sent, before last sent)
+    LastSent(A),
+}
 
 #[allow(unused)]
 #[derive(Clone, Serialize, Deserialize)]
@@ -75,11 +80,7 @@ pub struct FriendState<A> {
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,
     pub remote_address: A, 
-    /// Last local_address sent to remote side:
-    pub opt_local_address: Option<A>,
-    /// previous local address sent to remote side.
-    /// Should be emptied after local_address was acked.
-    pub opt_prev_local_address: Option<A>,
+    pub sent_local_address: SentLocalAddress<A>,
     pub name: String,
     pub channel_status: ChannelStatus<A>,
     pub wanted_remote_max_debt: u128,
@@ -111,8 +112,7 @@ where
             local_public_key: local_public_key.clone(),
             remote_public_key: remote_public_key.clone(),
             remote_address,
-            opt_local_address: None,
-            opt_prev_local_address: None,
+            sent_local_address: SentLocalAddress::NeverSent,
             name,
             channel_status: ChannelStatus::Consistent(token_channel),
 
@@ -196,11 +196,8 @@ where
                 self.remote_address = friend_addr.clone();
                 self.name = friend_name.clone();
             },
-            FriendMutation::SetLocalAddress(local_address) => {
-                self.opt_local_address = Some(local_address.clone());
-            },
-            FriendMutation::SetPrevLocalAddress(opt_local_address) => {
-                self.opt_prev_local_address = opt_local_address.clone();
+            FriendMutation::SetSentLocalAddress(sent_local_address) => {
+                self.sent_local_address = sent_local_address.clone();
             },
             FriendMutation::LocalReset(reset_move_token) => {
                 // Local reset was applied (We sent a reset from the control line)

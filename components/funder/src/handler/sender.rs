@@ -13,7 +13,7 @@ use crate::types::{FunderOutgoingComm, create_pending_request};
 use crate::mutual_credit::outgoing::{QueueOperationFailure, QueueOperationError, OutgoingMc};
 use crate::mutual_credit::types::McMutation;
 
-use crate::friend::{FriendMutation, ResponseOp, ChannelStatus};
+use crate::friend::{FriendMutation, ResponseOp, ChannelStatus, SentLocalAddress};
 use crate::token_channel::{TcMutation, TcDirection, SetDirection};
 
 use crate::ephemeral::EphemeralMutation;
@@ -143,17 +143,17 @@ where
 
         if let Some(local_address) = opt_local_address {
             let friend = self.get_friend(remote_public_key).unwrap();
-            // We have the token, so `friend.prev_local_address` should be empty by now:
-            assert!(friend.opt_prev_local_address.is_none());
 
-            if let Some(last_sent_local_address) = friend.opt_local_address {
-                let prev_local_address = last_sent_local_address.clone();
-                let friend_mutation = FriendMutation::SetPrevLocalAddress(Some(prev_local_address));
-                let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-                self.apply_funder_mutation(funder_mutation);
-            }
+            let sent_local_address = match friend.sent_local_address {
+                SentLocalAddress::NeverSent => SentLocalAddress::LastSent(local_address),
+                SentLocalAddress::Transition((last_address, prev_last_address)) => 
+                    // We have the token, this means that there couldn't be a transition right now.
+                    unreachable!(),
+                SentLocalAddress::LastSent(last_address) =>
+                    SentLocalAddress::Transition((local_address, last_address)),
+            };
 
-            let friend_mutation = FriendMutation::SetLocalAddress(local_address);
+            let friend_mutation = FriendMutation::SetSentLocalAddress(sent_local_address);
             let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
             self.apply_funder_mutation(funder_mutation);
         }
@@ -256,17 +256,16 @@ where
 
         let opt_local_address = match self.state.opt_address {
             Some(local_address) => {
-                match friend.opt_local_address {
-                    Some(last_sent_local_address) => {
-                        if last_sent_local_address != local_address {
-                            // Address should be updated:
+                match friend.sent_local_address {
+                    SentLocalAddress::NeverSent => Some(local_address.clone()),
+                    SentLocalAddress::Transition((last_address, prev_last_address)) => unreachable!(),
+                    SentLocalAddress::LastSent(last_address) => {
+                        if last_address != local_address {
                             Some(local_address.clone())
                         } else {
                             None
                         }
-                    },
-                    // Never sent a local address:
-                    None => Some(local_address.clone()),
+                    }
                 }
             },
             None => None,

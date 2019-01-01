@@ -24,7 +24,8 @@ use crate::types::{FunderOutgoingComm, create_pending_request};
 
 use crate::state::FunderMutation;
 use crate::friend::{FriendMutation, 
-    ResponseOp, ChannelStatus, ChannelInconsistent};
+    ResponseOp, ChannelStatus, ChannelInconsistent,
+    SentLocalAddress};
 
 
 use crate::ephemeral::EphemeralMutation;
@@ -408,10 +409,14 @@ where
                 // If address update was pending, we can clear it, as this is a proof that the
                 // remote side has received our update:
                 let friend = self.get_friend(&remote_public_key).unwrap();
-                if friend.opt_prev_local_address.is_some() {
-                    let friend_mutation = FriendMutation::SetPrevLocalAddress(None);
-                    let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-                    self.apply_funder_mutation(funder_mutation);
+                match friend.sent_local_address {
+                    SentLocalAddress::NeverSent |
+                    SentLocalAddress::LastSent(_) => {},
+                    SentLocalAddress::Transition((last_address, prev_last_address)) => {
+                        let friend_mutation = FriendMutation::SetSentLocalAddress(SentLocalAddress::LastSent(last_address));
+                        let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+                        self.apply_funder_mutation(funder_mutation);
+                    },
                 }
 
                 // If remote requests were previously open, and now they were closed:
