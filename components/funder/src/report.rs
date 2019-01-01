@@ -13,13 +13,14 @@ use proto::funder::report::{DirectionReport, FriendLivenessReport,
     TcReport, ResetTermsReport, ChannelInconsistentReport, ChannelStatusReport, FriendReport,
     FunderReport, FriendReportMutation, AddFriendReport, FunderReportMutation,
     McRequestsStatusReport, McBalanceReport, RequestsStatusReport, FriendStatusReport,
-    MoveTokenHashedReport};
+    MoveTokenHashedReport, SentLocalAddressReport};
 
 use proto::index_client::messages::{IndexMutation, IndexClientState, UpdateFriend};
 
 use crate::types::MoveTokenHashed;
 
-use crate::friend::{FriendState, ChannelStatus, FriendMutation};
+use crate::friend::{FriendState, ChannelStatus, FriendMutation, 
+    SentLocalAddress};
 use crate::state::{FunderState, FunderMutation};
 use crate::mutual_credit::types::{McBalance, McRequestsStatus};
 use crate::token_channel::{TokenChannel, TcDirection, TcMutation}; 
@@ -38,6 +39,25 @@ impl From<&McRequestsStatus> for McRequestsStatusReport {
         McRequestsStatusReport {
             local: (&mc_requests_status.local).into(),
             remote: (&mc_requests_status.remote).into(),
+        }
+    }
+}
+
+// See:
+// https://www.reddit.com/r/rust/comments/5115o2/type_parameter_t_must_be_used_as_the_type/
+// Why isn't this part compiling?
+impl<A> From<&SentLocalAddress<A>> for SentLocalAddressReport<A> 
+where
+    A: Clone,
+{
+    fn from(sent_local_address: &SentLocalAddress<A>) -> Self {
+        match sent_local_address {
+            SentLocalAddress::NeverSent => 
+                SentLocalAddressReport::NeverSent,
+            SentLocalAddress::Transition(t) => 
+                SentLocalAddressReport::Transition(t.clone()),
+            SentLocalAddress::LastSent(address) => 
+                SentLocalAddressReport::LastSent(address.clone()),
         }
     }
 }
@@ -125,6 +145,7 @@ where
     FriendReport {
         address: friend_state.remote_address.clone(),
         name: friend_state.name.clone(),
+        set_local_address: SentLocalAddressReport::from(&friend_state.sent_local_address),
         opt_last_incoming_move_token: friend_state.channel_status.get_last_incoming_move_token_hashed()
             .map(|move_token_hashed| MoveTokenHashedReport::from(&move_token_hashed)),
         liveness: friend_liveness.clone(),
