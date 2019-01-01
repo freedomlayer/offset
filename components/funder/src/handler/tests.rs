@@ -14,6 +14,8 @@ use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair, compare
 use crypto::crypto_rand::{RngContainer, CryptoRandom};
 use crypto::uid::{Uid, UID_LEN};
 
+use common::canonical_serialize::CanonicalSerialize;
+
 use proto::funder::messages::{FriendMessage, FriendsRoute, 
     InvoiceId, INVOICE_ID_LEN, FunderIncomingControl, 
     AddFriend, FriendStatus,
@@ -32,7 +34,7 @@ async fn apply_funder_incoming<'a,A,R>(funder_incoming: FunderIncoming<A>,
                                identity_client: IdentityClient) 
                 -> Result<(Vec<FunderOutgoingComm<A>>, Vec<FunderOutgoingControl<A>>), FunderHandlerError> 
 where
-    A: Clone + Debug + Eq + PartialEq + 'static,
+    A: CanonicalSerialize + Clone + Debug + Eq + PartialEq + 'static,
     R: CryptoRandom + 'static,
 {
 

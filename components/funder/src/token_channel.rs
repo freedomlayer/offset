@@ -13,6 +13,8 @@ use proto::funder::messages::{MoveToken, FriendTcOp, MoveTokenRequest};
 use proto::consts::MAX_OPERATIONS_IN_BATCH;
 use proto::funder::signature_buff::verify_friend_move_token;
 
+use common::canonical_serialize::CanonicalSerialize;
+
 use crate::mutual_credit::types::{MutualCredit, McMutation};
 use crate::mutual_credit::incoming::{ProcessOperationOutput, ProcessTransListError, 
     process_operations_list, IncomingMessage};
@@ -22,23 +24,23 @@ use crate::types::{MoveTokenHashed, create_friend_move_token, create_hashed};
 
 
 #[derive(Debug)]
-pub enum SetDirection {
+pub enum SetDirection<A> {
     Incoming(MoveTokenHashed), 
-    Outgoing(MoveToken),
+    Outgoing(MoveToken<A>),
 }
 
 #[allow(unused)]
 #[derive(Debug)]
-pub enum TcMutation {
+pub enum TcMutation<A> {
     McMutation(McMutation),
-    SetDirection(SetDirection),
+    SetDirection(SetDirection<A>),
     SetTokenWanted,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct TcOutgoing {
+pub struct TcOutgoing<A> {
     pub mutual_credit: MutualCredit,
-    pub move_token_out: MoveToken,
+    pub move_token_out: MoveToken<A>,
     pub token_wanted: bool,
     pub opt_prev_move_token_in: Option<MoveTokenHashed>,
 }
@@ -50,15 +52,15 @@ pub struct TcIncoming {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub enum TcDirection {
+pub enum TcDirection<A> {
     Incoming(TcIncoming),
-    Outgoing(TcOutgoing),
+    Outgoing(TcOutgoing<A>),
 }
 
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct TokenChannel {
-    direction: TcDirection,
+pub struct TokenChannel<A> {
+    direction: TcDirection<A>,
 }
 
 #[derive(Debug)]
@@ -74,18 +76,19 @@ pub enum ReceiveMoveTokenError {
 }
 
 #[derive(Debug)]
-pub struct MoveTokenReceived {
+pub struct MoveTokenReceived<A> {
     pub incoming_messages: Vec<IncomingMessage>,
-    pub mutations: Vec<TcMutation>,
+    pub mutations: Vec<TcMutation<A>>,
     pub remote_requests_closed: bool,
+    pub local_address: Option<A>,
 }
 
 
 #[derive(Debug)]
-pub enum ReceiveMoveTokenOutput {
+pub enum ReceiveMoveTokenOutput<A> {
     Duplicate,
-    RetransmitOutgoing(MoveToken),
-    Received(MoveTokenReceived),
+    RetransmitOutgoing(MoveToken<A>),
+    Received(MoveTokenReceived<A>),
     // In case of a reset, all the local pending requests will be canceled.
 }
 
@@ -115,9 +118,9 @@ fn rand_nonce_from_public_key(public_key: &PublicKey) -> RandValue {
 /// Create an initial move token in the relationship between two public keys.
 /// To canonicalize the initial move token (Having an equal move token for both sides), we sort the
 /// two public keys in some way.
-fn initial_move_token(low_public_key: &PublicKey, 
+fn initial_move_token<A>(low_public_key: &PublicKey, 
                       high_public_key: &PublicKey,
-                      balance: i128) -> MoveToken {
+                      balance: i128) -> MoveToken<A> {
     // This is a special initialization case.
     // Note that this is the only case where new_token is not a valid signature.
     // We do this because we want to have synchronization between the two sides of the token
@@ -126,6 +129,7 @@ fn initial_move_token(low_public_key: &PublicKey,
     let rand_nonce = rand_nonce_from_public_key(&high_public_key);
     MoveToken {
         operations: Vec::new(),
+        opt_local_address: None,
         old_token: token_from_public_key(&low_public_key),
         inconsistency_counter: 0, 
         move_token_counter: 0,
@@ -137,10 +141,13 @@ fn initial_move_token(low_public_key: &PublicKey,
     }
 }
 
-impl TokenChannel {
+impl<A> TokenChannel<A> 
+where
+    A: Clone + CanonicalSerialize,
+{
     pub fn new(local_public_key: &PublicKey, 
                remote_public_key: &PublicKey,
-               balance: i128) -> TokenChannel {
+               balance: i128) -> TokenChannel<A> {
 
         let mutual_credit = MutualCredit::new(&local_public_key, &remote_public_key, balance);
 
@@ -170,8 +177,8 @@ impl TokenChannel {
 
     pub fn new_from_remote_reset(local_public_key: &PublicKey, 
                       remote_public_key: &PublicKey, 
-                      reset_move_token: &MoveToken,
-                      balance: i128) -> TokenChannel { // is balance redundant here?
+                      reset_move_token: &MoveToken<A>,
+                      balance: i128) -> TokenChannel<A> { // is balance redundant here?
 
         let tc_incoming = TcIncoming {
             mutual_credit: MutualCredit::new(local_public_key, remote_public_key, balance),
@@ -185,9 +192,9 @@ impl TokenChannel {
 
     pub fn new_from_local_reset(local_public_key: &PublicKey, 
                       remote_public_key: &PublicKey, 
-                      reset_move_token: &MoveToken,
+                      reset_move_token: &MoveToken<A>,
                       balance: i128, // Is this redundant?
-                      opt_last_incoming_move_token: Option<MoveTokenHashed>) -> TokenChannel {
+                      opt_last_incoming_move_token: Option<MoveTokenHashed>) -> TokenChannel<A> {
 
         let tc_outgoing = TcOutgoing {
             mutual_credit: MutualCredit::new(local_public_key, remote_public_key, balance),
@@ -212,7 +219,7 @@ impl TokenChannel {
         self.get_mutual_credit().state().balance.remote_max_debt
     }
 
-    pub fn get_direction(&self) -> &TcDirection {
+    pub fn get_direction(&self) -> &TcDirection<A> {
         &self.direction
     }
 
@@ -231,7 +238,7 @@ impl TokenChannel {
         }
     }
 
-    pub fn mutate(&mut self, d_mutation: &TcMutation) {
+    pub fn mutate(&mut self, d_mutation: &TcMutation<A>) {
         match d_mutation {
             TcMutation::McMutation(mc_mutation) => {
                 let mutual_credit = match &mut self.direction {
@@ -304,8 +311,8 @@ impl TokenChannel {
     }
 
     pub fn simulate_receive_move_token(&self, 
-                              new_move_token: MoveToken)
-        -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
+                              new_move_token: MoveToken<A>)
+        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> {
 
         if new_move_token.operations.len() > MAX_OPERATIONS_IN_BATCH {
             return Err(ReceiveMoveTokenError::TooManyOperations);
@@ -325,9 +332,9 @@ impl TokenChannel {
 
 impl TcIncoming {
     /// Handle an incoming move token during Incoming direction:
-    fn handle_incoming(&self, 
-                        new_move_token: MoveToken) 
-        -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
+    fn handle_incoming<A>(&self, 
+                        new_move_token: MoveToken<A>) 
+        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> {
 
         // We compare the whole move token message and not just the signature (new_token)
         // because we don't check the signature in this flow.
@@ -340,16 +347,21 @@ impl TcIncoming {
         }
     }
 
-    pub async fn create_friend_move_token(&self,
+    pub async fn create_friend_move_token<A>(&self,
                                     operations: Vec<FriendTcOp>,
+                                    opt_local_address: Option<A>,
                                     rand_nonce: RandValue,
-                                    identity_client: IdentityClient) -> MoveToken {
+                                    identity_client: IdentityClient) -> MoveToken<A> 
+    where
+        A: CanonicalSerialize,
+    {
         // TODO: How to make this check happen only in debug?
         let identity_pk = await!(identity_client.request_public_key()).unwrap();
         assert_eq!(&identity_pk, &self.mutual_credit.state().idents.local_public_key);
 
         await!(create_friend_move_token(
             operations,
+            opt_local_address,
             self.move_token_in.new_token.clone(),
             self.move_token_in.inconsistency_counter,
             self.move_token_in.move_token_counter.wrapping_add(1),
@@ -368,11 +380,11 @@ impl TcIncoming {
 
 
 
-impl TcOutgoing {
+impl<A> TcOutgoing<A> {
     /// Handle an incoming move token during Outgoing direction:
     fn handle_incoming(&self, 
-                        new_move_token: MoveToken) 
-        -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
+                        new_move_token: MoveToken<A>) 
+        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> {
 
         if &new_move_token.old_token == &self.move_token_out.new_token {
             self.handle_incoming_token_match(new_move_token)
@@ -386,8 +398,8 @@ impl TcOutgoing {
     }
 
     fn handle_incoming_token_match(&self,
-                                   new_move_token: MoveToken)
-        -> Result<ReceiveMoveTokenOutput, ReceiveMoveTokenError> {
+                                   new_move_token: MoveToken<A>)
+        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> {
 
         // Verify signature:
         // Note that we only verify the signature here, and not at the Incoming part.
@@ -477,7 +489,7 @@ impl TcOutgoing {
 
 
     /// Get the current outgoing move token
-    pub fn create_outgoing_move_token_request(&self) -> MoveTokenRequest {
+    pub fn create_outgoing_move_token_request(&self) -> MoveTokenRequest<A> {
         MoveTokenRequest {
             friend_move_token: self.move_token_out.clone(),
             token_wanted: self.token_wanted,
@@ -584,8 +596,8 @@ mod tests {
     /// After: tc1: incoming, tc2: outgoing
     async fn set_remote_max_debt21<'a>(_identity_client1: &'a mut IdentityClient,
                             identity_client2: &'a mut IdentityClient,
-                            tc1: &'a mut TokenChannel,
-                            tc2: &'a mut TokenChannel) {
+                            tc1: &'a mut TokenChannel<u32>,
+                            tc2: &'a mut TokenChannel<u32>) {
 
         assert!(tc1.is_outgoing());
         assert!(!tc2.is_outgoing());

@@ -103,8 +103,9 @@ pub enum FriendTcOp {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct MoveToken {
+pub struct MoveToken<A> {
     pub operations: Vec<FriendTcOp>,
+    pub opt_local_address: Option<A>,
     pub old_token: Signature,
     pub inconsistency_counter: u64,
     pub move_token_counter: u128,
@@ -123,16 +124,16 @@ pub struct ResetTerms {
 }
 
 #[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
-pub struct MoveTokenRequest {
-    pub friend_move_token: MoveToken,
+pub struct MoveTokenRequest<A> {
+    pub friend_move_token: MoveToken<A>,
     // Do we want the remote side to return the token:
     pub token_wanted: bool,
 }
 
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub enum FriendMessage {
-    MoveTokenRequest(MoveTokenRequest),
+pub enum FriendMessage<A> {
+    MoveTokenRequest(MoveTokenRequest<A>),
     InconsistencyError(ResetTerms),
 }
 

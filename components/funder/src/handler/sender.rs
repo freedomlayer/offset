@@ -3,8 +3,10 @@ use crypto::identity::PublicKey;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
 use proto::funder::messages::{FriendTcOp, FriendMessage, RequestsStatus};
+use common::canonical_serialize::CanonicalSerialize;
 
 use super::MutableFunderHandler;
+
 
 use crate::state::{FunderMutation};
 use crate::types::{FunderOutgoingComm, create_pending_request};
@@ -26,7 +28,7 @@ pub enum SendMode {
 
 impl<A,R> MutableFunderHandler<A,R> 
 where
-    A: Clone + Debug + PartialEq + Eq + 'static,
+    A: CanonicalSerialize + Clone + Debug + PartialEq + Eq + 'static,
     R: CryptoRandom,
 {
     /// Queue as many messages as possible into available token channel.

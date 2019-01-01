@@ -19,7 +19,7 @@ pub enum ResponseOp {
 #[allow(unused)]
 #[derive(Debug)]
 pub enum FriendMutation<A> {
-    TcMutation(TcMutation),
+    TcMutation(TcMutation<A>),
     SetInconsistent(ChannelInconsistent),
     SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatus),
@@ -31,9 +31,9 @@ pub enum FriendMutation<A> {
     PopFrontPendingUserRequest,
     SetStatus(FriendStatus),
     SetFriendInfo((A, String)), // (Address, Name)
-    LocalReset(MoveToken),
+    LocalReset(MoveToken<A>),
     // The outgoing move token message we have sent to reset the channel.
-    RemoteReset(MoveToken),
+    RemoteReset(MoveToken<A>),
 }
 
 #[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
@@ -44,12 +44,12 @@ pub struct ChannelInconsistent {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub enum ChannelStatus {
+pub enum ChannelStatus<A> {
     Inconsistent(ChannelInconsistent),
-    Consistent(TokenChannel),
+    Consistent(TokenChannel<A>),
 }
 
-impl ChannelStatus {
+impl<A> ChannelStatus<A> {
     pub fn get_last_incoming_move_token_hashed(&self) -> Option<MoveTokenHashed> {
         match &self {
             ChannelStatus::Inconsistent(channel_inconsistent) => 
@@ -68,7 +68,7 @@ pub struct FriendState<A> {
     pub remote_public_key: PublicKey,
     pub remote_address: A, 
     pub name: String,
-    pub channel_status: ChannelStatus,
+    pub channel_status: ChannelStatus<A>,
     pub wanted_remote_max_debt: u128,
     pub wanted_local_requests_status: RequestsStatus,
     pub pending_requests: Vector<RequestSendFunds>,

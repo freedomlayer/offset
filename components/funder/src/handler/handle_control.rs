@@ -6,6 +6,7 @@ use crypto::crypto_rand::{RandValue, CryptoRandom};
 use crate::friend::{FriendMutation, ChannelStatus};
 use crate::state::{FunderMutation};
 
+use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::{FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel, SetFriendInfo, 
     AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus,
@@ -41,7 +42,7 @@ pub enum HandleControlError {
 #[allow(unused)]
 impl<A, R> MutableFunderHandler<A,R> 
 where
-    A: Clone + Debug + 'static + PartialEq + Eq,
+    A: CanonicalSerialize + Clone + Debug + 'static + PartialEq + Eq,
     R: CryptoRandom + 'static,
 {
 

@@ -15,6 +15,7 @@ use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
 
+use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::FunderOutgoingControl;
 
 use super::state::{FunderState, FunderMutation};
@@ -60,7 +61,7 @@ pub struct MutableFunderHandler<A:Clone,R> {
 
 impl<A,R> MutableFunderHandler<A,R> 
 where
-    A: Clone + Debug + PartialEq + Eq + 'static,
+    A: CanonicalSerialize + Clone + Debug + PartialEq + Eq + 'static,
 {
     /*
     pub fn state(&self) -> &FunderState<A> {
@@ -199,7 +200,7 @@ pub async fn funder_handle_message<A,R>(
                       funder_incoming: FunderIncoming<A>) 
         -> Result<FunderHandlerOutput<A>, FunderHandlerError> 
 where
-    A: Clone + Debug + PartialEq + Eq + 'static,
+    A: CanonicalSerialize + Clone + Debug + PartialEq + Eq + 'static,
     R: CryptoRandom + 'static,
 {
 

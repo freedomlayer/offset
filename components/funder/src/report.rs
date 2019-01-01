@@ -69,8 +69,8 @@ impl From<&MoveTokenHashed> for MoveTokenHashedReport {
     }
 }
 
-impl From<&TokenChannel> for TcReport {
-    fn from(token_channel: &TokenChannel) -> TcReport {
+impl<A> From<&TokenChannel<A>> for TcReport {
+    fn from(token_channel: &TokenChannel<A>) -> TcReport {
         let direction = match token_channel.get_direction() {
             TcDirection::Incoming(_) => DirectionReport::Incoming,
             TcDirection::Outgoing(_) => DirectionReport::Outgoing,
@@ -86,8 +86,8 @@ impl From<&TokenChannel> for TcReport {
     }
 }
 
-impl From<&ChannelStatus> for ChannelStatusReport {
-    fn from(channel_status: &ChannelStatus) -> ChannelStatusReport {
+impl<A> From<&ChannelStatus<A>> for ChannelStatusReport {
+    fn from(channel_status: &ChannelStatus<A>) -> ChannelStatusReport {
         match channel_status {
             ChannelStatus::Inconsistent(channel_inconsistent) => {
                 let opt_remote_reset_terms = channel_inconsistent.opt_remote_reset_terms

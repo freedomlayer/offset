@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use crypto::crypto_rand::CryptoRandom;
 
+use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::{FriendMessage, FriendStatus};
 
 use crate::handler::MutableFunderHandler;
@@ -21,7 +22,7 @@ pub enum HandleLivenessError {
 #[allow(unused)]
 impl<A,R> MutableFunderHandler<A,R> 
 where
-    A: Clone + Debug + PartialEq + Eq + 'static,
+    A: CanonicalSerialize + Clone + Debug + PartialEq + Eq + 'static,
     R: CryptoRandom + 'static,
 {
 

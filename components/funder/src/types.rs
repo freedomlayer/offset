@@ -2,11 +2,13 @@ use crypto::identity::{PublicKey, Signature};
 use crypto::crypto_rand::RandValue;
 use crypto::hash::HashResult;
 
+use common::canonical_serialize::CanonicalSerialize;
+
 use proto::funder::messages::{RequestSendFunds, MoveToken, FriendMessage,
     FriendTcOp, PendingRequest, FunderIncomingControl, 
     FunderOutgoingControl};
 
-use proto::funder::signature_buff::{operations_hash, 
+use proto::funder::signature_buff::{operations_hash, local_address_hash,
     friend_move_token_signature_buff};
 
 use identity::IdentityClient;
@@ -29,6 +31,7 @@ pub fn create_pending_request(request_send_funds: &RequestSendFunds) -> PendingR
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveTokenHashed {
     pub operations_hash: HashResult,
+    pub local_address_hash: HashResult,
     pub old_token: Signature,
     pub inconsistency_counter: u64,
     pub move_token_counter: u128,
@@ -40,7 +43,8 @@ pub struct MoveTokenHashed {
 }
 
 
-pub async fn create_friend_move_token(operations: Vec<FriendTcOp>,
+pub async fn create_friend_move_token<A>(operations: Vec<FriendTcOp>,
+                 opt_local_address: Option<A>,
                  old_token: Signature,
                  inconsistency_counter: u64,
                  move_token_counter: u128,
@@ -48,10 +52,14 @@ pub async fn create_friend_move_token(operations: Vec<FriendTcOp>,
                  local_pending_debt: u128,
                  remote_pending_debt: u128,
                  rand_nonce: RandValue,
-                 identity_client: IdentityClient) -> MoveToken {
+                 identity_client: IdentityClient) -> MoveToken<A> 
+where   
+    A: CanonicalSerialize,
+{
 
     let mut friend_move_token = MoveToken {
         operations,
+        opt_local_address,
         old_token,
         inconsistency_counter,
         move_token_counter,
@@ -71,9 +79,10 @@ pub async fn create_friend_move_token(operations: Vec<FriendTcOp>,
 /// Create a hashed version of the MoveToken.
 /// Hashed version contains the hash of the operations instead of the operations themselves,
 /// hence it is usually shorter.
-pub fn create_hashed(friend_move_token: &MoveToken) -> MoveTokenHashed {
+pub fn create_hashed<A>(friend_move_token: &MoveToken<A>) -> MoveTokenHashed {
     MoveTokenHashed {
         operations_hash: operations_hash(friend_move_token),
+        local_address_hash: local_address_hash(friend_move_token),
         old_token: friend_move_token.old_token.clone(),
         inconsistency_counter: friend_move_token.inconsistency_counter,
         move_token_counter: friend_move_token.move_token_counter,
@@ -114,9 +123,9 @@ pub enum ChannelerConfig<A> {
 }
 
 #[derive(Debug, Clone)]
-pub enum FunderIncomingComm {
+pub enum FunderIncomingComm<A> {
     Liveness(IncomingLivenessMessage),
-    Friend((PublicKey, FriendMessage)),
+    Friend((PublicKey, FriendMessage<A>)),
 }
 
 /// An incoming message to the Funder:
@@ -124,7 +133,7 @@ pub enum FunderIncomingComm {
 pub enum FunderIncoming<A> {
     Init,
     Control(FunderIncomingControl<A>),
-    Comm(FunderIncomingComm),
+    Comm(FunderIncomingComm<A>),
 }
 
 #[allow(unused)]
@@ -136,6 +145,6 @@ pub enum FunderOutgoing<A: Clone> {
 
 #[derive(Debug)]
 pub enum FunderOutgoingComm<A> {
-    FriendMessage((PublicKey, FriendMessage)),
+    FriendMessage((PublicKey, FriendMessage<A>)),
     ChannelerConfig(ChannelerConfig<A>),
 }

@@ -3,6 +3,7 @@ use crypto::hash::{self, sha_512_256, HashResult};
 use crypto::identity::{verify_signature, PublicKey};
 
 use common::int_convert::usize_to_u64;
+use common::canonical_serialize::CanonicalSerialize;
 
 use super::messages::{ResponseSendFunds, FailureSendFunds, 
     SendFundsReceipt, PendingRequest, MoveToken};
@@ -108,7 +109,7 @@ pub fn verify_receipt(receipt: &SendFundsReceipt,
 const TOKEN_NEXT: &[u8] = b"NEXT";
 
 /// Combine all operations into one hash value.
-pub fn operations_hash(friend_move_token: &MoveToken) -> HashResult {
+pub fn operations_hash<A>(friend_move_token: &MoveToken<A>) -> HashResult {
     let mut operations_data = Vec::new();
     operations_data.write_u64::<BigEndian>(
         usize_to_u64(friend_move_token.operations.len()).unwrap()).unwrap();
@@ -118,10 +119,22 @@ pub fn operations_hash(friend_move_token: &MoveToken) -> HashResult {
     sha_512_256(&operations_data)
 }
 
-pub fn friend_move_token_signature_buff(friend_move_token: &MoveToken) -> Vec<u8> {
+/// Combine all operations into one hash value.
+pub fn local_address_hash<A>(friend_move_token: &MoveToken<A>) -> HashResult 
+where
+    A: CanonicalSerialize,
+{
+    sha_512_256(&friend_move_token.opt_local_address.canonical_serialize())
+}
+
+pub fn friend_move_token_signature_buff<A>(friend_move_token: &MoveToken<A>) -> Vec<u8> 
+where
+    A: CanonicalSerialize,
+{
     let mut sig_buffer = Vec::new();
     sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
     sig_buffer.extend_from_slice(&operations_hash(friend_move_token));
+    sig_buffer.extend_from_slice(&local_address_hash(friend_move_token));
     sig_buffer.extend_from_slice(&friend_move_token.old_token);
     sig_buffer.write_u64::<BigEndian>(friend_move_token.inconsistency_counter).unwrap();
     sig_buffer.write_u128::<BigEndian>(friend_move_token.move_token_counter).unwrap();
@@ -134,7 +147,10 @@ pub fn friend_move_token_signature_buff(friend_move_token: &MoveToken) -> Vec<u8
 }
 
 /// Verify that new_token is a valid signature over the rest of the fields.
-pub fn verify_friend_move_token(friend_move_token: &MoveToken, public_key: &PublicKey) -> bool {
+pub fn verify_friend_move_token<A>(friend_move_token: &MoveToken<A>, public_key: &PublicKey) -> bool 
+where
+    A: CanonicalSerialize,
+{
     let sig_buffer = friend_move_token_signature_buff(friend_move_token);
     verify_signature(&sig_buffer, public_key, &friend_move_token.new_token)
 }

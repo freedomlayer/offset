@@ -7,6 +7,8 @@ use crypto::hash::sha_512_256;
 
 use identity::IdentityClient;
 
+use common::canonical_serialize::CanonicalSerialize;
+
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds,
     FailureSendFunds, MoveToken, FreezeLink, FriendMessage,
     MoveTokenRequest, ResetTerms, PendingRequest, ResponseReceived,
@@ -87,7 +89,7 @@ pub async fn get_reset_terms(token_channel: &TokenChannel,
 #[allow(unused)]
 impl<A,R> MutableFunderHandler<A,R> 
 where
-    A: Clone + Debug + Eq + PartialEq + 'static,
+    A: CanonicalSerialize + Clone + Debug + Eq + PartialEq + 'static,
     R: CryptoRandom + 'static,
 {
 

@@ -41,16 +41,16 @@ use crate::types::{ChannelerConfig, FunderOutgoingComm, FunderIncomingComm,
 const CHANNEL_SIZE: usize = 64;
 
 #[derive(Debug)]
-struct Node {
+struct Node<A> {
     friends: HashSet<PublicKey>,
-    comm_out: mpsc::Sender<FunderIncomingComm>,
+    comm_out: mpsc::Sender<FunderIncomingComm<A>>,
 }
 
 #[derive(Debug)]
 struct NewNode<A> {
     public_key: PublicKey,
     comm_in: mpsc::Receiver<FunderOutgoingComm<A>>,
-    comm_out: mpsc::Sender<FunderIncomingComm>,
+    comm_out: mpsc::Sender<FunderIncomingComm<A>>,
 }
 
 #[derive(Debug)]

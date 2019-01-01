@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use crypto::identity::{PublicKey, Signature};
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
+use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::{RequestSendFunds, FailureSendFunds,
                               PendingRequest, ResponseReceived,
                               ResponseSendFundsResult, FunderOutgoingControl};
@@ -23,7 +24,7 @@ use crate::freeze_guard::FreezeGuardMutation;
 #[allow(unused)]
 impl<A,R> MutableFunderHandler<A,R> 
 where
-    A: Clone + Debug + PartialEq + Eq + 'static,
+    A: CanonicalSerialize + Clone + Debug + PartialEq + Eq + 'static,
     R: CryptoRandom + 'static,
 {
 
