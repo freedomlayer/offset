@@ -57,7 +57,7 @@ where
             await!(self.req_sender.send(conn_request)).unwrap();
             await!(response_receiver).unwrap()
         };
-        Box::pinned(fut_conn_pair)
+        Box::pin(fut_conn_pair)
     }
 }
 

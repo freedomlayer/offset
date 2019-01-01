@@ -204,14 +204,14 @@ where
         let (sfs_cancel_sender, sfs_cancel_receiver) = oneshot::channel::<()>();
         let (sfs_done_sender, sfs_done_receiver) = oneshot::channel::<()>();
 
-        // TODO: Can we remove the Box::pinned() from here? How?
-        let connect_fut = Box::pinned(async move {
+        // TODO: Can we remove the Box::pin() from here? How?
+        let connect_fut = Box::pin(async move {
             let res = await!(c_index_client_session.transform(server_address))?;
             let (control_sender, close_receiver) = res;
 
             let c_control_sender = control_sender.clone();
             let send_full_state_cancellable_fut = async move {
-                let send_full_state_fut = Box::pinned(
+                let send_full_state_fut = Box::pin(
                     send_full_state(c_seq_friends_client, c_control_sender)
                         .map_err(|e| warn!("Error in send_full_state(): {:?}", e))
                         .map(|_| {

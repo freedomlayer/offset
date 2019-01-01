@@ -167,7 +167,7 @@ where
         let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(0);
         let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(0);
 
-        Box::pinned(async move {
+        Box::pin(async move {
             let timer_stream = await!(self.timer_client.request_timer_stream()).unwrap();
             let keepalive_fut = inner_keepalive_loop(to_remote, from_remote,
                                     to_user, from_user,

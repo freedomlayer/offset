@@ -79,7 +79,7 @@ where
         let (relay_address, remote_public_key) = input;
         let relay_connect = self.relay_connect(relay_address, remote_public_key)
             .map(|res| res.ok());
-        Box::pinned(relay_connect)
+        Box::pin(relay_connect)
     }
 }
 
