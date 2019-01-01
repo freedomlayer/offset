@@ -8,7 +8,7 @@ use proto::funder::messages::{RequestSendFunds, MoveToken, FriendMessage,
     FriendTcOp, PendingRequest, FunderIncomingControl, 
     FunderOutgoingControl};
 
-use proto::funder::signature_buff::{operations_hash, local_address_hash,
+use proto::funder::signature_buff::{prefix_hash,
     friend_move_token_signature_buff};
 
 use identity::IdentityClient;
@@ -30,9 +30,8 @@ pub fn create_pending_request(request_send_funds: &RequestSendFunds) -> PendingR
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveTokenHashed {
-    pub operations_hash: HashResult,
-    pub local_address_hash: HashResult,
-    pub old_token: Signature,
+    /// Hash of operations and local_address
+    pub prefix_hash: HashResult,
     pub inconsistency_counter: u64,
     pub move_token_counter: u128,
     pub balance: i128,
@@ -79,11 +78,12 @@ where
 /// Create a hashed version of the MoveToken.
 /// Hashed version contains the hash of the operations instead of the operations themselves,
 /// hence it is usually shorter.
-pub fn create_hashed<A>(friend_move_token: &MoveToken<A>) -> MoveTokenHashed {
+pub fn create_hashed<A>(friend_move_token: &MoveToken<A>) -> MoveTokenHashed 
+where
+    A: CanonicalSerialize,
+{
     MoveTokenHashed {
-        operations_hash: operations_hash(friend_move_token),
-        local_address_hash: local_address_hash(friend_move_token),
-        old_token: friend_move_token.old_token.clone(),
+        prefix_hash: prefix_hash(friend_move_token),
         inconsistency_counter: friend_move_token.inconsistency_counter,
         move_token_counter: friend_move_token.move_token_counter,
         balance: friend_move_token.balance,

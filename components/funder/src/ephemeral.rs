@@ -2,6 +2,8 @@ use super::freeze_guard::{FreezeGuard, FreezeGuardMutation};
 use super::liveness::{Liveness, LivenessMutation};
 use super::state::FunderState;
 
+use common::canonical_serialize::CanonicalSerialize;
+
 #[derive(Clone)]
 pub struct Ephemeral {
     pub freeze_guard: FreezeGuard,
@@ -15,7 +17,10 @@ pub enum EphemeralMutation {
 }
 
 impl Ephemeral {
-    pub fn new<A: Clone>(funder_state: &FunderState<A>) -> Ephemeral {
+    pub fn new<A>(funder_state: &FunderState<A>) -> Ephemeral 
+    where
+        A: CanonicalSerialize + Clone,
+    {
         Ephemeral {
             freeze_guard: FreezeGuard::new(&funder_state.local_public_key)
                 .load_funder_state(funder_state),

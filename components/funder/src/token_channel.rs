@@ -80,7 +80,6 @@ pub struct MoveTokenReceived<A> {
     pub incoming_messages: Vec<IncomingMessage>,
     pub mutations: Vec<TcMutation<A>>,
     pub remote_requests_closed: bool,
-    pub local_address: Option<A>,
 }
 
 
@@ -143,7 +142,7 @@ fn initial_move_token<A>(low_public_key: &PublicKey,
 
 impl<A> TokenChannel<A> 
 where
-    A: Clone + CanonicalSerialize,
+    A: CanonicalSerialize + Clone,
 {
     pub fn new(local_public_key: &PublicKey, 
                remote_public_key: &PublicKey,
@@ -166,7 +165,7 @@ where
             // We are the second sender
             let tc_incoming = TcIncoming {
                 mutual_credit,
-                move_token_in: create_hashed(&initial_move_token(remote_public_key, local_public_key, 
+                move_token_in: create_hashed::<A>(&initial_move_token(remote_public_key, local_public_key, 
                                                   balance.checked_neg().unwrap())),
             };
             TokenChannel {
@@ -334,7 +333,10 @@ impl TcIncoming {
     /// Handle an incoming move token during Incoming direction:
     fn handle_incoming<A>(&self, 
                         new_move_token: MoveToken<A>) 
-        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> {
+        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> 
+    where
+        A: CanonicalSerialize,
+    {
 
         // We compare the whole move token message and not just the signature (new_token)
         // because we don't check the signature in this flow.
@@ -380,11 +382,18 @@ impl TcIncoming {
 
 
 
-impl<A> TcOutgoing<A> {
+impl<A> TcOutgoing<A> 
+where
+    A: Clone,
+{
     /// Handle an incoming move token during Outgoing direction:
     fn handle_incoming(&self, 
                         new_move_token: MoveToken<A>) 
-        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> {
+        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> 
+
+    where
+        A: CanonicalSerialize,
+    {
 
         if &new_move_token.old_token == &self.move_token_out.new_token {
             self.handle_incoming_token_match(new_move_token)
@@ -399,7 +408,10 @@ impl<A> TcOutgoing<A> {
 
     fn handle_incoming_token_match(&self,
                                    new_move_token: MoveToken<A>)
-        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> {
+        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> 
+    where
+        A: CanonicalSerialize,
+    {
 
         // Verify signature:
         // Note that we only verify the signature here, and not at the Incoming part.
@@ -514,8 +526,8 @@ mod tests {
     fn test_initial_direction() {
         let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
         let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
-        let token_channel_a_b = TokenChannel::new(&pk_a, &pk_b, 0i128);
-        let token_channel_b_a = TokenChannel::new(&pk_b, &pk_a, 0i128);
+        let token_channel_a_b = TokenChannel::<u32>::new(&pk_a, &pk_b, 0i128);
+        let token_channel_b_a = TokenChannel::<u32>::new(&pk_b, &pk_a, 0i128);
 
         // Only one of those token channels is outgoing:
         let is_a_b_outgoing = token_channel_a_b.is_outgoing();
@@ -541,7 +553,7 @@ mod tests {
     fn test_set_token_wanted() {
         let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
         let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
-        let token_channel_a_b = TokenChannel::new(&pk_a, &pk_b, 0i128);
+        let token_channel_a_b = TokenChannel::<u32>::new(&pk_a, &pk_b, 0i128);
         let token_channel_b_a = TokenChannel::new(&pk_b, &pk_a, 0i128);
 
         // Only one of those token channels is outgoing:
@@ -582,7 +594,7 @@ mod tests {
 
         let pk1 = await!(identity_client1.request_public_key()).unwrap();
         let pk2 = await!(identity_client2.request_public_key()).unwrap();
-        let token_channel12 = TokenChannel::new(&pk1, &pk2, 0i128); // (local, remote)
+        let token_channel12 = TokenChannel::<u32>::new(&pk1, &pk2, 0i128); // (local, remote)
         if token_channel12.is_outgoing() {
             (identity_client1, identity_client2)
         } else {
@@ -613,7 +625,9 @@ mod tests {
 
 
         let rand_nonce = RandValue::from(&[5; RAND_VALUE_LEN]);
+        let opt_local_address = None;
         let friend_move_token = await!(tc2_incoming.create_friend_move_token(operations, 
+                                                    opt_local_address,
                                                     rand_nonce, 
                                                     identity_client2.clone()));
 

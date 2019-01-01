@@ -20,6 +20,7 @@ use proto::funder::messages::{FunderIncomingControl,
 
 
 use common::int_convert::usize_to_u32;
+use common::canonical_serialize::CanonicalSerialize;
 
 use identity::{create_identity, IdentityClient};
 
@@ -59,7 +60,7 @@ enum RouterEvent<A> {
     OutgoingComm((PublicKey, FunderOutgoingComm<A>)), // (src_public_key, outgoing_comm)
 }
 
-async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, Node>, 
+async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, Node<A>>, 
                                         src_public_key: PublicKey,
                                         outgoing_comm: FunderOutgoingComm<A>) {
     match outgoing_comm {
@@ -113,7 +114,7 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
 /// Simulates the Channeler interface
 async fn router<A: Send + 'static + std::fmt::Debug>(incoming_new_node: mpsc::Receiver<NewNode<A>>, 
                                                      mut spawner: impl Spawn + Clone) {
-    let mut nodes: HashMap<PublicKey, Node> = HashMap::new();
+    let mut nodes: HashMap<PublicKey, Node<A>> = HashMap::new();
     let (comm_sender, comm_receiver) = mpsc::channel::<(PublicKey, FunderOutgoingComm<A>)>(0);
 
     let incoming_new_node = incoming_new_node
@@ -155,7 +156,10 @@ impl<A: Clone + std::fmt::Debug> MockDb<A> {
     }
 }
 
-impl<A: Clone + 'static + std::fmt::Debug> AtomicDb for MockDb<A> {
+impl<A> AtomicDb for MockDb<A> 
+where
+    A: CanonicalSerialize + Clone + 'static + std::fmt::Debug,
+{
     type State = FunderState<A>;
     type Mutation = FunderMutation<A>;
     type Error = ();

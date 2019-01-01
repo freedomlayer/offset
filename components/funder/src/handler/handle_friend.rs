@@ -68,8 +68,11 @@ pub async fn calc_channel_reset_token(new_token: &Signature,
     await!(identity_client.request_signature(sig_buffer)).unwrap()
 }
 
-pub async fn get_reset_terms(token_channel: &TokenChannel, 
-                             identity_client: IdentityClient) -> ResetTerms {
+pub async fn get_reset_terms<A>(token_channel: &TokenChannel<A>, 
+                             identity_client: IdentityClient) -> ResetTerms 
+where
+    A: CanonicalSerialize + Clone,
+{
     // We add 2 for the new counter in case 
     // the remote side has already used the next counter.
     let reset_token = await!(calc_channel_reset_token(
@@ -98,7 +101,7 @@ where
     pub fn try_reset_channel(&mut self, 
                            friend_public_key: &PublicKey,
                            local_reset_terms: &ResetTerms,
-                           friend_move_token: &MoveToken) {
+                           friend_move_token: &MoveToken<A>) {
 
         // Check if incoming message is an attempt to reset channel.
         // We can know this by checking if old_token is a special value.
@@ -382,7 +385,7 @@ where
     /// Handle success with incoming move token.
     async fn handle_move_token_success(&mut self,
                                remote_public_key: PublicKey,
-                               receive_move_token_output: ReceiveMoveTokenOutput,
+                               receive_move_token_output: ReceiveMoveTokenOutput<A>,
                                token_wanted: bool) {
 
         match receive_move_token_output {
@@ -398,6 +401,15 @@ where
                 // Apply all mutations:
                 for tc_mutation in mutations {
                     let friend_mutation = FriendMutation::TcMutation(tc_mutation);
+                    let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+                    self.apply_funder_mutation(funder_mutation);
+                }
+
+                // If address update was pending, we can clear it, as this is a proof that the
+                // remote side has received our update:
+                let friend = self.get_friend(&remote_public_key).unwrap();
+                if friend.opt_prev_local_address.is_some() {
+                    let friend_mutation = FriendMutation::SetPrevLocalAddress(None);
                     let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
                     self.apply_funder_mutation(funder_mutation);
                 }
@@ -423,7 +435,7 @@ where
 
     async fn handle_move_token_request(&mut self, 
                          remote_public_key: PublicKey,
-                         friend_move_token_request: MoveTokenRequest) -> Result<(),HandleFriendError> {
+                         friend_move_token_request: MoveTokenRequest<A>) -> Result<(), HandleFriendError> {
 
         /*
         println!("{}: handle_move_token_request from {}", 
@@ -527,7 +539,7 @@ where
 
     pub async fn handle_friend_message(&mut self, 
                                    remote_public_key: PublicKey, 
-                                   friend_message: FriendMessage)
+                                   friend_message: FriendMessage<A>)
                                         -> Result<(), HandleFriendError> {
 
         // Make sure that friend exists:

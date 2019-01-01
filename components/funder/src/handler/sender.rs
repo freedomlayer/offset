@@ -137,7 +137,26 @@ where
     async fn send_friend_move_token<'a>(&'a mut self,
                            remote_public_key: &'a PublicKey,
                            operations: Vec<FriendTcOp>,
+                           opt_local_address: Option<A>,
                            mc_mutations: Vec<McMutation>) {
+
+
+        if let Some(local_address) = opt_local_address {
+            let friend = self.get_friend(remote_public_key).unwrap();
+            // We have the token, so `friend.prev_local_address` should be empty by now:
+            assert!(friend.opt_prev_local_address.is_none());
+
+            if let Some(last_sent_local_address) = friend.opt_local_address {
+                let prev_local_address = last_sent_local_address.clone();
+                let friend_mutation = FriendMutation::SetPrevLocalAddress(Some(prev_local_address));
+                let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+                self.apply_funder_mutation(funder_mutation);
+            }
+
+            let friend_mutation = FriendMutation::SetLocalAddress(local_address);
+            let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+            self.apply_funder_mutation(funder_mutation);
+        }
 
         for mc_mutation in mc_mutations {
             let tc_mutation = TcMutation::McMutation(mc_mutation);
@@ -172,6 +191,7 @@ where
         };
 
         let friend_move_token = await!(tc_incoming.create_friend_move_token(operations, 
+                                             opt_local_address,
                                              rand_nonce,
                                              self.identity_client.clone()));
 
@@ -234,10 +254,30 @@ where
         }
         let (operations, mc_mutations) = outgoing_mc.done();
 
+        let opt_local_address = match self.state.opt_address {
+            Some(local_address) => {
+                match friend.opt_local_address {
+                    Some(last_sent_local_address) => {
+                        if last_sent_local_address != local_address {
+                            // Address should be updated:
+                            Some(local_address.clone())
+                        } else {
+                            None
+                        }
+                    },
+                    // Never sent a local address:
+                    None => Some(local_address.clone()),
+                }
+            },
+            None => None,
+        };
+
         let may_send_empty = if let SendMode::EmptyAllowed = send_mode {true} else {false};
         if may_send_empty || !operations.is_empty() {
             await!(self.send_friend_move_token(remote_public_key, 
-                                               operations, mc_mutations));
+                                               operations, 
+                                               opt_local_address,
+                                               mc_mutations));
             true
         } else {
             false

@@ -99,9 +99,11 @@ where
 
         let local_pending_debt = 0;
         let remote_pending_debt = 0;
+        let opt_local_address = None;
         let friend_move_token = await!(create_friend_move_token(
             // No operations are required for a reset move token
             Vec::new(), 
+            opt_local_address,
             remote_reset_terms.reset_token.clone(),
             remote_reset_terms.inconsistency_counter,
             move_token_counter,

@@ -8,8 +8,7 @@ use crate::funder::messages::{RequestsStatus, FriendStatus};
 
 #[derive(Clone, Debug)]
 pub struct MoveTokenHashedReport {
-    pub operations_hash: HashResult,
-    pub old_token: Signature,
+    pub prefix_hash: HashResult,
     pub inconsistency_counter: u64,
     pub move_token_counter: u128,
     pub balance: i128,

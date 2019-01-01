@@ -10,6 +10,7 @@ use crypto::uid::Uid;
 use proto::funder::messages::{Ratio, SendFundsReceipt, AddFriend};
 
 use common::int_convert::usize_to_u64;
+use common::canonical_serialize::CanonicalSerialize;
 
 use crate::friend::{FriendState, FriendMutation};
 
@@ -36,7 +37,10 @@ pub enum FunderMutation<A> {
 
 
 #[allow(unused)]
-impl<A:Clone + 'static> FunderState<A> {
+impl<A> FunderState<A> 
+where
+    A: CanonicalSerialize + Clone + 'static,
+{
     pub fn new(local_public_key: &PublicKey, opt_address: Option<&A>) -> FunderState<A> {
         FunderState {
             local_public_key: local_public_key.clone(),

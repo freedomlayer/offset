@@ -9,6 +9,8 @@ use serde::de::DeserializeOwned;
 use serde_json;
 use atomicwrites;
 
+use common::canonical_serialize::CanonicalSerialize;
+
 use crate::state::{FunderMutation, FunderState};
 use crate::database::atomic_db::AtomicDb;
 
@@ -67,7 +69,10 @@ impl<A: Clone + Serialize + DeserializeOwned + 'static> FileDb<A> {
 
 
 #[allow(unused)]
-impl<A: Clone + Serialize + DeserializeOwned + 'static> AtomicDb for FileDb<A> {
+impl<A> AtomicDb for FileDb<A> 
+where
+    A: CanonicalSerialize + Clone + Serialize + DeserializeOwned + 'static,
+{
     type State = FunderState<A>;
     type Mutation = FunderMutation<A>;
     type Error = FileDbError;

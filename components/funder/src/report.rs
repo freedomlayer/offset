@@ -3,6 +3,7 @@ use im::hashmap::HashMap as ImHashMap;
 
 use common::int_convert::usize_to_u64;
 use common::safe_arithmetic::{SafeUnsignedArithmetic};
+use common::canonical_serialize::CanonicalSerialize;
 
 use crypto::identity::PublicKey;
 
@@ -56,8 +57,7 @@ impl From<&McBalance> for McBalanceReport {
 impl From<&MoveTokenHashed> for MoveTokenHashedReport {
     fn from(move_token_hashed: &MoveTokenHashed) -> MoveTokenHashedReport {
         MoveTokenHashedReport {
-            operations_hash: move_token_hashed.operations_hash.clone(),
-            old_token: move_token_hashed.old_token.clone(),
+            prefix_hash: move_token_hashed.prefix_hash.clone(),
             inconsistency_counter: move_token_hashed.inconsistency_counter,
             move_token_counter: move_token_hashed.move_token_counter,
             balance: move_token_hashed.balance,
@@ -69,7 +69,10 @@ impl From<&MoveTokenHashed> for MoveTokenHashedReport {
     }
 }
 
-impl<A> From<&TokenChannel<A>> for TcReport {
+impl<A> From<&TokenChannel<A>> for TcReport 
+where
+    A: CanonicalSerialize + Clone,
+{
     fn from(token_channel: &TokenChannel<A>) -> TcReport {
         let direction = match token_channel.get_direction() {
             TcDirection::Incoming(_) => DirectionReport::Incoming,
@@ -86,7 +89,10 @@ impl<A> From<&TokenChannel<A>> for TcReport {
     }
 }
 
-impl<A> From<&ChannelStatus<A>> for ChannelStatusReport {
+impl<A> From<&ChannelStatus<A>> for ChannelStatusReport 
+where
+    A: CanonicalSerialize + Clone,
+{
     fn from(channel_status: &ChannelStatus<A>) -> ChannelStatusReport {
         match channel_status {
             ChannelStatus::Inconsistent(channel_inconsistent) => {
@@ -110,7 +116,10 @@ impl<A> From<&ChannelStatus<A>> for ChannelStatusReport {
     }
 }
 
-fn create_friend_report<A: Clone>(friend_state: &FriendState<A>, friend_liveness: &FriendLivenessReport) -> FriendReport<A> {
+fn create_friend_report<A>(friend_state: &FriendState<A>, friend_liveness: &FriendLivenessReport) -> FriendReport<A> 
+where
+    A: CanonicalSerialize + Clone,
+{
     let channel_status = ChannelStatusReport::from(&friend_state.channel_status);
 
     FriendReport {
@@ -130,7 +139,10 @@ fn create_friend_report<A: Clone>(friend_state: &FriendState<A>, friend_liveness
 }
 
 #[allow(unused)]
-pub fn create_report<A: Clone>(funder_state: &FunderState<A>, ephemeral: &Ephemeral) -> FunderReport<A> {
+pub fn create_report<A>(funder_state: &FunderState<A>, ephemeral: &Ephemeral) -> FunderReport<A> 
+where
+    A: CanonicalSerialize + Clone,
+{
     let mut friends = ImHashMap::new();
     for (friend_public_key, friend_state) in &funder_state.friends {
         let friend_liveness = match ephemeral.liveness.is_online(friend_public_key) {
@@ -150,8 +162,11 @@ pub fn create_report<A: Clone>(funder_state: &FunderState<A>, ephemeral: &Epheme
 }
 
 
-pub fn friend_mutation_to_report_mutations<A: Clone + 'static>(friend_mutation: &FriendMutation<A>,
-                                           friend: &FriendState<A>) -> Vec<FriendReportMutation<A>> {
+pub fn friend_mutation_to_report_mutations<A>(friend_mutation: &FriendMutation<A>,
+                                           friend: &FriendState<A>) -> Vec<FriendReportMutation<A>> 
+where
+    A: CanonicalSerialize + Clone + 'static,
+{
 
     let mut friend_after = friend.clone();
     friend_after.mutate(friend_mutation);
@@ -220,8 +235,11 @@ pub fn friend_mutation_to_report_mutations<A: Clone + 'static>(friend_mutation: 
 /// In the future if we simplify Funder's mutations, we might be able discard the `funder_state`
 /// argument here.
 #[allow(unused)]
-pub fn funder_mutation_to_report_mutations<A: Clone + 'static>(funder_mutation: &FunderMutation<A>,
-                                           funder_state: &FunderState<A>) -> Vec<FunderReportMutation<A>> {
+pub fn funder_mutation_to_report_mutations<A>(funder_mutation: &FunderMutation<A>,
+                                           funder_state: &FunderState<A>) -> Vec<FunderReportMutation<A>> 
+where
+    A: CanonicalSerialize + Clone + 'static,
+{
 
     let mut funder_state_after = funder_state.clone();
     funder_state_after.mutate(funder_mutation);

@@ -127,15 +127,33 @@ where
     sha_512_256(&friend_move_token.opt_local_address.canonical_serialize())
 }
 
+/// Hash operations and local_address:
+pub fn prefix_hash<A>(friend_move_token: &MoveToken<A>) -> HashResult 
+where
+    A: CanonicalSerialize,
+{
+    let mut hash_buff = Vec::new();
+
+    hash_buff.extend_from_slice(&friend_move_token.old_token);
+
+    // TODO; Use CanonicalSerialize instead here:
+    hash_buff.write_u64::<BigEndian>(
+        usize_to_u64(friend_move_token.operations.len()).unwrap()).unwrap();
+    for op in &friend_move_token.operations {
+        hash_buff.extend_from_slice(&op.to_bytes());
+    }
+
+    hash_buff.extend_from_slice(&friend_move_token.opt_local_address.canonical_serialize());
+    sha_512_256(&hash_buff)
+}
+
 pub fn friend_move_token_signature_buff<A>(friend_move_token: &MoveToken<A>) -> Vec<u8> 
 where
     A: CanonicalSerialize,
 {
     let mut sig_buffer = Vec::new();
     sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
-    sig_buffer.extend_from_slice(&operations_hash(friend_move_token));
-    sig_buffer.extend_from_slice(&local_address_hash(friend_move_token));
-    sig_buffer.extend_from_slice(&friend_move_token.old_token);
+    sig_buffer.extend_from_slice(&prefix_hash(friend_move_token));
     sig_buffer.write_u64::<BigEndian>(friend_move_token.inconsistency_counter).unwrap();
     sig_buffer.write_u128::<BigEndian>(friend_move_token.move_token_counter).unwrap();
     sig_buffer.write_i128::<BigEndian>(friend_move_token.balance).unwrap();
