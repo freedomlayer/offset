@@ -40,7 +40,8 @@ pub enum FriendMutation<A> {
     PushBackPendingUserRequest(RequestSendFunds),
     PopFrontPendingUserRequest,
     SetStatus(FriendStatus),
-    SetFriendInfo((A, String)),     // (Address, Name)
+    SetRemoteAddress(A),
+    SetName(String),
     SetSentLocalAddress(SentLocalAddress<A>),
     LocalReset(MoveToken<A>),
     // The outgoing move token message we have sent to reset the channel.
@@ -192,8 +193,10 @@ where
             FriendMutation::SetStatus(friend_status) => {
                 self.status = friend_status.clone();
             },
-            FriendMutation::SetFriendInfo((friend_addr, friend_name)) => {
+            FriendMutation::SetRemoteAddress(friend_addr) => {
                 self.remote_address = friend_addr.clone();
+            },
+            FriendMutation::SetName(friend_name) => {
                 self.name = friend_name.clone();
             },
             FriendMutation::SetSentLocalAddress(sent_local_address) => {

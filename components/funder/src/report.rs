@@ -142,7 +142,7 @@ where
     let channel_status = ChannelStatusReport::from(&friend_state.channel_status);
 
     FriendReport {
-        address: friend_state.remote_address.clone(),
+        remote_address: friend_state.remote_address.clone(),
         name: friend_state.name.clone(),
         sent_local_address: (&friend_state.sent_local_address).into(),
         opt_last_incoming_move_token: friend_state.channel_status.get_last_incoming_move_token_hashed()
@@ -229,8 +229,10 @@ where
                     usize_to_u64(friend_after.pending_user_requests.len()).unwrap())],
         FriendMutation::SetStatus(friend_status) => 
             vec![FriendReportMutation::SetFriendStatus(FriendStatusReport::from(friend_status))],
-        FriendMutation::SetFriendInfo((address, name)) =>
-            vec![FriendReportMutation::SetFriendInfo((address.clone(), name.clone()))],
+        FriendMutation::SetRemoteAddress(remote_address) =>
+            vec![FriendReportMutation::SetRemoteAddress(remote_address.clone())],
+        FriendMutation::SetName(name) =>
+            vec![FriendReportMutation::SetName(name.clone())],
         FriendMutation::SetSentLocalAddress(sent_local_address) =>
             vec![FriendReportMutation::SetSentLocalAddress(sent_local_address.into())],
         FriendMutation::SetInconsistent(_) |
@@ -335,8 +337,10 @@ where
     A: Clone,
 {
     match mutation {
-        FriendReportMutation::SetFriendInfo((address, name)) => {
-            friend_report.address = address.clone();
+        FriendReportMutation::SetRemoteAddress(remote_address) => {
+            friend_report.remote_address = remote_address.clone();
+        },
+        FriendReportMutation::SetName(name) => {
             friend_report.name = name.clone();
         },
         FriendReportMutation::SetSentLocalAddress(sent_local_address_report) => {
@@ -386,7 +390,7 @@ where
         },
         FunderReportMutation::AddFriend(add_friend_report) => {
             let friend_report = FriendReport {
-                address: add_friend_report.address.clone(),
+                remote_address: add_friend_report.address.clone(),
                 name: add_friend_report.name.clone(),
                 sent_local_address: SentLocalAddressReport::NeverSent,
                 opt_last_incoming_move_token: add_friend_report.opt_last_incoming_move_token.clone(),

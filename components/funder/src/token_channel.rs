@@ -80,6 +80,7 @@ pub struct MoveTokenReceived<A> {
     pub incoming_messages: Vec<IncomingMessage>,
     pub mutations: Vec<TcMutation<A>>,
     pub remote_requests_closed: bool,
+    pub opt_local_address: Option<A>,
 }
 
 
@@ -488,6 +489,7 @@ where
                     mutations,
                     // Were the remote requests initially open and now it is closed?
                     remote_requests_closed: final_remote_requests && !initial_remote_requests,
+                    opt_local_address: new_move_token.opt_local_address.clone(),
                 };
 
                 Ok(ReceiveMoveTokenOutput::Received(move_token_received))

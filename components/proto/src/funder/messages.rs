@@ -408,10 +408,15 @@ pub struct SetFriendRemoteMaxDebt {
 }
 
 #[derive(Debug, Clone)]
-pub struct SetFriendInfo<A> {
+pub struct SetFriendName {
+    pub friend_public_key: PublicKey,
+    pub name: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SetFriendAddress<A> {
     pub friend_public_key: PublicKey,
     pub address: A,
-    pub name: String,
 }
 
 #[derive(Debug, Clone)]
@@ -445,7 +450,8 @@ pub enum FunderIncomingControl<A> {
     SetRequestsStatus(SetRequestsStatus),
     SetFriendStatus(SetFriendStatus),
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
-    SetFriendInfo(SetFriendInfo<A>),
+    SetFriendAddress(SetFriendAddress<A>),
+    SetFriendName(SetFriendName),
     ResetFriendChannel(ResetFriendChannel),
     RequestSendFunds(UserRequestSendFunds),
     ReceiptAck(ReceiptAck),

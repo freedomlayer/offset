@@ -102,7 +102,7 @@ pub enum ChannelStatusReport {
 
 #[derive(Clone, Debug)]
 pub struct FriendReport<A> {
-    pub address: A, 
+    pub remote_address: A, 
     pub name: String,
     pub sent_local_address: SentLocalAddressReport<A>,
     // Last message signed by the remote side. 
@@ -135,7 +135,8 @@ pub struct FunderReport<A: Clone> {
 #[allow(unused)]
 #[derive(Debug)]
 pub enum FriendReportMutation<A> {
-    SetFriendInfo((A, String)),
+    SetRemoteAddress(A),
+    SetName(String),
     SetSentLocalAddress(SentLocalAddressReport<A>),
     SetChannelStatus(ChannelStatusReport),
     SetWantedRemoteMaxDebt(u128),

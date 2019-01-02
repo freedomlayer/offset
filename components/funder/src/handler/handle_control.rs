@@ -8,7 +8,7 @@ use crate::state::{FunderMutation};
 
 use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::{FriendStatus, UserRequestSendFunds,
-    SetFriendRemoteMaxDebt, ResetFriendChannel, SetFriendInfo, 
+    SetFriendRemoteMaxDebt, ResetFriendChannel, SetFriendAddress, SetFriendName, 
     AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus,
     ReceiptAck, FunderIncomingControl, ResponseReceived, 
     FunderOutgoingControl, ResponseSendFundsResult};
@@ -228,31 +228,49 @@ where
         Ok(())
     }
 
-    fn control_set_friend_info(&mut self, set_friend_info: SetFriendInfo<A>) 
+    fn control_set_friend_address(&mut self, set_friend_address: SetFriendAddress<A>)
         -> Result<(), HandleControlError> {
 
         // Make sure that friend exists:
-        let friend = self.get_friend(&set_friend_info.friend_public_key)
+        let friend = self.get_friend(&set_friend_address.friend_public_key)
             .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-        let old_address = friend.remote_address.clone();
+        // If the newly proposed address is the same as the old one,
+        // we do nothing:
+        if set_friend_address.address == friend.remote_address {
+            return Ok(())
+        }
 
-        // TODO: Should we only apply mutation in case at least one of: address, name
-        // are different?
-
-        let friend_mutation = FriendMutation::SetFriendInfo(
-            (set_friend_info.address.clone(), set_friend_info.name.clone()));
+        let friend_mutation = FriendMutation::SetRemoteAddress(set_friend_address.address.clone());
         let m_mutation = FunderMutation::FriendMutation(
-            (set_friend_info.friend_public_key.clone(), friend_mutation));
+            (set_friend_address.friend_public_key.clone(), friend_mutation));
 
         self.apply_funder_mutation(m_mutation);
 
-        if set_friend_info.address != old_address {
-            // Notify Channeler to change the friend's address:
-            self.disable_friend(&set_friend_info.friend_public_key);
-            self.enable_friend(&set_friend_info.friend_public_key, 
-                               &set_friend_info.address);
+        // Notify Channeler to change the friend's address:
+        self.disable_friend(&set_friend_address.friend_public_key);
+        self.enable_friend(&set_friend_address.friend_public_key, 
+                           &set_friend_address.address);
+
+        Ok(())
+    }
+
+    fn control_set_friend_name(&mut self, set_friend_name: SetFriendName)
+        -> Result<(), HandleControlError> {
+
+        // Make sure that friend exists:
+        let friend = self.get_friend(&set_friend_name.friend_public_key)
+            .ok_or(HandleControlError::FriendDoesNotExist)?;
+
+        // If the newly proposed name is the same as the old one, we do nothing:
+        if friend.name == set_friend_name.name {
+            return Ok(())
         }
+
+        let friend_mutation = FriendMutation::SetName(set_friend_name.name);
+        let m_mutation = FunderMutation::FriendMutation(
+            (set_friend_name.friend_public_key.clone(), friend_mutation));
+        self.apply_funder_mutation(m_mutation);
 
         Ok(())
     }
@@ -424,8 +442,11 @@ where
             FunderIncomingControl::SetRequestsStatus(set_requests_status) => {
                 await!(self.control_set_requests_status(set_requests_status));
             },
-            FunderIncomingControl::SetFriendInfo(set_friend_info) => {
-                self.control_set_friend_info(set_friend_info);
+            FunderIncomingControl::SetFriendAddress(set_friend_address) => {
+                self.control_set_friend_address(set_friend_address);
+            },
+            FunderIncomingControl::SetFriendName(set_friend_name) => {
+                self.control_set_friend_name(set_friend_name);
             },
             FunderIncomingControl::RequestSendFunds(user_request_send_funds) => {
                 await!(self.control_request_send_funds(user_request_send_funds));

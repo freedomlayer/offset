@@ -396,8 +396,25 @@ where
                 self.transmit_outgoing(&remote_public_key);
             },
             ReceiveMoveTokenOutput::Received(move_token_received) => {
-                let MoveTokenReceived {incoming_messages, mutations, remote_requests_closed} = 
-                    move_token_received;
+                let MoveTokenReceived {
+                    incoming_messages, 
+                    mutations, 
+                    remote_requests_closed, 
+                    opt_local_address
+                } = move_token_received;
+
+                // Update address for remote side if necessary:
+                if let Some(new_remote_address) = opt_local_address {
+                    let friend = self.get_friend(&remote_public_key).unwrap();
+                    // Make sure that the newly sent remote address is different than the one we
+                    // already have:
+                    if friend.remote_address != new_remote_address {
+                        // Update remote address:
+                        let friend_mutation = FriendMutation::SetRemoteAddress(new_remote_address);
+                        let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+                        self.apply_funder_mutation(funder_mutation);
+                    }
+                }
 
                 // Apply all mutations:
                 for tc_mutation in mutations {
