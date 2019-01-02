@@ -16,7 +16,6 @@ use proto::funder::messages::{FriendStatus, UserRequestSendFunds,
 use super::MutableFunderHandler;
 use crate::types::{ChannelerConfig, FunderOutgoingComm,
     create_friend_move_token, ChannelerAddFriend};
-use crate::friend::SentLocalAddress;
 
 use super::sender::SendMode;
 
