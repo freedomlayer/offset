@@ -394,6 +394,8 @@ where
             ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token) => {
                 // Retransmit last sent token channel message:
                 self.transmit_outgoing(&remote_public_key);
+                // We should not send any new move token in this case:
+                return;
             },
             ReceiveMoveTokenOutput::Received(move_token_received) => {
                 let MoveTokenReceived {
