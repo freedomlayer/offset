@@ -26,6 +26,22 @@ pub enum SentLocalAddress<A> {
     LastSent(A),
 }
 
+impl<A> SentLocalAddress<A> 
+where
+    A: Clone,
+{
+    pub fn to_vec(&self) -> Vec<A> {
+        match self {
+            SentLocalAddress::NeverSent => Vec::new(),
+            SentLocalAddress::Transition((last_address, prev_last_address)) =>
+                vec![last_address.clone(), prev_last_address.clone()],
+            SentLocalAddress::LastSent(last_address) =>
+                vec![last_address.clone()],
+        }
+    }
+}
+
+
 #[allow(unused)]
 #[derive(Debug)]
 pub enum FriendMutation<A> {

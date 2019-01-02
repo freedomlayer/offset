@@ -110,7 +110,12 @@ pub struct FriendInconsistencyError {
     pub balance_for_reset: i128,
 }
 
-
+#[derive(Debug)]
+pub struct ChannelerAddFriend<A> {
+    pub friend_public_key: PublicKey,
+    pub friend_address: A,
+    pub local_addresses: Vec<A>,
+}
 
 #[derive(Debug)]
 pub enum ChannelerConfig<A> {
@@ -118,7 +123,7 @@ pub enum ChannelerConfig<A> {
     /// This is the address the Channeler will connect to 
     /// and listen for new connections
     SetAddress(Option<A>),
-    AddFriend((PublicKey, A)),
+    AddFriend(ChannelerAddFriend<A>),
     RemoveFriend(PublicKey),
 }
 

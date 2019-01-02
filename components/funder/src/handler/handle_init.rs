@@ -5,7 +5,7 @@ use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::FriendStatus;
 
 use crate::handler::MutableFunderHandler;
-use crate::types::{ChannelerConfig, FunderOutgoingComm};
+use crate::types::{ChannelerConfig, FunderOutgoingComm, ChannelerAddFriend};
 
 
 #[allow(unused)]
@@ -20,8 +20,12 @@ where
         for (friend_public_key, friend) in &self.state.friends {
             match friend.status {
                 FriendStatus::Enabled => {
-                    enabled_friends.push((friend.remote_public_key.clone(),
-                        friend.remote_address.clone()));
+                    let channeler_add_friend = ChannelerAddFriend {
+                        friend_public_key: friend.remote_public_key.clone(),
+                        friend_address: friend.remote_address.clone(),
+                        local_addresses: friend.sent_local_address.to_vec(),
+                    };
+                    enabled_friends.push(channeler_add_friend);
                 },
                 FriendStatus::Disabled => continue,
             };
@@ -39,6 +43,8 @@ where
 
         // Notify channeler about all enabled friends:
         for enabled_friend in enabled_friends {
+
+            // Notify Channeler:
             let channeler_config = ChannelerConfig::AddFriend(enabled_friend);
             self.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
         }
@@ -127,9 +133,9 @@ mod tests {
             _ => unreachable!(),
         };
         match channeler_config {
-            ChannelerConfig::AddFriend((pk, addr)) => {
-                assert_eq!(addr, 3u32);
-                assert_eq!(pk, pk_b);
+            ChannelerConfig::AddFriend(channeler_add_friend) => {
+                assert_eq!(channeler_add_friend.friend_address, 3u32);
+                assert_eq!(channeler_add_friend.friend_public_key, pk_b);
             },
             _ => unreachable!(),
         };

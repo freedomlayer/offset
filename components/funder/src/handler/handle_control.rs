@@ -15,7 +15,9 @@ use proto::funder::messages::{FriendStatus, UserRequestSendFunds,
 
 use super::MutableFunderHandler;
 use crate::types::{ChannelerConfig, FunderOutgoingComm,
-    create_friend_move_token};
+    create_friend_move_token, ChannelerAddFriend};
+use crate::friend::SentLocalAddress;
+
 use super::sender::SendMode;
 
 // TODO: Should be an argument of the Funder:
@@ -127,9 +129,15 @@ where
                      friend_public_key: &PublicKey,
                      friend_address: &A) {
 
+        let friend = self.get_friend(friend_public_key).unwrap();
+
         // Notify Channeler:
-        let channeler_config = ChannelerConfig::AddFriend(
-            (friend_public_key.clone(), friend_address.clone()));
+        let channeler_add_friend = ChannelerAddFriend {
+            friend_public_key: friend_public_key.clone(),
+            friend_address: friend_address.clone(),
+            local_addresses: friend.sent_local_address.to_vec(),
+        };
+        let channeler_config = ChannelerConfig::AddFriend(channeler_add_friend);
         self.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
 
     }
