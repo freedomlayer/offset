@@ -450,6 +450,7 @@ where
 
                 await!(self.handle_move_token_output(remote_public_key.clone(),
                                                incoming_messages));
+
             },
         }
         let send_mode = match token_wanted {true => SendMode::EmptyAllowed, false => SendMode::EmptyNotAllowed};
@@ -460,13 +461,6 @@ where
     async fn handle_move_token_request(&mut self, 
                          remote_public_key: PublicKey,
                          friend_move_token_request: MoveTokenRequest<A>) -> Result<(), HandleFriendError> {
-
-        /*
-        println!("{}: handle_move_token_request from {}", 
-                 self.state.local_public_key[0],
-                 remote_public_key[0]);
-        println!("\n{:?}", friend_move_token_request);
-        */
 
         // Find friend:
         let friend = match self.get_friend(&remote_public_key) {
@@ -496,7 +490,6 @@ where
                                              token_wanted));
             },
             Err(receive_move_token_error) => {
-                // println!("!!!! {:?}", receive_move_token_error);
                 await!(self.handle_move_token_error(remote_public_key,
                                              receive_move_token_error));
             },
