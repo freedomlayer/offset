@@ -140,7 +140,6 @@ where
                            opt_local_address: Option<A>,
                            mc_mutations: Vec<McMutation>) {
 
-
         if let Some(local_address) = &opt_local_address {
             let friend = self.get_friend(remote_public_key).unwrap();
 
