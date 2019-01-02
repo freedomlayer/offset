@@ -146,7 +146,7 @@ where
 
             let sent_local_address = match &friend.sent_local_address {
                 SentLocalAddress::NeverSent => SentLocalAddress::LastSent(local_address.clone()),
-                SentLocalAddress::Transition((last_address, prev_last_address)) => 
+                SentLocalAddress::Transition((_last_address, _prev_last_address)) => 
                     // We have the token, this means that there couldn't be a transition right now.
                     unreachable!(),
                 SentLocalAddress::LastSent(last_address) =>
@@ -254,12 +254,13 @@ where
         }
         let (operations, mc_mutations) = outgoing_mc.done();
 
+        // Check if notification about local address change is required:
         let opt_local_address = match &self.state.opt_address {
             Some(local_address) => {
                 let friend = self.get_friend(remote_public_key).unwrap();
                 match &friend.sent_local_address {
                     SentLocalAddress::NeverSent => Some(local_address.clone()),
-                    SentLocalAddress::Transition((last_address, prev_last_address)) => unreachable!(),
+                    SentLocalAddress::Transition((_last_address, _prev_last_address)) => unreachable!(),
                     SentLocalAddress::LastSent(last_address) => {
                         if last_address != local_address {
                             Some(local_address.clone())
