@@ -219,6 +219,7 @@ where
                 FriendMessage::MoveTokenRequest(friend_move_token_request))));
     }
 
+
     /// Compose a large as possible message to send through the token channel to the remote side.
     /// The message should contain various operations, collected from:
     /// - Generic pending requests (Might be sent through any token channel).
@@ -227,11 +228,9 @@ where
     ///
     /// Any operations that will enter the message should be applied. For example, a failure
     /// message should cause the pending request to be removed.
-    ///
-    /// Returns whether a move token message is scheduled for the remote side.
-    async fn send_through_token_channel<'a>(&'a mut self, 
-                                  remote_public_key: &'a PublicKey,
-                                  send_mode: SendMode) -> bool {
+    fn prepare_send<'a>(&'a self, 
+                              remote_public_key: &'a PublicKey,
+                              send_mode: SendMode) -> (Vec<FriendTcOp>, Vec<McMutation>, Option<A>) {
 
         let friend = self.get_friend(remote_public_key).unwrap();
         let token_channel = match &friend.channel_status {
@@ -272,17 +271,9 @@ where
             None => None,
         };
 
-        let may_send_empty = if let SendMode::EmptyAllowed = send_mode {true} else {false};
-        if may_send_empty || !operations.is_empty() || opt_local_address.is_some() {
-            await!(self.send_friend_move_token(remote_public_key, 
-                                               operations, 
-                                               opt_local_address,
-                                               mc_mutations));
-            true
-        } else {
-            false
-        }
+        (operations, mc_mutations, opt_local_address)
     }
+
 
     /// Try to send whatever possible through a friend channel.
     pub async fn try_send_channel<'a>(&'a mut self,
@@ -297,15 +288,26 @@ where
             ChannelStatus::Inconsistent(_) => return,
         };
 
+        let may_send_empty = if let SendMode::EmptyAllowed = send_mode {true} else {false};
+        let (operations, mc_mutations, opt_local_address) 
+            = self.prepare_send(remote_public_key, send_mode);
+
+        // If we don't have anything to send, abort:
+        if !(may_send_empty || !operations.is_empty() || opt_local_address.is_some()) {
+            return;
+        }
+
         match &token_channel.get_direction() {
             TcDirection::Incoming(_) => {
-                // We have the token. 
                 // Send as many operations as possible to remote side:
-                await!(self.send_through_token_channel(&remote_public_key, send_mode));
+                await!(self.send_friend_move_token(remote_public_key,
+                                                   operations, 
+                                                   opt_local_address,
+                                                   mc_mutations));
             },
             TcDirection::Outgoing(tc_outgoing) => {
                 if !tc_outgoing.token_wanted {
-                    // We don't have the token. We should request it.
+                    // We don't have the token. We should request it. 
                     // Mark that we have sent a request token, to make sure we don't do this again:
                     let tc_mutation = TcMutation::SetTokenWanted;
                     let friend_mutation = FriendMutation::TcMutation(tc_mutation);
