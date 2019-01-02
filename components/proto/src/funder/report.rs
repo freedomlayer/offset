@@ -188,3 +188,4 @@ impl From<&RequestsStatus> for RequestsStatusReport {
         }
     }
 }
+

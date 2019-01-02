@@ -355,7 +355,7 @@ impl TcIncoming {
                                     rand_nonce: RandValue,
                                     identity_client: IdentityClient) -> MoveToken<A> 
     where
-        A: CanonicalSerialize,
+        A: CanonicalSerialize + 'static,
     {
         // TODO: How to make this check happen only in debug?
         let identity_pk = await!(identity_client.request_public_key()).unwrap();

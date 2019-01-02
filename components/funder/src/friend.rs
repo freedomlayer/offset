@@ -19,6 +19,13 @@ pub enum ResponseOp {
     Failure(FailureSendFunds),
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SentLocalAddress<A> {
+    NeverSent,
+    Transition((A, A)), // (last sent, before last sent)
+    LastSent(A),
+}
+
 #[allow(unused)]
 #[derive(Debug)]
 pub enum FriendMutation<A> {
@@ -65,13 +72,6 @@ where
                 token_channel.get_last_incoming_move_token_hashed().cloned(),
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum SentLocalAddress<A> {
-    NeverSent,
-    Transition((A, A)), // (last sent, before last sent)
-    LastSent(A),
 }
 
 #[allow(unused)]

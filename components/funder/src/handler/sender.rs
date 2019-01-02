@@ -141,16 +141,16 @@ where
                            mc_mutations: Vec<McMutation>) {
 
 
-        if let Some(local_address) = opt_local_address {
+        if let Some(local_address) = &opt_local_address {
             let friend = self.get_friend(remote_public_key).unwrap();
 
-            let sent_local_address = match friend.sent_local_address {
-                SentLocalAddress::NeverSent => SentLocalAddress::LastSent(local_address),
+            let sent_local_address = match &friend.sent_local_address {
+                SentLocalAddress::NeverSent => SentLocalAddress::LastSent(local_address.clone()),
                 SentLocalAddress::Transition((last_address, prev_last_address)) => 
                     // We have the token, this means that there couldn't be a transition right now.
                     unreachable!(),
                 SentLocalAddress::LastSent(last_address) =>
-                    SentLocalAddress::Transition((local_address, last_address)),
+                    SentLocalAddress::Transition((local_address.clone(), last_address.clone())),
             };
 
             let friend_mutation = FriendMutation::SetSentLocalAddress(sent_local_address);
@@ -254,9 +254,10 @@ where
         }
         let (operations, mc_mutations) = outgoing_mc.done();
 
-        let opt_local_address = match self.state.opt_address {
+        let opt_local_address = match &self.state.opt_address {
             Some(local_address) => {
-                match friend.sent_local_address {
+                let friend = self.get_friend(remote_public_key).unwrap();
+                match &friend.sent_local_address {
                     SentLocalAddress::NeverSent => Some(local_address.clone()),
                     SentLocalAddress::Transition((last_address, prev_last_address)) => unreachable!(),
                     SentLocalAddress::LastSent(last_address) => {

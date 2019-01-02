@@ -34,30 +34,29 @@ pub enum ReportMutateError {
     FriendAlreadyExists,
 }
 
-impl From<&McRequestsStatus> for McRequestsStatusReport {
-    fn from(mc_requests_status: &McRequestsStatus) -> McRequestsStatusReport {
-        McRequestsStatusReport {
-            local: (&mc_requests_status.local).into(),
-            remote: (&mc_requests_status.remote).into(),
-        }
-    }
-}
 
-// See:
-// https://www.reddit.com/r/rust/comments/5115o2/type_parameter_t_must_be_used_as_the_type/
-// Why isn't this part compiling?
-impl<A> From<&SentLocalAddress<A>> for SentLocalAddressReport<A> 
+impl<A> Into<SentLocalAddressReport<A>> for &SentLocalAddress<A> 
 where
     A: Clone,
 {
-    fn from(sent_local_address: &SentLocalAddress<A>) -> Self {
-        match sent_local_address {
+    fn into(self) -> SentLocalAddressReport<A> {
+        match self {
             SentLocalAddress::NeverSent => 
                 SentLocalAddressReport::NeverSent,
             SentLocalAddress::Transition(t) => 
                 SentLocalAddressReport::Transition(t.clone()),
             SentLocalAddress::LastSent(address) => 
                 SentLocalAddressReport::LastSent(address.clone()),
+        }
+    }
+}
+
+
+impl From<&McRequestsStatus> for McRequestsStatusReport {
+    fn from(mc_requests_status: &McRequestsStatus) -> McRequestsStatusReport {
+        McRequestsStatusReport {
+            local: (&mc_requests_status.local).into(),
+            remote: (&mc_requests_status.remote).into(),
         }
     }
 }
@@ -145,7 +144,7 @@ where
     FriendReport {
         address: friend_state.remote_address.clone(),
         name: friend_state.name.clone(),
-        set_local_address: SentLocalAddressReport::from(&friend_state.sent_local_address),
+        sent_local_address: (&friend_state.sent_local_address).into(),
         opt_last_incoming_move_token: friend_state.channel_status.get_last_incoming_move_token_hashed()
             .map(|move_token_hashed| MoveTokenHashedReport::from(&move_token_hashed)),
         liveness: friend_liveness.clone(),
@@ -232,6 +231,8 @@ where
             vec![FriendReportMutation::SetFriendStatus(FriendStatusReport::from(friend_status))],
         FriendMutation::SetFriendInfo((address, name)) =>
             vec![FriendReportMutation::SetFriendInfo((address.clone(), name.clone()))],
+        FriendMutation::SetSentLocalAddress(sent_local_address) =>
+            vec![FriendReportMutation::SetSentLocalAddress(sent_local_address.into())],
         FriendMutation::SetInconsistent(_) |
         FriendMutation::LocalReset(_) |
         FriendMutation::RemoteReset(_) => {
@@ -338,6 +339,9 @@ where
             friend_report.address = address.clone();
             friend_report.name = name.clone();
         },
+        FriendReportMutation::SetSentLocalAddress(sent_local_address_report) => {
+            friend_report.sent_local_address = sent_local_address_report.clone();
+        },
         FriendReportMutation::SetChannelStatus(channel_status_report) => {
             friend_report.channel_status = channel_status_report.clone();
         },
@@ -384,6 +388,7 @@ where
             let friend_report = FriendReport {
                 address: add_friend_report.address.clone(),
                 name: add_friend_report.name.clone(),
+                sent_local_address: SentLocalAddressReport::NeverSent,
                 opt_last_incoming_move_token: add_friend_report.opt_last_incoming_move_token.clone(),
                 liveness: FriendLivenessReport::Offline,
                 channel_status: add_friend_report.channel_status.clone(),
