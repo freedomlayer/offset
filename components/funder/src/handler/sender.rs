@@ -274,7 +274,7 @@ where
         };
 
         let may_send_empty = if let SendMode::EmptyAllowed = send_mode {true} else {false};
-        if may_send_empty || !operations.is_empty() {
+        if may_send_empty || !operations.is_empty() || opt_local_address.is_some() {
             await!(self.send_friend_move_token(remote_public_key, 
                                                operations, 
                                                opt_local_address,
