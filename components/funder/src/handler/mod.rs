@@ -9,6 +9,7 @@ mod canceler;
 mod tests;
 
 use std::fmt::Debug;
+use std::collections::HashMap;
 use identity::IdentityClient;
 
 use crypto::uid::Uid;
@@ -28,6 +29,7 @@ use super::ephemeral::{Ephemeral, EphemeralMutation};
 use super::friend::{FriendState, ChannelStatus};
 use super::report::{funder_mutation_to_report_mutations, 
     ephemeral_mutation_to_report_mutations};
+use super::sender::SendCommands;
 
 
 #[derive(Debug)]
@@ -44,6 +46,7 @@ pub struct FunderHandlerOutput<A: Clone> {
     pub outgoing_control: Vec<FunderOutgoingControl<A>>,
 }
 
+
 pub struct MutableFunderHandler<A:Clone,R> {
     // TODO: Is there a more elegant way to do this, instead of having two states?
     // Does ephemeral require an initial ephemeral too?
@@ -51,12 +54,12 @@ pub struct MutableFunderHandler<A:Clone,R> {
     state: FunderState<A>,
     ephemeral: Ephemeral,
     pub identity_client: IdentityClient,
-    pub rng: R, // Can we be more generic and remove this Rc?
+    pub rng: R, 
+    send_commands: SendCommands,
     funder_mutations: Vec<FunderMutation<A>>,
     ephemeral_mutations: Vec<EphemeralMutation>,
     outgoing_comms: Vec<FunderOutgoingComm<A>>,
     outgoing_control: Vec<FunderOutgoingControl<A>>,
-    // responses_received: Vec<ResponseReceived>,
 }
 
 impl<A,R> MutableFunderHandler<A,R> 
@@ -185,6 +188,7 @@ fn gen_mutable<A:Clone + Debug, R: CryptoRandom>(identity_client: IdentityClient
         ephemeral: funder_ephemeral.clone(),
         identity_client,
         rng,
+        send_commands: HashMap::new(),
         funder_mutations: Vec::new(),
         ephemeral_mutations: Vec::new(),
         outgoing_comms: Vec::new(),
@@ -230,6 +234,7 @@ where
             }
         },
     };
+    await!(mutable_handler.send());
     Ok(mutable_handler.done())
 }
 

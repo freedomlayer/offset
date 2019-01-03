@@ -1,40 +1,66 @@
 use std::fmt::Debug;
+use std::collections::HashMap;
+
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
-use proto::funder::messages::{FriendTcOp, FriendMessage, RequestsStatus};
+use proto::funder::messages::{FriendTcOp, FriendMessage, RequestsStatus,
+                                FunderOutgoingControl, MoveTokenRequest};
 use common::canonical_serialize::CanonicalSerialize;
+use identity::IdentityClient;
 
 use super::MutableFunderHandler;
 
-
-use crate::state::{FunderMutation};
 use crate::types::{FunderOutgoingComm, create_pending_request};
 use crate::mutual_credit::outgoing::{QueueOperationFailure, QueueOperationError, OutgoingMc};
-use crate::mutual_credit::types::McMutation;
 
-use crate::friend::{FriendMutation, ResponseOp, ChannelStatus, SentLocalAddress};
+use crate::friend::{FriendMutation, ResponseOp, 
+    ChannelStatus, SentLocalAddress, FriendState};
 use crate::token_channel::{TcMutation, TcDirection, SetDirection};
 
-use crate::ephemeral::EphemeralMutation;
 use crate::freeze_guard::FreezeGuardMutation;
 
+use crate::state::{FunderState, FunderMutation};
+use crate::ephemeral::{Ephemeral, EphemeralMutation};
+use crate::handler::FunderHandlerOutput;
+
+
+pub struct FriendSendCommands {
+    /// Try to send whatever possible through this friend.
+    pub try_send: bool,
+    /// Resend the outgoing move token message
+    pub resend_outgoing: bool,
+    /// Remote friend wants the token.
+    pub wants_token: bool,
+}
+
+/*
 pub enum SendMode {
     EmptyAllowed,
     EmptyNotAllowed,
 }
+*/
 
-
+pub struct PendingMoveToken<A> {
+    operations: Vec<FriendTcOp>,
+    opt_local_address: Option<A>,
+}
 
 impl<A,R> MutableFunderHandler<A,R> 
 where
     A: CanonicalSerialize + Clone + Debug + PartialEq + Eq + 'static,
     R: CryptoRandom,
 {
+    /*
+    fn get_friend(&self, friend_public_key: &PublicKey) -> Option<&FriendState<A>> {
+        self.state.friends.get(&friend_public_key)
+    }
+
     /// Queue as many messages as possible into available token channel.
-    fn queue_outgoing_operations(&mut self,
+    fn queue_outgoing_operations(&self,
                            remote_public_key: &PublicKey,
-                           outgoing_mc: &mut OutgoingMc)
+                           outgoing_mc: &mut OutgoingMc,
+                           funder_mutations: &mut Vec<FunderMutation<A>>)
                 -> Result<(), QueueOperationFailure> {
 
 
@@ -83,7 +109,7 @@ where
             outgoing_mc.queue_operation(pending_op)?;
             let friend_mutation = FriendMutation::PopFrontPendingResponse;
             let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-            self.apply_funder_mutation(funder_mutation);
+            funder_mutations.push(funder_mutation);
         }
 
         let friend = self.get_friend(remote_public_key).unwrap();
@@ -96,7 +122,7 @@ where
             outgoing_mc.queue_operation(pending_op)?;
             let friend_mutation = FriendMutation::PopFrontPendingRequest;
             let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-            self.apply_funder_mutation(funder_mutation);
+            funder_mutations.push(funder_mutation);
         }
 
         let friend = self.get_friend(remote_public_key).unwrap();
@@ -108,37 +134,17 @@ where
             outgoing_mc.queue_operation(request_op)?;
             let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
             let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
-            self.apply_funder_mutation(funder_mutation);
+            funder_mutations.push(funder_mutation);
         }
         Ok(())
     }
 
-    /// Transmit the current outgoing friend_move_token.
-    pub fn transmit_outgoing(&mut self,
-                               remote_public_key: &PublicKey) {
-
-        let friend = self.get_friend(remote_public_key).unwrap();
-        let token_channel = match &friend.channel_status {
-            ChannelStatus::Consistent(token_channel) => token_channel,
-            ChannelStatus::Inconsistent(_) => unreachable!(),
-        };
-
-        let friend_move_token_request = match &token_channel.get_direction() {
-            TcDirection::Outgoing(tc_outgoing) => tc_outgoing.create_outgoing_move_token_request(),
-            TcDirection::Incoming(_) => unreachable!(),
-        };
-
-        // Transmit the current outgoing message:
-        self.add_outgoing_comm(FunderOutgoingComm::FriendMessage(
-            (remote_public_key.clone(),
-                FriendMessage::MoveTokenRequest(friend_move_token_request))));
-    }
 
     async fn send_friend_move_token<'a>(&'a mut self,
                            remote_public_key: &'a PublicKey,
                            operations: Vec<FriendTcOp>,
                            opt_local_address: Option<A>,
-                           mc_mutations: Vec<McMutation>) {
+                           funder_mutations: Vec<FunderMutation<A>>) {
 
         if let Some(local_address) = &opt_local_address {
             let friend = self.get_friend(remote_public_key).unwrap();
@@ -157,10 +163,7 @@ where
             self.apply_funder_mutation(funder_mutation);
         }
 
-        for mc_mutation in mc_mutations {
-            let tc_mutation = TcMutation::McMutation(mc_mutation);
-            let friend_mutation = FriendMutation::TcMutation(tc_mutation);
-            let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+        for funder_mutation in funder_mutations {
             self.apply_funder_mutation(funder_mutation);
         }
 
@@ -228,9 +231,8 @@ where
     ///
     /// Any operations that will enter the message should be applied. For example, a failure
     /// message should cause the pending request to be removed.
-    fn prepare_send<'a>(&'a self, 
-                              remote_public_key: &'a PublicKey,
-                              send_mode: SendMode) -> (Vec<FriendTcOp>, Vec<McMutation>, Option<A>) {
+    fn prepare_send<'a>(&'a self, remote_public_key: &'a PublicKey) 
+        -> (Vec<FriendTcOp>, Option<A>, Vec<FunderMutation<A>>) {
 
         let friend = self.get_friend(remote_public_key).unwrap();
         let token_channel = match &friend.channel_status {
@@ -243,14 +245,22 @@ where
         };
 
         let mut outgoing_mc = tc_incoming.begin_outgoing_move_token();
+        let mut funder_mutations = Vec::new();
         if let Err(queue_operation_failure) = 
-                self.queue_outgoing_operations(remote_public_key, &mut outgoing_mc) {
+                self.queue_outgoing_operations(remote_public_key, &mut outgoing_mc, &mut funder_mutations) {
             if let QueueOperationError::MaxOperationsReached = queue_operation_failure.error { 
             } else {
                 unreachable!();
             }
         }
         let (operations, mc_mutations) = outgoing_mc.done();
+
+        for mc_mutation in mc_mutations {
+            let tc_mutation = TcMutation::McMutation(mc_mutation);
+            let friend_mutation = FriendMutation::TcMutation(tc_mutation);
+            let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+            funder_mutations.push(funder_mutation);
+        }
 
         // Check if notification about local address change is required:
         let opt_local_address = match &self.state.opt_address {
@@ -271,7 +281,7 @@ where
             None => None,
         };
 
-        (operations, mc_mutations, opt_local_address)
+        (operations, opt_local_address, funder_mutations)
     }
 
 
@@ -289,8 +299,8 @@ where
         };
 
         let may_send_empty = if let SendMode::EmptyAllowed = send_mode {true} else {false};
-        let (operations, mc_mutations, opt_local_address) 
-            = self.prepare_send(remote_public_key, send_mode);
+        let (operations, opt_local_address, funder_mutations) 
+            = self.prepare_send(remote_public_key);
 
         // If we don't have anything to send, abort:
         if !(may_send_empty || !operations.is_empty() || opt_local_address.is_some()) {
@@ -303,7 +313,7 @@ where
                 await!(self.send_friend_move_token(remote_public_key,
                                                    operations, 
                                                    opt_local_address,
-                                                   mc_mutations));
+                                                   funder_mutations));
             },
             TcDirection::Outgoing(tc_outgoing) => {
                 if !tc_outgoing.token_wanted {
@@ -318,4 +328,155 @@ where
             },
         };
     }
+    */
+
+    /// Transmit the current outgoing friend_move_token.
+    pub fn transmit_outgoing(&mut self,
+                               remote_public_key: &PublicKey,
+                               token_wanted: bool) {
+
+        let friend = self.get_friend(remote_public_key).unwrap();
+        let token_channel = match &friend.channel_status {
+            ChannelStatus::Consistent(token_channel) => token_channel,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
+
+        let move_token = match &token_channel.get_direction() {
+            TcDirection::Outgoing(tc_outgoing) => tc_outgoing.create_outgoing_move_token(),
+            TcDirection::Incoming(_) => unreachable!(),
+        };
+
+        let move_token_request = MoveTokenRequest {
+            friend_move_token: move_token,
+            token_wanted,
+        };
+
+        // Transmit the current outgoing message:
+        self.add_outgoing_comm(FunderOutgoingComm::FriendMessage(
+            (remote_public_key.clone(),
+                FriendMessage::MoveTokenRequest(move_token_request))));
+    }
+
+    /// Do we need to send anything to the remote side?
+    pub fn estimate_pending_send(&self, 
+                                 friend_public_key: &PublicKey) -> bool {
+        unimplemented!();
+    }
+
+
+    pub async fn create_outgoing_move_token<'a>(&'a mut self, friend_public_key: &'a PublicKey,
+                                   friend_send_commands: &'a FriendSendCommands, 
+                                   pending_move_tokens: &'a mut HashMap<PublicKey, PendingMoveToken<A>>) {
+        /*
+        - Check if last sent local address is up to date.
+        - Collect as many operations as possible (Not more than max ops per batch)
+            1. Responses (response, failure)
+            2. Pending requets
+            3. User pending requests
+        - When adding requests, check the following:
+            - Valid by freezeguard.
+            - Valid from credits point of view.
+        - If a request is not valid, Pass it as a failure message to
+            relevant friend.
+        */
+
+        unimplemented!();
+    }
+
+    pub async fn send_friend_iter1<'a>(&'a mut self, friend_public_key: &'a PublicKey, 
+                             friend_send_commands: &'a FriendSendCommands, 
+                             pending_move_tokens: &'a mut HashMap<PublicKey, PendingMoveToken<A>>) {
+
+        if !friend_send_commands.try_send 
+            && !friend_send_commands.resend_outgoing 
+            && !friend_send_commands.wants_token {
+
+            return;
+        }
+
+        let friend = match self.get_friend(&friend_public_key) {
+            None => return,
+            Some(friend) => friend,
+        };
+
+        let token_channel = match &friend.channel_status {
+            ChannelStatus::Consistent(token_channel) => token_channel,
+            ChannelStatus::Inconsistent(channel_inconsistent) => {
+                if friend_send_commands.try_send || friend_send_commands.resend_outgoing {
+                    self.add_outgoing_comm(FunderOutgoingComm::FriendMessage((friend_public_key.clone(),
+                            FriendMessage::InconsistencyError(channel_inconsistent.local_reset_terms.clone()))));
+                }
+                return;
+            },
+        };
+
+        if token_channel.is_outgoing() {
+            if self.estimate_pending_send(friend_public_key) {
+                let is_token_wanted = true;
+                self.transmit_outgoing(&friend_public_key, is_token_wanted);
+            } else {
+                if friend_send_commands.resend_outgoing {
+                    let is_token_wanted = false;
+                    self.transmit_outgoing(&friend_public_key, is_token_wanted);
+                }
+            }
+            return;
+        }
+
+        // If we are here, the token channel is incoming:
+
+        // It will be strange if we need to resend outgoing, because the channel
+        // is in incoming mode.
+        assert!(!friend_send_commands.resend_outgoing);
+
+        await!(self.create_outgoing_move_token(friend_public_key, friend_send_commands, &mut pending_move_tokens));
+    }
+
+    /// Send all possible messages according to SendCommands
+    pub async fn send(&mut self) -> FunderHandlerOutput<A> {
+        /*
+        - Keep state of remote side's `token_wanted` (token_channel.rs?)
+        - try_send_channel should run only once, after handling a FunderIncoming
+            message.
+            - Iterater over all (marked?) friends:
+                - Outgoing friend
+                    - If we have anything to send:
+                        - send a token wanted message.
+                - Incoming message
+                    - First iteration:
+                        - Check if last sent local address is up to date.
+                        - Collect as many operations as possible (Not more than max ops per batch)
+                            1. Responses (response, failure)
+                            2. Pending requets
+                            3. User pending requests
+                        - When adding requests, check the following:
+                            - Valid by freezeguard.
+                            - Valid from credits point of view.
+                        - If a request is not valid, Pass it as a failure message to
+                            relevant friend.
+                    - Second iteration: Attempt to queue newly created failure messages to all messages.
+                    - Send created messages. If we have anything more to send, add a
+                        `token_wanted` marker.
+        */
+
+        let pending_move_tokens: HashMap<PublicKey, PendingMoveToken<A>> 
+            = HashMap::new();
+
+        // First iteration:
+        for (friend_public_key, friend_send_commands) in self.send_commands {
+            await!(self.send_friend_iter1(&friend_public_key,
+                                          &friend_send_commands,
+                                          &mut pending_move_tokens);
+        }
+
+        // Second iteration (Attempt to queue failures created in the first iteration):
+        for (friend_public_key, pending_move_token) in &mut pending_move_tokens {
+            await!(self.append_failures_to_move_token(friend_public_key, pending_move_token))
+        }
+
+        self.send_move_tokens(pending_move_tokens);
+    }
 }
+
+
+

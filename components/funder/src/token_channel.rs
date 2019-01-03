@@ -34,14 +34,12 @@ pub enum SetDirection<A> {
 pub enum TcMutation<A> {
     McMutation(McMutation),
     SetDirection(SetDirection<A>),
-    SetTokenWanted,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TcOutgoing<A> {
     pub mutual_credit: MutualCredit,
     pub move_token_out: MoveToken<A>,
-    pub token_wanted: bool,
     pub opt_prev_move_token_in: Option<MoveTokenHashed>,
 }
 
@@ -156,7 +154,6 @@ where
             let tc_outgoing = TcOutgoing {
                 mutual_credit,
                 move_token_out: initial_move_token(local_public_key, remote_public_key, balance),
-                token_wanted: false,
                 opt_prev_move_token_in: None,
             };
             TokenChannel {
@@ -199,7 +196,6 @@ where
         let tc_outgoing = TcOutgoing {
             mutual_credit: MutualCredit::new(local_public_key, remote_public_key, balance),
             move_token_out: reset_move_token.clone(),
-            token_wanted: false,
             opt_prev_move_token_in: opt_last_incoming_move_token,
         };
         TokenChannel {
@@ -260,20 +256,11 @@ where
                         let tc_outgoing = TcOutgoing {
                             mutual_credit: self.get_mutual_credit().clone(), // TODO; Remove this clone()
                             move_token_out: friend_move_token.clone(),
-                            token_wanted: false,
                             opt_prev_move_token_in: self.get_last_incoming_move_token_hashed().cloned(),
                         };
                         TcDirection::Outgoing(tc_outgoing)
                     }
                 };
-            },
-            TcMutation::SetTokenWanted => {
-                match self.direction {
-                    TcDirection::Incoming(_) => unreachable!(),
-                    TcDirection::Outgoing(ref mut tc_outgoing) => {
-                        tc_outgoing.token_wanted = true;
-                    },
-                }
             },
         }
     }
@@ -500,14 +487,9 @@ where
         }
     }
 
-
-
     /// Get the current outgoing move token
-    pub fn create_outgoing_move_token_request(&self) -> MoveTokenRequest<A> {
-        MoveTokenRequest {
-            friend_move_token: self.move_token_out.clone(),
-            token_wanted: self.token_wanted,
-        }
+    pub fn create_outgoing_move_token(&self) -> MoveToken<A> {
+        self.move_token_out.clone()
     }
 }
 
@@ -549,42 +531,6 @@ mod tests {
         };
         assert!(!tc_outgoing.token_wanted);
         assert!(tc_outgoing.opt_prev_move_token_in.is_none());
-    }
-
-    #[test]
-    fn test_set_token_wanted() {
-        let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
-        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
-        let token_channel_a_b = TokenChannel::<u32>::new(&pk_a, &pk_b, 0i128);
-        let token_channel_b_a = TokenChannel::new(&pk_b, &pk_a, 0i128);
-
-        // Only one of those token channels is outgoing:
-        let is_a_b_outgoing = token_channel_a_b.is_outgoing();
-        let is_b_a_outgoing = token_channel_b_a.is_outgoing();
-        assert!(is_a_b_outgoing ^ is_b_a_outgoing);
-
-        let (mut out_tc, _in_tc) = if is_a_b_outgoing {
-            (token_channel_a_b, token_channel_b_a)
-        } else {
-            (token_channel_b_a, token_channel_a_b)
-        };
-
-        // First token is in not wanted state:
-        let tc_outgoing = match out_tc.get_direction() {
-            TcDirection::Outgoing(tc_outgoing) => tc_outgoing,
-            TcDirection::Incoming(_) => unreachable!(),
-        };
-        assert!(!tc_outgoing.token_wanted);
-
-        let tc_mutation = TcMutation::SetTokenWanted;
-        out_tc.mutate(&tc_mutation);
-
-        // Then token is in wanted state:
-        let tc_outgoing = match out_tc.get_direction() {
-            TcDirection::Outgoing(tc_outgoing) => tc_outgoing,
-            TcDirection::Incoming(_) => unreachable!(),
-        };
-        assert!(tc_outgoing.token_wanted);
     }
 
     /// Sort the two identity client.
