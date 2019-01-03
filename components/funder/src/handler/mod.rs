@@ -56,6 +56,7 @@ pub struct MutableFunderHandler<A:Clone,R> {
     pub identity_client: IdentityClient,
     pub rng: R, 
     send_commands: SendCommands,
+    max_operations_in_batch: usize,
     funder_mutations: Vec<FunderMutation<A>>,
     ephemeral_mutations: Vec<EphemeralMutation>,
     outgoing_comms: Vec<FunderOutgoingComm<A>>,
@@ -180,7 +181,8 @@ where
 fn gen_mutable<A:Clone + Debug, R: CryptoRandom>(identity_client: IdentityClient,
                        rng: R,
                        funder_state: &FunderState<A>,
-                       funder_ephemeral: &Ephemeral) -> MutableFunderHandler<A,R> {
+                       funder_ephemeral: &Ephemeral,
+                       max_operations_in_batch: usize) -> MutableFunderHandler<A,R> {
 
     MutableFunderHandler {
         initial_state: funder_state.clone(),
@@ -189,6 +191,7 @@ fn gen_mutable<A:Clone + Debug, R: CryptoRandom>(identity_client: IdentityClient
         identity_client,
         rng,
         send_commands: HashMap::new(),
+        max_operations_in_batch,
         funder_mutations: Vec::new(),
         ephemeral_mutations: Vec::new(),
         outgoing_comms: Vec::new(),
@@ -201,7 +204,8 @@ pub async fn funder_handle_message<A,R>(
                       rng: R,
                       funder_state: FunderState<A>,
                       funder_ephemeral: Ephemeral,
-                      funder_incoming: FunderIncoming<A>) 
+                      funder_incoming: FunderIncoming<A>,
+                      max_operations_in_batch: usize) 
         -> Result<FunderHandlerOutput<A>, FunderHandlerError> 
 where
     A: CanonicalSerialize + Clone + Debug + PartialEq + Eq + 'static,
@@ -211,7 +215,8 @@ where
     let mut mutable_handler = gen_mutable(identity_client.clone(),
                                           rng.clone(),
                                           &funder_state,
-                                          &funder_ephemeral);
+                                          &funder_ephemeral,
+                                          max_operations_in_batch);
 
     match funder_incoming {
         FunderIncoming::Init =>  {

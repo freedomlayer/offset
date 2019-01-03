@@ -10,7 +10,6 @@ use crypto::hash::sha_512_256;
 use identity::IdentityClient;
 
 use proto::funder::messages::{MoveToken, FriendTcOp, MoveTokenRequest};
-use proto::consts::MAX_OPERATIONS_IN_BATCH;
 use proto::funder::signature_buff::verify_friend_move_token;
 
 use common::canonical_serialize::CanonicalSerialize;
@@ -363,8 +362,7 @@ impl TcIncoming {
     }
 
     pub fn begin_outgoing_move_token(&self) -> OutgoingMc {
-        // TODO; Maybe take max_operations_in_batch as argument instead?
-        OutgoingMc::new(&self.mutual_credit, MAX_OPERATIONS_IN_BATCH)
+        OutgoingMc::new(&self.mutual_credit)
     }
 }
 
