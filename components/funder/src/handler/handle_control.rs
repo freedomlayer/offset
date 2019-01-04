@@ -158,6 +158,15 @@ where
         // Notify Channeler about relay address change:
         let channeler_config = ChannelerConfig::SetAddress(opt_address.clone());
         self.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
+
+        // We might need to update all friends about the address change:
+        let friend_public_keys = self.state.friends.keys()
+            .cloned()
+            .collect::<Vec<_>>();
+        
+        for friend_public_key in &friend_public_keys {
+            self.set_try_send(friend_public_key);
+        }
     }
 
     fn control_add_friend(&mut self, add_friend: AddFriend<A>) 
