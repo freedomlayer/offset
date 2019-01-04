@@ -334,8 +334,6 @@ where
         }
 
 
-        let friend = self.get_friend(friend_public_key).unwrap();
-
         // Set remote_max_debt if needed:
         let remote_max_debt = match &friend.channel_status {
             ChannelStatus::Consistent(token_channel) => token_channel,
