@@ -30,7 +30,7 @@ where
 
     /// Create a (signed) failure message for a given request_id.
     /// We are the reporting_public_key for this failure message.
-    async fn create_failure_message(&self, pending_local_request: PendingRequest) 
+    pub async fn create_failure_message(&self, pending_local_request: PendingRequest) 
         -> FailureSendFunds {
 
         let rand_nonce = RandValue::new(&self.rng);
