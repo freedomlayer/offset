@@ -144,6 +144,9 @@ where
     fn disable_friend(&mut self, 
                      friend_public_key: &PublicKey) {
 
+        // TODO: Cancel all pending requests for this friend.
+        // We don't want the payer to wait.
+
         // Notify Channeler:
         let channeler_config = ChannelerConfig::RemoveFriend(
             friend_public_key.clone());
