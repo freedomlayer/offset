@@ -2,12 +2,10 @@ use std::fmt::Debug;
 use crypto::crypto_rand::CryptoRandom;
 
 use common::canonical_serialize::CanonicalSerialize;
-use proto::funder::messages::{FriendMessage, FriendStatus};
+use proto::funder::messages::FriendStatus;
 
 use crate::handler::MutableFunderHandler;
-use crate::friend::ChannelStatus;
-use crate::types::{IncomingLivenessMessage, 
-    FunderOutgoingComm};
+use crate::types::{IncomingLivenessMessage};
 
 use crate::ephemeral::EphemeralMutation;
 use crate::liveness::LivenessMutation;

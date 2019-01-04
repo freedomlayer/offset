@@ -4,26 +4,22 @@ use std::collections::HashMap;
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
-use proto::funder::messages::{FriendTcOp, FriendMessage, RequestsStatus,
-                                FunderOutgoingControl, MoveTokenRequest};
+use proto::funder::messages::{FriendTcOp, FriendMessage, RequestsStatus, MoveTokenRequest};
 use common::canonical_serialize::CanonicalSerialize;
-use identity::IdentityClient;
 
 use super::MutableFunderHandler;
 
 use crate::types::{FunderOutgoingComm, create_pending_request};
 use crate::mutual_credit::outgoing::{QueueOperationError, OutgoingMc};
-use crate::mutual_credit::types::McMutation;
 
 use crate::friend::{FriendMutation, ResponseOp, 
-    ChannelStatus, SentLocalAddress, FriendState};
+    ChannelStatus, SentLocalAddress};
 use crate::token_channel::{TcMutation, TcDirection, SetDirection};
 
 use crate::freeze_guard::FreezeGuardMutation;
 
-use crate::state::{FunderState, FunderMutation};
-use crate::ephemeral::{Ephemeral, EphemeralMutation};
-use crate::handler::FunderHandlerOutput;
+use crate::state::{FunderMutation};
+use crate::ephemeral::{EphemeralMutation};
 
 
 #[derive(Debug, Clone)]
@@ -65,7 +61,7 @@ enum CollectOutgoingError {
     MaxOperationsReached,
 }
 
-struct PendingMoveToken<A> {
+pub struct PendingMoveToken<A> {
     pub outgoing_mc: OutgoingMc,
     pub operations: Vec<FriendTcOp>,
     pub opt_local_address: Option<A>,
@@ -303,7 +299,6 @@ where
     /// send to the remote side. 
     /// Requests that fail to be processed are moved to the failure queues of the relevant friends.
     pub async fn collect_outgoing_move_token<'a>(&'a mut self, friend_public_key: &'a PublicKey,
-                                   friend_send_commands: &'a FriendSendCommands, 
                                    pending_move_token: &'a mut PendingMoveToken<A>) 
         -> Result<(), CollectOutgoingError> {
 
@@ -458,11 +453,11 @@ where
         // is in incoming mode.
         assert!(!friend_send_commands.resend_outgoing);
 
-        let mut outgoing_mc = tc_incoming.begin_outgoing_move_token();
+        let outgoing_mc = tc_incoming.begin_outgoing_move_token();
         let pending_move_token = PendingMoveToken::new(outgoing_mc);
         pending_move_tokens.insert(friend_public_key.clone(), pending_move_token);
-        let mut pending_move_token = pending_move_tokens.get_mut(friend_public_key).unwrap();
-        await!(self.collect_outgoing_move_token(friend_public_key, friend_send_commands, pending_move_token));
+        let pending_move_token = pending_move_tokens.get_mut(friend_public_key).unwrap();
+        let _ = await!(self.collect_outgoing_move_token(friend_public_key, pending_move_token));
     }
 
     pub async fn append_failures_to_move_token<'a>(&'a mut self, friend_public_key: &'a PublicKey,
@@ -563,7 +558,7 @@ where
 
         // Second iteration (Attempt to queue failures created in the first iteration):
         for (friend_public_key, pending_move_token) in &mut pending_move_tokens {
-            await!(self.append_failures_to_move_token(friend_public_key, pending_move_token));
+            let _ = await!(self.append_failures_to_move_token(friend_public_key, pending_move_token));
         }
 
         // Send all pending move tokens:
