@@ -315,6 +315,25 @@ where
             relevant friend.
         */
 
+        // Send update about local address if needed:
+        let friend = self.get_friend(friend_public_key).unwrap();
+        if let Some(local_address) = &self.state.opt_address {
+            match &friend.sent_local_address {
+                SentLocalAddress::NeverSent => {
+                    self.set_local_address(pending_move_token, 
+                                           local_address.clone());
+                },
+                SentLocalAddress::Transition((last_sent_local_address, _)) |
+                SentLocalAddress::LastSent(last_sent_local_address) => {
+                    if local_address != last_sent_local_address {
+                        self.set_local_address(pending_move_token, 
+                                               local_address.clone());
+                    }
+                },
+            };
+        }
+
+
         let friend = self.get_friend(friend_public_key).unwrap();
 
         // Set remote_max_debt if needed:
