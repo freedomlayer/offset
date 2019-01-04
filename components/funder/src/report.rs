@@ -202,7 +202,6 @@ where
                             .map(|move_token_hashed| MoveTokenHashedReport::from(&move_token_hashed)));
                     vec![set_channel_status, set_last_incoming_move_token]
                 },
-                TcMutation::SetTokenWanted => Vec::new(),
             }
         },
         FriendMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) =>

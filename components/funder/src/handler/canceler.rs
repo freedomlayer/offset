@@ -15,7 +15,6 @@ use crate::handler::MutableFunderHandler;
 use crate::types::create_pending_request;
 use crate::friend::{FriendMutation, ResponseOp, ChannelStatus};
 use crate::state::FunderMutation;
-use super::sender::SendMode;
 
 use crate::ephemeral::EphemeralMutation;
 use crate::freeze_guard::FreezeGuardMutation;
@@ -66,7 +65,7 @@ where
         let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
         let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_funder_mutation(funder_mutation);
-        await!(self.try_send_channel(&remote_public_key, SendMode::EmptyNotAllowed));
+        self.set_try_send(&remote_public_key);
     }
 
     /// Cancel outgoing local requests that are already inside the token channel (Possibly already
@@ -110,7 +109,7 @@ where
                     let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
                     let funder_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
                     self.apply_funder_mutation(funder_mutation);
-                    await!(self.try_send_channel(&origin_public_key, SendMode::EmptyNotAllowed));
+                    self.set_try_send(&origin_public_key);
                 },
                 None => {
                     // We are the origin of this request.

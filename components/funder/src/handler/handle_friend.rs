@@ -32,7 +32,6 @@ use crate::ephemeral::EphemeralMutation;
 use crate::freeze_guard::FreezeGuardMutation;
 
 use super::{MutableFunderHandler};
-use super::sender::SendMode;
 
 
 #[derive(Debug)]
@@ -152,7 +151,7 @@ where
         let friend_mutation = FriendMutation::PushBackPendingRequest(request_send_funds.clone());
         let funder_mutation = FunderMutation::FriendMutation((next_pk.clone(), friend_mutation));
         self.apply_funder_mutation(funder_mutation);
-        await!(self.try_send_channel(&next_pk, SendMode::EmptyNotAllowed));
+        self.set_try_send(&next_pk);
     }
 
     /// Create a (signed) failure message for a given request_id.
@@ -197,6 +196,7 @@ where
             let friend_mutation = FriendMutation::PushBackPendingResponse(response_op);
             let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
             self.apply_funder_mutation(funder_mutation);
+            self.set_try_send(&remote_public_key);
             return;
         }
 
@@ -272,7 +272,8 @@ where
                 let friend_mutation = FriendMutation::PushBackPendingResponse(response_op);
                 let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
                 self.apply_funder_mutation(funder_mutation);
-                await!(self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed));
+
+                self.set_try_send(&friend_public_key);
             },
         }
     }
@@ -302,7 +303,8 @@ where
                 let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
                 let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
                 self.apply_funder_mutation(funder_mutation);
-                await!(self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed));
+
+                self.set_try_send(&friend_public_key);
             },
         };
     }
@@ -393,7 +395,7 @@ where
             ReceiveMoveTokenOutput::Duplicate => {},
             ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token) => {
                 // Retransmit last sent token channel message:
-                self.transmit_outgoing(&remote_public_key);
+                self.set_resend_outgoing(&remote_public_key);
                 // We should not send any new move token in this case:
                 return;
             },
@@ -453,8 +455,9 @@ where
 
             },
         }
-        let send_mode = match token_wanted {true => SendMode::EmptyAllowed, false => SendMode::EmptyNotAllowed};
-        await!(self.try_send_channel(&remote_public_key, send_mode));
+        if token_wanted {
+            self.set_wants_token(&remote_public_key);
+        }
     }
 
 

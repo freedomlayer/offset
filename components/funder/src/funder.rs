@@ -46,6 +46,7 @@ pub async fn inner_funder_loop<A, R, D, E>(
     control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
     comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
     atomic_db: D,
+    max_operations_in_batch: usize,
     mut opt_event_sender: Option<mpsc::Sender<FunderEvent<A>>>) -> Result<(), FunderError<E>> 
 
 where
@@ -89,7 +90,8 @@ where
                               rng.clone(),
                               db_runner.get_state().clone(),
                               ephemeral.clone(),
-                              funder_incoming));
+                              funder_incoming,
+                              max_operations_in_batch));
 
 
         let handler_output = match res {
@@ -141,6 +143,7 @@ pub async fn funder_loop<A,R,D,E>(
     incoming_comm: mpsc::Receiver<FunderIncomingComm<A>>,
     control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
     comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
+    max_operations_in_batch: usize,
     atomic_db: D) -> Result<(), FunderError<E>> 
 where
     A: CanonicalSerialize + Serialize + DeserializeOwned + Send + Sync + Clone + Debug + PartialEq + Eq + 'static,
@@ -156,6 +159,7 @@ where
            control_sender,
            comm_sender,
            atomic_db,
+           max_operations_in_batch,
            None))
 
 }

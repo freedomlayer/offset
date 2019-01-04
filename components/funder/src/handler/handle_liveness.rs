@@ -5,7 +5,6 @@ use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::{FriendMessage, FriendStatus};
 
 use crate::handler::MutableFunderHandler;
-use crate::handler::sender::SendMode;
 use crate::friend::ChannelStatus;
 use crate::types::{IncomingLivenessMessage, 
     FunderOutgoingComm};
@@ -47,19 +46,18 @@ where
                     return Err(HandleLivenessError::FriendAlreadyOnline);
                 }
 
+                self.set_resend_outgoing(&friend_public_key);
+
+                /*
                 match &friend.channel_status {
-                    ChannelStatus::Consistent(token_channel) => {
+                    ChannelStatus::Consistent(_token_channel) => {
                         if token_channel.is_outgoing() {
-                            self.transmit_outgoing(&friend_public_key);
+                            self.set_resend_outgoing(&friend_public_key);
                         }
-                        await!(self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed));
                     },
-                    ChannelStatus::Inconsistent(channel_inconsistent) => {
-                        self.add_outgoing_comm(
-                            FunderOutgoingComm::FriendMessage((friend_public_key.clone(),
-                                FriendMessage::InconsistencyError(channel_inconsistent.local_reset_terms.clone()))));
-                    },
+                    ChannelStatus::Inconsistent(_channel_inconsistent) => {},
                 };
+                */
 
                 let liveness_mutation = LivenessMutation::SetOnline(friend_public_key.clone());
                 let ephemeral_mutation = EphemeralMutation::LivenessMutation(liveness_mutation);

@@ -23,13 +23,13 @@ use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError};
 use self::handle_friend::HandleFriendError;
 use self::handle_liveness::HandleLivenessError;
+use self::sender::FriendSendCommands;
 use super::types::{FunderIncoming,
     FunderOutgoingComm, FunderIncomingComm};
 use super::ephemeral::{Ephemeral, EphemeralMutation};
 use super::friend::{FriendState, ChannelStatus};
 use super::report::{funder_mutation_to_report_mutations, 
     ephemeral_mutation_to_report_mutations};
-use super::sender::SendCommands;
 
 
 #[derive(Debug)]
@@ -55,7 +55,7 @@ pub struct MutableFunderHandler<A:Clone,R> {
     ephemeral: Ephemeral,
     pub identity_client: IdentityClient,
     pub rng: R, 
-    send_commands: SendCommands,
+    send_commands: HashMap<PublicKey, FriendSendCommands>,
     max_operations_in_batch: usize,
     funder_mutations: Vec<FunderMutation<A>>,
     ephemeral_mutations: Vec<EphemeralMutation>,

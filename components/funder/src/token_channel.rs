@@ -300,10 +300,6 @@ where
                               new_move_token: MoveToken<A>)
         -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> {
 
-        if new_move_token.operations.len() > MAX_OPERATIONS_IN_BATCH {
-            return Err(ReceiveMoveTokenError::TooManyOperations);
-        }
-
         match &self.direction {
             TcDirection::Incoming(tc_incoming) => {
                 tc_incoming.handle_incoming(new_move_token)

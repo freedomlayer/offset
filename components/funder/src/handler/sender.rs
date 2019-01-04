@@ -11,8 +11,9 @@ use identity::IdentityClient;
 
 use super::MutableFunderHandler;
 
-use crate::types::{FunderOutgoingComm, create_pending_request, McMutation};
-use crate::mutual_credit::outgoing::{QueueOperationFailure, QueueOperationError, OutgoingMc};
+use crate::types::{FunderOutgoingComm, create_pending_request};
+use crate::mutual_credit::outgoing::{QueueOperationError, OutgoingMc};
+use crate::mutual_credit::types::McMutation;
 
 use crate::friend::{FriendMutation, ResponseOp, 
     ChannelStatus, SentLocalAddress, FriendState};
@@ -25,6 +26,7 @@ use crate::ephemeral::{Ephemeral, EphemeralMutation};
 use crate::handler::FunderHandlerOutput;
 
 
+#[derive(Debug, Clone)]
 pub struct FriendSendCommands {
     /// Try to send whatever possible through this friend.
     pub try_send: bool,
@@ -32,6 +34,16 @@ pub struct FriendSendCommands {
     pub resend_outgoing: bool,
     /// Remote friend wants the token.
     pub wants_token: bool,
+}
+
+impl FriendSendCommands {
+    fn new() -> Self {
+        FriendSendCommands {
+            try_send: false,
+            resend_outgoing: false,
+            wants_token: false,
+        }
+    }
 }
 
 /*
@@ -75,8 +87,28 @@ impl<A> PendingMoveToken<A> {
 impl<A,R> MutableFunderHandler<A,R> 
 where
     A: CanonicalSerialize + Clone + Debug + PartialEq + Eq + 'static,
-    R: CryptoRandom,
+    R: CryptoRandom + 'static,
 {
+    pub fn set_try_send(&mut self, friend_public_key: &PublicKey) {
+        let friend_send_commands = self.send_commands
+            .entry(friend_public_key.clone())
+            .or_insert(FriendSendCommands::new());
+        friend_send_commands.try_send = true;
+    }
+
+    pub fn set_resend_outgoing(&mut self, friend_public_key: &PublicKey) {
+        let friend_send_commands = self.send_commands
+            .entry(friend_public_key.clone())
+            .or_insert(FriendSendCommands::new());
+        friend_send_commands.resend_outgoing = true;
+    }
+
+    pub fn set_wants_token(&mut self, friend_public_key: &PublicKey) {
+        let friend_send_commands = self.send_commands
+            .entry(friend_public_key.clone())
+            .or_insert(FriendSendCommands::new());
+        friend_send_commands.wants_token = true;
+    }
 
     /// Transmit the current outgoing friend_move_token.
     pub fn transmit_outgoing(&mut self,
@@ -304,6 +336,7 @@ where
                                  &operation))?;
         }
 
+        let friend = self.get_friend(friend_public_key).unwrap();
         let token_channel = match &friend.channel_status {
             ChannelStatus::Consistent(token_channel) => token_channel,
             ChannelStatus::Inconsistent(_) => unreachable!(),
@@ -327,6 +360,7 @@ where
                                  &friend_op))?;
         }
 
+        let friend = self.get_friend(friend_public_key).unwrap();
         // Send pending responses (responses and failures)
         // TODO: Possibly replace this clone with something more efficient later:
         let mut pending_responses = friend.pending_responses.clone();
@@ -394,7 +428,7 @@ where
         let token_channel = match &friend.channel_status {
             ChannelStatus::Consistent(token_channel) => token_channel,
             ChannelStatus::Inconsistent(channel_inconsistent) => {
-                if friend_send_commands.try_send || friend_send_commands.resend_outgoing {
+                if friend_send_commands.resend_outgoing {
                     self.add_outgoing_comm(FunderOutgoingComm::FriendMessage((friend_public_key.clone(),
                             FriendMessage::InconsistencyError(channel_inconsistent.local_reset_terms.clone()))));
                 }
@@ -515,15 +549,16 @@ where
     }
 
     /// Send all possible messages according to SendCommands
-    pub async fn send(&mut self) -> FunderHandlerOutput<A> {
-        let pending_move_tokens: HashMap<PublicKey, PendingMoveToken<A>> 
+    pub async fn send(&mut self) {
+        let mut pending_move_tokens: HashMap<PublicKey, PendingMoveToken<A>> 
             = HashMap::new();
 
+        let send_commands = self.send_commands.clone();
         // First iteration:
-        for (friend_public_key, friend_send_commands) in self.send_commands {
+        for (friend_public_key, friend_send_commands) in &send_commands {
             await!(self.send_friend_iter1(&friend_public_key,
                                           &friend_send_commands,
-                                          &mut pending_move_tokens);
+                                          &mut pending_move_tokens));
         }
 
         // Second iteration (Attempt to queue failures created in the first iteration):

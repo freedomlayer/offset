@@ -17,8 +17,6 @@ use super::MutableFunderHandler;
 use crate::types::{ChannelerConfig, FunderOutgoingComm,
     create_friend_move_token, ChannelerAddFriend};
 
-use super::sender::SendMode;
-
 // TODO: Should be an argument of the Funder:
 const MAX_PENDING_USER_REQUESTS: usize = 0x10;
 
@@ -66,9 +64,9 @@ where
         let friend_mutation = FriendMutation::SetWantedRemoteMaxDebt(set_friend_remote_max_debt.remote_max_debt);
         let m_mutation = FunderMutation::FriendMutation(
             (set_friend_remote_max_debt.friend_public_key.clone(), friend_mutation));
-
         self.apply_funder_mutation(m_mutation);
-        await!(self.try_send_channel(&set_friend_remote_max_debt.friend_public_key, SendMode::EmptyNotAllowed));
+
+        self.set_try_send(&set_friend_remote_max_debt.friend_public_key);
         Ok(())
     }
 
@@ -119,7 +117,7 @@ where
             (reset_friend_channel.friend_public_key.clone(), friend_mutation));
         self.apply_funder_mutation(m_mutation);
 
-        self.transmit_outgoing(&reset_friend_channel.friend_public_key);
+        self.set_try_send(&reset_friend_channel.friend_public_key);
 
         Ok(())
     }
@@ -232,9 +230,9 @@ where
         let friend_mutation = FriendMutation::SetWantedLocalRequestsStatus(set_requests_status.status);
         let m_mutation = FunderMutation::FriendMutation(
             (set_requests_status.friend_public_key.clone(), friend_mutation));
-
         self.apply_funder_mutation(m_mutation);
-        await!(self.try_send_channel(&set_requests_status.friend_public_key, SendMode::EmptyNotAllowed));
+
+        self.set_try_send(&set_requests_status.friend_public_key);
         Ok(())
     }
 
@@ -382,8 +380,8 @@ where
         let friend_mutation = FriendMutation::PushBackPendingUserRequest(request_send_funds);
         let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
         self.apply_funder_mutation(funder_mutation);
-        await!(self.try_send_channel(&friend_public_key, SendMode::EmptyNotAllowed));
 
+        self.set_try_send(&friend_public_key);
         Ok(())
     }
 
