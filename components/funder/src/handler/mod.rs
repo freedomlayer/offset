@@ -33,6 +33,62 @@ use super::report::{funder_mutation_to_report_mutations,
     ephemeral_mutation_to_report_mutations};
 
 
+pub struct MutableFunderState<A> {
+    state: FunderState<A>,
+    mutations: Vec<FunderMutation<A>>,
+}
+
+impl<A> MutableFunderState<A> 
+where
+    A: Clone,
+{
+    pub fn new(state: FunderState<A>) -> Self {
+        MutableFunderState {
+            state,
+            mutations: Vec::new(),
+        }
+    }
+
+    pub fn mutate(&mut self, mutation: FunderMutation<A>) {
+        self.state.mutate(&mutation);
+        self.mutations.push(mutation);
+    }
+
+    pub fn state(&self) -> &FunderState<A> {
+        &self.state
+    }
+
+    pub fn done(self) -> (FunderState<A>, Vec<FunderMutation<A>>) {
+        (self.state, self.mutations)
+    }
+}
+
+pub struct MutableEphemeral {
+    ephemeral: Ephemeral,
+    mutations: Vec<EphemeralMutation>,
+}
+
+impl MutableEphemeral {
+    pub fn new(ephemeral: Ephemeral) -> Self {
+        MutableEphemeral {
+            ephemeral,
+            mutations: Vec::new(),
+        }
+    }
+    pub fn mutate(&mut self, mutation: EphemeralMutation) {
+        self.ephemeral.mutate(&mutation);
+        self.mutations.push(mutation);
+    }
+
+    pub fn ephemeral(&self) -> &Ephemeral {
+        &self.ephemeral
+    }
+
+    pub fn done(self) -> (Ephemeral, Vec<EphemeralMutation>) {
+        (self.ephemeral, self.mutations)
+    }
+}
+
 #[derive(Debug)]
 pub enum FunderHandlerError {
     HandleControlError(HandleControlError),
@@ -213,37 +269,51 @@ where
     R: CryptoRandom + 'static,
 {
 
-    let mut mutable_handler = gen_mutable(identity_client.clone(),
-                                          rng.clone(),
-                                          &funder_state,
-                                          &funder_ephemeral,
-                                          max_operations_in_batch);
+    let mut m_state = MutableFunderState::new(funder_state);
+    let mut m_ephemeral = MutableEphemeral::new(funder_ephemeral);
+    let mut outgoing_comms = Vec::new();
+    let mut outgoing_control = Vec::new();
+    let mut send_commands = SendCommands::new();
 
     match funder_incoming {
         FunderIncoming::Init =>  {
-            let channeler_configs = handle_init(&mutable_handler.state);
+            let channeler_configs = handle_init(&m_state);
             for channeler_config in channeler_configs {
-                mutable_handler.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
+                outgoing_comms.push(FunderOutgoingComm::ChannelerConfig(channeler_config));
             }
         },
         FunderIncoming::Control(control_message) =>
-            mutable_handler
-                .handle_control_message(control_message)
+            handle_control_message(control_message)
                 .map_err(FunderHandlerError::HandleControlError)?,
         FunderIncoming::Comm(incoming_comm) => {
             match incoming_comm {
                 FunderIncomingComm::Liveness(liveness_message) =>
-                    mutable_handler
-                        .handle_liveness_message(liveness_message)
+                    handle_liveness_message(liveness_message)
                         .map_err(FunderHandlerError::HandleLivenessError)?,
                 FunderIncomingComm::Friend((origin_public_key, friend_message)) => 
-                    mutable_handler
-                        .handle_friend_message(&origin_public_key, friend_message)
+                    handle_friend_message(&origin_public_key, friend_message)
                         .map_err(FunderHandlerError::HandleFriendError)?,
             }
         },
     };
-    await!(mutable_handler.send());
-    Ok(mutable_handler.done())
+
+    // Send all possible messages according to SendCommands
+    let friend_messages = await!(create_friend_messages(m_state,
+                                  m_ephemeral,
+                                  send_commands,
+                                  max_operations_in_batch,
+                                  identity_client,
+                                  rng));
+
+    for friend_message in friend_messages {
+        outgoing_comms.push(FunderOutgoingComm::FriendMessage(outgoing_message));
+    }
+
+    Ok(FunderHandlerOutput {
+        funder_mutations,
+        ephemeral_mutations,
+        outgoing_comms,
+        outgoing_control,
+    })
 }
 

@@ -11,8 +11,6 @@ use crypto::hash::sha_512_256;
 use proto::funder::messages::{MoveToken, FriendTcOp};
 use proto::funder::signature_buff::verify_move_token;
 
-use common::canonical_serialize::CanonicalSerialize;
-
 use crate::mutual_credit::types::{MutualCredit, McMutation};
 use crate::mutual_credit::incoming::{ProcessOperationOutput, ProcessTransListError, 
     process_operations_list, IncomingMessage};
@@ -140,7 +138,7 @@ fn initial_move_token<A>(low_public_key: &PublicKey,
 
 impl<A> TokenChannel<A> 
 where
-    A: CanonicalSerialize + Clone,
+    A: Clone,
 {
     pub fn new(local_public_key: &PublicKey, 
                remote_public_key: &PublicKey,
@@ -309,10 +307,7 @@ impl TcIncoming {
     /// Handle an incoming move token during Incoming direction:
     fn handle_incoming<A>(&self, 
                         new_move_token: MoveToken<A>) 
-        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> 
-    where
-        A: CanonicalSerialize,
-    {
+        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> {
 
         // We compare the whole move token message and not just the signature (new_token)
         // because we don't check the signature in this flow.
@@ -330,7 +325,7 @@ impl TcIncoming {
                                     opt_local_address: Option<A>,
                                     rand_nonce: RandValue) -> UnsignedMoveToken<A> 
     where
-        A: CanonicalSerialize + 'static,
+        A: 'static,
     {
 
         create_unsigned_move_token(
@@ -359,11 +354,7 @@ where
     /// Handle an incoming move token during Outgoing direction:
     fn handle_incoming(&self, 
                         new_move_token: MoveToken<A>) 
-        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> 
-
-    where
-        A: CanonicalSerialize,
-    {
+        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> {
 
         if &new_move_token.old_token == &self.move_token_out.new_token {
             self.handle_incoming_token_match(new_move_token)
@@ -378,10 +369,7 @@ where
 
     fn handle_incoming_token_match(&self,
                                    new_move_token: MoveToken<A>)
-        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> 
-    where
-        A: CanonicalSerialize,
-    {
+        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> {
 
         // Verify signature:
         // Note that we only verify the signature here, and not at the Incoming part.

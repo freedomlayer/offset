@@ -6,14 +6,15 @@ use proto::funder::messages::FriendStatus;
 
 use crate::handler::MutableFunderHandler;
 use crate::types::{ChannelerConfig, FunderOutgoingComm, ChannelerAddFriend};
-use crate::state::FunderState;
 
-pub fn handle_init<A>(state: &FunderState<A>) -> Vec<ChannelerConfig<A>> 
+use super::MutableFunderState;
+
+pub fn handle_init<A>(m_state: &MutableFunderState<A>) -> Vec<ChannelerConfig<A>> 
 where
     A: Clone,
 {
     let mut enabled_friends = Vec::new();
-    for (friend_public_key, friend) in &state.friends {
+    for (friend_public_key, friend) in &m_state.state().friends {
         match friend.status {
             FriendStatus::Enabled => {
                 let channeler_add_friend = ChannelerAddFriend {
@@ -36,7 +37,7 @@ where
     // self.add_outgoing_control(FunderOutgoingControl::Report(report));
 
     // Notify Channeler about current address:
-    channeler_configs.push(ChannelerConfig::SetAddress(state.opt_address.clone()));
+    channeler_configs.push(ChannelerConfig::SetAddress(m_state.state().opt_address.clone()));
 
     // Notify channeler about all enabled friends:
     for enabled_friend in enabled_friends {

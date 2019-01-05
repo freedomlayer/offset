@@ -10,6 +10,11 @@ use crate::types::{IncomingLivenessMessage};
 use crate::ephemeral::EphemeralMutation;
 use crate::liveness::LivenessMutation;
 
+use crate::handler::{MutableFunderState, MutableEphemeral};
+use crate::handler::sender::SendCommands;
+use crate::handler::canceler::{cancel_pending_requests, 
+                                cancel_pending_user_requests};
+
 #[derive(Debug)]
 pub enum HandleLivenessError {
     FriendDoesNotExist,
@@ -17,6 +22,65 @@ pub enum HandleLivenessError {
     FriendAlreadyOnline,
 }
 
+pub fn handle_liveness_message<A,R>(m_state: &mut MutableFunderState<A>,
+                                    m_ephemeral: &mut MutableEphemeral,
+                                    liveness_message: IncomingLivenessMessage,
+                                    send_commands: &mut SendCommands) 
+    -> Result<(), HandleLivenessError> 
+
+where
+    A: CanonicalSerialize + Clone + Debug + PartialEq + Eq + 'static,
+    R: CryptoRandom + 'static,
+{
+
+    match liveness_message {
+        IncomingLivenessMessage::Online(friend_public_key) => {
+            // Find friend:
+            let friend = match m_state.state().friends.get(&friend_public_key) {
+                Some(friend) => Ok(friend),
+                None => Err(HandleLivenessError::FriendDoesNotExist),
+            }?;
+            match friend.status {
+                FriendStatus::Enabled => Ok(()),
+                FriendStatus::Disabled => Err(HandleLivenessError::FriendIsDisabled),
+            }?;
+
+            if m_ephemeral.ephemeral().liveness.is_online(&friend_public_key) {
+                return Err(HandleLivenessError::FriendAlreadyOnline);
+            }
+
+            send_commands.set_resend_outgoing(&friend_public_key);
+
+            let liveness_mutation = LivenessMutation::SetOnline(friend_public_key.clone());
+            let ephemeral_mutation = EphemeralMutation::LivenessMutation(liveness_mutation);
+            m_ephemeral.mutate(ephemeral_mutation);
+        },
+        IncomingLivenessMessage::Offline(friend_public_key) => {
+            // Find friend:
+            let friend = match m_state.state().friends.get(&friend_public_key) {
+                Some(friend) => Ok(friend),
+                None => Err(HandleLivenessError::FriendDoesNotExist),
+            }?;
+            match friend.status {
+                FriendStatus::Enabled => Ok(()),
+                FriendStatus::Disabled => Err(HandleLivenessError::FriendIsDisabled),
+            }?;
+            let liveness_mutation = LivenessMutation::SetOffline(friend_public_key.clone());
+            let ephemeral_mutation = EphemeralMutation::LivenessMutation(liveness_mutation);
+            m_ephemeral.mutate(ephemeral_mutation);
+
+            // Cancel all messages pending for this friend.
+            // TODO: Fix signature here:
+            cancel_pending_requests(
+                    &friend_public_key);
+            cancel_pending_user_requests(
+                    &friend_public_key);
+        },
+    };
+    Ok(())
+}
+
+/*
 #[allow(unused)]
 impl<A,R> MutableFunderHandler<A,R> 
 where
@@ -24,56 +88,8 @@ where
     R: CryptoRandom + 'static,
 {
 
-    pub fn handle_liveness_message(&mut self, 
-                                  liveness_message: IncomingLivenessMessage) 
-        -> Result<(), HandleLivenessError> {
-
-        match liveness_message {
-            IncomingLivenessMessage::Online(friend_public_key) => {
-                // Find friend:
-                let friend = match self.get_friend(&friend_public_key) {
-                    Some(friend) => Ok(friend),
-                    None => Err(HandleLivenessError::FriendDoesNotExist),
-                }?;
-                match friend.status {
-                    FriendStatus::Enabled => Ok(()),
-                    FriendStatus::Disabled => Err(HandleLivenessError::FriendIsDisabled),
-                }?;
-
-                if self.ephemeral.liveness.is_online(&friend_public_key) {
-                    return Err(HandleLivenessError::FriendAlreadyOnline);
-                }
-
-                self.send_commands.set_resend_outgoing(&friend_public_key);
-
-                let liveness_mutation = LivenessMutation::SetOnline(friend_public_key.clone());
-                let ephemeral_mutation = EphemeralMutation::LivenessMutation(liveness_mutation);
-                self.apply_ephemeral_mutation(ephemeral_mutation);
-            },
-            IncomingLivenessMessage::Offline(friend_public_key) => {
-                // Find friend:
-                let friend = match self.get_friend(&friend_public_key) {
-                    Some(friend) => Ok(friend),
-                    None => Err(HandleLivenessError::FriendDoesNotExist),
-                }?;
-                match friend.status {
-                    FriendStatus::Enabled => Ok(()),
-                    FriendStatus::Disabled => Err(HandleLivenessError::FriendIsDisabled),
-                }?;
-                let liveness_mutation = LivenessMutation::SetOffline(friend_public_key.clone());
-                let ephemeral_mutation = EphemeralMutation::LivenessMutation(liveness_mutation);
-                self.apply_ephemeral_mutation(ephemeral_mutation);
-
-                // Cancel all messages pending for this friend.
-                self.cancel_pending_requests(
-                        &friend_public_key);
-                self.cancel_pending_user_requests(
-                        &friend_public_key);
-            },
-        };
-        Ok(())
-    }
 }
+*/
 
 
 #[cfg(test)]
