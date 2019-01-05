@@ -10,12 +10,13 @@ use common::canonical_serialize::CanonicalSerialize;
 use super::MutableFunderHandler;
 
 use crate::types::{FunderOutgoingComm, create_pending_request, sign_move_token,
-                    create_response_send_funds, create_failure_send_funds};
+                    create_response_send_funds, create_failure_send_funds,
+                    create_unsigned_move_token};
 use crate::mutual_credit::outgoing::{QueueOperationError, OutgoingMc};
 
 use crate::friend::{FriendMutation, ResponseOp, 
-    ChannelStatus, SentLocalAddress};
-use crate::token_channel::{TcMutation, TcDirection, SetDirection};
+    ChannelStatus, SentLocalAddress, ChannelInconsistent};
+use crate::token_channel::{TokenChannel, TcMutation, TcDirection, SetDirection};
 
 use crate::freeze_guard::FreezeGuardMutation;
 
@@ -438,6 +439,47 @@ where
         Ok(())
     }
 
+    pub async fn apply_local_reset<'a>(&'a mut self, 
+                                    friend_public_key: &'a PublicKey,
+                                    channel_inconsistent: &'a ChannelInconsistent) {
+        // TODO: How to do this without unwrap?:
+        let remote_reset_terms = channel_inconsistent.opt_remote_reset_terms
+            .clone()
+            .unwrap();
+
+        let rand_nonce = RandValue::new(&self.rng);
+        let move_token_counter = 0;
+
+        let local_pending_debt = 0;
+        let remote_pending_debt = 0;
+        let opt_local_address = None;
+        let u_reset_move_token = create_unsigned_move_token(
+            // No operations are required for a reset move token
+            Vec::new(), 
+            opt_local_address,
+            remote_reset_terms.reset_token.clone(),
+            remote_reset_terms.inconsistency_counter,
+            move_token_counter,
+            remote_reset_terms.balance_for_reset.checked_neg().unwrap(),
+            local_pending_debt,
+            remote_pending_debt,
+            rand_nonce);
+
+        let reset_move_token = await!(sign_move_token(u_reset_move_token, &mut self.identity_client));
+
+        let token_channel = TokenChannel::new_from_local_reset(
+            &self.state.local_public_key,
+            friend_public_key,
+            &reset_move_token,
+            remote_reset_terms.balance_for_reset,
+            channel_inconsistent.opt_last_incoming_move_token.clone());
+
+        let friend_mutation = FriendMutation::SetConsistent(token_channel);
+        let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+        self.apply_funder_mutation(funder_mutation);
+
+    }
+
     pub async fn send_friend_iter1<'a>(&'a mut self, friend_public_key: &'a PublicKey, 
                              friend_send_commands: &'a FriendSendCommands, 
                              pending_move_tokens: &'a mut HashMap<PublicKey, PendingMoveToken<A>>) {
@@ -450,10 +492,18 @@ where
             return;
         }
 
-        let friend = match self.get_friend(&friend_public_key) {
-            None => return,
-            Some(friend) => friend,
-        };
+        let friend = self.get_friend(friend_public_key).unwrap();
+
+        // Check if we need to perform a local reset:
+        if friend_send_commands.local_reset {
+            if let ChannelStatus::Inconsistent(channel_inconsistent) = 
+                &friend.channel_status {
+                let c_channel_inconsistent = channel_inconsistent.clone();
+                await!(self.apply_local_reset(friend_public_key, &c_channel_inconsistent));
+            }
+        }
+
+        let friend = self.get_friend(friend_public_key).unwrap();
 
         let token_channel = match &friend.channel_status {
             ChannelStatus::Consistent(token_channel) => token_channel,
