@@ -142,13 +142,17 @@ where
     fn disable_friend(&mut self, 
                      friend_public_key: &PublicKey) {
 
-        // TODO: Cancel all pending requests for this friend.
-        // We don't want the payer to wait.
+        // Cancel all pending requests to this friend:
+        await!(self.cancel_pending_requests(
+                remote_public_key.clone()));
+        await!(self.cancel_pending_user_requests(
+                remote_public_key.clone()));
 
         // Notify Channeler:
         let channeler_config = ChannelerConfig::RemoveFriend(
             friend_public_key.clone());
         self.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
+
     }
 
     fn control_set_address(&mut self, opt_address: Option<A>) {
