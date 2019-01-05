@@ -23,6 +23,7 @@ use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError};
 use self::handle_friend::HandleFriendError;
 use self::handle_liveness::HandleLivenessError;
+use self::handle_init::handle_init;
 use self::sender::FriendSendCommands;
 use super::types::{FunderIncoming,
     FunderOutgoingComm, FunderIncomingComm};
@@ -220,7 +221,10 @@ where
 
     match funder_incoming {
         FunderIncoming::Init =>  {
-            mutable_handler.handle_init();
+            let channeler_configs = handle_init(&mutable_handler.state);
+            for channeler_config in channeler_configs {
+                mutable_handler.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
+            }
         },
         FunderIncoming::Control(control_message) =>
             mutable_handler

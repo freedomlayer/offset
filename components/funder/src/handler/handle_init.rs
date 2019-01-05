@@ -6,49 +6,46 @@ use proto::funder::messages::FriendStatus;
 
 use crate::handler::MutableFunderHandler;
 use crate::types::{ChannelerConfig, FunderOutgoingComm, ChannelerAddFriend};
+use crate::state::FunderState;
 
-
-#[allow(unused)]
-impl<A,R> MutableFunderHandler<A,R> 
+pub fn handle_init<A>(state: &FunderState<A>) -> Vec<ChannelerConfig<A>> 
 where
-    A: CanonicalSerialize + Clone + Debug + PartialEq + Eq + 'static,
-    R: CryptoRandom,
+    A: Clone,
 {
-
-    pub fn handle_init(&mut self) {
-        let mut enabled_friends = Vec::new();
-        for (friend_public_key, friend) in &self.state.friends {
-            match friend.status {
-                FriendStatus::Enabled => {
-                    let channeler_add_friend = ChannelerAddFriend {
-                        friend_public_key: friend.remote_public_key.clone(),
-                        friend_address: friend.remote_address.clone(),
-                        local_addresses: friend.sent_local_address.to_vec(),
-                    };
-                    enabled_friends.push(channeler_add_friend);
-                },
-                FriendStatus::Disabled => continue,
-            };
-        }
-
-        // Send a report of the current FunderState:
-        // This is a base report. Later reports are differential, and should be built on this base
-        // report.
-        // let report = create_report(&self.state, &self.ephemeral);
-        // self.add_outgoing_control(FunderOutgoingControl::Report(report));
-
-        // Notify Channeler about current address:
-        let channeler_config = ChannelerConfig::SetAddress(self.state.opt_address.clone());
-        self.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
-
-        // Notify channeler about all enabled friends:
-        for enabled_friend in enabled_friends {
-
-            // Notify Channeler:
-            let channeler_config = ChannelerConfig::AddFriend(enabled_friend);
-            self.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
-        }
+    let mut enabled_friends = Vec::new();
+    for (friend_public_key, friend) in &state.friends {
+        match friend.status {
+            FriendStatus::Enabled => {
+                let channeler_add_friend = ChannelerAddFriend {
+                    friend_public_key: friend.remote_public_key.clone(),
+                    friend_address: friend.remote_address.clone(),
+                    local_addresses: friend.sent_local_address.to_vec(),
+                };
+                enabled_friends.push(channeler_add_friend);
+            },
+            FriendStatus::Disabled => continue,
+        };
     }
+
+    let mut channeler_configs = Vec::new();
+
+    // Send a report of the current FunderState:
+    // This is a base report. Later reports are differential, and should be built on this base
+    // report.
+    // let report = create_report(&self.state, &self.ephemeral);
+    // self.add_outgoing_control(FunderOutgoingControl::Report(report));
+
+    // Notify Channeler about current address:
+    channeler_configs.push(ChannelerConfig::SetAddress(state.opt_address.clone()));
+
+    // Notify channeler about all enabled friends:
+    for enabled_friend in enabled_friends {
+
+        // Notify Channeler:
+        channeler_configs.push(ChannelerConfig::AddFriend(enabled_friend));
+    }
+
+    channeler_configs
 }
 
 
