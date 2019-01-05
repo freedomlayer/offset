@@ -291,10 +291,12 @@ where
 
         // We are here if an error occured. 
         // We cancel the request:
-        
-        // TODO: How to make sure we attempt to send this failure in the second iteration?
-        self.reply_with_failure(&friend_public_key, &request_send_funds);
-        unimplemented!();
+        let pending_request = create_pending_request(request_send_funds);
+        let u_failure_op = ResponseOp::UnsignedFailure(pending_request);
+        let friend_mutation = FriendMutation::PushBackPendingResponse(u_failure_op);
+        let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+        self.apply_funder_mutation(funder_mutation);
+
         Ok(())
     }
 
