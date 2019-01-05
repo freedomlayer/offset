@@ -61,20 +61,6 @@ where
     Signature::from(buff)
 }
 
-/*
-/// Calculate the token to be used for resetting the channel.
-#[allow(unused)]
-pub async fn calc_channel_reset_token(new_token: &Signature,
-                      balance_for_reset: i128,
-                      identity_client: IdentityClient) -> Signature {
-
-    let mut sig_buffer = Vec::new();
-    sig_buffer.extend_from_slice(&sha_512_256(TOKEN_RESET));
-    sig_buffer.extend_from_slice(&new_token);
-    sig_buffer.write_i128::<BigEndian>(balance_for_reset).unwrap();
-    await!(identity_client.request_signature(sig_buffer)).unwrap()
-}
-*/
 
 pub fn gen_reset_terms<A,R>(token_channel: &TokenChannel<A>, 
                              rng: &R) -> ResetTerms 

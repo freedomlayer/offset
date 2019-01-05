@@ -40,16 +40,7 @@ where
             rand_nonce,
             signature: (),
         };
-        // TODO: Add default() implementation for Signature
-        
-        /*
-        let mut failure_signature_buffer = create_failure_signature_buffer(
-                                            &failure_send_funds,
-                                            &pending_local_request);
 
-        failure_send_funds.signature = await!(self.identity_client.request_signature(failure_signature_buffer))
-            .unwrap();
-        */
         u_failure_send_funds
     }
 
