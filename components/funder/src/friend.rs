@@ -7,16 +7,20 @@ use common::canonical_serialize::CanonicalSerialize;
 
 use proto::funder::messages::{MoveToken, RequestSendFunds,
     ResponseSendFunds, FailureSendFunds, ResetTerms,
-    FriendStatus, RequestsStatus};
+    FriendStatus, RequestsStatus, PendingRequest};
 
 use crate::token_channel::{TcMutation, TokenChannel};
-use crate::types::{MoveTokenHashed};
+use crate::types::{MoveTokenHashed, UnsignedFailureSendFunds, 
+    UnsignedResponseSendFunds, UnsignedMoveToken};
+
 
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum ResponseOp {
     Response(ResponseSendFunds),
+    UnsignedResponse(PendingRequest),
     Failure(FailureSendFunds),
+    UnsignedFailure(PendingRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,6 +51,7 @@ where
 pub enum FriendMutation<A> {
     TcMutation(TcMutation<A>),
     SetInconsistent(ChannelInconsistent),
+    SetConsistent(TokenChannel<A>),
     SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatus),
     PushBackPendingRequest(RequestSendFunds),
@@ -59,9 +64,9 @@ pub enum FriendMutation<A> {
     SetRemoteAddress(A),
     SetName(String),
     SetSentLocalAddress(SentLocalAddress<A>),
-    LocalReset(MoveToken<A>),
+    // LocalReset(UnsignedMoveToken<A>),
     // The outgoing move token message we have sent to reset the channel.
-    RemoteReset(MoveToken<A>),
+    // RemoteReset(MoveToken<A>),
 }
 
 #[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
@@ -182,6 +187,9 @@ where
             FriendMutation::SetInconsistent(channel_inconsistent) => {
                 self.channel_status = ChannelStatus::Inconsistent(channel_inconsistent.clone());
             },
+            FriendMutation::SetConsistent(token_channel) => {
+                self.channel_status = ChannelStatus::Consistent(token_channel.clone());
+            },
             FriendMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
                 self.wanted_remote_max_debt = *wanted_remote_max_debt;
             },
@@ -218,6 +226,7 @@ where
             FriendMutation::SetSentLocalAddress(sent_local_address) => {
                 self.sent_local_address = sent_local_address.clone();
             },
+            /*
             FriendMutation::LocalReset(reset_move_token) => {
                 // Local reset was applied (We sent a reset from the control line)
                 match &self.channel_status {
@@ -259,6 +268,7 @@ where
                     },
                 }
             },
+            */
         }
     }
 }

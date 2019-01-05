@@ -1,18 +1,17 @@
 use std::fmt::Debug;
 
-use crypto::identity::{PublicKey, Signature};
+use crypto::identity::PublicKey;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
 use common::canonical_serialize::CanonicalSerialize;
-use proto::funder::messages::{RequestSendFunds, FailureSendFunds,
+use proto::funder::messages::{RequestSendFunds,
                               PendingRequest, ResponseReceived,
                               ResponseSendFundsResult, FunderOutgoingControl};
-use proto::funder::signature_buff::{create_failure_signature_buffer};
 
 use crate::handler::MutableFunderHandler;
 
 
-use crate::types::create_pending_request;
+use crate::types::{create_pending_request, UnsignedFailureSendFunds};
 use crate::friend::{FriendMutation, ResponseOp, ChannelStatus};
 use crate::state::FunderMutation;
 
@@ -29,48 +28,47 @@ where
 
     /// Create a (signed) failure message for a given request_id.
     /// We are the reporting_public_key for this failure message.
-    pub async fn create_failure_message(&self, pending_local_request: PendingRequest) 
-        -> FailureSendFunds {
+    pub fn create_unsigned_failure_message(&self, pending_local_request: &PendingRequest) 
+        -> UnsignedFailureSendFunds {
 
         let rand_nonce = RandValue::new(&self.rng);
         let local_public_key = self.state.local_public_key.clone();
 
-        let mut failure_send_funds = FailureSendFunds {
-            request_id: pending_local_request.request_id,
-            reporting_public_key: local_public_key,
+        let mut u_failure_send_funds = UnsignedFailureSendFunds {
+            request_id: pending_local_request.request_id.clone(),
+            reporting_public_key: local_public_key.clone(),
             rand_nonce,
-            signature: Signature::zero(),
+            signature: (),
         };
         // TODO: Add default() implementation for Signature
         
+        /*
         let mut failure_signature_buffer = create_failure_signature_buffer(
                                             &failure_send_funds,
                                             &pending_local_request);
 
         failure_send_funds.signature = await!(self.identity_client.request_signature(failure_signature_buffer))
             .unwrap();
-
-        failure_send_funds
+        */
+        u_failure_send_funds
     }
 
     /// Reply to a request message with failure.
-    pub async fn reply_with_failure(&mut self, 
-                          remote_public_key: PublicKey,
-                          request_send_funds: RequestSendFunds) {
+    pub fn reply_with_failure(&mut self, 
+                          remote_public_key: &PublicKey,
+                          request_send_funds: &RequestSendFunds) {
 
-        let pending_request = create_pending_request(&request_send_funds);
-        let failure_send_funds = await!(self.create_failure_message(pending_request));
-
-        let failure_op = ResponseOp::Failure(failure_send_funds);
-        let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
+        let pending_request = create_pending_request(request_send_funds);
+        let u_failure_op = ResponseOp::UnsignedFailure(pending_request);
+        let friend_mutation = FriendMutation::PushBackPendingResponse(u_failure_op);
         let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_funder_mutation(funder_mutation);
-        self.set_try_send(&remote_public_key);
+        self.set_try_send(remote_public_key);
     }
 
     /// Cancel outgoing local requests that are already inside the token channel (Possibly already
     /// communicated to the remote side).
-    pub async fn cancel_local_pending_requests<'a>(&'a mut self, 
+    pub fn cancel_local_pending_requests<'a>(&'a mut self, 
                                      friend_public_key: &'a PublicKey) {
 
         let friend = self.get_friend(friend_public_key).unwrap();
@@ -103,10 +101,8 @@ where
                 Some(origin_public_key) => {
                     // We have found the friend that is the origin of this request.
                     // We send him a failure message.
-                    let failure_send_funds = await!(self.create_failure_message(pending_local_request));
-
-                    let failure_op = ResponseOp::Failure(failure_send_funds);
-                    let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
+                    let u_failure_op = ResponseOp::UnsignedFailure(pending_local_request);
+                    let friend_mutation = FriendMutation::PushBackPendingResponse(u_failure_op);
                     let funder_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
                     self.apply_funder_mutation(funder_mutation);
                     self.set_try_send(&origin_public_key);
@@ -125,7 +121,7 @@ where
         }
     }
 
-    pub async fn cancel_pending_requests<'a>(&'a mut self,
+    pub fn cancel_pending_requests<'a>(&'a mut self,
                                friend_public_key: &'a PublicKey) {
 
         let friend = self.get_friend(friend_public_key).unwrap();
@@ -139,11 +135,9 @@ where
             let opt_origin_public_key = self.find_request_origin(&pending_request.request_id).cloned();
             let origin_public_key = match opt_origin_public_key {
                 Some(origin_public_key) => {
-                    let pending_request = create_pending_request(&pending_request);
-                    let failure_send_funds = await!(self.create_failure_message(pending_request));
-
-                    let failure_op = ResponseOp::Failure(failure_send_funds);
-                    let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
+                    let local_pending_request = create_pending_request(&pending_request);
+                    let u_failure_op = ResponseOp::UnsignedFailure(local_pending_request);
+                    let friend_mutation = FriendMutation::PushBackPendingResponse(u_failure_op);
                     let funder_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
                     self.apply_funder_mutation(funder_mutation);
                     self.set_try_send(&origin_public_key);
@@ -160,7 +154,7 @@ where
         }
     }
 
-    pub async fn cancel_pending_user_requests<'a>(&'a mut self,
+    pub fn cancel_pending_user_requests<'a>(&'a mut self,
                                friend_public_key: &'a PublicKey) {
 
         let friend = self.get_friend(&friend_public_key).unwrap();

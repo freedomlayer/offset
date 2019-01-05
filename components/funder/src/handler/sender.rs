@@ -9,7 +9,8 @@ use common::canonical_serialize::CanonicalSerialize;
 
 use super::MutableFunderHandler;
 
-use crate::types::{FunderOutgoingComm, create_pending_request};
+use crate::types::{FunderOutgoingComm, create_pending_request, sign_move_token,
+                    create_response_send_funds, create_failure_send_funds};
 use crate::mutual_credit::outgoing::{QueueOperationError, OutgoingMc};
 
 use crate::friend::{FriendMutation, ResponseOp, 
@@ -22,6 +23,7 @@ use crate::state::{FunderMutation};
 use crate::ephemeral::{EphemeralMutation};
 
 
+
 #[derive(Debug, Clone)]
 pub struct FriendSendCommands {
     /// Try to send whatever possible through this friend.
@@ -29,7 +31,9 @@ pub struct FriendSendCommands {
     /// Resend the outgoing move token message
     pub resend_outgoing: bool,
     /// Remote friend wants the token.
-    pub wants_token: bool,
+    pub remote_wants_token: bool,
+    /// We want to perform a local reset
+    pub local_reset: bool,
 }
 
 impl FriendSendCommands {
@@ -37,17 +41,12 @@ impl FriendSendCommands {
         FriendSendCommands {
             try_send: false,
             resend_outgoing: false,
-            wants_token: false,
+            remote_wants_token: false,
+            local_reset: false,
         }
     }
 }
 
-/*
-pub enum SendMode {
-    EmptyAllowed,
-    EmptyNotAllowed,
-}
-*/
 
 #[derive(Debug)]
 enum PendingQueueError {
@@ -99,11 +98,18 @@ where
         friend_send_commands.resend_outgoing = true;
     }
 
-    pub fn set_wants_token(&mut self, friend_public_key: &PublicKey) {
+    pub fn set_remote_wants_token(&mut self, friend_public_key: &PublicKey) {
         let friend_send_commands = self.send_commands
             .entry(friend_public_key.clone())
             .or_insert(FriendSendCommands::new());
-        friend_send_commands.wants_token = true;
+        friend_send_commands.remote_wants_token = true;
+    }
+
+    pub fn set_local_reset(&mut self, friend_public_key: &PublicKey) {
+        let friend_send_commands = self.send_commands
+            .entry(friend_public_key.clone())
+            .or_insert(FriendSendCommands::new());
+        friend_send_commands.local_reset = true;
     }
 
     /// Transmit the current outgoing friend_move_token.
@@ -284,15 +290,29 @@ where
 
         // We are here if an error occured. 
         // We cancel the request:
-        let pending_request = create_pending_request(&request_send_funds);
-        let failure_send_funds = await!(self.create_failure_message(pending_request));
-
-        let failure_op = ResponseOp::Failure(failure_send_funds);
-        let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
-        let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-        self.apply_funder_mutation(funder_mutation);
-
+        
+        // TODO: How to make sure we attempt to send this failure in the second iteration?
+        self.reply_with_failure(&friend_public_key, &request_send_funds);
+        unimplemented!();
         Ok(())
+    }
+
+    async fn response_op_to_friend_tc_op(&mut self, response_op: ResponseOp) -> FriendTcOp {
+        match response_op {
+            ResponseOp::Response(response) => FriendTcOp::ResponseSendFunds(response),
+            ResponseOp::UnsignedResponse(pending_request) => {
+                let rand_nonce = RandValue::new(&self.rng);
+                FriendTcOp::ResponseSendFunds(await!(create_response_send_funds(
+                            &pending_request, rand_nonce, &mut self.identity_client)))
+            },
+            ResponseOp::Failure(failure) => FriendTcOp::FailureSendFunds(failure),
+            ResponseOp::UnsignedFailure(pending_request) => {
+                let rand_nonce = RandValue::new(&self.rng);
+                FriendTcOp::FailureSendFunds(await!(create_failure_send_funds(
+                            &pending_request, &self.state.local_public_key, 
+                            rand_nonce, &mut self.identity_client)))
+            }
+        }
     }
 
     /// Given a friend with an incoming move token state, create the largest possible move token to
@@ -377,10 +397,7 @@ where
         // TODO: Possibly replace this clone with something more efficient later:
         let mut pending_responses = friend.pending_responses.clone();
         while let Some(pending_response) = pending_responses.pop_front() {
-            let pending_op = match pending_response {
-                ResponseOp::Response(response) => FriendTcOp::ResponseSendFunds(response),
-                ResponseOp::Failure(failure) => FriendTcOp::FailureSendFunds(failure),
-            };
+            let pending_op = await!(self.response_op_to_friend_tc_op(pending_response));
             await!(self.queue_operation_or_failure(friend_public_key,
                                  pending_move_token,
                                  &pending_op))?;
@@ -427,7 +444,8 @@ where
 
         if !friend_send_commands.try_send 
             && !friend_send_commands.resend_outgoing 
-            && !friend_send_commands.wants_token {
+            && !friend_send_commands.remote_wants_token
+            && !friend_send_commands.local_reset {
 
             return;
         }
@@ -487,10 +505,7 @@ where
         // TODO: Possibly replace this clone with something more efficient later:
         let mut pending_responses = friend.pending_responses.clone();
         while let Some(pending_response) = pending_responses.pop_front() {
-            let pending_op = match pending_response {
-                ResponseOp::Response(response) => FriendTcOp::ResponseSendFunds(response),
-                ResponseOp::Failure(failure) => FriendTcOp::FailureSendFunds(failure),
-            };
+            let pending_op = await!(self.response_op_to_friend_tc_op(pending_response));
             await!(self.queue_operation_or_failure(friend_public_key,
                                  pending_move_token,
                                  &pending_op))?;
@@ -525,13 +540,14 @@ where
             TcDirection::Incoming(tc_incoming) => tc_incoming,
         };
 
-        let friend_move_token = await!(tc_incoming.create_friend_move_token(operations, 
+        let u_move_token = tc_incoming.create_unsigned_move_token(operations, 
                                              opt_local_address,
-                                             rand_nonce,
-                                             self.identity_client.clone()));
+                                             rand_nonce);
+
+        let move_token = await!(sign_move_token(u_move_token, &mut self.identity_client));
 
         let tc_mutation = TcMutation::SetDirection(
-            SetDirection::Outgoing(friend_move_token));
+            SetDirection::Outgoing(move_token));
         let friend_mutation = FriendMutation::TcMutation(tc_mutation);
         let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
         self.apply_funder_mutation(funder_mutation);

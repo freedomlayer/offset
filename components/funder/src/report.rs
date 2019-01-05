@@ -235,8 +235,7 @@ where
         FriendMutation::SetSentLocalAddress(sent_local_address) =>
             vec![FriendReportMutation::SetSentLocalAddress(sent_local_address.into())],
         FriendMutation::SetInconsistent(_) |
-        FriendMutation::LocalReset(_) |
-        FriendMutation::RemoteReset(_) => {
+        FriendMutation::SetConsistent(_) => {
             let channel_status_report = ChannelStatusReport::from(&friend_after.channel_status);
             let set_channel_status = FriendReportMutation::SetChannelStatus(channel_status_report);
             let opt_move_token_hashed_report = friend_after.channel_status.get_last_incoming_move_token_hashed()

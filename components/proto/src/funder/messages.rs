@@ -76,19 +76,19 @@ pub struct RequestSendFunds {
 
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct ResponseSendFunds {
+pub struct ResponseSendFunds<S=Signature> {
     pub request_id: Uid,
     pub rand_nonce: RandValue,
-    pub signature: Signature,
+    pub signature: S,
 }
 
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct FailureSendFunds {
+pub struct FailureSendFunds<S=Signature> {
     pub request_id: Uid,
     pub reporting_public_key: PublicKey,
     pub rand_nonce: RandValue,
-    pub signature: Signature,
+    pub signature: S,
 }
 
 
@@ -103,7 +103,7 @@ pub enum FriendTcOp {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct MoveToken<A> {
+pub struct MoveToken<A,S=Signature> {
     pub operations: Vec<FriendTcOp>,
     pub opt_local_address: Option<A>,
     pub old_token: Signature,
@@ -113,7 +113,7 @@ pub struct MoveToken<A> {
     pub local_pending_debt: u128,
     pub remote_pending_debt: u128,
     pub rand_nonce: RandValue,
-    pub new_token: Signature,
+    pub new_token: S,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

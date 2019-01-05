@@ -223,18 +223,18 @@ where
             mutable_handler.handle_init();
         },
         FunderIncoming::Control(control_message) =>
-            await!(mutable_handler
-                .handle_control_message(control_message))
+            mutable_handler
+                .handle_control_message(control_message)
                 .map_err(FunderHandlerError::HandleControlError)?,
         FunderIncoming::Comm(incoming_comm) => {
             match incoming_comm {
                 FunderIncomingComm::Liveness(liveness_message) =>
-                    await!(mutable_handler
-                        .handle_liveness_message(liveness_message))
+                    mutable_handler
+                        .handle_liveness_message(liveness_message)
                         .map_err(FunderHandlerError::HandleLivenessError)?,
                 FunderIncomingComm::Friend((origin_public_key, friend_message)) => 
-                    await!(mutable_handler
-                        .handle_friend_message(origin_public_key, friend_message))
+                    mutable_handler
+                        .handle_friend_message(&origin_public_key, friend_message)
                         .map_err(FunderHandlerError::HandleFriendError)?,
             }
         },

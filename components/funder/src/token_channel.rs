@@ -10,7 +10,7 @@ use crypto::hash::sha_512_256;
 use identity::IdentityClient;
 
 use proto::funder::messages::{MoveToken, FriendTcOp};
-use proto::funder::signature_buff::verify_friend_move_token;
+use proto::funder::signature_buff::verify_move_token;
 
 use common::canonical_serialize::CanonicalSerialize;
 
@@ -19,7 +19,8 @@ use crate::mutual_credit::incoming::{ProcessOperationOutput, ProcessTransListErr
     process_operations_list, IncomingMessage};
 use crate::mutual_credit::outgoing::OutgoingMc;
 
-use crate::types::{MoveTokenHashed, create_friend_move_token, create_hashed};
+use crate::types::{MoveTokenHashed, create_unsigned_move_token, create_hashed,
+                    UnsignedMoveToken};
 
 
 #[derive(Debug)]
@@ -35,27 +36,27 @@ pub enum TcMutation<A> {
     SetDirection(SetDirection<A>),
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct TcOutgoing<A> {
     pub mutual_credit: MutualCredit,
     pub move_token_out: MoveToken<A>,
     pub opt_prev_move_token_in: Option<MoveTokenHashed>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct TcIncoming {
     pub mutual_credit: MutualCredit,
     pub move_token_in: MoveTokenHashed,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum TcDirection<A> {
     Incoming(TcIncoming),
     Outgoing(TcOutgoing<A>),
 }
 
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct TokenChannel<A> {
     direction: TcDirection<A>,
 }
@@ -115,15 +116,14 @@ fn rand_nonce_from_public_key(public_key: &PublicKey) -> RandValue {
 /// Create an initial move token in the relationship between two public keys.
 /// To canonicalize the initial move token (Having an equal move token for both sides), we sort the
 /// two public keys in some way.
-fn initial_move_token<A>(low_public_key: &PublicKey, 
-                      high_public_key: &PublicKey,
-                      balance: i128) -> MoveToken<A> {
+fn initial_move_token<A>(low_public_key: &PublicKey,
+                           high_public_key: &PublicKey,
+                           balance: i128) -> MoveToken<A> {
     // This is a special initialization case.
     // Note that this is the only case where new_token is not a valid signature.
     // We do this because we want to have synchronization between the two sides of the token
     // channel, however, the remote side has no means of generating the signature (Because he
     // doesn't have the private key). Therefore we use a dummy new_token instead.
-    let rand_nonce = rand_nonce_from_public_key(&high_public_key);
     MoveToken {
         operations: Vec::new(),
         opt_local_address: None,
@@ -133,10 +133,11 @@ fn initial_move_token<A>(low_public_key: &PublicKey,
         balance,
         local_pending_debt: 0,
         remote_pending_debt: 0,
-        rand_nonce,
+        rand_nonce: rand_nonce_from_public_key(&high_public_key),
         new_token: token_from_public_key(&high_public_key),
     }
 }
+
 
 impl<A> TokenChannel<A> 
 where
@@ -152,7 +153,9 @@ where
             // We are the first sender
             let tc_outgoing = TcOutgoing {
                 mutual_credit,
-                move_token_out: initial_move_token(local_public_key, remote_public_key, balance),
+                move_token_out: initial_move_token(local_public_key, 
+                                                     remote_public_key, 
+                                                     balance),
                 opt_prev_move_token_in: None,
             };
             TokenChannel {
@@ -162,8 +165,9 @@ where
             // We are the second sender
             let tc_incoming = TcIncoming {
                 mutual_credit,
-                move_token_in: create_hashed::<A>(&initial_move_token(remote_public_key, local_public_key, 
-                                                  balance.checked_neg().unwrap())),
+                move_token_in: create_hashed::<A>(&initial_move_token(remote_public_key, 
+                                                                local_public_key, 
+                                                                balance.checked_neg().unwrap())),
             };
             TokenChannel {
                 direction: TcDirection::Incoming(tc_incoming),
@@ -264,28 +268,18 @@ where
         }
     }
 
-    fn get_cur_move_token_hashed(&self) -> MoveTokenHashed {
+
+    pub fn get_inconsistency_counter(&self) -> u64 {
         match &self.direction {
-            TcDirection::Incoming(tc_incoming) => tc_incoming.move_token_in.clone(),
-            TcDirection::Outgoing(tc_outgoing) => create_hashed(&tc_outgoing.move_token_out),
+            TcDirection::Incoming(tc_incoming) => tc_incoming.move_token_in.inconsistency_counter,
+            TcDirection::Outgoing(tc_outgoing) => tc_outgoing.move_token_out.inconsistency_counter,
         }
     }
 
-
-    pub fn get_inconsistency_counter(&self) -> u64 {
-        self.get_cur_move_token_hashed().inconsistency_counter
-    }
-
     pub fn get_move_token_counter(&self) -> u128 {
-        self.get_cur_move_token_hashed().move_token_counter
-    }
-
-    /// Get the current new token (Either incoming or outgoing)
-    /// This is the most recent token in the chain.
-    pub fn get_new_token(&self) -> &Signature {
         match &self.direction {
-            TcDirection::Incoming(tc_incoming) => &tc_incoming.move_token_in.new_token,
-            TcDirection::Outgoing(tc_outgoing) => &tc_outgoing.move_token_out.new_token,
+            TcDirection::Incoming(tc_incoming) => tc_incoming.move_token_in.move_token_counter,
+            TcDirection::Outgoing(tc_outgoing) => tc_outgoing.move_token_out.move_token_counter,
         }
     }
 
@@ -332,19 +326,15 @@ impl TcIncoming {
         }
     }
 
-    pub async fn create_friend_move_token<A>(&self,
+    pub fn create_unsigned_move_token<A>(&self,
                                     operations: Vec<FriendTcOp>,
                                     opt_local_address: Option<A>,
-                                    rand_nonce: RandValue,
-                                    identity_client: IdentityClient) -> MoveToken<A> 
+                                    rand_nonce: RandValue) -> UnsignedMoveToken<A> 
     where
         A: CanonicalSerialize + 'static,
     {
-        // TODO: How to make this check happen only in debug?
-        let identity_pk = await!(identity_client.request_public_key()).unwrap();
-        assert_eq!(&identity_pk, &self.mutual_credit.state().idents.local_public_key);
 
-        await!(create_friend_move_token(
+        create_unsigned_move_token(
             operations,
             opt_local_address,
             self.move_token_in.new_token.clone(),
@@ -353,8 +343,7 @@ impl TcIncoming {
             self.mutual_credit.state().balance.balance,
             self.mutual_credit.state().balance.local_pending_debt,
             self.mutual_credit.state().balance.remote_pending_debt,
-            rand_nonce,
-            identity_client))
+            rand_nonce)
     }
 
     pub fn begin_outgoing_move_token(&self) -> OutgoingMc {
@@ -400,7 +389,7 @@ where
         // This allows the genesis move token to occur smoothly, even though its signature
         // is not correct.
         let remote_public_key = &self.mutual_credit.state().idents.remote_public_key;
-        if !verify_friend_move_token(&new_move_token, remote_public_key) {
+        if !verify_move_token(&new_move_token, remote_public_key) {
             return Err(ReceiveMoveTokenError::InvalidSignature);
         }
     

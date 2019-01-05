@@ -24,7 +24,7 @@ where
     R: CryptoRandom + 'static,
 {
 
-    pub async fn handle_liveness_message(&mut self, 
+    pub fn handle_liveness_message(&mut self, 
                                   liveness_message: IncomingLivenessMessage) 
         -> Result<(), HandleLivenessError> {
 
@@ -76,10 +76,10 @@ where
                 self.apply_ephemeral_mutation(ephemeral_mutation);
 
                 // Cancel all messages pending for this friend.
-                await!(self.cancel_pending_requests(
-                        &friend_public_key));
-                await!(self.cancel_pending_user_requests(
-                        &friend_public_key));
+                self.cancel_pending_requests(
+                        &friend_public_key);
+                self.cancel_pending_user_requests(
+                        &friend_public_key);
             },
         };
         Ok(())
