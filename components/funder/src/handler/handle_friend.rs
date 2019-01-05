@@ -20,7 +20,7 @@ use crate::mutual_credit::incoming::{IncomingResponseSendFunds,
 use crate::token_channel::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
     MoveTokenReceived, TokenChannel};
 
-use crate::types::{FunderOutgoingComm, create_pending_request};
+use crate::types::create_pending_request;
 
 use crate::state::FunderMutation;
 use crate::friend::{FriendMutation, 
@@ -359,11 +359,6 @@ where
         // Send an InconsistencyError message to remote side:
         let local_reset_terms = await!(get_reset_terms(&token_channel, self.identity_client.clone()));
 
-        self.add_outgoing_comm(FunderOutgoingComm::FriendMessage((remote_public_key.clone(),
-                FriendMessage::InconsistencyError(local_reset_terms.clone()))));
-
-
-
         // Cancel all internal pending requests inside token channel:
         await!(self.cancel_local_pending_requests(
             remote_public_key.clone()));
@@ -382,6 +377,7 @@ where
         let friend_mutation = FriendMutation::SetInconsistent(channel_inconsistent);
         let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_funder_mutation(funder_mutation);
+        self.set_try_send(&remote_public_key);
     }
 
 
@@ -551,8 +547,7 @@ where
 
         // Send an outgoing inconsistency message if required:
         if should_send_outgoing {
-            self.add_outgoing_comm(FunderOutgoingComm::FriendMessage((remote_public_key.clone(),
-                    FriendMessage::InconsistencyError(new_local_reset_terms))));
+            self.set_try_send(&remote_public_key);
         }
         Ok(())
     }
