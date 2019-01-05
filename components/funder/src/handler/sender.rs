@@ -20,7 +20,7 @@ use crate::token_channel::{TokenChannel, TcMutation, TcDirection, SetDirection};
 
 use crate::freeze_guard::FreezeGuardMutation;
 
-use crate::state::{FunderMutation};
+use crate::state::{FunderMutation, FunderState};
 use crate::ephemeral::{EphemeralMutation};
 
 
@@ -45,6 +45,43 @@ impl FriendSendCommands {
             remote_wants_token: false,
             local_reset: false,
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct SendCommands {
+    send_commands: HashMap<PublicKey, FriendSendCommands>
+}
+
+impl SendCommands {
+    pub fn new() -> Self {
+        SendCommands {
+            send_commands: HashMap::new(),
+        }
+    }
+
+    pub fn set_try_send(&mut self, friend_public_key: &PublicKey) {
+        let friend_send_commands = self.send_commands.entry(
+            friend_public_key.clone()).or_insert(FriendSendCommands::new());
+        friend_send_commands.try_send = true;
+    }
+
+    pub fn set_resend_outgoing(&mut self, friend_public_key: &PublicKey) {
+        let friend_send_commands = self.send_commands.entry(
+            friend_public_key.clone()).or_insert(FriendSendCommands::new());
+        friend_send_commands.resend_outgoing = true;
+    }
+
+    pub fn set_remote_wants_token(&mut self, friend_public_key: &PublicKey) {
+        let friend_send_commands = self.send_commands.entry(
+            friend_public_key.clone()).or_insert(FriendSendCommands::new());
+        friend_send_commands.remote_wants_token = true;
+    }
+
+    pub fn set_local_reset(&mut self, friend_public_key: &PublicKey) {
+        let friend_send_commands = self.send_commands.entry(
+            friend_public_key.clone()).or_insert(FriendSendCommands::new());
+        friend_send_commands.local_reset = true;
     }
 }
 
@@ -79,39 +116,39 @@ impl<A> PendingMoveToken<A> {
     }
 }
 
+fn create_outgoing_comm<A>(state: &FunderState<A>,
+                        friend_public_key: &PublicKey,
+                        token_wanted: bool) -> FunderOutgoingComm<A>
+where
+    A: CanonicalSerialize + Clone,
+{
+
+    let friend = state.friends.get(friend_public_key).unwrap();
+    let token_channel = match &friend.channel_status {
+        ChannelStatus::Consistent(token_channel) => token_channel,
+        ChannelStatus::Inconsistent(_) => unreachable!(),
+    };
+
+    let move_token = match &token_channel.get_direction() {
+        TcDirection::Outgoing(tc_outgoing) => tc_outgoing.create_outgoing_move_token(),
+        TcDirection::Incoming(_) => unreachable!(),
+    };
+
+    let move_token_request = MoveTokenRequest {
+        friend_move_token: move_token,
+        token_wanted,
+    };
+
+    FunderOutgoingComm::FriendMessage(
+        (friend_public_key.clone(),
+            FriendMessage::MoveTokenRequest(move_token_request)))
+}
 
 impl<A,R> MutableFunderHandler<A,R> 
 where
     A: CanonicalSerialize + Clone + Debug + PartialEq + Eq + 'static,
     R: CryptoRandom + 'static,
 {
-    pub fn set_try_send(&mut self, friend_public_key: &PublicKey) {
-        let friend_send_commands = self.send_commands
-            .entry(friend_public_key.clone())
-            .or_insert(FriendSendCommands::new());
-        friend_send_commands.try_send = true;
-    }
-
-    pub fn set_resend_outgoing(&mut self, friend_public_key: &PublicKey) {
-        let friend_send_commands = self.send_commands
-            .entry(friend_public_key.clone())
-            .or_insert(FriendSendCommands::new());
-        friend_send_commands.resend_outgoing = true;
-    }
-
-    pub fn set_remote_wants_token(&mut self, friend_public_key: &PublicKey) {
-        let friend_send_commands = self.send_commands
-            .entry(friend_public_key.clone())
-            .or_insert(FriendSendCommands::new());
-        friend_send_commands.remote_wants_token = true;
-    }
-
-    pub fn set_local_reset(&mut self, friend_public_key: &PublicKey) {
-        let friend_send_commands = self.send_commands
-            .entry(friend_public_key.clone())
-            .or_insert(FriendSendCommands::new());
-        friend_send_commands.local_reset = true;
-    }
 
     /// Transmit the current outgoing friend_move_token.
     pub fn transmit_outgoing(&mut self,
@@ -522,11 +559,15 @@ where
             TcDirection::Outgoing(_) => {
                 if self.estimate_should_send(friend_public_key) {
                     let is_token_wanted = true;
-                    self.transmit_outgoing(&friend_public_key, is_token_wanted);
+                    self.add_outgoing_comm(create_outgoing_comm(&self.state,
+                                                                &friend_public_key,
+                                                                is_token_wanted));
                 } else {
                     if friend_send_commands.resend_outgoing {
                         let is_token_wanted = false;
-                        self.transmit_outgoing(&friend_public_key, is_token_wanted);
+                        self.add_outgoing_comm(create_outgoing_comm(&self.state,
+                                                                &friend_public_key,
+                                                                is_token_wanted));
                     }
                 }
                 return;
@@ -635,7 +676,7 @@ where
 
         let send_commands = self.send_commands.clone();
         // First iteration:
-        for (friend_public_key, friend_send_commands) in &send_commands {
+        for (friend_public_key, friend_send_commands) in &send_commands.send_commands {
             await!(self.send_friend_iter1(&friend_public_key,
                                           &friend_send_commands,
                                           &mut pending_move_tokens));

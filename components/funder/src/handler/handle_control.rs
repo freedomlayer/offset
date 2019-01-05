@@ -66,7 +66,7 @@ where
             (set_friend_remote_max_debt.friend_public_key.clone(), friend_mutation));
         self.apply_funder_mutation(m_mutation);
 
-        self.set_try_send(&set_friend_remote_max_debt.friend_public_key);
+        self.send_commands.set_try_send(&set_friend_remote_max_debt.friend_public_key);
         Ok(())
     }
 
@@ -95,7 +95,7 @@ where
 
         // We don't have the ability to sign here, therefore we defer the creation
         // of the local reset outgoing move token to the sender.
-        self.set_local_reset(&reset_friend_channel.friend_public_key);
+        self.send_commands.set_local_reset(&reset_friend_channel.friend_public_key);
 
         Ok(())
     }
@@ -145,7 +145,7 @@ where
             .collect::<Vec<_>>();
         
         for friend_public_key in &friend_public_keys {
-            self.set_try_send(friend_public_key);
+            self.send_commands.set_try_send(friend_public_key);
         }
     }
 
@@ -221,7 +221,7 @@ where
             (set_requests_status.friend_public_key.clone(), friend_mutation));
         self.apply_funder_mutation(m_mutation);
 
-        self.set_try_send(&set_requests_status.friend_public_key);
+        self.send_commands.set_try_send(&set_requests_status.friend_public_key);
         Ok(())
     }
 
@@ -369,7 +369,7 @@ where
         let friend_mutation = FriendMutation::PushBackPendingUserRequest(request_send_funds);
         let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
         self.apply_funder_mutation(funder_mutation);
-        self.set_try_send(&friend_public_key);
+        self.send_commands.set_try_send(&friend_public_key);
 
         Ok(())
     }

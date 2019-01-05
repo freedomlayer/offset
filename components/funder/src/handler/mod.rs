@@ -24,7 +24,7 @@ use self::handle_control::{HandleControlError};
 use self::handle_friend::HandleFriendError;
 use self::handle_liveness::HandleLivenessError;
 use self::handle_init::handle_init;
-use self::sender::FriendSendCommands;
+use self::sender::SendCommands;
 use super::types::{FunderIncoming,
     FunderOutgoingComm, FunderIncomingComm};
 use super::ephemeral::{Ephemeral, EphemeralMutation};
@@ -56,7 +56,7 @@ pub struct MutableFunderHandler<A:Clone,R> {
     ephemeral: Ephemeral,
     pub identity_client: IdentityClient,
     pub rng: R, 
-    send_commands: HashMap<PublicKey, FriendSendCommands>,
+    send_commands: SendCommands,
     max_operations_in_batch: usize,
     funder_mutations: Vec<FunderMutation<A>>,
     ephemeral_mutations: Vec<EphemeralMutation>,
@@ -191,7 +191,7 @@ fn gen_mutable<A:Clone + Debug, R: CryptoRandom>(identity_client: IdentityClient
         ephemeral: funder_ephemeral.clone(),
         identity_client,
         rng,
-        send_commands: HashMap::new(),
+        send_commands: SendCommands::new(),
         max_operations_in_batch,
         funder_mutations: Vec::new(),
         ephemeral_mutations: Vec::new(),

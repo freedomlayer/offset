@@ -44,7 +44,7 @@ where
                     return Err(HandleLivenessError::FriendAlreadyOnline);
                 }
 
-                self.set_resend_outgoing(&friend_public_key);
+                self.send_commands.set_resend_outgoing(&friend_public_key);
 
                 let liveness_mutation = LivenessMutation::SetOnline(friend_public_key.clone());
                 let ephemeral_mutation = EphemeralMutation::LivenessMutation(liveness_mutation);

@@ -153,7 +153,7 @@ where
         let friend_mutation = FriendMutation::PushBackPendingRequest(request_send_funds.clone());
         let funder_mutation = FunderMutation::FriendMutation((next_pk.clone(), friend_mutation));
         self.apply_funder_mutation(funder_mutation);
-        self.set_try_send(&next_pk);
+        self.send_commands.set_try_send(&next_pk);
     }
 
     /// Create a (signed) failure message for a given request_id.
@@ -199,7 +199,7 @@ where
             let friend_mutation = FriendMutation::PushBackPendingResponse(u_response_op);
             let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
             self.apply_funder_mutation(funder_mutation);
-            self.set_try_send(&remote_public_key);
+            self.send_commands.set_try_send(&remote_public_key);
             return;
         }
 
@@ -274,7 +274,7 @@ where
                 let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
                 self.apply_funder_mutation(funder_mutation);
 
-                self.set_try_send(&friend_public_key);
+                self.send_commands.set_try_send(&friend_public_key);
             },
         }
     }
@@ -305,7 +305,7 @@ where
                 let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
                 self.apply_funder_mutation(funder_mutation);
 
-                self.set_try_send(&friend_public_key);
+                self.send_commands.set_try_send(&friend_public_key);
             },
         };
     }
@@ -378,7 +378,7 @@ where
         let friend_mutation = FriendMutation::SetInconsistent(channel_inconsistent);
         let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         self.apply_funder_mutation(funder_mutation);
-        self.set_try_send(remote_public_key);
+        self.send_commands.set_try_send(remote_public_key);
     }
 
 
@@ -392,7 +392,7 @@ where
             ReceiveMoveTokenOutput::Duplicate => {},
             ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token) => {
                 // Retransmit last sent token channel message:
-                self.set_resend_outgoing(remote_public_key);
+                self.send_commands.set_resend_outgoing(remote_public_key);
                 // We should not send any new move token in this case:
                 return;
             },
@@ -453,7 +453,7 @@ where
             },
         }
         if token_wanted {
-            self.set_remote_wants_token(&remote_public_key);
+            self.send_commands.set_remote_wants_token(&remote_public_key);
         }
     }
 
@@ -548,7 +548,7 @@ where
 
         // Send an outgoing inconsistency message if required:
         if should_send_outgoing {
-            self.set_try_send(remote_public_key);
+            self.send_commands.set_try_send(remote_public_key);
         }
         Ok(())
     }
