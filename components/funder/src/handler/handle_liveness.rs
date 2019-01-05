@@ -46,17 +46,6 @@ where
 
                 self.set_resend_outgoing(&friend_public_key);
 
-                /*
-                match &friend.channel_status {
-                    ChannelStatus::Consistent(_token_channel) => {
-                        if token_channel.is_outgoing() {
-                            self.set_resend_outgoing(&friend_public_key);
-                        }
-                    },
-                    ChannelStatus::Inconsistent(_channel_inconsistent) => {},
-                };
-                */
-
                 let liveness_mutation = LivenessMutation::SetOnline(friend_public_key.clone());
                 let ephemeral_mutation = EphemeralMutation::LivenessMutation(liveness_mutation);
                 self.apply_ephemeral_mutation(ephemeral_mutation);
