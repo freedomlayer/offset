@@ -146,6 +146,7 @@ where
                     let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
                     let funder_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
                     self.apply_funder_mutation(funder_mutation);
+                    self.set_try_send(&origin_public_key);
                 },
                 None => {
                     // We are the origin of this request:
