@@ -389,8 +389,8 @@ where
         let friend_mutation = FriendMutation::PushBackPendingUserRequest(request_send_funds);
         let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
         self.apply_funder_mutation(funder_mutation);
-
         self.set_try_send(&friend_public_key);
+
         Ok(())
     }
 
