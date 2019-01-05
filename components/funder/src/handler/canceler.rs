@@ -26,6 +26,7 @@ where
     R: CryptoRandom + 'static,
 {
 
+    /*
     /// Create a (signed) failure message for a given request_id.
     /// We are the reporting_public_key for this failure message.
     pub fn create_unsigned_failure_message(&self, pending_local_request: &PendingRequest) 
@@ -43,6 +44,7 @@ where
 
         u_failure_send_funds
     }
+    */
 
     /// Reply to a request message with failure.
     pub fn reply_with_failure(&mut self, 
