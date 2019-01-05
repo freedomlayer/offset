@@ -139,14 +139,14 @@ where
 
     }
 
-    fn disable_friend(&mut self, 
-                     friend_public_key: &PublicKey) {
+    async fn disable_friend<'a>(&'a mut self, 
+                     friend_public_key: &'a PublicKey) {
 
         // Cancel all pending requests to this friend:
         await!(self.cancel_pending_requests(
-                remote_public_key.clone()));
+                friend_public_key));
         await!(self.cancel_pending_user_requests(
-                remote_public_key.clone()));
+                friend_public_key));
 
         // Notify Channeler:
         let channeler_config = ChannelerConfig::RemoveFriend(
@@ -191,14 +191,14 @@ where
         let _friend = self.get_friend(&remove_friend.friend_public_key)
             .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-        self.disable_friend(&remove_friend.friend_public_key);
+        await!(self.disable_friend(&remove_friend.friend_public_key));
 
         await!(self.cancel_local_pending_requests(
-            remove_friend.friend_public_key.clone()));
+            &remove_friend.friend_public_key));
         await!(self.cancel_pending_requests(
-                remove_friend.friend_public_key.clone()));
+                &remove_friend.friend_public_key));
         await!(self.cancel_pending_user_requests(
-                remove_friend.friend_public_key.clone()));
+                &remove_friend.friend_public_key));
 
         let m_mutation = FunderMutation::RemoveFriend(
                 remove_friend.friend_public_key.clone());
@@ -207,7 +207,7 @@ where
         Ok(())
     }
 
-    fn control_set_friend_status(&mut self, set_friend_status: SetFriendStatus) 
+    async fn control_set_friend_status(&mut self, set_friend_status: SetFriendStatus) 
         -> Result<(), HandleControlError> {
 
         // Make sure that friend exists:
@@ -227,7 +227,7 @@ where
 
         match set_friend_status.status {
             FriendStatus::Enabled => self.enable_friend(friend_public_key, &friend_address),
-            FriendStatus::Disabled => self.disable_friend(&friend_public_key),
+            FriendStatus::Disabled => await!(self.disable_friend(&friend_public_key)),
         };
 
         Ok(())
@@ -249,7 +249,7 @@ where
         Ok(())
     }
 
-    fn control_set_friend_address(&mut self, set_friend_address: SetFriendAddress<A>)
+    async fn control_set_friend_address(&mut self, set_friend_address: SetFriendAddress<A>)
         -> Result<(), HandleControlError> {
 
         // Make sure that friend exists:
@@ -269,7 +269,7 @@ where
         self.apply_funder_mutation(m_mutation);
 
         // Notify Channeler to change the friend's address:
-        self.disable_friend(&set_friend_address.friend_public_key);
+        await!(self.disable_friend(&set_friend_address.friend_public_key));
         self.enable_friend(&set_friend_address.friend_public_key, 
                            &set_friend_address.address);
 
@@ -458,13 +458,13 @@ where
                 await!(self.control_remove_friend(remove_friend))?;
             },
             FunderIncomingControl::SetFriendStatus(set_friend_status) => {
-                self.control_set_friend_status(set_friend_status);
+                await!(self.control_set_friend_status(set_friend_status));
             },
             FunderIncomingControl::SetRequestsStatus(set_requests_status) => {
                 await!(self.control_set_requests_status(set_requests_status));
             },
             FunderIncomingControl::SetFriendAddress(set_friend_address) => {
-                self.control_set_friend_address(set_friend_address);
+                await!(self.control_set_friend_address(set_friend_address));
             },
             FunderIncomingControl::SetFriendName(set_friend_name) => {
                 self.control_set_friend_name(set_friend_name);

@@ -77,9 +77,9 @@ where
 
                 // Cancel all messages pending for this friend.
                 await!(self.cancel_pending_requests(
-                        friend_public_key.clone()));
+                        &friend_public_key));
                 await!(self.cancel_pending_user_requests(
-                        friend_public_key.clone()));
+                        &friend_public_key));
             },
         };
         Ok(())

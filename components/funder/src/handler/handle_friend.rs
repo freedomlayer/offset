@@ -361,12 +361,12 @@ where
 
         // Cancel all internal pending requests inside token channel:
         await!(self.cancel_local_pending_requests(
-            remote_public_key.clone()));
+            &remote_public_key));
         // Cancel all pending requests to this friend:
         await!(self.cancel_pending_requests(
-                remote_public_key.clone()));
+                &remote_public_key));
         await!(self.cancel_pending_user_requests(
-                remote_public_key.clone()));
+                &remote_public_key));
 
         // Keep outgoing InconsistencyError message details in memory:
         let channel_inconsistent = ChannelInconsistent {
@@ -441,9 +441,9 @@ where
                     // Cancel all messages pending for this friend. 
                     // We don't want the senders of the requests to wait.
                     await!(self.cancel_pending_requests(
-                            remote_public_key.clone()));
+                            &remote_public_key));
                     await!(self.cancel_pending_user_requests(
-                            remote_public_key.clone()));
+                            &remote_public_key));
                 }
 
                 await!(self.handle_move_token_output(remote_public_key.clone(),
@@ -509,9 +509,9 @@ where
 
         // Cancel all pending requests to this friend:
         await!(self.cancel_pending_requests(
-                remote_public_key.clone()));
+                &remote_public_key));
         await!(self.cancel_pending_user_requests(
-                remote_public_key.clone()));
+                &remote_public_key));
 
         // Save remote incoming inconsistency details:
         let new_remote_reset_terms = remote_reset_terms;

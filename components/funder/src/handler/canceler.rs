@@ -70,10 +70,10 @@ where
 
     /// Cancel outgoing local requests that are already inside the token channel (Possibly already
     /// communicated to the remote side).
-    pub async fn cancel_local_pending_requests(&mut self, 
-                                     friend_public_key: PublicKey) {
+    pub async fn cancel_local_pending_requests<'a>(&'a mut self, 
+                                     friend_public_key: &'a PublicKey) {
 
-        let friend = self.get_friend(&friend_public_key).unwrap();
+        let friend = self.get_friend(friend_public_key).unwrap();
 
         let token_channel = match &friend.channel_status {
             ChannelStatus::Inconsistent(_) => unreachable!(),
@@ -125,10 +125,10 @@ where
         }
     }
 
-    pub async fn cancel_pending_requests(&mut self,
-                               friend_public_key: PublicKey) {
+    pub async fn cancel_pending_requests<'a>(&'a mut self,
+                               friend_public_key: &'a PublicKey) {
 
-        let friend = self.get_friend(&friend_public_key).unwrap();
+        let friend = self.get_friend(friend_public_key).unwrap();
         let mut pending_requests = friend.pending_requests.clone();
 
         while let Some(pending_request) = pending_requests.pop_front() {
@@ -160,8 +160,8 @@ where
         }
     }
 
-    pub async fn cancel_pending_user_requests(&mut self,
-                               friend_public_key: PublicKey) {
+    pub async fn cancel_pending_user_requests<'a>(&'a mut self,
+                               friend_public_key: &'a PublicKey) {
 
         let friend = self.get_friend(&friend_public_key).unwrap();
         let mut pending_user_requests = friend.pending_user_requests.clone();
