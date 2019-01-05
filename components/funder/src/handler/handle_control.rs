@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use crypto::identity::PublicKey;
-use crypto::crypto_rand::{RandValue, CryptoRandom};
+use crypto::crypto_rand::CryptoRandom;
 
 use crate::friend::{FriendMutation, ChannelStatus};
 use crate::state::{FunderMutation};
@@ -15,7 +15,7 @@ use proto::funder::messages::{FriendStatus, UserRequestSendFunds,
 
 use super::MutableFunderHandler;
 use crate::types::{ChannelerConfig, FunderOutgoingComm,
-    create_unsigned_move_token, ChannelerAddFriend};
+    ChannelerAddFriend};
 
 // TODO: Should be an argument of the Funder:
 const MAX_PENDING_USER_REQUESTS: usize = 0x10;
@@ -96,33 +96,6 @@ where
         // We don't have the ability to sign here, therefore we defer the creation
         // of the local reset outgoing move token to the sender.
         self.set_local_reset(&reset_friend_channel.friend_public_key);
-
-        /*
-        let rand_nonce = RandValue::new(&self.rng);
-        let move_token_counter = 0;
-
-        let local_pending_debt = 0;
-        let remote_pending_debt = 0;
-        let opt_local_address = None;
-        let u_move_token = create_unsigned_move_token(
-            // No operations are required for a reset move token
-            Vec::new(), 
-            opt_local_address,
-            remote_reset_terms.reset_token.clone(),
-            remote_reset_terms.inconsistency_counter,
-            move_token_counter,
-            remote_reset_terms.balance_for_reset.checked_neg().unwrap(),
-            local_pending_debt,
-            remote_pending_debt,
-            rand_nonce);
-
-        let friend_mutation = FriendMutation::LocalReset(u_move_token.clone());
-        let m_mutation = FunderMutation::FriendMutation(
-            (reset_friend_channel.friend_public_key.clone(), friend_mutation));
-        self.apply_funder_mutation(m_mutation);
-
-        self.set_try_send(&reset_friend_channel.friend_public_key);
-        */
 
         Ok(())
     }

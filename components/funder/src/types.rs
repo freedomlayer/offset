@@ -156,6 +156,7 @@ pub fn create_unsigned_move_token<A>(operations: Vec<FriendTcOp>,
     }
 }
 
+/*
 pub async fn create_move_token<A>(operations: Vec<FriendTcOp>,
                  opt_local_address: Option<A>,
                  old_token: Signature,
@@ -187,6 +188,7 @@ where
     move_token.new_token = await!(identity_client.request_signature(sig_buffer)).unwrap();
     move_token
 }
+*/
 
 
 

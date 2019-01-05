@@ -7,7 +7,6 @@ use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN,
     SIGNATURE_LEN, compare_public_key};
 use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
-use identity::IdentityClient;
 
 use proto::funder::messages::{MoveToken, FriendTcOp};
 use proto::funder::signature_buff::verify_move_token;

@@ -44,13 +44,6 @@ pub enum HandleFriendError {
     InconsistencyWhenTokenOwned,
 }
 
-// Prefix used for chain hashing of token channel funds.
-// NEXT is used for hashing for the next move token funds.
-// RESET is used for resetting the token channel.
-// The prefix allows the receiver to distinguish between the two cases.
-// const TOKEN_NEXT: &[u8] = b"NEXT";
-const TOKEN_RESET: &[u8] = b"RESET";
-
 /// Generate a random token to be used for resetting the channel.
 fn gen_channel_reset_token<R>(rng: &R) -> Signature 
 where

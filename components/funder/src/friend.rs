@@ -5,13 +5,12 @@ use crypto::identity::PublicKey;
 use common::safe_arithmetic::SafeUnsignedArithmetic;
 use common::canonical_serialize::CanonicalSerialize;
 
-use proto::funder::messages::{MoveToken, RequestSendFunds,
+use proto::funder::messages::{RequestSendFunds,
     ResponseSendFunds, FailureSendFunds, ResetTerms,
     FriendStatus, RequestsStatus, PendingRequest};
 
 use crate::token_channel::{TcMutation, TokenChannel};
-use crate::types::{MoveTokenHashed, UnsignedFailureSendFunds, 
-    UnsignedResponseSendFunds, UnsignedMoveToken};
+use crate::types::MoveTokenHashed;
 
 
 
