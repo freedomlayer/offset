@@ -25,7 +25,6 @@ const MAX_PENDING_USER_REQUESTS: usize = 0x10;
 #[derive(Debug)]
 pub enum HandleControlError {
     FriendDoesNotExist,
-    TokenChannelDoesNotExist,
     NotInvitedToReset,
     ResetTokenMismatch,
     NotFirstInRoute,
@@ -36,13 +35,8 @@ pub enum HandleControlError {
     ReceiptSignatureMismatch,
     UserRequestInvalid,
     FriendNotReady,
-    BlockedByFreezeGuard,
 }
 
-/*
-    A: CanonicalSerialize + Clone + Debug + 'static + PartialEq + Eq,
-    R: CryptoRandom + 'static,
-*/
 
 fn control_set_friend_remote_max_debt<A>(m_state: &mut MutableFunderState<A>,
                                          send_commands: &mut SendCommands,
