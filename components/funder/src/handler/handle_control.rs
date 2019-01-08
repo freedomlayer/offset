@@ -12,8 +12,10 @@ use proto::funder::messages::{FriendStatus, UserRequestSendFunds,
     FunderOutgoingControl, ResponseSendFundsResult};
 
 use crate::ephemeral::Ephemeral;
-use crate::handler::{MutableFunderState, is_friend_ready};
+use crate::handler::{MutableFunderState, MutableEphemeral, is_friend_ready};
 use crate::handler::sender::SendCommands;
+use crate::handler::canceler::{cancel_local_pending_requests, 
+    cancel_pending_user_requests, cancel_pending_requests};
 
 use crate::types::{ChannelerConfig, ChannelerAddFriend};
 
@@ -125,14 +127,23 @@ where
 
 }
 
-fn disable_friend<A>(outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>,
-                  friend_public_key: &PublicKey) 
+fn disable_friend<A>(m_state: &mut MutableFunderState<A>,
+                     send_commands: &mut SendCommands,
+                     outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
+                     outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>,
+                     friend_public_key: &PublicKey) 
 where
-    A: Clone,
+    A: CanonicalSerialize + Clone,
 {
     // Cancel all pending requests to this friend:
-    cancel_pending_requests(friend_public_key);
-    cancel_pending_user_requests(friend_public_key);
+    cancel_pending_requests(m_state,
+                            send_commands,
+                            outgoing_control,
+                            friend_public_key);
+
+    cancel_pending_user_requests(m_state,
+                                 outgoing_control,
+                                 friend_public_key);
 
     // Notify Channeler:
     let channeler_config = ChannelerConfig::RemoveFriend(
@@ -166,21 +177,21 @@ where
 }
 
 fn control_add_friend<A>(m_state: &mut MutableFunderState<A>, 
-                         add_friend: AddFriend<A>) 
-    -> Result<(), HandleControlError> 
+                         add_friend: AddFriend<A>)
 where
     A: CanonicalSerialize + Clone,
 {
 
     let funder_mutation = FunderMutation::AddFriend(add_friend.clone());
     m_state.mutate(funder_mutation);
-
-    Ok(())
 }
 
 /// This is a violent operation, as it removes all the known state with the remote friend.  
 /// An inconsistency will occur if the friend is added again.
 fn control_remove_friend<A>(m_state: &mut MutableFunderState<A>, 
+                            m_ephemeral: &mut MutableEphemeral,
+                            send_commands: &mut SendCommands,
+                            outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
                             outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>,
                             remove_friend: RemoveFriend) 
     -> Result<(), HandleControlError> 
@@ -191,15 +202,17 @@ where
     let _friend = m_state.state().friends.get(&remove_friend.friend_public_key)
         .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-    disable_friend(outgoing_channeler_config, 
+    disable_friend(m_state, 
+                   send_commands,
+                   outgoing_control,
+                   outgoing_channeler_config, 
                    &remove_friend.friend_public_key);
 
-    cancel_local_pending_requests(
-        &remove_friend.friend_public_key);
-    cancel_pending_requests(
-            &remove_friend.friend_public_key);
-    cancel_pending_user_requests(
-            &remove_friend.friend_public_key);
+    cancel_local_pending_requests(m_state,
+                                  m_ephemeral,
+                                  send_commands,
+                                  outgoing_control,
+                                  &remove_friend.friend_public_key);
 
     let funder_mutation = FunderMutation::RemoveFriend(
             remove_friend.friend_public_key.clone());
@@ -209,6 +222,8 @@ where
 }
 
 fn control_set_friend_status<A>(m_state: &mut MutableFunderState<A>, 
+                                send_commands: &mut SendCommands,
+                                outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
                                 outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>,
                                 set_friend_status: SetFriendStatus) 
     -> Result<(), HandleControlError> 
@@ -236,7 +251,10 @@ where
                                                outgoing_channeler_config,
                                                friend_public_key, 
                                                &friend_address),
-        FriendStatus::Disabled => disable_friend(outgoing_channeler_config, 
+        FriendStatus::Disabled => disable_friend(m_state, 
+                                                 send_commands,
+                                                 outgoing_control,
+                                                 outgoing_channeler_config, 
                                                  &friend_public_key),
     };
 
@@ -265,6 +283,8 @@ where
 }
 
 fn control_set_friend_address<A>(m_state: &mut MutableFunderState<A>, 
+                                 send_commands: &mut SendCommands,
+                                 outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
                                  outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>,
                                  set_friend_address: SetFriendAddress<A>)
     -> Result<(), HandleControlError> 
@@ -288,7 +308,10 @@ where
     m_state.mutate(funder_mutation);
 
     // Notify Channeler to change the friend's address:
-    disable_friend(outgoing_channeler_config, 
+    disable_friend(m_state, 
+                   send_commands,
+                   outgoing_control,
+                   outgoing_channeler_config, 
                    &set_friend_address.friend_public_key);
     enable_friend(m_state, 
                   outgoing_channeler_config,
@@ -323,7 +346,7 @@ where
 }
 
 fn check_user_request_valid(user_request_send_funds: &UserRequestSendFunds) 
-                            -> Option<()> {
+    -> Option<()> {
 
     if !user_request_send_funds.route.is_valid() {
         return None;
@@ -474,7 +497,7 @@ where
 
 
 pub fn handle_control_message<A>(m_state: &mut MutableFunderState<A>,
-                                 ephemeral: &Ephemeral,
+                                 m_ephemeral: &mut MutableEphemeral,
                                  send_commands: &mut SendCommands,
                                  outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
                                  outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>,
@@ -485,61 +508,66 @@ where
 {
 
     match incoming_control {
-        FunderIncomingControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) => {
+        FunderIncomingControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) =>
             control_set_friend_remote_max_debt(m_state, 
                                                send_commands, 
-                                               set_friend_remote_max_debt);
-        },
-        FunderIncomingControl::ResetFriendChannel(reset_friend_channel) => {
+                                               set_friend_remote_max_debt),
+
+        FunderIncomingControl::ResetFriendChannel(reset_friend_channel) =>
             control_reset_friend_channel(m_state, 
                                          send_commands,
-                                         reset_friend_channel)?;
-        },
-        FunderIncomingControl::SetAddress(opt_address) => {
-            control_set_address(m_state, 
+                                         reset_friend_channel),
+
+        FunderIncomingControl::SetAddress(opt_address) =>
+            Ok(control_set_address(m_state, 
                                 send_commands,
                                 outgoing_channeler_config,
-                                opt_address);
-        },
-        FunderIncomingControl::AddFriend(add_friend) => {
-            control_add_friend(m_state, 
-                               add_friend);
-        },
-        FunderIncomingControl::RemoveFriend(remove_friend) => {
+                                opt_address)),
+
+        FunderIncomingControl::AddFriend(add_friend) =>
+            Ok(control_add_friend(m_state, 
+                               add_friend)),
+
+        FunderIncomingControl::RemoveFriend(remove_friend) =>
             control_remove_friend(m_state,
+                                  m_ephemeral,
+                                  send_commands,
+                                  outgoing_control,
                                   outgoing_channeler_config,
-                                  remove_friend)?;
-        },
-        FunderIncomingControl::SetFriendStatus(set_friend_status) => {
+                                  remove_friend),
+
+        FunderIncomingControl::SetFriendStatus(set_friend_status) =>
             control_set_friend_status(m_state, 
+                                      send_commands,
+                                      outgoing_control,
                                       outgoing_channeler_config,
-                                      set_friend_status);
-        },
-        FunderIncomingControl::SetRequestsStatus(set_requests_status) => {
+                                      set_friend_status),
+
+        FunderIncomingControl::SetRequestsStatus(set_requests_status) =>
             control_set_requests_status(m_state, 
                                         send_commands,
-                                        set_requests_status);
-        },
-        FunderIncomingControl::SetFriendAddress(set_friend_address) => {
+                                        set_requests_status),
+
+        FunderIncomingControl::SetFriendAddress(set_friend_address) =>
             control_set_friend_address(m_state, 
+                                       send_commands,
+                                       outgoing_control,
                                        outgoing_channeler_config,
-                                       set_friend_address);
-        },
-        FunderIncomingControl::SetFriendName(set_friend_name) => {
+                                       set_friend_address),
+
+        FunderIncomingControl::SetFriendName(set_friend_name) =>
             control_set_friend_name(m_state, 
-                                    set_friend_name);
-        },
-        FunderIncomingControl::RequestSendFunds(user_request_send_funds) => {
+                                    set_friend_name),
+
+        FunderIncomingControl::RequestSendFunds(user_request_send_funds) =>
             control_request_send_funds(m_state, 
-                                       ephemeral,
+                                       m_ephemeral.ephemeral(),
                                        outgoing_control, 
                                        send_commands,
-                                       user_request_send_funds);
-        },
-        FunderIncomingControl::ReceiptAck(receipt_ack) => {
+                                       user_request_send_funds),
+
+        FunderIncomingControl::ReceiptAck(receipt_ack) =>
             control_receipt_ack(m_state, 
-                                receipt_ack);
-        }
-    };
-    Ok(())
+                                receipt_ack),
+    }
 }

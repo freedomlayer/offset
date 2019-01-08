@@ -260,6 +260,35 @@ fn gen_mutable<A:Clone + Debug, R: CryptoRandom>(identity_client: IdentityClient
 }
 */
 
+/// Find the originator of a pending local request.
+/// This should be a pending remote request at some other friend.
+/// Returns the public key of a friend. If we are the origin of this request, the function returns None.
+///
+/// TODO: We need to change this search to be O(1) in the future. Possibly by maintaining a map
+/// between request_id and (friend_public_key, friend).
+pub fn find_request_origin<'a, A>(state: &'a FunderState<A>,
+                                  request_id: &Uid) -> Option<&'a PublicKey> 
+where
+    A: CanonicalSerialize + Clone,
+{
+    for (friend_public_key, friend) in &state.friends {
+        match &friend.channel_status {
+            ChannelStatus::Inconsistent(_) => continue,
+            ChannelStatus::Consistent(token_channel) => {
+                if token_channel
+                    .get_mutual_credit()
+                    .state()
+                    .pending_requests
+                    .pending_remote_requests
+                    .contains_key(request_id) {
+                        return Some(friend_public_key)
+                }
+            },
+        }
+    }
+    None
+}
+
 pub fn is_friend_ready<A>(m_state: &mut MutableFunderState<A>, 
                           ephemeral: &Ephemeral,
                           friend_public_key: &PublicKey) -> bool 
