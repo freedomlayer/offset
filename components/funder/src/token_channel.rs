@@ -3,6 +3,8 @@
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 
+use common::canonical_serialize::CanonicalSerialize;
+
 use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, 
     SIGNATURE_LEN, compare_public_key};
 use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
@@ -138,7 +140,7 @@ fn initial_move_token<A>(low_public_key: &PublicKey,
 
 impl<A> TokenChannel<A> 
 where
-    A: Clone,
+    A: CanonicalSerialize + Clone,
 {
     pub fn new(local_public_key: &PublicKey, 
                remote_public_key: &PublicKey,
@@ -307,7 +309,10 @@ impl TcIncoming {
     /// Handle an incoming move token during Incoming direction:
     fn handle_incoming<A>(&self, 
                         new_move_token: MoveToken<A>) 
-        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> {
+        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> 
+    where
+        A: CanonicalSerialize,
+    {
 
         // We compare the whole move token message and not just the signature (new_token)
         // because we don't check the signature in this flow.
@@ -323,10 +328,7 @@ impl TcIncoming {
     pub fn create_unsigned_move_token<A>(&self,
                                     operations: Vec<FriendTcOp>,
                                     opt_local_address: Option<A>,
-                                    rand_nonce: RandValue) -> UnsignedMoveToken<A> 
-    where
-        A: 'static,
-    {
+                                    rand_nonce: RandValue) -> UnsignedMoveToken<A> {
 
         create_unsigned_move_token(
             operations,
@@ -349,7 +351,7 @@ impl TcIncoming {
 
 impl<A> TcOutgoing<A> 
 where
-    A: Clone,
+    A: CanonicalSerialize + Clone,
 {
     /// Handle an incoming move token during Outgoing direction:
     fn handle_incoming(&self, 

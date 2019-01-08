@@ -119,7 +119,7 @@ pub struct FriendState<A> {
 #[allow(unused)]
 impl<A> FriendState<A> 
 where
-    A: CanonicalSerialize + Clone + 'static
+    A: CanonicalSerialize + Clone,
 {
     pub fn new(local_public_key: &PublicKey,
                remote_public_key: &PublicKey,

@@ -19,10 +19,10 @@ pub type UnsignedFailureSendFunds = FailureSendFunds<()>;
 pub type UnsignedResponseSendFunds = ResponseSendFunds<()>;
 pub type UnsignedMoveToken<A> = MoveToken<A,()>;
 
-pub async fn sign_move_token<A>(unsigned_move_token: UnsignedMoveToken<A>,
-                         identity_client: &mut IdentityClient) -> MoveToken<A> 
+pub async fn sign_move_token<'a,A>(unsigned_move_token: UnsignedMoveToken<A>,
+                         identity_client: &'a mut IdentityClient) -> MoveToken<A> 
 where
-    A: CanonicalSerialize + 'static,
+    A: CanonicalSerialize + 'a,
 {
 
     let signature_buff = move_token_signature_buff(&unsigned_move_token);

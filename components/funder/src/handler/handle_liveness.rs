@@ -1,10 +1,8 @@
-use std::fmt::Debug;
 use crypto::crypto_rand::CryptoRandom;
 
 use common::canonical_serialize::CanonicalSerialize;
-use proto::funder::messages::FriendStatus;
+use proto::funder::messages::{FriendStatus, FunderOutgoingControl};
 
-use crate::handler::MutableFunderHandler;
 use crate::types::{IncomingLivenessMessage};
 
 use crate::ephemeral::EphemeralMutation;
@@ -25,12 +23,13 @@ pub enum HandleLivenessError {
 pub fn handle_liveness_message<A,R>(m_state: &mut MutableFunderState<A>,
                                     m_ephemeral: &mut MutableEphemeral,
                                     send_commands: &mut SendCommands,
+                                    outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
                                     liveness_message: IncomingLivenessMessage)
     -> Result<(), HandleLivenessError> 
 
 where
-    A: CanonicalSerialize + Clone + Debug + PartialEq + Eq + 'static,
-    R: CryptoRandom + 'static,
+    A: CanonicalSerialize + Clone + PartialEq + Eq,
+    R: CryptoRandom,
 {
 
     match liveness_message {
@@ -72,24 +71,18 @@ where
             // Cancel all messages pending for this friend.
             // TODO: Fix signature here:
             cancel_pending_requests(
-                    &friend_public_key);
+                m_state, 
+                send_commands,
+                outgoing_control,
+                &friend_public_key);
             cancel_pending_user_requests(
-                    &friend_public_key);
+                m_state,
+                outgoing_control,
+                &friend_public_key);
         },
     };
     Ok(())
 }
-
-/*
-#[allow(unused)]
-impl<A,R> MutableFunderHandler<A,R> 
-where
-    A: CanonicalSerialize + Clone + Debug + PartialEq + Eq + 'static,
-    R: CryptoRandom + 'static,
-{
-
-}
-*/
 
 
 #[cfg(test)]

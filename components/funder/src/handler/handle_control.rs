@@ -393,7 +393,7 @@ where
         None => Err(HandleControlError::FriendDoesNotExist),
     }?;
 
-    if !is_friend_ready(m_state, 
+    if !is_friend_ready(m_state.state(), 
                         ephemeral, 
                         &friend_public_key) {
         return Err(HandleControlError::FriendNotReady);

@@ -77,12 +77,6 @@ where
 }
 
 
-/*
-    A: CanonicalSerialize + Clone + Debug + Eq + PartialEq + 'static,
-    R: CryptoRandom + 'static,
-*/
-
-
 /// Check if channel reset is required (Remove side used the RESET token)
 /// If so, reset the channel.
 pub fn try_reset_channel<A>(m_state: &mut MutableFunderState<A>,
@@ -178,6 +172,7 @@ fn create_response_message<A,R>(state: &FunderState<A>,
     -> UnsignedResponseSendFunds 
 
 where
+    A: Clone,
     R: CryptoRandom,
 {
 

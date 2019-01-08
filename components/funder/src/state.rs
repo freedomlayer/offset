@@ -39,7 +39,7 @@ pub enum FunderMutation<A> {
 #[allow(unused)]
 impl<A> FunderState<A> 
 where
-    A: CanonicalSerialize + Clone + 'static,
+    A: CanonicalSerialize + Clone,
 {
     pub fn new(local_public_key: &PublicKey, opt_address: Option<&A>) -> FunderState<A> {
         FunderState {

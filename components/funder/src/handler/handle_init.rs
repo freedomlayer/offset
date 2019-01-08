@@ -4,7 +4,6 @@ use crypto::crypto_rand::CryptoRandom;
 use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::FriendStatus;
 
-use crate::handler::MutableFunderHandler;
 use crate::types::{ChannelerConfig, FunderOutgoingComm, ChannelerAddFriend};
 
 use super::MutableFunderState;

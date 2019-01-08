@@ -185,7 +185,7 @@ where
 pub fn friend_mutation_to_report_mutations<A>(friend_mutation: &FriendMutation<A>,
                                            friend: &FriendState<A>) -> Vec<FriendReportMutation<A>> 
 where
-    A: CanonicalSerialize + Clone + 'static,
+    A: CanonicalSerialize + Clone,
 {
 
     let mut friend_after = friend.clone();
@@ -260,7 +260,7 @@ where
 pub fn funder_mutation_to_report_mutations<A>(funder_mutation: &FunderMutation<A>,
                                            funder_state: &FunderState<A>) -> Vec<FunderReportMutation<A>> 
 where
-    A: CanonicalSerialize + Clone + 'static,
+    A: CanonicalSerialize + Clone,
 {
 
     let mut funder_state_after = funder_state.clone();

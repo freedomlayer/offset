@@ -112,7 +112,10 @@ struct PendingMoveToken<A> {
     max_operations_in_batch: usize,
 }
 
-impl<A> PendingMoveToken<A> {
+impl<A> PendingMoveToken<A> 
+where
+    A: CanonicalSerialize + Clone,
+{
     fn new(friend_public_key: PublicKey,
            outgoing_mc: OutgoingMc,
            max_operations_in_batch: usize) -> Self {
@@ -231,7 +234,7 @@ pub async fn apply_local_reset<'a,A,R>(m_state: &'a mut MutableFunderState<A>,
                                   identity_client: &'a mut IdentityClient,
                                   rng: &'a R) 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + 'a,
     R: CryptoRandom,
 {
 
@@ -281,9 +284,9 @@ async fn send_friend_iter1<'a,A,R>(m_state: &'a mut MutableFunderState<A>,
                                        identity_client: &'a mut IdentityClient,
                                        rng: &'a R,
                                        max_operations_in_batch: usize,
-                                       outgoing_messages: &'a mut Vec<OutgoingMessage<A>>) 
+                                       mut outgoing_messages: &'a mut Vec<OutgoingMessage<A>>) 
 where
-    A: CanonicalSerialize + Clone + PartialEq,
+    A: CanonicalSerialize + Clone + Eq,
     R: CryptoRandom,
 {
 
@@ -372,7 +375,7 @@ where
 fn estimate_should_send<'a, A>(m_state: &'a mut MutableFunderState<A>, 
                             friend_public_key: &'a PublicKey) -> bool 
 where
-    A: Clone + PartialEq,
+    A: CanonicalSerialize + Clone + Eq,
 {
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
@@ -432,7 +435,7 @@ async fn queue_operation_or_failure<'a,A>(m_state: &'a mut MutableFunderState<A>
                                             pending_move_token: &'a mut PendingMoveToken<A>,
                                             operation: &'a FriendTcOp) -> Result<(), CollectOutgoingError> 
 where
-    A: Clone,
+    A: CanonicalSerialize + Clone,
 {
 
     match pending_move_token.queue_operation(operation, m_state, m_ephemeral) {
@@ -466,10 +469,10 @@ where
 
 async fn response_op_to_friend_tc_op<'a,A,R>(m_state: &'a mut MutableFunderState<A>, 
                                      response_op: ResponseOp,
-                                     identity_client: &'a mut IdentityClient,
+                                     mut identity_client: &'a mut IdentityClient,
                                      rng: &'a R) -> FriendTcOp 
 where
-    A: Clone,
+    A: CanonicalSerialize + Clone,
     R: CryptoRandom,
 {
     match response_op {
@@ -500,7 +503,7 @@ async fn collect_outgoing_move_token<'a,A,R>(m_state: &'a mut MutableFunderState
                                                  rng: &'a R) 
                                                     -> Result<(), CollectOutgoingError> 
 where
-    A: Clone + PartialEq,
+    A: CanonicalSerialize + Clone + Eq,
     R: CryptoRandom,
 {
     /*
@@ -615,7 +618,7 @@ where
         await!(queue_operation_or_failure(m_state,
                                           m_ephemeral,
                                           pending_move_token,
-                                          &pending_op))?;
+                                          &request_op))?;
         let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
         let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
         m_state.mutate(funder_mutation);
@@ -633,7 +636,7 @@ async fn append_failures_to_move_token<'a,A,R>(m_state: &'a mut MutableFunderSta
                                                    rng: &'a R) 
                                                     -> Result<(), CollectOutgoingError> 
 where
-    A: Clone,
+    A: CanonicalSerialize + Clone,
     R: CryptoRandom,
 {
 
@@ -666,7 +669,7 @@ async fn send_move_token<'a,A,R>(m_state: &'a mut MutableFunderState<A>,
                                  rng: &'a R,
                                  outgoing_messages: &'a mut Vec<OutgoingMessage<A>>) 
 where
-    A: Clone + CanonicalSerialize,
+    A: Clone + CanonicalSerialize + 'a,
     R: CryptoRandom,
 {
 
@@ -727,12 +730,12 @@ where
 /// Send all possible messages according to SendCommands
 pub async fn create_friend_messages<'a,A,R>(m_state: &'a mut MutableFunderState<A>, 
                         m_ephemeral: &'a mut MutableEphemeral,
-                        send_commands: SendCommands,
+                        send_commands: &'a SendCommands,
                         max_operations_in_batch: usize,
                         identity_client: &'a mut IdentityClient,
                         rng: &'a R) -> Vec<OutgoingMessage<A>> 
 where
-    A: Clone + PartialEq + CanonicalSerialize,
+    A: CanonicalSerialize + Clone + Eq,
     R: CryptoRandom,
 {
 

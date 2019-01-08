@@ -39,7 +39,7 @@ pub enum FunderEvent<A> {
 }
 
 pub async fn inner_funder_loop<A, R, D, E>(
-    identity_client: IdentityClient,
+    mut identity_client: IdentityClient,
     rng: R,
     incoming_control: mpsc::Receiver<FunderIncomingControl<A>>,
     incoming_comm: mpsc::Receiver<FunderIncomingComm<A>>,
@@ -86,12 +86,12 @@ where
         }; 
 
         // Process message:
-        let res = await!(funder_handle_message(identity_client.clone(),
-                              rng.clone(),
+        let res = await!(funder_handle_message(&mut identity_client,
+                              &rng,
                               db_runner.get_state().clone(),
                               ephemeral.clone(),
-                              funder_incoming,
-                              max_operations_in_batch));
+                              max_operations_in_batch,
+                              funder_incoming));
 
 
         let handler_output = match res {
