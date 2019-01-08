@@ -3,10 +3,10 @@ use crypto::identity::verify_signature;
 use common::int_convert::usize_to_u32;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
+use proto::verify::Verify;
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds, FailureSendFunds,
     FriendTcOp, PendingRequest, RequestsStatus};
-use proto::funder::signature_buff::{create_response_signature_buffer, 
-    verify_failure_signature};
+use proto::funder::signature_buff::{create_response_signature_buffer};
 
 use crate::types::create_pending_request;
 
@@ -370,8 +370,10 @@ fn process_failure_send_funds(mutual_credit: &mut MutualCredit,
     }
 
 
-    verify_failure_signature(&failure_send_funds, &pending_request)
-        .ok_or(ProcessOperationError::InvalidFailureSignature)?;
+    let pair = (&failure_send_funds, &pending_request);
+    if !pair.verify() {
+        return Err(ProcessOperationError::InvalidFailureSignature);
+    }
 
     // At this point we believe the failure funds is valid.
     let route_len = usize_to_u32(pending_request.route.len()).unwrap();

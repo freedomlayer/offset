@@ -4,10 +4,10 @@ use num_bigint::BigUint;
 use num_traits::{ToPrimitive, CheckedSub, pow};
 use num_traits::identities::Zero;
 
-use crypto::identity::PublicKey;
+// use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
-use proto::funder::messages::{Ratio, SendFundsReceipt, AddFriend};
+use proto::funder::messages::{Ratio, SendFundsReceipt, AddFriend, TPublicKey};
 
 use common::int_convert::usize_to_u64;
 use common::canonical_serialize::CanonicalSerialize;
@@ -16,32 +16,33 @@ use crate::friend::{FriendState, FriendMutation};
 
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct FunderState<A: Clone> {
-    pub local_public_key: PublicKey,
+pub struct FunderState<A: Clone,P,RS> {
+    pub local_public_key: TPublicKey<P>,
     /// Address of relay we are going to connect to.
     /// None means that no address was configured.
     pub opt_address: Option<A>,
-    pub friends: ImHashMap<PublicKey, FriendState<A>>,
-    pub ready_receipts: ImHashMap<Uid, SendFundsReceipt>,
+    pub friends: ImHashMap<TPublicKey<P>, FriendState<A>>,
+    pub ready_receipts: ImHashMap<Uid, SendFundsReceipt<RS>>,
 }
 
 #[derive(Debug)]
-pub enum FunderMutation<A> {
-    FriendMutation((PublicKey, FriendMutation<A>)),
+pub enum FunderMutation<A,P,RS> {
+    FriendMutation((TPublicKey<P>, FriendMutation<A>)),
     SetAddress(Option<A>),
     AddFriend(AddFriend<A>), 
-    RemoveFriend(PublicKey),
-    AddReceipt((Uid, SendFundsReceipt)),  //(request_id, receipt)
+    RemoveFriend(TPublicKey<P>),
+    AddReceipt((Uid, SendFundsReceipt<RS>)),  //(request_id, receipt)
     RemoveReceipt(Uid),
 }
 
 
 #[allow(unused)]
-impl<A> FunderState<A> 
+impl<A,P,RS> FunderState<A,P,RS> 
 where
     A: CanonicalSerialize + Clone,
+    P: Eq + std::hash::Hash,
 {
-    pub fn new(local_public_key: &PublicKey, opt_address: Option<&A>) -> FunderState<A> {
+    pub fn new(local_public_key: &TPublicKey<P>, opt_address: Option<&A>) -> Self {
         FunderState {
             local_public_key: local_public_key.clone(),
             opt_address: opt_address.cloned(),
@@ -75,7 +76,7 @@ where
     /// division by 0)
     ///
     /// l is the amount of friends we have, besides prev_friend.
-    pub fn get_usable_ratio(&self, opt_prev_pk: Option<&PublicKey>, next_pk: &PublicKey) -> Ratio<u128> {
+    pub fn get_usable_ratio(&self, opt_prev_pk: Option<&TPublicKey<P>>, next_pk: &TPublicKey<P>) -> Ratio<u128> {
 
         let mut s = self.get_total_trust();
         let l = self.friends.len();
@@ -111,7 +112,7 @@ where
         }
     }
 
-    pub fn mutate(&mut self, funder_mutation: &FunderMutation<A>) {
+    pub fn mutate(&mut self, funder_mutation: &FunderMutation<A,P,RS>) {
         match funder_mutation {
             FunderMutation::FriendMutation((public_key, friend_mutation)) => {
                 let friend = self.friends.get_mut(&public_key).unwrap();

@@ -11,7 +11,7 @@ use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
 
 use proto::funder::messages::{MoveToken, FriendTcOp};
-use proto::funder::signature_buff::verify_move_token;
+use proto::verify::Verify;
 
 use crate::mutual_credit::types::{MutualCredit, McMutation};
 use crate::mutual_credit::incoming::{ProcessOperationOutput, ProcessTransListError, 
@@ -23,41 +23,41 @@ use crate::types::{MoveTokenHashed, create_unsigned_move_token, create_hashed,
 
 
 #[derive(Debug)]
-pub enum SetDirection<A> {
-    Incoming(MoveTokenHashed), 
-    Outgoing(MoveToken<A>),
+pub enum SetDirection<A,P:Clone,RS,MS> {
+    Incoming(MoveTokenHashed<P,MS>), 
+    Outgoing(MoveToken<A,P,RS,MS>),
 }
 
 #[allow(unused)]
 #[derive(Debug)]
-pub enum TcMutation<A> {
-    McMutation(McMutation),
-    SetDirection(SetDirection<A>),
+pub enum TcMutation<A,P:Clone,RS,MS> {
+    McMutation(McMutation<P>),
+    SetDirection(SetDirection<A,P,RS,MS>),
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct TcOutgoing<A> {
-    pub mutual_credit: MutualCredit,
-    pub move_token_out: MoveToken<A>,
-    pub opt_prev_move_token_in: Option<MoveTokenHashed>,
+pub struct TcOutgoing<A,P:Clone,RS,MS> {
+    pub mutual_credit: MutualCredit<P>,
+    pub move_token_out: MoveToken<A,P,RS,MS>,
+    pub opt_prev_move_token_in: Option<MoveTokenHashed<P,MS>>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct TcIncoming {
-    pub mutual_credit: MutualCredit,
-    pub move_token_in: MoveTokenHashed,
+pub struct TcIncoming<P:Clone,MS> {
+    pub mutual_credit: MutualCredit<P>,
+    pub move_token_in: MoveTokenHashed<P,MS>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub enum TcDirection<A> {
+pub enum TcDirection<A,P:Clone,RS,MS> {
     Incoming(TcIncoming),
     Outgoing(TcOutgoing<A>),
 }
 
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct TokenChannel<A> {
-    direction: TcDirection<A>,
+pub struct TokenChannel<A,P:Clone,RS,MS> {
+    direction: TcDirection<A,P,RS,MS>,
 }
 
 #[derive(Debug)]
@@ -73,19 +73,19 @@ pub enum ReceiveMoveTokenError {
 }
 
 #[derive(Debug)]
-pub struct MoveTokenReceived<A> {
+pub struct MoveTokenReceived<A,P:Clone,RS,MS> {
     pub incoming_messages: Vec<IncomingMessage>,
-    pub mutations: Vec<TcMutation<A>>,
+    pub mutations: Vec<TcMutation<A,P,RS,MS>>,
     pub remote_requests_closed: bool,
     pub opt_local_address: Option<A>,
 }
 
 
 #[derive(Debug)]
-pub enum ReceiveMoveTokenOutput<A> {
+pub enum ReceiveMoveTokenOutput<A,P:Clone,RS,MS> {
     Duplicate,
-    RetransmitOutgoing(MoveToken<A>),
-    Received(MoveTokenReceived<A>),
+    RetransmitOutgoing(MoveToken<A,P,RS,MS>),
+    Received(MoveTokenReceived<A,P,RS,MS>),
     // In case of a reset, all the local pending requests will be canceled.
 }
 
@@ -98,7 +98,8 @@ pub enum ReceiveMoveTokenOutput<A> {
 ///
 /// Note that the output here is not a real signature. This function is used for the first
 /// deterministic initialization of a token channel.
-fn token_from_public_key(public_key: &PublicKey) -> Signature {
+// TODO: We might need a trait for this. Maybe impl for TPublicKey<P> ?
+fn token_from_public_key<P,MS>(public_key: &TPublicKey<P>) -> TSignature<MS> {
     let mut buff = [0; SIGNATURE_LEN];
     buff[0 .. PUBLIC_KEY_LEN].copy_from_slice(public_key);
     Signature::from(buff)
@@ -342,7 +343,7 @@ impl TcIncoming {
             rand_nonce)
     }
 
-    pub fn begin_outgoing_move_token(&self) -> OutgoingMc {
+    pub fn begin_outgoing_move_token(&self) -> OutgoingMc<P> {
         OutgoingMc::new(&self.mutual_credit)
     }
 }
@@ -378,7 +379,8 @@ where
         // This allows the genesis move token to occur smoothly, even though its signature
         // is not correct.
         let remote_public_key = &self.mutual_credit.state().idents.remote_public_key;
-        if !verify_move_token(&new_move_token, remote_public_key) {
+        let pair = (&new_move_token, &remote_public_key);
+        if !pair.verify {
             return Err(ReceiveMoveTokenError::InvalidSignature);
         }
     

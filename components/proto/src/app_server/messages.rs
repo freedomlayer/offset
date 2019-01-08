@@ -4,7 +4,8 @@ use crypto::crypto_rand::RandValue;
 use crate::funder::messages::{RequestSendFunds, ResponseSendFunds,
                             ReceiptAck, AddFriend, SetFriendAddress, 
                             SetFriendName, RemoveFriend,
-                            SetFriendRemoteMaxDebt, ResetFriendChannel};
+                            SetFriendRemoteMaxDebt, ResetFriendChannel,
+                            TPublicKey};
 use crate::funder::report::{FunderReport, FunderReportMutation};
 
 #[allow(unused)]
@@ -27,36 +28,36 @@ pub struct ResponseDelegate {
 }
 
 #[allow(unused)]
-#[derive(Debug)]
-pub enum AppServerToApp<A: Clone> {
+// #[derive()]
+pub enum AppServerToApp<A:Clone,P:Clone,MS:Clone,RS> {
     /// Funds:
-    ResponseSendFunds(ResponseSendFunds),
+    ResponseSendFunds(ResponseSendFunds<RS>),
     /// Reports about current state:
-    Report(FunderReport<A>),
-    ReportMutations(Vec<FunderReportMutation<A>>),
+    Report(FunderReport<A,P,MS>),
+    ReportMutations(Vec<FunderReportMutation<A,P,MS>>),
     /// Response for delegate request:
     ResponseDelegate(ResponseDelegate),
 }
 
 #[allow(unused)]
 #[derive(Debug)]
-pub enum AppToAppServer<A> {
+pub enum AppToAppServer<A,P,RS,MS> {
     /// Set relay address to be used locally (Could be empty)
     SetAddress(Option<A>), 
     /// Sending funds:
-    RequestSendFunds(RequestSendFunds),
-    ReceiptAck(ReceiptAck),
+    RequestSendFunds(RequestSendFunds<P>),
+    ReceiptAck(ReceiptAck<RS>),
     /// Friend management:
-    AddFriend(AddFriend<A>),
-    SetFriendAddress(SetFriendAddress<A>),
-    SetFriendName(SetFriendName),
-    RemoveFriend(RemoveFriend),
-    EnableFriend(PublicKey),
-    DisableFriend(PublicKey),
-    OpenFriend(PublicKey),
-    CloseFriend(PublicKey),
-    SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
-    ResetFriendChannel(ResetFriendChannel),
+    AddFriend(AddFriend<A,P>),
+    SetFriendAddress(SetFriendAddress<A,P>),
+    SetFriendName(SetFriendName<P>),
+    RemoveFriend(RemoveFriend<P>),
+    EnableFriend(TPublicKey<P>),
+    DisableFriend(TPublicKey<P>),
+    OpenFriend(TPublicKey<P>),
+    CloseFriend(TPublicKey<P>),
+    SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt<P>),
+    ResetFriendChannel(ResetFriendChannel<P,MS>),
     /// Delegation:
     RequestDelegate(RequestDelegate),
 }

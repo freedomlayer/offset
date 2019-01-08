@@ -5,6 +5,7 @@ use ring::signature;
 
 use super::CryptoError;
 use common::big_array::BigArray;
+use common::canonical_serialize::CanonicalSerialize;
 use crate::crypto_rand::CryptoRandom;
 use crate::hash::sha_512_256;
 
@@ -12,6 +13,16 @@ pub const PUBLIC_KEY_LEN: usize = 32;
 pub const SIGNATURE_LEN: usize = 64;
 
 define_fixed_bytes!(PublicKey, PUBLIC_KEY_LEN);
+
+impl CanonicalSerialize for PublicKey {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res = Vec::new();
+        for b in self.0.iter() {
+            res.push(*b);
+        }
+        res
+    }
+}
 
 #[derive(Clone, Serialize, Deserialize)] 
 pub struct Signature(#[serde(with = "BigArray")] [u8; SIGNATURE_LEN]);
@@ -25,6 +36,16 @@ pub fn compare_public_key(pk1: &PublicKey, pk2: &PublicKey) -> Ordering {
 impl Signature {
     pub fn zero() -> Signature {
         Signature([0x00u8; SIGNATURE_LEN])
+    }
+}
+
+impl CanonicalSerialize for Signature {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res = Vec::new();
+        for b in self.0.iter() {
+            res.push(*b);
+        }
+        res
     }
 }
 

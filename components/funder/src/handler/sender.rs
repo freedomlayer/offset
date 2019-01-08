@@ -102,10 +102,10 @@ enum CollectOutgoingError {
     MaxOperationsReached,
 }
 
-struct PendingMoveToken<A> {
+struct PendingMoveToken<A,P,RS> {
     friend_public_key: PublicKey,
     outgoing_mc: OutgoingMc,
-    operations: Vec<FriendTcOp>,
+    operations: Vec<FriendTcOp<P,RS>>,
     opt_local_address: Option<A>,
     token_wanted: bool,
     max_operations_in_batch: usize,

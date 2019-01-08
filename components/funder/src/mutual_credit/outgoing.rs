@@ -5,8 +5,7 @@ use common::int_convert::usize_to_u32;
 
 use proto::funder::messages::{FriendTcOp, RequestSendFunds, 
     ResponseSendFunds, FailureSendFunds, RequestsStatus};
-use proto::funder::signature_buff::{create_response_signature_buffer, 
-    verify_failure_signature};
+use proto::funder::signature_buff::{create_response_signature_buffer};
 
 use super::types::{MutualCredit, McMutation, 
     MAX_FUNDER_DEBT};
@@ -16,8 +15,8 @@ use crate::types::create_pending_request;
 
 /// Processes outgoing fundss for a token channel.
 /// Used to batch as many fundss as possible.
-pub struct OutgoingMc {
-    mutual_credit: MutualCredit,
+pub struct OutgoingMc<P: Clone> {
+    mutual_credit: MutualCredit<P>,
 }
 
 #[derive(Debug)]
@@ -41,14 +40,17 @@ pub enum QueueOperationError {
 }
 
 /// A wrapper over a token channel, accumulating fundss to be sent as one transcation.
-impl OutgoingMc {
-    pub fn new(mutual_credit: &MutualCredit) -> OutgoingMc {
+impl<P> OutgoingMc<P> 
+where
+    P: std::hash::Hash + Eq + Clone,
+{
+    pub fn new(mutual_credit: &MutualCredit<P>) -> Self {
         OutgoingMc {
             mutual_credit: mutual_credit.clone(),
         }
     }
 
-    pub fn queue_operation(&mut self, operation: &FriendTcOp) ->
+    pub fn queue_operation<RS>(&mut self, operation: &FriendTcOp<P,RS>) ->
         Result<Vec<McMutation>, QueueOperationError> {
 
         // TODO: Maybe remove clone from here later:
@@ -69,7 +71,7 @@ impl OutgoingMc {
     }
 
     fn queue_enable_requests(&mut self) ->
-        Result<Vec<McMutation>, QueueOperationError> {
+        Result<Vec<McMutation<P>>, QueueOperationError> {
 
         // TODO: Should we check first if local requests are already open?
         let mut tc_mutations = Vec::new();
@@ -81,7 +83,7 @@ impl OutgoingMc {
     }
 
     fn queue_disable_requests(&mut self) ->
-        Result<Vec<McMutation>, QueueOperationError> {
+        Result<Vec<McMutation<P>>, QueueOperationError> {
 
         let mut tc_mutations = Vec::new();
         let tc_mutation = McMutation::SetLocalRequestsStatus(RequestsStatus::Closed);
@@ -93,7 +95,7 @@ impl OutgoingMc {
     }
 
     fn queue_set_remote_max_debt(&mut self, proposed_max_debt: u128) -> 
-        Result<Vec<McMutation>, QueueOperationError> {
+        Result<Vec<McMutation<P>>, QueueOperationError> {
 
         if proposed_max_debt > MAX_FUNDER_DEBT {
             return Err(QueueOperationError::RemoteMaxDebtTooLarge);
@@ -108,7 +110,7 @@ impl OutgoingMc {
 
 
     fn queue_request_send_funds(&mut self, request_send_funds: RequestSendFunds) ->
-        Result<Vec<McMutation>, QueueOperationError> {
+        Result<Vec<McMutation<P>>, QueueOperationError> {
 
         if !request_send_funds.route.is_valid() {
             return Err(QueueOperationError::InvalidRoute);
@@ -180,7 +182,7 @@ impl OutgoingMc {
     }
 
     fn queue_response_send_funds(&mut self, response_send_funds: ResponseSendFunds) ->
-        Result<Vec<McMutation>, QueueOperationError> {
+        Result<Vec<McMutation<P>>, QueueOperationError> {
         // Make sure that id exists in remote_pending hashmap, 
         // and access saved request details.
         let remote_pending_requests = &self.mutual_credit.state()
@@ -249,8 +251,8 @@ impl OutgoingMc {
         Ok(tc_mutations)
     }
 
-    fn queue_failure_send_funds(&mut self, failure_send_funds: FailureSendFunds) ->
-        Result<Vec<McMutation>, QueueOperationError> {
+    fn queue_failure_send_funds(&mut self, failure_send_funds: FailureSendFunds<P,RS>) ->
+        Result<Vec<McMutation<P>>, QueueOperationError> {
         // Make sure that id exists in remote_pending hashmap, 
         // and access saved request details.
         let remote_pending_requests = &self.mutual_credit.state().pending_requests
@@ -286,8 +288,10 @@ impl OutgoingMc {
             return Err(QueueOperationError::InvalidReportingNode);
         }
 
-        verify_failure_signature(&failure_send_funds, &pending_request)
-            .ok_or(QueueOperationError::InvalidFailureSignature)?;
+        let pair = (&failure_send_funds, &pending_request);
+        if !pair.verify() {
+            return Err(QueueOperationError::InvalidFailureSignature);
+        }
 
         // At this point we believe the failure funds is valid.
         let route_len = usize_to_u32(pending_request.route.len()) 

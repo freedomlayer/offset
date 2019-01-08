@@ -1,12 +1,13 @@
 use byteorder::{BigEndian, WriteBytesExt};
 use crypto::hash::{self, sha_512_256, HashResult};
-use crypto::identity::{verify_signature, PublicKey};
+use crypto::identity::{verify_signature, PublicKey, Signature};
 
 use common::int_convert::usize_to_u64;
 use common::canonical_serialize::CanonicalSerialize;
+use crate::verify::Verify;
 
-use super::messages::{ResponseSendFunds, FailureSendFunds, 
-    SendFundsReceipt, PendingRequest, MoveToken};
+use crate::funder::messages::{ResponseSendFunds, FailureSendFunds, 
+    SendFundsReceipt, PendingRequest, MoveToken, TPublicKey};
 
 pub const FUND_SUCCESS_PREFIX: &[u8] = b"FUND_SUCCESS";
 pub const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
@@ -14,8 +15,12 @@ pub const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
 /// Create the buffer we sign over at the Response funds.
 /// Note that the signature is not just over the Response funds bytes. The signed buffer also
 /// contains information from the Request funds.
-pub fn create_response_signature_buffer<S>(response_send_funds: &ResponseSendFunds<S>,
-                        pending_request: &PendingRequest) -> Vec<u8> {
+pub fn create_response_signature_buffer<P,RS>(response_send_funds: &ResponseSendFunds<RS>,
+                        pending_request: &PendingRequest<P>) -> Vec<u8> 
+where
+    P: CanonicalSerialize + Eq + std::hash::Hash,
+    RS: CanonicalSerialize
+{
 
     let mut sbuffer = Vec::new();
 
@@ -36,8 +41,12 @@ pub fn create_response_signature_buffer<S>(response_send_funds: &ResponseSendFun
 /// Create the buffer we sign over at the Failure funds.
 /// Note that the signature is not just over the Response funds bytes. The signed buffer also
 /// contains information from the Request funds.
-pub fn create_failure_signature_buffer<S>(failure_send_funds: &FailureSendFunds<S>,
-                        pending_request: &PendingRequest) -> Vec<u8> {
+pub fn create_failure_signature_buffer<P,RS>(failure_send_funds: &FailureSendFunds<P,RS>,
+                        pending_request: &PendingRequest<P>) -> Vec<u8> 
+where
+    P: CanonicalSerialize + Eq + std::hash::Hash,
+    RS: CanonicalSerialize,
+{
 
     let mut sbuffer = Vec::new();
 
@@ -47,38 +56,48 @@ pub fn create_failure_signature_buffer<S>(failure_send_funds: &FailureSendFunds<
 
     sbuffer.write_u128::<BigEndian>(pending_request.dest_payment).unwrap();
     sbuffer.extend_from_slice(&pending_request.invoice_id);
-    sbuffer.extend_from_slice(&failure_send_funds.reporting_public_key);
+    sbuffer.extend_from_slice(&failure_send_funds.reporting_public_key.canonical_serialize());
     sbuffer.extend_from_slice(&failure_send_funds.rand_nonce);
 
     sbuffer
 }
 
+
 /// Verify a failure signature
-pub fn verify_failure_signature(failure_send_funds: &FailureSendFunds,
-                            pending_request: &PendingRequest) -> Option<()> {
+impl Verify for (&FailureSendFunds<PublicKey, Signature>, &PendingRequest<PublicKey>) {
 
-    let failure_signature_buffer = create_failure_signature_buffer(
-                                        &failure_send_funds,
-                                        &pending_request);
-    let reporting_public_key = &failure_send_funds.reporting_public_key;
-    // Make sure that the reporting_public_key is on the route:
-    // TODO: Should we check that it is after us? Is it checked somewhere else?
-    let _ = pending_request.route.pk_to_index(&reporting_public_key)?;
+    fn verify(&self) -> bool {
+        let (failure_send_funds, pending_request) = self;
 
-    if !verify_signature(&failure_signature_buffer, 
-                     reporting_public_key, 
-                     &failure_send_funds.signature) {
-        return None;
+        let failure_signature_buffer = create_failure_signature_buffer(
+                                            &failure_send_funds,
+                                            &pending_request);
+        let reporting_public_key = &failure_send_funds.reporting_public_key;
+        // Make sure that the reporting_public_key is on the route:
+        // TODO: Should we check that it is after us? Is it checked somewhere else?
+        if let None = pending_request.route.pk_to_index(&reporting_public_key) {
+            return false;
+        }
+
+        if !verify_signature(&failure_signature_buffer, 
+                         &reporting_public_key.public_key, 
+                         &failure_send_funds.signature.signature) {
+            return false;
+        }
+        true
     }
-    Some(())
 }
 
-pub fn prepare_receipt(response_send_funds: &ResponseSendFunds,
-                    pending_request: &PendingRequest) -> SendFundsReceipt {
+pub fn prepare_receipt<P,RS>(response_send_funds: &ResponseSendFunds<RS>,
+                    pending_request: &PendingRequest<P>) -> SendFundsReceipt<RS> 
+where
+    P: CanonicalSerialize,
+    RS: Clone,
+{
 
     let mut hash_buff = Vec::new();
     hash_buff.extend_from_slice(&pending_request.request_id);
-    hash_buff.extend_from_slice(&pending_request.route.to_bytes());
+    hash_buff.extend_from_slice(&pending_request.route.canonical_serialize());
     hash_buff.extend_from_slice(&response_send_funds.rand_nonce);
     let response_hash = hash::sha_512_256(&hash_buff);
     // = sha512/256(requestId || sha512/256(route) || randNonce)
@@ -91,17 +110,19 @@ pub fn prepare_receipt(response_send_funds: &ResponseSendFunds,
     }
 }
 
+impl Verify for (&SendFundsReceipt<Signature>, TPublicKey<PublicKey>) {
+    fn verify(&self) -> bool {
+        let (receipt, public_key) = self;
 
-#[allow(unused)]
-pub fn verify_receipt(receipt: &SendFundsReceipt,
-                      public_key: &PublicKey) -> bool {
-    let mut data = Vec::new();
-    data.extend(FUND_SUCCESS_PREFIX);
-    data.extend(receipt.response_hash.as_ref());
-    data.extend(receipt.invoice_id.as_ref());
-    data.write_u128::<BigEndian>(receipt.dest_payment).unwrap();
-    verify_signature(&data, public_key, &receipt.signature)
+        let mut data = Vec::new();
+        data.extend(FUND_SUCCESS_PREFIX);
+        data.extend(receipt.response_hash.as_ref());
+        data.extend(receipt.invoice_id.as_ref());
+        data.write_u128::<BigEndian>(receipt.dest_payment).unwrap();
+        verify_signature(&data, &public_key.public_key, &receipt.signature.signature)
+    }
 }
+
 
 
 // Prefix used for chain hashing of token channel funds.
@@ -109,18 +130,22 @@ pub fn verify_receipt(receipt: &SendFundsReceipt,
 const TOKEN_NEXT: &[u8] = b"NEXT";
 
 /// Combine all operations into one hash value.
-pub fn operations_hash<A>(move_token: &MoveToken<A>) -> HashResult {
+pub fn operations_hash<A,P,RS,MS>(move_token: &MoveToken<A,P,RS,MS>) -> HashResult 
+where
+    P: CanonicalSerialize,
+    RS: CanonicalSerialize,
+{
     let mut operations_data = Vec::new();
     operations_data.write_u64::<BigEndian>(
         usize_to_u64(move_token.operations.len()).unwrap()).unwrap();
     for op in &move_token.operations {
-        operations_data.extend_from_slice(&op.to_bytes());
+        operations_data.extend_from_slice(&op.canonical_serialize());
     }
     sha_512_256(&operations_data)
 }
 
 /// Combine all operations into one hash value.
-pub fn local_address_hash<A>(move_token: &MoveToken<A>) -> HashResult 
+pub fn local_address_hash<A,P,RS,MS>(move_token: &MoveToken<A,P,RS,MS>) -> HashResult 
 where
     A: CanonicalSerialize,
 {
@@ -128,28 +153,34 @@ where
 }
 
 /// Hash operations and local_address:
-pub fn prefix_hash<A,S>(move_token: &MoveToken<A,S>) -> HashResult 
+pub fn prefix_hash<A,P,RS,MS>(move_token: &MoveToken<A,P,RS,MS>) -> HashResult 
 where
     A: CanonicalSerialize,
+    P: CanonicalSerialize,
+    RS: CanonicalSerialize,
+    MS: CanonicalSerialize,
 {
     let mut hash_buff = Vec::new();
 
-    hash_buff.extend_from_slice(&move_token.old_token);
+    hash_buff.extend_from_slice(&move_token.old_token.canonical_serialize());
 
     // TODO; Use CanonicalSerialize instead here:
     hash_buff.write_u64::<BigEndian>(
         usize_to_u64(move_token.operations.len()).unwrap()).unwrap();
     for op in &move_token.operations {
-        hash_buff.extend_from_slice(&op.to_bytes());
+        hash_buff.extend_from_slice(&op.canonical_serialize());
     }
 
     hash_buff.extend_from_slice(&move_token.opt_local_address.canonical_serialize());
     sha_512_256(&hash_buff)
 }
 
-pub fn move_token_signature_buff<A,S>(move_token: &MoveToken<A,S>) -> Vec<u8> 
+pub fn move_token_signature_buff<A,P,RS,MS>(move_token: &MoveToken<A,P,RS,MS>) -> Vec<u8> 
 where
     A: CanonicalSerialize,
+    P: CanonicalSerialize,
+    RS: CanonicalSerialize,
+    MS: CanonicalSerialize,
 {
     let mut sig_buffer = Vec::new();
     sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
@@ -164,13 +195,14 @@ where
     sig_buffer
 }
 
-/// Verify that new_token is a valid signature over the rest of the fields.
-pub fn verify_move_token<A>(move_token: &MoveToken<A>, public_key: &PublicKey) -> bool 
+impl<A> Verify for (&MoveToken<A,PublicKey,Signature,Signature>, &TPublicKey<PublicKey>) 
 where
     A: CanonicalSerialize,
 {
-    let sig_buffer = move_token_signature_buff(move_token);
-    verify_signature(&sig_buffer, public_key, &move_token.new_token)
+    fn verify(&self) -> bool {
+        let (move_token, public_key) = self;
+        let sig_buffer = move_token_signature_buff(move_token);
+        verify_signature(&sig_buffer, &public_key.public_key, &move_token.new_token.signature)
+    }
 }
 
-// TODO: How to test this?

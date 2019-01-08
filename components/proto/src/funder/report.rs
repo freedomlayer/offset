@@ -1,13 +1,13 @@
 use im::hashmap::HashMap as ImHashMap;
 
-use crypto::identity::{PublicKey, Signature};
+// use crypto::identity::{PublicKey, Signature};
 use crypto::hash::HashResult;
 use crypto::crypto_rand::RandValue;
 
-use crate::funder::messages::{RequestsStatus, FriendStatus};
+use crate::funder::messages::{RequestsStatus, FriendStatus, TPublicKey, TSignature};
 
 #[derive(Clone, Debug)]
-pub struct MoveTokenHashedReport {
+pub struct MoveTokenHashedReport<MS> {
     pub prefix_hash: HashResult,
     pub inconsistency_counter: u64,
     pub move_token_counter: u128,
@@ -15,7 +15,7 @@ pub struct MoveTokenHashedReport {
     pub local_pending_debt: u128,
     pub remote_pending_debt: u128,
     pub rand_nonce: RandValue,
-    pub new_token: Signature,
+    pub new_token: TSignature<MS>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -83,33 +83,33 @@ pub struct TcReport {
 }
 
 #[derive(Clone, Debug)]
-pub struct ResetTermsReport {
-    pub reset_token: Signature,
+pub struct ResetTermsReport<MS> {
+    pub reset_token: TSignature<MS>,
     pub balance_for_reset: i128,
 }
 
 #[derive(Clone, Debug)]
-pub struct ChannelInconsistentReport {
+pub struct ChannelInconsistentReport<MS> {
     pub local_reset_terms_balance: i128,
-    pub opt_remote_reset_terms: Option<ResetTermsReport>,
+    pub opt_remote_reset_terms: Option<ResetTermsReport<MS>>,
 }
 
 #[derive(Clone, Debug)]
-pub enum ChannelStatusReport {
-    Inconsistent(ChannelInconsistentReport),
+pub enum ChannelStatusReport<MS> {
+    Inconsistent(ChannelInconsistentReport<MS>),
     Consistent(TcReport),
 }
 
 #[derive(Clone, Debug)]
-pub struct FriendReport<A> {
+pub struct FriendReport<A,MS> {
     pub remote_address: A, 
     pub name: String,
     pub sent_local_address: SentLocalAddressReport<A>,
     // Last message signed by the remote side. 
     // Can be used as a proof for the last known balance.
-    pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
+    pub opt_last_incoming_move_token: Option<MoveTokenHashedReport<MS>>,
     pub liveness: FriendLivenessReport, // is the friend online/offline?
-    pub channel_status: ChannelStatusReport,
+    pub channel_status: ChannelStatusReport<MS>,
     pub wanted_remote_max_debt: u128,
     pub wanted_local_requests_status: RequestsStatusReport,
     pub num_pending_requests: u64,
@@ -123,50 +123,50 @@ pub struct FriendReport<A> {
 
 /// A FunderReport is a summary of a FunderState.
 /// It contains the information the Funder exposes to the user apps of the Offst node.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 // TODO: Removed A: Clone here and ImHashMap. Should this struct be cloneable for some reason?
-pub struct FunderReport<A: Clone> {
-    pub local_public_key: PublicKey,
+pub struct FunderReport<A:Clone,P:Clone,MS:Clone> {
+    pub local_public_key: TPublicKey<P>,
     pub opt_address: Option<A>,
-    pub friends: ImHashMap<PublicKey, FriendReport<A>>,
+    pub friends: ImHashMap<TPublicKey<P>, FriendReport<A,MS>>,
     pub num_ready_receipts: u64,
 }
 
 #[allow(unused)]
 #[derive(Debug)]
-pub enum FriendReportMutation<A> {
+pub enum FriendReportMutation<A,MS> {
     SetRemoteAddress(A),
     SetName(String),
     SetSentLocalAddress(SentLocalAddressReport<A>),
-    SetChannelStatus(ChannelStatusReport),
+    SetChannelStatus(ChannelStatusReport<MS>),
     SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatusReport),
     SetNumPendingRequests(u64),
     SetNumPendingResponses(u64),
     SetFriendStatus(FriendStatusReport),
     SetNumPendingUserRequests(u64),
-    SetOptLastIncomingMoveToken(Option<MoveTokenHashedReport>),
+    SetOptLastIncomingMoveToken(Option<MoveTokenHashedReport<MS>>),
     SetLiveness(FriendLivenessReport),
 }
 
 #[derive(Clone, Debug)]
-pub struct AddFriendReport<A> {
-    pub friend_public_key: PublicKey,
+pub struct AddFriendReport<A,P,MS> {
+    pub friend_public_key: TPublicKey<P>,
     pub address: A,
     pub name: String,
     pub balance: i128, // Initial balance
-    pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
-    pub channel_status: ChannelStatusReport,
+    pub opt_last_incoming_move_token: Option<MoveTokenHashedReport<MS>>,
+    pub channel_status: ChannelStatusReport<MS>,
 }
 
 
 #[allow(unused)]
 #[derive(Debug)]
-pub enum FunderReportMutation<A> {
+pub enum FunderReportMutation<A,P,MS> {
     SetAddress(Option<A>),
-    AddFriend(AddFriendReport<A>),
-    RemoveFriend(PublicKey),
-    FriendReportMutation((PublicKey, FriendReportMutation<A>)),
+    AddFriend(AddFriendReport<A,P,MS>),
+    RemoveFriend(TPublicKey<P>),
+    FriendReportMutation((TPublicKey<P>, FriendReportMutation<A,MS>)),
     SetNumReadyReceipts(u64),
 }
 

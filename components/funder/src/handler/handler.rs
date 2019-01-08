@@ -2,7 +2,6 @@ use std::fmt::Debug;
 use identity::IdentityClient;
 
 use crypto::uid::Uid;
-use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
 
 use common::canonical_serialize::CanonicalSerialize;
@@ -25,13 +24,19 @@ use crate::report::{funder_mutation_to_report_mutations,
     ephemeral_mutation_to_report_mutations};
 
 
-pub struct MutableFunderState<A: Clone> {
-    initial_state: FunderState<A>,
-    state: FunderState<A>,
-    mutations: Vec<FunderMutation<A>>,
+/*
+impl TPublicKey<()> for PublicKey {}
+impl TSignature<()> for Signature {}
+*/
+
+
+pub struct MutableFunderState<A: Clone,P,RS> {
+    initial_state: FunderState<A,P,RS>,
+    state: FunderState<A,P,RS>,
+    mutations: Vec<FunderMutation<A,P,RS>>,
 }
 
-impl<A> MutableFunderState<A> 
+impl<A,P,RS> MutableFunderState<A,P,RS> 
 where
     A: CanonicalSerialize + Clone,
 {
@@ -104,8 +109,8 @@ pub struct FunderHandlerOutput<A: Clone> {
 ///
 /// TODO: We need to change this search to be O(1) in the future. Possibly by maintaining a map
 /// between request_id and (friend_public_key, friend).
-pub fn find_request_origin<'a, A>(state: &'a FunderState<A>,
-                                  request_id: &Uid) -> Option<&'a PublicKey> 
+pub fn find_request_origin<'a,A,P>(state: &'a FunderState<A>,
+                                  request_id: &Uid) -> Option<&'a P> 
 where
     A: CanonicalSerialize + Clone,
 {

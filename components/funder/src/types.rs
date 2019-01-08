@@ -1,4 +1,3 @@
-use crypto::identity::{PublicKey, Signature};
 use crypto::crypto_rand::RandValue;
 use crypto::hash::HashResult;
 
@@ -6,13 +5,14 @@ use common::canonical_serialize::CanonicalSerialize;
 
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds, FailureSendFunds, 
     MoveToken, FriendMessage, FriendTcOp, PendingRequest, FunderIncomingControl, 
-    FunderOutgoingControl};
+    FunderOutgoingControl, TPublicKey, TSignature};
 
 use proto::funder::signature_buff::{prefix_hash,
     move_token_signature_buff, create_response_signature_buffer,
     create_failure_signature_buffer};
 
 use identity::IdentityClient;
+
 
 
 pub type UnsignedFailureSendFunds = FailureSendFunds<()>;
@@ -67,11 +67,10 @@ pub async fn create_response_send_funds<'a>(pending_request: &'a PendingRequest,
 
 }
 
-pub async fn create_failure_send_funds<'a>(pending_request: &'a PendingRequest,
-                                         local_public_key: &'a PublicKey,
+pub async fn create_failure_send_funds<'a,P>(pending_request: &'a PendingRequest,
+                                         local_public_key: &'a TPublicKey<P>,
                                          rand_nonce: RandValue,
-                                         identity_client: &'a mut IdentityClient) -> FailureSendFunds 
-{
+                                         identity_client: &'a mut IdentityClient) -> FailureSendFunds {
 
     let u_failure_send_funds = FailureSendFunds {
         request_id: pending_request.request_id,
@@ -120,7 +119,7 @@ pub fn create_pending_request(request_send_funds: &RequestSendFunds) -> PendingR
 
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct MoveTokenHashed {
+pub struct MoveTokenHashed<P,MS> {
     /// Hash of operations and local_address
     pub prefix_hash: HashResult,
     pub inconsistency_counter: u64,
@@ -129,12 +128,12 @@ pub struct MoveTokenHashed {
     pub local_pending_debt: u128,
     pub remote_pending_debt: u128,
     pub rand_nonce: RandValue,
-    pub new_token: Signature,
+    pub new_token: TSignature<MS>,
 }
 
-pub fn create_unsigned_move_token<A>(operations: Vec<FriendTcOp>,
+pub fn create_unsigned_move_token<A,P,S>(operations: Vec<FriendTcOp>,
                  opt_local_address: Option<A>,
-                 old_token: Signature,
+                 old_token: TSignature<S>,
                  inconsistency_counter: u64,
                  move_token_counter: u128,
                  balance: i128,
@@ -215,39 +214,39 @@ where
 
 
 #[derive(Debug, Clone)]
-pub enum IncomingLivenessMessage {
-    Online(PublicKey),
-    Offline(PublicKey),
+pub enum IncomingLivenessMessage<P> {
+    Online(TPublicKey<P>),
+    Offline(TPublicKey<P>),
 }
 
 
 #[allow(unused)]
-pub struct FriendInconsistencyError {
-    pub reset_token: Signature,
+pub struct FriendInconsistencyError<P,S> {
+    pub reset_token: TSignature<S>,
     pub balance_for_reset: i128,
 }
 
 #[derive(Debug)]
-pub struct ChannelerAddFriend<A> {
-    pub friend_public_key: PublicKey,
+pub struct ChannelerAddFriend<A,P> {
+    pub friend_public_key: TPublicKey<P>,
     pub friend_address: A,
     pub local_addresses: Vec<A>,
 }
 
 #[derive(Debug)]
-pub enum ChannelerConfig<A> {
+pub enum ChannelerConfig<A,P> {
     /// Set relay address for local node
     /// This is the address the Channeler will connect to 
     /// and listen for new connections
     SetAddress(Option<A>),
     AddFriend(ChannelerAddFriend<A>),
-    RemoveFriend(PublicKey),
+    RemoveFriend(TPublicKey<P>),
 }
 
 #[derive(Debug, Clone)]
-pub enum FunderIncomingComm<A> {
+pub enum FunderIncomingComm<A,P> {
     Liveness(IncomingLivenessMessage),
-    Friend((PublicKey, FriendMessage<A>)),
+    Friend((TPublicKey<P>, FriendMessage<A>)),
 }
 
 /// An incoming message to the Funder:
@@ -266,7 +265,7 @@ pub enum FunderOutgoing<A: Clone> {
 }
 
 #[derive(Debug)]
-pub enum FunderOutgoingComm<A> {
-    FriendMessage((PublicKey, FriendMessage<A>)),
+pub enum FunderOutgoingComm<A,P> {
+    FriendMessage((TPublicKey<P>, FriendMessage<A>)),
     ChannelerConfig(ChannelerConfig<A>),
 }

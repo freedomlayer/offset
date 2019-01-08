@@ -27,6 +27,7 @@ pub mod serialize;
 pub mod app_server;
 pub mod index_server;
 pub mod index_client;
+pub mod verify;
 
 
 

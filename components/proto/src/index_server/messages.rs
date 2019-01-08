@@ -21,16 +21,16 @@ pub struct RequestRoutes {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct RouteWithCapacity {
-    pub route: FriendsRoute,
+pub struct RouteWithCapacity<P> {
+    pub route: FriendsRoute<P>,
     pub capacity: u128,
 }
 
 /// IndexServer -> IndexClient
 #[derive(Debug, Clone)]
-pub struct ResponseRoutes {
+pub struct ResponseRoutes<P> {
     pub request_id: Uid,
-    pub routes: Vec<RouteWithCapacity>,
+    pub routes: Vec<RouteWithCapacity<P>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,9 +96,9 @@ pub struct ForwardMutationsUpdate {
 }
 
 #[derive(Debug)]
-pub enum IndexServerToClient {
+pub enum IndexServerToClient<P> {
     TimeHash(HashResult),
-    ResponseRoutes(ResponseRoutes),
+    ResponseRoutes(ResponseRoutes<P>),
 }
 
 

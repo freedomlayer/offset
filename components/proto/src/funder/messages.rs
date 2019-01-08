@@ -1,41 +1,71 @@
 use std::collections::HashSet;
 use byteorder::{WriteBytesExt, BigEndian};
 
-use crypto::identity::{PublicKey, Signature};
 use crypto::crypto_rand::RandValue;
 use crypto::uid::Uid;
 use crypto::hash::{self, HashResult};
 
 
 use common::int_convert::{usize_to_u64};
+use common::canonical_serialize::CanonicalSerialize;
 
 use crate::funder::report::FunderReportMutation;
 use crate::consts::MAX_ROUTE_LEN;
 
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TPublicKey<P> {
+    pub public_key: P,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TSignature<S> {
+    pub signature: S,
+}
+
+impl<P> CanonicalSerialize for TPublicKey<P>
+where
+    P: CanonicalSerialize,
+{
+    fn canonical_serialize(&self) -> Vec<u8> {
+        self.public_key.canonical_serialize()
+    }
+}
+
+impl<S> CanonicalSerialize for TSignature<S>
+where
+    S: CanonicalSerialize,
+{
+    fn canonical_serialize(&self) -> Vec<u8> {
+        self.signature.canonical_serialize()
+    }
+}
+
+
+
 #[allow(unused)]
 #[derive(Debug)]
-pub enum FunderToChanneler<A> {
+pub enum FunderToChanneler<A,P> {
     /// Send a message to a friend
-    Message((PublicKey, Vec<u8>)), // (friend_public_key, message)
+    Message((TPublicKey<P>, Vec<u8>)), // (friend_public_key, message)
     /// Set address for relay used by local node
     /// None means that no address is configured.
     SetAddress(Option<A>), 
     /// Request to add a new friend
-    AddFriend((PublicKey, A)), // (friend_public_key, address)
+    AddFriend((TPublicKey<P>, A)), // (friend_public_key, address)
     /// Request to remove a friend
-    RemoveFriend(PublicKey), // friend_public_key
+    RemoveFriend(TPublicKey<P>), // friend_public_key
 }
 
 #[allow(unused)]
 #[derive(Debug)]
-pub enum ChannelerToFunder {
+pub enum ChannelerToFunder<P> {
     /// A friend is now online
-    Online(PublicKey),
+    Online(TPublicKey<P>),
     /// A friend is now offline
-    Offline(PublicKey),
+    Offline(TPublicKey<P>),
     /// Incoming message from a remote friend
-    Message((PublicKey, Vec<u8>)), // (friend_public_key, message)
+    Message((TPublicKey<P>, Vec<u8>)), // (friend_public_key, message)
 }
 
 // -------------------------------------------
@@ -60,15 +90,15 @@ pub const INVOICE_ID_LEN: usize = 32;
 define_fixed_bytes!(InvoiceId, INVOICE_ID_LEN);
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct FriendsRoute {
-    pub public_keys: Vec<PublicKey>,
+pub struct FriendsRoute<P> {
+    pub public_keys: Vec<TPublicKey<P>>,
 }
 
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct RequestSendFunds {
+pub struct RequestSendFunds<P> {
     pub request_id: Uid,
-    pub route: FriendsRoute,
+    pub route: FriendsRoute<P>,
     pub dest_payment: u128,
     pub invoice_id: InvoiceId,
     pub freeze_links: Vec<FreezeLink>,
@@ -76,76 +106,76 @@ pub struct RequestSendFunds {
 
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct ResponseSendFunds<S=Signature> {
+pub struct ResponseSendFunds<RS> {
     pub request_id: Uid,
     pub rand_nonce: RandValue,
-    pub signature: S,
+    pub signature: TSignature<RS>,
 }
 
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct FailureSendFunds<S=Signature> {
+pub struct FailureSendFunds<P,RS> {
     pub request_id: Uid,
-    pub reporting_public_key: PublicKey,
+    pub reporting_public_key: TPublicKey<P>,
     pub rand_nonce: RandValue,
-    pub signature: S,
+    pub signature: TSignature<RS>,
 }
 
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub enum FriendTcOp {
+pub enum FriendTcOp<P,RS> {
     EnableRequests,
     DisableRequests,
     SetRemoteMaxDebt(u128),
-    RequestSendFunds(RequestSendFunds),
-    ResponseSendFunds(ResponseSendFunds),
-    FailureSendFunds(FailureSendFunds),
+    RequestSendFunds(RequestSendFunds<P>),
+    ResponseSendFunds(ResponseSendFunds<RS>),
+    FailureSendFunds(FailureSendFunds<P,RS>),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct MoveToken<A,S=Signature> {
-    pub operations: Vec<FriendTcOp>,
+pub struct MoveToken<A,P,RS,MS> {
+    pub operations: Vec<FriendTcOp<P,RS>>,
     pub opt_local_address: Option<A>,
-    pub old_token: Signature,
+    pub old_token: TSignature<MS>,
     pub inconsistency_counter: u64,
     pub move_token_counter: u128,
     pub balance: i128,
     pub local_pending_debt: u128,
     pub remote_pending_debt: u128,
     pub rand_nonce: RandValue,
-    pub new_token: S,
+    pub new_token: TSignature<MS>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ResetTerms {
-    pub reset_token: Signature,
+pub struct ResetTerms<MS> {
+    pub reset_token: TSignature<MS>,
     pub inconsistency_counter: u64,
     pub balance_for_reset: i128,
 }
 
 #[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
-pub struct MoveTokenRequest<A> {
-    pub friend_move_token: MoveToken<A>,
+pub struct MoveTokenRequest<A,P,RS,MS> {
+    pub friend_move_token: MoveToken<A,P,RS,MS>,
     // Do we want the remote side to return the token:
     pub token_wanted: bool,
 }
 
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub enum FriendMessage<A> {
-    MoveTokenRequest(MoveTokenRequest<A>),
-    InconsistencyError(ResetTerms),
+pub enum FriendMessage<A,P,RS,MS> {
+    MoveTokenRequest(MoveTokenRequest<A,P,RS,MS>),
+    InconsistencyError(ResetTerms<MS>),
 }
 
 /// A `SendFundsReceipt` is received if a `RequestSendFunds` is successful.
 /// It can be used a proof of payment for a specific `invoice_id`.
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct SendFundsReceipt {
+pub struct SendFundsReceipt<RS> {
     pub response_hash: HashResult,
     // = sha512/256(requestId || sha512/256(route) || randNonce)
     pub invoice_id: InvoiceId,
     pub dest_payment: u128,
-    pub signature: Signature,
+    pub signature: TSignature<RS>,
     // Signature{key=recipientKey}(
     //   "FUND_SUCCESS" ||
     //   sha512/256(requestId || sha512/256(route) || randNonce) ||
@@ -155,9 +185,9 @@ pub struct SendFundsReceipt {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct PendingRequest {
+pub struct PendingRequest<P> {
     pub request_id: Uid,
-    pub route: FriendsRoute,
+    pub route: FriendsRoute<P>,
     pub dest_payment: u128,
     pub invoice_id: InvoiceId,
 }
@@ -167,8 +197,8 @@ pub struct PendingRequest {
 // ==================================================================
 // ==================================================================
 
-impl Ratio<u128> {
-    fn to_bytes(&self) -> Vec<u8> {
+impl CanonicalSerialize for Ratio<u128> {
+    fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         match *self {
             Ratio::One => {
@@ -183,53 +213,65 @@ impl Ratio<u128> {
     }
 }
 
-impl FreezeLink {
-    fn to_bytes(&self) -> Vec<u8> {
+impl CanonicalSerialize for FreezeLink {
+    fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.write_u128::<BigEndian>(self.shared_credits).unwrap();
-        res_bytes.extend_from_slice(&self.usable_ratio.to_bytes());
+        res_bytes.extend_from_slice(&self.usable_ratio.canonical_serialize());
         res_bytes
     }
 }
 
-impl RequestSendFunds {
-    fn to_bytes(&self) -> Vec<u8> {
+impl<P> CanonicalSerialize for RequestSendFunds<P> 
+where
+    P: CanonicalSerialize,
+{
+    fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.request_id);
-        res_bytes.extend_from_slice(&self.route.to_bytes());
+        res_bytes.extend_from_slice(&self.route.canonical_serialize());
         res_bytes.write_u128::<BigEndian>(self.dest_payment).unwrap();
         for freeze_link in &self.freeze_links {
-            res_bytes.extend_from_slice(&freeze_link.to_bytes());
+            res_bytes.extend_from_slice(&freeze_link.canonical_serialize());
         }
         res_bytes
     }
-
 }
 
-impl ResponseSendFunds {
-    fn to_bytes(&self) -> Vec<u8> {
+impl<RS> CanonicalSerialize for ResponseSendFunds<RS> 
+where
+    RS: CanonicalSerialize,
+{
+    fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.request_id);
         res_bytes.extend_from_slice(&self.rand_nonce);
-        res_bytes.extend_from_slice(&self.signature);
+        res_bytes.extend_from_slice(&self.signature.canonical_serialize());
         res_bytes
     }
 }
 
 
-impl FailureSendFunds {
-    fn to_bytes(&self) -> Vec<u8> {
+impl<P,RS> CanonicalSerialize for FailureSendFunds<P,RS> 
+where
+    P: CanonicalSerialize,
+    RS: CanonicalSerialize,
+{
+    fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.request_id);
-        res_bytes.extend_from_slice(&self.reporting_public_key);
-        res_bytes.extend_from_slice(&self.signature);
+        res_bytes.extend_from_slice(&self.reporting_public_key.canonical_serialize());
+        res_bytes.extend_from_slice(&self.signature.canonical_serialize());
         res_bytes
     }
 }
 
-#[allow(unused)]
-impl FriendTcOp {
-    pub fn to_bytes(&self) -> Vec<u8> {
+impl<P,RS> CanonicalSerialize for FriendTcOp<P,RS> 
+where
+    P: CanonicalSerialize,
+    RS: CanonicalSerialize,
+{
+    fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         match self {
             FriendTcOp::EnableRequests => {
@@ -244,29 +286,42 @@ impl FriendTcOp {
             }
             FriendTcOp::RequestSendFunds(request_send_funds) => {
                 res_bytes.push(3u8);
-                res_bytes.append(&mut request_send_funds.to_bytes())
+                res_bytes.append(&mut request_send_funds.canonical_serialize())
             }
             FriendTcOp::ResponseSendFunds(response_send_funds) => {
                 res_bytes.push(4u8);
-                res_bytes.append(&mut response_send_funds.to_bytes())
+                res_bytes.append(&mut response_send_funds.canonical_serialize())
             }
             FriendTcOp::FailureSendFunds(failure_send_funds) => {
                 res_bytes.push(5u8);
-                res_bytes.append(&mut failure_send_funds.to_bytes())
+                res_bytes.append(&mut failure_send_funds.canonical_serialize())
             }
             
         }
         res_bytes
     }
+}
 
-    /// Get an approximation of the amount of bytes required to represent 
-    /// this operation.
-    pub fn approx_bytes_count(&self) -> usize {
-        self.to_bytes().len()
+
+impl<P> CanonicalSerialize for FriendsRoute<P> 
+where
+    P: CanonicalSerialize,
+{
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.write_u64::<BigEndian>(
+            usize_to_u64(self.public_keys.len()).unwrap()).unwrap();
+        for public_key in &self.public_keys {
+            res_bytes.extend_from_slice(&public_key.canonical_serialize());
+        }
+        res_bytes
     }
 }
 
-impl FriendsRoute {
+impl<P> FriendsRoute<P> 
+where
+    P: CanonicalSerialize + Eq + std::hash::Hash,
+{
     pub fn len(&self) -> usize {
         self.public_keys.len()
     }
@@ -297,7 +352,7 @@ impl FriendsRoute {
     }
 
     /// Find two consecutive public keys (pk1, pk2) inside a friends route.
-    pub fn find_pk_pair(&self, pk1: &PublicKey, pk2: &PublicKey) -> Option<usize> {
+    pub fn find_pk_pair(&self, pk1: &TPublicKey<P>, pk2: &TPublicKey<P>) -> Option<usize> {
         let pks = &self.public_keys;
         for i in 0 ..= pks.len().checked_sub(2)? {
             if pk1 == &pks[i] && pk2 == &pks[i+1] {
@@ -307,19 +362,9 @@ impl FriendsRoute {
         None
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.write_u64::<BigEndian>(
-            usize_to_u64(self.public_keys.len()).unwrap()).unwrap();
-        for public_key in &self.public_keys {
-            res_bytes.extend_from_slice(public_key);
-        }
-        res_bytes
-    }
-
     /// Produce a cryptographic hash over the contents of the route.
     pub fn hash(&self) -> HashResult {
-        hash::sha_512_256(&self.to_bytes())
+        hash::sha_512_256(&self.canonical_serialize())
     }
 
     /// Find the index of a public key inside the route.
@@ -328,25 +373,29 @@ impl FriendsRoute {
     ///
     /// Note that the returned index does not map directly to an 
     /// index of self.route_links vector.
-    pub fn pk_to_index(&self, public_key: &PublicKey) -> Option<usize> {
+    pub fn pk_to_index(&self, public_key: &TPublicKey<P>) -> Option<usize> {
         self.public_keys
             .iter()
             .position(|cur_public_key| cur_public_key == public_key)
     }
 
     /// Get the public key of a node according to its index.
-    pub fn index_to_pk(&self, index: usize) -> Option<&PublicKey> {
+    pub fn index_to_pk(&self, index: usize) -> Option<&TPublicKey<P>> {
         self.public_keys.get(index)
     }
 }
 
-impl SendFundsReceipt {
-    pub fn to_bytes(&self) -> Vec<u8> {
+
+impl<RS> CanonicalSerialize for SendFundsReceipt<RS> 
+where
+    RS: CanonicalSerialize,
+{
+    fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.response_hash);
         res_bytes.extend_from_slice(&self.invoice_id);
         res_bytes.write_u128::<BigEndian>(self.dest_payment).unwrap();
-        res_bytes.extend_from_slice(&self.signature);
+        res_bytes.extend_from_slice(&self.signature.canonical_serialize());
         res_bytes
     }
 }
@@ -377,88 +426,91 @@ impl RequestsStatus {
 }
 
 #[derive(Debug, Clone)]
-pub struct AddFriend<A> {
-    pub friend_public_key: PublicKey,
+pub struct AddFriend<A,P> {
+    pub friend_public_key: TPublicKey<P>,
     pub address: A,
     pub name: String,
     pub balance: i128, // Initial balance
 }
 
 #[derive(Debug, Clone)]
-pub struct RemoveFriend {
-    pub friend_public_key: PublicKey,
+pub struct RemoveFriend<P> {
+    pub friend_public_key: TPublicKey<P>,
 }
 
 #[derive(Debug, Clone)]
-pub struct SetRequestsStatus {
-    pub friend_public_key: PublicKey,
+pub struct SetRequestsStatus<P> {
+    pub friend_public_key: TPublicKey<P>,
     pub status: RequestsStatus,
 }
 
 #[derive(Debug, Clone)]
-pub struct SetFriendStatus {
-    pub friend_public_key: PublicKey,
+pub struct SetFriendStatus<P> {
+    pub friend_public_key: TPublicKey<P>,
     pub status: FriendStatus,
 }
 
 #[derive(Debug, Clone)]
-pub struct SetFriendRemoteMaxDebt {
-    pub friend_public_key: PublicKey,
+pub struct SetFriendRemoteMaxDebt<P> {
+    pub friend_public_key: TPublicKey<P>,
     pub remote_max_debt: u128,
 }
 
 #[derive(Debug, Clone)]
-pub struct SetFriendName {
-    pub friend_public_key: PublicKey,
+pub struct SetFriendName<P> {
+    pub friend_public_key: TPublicKey<P>,
     pub name: String,
 }
 
 #[derive(Debug, Clone)]
-pub struct SetFriendAddress<A> {
-    pub friend_public_key: PublicKey,
+pub struct SetFriendAddress<A,P> {
+    pub friend_public_key: TPublicKey<P>,
     pub address: A,
 }
 
 #[derive(Debug, Clone)]
-pub struct ResetFriendChannel {
-    pub friend_public_key: PublicKey,
-    pub current_token: Signature,
+pub struct ResetFriendChannel<P,MS> {
+    pub friend_public_key: TPublicKey<P>,
+    pub current_token: TSignature<MS>,
 }
 
 /// A request to send funds that originates from the user
 #[derive(Debug, Clone)]
-pub struct UserRequestSendFunds {
+pub struct UserRequestSendFunds<P> {
     pub request_id: Uid,
-    pub route: FriendsRoute,
+    pub route: FriendsRoute<P>,
     pub invoice_id: InvoiceId,
     pub dest_payment: u128,
 }
 
 
 #[derive(Debug, Clone)]
-pub struct ReceiptAck {
+pub struct ReceiptAck<RS> {
     pub request_id: Uid,
-    pub receipt_signature: Signature,
+    pub receipt_signature: TSignature<RS>,
 }
 
 #[derive(Debug, Clone)]
-pub enum FunderIncomingControl<A> {
+pub enum FunderIncomingControl<A,P,RS,MS> {
     /// Set relay address used for the local node
     SetAddress(Option<A>),
-    AddFriend(AddFriend<A>),
-    RemoveFriend(RemoveFriend),
-    SetRequestsStatus(SetRequestsStatus),
-    SetFriendStatus(SetFriendStatus),
-    SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
-    SetFriendAddress(SetFriendAddress<A>),
-    SetFriendName(SetFriendName),
-    ResetFriendChannel(ResetFriendChannel),
-    RequestSendFunds(UserRequestSendFunds),
-    ReceiptAck(ReceiptAck),
+    AddFriend(AddFriend<A,P>),
+    RemoveFriend(RemoveFriend<P>),
+    SetRequestsStatus(SetRequestsStatus<P>),
+    SetFriendStatus(SetFriendStatus<P>),
+    SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt<P>),
+    SetFriendAddress(SetFriendAddress<A,P>),
+    SetFriendName(SetFriendName<P>),
+    ResetFriendChannel(ResetFriendChannel<P,MS>),
+    RequestSendFunds(UserRequestSendFunds<P>),
+    ReceiptAck(ReceiptAck<RS>),
 }
 
-impl UserRequestSendFunds {
-    pub fn to_request(self) -> RequestSendFunds {
+impl<P> UserRequestSendFunds<P> 
+where
+    P: Clone,
+{
+    pub fn to_request(self) -> RequestSendFunds<P> {
         RequestSendFunds {
             request_id: self.request_id,
             route: self.route,
@@ -468,7 +520,7 @@ impl UserRequestSendFunds {
         }
     }
 
-    pub fn create_pending_request(&self) -> PendingRequest {
+    pub fn create_pending_request(&self) -> PendingRequest<P> {
         PendingRequest {
             request_id: self.request_id,
             route: self.route.clone(),
@@ -479,22 +531,22 @@ impl UserRequestSendFunds {
 }
 
 #[derive(Debug)]
-pub enum ResponseSendFundsResult {
-    Success(SendFundsReceipt),
-    Failure(PublicKey), // Reporting public key.
+pub enum ResponseSendFundsResult<P,RS> {
+    Success(SendFundsReceipt<RS>),
+    Failure(TPublicKey<P>), // Reporting public key.
 }
 
 
 #[derive(Debug)]
-pub struct ResponseReceived {
+pub struct ResponseReceived<P,RS> {
     pub request_id: Uid,
-    pub result: ResponseSendFundsResult,
+    pub result: ResponseSendFundsResult<P,RS>,
 }
 
 
 #[derive(Debug)]
-pub enum FunderOutgoingControl<A: Clone> {
-    ResponseReceived(ResponseReceived),
+pub enum FunderOutgoingControl<A: Clone,P,RS,MS> {
+    ResponseReceived(ResponseReceived<P,RS>),
     // Report(FunderReport<A>),
-    ReportMutations(Vec<FunderReportMutation<A>>),
+    ReportMutations(Vec<FunderReportMutation<A,P,MS>>),
 }

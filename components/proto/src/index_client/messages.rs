@@ -34,21 +34,21 @@ pub enum IndexClientReportMutation<ISA> {
 }
 
 #[derive(Debug)]
-pub enum ResponseRoutesResult {
-    Success(Vec<RouteWithCapacity>),
+pub enum ResponseRoutesResult<P> {
+    Success(Vec<RouteWithCapacity<P>>),
     Failure,
 }
 
 #[derive(Debug)]
-pub struct ClientResponseRoutes {
+pub struct ClientResponseRoutes<P> {
     pub request_id: Uid,
-    pub result: ResponseRoutesResult,
+    pub result: ResponseRoutesResult<P>,
 }
 
 #[derive(Debug)]
-pub enum IndexClientToAppServer<ISA> {
+pub enum IndexClientToAppServer<ISA,P> {
     ReportMutations(Vec<IndexClientReportMutation<ISA>>),
-    ResponseRoutes(ClientResponseRoutes),
+    ResponseRoutes(ClientResponseRoutes<P>),
 }
 
 #[derive(Debug)]

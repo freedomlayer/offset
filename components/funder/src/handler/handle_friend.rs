@@ -7,7 +7,8 @@ use proto::funder::messages::{RequestSendFunds, ResponseSendFunds,
     FailureSendFunds, MoveToken, FreezeLink, FriendMessage,
     MoveTokenRequest, ResetTerms, PendingRequest, ResponseReceived,
     FunderOutgoingControl, ResponseSendFundsResult};
-use proto::funder::signature_buff::{prepare_receipt, verify_move_token};
+use proto::funder::signature_buff::prepare_receipt;
+use proto::verify::Verify;
 
 use crate::mutual_credit::incoming::{IncomingResponseSendFunds, 
     IncomingFailureSendFunds, IncomingMessage};
@@ -87,6 +88,8 @@ where
     A: CanonicalSerialize + Clone,
 {
 
+    let pair = (move_token, friend_public_key);
+
     // Check if incoming message is a valid attempt to reset the channel:
     if move_token.old_token != local_reset_terms.reset_token 
         || !move_token.operations.is_empty()
@@ -96,7 +99,7 @@ where
         || move_token.balance != local_reset_terms.balance_for_reset
         || move_token.local_pending_debt != 0 
         || move_token.remote_pending_debt != 0 
-        || !verify_move_token(move_token, friend_public_key)
+        || !pair.verify()
     {
         return;
     }

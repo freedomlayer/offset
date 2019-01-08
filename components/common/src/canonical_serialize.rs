@@ -41,6 +41,29 @@ where T: CanonicalSerialize,
     }
 }
 
+impl<T> CanonicalSerialize for &[T]
+where T: CanonicalSerialize,
+{
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_data = Vec::new();
+        // Write length:
+        res_data.write_u64::<BigEndian>(usize_to_u64(self.len()).unwrap()).unwrap();
+        // Write all items:
+        for t in self.iter() {
+            res_data.extend_from_slice(&t.canonical_serialize());
+        }
+        res_data
+    }
+}
+
+impl CanonicalSerialize for u8 {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_data = Vec::new();
+        res_data.write_u8(*self).unwrap();
+        res_data
+    }
+}
+
 // Used mostly for testing:
 impl CanonicalSerialize for u32 {
     fn canonical_serialize(&self) -> Vec<u8> {
@@ -49,3 +72,4 @@ impl CanonicalSerialize for u32 {
         res_data
     }
 }
+
