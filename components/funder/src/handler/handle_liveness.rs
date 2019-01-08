@@ -8,7 +8,7 @@ use crate::types::{IncomingLivenessMessage};
 use crate::ephemeral::EphemeralMutation;
 use crate::liveness::LivenessMutation;
 
-use crate::handler::{MutableFunderState, MutableEphemeral};
+use crate::handler::handler::{MutableFunderState, MutableEphemeral};
 use crate::handler::sender::SendCommands;
 use crate::handler::canceler::{cancel_pending_requests, 
                                 cancel_pending_user_requests};

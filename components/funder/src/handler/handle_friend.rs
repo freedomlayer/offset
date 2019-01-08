@@ -24,7 +24,7 @@ use crate::friend::{FriendMutation,
 use crate::ephemeral::{Ephemeral, EphemeralMutation};
 use crate::freeze_guard::FreezeGuardMutation;
 
-use crate::handler::{MutableFunderState, MutableEphemeral, 
+use crate::handler::handler::{MutableFunderState, MutableEphemeral, 
     is_friend_ready, find_request_origin};
 use crate::handler::sender::SendCommands;
 use crate::handler::canceler::{cancel_local_pending_requests, 

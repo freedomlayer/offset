@@ -22,7 +22,7 @@ use crate::freeze_guard::FreezeGuardMutation;
 use crate::state::FunderMutation;
 use crate::ephemeral::EphemeralMutation;
 
-use super::{MutableFunderState, MutableEphemeral};
+use crate::handler::handler::{MutableFunderState, MutableEphemeral};
 
 
 #[derive(Debug, Clone)]

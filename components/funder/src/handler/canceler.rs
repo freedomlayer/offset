@@ -5,7 +5,7 @@ use proto::funder::messages::{RequestSendFunds,
                               ResponseReceived,
                               ResponseSendFundsResult, FunderOutgoingControl};
 
-use crate::handler::{MutableFunderState, MutableEphemeral, 
+use crate::handler::handler::{MutableFunderState, MutableEphemeral, 
     find_request_origin};
 use crate::handler::sender::SendCommands;
 
