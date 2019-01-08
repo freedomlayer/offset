@@ -20,8 +20,8 @@ use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::FunderOutgoingControl;
 
 use super::state::{FunderState, FunderMutation};
-use self::handle_control::{HandleControlError};
-use self::handle_friend::HandleFriendError;
+use self::handle_control::{handle_control_message, HandleControlError};
+use self::handle_friend::{handle_friend_message, HandleFriendError};
 use self::handle_liveness::{handle_liveness_message, HandleLivenessError};
 use self::handle_init::handle_init;
 use self::sender::SendCommands;
@@ -289,7 +289,7 @@ where
     None
 }
 
-pub fn is_friend_ready<A>(m_state: &mut MutableFunderState<A>, 
+pub fn is_friend_ready<A>(state: &FunderState<A>, 
                           ephemeral: &Ephemeral,
                           friend_public_key: &PublicKey) -> bool 
 where
@@ -317,7 +317,7 @@ where
 
 pub async fn funder_handle_message<A,R>(
                       identity_client: IdentityClient,
-                      rng: R,
+                      rng: &R,
                       funder_state: FunderState<A>,
                       funder_ephemeral: Ephemeral,
                       funder_incoming: FunderIncoming<A>,
@@ -336,19 +336,35 @@ where
 
     match funder_incoming {
         FunderIncoming::Init =>  {
-            let channeler_configs = handle_init(&m_state);
-            outgoing_channeler_config.extend(&mut channeler_configs);
+            handle_init(&m_state, &mut outgoing_channeler_config);
         },
+
         FunderIncoming::Control(control_message) =>
-            handle_control_message(control_message)
+            handle_control_message(&mut m_state, 
+                                   &mut m_ephemeral,
+                                   &mut send_commands,
+                                   &mut outgoing_control,
+                                   &mut outgoing_channeler_config,
+                                   control_message)
                 .map_err(FunderHandlerError::HandleControlError)?,
+
         FunderIncoming::Comm(incoming_comm) => {
             match incoming_comm {
                 FunderIncomingComm::Liveness(liveness_message) =>
-                    handle_liveness_message(liveness_message)
+                    handle_liveness_message(&mut m_state, 
+                                            &mut m_ephemeral, 
+                                            &mut send_commands,
+                                            liveness_message)
                         .map_err(FunderHandlerError::HandleLivenessError)?,
+
                 FunderIncomingComm::Friend((origin_public_key, friend_message)) => 
-                    handle_friend_message(&origin_public_key, friend_message)
+                    handle_friend_message(&mut m_state, 
+                                          &mut m_ephemeral,
+                                          &mut send_commands,
+                                          &mut outgoing_control,
+                                          rng,
+                                          &origin_public_key, 
+                                          friend_message)
                         .map_err(FunderHandlerError::HandleFriendError)?,
             }
         },

@@ -24,8 +24,8 @@ pub enum HandleLivenessError {
 
 pub fn handle_liveness_message<A,R>(m_state: &mut MutableFunderState<A>,
                                     m_ephemeral: &mut MutableEphemeral,
-                                    liveness_message: IncomingLivenessMessage,
-                                    send_commands: &mut SendCommands) 
+                                    send_commands: &mut SendCommands,
+                                    liveness_message: IncomingLivenessMessage)
     -> Result<(), HandleLivenessError> 
 
 where

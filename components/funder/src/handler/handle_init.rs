@@ -9,9 +9,10 @@ use crate::types::{ChannelerConfig, FunderOutgoingComm, ChannelerAddFriend};
 
 use super::MutableFunderState;
 
-pub fn handle_init<A>(m_state: &MutableFunderState<A>) -> Vec<ChannelerConfig<A>> 
+pub fn handle_init<A>(m_state: &MutableFunderState<A>,
+                      outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>)
 where
-    A: Clone,
+    A: CanonicalSerialize + Clone,
 {
     let mut enabled_friends = Vec::new();
     for (friend_public_key, friend) in &m_state.state().friends {
@@ -28,8 +29,6 @@ where
         };
     }
 
-    let mut channeler_configs = Vec::new();
-
     // Send a report of the current FunderState:
     // This is a base report. Later reports are differential, and should be built on this base
     // report.
@@ -37,16 +36,14 @@ where
     // self.add_outgoing_control(FunderOutgoingControl::Report(report));
 
     // Notify Channeler about current address:
-    channeler_configs.push(ChannelerConfig::SetAddress(m_state.state().opt_address.clone()));
+    outgoing_channeler_config.push(ChannelerConfig::SetAddress(m_state.state().opt_address.clone()));
 
     // Notify channeler about all enabled friends:
     for enabled_friend in enabled_friends {
 
         // Notify Channeler:
-        channeler_configs.push(ChannelerConfig::AddFriend(enabled_friend));
+        outgoing_channeler_config.push(ChannelerConfig::AddFriend(enabled_friend));
     }
-
-    channeler_configs
 }
 
 
