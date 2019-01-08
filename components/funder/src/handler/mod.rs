@@ -279,6 +279,10 @@ where
                                       identity_client,
                                       rng));
 
+    for friend_message in friend_messages {
+        outgoing_comms.push(FunderOutgoingComm::FriendMessage(friend_message));
+    }
+
     // Add reports:
     let (initial_state, funder_mutations, _state) = m_state.done();
     let (ephemeral_mutations, _ephemeral) = m_ephemeral.done();

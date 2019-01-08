@@ -1,10 +1,7 @@
-use std::fmt::Debug;
-use crypto::crypto_rand::CryptoRandom;
-
 use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::FriendStatus;
 
-use crate::types::{ChannelerConfig, FunderOutgoingComm, ChannelerAddFriend};
+use crate::types::{ChannelerConfig, ChannelerAddFriend};
 
 use super::MutableFunderState;
 
@@ -14,7 +11,7 @@ where
     A: CanonicalSerialize + Clone,
 {
     let mut enabled_friends = Vec::new();
-    for (friend_public_key, friend) in &m_state.state().friends {
+    for (_friend_public_key, friend) in &m_state.state().friends {
         match friend.status {
             FriendStatus::Enabled => {
                 let channeler_add_friend = ChannelerAddFriend {

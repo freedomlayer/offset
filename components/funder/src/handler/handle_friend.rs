@@ -1,4 +1,4 @@
-use crypto::crypto_rand::{RandValue, CryptoRandom};
+use crypto::crypto_rand::CryptoRandom;
 use crypto::identity::{PublicKey, Signature, SIGNATURE_LEN};
 
 use common::canonical_serialize::CanonicalSerialize;
@@ -11,10 +11,10 @@ use proto::funder::signature_buff::{prepare_receipt, verify_move_token};
 
 use crate::mutual_credit::incoming::{IncomingResponseSendFunds, 
     IncomingFailureSendFunds, IncomingMessage};
-use crate::token_channel::{ReceiveMoveTokenOutput, ReceiveMoveTokenError, 
+use crate::token_channel::{ReceiveMoveTokenOutput, 
     MoveTokenReceived, TokenChannel};
 
-use crate::types::{UnsignedResponseSendFunds, create_pending_request};
+use crate::types::create_pending_request;
 
 use crate::state::{FunderMutation, FunderState};
 use crate::friend::{FriendMutation, 
@@ -147,7 +147,7 @@ where
 /// Forward a request message to the relevant friend and token channel.
 fn forward_request<A>(m_state: &mut MutableFunderState<A>,
                       send_commands: &mut SendCommands,
-                      mut request_send_funds: RequestSendFunds) 
+                      request_send_funds: RequestSendFunds) 
 where
     A: CanonicalSerialize + Clone,
 {
@@ -164,6 +164,7 @@ where
     send_commands.set_try_send(&next_pk);
 }
 
+/*
 /// Create a (signed) failure message for a given request_id.
 /// We are the reporting_public_key for this failure message.
 fn create_response_message<A,R>(state: &FunderState<A>, 
@@ -187,6 +188,7 @@ where
 
     u_response_send_funds
 }
+*/
 
 fn handle_request_send_funds<A>(m_state: &mut MutableFunderState<A>,
                                 ephemeral: &Ephemeral,
@@ -249,7 +251,6 @@ where
 fn handle_response_send_funds<A>(m_state: &mut MutableFunderState<A>,
                                  send_commands: &mut SendCommands,
                                  outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                                 remote_public_key: &PublicKey,
                                  response_send_funds: ResponseSendFunds,
                                  pending_request: PendingRequest) 
 where
@@ -291,7 +292,6 @@ where
 fn handle_failure_send_funds<A>(m_state: &mut MutableFunderState<A>,
                                 send_commands: &mut SendCommands,
                                 outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                                remote_public_key: &PublicKey,
                                 failure_send_funds: FailureSendFunds,
                                 pending_request: PendingRequest) 
 where
@@ -355,7 +355,6 @@ where
                 handle_response_send_funds(m_state, 
                                            send_commands,
                                            outgoing_control,
-                                           &remote_public_key, 
                                            incoming_response, 
                                            pending_request);
             },
@@ -369,7 +368,6 @@ where
                 handle_failure_send_funds(m_state, 
                                           send_commands,
                                           outgoing_control,
-                                          &remote_public_key, 
                                           incoming_failure, 
                                           pending_request);
             },
@@ -384,8 +382,7 @@ fn handle_move_token_error<A,R>(m_state: &mut MutableFunderState<A>,
                                 send_commands: &mut SendCommands,
                                 outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
                                 rng: &R,
-                                remote_public_key: &PublicKey,
-                                receive_move_token_error: ReceiveMoveTokenError) 
+                                remote_public_key: &PublicKey)
 where
     A: CanonicalSerialize + Clone,
     R: CryptoRandom,
@@ -445,7 +442,7 @@ where
 
     match receive_move_token_output {
         ReceiveMoveTokenOutput::Duplicate => {},
-        ReceiveMoveTokenOutput::RetransmitOutgoing(outgoing_move_token) => {
+        ReceiveMoveTokenOutput::RetransmitOutgoing(_outgoing_move_token) => {
             // Retransmit last sent token channel message:
             send_commands.set_resend_outgoing(remote_public_key);
             // We should not send any new move token in this case:
@@ -485,7 +482,7 @@ where
             match &friend.sent_local_address {
                 SentLocalAddress::NeverSent |
                 SentLocalAddress::LastSent(_) => {},
-                SentLocalAddress::Transition((last_address, prev_last_address)) => {
+                SentLocalAddress::Transition((last_address, _prev_last_address)) => {
                     let friend_mutation = FriendMutation::SetSentLocalAddress(SentLocalAddress::LastSent(last_address.clone()));
                     let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
                     m_state.mutate(funder_mutation);
@@ -567,14 +564,13 @@ where
                                       receive_move_token_output,
                                       token_wanted);
         },
-        Err(receive_move_token_error) => {
+        Err(_receive_move_token_error) => {
             handle_move_token_error(m_state, 
                                     m_ephemeral,
                                     send_commands,
                                     outgoing_control,
                                     rng,
-                                    remote_public_key,
-                                    receive_move_token_error);
+                                    remote_public_key);
         },
     };
     Ok(())

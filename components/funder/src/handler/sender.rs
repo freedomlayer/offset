@@ -1,4 +1,3 @@
-use std::fmt::Debug;
 use std::collections::HashMap;
 
 use crypto::identity::PublicKey;
@@ -9,7 +8,7 @@ use common::canonical_serialize::CanonicalSerialize;
 
 use identity::IdentityClient;
 
-use crate::types::{FunderOutgoingComm, create_pending_request, sign_move_token,
+use crate::types::{create_pending_request, sign_move_token,
                     create_response_send_funds, create_failure_send_funds,
                     create_unsigned_move_token};
 use crate::mutual_credit::outgoing::{QueueOperationError, OutgoingMc};
@@ -20,8 +19,8 @@ use crate::token_channel::{TokenChannel, TcMutation, TcDirection, SetDirection};
 
 use crate::freeze_guard::FreezeGuardMutation;
 
-use crate::state::{FunderMutation, FunderState};
-use crate::ephemeral::{Ephemeral, EphemeralMutation};
+use crate::state::FunderMutation;
+use crate::ephemeral::EphemeralMutation;
 
 use super::{MutableFunderState, MutableEphemeral};
 

@@ -438,6 +438,7 @@ where
 // crate.
 
 /// Calculate send and receive capacities for a given `friend_report`.
+#[allow(unused)]
 fn calc_friend_capacities<A>(friend_report: &FriendReport<A>) -> (u128, u128) {
     if friend_report.status == FriendStatusReport::Disabled || 
         friend_report.liveness == FriendLivenessReport::Offline {
@@ -468,6 +469,7 @@ fn calc_friend_capacities<A>(friend_report: &FriendReport<A>) -> (u128, u128) {
     (send_capacity, recv_capacity)
 }
 
+#[allow(unused)]
 pub fn funder_report_to_index_client_state<A>(funder_report: &FunderReport<A>) -> IndexClientState 
 where
     A: Clone,
@@ -484,6 +486,7 @@ where
     }
 }
 
+#[allow(unused)]
 pub fn funder_report_mutation_to_index_client_mutation<A>(funder_report: &FunderReport<A>, 
                                                       funder_report_mutation: &FunderReportMutation<A>) -> Option<IndexMutation> 
 where

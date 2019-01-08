@@ -88,7 +88,6 @@ where
         .pending_local_requests
         .clone();
 
-    let local_public_key = m_state.state().local_public_key.clone();
     // Prepare a list of all remote requests that we need to cancel:
     for (local_request_id, pending_local_request) in pending_local_requests {
         let freeze_guard_mutation = FreezeGuardMutation::SubFrozenCredit(
@@ -98,7 +97,7 @@ where
 
         let opt_origin_public_key = find_request_origin(m_state.state(), 
                                                         &local_request_id).cloned();
-        let origin_public_key = match opt_origin_public_key {
+        match opt_origin_public_key {
             Some(origin_public_key) => {
                 // We have found the friend that is the origin of this request.
                 // We send him a failure message.
@@ -118,7 +117,6 @@ where
                 outgoing_control.push(FunderOutgoingControl::ResponseReceived(response_received));
             },            
         };
-
     }
 }
 
@@ -140,7 +138,7 @@ where
 
         let opt_origin_public_key = find_request_origin(m_state.state(), 
                                                         &pending_request.request_id).cloned();
-        let origin_public_key = match opt_origin_public_key {
+        match opt_origin_public_key {
             Some(origin_public_key) => {
                 let local_pending_request = create_pending_request(&pending_request);
                 let u_failure_op = ResponseOp::UnsignedFailure(local_pending_request);
