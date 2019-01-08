@@ -16,7 +16,7 @@ use crate::friend::{FriendState, FriendMutation};
 
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct FunderState<A:Clone> {
+pub struct FunderState<A: Clone> {
     pub local_public_key: PublicKey,
     /// Address of relay we are going to connect to.
     /// None means that no address was configured.
