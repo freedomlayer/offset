@@ -22,7 +22,7 @@ use proto::funder::messages::FunderOutgoingControl;
 use super::state::{FunderState, FunderMutation};
 use self::handle_control::{HandleControlError};
 use self::handle_friend::HandleFriendError;
-use self::handle_liveness::HandleLivenessError;
+use self::handle_liveness::{handle_liveness_message, HandleLivenessError};
 use self::handle_init::handle_init;
 use self::sender::SendCommands;
 use super::types::{FunderIncoming,
@@ -33,17 +33,19 @@ use super::report::{funder_mutation_to_report_mutations,
     ephemeral_mutation_to_report_mutations};
 
 
-pub struct MutableFunderState<A> {
+pub struct MutableFunderState<A: Clone> {
+    initial_state: FunderState<A>,
     state: FunderState<A>,
     mutations: Vec<FunderMutation<A>>,
 }
 
 impl<A> MutableFunderState<A> 
 where
-    A: Clone,
+    A: CanonicalSerialize + Clone,
 {
     pub fn new(state: FunderState<A>) -> Self {
         MutableFunderState {
+            initial_state: state.clone(),
             state,
             mutations: Vec::new(),
         }
@@ -58,8 +60,8 @@ where
         &self.state
     }
 
-    pub fn done(self) -> (FunderState<A>, Vec<FunderMutation<A>>) {
-        (self.state, self.mutations)
+    pub fn done(self) -> (FunderState<A>, Vec<FunderMutation<A>>, FunderState<A>) {
+        (self.initial_state, self.mutations, self.state)
     }
 }
 
@@ -103,6 +105,7 @@ pub struct FunderHandlerOutput<A: Clone> {
     pub outgoing_control: Vec<FunderOutgoingControl<A>>,
 }
 
+/*
 
 pub struct MutableFunderHandler<A:Clone,R> {
     // TODO: Is there a more elegant way to do this, instead of having two states?
@@ -255,6 +258,33 @@ fn gen_mutable<A:Clone + Debug, R: CryptoRandom>(identity_client: IdentityClient
         outgoing_control: Vec::new(),
     }
 }
+*/
+
+pub fn is_friend_ready<A>(m_state: &mut MutableFunderState<A>, 
+                          ephemeral: &Ephemeral,
+                          friend_public_key: &PublicKey) -> bool 
+where
+    A: CanonicalSerialize + Clone,
+{
+
+    let friend = m_state.state().friends.get(friend_public_key).unwrap();
+    if !ephemeral.liveness.is_online(friend_public_key) {
+        return false;
+    }
+
+    // Make sure that the channel is consistent:
+    let token_channel = match &friend.channel_status {
+        ChannelStatus::Inconsistent(_) => return false,
+        ChannelStatus::Consistent(token_channel) => token_channel,
+    };
+
+    // Make sure that the remote side has open requests:
+    token_channel
+        .get_mutual_credit()
+        .state()
+        .requests_status.remote
+        .is_open()
+}
 
 pub async fn funder_handle_message<A,R>(
                       identity_client: IdentityClient,
@@ -271,16 +301,14 @@ where
 
     let mut m_state = MutableFunderState::new(funder_state);
     let mut m_ephemeral = MutableEphemeral::new(funder_ephemeral);
-    let mut outgoing_comms = Vec::new();
+    let mut outgoing_channeler_config = Vec::new();
     let mut outgoing_control = Vec::new();
     let mut send_commands = SendCommands::new();
 
     match funder_incoming {
         FunderIncoming::Init =>  {
             let channeler_configs = handle_init(&m_state);
-            for channeler_config in channeler_configs {
-                outgoing_comms.push(FunderOutgoingComm::ChannelerConfig(channeler_config));
-            }
+            outgoing_channeler_config.extend(&mut channeler_configs);
         },
         FunderIncoming::Control(control_message) =>
             handle_control_message(control_message)
