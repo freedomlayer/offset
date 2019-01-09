@@ -4,13 +4,13 @@ use common::int_convert::usize_to_u32;
 use common::safe_arithmetic::SafeSignedArithmetic;
 use common::canonical_serialize::CanonicalSerialize;
 
-use proto::verify::Verify;
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds, FailureSendFunds,
     FriendTcOp, PendingRequest, RequestsStatus};
 
 use crate::types::create_pending_request;
 
 use crate::credit_calc::CreditCalculator;
+use crate::sign_verify::Verify;
 
 use super::types::{MutualCredit, MAX_FUNDER_DEBT, McMutation};
 
@@ -22,22 +22,22 @@ pub struct IncomingResponseSendFunds<P,RS> {
 }
 
 #[derive(Debug)]
-pub struct IncomingFailureSendFunds<P,RS> {
+pub struct IncomingFailureSendFunds<P,FS> {
     pub pending_request: PendingRequest<P>,
-    pub incoming_failure: FailureSendFunds<P,RS>,
+    pub incoming_failure: FailureSendFunds<P,FS>,
 }
 
 #[derive(Debug)]
-pub enum IncomingMessage<P,RS> {
+pub enum IncomingMessage<P,RS,FS> {
     Request(RequestSendFunds<P>),
     Response(IncomingResponseSendFunds<P,RS>),
-    Failure(IncomingFailureSendFunds<P,RS>),
+    Failure(IncomingFailureSendFunds<P,FS>),
 }
 
 /// Resulting tasks to perform after processing an incoming operation.
 #[allow(unused)]
-pub struct ProcessOperationOutput<P,RS> {
-    pub incoming_message: Option<IncomingMessage<P,RS>>,
+pub struct ProcessOperationOutput<P,RS,FS> {
+    pub incoming_message: Option<IncomingMessage<P,RS,FS>>,
     pub mc_mutations: Vec<McMutation<P>>,
 }
 
@@ -71,12 +71,13 @@ pub struct ProcessTransListError {
 }
 
 
-pub fn process_operations_list<P,RS>(mutual_credit: &mut MutualCredit<P>, 
-                                        operations: Vec<FriendTcOp<P,RS>>) ->
-    Result<Vec<ProcessOperationOutput<P,RS>>, ProcessTransListError> 
+pub fn process_operations_list<P,RS,FS>(mutual_credit: &mut MutualCredit<P>, 
+                                        operations: Vec<FriendTcOp<P,RS,FS>>) ->
+    Result<Vec<ProcessOperationOutput<P,RS,FS>>, ProcessTransListError> 
 where
     P: CanonicalSerialize + Clone + Eq + Hash,
     RS: CanonicalSerialize,
+    FS: CanonicalSerialize,
 {
 
     let mut outputs = Vec::new();
@@ -98,14 +99,15 @@ where
     Ok(outputs)
 }
 
-pub fn process_operation<P,RS>(mutual_credit: &mut MutualCredit<P>, 
-                               friend_tc_op: FriendTcOp<P,RS>) ->
-    Result<ProcessOperationOutput<P,RS>, ProcessOperationError> 
+pub fn process_operation<P,RS,FS>(mutual_credit: &mut MutualCredit<P>, 
+                               friend_tc_op: FriendTcOp<P,RS,FS>) ->
+    Result<ProcessOperationOutput<P,RS,FS>, ProcessOperationError> 
 where
     P: CanonicalSerialize + Clone + Eq + Hash,
     RS: CanonicalSerialize,
+    FS: CanonicalSerialize,
     (ResponseSendFunds<RS>, PendingRequest<P>): Verify,
-    (FailureSendFunds<P,RS>, PendingRequest<P>): Verify,
+    (FailureSendFunds<P,FS>, PendingRequest<P>): Verify,
 {
     match friend_tc_op {
         FriendTcOp::EnableRequests =>
@@ -123,8 +125,8 @@ where
     }
 }
 
-fn process_enable_requests<P,RS>(mutual_credit: &mut MutualCredit<P>) ->
-    Result<ProcessOperationOutput<P,RS>, ProcessOperationError> 
+fn process_enable_requests<P,RS,FS>(mutual_credit: &mut MutualCredit<P>) ->
+    Result<ProcessOperationOutput<P,RS,FS>, ProcessOperationError> 
 where
     P: Clone + Eq + std::hash::Hash,
 {
@@ -140,8 +142,8 @@ where
     Ok(op_output)
 }
 
-fn process_disable_requests<P,RS>(mutual_credit: &mut MutualCredit<P>) ->
-    Result<ProcessOperationOutput<P,RS>, ProcessOperationError> 
+fn process_disable_requests<P,RS,FS>(mutual_credit: &mut MutualCredit<P>) ->
+    Result<ProcessOperationOutput<P,RS,FS>, ProcessOperationError> 
 where
     P: Clone + Eq + std::hash::Hash,
 {
@@ -162,9 +164,9 @@ where
     }
 }
 
-fn process_set_remote_max_debt<P,RS>(mutual_credit: &mut MutualCredit<P>,
+fn process_set_remote_max_debt<P,RS,FS>(mutual_credit: &mut MutualCredit<P>,
                                proposed_max_debt: u128) -> 
-    Result<ProcessOperationOutput<P,RS>, ProcessOperationError> 
+    Result<ProcessOperationOutput<P,RS,FS>, ProcessOperationError> 
 where
     P: Clone + Eq + Hash,
 {
@@ -186,9 +188,9 @@ where
 
 
 /// Process an incoming RequestSendFunds
-fn process_request_send_funds<P,RS>(mutual_credit: &mut MutualCredit<P>,
+fn process_request_send_funds<P,RS,FS>(mutual_credit: &mut MutualCredit<P>,
                                 request_send_funds: RequestSendFunds<P>)
-    -> Result<ProcessOperationOutput<P,RS>, ProcessOperationError> 
+    -> Result<ProcessOperationOutput<P,RS,FS>, ProcessOperationError> 
 where
     P: CanonicalSerialize + Clone + Eq + Hash,
 {
@@ -267,9 +269,9 @@ where
 
 }
 
-fn process_response_send_funds<P,RS>(mutual_credit: &mut MutualCredit<P>,
+fn process_response_send_funds<P,RS,FS>(mutual_credit: &mut MutualCredit<P>,
                                  response_send_funds: ResponseSendFunds<RS>) ->
-    Result<ProcessOperationOutput<P,RS>, ProcessOperationError> 
+    Result<ProcessOperationOutput<P,RS,FS>, ProcessOperationError> 
 where
     P: CanonicalSerialize + Clone + Eq + Hash,
     RS: CanonicalSerialize,
@@ -354,12 +356,12 @@ where
     })
 }
 
-fn process_failure_send_funds<P,RS>(mutual_credit: &mut MutualCredit<P>,
-                                failure_send_funds: FailureSendFunds<P,RS>) ->
-    Result<ProcessOperationOutput<P,RS>, ProcessOperationError> 
+fn process_failure_send_funds<P,RS,FS>(mutual_credit: &mut MutualCredit<P>,
+                                failure_send_funds: FailureSendFunds<P,FS>) ->
+    Result<ProcessOperationOutput<P,RS,FS>, ProcessOperationError> 
 where
     P: CanonicalSerialize + Clone + Eq + Hash,
-    (FailureSendFunds<P,RS>, PendingRequest<P>): Verify,
+    (FailureSendFunds<P,FS>, PendingRequest<P>): Verify,
 {
     
     // Make sure that id exists in local_pending hashmap, 

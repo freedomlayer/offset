@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use im::hashmap::HashMap as ImHashMap;
 
 use num_bigint::BigUint;
@@ -17,13 +18,13 @@ use crate::friend::ChannelStatus;
 
 
 #[derive(Clone)]
-struct FriendFreezeGuard<P> {
+struct FriendFreezeGuard<P:Clone> {
     frozen_credits_from: ImHashMap<TPublicKey<P>, ImHashMap<HashResult, u128>>
     //                              ^-A                 ^-hash(route)  ^-frozen
 }
 
-impl FriendFreezeGuard {
-    fn new() -> FriendFreezeGuard {
+impl FriendFreezeGuard<P> {
+    fn new() -> Self {
         FriendFreezeGuard {
             frozen_credits_from: ImHashMap::new(),
         }
@@ -31,7 +32,7 @@ impl FriendFreezeGuard {
 }
 
 #[derive(Clone)]
-pub struct FreezeGuard<P> {
+pub struct FreezeGuard<P:Clone> {
     local_public_key: TPublicKey<P>,
     // Total amount of credits frozen from A to B through this Offst node.
     // ```
@@ -62,7 +63,7 @@ where
 
 impl<P> FreezeGuard<P> 
 where
-    P: Clone,
+    P: Clone + Eq + Debug,
 {
     pub fn new(local_public_key: &TPublicKey<P>) -> Self {
         FreezeGuard {

@@ -8,7 +8,6 @@ use proto::funder::messages::{RequestSendFunds, ResponseSendFunds,
     MoveTokenRequest, ResetTerms, PendingRequest, ResponseReceived,
     FunderOutgoingControl, ResponseSendFundsResult};
 use proto::funder::signature_buff::prepare_receipt;
-use proto::verify::Verify;
 
 use crate::mutual_credit::incoming::{IncomingResponseSendFunds, 
     IncomingFailureSendFunds, IncomingMessage};
@@ -31,6 +30,8 @@ use crate::handler::sender::SendCommands;
 use crate::handler::canceler::{cancel_local_pending_requests, 
     cancel_pending_user_requests, cancel_pending_requests,
     reply_with_failure};
+
+use crate::sign_verify::Verify;
 
 
 #[derive(Debug)]

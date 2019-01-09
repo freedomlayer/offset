@@ -60,7 +60,7 @@ pub struct McPendingRequests<P: Clone> {
     pub pending_remote_requests: ImHashMap<Uid, PendingRequest<P>>,
 }
 
-impl McPendingRequests<P> {
+impl<P> McPendingRequests<P> {
     fn new() -> Self {
         McPendingRequests {
             pending_local_requests: ImHashMap::new(),

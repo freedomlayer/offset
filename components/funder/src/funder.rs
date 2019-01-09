@@ -42,9 +42,9 @@ pub async fn inner_funder_loop<A,P,RS,MS,R,D,E>(
     mut identity_client: IdentityClient,
     rng: R,
     incoming_control: mpsc::Receiver<FunderIncomingControl<A,P,RS,MS>>,
-    incoming_comm: mpsc::Receiver<FunderIncomingComm<A,P>>,
+    incoming_comm: mpsc::Receiver<FunderIncomingComm<A,P,RS,FS,MS>>,
     control_sender: mpsc::Sender<FunderOutgoingControl<A,P,RS,MS>>,
-    comm_sender: mpsc::Sender<FunderOutgoingComm<A,P>>,
+    comm_sender: mpsc::Sender<FunderOutgoingComm<A,P,RS,FS,MS>>,
     atomic_db: D,
     max_operations_in_batch: usize,
     mut opt_event_sender: Option<mpsc::Sender<FunderEvent<A>>>) -> Result<(), FunderError<E>> 

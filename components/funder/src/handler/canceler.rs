@@ -43,12 +43,13 @@ R: CryptoRandom + 'static,
     */
 
 /// Reply to a request message with failure.
-pub fn reply_with_failure<A>(m_state: &mut MutableFunderState<A>,
+pub fn reply_with_failure<A,P,RS>(m_state: &mut MutableFunderState<A,P,RS>,
                              send_commands: &mut SendCommands,
-                             remote_public_key: &PublicKey,
-                             request_send_funds: &RequestSendFunds) 
+                             remote_public_key: &TPublicKey<P>,
+                             request_send_funds: &RequestSendFunds<P>) 
 where
     A: CanonicalSerialize + Clone,
+    P: Clone,
 {
 
     let pending_request = create_pending_request(request_send_funds);
@@ -61,7 +62,7 @@ where
 
 /// Cancel outgoing local requests that are already inside the token channel (Possibly already
 /// communicated to the remote side).
-pub fn cancel_local_pending_requests<A>(m_state: &mut MutableFunderState<A>,
+pub fn cancel_local_pending_requests<A,P,RS>(m_state: &mut MutableFunderState<A,P,RS>,
                                      m_ephemeral: &mut MutableEphemeral,
                                      send_commands: &mut SendCommands,
                                      outgoing_control: &mut Vec<FunderOutgoingControl<A>>,

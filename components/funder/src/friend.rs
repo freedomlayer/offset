@@ -1,13 +1,12 @@
 use im::vector::Vector;
 
-use crypto::identity::PublicKey;
-
 use common::safe_arithmetic::SafeUnsignedArithmetic;
 use common::canonical_serialize::CanonicalSerialize;
 
 use proto::funder::messages::{RequestSendFunds,
     ResponseSendFunds, FailureSendFunds, ResetTerms,
-    FriendStatus, RequestsStatus, PendingRequest};
+    FriendStatus, RequestsStatus, PendingRequest,
+    SignedResponse, SignedFailure, TPublicKey};
 
 use crate::token_channel::{TcMutation, TokenChannel};
 use crate::types::MoveTokenHashed;
@@ -15,11 +14,11 @@ use crate::types::MoveTokenHashed;
 
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub enum ResponseOp {
-    Response(ResponseSendFunds),
-    UnsignedResponse(PendingRequest),
-    Failure(FailureSendFunds),
-    UnsignedFailure(PendingRequest),
+pub enum ResponseOp<P,RS,FS> {
+    Response(SignedResponse<RS>),
+    UnsignedResponse(PendingRequest<P>),
+    Failure(SignedFailure<P,FS>),
+    UnsignedFailure(PendingRequest<P>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,17 +46,17 @@ where
 
 #[allow(unused)]
 #[derive(Debug)]
-pub enum FriendMutation<A> {
-    TcMutation(TcMutation<A>),
-    SetInconsistent(ChannelInconsistent),
-    SetConsistent(TokenChannel<A>),
+pub enum FriendMutation<A,P,RS,FS,MS> {
+    TcMutation(TcMutation<A,P,RS,FS,MS>),
+    SetInconsistent(ChannelInconsistent<P,MS>),
+    SetConsistent(TokenChannel<A,P,RS,FS,MS>),
     SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatus),
-    PushBackPendingRequest(RequestSendFunds),
+    PushBackPendingRequest(RequestSendFunds<P>),
     PopFrontPendingRequest,
-    PushBackPendingResponse(ResponseOp),
+    PushBackPendingResponse(ResponseOp<P,RS,FS>),
     PopFrontPendingResponse,
-    PushBackPendingUserRequest(RequestSendFunds),
+    PushBackPendingUserRequest(RequestSendFunds<P>),
     PopFrontPendingUserRequest,
     SetStatus(FriendStatus),
     SetRemoteAddress(A),
@@ -69,23 +68,25 @@ pub enum FriendMutation<A> {
 }
 
 #[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
-pub struct ChannelInconsistent {
-    pub opt_last_incoming_move_token: Option<MoveTokenHashed>,
-    pub local_reset_terms: ResetTerms,
-    pub opt_remote_reset_terms: Option<ResetTerms>,
+pub struct ChannelInconsistent<P,MS> {
+    pub opt_last_incoming_move_token: Option<MoveTokenHashed<P,MS>>,
+    pub local_reset_terms: ResetTerms<MS>,
+    pub opt_remote_reset_terms: Option<ResetTerms<MS>>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub enum ChannelStatus<A> {
-    Inconsistent(ChannelInconsistent),
-    Consistent(TokenChannel<A>),
+pub enum ChannelStatus<A,P:Clone,RS,FS,MS> {
+    Inconsistent(ChannelInconsistent<P,MS>),
+    Consistent(TokenChannel<A,P,RS,FS,MS>),
 }
 
-impl<A> ChannelStatus<A> 
+impl<A,P,RS,FS,MS> ChannelStatus<A,P,RS,FS,MS> 
 where
     A: CanonicalSerialize + Clone,
+    P: Clone,
+    MS: Clone,
 {
-    pub fn get_last_incoming_move_token_hashed(&self) -> Option<MoveTokenHashed> {
+    pub fn get_last_incoming_move_token_hashed(&self) -> Option<MoveTokenHashed<P,MS>> {
         match &self {
             ChannelStatus::Inconsistent(channel_inconsistent) => 
                 channel_inconsistent.opt_last_incoming_move_token.clone(),
@@ -97,35 +98,38 @@ where
 
 #[allow(unused)]
 #[derive(Clone, Serialize, Deserialize)]
-pub struct FriendState<A> {
-    pub local_public_key: PublicKey,
-    pub remote_public_key: PublicKey,
+pub struct FriendState<A,P:Clone,RS:Clone,FS:Clone,MS> {
+    pub local_public_key: TPublicKey<P>,
+    pub remote_public_key: TPublicKey<P>,
     pub remote_address: A, 
     pub sent_local_address: SentLocalAddress<A>,
     pub name: String,
-    pub channel_status: ChannelStatus<A>,
+    pub channel_status: ChannelStatus<A,P,RS,FS,MS>,
     pub wanted_remote_max_debt: u128,
     pub wanted_local_requests_status: RequestsStatus,
-    pub pending_requests: Vector<RequestSendFunds>,
-    pub pending_responses: Vector<ResponseOp>,
+    pub pending_requests: Vector<RequestSendFunds<P>>,
+    pub pending_responses: Vector<ResponseOp<P,RS,FS>>,
     // Pending operations to be sent to the token channel.
     pub status: FriendStatus,
-    pub pending_user_requests: Vector<RequestSendFunds>,
+    pub pending_user_requests: Vector<RequestSendFunds<P>>,
     // Request that the user has sent to this neighbor, 
     // but have not been processed yet. Bounded in size.
 }
 
 
 #[allow(unused)]
-impl<A> FriendState<A> 
+impl<A,P,RS,FS,MS> FriendState<A,P,RS,FS,MS> 
 where
     A: CanonicalSerialize + Clone,
+    P: Clone,
+    RS: Clone,
+    FS: Clone,
 {
-    pub fn new(local_public_key: &PublicKey,
-               remote_public_key: &PublicKey,
+    pub fn new(local_public_key: &TPublicKey<P>,
+               remote_public_key: &TPublicKey<P>,
                remote_address: A,
                name: String,
-               balance: i128) -> FriendState<A> {
+               balance: i128) -> Self {
 
         let token_channel = TokenChannel::new(local_public_key, remote_public_key, balance);
 
@@ -174,7 +178,7 @@ where
     }
 
     #[allow(unused)]
-    pub fn mutate(&mut self, friend_mutation: &FriendMutation<A>) {
+    pub fn mutate(&mut self, friend_mutation: &FriendMutation<A,P,RS,FS,MS>) {
         match friend_mutation {
             FriendMutation::TcMutation(tc_mutation) => {
                 match &mut self.channel_status {
@@ -225,49 +229,6 @@ where
             FriendMutation::SetSentLocalAddress(sent_local_address) => {
                 self.sent_local_address = sent_local_address.clone();
             },
-            /*
-            FriendMutation::LocalReset(reset_move_token) => {
-                // Local reset was applied (We sent a reset from the control line)
-                match &self.channel_status {
-                    ChannelStatus::Consistent(_) => unreachable!(),
-                    ChannelStatus::Inconsistent(channel_inconsistent) => {
-                        let ChannelInconsistent {
-                            opt_last_incoming_move_token,
-                            local_reset_terms,
-                            opt_remote_reset_terms,
-                        } = channel_inconsistent;
-
-                        match opt_remote_reset_terms {
-                            None => unreachable!(),
-                            Some(remote_reset_terms) => {
-                                assert_eq!(reset_move_token.old_token, remote_reset_terms.reset_token);
-                                let token_channel = TokenChannel::new_from_local_reset(
-                                    &self.local_public_key,
-                                    &self.remote_public_key,
-                                    &reset_move_token,
-                                    remote_reset_terms.balance_for_reset.checked_neg().unwrap(),
-                                    opt_last_incoming_move_token.clone());
-                                self.channel_status = ChannelStatus::Consistent(token_channel);
-                            },
-                        }
-                    },
-                }
-            },
-            FriendMutation::RemoteReset(reset_move_token) => {
-                // Remote reset was applied (Remote side has given a reset command)
-                match &self.channel_status {
-                    ChannelStatus::Consistent(_) => unreachable!(),
-                    ChannelStatus::Inconsistent(channel_inconsistent) => {
-                        let token_channel = TokenChannel::new_from_remote_reset(
-                            &self.local_public_key,
-                            &self.remote_public_key,
-                            &reset_move_token,
-                            channel_inconsistent.local_reset_terms.balance_for_reset);
-                        self.channel_status = ChannelStatus::Consistent(token_channel);
-                    },
-                }
-            },
-            */
         }
     }
 }

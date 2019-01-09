@@ -22,6 +22,22 @@ pub struct TSignature<S> {
     pub signature: S,
 }
 
+impl<P> TPublicKey<P> {
+    pub fn new(public_key: P) -> Self {
+        TPublicKey {
+            public_key,
+        }
+    }
+}
+
+impl<S> TSignature<S> {
+    pub fn new(signature: S) -> Self {
+        TSignature {
+            signature,
+        }
+    }
+}
+
 impl<P> CanonicalSerialize for TPublicKey<P>
 where
     P: CanonicalSerialize,

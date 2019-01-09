@@ -14,11 +14,10 @@ pub const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
 /// Create the buffer we sign over at the Response funds.
 /// Note that the signature is not just over the Response funds bytes. The signed buffer also
 /// contains information from the Request funds.
-pub fn create_response_signature_buffer<P,RS>(response_send_funds: &ResponseSendFunds<RS>,
+pub fn create_response_signature_buffer<P,PRS>(response_send_funds: &ResponseSendFunds<PRS>,
                         pending_request: &PendingRequest<P>) -> Vec<u8> 
 where
     P: CanonicalSerialize + Eq + std::hash::Hash,
-    RS: CanonicalSerialize
 {
 
     let mut sbuffer = Vec::new();
@@ -40,11 +39,10 @@ where
 /// Create the buffer we sign over at the Failure funds.
 /// Note that the signature is not just over the Response funds bytes. The signed buffer also
 /// contains information from the Request funds.
-pub fn create_failure_signature_buffer<P,RS>(failure_send_funds: &FailureSendFunds<P,RS>,
+pub fn create_failure_signature_buffer<P,PFS>(failure_send_funds: &FailureSendFunds<P,PFS>,
                         pending_request: &PendingRequest<P>) -> Vec<u8> 
 where
     P: CanonicalSerialize + Eq + std::hash::Hash,
-    RS: CanonicalSerialize,
 {
 
     let mut sbuffer = Vec::new();

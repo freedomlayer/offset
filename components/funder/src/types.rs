@@ -251,33 +251,33 @@ pub enum ChannelerConfig<A,P> {
     /// This is the address the Channeler will connect to 
     /// and listen for new connections
     SetAddress(Option<A>),
-    AddFriend(ChannelerAddFriend<A>),
+    AddFriend(ChannelerAddFriend<A,P>),
     RemoveFriend(TPublicKey<P>),
 }
 
 #[derive(Debug, Clone)]
-pub enum FunderIncomingComm<A,P> {
-    Liveness(IncomingLivenessMessage),
-    Friend((TPublicKey<P>, FriendMessage<A>)),
+pub enum FunderIncomingComm<A,P,RS,FS,MS> {
+    Liveness(IncomingLivenessMessage<P>),
+    Friend((TPublicKey<P>, FriendMessage<A,P,RS,FS,MS>)),
 }
 
 /// An incoming message to the Funder:
 #[derive(Clone, Debug)]
-pub enum FunderIncoming<A> {
+pub enum FunderIncoming<A,P,RS,FS,MS> {
     Init,
-    Control(FunderIncomingControl<A>),
-    Comm(FunderIncomingComm<A>),
+    Control(FunderIncomingControl<A,P,RS,MS>),
+    Comm(FunderIncomingComm<A,P,RS,FS,MS>),
 }
 
 #[allow(unused)]
 #[derive(Debug)]
-pub enum FunderOutgoing<A: Clone> {
-    Control(FunderOutgoingControl<A>),
-    Comm(FunderOutgoingComm<A>),
+pub enum FunderOutgoing<A: Clone,P,RS,FS,MS> {
+    Control(FunderOutgoingControl<A,P,RS,MS>),
+    Comm(FunderOutgoingComm<A,P,RS,FS,MS>),
 }
 
 #[derive(Debug)]
-pub enum FunderOutgoingComm<A,P> {
-    FriendMessage((TPublicKey<P>, FriendMessage<A>)),
-    ChannelerConfig(ChannelerConfig<A>),
+pub enum FunderOutgoingComm<A,P,RS,FS,MS> {
+    FriendMessage((TPublicKey<P>, FriendMessage<A,P,RS,FS,MS>)),
+    ChannelerConfig(ChannelerConfig<A,P>),
 }

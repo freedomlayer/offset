@@ -37,16 +37,16 @@ impl FileDbConn {
 }
 
 #[allow(unused)]
-pub struct FileDb<A: Clone,P,RS> {
+pub struct FileDb<A: Clone,P,RS,FS,MS> {
     /// Connection to the database
     db_conn: FileDbConn,
     /// Current FunderState represented by the database
-    funder_state: FunderState<A,P,RS>,
+    funder_state: FunderState<A,P,RS,FS,MS>,
 }
 
 
 #[allow(unused)]
-impl<A,P,RS> FileDb<A,P,RS> 
+impl<A,P,RS,FS,MS> FileDb<A,P,RS,FS,MS> 
 where
     A: Clone + Serialize + DeserializeOwned + 'static,
 {
@@ -73,12 +73,12 @@ where
 
 
 #[allow(unused)]
-impl<A,P,RS> AtomicDb for FileDb<A,P,RS> 
+impl<A,P,RS,FS,MS> AtomicDb for FileDb<A,P,RS,FS,MS> 
 where
     A: CanonicalSerialize + Clone + Serialize + DeserializeOwned + 'static,
 {
-    type State = FunderState<A,P,RS>;
-    type Mutation = FunderMutation<A,P,RS>;
+    type State = FunderState<A,P,RS,FS,MS>;
+    type Mutation = FunderMutation<A,P,RS,FS,MS>;
     type Error = FileDbError;
 
     /// Get current FunderState represented by the database
@@ -87,7 +87,7 @@ where
     }
 
     /// Apply a set of mutations atomically the database, and save it.
-    fn mutate(&mut self, funder_mutations: Vec<FunderMutation<A,P,RS>>) -> Result<(), FileDbError> {
+    fn mutate(&mut self, funder_mutations: Vec<FunderMutation<A,P,RS,FS,MS>>) -> Result<(), FileDbError> {
         // Apply mutation to funder_state:
         for funder_mutation in funder_mutations {
             self.funder_state.mutate(&funder_mutation);

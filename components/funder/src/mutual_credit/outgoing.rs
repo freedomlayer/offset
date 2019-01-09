@@ -1,16 +1,14 @@
-use crypto::identity::verify_signature;
-
 use common::safe_arithmetic::SafeSignedArithmetic;
 use common::int_convert::usize_to_u32;
 
 use proto::funder::messages::{FriendTcOp, RequestSendFunds, 
-    ResponseSendFunds, FailureSendFunds, RequestsStatus};
-use proto::funder::signature_buff::{create_response_signature_buffer};
+    SignedResponse, SignedFailure, RequestsStatus};
 
 use super::types::{MutualCredit, McMutation, 
     MAX_FUNDER_DEBT};
 use crate::credit_calc::CreditCalculator;
 use crate::types::create_pending_request;
+use crate::sign_verify::Verify;
 
 
 /// Processes outgoing fundss for a token channel.
@@ -50,7 +48,7 @@ where
         }
     }
 
-    pub fn queue_operation<RS>(&mut self, operation: &FriendTcOp<P,RS>) ->
+    pub fn queue_operation<RS,FS>(&mut self, operation: &FriendTcOp<P,RS,FS>) ->
         Result<Vec<McMutation<P>>, QueueOperationError> {
 
         // TODO: Maybe remove clone from here later:
@@ -109,7 +107,7 @@ where
     }
 
 
-    fn queue_request_send_funds(&mut self, request_send_funds: RequestSendFunds<P>) ->
+    fn queue_request_send_funds<RS,FS>(&mut self, request_send_funds: RequestSendFunds<P,RS,FS>) ->
         Result<Vec<McMutation<P>>, QueueOperationError> {
 
         if !request_send_funds.route.is_valid() {
@@ -181,8 +179,11 @@ where
         Ok(tc_mutations)
     }
 
-    fn queue_response_send_funds(&mut self, response_send_funds: ResponseSendFunds<RS>) ->
-        Result<Vec<McMutation<P>>, QueueOperationError> {
+    fn queue_response_send_funds<RS>(&mut self, response_send_funds: SignedResponse<RS>) ->
+        Result<Vec<McMutation<P>>, QueueOperationError> 
+    where
+        (SignedResponse<RS>, PendingRequest<P>): Verify,
+    {
         // Make sure that id exists in remote_pending hashmap, 
         // and access saved request details.
         let remote_pending_requests = &self.mutual_credit.state()
@@ -194,17 +195,9 @@ where
             .clone();
         // TODO: Possibly get rid of clone() here for optimization later
 
-        // verify signature:
-        let response_signature_buffer = create_response_signature_buffer(
-                                            &response_send_funds,
-                                            &pending_request);
-        // The response was signed by the destination node:
-        let dest_public_key = pending_request.route.public_keys.last().unwrap();
-
         // Verify response funds signature:
-        if !verify_signature(&response_signature_buffer, 
-                                 dest_public_key,
-                                 &response_send_funds.signature) {
+        let pair = (signed_response, pending_request);
+        if !pair.verify() {
             return Err(QueueOperationError::InvalidResponseSignature);
         }
 
@@ -251,8 +244,11 @@ where
         Ok(tc_mutations)
     }
 
-    fn queue_failure_send_funds(&mut self, failure_send_funds: FailureSendFunds<P,RS>) ->
-        Result<Vec<McMutation<P>>, QueueOperationError> {
+    fn queue_failure_send_funds<FS>(&mut self, failure_send_funds: SignedFailure<P,FS>) ->
+        Result<Vec<McMutation<P>>, QueueOperationError> 
+    where
+        (SignedFailure<P,FS>, PendingRequest<P>): Verify,
+    {
         // Make sure that id exists in remote_pending hashmap, 
         // and access saved request details.
         let remote_pending_requests = &self.mutual_credit.state().pending_requests

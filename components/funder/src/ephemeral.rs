@@ -5,19 +5,19 @@ use super::state::FunderState;
 use common::canonical_serialize::CanonicalSerialize;
 
 #[derive(Clone)]
-pub struct Ephemeral {
-    pub freeze_guard: FreezeGuard,
-    pub liveness: Liveness,
+pub struct Ephemeral<P:Clone> {
+    pub freeze_guard: FreezeGuard<P>,
+    pub liveness: Liveness<P>,
 }
 
 #[derive(Debug)]
-pub enum EphemeralMutation {
-    LivenessMutation(LivenessMutation),
-    FreezeGuardMutation(FreezeGuardMutation),
+pub enum EphemeralMutation<P> {
+    LivenessMutation(LivenessMutation<P>),
+    FreezeGuardMutation(FreezeGuardMutation<P>),
 }
 
-impl Ephemeral {
-    pub fn new<A>(funder_state: &FunderState<A>) -> Ephemeral 
+impl<P> Ephemeral<P> {
+    pub fn new<A>(funder_state: &FunderState<A>) -> Self 
     where
         A: CanonicalSerialize + Clone,
     {
@@ -28,7 +28,7 @@ impl Ephemeral {
         }
     }
 
-    pub fn mutate(&mut self, mutation: &EphemeralMutation) {
+    pub fn mutate(&mut self, mutation: &EphemeralMutation<P>) {
         match mutation {
             EphemeralMutation::LivenessMutation(liveness_mutation) => 
                 self.liveness.mutate(liveness_mutation),

@@ -10,35 +10,34 @@ use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN,
 use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
 
-use proto::funder::messages::{MoveToken, FriendTcOp, TSignature, TPublicKey};
-use proto::verify::Verify;
+use proto::funder::messages::{SignedMoveToken, FriendTcOp, TSignature, TPublicKey};
 
 use crate::mutual_credit::types::{MutualCredit, McMutation};
 use crate::mutual_credit::incoming::{ProcessOperationOutput, ProcessTransListError, 
     process_operations_list, IncomingMessage};
 use crate::mutual_credit::outgoing::OutgoingMc;
+use crate::sign_verify::Verify;
 
-use crate::types::{MoveTokenHashed, create_unsigned_move_token, create_hashed,
-                    UnsignedMoveToken};
+use crate::types::{MoveTokenHashed, create_unsigned_move_token, create_hashed};
 
 
 #[derive(Debug)]
-pub enum SetDirection<A,P:Clone,RS,MS> {
+pub enum SetDirection<A,P:Clone,RS,FS,MS> {
     Incoming(MoveTokenHashed<P,MS>), 
-    Outgoing(MoveToken<A,P,RS,MS>),
+    Outgoing(SignedMoveToken<A,P,RS,FS,MS>),
 }
 
 #[allow(unused)]
 #[derive(Debug)]
-pub enum TcMutation<A,P:Clone,RS,MS> {
+pub enum TcMutation<A,P:Clone,RS,FS,MS> {
     McMutation(McMutation<P>),
-    SetDirection(SetDirection<A,P,RS,MS>),
+    SetDirection(SetDirection<A,P,RS,FS,MS>),
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct TcOutgoing<A,P:Clone,RS,MS> {
+pub struct TcOutgoing<A,P:Clone,RS,FS,MS> {
     pub mutual_credit: MutualCredit<P>,
-    pub move_token_out: MoveToken<A,P,RS,MS>,
+    pub move_token_out: SignedMoveToken<A,P,RS,FS,MS>,
     pub opt_prev_move_token_in: Option<MoveTokenHashed<P,MS>>,
 }
 
@@ -49,15 +48,15 @@ pub struct TcIncoming<P:Clone,MS> {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub enum TcDirection<A,P:Clone,RS,MS> {
+pub enum TcDirection<A,P:Clone,RS,FS,MS> {
     Incoming(TcIncoming<P,MS>),
-    Outgoing(TcOutgoing<A,P,RS,MS>),
+    Outgoing(TcOutgoing<A,P,RS,FS,MS>),
 }
 
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct TokenChannel<A,P:Clone,RS,MS> {
-    direction: TcDirection<A,P,RS,MS>,
+pub struct TokenChannel<A,P:Clone,RS,FS,MS> {
+    direction: TcDirection<A,P,RS,FS,MS>,
 }
 
 #[derive(Debug)]
@@ -73,23 +72,23 @@ pub enum ReceiveMoveTokenError {
 }
 
 #[derive(Debug)]
-pub struct MoveTokenReceived<A,P:Clone,RS,MS> {
-    pub incoming_messages: Vec<IncomingMessage>,
-    pub mutations: Vec<TcMutation<A,P,RS,MS>>,
+pub struct MoveTokenReceived<A,P:Clone,RS,FS,MS> {
+    pub incoming_messages: Vec<IncomingMessage<P,RS,FS>>,
+    pub mutations: Vec<TcMutation<A,P,RS,FS,MS>>,
     pub remote_requests_closed: bool,
     pub opt_local_address: Option<A>,
 }
 
 
 #[derive(Debug)]
-pub enum ReceiveMoveTokenOutput<A,P:Clone,RS,MS> {
+pub enum ReceiveMoveTokenOutput<A,P:Clone,RS,FS,MS> {
     Duplicate,
-    RetransmitOutgoing(MoveToken<A,P,RS,MS>),
-    Received(MoveTokenReceived<A,P,RS,MS>),
+    RetransmitOutgoing(SignedMoveToken<A,P,RS,FS,MS>),
+    Received(MoveTokenReceived<A,P,RS,FS,MS>),
     // In case of a reset, all the local pending requests will be canceled.
 }
 
-impl<A,P,RS,MS> TokenChannel<A,P,RS,MS> 
+impl<A,P,RS,FS,MS> TokenChannel<A,P,RS,FS,MS> 
 where
     A: CanonicalSerialize + Clone,
     P: Clone,
@@ -128,7 +127,7 @@ where
 
     pub fn new_from_remote_reset(local_public_key: &TPublicKey<P>, 
                       remote_public_key: &TPublicKey<P>, 
-                      reset_move_token: &MoveToken<A,P,RS,MS>,
+                      reset_move_token: &SignedMoveToken<A,P,RS,FS,MS>,
                       balance: i128) -> Self { // is balance redundant here?
 
         let tc_incoming = TcIncoming {
@@ -143,7 +142,7 @@ where
 
     pub fn new_from_local_reset(local_public_key: &TPublicKey<P>, 
                       remote_public_key: &TPublicKey<P>, 
-                      reset_move_token: &MoveToken<A,P,RS,MS>,
+                      reset_move_token: &SignedMoveToken<A,P,RS,FS,MS>,
                       balance: i128, // Is this redundant?
                       opt_last_incoming_move_token: Option<MoveTokenHashed>) -> Self {
 
@@ -169,7 +168,7 @@ where
         self.get_mutual_credit().state().balance.remote_max_debt
     }
 
-    pub fn get_direction(&self) -> &TcDirection<A,P,RS,MS> {
+    pub fn get_direction(&self) -> &TcDirection<A,P,RS,FS,MS> {
         &self.direction
     }
 
@@ -188,7 +187,7 @@ where
         }
     }
 
-    pub fn mutate(&mut self, d_mutation: &TcMutation<A,P,RS,MS>) {
+    pub fn mutate(&mut self, d_mutation: &TcMutation<A,P,RS,FS,MS>) {
         match d_mutation {
             TcMutation::McMutation(mc_mutation) => {
                 let mutual_credit = match &mut self.direction {
@@ -242,8 +241,8 @@ where
     }
 
     pub fn simulate_receive_move_token(&self, 
-                              new_move_token: MoveToken<A>)
-        -> Result<ReceiveMoveTokenOutput<A,P,RS,MS>, ReceiveMoveTokenError> {
+                              new_move_token: SignedMoveToken<A,P,RS,FS,MS>)
+        -> Result<ReceiveMoveTokenOutput<A,P,RS,FS,MS>, ReceiveMoveTokenError> {
 
         match &self.direction {
             TcDirection::Incoming(tc_incoming) => {
@@ -262,7 +261,7 @@ where
     P: Clone + Eq,
 {
     /// Handle an incoming move token during Incoming direction:
-    fn handle_incoming<A>(&self, 
+    fn handle_incoming<A,RS>(&self, 
                         new_move_token: MoveToken<A,P,RS,MS>) 
         -> Result<ReceiveMoveTokenOutput<A,P,RS,MS>, ReceiveMoveTokenError> 
     where
@@ -280,7 +279,7 @@ where
         }
     }
 
-    pub fn create_unsigned_move_token<A>(&self,
+    pub fn create_unsigned_move_token<A,RS>(&self,
                                     operations: Vec<FriendTcOp<P,RS>>,
                                     opt_local_address: Option<A>,
                                     rand_nonce: RandValue) -> UnsignedMoveToken<A> {
@@ -304,7 +303,7 @@ where
 
 
 
-impl<A,P,RS,MS> TcOutgoing<A,P,RS,MS> 
+impl<A,P,RS,FS,MS> TcOutgoing<A,P,RS,FS,MS> 
 where
     A: CanonicalSerialize + Clone,
     P: Clone,
@@ -312,8 +311,8 @@ where
 {
     /// Handle an incoming move token during Outgoing direction:
     fn handle_incoming(&self, 
-                        new_move_token: MoveToken<A,P,RS,MS>) 
-        -> Result<ReceiveMoveTokenOutput<A,P,RS,MS>, ReceiveMoveTokenError> {
+                        new_move_token: SignedMoveToken<A,P,RS,FS,MS>) 
+        -> Result<ReceiveMoveTokenOutput<A,P,RS,FS,MS>, ReceiveMoveTokenError> {
 
         if &new_move_token.old_token == &self.move_token_out.new_token {
             self.handle_incoming_token_match(new_move_token)
@@ -327,8 +326,8 @@ where
     }
 
     fn handle_incoming_token_match(&self,
-                                   new_move_token: MoveToken<A,P,RS,MS>)
-        -> Result<ReceiveMoveTokenOutput<A,P,RS,MS>, ReceiveMoveTokenError> {
+                                   new_move_token: SignedMoveToken<A,P,RS,FS,MS>)
+        -> Result<ReceiveMoveTokenOutput<A,P,RS,FS,MS>, ReceiveMoveTokenError> {
 
         // Verify signature:
         // Note that we only verify the signature here, and not at the Incoming part.
@@ -418,7 +417,7 @@ where
     }
 
     /// Get the current outgoing move token
-    pub fn create_outgoing_move_token(&self) -> MoveToken<A,P,RS,MS> {
+    pub fn create_outgoing_move_token(&self) -> SignedMoveToken<A,P,RS,FS,MS> {
         self.move_token_out.clone()
     }
 }

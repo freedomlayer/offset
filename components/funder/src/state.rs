@@ -16,20 +16,20 @@ use crate::friend::{FriendState, FriendMutation};
 
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct FunderState<A: Clone,P,RS> {
+pub struct FunderState<A: Clone,P,RS,FS,MS> {
     pub local_public_key: TPublicKey<P>,
     /// Address of relay we are going to connect to.
     /// None means that no address was configured.
     pub opt_address: Option<A>,
-    pub friends: ImHashMap<TPublicKey<P>, FriendState<A>>,
+    pub friends: ImHashMap<TPublicKey<P>, FriendState<A,P,RS,FS,MS>>,
     pub ready_receipts: ImHashMap<Uid, SendFundsReceipt<RS>>,
 }
 
 #[derive(Debug)]
-pub enum FunderMutation<A,P,RS> {
-    FriendMutation((TPublicKey<P>, FriendMutation<A>)),
+pub enum FunderMutation<A,P,RS,FS,MS> {
+    FriendMutation((TPublicKey<P>, FriendMutation<A,P,RS,FS,MS>)),
     SetAddress(Option<A>),
-    AddFriend(AddFriend<A>), 
+    AddFriend(AddFriend<A,P>), 
     RemoveFriend(TPublicKey<P>),
     AddReceipt((Uid, SendFundsReceipt<RS>)),  //(request_id, receipt)
     RemoveReceipt(Uid),
@@ -37,7 +37,7 @@ pub enum FunderMutation<A,P,RS> {
 
 
 #[allow(unused)]
-impl<A,P,RS> FunderState<A,P,RS> 
+impl<A,P,RS,FS,MS> FunderState<A,P,RS,FS,MS> 
 where
     A: CanonicalSerialize + Clone,
     P: Eq + std::hash::Hash,
@@ -76,7 +76,9 @@ where
     /// division by 0)
     ///
     /// l is the amount of friends we have, besides prev_friend.
-    pub fn get_usable_ratio(&self, opt_prev_pk: Option<&TPublicKey<P>>, next_pk: &TPublicKey<P>) -> Ratio<u128> {
+    pub fn get_usable_ratio(&self, 
+                            opt_prev_pk: Option<&TPublicKey<P>>, 
+                            next_pk: &TPublicKey<P>) -> Ratio<u128> {
 
         let mut s = self.get_total_trust();
         let l = self.friends.len();
@@ -112,7 +114,7 @@ where
         }
     }
 
-    pub fn mutate(&mut self, funder_mutation: &FunderMutation<A,P,RS>) {
+    pub fn mutate(&mut self, funder_mutation: &FunderMutation<A,P,RS,FS,MS>) {
         match funder_mutation {
             FunderMutation::FriendMutation((public_key, friend_mutation)) => {
                 let friend = self.friends.get_mut(&public_key).unwrap();
