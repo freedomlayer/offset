@@ -5,7 +5,7 @@ use crypto::uid::Uid;
 use crypto::crypto_rand::CryptoRandom;
 
 use common::canonical_serialize::CanonicalSerialize;
-use proto::funder::messages::FunderOutgoingControl;
+use proto::funder::messages::{FunderOutgoingControl, TPublicKey};
 use proto::funder::report::FunderReportMutation;
 
 use crate::state::{FunderState, FunderMutation};
@@ -166,7 +166,7 @@ pub fn funder_handle_incoming<A,P,RS,FS,MS,R>(mut m_state: &mut MutableFunderSta
                                    mut m_ephemeral: &mut MutableEphemeral<P>,
                                    rng: &R,
                                    funder_incoming: FunderIncoming<A,P,RS,FS,MS>)
-                                    -> Result<(SendCommands, 
+                                    -> Result<(SendCommands<P>, 
                                         Vec<FunderOutgoingControl<A,P,RS,MS>>, 
                                         Vec<ChannelerConfig<A,P>>), FunderHandlerError>
 

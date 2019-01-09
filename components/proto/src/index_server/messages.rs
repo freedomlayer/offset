@@ -1,23 +1,23 @@
-use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
 use crypto::hash::HashResult;
 use crypto::crypto_rand::RandValue;
 
-use crate::funder::messages::FriendsRoute;
+use crate::funder::messages::{FriendsRoute, 
+    TPublicKey, TSignature};
 
 
 /// IndexClient -> IndexServer
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct RequestRoutes {
+pub struct RequestRoutes<P> {
     pub request_id: Uid,
     /// Wanted capacity for the route. 
     /// 0 means we want to optimize for capacity??
     pub capacity: u128,
-    pub source: PublicKey,
-    pub destination: PublicKey,
+    pub source: TPublicKey<P>,
+    pub destination: TPublicKey<P>,
     /// This directed edge must not show up in the route.
     /// Useful for finding non trivial directed loops.
-    pub opt_exclude: Option<(PublicKey, PublicKey)>,
+    pub opt_exclude: Option<(TPublicKey<P>, TPublicKey<P>)>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -34,9 +34,9 @@ pub struct ResponseRoutes<P> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UpdateFriend {
+pub struct UpdateFriend<P> {
     /// Friend's public key
-    pub public_key: PublicKey,
+    pub public_key: TPublicKey<P>,
     /// To denote remote requests closed, assign 0 to sendCapacity
     pub send_capacity: u128,
     /// To denote local requests closed, assign 0 to recvCapacity
@@ -46,17 +46,17 @@ pub struct UpdateFriend {
 
 /// IndexClient -> IndexServer
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum IndexMutation {
-    UpdateFriend(UpdateFriend),
-    RemoveFriend(PublicKey),
+pub enum IndexMutation<P> {
+    UpdateFriend(UpdateFriend<P>),
+    RemoveFriend(TPublicKey<P>),
 }
 
 #[derive(Debug, Clone)]
-pub struct MutationsUpdate {
+pub struct MutationsUpdate<P,MUS> {
     /// Public key of the node sending the mutations.
-    pub node_public_key: PublicKey,
+    pub node_public_key: TPublicKey<P>,
     /// List of mutations to relationships with direct friends.
-    pub index_mutations : Vec<IndexMutation>,
+    pub index_mutations : Vec<IndexMutation<P>>,
     /// A time hash (Given by the server previously). 
     /// This is used as time, proving that this message was signed recently.
     pub time_hash: HashResult,
@@ -74,7 +74,7 @@ pub struct MutationsUpdate {
     ///           timeHash || 
     ///           counter || 
     ///           randNonce)
-    pub signature: Signature,
+    pub signature: TSignature<MUS>,
 }
 
 #[derive(Debug, Clone)]
@@ -85,8 +85,8 @@ pub struct TimeProofLink {
 }
 
 #[derive(Debug, Clone)]
-pub struct ForwardMutationsUpdate {
-    pub mutations_update: MutationsUpdate,
+pub struct ForwardMutationsUpdate<P,MUS> {
+    pub mutations_update: MutationsUpdate<P,MUS>,
     /// A proof that MutationsUpdate was signed recently
     /// Receiver should verify:
     /// - sha_512_256(hashes[0]) == MutationsUpdate.timeHash,
@@ -103,15 +103,15 @@ pub enum IndexServerToClient<P> {
 
 
 #[derive(Debug)]
-pub enum IndexClientToServer {
-    MutationsUpdate(MutationsUpdate),
-    RequestRoutes(RequestRoutes),
+pub enum IndexClientToServer<P,MUS> {
+    MutationsUpdate(MutationsUpdate<P,MUS>),
+    RequestRoutes(RequestRoutes<P>),
 }
 
 
 #[derive(Debug)]
-pub enum IndexServerToServer {
+pub enum IndexServerToServer<P,MUS> {
     TimeHash(HashResult),
-    ForwardMutationsUpdate(ForwardMutationsUpdate),
+    ForwardMutationsUpdate(ForwardMutationsUpdate<P,MUS>),
 }
 

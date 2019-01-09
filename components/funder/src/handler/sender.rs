@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 
-use crypto::identity::PublicKey;
-use crypto::crypto_rand::{RandValue, CryptoRandom};
-
-use proto::funder::messages::{FriendTcOp, FriendMessage, RequestsStatus, MoveTokenRequest};
+use proto::funder::messages::{FriendTcOp, FriendMessage, RequestsStatus, MoveTokenRequest,
+                                TPublicKey};
 use common::canonical_serialize::CanonicalSerialize;
 
 use identity::IdentityClient;
@@ -24,6 +22,7 @@ use crate::ephemeral::EphemeralMutation;
 
 use crate::handler::handler::{MutableFunderState, MutableEphemeral};
 
+use crate::sign_verify::{SignMoveToken, SignResponse, GenRandNonce};
 
 #[derive(Debug, Clone)]
 pub struct FriendSendCommands {
@@ -48,41 +47,40 @@ impl FriendSendCommands {
     }
 }
 
-pub type OutgoingMessage<A> = (PublicKey, FriendMessage<A>);
-
+pub type OutgoingMessage<A,P,RS,FS,MS> = (TPublicKey<P>, FriendMessage<A,P,RS,FS,MS>);
 
 
 #[derive(Clone)]
-pub struct SendCommands {
-    send_commands: HashMap<PublicKey, FriendSendCommands>
+pub struct SendCommands<P> {
+    send_commands: HashMap<TPublicKey<P>, FriendSendCommands>
 }
 
-impl SendCommands {
+impl<P> SendCommands<P> {
     pub fn new() -> Self {
         SendCommands {
             send_commands: HashMap::new(),
         }
     }
 
-    pub fn set_try_send(&mut self, friend_public_key: &PublicKey) {
+    pub fn set_try_send(&mut self, friend_public_key: &TPublicKey<P>) {
         let friend_send_commands = self.send_commands.entry(
             friend_public_key.clone()).or_insert(FriendSendCommands::new());
         friend_send_commands.try_send = true;
     }
 
-    pub fn set_resend_outgoing(&mut self, friend_public_key: &PublicKey) {
+    pub fn set_resend_outgoing(&mut self, friend_public_key: &TPublicKey<P>) {
         let friend_send_commands = self.send_commands.entry(
             friend_public_key.clone()).or_insert(FriendSendCommands::new());
         friend_send_commands.resend_outgoing = true;
     }
 
-    pub fn set_remote_wants_token(&mut self, friend_public_key: &PublicKey) {
+    pub fn set_remote_wants_token(&mut self, friend_public_key: &TPublicKey<P>) {
         let friend_send_commands = self.send_commands.entry(
             friend_public_key.clone()).or_insert(FriendSendCommands::new());
         friend_send_commands.remote_wants_token = true;
     }
 
-    pub fn set_local_reset(&mut self, friend_public_key: &PublicKey) {
+    pub fn set_local_reset(&mut self, friend_public_key: &TPublicKey<P>) {
         let friend_send_commands = self.send_commands.entry(
             friend_public_key.clone()).or_insert(FriendSendCommands::new());
         friend_send_commands.local_reset = true;
@@ -102,21 +100,21 @@ enum CollectOutgoingError {
     MaxOperationsReached,
 }
 
-struct PendingMoveToken<A,P,RS> {
-    friend_public_key: PublicKey,
-    outgoing_mc: OutgoingMc,
-    operations: Vec<FriendTcOp<P,RS>>,
+struct PendingMoveToken<A,P,RS,FS> {
+    friend_public_key: TPublicKey<P>,
+    outgoing_mc: OutgoingMc<P>,
+    operations: Vec<FriendTcOp<P,RS,FS>>,
     opt_local_address: Option<A>,
     token_wanted: bool,
     max_operations_in_batch: usize,
 }
 
-impl<A> PendingMoveToken<A> 
+impl<A,P,RS,FS> PendingMoveToken<A,P,RS,FS> 
 where
     A: CanonicalSerialize + Clone,
 {
-    fn new(friend_public_key: PublicKey,
-           outgoing_mc: OutgoingMc,
+    fn new(friend_public_key: TPublicKey<P>,
+           outgoing_mc: OutgoingMc<P>,
            max_operations_in_batch: usize) -> Self {
 
         PendingMoveToken {
@@ -132,10 +130,10 @@ where
     /// Attempt to queue one operation into a certain `pending_move_token`.
     /// If successful, mutations are applied and the operation is queued.
     /// Otherwise, an error is returned.
-    fn queue_operation(&mut self, 
-                       operation: &FriendTcOp,
-                       m_state: &mut MutableFunderState<A>,
-                       m_ephemeral: &mut MutableEphemeral)
+    fn queue_operation<MS>(&mut self, 
+                       operation: &FriendTcOp<P,RS,FS>,
+                       m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                       m_ephemeral: &mut MutableEphemeral<P>)
         -> Result<(), PendingQueueError> 
     where
         A: Clone,
@@ -198,10 +196,10 @@ where
     }
 }
 
-fn transmit_outgoing<A>(m_state: &MutableFunderState<A>,
-                        friend_public_key: &PublicKey,
+fn transmit_outgoing<A,P,RS,FS,MS>(m_state: &MutableFunderState<A,P,RS,FS,MS>,
+                        friend_public_key: &TPublicKey<P>,
                         token_wanted: bool,
-                        outgoing_messages: &mut Vec<OutgoingMessage<A>>)
+                        outgoing_messages: &mut Vec<OutgoingMessage<A,P,RS,FS,MS>>)
 where
     A: CanonicalSerialize + Clone,
 {
@@ -227,14 +225,17 @@ where
             FriendMessage::MoveTokenRequest(move_token_request)));
 }
 
-pub async fn apply_local_reset<'a,A,R>(m_state: &'a mut MutableFunderState<A>, 
-                                  friend_public_key: &'a PublicKey,
-                                  channel_inconsistent: &'a ChannelInconsistent,
-                                  identity_client: &'a mut IdentityClient,
-                                  rng: &'a R) 
+pub async fn apply_local_reset<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFunderState<A,P,RS,FS,MS>, 
+                                  friend_public_key: &'a TPublicKey<P>,
+                                  channel_inconsistent: &'a ChannelInconsistent<P,MS>,
+                                  signer: &'a mut SI,
+                                  rng: &'a mut R) 
 where
     A: CanonicalSerialize + Clone + 'a,
-    R: CryptoRandom,
+    R: GenRandNonce,
+    SI: SignMoveToken,
+    P: Clone,
+    MS: Clone,
 {
 
     // TODO: How to do this without unwrap?:
@@ -242,7 +243,7 @@ where
         .clone()
         .unwrap();
 
-    let rand_nonce = RandValue::new(rng);
+    let rand_nonce = rng.gen_rand_nonce();
     let move_token_counter = 0;
 
     let local_pending_debt = 0;
@@ -260,7 +261,7 @@ where
         remote_pending_debt,
         rand_nonce);
 
-    let reset_move_token = await!(sign_move_token(u_reset_move_token, identity_client));
+    let reset_move_token = await!(signer.sign_move_token(u_reset_move_token));
 
     let token_channel = TokenChannel::new_from_local_reset(
         &m_state.state().local_public_key,
@@ -275,18 +276,19 @@ where
 
 }
 
-async fn send_friend_iter1<'a,A,R>(m_state: &'a mut MutableFunderState<A>,
-                                       m_ephemeral: &'a mut MutableEphemeral,
-                                       friend_public_key: &'a PublicKey, 
+async fn send_friend_iter1<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFunderState<A,P,RS,FS,MS>,
+                                       m_ephemeral: &'a mut MutableEphemeral<P>,
+                                       friend_public_key: &'a TPublicKey<P>, 
                                        friend_send_commands: &'a FriendSendCommands, 
-                                       pending_move_tokens: &'a mut HashMap<PublicKey, PendingMoveToken<A>>,
-                                       identity_client: &'a mut IdentityClient,
-                                       rng: &'a R,
+                                       pending_move_tokens: &'a mut HashMap<TPublicKey<P>, PendingMoveToken<A,P,RS,FS>>,
+                                       signer: &'a mut SI,
+                                       rng: &'a mut R,
                                        max_operations_in_batch: usize,
                                        mut outgoing_messages: &'a mut Vec<OutgoingMessage<A>>) 
 where
     A: CanonicalSerialize + Clone + Eq,
-    R: CryptoRandom,
+    R: GenRandNonce,
+    SI: SignMoveToken<A,P,RS,FS,MS>,
 {
 
     if !friend_send_commands.try_send 
@@ -307,7 +309,7 @@ where
             await!(apply_local_reset(m_state,
                                      friend_public_key,
                                      &c_channel_inconsistent,
-                                     identity_client,
+                                     signer,
                                      rng));
         }
     }
@@ -363,7 +365,7 @@ where
                                                m_ephemeral, 
                                                friend_public_key, 
                                                pending_move_token,
-                                               identity_client,
+                                               signer,
                                                rng));
 }
 
@@ -371,8 +373,8 @@ where
 /// Do we need to send anything to the remote side?
 /// Note that this is only an estimation. It is possible that when the token from remote side
 /// arrives, the state will be different.
-fn estimate_should_send<'a, A>(m_state: &'a mut MutableFunderState<A>, 
-                            friend_public_key: &'a PublicKey) -> bool 
+fn estimate_should_send<'a, A,P,RS,FS,MS>(m_state: &'a mut MutableFunderState<A,P,RS,FS,MS>, 
+                            friend_public_key: &'a TPublicKey<P>) -> bool 
 where
     A: CanonicalSerialize + Clone + Eq,
 {
@@ -429,8 +431,8 @@ where
     false
 }
 
-async fn queue_operation_or_failure<'a,A>(m_state: &'a mut MutableFunderState<A>,
-                                            m_ephemeral: &'a mut MutableEphemeral,
+async fn queue_operation_or_failure<'a,A,P,RS,FS,MS>(m_state: &'a mut MutableFunderState<A,P,RS,FS,MS>,
+                                            m_ephemeral: &'a mut MutableEphemeral<P>,
                                             pending_move_token: &'a mut PendingMoveToken<A>,
                                             operation: &'a FriendTcOp) -> Result<(), CollectOutgoingError> 
 where
@@ -466,27 +468,28 @@ where
     Ok(())
 }
 
-async fn response_op_to_friend_tc_op<'a,A,R>(m_state: &'a mut MutableFunderState<A>, 
+async fn response_op_to_friend_tc_op<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFunderState<A,P,RS,FS,MS>, 
                                      response_op: ResponseOp,
-                                     mut identity_client: &'a mut IdentityClient,
-                                     rng: &'a R) -> FriendTcOp 
+                                     signer: &'a mut SI,
+                                     rng: &'a mut R) -> FriendTcOp 
 where
     A: CanonicalSerialize + Clone,
-    R: CryptoRandom,
+    R: GenRandNonce,
+    SI: SignResponse<P,RS>,
 {
     match response_op {
         ResponseOp::Response(response) => FriendTcOp::ResponseSendFunds(response),
         ResponseOp::UnsignedResponse(pending_request) => {
-            let rand_nonce = RandValue::new(rng);
+            let rand_nonce = rng.gen_rand_nonce();
             FriendTcOp::ResponseSendFunds(await!(create_response_send_funds(
-                        &pending_request, rand_nonce, identity_client)))
+                        &pending_request, rand_nonce, signer)))
         },
         ResponseOp::Failure(failure) => FriendTcOp::FailureSendFunds(failure),
         ResponseOp::UnsignedFailure(pending_request) => {
-            let rand_nonce = RandValue::new(rng);
+            let rand_nonce = rng.gen_rand_nonce();
             FriendTcOp::FailureSendFunds(await!(create_failure_send_funds(
                         &pending_request, &(m_state.state().local_public_key), 
-                        rand_nonce, &mut identity_client)))
+                        rand_nonce, signer)))
         }
     }
 }
@@ -494,16 +497,17 @@ where
 /// Given a friend with an incoming move token state, create the largest possible move token to
 /// send to the remote side. 
 /// Requests that fail to be processed are moved to the failure queues of the relevant friends.
-async fn collect_outgoing_move_token<'a,A,R>(m_state: &'a mut MutableFunderState<A>,
-                                                 m_ephemeral: &'a mut MutableEphemeral,
-                                                 friend_public_key: &'a PublicKey,
-                                                 pending_move_token: &'a mut PendingMoveToken<A>,
-                                                 identity_client: &'a mut IdentityClient,
-                                                 rng: &'a R) 
+async fn collect_outgoing_move_token<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFunderState<A>,
+                                                 m_ephemeral: &'a mut MutableEphemeral<P>,
+                                                 friend_public_key: &'a TPublicKey<P>,
+                                                 pending_move_token: &'a mut PendingMoveToken<A,P,RS,FS>,
+                                                 signer: &'a mut SI,
+                                                 rng: &'a mut R) 
                                                     -> Result<(), CollectOutgoingError> 
 where
     A: CanonicalSerialize + Clone + Eq,
-    R: CryptoRandom,
+    R: GenRandNonce,
+    SI: SignMoveToken<A,P,RS,FS,MS>,
 {
     /*
     - Check if last sent local address is up to date.
@@ -581,7 +585,7 @@ where
     let mut pending_responses = friend.pending_responses.clone();
     while let Some(pending_response) = pending_responses.pop_front() {
         let pending_op = await!(response_op_to_friend_tc_op(m_state, pending_response,
-                                                            identity_client, rng));
+                                                            signer, rng));
         await!(queue_operation_or_failure(m_state,
                                           m_ephemeral,
                                           pending_move_token,
@@ -627,16 +631,17 @@ where
 
 
 
-async fn append_failures_to_move_token<'a,A,R>(m_state: &'a mut MutableFunderState<A>,
-                                                   m_ephemeral: &'a mut MutableEphemeral,
-                                                   friend_public_key: &'a PublicKey,
+async fn append_failures_to_move_token<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFunderState<A>,
+                                                   m_ephemeral: &'a mut MutableEphemeral<P>,
+                                                   friend_public_key: &'a TPublicKey<P>,
                                                    pending_move_token: &'a mut PendingMoveToken<A>,
-                                                   identity_client: &'a mut IdentityClient,
-                                                   rng: &'a R) 
+                                                   signer: &'a mut SI,
+                                                   rng: &'a mut R) 
                                                     -> Result<(), CollectOutgoingError> 
 where
     A: CanonicalSerialize + Clone,
-    R: CryptoRandom,
+    SI: SignMoveToken<A,P,RS,FS,MS>,
+    R: GenRandNonce,
 {
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
@@ -647,7 +652,7 @@ where
     while let Some(pending_response) = pending_responses.pop_front() {
         let pending_op = await!(response_op_to_friend_tc_op(m_state, 
                                                             pending_response,
-                                                            identity_client,
+                                                            signer,
                                                             rng));
         await!(queue_operation_or_failure(m_state,
                                           m_ephemeral,
@@ -661,15 +666,16 @@ where
     Ok(())
 }
 
-async fn send_move_token<'a,A,R>(m_state: &'a mut MutableFunderState<A>,
-                                 friend_public_key: PublicKey,
-                                 pending_move_token: PendingMoveToken<A>,
-                                 identity_client: &'a mut IdentityClient,
-                                 rng: &'a R,
-                                 outgoing_messages: &'a mut Vec<OutgoingMessage<A>>) 
+async fn send_move_token<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFunderState<A,P,RS,FS,MS>,
+                                 friend_public_key: TPublicKey<P>,
+                                 pending_move_token: PendingMoveToken<A,P,RS,FS>,
+                                 signer: &'a mut SI,
+                                 rng: &'a mut R,
+                                 outgoing_messages: &'a mut Vec<OutgoingMessage<A,P,RS,FS,MS>>) 
 where
     A: Clone + CanonicalSerialize + 'a,
-    R: CryptoRandom,
+    R: GenRandNonce,
+    SI: SignMoveToken<A,P,RS,FS,MS>,
 {
 
     let PendingMoveToken {
@@ -681,7 +687,7 @@ where
 
     let friend = m_state.state().friends.get(&friend_public_key).unwrap();
 
-    let rand_nonce = RandValue::new(rng);
+    let rand_nonce = rng.gen_rand_nonce();
     let token_channel = match &friend.channel_status {
         ChannelStatus::Consistent(token_channel) => token_channel,
         ChannelStatus::Inconsistent(_) => unreachable!(),
@@ -696,7 +702,7 @@ where
                                          opt_local_address,
                                          rand_nonce);
 
-    let move_token = await!(sign_move_token(u_move_token, identity_client));
+    let move_token = await!(signer.sign_move_token(u_move_token));
 
     let tc_mutation = TcMutation::SetDirection(
         SetDirection::Outgoing(move_token));
@@ -727,19 +733,20 @@ where
 
 
 /// Send all possible messages according to SendCommands
-pub async fn create_friend_messages<'a,A,R>(m_state: &'a mut MutableFunderState<A>, 
-                        m_ephemeral: &'a mut MutableEphemeral,
+pub async fn create_friend_messages<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFunderState<A,P,RS,FS,MS>, 
+                        m_ephemeral: &'a mut MutableEphemeral<P>,
                         send_commands: &'a SendCommands,
                         max_operations_in_batch: usize,
-                        identity_client: &'a mut IdentityClient,
+                        signer: &'a mut SI,
                         rng: &'a R) -> Vec<OutgoingMessage<A>> 
 where
     A: CanonicalSerialize + Clone + Eq,
-    R: CryptoRandom,
+    R: GenRandNonce,
+    SI: SignMoveToken<A,P,RS,FS,MS>,
 {
 
     let mut outgoing_messages = Vec::new();
-    let mut pending_move_tokens: HashMap<PublicKey, PendingMoveToken<A>> 
+    let mut pending_move_tokens: HashMap<TPublicKey<P>, PendingMoveToken<A>> 
         = HashMap::new();
 
     // First iteration:
@@ -749,7 +756,7 @@ where
                                  friend_public_key,
                                  friend_send_commands,
                                  &mut pending_move_tokens,
-                                 identity_client,
+                                 signer,
                                  rng,
                                  max_operations_in_batch,
                                  &mut outgoing_messages));
@@ -761,7 +768,7 @@ where
                                                      m_ephemeral,
                                                      friend_public_key, 
                                                      pending_move_token,
-                                                     identity_client,
+                                                     signer,
                                                      rng));
     }
 
@@ -770,7 +777,7 @@ where
         await!(send_move_token(m_state, 
                                friend_public_key, 
                                pending_move_token, 
-                               identity_client,
+                               signer,
                                rng,
                                &mut outgoing_messages));
     }

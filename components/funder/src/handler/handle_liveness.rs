@@ -1,5 +1,3 @@
-use crypto::crypto_rand::CryptoRandom;
-
 use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::{FriendStatus, FunderOutgoingControl};
 
@@ -20,16 +18,15 @@ pub enum HandleLivenessError {
     FriendAlreadyOnline,
 }
 
-pub fn handle_liveness_message<A,R>(m_state: &mut MutableFunderState<A>,
-                                    m_ephemeral: &mut MutableEphemeral,
-                                    send_commands: &mut SendCommands,
-                                    outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                                    liveness_message: IncomingLivenessMessage)
+pub fn handle_liveness_message<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                                    m_ephemeral: &mut MutableEphemeral<P>,
+                                    send_commands: &mut SendCommands<P>,
+                                    outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
+                                    liveness_message: IncomingLivenessMessage<P>)
     -> Result<(), HandleLivenessError> 
 
 where
     A: CanonicalSerialize + Clone + PartialEq + Eq,
-    R: CryptoRandom,
 {
 
     match liveness_message {

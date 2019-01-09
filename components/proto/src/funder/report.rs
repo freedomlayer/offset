@@ -1,6 +1,5 @@
 use im::hashmap::HashMap as ImHashMap;
 
-// use crypto::identity::{PublicKey, Signature};
 use crypto::hash::HashResult;
 use crypto::crypto_rand::RandValue;
 

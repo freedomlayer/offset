@@ -1,9 +1,8 @@
-use crypto::identity::PublicKey;
-
 use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::{RequestSendFunds,
                               ResponseReceived,
-                              ResponseSendFundsResult, FunderOutgoingControl};
+                              ResponseSendFundsResult, FunderOutgoingControl,
+                              TPublicKey};
 
 use crate::handler::handler::{MutableFunderState, MutableEphemeral, 
     find_request_origin};
@@ -18,33 +17,28 @@ use crate::freeze_guard::FreezeGuardMutation;
 
 
 /*
-A: CanonicalSerialize + Clone + Debug + PartialEq + Eq + 'static,
-R: CryptoRandom + 'static,
+/// Create a (signed) failure message for a given request_id.
+/// We are the reporting_public_key for this failure message.
+pub fn create_unsigned_failure_message(&self, pending_local_request: &PendingRequest) 
+    -> UnsignedFailureSendFunds {
+
+    let rand_nonce = RandValue::new(&self.rng);
+    let local_public_key = self.state.local_public_key.clone();
+
+    let mut u_failure_send_funds = UnsignedFailureSendFunds {
+        request_id: pending_local_request.request_id.clone(),
+        reporting_public_key: local_public_key.clone(),
+        rand_nonce,
+        signature: (),
+    };
+
+    u_failure_send_funds
+}
 */
 
-    /*
-    /// Create a (signed) failure message for a given request_id.
-    /// We are the reporting_public_key for this failure message.
-    pub fn create_unsigned_failure_message(&self, pending_local_request: &PendingRequest) 
-        -> UnsignedFailureSendFunds {
-
-        let rand_nonce = RandValue::new(&self.rng);
-        let local_public_key = self.state.local_public_key.clone();
-
-        let mut u_failure_send_funds = UnsignedFailureSendFunds {
-            request_id: pending_local_request.request_id.clone(),
-            reporting_public_key: local_public_key.clone(),
-            rand_nonce,
-            signature: (),
-        };
-
-        u_failure_send_funds
-    }
-    */
-
 /// Reply to a request message with failure.
-pub fn reply_with_failure<A,P,RS>(m_state: &mut MutableFunderState<A,P,RS>,
-                             send_commands: &mut SendCommands,
+pub fn reply_with_failure<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                             send_commands: &mut SendCommands<P>,
                              remote_public_key: &TPublicKey<P>,
                              request_send_funds: &RequestSendFunds<P>) 
 where
@@ -62,11 +56,11 @@ where
 
 /// Cancel outgoing local requests that are already inside the token channel (Possibly already
 /// communicated to the remote side).
-pub fn cancel_local_pending_requests<A,P,RS>(m_state: &mut MutableFunderState<A,P,RS>,
-                                     m_ephemeral: &mut MutableEphemeral,
-                                     send_commands: &mut SendCommands,
-                                     outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                                     friend_public_key: &PublicKey) 
+pub fn cancel_local_pending_requests<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                                     m_ephemeral: &mut MutableEphemeral<P>,
+                                     send_commands: &mut SendCommands<P>,
+                                     outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
+                                     friend_public_key: &TPublicKey<P>) 
 where
     A: CanonicalSerialize + Clone,
 {
@@ -121,10 +115,10 @@ where
     }
 }
 
-pub fn cancel_pending_requests<A>(m_state: &mut MutableFunderState<A>,
-                                  send_commands: &mut SendCommands,
-                                  outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                                  friend_public_key: &PublicKey) 
+pub fn cancel_pending_requests<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                                  send_commands: &mut SendCommands<P>,
+                                  outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
+                                  friend_public_key: &TPublicKey<P>) 
 where
     A: CanonicalSerialize + Clone,
 {
@@ -160,9 +154,9 @@ where
     }
 }
 
-pub fn cancel_pending_user_requests<A>(m_state: &mut MutableFunderState<A>,
-                                       outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                                       friend_public_key: &PublicKey) 
+pub fn cancel_pending_user_requests<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                                       outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
+                                       friend_public_key: &TPublicKey<P>) 
 where
     A: CanonicalSerialize + Clone,
 {

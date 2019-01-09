@@ -1,17 +1,20 @@
+use std::hash::Hash;
 use crypto::crypto_rand::RandValue;
 use crypto::hash::HashResult;
 
 use common::canonical_serialize::CanonicalSerialize;
 
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds, FailureSendFunds, 
-    MoveToken, FriendMessage, FriendTcOp, PendingRequest, FunderIncomingControl, 
-    FunderOutgoingControl, TPublicKey, TSignature};
+    MoveToken, SignedMoveToken, FriendMessage, FriendTcOp, PendingRequest, FunderIncomingControl, 
+    FunderOutgoingControl, TPublicKey, TSignature,
+    SignedResponse, SignedFailure};
 
 use proto::funder::signature_buff::{prefix_hash,
-    move_token_signature_buff, create_response_signature_buffer,
-    create_failure_signature_buffer};
+    move_token_signature_buff};
 
 use identity::IdentityClient;
+
+use crate::sign_verify::{SignResponse, SignFailure};
 
 
 
@@ -49,9 +52,11 @@ where
 */
 
 
-pub async fn create_response_send_funds<'a>(pending_request: &'a PendingRequest,
+pub async fn create_response_send_funds<'a,P,RS,SI>(pending_request: &'a PendingRequest<P>,
                                             rand_nonce: RandValue,
-                                            identity_client: &'a mut IdentityClient) -> ResponseSendFunds 
+                                            signer: &'a mut SI) -> Option<SignedResponse<RS>>
+where
+    SI: SignResponse<P,RS>,
 {
 
     let u_response_send_funds = ResponseSendFunds {
@@ -60,22 +65,17 @@ pub async fn create_response_send_funds<'a>(pending_request: &'a PendingRequest,
         signature: (),
     };
 
-    let signature_buff = create_response_signature_buffer(&u_response_send_funds, pending_request);
-    let signature = await!(identity_client.request_signature(signature_buff))
-        .unwrap();
-
-    ResponseSendFunds {
-        request_id: u_response_send_funds.request_id,
-        rand_nonce: u_response_send_funds.rand_nonce,
-        signature,
-    }
-
+    await!(signer.sign_response(u_response_send_funds, &pending_request))
 }
 
-pub async fn create_failure_send_funds<'a,P>(pending_request: &'a PendingRequest<P>,
+pub async fn create_failure_send_funds<'a,P,FS,SI>(pending_request: &'a PendingRequest<P>,
                                          local_public_key: &'a TPublicKey<P>,
                                          rand_nonce: RandValue,
-                                         identity_client: &'a mut IdentityClient) -> FailureSendFunds<P,RS> {
+                                         signer: &'a mut SI) -> Option<SignedFailure<P,FS>>
+where
+    P: CanonicalSerialize + Eq + Hash + Clone,
+    SI: SignFailure<P,FS>,
+{
 
     let u_failure_send_funds = FailureSendFunds {
         request_id: pending_request.request_id,
@@ -84,29 +84,22 @@ pub async fn create_failure_send_funds<'a,P>(pending_request: &'a PendingRequest
         signature: (),
     };
 
-    let signature_buff = create_failure_signature_buffer(&u_failure_send_funds, pending_request);
-    let signature = await!(identity_client.request_signature(signature_buff))
-        .unwrap();
-
-    FailureSendFunds {
-        request_id: u_failure_send_funds.request_id,
-        reporting_public_key: u_failure_send_funds.reporting_public_key,
-        rand_nonce: u_failure_send_funds.rand_nonce,
-        signature,
-    }
+    await!(signer.sign_failure(u_failure_send_funds, &pending_request))
 }
 
+/*
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum UnsignedFriendTcOp {
     EnableRequests,
     DisableRequests,
     SetRemoteMaxDebt(u128),
-    RequestSendFunds(RequestSendFunds),
-    ResponseSendFunds(ResponseSendFunds),
-    UnsignedResponseSendFunds(UnsignedResponseSendFunds),
-    FailureSendFunds(FailureSendFunds),
-    UnsignedFailureSendFunds(UnsignedFailureSendFunds),
+    RequestSendFunds(RequestSendFunds<P>),
+    ResponseSendFunds(SignedResponse),
+    UnsignedResponseSendFunds(UnsignedResponse),
+    FailureSendFunds(SignedFailure),
+    UnsignedFailureSendFunds(UnsignedFailure),
 }
+*/
 
 
 
@@ -206,7 +199,7 @@ where
 /// Create a hashed version of the MoveToken.
 /// Hashed version contains the hash of the operations instead of the operations themselves,
 /// hence it is usually shorter.
-pub fn create_hashed<A>(move_token: &MoveToken<A>) -> MoveTokenHashed
+pub fn create_hashed<A,P,RS,FS,MS>(move_token: &SignedMoveToken<A,P,RS,FS,MS>) -> MoveTokenHashed<P,MS>
 where
     A: CanonicalSerialize,
 {

@@ -32,13 +32,13 @@ pub enum FunderError<E> {
 
 
 #[derive(Debug, Clone)]
-pub enum FunderEvent<A> {
-    FunderIncoming(FunderIncoming<A>),
+pub enum FunderEvent<A,P,RS,FS,MS> {
+    FunderIncoming(FunderIncoming<A,P,RS,FS,MS>),
     IncomingControlClosed,
     IncomingCommClosed,
 }
 
-pub async fn inner_funder_loop<A,P,RS,MS,R,D,E>(
+pub async fn inner_funder_loop<A,P,RS,FS,MS,R,D,E>(
     mut identity_client: IdentityClient,
     rng: R,
     incoming_control: mpsc::Receiver<FunderIncomingControl<A,P,RS,MS>>,
@@ -47,12 +47,16 @@ pub async fn inner_funder_loop<A,P,RS,MS,R,D,E>(
     comm_sender: mpsc::Sender<FunderOutgoingComm<A,P,RS,FS,MS>>,
     atomic_db: D,
     max_operations_in_batch: usize,
-    mut opt_event_sender: Option<mpsc::Sender<FunderEvent<A>>>) -> Result<(), FunderError<E>> 
+    mut opt_event_sender: Option<mpsc::Sender<FunderEvent<A,P,RS,FS,MS>>>) -> Result<(), FunderError<E>> 
 
 where
     A: CanonicalSerialize + Serialize + DeserializeOwned + Send + Sync + Clone + Debug + PartialEq + Eq + 'static,
+    P: Clone,
+    RS: Clone,
+    FS: Clone,
+    MS: Clone,
     R: CryptoRandom + 'static,
-    D: AtomicDb<State=FunderState<A>, Mutation=FunderMutation<A>, Error=E> + Send + 'static,
+    D: AtomicDb<State=FunderState<A,P,RS,FS,MS>, Mutation=FunderMutation<A>, Error=E> + Send + 'static,
     E: Send + 'static,
 {
 
@@ -148,7 +152,7 @@ pub async fn funder_loop<A,R,D,E>(
 where
     A: CanonicalSerialize + Serialize + DeserializeOwned + Send + Sync + Clone + Debug + PartialEq + Eq + 'static,
     R: CryptoRandom + 'static,
-    D: AtomicDb<State=FunderState<A>, Mutation=FunderMutation<A>, Error=E> + Send + 'static,
+    D: AtomicDb<State=FunderState<A,P,RS,FS,MS>, Mutation=FunderMutation<A,P,RS,FS,MS>, Error=E> + Send + 'static,
     E: Send + 'static,
 {
 

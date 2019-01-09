@@ -1,12 +1,11 @@
-use crypto::crypto_rand::CryptoRandom;
-use crypto::identity::{PublicKey, Signature, SIGNATURE_LEN};
 
 use common::canonical_serialize::CanonicalSerialize;
 
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds,
     FailureSendFunds, MoveToken, FreezeLink, FriendMessage,
     MoveTokenRequest, ResetTerms, PendingRequest, ResponseReceived,
-    FunderOutgoingControl, ResponseSendFundsResult};
+    FunderOutgoingControl, ResponseSendFundsResult, SignedMoveToken,
+    SignedFailure, SignedResponse, TPublicKey};
 use proto::funder::signature_buff::prepare_receipt;
 
 use crate::mutual_credit::incoming::{IncomingResponseSendFunds, 
@@ -31,7 +30,7 @@ use crate::handler::canceler::{cancel_local_pending_requests,
     cancel_pending_user_requests, cancel_pending_requests,
     reply_with_failure};
 
-use crate::sign_verify::Verify;
+use crate::sign_verify::{Verify, GenRandToken, GenRandNonce};
 
 
 #[derive(Debug)]
@@ -48,6 +47,7 @@ pub enum HandleFriendError {
     InconsistencyWhenTokenOwned,
 }
 
+/*
 /// Generate a random token to be used for resetting the channel.
 fn gen_channel_reset_token<R>(rng: &R) -> Signature 
 where
@@ -57,17 +57,18 @@ where
     rng.fill(&mut buff).unwrap();
     Signature::from(buff)
 }
+*/
 
 
-pub fn gen_reset_terms<A,R>(token_channel: &TokenChannel<A>, 
-                             rng: &R) -> ResetTerms 
+pub fn gen_reset_terms<A,P,RS,FS,MS,R>(token_channel: &TokenChannel<A,P,RS,FS,MS>, 
+                                       rng: &mut R) -> ResetTerms<MS> 
 where
     A: CanonicalSerialize + Clone,
-    R: CryptoRandom,
+    R: GenRandToken<MS>,
 {
     // We add 2 for the new counter in case 
     // the remote side has already used the next counter.
-    let reset_token = gen_channel_reset_token(rng);
+    let reset_token = rng.gen_rand_token();
 
     ResetTerms {
         reset_token,
@@ -81,10 +82,10 @@ where
 
 /// Check if channel reset is required (Remove side used the RESET token)
 /// If so, reset the channel.
-pub fn try_reset_channel<A>(m_state: &mut MutableFunderState<A>,
-                            friend_public_key: &PublicKey,
-                            local_reset_terms: &ResetTerms,
-                            move_token: &MoveToken<A>) 
+pub fn try_reset_channel<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                            friend_public_key: &TPublicKey<P>,
+                            local_reset_terms: &ResetTerms<MS>,
+                            move_token: &SignedMoveToken<A,P,RS,FS,MS>) 
 where
     A: CanonicalSerialize + Clone,
 {
@@ -119,8 +120,8 @@ where
 }
 
 
-pub fn add_local_freezing_link<A>(state: &FunderState<A>,
-                               request_send_funds: &mut RequestSendFunds) 
+pub fn add_local_freezing_link<A,P,RS,FS,MS>(state: &FunderState<A,P,RS,FS,MS>,
+                               request_send_funds: &mut RequestSendFunds<P>) 
 where
     A: CanonicalSerialize + Clone,
 {
@@ -149,9 +150,9 @@ where
 }
 
 /// Forward a request message to the relevant friend and token channel.
-fn forward_request<A>(m_state: &mut MutableFunderState<A>,
-                      send_commands: &mut SendCommands,
-                      request_send_funds: RequestSendFunds) 
+fn forward_request<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                      send_commands: &mut SendCommands<P>,
+                      request_send_funds: RequestSendFunds<P>) 
 where
     A: CanonicalSerialize + Clone,
 {
@@ -194,11 +195,11 @@ where
 }
 */
 
-fn handle_request_send_funds<A>(m_state: &mut MutableFunderState<A>,
-                                ephemeral: &Ephemeral,
-                                send_commands: &mut SendCommands,
-                                remote_public_key: &PublicKey,
-                                mut request_send_funds: RequestSendFunds) 
+fn handle_request_send_funds<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                                ephemeral: &Ephemeral<P>,
+                                send_commands: &mut SendCommands<P>,
+                                remote_public_key: &TPublicKey<P>,
+                                mut request_send_funds: RequestSendFunds<P>) 
 where
     A: CanonicalSerialize + Clone,
 {
@@ -252,11 +253,11 @@ where
 }
 
 
-fn handle_response_send_funds<A>(m_state: &mut MutableFunderState<A>,
-                                 send_commands: &mut SendCommands,
-                                 outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                                 response_send_funds: ResponseSendFunds,
-                                 pending_request: PendingRequest) 
+fn handle_response_send_funds<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                                 send_commands: &mut SendCommands<P>,
+                                 outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
+                                 response_send_funds: SignedResponse<RS>,
+                                 pending_request: PendingRequest<P>) 
 where
     A: CanonicalSerialize + Clone,
 {
@@ -293,11 +294,11 @@ where
     }
 }
 
-fn handle_failure_send_funds<A>(m_state: &mut MutableFunderState<A>,
-                                send_commands: &mut SendCommands,
-                                outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                                failure_send_funds: FailureSendFunds,
-                                pending_request: PendingRequest) 
+fn handle_failure_send_funds<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                                send_commands: &mut SendCommands<P>,
+                                outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
+                                failure_send_funds: SignedFailure<P,FS>,
+                                pending_request: PendingRequest<P>) 
 where
     A: CanonicalSerialize + Clone,
 {
@@ -330,12 +331,12 @@ where
 }
 
 /// Process valid incoming operations from remote side.
-fn handle_move_token_output<A>(m_state: &mut MutableFunderState<A>,
-                               m_ephemeral: &mut MutableEphemeral,
-                               send_commands: &mut SendCommands,
-                               outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                               remote_public_key: &PublicKey,
-                               incoming_messages: Vec<IncomingMessage>) 
+fn handle_move_token_output<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                               m_ephemeral: &mut MutableEphemeral<P>,
+                               send_commands: &mut SendCommands<P>,
+                               outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
+                               remote_public_key: &TPublicKey<P>,
+                               incoming_messages: Vec<IncomingMessage<P,RS,FS>>) 
 where
     A: CanonicalSerialize + Clone,
 {
@@ -381,15 +382,15 @@ where
 
 
 /// Handle an error with incoming move token.
-fn handle_move_token_error<A,R>(m_state: &mut MutableFunderState<A>,
-                                m_ephemeral: &mut MutableEphemeral,
-                                send_commands: &mut SendCommands,
-                                outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                                rng: &R,
-                                remote_public_key: &PublicKey)
+fn handle_move_token_error<A,P,RS,FS,MS,R>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                                m_ephemeral: &mut MutableEphemeral<P>,
+                                send_commands: &mut SendCommands<P>,
+                                outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
+                                rng: &mut R,
+                                remote_public_key: &TPublicKey<P>)
 where
     A: CanonicalSerialize + Clone,
-    R: CryptoRandom,
+    R: GenRandToken<MS>,
 {
 
     let friend = m_state.state().friends.get(remote_public_key).unwrap();
@@ -433,12 +434,12 @@ where
 
 
 /// Handle success with incoming move token.
-fn handle_move_token_success<A>(m_state: &mut MutableFunderState<A>,
-                                m_ephemeral: &mut MutableEphemeral,
-                                send_commands: &mut SendCommands,
-                                outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                                remote_public_key: &PublicKey,
-                                receive_move_token_output: ReceiveMoveTokenOutput<A>,
+fn handle_move_token_success<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                                m_ephemeral: &mut MutableEphemeral<P>,
+                                send_commands: &mut SendCommands<P>,
+                                outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
+                                remote_public_key: &TPublicKey<P>,
+                                receive_move_token_output: ReceiveMoveTokenOutput<A,P,RS,FS,MS>,
                                 token_wanted: bool) 
 where
     A: CanonicalSerialize + Clone + Eq,
@@ -523,17 +524,17 @@ where
 }
 
 
-fn handle_move_token_request<A,R>(m_state: &mut MutableFunderState<A>, 
-                                m_ephemeral: &mut MutableEphemeral,
-                                send_commands: &mut SendCommands,
-                                outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                                rng: &R,
-                                remote_public_key: &PublicKey,
-                                friend_move_token_request: MoveTokenRequest<A>) 
+fn handle_move_token_request<A,P,RS,FS,MS,R>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>, 
+                                m_ephemeral: &mut MutableEphemeral<P>,
+                                send_commands: &mut SendCommands<P>,
+                                outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
+                                rng: &mut R,
+                                remote_public_key: &TPublicKey<P>,
+                                friend_move_token_request: MoveTokenRequest<A,P,RS,FS,MS>) 
     -> Result<(), HandleFriendError> 
 where
     A: CanonicalSerialize + Clone + Eq,
-    R: CryptoRandom,
+    R: GenRandToken<MS>,
 {
 
     // Find friend:
@@ -580,16 +581,16 @@ where
     Ok(())
 }
 
-fn handle_inconsistency_error<A,R>(m_state: &mut MutableFunderState<A>,
-                                   send_commands: &mut SendCommands,
-                                   outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                                   rng: &R,
-                                   remote_public_key: &PublicKey,
-                                   remote_reset_terms: ResetTerms)
+fn handle_inconsistency_error<A,P,RS,FS,MS,R>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                                   send_commands: &mut SendCommands<P>,
+                                   outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
+                                   rng: &mut R,
+                                   remote_public_key: &TPublicKey<P>,
+                                   remote_reset_terms: ResetTerms<MS>)
                                     -> Result<(), HandleFriendError> 
 where
     A: CanonicalSerialize + Clone,
-    R: CryptoRandom,
+    R: GenRandToken<MS>,
 {
 
     // Make sure that friend exists:
@@ -648,17 +649,17 @@ where
     Ok(())
 }
 
-pub fn handle_friend_message<A,R>(m_state: &mut MutableFunderState<A>, 
-                                  m_ephemeral: &mut MutableEphemeral,
-                                  send_commands: &mut SendCommands,
-                                  outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                                  rng: &R,
-                                  remote_public_key: &PublicKey, 
-                                  friend_message: FriendMessage<A>)
+pub fn handle_friend_message<A,P,RS,FS,MS,R>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>, 
+                                  m_ephemeral: &mut MutableEphemeral<P>,
+                                  send_commands: &mut SendCommands<P>,
+                                  outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
+                                  rng: &mut R,
+                                  remote_public_key: &TPublicKey<P>, 
+                                  friend_message: FriendMessage<A,P,RS,FS,MS>)
                                     -> Result<(), HandleFriendError> 
 where
     A: CanonicalSerialize + Clone + Eq,
-    R: CryptoRandom,
+    R: GenRandToken<MS>, 
 {
 
     // Make sure that friend exists:

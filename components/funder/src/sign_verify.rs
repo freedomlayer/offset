@@ -1,8 +1,9 @@
 use common::canonical_serialize::CanonicalSerialize;
 use common::conn::BoxFuture;
 
-use crypto::identity::{PublicKey, Signature, 
-    verify_signature};
+use crypto::identity::{PublicKey, Signature, SIGNATURE_LEN, verify_signature};
+
+use crypto::crypto_rand::{RandValue, CryptoRandom};
 
 use proto::funder::messages::{MoveToken, 
     UnsignedMoveToken, SignedMoveToken, 
@@ -28,7 +29,7 @@ pub trait SignMoveToken<A,P,RS,FS,MS> {
         -> BoxFuture<'_, Option<SignedMoveToken<A,P,RS,FS,MS>>>;
 }
 
-pub trait SignResponse<RS> {
+pub trait SignResponse<P,RS> {
     fn sign_response(&mut self, u_response: UnsignedResponse, 
                      pending_request: &PendingRequest<P>) 
         -> BoxFuture<'_, Option<SignedResponse<RS>>>;
@@ -38,6 +39,15 @@ pub trait SignFailure<P,FS> {
     fn sign_failure(&mut self, u_failure: UnsignedFailure<P>,
                     pending_request: &PendingRequest<P>) 
         -> BoxFuture<'_, Option<SignedFailure<P,FS>>>;
+}
+
+
+pub trait GenRandToken<MS> {
+    fn gen_rand_token(&mut self) -> TSignature<MS>;
+}
+
+pub trait GenRandNonce {
+    fn gen_rand_nonce(&mut self) -> RandValue;
 }
 
 
@@ -147,7 +157,7 @@ where
     }
 }
 
-impl SignResponse<Signature> for IdentityClient {
+impl SignResponse<PublicKey, Signature> for IdentityClient {
     fn sign_response(&mut self, u_response: UnsignedResponse,
                      pending_request: &PendingRequest<P>) 
         -> BoxFuture<'_, Option<SignedResponse<Signature>>> {
@@ -183,5 +193,26 @@ impl SignFailure<PublicKey,Signature> for IdentityClient {
                 signature,
             })
         })
+    }
+}
+
+
+impl<Signature,R> GenRandToken<Signature> for R 
+where
+    R: CryptoRandom,
+{
+    fn gen_rand_token(&mut self) -> TSignature<Signature> {
+        let mut buff = [0; SIGNATURE_LEN];
+        self.fill(&mut buff).unwrap();
+        TSignature::new(Signature::from(buff))
+    }
+}
+
+impl<R> GenRandNonce for R 
+where
+    R: CryptoRandom,
+{
+    fn gen_rand_nonce(&mut self) -> RandNonce {
+        RandValue::new(&*self)
     }
 }

@@ -1,5 +1,3 @@
-use crypto::identity::PublicKey;
-
 use crate::friend::{FriendMutation, ChannelStatus};
 use crate::state::{FunderMutation};
 
@@ -9,7 +7,8 @@ use proto::funder::messages::{FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel, SetFriendAddress, SetFriendName, 
     AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus,
     ReceiptAck, FunderIncomingControl, ResponseReceived, 
-    FunderOutgoingControl, ResponseSendFundsResult};
+    FunderOutgoingControl, ResponseSendFundsResult,
+    TPublicKey};
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::handler::{MutableFunderState, MutableEphemeral, is_friend_ready};
@@ -38,9 +37,9 @@ pub enum HandleControlError {
 }
 
 
-fn control_set_friend_remote_max_debt<A>(m_state: &mut MutableFunderState<A>,
-                                         send_commands: &mut SendCommands,
-                                        set_friend_remote_max_debt: SetFriendRemoteMaxDebt) 
+fn control_set_friend_remote_max_debt<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                                         send_commands: &mut SendCommands<P>,
+                                        set_friend_remote_max_debt: SetFriendRemoteMaxDebt<P>) 
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone,
@@ -67,9 +66,9 @@ where
     Ok(())
 }
 
-fn control_reset_friend_channel<A>(m_state: &mut MutableFunderState<A>,
-                                send_commands: &mut SendCommands,
-                                reset_friend_channel: ResetFriendChannel) 
+fn control_reset_friend_channel<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                                send_commands: &mut SendCommands<P>,
+                                reset_friend_channel: ResetFriendChannel<P,MS>) 
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone,
@@ -101,9 +100,9 @@ where
     Ok(())
 }
 
-fn enable_friend<A>(m_state: &mut MutableFunderState<A>,
-                 outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>,
-                 friend_public_key: &PublicKey,
+fn enable_friend<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                 outgoing_channeler_config: &mut Vec<ChannelerConfig<A,P>>,
+                 friend_public_key: &TPublicKey<P>,
                  friend_address: &A) 
 where
     A: CanonicalSerialize + Clone,
@@ -121,11 +120,11 @@ where
 
 }
 
-fn disable_friend<A>(m_state: &mut MutableFunderState<A>,
-                     send_commands: &mut SendCommands,
-                     outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                     outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>,
-                     friend_public_key: &PublicKey) 
+fn disable_friend<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                     send_commands: &mut SendCommands<P>,
+                     outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
+                     outgoing_channeler_config: &mut Vec<ChannelerConfig<A,P>>,
+                     friend_public_key: &TPublicKey<P>) 
 where
     A: CanonicalSerialize + Clone,
 {
@@ -146,9 +145,9 @@ where
 
 }
 
-fn control_set_address<A>(m_state: &mut MutableFunderState<A>, 
-                          send_commands: &mut SendCommands,
-                          outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>,
+fn control_set_address<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>, 
+                          send_commands: &mut SendCommands<P>,
+                          outgoing_channeler_config: &mut Vec<ChannelerConfig<A,P>>,
                           opt_address: Option<A>) 
 where
     A: CanonicalSerialize + Clone,
@@ -170,8 +169,8 @@ where
     }
 }
 
-fn control_add_friend<A>(m_state: &mut MutableFunderState<A>, 
-                         add_friend: AddFriend<A>)
+fn control_add_friend<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>, 
+                         add_friend: AddFriend<A,P>)
 where
     A: CanonicalSerialize + Clone,
 {
@@ -182,12 +181,12 @@ where
 
 /// This is a violent operation, as it removes all the known state with the remote friend.  
 /// An inconsistency will occur if the friend is added again.
-fn control_remove_friend<A>(m_state: &mut MutableFunderState<A>, 
-                            m_ephemeral: &mut MutableEphemeral,
-                            send_commands: &mut SendCommands,
-                            outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                            outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>,
-                            remove_friend: RemoveFriend) 
+fn control_remove_friend<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>, 
+                            m_ephemeral: &mut MutableEphemeral<P>,
+                            send_commands: &mut SendCommands<P>,
+                            outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
+                            outgoing_channeler_config: &mut Vec<ChannelerConfig<A,P>>,
+                            remove_friend: RemoveFriend<P>) 
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone,
@@ -215,11 +214,11 @@ where
     Ok(())
 }
 
-fn control_set_friend_status<A>(m_state: &mut MutableFunderState<A>, 
-                                send_commands: &mut SendCommands,
-                                outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                                outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>,
-                                set_friend_status: SetFriendStatus) 
+fn control_set_friend_status<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>, 
+                                send_commands: &mut SendCommands<P>,
+                                outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
+                                outgoing_channeler_config: &mut Vec<ChannelerConfig<A,P>>,
+                                set_friend_status: SetFriendStatus<P>) 
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone,
@@ -255,9 +254,9 @@ where
     Ok(())
 }
 
-fn control_set_requests_status<A>(m_state: &mut MutableFunderState<A>,
-                                  send_commands: &mut SendCommands,
-                               set_requests_status: SetRequestsStatus) 
+fn control_set_requests_status<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                                  send_commands: &mut SendCommands<P>,
+                               set_requests_status: SetRequestsStatus<P>) 
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone,
@@ -276,11 +275,11 @@ where
     Ok(())
 }
 
-fn control_set_friend_address<A>(m_state: &mut MutableFunderState<A>, 
-                                 send_commands: &mut SendCommands,
-                                 outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                                 outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>,
-                                 set_friend_address: SetFriendAddress<A>)
+fn control_set_friend_address<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>, 
+                                 send_commands: &mut SendCommands<P>,
+                                 outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
+                                 outgoing_channeler_config: &mut Vec<ChannelerConfig<A,P>>,
+                                 set_friend_address: SetFriendAddress<A,P>)
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone + PartialEq,
@@ -315,8 +314,8 @@ where
     Ok(())
 }
 
-fn control_set_friend_name<A>(m_state: &mut MutableFunderState<A>, 
-                              set_friend_name: SetFriendName)
+fn control_set_friend_name<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>, 
+                              set_friend_name: SetFriendName<P>)
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone,
@@ -339,7 +338,7 @@ where
     Ok(())
 }
 
-fn check_user_request_valid(user_request_send_funds: &UserRequestSendFunds) 
+fn check_user_request_valid<P>(user_request_send_funds: &UserRequestSendFunds<P>) 
     -> Option<()> {
 
     if !user_request_send_funds.route.is_valid() {
@@ -348,11 +347,11 @@ fn check_user_request_valid(user_request_send_funds: &UserRequestSendFunds)
     Some(())
 }
 
-fn control_request_send_funds_inner<A>(m_state: &mut MutableFunderState<A>, 
-                                       ephemeral: &Ephemeral,
-                                       outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                                       send_commands: &mut SendCommands,
-                                       user_request_send_funds: UserRequestSendFunds)
+fn control_request_send_funds_inner<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>, 
+                                       ephemeral: &Ephemeral<P>,
+                                       outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
+                                       send_commands: &mut SendCommands<P>,
+                                       user_request_send_funds: UserRequestSendFunds<P>)
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone,
@@ -437,11 +436,11 @@ where
 }
 
 
-fn control_request_send_funds<A>(m_state: &mut MutableFunderState<A>, 
-                                 ephemeral: &Ephemeral,
-                                 outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                                 send_commands: &mut SendCommands,
-                                 user_request_send_funds: UserRequestSendFunds) 
+fn control_request_send_funds<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>, 
+                                 ephemeral: &Ephemeral<P>,
+                                 outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
+                                 send_commands: &mut SendCommands<P>,
+                                 user_request_send_funds: UserRequestSendFunds<P>) 
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone,
@@ -466,8 +465,8 @@ where
 }
 
 /// Handle an incoming receipt ack message
-fn control_receipt_ack<A>(m_state: &mut MutableFunderState<A>, 
-                          receipt_ack: ReceiptAck) 
+fn control_receipt_ack<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>, 
+                          receipt_ack: ReceiptAck<RS>) 
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone,
@@ -490,12 +489,12 @@ where
 }
 
 
-pub fn handle_control_message<A>(m_state: &mut MutableFunderState<A>,
-                                 m_ephemeral: &mut MutableEphemeral,
-                                 send_commands: &mut SendCommands,
-                                 outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
-                                 outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>,
-                                 incoming_control: FunderIncomingControl<A>) 
+pub fn handle_control_message<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
+                                 m_ephemeral: &mut MutableEphemeral<P>,
+                                 send_commands: &mut SendCommands<P>,
+                                 outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
+                                 outgoing_channeler_config: &mut Vec<ChannelerConfig<A,P>>,
+                                 incoming_control: FunderIncomingControl<A,P,RS,MS>) 
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone + PartialEq,

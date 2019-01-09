@@ -5,9 +5,7 @@ use common::int_convert::usize_to_u64;
 use common::safe_arithmetic::{SafeUnsignedArithmetic};
 use common::canonical_serialize::CanonicalSerialize;
 
-use crypto::identity::PublicKey;
-
-use proto::funder::messages::{RequestsStatus, FriendStatus};
+use proto::funder::messages::{RequestsStatus, FriendStatus, TPublicKey};
 
 use proto::funder::report::{DirectionReport, FriendLivenessReport, 
     TcReport, ResetTermsReport, ChannelInconsistentReport, ChannelStatusReport, FriendReport,
@@ -73,7 +71,7 @@ impl From<&McBalance> for McBalanceReport {
     }
 }
 
-impl From<&MoveTokenHashed> for MoveTokenHashedReport {
+impl From<&MoveTokenHashed<P,MS>> for MoveTokenHashedReport {
     fn from(move_token_hashed: &MoveTokenHashed) -> MoveTokenHashedReport {
         MoveTokenHashedReport {
             prefix_hash: move_token_hashed.prefix_hash.clone(),
@@ -88,7 +86,7 @@ impl From<&MoveTokenHashed> for MoveTokenHashedReport {
     }
 }
 
-impl<A> From<&TokenChannel<A>> for TcReport 
+impl<A,P,RS,MS> From<&TokenChannel<A,P,RS,MS>> for TcReport 
 where
     A: CanonicalSerialize + Clone,
 {
@@ -108,11 +106,11 @@ where
     }
 }
 
-impl<A> From<&ChannelStatus<A>> for ChannelStatusReport 
+impl<A,P,RS,FS,MS> From<&ChannelStatus<A,P,RS,FS,MS>> for ChannelStatusReport 
 where
     A: CanonicalSerialize + Clone,
 {
-    fn from(channel_status: &ChannelStatus<A>) -> ChannelStatusReport {
+    fn from(channel_status: &ChannelStatus<A,P,RS,FS,MS>) -> ChannelStatusReport {
         match channel_status {
             ChannelStatus::Inconsistent(channel_inconsistent) => {
                 let opt_remote_reset_terms = channel_inconsistent.opt_remote_reset_terms
@@ -135,7 +133,8 @@ where
     }
 }
 
-fn create_friend_report<A>(friend_state: &FriendState<A>, friend_liveness: &FriendLivenessReport) -> FriendReport<A> 
+fn create_friend_report<A,P,RS,FS,MS>(friend_state: &FriendState<A,P,RS,FS,MS>, 
+                                      friend_liveness: &FriendLivenessReport) -> FriendReport<A> 
 where
     A: CanonicalSerialize + Clone,
 {
@@ -159,7 +158,7 @@ where
 }
 
 #[allow(unused)]
-pub fn create_report<A>(funder_state: &FunderState<A>, ephemeral: &Ephemeral) -> FunderReport<A> 
+pub fn create_report<A,P,RS,FS,MS>(funder_state: &FunderState<A,P,RS,FS,MS>, ephemeral: &Ephemeral<P>) -> FunderReport<A,P,MS> 
 where
     A: CanonicalSerialize + Clone,
 {
@@ -182,8 +181,8 @@ where
 }
 
 
-pub fn friend_mutation_to_report_mutations<A>(friend_mutation: &FriendMutation<A>,
-                                           friend: &FriendState<A>) -> Vec<FriendReportMutation<A>> 
+pub fn friend_mutation_to_report_mutations<A,P,RS,FS,MS>(friend_mutation: &FriendMutation<A,P,RS,FS,MS>,
+                                           friend: &FriendState<A,P,RS,FS,MS>) -> Vec<FriendReportMutation<A,MS>> 
 where
     A: CanonicalSerialize + Clone,
 {
@@ -257,8 +256,9 @@ where
 /// In the future if we simplify Funder's mutations, we might be able discard the `funder_state`
 /// argument here.
 #[allow(unused)]
-pub fn funder_mutation_to_report_mutations<A>(funder_mutation: &FunderMutation<A>,
-                                           funder_state: &FunderState<A>) -> Vec<FunderReportMutation<A>> 
+pub fn funder_mutation_to_report_mutations<A,P,RS,FS,MS>(funder_mutation: &FunderMutation<A,P,RS,FS,MS>,
+                                           funder_state: &FunderState<A,P,RS,FS,MS>) 
+                                                -> Vec<FunderReportMutation<A,P,MS>> 
 where
     A: CanonicalSerialize + Clone,
 {
@@ -310,8 +310,8 @@ where
     }
 }
 
-pub fn ephemeral_mutation_to_report_mutations<A: Clone>(ephemeral_mutation: &EphemeralMutation) 
-                -> Vec<FunderReportMutation<A>> {
+pub fn ephemeral_mutation_to_report_mutations<A: Clone,P>(ephemeral_mutation: &EphemeralMutation<P>) 
+                -> Vec<FunderReportMutation<A,P,MS>> {
 
     match ephemeral_mutation {
         EphemeralMutation::FreezeGuardMutation(_) => Vec::new(),
@@ -375,7 +375,7 @@ where
 }
 
 #[allow(unused)]
-pub fn funder_report_mutate<A>(funder_report: &mut FunderReport<A>, mutation: &FunderReportMutation<A>) 
+pub fn funder_report_mutate<A,P,MS>(funder_report: &mut FunderReport<A,P,MS>, mutation: &FunderReportMutation<A,P,MS>) 
     -> Result<(), ReportMutateError> 
 where
     A: Clone,
@@ -439,7 +439,7 @@ where
 
 /// Calculate send and receive capacities for a given `friend_report`.
 #[allow(unused)]
-fn calc_friend_capacities<A>(friend_report: &FriendReport<A>) -> (u128, u128) {
+fn calc_friend_capacities<A,P,MS>(friend_report: &FriendReport<A,P,MS>) -> (u128, u128) {
     if friend_report.status == FriendStatusReport::Disabled || 
         friend_report.liveness == FriendLivenessReport::Offline {
         return (0, 0);
@@ -470,7 +470,7 @@ fn calc_friend_capacities<A>(friend_report: &FriendReport<A>) -> (u128, u128) {
 }
 
 #[allow(unused)]
-pub fn funder_report_to_index_client_state<A>(funder_report: &FunderReport<A>) -> IndexClientState 
+pub fn funder_report_to_index_client_state<A,P,MS>(funder_report: &FunderReport<A,P,MS>) -> IndexClientState 
 where
     A: Clone,
 {
@@ -479,7 +479,7 @@ where
         .map(|(friend_public_key, friend_report)| 
              (friend_public_key.clone(), calc_friend_capacities(friend_report)))
         .filter(|(_, (send_capacity, recv_capacity))| *send_capacity != 0 || *recv_capacity != 0)
-        .collect::<HashMap<PublicKey,(u128, u128)>>();
+        .collect::<HashMap<TPublicKey<_>,(u128, u128)>>();
 
     IndexClientState {
         friends,
@@ -487,13 +487,13 @@ where
 }
 
 #[allow(unused)]
-pub fn funder_report_mutation_to_index_client_mutation<A>(funder_report: &FunderReport<A>, 
-                                                      funder_report_mutation: &FunderReportMutation<A>) -> Option<IndexMutation> 
+pub fn funder_report_mutation_to_index_client_mutation<A,P,MS>(funder_report: &FunderReport<A,P,MS>, 
+                                                      funder_report_mutation: &FunderReportMutation<A,P,MS>) -> Option<IndexMutation> 
 where
     A: Clone,
 {
 
-    let create_update_friend = |public_key: &PublicKey| {
+    let create_update_friend = |public_key: &TPublicKey<_>| {
         let mut new_funder_report = funder_report.clone();
         funder_report_mutate(&mut new_funder_report, funder_report_mutation).unwrap();
         

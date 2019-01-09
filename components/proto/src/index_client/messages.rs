@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 
 use crypto::uid::Uid;
-use crypto::identity::PublicKey;
 
+use crate::funder::messages::TPublicKey;
 use crate::index_server::messages::RouteWithCapacity;
 pub use crate::index_server::messages::{RequestRoutes, IndexMutation, UpdateFriend};
 
 
 #[derive(Debug, Clone)]
-pub struct IndexClientState {
-    pub friends: HashMap<PublicKey, (u128, u128)>,
+pub struct IndexClientState<P> {
+    pub friends: HashMap<TPublicKey<P>, (u128, u128)>,
 }
 
 // ---------------------------------------------------
@@ -52,9 +52,9 @@ pub enum IndexClientToAppServer<ISA,P> {
 }
 
 #[derive(Debug)]
-pub enum AppServerToIndexClient<ISA> {
+pub enum AppServerToIndexClient<ISA,P> {
     AddIndexServer(ISA),
     RemoveIndexServer(ISA),
-    RequestRoutes(RequestRoutes),
-    ApplyMutations(Vec<IndexMutation>),
+    RequestRoutes(RequestRoutes<P>),
+    ApplyMutations(Vec<IndexMutation<P>>),
 }

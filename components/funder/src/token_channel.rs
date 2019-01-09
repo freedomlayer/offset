@@ -10,7 +10,8 @@ use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN,
 use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
 
-use proto::funder::messages::{SignedMoveToken, FriendTcOp, TSignature, TPublicKey};
+use proto::funder::messages::{SignedMoveToken, FriendTcOp, TSignature, TPublicKey,
+                            MoveToken};
 
 use crate::mutual_credit::types::{MutualCredit, McMutation};
 use crate::mutual_credit::incoming::{ProcessOperationOutput, ProcessTransListError, 
