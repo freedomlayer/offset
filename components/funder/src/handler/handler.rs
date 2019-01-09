@@ -14,7 +14,7 @@ use crate::handler::handle_control::{handle_control_message, HandleControlError}
 use crate::handler::handle_friend::{handle_friend_message, HandleFriendError};
 use crate::handler::handle_liveness::{handle_liveness_message, HandleLivenessError};
 use crate::handler::handle_init::handle_init;
-use crate::handler::sender::{SendCommands, create_friend_messages};
+use crate::handler::sender::{SendCommands, create_friend_messages, SenderError};
 
 use crate::types::{FunderIncoming,
     FunderOutgoingComm, FunderIncomingComm, ChannelerConfig};
@@ -96,6 +96,7 @@ pub enum FunderHandlerError {
     HandleControlError(HandleControlError),
     HandleFriendError(HandleFriendError),
     HandleLivenessError(HandleLivenessError),
+    SenderError(SenderError),
 }
 
 pub struct FunderHandlerOutput<A: Clone,P,RS,FS,MS> {
@@ -242,9 +243,9 @@ where
 }
 
 
-pub async fn funder_handle_message<'a, A,P,RS,FS,MS,R>(
-                      identity_client: &'a mut IdentityClient,
-                      rng: &'a R,
+pub async fn funder_handle_message<'a, A,P,RS,FS,MS,R,SI>(
+                      signer: &'a mut SI,
+                      rng: &'a mut R,
                       funder_state: FunderState<A,P,RS,FS,MS>,
                       funder_ephemeral: Ephemeral<P>,
                       max_operations_in_batch: usize,
@@ -252,7 +253,12 @@ pub async fn funder_handle_message<'a, A,P,RS,FS,MS,R>(
         -> Result<FunderHandlerOutput<A,P,RS,FS,MS>, FunderHandlerError> 
 where
     A: CanonicalSerialize + Clone + Debug + Eq + 'a,
+    P: Clone,
+    FS: Clone,
+    MS: Clone,
+    RS: Clone,
     R: CryptoRandom + 'a,
+    SI: SignMoveToken<A,P,RS,FS,MS>,
 {
 
     let mut m_state = MutableFunderState::new(funder_state);
@@ -276,8 +282,9 @@ where
                                       &mut m_ephemeral,
                                       &send_commands,
                                       max_operations_in_batch,
-                                      identity_client,
-                                      rng));
+                                      signer,
+                                      rng))
+        .map_err(|e| FunderHandlerError::SenderError(e))?;
 
     for friend_message in friend_messages {
         outgoing_comms.push(FunderOutgoingComm::FriendMessage(friend_message));

@@ -29,11 +29,11 @@ pub enum DbServiceError {
 }
 */
 
-fn apply_funder_mutations<A,D,E>(mut atomic_db: D, 
-    funder_mutations: Vec<FunderMutation<A>>) -> Result<D, D::Error> 
+fn apply_funder_mutations<A,P,RS,FS,MS, D,E>(mut atomic_db: D, 
+    funder_mutations: Vec<FunderMutation<A,P,RS,FS,MS>>) -> Result<D, D::Error> 
 where
     A: Clone + Serialize + DeserializeOwned + 'static,
-    D: AtomicDb<State=FunderState<A>, Mutation=FunderMutation<A>, Error=E>,
+    D: AtomicDb<State=FunderState<A>, Mutation=FunderMutation<A,P,RS,FS,MS>, Error=E>,
 {
     atomic_db.mutate(funder_mutations)?;
     Ok(atomic_db)
@@ -83,10 +83,14 @@ pub struct DbRunner<D> {
     opt_atomic_db: Option<D>,
 }
 
-impl<A,D,E> DbRunner<D> 
+impl<A,P,RS,FS,MS,D,E> DbRunner<D> 
 where
     A: Clone + Serialize + DeserializeOwned + Send + Sync + 'static,
-    D: AtomicDb<State=FunderState<A>, Mutation=FunderMutation<A>, Error=E> + Send + 'static,
+    P: Send + Sync,
+    RS: Send + Sync,
+    FS: Send + Sync,
+    MS: Send + Sync,
+    D: AtomicDb<State=FunderState<A,P,RS,FS,MS>, Mutation=FunderMutation<A,P,RS,FS,MS>, Error=E> + Send + 'static,
     E: Send + 'static,
 {
     pub fn new(atomic_db: D) -> DbRunner<D> {
@@ -97,12 +101,12 @@ where
         }
     }
 
-    pub async fn mutate(&mut self, funder_mutations: Vec<FunderMutation<A>>) -> Result<(), DbRunnerError<E>> {
+    pub async fn mutate(&mut self, funder_mutations: Vec<FunderMutation<A,P,RS,FS,MS>>) -> Result<(), DbRunnerError<E>> {
         let atomic_db = match self.opt_atomic_db.take() {
             None => unreachable!(),
             Some(atomic_db) => atomic_db
         };
-        let fut_apply_db_mutation = future::lazy(move |_| apply_funder_mutations::<_,_,E>(atomic_db, funder_mutations));
+        let fut_apply_db_mutation = future::lazy(move |_| apply_funder_mutations::<A,P,RS,FS,MS,D,E>(atomic_db, funder_mutations));
         let handle = self.pool.spawn_with_handle(fut_apply_db_mutation).unwrap();
         let atomic_db = await!(handle)
             .map_err(DbRunnerError::AtomicDbError)?;
@@ -110,7 +114,7 @@ where
         Ok(())
     }
 
-    pub fn get_state(&self) -> &FunderState<A> {
+    pub fn get_state(&self) -> &FunderState<A,P,RS,FS,MS> {
         match &self.opt_atomic_db {
             Some(atomic_db) => atomic_db.get_state(),
             None => unreachable!(),

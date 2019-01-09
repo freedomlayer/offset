@@ -1,3 +1,4 @@
+use std::hash::Hash;
 use std::collections::HashMap;
 
 use crypto::uid::Uid;
@@ -8,7 +9,7 @@ pub use crate::index_server::messages::{RequestRoutes, IndexMutation, UpdateFrie
 
 
 #[derive(Debug, Clone)]
-pub struct IndexClientState<P> {
+pub struct IndexClientState<P: Eq + Hash> {
     pub friends: HashMap<TPublicKey<P>, (u128, u128)>,
 }
 

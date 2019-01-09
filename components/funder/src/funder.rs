@@ -51,12 +51,12 @@ pub async fn inner_funder_loop<A,P,RS,FS,MS,R,D,E>(
 
 where
     A: CanonicalSerialize + Serialize + DeserializeOwned + Send + Sync + Clone + Debug + PartialEq + Eq + 'static,
-    P: Clone,
-    RS: Clone,
-    FS: Clone,
-    MS: Clone,
+    P: Clone + Send + Sync,
+    RS: Clone + Send + Sync,
+    FS: Clone + Send + Sync, 
+    MS: Clone + Send + Sync,
     R: CryptoRandom + 'static,
-    D: AtomicDb<State=FunderState<A,P,RS,FS,MS>, Mutation=FunderMutation<A>, Error=E> + Send + 'static,
+    D: AtomicDb<State=FunderState<A,P,RS,FS,MS>, Mutation=FunderMutation<A,P,RS,FS,MS>, Error=E> + Send + 'static,
     E: Send + 'static,
 {
 

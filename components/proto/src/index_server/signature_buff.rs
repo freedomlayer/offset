@@ -1,6 +1,8 @@
 use byteorder::{WriteBytesExt, BigEndian};
 use common::int_convert::{usize_to_u64};
-use crypto::identity::verify_signature;
+use common::canonical_serialize::CanonicalSerialize;
+
+// use crypto::identity::verify_signature;
 use crypto::hash;
 
 use super::messages::{UpdateFriend, IndexMutation, MutationsUpdate};
@@ -8,27 +10,33 @@ use super::messages::{UpdateFriend, IndexMutation, MutationsUpdate};
 // Canonical Serialization (To be used for signatures):
 // ----------------------------------------------------
 
-impl UpdateFriend {
-    fn to_bytes(&self) -> Vec<u8> {
+impl<P> CanonicalSerialize for UpdateFriend<P> 
+where
+    P: CanonicalSerialize,
+{
+    fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.public_key);
+        res_bytes.extend_from_slice(&self.public_key.canonical_serialize());
         res_bytes.write_u128::<BigEndian>(self.send_capacity).unwrap();
         res_bytes.write_u128::<BigEndian>(self.recv_capacity).unwrap();
         res_bytes
     }
 }
 
-impl IndexMutation {
-    fn to_bytes(&self) -> Vec<u8> {
+impl<P> CanonicalSerialize for IndexMutation<P> 
+where
+    P: CanonicalSerialize,
+{
+    fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         match self {
             IndexMutation::UpdateFriend(update_friend) => {
                 res_bytes.push(0);
-                res_bytes.extend(update_friend.to_bytes());
+                res_bytes.extend_from_slice(&update_friend.canonical_serialize());
             },
             IndexMutation::RemoveFriend(public_key) => {
                 res_bytes.push(1);
-                res_bytes.extend_from_slice(public_key);
+                res_bytes.extend_from_slice(&public_key.canonical_serialize());
             },
         };
         res_bytes
@@ -37,15 +45,18 @@ impl IndexMutation {
 
 pub const MUTATIONS_UPDATE_PREFIX: &[u8] = b"MUTATIONS_UPDATE";
 
-impl MutationsUpdate {
+impl<P,MUS> MutationsUpdate<P,MUS>
+where
+    P: CanonicalSerialize,
+{
     pub fn signature_buff(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&hash::sha_512_256(MUTATIONS_UPDATE_PREFIX));
-        res_bytes.extend_from_slice(&self.node_public_key);
+        res_bytes.extend_from_slice(&self.node_public_key.canonical_serialize());
 
         res_bytes.write_u64::<BigEndian>(usize_to_u64(self.index_mutations.len()).unwrap()).unwrap();
         for mutation in &self.index_mutations {
-            res_bytes.extend(mutation.to_bytes());
+            res_bytes.extend(mutation.canonical_serialize());
         }
 
         res_bytes.extend_from_slice(&self.time_hash);
@@ -56,6 +67,8 @@ impl MutationsUpdate {
         res_bytes
     }
 
+    // TODO: This should be written as a trait inside the IndexServer crate:
+    /*
     /// Verify the signature at the MutationsUpdate structure.
     /// Note that this structure also contains the `node_public_key` field, which is the identity
     /// of the node who signed this struct.
@@ -63,4 +76,5 @@ impl MutationsUpdate {
         let signature_buff = self.signature_buff();
         verify_signature(&signature_buff, &self.node_public_key, &self.signature)
     }
+    */
 }

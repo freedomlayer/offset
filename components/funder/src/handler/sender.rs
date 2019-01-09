@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::hash::Hash;
 
 use proto::funder::messages::{FriendTcOp, FriendMessage, RequestsStatus, MoveTokenRequest,
                                 TPublicKey};
@@ -23,6 +24,13 @@ use crate::ephemeral::EphemeralMutation;
 use crate::handler::handler::{MutableFunderState, MutableEphemeral};
 
 use crate::sign_verify::{SignMoveToken, SignResponse, GenRandNonce};
+
+#[derive(Debug)]
+pub enum SenderError {
+    SignMoveTokenError,
+    SignResponseError,
+    SignFailureError,
+}
 
 #[derive(Debug, Clone)]
 pub struct FriendSendCommands {
@@ -229,7 +237,7 @@ pub async fn apply_local_reset<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFun
                                   friend_public_key: &'a TPublicKey<P>,
                                   channel_inconsistent: &'a ChannelInconsistent<P,MS>,
                                   signer: &'a mut SI,
-                                  rng: &'a mut R) 
+                                  rng: &'a mut R) -> Result<(), SenderError>
 where
     A: CanonicalSerialize + Clone + 'a,
     R: GenRandNonce,
@@ -261,7 +269,8 @@ where
         remote_pending_debt,
         rand_nonce);
 
-    let reset_move_token = await!(signer.sign_move_token(u_reset_move_token));
+    let reset_move_token = await!(signer.sign_move_token(u_reset_move_token))
+        .ok_or(SenderError::SignMoveTokenError)?;
 
     let token_channel = TokenChannel::new_from_local_reset(
         &m_state.state().local_public_key,
@@ -274,6 +283,7 @@ where
     let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
 
+    Ok(())
 }
 
 async fn send_friend_iter1<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFunderState<A,P,RS,FS,MS>,
@@ -284,7 +294,8 @@ async fn send_friend_iter1<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFunderS
                                        signer: &'a mut SI,
                                        rng: &'a mut R,
                                        max_operations_in_batch: usize,
-                                       mut outgoing_messages: &'a mut Vec<OutgoingMessage<A>>) 
+                                       mut outgoing_messages: &'a mut Vec<OutgoingMessage<A,P,RS,FS,MS>>) 
+                                        -> Result<(), SenderError>
 where
     A: CanonicalSerialize + Clone + Eq,
     R: GenRandNonce,
@@ -310,7 +321,7 @@ where
                                      friend_public_key,
                                      &c_channel_inconsistent,
                                      signer,
-                                     rng));
+                                     rng))?;
         }
     }
 
@@ -433,8 +444,8 @@ where
 
 async fn queue_operation_or_failure<'a,A,P,RS,FS,MS>(m_state: &'a mut MutableFunderState<A,P,RS,FS,MS>,
                                             m_ephemeral: &'a mut MutableEphemeral<P>,
-                                            pending_move_token: &'a mut PendingMoveToken<A>,
-                                            operation: &'a FriendTcOp) -> Result<(), CollectOutgoingError> 
+                                            pending_move_token: &'a mut PendingMoveToken<A,P,RS,FS>,
+                                            operation: &'a FriendTcOp) -> bool
 where
     A: CanonicalSerialize + Clone,
 {
@@ -444,7 +455,7 @@ where
         Err(PendingQueueError::MaxOperationsReached) => {
             pending_move_token.token_wanted = true;
             // We will send this message next time we have the token:
-            return Err(CollectOutgoingError::MaxOperationsReached);
+            return false;
         }
         Err(PendingQueueError::InsufficientTrust) |
         Err(PendingQueueError::FreezeGuardBlock) => {},
@@ -465,33 +476,37 @@ where
     let funder_mutation = FunderMutation::FriendMutation((pending_move_token.friend_public_key.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
 
-    Ok(())
+    true
 }
 
 async fn response_op_to_friend_tc_op<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFunderState<A,P,RS,FS,MS>, 
                                      response_op: ResponseOp,
                                      signer: &'a mut SI,
-                                     rng: &'a mut R) -> FriendTcOp 
+                                     rng: &'a mut R) -> Result<FriendTcOp, SenderError>
 where
     A: CanonicalSerialize + Clone,
     R: GenRandNonce,
     SI: SignResponse<P,RS>,
 {
-    match response_op {
+    Ok(match response_op {
         ResponseOp::Response(response) => FriendTcOp::ResponseSendFunds(response),
         ResponseOp::UnsignedResponse(pending_request) => {
             let rand_nonce = rng.gen_rand_nonce();
-            FriendTcOp::ResponseSendFunds(await!(create_response_send_funds(
-                        &pending_request, rand_nonce, signer)))
+            let signed_response = await!(create_response_send_funds(
+                        &pending_request, rand_nonce, signer))
+                .ok_or(SenderError::SignResponseError)?;
+            FriendTcOp::ResponseSendFunds(signed_response)
         },
         ResponseOp::Failure(failure) => FriendTcOp::FailureSendFunds(failure),
         ResponseOp::UnsignedFailure(pending_request) => {
             let rand_nonce = rng.gen_rand_nonce();
-            FriendTcOp::FailureSendFunds(await!(create_failure_send_funds(
+            let signed_failure = await!(create_failure_send_funds(
                         &pending_request, &(m_state.state().local_public_key), 
-                        rand_nonce, signer)))
+                        rand_nonce, signer))
+                .ok_or(SenderError::SignFailureError)?;
+            FriendTcOp::FailureSendFunds(signed_failure)
         }
-    }
+    })
 }
 
 /// Given a friend with an incoming move token state, create the largest possible move token to
@@ -503,7 +518,7 @@ async fn collect_outgoing_move_token<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut Muta
                                                  pending_move_token: &'a mut PendingMoveToken<A,P,RS,FS>,
                                                  signer: &'a mut SI,
                                                  rng: &'a mut R) 
-                                                    -> Result<(), CollectOutgoingError> 
+                                                    -> Result<(), SenderError> 
 where
     A: CanonicalSerialize + Clone + Eq,
     R: GenRandNonce,
@@ -548,10 +563,12 @@ where
 
     if friend.wanted_remote_max_debt != remote_max_debt {
         let operation = FriendTcOp::SetRemoteMaxDebt(friend.wanted_remote_max_debt);
-        await!(queue_operation_or_failure(m_state,
+        if !await!(queue_operation_or_failure(m_state,
                                           m_ephemeral,
                                           pending_move_token,
-                                          &operation))?;
+                                          &operation)) {
+            return Ok(())
+        }
     }
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
@@ -573,10 +590,12 @@ where
         } else {
             FriendTcOp::DisableRequests
         };
-        await!(queue_operation_or_failure(m_state,
+        if !await!(queue_operation_or_failure(m_state,
                                           m_ephemeral,
                                           pending_move_token,
-                                          &friend_op))?;
+                                          &friend_op)) {
+            return Ok(());
+        }
     }
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
@@ -585,11 +604,13 @@ where
     let mut pending_responses = friend.pending_responses.clone();
     while let Some(pending_response) = pending_responses.pop_front() {
         let pending_op = await!(response_op_to_friend_tc_op(m_state, pending_response,
-                                                            signer, rng));
-        await!(queue_operation_or_failure(m_state,
+                                                            signer, rng))?;
+        if !await!(queue_operation_or_failure(m_state,
                                           m_ephemeral,
                                           pending_move_token,
-                                          &pending_op))?;
+                                          &pending_op)) {
+            return Ok(());
+        }
 
         let friend_mutation = FriendMutation::PopFrontPendingResponse;
         let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
@@ -603,10 +624,12 @@ where
     let mut pending_requests = friend.pending_requests.clone();
     while let Some(pending_request) = pending_requests.pop_front() {
         let pending_op = FriendTcOp::RequestSendFunds(pending_request);
-        await!(queue_operation_or_failure(m_state,
+        if !await!(queue_operation_or_failure(m_state,
                                           m_ephemeral,
                                           pending_move_token,
-                                          &pending_op))?;
+                                          &pending_op)) {
+            return Ok(());
+        }
         let friend_mutation = FriendMutation::PopFrontPendingRequest;
         let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
         m_state.mutate(funder_mutation);
@@ -618,10 +641,12 @@ where
     let mut pending_user_requests = friend.pending_user_requests.clone();
     while let Some(request_send_funds) = pending_user_requests.pop_front() {
         let request_op = FriendTcOp::RequestSendFunds(request_send_funds);
-        await!(queue_operation_or_failure(m_state,
+        if !await!(queue_operation_or_failure(m_state,
                                           m_ephemeral,
                                           pending_move_token,
-                                          &request_op))?;
+                                          &request_op)) {
+            return Ok(());
+        }
         let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
         let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
         m_state.mutate(funder_mutation);
@@ -634,12 +659,13 @@ where
 async fn append_failures_to_move_token<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFunderState<A>,
                                                    m_ephemeral: &'a mut MutableEphemeral<P>,
                                                    friend_public_key: &'a TPublicKey<P>,
-                                                   pending_move_token: &'a mut PendingMoveToken<A>,
+                                                   pending_move_token: &'a mut PendingMoveToken<A,P,RS,FS>,
                                                    signer: &'a mut SI,
                                                    rng: &'a mut R) 
-                                                    -> Result<(), CollectOutgoingError> 
+                                                    -> Result<(), SenderError> 
 where
     A: CanonicalSerialize + Clone,
+    P: Clone,
     SI: SignMoveToken<A,P,RS,FS,MS>,
     R: GenRandNonce,
 {
@@ -653,11 +679,13 @@ where
         let pending_op = await!(response_op_to_friend_tc_op(m_state, 
                                                             pending_response,
                                                             signer,
-                                                            rng));
-        await!(queue_operation_or_failure(m_state,
+                                                            rng))?;
+        if !await!(queue_operation_or_failure(m_state,
                                           m_ephemeral,
                                           pending_move_token,
-                                          &pending_op))?;
+                                          &pending_op)) {
+            return Ok(())
+        }
 
         let friend_mutation = FriendMutation::PopFrontPendingResponse;
         let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
@@ -671,9 +699,14 @@ async fn send_move_token<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFunderSta
                                  pending_move_token: PendingMoveToken<A,P,RS,FS>,
                                  signer: &'a mut SI,
                                  rng: &'a mut R,
-                                 outgoing_messages: &'a mut Vec<OutgoingMessage<A,P,RS,FS,MS>>) 
+                                 outgoing_messages: &'a mut Vec<OutgoingMessage<A,P,RS,FS,MS>>)
+                                    -> Result<(), SenderError>
 where
     A: Clone + CanonicalSerialize + 'a,
+    P: Clone + Eq + Hash,
+    RS: Clone,
+    FS: Clone,
+    MS: Eq + Clone,
     R: GenRandNonce,
     SI: SignMoveToken<A,P,RS,FS,MS>,
 {
@@ -702,7 +735,8 @@ where
                                          opt_local_address,
                                          rand_nonce);
 
-    let move_token = await!(signer.sign_move_token(u_move_token));
+    let move_token = await!(signer.sign_move_token(u_move_token))
+        .ok_or(SenderError::SignMoveTokenError)?;
 
     let tc_mutation = TcMutation::SetDirection(
         SetDirection::Outgoing(move_token));
@@ -729,24 +763,29 @@ where
 
     outgoing_messages.push((friend_public_key.clone(),
             FriendMessage::MoveTokenRequest(move_token_request)));
+    Ok(())
 }
 
 
 /// Send all possible messages according to SendCommands
 pub async fn create_friend_messages<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFunderState<A,P,RS,FS,MS>, 
                         m_ephemeral: &'a mut MutableEphemeral<P>,
-                        send_commands: &'a SendCommands,
+                        send_commands: &'a SendCommands<P>,
                         max_operations_in_batch: usize,
                         signer: &'a mut SI,
-                        rng: &'a R) -> Vec<OutgoingMessage<A>> 
+                        rng: &'a mut R) -> Result<Vec<OutgoingMessage<A,P,RS,FS,MS>>,SenderError>
 where
     A: CanonicalSerialize + Clone + Eq,
+    P: Eq + Hash + Clone,
+    RS: Clone,
+    FS: Clone,
+    MS: Clone + Eq,
     R: GenRandNonce,
     SI: SignMoveToken<A,P,RS,FS,MS>,
 {
 
     let mut outgoing_messages = Vec::new();
-    let mut pending_move_tokens: HashMap<TPublicKey<P>, PendingMoveToken<A>> 
+    let mut pending_move_tokens: HashMap<TPublicKey<P>, PendingMoveToken<A,P,RS,FS>> 
         = HashMap::new();
 
     // First iteration:
@@ -759,7 +798,7 @@ where
                                  signer,
                                  rng,
                                  max_operations_in_batch,
-                                 &mut outgoing_messages));
+                                 &mut outgoing_messages))?;
     }
 
     // Second iteration (Attempt to queue failures created in the first iteration):
@@ -769,7 +808,7 @@ where
                                                      friend_public_key, 
                                                      pending_move_token,
                                                      signer,
-                                                     rng));
+                                                     rng))?;
     }
 
     // Send all pending move tokens:
@@ -779,10 +818,10 @@ where
                                pending_move_token, 
                                signer,
                                rng,
-                               &mut outgoing_messages));
+                               &mut outgoing_messages))?;
     }
 
-    outgoing_messages
+    Ok(outgoing_messages)
 }
 
 

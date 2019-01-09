@@ -86,7 +86,7 @@ impl From<&MoveTokenHashed<P,MS>> for MoveTokenHashedReport {
     }
 }
 
-impl<A,P,RS,MS> From<&TokenChannel<A,P,RS,MS>> for TcReport 
+impl<A,P,RS,FS,MS> From<&TokenChannel<A,P,RS,FS,MS>> for TcReport 
 where
     A: CanonicalSerialize + Clone,
 {
