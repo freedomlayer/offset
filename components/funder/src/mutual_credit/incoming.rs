@@ -1,12 +1,12 @@
-use crypto::identity::verify_signature;
+use std::hash::Hash;
 
 use common::int_convert::usize_to_u32;
 use common::safe_arithmetic::SafeSignedArithmetic;
+use common::canonical_serialize::CanonicalSerialize;
 
 use proto::verify::Verify;
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds, FailureSendFunds,
     FriendTcOp, PendingRequest, RequestsStatus};
-use proto::funder::signature_buff::{create_response_signature_buffer};
 
 use crate::types::create_pending_request;
 
@@ -15,36 +15,30 @@ use crate::credit_calc::CreditCalculator;
 use super::types::{MutualCredit, MAX_FUNDER_DEBT, McMutation};
 
 
-/*
-pub struct IncomingRequestSendFunds {
-    pub request: PendingRequest,
-}
-*/
-
 #[derive(Debug)]
-pub struct IncomingResponseSendFunds {
-    pub pending_request: PendingRequest,
-    pub incoming_response: ResponseSendFunds,
+pub struct IncomingResponseSendFunds<P,RS> {
+    pub pending_request: PendingRequest<P>,
+    pub incoming_response: ResponseSendFunds<RS>,
 }
 
 #[derive(Debug)]
-pub struct IncomingFailureSendFunds {
-    pub pending_request: PendingRequest,
-    pub incoming_failure: FailureSendFunds,
+pub struct IncomingFailureSendFunds<P,RS> {
+    pub pending_request: PendingRequest<P>,
+    pub incoming_failure: FailureSendFunds<P,RS>,
 }
 
 #[derive(Debug)]
-pub enum IncomingMessage {
-    Request(RequestSendFunds),
-    Response(IncomingResponseSendFunds),
-    Failure(IncomingFailureSendFunds),
+pub enum IncomingMessage<P,RS> {
+    Request(RequestSendFunds<P>),
+    Response(IncomingResponseSendFunds<P,RS>),
+    Failure(IncomingFailureSendFunds<P,RS>),
 }
 
 /// Resulting tasks to perform after processing an incoming operation.
 #[allow(unused)]
-pub struct ProcessOperationOutput {
-    pub incoming_message: Option<IncomingMessage>,
-    pub mc_mutations: Vec<McMutation>,
+pub struct ProcessOperationOutput<P,RS> {
+    pub incoming_message: Option<IncomingMessage<P,RS>>,
+    pub mc_mutations: Vec<McMutation<P>>,
 }
 
 
@@ -77,9 +71,13 @@ pub struct ProcessTransListError {
 }
 
 
-pub fn process_operations_list(mutual_credit: &mut MutualCredit, 
-                                        operations: Vec<FriendTcOp>) ->
-    Result<Vec<ProcessOperationOutput>, ProcessTransListError> {
+pub fn process_operations_list<P,RS>(mutual_credit: &mut MutualCredit<P>, 
+                                        operations: Vec<FriendTcOp<P,RS>>) ->
+    Result<Vec<ProcessOperationOutput<P,RS>>, ProcessTransListError> 
+where
+    P: CanonicalSerialize + Clone + Eq + Hash,
+    RS: CanonicalSerialize,
+{
 
     let mut outputs = Vec::new();
 
@@ -100,8 +98,15 @@ pub fn process_operations_list(mutual_credit: &mut MutualCredit,
     Ok(outputs)
 }
 
-pub fn process_operation(mutual_credit: &mut MutualCredit, friend_tc_op: FriendTcOp) ->
-    Result<ProcessOperationOutput, ProcessOperationError> {
+pub fn process_operation<P,RS>(mutual_credit: &mut MutualCredit<P>, 
+                               friend_tc_op: FriendTcOp<P,RS>) ->
+    Result<ProcessOperationOutput<P,RS>, ProcessOperationError> 
+where
+    P: CanonicalSerialize + Clone + Eq + Hash,
+    RS: CanonicalSerialize,
+    (ResponseSendFunds<RS>, PendingRequest<P>): Verify,
+    (FailureSendFunds<P,RS>, PendingRequest<P>): Verify,
+{
     match friend_tc_op {
         FriendTcOp::EnableRequests =>
             process_enable_requests(mutual_credit),
@@ -118,8 +123,11 @@ pub fn process_operation(mutual_credit: &mut MutualCredit, friend_tc_op: FriendT
     }
 }
 
-fn process_enable_requests(mutual_credit: &mut MutualCredit) ->
-    Result<ProcessOperationOutput, ProcessOperationError> {
+fn process_enable_requests<P,RS>(mutual_credit: &mut MutualCredit<P>) ->
+    Result<ProcessOperationOutput<P,RS>, ProcessOperationError> 
+where
+    P: Clone + Eq + std::hash::Hash,
+{
 
     let mut op_output = ProcessOperationOutput {
         incoming_message: None,
@@ -132,8 +140,11 @@ fn process_enable_requests(mutual_credit: &mut MutualCredit) ->
     Ok(op_output)
 }
 
-fn process_disable_requests(mutual_credit: &mut MutualCredit) ->
-    Result<ProcessOperationOutput, ProcessOperationError> {
+fn process_disable_requests<P,RS>(mutual_credit: &mut MutualCredit<P>) ->
+    Result<ProcessOperationOutput<P,RS>, ProcessOperationError> 
+where
+    P: Clone + Eq + std::hash::Hash,
+{
 
     let mut op_output = ProcessOperationOutput {
         incoming_message: None,
@@ -151,9 +162,12 @@ fn process_disable_requests(mutual_credit: &mut MutualCredit) ->
     }
 }
 
-fn process_set_remote_max_debt(mutual_credit: &mut MutualCredit,
+fn process_set_remote_max_debt<P,RS>(mutual_credit: &mut MutualCredit<P>,
                                proposed_max_debt: u128) -> 
-    Result<ProcessOperationOutput, ProcessOperationError> {
+    Result<ProcessOperationOutput<P,RS>, ProcessOperationError> 
+where
+    P: Clone + Eq + Hash,
+{
 
     let mut op_output = ProcessOperationOutput {
         incoming_message: None,
@@ -172,9 +186,12 @@ fn process_set_remote_max_debt(mutual_credit: &mut MutualCredit,
 
 
 /// Process an incoming RequestSendFunds
-fn process_request_send_funds(mutual_credit: &mut MutualCredit,
-                                request_send_funds: RequestSendFunds)
-    -> Result<ProcessOperationOutput, ProcessOperationError> {
+fn process_request_send_funds<P,RS>(mutual_credit: &mut MutualCredit<P>,
+                                request_send_funds: RequestSendFunds<P>)
+    -> Result<ProcessOperationOutput<P,RS>, ProcessOperationError> 
+where
+    P: CanonicalSerialize + Clone + Eq + Hash,
+{
 
     if !request_send_funds.route.is_valid() {
         return Err(ProcessOperationError::InvalidRoute);
@@ -250,9 +267,14 @@ fn process_request_send_funds(mutual_credit: &mut MutualCredit,
 
 }
 
-fn process_response_send_funds(mutual_credit: &mut MutualCredit,
-                                 response_send_funds: ResponseSendFunds) ->
-    Result<ProcessOperationOutput, ProcessOperationError> {
+fn process_response_send_funds<P,RS>(mutual_credit: &mut MutualCredit<P>,
+                                 response_send_funds: ResponseSendFunds<RS>) ->
+    Result<ProcessOperationOutput<P,RS>, ProcessOperationError> 
+where
+    P: CanonicalSerialize + Clone + Eq + Hash,
+    RS: CanonicalSerialize,
+    (ResponseSendFunds<RS>, PendingRequest<P>): Verify,
+{
 
     // Make sure that id exists in local_pending hashmap, 
     // and access saved request details.
@@ -265,18 +287,14 @@ fn process_response_send_funds(mutual_credit: &mut MutualCredit,
         .ok_or(ProcessOperationError::RequestDoesNotExist)?
         .clone();
 
+    /*
+    // TODO: Should this be inside or outside the verify() function?
     let dest_public_key = pending_request.route.public_keys
         .last()
         .unwrap();
+    */
 
-    let response_signature_buffer = create_response_signature_buffer(
-                                        &response_send_funds,
-                                        &pending_request);
-
-    // Verify response funds signature:
-    if !verify_signature(&response_signature_buffer, 
-                             dest_public_key,
-                             &response_send_funds.signature) {
+    if !(response_send_funds, pending_request).verify() {
         return Err(ProcessOperationError::InvalidResponseSignature);
     }
 
@@ -336,9 +354,13 @@ fn process_response_send_funds(mutual_credit: &mut MutualCredit,
     })
 }
 
-fn process_failure_send_funds(mutual_credit: &mut MutualCredit,
-                                failure_send_funds: FailureSendFunds) ->
-    Result<ProcessOperationOutput, ProcessOperationError> {
+fn process_failure_send_funds<P,RS>(mutual_credit: &mut MutualCredit<P>,
+                                failure_send_funds: FailureSendFunds<P,RS>) ->
+    Result<ProcessOperationOutput<P,RS>, ProcessOperationError> 
+where
+    P: CanonicalSerialize + Clone + Eq + Hash,
+    (FailureSendFunds<P,RS>, PendingRequest<P>): Verify,
+{
     
     // Make sure that id exists in local_pending hashmap, 
     // and access saved request details.
@@ -370,7 +392,7 @@ fn process_failure_send_funds(mutual_credit: &mut MutualCredit,
     }
 
 
-    let pair = (&failure_send_funds, &pending_request);
+    let pair = (failure_send_funds, pending_request);
     if !pair.verify() {
         return Err(ProcessOperationError::InvalidFailureSignature);
     }

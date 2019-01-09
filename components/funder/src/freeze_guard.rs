@@ -2,13 +2,14 @@ use im::hashmap::HashMap as ImHashMap;
 
 use num_bigint::BigUint;
 
-use crypto::identity::PublicKey;
+// use crypto::identity::PublicKey;
 use crypto::hash::{HashResult, sha_512_256};
 
 use common::int_convert::usize_to_u32;
 use common::canonical_serialize::CanonicalSerialize;
 
-use proto::funder::messages::{Ratio, FriendsRoute, FreezeLink};
+use proto::funder::messages::{Ratio, FriendsRoute, 
+    FreezeLink, TPublicKey};
 
 use crate::credit_calc::CreditCalculator;
 use crate::state::FunderState;
@@ -16,8 +17,8 @@ use crate::friend::ChannelStatus;
 
 
 #[derive(Clone)]
-struct FriendFreezeGuard {
-    frozen_credits_from: ImHashMap<PublicKey, ImHashMap<HashResult, u128>>
+struct FriendFreezeGuard<P> {
+    frozen_credits_from: ImHashMap<TPublicKey<P>, ImHashMap<HashResult, u128>>
     //                              ^-A                 ^-hash(route)  ^-frozen
 }
 
@@ -30,41 +31,47 @@ impl FriendFreezeGuard {
 }
 
 #[derive(Clone)]
-pub struct FreezeGuard {
-    local_public_key: PublicKey,
+pub struct FreezeGuard<P> {
+    local_public_key: TPublicKey<P>,
     // Total amount of credits frozen from A to B through this Offst node.
     // ```
     // A --> ... --> X --> B
     // ```
     // A could be any node, B must be a friend of this Offst node.
-    frozen_to: ImHashMap<PublicKey, FriendFreezeGuard>,
+    frozen_to: ImHashMap<TPublicKey<P>, FriendFreezeGuard<P>>,
     //                         ^ B                 
 }
 
 #[derive(Debug)]
-pub enum FreezeGuardMutation {
-    AddFrozenCredit((FriendsRoute, u128)), // (friends_route, dest_payment)
-    SubFrozenCredit((FriendsRoute, u128)), // (friends_route, dest_payment)
+pub enum FreezeGuardMutation<P> {
+    AddFrozenCredit((FriendsRoute<P>, u128)), // (friends_route, dest_payment)
+    SubFrozenCredit((FriendsRoute<P>, u128)), // (friends_route, dest_payment)
 }
 
-fn hash_subroute(subroute: &[PublicKey]) -> HashResult {
+fn hash_subroute<P>(subroute: &[TPublicKey<P>]) -> HashResult 
+where
+    P: CanonicalSerialize,
+{
     let mut hash_buffer = Vec::new();
 
     for public_key in subroute {
-        hash_buffer.extend_from_slice(&public_key);
+        hash_buffer.extend_from_slice(&public_key.canonical_serialize());
     }
     sha_512_256(&hash_buffer)
 }
 
-impl FreezeGuard {
-    pub fn new(local_public_key: &PublicKey) -> FreezeGuard {
+impl<P> FreezeGuard<P> 
+where
+    P: Clone,
+{
+    pub fn new(local_public_key: &TPublicKey<P>) -> Self {
         FreezeGuard {
             local_public_key: local_public_key.clone(),
             frozen_to: ImHashMap::new(),
         }
     }
 
-    pub fn mutate(&mut self, mutation: &FreezeGuardMutation) {
+    pub fn mutate(&mut self, mutation: &FreezeGuardMutation<P>) {
         match mutation {
             FreezeGuardMutation::AddFrozenCredit((friends_route, dest_payment)) =>
                 self.add_frozen_credit(friends_route, *dest_payment),
@@ -75,7 +82,7 @@ impl FreezeGuard {
 
     // TODO: Should be moved outside of this structure implementation.
     // The only public function that allows mutation FreezeGuard should be mutate.
-    pub fn load_funder_state<A>(mut self, funder_state: &FunderState<A>) -> FreezeGuard 
+    pub fn load_funder_state<A,RS>(mut self, funder_state: &FunderState<A,P,RS>) -> FreezeGuard 
     where
         A: CanonicalSerialize + Clone,
     {
@@ -103,7 +110,7 @@ impl FreezeGuard {
     /// On the image: X is the local public key, B is a direct friend of X.
     /// For every node Y along the route, we add the credits Y needs to freeze because of the route
     /// from A to B.
-    fn add_frozen_credit(&mut self, route: &FriendsRoute, dest_payment: u128) {
+    fn add_frozen_credit(&mut self, route: &FriendsRoute<P>, dest_payment: u128) {
         assert!(route.public_keys.contains(&self.local_public_key));
         if &self.local_public_key == route.public_keys.last().unwrap() {
             // We are the destination. Nothing to do here.
@@ -147,7 +154,7 @@ impl FreezeGuard {
     /// On the image: X is the local public key, B is a direct friend of X.
     /// For every node Y along the route, we subtract the credits Y needs to freeze because of the
     /// route from A to B. In other words, this method unfreezes frozen credits along this route.
-    fn sub_frozen_credit(&mut self, route: &FriendsRoute, dest_payment: u128) {
+    fn sub_frozen_credit(&mut self, route: &FriendsRoute<P>, dest_payment: u128) {
         assert!(route.public_keys.contains(&self.local_public_key));
         if &self.local_public_key == route.public_keys.last().unwrap() {
             // We are the destination. Nothing to do here.
@@ -204,7 +211,7 @@ impl FreezeGuard {
 
     /// Get the amount of credits frozen from <from_pk> to <to_pk> going through this sub-route,
     /// where <to_pk> is a friend of this Offst node.
-    fn get_frozen(&self, subroute: &[PublicKey]) -> u128 {
+    fn get_frozen(&self, subroute: &[TPublicKey<P>]) -> u128 {
         if subroute.len() < 2 {
             unreachable!();
         }
@@ -225,7 +232,7 @@ impl FreezeGuard {
     /// X is the local public key. B is a direct friend of X.
     /// For any node Y along the route from A to X, we make sure that B does not freeze too many
     /// credits for this node. In other words, we save Y from freezing too many credits for B.
-    pub fn verify_freezing_links(&self, route: &FriendsRoute, 
+    pub fn verify_freezing_links(&self, route: &FriendsRoute<P>, 
                                  dest_payment: u128, 
                                  freeze_links: &[FreezeLink]) -> Option<()> {
         assert!(freeze_links.len().checked_add(1).unwrap() <= route.len());

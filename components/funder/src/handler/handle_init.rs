@@ -5,8 +5,8 @@ use crate::types::{ChannelerConfig, ChannelerAddFriend};
 
 use crate::handler::handler::MutableFunderState;
 
-pub fn handle_init<A>(m_state: &MutableFunderState<A>,
-                      outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>)
+pub fn handle_init<A,P,RS>(m_state: &MutableFunderState<A,P,RS>,
+                      outgoing_channeler_config: &mut Vec<ChannelerConfig<A,P>>)
 where
     A: CanonicalSerialize + Clone,
 {

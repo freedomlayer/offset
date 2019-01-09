@@ -1,13 +1,12 @@
 use byteorder::{BigEndian, WriteBytesExt};
 use crypto::hash::{self, sha_512_256, HashResult};
-use crypto::identity::{verify_signature, PublicKey, Signature};
 
 use common::int_convert::usize_to_u64;
 use common::canonical_serialize::CanonicalSerialize;
-use crate::verify::Verify;
 
 use crate::funder::messages::{ResponseSendFunds, FailureSendFunds, 
-    SendFundsReceipt, PendingRequest, MoveToken, TPublicKey};
+    SendFundsReceipt, PendingRequest, MoveToken,
+    SignedResponse};
 
 pub const FUND_SUCCESS_PREFIX: &[u8] = b"FUND_SUCCESS";
 pub const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
@@ -63,32 +62,7 @@ where
 }
 
 
-/// Verify a failure signature
-impl Verify for (&FailureSendFunds<PublicKey, Signature>, &PendingRequest<PublicKey>) {
-
-    fn verify(&self) -> bool {
-        let (failure_send_funds, pending_request) = self;
-
-        let failure_signature_buffer = create_failure_signature_buffer(
-                                            &failure_send_funds,
-                                            &pending_request);
-        let reporting_public_key = &failure_send_funds.reporting_public_key;
-        // Make sure that the reporting_public_key is on the route:
-        // TODO: Should we check that it is after us? Is it checked somewhere else?
-        if let None = pending_request.route.pk_to_index(&reporting_public_key) {
-            return false;
-        }
-
-        if !verify_signature(&failure_signature_buffer, 
-                         &reporting_public_key.public_key, 
-                         &failure_send_funds.signature.signature) {
-            return false;
-        }
-        true
-    }
-}
-
-pub fn prepare_receipt<P,RS>(response_send_funds: &ResponseSendFunds<RS>,
+pub fn prepare_receipt<P,RS>(response_send_funds: &SignedResponse<RS>,
                     pending_request: &PendingRequest<P>) -> SendFundsReceipt<RS> 
 where
     P: CanonicalSerialize,
@@ -110,17 +84,16 @@ where
     }
 }
 
-impl Verify for (&SendFundsReceipt<Signature>, TPublicKey<PublicKey>) {
-    fn verify(&self) -> bool {
-        let (receipt, public_key) = self;
 
-        let mut data = Vec::new();
-        data.extend(FUND_SUCCESS_PREFIX);
-        data.extend(receipt.response_hash.as_ref());
-        data.extend(receipt.invoice_id.as_ref());
-        data.write_u128::<BigEndian>(receipt.dest_payment).unwrap();
-        verify_signature(&data, &public_key.public_key, &receipt.signature.signature)
-    }
+// TODO: Possibly create a common code for this function and create_response_signature_buffer,
+// because we have to keep them in sync.
+pub fn create_receipt_signature_buffer<RS>(receipt: &SendFundsReceipt<RS>) -> Vec<u8> {
+    let mut data = Vec::new();
+    data.extend(FUND_SUCCESS_PREFIX);
+    data.extend(receipt.response_hash.as_ref());
+    data.extend(receipt.invoice_id.as_ref());
+    data.write_u128::<BigEndian>(receipt.dest_payment).unwrap();
+    data
 }
 
 
@@ -130,10 +103,11 @@ impl Verify for (&SendFundsReceipt<Signature>, TPublicKey<PublicKey>) {
 const TOKEN_NEXT: &[u8] = b"NEXT";
 
 /// Combine all operations into one hash value.
-pub fn operations_hash<A,P,RS,MS>(move_token: &MoveToken<A,P,RS,MS>) -> HashResult 
+pub fn operations_hash<A,P,RS,FS,MS,PMS>(move_token: &MoveToken<A,P,RS,FS,MS,PMS>) -> HashResult 
 where
     P: CanonicalSerialize,
     RS: CanonicalSerialize,
+    FS: CanonicalSerialize,
 {
     let mut operations_data = Vec::new();
     operations_data.write_u64::<BigEndian>(
@@ -145,7 +119,7 @@ where
 }
 
 /// Combine all operations into one hash value.
-pub fn local_address_hash<A,P,RS,MS>(move_token: &MoveToken<A,P,RS,MS>) -> HashResult 
+pub fn local_address_hash<A,P,RS,FS,MS,PMS>(move_token: &MoveToken<A,P,RS,FS,MS,PMS>) -> HashResult 
 where
     A: CanonicalSerialize,
 {
@@ -153,11 +127,12 @@ where
 }
 
 /// Hash operations and local_address:
-pub fn prefix_hash<A,P,RS,MS>(move_token: &MoveToken<A,P,RS,MS>) -> HashResult 
+pub fn prefix_hash<A,P,RS,FS,MS,PMS>(move_token: &MoveToken<A,P,RS,FS,MS,PMS>) -> HashResult 
 where
     A: CanonicalSerialize,
     P: CanonicalSerialize,
     RS: CanonicalSerialize,
+    FS: CanonicalSerialize,
     MS: CanonicalSerialize,
 {
     let mut hash_buff = Vec::new();
@@ -175,16 +150,19 @@ where
     sha_512_256(&hash_buff)
 }
 
-pub fn move_token_signature_buff<A,P,RS,MS>(move_token: &MoveToken<A,P,RS,MS>) -> Vec<u8> 
+pub fn move_token_signature_buff<A,P,RS,FS,MS,PMS>(move_token: &MoveToken<A,P,RS,FS,MS,PMS>) -> Vec<u8> 
 where
     A: CanonicalSerialize,
     P: CanonicalSerialize,
     RS: CanonicalSerialize,
+    FS: CanonicalSerialize,
     MS: CanonicalSerialize,
 {
     let mut sig_buffer = Vec::new();
     sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
     sig_buffer.extend_from_slice(&prefix_hash(move_token));
+    sig_buffer.extend_from_slice(&move_token.local_public_key.canonical_serialize());
+    sig_buffer.extend_from_slice(&move_token.remote_public_key.canonical_serialize());
     sig_buffer.write_u64::<BigEndian>(move_token.inconsistency_counter).unwrap();
     sig_buffer.write_u128::<BigEndian>(move_token.move_token_counter).unwrap();
     sig_buffer.write_i128::<BigEndian>(move_token.balance).unwrap();
@@ -193,16 +171,5 @@ where
     sig_buffer.extend_from_slice(&move_token.rand_nonce);
 
     sig_buffer
-}
-
-impl<A> Verify for (&MoveToken<A,PublicKey,Signature,Signature>, &TPublicKey<PublicKey>) 
-where
-    A: CanonicalSerialize,
-{
-    fn verify(&self) -> bool {
-        let (move_token, public_key) = self;
-        let sig_buffer = move_token_signature_buff(move_token);
-        verify_signature(&sig_buffer, &public_key.public_key, &move_token.new_token.signature)
-    }
 }
 

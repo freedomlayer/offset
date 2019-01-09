@@ -10,7 +10,7 @@ use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN,
 use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
 
-use proto::funder::messages::{MoveToken, FriendTcOp};
+use proto::funder::messages::{MoveToken, FriendTcOp, TSignature, TPublicKey};
 use proto::verify::Verify;
 
 use crate::mutual_credit::types::{MutualCredit, McMutation};
@@ -50,8 +50,8 @@ pub struct TcIncoming<P:Clone,MS> {
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum TcDirection<A,P:Clone,RS,MS> {
-    Incoming(TcIncoming),
-    Outgoing(TcOutgoing<A>),
+    Incoming(TcIncoming<P,MS>),
+    Outgoing(TcOutgoing<A,P,RS,MS>),
 }
 
 
@@ -89,63 +89,14 @@ pub enum ReceiveMoveTokenOutput<A,P:Clone,RS,MS> {
     // In case of a reset, all the local pending requests will be canceled.
 }
 
-
-/// Create a token from a public key
-/// Currently this function puts the public key in the beginning of the signature buffer,
-/// as the public key is shorter than a signature.
-/// Possibly change this in the future (Maybe use a hash to spread the public key over all the
-/// bytes of the signature)
-///
-/// Note that the output here is not a real signature. This function is used for the first
-/// deterministic initialization of a token channel.
-// TODO: We might need a trait for this. Maybe impl for TPublicKey<P> ?
-fn token_from_public_key<P,MS>(public_key: &TPublicKey<P>) -> TSignature<MS> {
-    let mut buff = [0; SIGNATURE_LEN];
-    buff[0 .. PUBLIC_KEY_LEN].copy_from_slice(public_key);
-    Signature::from(buff)
-}
-
-/// Generate a random nonce from public key.
-/// Note that the result here is not really a random nonce. This function is used for the first
-/// deterministic initialization of a token channel.
-fn rand_nonce_from_public_key(public_key: &PublicKey) -> RandValue {
-    let public_key_hash = sha_512_256(public_key);
-    RandValue::try_from(&public_key_hash.as_ref()[.. RAND_VALUE_LEN]).unwrap()
-}
-
-/// Create an initial move token in the relationship between two public keys.
-/// To canonicalize the initial move token (Having an equal move token for both sides), we sort the
-/// two public keys in some way.
-fn initial_move_token<A>(low_public_key: &PublicKey,
-                           high_public_key: &PublicKey,
-                           balance: i128) -> MoveToken<A> {
-    // This is a special initialization case.
-    // Note that this is the only case where new_token is not a valid signature.
-    // We do this because we want to have synchronization between the two sides of the token
-    // channel, however, the remote side has no means of generating the signature (Because he
-    // doesn't have the private key). Therefore we use a dummy new_token instead.
-    MoveToken {
-        operations: Vec::new(),
-        opt_local_address: None,
-        old_token: token_from_public_key(&low_public_key),
-        inconsistency_counter: 0, 
-        move_token_counter: 0,
-        balance,
-        local_pending_debt: 0,
-        remote_pending_debt: 0,
-        rand_nonce: rand_nonce_from_public_key(&high_public_key),
-        new_token: token_from_public_key(&high_public_key),
-    }
-}
-
-
-impl<A> TokenChannel<A> 
+impl<A,P,RS,MS> TokenChannel<A,P,RS,MS> 
 where
     A: CanonicalSerialize + Clone,
+    P: Clone,
 {
-    pub fn new(local_public_key: &PublicKey, 
-               remote_public_key: &PublicKey,
-               balance: i128) -> TokenChannel<A> {
+    pub fn new(local_public_key: &TPublicKey<P>, 
+               remote_public_key: &TPublicKey<P>,
+               balance: i128) -> Self {
 
         let mutual_credit = MutualCredit::new(&local_public_key, &remote_public_key, balance);
 
@@ -153,9 +104,9 @@ where
             // We are the first sender
             let tc_outgoing = TcOutgoing {
                 mutual_credit,
-                move_token_out: initial_move_token(local_public_key, 
-                                                     remote_public_key, 
-                                                     balance),
+                move_token_out: MoveToken::initial(local_public_key, 
+                                                   remote_public_key, 
+                                                   balance),
                 opt_prev_move_token_in: None,
             };
             TokenChannel {
@@ -165,7 +116,7 @@ where
             // We are the second sender
             let tc_incoming = TcIncoming {
                 mutual_credit,
-                move_token_in: create_hashed::<A>(&initial_move_token(remote_public_key, 
+                move_token_in: create_hashed::<A>(&MoveToken::initial(remote_public_key, 
                                                                 local_public_key, 
                                                                 balance.checked_neg().unwrap())),
             };
@@ -175,10 +126,10 @@ where
         }
     }
 
-    pub fn new_from_remote_reset(local_public_key: &PublicKey, 
-                      remote_public_key: &PublicKey, 
-                      reset_move_token: &MoveToken<A>,
-                      balance: i128) -> TokenChannel<A> { // is balance redundant here?
+    pub fn new_from_remote_reset(local_public_key: &TPublicKey<P>, 
+                      remote_public_key: &TPublicKey<P>, 
+                      reset_move_token: &MoveToken<A,P,RS,MS>,
+                      balance: i128) -> Self { // is balance redundant here?
 
         let tc_incoming = TcIncoming {
             mutual_credit: MutualCredit::new(local_public_key, remote_public_key, balance),
@@ -190,11 +141,11 @@ where
         }
     }
 
-    pub fn new_from_local_reset(local_public_key: &PublicKey, 
-                      remote_public_key: &PublicKey, 
-                      reset_move_token: &MoveToken<A>,
+    pub fn new_from_local_reset(local_public_key: &TPublicKey<P>, 
+                      remote_public_key: &TPublicKey<P>, 
+                      reset_move_token: &MoveToken<A,P,RS,MS>,
                       balance: i128, // Is this redundant?
-                      opt_last_incoming_move_token: Option<MoveTokenHashed>) -> TokenChannel<A> {
+                      opt_last_incoming_move_token: Option<MoveTokenHashed>) -> Self {
 
         let tc_outgoing = TcOutgoing {
             mutual_credit: MutualCredit::new(local_public_key, remote_public_key, balance),
@@ -207,7 +158,7 @@ where
     }
 
     /// Get a reference to internal mutual_credit.
-    pub fn get_mutual_credit(&self) -> &MutualCredit {
+    pub fn get_mutual_credit(&self) -> &MutualCredit<P> {
         match &self.direction {
             TcDirection::Incoming(tc_incoming) => &tc_incoming.mutual_credit,
             TcDirection::Outgoing(tc_outgoing) => &tc_outgoing.mutual_credit,
@@ -218,14 +169,14 @@ where
         self.get_mutual_credit().state().balance.remote_max_debt
     }
 
-    pub fn get_direction(&self) -> &TcDirection<A> {
+    pub fn get_direction(&self) -> &TcDirection<A,P,RS,MS> {
         &self.direction
     }
 
     /// Get the last incoming move token
     /// If no such incoming move token exists (Maybe this is the beginning of the relationship),
     /// returns None.
-    pub fn get_last_incoming_move_token_hashed(&self) -> Option<&MoveTokenHashed> {
+    pub fn get_last_incoming_move_token_hashed(&self) -> Option<&MoveTokenHashed<P,MS>> {
         match &self.direction {
             TcDirection::Incoming(tc_incoming) => Some(&tc_incoming.move_token_in),
             TcDirection::Outgoing(tc_outgoing) => {
@@ -237,7 +188,7 @@ where
         }
     }
 
-    pub fn mutate(&mut self, d_mutation: &TcMutation<A>) {
+    pub fn mutate(&mut self, d_mutation: &TcMutation<A,P,RS,MS>) {
         match d_mutation {
             TcMutation::McMutation(mc_mutation) => {
                 let mutual_credit = match &mut self.direction {
@@ -292,7 +243,7 @@ where
 
     pub fn simulate_receive_move_token(&self, 
                               new_move_token: MoveToken<A>)
-        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> {
+        -> Result<ReceiveMoveTokenOutput<A,P,RS,MS>, ReceiveMoveTokenError> {
 
         match &self.direction {
             TcDirection::Incoming(tc_incoming) => {
@@ -306,11 +257,14 @@ where
 }
 
 
-impl TcIncoming {
+impl<P,MS> TcIncoming<P,MS> 
+where
+    P: Clone + Eq,
+{
     /// Handle an incoming move token during Incoming direction:
     fn handle_incoming<A>(&self, 
-                        new_move_token: MoveToken<A>) 
-        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> 
+                        new_move_token: MoveToken<A,P,RS,MS>) 
+        -> Result<ReceiveMoveTokenOutput<A,P,RS,MS>, ReceiveMoveTokenError> 
     where
         A: CanonicalSerialize,
     {
@@ -327,7 +281,7 @@ impl TcIncoming {
     }
 
     pub fn create_unsigned_move_token<A>(&self,
-                                    operations: Vec<FriendTcOp>,
+                                    operations: Vec<FriendTcOp<P,RS>>,
                                     opt_local_address: Option<A>,
                                     rand_nonce: RandValue) -> UnsignedMoveToken<A> {
 
@@ -350,14 +304,16 @@ impl TcIncoming {
 
 
 
-impl<A> TcOutgoing<A> 
+impl<A,P,RS,MS> TcOutgoing<A,P,RS,MS> 
 where
     A: CanonicalSerialize + Clone,
+    P: Clone,
+    MS: Eq,
 {
     /// Handle an incoming move token during Outgoing direction:
     fn handle_incoming(&self, 
-                        new_move_token: MoveToken<A>) 
-        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> {
+                        new_move_token: MoveToken<A,P,RS,MS>) 
+        -> Result<ReceiveMoveTokenOutput<A,P,RS,MS>, ReceiveMoveTokenError> {
 
         if &new_move_token.old_token == &self.move_token_out.new_token {
             self.handle_incoming_token_match(new_move_token)
@@ -371,8 +327,8 @@ where
     }
 
     fn handle_incoming_token_match(&self,
-                                   new_move_token: MoveToken<A>)
-        -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> {
+                                   new_move_token: MoveToken<A,P,RS,MS>)
+        -> Result<ReceiveMoveTokenOutput<A,P,RS,MS>, ReceiveMoveTokenError> {
 
         // Verify signature:
         // Note that we only verify the signature here, and not at the Incoming part.
@@ -462,7 +418,7 @@ where
     }
 
     /// Get the current outgoing move token
-    pub fn create_outgoing_move_token(&self) -> MoveToken<A> {
+    pub fn create_outgoing_move_token(&self) -> MoveToken<A,P,RS,MS> {
         self.move_token_out.clone()
     }
 }

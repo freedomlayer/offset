@@ -20,6 +20,7 @@ extern crate serde_derive;
 extern crate common;
 
 
+mod sign_verify;
 mod liveness;
 mod ephemeral;
 mod credit_calc;

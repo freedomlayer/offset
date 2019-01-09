@@ -51,7 +51,7 @@ where
     }
 
     pub fn queue_operation<RS>(&mut self, operation: &FriendTcOp<P,RS>) ->
-        Result<Vec<McMutation>, QueueOperationError> {
+        Result<Vec<McMutation<P>>, QueueOperationError> {
 
         // TODO: Maybe remove clone from here later:
         match operation.clone() {
@@ -109,7 +109,7 @@ where
     }
 
 
-    fn queue_request_send_funds(&mut self, request_send_funds: RequestSendFunds) ->
+    fn queue_request_send_funds(&mut self, request_send_funds: RequestSendFunds<P>) ->
         Result<Vec<McMutation<P>>, QueueOperationError> {
 
         if !request_send_funds.route.is_valid() {
@@ -181,7 +181,7 @@ where
         Ok(tc_mutations)
     }
 
-    fn queue_response_send_funds(&mut self, response_send_funds: ResponseSendFunds) ->
+    fn queue_response_send_funds(&mut self, response_send_funds: ResponseSendFunds<RS>) ->
         Result<Vec<McMutation<P>>, QueueOperationError> {
         // Make sure that id exists in remote_pending hashmap, 
         // and access saved request details.

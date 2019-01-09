@@ -1,10 +1,9 @@
 use std::collections::HashSet;
 use byteorder::{WriteBytesExt, BigEndian};
 
-use crypto::crypto_rand::RandValue;
+use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::uid::Uid;
 use crypto::hash::{self, HashResult};
-
 
 use common::int_convert::{usize_to_u64};
 use common::canonical_serialize::CanonicalSerialize;
@@ -18,7 +17,7 @@ pub struct TPublicKey<P> {
     pub public_key: P,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct TSignature<S> {
     pub signature: S,
 }
@@ -41,6 +40,18 @@ where
     }
 }
 
+/*
+impl<S> Default for TSignature<S> 
+where
+    S: Default,
+{
+    fn default() -> Self {
+        TSignature {
+            signature: S::default(),
+        }
+    }
+}
+*/
 
 
 #[allow(unused)]
@@ -106,45 +117,56 @@ pub struct RequestSendFunds<P> {
 
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct ResponseSendFunds<RS> {
+pub struct ResponseSendFunds<PRS> {
     pub request_id: Uid,
     pub rand_nonce: RandValue,
-    pub signature: TSignature<RS>,
+    pub signature: PRS,
 }
+
+pub type SignedResponse<RS> = ResponseSendFunds<TSignature<RS>>;
+pub type UnsignedResponse = ResponseSendFunds<()>;
 
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct FailureSendFunds<P,RS> {
+pub struct FailureSendFunds<P,PFS> {
     pub request_id: Uid,
     pub reporting_public_key: TPublicKey<P>,
     pub rand_nonce: RandValue,
-    pub signature: TSignature<RS>,
+    pub signature: PFS,
 }
+
+pub type SignedFailure<P,FS> = FailureSendFunds<P,TSignature<FS>>;
+pub type UnsignedFailure<P> = FailureSendFunds<P,()>;
 
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub enum FriendTcOp<P,RS> {
+pub enum FriendTcOp<P,RS,FS> {
     EnableRequests,
     DisableRequests,
     SetRemoteMaxDebt(u128),
     RequestSendFunds(RequestSendFunds<P>),
-    ResponseSendFunds(ResponseSendFunds<RS>),
-    FailureSendFunds(FailureSendFunds<P,RS>),
+    ResponseSendFunds(SignedResponse<RS>),
+    FailureSendFunds(SignedFailure<P,FS>),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct MoveToken<A,P,RS,MS> {
-    pub operations: Vec<FriendTcOp<P,RS>>,
+pub struct MoveToken<A,P,RS,FS,MS,PMS> {
+    pub operations: Vec<FriendTcOp<P,RS,FS>>,
     pub opt_local_address: Option<A>,
     pub old_token: TSignature<MS>,
+    pub local_public_key: TPublicKey<P>,
+    pub remote_public_key: TPublicKey<P>,
     pub inconsistency_counter: u64,
     pub move_token_counter: u128,
     pub balance: i128,
     pub local_pending_debt: u128,
     pub remote_pending_debt: u128,
     pub rand_nonce: RandValue,
-    pub new_token: TSignature<MS>,
+    pub new_token: PMS,
 }
+
+pub type SignedMoveToken<A,P,RS,FS,MS> = MoveToken<A,P,RS,FS,MS,TSignature<MS>>;
+pub type UnsignedMoveToken<A,P,RS,FS,MS> = MoveToken<A,P,RS,FS,MS,()>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResetTerms<MS> {
@@ -154,16 +176,16 @@ pub struct ResetTerms<MS> {
 }
 
 #[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
-pub struct MoveTokenRequest<A,P,RS,MS> {
-    pub friend_move_token: MoveToken<A,P,RS,MS>,
+pub struct MoveTokenRequest<A,P,RS,FS,MS> {
+    pub friend_move_token: SignedMoveToken<A,P,RS,FS,MS>,
     // Do we want the remote side to return the token:
     pub token_wanted: bool,
 }
 
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub enum FriendMessage<A,P,RS,MS> {
-    MoveTokenRequest(MoveTokenRequest<A,P,RS,MS>),
+pub enum FriendMessage<A,P,RS,FS,MS> {
+    MoveTokenRequest(MoveTokenRequest<A,P,RS,FS,MS>),
     InconsistencyError(ResetTerms<MS>),
 }
 
@@ -266,10 +288,11 @@ where
     }
 }
 
-impl<P,RS> CanonicalSerialize for FriendTcOp<P,RS> 
+impl<P,RS,FS> CanonicalSerialize for FriendTcOp<P,RS,FS> 
 where
     P: CanonicalSerialize,
     RS: CanonicalSerialize,
+    FS: CanonicalSerialize,
 {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
@@ -550,3 +573,33 @@ pub enum FunderOutgoingControl<A: Clone,P,RS,MS> {
     // Report(FunderReport<A>),
     ReportMutations(Vec<FunderReportMutation<A,P,MS>>),
 }
+
+// ------------------------------------------
+// ------------------------------------------
+
+
+impl<A,P,RS,FS,MS> SignedMoveToken<A,P,RS,FS,MS>
+where
+    MS: Default,
+{
+    pub fn initial(local_public_key: TPublicKey<P>, 
+                   remote_public_key: TPublicKey<P>,
+                   balance: i128) -> Self {
+
+        MoveToken {
+            operations: Vec::new(),
+            opt_local_address: None,
+            old_token: TSignature::<MS>::default(),
+            local_public_key,
+            remote_public_key,
+            inconsistency_counter: 0, 
+            move_token_counter: 0,
+            balance,
+            local_pending_debt: 0,
+            remote_pending_debt: 0,
+            rand_nonce: RandValue::from(&[0; RAND_VALUE_LEN]),
+            new_token: TSignature::<MS>::default(),
+        }
+    }
+}
+

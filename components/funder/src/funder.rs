@@ -38,13 +38,13 @@ pub enum FunderEvent<A> {
     IncomingCommClosed,
 }
 
-pub async fn inner_funder_loop<A, R, D, E>(
+pub async fn inner_funder_loop<A,P,RS,MS,R,D,E>(
     mut identity_client: IdentityClient,
     rng: R,
-    incoming_control: mpsc::Receiver<FunderIncomingControl<A>>,
-    incoming_comm: mpsc::Receiver<FunderIncomingComm<A>>,
-    control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
-    comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
+    incoming_control: mpsc::Receiver<FunderIncomingControl<A,P,RS,MS>>,
+    incoming_comm: mpsc::Receiver<FunderIncomingComm<A,P>>,
+    control_sender: mpsc::Sender<FunderOutgoingControl<A,P,RS,MS>>,
+    comm_sender: mpsc::Sender<FunderOutgoingComm<A,P>>,
     atomic_db: D,
     max_operations_in_batch: usize,
     mut opt_event_sender: Option<mpsc::Sender<FunderEvent<A>>>) -> Result<(), FunderError<E>> 

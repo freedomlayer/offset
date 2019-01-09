@@ -15,9 +15,13 @@ use identity::IdentityClient;
 
 
 
+/*
 pub type UnsignedFailureSendFunds = FailureSendFunds<()>;
 pub type UnsignedResponseSendFunds = ResponseSendFunds<()>;
 pub type UnsignedMoveToken<A> = MoveToken<A,()>;
+*/
+
+/*
 
 pub async fn sign_move_token<'a,A>(unsigned_move_token: UnsignedMoveToken<A>,
                          identity_client: &'a mut IdentityClient) -> MoveToken<A> 
@@ -42,6 +46,7 @@ where
         new_token,
     }
 }
+*/
 
 
 pub async fn create_response_send_funds<'a>(pending_request: &'a PendingRequest,
@@ -67,10 +72,10 @@ pub async fn create_response_send_funds<'a>(pending_request: &'a PendingRequest,
 
 }
 
-pub async fn create_failure_send_funds<'a,P>(pending_request: &'a PendingRequest,
+pub async fn create_failure_send_funds<'a,P>(pending_request: &'a PendingRequest<P>,
                                          local_public_key: &'a TPublicKey<P>,
                                          rand_nonce: RandValue,
-                                         identity_client: &'a mut IdentityClient) -> FailureSendFunds {
+                                         identity_client: &'a mut IdentityClient) -> FailureSendFunds<P,RS> {
 
     let u_failure_send_funds = FailureSendFunds {
         request_id: pending_request.request_id,
@@ -108,7 +113,10 @@ pub enum UnsignedFriendTcOp {
 /// Keep information from a RequestSendFunds message.
 /// This information will be used later to deal with a corresponding {Response,Failure}SendFunds messages,
 /// as those messages do not repeat the information sent in the request.
-pub fn create_pending_request(request_send_funds: &RequestSendFunds) -> PendingRequest {
+pub fn create_pending_request<P>(request_send_funds: &RequestSendFunds<P>) -> PendingRequest<P> 
+where
+    P: Clone,
+{
     PendingRequest {
         request_id: request_send_funds.request_id,
         route: request_send_funds.route.clone(),
@@ -131,7 +139,10 @@ pub struct MoveTokenHashed<P,MS> {
     pub new_token: TSignature<MS>,
 }
 
-pub fn create_unsigned_move_token<A,P,S>(operations: Vec<FriendTcOp>,
+/*
+ * TODO: Find a safe way to implement this:
+
+pub fn create_unsigned_move_token<A,P,RS>(operations: Vec<FriendTcOp<P,RS>>,
                  opt_local_address: Option<A>,
                  old_token: TSignature<S>,
                  inconsistency_counter: u64,
@@ -154,6 +165,7 @@ pub fn create_unsigned_move_token<A,P,S>(operations: Vec<FriendTcOp>,
         new_token: (),
     }
 }
+*/
 
 /*
 pub async fn create_move_token<A>(operations: Vec<FriendTcOp>,
