@@ -12,7 +12,7 @@ use crate::funder::report::FunderReportMutation;
 use crate::consts::MAX_ROUTE_LEN;
 
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TPublicKey<P> {
     pub public_key: P,
 }

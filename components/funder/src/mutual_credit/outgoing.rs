@@ -4,13 +4,13 @@ use common::int_convert::usize_to_u32;
 use common::canonical_serialize::CanonicalSerialize;
 
 use proto::funder::messages::{FriendTcOp, RequestSendFunds, 
-    SignedResponse, SignedFailure, RequestsStatus, PendingRequest};
+    SignedResponse, SignedFailure, RequestsStatus};
 
 use super::types::{MutualCredit, McMutation, 
     MAX_FUNDER_DEBT};
 use crate::credit_calc::CreditCalculator;
 use crate::types::create_pending_request;
-use crate::sign_verify::Verify;
+use crate::sign_verify::{VerifyResponse, VerifyFailure};
 
 
 /// Processes outgoing fundss for a token channel.
@@ -50,13 +50,14 @@ where
         }
     }
 
-    pub fn queue_operation<RS,FS>(&mut self, operation: &FriendTcOp<P,RS,FS>) ->
+    pub fn queue_operation<RS,FS,V>(&mut self, 
+                                  operation: &FriendTcOp<P,RS,FS>, 
+                                  verifier: &V) ->
         Result<Vec<McMutation<P>>, QueueOperationError> 
     where
         RS: Clone,
         FS: Clone,
-        (SignedFailure<P,FS>, PendingRequest<P>): Verify,
-        (SignedResponse<RS>, PendingRequest<P>): Verify,
+        V: VerifyResponse<P,RS> + VerifyFailure<P,FS>,
     {
 
         // TODO: Maybe remove clone from here later:
@@ -70,9 +71,9 @@ where
             FriendTcOp::RequestSendFunds(request_send_funds) =>
                 self.queue_request_send_funds(request_send_funds),
             FriendTcOp::ResponseSendFunds(response_send_funds) =>
-                self.queue_response_send_funds(response_send_funds),
+                self.queue_response_send_funds(response_send_funds, verifier),
             FriendTcOp::FailureSendFunds(failure_send_funds) =>
-                self.queue_failure_send_funds(failure_send_funds),
+                self.queue_failure_send_funds(failure_send_funds, verifier),
         }
     }
 
@@ -190,10 +191,12 @@ where
         Ok(tc_mutations)
     }
 
-    fn queue_response_send_funds<RS>(&mut self, response_send_funds: SignedResponse<RS>) ->
+    fn queue_response_send_funds<RS,V>(&mut self, response_send_funds: SignedResponse<RS>,
+                                     verifier: &V) ->
         Result<Vec<McMutation<P>>, QueueOperationError> 
     where
-        (SignedResponse<RS>, PendingRequest<P>): Verify,
+        RS: Clone,
+        V: VerifyResponse<P,RS>,
     {
         // Make sure that id exists in remote_pending hashmap, 
         // and access saved request details.
@@ -207,8 +210,7 @@ where
         // TODO: Possibly get rid of clone() here for optimization later
 
         // Verify response funds signature:
-        let pair = (response_send_funds, pending_request);
-        if !pair.verify() {
+        if !verifier.verify_response(&response_send_funds,&pending_request) {
             return Err(QueueOperationError::InvalidResponseSignature);
         }
 
@@ -255,10 +257,12 @@ where
         Ok(tc_mutations)
     }
 
-    fn queue_failure_send_funds<FS>(&mut self, failure_send_funds: SignedFailure<P,FS>) ->
+    fn queue_failure_send_funds<FS,V>(&mut self, failure_send_funds: SignedFailure<P,FS>,
+                                    verifier: &V) ->
         Result<Vec<McMutation<P>>, QueueOperationError> 
     where
-        (SignedFailure<P,FS>, PendingRequest<P>): Verify,
+        FS: Clone,
+        V: VerifyFailure<P,FS>,
     {
         // Make sure that id exists in remote_pending hashmap, 
         // and access saved request details.
@@ -295,8 +299,8 @@ where
             return Err(QueueOperationError::InvalidReportingNode);
         }
 
-        let pair = (&failure_send_funds, &pending_request);
-        if !pair.verify() {
+        // Verify failure funds signature:
+        if !verifier.verify_failure(&failure_send_funds,&pending_request) {
             return Err(QueueOperationError::InvalidFailureSignature);
         }
 

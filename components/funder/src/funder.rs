@@ -11,7 +11,7 @@ use identity::IdentityClient;
 
 use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::{FunderIncomingControl, 
-    FunderOutgoingControl};
+    FunderOutgoingControl, SignedResponse, SignedFailure, PendingRequest};
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::{funder_handle_message};
@@ -53,11 +53,12 @@ pub async fn inner_funder_loop<A,P,RS,FS,MS,SI,R,D,E>(
     mut opt_event_sender: Option<mpsc::Sender<FunderEvent<A,P,RS,FS,MS>>>) -> Result<(), FunderError<E>> 
 
 where
-    A: CanonicalSerialize + Serialize + DeserializeOwned + Send + Sync + Clone + Debug + PartialEq + Eq + 'static,
-    P: CanonicalSerialize + Hash + Eq + Clone + Send + Sync + Debug,
-    RS: Eq + Clone + Send + Sync + Debug,
-    FS: Eq + Clone + Send + Sync + Debug, 
-    MS: Eq + Clone + Send + Sync + Debug,
+    A: CanonicalSerialize + Clone + Eq + Debug + Serialize + DeserializeOwned + Send + Sync + 'static,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Serialize + DeserializeOwned + Send + Sync + Ord,
+    RS: CanonicalSerialize + Clone + Eq + Debug + Serialize + DeserializeOwned + Send + Sync,
+    FS: CanonicalSerialize + Clone + Debug + Serialize + DeserializeOwned + Send + Sync,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default + Serialize + DeserializeOwned + Send + Sync,
+
     SI: SignMoveToken<A,P,RS,FS,MS> + SignResponse<P,RS> + SignFailure<P,FS>,
     R: GenRandToken<MS> + GenRandNonce + 'static,
     D: AtomicDb<State=FunderState<A,P,RS,FS,MS>, Mutation=FunderMutation<A,P,RS,FS,MS>, Error=E> + Send + 'static,
@@ -154,11 +155,12 @@ pub async fn funder_loop<A,P,RS,FS,MS,SI,R,D,E>(
     max_operations_in_batch: usize,
     atomic_db: D) -> Result<(), FunderError<E>> 
 where
-    A: CanonicalSerialize + Serialize + DeserializeOwned + Send + Sync + Clone + Debug + PartialEq + Eq + 'static,
-    P: CanonicalSerialize + Hash + Eq + Clone + Send + Sync + Debug,
-    RS: Eq + Clone + Send + Sync + Debug,
-    FS: Eq + Clone + Send + Sync + Debug, 
-    MS: Eq + Clone + Send + Sync + Debug,
+    A: CanonicalSerialize + Clone + Eq + Debug + Serialize + DeserializeOwned + Send + Sync + 'static,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Serialize + DeserializeOwned + Send + Sync + Ord,
+    RS: CanonicalSerialize + Clone + Eq + Debug + Serialize + DeserializeOwned + Send + Sync,
+    FS: CanonicalSerialize + Clone + Debug + Serialize + DeserializeOwned + Send + Sync,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default + Serialize + DeserializeOwned + Send + Sync,
+
     SI: SignMoveToken<A,P,RS,FS,MS> + SignResponse<P,RS> + SignFailure<P,FS>,
     R: GenRandToken<MS> + GenRandNonce + 'static,
     D: AtomicDb<State=FunderState<A,P,RS,FS,MS>, Mutation=FunderMutation<A,P,RS,FS,MS>, Error=E> + Send + 'static,

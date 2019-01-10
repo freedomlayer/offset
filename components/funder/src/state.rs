@@ -18,7 +18,14 @@ use crate::friend::{FriendState, FriendMutation};
 
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct FunderState<A: Clone,P:Clone,RS:Clone,FS:Clone,MS:Clone> {
+pub struct FunderState<A,P,RS,FS,MS> 
+where
+    A: Clone,
+    P: Clone + Hash + Eq,
+    RS: Clone,
+    FS: Clone,
+    MS: Clone,
+{
     pub local_public_key: TPublicKey<P>,
     /// Address of relay we are going to connect to.
     /// None means that no address was configured.
@@ -41,11 +48,11 @@ pub enum FunderMutation<A,P:Clone,RS,FS,MS> {
 #[allow(unused)]
 impl<A,P,RS,FS,MS> FunderState<A,P,RS,FS,MS> 
 where
-    A: CanonicalSerialize + Clone + Debug + Eq,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
-    RS: Clone + Debug,
-    FS: Clone + Debug,
-    MS: Clone + Debug + Eq,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
     pub fn new(local_public_key: &TPublicKey<P>, opt_address: Option<&A>) -> Self {
         FunderState {

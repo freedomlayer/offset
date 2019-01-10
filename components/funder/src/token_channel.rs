@@ -13,13 +13,13 @@ use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
 
 use proto::funder::messages::{SignedMoveToken, UnsignedMoveToken, 
-    FriendTcOp, TSignature, TPublicKey, MoveToken};
+    FriendTcOp, TSignature, TPublicKey, MoveToken,
+    SignedResponse, SignedFailure, PendingRequest};
 
 use crate::mutual_credit::types::{MutualCredit, McMutation};
 use crate::mutual_credit::incoming::{ProcessOperationOutput, ProcessTransListError, 
     process_operations_list, IncomingMessage};
 use crate::mutual_credit::outgoing::OutgoingMc;
-use crate::sign_verify::Verify;
 
 use crate::types::{MoveTokenHashed, create_unsigned_move_token, create_hashed};
 
@@ -94,10 +94,11 @@ pub enum ReceiveMoveTokenOutput<A,P:Clone,RS,FS,MS> {
 impl<A,P,RS,FS,MS> TokenChannel<A,P,RS,FS,MS> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
+
 {
     pub fn new(local_public_key: &TPublicKey<P>, 
                remote_public_key: &TPublicKey<P>,
@@ -105,12 +106,12 @@ where
 
         let mutual_credit = MutualCredit::new(&local_public_key, &remote_public_key, balance);
 
-        if compare_public_key(&local_public_key, &remote_public_key) == Ordering::Less {
+        if local_public_key < remote_public_key {
             // We are the first sender
             let tc_outgoing = TcOutgoing {
                 mutual_credit,
-                move_token_out: MoveToken::initial(local_public_key, 
-                                                   remote_public_key, 
+                move_token_out: MoveToken::initial(local_public_key.clone(), 
+                                                   remote_public_key.clone(), 
                                                    balance),
                 opt_prev_move_token_in: None,
             };
@@ -121,8 +122,8 @@ where
             // We are the second sender
             let tc_incoming = TcIncoming {
                 mutual_credit,
-                move_token_in: create_hashed::<A>(&MoveToken::initial(remote_public_key, 
-                                                                local_public_key, 
+                move_token_in: create_hashed(&MoveToken::initial(remote_public_key.clone(), 
+                                                                local_public_key.clone(), 
                                                                 balance.checked_neg().unwrap())),
             };
             TokenChannel {
@@ -264,8 +265,9 @@ where
 
 impl<P,MS> TcIncoming<P,MS> 
 where
-    P: Clone + Eq + Hash + Debug,
-    MS: Clone + Debug + Eq,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
+
 {
     /// Handle an incoming move token during Incoming direction:
     fn handle_incoming<A,RS,FS>(&self, 
@@ -297,8 +299,8 @@ where
             operations,
             opt_local_address,
             self.move_token_in.new_token.clone(),
-            self.mutual_credit.idents.local_public_key.clone(),
-            self.mutual_credit.idents.remote_public_key.clone(),
+            self.mutual_credit.state().idents.local_public_key.clone(),
+            self.mutual_credit.state().idents.remote_public_key.clone(),
             self.move_token_in.inconsistency_counter,
             self.move_token_in.move_token_counter.wrapping_add(1),
             self.mutual_credit.state().balance.balance,
@@ -317,7 +319,7 @@ where
 impl<A,P,RS,FS,MS> TcOutgoing<A,P,RS,FS,MS> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
@@ -348,7 +350,7 @@ where
         // is not correct.
         let remote_public_key = &self.mutual_credit.state().idents.remote_public_key;
         let pair = (&new_move_token, &remote_public_key);
-        if !pair.verify {
+        if !pair.verify() {
             return Err(ReceiveMoveTokenError::InvalidSignature);
         }
     

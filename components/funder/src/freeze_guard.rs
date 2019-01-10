@@ -10,12 +10,11 @@ use common::int_convert::usize_to_u32;
 use common::canonical_serialize::CanonicalSerialize;
 
 use proto::funder::messages::{Ratio, FriendsRoute, 
-    FreezeLink, TPublicKey};
+    FreezeLink, TPublicKey, SignedMoveToken};
 
 use crate::credit_calc::CreditCalculator;
 use crate::state::FunderState;
 use crate::friend::ChannelStatus;
-
 
 #[derive(Clone)]
 struct FriendFreezeGuard<P:Clone> {
@@ -25,7 +24,7 @@ struct FriendFreezeGuard<P:Clone> {
 
 impl<P> FriendFreezeGuard<P> 
 where
-    P: Eq + Hash + Clone,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
 {
     fn new() -> Self {
         FriendFreezeGuard {
@@ -54,7 +53,7 @@ pub enum FreezeGuardMutation<P> {
 
 fn hash_subroute<P>(subroute: &[TPublicKey<P>]) -> HashResult 
 where
-    P: Eq + Hash + Clone + CanonicalSerialize,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
 {
     let mut hash_buffer = Vec::new();
 
@@ -66,7 +65,7 @@ where
 
 impl<P> FreezeGuard<P> 
 where
-    P: Clone + Hash + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
 {
     pub fn new(local_public_key: &TPublicKey<P>) -> Self {
         FreezeGuard {
@@ -88,10 +87,12 @@ where
     // The only public function that allows mutation FreezeGuard should be mutate.
     pub fn load_funder_state<A,RS,FS,MS>(mut self, funder_state: &FunderState<A,P,RS,FS,MS>) -> Self 
     where
-        A: CanonicalSerialize + Clone,
-        RS: Clone,
-        FS: Clone,
-        MS: Clone,
+        A: CanonicalSerialize + Clone + Eq + Debug,
+        P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
+        RS: CanonicalSerialize + Clone + Eq + Debug,
+        FS: CanonicalSerialize + Clone + Debug,
+        MS: CanonicalSerialize + Clone + Eq + Debug + Default,
+
     {
         // Local public key should match:
         assert_eq!(self.local_public_key, funder_state.local_public_key);

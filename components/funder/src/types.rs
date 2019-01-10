@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::hash::Hash;
 use crypto::crypto_rand::RandValue;
 use crypto::hash::HashResult;
@@ -73,7 +74,7 @@ pub async fn create_failure_send_funds<'a,P,FS,SI>(pending_request: &'a PendingR
                                          rand_nonce: RandValue,
                                          signer: &'a mut SI) -> Option<SignedFailure<P,FS>>
 where
-    P: CanonicalSerialize + Eq + Hash + Clone,
+    P: CanonicalSerialize + Eq + Hash + Clone + Ord,
     SI: SignFailure<P,FS>,
 {
 
@@ -204,11 +205,18 @@ where
 /// hence it is usually shorter.
 pub fn create_hashed<A,P,RS,FS,MS>(move_token: &SignedMoveToken<A,P,RS,FS,MS>) -> MoveTokenHashed<P,MS>
 where
-    A: CanonicalSerialize,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
+
 {
     MoveTokenHashed {
         prefix_hash: prefix_hash(move_token),
         inconsistency_counter: move_token.inconsistency_counter,
+        local_public_key: move_token.local_public_key.clone(),
+        remote_public_key: move_token.remote_public_key.clone(),
         move_token_counter: move_token.move_token_counter,
         balance: move_token.balance,
         local_pending_debt: move_token.local_pending_debt,

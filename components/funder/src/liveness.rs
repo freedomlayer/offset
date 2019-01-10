@@ -16,7 +16,7 @@ pub enum LivenessMutation<P> {
 
 impl<P> Liveness<P> 
 where
-    P: Eq + Hash + Clone,
+    P: Eq + Hash + Clone + Ord,
 {
     pub fn new() -> Self {
         Liveness {

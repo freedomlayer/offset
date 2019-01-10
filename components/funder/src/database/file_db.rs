@@ -39,7 +39,14 @@ impl FileDbConn {
 }
 
 #[allow(unused)]
-pub struct FileDb<A: Clone,P:Clone,RS:Clone,FS:Clone,MS:Clone> {
+pub struct FileDb<A,P,RS,FS,MS> 
+where
+    A: Clone,
+    P: Clone + Eq + Hash,
+    RS: Clone,
+    FS: Clone,
+    MS: Clone,
+{
     /// Connection to the database
     db_conn: FileDbConn,
     /// Current FunderState represented by the database
@@ -51,7 +58,7 @@ pub struct FileDb<A: Clone,P:Clone,RS:Clone,FS:Clone,MS:Clone> {
 impl<A,P,RS,FS,MS> FileDb<A,P,RS,FS,MS> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug + Serialize + DeserializeOwned + 'static,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Serialize + DeserializeOwned,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Serialize + DeserializeOwned + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug + Serialize + DeserializeOwned,
     FS: CanonicalSerialize + Clone + Debug + Serialize + DeserializeOwned,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default + Serialize + DeserializeOwned,
@@ -82,7 +89,7 @@ where
 impl<A,P,RS,FS,MS> AtomicDb for FileDb<A,P,RS,FS,MS> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug + Serialize + DeserializeOwned + 'static,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Serialize + DeserializeOwned,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Serialize + DeserializeOwned + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug + Serialize + DeserializeOwned,
     FS: CanonicalSerialize + Clone + Debug + Serialize + DeserializeOwned,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default + Serialize + DeserializeOwned,

@@ -11,7 +11,7 @@ pub fn handle_init<A,P,RS,FS,MS>(m_state: &MutableFunderState<A,P,RS,FS,MS>,
                       outgoing_channeler_config: &mut Vec<ChannelerConfig<A,P>>)
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,

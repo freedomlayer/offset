@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::hash::Hash;
 use super::freeze_guard::{FreezeGuard, FreezeGuardMutation};
 use super::liveness::{Liveness, LivenessMutation};
@@ -19,14 +20,14 @@ pub enum EphemeralMutation<P> {
 
 impl<P> Ephemeral<P> 
 where
-    P: Clone + Eq + Hash,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
 {
     pub fn new<A,RS,FS,MS>(funder_state: &FunderState<A,P,RS,FS,MS>) -> Self 
     where
-        A: CanonicalSerialize + Clone,
-        RS: Clone,
-        FS: Clone,
-        MS: Clone,
+        A: CanonicalSerialize + Clone + Eq + Debug,
+        RS: CanonicalSerialize + Clone + Eq + Debug,
+        FS: CanonicalSerialize + Clone + Debug,
+        MS: CanonicalSerialize + Clone + Eq + Debug + Default,
     {
         Ephemeral {
             freeze_guard: FreezeGuard::new(&funder_state.local_public_key)

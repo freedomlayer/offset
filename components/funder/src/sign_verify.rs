@@ -1,7 +1,7 @@
 use common::canonical_serialize::CanonicalSerialize;
 use common::conn::BoxFuture;
 
-use crypto::identity::{PublicKey, Signature, SIGNATURE_LEN, verify_signature};
+// use crypto::identity::{PublicKey, Signature, SIGNATURE_LEN, verify_signature};
 
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
@@ -17,11 +17,24 @@ use proto::funder::signature_buff::{create_response_signature_buffer,
                                     create_receipt_signature_buffer,
                                     move_token_signature_buff};
 
-use identity::IdentityClient;
+// use identity::IdentityClient;
 
+pub trait VerifyMoveToken<A,P,RS,FS,MS> {
+    fn verify_move_token(&self, 
+                         signed_move_token: &SignedMoveToken<A,P,RS,FS,MS>,
+                         public_key: &TPublicKey<P>) -> bool;
+}
 
-pub trait Verify {
-    fn verify(&self) -> bool;
+pub trait VerifyResponse<P,RS> {
+    fn verify_response(&self, 
+                         signed_response: &SignedResponse<RS>,
+                         pending_request: &PendingRequest<P>) -> bool;
+}
+
+pub trait VerifyFailure<P,FS> {
+    fn verify_failure(&self, 
+                         signed_failure: &SignedFailure<P,FS>,
+                         pending_request: &PendingRequest<P>) -> bool;
 }
 
 pub trait SignMoveToken<A,P,RS,FS,MS> {
@@ -54,6 +67,7 @@ pub trait GenRandNonce {
 // -------------------------------------------------
 // -------------------------------------------------
 
+/*
 /// Verify a response signature
 impl Verify for (SignedResponse<Signature>, PendingRequest<PublicKey>) {
 
@@ -204,7 +218,8 @@ where
     fn gen_rand_token(&mut self) -> TSignature<Signature> {
         let mut buff = [0; SIGNATURE_LEN];
         self.fill(&mut buff).unwrap();
-        TSignature::new(Signature::from(buff))
+        let signature: Signature = Signature::from(buff);
+        TSignature::<Signature>::new(signature)
     }
 }
 
@@ -216,3 +231,4 @@ where
         RandValue::new(&*self)
     }
 }
+*/

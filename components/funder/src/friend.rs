@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::hash::Hash;
 use im::vector::Vector;
 
@@ -31,7 +32,7 @@ pub enum SentLocalAddress<A> {
 
 impl<A> SentLocalAddress<A> 
 where
-    A: Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
 {
     pub fn to_vec(&self) -> Vec<A> {
         match self {
@@ -83,9 +84,12 @@ pub enum ChannelStatus<A,P:Clone,RS,FS,MS> {
 
 impl<A,P,RS,FS,MS> ChannelStatus<A,P,RS,FS,MS> 
 where
-    A: CanonicalSerialize + Clone,
-    P: Eq + Hash + Clone,
-    MS: Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
+
 {
     pub fn get_last_incoming_move_token_hashed(&self) -> Option<MoveTokenHashed<P,MS>> {
         match &self {
@@ -121,10 +125,12 @@ pub struct FriendState<A,P:Clone,RS:Clone,FS:Clone,MS> {
 #[allow(unused)]
 impl<A,P,RS,FS,MS> FriendState<A,P,RS,FS,MS> 
 where
-    A: CanonicalSerialize + Clone,
-    P: Eq + Hash + Clone,
-    RS: Clone,
-    FS: Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
+
 {
     pub fn new(local_public_key: &TPublicKey<P>,
                remote_public_key: &TPublicKey<P>,

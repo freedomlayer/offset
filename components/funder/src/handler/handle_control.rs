@@ -45,7 +45,7 @@ fn control_set_friend_remote_max_debt<A,P,RS,FS,MS>(m_state: &mut MutableFunderS
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
@@ -78,7 +78,7 @@ fn control_reset_friend_channel<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
@@ -116,7 +116,7 @@ fn enable_friend<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
                  friend_address: &A) 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
@@ -141,7 +141,7 @@ fn disable_friend<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
                      friend_public_key: &TPublicKey<P>) 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
@@ -169,7 +169,7 @@ fn control_set_address<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,
                           opt_address: Option<A>) 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
@@ -195,7 +195,7 @@ fn control_add_friend<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,M
                          add_friend: AddFriend<A,P>)
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
@@ -216,7 +216,7 @@ fn control_remove_friend<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,F
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
@@ -252,7 +252,7 @@ fn control_set_friend_status<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
@@ -295,7 +295,7 @@ fn control_set_requests_status<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
@@ -321,11 +321,11 @@ fn control_set_friend_address<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P
                                  set_friend_address: SetFriendAddress<A,P>)
     -> Result<(), HandleControlError> 
 where
-    A: CanonicalSerialize + Clone + Debug + Eq,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
-    RS: Clone + Debug,
-    FS: Clone + Debug,
-    MS: Clone + Debug + Eq,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     // Make sure that friend exists:
@@ -362,7 +362,7 @@ fn control_set_friend_name<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
@@ -388,7 +388,7 @@ where
 fn check_user_request_valid<P>(user_request_send_funds: &UserRequestSendFunds<P>) 
     -> Option<()> 
 where
-    P: Clone,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
 {
 
     if !user_request_send_funds.route.is_valid() {
@@ -405,7 +405,7 @@ fn control_request_send_funds_inner<A,P,RS,FS,MS>(m_state: &mut MutableFunderSta
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
@@ -498,7 +498,7 @@ fn control_request_send_funds<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
@@ -529,7 +529,7 @@ fn control_receipt_ack<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
@@ -561,7 +561,7 @@ pub fn handle_control_message<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P
     -> Result<(), HandleControlError> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,

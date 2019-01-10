@@ -45,7 +45,7 @@ pub fn reply_with_failure<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,
                              request_send_funds: &RequestSendFunds<P>) 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
@@ -68,7 +68,7 @@ pub fn cancel_local_pending_requests<A,P,RS,FS,MS>(m_state: &mut MutableFunderSt
                                      friend_public_key: &TPublicKey<P>) 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
@@ -130,7 +130,7 @@ pub fn cancel_pending_requests<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,
                                   friend_public_key: &TPublicKey<P>) 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
@@ -172,7 +172,7 @@ pub fn cancel_pending_user_requests<A,P,RS,FS,MS>(m_state: &mut MutableFunderSta
                                        friend_public_key: &TPublicKey<P>) 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,

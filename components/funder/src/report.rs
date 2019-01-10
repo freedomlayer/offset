@@ -7,7 +7,7 @@ use common::int_convert::usize_to_u64;
 use common::safe_arithmetic::{SafeUnsignedArithmetic};
 use common::canonical_serialize::CanonicalSerialize;
 
-use proto::funder::messages::{RequestsStatus, FriendStatus, TPublicKey};
+use proto::funder::messages::{RequestsStatus, FriendStatus, TPublicKey, SignedMoveToken};
 
 use proto::funder::report::{DirectionReport, FriendLivenessReport, 
     TcReport, ResetTermsReport, ChannelInconsistentReport, ChannelStatusReport, FriendReport,
@@ -38,7 +38,6 @@ pub enum ReportMutateError {
 impl<A> Into<SentLocalAddressReport<A>> for &SentLocalAddress<A> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-
 {
     fn into(self) -> SentLocalAddressReport<A> {
         match self {
@@ -77,7 +76,7 @@ impl From<&McBalance> for McBalanceReport {
 impl<P,MS> Into<MoveTokenHashedReport<P,MS>> for &MoveTokenHashed<P,MS> 
 where
     MS: Clone,
-    P: Eq + Hash + Clone,
+    P: Eq + Hash + Clone + Ord,
 {
     fn into(self) -> MoveTokenHashedReport<P,MS> {
         MoveTokenHashedReport {
@@ -100,10 +99,11 @@ where
 impl<A,P,RS,FS,MS> From<&TokenChannel<A,P,RS,FS,MS>> for TcReport 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
+
 {
     fn from(token_channel: &TokenChannel<A,P,RS,FS,MS>) -> TcReport {
         let direction = match token_channel.get_direction() {
@@ -153,7 +153,7 @@ where
 impl<A,P,RS,FS,MS> Into<ChannelStatusReport<MS>> for &ChannelStatus<A,P,RS,FS,MS> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
@@ -184,12 +184,11 @@ where
 fn create_friend_report<A,P,RS,FS,MS>(friend_state: &FriendState<A,P,RS,FS,MS>, 
                                       friend_liveness: &FriendLivenessReport) -> FriendReport<A,P,MS> 
 where
-    A: CanonicalSerialize + Clone + Debug + Eq,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
-    RS: Clone + Debug,
-    FS: Clone + Debug,
-    MS: Clone + Debug + Eq,
-
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
     let channel_status = (&friend_state.channel_status).into();
 
@@ -214,7 +213,7 @@ where
 pub fn create_report<A,P,RS,FS,MS>(funder_state: &FunderState<A,P,RS,FS,MS>, ephemeral: &Ephemeral<P>) -> FunderReport<A,P,MS> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
@@ -241,13 +240,11 @@ where
 pub fn friend_mutation_to_report_mutations<A,P,RS,FS,MS>(friend_mutation: &FriendMutation<A,P,RS,FS,MS>,
                                            friend: &FriendState<A,P,RS,FS,MS>) -> Vec<FriendReportMutation<A,P,MS>> 
 where
-    A: CanonicalSerialize + Clone + Debug + Eq,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
-    RS: Clone + Debug,
-    FS: Clone + Debug,
-    MS: Clone + Debug + Eq,
-
-
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     let mut friend_after = friend.clone();
@@ -324,7 +321,7 @@ pub fn funder_mutation_to_report_mutations<A,P,RS,FS,MS>(funder_mutation: &Funde
                                                 -> Vec<FunderReportMutation<A,P,MS>> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     RS: CanonicalSerialize + Clone + Eq + Debug,
     FS: CanonicalSerialize + Clone + Debug,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
@@ -381,7 +378,7 @@ pub fn ephemeral_mutation_to_report_mutations<A,P,MS>(ephemeral_mutation: &Ephem
                 -> Vec<FunderReportMutation<A,P,MS>> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
@@ -406,7 +403,7 @@ pub fn friend_report_mutate<A,P,MS>(friend_report: &mut FriendReport<A,P,MS>,
                                mutation: &FriendReportMutation<A,P,MS>) 
 where   
     A: CanonicalSerialize + Clone + Debug + Eq,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     MS: Clone + Debug + Eq,
 {
     match mutation {
@@ -455,7 +452,7 @@ pub fn funder_report_mutate<A,P,MS>(funder_report: &mut FunderReport<A,P,MS>,
     -> Result<(), ReportMutateError> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
@@ -551,7 +548,7 @@ fn calc_friend_capacities<A,P,MS>(friend_report: &FriendReport<A,P,MS>) -> (u128
 pub fn funder_report_to_index_client_state<A,P,MS>(funder_report: &FunderReport<A,P,MS>) -> IndexClientState<P> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
     let friends = funder_report.friends
@@ -572,7 +569,7 @@ pub fn funder_report_mutation_to_index_client_mutation<A,P,MS>(funder_report: &F
                                                         -> Option<IndexMutation<P>> 
 where
     A: CanonicalSerialize + Clone + Eq + Debug,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Ord,
     MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 

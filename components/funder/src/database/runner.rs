@@ -93,11 +93,11 @@ pub struct DbRunner<D> {
 
 impl<A,P,RS,FS,MS,D,E> DbRunner<D> 
 where
-    A: CanonicalSerialize + Clone + Eq + Debug + Serialize + DeserializeOwned + 'static,
-    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Serialize + DeserializeOwned,
-    RS: CanonicalSerialize + Clone + Eq + Debug + Serialize + DeserializeOwned,
-    FS: CanonicalSerialize + Clone + Debug + Serialize + DeserializeOwned,
-    MS: CanonicalSerialize + Clone + Eq + Debug + Default + Serialize + DeserializeOwned,
+    A: CanonicalSerialize + Clone + Eq + Debug + Serialize + DeserializeOwned + 'static + Send + Sync,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Serialize + DeserializeOwned + Send + Sync,
+    RS: CanonicalSerialize + Clone + Eq + Debug + Serialize + DeserializeOwned + Send + Sync,
+    FS: CanonicalSerialize + Clone + Debug + Serialize + DeserializeOwned + Send + Sync,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default + Serialize + DeserializeOwned + Send + Sync,
     D: AtomicDb<State=FunderState<A,P,RS,FS,MS>, Mutation=FunderMutation<A,P,RS,FS,MS>, Error=E> + Send + 'static,
     E: Send + 'static,
 {
