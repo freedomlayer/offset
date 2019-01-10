@@ -1,3 +1,4 @@
+use std::hash::Hash;
 use im::hashset::HashSet as ImHashSet;
 use proto::funder::messages::TPublicKey;
 
@@ -15,7 +16,7 @@ pub enum LivenessMutation<P> {
 
 impl<P> Liveness<P> 
 where
-    P: Clone,
+    P: Eq + Hash + Clone,
 {
     pub fn new() -> Self {
         Liveness {

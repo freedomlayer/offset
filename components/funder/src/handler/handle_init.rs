@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+use std::hash::Hash;
 use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::FriendStatus;
 
@@ -8,7 +10,11 @@ use crate::handler::handler::MutableFunderState;
 pub fn handle_init<A,P,RS,FS,MS>(m_state: &MutableFunderState<A,P,RS,FS,MS>,
                       outgoing_channeler_config: &mut Vec<ChannelerConfig<A,P>>)
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
     let mut enabled_friends = Vec::new();
     for (_friend_public_key, friend) in &m_state.state().friends {

@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+use std::hash::Hash;
 use crate::friend::{FriendMutation, ChannelStatus};
 use crate::state::{FunderMutation};
 
@@ -42,7 +44,11 @@ fn control_set_friend_remote_max_debt<A,P,RS,FS,MS>(m_state: &mut MutableFunderS
                                         set_friend_remote_max_debt: SetFriendRemoteMaxDebt<P>) 
     -> Result<(), HandleControlError> 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     // Make sure that friend exists:
@@ -71,7 +77,11 @@ fn control_reset_friend_channel<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A
                                 reset_friend_channel: ResetFriendChannel<P,MS>) 
     -> Result<(), HandleControlError> 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     let friend = m_state.state().friends.get(&reset_friend_channel.friend_public_key)
@@ -105,7 +115,11 @@ fn enable_friend<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
                  friend_public_key: &TPublicKey<P>,
                  friend_address: &A) 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
 
@@ -126,7 +140,11 @@ fn disable_friend<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
                      outgoing_channeler_config: &mut Vec<ChannelerConfig<A,P>>,
                      friend_public_key: &TPublicKey<P>) 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
     // Cancel all pending requests to this friend:
     cancel_pending_requests(m_state,
@@ -150,7 +168,11 @@ fn control_set_address<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,
                           outgoing_channeler_config: &mut Vec<ChannelerConfig<A,P>>,
                           opt_address: Option<A>) 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
     let funder_mutation = FunderMutation::SetAddress(opt_address.clone());
     m_state.mutate(funder_mutation);
@@ -172,7 +194,11 @@ where
 fn control_add_friend<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>, 
                          add_friend: AddFriend<A,P>)
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     let funder_mutation = FunderMutation::AddFriend(add_friend.clone());
@@ -189,7 +215,11 @@ fn control_remove_friend<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,F
                             remove_friend: RemoveFriend<P>) 
     -> Result<(), HandleControlError> 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
     // Make sure that friend exists:
     let _friend = m_state.state().friends.get(&remove_friend.friend_public_key)
@@ -221,7 +251,12 @@ fn control_set_friend_status<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,
                                 set_friend_status: SetFriendStatus<P>) 
     -> Result<(), HandleControlError> 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
+
 {
 
     // Make sure that friend exists:
@@ -259,7 +294,11 @@ fn control_set_requests_status<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,
                                set_requests_status: SetRequestsStatus<P>) 
     -> Result<(), HandleControlError> 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     // Make sure that friend exists:
@@ -282,7 +321,11 @@ fn control_set_friend_address<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P
                                  set_friend_address: SetFriendAddress<A,P>)
     -> Result<(), HandleControlError> 
 where
-    A: CanonicalSerialize + Clone + PartialEq,
+    A: CanonicalSerialize + Clone + Debug + Eq,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: Clone + Debug,
+    FS: Clone + Debug,
+    MS: Clone + Debug + Eq,
 {
 
     // Make sure that friend exists:
@@ -318,7 +361,11 @@ fn control_set_friend_name<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS
                               set_friend_name: SetFriendName<P>)
     -> Result<(), HandleControlError> 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     // Make sure that friend exists:
@@ -339,7 +386,10 @@ where
 }
 
 fn check_user_request_valid<P>(user_request_send_funds: &UserRequestSendFunds<P>) 
-    -> Option<()> {
+    -> Option<()> 
+where
+    P: Clone,
+{
 
     if !user_request_send_funds.route.is_valid() {
         return None;
@@ -354,7 +404,11 @@ fn control_request_send_funds_inner<A,P,RS,FS,MS>(m_state: &mut MutableFunderSta
                                        user_request_send_funds: UserRequestSendFunds<P>)
     -> Result<(), HandleControlError> 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     check_user_request_valid(&user_request_send_funds)
@@ -443,7 +497,12 @@ fn control_request_send_funds<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P
                                  user_request_send_funds: UserRequestSendFunds<P>) 
     -> Result<(), HandleControlError> 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
+
 {
     
     // If we managed to push the message, we return an Ok(()).
@@ -469,7 +528,11 @@ fn control_receipt_ack<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,
                           receipt_ack: ReceiptAck<RS>) 
     -> Result<(), HandleControlError> 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     let receipt = m_state.state().ready_receipts.get(&receipt_ack.request_id)
@@ -497,7 +560,11 @@ pub fn handle_control_message<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P
                                  incoming_control: FunderIncomingControl<A,P,RS,MS>) 
     -> Result<(), HandleControlError> 
 where
-    A: CanonicalSerialize + Clone + PartialEq,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     match incoming_control {

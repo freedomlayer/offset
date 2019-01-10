@@ -1,9 +1,9 @@
 use std::fmt::Debug;
+use std::hash::Hash;
 use im::hashmap::HashMap as ImHashMap;
 
 use num_bigint::BigUint;
 
-// use crypto::identity::PublicKey;
 use crypto::hash::{HashResult, sha_512_256};
 
 use common::int_convert::usize_to_u32;
@@ -23,7 +23,10 @@ struct FriendFreezeGuard<P:Clone> {
     //                              ^-A                 ^-hash(route)  ^-frozen
 }
 
-impl FriendFreezeGuard<P> {
+impl<P> FriendFreezeGuard<P> 
+where
+    P: Eq + Hash + Clone,
+{
     fn new() -> Self {
         FriendFreezeGuard {
             frozen_credits_from: ImHashMap::new(),
@@ -51,7 +54,7 @@ pub enum FreezeGuardMutation<P> {
 
 fn hash_subroute<P>(subroute: &[TPublicKey<P>]) -> HashResult 
 where
-    P: CanonicalSerialize,
+    P: Eq + Hash + Clone + CanonicalSerialize,
 {
     let mut hash_buffer = Vec::new();
 
@@ -63,7 +66,7 @@ where
 
 impl<P> FreezeGuard<P> 
 where
-    P: Clone + Eq + Debug,
+    P: Clone + Hash + Eq + Debug,
 {
     pub fn new(local_public_key: &TPublicKey<P>) -> Self {
         FreezeGuard {
@@ -83,9 +86,12 @@ where
 
     // TODO: Should be moved outside of this structure implementation.
     // The only public function that allows mutation FreezeGuard should be mutate.
-    pub fn load_funder_state<A,RS>(mut self, funder_state: &FunderState<A,P,RS>) -> FreezeGuard 
+    pub fn load_funder_state<A,RS,FS,MS>(mut self, funder_state: &FunderState<A,P,RS,FS,MS>) -> Self 
     where
         A: CanonicalSerialize + Clone,
+        RS: Clone,
+        FS: Clone,
+        MS: Clone,
     {
         // Local public key should match:
         assert_eq!(self.local_public_key, funder_state.local_public_key);
@@ -284,7 +290,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
     /// Get the amount of credits to be frozen on a route of a certain length
     /// with certain amount to pay.
@@ -300,10 +305,11 @@ mod tests {
          * a -- b -- (c) -- d
         */
 
-        let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
-        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
-        let pk_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
-        let pk_d = PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]);
+        let pk_a = TPublicKey::new(0xaau32);
+        let pk_b = TPublicKey::new(0xbbu32);
+        let pk_c = TPublicKey::new(0xccu32);
+        let pk_d = TPublicKey::new(0xddu32);
+        let pk_e = TPublicKey::new(0xeeu32);
 
         let mut freeze_guard = FreezeGuard::new(&pk_c);
         freeze_guard.add_frozen_credit(&FriendsRoute 
@@ -336,10 +342,11 @@ mod tests {
          * a -- b -- (c) -- d
         */
 
-        let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
-        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
-        let pk_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
-        let pk_d = PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]);
+        let pk_a = TPublicKey::new(0xaau32);
+        let pk_b = TPublicKey::new(0xbbu32);
+        let pk_c = TPublicKey::new(0xccu32);
+        let pk_d = TPublicKey::new(0xddu32);
+        let pk_e = TPublicKey::new(0xeeu32);
 
         let mut freeze_guard = FreezeGuard::new(&pk_c);
         freeze_guard.add_frozen_credit(&FriendsRoute 
@@ -389,11 +396,11 @@ mod tests {
          *      e
         */
 
-        let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
-        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
-        let pk_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
-        let pk_d = PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]);
-        let pk_e = PublicKey::from(&[0xee; PUBLIC_KEY_LEN]);
+        let pk_a = TPublicKey::new(0xaau32);
+        let pk_b = TPublicKey::new(0xbbu32);
+        let pk_c = TPublicKey::new(0xccu32);
+        let pk_d = TPublicKey::new(0xddu32);
+        let pk_e = TPublicKey::new(0xeeu32);
 
         let mut freeze_guard = FreezeGuard::new(&pk_c);
         freeze_guard.add_frozen_credit(&FriendsRoute 
@@ -449,11 +456,11 @@ mod tests {
          *      e
         */
 
-        let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
-        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
-        let pk_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
-        let pk_d = PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]);
-        let pk_e = PublicKey::from(&[0xee; PUBLIC_KEY_LEN]);
+        let pk_a = TPublicKey::new(0xaau32);
+        let pk_b = TPublicKey::new(0xbbu32);
+        let pk_c = TPublicKey::new(0xccu32);
+        let pk_d = TPublicKey::new(0xddu32);
+        let pk_e = TPublicKey::new(0xeeu32);
 
         let mut freeze_guard = FreezeGuard::new(&pk_c);
         freeze_guard.add_frozen_credit(&FriendsRoute 

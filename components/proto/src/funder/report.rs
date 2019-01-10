@@ -6,8 +6,10 @@ use crypto::crypto_rand::RandValue;
 use crate::funder::messages::{RequestsStatus, FriendStatus, TPublicKey, TSignature};
 
 #[derive(Clone, Debug)]
-pub struct MoveTokenHashedReport<MS> {
+pub struct MoveTokenHashedReport<P,MS> {
     pub prefix_hash: HashResult,
+    pub local_public_key: TPublicKey<P>,
+    pub remote_public_key: TPublicKey<P>,
     pub inconsistency_counter: u64,
     pub move_token_counter: u128,
     pub balance: i128,
@@ -100,13 +102,13 @@ pub enum ChannelStatusReport<MS> {
 }
 
 #[derive(Clone, Debug)]
-pub struct FriendReport<A,MS> {
+pub struct FriendReport<A,P,MS> {
     pub remote_address: A, 
     pub name: String,
     pub sent_local_address: SentLocalAddressReport<A>,
     // Last message signed by the remote side. 
     // Can be used as a proof for the last known balance.
-    pub opt_last_incoming_move_token: Option<MoveTokenHashedReport<MS>>,
+    pub opt_last_incoming_move_token: Option<MoveTokenHashedReport<P,MS>>,
     pub liveness: FriendLivenessReport, // is the friend online/offline?
     pub channel_status: ChannelStatusReport<MS>,
     pub wanted_remote_max_debt: u128,
@@ -127,13 +129,13 @@ pub struct FriendReport<A,MS> {
 pub struct FunderReport<A:Clone,P:Clone,MS:Clone> {
     pub local_public_key: TPublicKey<P>,
     pub opt_address: Option<A>,
-    pub friends: ImHashMap<TPublicKey<P>, FriendReport<A,MS>>,
+    pub friends: ImHashMap<TPublicKey<P>, FriendReport<A,P,MS>>,
     pub num_ready_receipts: u64,
 }
 
 #[allow(unused)]
 #[derive(Debug)]
-pub enum FriendReportMutation<A,MS> {
+pub enum FriendReportMutation<A,P,MS> {
     SetRemoteAddress(A),
     SetName(String),
     SetSentLocalAddress(SentLocalAddressReport<A>),
@@ -144,7 +146,7 @@ pub enum FriendReportMutation<A,MS> {
     SetNumPendingResponses(u64),
     SetFriendStatus(FriendStatusReport),
     SetNumPendingUserRequests(u64),
-    SetOptLastIncomingMoveToken(Option<MoveTokenHashedReport<MS>>),
+    SetOptLastIncomingMoveToken(Option<MoveTokenHashedReport<P,MS>>),
     SetLiveness(FriendLivenessReport),
 }
 
@@ -154,7 +156,7 @@ pub struct AddFriendReport<A,P,MS> {
     pub address: A,
     pub name: String,
     pub balance: i128, // Initial balance
-    pub opt_last_incoming_move_token: Option<MoveTokenHashedReport<MS>>,
+    pub opt_last_incoming_move_token: Option<MoveTokenHashedReport<P,MS>>,
     pub channel_status: ChannelStatusReport<MS>,
 }
 
@@ -165,7 +167,7 @@ pub enum FunderReportMutation<A,P,MS> {
     SetAddress(Option<A>),
     AddFriend(AddFriendReport<A,P,MS>),
     RemoveFriend(TPublicKey<P>),
-    FriendReportMutation((TPublicKey<P>, FriendReportMutation<A,MS>)),
+    FriendReportMutation((TPublicKey<P>, FriendReportMutation<A,P,MS>)),
     SetNumReadyReceipts(u64),
 }
 

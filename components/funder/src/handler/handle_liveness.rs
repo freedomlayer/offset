@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+use std::hash::Hash;
 use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::{FriendStatus, FunderOutgoingControl};
 
@@ -26,7 +28,11 @@ pub fn handle_liveness_message<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,
     -> Result<(), HandleLivenessError> 
 
 where
-    A: CanonicalSerialize + Clone + PartialEq + Eq,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     match liveness_message {

@@ -1,8 +1,8 @@
 use std::fmt::Debug;
+use std::hash::Hash;
 use identity::IdentityClient;
 
 use crypto::uid::Uid;
-use crypto::crypto_rand::CryptoRandom;
 
 use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::{FunderOutgoingControl, TPublicKey};
@@ -23,8 +23,11 @@ use crate::friend::ChannelStatus;
 use crate::report::{funder_mutation_to_report_mutations, 
     ephemeral_mutation_to_report_mutations};
 
+use crate::sign_verify::{SignMoveToken, SignResponse, SignFailure, 
+    GenRandToken, GenRandNonce};
 
-pub struct MutableFunderState<A: Clone,P,RS,FS,MS> {
+
+pub struct MutableFunderState<A:Clone,P:Clone,RS:Clone,FS:Clone,MS:Clone> {
     initial_state: FunderState<A,P,RS,FS,MS>,
     state: FunderState<A,P,RS,FS,MS>,
     mutations: Vec<FunderMutation<A,P,RS,FS,MS>>,
@@ -32,11 +35,11 @@ pub struct MutableFunderState<A: Clone,P,RS,FS,MS> {
 
 impl<A,P,RS,FS,MS> MutableFunderState<A,P,RS,FS,MS> 
 where
-    A: CanonicalSerialize + Clone,
-    P: Clone,
-    RS: Clone,
-    FS: Clone,
-    MS: Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
     pub fn new(state: FunderState<A,P,RS,FS,MS>) -> Self {
         MutableFunderState {
@@ -62,16 +65,16 @@ where
     }
 }
 
-pub struct MutableEphemeral<P> {
+pub struct MutableEphemeral<P:Clone> {
     ephemeral: Ephemeral<P>,
     mutations: Vec<EphemeralMutation<P>>,
 }
 
 impl<P> MutableEphemeral<P> 
 where
-    P: Clone,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
 {
-    pub fn new(ephemeral: Ephemeral) -> Self {
+    pub fn new(ephemeral: Ephemeral<P>) -> Self {
         MutableEphemeral {
             ephemeral,
             mutations: Vec::new(),
@@ -99,7 +102,7 @@ pub enum FunderHandlerError {
     SenderError(SenderError),
 }
 
-pub struct FunderHandlerOutput<A: Clone,P,RS,FS,MS> {
+pub struct FunderHandlerOutput<A: Clone,P:Clone,RS,FS,MS> {
     pub funder_mutations: Vec<FunderMutation<A,P,RS,FS,MS>>,
     pub ephemeral_mutations: Vec<EphemeralMutation<P>>,
     pub outgoing_comms: Vec<FunderOutgoingComm<A,P,RS,FS,MS>>,
@@ -116,8 +119,11 @@ pub struct FunderHandlerOutput<A: Clone,P,RS,FS,MS> {
 pub fn find_request_origin<'a,A,P,RS,FS,MS>(state: &'a FunderState<A,P,RS,FS,MS>,
                                   request_id: &Uid) -> Option<&'a TPublicKey<P>> 
 where
-    A: CanonicalSerialize + Clone,
-    MS: Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
     for (friend_public_key, friend) in &state.friends {
         match &friend.channel_status {
@@ -141,7 +147,11 @@ pub fn is_friend_ready<A,P,RS,FS,MS>(state: &FunderState<A,P,RS,FS,MS>,
                           ephemeral: &Ephemeral<P>,
                           friend_public_key: &TPublicKey<P>) -> bool 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     let friend = state.friends.get(friend_public_key).unwrap();
@@ -165,15 +175,18 @@ where
 
 pub fn funder_handle_incoming<A,P,RS,FS,MS,R>(mut m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
                                    mut m_ephemeral: &mut MutableEphemeral<P>,
-                                   rng: &R,
+                                   rng: &mut R,
                                    funder_incoming: FunderIncoming<A,P,RS,FS,MS>)
                                     -> Result<(SendCommands<P>, 
                                         Vec<FunderOutgoingControl<A,P,RS,MS>>, 
                                         Vec<ChannelerConfig<A,P>>), FunderHandlerError>
 
 where
-    A: CanonicalSerialize + Clone + Eq,
-    R: CryptoRandom,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
     let mut send_commands = SendCommands::new();
     let mut outgoing_control = Vec::new();
@@ -196,7 +209,7 @@ where
         FunderIncoming::Comm(incoming_comm) => {
             match incoming_comm {
                 FunderIncomingComm::Liveness(liveness_message) =>
-                    handle_liveness_message::<A,R>(&mut m_state, 
+                    handle_liveness_message(&mut m_state, 
                                             &mut m_ephemeral, 
                                             &mut send_commands,
                                             &mut outgoing_control,
@@ -224,7 +237,11 @@ fn create_report_mutations<A,P,RS,FS,MS>(initial_state: FunderState<A,P,RS,FS,MS
                            funder_mutations: &[FunderMutation<A,P,RS,FS,MS>],
                            ephemeral_mutations: &[EphemeralMutation<P>]) -> Vec<FunderReportMutation<A,P,MS>> 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     let mut report_mutations = Vec::new();
@@ -252,13 +269,11 @@ pub async fn funder_handle_message<'a, A,P,RS,FS,MS,R,SI>(
                       funder_incoming: FunderIncoming<A,P,RS,FS,MS>) 
         -> Result<FunderHandlerOutput<A,P,RS,FS,MS>, FunderHandlerError> 
 where
-    A: CanonicalSerialize + Clone + Debug + Eq + 'a,
-    P: Clone,
-    FS: Clone,
-    MS: Clone,
-    RS: Clone,
-    R: CryptoRandom + 'a,
-    SI: SignMoveToken<A,P,RS,FS,MS>,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     let mut m_state = MutableFunderState::new(funder_state);

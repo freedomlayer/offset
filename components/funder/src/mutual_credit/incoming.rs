@@ -128,7 +128,7 @@ where
 fn process_enable_requests<P,RS,FS>(mutual_credit: &mut MutualCredit<P>) ->
     Result<ProcessOperationOutput<P,RS,FS>, ProcessOperationError> 
 where
-    P: Clone + Eq + std::hash::Hash,
+    P: Clone + Eq + Hash,
 {
 
     let mut op_output = ProcessOperationOutput {
@@ -145,7 +145,7 @@ where
 fn process_disable_requests<P,RS,FS>(mutual_credit: &mut MutualCredit<P>) ->
     Result<ProcessOperationOutput<P,RS,FS>, ProcessOperationError> 
 where
-    P: Clone + Eq + std::hash::Hash,
+    P: Clone + Eq + Hash,
 {
 
     let mut op_output = ProcessOperationOutput {

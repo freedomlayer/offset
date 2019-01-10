@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+use std::hash::Hash;
 use std::io;
 use std::io::prelude::*;
 use std::string::String;
@@ -37,7 +39,7 @@ impl FileDbConn {
 }
 
 #[allow(unused)]
-pub struct FileDb<A: Clone,P,RS,FS,MS> {
+pub struct FileDb<A: Clone,P:Clone,RS:Clone,FS:Clone,MS:Clone> {
     /// Connection to the database
     db_conn: FileDbConn,
     /// Current FunderState represented by the database
@@ -48,7 +50,11 @@ pub struct FileDb<A: Clone,P,RS,FS,MS> {
 #[allow(unused)]
 impl<A,P,RS,FS,MS> FileDb<A,P,RS,FS,MS> 
 where
-    A: Clone + Serialize + DeserializeOwned + 'static,
+    A: CanonicalSerialize + Clone + Eq + Debug + Serialize + DeserializeOwned + 'static,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Serialize + DeserializeOwned,
+    RS: CanonicalSerialize + Clone + Eq + Debug + Serialize + DeserializeOwned,
+    FS: CanonicalSerialize + Clone + Debug + Serialize + DeserializeOwned,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default + Serialize + DeserializeOwned,
 {
 
     pub fn new(db_conn: FileDbConn) -> Result<Self, FileDbError> {
@@ -61,7 +67,7 @@ where
         fr.read_to_string(&mut serialized_str)
             .map_err(FileDbError::ReadError)?;
 
-        let funder_state: FunderState<A> = serde_json::from_str(&serialized_str)
+        let funder_state: FunderState<A,P,RS,FS,MS> = serde_json::from_str(&serialized_str)
             .map_err(FileDbError::DeserializeError)?;
 
         Ok(FileDb {
@@ -75,7 +81,11 @@ where
 #[allow(unused)]
 impl<A,P,RS,FS,MS> AtomicDb for FileDb<A,P,RS,FS,MS> 
 where
-    A: CanonicalSerialize + Clone + Serialize + DeserializeOwned + 'static,
+    A: CanonicalSerialize + Clone + Eq + Debug + Serialize + DeserializeOwned + 'static,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Serialize + DeserializeOwned,
+    RS: CanonicalSerialize + Clone + Eq + Debug + Serialize + DeserializeOwned,
+    FS: CanonicalSerialize + Clone + Debug + Serialize + DeserializeOwned,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default + Serialize + DeserializeOwned,
 {
     type State = FunderState<A,P,RS,FS,MS>;
     type Mutation = FunderMutation<A,P,RS,FS,MS>;

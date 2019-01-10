@@ -5,7 +5,7 @@ use crypto::hash::HashResult;
 use common::canonical_serialize::CanonicalSerialize;
 
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds, FailureSendFunds, 
-    MoveToken, SignedMoveToken, FriendMessage, FriendTcOp, PendingRequest, FunderIncomingControl, 
+    MoveToken, SignedMoveToken, UnsignedMoveToken, FriendMessage, FriendTcOp, PendingRequest, FunderIncomingControl, 
     FunderOutgoingControl, TPublicKey, TSignature,
     SignedResponse, SignedFailure};
 
@@ -124,6 +124,8 @@ pub struct MoveTokenHashed<P,MS> {
     /// Hash of operations and local_address
     pub prefix_hash: HashResult,
     pub inconsistency_counter: u64,
+    pub local_public_key: TPublicKey<P>,
+    pub remote_public_key: TPublicKey<P>,
     pub move_token_counter: u128,
     pub balance: i128,
     pub local_pending_debt: u128,
@@ -132,23 +134,25 @@ pub struct MoveTokenHashed<P,MS> {
     pub new_token: TSignature<MS>,
 }
 
-/*
- * TODO: Find a safe way to implement this:
 
-pub fn create_unsigned_move_token<A,P,RS>(operations: Vec<FriendTcOp<P,RS>>,
+pub fn create_unsigned_move_token<A,P,RS,FS,MS>(operations: Vec<FriendTcOp<P,RS,FS>>,
                  opt_local_address: Option<A>,
-                 old_token: TSignature<S>,
+                 old_token: TSignature<MS>,
+                 local_public_key: TPublicKey<P>,
+                 remote_public_key: TPublicKey<P>,
                  inconsistency_counter: u64,
                  move_token_counter: u128,
                  balance: i128,
                  local_pending_debt: u128,
                  remote_pending_debt: u128,
-                 rand_nonce: RandValue) -> UnsignedMoveToken<A> {
+                 rand_nonce: RandValue) -> UnsignedMoveToken<A,P,RS,FS,MS> {
 
     MoveToken {
         operations,
         opt_local_address,
         old_token,
+        local_public_key,
+        remote_public_key,
         inconsistency_counter,
         move_token_counter,
         balance,
@@ -158,7 +162,6 @@ pub fn create_unsigned_move_token<A,P,RS>(operations: Vec<FriendTcOp<P,RS>>,
         new_token: (),
     }
 }
-*/
 
 /*
 pub async fn create_move_token<A>(operations: Vec<FriendTcOp>,
@@ -226,8 +229,8 @@ pub enum IncomingLivenessMessage<P> {
 
 
 #[allow(unused)]
-pub struct FriendInconsistencyError<P,S> {
-    pub reset_token: TSignature<S>,
+pub struct FriendInconsistencyError<MS> {
+    pub reset_token: TSignature<MS>,
     pub balance_for_reset: i128,
 }
 

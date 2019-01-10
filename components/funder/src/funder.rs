@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::hash::Hash;
 
 use futures::channel::mpsc;
 use futures::{future, stream, SinkExt, StreamExt};
@@ -6,7 +7,6 @@ use futures::{future, stream, SinkExt, StreamExt};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use crypto::crypto_rand::CryptoRandom;
 use identity::IdentityClient;
 
 use common::canonical_serialize::CanonicalSerialize;
@@ -18,6 +18,9 @@ use crate::handler::{funder_handle_message};
 use crate::types::{FunderIncoming, FunderOutgoingComm, FunderIncomingComm};
 use crate::state::{FunderState, FunderMutation};
 use crate::database::{AtomicDb, DbRunner, DbRunnerError};
+
+use crate::sign_verify::{SignMoveToken, SignResponse, SignFailure,
+                            GenRandToken, GenRandNonce};
 
 
 #[derive(Debug)]
@@ -38,8 +41,8 @@ pub enum FunderEvent<A,P,RS,FS,MS> {
     IncomingCommClosed,
 }
 
-pub async fn inner_funder_loop<A,P,RS,FS,MS,R,D,E>(
-    mut identity_client: IdentityClient,
+pub async fn inner_funder_loop<A,P,RS,FS,MS,SI,R,D,E>(
+    mut signer: SI,
     rng: R,
     incoming_control: mpsc::Receiver<FunderIncomingControl<A,P,RS,MS>>,
     incoming_comm: mpsc::Receiver<FunderIncomingComm<A,P,RS,FS,MS>>,
@@ -51,11 +54,12 @@ pub async fn inner_funder_loop<A,P,RS,FS,MS,R,D,E>(
 
 where
     A: CanonicalSerialize + Serialize + DeserializeOwned + Send + Sync + Clone + Debug + PartialEq + Eq + 'static,
-    P: Clone + Send + Sync,
-    RS: Clone + Send + Sync,
-    FS: Clone + Send + Sync, 
-    MS: Clone + Send + Sync,
-    R: CryptoRandom + 'static,
+    P: CanonicalSerialize + Hash + Eq + Clone + Send + Sync + Debug,
+    RS: Eq + Clone + Send + Sync + Debug,
+    FS: Eq + Clone + Send + Sync + Debug, 
+    MS: Eq + Clone + Send + Sync + Debug,
+    SI: SignMoveToken<A,P,RS,FS,MS> + SignResponse<P,RS> + SignFailure<P,FS>,
+    R: GenRandToken<MS> + GenRandNonce + 'static,
     D: AtomicDb<State=FunderState<A,P,RS,FS,MS>, Mutation=FunderMutation<A,P,RS,FS,MS>, Error=E> + Send + 'static,
     E: Send + 'static,
 {
@@ -90,8 +94,8 @@ where
         }; 
 
         // Process message:
-        let res = await!(funder_handle_message(&mut identity_client,
-                              &rng,
+        let res = await!(funder_handle_message(&mut signer, 
+                              &mut rng,
                               db_runner.get_state().clone(),
                               ephemeral.clone(),
                               max_operations_in_batch,
@@ -140,23 +144,28 @@ where
 
 
 #[allow(unused)]
-pub async fn funder_loop<A,R,D,E>(
-    identity_client: IdentityClient,
+pub async fn funder_loop<A,P,RS,FS,MS,SI,R,D,E>(
+    signer: SI,
     rng: R,
-    incoming_control: mpsc::Receiver<FunderIncomingControl<A>>,
-    incoming_comm: mpsc::Receiver<FunderIncomingComm<A>>,
-    control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
-    comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
+    incoming_control: mpsc::Receiver<FunderIncomingControl<A,P,RS,MS>>,
+    incoming_comm: mpsc::Receiver<FunderIncomingComm<A,P,RS,FS,MS>>,
+    control_sender: mpsc::Sender<FunderOutgoingControl<A,P,RS,MS>>,
+    comm_sender: mpsc::Sender<FunderOutgoingComm<A,P,RS,FS,MS>>,
     max_operations_in_batch: usize,
     atomic_db: D) -> Result<(), FunderError<E>> 
 where
     A: CanonicalSerialize + Serialize + DeserializeOwned + Send + Sync + Clone + Debug + PartialEq + Eq + 'static,
-    R: CryptoRandom + 'static,
+    P: CanonicalSerialize + Hash + Eq + Clone + Send + Sync + Debug,
+    RS: Eq + Clone + Send + Sync + Debug,
+    FS: Eq + Clone + Send + Sync + Debug, 
+    MS: Eq + Clone + Send + Sync + Debug,
+    SI: SignMoveToken<A,P,RS,FS,MS> + SignResponse<P,RS> + SignFailure<P,FS>,
+    R: GenRandToken<MS> + GenRandNonce + 'static,
     D: AtomicDb<State=FunderState<A,P,RS,FS,MS>, Mutation=FunderMutation<A,P,RS,FS,MS>, Error=E> + Send + 'static,
     E: Send + 'static,
 {
 
-    await!(inner_funder_loop(identity_client,
+    await!(inner_funder_loop(signer,
            rng,
            incoming_control,
            incoming_comm,

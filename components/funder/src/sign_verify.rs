@@ -159,7 +159,7 @@ where
 
 impl SignResponse<PublicKey, Signature> for IdentityClient {
     fn sign_response(&mut self, u_response: UnsignedResponse,
-                     pending_request: &PendingRequest<P>) 
+                     pending_request: &PendingRequest<PublicKey>) 
         -> BoxFuture<'_, Option<SignedResponse<Signature>>> {
 
         Box::pin(async move {
@@ -212,7 +212,7 @@ impl<R> GenRandNonce for R
 where
     R: CryptoRandom,
 {
-    fn gen_rand_nonce(&mut self) -> RandNonce {
+    fn gen_rand_nonce(&mut self) -> RandValue {
         RandValue::new(&*self)
     }
 }

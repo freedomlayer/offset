@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+use std::hash::Hash;
 use im::hashmap::HashMap as ImHashMap;
 
 use num_bigint::BigUint;
@@ -16,7 +18,7 @@ use crate::friend::{FriendState, FriendMutation};
 
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct FunderState<A: Clone,P,RS,FS,MS> {
+pub struct FunderState<A: Clone,P:Clone,RS:Clone,FS:Clone,MS:Clone> {
     pub local_public_key: TPublicKey<P>,
     /// Address of relay we are going to connect to.
     /// None means that no address was configured.
@@ -26,7 +28,7 @@ pub struct FunderState<A: Clone,P,RS,FS,MS> {
 }
 
 #[derive(Debug)]
-pub enum FunderMutation<A,P,RS,FS,MS> {
+pub enum FunderMutation<A,P:Clone,RS,FS,MS> {
     FriendMutation((TPublicKey<P>, FriendMutation<A,P,RS,FS,MS>)),
     SetAddress(Option<A>),
     AddFriend(AddFriend<A,P>), 
@@ -39,8 +41,11 @@ pub enum FunderMutation<A,P,RS,FS,MS> {
 #[allow(unused)]
 impl<A,P,RS,FS,MS> FunderState<A,P,RS,FS,MS> 
 where
-    A: CanonicalSerialize + Clone,
-    P: Eq + std::hash::Hash,
+    A: CanonicalSerialize + Clone + Debug + Eq,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: Clone + Debug,
+    FS: Clone + Debug,
+    MS: Clone + Debug + Eq,
 {
     pub fn new(local_public_key: &TPublicKey<P>, opt_address: Option<&A>) -> Self {
         FunderState {

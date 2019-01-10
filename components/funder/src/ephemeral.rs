@@ -1,3 +1,4 @@
+use std::hash::Hash;
 use super::freeze_guard::{FreezeGuard, FreezeGuardMutation};
 use super::liveness::{Liveness, LivenessMutation};
 use super::state::FunderState;
@@ -16,10 +17,16 @@ pub enum EphemeralMutation<P> {
     FreezeGuardMutation(FreezeGuardMutation<P>),
 }
 
-impl<P> Ephemeral<P> {
-    pub fn new<A>(funder_state: &FunderState<A>) -> Self 
+impl<P> Ephemeral<P> 
+where
+    P: Clone + Eq + Hash,
+{
+    pub fn new<A,RS,FS,MS>(funder_state: &FunderState<A,P,RS,FS,MS>) -> Self 
     where
         A: CanonicalSerialize + Clone,
+        RS: Clone,
+        FS: Clone,
+        MS: Clone,
     {
         Ephemeral {
             freeze_guard: FreezeGuard::new(&funder_state.local_public_key)

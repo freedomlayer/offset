@@ -1,4 +1,5 @@
-
+use std::fmt::Debug;
+use std::hash::Hash;
 use common::canonical_serialize::CanonicalSerialize;
 
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds,
@@ -47,24 +48,16 @@ pub enum HandleFriendError {
     InconsistencyWhenTokenOwned,
 }
 
-/*
-/// Generate a random token to be used for resetting the channel.
-fn gen_channel_reset_token<R>(rng: &R) -> Signature 
-where
-    R: CryptoRandom,
-{
-    let mut buff = [0; SIGNATURE_LEN];
-    rng.fill(&mut buff).unwrap();
-    Signature::from(buff)
-}
-*/
 
 
 pub fn gen_reset_terms<A,P,RS,FS,MS,R>(token_channel: &TokenChannel<A,P,RS,FS,MS>, 
                                        rng: &mut R) -> ResetTerms<MS> 
 where
-    A: CanonicalSerialize + Clone,
-    R: GenRandToken<MS>,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
     // We add 2 for the new counter in case 
     // the remote side has already used the next counter.
@@ -87,7 +80,11 @@ pub fn try_reset_channel<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,F
                             local_reset_terms: &ResetTerms<MS>,
                             move_token: &SignedMoveToken<A,P,RS,FS,MS>) 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     let pair = (move_token, friend_public_key);
@@ -123,7 +120,11 @@ where
 pub fn add_local_freezing_link<A,P,RS,FS,MS>(state: &FunderState<A,P,RS,FS,MS>,
                                request_send_funds: &mut RequestSendFunds<P>) 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     let index = request_send_funds.route.pk_to_index(&state.local_public_key)
@@ -154,7 +155,11 @@ fn forward_request<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
                       send_commands: &mut SendCommands<P>,
                       request_send_funds: RequestSendFunds<P>) 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
     let index = request_send_funds.route.pk_to_index(&m_state.state().local_public_key)
         .unwrap();
@@ -169,31 +174,6 @@ where
     send_commands.set_try_send(&next_pk);
 }
 
-/*
-/// Create a (signed) failure message for a given request_id.
-/// We are the reporting_public_key for this failure message.
-fn create_response_message<A,R>(state: &FunderState<A>, 
-                              rng: &R,
-                              request_send_funds: RequestSendFunds) 
-    -> UnsignedResponseSendFunds 
-
-where
-    A: Clone,
-    R: CryptoRandom,
-{
-
-    let rand_nonce = RandValue::new(rng);
-    let local_public_key = state.local_public_key.clone();
-
-    let mut u_response_send_funds = ResponseSendFunds {
-        request_id: request_send_funds.request_id,
-        rand_nonce,
-        signature: (),
-    };
-
-    u_response_send_funds
-}
-*/
 
 fn handle_request_send_funds<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,FS,MS>,
                                 ephemeral: &Ephemeral<P>,
@@ -201,7 +181,11 @@ fn handle_request_send_funds<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,
                                 remote_public_key: &TPublicKey<P>,
                                 mut request_send_funds: RequestSendFunds<P>) 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     // Find ourselves on the route. If we are not there, abort.
@@ -259,7 +243,11 @@ fn handle_response_send_funds<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P
                                  response_send_funds: SignedResponse<RS>,
                                  pending_request: PendingRequest<P>) 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     match find_request_origin(m_state.state(), 
@@ -300,7 +288,12 @@ fn handle_failure_send_funds<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,
                                 failure_send_funds: SignedFailure<P,FS>,
                                 pending_request: PendingRequest<P>) 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
+
 {
 
     match find_request_origin(m_state.state(), 
@@ -338,7 +331,11 @@ fn handle_move_token_output<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,R
                                remote_public_key: &TPublicKey<P>,
                                incoming_messages: Vec<IncomingMessage<P,RS,FS>>) 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     for incoming_message in incoming_messages {
@@ -389,8 +386,11 @@ fn handle_move_token_error<A,P,RS,FS,MS,R>(m_state: &mut MutableFunderState<A,P,
                                 rng: &mut R,
                                 remote_public_key: &TPublicKey<P>)
 where
-    A: CanonicalSerialize + Clone,
-    R: GenRandToken<MS>,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     let friend = m_state.state().friends.get(remote_public_key).unwrap();
@@ -442,7 +442,11 @@ fn handle_move_token_success<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,
                                 receive_move_token_output: ReceiveMoveTokenOutput<A,P,RS,FS,MS>,
                                 token_wanted: bool) 
 where
-    A: CanonicalSerialize + Clone + Eq,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     match receive_move_token_output {
@@ -533,7 +537,11 @@ fn handle_move_token_request<A,P,RS,FS,MS,R>(m_state: &mut MutableFunderState<A,
                                 friend_move_token_request: MoveTokenRequest<A,P,RS,FS,MS>) 
     -> Result<(), HandleFriendError> 
 where
-    A: CanonicalSerialize + Clone + Eq,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
     R: GenRandToken<MS>,
 {
 
@@ -589,7 +597,11 @@ fn handle_inconsistency_error<A,P,RS,FS,MS,R>(m_state: &mut MutableFunderState<A
                                    remote_reset_terms: ResetTerms<MS>)
                                     -> Result<(), HandleFriendError> 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
     R: GenRandToken<MS>,
 {
 
@@ -658,7 +670,11 @@ pub fn handle_friend_message<A,P,RS,FS,MS,R>(m_state: &mut MutableFunderState<A,
                                   friend_message: FriendMessage<A,P,RS,FS,MS>)
                                     -> Result<(), HandleFriendError> 
 where
-    A: CanonicalSerialize + Clone + Eq,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
     R: GenRandToken<MS>, 
 {
 

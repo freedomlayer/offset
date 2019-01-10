@@ -1,3 +1,4 @@
+use std::hash::Hash;
 use im::vector::Vector;
 
 use common::safe_arithmetic::SafeUnsignedArithmetic;
@@ -46,7 +47,7 @@ where
 
 #[allow(unused)]
 #[derive(Debug)]
-pub enum FriendMutation<A,P,RS,FS,MS> {
+pub enum FriendMutation<A,P:Clone,RS,FS,MS> {
     TcMutation(TcMutation<A,P,RS,FS,MS>),
     SetInconsistent(ChannelInconsistent<P,MS>),
     SetConsistent(TokenChannel<A,P,RS,FS,MS>),
@@ -83,7 +84,7 @@ pub enum ChannelStatus<A,P:Clone,RS,FS,MS> {
 impl<A,P,RS,FS,MS> ChannelStatus<A,P,RS,FS,MS> 
 where
     A: CanonicalSerialize + Clone,
-    P: Clone,
+    P: Eq + Hash + Clone,
     MS: Clone,
 {
     pub fn get_last_incoming_move_token_hashed(&self) -> Option<MoveTokenHashed<P,MS>> {
@@ -121,7 +122,7 @@ pub struct FriendState<A,P:Clone,RS:Clone,FS:Clone,MS> {
 impl<A,P,RS,FS,MS> FriendState<A,P,RS,FS,MS> 
 where
     A: CanonicalSerialize + Clone,
-    P: Clone,
+    P: Eq + Hash + Clone,
     RS: Clone,
     FS: Clone,
 {

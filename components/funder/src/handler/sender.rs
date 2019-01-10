@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::collections::HashMap;
 use std::hash::Hash;
 
@@ -7,7 +8,7 @@ use common::canonical_serialize::CanonicalSerialize;
 
 use identity::IdentityClient;
 
-use crate::types::{create_pending_request, sign_move_token,
+use crate::types::{create_pending_request,
                     create_response_send_funds, create_failure_send_funds,
                     create_unsigned_move_token};
 use crate::mutual_credit::outgoing::{QueueOperationError, OutgoingMc};
@@ -23,7 +24,8 @@ use crate::ephemeral::EphemeralMutation;
 
 use crate::handler::handler::{MutableFunderState, MutableEphemeral};
 
-use crate::sign_verify::{SignMoveToken, SignResponse, GenRandNonce};
+use crate::sign_verify::{SignMoveToken, SignResponse, 
+    SignFailure, GenRandNonce};
 
 #[derive(Debug)]
 pub enum SenderError {
@@ -63,7 +65,10 @@ pub struct SendCommands<P> {
     send_commands: HashMap<TPublicKey<P>, FriendSendCommands>
 }
 
-impl<P> SendCommands<P> {
+impl<P> SendCommands<P> 
+where
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+{
     pub fn new() -> Self {
         SendCommands {
             send_commands: HashMap::new(),
@@ -108,7 +113,7 @@ enum CollectOutgoingError {
     MaxOperationsReached,
 }
 
-struct PendingMoveToken<A,P,RS,FS> {
+struct PendingMoveToken<A,P:Clone,RS,FS> {
     friend_public_key: TPublicKey<P>,
     outgoing_mc: OutgoingMc<P>,
     operations: Vec<FriendTcOp<P,RS,FS>>,
@@ -119,7 +124,10 @@ struct PendingMoveToken<A,P,RS,FS> {
 
 impl<A,P,RS,FS> PendingMoveToken<A,P,RS,FS> 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
 {
     fn new(friend_public_key: TPublicKey<P>,
            outgoing_mc: OutgoingMc<P>,
@@ -144,7 +152,12 @@ where
                        m_ephemeral: &mut MutableEphemeral<P>)
         -> Result<(), PendingQueueError> 
     where
-        A: Clone,
+        A: CanonicalSerialize + Clone + Eq + Debug,
+        P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+        RS: CanonicalSerialize + Clone + Eq + Debug,
+        FS: CanonicalSerialize + Clone + Debug,
+        MS: CanonicalSerialize + Clone + Eq + Debug + Default,
+
     {
 
         if self.operations.len() >= self.max_operations_in_batch {
@@ -209,7 +222,12 @@ fn transmit_outgoing<A,P,RS,FS,MS>(m_state: &MutableFunderState<A,P,RS,FS,MS>,
                         token_wanted: bool,
                         outgoing_messages: &mut Vec<OutgoingMessage<A,P,RS,FS,MS>>)
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
+
 {
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
@@ -239,11 +257,13 @@ pub async fn apply_local_reset<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFun
                                   signer: &'a mut SI,
                                   rng: &'a mut R) -> Result<(), SenderError>
 where
-    A: CanonicalSerialize + Clone + 'a,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
     R: GenRandNonce,
-    SI: SignMoveToken,
-    P: Clone,
-    MS: Clone,
+    SI: SignMoveToken<A,P,RS,FS,MS>,
 {
 
     // TODO: How to do this without unwrap?:
@@ -262,6 +282,8 @@ where
         Vec::new(), 
         opt_local_address,
         remote_reset_terms.reset_token.clone(),
+        m_state.state().local_public_key.clone(),
+        friend_public_key.clone(),
         remote_reset_terms.inconsistency_counter,
         move_token_counter,
         remote_reset_terms.balance_for_reset.checked_neg().unwrap(),
@@ -297,9 +319,13 @@ async fn send_friend_iter1<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFunderS
                                        mut outgoing_messages: &'a mut Vec<OutgoingMessage<A,P,RS,FS,MS>>) 
                                         -> Result<(), SenderError>
 where
-    A: CanonicalSerialize + Clone + Eq,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
     R: GenRandNonce,
-    SI: SignMoveToken<A,P,RS,FS,MS>,
+    SI: SignMoveToken<A,P,RS,FS,MS> + SignResponse<P,RS> + SignFailure<P,FS>,
 {
 
     if !friend_send_commands.try_send 
@@ -307,7 +333,7 @@ where
         && !friend_send_commands.remote_wants_token
         && !friend_send_commands.local_reset {
 
-        return;
+        return Ok(());
     }
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
@@ -334,7 +360,7 @@ where
                 outgoing_messages.push((friend_public_key.clone(),
                         FriendMessage::InconsistencyError(channel_inconsistent.local_reset_terms.clone())));
             }
-            return;
+            return Ok(());
         },
     };
 
@@ -355,7 +381,7 @@ where
                                       &mut outgoing_messages);
                 }
             }
-            return;
+            return Ok(());
         },
         TcDirection::Incoming(tc_incoming) => tc_incoming,
     };
@@ -378,6 +404,7 @@ where
                                                pending_move_token,
                                                signer,
                                                rng));
+    Ok(())
 }
 
 
@@ -387,7 +414,11 @@ where
 fn estimate_should_send<'a, A,P,RS,FS,MS>(m_state: &'a mut MutableFunderState<A,P,RS,FS,MS>, 
                             friend_public_key: &'a TPublicKey<P>) -> bool 
 where
-    A: CanonicalSerialize + Clone + Eq,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
@@ -445,13 +476,17 @@ where
 async fn queue_operation_or_failure<'a,A,P,RS,FS,MS>(m_state: &'a mut MutableFunderState<A,P,RS,FS,MS>,
                                             m_ephemeral: &'a mut MutableEphemeral<P>,
                                             pending_move_token: &'a mut PendingMoveToken<A,P,RS,FS>,
-                                            operation: &'a FriendTcOp) -> bool
+                                            operation: &'a FriendTcOp<P,RS,FS>) -> bool
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     match pending_move_token.queue_operation(operation, m_state, m_ephemeral) {
-        Ok(()) => return Ok(()),
+        Ok(()) => return true,
         Err(PendingQueueError::MaxOperationsReached) => {
             pending_move_token.token_wanted = true;
             // We will send this message next time we have the token:
@@ -480,13 +515,17 @@ where
 }
 
 async fn response_op_to_friend_tc_op<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFunderState<A,P,RS,FS,MS>, 
-                                     response_op: ResponseOp,
+                                     response_op: ResponseOp<P,RS,FS>,
                                      signer: &'a mut SI,
-                                     rng: &'a mut R) -> Result<FriendTcOp, SenderError>
+                                     rng: &'a mut R) -> Result<FriendTcOp<P,RS,FS>, SenderError>
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
     R: GenRandNonce,
-    SI: SignResponse<P,RS>,
+    SI: SignResponse<P,RS> + SignFailure<P,FS>,
 {
     Ok(match response_op {
         ResponseOp::Response(response) => FriendTcOp::ResponseSendFunds(response),
@@ -512,7 +551,7 @@ where
 /// Given a friend with an incoming move token state, create the largest possible move token to
 /// send to the remote side. 
 /// Requests that fail to be processed are moved to the failure queues of the relevant friends.
-async fn collect_outgoing_move_token<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFunderState<A>,
+async fn collect_outgoing_move_token<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFunderState<A,P,RS,FS,MS>,
                                                  m_ephemeral: &'a mut MutableEphemeral<P>,
                                                  friend_public_key: &'a TPublicKey<P>,
                                                  pending_move_token: &'a mut PendingMoveToken<A,P,RS,FS>,
@@ -520,9 +559,14 @@ async fn collect_outgoing_move_token<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut Muta
                                                  rng: &'a mut R) 
                                                     -> Result<(), SenderError> 
 where
-    A: CanonicalSerialize + Clone + Eq,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
     R: GenRandNonce,
-    SI: SignMoveToken<A,P,RS,FS,MS>,
+    SI: SignResponse<P,RS> + SignFailure<P,FS>,
+    // SignMoveToken<A,P,RS,FS,MS>,
 {
     /*
     - Check if last sent local address is up to date.
@@ -656,7 +700,7 @@ where
 
 
 
-async fn append_failures_to_move_token<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFunderState<A>,
+async fn append_failures_to_move_token<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFunderState<A,P,RS,FS,MS>,
                                                    m_ephemeral: &'a mut MutableEphemeral<P>,
                                                    friend_public_key: &'a TPublicKey<P>,
                                                    pending_move_token: &'a mut PendingMoveToken<A,P,RS,FS>,
@@ -664,9 +708,13 @@ async fn append_failures_to_move_token<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut Mu
                                                    rng: &'a mut R) 
                                                     -> Result<(), SenderError> 
 where
-    A: CanonicalSerialize + Clone,
-    P: Clone,
-    SI: SignMoveToken<A,P,RS,FS,MS>,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
+    SI: SignResponse<P,RS> + SignFailure<P,FS>,
+    // SI: SignMoveToken<A,P,RS,FS,MS>,
     R: GenRandNonce,
 {
 
@@ -702,11 +750,12 @@ async fn send_move_token<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut MutableFunderSta
                                  outgoing_messages: &'a mut Vec<OutgoingMessage<A,P,RS,FS,MS>>)
                                     -> Result<(), SenderError>
 where
-    A: Clone + CanonicalSerialize + 'a,
-    P: Clone + Eq + Hash,
-    RS: Clone,
-    FS: Clone,
-    MS: Eq + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
+
     R: GenRandNonce,
     SI: SignMoveToken<A,P,RS,FS,MS>,
 {
@@ -775,13 +824,13 @@ pub async fn create_friend_messages<'a,A,P,RS,FS,MS,R,SI>(m_state: &'a mut Mutab
                         signer: &'a mut SI,
                         rng: &'a mut R) -> Result<Vec<OutgoingMessage<A,P,RS,FS,MS>>,SenderError>
 where
-    A: CanonicalSerialize + Clone + Eq,
-    P: Eq + Hash + Clone,
-    RS: Clone,
-    FS: Clone,
-    MS: Clone + Eq,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
     R: GenRandNonce,
-    SI: SignMoveToken<A,P,RS,FS,MS>,
+    SI: SignMoveToken<A,P,RS,FS,MS> + SignResponse<P,RS> + SignFailure<P,FS>,
 {
 
     let mut outgoing_messages = Vec::new();

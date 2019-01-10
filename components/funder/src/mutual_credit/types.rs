@@ -1,3 +1,4 @@
+use std::hash::Hash;
 use im::hashmap::HashMap as ImHashMap;
 
 use crypto::uid::Uid;
@@ -60,7 +61,10 @@ pub struct McPendingRequests<P: Clone> {
     pub pending_remote_requests: ImHashMap<Uid, PendingRequest<P>>,
 }
 
-impl<P> McPendingRequests<P> {
+impl<P> McPendingRequests<P> 
+where
+    P: Clone,
+{
     fn new() -> Self {
         McPendingRequests {
             pending_local_requests: ImHashMap::new(),
@@ -118,7 +122,7 @@ pub enum McMutation<P> {
 
 impl<P> MutualCredit<P> 
 where
-    P: std::hash::Hash + Eq + Clone,
+    P: Hash + Eq + Clone,
 {
     pub fn new(local_public_key: &TPublicKey<P>, 
            remote_public_key: &TPublicKey<P>, 

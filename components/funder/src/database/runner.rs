@@ -1,4 +1,6 @@
 // use std::marker::Send;
+use std::fmt::Debug;
+use std::hash::Hash;
 use futures::{future};
 use futures::task::SpawnExt;
 // use futures_cpupool::CpuPool;
@@ -6,6 +8,8 @@ use futures::executor::ThreadPool;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+
+use common::canonical_serialize::CanonicalSerialize;
 
 use crate::state::{FunderMutation, FunderState};
 use super::atomic_db::AtomicDb;
@@ -29,11 +33,15 @@ pub enum DbServiceError {
 }
 */
 
-fn apply_funder_mutations<A,P,RS,FS,MS, D,E>(mut atomic_db: D, 
+fn apply_funder_mutations<A,P,RS,FS,MS,D,E>(mut atomic_db: D, 
     funder_mutations: Vec<FunderMutation<A,P,RS,FS,MS>>) -> Result<D, D::Error> 
 where
-    A: Clone + Serialize + DeserializeOwned + 'static,
-    D: AtomicDb<State=FunderState<A>, Mutation=FunderMutation<A,P,RS,FS,MS>, Error=E>,
+    A: CanonicalSerialize + Clone + Eq + Debug + Serialize + DeserializeOwned + 'static,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Serialize + DeserializeOwned,
+    RS: CanonicalSerialize + Clone + Eq + Debug + Serialize + DeserializeOwned,
+    FS: CanonicalSerialize + Clone + Debug + Serialize + DeserializeOwned,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default + Serialize + DeserializeOwned,
+    D: AtomicDb<State=FunderState<A,P,RS,FS,MS>, Mutation=FunderMutation<A,P,RS,FS,MS>, Error=E>,
 {
     atomic_db.mutate(funder_mutations)?;
     Ok(atomic_db)
@@ -85,11 +93,11 @@ pub struct DbRunner<D> {
 
 impl<A,P,RS,FS,MS,D,E> DbRunner<D> 
 where
-    A: Clone + Serialize + DeserializeOwned + Send + Sync + 'static,
-    P: Send + Sync,
-    RS: Send + Sync,
-    FS: Send + Sync,
-    MS: Send + Sync,
+    A: CanonicalSerialize + Clone + Eq + Debug + Serialize + DeserializeOwned + 'static,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug + Serialize + DeserializeOwned,
+    RS: CanonicalSerialize + Clone + Eq + Debug + Serialize + DeserializeOwned,
+    FS: CanonicalSerialize + Clone + Debug + Serialize + DeserializeOwned,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default + Serialize + DeserializeOwned,
     D: AtomicDb<State=FunderState<A,P,RS,FS,MS>, Mutation=FunderMutation<A,P,RS,FS,MS>, Error=E> + Send + 'static,
     E: Send + 'static,
 {

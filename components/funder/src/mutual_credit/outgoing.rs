@@ -1,8 +1,10 @@
+use std::hash::Hash;
 use common::safe_arithmetic::SafeSignedArithmetic;
 use common::int_convert::usize_to_u32;
+use common::canonical_serialize::CanonicalSerialize;
 
 use proto::funder::messages::{FriendTcOp, RequestSendFunds, 
-    SignedResponse, SignedFailure, RequestsStatus};
+    SignedResponse, SignedFailure, RequestsStatus, PendingRequest};
 
 use super::types::{MutualCredit, McMutation, 
     MAX_FUNDER_DEBT};
@@ -40,7 +42,7 @@ pub enum QueueOperationError {
 /// A wrapper over a token channel, accumulating fundss to be sent as one transcation.
 impl<P> OutgoingMc<P> 
 where
-    P: std::hash::Hash + Eq + Clone,
+    P: CanonicalSerialize + Hash + Eq + Clone,
 {
     pub fn new(mutual_credit: &MutualCredit<P>) -> Self {
         OutgoingMc {
@@ -49,7 +51,13 @@ where
     }
 
     pub fn queue_operation<RS,FS>(&mut self, operation: &FriendTcOp<P,RS,FS>) ->
-        Result<Vec<McMutation<P>>, QueueOperationError> {
+        Result<Vec<McMutation<P>>, QueueOperationError> 
+    where
+        RS: Clone,
+        FS: Clone,
+        (SignedFailure<P,FS>, PendingRequest<P>): Verify,
+        (SignedResponse<RS>, PendingRequest<P>): Verify,
+    {
 
         // TODO: Maybe remove clone from here later:
         match operation.clone() {
@@ -107,8 +115,11 @@ where
     }
 
 
-    fn queue_request_send_funds<RS,FS>(&mut self, request_send_funds: RequestSendFunds<P,RS,FS>) ->
-        Result<Vec<McMutation<P>>, QueueOperationError> {
+    fn queue_request_send_funds<RS,FS>(&mut self, request_send_funds: RequestSendFunds<P>) ->
+        Result<Vec<McMutation<P>>, QueueOperationError> 
+    where
+        FS: Sync + Send,
+    {
 
         if !request_send_funds.route.is_valid() {
             return Err(QueueOperationError::InvalidRoute);
@@ -196,7 +207,7 @@ where
         // TODO: Possibly get rid of clone() here for optimization later
 
         // Verify response funds signature:
-        let pair = (signed_response, pending_request);
+        let pair = (response_send_funds, pending_request);
         if !pair.verify() {
             return Err(QueueOperationError::InvalidResponseSignature);
         }

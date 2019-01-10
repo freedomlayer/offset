@@ -1,5 +1,7 @@
 #![warn(unused)]
 
+use std::fmt::Debug;
+use std::hash::Hash;
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 
@@ -10,8 +12,8 @@ use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN,
 use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
 
-use proto::funder::messages::{SignedMoveToken, FriendTcOp, TSignature, TPublicKey,
-                            MoveToken};
+use proto::funder::messages::{SignedMoveToken, UnsignedMoveToken, 
+    FriendTcOp, TSignature, TPublicKey, MoveToken};
 
 use crate::mutual_credit::types::{MutualCredit, McMutation};
 use crate::mutual_credit::incoming::{ProcessOperationOutput, ProcessTransListError, 
@@ -91,8 +93,11 @@ pub enum ReceiveMoveTokenOutput<A,P:Clone,RS,FS,MS> {
 
 impl<A,P,RS,FS,MS> TokenChannel<A,P,RS,FS,MS> 
 where
-    A: CanonicalSerialize + Clone,
-    P: Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
     pub fn new(local_public_key: &TPublicKey<P>, 
                remote_public_key: &TPublicKey<P>,
@@ -145,7 +150,7 @@ where
                       remote_public_key: &TPublicKey<P>, 
                       reset_move_token: &SignedMoveToken<A,P,RS,FS,MS>,
                       balance: i128, // Is this redundant?
-                      opt_last_incoming_move_token: Option<MoveTokenHashed>) -> Self {
+                      opt_last_incoming_move_token: Option<MoveTokenHashed<P,MS>>) -> Self {
 
         let tc_outgoing = TcOutgoing {
             mutual_credit: MutualCredit::new(local_public_key, remote_public_key, balance),
@@ -259,14 +264,17 @@ where
 
 impl<P,MS> TcIncoming<P,MS> 
 where
-    P: Clone + Eq,
+    P: Clone + Eq + Hash + Debug,
+    MS: Clone + Debug + Eq,
 {
     /// Handle an incoming move token during Incoming direction:
-    fn handle_incoming<A,RS>(&self, 
-                        new_move_token: MoveToken<A,P,RS,MS>) 
-        -> Result<ReceiveMoveTokenOutput<A,P,RS,MS>, ReceiveMoveTokenError> 
+    fn handle_incoming<A,RS,FS>(&self, 
+                        new_move_token: SignedMoveToken<A,P,RS,FS,MS>) 
+        -> Result<ReceiveMoveTokenOutput<A,P,RS,FS,MS>, ReceiveMoveTokenError> 
     where
-        A: CanonicalSerialize,
+        A: CanonicalSerialize + Clone + Eq + Debug,
+        RS: CanonicalSerialize + Clone + Eq + Debug,
+        FS: CanonicalSerialize + Clone + Debug,
     {
 
         // We compare the whole move token message and not just the signature (new_token)
@@ -280,15 +288,17 @@ where
         }
     }
 
-    pub fn create_unsigned_move_token<A,RS>(&self,
-                                    operations: Vec<FriendTcOp<P,RS>>,
+    pub fn create_unsigned_move_token<A,RS,FS>(&self,
+                                    operations: Vec<FriendTcOp<P,RS,FS>>,
                                     opt_local_address: Option<A>,
-                                    rand_nonce: RandValue) -> UnsignedMoveToken<A> {
+                                    rand_nonce: RandValue) -> UnsignedMoveToken<A,P,RS,FS,MS> {
 
         create_unsigned_move_token(
             operations,
             opt_local_address,
             self.move_token_in.new_token.clone(),
+            self.mutual_credit.idents.local_public_key.clone(),
+            self.mutual_credit.idents.remote_public_key.clone(),
             self.move_token_in.inconsistency_counter,
             self.move_token_in.move_token_counter.wrapping_add(1),
             self.mutual_credit.state().balance.balance,
@@ -306,9 +316,11 @@ where
 
 impl<A,P,RS,FS,MS> TcOutgoing<A,P,RS,FS,MS> 
 where
-    A: CanonicalSerialize + Clone,
-    P: Clone,
-    MS: Eq,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
     /// Handle an incoming move token during Outgoing direction:
     fn handle_incoming(&self, 

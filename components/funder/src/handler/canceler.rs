@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+use std::hash::Hash;
 use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::{RequestSendFunds,
                               ResponseReceived,
@@ -42,8 +44,11 @@ pub fn reply_with_failure<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,P,RS,
                              remote_public_key: &TPublicKey<P>,
                              request_send_funds: &RequestSendFunds<P>) 
 where
-    A: CanonicalSerialize + Clone,
-    P: Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     let pending_request = create_pending_request(request_send_funds);
@@ -62,7 +67,11 @@ pub fn cancel_local_pending_requests<A,P,RS,FS,MS>(m_state: &mut MutableFunderSt
                                      outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
                                      friend_public_key: &TPublicKey<P>) 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
 
@@ -120,7 +129,11 @@ pub fn cancel_pending_requests<A,P,RS,FS,MS>(m_state: &mut MutableFunderState<A,
                                   outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
                                   friend_public_key: &TPublicKey<P>) 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
@@ -158,7 +171,11 @@ pub fn cancel_pending_user_requests<A,P,RS,FS,MS>(m_state: &mut MutableFunderSta
                                        outgoing_control: &mut Vec<FunderOutgoingControl<A,P,RS,MS>>,
                                        friend_public_key: &TPublicKey<P>) 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Eq + Debug,
+    P: CanonicalSerialize + Clone + Eq + Hash + Debug,
+    RS: CanonicalSerialize + Clone + Eq + Debug,
+    FS: CanonicalSerialize + Clone + Debug,
+    MS: CanonicalSerialize + Clone + Eq + Debug + Default,
 {
 
     let friend = m_state.state().friends.get(&friend_public_key).unwrap();
