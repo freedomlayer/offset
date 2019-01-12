@@ -353,7 +353,8 @@ where
 
     // It will be strange if we need to resend outgoing, because the channel
     // is in incoming mode.
-    assert!(!friend_send_commands.resend_outgoing);
+    // -- This could happen in handle_liveness.
+    // assert!(!friend_send_commands.resend_outgoing);
 
     let outgoing_mc = tc_incoming.begin_outgoing_move_token();
     let pending_move_token = PendingMoveToken::new(friend_public_key.clone(), 
