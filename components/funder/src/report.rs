@@ -77,6 +77,8 @@ impl From<&MoveTokenHashed> for MoveTokenHashedReport {
     fn from(move_token_hashed: &MoveTokenHashed) -> MoveTokenHashedReport {
         MoveTokenHashedReport {
             prefix_hash: move_token_hashed.prefix_hash.clone(),
+            local_public_key: move_token_hashed.local_public_key.clone(),
+            remote_public_key: move_token_hashed.remote_public_key.clone(),
             inconsistency_counter: move_token_hashed.inconsistency_counter,
             move_token_counter: move_token_hashed.move_token_counter,
             balance: move_token_hashed.balance,
