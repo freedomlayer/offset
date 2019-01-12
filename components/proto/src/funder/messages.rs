@@ -107,6 +107,8 @@ pub struct MoveToken<A,S=Signature> {
     pub operations: Vec<FriendTcOp>,
     pub opt_local_address: Option<A>,
     pub old_token: Signature,
+    pub local_public_key: PublicKey,
+    pub remote_public_key: PublicKey,
     pub inconsistency_counter: u64,
     pub move_token_counter: u128,
     pub balance: i128,

@@ -253,6 +253,8 @@ where
         Vec::new(), 
         opt_local_address,
         remote_reset_terms.reset_token.clone(),
+        m_state.state().local_public_key.clone(),
+        friend_public_key.clone(),
         remote_reset_terms.inconsistency_counter,
         move_token_counter,
         remote_reset_terms.balance_for_reset.checked_neg().unwrap(),
