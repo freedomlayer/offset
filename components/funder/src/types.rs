@@ -18,6 +18,7 @@ use identity::IdentityClient;
 pub type UnsignedFailureSendFunds = FailureSendFunds<()>;
 pub type UnsignedResponseSendFunds = ResponseSendFunds<()>;
 pub type UnsignedMoveToken<A> = MoveToken<A,()>;
+pub type SignedMoveToken<A> = MoveToken<A,Signature>;
 
 pub async fn sign_move_token<'a,A>(unsigned_move_token: UnsignedMoveToken<A>,
                          identity_client: &'a mut IdentityClient) -> MoveToken<A> 

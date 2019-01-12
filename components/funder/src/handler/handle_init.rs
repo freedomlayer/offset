@@ -49,10 +49,11 @@ mod tests {
 
     use proto::funder::messages::AddFriend;
 
-    use crate::handler::gen_mutable;
     use crate::state::{FunderState, FunderMutation};
     use crate::ephemeral::Ephemeral;
     use crate::friend::FriendMutation;
+
+    use crate::handler::handler::MutableFunderState;
 
     use futures::executor::ThreadPool;
     use futures::{future, FutureExt};
@@ -66,10 +67,11 @@ mod tests {
     use crypto::crypto_rand::RngContainer;
 
 
+    #[test]
+    fn test_handle_init_basic() {
 
-    async fn task_handle_init_basic(identity_client: IdentityClient) {
-
-        let local_pk = await!(identity_client.request_public_key()).unwrap();
+        // let local_pk = await!(identity_client.request_public_key()).unwrap();
+        let local_pk = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
         let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
 
         let mut state = FunderState::new(&local_pk, Some(&1337u32));
@@ -89,27 +91,21 @@ mod tests {
         let funder_mutation = FunderMutation::FriendMutation((pk_b.clone(), friend_mutation));
         state.mutate(&funder_mutation);
 
-        let ephemeral = Ephemeral::new(&state);
-        let rng = DummyRandom::new(&[2u8]);
 
-        let mut mutable_funder_handler = gen_mutable(identity_client,
-                    RngContainer::new(rng),
-                    &state,
-                    &ephemeral);
+        let mut m_state = MutableFunderState::new(state);
+        let mut outgoing_channeler_config = Vec::new();
+        handle_init(&mut m_state,
+                    &mut outgoing_channeler_config);
 
-        mutable_funder_handler.handle_init();
+        let (initial_state, mutations, final_state) = m_state.done();
+        assert!(mutations.is_empty());
+        // TODO: Check equality?
+        // assert_eq!(initial_state, final_state);
 
-        let mut funder_handler_output = mutable_funder_handler.done();
-        assert!(funder_handler_output.funder_mutations.is_empty());
-        assert_eq!(funder_handler_output.outgoing_control.len(), 0);
-        assert_eq!(funder_handler_output.outgoing_comms.len(), 2);
+        assert_eq!(outgoing_channeler_config.len(), 2);
 
         // SetAddress:
-        let out_comm = funder_handler_output.outgoing_comms.remove(0);
-        let channeler_config = match out_comm {
-            FunderOutgoingComm::ChannelerConfig(channeler_config) => channeler_config,
-            _ => unreachable!(),
-        };
+        let channeler_config = outgoing_channeler_config.remove(0);
         match channeler_config {
             ChannelerConfig::SetAddress(opt_address) => {
                 assert_eq!(opt_address, Some(1337u32));
@@ -118,11 +114,7 @@ mod tests {
         };
 
         // AddFriend:
-        let out_comm = funder_handler_output.outgoing_comms.remove(0);
-        let channeler_config = match out_comm {
-            FunderOutgoingComm::ChannelerConfig(channeler_config) => channeler_config,
-            _ => unreachable!(),
-        };
+        let channeler_config = outgoing_channeler_config.remove(0);
         match channeler_config {
             ChannelerConfig::AddFriend(channeler_add_friend) => {
                 assert_eq!(channeler_add_friend.friend_address, 3u32);
@@ -130,20 +122,5 @@ mod tests {
             },
             _ => unreachable!(),
         };
-    }
-
-    #[test]
-    fn test_handle_init_basic() {
-        // Start identity service:
-        let mut thread_pool = ThreadPool::new().unwrap();
-
-        let rng = DummyRandom::new(&[1u8]);
-        let pkcs8 = generate_pkcs8_key_pair(&rng);
-        let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
-        let (requests_sender, identity_server) = create_identity(identity);
-        let identity_client = IdentityClient::new(requests_sender);
-        thread_pool.spawn(identity_server.then(|_| future::ready(()))).unwrap();
-
-        thread_pool.run(task_handle_init_basic(identity_client));
     }
 }

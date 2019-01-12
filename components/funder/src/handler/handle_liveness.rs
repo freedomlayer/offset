@@ -1,5 +1,3 @@
-use crypto::crypto_rand::CryptoRandom;
-
 use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::{FriendStatus, FunderOutgoingControl};
 
@@ -20,7 +18,7 @@ pub enum HandleLivenessError {
     FriendAlreadyOnline,
 }
 
-pub fn handle_liveness_message<A,R>(m_state: &mut MutableFunderState<A>,
+pub fn handle_liveness_message<A>(m_state: &mut MutableFunderState<A>,
                                     m_ephemeral: &mut MutableEphemeral,
                                     send_commands: &mut SendCommands,
                                     outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
@@ -29,7 +27,6 @@ pub fn handle_liveness_message<A,R>(m_state: &mut MutableFunderState<A>,
 
 where
     A: CanonicalSerialize + Clone + PartialEq + Eq,
-    R: CryptoRandom,
 {
 
     match liveness_message {
@@ -68,8 +65,7 @@ where
             let ephemeral_mutation = EphemeralMutation::LivenessMutation(liveness_mutation);
             m_ephemeral.mutate(ephemeral_mutation);
 
-            // Cancel all messages pending for this friend.
-            // TODO: Fix signature here:
+            // Cancel all messages pending for this friend:
             cancel_pending_requests(
                 m_state, 
                 send_commands,
@@ -93,33 +89,40 @@ mod tests {
 
     use proto::funder::messages::{FriendStatus, AddFriend};
 
-    use crate::handler::gen_mutable;
     use crate::state::{FunderState, FunderMutation};
     use crate::ephemeral::Ephemeral;
     use crate::token_channel::TcDirection;
-    use crate::friend::FriendMutation;
+    use crate::friend::{FriendMutation, ChannelStatus};
 
-    use futures::executor::ThreadPool;
-    use futures::{future, FutureExt};
-    use futures::task::SpawnExt;
+    use crate::handler::handler::{MutableFunderState, MutableEphemeral};
+    use crate::handler::sender::{SendCommands};
+
     use identity::{create_identity, IdentityClient};
 
     use crypto::test_utils::DummyRandom;
     use crypto::identity::{SoftwareEd25519Identity,
-                            generate_pkcs8_key_pair, compare_public_key};
+                            generate_pkcs8_key_pair, compare_public_key,
+                            Identity};
     use crypto::crypto_rand::RngContainer;
 
 
-    async fn task_handle_liveness_basic(identity_client1: IdentityClient, 
-                                        identity_client2: IdentityClient) {
+    fn test_handle_liveness_basic() {
 
-        let pk1 = await!(identity_client1.request_public_key()).unwrap();
-        let pk2 = await!(identity_client2.request_public_key()).unwrap();
+        let rng1 = DummyRandom::new(&[1u8]);
+        let pkcs8 = generate_pkcs8_key_pair(&rng1);
+        let identity1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+
+        let rng2 = DummyRandom::new(&[2u8]);
+        let pkcs8 = generate_pkcs8_key_pair(&rng2);
+        let identity2 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+
+        let pk1 = identity1.get_public_key();
+        let pk2 = identity2.get_public_key();
 
         let (local_identity, local_pk, _remote_identity, remote_pk) = if compare_public_key(&pk1, &pk2) == Ordering::Less {
-            (identity_client1, pk1, identity_client2, pk2)
+            (identity1, pk1, identity2, pk2)
         } else {
-            (identity_client2, pk2, identity_client1, pk1)
+            (identity2, pk2, identity1, pk1)
         };
 
         let mut state = FunderState::new(&local_pk, Some(&1337u32));
@@ -152,59 +155,28 @@ mod tests {
         };
 
         let ephemeral = Ephemeral::new(&state);
-        let rng = DummyRandom::new(&[2u8]);
 
-        let mut mutable_funder_handler = gen_mutable(local_identity,
-                    RngContainer::new(rng),
-                    &state,
-                    &ephemeral);
+        let mut m_state = MutableFunderState::new(state);
+        let mut m_ephemeral = MutableEphemeral::new(ephemeral);
+        let mut send_commands = SendCommands::new();
+        let mut outgoing_control = Vec::new();
+        let liveness_message = IncomingLivenessMessage::Online(remote_pk.clone());
 
         // Remote side got online:
-        await!(mutable_funder_handler.handle_liveness_message(
-            IncomingLivenessMessage::Online(remote_pk.clone()))).unwrap();
+        handle_liveness_message(&mut m_state,
+                                &mut m_ephemeral,
+                                &mut send_commands,
+                                &mut outgoing_control,
+                                liveness_message).unwrap();
+
+        let (initial_state, funder_mutations, final_state) = m_state.done();
+        let (ephemeral_mutations, final_ephemeral_state) = m_ephemeral.done();
+
+        assert!(outgoing_control.is_empty());
+        assert!(funder_mutations.is_empty());
 
         // We expect that the local side will send the remote side a message:
-        let mut funder_handler_output = mutable_funder_handler.done();
-        assert!(funder_handler_output.funder_mutations.is_empty());
-        assert_eq!(funder_handler_output.outgoing_control.len(), 1);
-        assert_eq!(funder_handler_output.outgoing_comms.len(),1);
-        let out_comm = funder_handler_output.outgoing_comms.pop().unwrap();
-
-        let (public_key, friend_message) = match out_comm {
-            FunderOutgoingComm::FriendMessage(x) => x,
-            _ => unreachable!(),
-        };
-
-        assert_eq!(public_key, remote_pk);
-
-        let friend_move_token_request = match friend_message {
-            FriendMessage::MoveTokenRequest(friend_move_token_request) => friend_move_token_request,
-            _ => unreachable!(),
-        };
-
-        assert!(!friend_move_token_request.token_wanted);
-        assert_eq!(&friend_move_token_request.friend_move_token, &move_token_out);
-    }
-
-    #[test]
-    fn test_handle_liveness_basic() {
-        // Start identity service:
-        let mut thread_pool = ThreadPool::new().unwrap();
-
-        let rng1 = DummyRandom::new(&[1u8]);
-        let pkcs8 = generate_pkcs8_key_pair(&rng1);
-        let identity1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
-        let (requests_sender1, identity_server1) = create_identity(identity1);
-        let identity_client1 = IdentityClient::new(requests_sender1);
-        thread_pool.spawn(identity_server1.then(|_| future::ready(()))).unwrap();
-
-        let rng2 = DummyRandom::new(&[2u8]);
-        let pkcs8 = generate_pkcs8_key_pair(&rng2);
-        let identity2 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
-        let (requests_sender2, identity_server2) = create_identity(identity2);
-        let identity_client2 = IdentityClient::new(requests_sender2);
-        thread_pool.spawn(identity_server2.then(|_| future::ready(()))).unwrap();
-
-        thread_pool.run(task_handle_liveness_basic(identity_client1, identity_client2));
+        let friend_send_commands = send_commands.send_commands.get(&remote_pk).unwrap();
+        assert!(friend_send_commands.resend_outgoing);
     }
 }

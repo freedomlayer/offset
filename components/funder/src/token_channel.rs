@@ -19,7 +19,7 @@ use crate::mutual_credit::incoming::{ProcessOperationOutput, ProcessTransListErr
 use crate::mutual_credit::outgoing::OutgoingMc;
 
 use crate::types::{MoveTokenHashed, create_unsigned_move_token, create_hashed,
-                    UnsignedMoveToken};
+                    UnsignedMoveToken, SignedMoveToken};
 
 
 #[derive(Debug)]
@@ -480,14 +480,42 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::executor::ThreadPool;
-    use futures::{future, FutureExt};
-    use futures::task::SpawnExt;
     use identity::{create_identity, IdentityClient};
 
     use crypto::test_utils::DummyRandom;
     use crypto::identity::{SoftwareEd25519Identity,
                             generate_pkcs8_key_pair};
+
+    use crypto::identity::Identity;
+
+    use proto::funder::signature_buff::move_token_signature_buff;
+
+    /// A helper function to sign an UnsignedMoveToken using an identity:
+    fn dummy_sign_move_token<A,I>(unsigned_move_token: UnsignedMoveToken<A>, 
+                                  identity: &I) 
+        -> SignedMoveToken<A> 
+    where
+        A: CanonicalSerialize,
+        I: Identity,
+    {
+        let signature_buff = move_token_signature_buff(&unsigned_move_token);
+
+        MoveToken {
+            operations: unsigned_move_token.operations,
+            opt_local_address: unsigned_move_token.opt_local_address,
+            old_token: unsigned_move_token.old_token,
+            local_public_key: unsigned_move_token.local_public_key,
+            remote_public_key: unsigned_move_token.remote_public_key,
+            inconsistency_counter: unsigned_move_token.inconsistency_counter,
+            move_token_counter: unsigned_move_token.move_token_counter,
+            balance: unsigned_move_token.balance,
+            local_pending_debt: unsigned_move_token.local_pending_debt, 
+            remote_pending_debt: unsigned_move_token.local_pending_debt,
+            rand_nonce: unsigned_move_token.rand_nonce, 
+            new_token: identity.sign(&signature_buff),
+        }
+
+    }
 
     #[test]
     fn test_initial_direction() {
@@ -507,40 +535,59 @@ mod tests {
             (token_channel_b_a, token_channel_a_b)
         };
 
-        assert_eq!(out_tc.get_cur_move_token_hashed(), in_tc.get_cur_move_token_hashed());
+        let out_hashed = match &out_tc.direction {
+            TcDirection::Incoming(_) => unreachable!(),
+            TcDirection::Outgoing(outgoing) => {
+                create_hashed(&outgoing.move_token_out)
+            }
+        };
+
+        let in_hashed = match &in_tc.direction {
+            TcDirection::Outgoing(_) => unreachable!(),
+            TcDirection::Incoming(incoming) => {
+                &incoming.move_token_in
+            }
+        };
+
+        assert_eq!(&out_hashed, in_hashed);
+
+        // assert_eq!(create_hashed(&out_tc.move_token_out), in_tc.move_token_in);
+        // assert_eq!(out_tc.get_cur_move_token_hashed(), in_tc.get_cur_move_token_hashed());
         let tc_outgoing = match out_tc.get_direction() {
             TcDirection::Outgoing(tc_outgoing) => tc_outgoing,
             TcDirection::Incoming(_) => unreachable!(),
         };
-        assert!(!tc_outgoing.token_wanted);
         assert!(tc_outgoing.opt_prev_move_token_in.is_none());
     }
 
     /// Sort the two identity client.
     /// The result will be a pair where the first is initially configured to have outgoing message,
     /// and the second is initially configured to have incoming message.
-    async fn sort_sides(identity_client1: IdentityClient,
-                        identity_client2: IdentityClient) 
-        -> (IdentityClient, IdentityClient) {
+    fn sort_sides<I>(identity1: I, identity2: I) -> (I, I) 
+    where
+        I: Identity,
+    {
 
-        let pk1 = await!(identity_client1.request_public_key()).unwrap();
-        let pk2 = await!(identity_client2.request_public_key()).unwrap();
+        let pk1 = identity1.get_public_key();
+        let pk2 = identity2.get_public_key();
         let token_channel12 = TokenChannel::<u32>::new(&pk1, &pk2, 0i128); // (local, remote)
         if token_channel12.is_outgoing() {
-            (identity_client1, identity_client2)
+            (identity1, identity2)
         } else {
-            (identity_client2, identity_client1)
-
+            (identity2, identity1)
         }
     }
 
     /// Before: tc1: outgoing, tc2: incoming
     /// Send SetRemoteMaxDebt: tc2 -> tc1
     /// After: tc1: incoming, tc2: outgoing
-    async fn set_remote_max_debt21<'a>(_identity_client1: &'a mut IdentityClient,
-                            identity_client2: &'a mut IdentityClient,
-                            tc1: &'a mut TokenChannel<u32>,
-                            tc2: &'a mut TokenChannel<u32>) {
+    fn set_remote_max_debt21<I>(_identity1: &I,
+                            identity2: &I,
+                            tc1: &mut TokenChannel<u32>,
+                            tc2: &mut TokenChannel<u32>) 
+    where
+        I: Identity,
+    {
 
         assert!(tc1.is_outgoing());
         assert!(!tc2.is_outgoing());
@@ -551,16 +598,16 @@ mod tests {
         };
         let mut outgoing_mc = tc2_incoming.begin_outgoing_move_token();
         let friend_tc_op = FriendTcOp::SetRemoteMaxDebt(100);
-        outgoing_mc.queue_operation(friend_tc_op).unwrap();
-        let (operations, mc_mutations) = outgoing_mc.done();
-
+        let mc_mutations = outgoing_mc.queue_operation(&friend_tc_op).unwrap();
+        let operations = vec![friend_tc_op];
 
         let rand_nonce = RandValue::from(&[5; RAND_VALUE_LEN]);
         let opt_local_address = None;
-        let friend_move_token = await!(tc2_incoming.create_friend_move_token(operations, 
+        let unsigned_move_token = tc2_incoming.create_unsigned_move_token(operations, 
                                                     opt_local_address,
-                                                    rand_nonce, 
-                                                    identity_client2.clone()));
+                                                    rand_nonce);
+
+        let friend_move_token = dummy_sign_move_token(unsigned_move_token, identity2);
 
         for mc_mutation in mc_mutations {
             tc2.mutate(&TcMutation::McMutation(mc_mutation));
@@ -609,65 +656,53 @@ mod tests {
         }
 
         assert!(!tc1.is_outgoing());
-        assert_eq!(&tc1.get_cur_move_token_hashed(), &create_hashed(&friend_move_token));
+        match &tc1.direction {
+            TcDirection::Outgoing(_) => unreachable!(),
+            TcDirection::Incoming(tc_incoming) => {
+                assert_eq!(tc_incoming.move_token_in, create_hashed(&friend_move_token));
+            }
+        };
+        // assert_eq!(&tc1.get_cur_move_token_hashed(), &create_hashed(&friend_move_token));
         assert_eq!(tc1.get_mutual_credit().state().balance.local_max_debt, 100);
 
     }
 
 
     /// This tests sends a SetRemoteMaxDebt(100) in both ways.
-    async fn task_simulate_receive_move_token_basic(identity_client1: IdentityClient, 
-                                  identity_client2: IdentityClient) {
+    fn test_simulate_receive_move_token_basic() {
+        let rng1 = DummyRandom::new(&[1u8]);
+        let pkcs8 = generate_pkcs8_key_pair(&rng1);
+        let identity1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
-        let (mut identity_client1, mut identity_client2) = 
-            await!(sort_sides(identity_client1, identity_client2));
+        let rng2 = DummyRandom::new(&[2u8]);
+        let pkcs8 = generate_pkcs8_key_pair(&rng2);
+        let identity2 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
 
-        let pk1 = await!(identity_client1.request_public_key()).unwrap();
-        let pk2 = await!(identity_client2.request_public_key()).unwrap();
+        let (identity1, identity2) = 
+            sort_sides(identity1, identity2);
+
+        let pk1 = identity1.get_public_key();
+        let pk2 = identity2.get_public_key();
         let mut tc1 = TokenChannel::new(&pk1, &pk2, 0i128); // (local, remote)
         let mut tc2 = TokenChannel::new(&pk2, &pk1, 0i128); // (local, remote)
 
         // Current state:  tc1 --> tc2
         // tc1: outgoing
         // tc2: incoming
-        await!(set_remote_max_debt21(&mut identity_client1,
-                              &mut identity_client2,
+        set_remote_max_debt21(&identity1,
+                              &identity2,
                               &mut tc1,
-                              &mut tc2));
+                              &mut tc2);
 
         // Current state:  tc2 --> tc1
         // tc1: incoming
         // tc2: outgoing
-        await!(set_remote_max_debt21(&mut identity_client2,
-                              &mut identity_client1,
+        set_remote_max_debt21(&identity2,
+                              &identity1,
                               &mut tc2,
-                              &mut tc1));
+                              &mut tc1);
 
     }
-
-    #[test]
-    fn test_simulate_receive_move_token_basic() {
-        // Start identity service:
-        let mut thread_pool = ThreadPool::new().unwrap();
-
-        let rng1 = DummyRandom::new(&[1u8]);
-        let pkcs8 = generate_pkcs8_key_pair(&rng1);
-        let identity1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
-        let (requests_sender1, identity_server1) = create_identity(identity1);
-        let identity_client1 = IdentityClient::new(requests_sender1);
-
-        let rng2 = DummyRandom::new(&[2u8]);
-        let pkcs8 = generate_pkcs8_key_pair(&rng2);
-        let identity2 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
-        let (requests_sender2, identity_server2) = create_identity(identity2);
-        let identity_client2 = IdentityClient::new(requests_sender2);
-
-        thread_pool.spawn(identity_server1.then(|_| future::ready(()))).unwrap();
-        thread_pool.spawn(identity_server2.then(|_| future::ready(()))).unwrap();
-
-        thread_pool.run(task_simulate_receive_move_token_basic(identity_client1, identity_client2));
-    }
-
 
     // TODO: Add more tests.
     // - Test behaviour of Duplicate, ChainInconsistency

@@ -54,7 +54,7 @@ pub type OutgoingMessage<A> = (PublicKey, FriendMessage<A>);
 
 #[derive(Clone)]
 pub struct SendCommands {
-    send_commands: HashMap<PublicKey, FriendSendCommands>
+    pub send_commands: HashMap<PublicKey, FriendSendCommands>
 }
 
 impl SendCommands {

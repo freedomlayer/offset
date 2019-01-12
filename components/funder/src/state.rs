@@ -15,7 +15,7 @@ use common::canonical_serialize::CanonicalSerialize;
 use crate::friend::{FriendState, FriendMutation};
 
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FunderState<A: Clone> {
     pub local_public_key: PublicKey,
     /// Address of relay we are going to connect to.

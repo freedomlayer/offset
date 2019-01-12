@@ -75,7 +75,7 @@ pub struct ChannelInconsistent {
     pub opt_remote_reset_terms: Option<ResetTerms>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum ChannelStatus<A> {
     Inconsistent(ChannelInconsistent),
     Consistent(TokenChannel<A>),
@@ -96,7 +96,7 @@ where
 }
 
 #[allow(unused)]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FriendState<A> {
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,

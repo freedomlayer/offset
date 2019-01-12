@@ -186,7 +186,7 @@ where
         FunderIncoming::Comm(incoming_comm) => {
             match incoming_comm {
                 FunderIncomingComm::Liveness(liveness_message) =>
-                    handle_liveness_message::<A,R>(&mut m_state, 
+                    handle_liveness_message::<A>(&mut m_state, 
                                             &mut m_ephemeral, 
                                             &mut send_commands,
                                             &mut outgoing_control,
