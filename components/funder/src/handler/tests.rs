@@ -159,12 +159,14 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);
-                assert_eq!(move_token_request.token_wanted, false);
+                // Token is wanted because Node1 wants to send his configured address later.
+                assert_eq!(move_token_request.token_wanted, true);
 
                 let friend_move_token = &move_token_request.friend_move_token;
                 assert_eq!(friend_move_token.move_token_counter, 0);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
+                assert!(friend_move_token.opt_local_address.is_none());
 
             } else {
                 unreachable!();
@@ -178,15 +180,53 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
     let incoming_liveness_message = IncomingLivenessMessage::Online(pk1.clone());
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Liveness(incoming_liveness_message));
     // TODO: Check outgoing_comms here:
-    await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, identity_client2))).unwrap();
+
+    // Node2 sends information about his address to Node1:
+    assert_eq!(outgoing_comms.len(), 1);
+
 
     // Node2: Receive friend_message from Node1:
+    // (Node2 should be able to discard this duplicate message)
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
-    // TODO: Check outgoing_comms here:
-    await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, identity_client2))).unwrap();
 
+    // The same message should be again sent by Node2:
+    assert_eq!(outgoing_comms.len(), 1);
+
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk1);
+                assert_eq!(move_token_request.token_wanted, false);
+
+                let friend_move_token = &move_token_request.friend_move_token;
+                assert_eq!(friend_move_token.move_token_counter, 1);
+                assert_eq!(friend_move_token.inconsistency_counter, 0);
+                assert_eq!(friend_move_token.balance, 0);
+
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        },
+        _ => unreachable!(),
+    };
+
+
+    println!("Node1 receives friend message from Node2:");
+    // Node1: Receive the message from Node2 (Setting address):
+    let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
+    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
+                                 &mut rng, identity_client1))).unwrap();
+
+    println!("outgoing_comms = {:?}", outgoing_comms);
+
+    // Node1 should send a message containing opt_local_address to Node2:
+
+    assert!(false);
 
     // Node1 receives control message to set remote max debt:
     let set_friend_remote_max_debt = SetFriendRemoteMaxDebt {
