@@ -363,6 +363,12 @@ where
                         new_move_token: MoveToken<A>) 
         -> Result<ReceiveMoveTokenOutput<A>, ReceiveMoveTokenError> {
 
+        // Make sure that the stated remote public key and local public key match:
+        if !((self.mutual_credit.state().idents.local_public_key == new_move_token.remote_public_key) &&
+             (self.mutual_credit.state().idents.remote_public_key == new_move_token.local_public_key)) {
+            return Err(ReceiveMoveTokenError::ChainInconsistency);
+        }
+
         if &new_move_token.old_token == &self.move_token_out.new_token {
             self.handle_incoming_token_match(new_move_token)
             // self.outgoing_to_incoming(friend_move_token, new_move_token)
