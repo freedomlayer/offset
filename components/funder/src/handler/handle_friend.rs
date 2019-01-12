@@ -449,6 +449,8 @@ where
             return;
         },
         ReceiveMoveTokenOutput::Received(move_token_received) => {
+            send_commands.set_try_send(remote_public_key);
+
             let MoveTokenReceived {
                 incoming_messages, 
                 mutations, 
