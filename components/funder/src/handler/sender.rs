@@ -523,20 +523,34 @@ where
 
     // Send update about local address if needed:
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
-    if let Some(local_address) = &m_state.state().opt_address {
+    let opt_new_sent_local_address = if let Some(local_address) = &m_state.state().opt_address {
         match &friend.sent_local_address {
             SentLocalAddress::NeverSent => {
                 pending_move_token.set_local_address(local_address.clone());
+                Some(SentLocalAddress::LastSent(local_address.clone()))
             },
             SentLocalAddress::Transition((last_sent_local_address, _)) |
             SentLocalAddress::LastSent(last_sent_local_address) => {
                 if local_address != last_sent_local_address {
                     pending_move_token.set_local_address(local_address.clone());
+                    Some(SentLocalAddress::Transition((local_address.clone(), last_sent_local_address.clone())))
+                } else {
+                    None
                 }
             },
-        };
+        }
+    } else {
+        None
+    };
+
+    // Update friend.sent_local_address accordingly:
+    if let Some(new_sent_local_address) = opt_new_sent_local_address {
+        let friend_mutation = FriendMutation::SetSentLocalAddress(new_sent_local_address);
+        let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+        m_state.mutate(funder_mutation);
     }
 
+    let friend = m_state.state().friends.get(friend_public_key).unwrap();
 
     // Set remote_max_debt if needed:
     let remote_max_debt = match &friend.channel_status {
