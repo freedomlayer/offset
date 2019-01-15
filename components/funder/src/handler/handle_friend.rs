@@ -73,12 +73,14 @@ where
 /// Check if channel reset is required (Remove side used the RESET token)
 /// If so, reset the channel.
 pub fn try_reset_channel<A>(m_state: &mut MutableFunderState<A>,
+                            send_commands: &mut SendCommands,
                             friend_public_key: &PublicKey,
                             local_reset_terms: &ResetTerms,
-                            move_token: &MoveToken<A>) 
+                            move_token_request: &MoveTokenRequest<A>) 
 where
-    A: CanonicalSerialize + Clone,
+    A: CanonicalSerialize + Clone + Debug,
 {
+    let move_token = &move_token_request.friend_move_token;
 
     // Check if incoming message is a valid attempt to reset the channel:
     if move_token.old_token != local_reset_terms.reset_token 
@@ -91,6 +93,7 @@ where
         || move_token.remote_pending_debt != 0 
         || !verify_move_token(move_token, friend_public_key)
     {
+        send_commands.set_resend_outgoing(friend_public_key);
         return;
     }
 
@@ -105,6 +108,10 @@ where
     let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
 
+    send_commands.set_try_send(friend_public_key);
+    if move_token_request.token_wanted {
+        send_commands.set_remote_wants_token(friend_public_key);
+    }
 }
 
 /// Forward a request message to the relevant friend and token channel.
@@ -503,9 +510,10 @@ where
         ChannelStatus::Consistent(token_channel) => token_channel,
         ChannelStatus::Inconsistent(channel_inconsistent) => {
             try_reset_channel(m_state, 
+                              send_commands,
                               remote_public_key, 
                               &channel_inconsistent.local_reset_terms.clone(),
-                              &friend_move_token_request.friend_move_token);
+                              &friend_move_token_request);
             return Ok(());
         }
     };
