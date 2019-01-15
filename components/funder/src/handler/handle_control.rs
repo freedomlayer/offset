@@ -462,7 +462,11 @@ where
 
             outgoing_control.push(FunderOutgoingControl::ResponseReceived(response_received));
             e
-        })
+        });
+
+    // Every RequestSendFunds must have a matching response. Therefore we don't return an error
+    // here. We have to make sure the response arrives back to the user.
+    Ok(())
 }
 
 /// Handle an incoming receipt ack message
