@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use crypto::crypto_rand::CryptoRandom;
 use crypto::identity::{PublicKey, Signature, SIGNATURE_LEN};
 
@@ -160,7 +161,6 @@ fn handle_request_send_funds<A>(m_state: &mut MutableFunderState<A>,
 where
     A: CanonicalSerialize + Clone,
 {
-
     // Find ourselves on the route. If we are not there, abort.
     let remote_index = request_send_funds.route.find_pk_pair(
         &remote_public_key, 
@@ -349,7 +349,6 @@ where
     A: CanonicalSerialize + Clone,
     R: CryptoRandom,
 {
-
     let friend = m_state.state().friends.get(remote_public_key).unwrap();
     let token_channel = match &friend.channel_status {
         ChannelStatus::Consistent(token_channel) => token_channel,
@@ -401,7 +400,6 @@ fn handle_move_token_success<A>(m_state: &mut MutableFunderState<A>,
 where
     A: CanonicalSerialize + Clone + Eq,
 {
-
     match receive_move_token_output {
         ReceiveMoveTokenOutput::Duplicate => {},
         ReceiveMoveTokenOutput::RetransmitOutgoing(_outgoing_move_token) => {
@@ -492,10 +490,9 @@ fn handle_move_token_request<A,R>(m_state: &mut MutableFunderState<A>,
                                 friend_move_token_request: MoveTokenRequest<A>) 
     -> Result<(), HandleFriendError> 
 where
-    A: CanonicalSerialize + Clone + Eq,
+    A: CanonicalSerialize + Clone + Eq + Debug,
     R: CryptoRandom,
 {
-
     // Find friend:
     let friend = match m_state.state().friends.get(remote_public_key) {
         Some(friend) => Ok(friend),
@@ -617,10 +614,9 @@ pub fn handle_friend_message<A,R>(m_state: &mut MutableFunderState<A>,
                                   friend_message: FriendMessage<A>)
                                     -> Result<(), HandleFriendError> 
 where
-    A: CanonicalSerialize + Clone + Eq,
+    A: CanonicalSerialize + Clone + Eq + Debug,
     R: CryptoRandom,
 {
-
     // Make sure that friend exists:
     let _ = match m_state.state().friends.get(remote_public_key) {
         Some(friend) => Ok(friend),

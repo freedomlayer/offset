@@ -193,7 +193,7 @@ pub fn funder_handle_incoming<A,R>(mut m_state: &mut MutableFunderState<A>,
                                         Vec<ChannelerConfig<A>>), FunderHandlerError>
 
 where
-    A: CanonicalSerialize + Clone + Eq,
+    A: CanonicalSerialize + Clone + Eq + Debug,
     R: CryptoRandom,
 {
     let mut send_commands = SendCommands::new();
