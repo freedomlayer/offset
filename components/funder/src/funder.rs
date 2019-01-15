@@ -47,6 +47,7 @@ pub async fn inner_funder_loop<A, R, D, E>(
     comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
     atomic_db: D,
     max_operations_in_batch: usize,
+    max_pending_user_requests: usize,
     mut opt_event_sender: Option<mpsc::Sender<FunderEvent<A>>>) -> Result<(), FunderError<E>> 
 
 where
@@ -91,6 +92,7 @@ where
                               db_runner.get_state().clone(),
                               ephemeral.clone(),
                               max_operations_in_batch,
+                              max_pending_user_requests,
                               funder_incoming));
 
 
@@ -144,6 +146,7 @@ pub async fn funder_loop<A,R,D,E>(
     control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
     comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
     max_operations_in_batch: usize,
+    max_pending_user_requests: usize,
     atomic_db: D) -> Result<(), FunderError<E>> 
 where
     A: CanonicalSerialize + Serialize + DeserializeOwned + Send + Sync + Clone + Debug + PartialEq + Eq + 'static,
@@ -160,6 +163,7 @@ where
            comm_sender,
            atomic_db,
            max_operations_in_batch,
+           max_pending_user_requests,
            None))
 
 }

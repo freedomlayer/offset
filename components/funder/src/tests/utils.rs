@@ -35,6 +35,7 @@ use crate::types::{ChannelerConfig, FunderOutgoingComm, FunderIncomingComm,
                 IncomingLivenessMessage};
 
 const TEST_MAX_OPERATIONS_IN_BATCH: usize = 16;
+const TEST_MAX_PENDING_USER_REQUESTS: usize = 16;
 
 // This is required to make sure the tests are not stuck.
 //
@@ -399,6 +400,7 @@ pub async fn create_node_controls(num_nodes: usize,
             comm_sender,
             mock_db,
             TEST_MAX_OPERATIONS_IN_BATCH,
+            TEST_MAX_PENDING_USER_REQUESTS,
             None);
 
         spawner.spawn(funder_fut.then(|_| future::ready(()))).unwrap();

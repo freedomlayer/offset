@@ -187,6 +187,7 @@ where
 pub fn funder_handle_incoming<A,R>(mut m_state: &mut MutableFunderState<A>,
                                    mut m_ephemeral: &mut MutableEphemeral,
                                    rng: &R,
+                                   max_pending_user_requests: usize,
                                    funder_incoming: FunderIncoming<A>)
                                     -> Result<(SendCommands, 
                                         Vec<FunderOutgoingControl<A>>, 
@@ -211,6 +212,7 @@ where
                                    &mut send_commands,
                                    &mut outgoing_control,
                                    &mut outgoing_channeler_config,
+                                   max_pending_user_requests,
                                    control_message)
                 .map_err(FunderHandlerError::HandleControlError)?,
 
@@ -271,6 +273,7 @@ pub async fn funder_handle_message<'a, A,R>(
                       funder_state: FunderState<A>,
                       funder_ephemeral: Ephemeral,
                       max_operations_in_batch: usize,
+                      max_pending_user_requests: usize,
                       funder_incoming: FunderIncoming<A>) 
         -> Result<FunderHandlerOutput<A>, FunderHandlerError> 
 where
@@ -286,6 +289,7 @@ where
         funder_handle_incoming(&mut m_state, 
                                &mut m_ephemeral, 
                                rng, 
+                               max_pending_user_requests,
                                funder_incoming)?;
 
     for channeler_config in outgoing_channeler_config {

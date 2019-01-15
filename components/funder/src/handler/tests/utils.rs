@@ -15,6 +15,7 @@ use crate::handler::handler::{funder_handle_message, FunderHandlerError,
                                 FunderHandlerOutput};
 
 const TEST_MAX_OPERATIONS_IN_BATCH: usize = 16;
+const TEST_MAX_PENDING_USER_REQUESTS: usize = 16;
 
 /// A helper function. Applies an incoming funder message, updating state and ephemeral
 /// accordingly:
@@ -34,6 +35,7 @@ where
                           state.clone(),
                           ephemeral.clone(),
                           TEST_MAX_OPERATIONS_IN_BATCH,
+                          TEST_MAX_PENDING_USER_REQUESTS,
                           funder_incoming))?;
 
     let FunderHandlerOutput {ephemeral_mutations, funder_mutations, outgoing_comms, outgoing_control}

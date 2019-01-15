@@ -20,9 +20,6 @@ use crate::handler::canceler::{cancel_local_pending_requests,
 
 use crate::types::{ChannelerConfig, ChannelerUpdateFriend};
 
-// TODO: Should be an argument of the Funder:
-const MAX_PENDING_USER_REQUESTS: usize = 0x10;
-
 #[derive(Debug)]
 pub enum HandleControlError {
     FriendDoesNotExist,
@@ -351,6 +348,7 @@ fn control_request_send_funds_inner<A>(m_state: &mut MutableFunderState<A>,
                                        ephemeral: &Ephemeral,
                                        outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
                                        send_commands: &mut SendCommands,
+                                       max_pending_user_requests: usize,
                                        user_request_send_funds: UserRequestSendFunds)
     -> Result<(), HandleControlError> 
 where
@@ -422,7 +420,7 @@ where
     }
 
     // Check if we have room to push this message:
-    if friend.pending_user_requests.len() >= MAX_PENDING_USER_REQUESTS {
+    if friend.pending_user_requests.len() >= max_pending_user_requests {
         return Err(HandleControlError::PendingUserRequestsFull);
     }
 
@@ -444,6 +442,7 @@ fn control_request_send_funds<A>(m_state: &mut MutableFunderState<A>,
                                  ephemeral: &Ephemeral,
                                  outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
                                  send_commands: &mut SendCommands,
+                                 max_pending_user_requests: usize,
                                  user_request_send_funds: UserRequestSendFunds) 
     -> Result<(), HandleControlError> 
 where
@@ -456,6 +455,7 @@ where
                                      ephemeral,
                                      outgoing_control, 
                                      send_commands, 
+                                     max_pending_user_requests,
                                      user_request_send_funds.clone()) {
 
         error!("control_request_send_funds_inner() failed: {:?}", e);
@@ -502,6 +502,7 @@ pub fn handle_control_message<A>(m_state: &mut MutableFunderState<A>,
                                  send_commands: &mut SendCommands,
                                  outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
                                  outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>,
+                                 max_pending_user_requests: usize,
                                  incoming_control: FunderIncomingControl<A>) 
     -> Result<(), HandleControlError> 
 where
@@ -563,6 +564,7 @@ where
                                        m_ephemeral.ephemeral(),
                                        outgoing_control, 
                                        send_commands,
+                                       max_pending_user_requests,
                                        user_request_send_funds),
 
         FunderIncomingControl::ReceiptAck(receipt_ack) =>
