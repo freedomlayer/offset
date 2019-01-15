@@ -326,7 +326,7 @@ where
     let token_channel = match &friend.channel_status {
         ChannelStatus::Consistent(token_channel) => token_channel,
         ChannelStatus::Inconsistent(channel_inconsistent) => {
-            if friend_send_commands.resend_outgoing {
+            if friend_send_commands.resend_outgoing || friend_send_commands.try_send {
                 outgoing_messages.push((friend_public_key.clone(),
                         FriendMessage::InconsistencyError(channel_inconsistent.local_reset_terms.clone())));
             }
