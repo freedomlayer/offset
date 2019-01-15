@@ -313,7 +313,6 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         _ => unreachable!(),
     };
 
-    assert!(false);
 
     // Node2: Receive friend_message (With SetRemoteMaxDebt) from Node1:
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
@@ -352,10 +351,12 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
     let (outgoing_comms, outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, identity_client2))).unwrap();
 
+
     // Node2 will not send the RequestFunds message to Node1, because he knows Node1 is
     // not ready:
     assert_eq!(outgoing_comms.len(), 0);
     assert_eq!(outgoing_control.len(), 1);
+
 
     // Checking the current requests status on the mutual credit:
     let friend2 = state1.friends.get(&pk2).unwrap();
@@ -449,10 +450,12 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         friend_message.clone()
     } else { unreachable!(); };
 
+
     // Node1 receives RequestSendFunds from Node2:
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
     let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, identity_client1))).unwrap();
+
 
     // Node1 sends a ResponseSendFunds to Node2:
     assert_eq!(outgoing_comms.len(), 1);
@@ -471,6 +474,7 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         },
         _ => unreachable!(),
     };
+
 
     // Node2 receives ResponseSendFunds from Node1:
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
