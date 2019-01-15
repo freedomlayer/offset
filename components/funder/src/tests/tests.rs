@@ -274,7 +274,10 @@ fn test_funder_payment_failure() {
 }
 
 /// Test a basic inconsistency between two adjacent nodes
-async fn task_funder_inconsistency_basic(spawner: impl Spawn + Clone + Send + 'static) {
+async fn task_funder_inconsistency_basic<S>(spawner: S)
+where
+    S: Spawn + Clone + Send + 'static,
+{
     let num_nodes = 2;
     let mut node_controls = await!(create_node_controls(num_nodes, spawner));
 
