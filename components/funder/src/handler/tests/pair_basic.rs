@@ -46,9 +46,9 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         (identity_client2, pk2, identity_client1, pk1)
     };
 
-    let mut state1 = FunderState::<u32>::new(&pk1, Some(&0x1337u32));
+    let mut state1 = FunderState::<u32>::new(&pk1, Some(&11u32));
     let mut ephemeral1 = Ephemeral::new(&state1);
-    let mut state2 = FunderState::<u32>::new(&pk2, Some(&0x1338u32));
+    let mut state2 = FunderState::<u32>::new(&pk2, Some(&22u32));
     let mut ephemeral2 = Ephemeral::new(&state2);
 
     let mut rng = RngContainer::new(DummyRandom::new(&[3u8]));
@@ -158,6 +158,7 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
     // The same message should be again sent by Node2:
     assert_eq!(outgoing_comms.len(), 1);
 
+
     let friend_message = match &outgoing_comms[0] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
@@ -168,7 +169,7 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 1);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert_eq!(friend_move_token.opt_local_address, Some(0x1338));
+                assert_eq!(friend_move_token.opt_local_address, Some(22));
 
             } else {
                 unreachable!();
@@ -195,7 +196,7 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 2);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert_eq!(friend_move_token.opt_local_address, Some(0x1337));
+                assert_eq!(friend_move_token.opt_local_address, Some(11));
 
             } else {
                 unreachable!();
