@@ -91,21 +91,18 @@ mod tests {
 
     use crate::state::{FunderState, FunderMutation};
     use crate::ephemeral::Ephemeral;
-    use crate::token_channel::TcDirection;
     use crate::friend::{FriendMutation, ChannelStatus};
 
     use crate::handler::handler::{MutableFunderState, MutableEphemeral};
     use crate::handler::sender::{SendCommands};
 
-    use identity::{create_identity, IdentityClient};
-
     use crypto::test_utils::DummyRandom;
     use crypto::identity::{SoftwareEd25519Identity,
                             generate_pkcs8_key_pair, compare_public_key,
                             Identity};
-    use crypto::crypto_rand::RngContainer;
 
 
+    #[test]
     fn test_handle_liveness_basic() {
 
         let rng1 = DummyRandom::new(&[1u8]);
@@ -119,7 +116,7 @@ mod tests {
         let pk1 = identity1.get_public_key();
         let pk2 = identity2.get_public_key();
 
-        let (local_identity, local_pk, _remote_identity, remote_pk) = if compare_public_key(&pk1, &pk2) == Ordering::Less {
+        let (_local_identity, local_pk, _remote_identity, remote_pk) = if compare_public_key(&pk1, &pk2) == Ordering::Less {
             (identity1, pk1, identity2, pk2)
         } else {
             (identity2, pk2, identity1, pk1)
@@ -149,11 +146,6 @@ mod tests {
         };
         assert!(token_channel.is_outgoing());
 
-        let move_token_out = match token_channel.get_direction() {
-            TcDirection::Outgoing(tc_outgoing) => tc_outgoing.move_token_out.clone(),
-            _ => unreachable!(),
-        };
-
         let ephemeral = Ephemeral::new(&state);
 
         let mut m_state = MutableFunderState::new(state);
@@ -169,11 +161,13 @@ mod tests {
                                 &mut outgoing_control,
                                 liveness_message).unwrap();
 
-        let (initial_state, funder_mutations, final_state) = m_state.done();
+        let (_initial_state, funder_mutations, _final_state) = m_state.done();
         let (ephemeral_mutations, final_ephemeral_state) = m_ephemeral.done();
 
         assert!(outgoing_control.is_empty());
         assert!(funder_mutations.is_empty());
+        assert_eq!(ephemeral_mutations.len(), 1);
+        assert!(final_ephemeral_state.liveness.is_online(&remote_pk));
 
         // We expect that the local side will send the remote side a message:
         let friend_send_commands = send_commands.send_commands.get(&remote_pk).unwrap();

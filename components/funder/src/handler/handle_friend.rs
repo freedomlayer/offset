@@ -5,7 +5,7 @@ use crypto::identity::{PublicKey, Signature, SIGNATURE_LEN};
 use common::canonical_serialize::CanonicalSerialize;
 
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds,
-    FailureSendFunds, MoveToken, FreezeLink, FriendMessage,
+    FailureSendFunds, FriendMessage,
     MoveTokenRequest, ResetTerms, PendingRequest, ResponseReceived,
     FunderOutgoingControl, ResponseSendFundsResult};
 use proto::funder::signature_buff::{prepare_receipt, verify_move_token};
@@ -18,7 +18,7 @@ use crate::token_channel::{ReceiveMoveTokenOutput,
 use crate::types::{create_pending_request, ChannelerConfig,
                     ChannelerUpdateFriend};
 
-use crate::state::{FunderMutation, FunderState};
+use crate::state::FunderMutation;
 use crate::friend::{FriendMutation, 
     ResponseOp, ChannelStatus, ChannelInconsistent,
     SentLocalAddress};

@@ -1,7 +1,6 @@
 use super::utils::apply_funder_incoming;
 
 use std::cmp::Ordering;
-use std::fmt::Debug;
 
 use futures::executor::ThreadPool;
 use futures::{future, FutureExt};
@@ -11,24 +10,19 @@ use identity::{create_identity, IdentityClient};
 
 use crypto::test_utils::DummyRandom;
 use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair, compare_public_key};
-use crypto::crypto_rand::{RngContainer, CryptoRandom};
+use crypto::crypto_rand::RngContainer;
 use crypto::uid::{Uid, UID_LEN};
-
-use common::canonical_serialize::CanonicalSerialize;
-
 
 use proto::funder::messages::{FriendMessage, FriendsRoute, 
     InvoiceId, INVOICE_ID_LEN, FunderIncomingControl, 
     AddFriend, FriendStatus,
     SetFriendStatus, SetFriendRemoteMaxDebt,
-    UserRequestSendFunds, SetRequestsStatus, RequestsStatus,
-    FunderOutgoingControl, ResetFriendChannel};
+    UserRequestSendFunds, SetRequestsStatus, RequestsStatus};
 
 use crate::types::{FunderIncoming, IncomingLivenessMessage, 
     FunderOutgoingComm, FunderIncomingComm, ChannelerConfig};
 use crate::ephemeral::Ephemeral;
 use crate::state::FunderState;
-use crate::handler::handler::FunderHandlerOutput;
 use crate::friend::ChannelStatus;
 
 async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient, 

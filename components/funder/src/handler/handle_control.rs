@@ -277,8 +277,6 @@ where
 }
 
 fn control_set_friend_address<A>(m_state: &mut MutableFunderState<A>, 
-                                 send_commands: &mut SendCommands,
-                                 outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
                                  outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>,
                                  set_friend_address: SetFriendAddress<A>)
     -> Result<(), HandleControlError> 
@@ -312,18 +310,6 @@ where
     };
     let channeler_config = ChannelerConfig::UpdateFriend(update_friend);
     outgoing_channeler_config.push(channeler_config);
-
-    /*
-    disable_friend(m_state, 
-                   send_commands,
-                   outgoing_control,
-                   outgoing_channeler_config, 
-                   &set_friend_address.friend_public_key);
-    enable_friend(m_state, 
-                  outgoing_channeler_config,
-                  &set_friend_address.friend_public_key, 
-                  &set_friend_address.address);
-   */
 
     Ok(())
 }
@@ -466,20 +452,20 @@ where
     
     // If we managed to push the message, we return an Ok(()).
     // Otherwise, we return the internal error and return a response failure message.
-    control_request_send_funds_inner(m_state, 
+    if let Err(e) = control_request_send_funds_inner(m_state, 
                                      ephemeral,
                                      outgoing_control, 
                                      send_commands, 
-                                     user_request_send_funds.clone())
-        .map_err(|e| {
-            let response_received = ResponseReceived {
-                request_id: user_request_send_funds.request_id,
-                result: ResponseSendFundsResult::Failure(m_state.state().local_public_key.clone()),
-            };
+                                     user_request_send_funds.clone()) {
 
-            outgoing_control.push(FunderOutgoingControl::ResponseReceived(response_received));
-            e
-        });
+        error!("control_request_send_funds_inner() failed: {:?}", e);
+        let response_received = ResponseReceived {
+            request_id: user_request_send_funds.request_id,
+            result: ResponseSendFundsResult::Failure(m_state.state().local_public_key.clone()),
+        };
+
+        outgoing_control.push(FunderOutgoingControl::ResponseReceived(response_received));
+    }
 
     // Every RequestSendFunds must have a matching response. Therefore we don't return an error
     // here. We have to make sure the response arrives back to the user.
@@ -565,8 +551,6 @@ where
 
         FunderIncomingControl::SetFriendAddress(set_friend_address) =>
             control_set_friend_address(m_state, 
-                                       send_commands,
-                                       outgoing_control,
                                        outgoing_channeler_config,
                                        set_friend_address),
 

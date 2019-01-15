@@ -49,21 +49,11 @@ mod tests {
     use proto::funder::messages::AddFriend;
 
     use crate::state::{FunderState, FunderMutation};
-    use crate::ephemeral::Ephemeral;
     use crate::friend::FriendMutation;
 
     use crate::handler::handler::MutableFunderState;
 
-    use futures::executor::ThreadPool;
-    use futures::{future, FutureExt};
-    use futures::task::SpawnExt;
-    use identity::{create_identity, IdentityClient};
-
-    use crypto::test_utils::DummyRandom;
-    use crypto::identity::{SoftwareEd25519Identity,
-                            generate_pkcs8_key_pair, PUBLIC_KEY_LEN,
-                            PublicKey};
-    use crypto::crypto_rand::RngContainer;
+    use crypto::identity::{PUBLIC_KEY_LEN, PublicKey};
 
 
     #[test]
@@ -96,7 +86,7 @@ mod tests {
         handle_init(&mut m_state,
                     &mut outgoing_channeler_config);
 
-        let (initial_state, mutations, final_state) = m_state.done();
+        let (_iinitial_state, mutations, _final_state) = m_state.done();
         assert!(mutations.is_empty());
         // TODO: Check equality?
         // assert_eq!(initial_state, final_state);

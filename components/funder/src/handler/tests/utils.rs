@@ -1,35 +1,18 @@
-use crate::handler::handler::{funder_handle_message, FunderHandlerError};
-
-use std::cmp::Ordering;
 use std::fmt::Debug;
 
-use futures::executor::ThreadPool;
-use futures::{future, FutureExt};
-use futures::task::SpawnExt;
+use identity::{IdentityClient};
 
-use identity::{create_identity, IdentityClient};
-
-use crypto::test_utils::DummyRandom;
-use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair, compare_public_key};
-use crypto::crypto_rand::{RngContainer, CryptoRandom};
-use crypto::uid::{Uid, UID_LEN};
+use crypto::crypto_rand::CryptoRandom;
 
 use common::canonical_serialize::CanonicalSerialize;
 
+use proto::funder::messages::FunderOutgoingControl;
 
-use proto::funder::messages::{FriendMessage, FriendsRoute, 
-    InvoiceId, INVOICE_ID_LEN, FunderIncomingControl, 
-    AddFriend, FriendStatus,
-    SetFriendStatus, SetFriendRemoteMaxDebt,
-    UserRequestSendFunds, SetRequestsStatus, RequestsStatus,
-    FunderOutgoingControl, ResetFriendChannel};
-
-use crate::types::{FunderIncoming, IncomingLivenessMessage, 
-    FunderOutgoingComm, FunderIncomingComm};
+use crate::types::{FunderIncoming, FunderOutgoingComm};
 use crate::ephemeral::Ephemeral;
 use crate::state::FunderState;
-use crate::handler::handler::FunderHandlerOutput;
-use crate::friend::ChannelStatus;
+use crate::handler::handler::{funder_handle_message, FunderHandlerError,
+                                FunderHandlerOutput};
 
 const TEST_MAX_OPERATIONS_IN_BATCH: usize = 16;
 

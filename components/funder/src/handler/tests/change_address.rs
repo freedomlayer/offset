@@ -1,7 +1,6 @@
 use super::utils::apply_funder_incoming;
 
 use std::cmp::Ordering;
-use std::fmt::Debug;
 
 use futures::executor::ThreadPool;
 use futures::{future, FutureExt};
@@ -11,25 +10,18 @@ use identity::{create_identity, IdentityClient};
 
 use crypto::test_utils::DummyRandom;
 use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair, compare_public_key};
-use crypto::crypto_rand::{RngContainer, CryptoRandom};
-use crypto::uid::{Uid, UID_LEN};
-
-use common::canonical_serialize::CanonicalSerialize;
+use crypto::crypto_rand::RngContainer;
 
 
-use proto::funder::messages::{FriendMessage, FriendsRoute, 
-    InvoiceId, INVOICE_ID_LEN, FunderIncomingControl, 
+use proto::funder::messages::{FriendMessage, 
+    FunderIncomingControl, 
     AddFriend, FriendStatus,
-    SetFriendStatus, SetFriendRemoteMaxDebt,
-    UserRequestSendFunds, SetRequestsStatus, RequestsStatus,
-    FunderOutgoingControl, ResetFriendChannel};
+    SetFriendStatus};
 
 use crate::types::{FunderIncoming, IncomingLivenessMessage, 
     FunderOutgoingComm, FunderIncomingComm, ChannelerConfig};
 use crate::ephemeral::Ephemeral;
 use crate::state::FunderState;
-use crate::handler::handler::FunderHandlerOutput;
-use crate::friend::ChannelStatus;
 
 async fn task_handler_change_address(identity_client1: IdentityClient, 
                                  identity_client2: IdentityClient) {
@@ -145,7 +137,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
 
     // Node2: Receive friend_message from Node1:
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
-    let (outgoing_comms, outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, &mut identity_client2))).unwrap();
 
 
@@ -199,7 +191,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
 
     // Node2: Receive friend_message from Node1:
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
-    let (outgoing_comms, outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, &mut identity_client2))).unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
@@ -275,7 +267,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
 
     // Node2: Receive friend_message from Node1:
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
-    let (outgoing_comms, outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, &mut identity_client2))).unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);

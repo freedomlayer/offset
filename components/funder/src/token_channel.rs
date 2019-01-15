@@ -19,7 +19,7 @@ use crate::mutual_credit::incoming::{ProcessOperationOutput, ProcessTransListErr
 use crate::mutual_credit::outgoing::OutgoingMc;
 
 use crate::types::{MoveTokenHashed, create_unsigned_move_token, create_hashed,
-                    UnsignedMoveToken, SignedMoveToken};
+                    UnsignedMoveToken};
 
 
 #[derive(Debug)]
@@ -480,7 +480,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use identity::{create_identity, IdentityClient};
 
     use crypto::test_utils::DummyRandom;
     use crypto::identity::{SoftwareEd25519Identity,
@@ -493,7 +492,7 @@ mod tests {
     /// A helper function to sign an UnsignedMoveToken using an identity:
     fn dummy_sign_move_token<A,I>(unsigned_move_token: UnsignedMoveToken<A>, 
                                   identity: &I) 
-        -> SignedMoveToken<A> 
+        -> MoveToken<A> 
     where
         A: CanonicalSerialize,
         I: Identity,
@@ -645,8 +644,7 @@ mod tests {
                             assert_eq!(&create_hashed(&friend_move_token), incoming_friend_move_token),
                         _ => unreachable!(),
                     }
-                }
-                _ => unreachable!(),
+                },
             }
         }
         assert!(seen_mc_mutation && seen_set_direction);
@@ -669,6 +667,7 @@ mod tests {
 
 
     /// This tests sends a SetRemoteMaxDebt(100) in both ways.
+    #[test]
     fn test_simulate_receive_move_token_basic() {
         let rng1 = DummyRandom::new(&[1u8]);
         let pkcs8 = generate_pkcs8_key_pair(&rng1);
