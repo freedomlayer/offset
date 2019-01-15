@@ -148,7 +148,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
                                  &mut rng, identity_client2))).unwrap();
 
     // Node2 sends information about his address to Node1:
-    assert_eq!(outgoing_comms.len(), 1);
+    assert_eq!(outgoing_comms.len(), 2);
 
 
     // Node2: Receive MoveToken from Node1:
@@ -314,8 +314,8 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
 
     // Inconsistency is resolved.
     // Node1 sends his address:
-    assert_eq!(outgoing_comms.len(), 1);
-    let friend_message = match &outgoing_comms[0] {
+    assert_eq!(outgoing_comms.len(), 2);
+    let friend_message = match &outgoing_comms[1] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);

@@ -239,7 +239,7 @@ pub struct FriendInconsistencyError {
 }
 
 #[derive(Debug)]
-pub struct ChannelerAddFriend<A> {
+pub struct ChannelerUpdateFriend<A> {
     pub friend_public_key: PublicKey,
     pub friend_address: A,
     pub local_addresses: Vec<A>,
@@ -251,7 +251,7 @@ pub enum ChannelerConfig<A> {
     /// This is the address the Channeler will connect to 
     /// and listen for new connections
     SetAddress(Option<A>),
-    AddFriend(ChannelerAddFriend<A>),
+    UpdateFriend(ChannelerUpdateFriend<A>),
     RemoveFriend(PublicKey),
 }
 

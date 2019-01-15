@@ -15,7 +15,8 @@ use crate::mutual_credit::incoming::{IncomingResponseSendFunds,
 use crate::token_channel::{ReceiveMoveTokenOutput, 
     MoveTokenReceived, TokenChannel};
 
-use crate::types::create_pending_request;
+use crate::types::{create_pending_request, ChannelerConfig,
+                    ChannelerUpdateFriend};
 
 use crate::state::{FunderMutation, FunderState};
 use crate::friend::{FriendMutation, 
@@ -401,6 +402,7 @@ fn handle_move_token_success<A>(m_state: &mut MutableFunderState<A>,
                                 m_ephemeral: &mut MutableEphemeral,
                                 send_commands: &mut SendCommands,
                                 outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
+                                outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>,
                                 remote_public_key: &PublicKey,
                                 receive_move_token_output: ReceiveMoveTokenOutput<A>,
                                 token_wanted: bool) 
@@ -452,9 +454,22 @@ where
                 SentLocalAddress::NeverSent |
                 SentLocalAddress::LastSent(_) => {},
                 SentLocalAddress::Transition((last_address, _prev_last_address)) => {
-                    let friend_mutation = FriendMutation::SetSentLocalAddress(SentLocalAddress::LastSent(last_address.clone()));
+                    let c_last_address = last_address.clone();
+                    // Update SentLocalAddress:
+                    let friend_mutation = FriendMutation::SetSentLocalAddress(SentLocalAddress::LastSent(c_last_address.clone()));
                     let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
                     m_state.mutate(funder_mutation);
+
+                    let friend = m_state.state().friends.get(remote_public_key).unwrap();
+
+                    // Notify Channeler to change the friend's address:
+                    let update_friend = ChannelerUpdateFriend {
+                        friend_public_key: remote_public_key.clone(),
+                        friend_address: friend.remote_address.clone(),
+                        local_addresses: vec![c_last_address.clone()],
+                    };
+                    let channeler_config = ChannelerConfig::UpdateFriend(update_friend);
+                    outgoing_channeler_config.push(channeler_config);
                 },
             }
 
@@ -492,6 +507,7 @@ fn handle_move_token_request<A,R>(m_state: &mut MutableFunderState<A>,
                                 m_ephemeral: &mut MutableEphemeral,
                                 send_commands: &mut SendCommands,
                                 outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
+                                outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>,
                                 rng: &R,
                                 remote_public_key: &PublicKey,
                                 friend_move_token_request: MoveTokenRequest<A>) 
@@ -529,6 +545,7 @@ where
                                       m_ephemeral,
                                       send_commands,
                                       outgoing_control,
+                                      outgoing_channeler_config,
                                       remote_public_key,
                                       receive_move_token_output,
                                       token_wanted);
@@ -617,6 +634,7 @@ pub fn handle_friend_message<A,R>(m_state: &mut MutableFunderState<A>,
                                   m_ephemeral: &mut MutableEphemeral,
                                   send_commands: &mut SendCommands,
                                   outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
+                                  outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>,
                                   rng: &R,
                                   remote_public_key: &PublicKey, 
                                   friend_message: FriendMessage<A>)
@@ -637,6 +655,7 @@ where
                                       m_ephemeral,
                                       send_commands,
                                       outgoing_control,
+                                      outgoing_channeler_config,
                                       rng,
                                       remote_public_key, 
                                       friend_move_token_request),

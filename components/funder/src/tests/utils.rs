@@ -62,7 +62,7 @@ enum RouterEvent<A> {
     OutgoingComm((PublicKey, FunderOutgoingComm<A>)), // (src_public_key, outgoing_comm)
 }
 
-async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, Node<A>>, 
+async fn router_handle_outgoing_comm<'a, A: 'a>(nodes: &'a mut HashMap<PublicKey, Node<A>>, 
                                         src_public_key: PublicKey,
                                         outgoing_comm: FunderOutgoingComm<A>) {
     match outgoing_comm {
@@ -74,9 +74,9 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
         },
         FunderOutgoingComm::ChannelerConfig(channeler_config) => {
             match channeler_config {
-                ChannelerConfig::AddFriend(channeler_add_friend) => {
+                ChannelerConfig::UpdateFriend(channeler_add_friend) => {
                     let node = nodes.get_mut(&src_public_key).unwrap();
-                    assert!(node.friends.insert(channeler_add_friend.friend_public_key.clone()));
+                    node.friends.insert(channeler_add_friend.friend_public_key.clone());
                     let mut comm_out = node.comm_out.clone();
 
                     let remote_node = nodes.get(&channeler_add_friend.friend_public_key).unwrap();

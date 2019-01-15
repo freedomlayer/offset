@@ -177,8 +177,8 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
     let (outgoing_comms, outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, &mut identity_client1))).unwrap();
 
-    assert_eq!(outgoing_comms.len(), 1);
-    let friend_message = match &outgoing_comms[0] {
+    assert_eq!(outgoing_comms.len(), 2);
+    let friend_message = match &outgoing_comms[1] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);

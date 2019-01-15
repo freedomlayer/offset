@@ -18,7 +18,7 @@ use crate::handler::sender::SendCommands;
 use crate::handler::canceler::{cancel_local_pending_requests, 
     cancel_pending_user_requests, cancel_pending_requests};
 
-use crate::types::{ChannelerConfig, ChannelerAddFriend};
+use crate::types::{ChannelerConfig, ChannelerUpdateFriend};
 
 // TODO: Should be an argument of the Funder:
 const MAX_PENDING_USER_REQUESTS: usize = 0x10;
@@ -112,12 +112,12 @@ where
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
 
     // Notify Channeler:
-    let channeler_add_friend = ChannelerAddFriend {
+    let channeler_add_friend = ChannelerUpdateFriend {
         friend_public_key: friend_public_key.clone(),
         friend_address: friend_address.clone(),
         local_addresses: friend.sent_local_address.to_vec(),
     };
-    let channeler_config = ChannelerConfig::AddFriend(channeler_add_friend);
+    let channeler_config = ChannelerConfig::UpdateFriend(channeler_add_friend);
     outgoing_channeler_config.push(channeler_config);
 
 }
@@ -178,8 +178,7 @@ where
 {
 
     let funder_mutation = FunderMutation::AddFriend(add_friend.clone());
-    m_state.mutate(funder_mutation);
-}
+    m_state.mutate(funder_mutation); }
 
 /// This is a violent operation, as it removes all the known state with the remote friend.  
 /// An inconsistency will occur if the friend is added again.
@@ -291,11 +290,14 @@ where
     let friend = m_state.state().friends.get(&set_friend_address.friend_public_key)
         .ok_or(HandleControlError::FriendDoesNotExist)?;
 
+
     // If the newly proposed address is the same as the old one,
     // we do nothing:
     if set_friend_address.address == friend.remote_address {
         return Ok(())
     }
+
+    let local_addresses = friend.sent_local_address.to_vec();
 
     let friend_mutation = FriendMutation::SetRemoteAddress(set_friend_address.address.clone());
     let funder_mutation = FunderMutation::FriendMutation(
@@ -303,6 +305,15 @@ where
     m_state.mutate(funder_mutation);
 
     // Notify Channeler to change the friend's address:
+    let update_friend = ChannelerUpdateFriend {
+        friend_public_key: set_friend_address.friend_public_key.clone(),
+        friend_address: set_friend_address.address.clone(),
+        local_addresses,
+    };
+    let channeler_config = ChannelerConfig::UpdateFriend(update_friend);
+    outgoing_channeler_config.push(channeler_config);
+
+    /*
     disable_friend(m_state, 
                    send_commands,
                    outgoing_control,
@@ -312,6 +323,7 @@ where
                   outgoing_channeler_config,
                   &set_friend_address.friend_public_key, 
                   &set_friend_address.address);
+   */
 
     Ok(())
 }

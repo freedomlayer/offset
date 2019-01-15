@@ -229,6 +229,7 @@ where
                                           &mut m_ephemeral,
                                           &mut send_commands,
                                           &mut outgoing_control,
+                                          &mut outgoing_channeler_config,
                                           rng,
                                           &origin_public_key, 
                                           friend_message)
@@ -292,14 +293,20 @@ where
             FunderOutgoingComm::ChannelerConfig(channeler_config));
     }
 
+
     // Send all possible messages according to SendCommands
-    let friend_messages = await!(create_friend_messages(
+    let (friend_messages, outgoing_channeler_config) = await!(create_friend_messages(
                                       &mut m_state,
                                       &mut m_ephemeral,
                                       &send_commands,
                                       max_operations_in_batch,
                                       identity_client,
                                       rng));
+
+    for channeler_config in outgoing_channeler_config {
+        outgoing_comms.push(
+            FunderOutgoingComm::ChannelerConfig(channeler_config));
+    }
 
     for friend_message in friend_messages {
         outgoing_comms.push(FunderOutgoingComm::FriendMessage(friend_message));

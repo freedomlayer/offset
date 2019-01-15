@@ -10,7 +10,8 @@ use identity::IdentityClient;
 
 use crate::types::{create_pending_request, sign_move_token,
                     create_response_send_funds, create_failure_send_funds,
-                    create_unsigned_move_token};
+                    create_unsigned_move_token, ChannelerConfig,
+                    ChannelerUpdateFriend};
 use crate::mutual_credit::outgoing::{QueueOperationError, OutgoingMc};
 
 use crate::friend::{FriendMutation, ResponseOp, 
@@ -292,7 +293,8 @@ async fn send_friend_iter1<'a,A,R>(m_state: &'a mut MutableFunderState<A>,
                                        identity_client: &'a mut IdentityClient,
                                        rng: &'a R,
                                        max_operations_in_batch: usize,
-                                       mut outgoing_messages: &'a mut Vec<OutgoingMessage<A>>) 
+                                       mut outgoing_messages: &'a mut Vec<OutgoingMessage<A>>,
+                                       outgoing_channeler_config: &'a mut Vec<ChannelerConfig<A>>)
 where
     A: CanonicalSerialize + Clone + Eq,
     R: CryptoRandom,
@@ -374,6 +376,7 @@ where
     let pending_move_token = pending_move_tokens.get_mut(friend_public_key).unwrap();
     let _ = await!(collect_outgoing_move_token(m_state, 
                                                m_ephemeral, 
+                                               outgoing_channeler_config,
                                                friend_public_key, 
                                                pending_move_token,
                                                identity_client,
@@ -509,6 +512,7 @@ where
 /// Requests that fail to be processed are moved to the failure queues of the relevant friends.
 async fn collect_outgoing_move_token<'a,A,R>(m_state: &'a mut MutableFunderState<A>,
                                                  m_ephemeral: &'a mut MutableEphemeral,
+                                                 outgoing_channeler_config: &'a mut Vec<ChannelerConfig<A>>,
                                                  friend_public_key: &'a PublicKey,
                                                  pending_move_token: &'a mut PendingMoveToken<A>,
                                                  identity_client: &'a mut IdentityClient,
@@ -558,6 +562,17 @@ where
         let friend_mutation = FriendMutation::SetSentLocalAddress(new_sent_local_address);
         let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
         m_state.mutate(funder_mutation);
+
+        let friend = m_state.state().friends.get(friend_public_key).unwrap();
+
+        // Notify Channeler to change the friend's address:
+        let update_friend = ChannelerUpdateFriend {
+            friend_public_key: friend_public_key.clone(),
+            friend_address: friend.remote_address.clone(),
+            local_addresses: friend.sent_local_address.to_vec(),
+        };
+        let channeler_config = ChannelerConfig::UpdateFriend(update_friend);
+        outgoing_channeler_config.push(channeler_config);
     }
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
@@ -764,13 +779,14 @@ pub async fn create_friend_messages<'a,A,R>(m_state: &'a mut MutableFunderState<
                         send_commands: &'a SendCommands,
                         max_operations_in_batch: usize,
                         identity_client: &'a mut IdentityClient,
-                        rng: &'a R) -> Vec<OutgoingMessage<A>> 
+                        rng: &'a R) -> (Vec<OutgoingMessage<A>>, Vec<ChannelerConfig<A>>) 
 where
     A: CanonicalSerialize + Clone + Eq,
     R: CryptoRandom,
 {
 
     let mut outgoing_messages = Vec::new();
+    let mut outgoing_channeler_config = Vec::new();
     let mut pending_move_tokens: HashMap<PublicKey, PendingMoveToken<A>> 
         = HashMap::new();
 
@@ -784,7 +800,8 @@ where
                                  identity_client,
                                  rng,
                                  max_operations_in_batch,
-                                 &mut outgoing_messages));
+                                 &mut outgoing_messages,
+                                 &mut outgoing_channeler_config));
     }
 
     // Second iteration (Attempt to queue failures created in the first iteration):
@@ -807,7 +824,7 @@ where
                                &mut outgoing_messages));
     }
 
-    outgoing_messages
+    (outgoing_messages, outgoing_channeler_config)
 }
 
 
