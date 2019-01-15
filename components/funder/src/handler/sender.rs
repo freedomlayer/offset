@@ -275,7 +275,7 @@ where
         &m_state.state().local_public_key,
         friend_public_key,
         &reset_move_token,
-        remote_reset_terms.balance_for_reset,
+        remote_reset_terms.balance_for_reset.checked_neg().unwrap(),
         channel_inconsistent.opt_last_incoming_move_token.clone());
 
     let friend_mutation = FriendMutation::SetConsistent(token_channel);
