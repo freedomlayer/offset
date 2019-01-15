@@ -173,6 +173,9 @@ where
             Err(_) => unreachable!(),
         }?;
 
+        // Add operation:
+        self.operations.push(operation.clone());
+
         // Update freeze guard here (Only for requests):
         if let FriendTcOp::RequestSendFunds(request_send_funds) = operation {
             let pending_request = &create_pending_request(&request_send_funds);
