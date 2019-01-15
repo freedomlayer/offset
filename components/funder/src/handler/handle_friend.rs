@@ -25,7 +25,7 @@ use crate::ephemeral::{Ephemeral, EphemeralMutation};
 use crate::freeze_guard::FreezeGuardMutation;
 
 use crate::handler::handler::{MutableFunderState, MutableEphemeral, 
-    is_friend_ready, find_request_origin};
+    is_friend_ready, find_request_origin, add_local_freezing_link};
 use crate::handler::sender::SendCommands;
 use crate::handler::canceler::{cancel_local_pending_requests, 
     cancel_pending_user_requests, cancel_pending_requests,
@@ -103,36 +103,6 @@ where
     let friend_mutation = FriendMutation::SetConsistent(token_channel);
     let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
-
-}
-
-
-pub fn add_local_freezing_link<A>(state: &FunderState<A>,
-                               request_send_funds: &mut RequestSendFunds) 
-where
-    A: CanonicalSerialize + Clone,
-{
-
-    let index = request_send_funds.route.pk_to_index(&state.local_public_key)
-        .unwrap();
-    assert_eq!(request_send_funds.freeze_links.len(), index);
-
-    let next_index = index.checked_add(1).unwrap();
-    let next_pk = request_send_funds.route.index_to_pk(next_index).unwrap();
-
-    let opt_prev_pk = match index.checked_sub(1) {
-        Some(prev_index) =>
-            Some(request_send_funds.route.index_to_pk(prev_index).unwrap()),
-        None => None,
-    };
-
-    let funder_freeze_link = FreezeLink {
-        shared_credits: state.friends.get(&next_pk).unwrap().get_shared_credits(),
-        usable_ratio: state.get_usable_ratio(opt_prev_pk, next_pk),
-    };
-
-    // Add our freeze link
-    request_send_funds.freeze_links.push(funder_freeze_link);
 
 }
 
