@@ -165,7 +165,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk1);
-                assert_eq!(move_token_request.token_wanted, false);
+                assert_eq!(move_token_request.token_wanted, true);
 
                 let friend_move_token = &move_token_request.friend_move_token;
                 assert_eq!(friend_move_token.move_token_counter, 1);
@@ -319,7 +319,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);
-                assert_eq!(move_token_request.token_wanted, false);
+                assert_eq!(move_token_request.token_wanted, true);
 
                 let friend_move_token = &move_token_request.friend_move_token;
                 assert!(friend_move_token.operations.is_empty());
@@ -341,6 +341,31 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
     let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, identity_client2))).unwrap();
 
+    assert_eq!(outgoing_comms.len(), 1);
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk1);
+                assert_eq!(move_token_request.token_wanted, false);
+
+                let friend_move_token = &move_token_request.friend_move_token;
+                assert!(friend_move_token.operations.is_empty());
+                assert_eq!(friend_move_token.move_token_counter, 3);
+                assert_eq!(friend_move_token.inconsistency_counter, 1);
+                assert_eq!(friend_move_token.balance, -10i128);
+                assert_eq!(friend_move_token.opt_local_address, None);
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        },
+        _ => unreachable!(),
+    };
+
+    // Node1: Receive MoveToken from Node2:
+    let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
+    let (outgoing_comms, outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
+                                 &mut rng, identity_client1))).unwrap();
     assert!(outgoing_comms.is_empty());
 }
 

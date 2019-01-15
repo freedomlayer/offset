@@ -20,7 +20,7 @@ use crate::token_channel::{TokenChannel, TcMutation, TcDirection, SetDirection};
 
 use crate::freeze_guard::FreezeGuardMutation;
 
-use crate::state::FunderMutation;
+use crate::state::{FunderMutation, FunderState};
 use crate::ephemeral::EphemeralMutation;
 
 use crate::handler::handler::{MutableFunderState, MutableEphemeral};
@@ -336,9 +336,9 @@ where
         },
     };
 
-    let tc_incoming = match token_channel.get_direction() {
-        TcDirection::Outgoing(_) => {
-            if estimate_should_send(m_state, friend_public_key) {
+    let tc_incoming = match &token_channel.get_direction() {
+        TcDirection::Outgoing(tc_outgoing) => {
+            if estimate_should_send(m_state.state(), friend_public_key) {
                 let is_token_wanted = true;
                 transmit_outgoing(m_state,
                                   &friend_public_key,
@@ -346,7 +346,7 @@ where
                                   &mut outgoing_messages);
             } else {
                 if friend_send_commands.resend_outgoing {
-                    let is_token_wanted = false;
+                    let is_token_wanted = tc_outgoing.move_token_out.opt_local_address.is_some();
                     transmit_outgoing(m_state,
                                       &friend_public_key,
                                       is_token_wanted,
@@ -387,17 +387,17 @@ where
 /// Do we need to send anything to the remote side?
 /// Note that this is only an estimation. It is possible that when the token from remote side
 /// arrives, the state will be different.
-fn estimate_should_send<'a, A>(m_state: &'a mut MutableFunderState<A>, 
+fn estimate_should_send<'a, A>(state: &'a FunderState<A>, 
                             friend_public_key: &'a PublicKey) -> bool 
 where
     A: CanonicalSerialize + Clone + Eq,
 {
 
-    let friend = m_state.state().friends.get(friend_public_key).unwrap();
+    let friend = state.friends.get(friend_public_key).unwrap();
 
     // Check if notification about local address change is required:
-    if let Some(local_address) = &m_state.state().opt_address {
-        let friend = m_state.state().friends.get(friend_public_key).unwrap();
+    if let Some(local_address) = &state.opt_address {
+        let friend = state.friends.get(friend_public_key).unwrap();
         match &friend.sent_local_address {
             SentLocalAddress::NeverSent => return true,
             SentLocalAddress::Transition((last_address, _)) |
@@ -725,6 +725,10 @@ where
     if operations.is_empty() && opt_local_address.is_none() && !may_send_empty {
         return;
     }
+
+    // We want the token back if we just set a new address, to be sure 
+    // that the remote side knows about the new address.
+    let token_wanted = token_wanted || opt_local_address.is_some();
 
     let friend = m_state.state().friends.get(&friend_public_key).unwrap();
 

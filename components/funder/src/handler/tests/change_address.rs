@@ -25,7 +25,7 @@ use proto::funder::messages::{FriendMessage, FriendsRoute,
     FunderOutgoingControl, ResetFriendChannel};
 
 use crate::types::{FunderIncoming, IncomingLivenessMessage, 
-    FunderOutgoingComm, FunderIncomingComm};
+    FunderOutgoingComm, FunderIncomingComm, ChannelerConfig};
 use crate::ephemeral::Ephemeral;
 use crate::state::FunderState;
 use crate::handler::handler::FunderHandlerOutput;
@@ -127,7 +127,6 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 0);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                // No change to address should occur.
                 assert_eq!(friend_move_token.opt_local_address, None);
 
             } else {
@@ -155,7 +154,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk1);
-                assert_eq!(move_token_request.token_wanted, false);
+                assert_eq!(move_token_request.token_wanted, true);
                 let friend_move_token = &move_token_request.friend_move_token;
                 assert!(friend_move_token.operations.is_empty());
 
@@ -174,7 +173,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
 
     // Node1: Receive friend_message from Node2:
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
-    let (outgoing_comms, outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
+    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, &mut identity_client1))).unwrap();
 
     assert_eq!(outgoing_comms.len(), 2);
@@ -182,7 +181,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);
-                assert_eq!(move_token_request.token_wanted, false);
+                assert_eq!(move_token_request.token_wanted, true);
                 let friend_move_token = &move_token_request.friend_move_token;
                 assert!(friend_move_token.operations.is_empty());
 
@@ -203,47 +202,6 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
     let (outgoing_comms, outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, &mut identity_client2))).unwrap();
 
-    assert!(outgoing_comms.is_empty());
-
-    // Node1 decides to change his address:
-    let incoming_control_message = FunderIncomingControl::SetAddress(Some(0x2337));
-    let funder_incoming = FunderIncoming::Control(incoming_control_message);
-    let (outgoing_comms, _outgoing_control) = await!(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
-                                 &mut rng, &mut identity_client1)).unwrap();
-
-    return;
-    // TODO: Continue here:
-
-    // Node1 requests the token:
-    println!("{:?}", outgoing_comms);
-    assert_eq!(outgoing_comms.len(), 1);
-    let friend_message = match &outgoing_comms[0] {
-        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
-            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
-                assert_eq!(pk, &pk2);
-                assert_eq!(move_token_request.token_wanted, true);
-                let friend_move_token = &move_token_request.friend_move_token;
-                assert!(friend_move_token.operations.is_empty());
-
-                assert_eq!(friend_move_token.move_token_counter, 3);
-                assert_eq!(friend_move_token.inconsistency_counter, 0);
-                assert_eq!(friend_move_token.balance, 0);
-                // No change to address should occur.
-                assert_eq!(friend_move_token.opt_local_address, None);
-            } else {
-                unreachable!();
-            }
-            friend_message.clone()
-        },
-        _ => unreachable!(),
-    };
-
-    // Node2: Receive friend_message from Node1:
-    let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
-    let (outgoing_comms, outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
-                                 &mut rng, &mut identity_client2))).unwrap();
-
-    // Node2 gives the token to Node1:
     assert_eq!(outgoing_comms.len(), 1);
     let friend_message = match &outgoing_comms[0] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
@@ -253,10 +211,9 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
                 let friend_move_token = &move_token_request.friend_move_token;
                 assert!(friend_move_token.operations.is_empty());
 
-                assert_eq!(friend_move_token.move_token_counter, 4);
+                assert_eq!(friend_move_token.move_token_counter, 3);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                // No change to address should occur.
                 assert_eq!(friend_move_token.opt_local_address, None);
             } else {
                 unreachable!();
@@ -266,25 +223,47 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
         _ => unreachable!(),
     };
 
-    // Node1 receives the token from Node2:
+    // Node1: Receive friend_message from Node2:
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
-    let (outgoing_comms, outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
+    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, &mut identity_client1))).unwrap();
+    assert!(outgoing_comms.is_empty());
+
+
+    // Node1 decides to change his address:
+    let incoming_control_message = FunderIncomingControl::SetAddress(Some(0x2337));
+    let funder_incoming = FunderIncoming::Control(incoming_control_message);
+    let (outgoing_comms, _outgoing_control) = await!(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
+                                 &mut rng, &mut identity_client1)).unwrap();
 
     // Node1 sends an update about his new address:
-    assert_eq!(outgoing_comms.len(), 1);
-    let friend_message = match &outgoing_comms[0] {
+    assert_eq!(outgoing_comms.len(), 3);
+
+    match &outgoing_comms[0] {
+        FunderOutgoingComm::ChannelerConfig(ChannelerConfig::SetAddress(Some(0x2337))) => {},
+        _ => unreachable!(),
+    };
+
+    match &outgoing_comms[1] {
+        FunderOutgoingComm::ChannelerConfig(ChannelerConfig::UpdateFriend(update_friend)) => {
+            assert_eq!(update_friend.friend_public_key, pk2);
+            assert_eq!(update_friend.friend_address, 0x1338);
+            assert_eq!(update_friend.local_addresses, vec![0x2337, 0x1337]);
+        },
+        _ => unreachable!(),
+    };
+
+    let friend_message = match &outgoing_comms[2] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);
-                assert_eq!(move_token_request.token_wanted, false);
+                assert_eq!(move_token_request.token_wanted, true);
                 let friend_move_token = &move_token_request.friend_move_token;
                 assert!(friend_move_token.operations.is_empty());
 
-                assert_eq!(friend_move_token.move_token_counter, 5);
+                assert_eq!(friend_move_token.move_token_counter, 4);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                // No change to address should occur.
                 assert_eq!(friend_move_token.opt_local_address, Some(0x2337));
             } else {
                 unreachable!();
@@ -299,8 +278,41 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
     let (outgoing_comms, outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, &mut identity_client2))).unwrap();
 
-    assert!(outgoing_comms.is_empty());
+    // TODO: Continue here:
+    assert_eq!(outgoing_comms.len(), 1);
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk1);
+                assert_eq!(move_token_request.token_wanted, false);
+                let friend_move_token = &move_token_request.friend_move_token;
+                assert!(friend_move_token.operations.is_empty());
 
+                assert_eq!(friend_move_token.move_token_counter, 5);
+                assert_eq!(friend_move_token.inconsistency_counter, 0);
+                assert_eq!(friend_move_token.balance, 0);
+                assert_eq!(friend_move_token.opt_local_address, None);
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        },
+        _ => unreachable!(),
+    };
+
+    // Node1: Receive friend_message from Node2:
+    let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
+    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
+                                 &mut rng, &mut identity_client1))).unwrap();
+    assert_eq!(outgoing_comms.len(), 1);
+    match &outgoing_comms[0] {
+        FunderOutgoingComm::ChannelerConfig(ChannelerConfig::UpdateFriend(update_friend)) => {
+            assert_eq!(update_friend.friend_public_key, pk2);
+            assert_eq!(update_friend.friend_address, 0x1338);
+            assert_eq!(update_friend.local_addresses, vec![0x2337]);
+        },
+        _ => unreachable!(),
+    };
 }
 
 #[test]
