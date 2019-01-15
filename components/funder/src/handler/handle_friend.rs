@@ -35,14 +35,6 @@ use crate::handler::canceler::{cancel_local_pending_requests,
 #[derive(Debug)]
 pub enum HandleFriendError {
     FriendDoesNotExist,
-    NoMoveTokenToAck,
-    AlreadyAcked,
-    TokenNotOwned,
-    IncorrectAckedToken,
-    IncorrectLastToken,
-    TokenChannelInconsistent,
-    NotInconsistent,
-    ResetTokenMismatch,
     InconsistencyWhenTokenOwned,
 }
 
