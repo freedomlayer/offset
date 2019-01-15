@@ -109,6 +109,9 @@ struct PendingMoveToken<A> {
     opt_local_address: Option<A>,
     token_wanted: bool,
     max_operations_in_batch: usize,
+    /// Can we send this move token with empty operations list
+    /// and empty opt_local_adderess?
+    may_send_empty: bool,
 }
 
 impl<A> PendingMoveToken<A> 
@@ -117,7 +120,8 @@ where
 {
     fn new(friend_public_key: PublicKey,
            outgoing_mc: OutgoingMc,
-           max_operations_in_batch: usize) -> Self {
+           max_operations_in_batch: usize,
+           may_send_empty: bool) -> Self {
 
         PendingMoveToken {
             friend_public_key,
@@ -126,6 +130,7 @@ where
             opt_local_address: None,
             token_wanted: false,
             max_operations_in_batch,
+            may_send_empty,
         }
     }
 
@@ -140,7 +145,6 @@ where
     where
         A: Clone,
     {
-
         if self.operations.len() >= self.max_operations_in_batch {
             return Err(PendingQueueError::MaxOperationsReached);
         }
@@ -357,9 +361,12 @@ where
     // assert!(!friend_send_commands.resend_outgoing);
 
     let outgoing_mc = tc_incoming.begin_outgoing_move_token();
+    let may_send_empty = friend_send_commands.resend_outgoing 
+        || friend_send_commands.remote_wants_token;
     let pending_move_token = PendingMoveToken::new(friend_public_key.clone(), 
                                                    outgoing_mc,
-                                                   max_operations_in_batch);
+                                                   max_operations_in_batch,
+                                                   may_send_empty);
     pending_move_tokens.insert(friend_public_key.clone(), pending_move_token);
     let pending_move_token = pending_move_tokens.get_mut(friend_public_key).unwrap();
     let _ = await!(collect_outgoing_move_token(m_state, 
@@ -693,8 +700,13 @@ where
         operations,
         opt_local_address,
         token_wanted,
+        may_send_empty,
         ..
     } = pending_move_token;
+
+    if operations.is_empty() && opt_local_address.is_none() && !may_send_empty {
+        return;
+    }
 
     let friend = m_state.state().friends.get(&friend_public_key).unwrap();
 
