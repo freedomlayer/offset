@@ -25,7 +25,7 @@ use proto::funder::messages::{FriendMessage, FriendsRoute,
     FunderOutgoingControl, ResetFriendChannel};
 
 use crate::types::{FunderIncoming, IncomingLivenessMessage, 
-    FunderOutgoingComm, FunderIncomingComm};
+    FunderOutgoingComm, FunderIncomingComm, ChannelerConfig};
 use crate::ephemeral::Ephemeral;
 use crate::state::FunderState;
 use crate::handler::handler::FunderHandlerOutput;
@@ -141,15 +141,22 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
     // Node2: Notify that Node1 is alive
     let incoming_liveness_message = IncomingLivenessMessage::Online(pk1.clone());
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Liveness(incoming_liveness_message));
-    // TODO: Check outgoing_comms here:
     let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, identity_client2))).unwrap();
 
     // Node2 sends information about his address to Node1, and updates channeler
     assert_eq!(outgoing_comms.len(), 2);
 
+    match &outgoing_comms[0] {
+        FunderOutgoingComm::ChannelerConfig(ChannelerConfig::UpdateFriend(update_friend)) => {
+            assert_eq!(update_friend.friend_public_key, pk1);
+            assert_eq!(update_friend.friend_address, 11);
+            assert_eq!(update_friend.local_addresses, vec![22]);
+        },
+        _ => unreachable!(),
+    };
 
-    // Node2: Receive friend_message from Node1:
+    // Node2: Receive MoveToken from Node1:
     // (Node2 should be able to discard this duplicate message)
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
     let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
