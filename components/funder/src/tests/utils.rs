@@ -34,6 +34,8 @@ use crate::database::AtomicDb;
 use crate::types::{ChannelerConfig, FunderOutgoingComm, FunderIncomingComm,
                 IncomingLivenessMessage};
 
+const TEST_MAX_OPERATIONS_IN_BATCH: usize = 16;
+
 // This is required to make sure the tests are not stuck.
 //
 // We could instead have CHANNEL_SIZE = 0 with some kind of (event_sender, event_receiver) pair, to make
@@ -396,6 +398,7 @@ pub async fn create_node_controls(num_nodes: usize,
             control_sender,
             comm_sender,
             mock_db,
+            TEST_MAX_OPERATIONS_IN_BATCH,
             None);
 
         spawner.spawn(funder_fut.then(|_| future::ready(()))).unwrap();
