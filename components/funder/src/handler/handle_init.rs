@@ -1,46 +1,43 @@
-use std::fmt::Debug;
-use crypto::crypto_rand::CryptoRandom;
-
+use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::FriendStatus;
 
-use crate::handler::MutableFunderHandler;
-use crate::types::{ChannelerConfig, FunderOutgoingComm};
+use crate::types::{ChannelerConfig, ChannelerUpdateFriend};
 
+use crate::handler::handler::MutableFunderState;
 
-#[allow(unused)]
-impl<A,R> MutableFunderHandler<A,R> 
+pub fn handle_init<A>(m_state: &MutableFunderState<A>,
+                      outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>)
 where
-    A: Clone + Debug + PartialEq + Eq + 'static,
-    R: CryptoRandom,
+    A: CanonicalSerialize + Clone,
 {
+    let mut enabled_friends = Vec::new();
+    for (_friend_public_key, friend) in &m_state.state().friends {
+        match friend.status {
+            FriendStatus::Enabled => {
+                let channeler_add_friend = ChannelerUpdateFriend {
+                    friend_public_key: friend.remote_public_key.clone(),
+                    friend_address: friend.remote_address.clone(),
+                    local_addresses: friend.sent_local_address.to_vec(),
+                };
+                enabled_friends.push(channeler_add_friend);
+            },
+            FriendStatus::Disabled => continue,
+        };
+    }
 
-    pub fn handle_init(&mut self) {
-        let mut enabled_friends = Vec::new();
-        for (friend_public_key, friend) in &self.state.friends {
-            match friend.status {
-                FriendStatus::Enabled => {
-                    enabled_friends.push((friend.remote_public_key.clone(),
-                        friend.remote_address.clone()));
-                },
-                FriendStatus::Disabled => continue,
-            };
-        }
+    // Send a report of the current FunderState:
+    // This is a base report. Later reports are differential, and should be built on this base
+    // report.
+    // let report = create_report(&self.state, &self.ephemeral);
+    // self.add_outgoing_control(FunderOutgoingControl::Report(report));
 
-        // Send a report of the current FunderState:
-        // This is a base report. Later reports are differential, and should be built on this base
-        // report.
-        // let report = create_report(&self.state, &self.ephemeral);
-        // self.add_outgoing_control(FunderOutgoingControl::Report(report));
+    // Notify Channeler about current address:
+    outgoing_channeler_config.push(ChannelerConfig::SetAddress(m_state.state().opt_address.clone()));
 
-        // Notify Channeler about current address:
-        let channeler_config = ChannelerConfig::SetAddress(self.state.opt_address.clone());
-        self.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
-
-        // Notify channeler about all enabled friends:
-        for enabled_friend in enabled_friends {
-            let channeler_config = ChannelerConfig::AddFriend(enabled_friend);
-            self.add_outgoing_comm(FunderOutgoingComm::ChannelerConfig(channeler_config));
-        }
+    // Notify channeler about all enabled friends:
+    for enabled_friend in enabled_friends {
+        // Notify Channeler:
+        outgoing_channeler_config.push(ChannelerConfig::UpdateFriend(enabled_friend));
     }
 }
 
@@ -51,27 +48,19 @@ mod tests {
 
     use proto::funder::messages::AddFriend;
 
-    use crate::handler::gen_mutable;
     use crate::state::{FunderState, FunderMutation};
-    use crate::ephemeral::Ephemeral;
     use crate::friend::FriendMutation;
 
-    use futures::executor::ThreadPool;
-    use futures::{future, FutureExt};
-    use futures::task::SpawnExt;
-    use identity::{create_identity, IdentityClient};
+    use crate::handler::handler::MutableFunderState;
 
-    use crypto::test_utils::DummyRandom;
-    use crypto::identity::{SoftwareEd25519Identity,
-                            generate_pkcs8_key_pair, PUBLIC_KEY_LEN,
-                            PublicKey};
-    use crypto::crypto_rand::RngContainer;
+    use crypto::identity::{PUBLIC_KEY_LEN, PublicKey};
 
 
+    #[test]
+    fn test_handle_init_basic() {
 
-    async fn task_handle_init_basic(identity_client: IdentityClient) {
-
-        let local_pk = await!(identity_client.request_public_key()).unwrap();
+        // let local_pk = await!(identity_client.request_public_key()).unwrap();
+        let local_pk = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
         let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
 
         let mut state = FunderState::new(&local_pk, Some(&1337u32));
@@ -91,27 +80,21 @@ mod tests {
         let funder_mutation = FunderMutation::FriendMutation((pk_b.clone(), friend_mutation));
         state.mutate(&funder_mutation);
 
-        let ephemeral = Ephemeral::new(&state);
-        let rng = DummyRandom::new(&[2u8]);
 
-        let mut mutable_funder_handler = gen_mutable(identity_client,
-                    RngContainer::new(rng),
-                    &state,
-                    &ephemeral);
+        let mut m_state = MutableFunderState::new(state);
+        let mut outgoing_channeler_config = Vec::new();
+        handle_init(&mut m_state,
+                    &mut outgoing_channeler_config);
 
-        mutable_funder_handler.handle_init();
+        let (_iinitial_state, mutations, _final_state) = m_state.done();
+        assert!(mutations.is_empty());
+        // TODO: Check equality?
+        // assert_eq!(initial_state, final_state);
 
-        let mut funder_handler_output = mutable_funder_handler.done();
-        assert!(funder_handler_output.funder_mutations.is_empty());
-        assert_eq!(funder_handler_output.outgoing_control.len(), 0);
-        assert_eq!(funder_handler_output.outgoing_comms.len(), 2);
+        assert_eq!(outgoing_channeler_config.len(), 2);
 
         // SetAddress:
-        let out_comm = funder_handler_output.outgoing_comms.remove(0);
-        let channeler_config = match out_comm {
-            FunderOutgoingComm::ChannelerConfig(channeler_config) => channeler_config,
-            _ => unreachable!(),
-        };
+        let channeler_config = outgoing_channeler_config.remove(0);
         match channeler_config {
             ChannelerConfig::SetAddress(opt_address) => {
                 assert_eq!(opt_address, Some(1337u32));
@@ -119,33 +102,14 @@ mod tests {
             _ => unreachable!(),
         };
 
-        // AddFriend:
-        let out_comm = funder_handler_output.outgoing_comms.remove(0);
-        let channeler_config = match out_comm {
-            FunderOutgoingComm::ChannelerConfig(channeler_config) => channeler_config,
-            _ => unreachable!(),
-        };
+        // UpdateFriend:
+        let channeler_config = outgoing_channeler_config.remove(0);
         match channeler_config {
-            ChannelerConfig::AddFriend((pk, addr)) => {
-                assert_eq!(addr, 3u32);
-                assert_eq!(pk, pk_b);
+            ChannelerConfig::UpdateFriend(channeler_add_friend) => {
+                assert_eq!(channeler_add_friend.friend_address, 3u32);
+                assert_eq!(channeler_add_friend.friend_public_key, pk_b);
             },
             _ => unreachable!(),
         };
-    }
-
-    #[test]
-    fn test_handle_init_basic() {
-        // Start identity service:
-        let mut thread_pool = ThreadPool::new().unwrap();
-
-        let rng = DummyRandom::new(&[1u8]);
-        let pkcs8 = generate_pkcs8_key_pair(&rng);
-        let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
-        let (requests_sender, identity_server) = create_identity(identity);
-        let identity_client = IdentityClient::new(requests_sender);
-        thread_pool.spawn(identity_server.then(|_| future::ready(()))).unwrap();
-
-        thread_pool.run(task_handle_init_basic(identity_client));
     }
 }

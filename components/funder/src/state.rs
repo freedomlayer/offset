@@ -10,12 +10,13 @@ use crypto::uid::Uid;
 use proto::funder::messages::{Ratio, SendFundsReceipt, AddFriend};
 
 use common::int_convert::usize_to_u64;
+use common::canonical_serialize::CanonicalSerialize;
 
 use crate::friend::{FriendState, FriendMutation};
 
 
-#[derive(Clone, Serialize, Deserialize)]
-pub struct FunderState<A:Clone> {
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct FunderState<A: Clone> {
     pub local_public_key: PublicKey,
     /// Address of relay we are going to connect to.
     /// None means that no address was configured.
@@ -36,7 +37,10 @@ pub enum FunderMutation<A> {
 
 
 #[allow(unused)]
-impl<A:Clone + 'static> FunderState<A> {
+impl<A> FunderState<A> 
+where
+    A: CanonicalSerialize + Clone,
+{
     pub fn new(local_public_key: &PublicKey, opt_address: Option<&A>) -> FunderState<A> {
         FunderState {
             local_public_key: local_public_key.clone(),

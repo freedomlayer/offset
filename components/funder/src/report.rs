@@ -3,6 +3,7 @@ use im::hashmap::HashMap as ImHashMap;
 
 use common::int_convert::usize_to_u64;
 use common::safe_arithmetic::{SafeUnsignedArithmetic};
+use common::canonical_serialize::CanonicalSerialize;
 
 use crypto::identity::PublicKey;
 
@@ -12,13 +13,14 @@ use proto::funder::report::{DirectionReport, FriendLivenessReport,
     TcReport, ResetTermsReport, ChannelInconsistentReport, ChannelStatusReport, FriendReport,
     FunderReport, FriendReportMutation, AddFriendReport, FunderReportMutation,
     McRequestsStatusReport, McBalanceReport, RequestsStatusReport, FriendStatusReport,
-    MoveTokenHashedReport};
+    MoveTokenHashedReport, SentLocalAddressReport};
 
 use proto::index_client::messages::{IndexMutation, IndexClientState, UpdateFriend};
 
 use crate::types::MoveTokenHashed;
 
-use crate::friend::{FriendState, ChannelStatus, FriendMutation};
+use crate::friend::{FriendState, ChannelStatus, FriendMutation, 
+    SentLocalAddress};
 use crate::state::{FunderState, FunderMutation};
 use crate::mutual_credit::types::{McBalance, McRequestsStatus};
 use crate::token_channel::{TokenChannel, TcDirection, TcMutation}; 
@@ -31,6 +33,24 @@ pub enum ReportMutateError {
     FriendDoesNotExist,
     FriendAlreadyExists,
 }
+
+
+impl<A> Into<SentLocalAddressReport<A>> for &SentLocalAddress<A> 
+where
+    A: Clone,
+{
+    fn into(self) -> SentLocalAddressReport<A> {
+        match self {
+            SentLocalAddress::NeverSent => 
+                SentLocalAddressReport::NeverSent,
+            SentLocalAddress::Transition(t) => 
+                SentLocalAddressReport::Transition(t.clone()),
+            SentLocalAddress::LastSent(address) => 
+                SentLocalAddressReport::LastSent(address.clone()),
+        }
+    }
+}
+
 
 impl From<&McRequestsStatus> for McRequestsStatusReport {
     fn from(mc_requests_status: &McRequestsStatus) -> McRequestsStatusReport {
@@ -56,8 +76,9 @@ impl From<&McBalance> for McBalanceReport {
 impl From<&MoveTokenHashed> for MoveTokenHashedReport {
     fn from(move_token_hashed: &MoveTokenHashed) -> MoveTokenHashedReport {
         MoveTokenHashedReport {
-            operations_hash: move_token_hashed.operations_hash.clone(),
-            old_token: move_token_hashed.old_token.clone(),
+            prefix_hash: move_token_hashed.prefix_hash.clone(),
+            local_public_key: move_token_hashed.local_public_key.clone(),
+            remote_public_key: move_token_hashed.remote_public_key.clone(),
             inconsistency_counter: move_token_hashed.inconsistency_counter,
             move_token_counter: move_token_hashed.move_token_counter,
             balance: move_token_hashed.balance,
@@ -69,8 +90,11 @@ impl From<&MoveTokenHashed> for MoveTokenHashedReport {
     }
 }
 
-impl From<&TokenChannel> for TcReport {
-    fn from(token_channel: &TokenChannel) -> TcReport {
+impl<A> From<&TokenChannel<A>> for TcReport 
+where
+    A: CanonicalSerialize + Clone,
+{
+    fn from(token_channel: &TokenChannel<A>) -> TcReport {
         let direction = match token_channel.get_direction() {
             TcDirection::Incoming(_) => DirectionReport::Incoming,
             TcDirection::Outgoing(_) => DirectionReport::Outgoing,
@@ -86,8 +110,11 @@ impl From<&TokenChannel> for TcReport {
     }
 }
 
-impl From<&ChannelStatus> for ChannelStatusReport {
-    fn from(channel_status: &ChannelStatus) -> ChannelStatusReport {
+impl<A> From<&ChannelStatus<A>> for ChannelStatusReport 
+where
+    A: CanonicalSerialize + Clone,
+{
+    fn from(channel_status: &ChannelStatus<A>) -> ChannelStatusReport {
         match channel_status {
             ChannelStatus::Inconsistent(channel_inconsistent) => {
                 let opt_remote_reset_terms = channel_inconsistent.opt_remote_reset_terms
@@ -110,12 +137,16 @@ impl From<&ChannelStatus> for ChannelStatusReport {
     }
 }
 
-fn create_friend_report<A: Clone>(friend_state: &FriendState<A>, friend_liveness: &FriendLivenessReport) -> FriendReport<A> {
+fn create_friend_report<A>(friend_state: &FriendState<A>, friend_liveness: &FriendLivenessReport) -> FriendReport<A> 
+where
+    A: CanonicalSerialize + Clone,
+{
     let channel_status = ChannelStatusReport::from(&friend_state.channel_status);
 
     FriendReport {
-        address: friend_state.remote_address.clone(),
+        remote_address: friend_state.remote_address.clone(),
         name: friend_state.name.clone(),
+        sent_local_address: (&friend_state.sent_local_address).into(),
         opt_last_incoming_move_token: friend_state.channel_status.get_last_incoming_move_token_hashed()
             .map(|move_token_hashed| MoveTokenHashedReport::from(&move_token_hashed)),
         liveness: friend_liveness.clone(),
@@ -130,7 +161,10 @@ fn create_friend_report<A: Clone>(friend_state: &FriendState<A>, friend_liveness
 }
 
 #[allow(unused)]
-pub fn create_report<A: Clone>(funder_state: &FunderState<A>, ephemeral: &Ephemeral) -> FunderReport<A> {
+pub fn create_report<A>(funder_state: &FunderState<A>, ephemeral: &Ephemeral) -> FunderReport<A> 
+where
+    A: CanonicalSerialize + Clone,
+{
     let mut friends = ImHashMap::new();
     for (friend_public_key, friend_state) in &funder_state.friends {
         let friend_liveness = match ephemeral.liveness.is_online(friend_public_key) {
@@ -150,8 +184,11 @@ pub fn create_report<A: Clone>(funder_state: &FunderState<A>, ephemeral: &Epheme
 }
 
 
-pub fn friend_mutation_to_report_mutations<A: Clone + 'static>(friend_mutation: &FriendMutation<A>,
-                                           friend: &FriendState<A>) -> Vec<FriendReportMutation<A>> {
+pub fn friend_mutation_to_report_mutations<A>(friend_mutation: &FriendMutation<A>,
+                                           friend: &FriendState<A>) -> Vec<FriendReportMutation<A>> 
+where
+    A: CanonicalSerialize + Clone,
+{
 
     let mut friend_after = friend.clone();
     friend_after.mutate(friend_mutation);
@@ -167,7 +204,6 @@ pub fn friend_mutation_to_report_mutations<A: Clone + 'static>(friend_mutation: 
                             .map(|move_token_hashed| MoveTokenHashedReport::from(&move_token_hashed)));
                     vec![set_channel_status, set_last_incoming_move_token]
                 },
-                TcMutation::SetTokenWanted => Vec::new(),
             }
         },
         FriendMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) =>
@@ -194,11 +230,14 @@ pub fn friend_mutation_to_report_mutations<A: Clone + 'static>(friend_mutation: 
                     usize_to_u64(friend_after.pending_user_requests.len()).unwrap())],
         FriendMutation::SetStatus(friend_status) => 
             vec![FriendReportMutation::SetFriendStatus(FriendStatusReport::from(friend_status))],
-        FriendMutation::SetFriendInfo((address, name)) =>
-            vec![FriendReportMutation::SetFriendInfo((address.clone(), name.clone()))],
+        FriendMutation::SetRemoteAddress(remote_address) =>
+            vec![FriendReportMutation::SetRemoteAddress(remote_address.clone())],
+        FriendMutation::SetName(name) =>
+            vec![FriendReportMutation::SetName(name.clone())],
+        FriendMutation::SetSentLocalAddress(sent_local_address) =>
+            vec![FriendReportMutation::SetSentLocalAddress(sent_local_address.into())],
         FriendMutation::SetInconsistent(_) |
-        FriendMutation::LocalReset(_) |
-        FriendMutation::RemoteReset(_) => {
+        FriendMutation::SetConsistent(_) => {
             let channel_status_report = ChannelStatusReport::from(&friend_after.channel_status);
             let set_channel_status = FriendReportMutation::SetChannelStatus(channel_status_report);
             let opt_move_token_hashed_report = friend_after.channel_status.get_last_incoming_move_token_hashed()
@@ -220,8 +259,11 @@ pub fn friend_mutation_to_report_mutations<A: Clone + 'static>(friend_mutation: 
 /// In the future if we simplify Funder's mutations, we might be able discard the `funder_state`
 /// argument here.
 #[allow(unused)]
-pub fn funder_mutation_to_report_mutations<A: Clone + 'static>(funder_mutation: &FunderMutation<A>,
-                                           funder_state: &FunderState<A>) -> Vec<FunderReportMutation<A>> {
+pub fn funder_mutation_to_report_mutations<A>(funder_mutation: &FunderMutation<A>,
+                                           funder_state: &FunderState<A>) -> Vec<FunderReportMutation<A>> 
+where
+    A: CanonicalSerialize + Clone,
+{
 
     let mut funder_state_after = funder_state.clone();
     funder_state_after.mutate(funder_mutation);
@@ -295,9 +337,14 @@ where
     A: Clone,
 {
     match mutation {
-        FriendReportMutation::SetFriendInfo((address, name)) => {
-            friend_report.address = address.clone();
+        FriendReportMutation::SetRemoteAddress(remote_address) => {
+            friend_report.remote_address = remote_address.clone();
+        },
+        FriendReportMutation::SetName(name) => {
             friend_report.name = name.clone();
+        },
+        FriendReportMutation::SetSentLocalAddress(sent_local_address_report) => {
+            friend_report.sent_local_address = sent_local_address_report.clone();
         },
         FriendReportMutation::SetChannelStatus(channel_status_report) => {
             friend_report.channel_status = channel_status_report.clone();
@@ -343,8 +390,9 @@ where
         },
         FunderReportMutation::AddFriend(add_friend_report) => {
             let friend_report = FriendReport {
-                address: add_friend_report.address.clone(),
+                remote_address: add_friend_report.address.clone(),
                 name: add_friend_report.name.clone(),
+                sent_local_address: SentLocalAddressReport::NeverSent,
                 opt_last_incoming_move_token: add_friend_report.opt_last_incoming_move_token.clone(),
                 liveness: FriendLivenessReport::Offline,
                 channel_status: add_friend_report.channel_status.clone(),
@@ -392,6 +440,7 @@ where
 // crate.
 
 /// Calculate send and receive capacities for a given `friend_report`.
+#[allow(unused)]
 fn calc_friend_capacities<A>(friend_report: &FriendReport<A>) -> (u128, u128) {
     if friend_report.status == FriendStatusReport::Disabled || 
         friend_report.liveness == FriendLivenessReport::Offline {
@@ -422,6 +471,7 @@ fn calc_friend_capacities<A>(friend_report: &FriendReport<A>) -> (u128, u128) {
     (send_capacity, recv_capacity)
 }
 
+#[allow(unused)]
 pub fn funder_report_to_index_client_state<A>(funder_report: &FunderReport<A>) -> IndexClientState 
 where
     A: Clone,
@@ -438,6 +488,7 @@ where
     }
 }
 
+#[allow(unused)]
 pub fn funder_report_mutation_to_index_client_mutation<A>(funder_report: &FunderReport<A>, 
                                                       funder_report_mutation: &FunderReportMutation<A>) -> Option<IndexMutation> 
 where

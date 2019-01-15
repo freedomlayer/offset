@@ -4,7 +4,9 @@ use num_bigint::BigUint;
 
 use crypto::identity::PublicKey;
 use crypto::hash::{HashResult, sha_512_256};
+
 use common::int_convert::usize_to_u32;
+use common::canonical_serialize::CanonicalSerialize;
 
 use proto::funder::messages::{Ratio, FriendsRoute, FreezeLink};
 
@@ -73,7 +75,10 @@ impl FreezeGuard {
 
     // TODO: Should be moved outside of this structure implementation.
     // The only public function that allows mutation FreezeGuard should be mutate.
-    pub fn load_funder_state<A: Clone>(mut self, funder_state: &FunderState<A>) -> FreezeGuard {
+    pub fn load_funder_state<A>(mut self, funder_state: &FunderState<A>) -> FreezeGuard 
+    where
+        A: CanonicalSerialize + Clone,
+    {
         // Local public key should match:
         assert_eq!(self.local_public_key, funder_state.local_public_key);
         for (_friend_public_key, friend) in &funder_state.friends {

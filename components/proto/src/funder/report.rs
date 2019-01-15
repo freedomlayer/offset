@@ -8,8 +8,9 @@ use crate::funder::messages::{RequestsStatus, FriendStatus};
 
 #[derive(Clone, Debug)]
 pub struct MoveTokenHashedReport {
-    pub operations_hash: HashResult,
-    pub old_token: Signature,
+    pub prefix_hash: HashResult,
+    pub local_public_key: PublicKey,
+    pub remote_public_key: PublicKey,
     pub inconsistency_counter: u64,
     pub move_token_counter: u128,
     pub balance: i128,
@@ -19,6 +20,12 @@ pub struct MoveTokenHashedReport {
     pub new_token: Signature,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub enum SentLocalAddressReport<A> {
+    NeverSent,
+    Transition((A, A)), // (last sent, before last sent)
+    LastSent(A),
+}
 
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum FriendStatusReport {
@@ -97,8 +104,9 @@ pub enum ChannelStatusReport {
 
 #[derive(Clone, Debug)]
 pub struct FriendReport<A> {
-    pub address: A, 
+    pub remote_address: A, 
     pub name: String,
+    pub sent_local_address: SentLocalAddressReport<A>,
     // Last message signed by the remote side. 
     // Can be used as a proof for the last known balance.
     pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
@@ -129,7 +137,9 @@ pub struct FunderReport<A: Clone> {
 #[allow(unused)]
 #[derive(Debug)]
 pub enum FriendReportMutation<A> {
-    SetFriendInfo((A, String)),
+    SetRemoteAddress(A),
+    SetName(String),
+    SetSentLocalAddress(SentLocalAddressReport<A>),
     SetChannelStatus(ChannelStatusReport),
     SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatusReport),
@@ -181,3 +191,4 @@ impl From<&RequestsStatus> for RequestsStatusReport {
         }
     }
 }
+

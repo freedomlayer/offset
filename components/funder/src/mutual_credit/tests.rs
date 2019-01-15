@@ -15,19 +15,15 @@ use proto::funder::signature_buff::{create_response_signature_buffer,
 use crate::mutual_credit::types::MutualCredit;
 use crate::types::create_pending_request;
 
-use crate::mutual_credit::outgoing::{OutgoingMc, QueueOperationFailure};
+use crate::mutual_credit::outgoing::{OutgoingMc, QueueOperationError};
 use crate::mutual_credit::incoming::{process_operation, ProcessOperationOutput, ProcessOperationError};
 
 /// Helper function for applying an outgoing operation over a token channel.
-fn apply_outgoing(mutual_credit: &mut MutualCredit, friend_tc_op: FriendTcOp) 
-    -> Result<(), QueueOperationFailure> {
+fn apply_outgoing(mutual_credit: &mut MutualCredit, friend_tc_op: &FriendTcOp) 
+    -> Result<(), QueueOperationError> {
 
-    let max_operations = 1;
-    let mut outgoing = OutgoingMc::new(mutual_credit, max_operations);
-    assert!(outgoing.is_operations_empty());
-    outgoing.queue_operation(friend_tc_op)?;
-    assert!(!outgoing.is_operations_empty());
-    let (_operations, mutations) = outgoing.done();
+    let mut outgoing = OutgoingMc::new(mutual_credit);
+    let mutations = outgoing.queue_operation(friend_tc_op)?;
 
     for mutation in mutations {
         mutual_credit.mutate(&mutation);
@@ -54,11 +50,11 @@ fn test_outgoing_open_close_requests() {
     assert_eq!(mutual_credit.state().requests_status.local, RequestsStatus::Closed);
     assert_eq!(mutual_credit.state().requests_status.remote, RequestsStatus::Closed);
 
-    apply_outgoing(&mut mutual_credit, FriendTcOp::EnableRequests).unwrap();
+    apply_outgoing(&mut mutual_credit, &FriendTcOp::EnableRequests).unwrap();
     assert_eq!(mutual_credit.state().requests_status.local, RequestsStatus::Open);
     assert_eq!(mutual_credit.state().requests_status.remote, RequestsStatus::Closed);
 
-    apply_outgoing(&mut mutual_credit, FriendTcOp::DisableRequests).unwrap();
+    apply_outgoing(&mut mutual_credit, &FriendTcOp::DisableRequests).unwrap();
     assert_eq!(mutual_credit.state().requests_status.local, RequestsStatus::Closed);
     assert_eq!(mutual_credit.state().requests_status.remote, RequestsStatus::Closed);
 }
@@ -73,7 +69,7 @@ fn test_outgoing_set_remote_max_debt() {
                                            balance);
 
     assert_eq!(mutual_credit.state().balance.remote_max_debt, 0);
-    apply_outgoing(&mut mutual_credit, FriendTcOp::SetRemoteMaxDebt(20)).unwrap();
+    apply_outgoing(&mut mutual_credit, &FriendTcOp::SetRemoteMaxDebt(20)).unwrap();
     assert_eq!(mutual_credit.state().balance.remote_max_debt, 20);
 }
 
@@ -120,7 +116,7 @@ fn test_request_response_send_funds() {
     };
 
     let pending_request = create_pending_request(&request_send_funds);
-    apply_outgoing(&mut mutual_credit, FriendTcOp::RequestSendFunds(request_send_funds)).unwrap();
+    apply_outgoing(&mut mutual_credit, &FriendTcOp::RequestSendFunds(request_send_funds)).unwrap();
 
     assert_eq!(mutual_credit.state().balance.balance, 0);
     assert_eq!(mutual_credit.state().balance.local_max_debt, 100);
@@ -197,7 +193,7 @@ fn test_request_failure_send_funds() {
     };
 
     let pending_request = create_pending_request(&request_send_funds);
-    apply_outgoing(&mut mutual_credit, FriendTcOp::RequestSendFunds(request_send_funds)).unwrap();
+    apply_outgoing(&mut mutual_credit, &FriendTcOp::RequestSendFunds(request_send_funds)).unwrap();
 
     assert_eq!(mutual_credit.state().balance.balance, 0);
     assert_eq!(mutual_credit.state().balance.local_max_debt, 100);

@@ -20,6 +20,7 @@ use proto::funder::messages::{FunderIncomingControl,
 
 
 use common::int_convert::usize_to_u32;
+use common::canonical_serialize::CanonicalSerialize;
 
 use identity::{create_identity, IdentityClient};
 
@@ -33,6 +34,9 @@ use crate::database::AtomicDb;
 use crate::types::{ChannelerConfig, FunderOutgoingComm, FunderIncomingComm,
                 IncomingLivenessMessage};
 
+const TEST_MAX_OPERATIONS_IN_BATCH: usize = 16;
+const TEST_MAX_PENDING_USER_REQUESTS: usize = 16;
+
 // This is required to make sure the tests are not stuck.
 //
 // We could instead have CHANNEL_SIZE = 0 with some kind of (event_sender, event_receiver) pair, to make
@@ -41,16 +45,16 @@ use crate::types::{ChannelerConfig, FunderOutgoingComm, FunderIncomingComm,
 const CHANNEL_SIZE: usize = 64;
 
 #[derive(Debug)]
-struct Node {
+struct Node<A> {
     friends: HashSet<PublicKey>,
-    comm_out: mpsc::Sender<FunderIncomingComm>,
+    comm_out: mpsc::Sender<FunderIncomingComm<A>>,
 }
 
 #[derive(Debug)]
 struct NewNode<A> {
     public_key: PublicKey,
     comm_in: mpsc::Receiver<FunderOutgoingComm<A>>,
-    comm_out: mpsc::Sender<FunderIncomingComm>,
+    comm_out: mpsc::Sender<FunderIncomingComm<A>>,
 }
 
 #[derive(Debug)]
@@ -59,7 +63,7 @@ enum RouterEvent<A> {
     OutgoingComm((PublicKey, FunderOutgoingComm<A>)), // (src_public_key, outgoing_comm)
 }
 
-async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, Node>, 
+async fn router_handle_outgoing_comm<'a, A: 'a>(nodes: &'a mut HashMap<PublicKey, Node<A>>, 
                                         src_public_key: PublicKey,
                                         outgoing_comm: FunderOutgoingComm<A>) {
     match outgoing_comm {
@@ -71,12 +75,12 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
         },
         FunderOutgoingComm::ChannelerConfig(channeler_config) => {
             match channeler_config {
-                ChannelerConfig::AddFriend((friend_public_key, _address)) => {
+                ChannelerConfig::UpdateFriend(channeler_add_friend) => {
                     let node = nodes.get_mut(&src_public_key).unwrap();
-                    assert!(node.friends.insert(friend_public_key.clone()));
+                    node.friends.insert(channeler_add_friend.friend_public_key.clone());
                     let mut comm_out = node.comm_out.clone();
 
-                    let remote_node = nodes.get(&friend_public_key).unwrap();
+                    let remote_node = nodes.get(&channeler_add_friend.friend_public_key).unwrap();
                     let mut remote_node_comm_out = remote_node.comm_out.clone();
                     if remote_node.friends.contains(&src_public_key) {
                         // If there is a match, notify both sides about online state:
@@ -85,7 +89,7 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
                         await!(remote_node_comm_out.send(incoming_comm_message)).unwrap();
 
                         let incoming_comm_message = FunderIncomingComm::Liveness(
-                            IncomingLivenessMessage::Online(friend_public_key.clone()));
+                            IncomingLivenessMessage::Online(channeler_add_friend.friend_public_key.clone()));
                         await!(comm_out.send(incoming_comm_message)).unwrap();
                     }
                 },
@@ -113,7 +117,7 @@ async fn router_handle_outgoing_comm<A: 'static>(nodes: &mut HashMap<PublicKey, 
 /// Simulates the Channeler interface
 async fn router<A: Send + 'static + std::fmt::Debug>(incoming_new_node: mpsc::Receiver<NewNode<A>>, 
                                                      mut spawner: impl Spawn + Clone) {
-    let mut nodes: HashMap<PublicKey, Node> = HashMap::new();
+    let mut nodes: HashMap<PublicKey, Node<A>> = HashMap::new();
     let (comm_sender, comm_receiver) = mpsc::channel::<(PublicKey, FunderOutgoingComm<A>)>(0);
 
     let incoming_new_node = incoming_new_node
@@ -155,7 +159,10 @@ impl<A: Clone + std::fmt::Debug> MockDb<A> {
     }
 }
 
-impl<A: Clone + 'static + std::fmt::Debug> AtomicDb for MockDb<A> {
+impl<A> AtomicDb for MockDb<A> 
+where
+    A: CanonicalSerialize + Clone + 'static + std::fmt::Debug,
+{
     type State = FunderState<A>;
     type Mutation = FunderMutation<A>;
     type Error = ();
@@ -392,6 +399,8 @@ pub async fn create_node_controls(num_nodes: usize,
             control_sender,
             comm_sender,
             mock_db,
+            TEST_MAX_OPERATIONS_IN_BATCH,
+            TEST_MAX_PENDING_USER_REQUESTS,
             None);
 
         spawner.spawn(funder_fut.then(|_| future::ready(()))).unwrap();

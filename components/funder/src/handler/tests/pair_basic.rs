@@ -1,7 +1,6 @@
-use super::*;
+use super::utils::apply_funder_incoming;
 
 use std::cmp::Ordering;
-use std::fmt::Debug;
 
 use futures::executor::ThreadPool;
 use futures::{future, FutureExt};
@@ -11,7 +10,7 @@ use identity::{create_identity, IdentityClient};
 
 use crypto::test_utils::DummyRandom;
 use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair, compare_public_key};
-use crypto::crypto_rand::{RngContainer, CryptoRandom};
+use crypto::crypto_rand::RngContainer;
 use crypto::uid::{Uid, UID_LEN};
 
 use proto::funder::messages::{FriendMessage, FriendsRoute, 
@@ -20,46 +19,14 @@ use proto::funder::messages::{FriendMessage, FriendsRoute,
     SetFriendStatus, SetFriendRemoteMaxDebt,
     UserRequestSendFunds, SetRequestsStatus, RequestsStatus};
 
-use crate::types::{FunderIncoming, IncomingLivenessMessage};
+use crate::types::{FunderIncoming, IncomingLivenessMessage, 
+    FunderOutgoingComm, FunderIncomingComm, ChannelerConfig};
+use crate::ephemeral::Ephemeral;
+use crate::state::FunderState;
+use crate::friend::ChannelStatus;
 
-
-/// A helper function. Applies an incoming funder message, updating state and ephemeral
-/// accordingly:
-async fn apply_funder_incoming<'a,A,R>(funder_incoming: FunderIncoming<A>,
-                               state: &'a mut FunderState<A>, 
-                               ephemeral: &'a mut Ephemeral, 
-                               rng: R, 
-                               identity_client: IdentityClient) 
-                -> Result<(Vec<FunderOutgoingComm<A>>, Vec<FunderOutgoingControl<A>>), FunderHandlerError> 
-where
-    A: Clone + Debug + Eq + PartialEq + 'static,
-    R: CryptoRandom + 'static,
-{
-
-    let funder_handler_output = await!(funder_handle_message(identity_client,
-                          rng,
-                          state.clone(),
-                          ephemeral.clone(),
-                          funder_incoming))?;
-
-    let FunderHandlerOutput {ephemeral_mutations, funder_mutations, outgoing_comms, outgoing_control}
-        = funder_handler_output;
-
-    // Mutate FunderState according to the mutations:
-    for mutation in &funder_mutations {
-        state.mutate(mutation);
-    }
-
-    // Mutate Ephemeral according to the mutations:
-    for mutation in &ephemeral_mutations {
-        ephemeral.mutate(mutation);
-    }
-
-    Ok((outgoing_comms, outgoing_control))
-}
-
-async fn task_handler_pair_basic(identity_client1: IdentityClient, 
-                                 identity_client2: IdentityClient) {
+async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient, 
+                                     identity_client2: &'a mut IdentityClient) {
     // NOTE: We use Box::pin() in order to make sure we don't get a too large Future which will
     // cause a stack overflow. 
     // See:  https://github.com/rust-lang-nursery/futures-rs/issues/1330 
@@ -73,22 +40,22 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
         (identity_client2, pk2, identity_client1, pk1)
     };
 
-    let mut state1 = FunderState::<u32>::new(&pk1, Some(&1337u32));
+    let mut state1 = FunderState::<u32>::new(&pk1, Some(&11u32));
     let mut ephemeral1 = Ephemeral::new(&state1);
-    let mut state2 = FunderState::<u32>::new(&pk2, Some(&1338u32));
+    let mut state2 = FunderState::<u32>::new(&pk2, Some(&22u32));
     let mut ephemeral2 = Ephemeral::new(&state2);
 
-    let rng = RngContainer::new(DummyRandom::new(&[3u8]));
+    let mut rng = RngContainer::new(DummyRandom::new(&[3u8]));
 
     // Initialize 1:
     let funder_incoming = FunderIncoming::Init;
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
-                                 rng.clone(), identity_client1.clone()))).unwrap();
+                                 &mut rng, identity_client1))).unwrap();
 
     // Initialize 2:
     let funder_incoming = FunderIncoming::Init;
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
-                                 rng.clone(), identity_client2.clone()))).unwrap();
+                                 &mut rng, identity_client2))).unwrap();
 
     // Node1: Add friend 2:
     let add_friend = AddFriend {
@@ -99,8 +66,8 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     };
     let incoming_control_message = FunderIncomingControl::AddFriend(add_friend);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
-    await!(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
-                                 rng.clone(), identity_client1.clone())).unwrap();
+    await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
+                                 &mut rng, identity_client1))).unwrap();
 
     // Node1: Enable friend 2:
     let set_friend_status = SetFriendStatus {
@@ -110,7 +77,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     let incoming_control_message = FunderIncomingControl::SetFriendStatus(set_friend_status);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
-                                 rng.clone(), identity_client1.clone()))).unwrap();
+                                 &mut rng, identity_client1))).unwrap();
 
     // Node2: Add friend 1:
     let add_friend = AddFriend {
@@ -122,7 +89,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     let incoming_control_message = FunderIncomingControl::AddFriend(add_friend);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
-                                 rng.clone(), identity_client2.clone()))).unwrap();
+                                 &mut rng, identity_client2))).unwrap();
 
 
     // Node2: enable friend 1:
@@ -133,7 +100,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     let incoming_control_message = FunderIncomingControl::SetFriendStatus(set_friend_status);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
-                                 rng.clone(), identity_client2.clone()))).unwrap();
+                                 &mut rng, identity_client2))).unwrap();
 
 
     // Node1: Notify that Node2 is alive
@@ -141,19 +108,21 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     let incoming_liveness_message = IncomingLivenessMessage::Online(pk2.clone());
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Liveness(incoming_liveness_message));
     let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
-                                 rng.clone(), identity_client1.clone()))).unwrap();
+                                 &mut rng, identity_client1))).unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
     let friend_message = match &outgoing_comms[0] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);
-                assert_eq!(move_token_request.token_wanted, false);
+                // Token is wanted because Node1 wants to send his configured address later.
+                assert_eq!(move_token_request.token_wanted, true);
 
                 let friend_move_token = &move_token_request.friend_move_token;
                 assert_eq!(friend_move_token.move_token_counter, 0);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
+                assert!(friend_move_token.opt_local_address.is_none());
 
             } else {
                 unreachable!();
@@ -166,16 +135,115 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     // Node2: Notify that Node1 is alive
     let incoming_liveness_message = IncomingLivenessMessage::Online(pk1.clone());
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Liveness(incoming_liveness_message));
-    await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
-                                 rng.clone(), identity_client2.clone()))).unwrap();
+    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+                                 &mut rng, identity_client2))).unwrap();
 
-    // Node2: Receive friend_message from Node1:
+    // Node2 sends information about his address to Node1, and updates channeler
+    assert_eq!(outgoing_comms.len(), 2);
+
+    match &outgoing_comms[0] {
+        FunderOutgoingComm::ChannelerConfig(ChannelerConfig::UpdateFriend(update_friend)) => {
+            assert_eq!(update_friend.friend_public_key, pk1);
+            assert_eq!(update_friend.friend_address, 11);
+            assert_eq!(update_friend.local_addresses, vec![22]);
+        },
+        _ => unreachable!(),
+    };
+
+    // Node2: Receive MoveToken from Node1:
+    // (Node2 should be able to discard this duplicate message)
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
-    await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
-                                 rng.clone(), identity_client2.clone()))).unwrap();
+    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+                                 &mut rng, identity_client2))).unwrap();
+
+    // The same message should be again sent by Node2:
+    assert_eq!(outgoing_comms.len(), 1);
 
 
-    // Node1 receives control message to set remote max debt:
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk1);
+                assert_eq!(move_token_request.token_wanted, true);
+
+                let friend_move_token = &move_token_request.friend_move_token;
+                assert_eq!(friend_move_token.move_token_counter, 1);
+                assert_eq!(friend_move_token.inconsistency_counter, 0);
+                assert_eq!(friend_move_token.balance, 0);
+                assert_eq!(friend_move_token.opt_local_address, Some(22));
+
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        },
+        _ => unreachable!(),
+    };
+
+    // Node1: Receive the message from Node2 (Setting address):
+    let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
+    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
+                                 &mut rng, identity_client1))).unwrap();
+
+    assert_eq!(outgoing_comms.len(), 2);
+    // Node1 should send a message containing opt_local_address to Node2:
+    let friend_message = match &outgoing_comms[1] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk2);
+                assert_eq!(move_token_request.token_wanted, true);
+
+                let friend_move_token = &move_token_request.friend_move_token;
+                assert_eq!(friend_move_token.move_token_counter, 2);
+                assert_eq!(friend_move_token.inconsistency_counter, 0);
+                assert_eq!(friend_move_token.balance, 0);
+                assert_eq!(friend_move_token.opt_local_address, Some(11));
+
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        },
+        _ => unreachable!(),
+    };
+
+
+    // Node2: Receive the message from Node1 (Setting address):
+    let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
+    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
+                                 &mut rng, identity_client2))).unwrap();
+
+    assert_eq!(outgoing_comms.len(), 1);
+
+    // Node2 sends an empty move token to node1:
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk1);
+                assert_eq!(move_token_request.token_wanted, false);
+
+                let friend_move_token = &move_token_request.friend_move_token;
+                assert_eq!(friend_move_token.move_token_counter, 3);
+                assert_eq!(friend_move_token.inconsistency_counter, 0);
+                assert_eq!(friend_move_token.balance, 0);
+                assert_eq!(friend_move_token.opt_local_address, None);
+
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        },
+        _ => unreachable!(),
+    };
+
+    // Node1: Receives the empty move token message from Node2:
+    let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
+    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
+                                 &mut rng, identity_client1))).unwrap();
+    
+    assert!(outgoing_comms.is_empty());
+
+    // Node1 receives control message to set remote max debt.
     let set_friend_remote_max_debt = SetFriendRemoteMaxDebt {
         friend_public_key: pk2.clone(),
         remote_max_debt: 100,
@@ -183,46 +251,9 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     let incoming_control_message = FunderIncomingControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
-                                 rng.clone(), identity_client1.clone()))).unwrap();
-    // Node1 wants to obtain the token, so it resends the last outgoing move token with
-    // token_wanted = true:
-    assert_eq!(outgoing_comms.len(), 1);
-    let friend_message = match &outgoing_comms[0] {
-        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
-            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
-                assert_eq!(pk, &pk2);
-                assert_eq!(move_token_request.token_wanted, true);
-            } else {
-                unreachable!();
-            }
-            friend_message.clone()
-        },
-        _ => unreachable!(),
-    };
+                                 &mut rng, identity_client1))).unwrap();
 
-    // Node2: Receive friend_message (request for token) from Node1:
-    let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
-    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
-                                 rng.clone(), identity_client2.clone()))).unwrap();
-    assert_eq!(outgoing_comms.len(), 1);
-    let friend_message = match &outgoing_comms[0] {
-        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
-            if let FriendMessage::MoveTokenRequest(_move_token_request) = friend_message {
-                assert_eq!(pk, &pk1);
-            } else {
-                unreachable!();
-            }
-            friend_message.clone()
-        },
-        _ => unreachable!(),
-    };
-
-    // Node1: Receive friend_message from Node2:
-    let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
-    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
-                                 rng.clone(), identity_client1.clone()))).unwrap();
-
-    // Now that Node1 has the token, it will now send the SetRemoteMaxDebt message to Node2:
+    // Node1 will send the SetRemoteMaxDebt message to Node2:
     assert_eq!(outgoing_comms.len(), 1);
     let friend_message = match &outgoing_comms[0] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
@@ -237,10 +268,12 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
         _ => unreachable!(),
     };
 
+
     // Node2: Receive friend_message (With SetRemoteMaxDebt) from Node1:
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
     let (_outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
-                                 rng.clone(), identity_client2.clone()))).unwrap();
+                                 &mut rng, identity_client2))).unwrap();
+
 
     let friend2 = state1.friends.get(&pk2).unwrap();
     let remote_max_debt = match &friend2.channel_status {
@@ -258,6 +291,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     };
     assert_eq!(local_max_debt, 100);
 
+
     // Node2 receives control message to send funds to Node1:
     // But Node1's requests are not open, therefore Node2 will return a ResponseReceived with
     // failure through the outgoing control:
@@ -270,12 +304,14 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     let incoming_control_message = FunderIncomingControl::RequestSendFunds(user_request_send_funds);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
-                                 rng.clone(), identity_client2.clone()))).unwrap();
+                                 &mut rng, identity_client2))).unwrap();
+
 
     // Node2 will not send the RequestFunds message to Node1, because he knows Node1 is
     // not ready:
     assert_eq!(outgoing_comms.len(), 0);
     assert_eq!(outgoing_control.len(), 1);
+
 
     // Checking the current requests status on the mutual credit:
     let friend2 = state1.friends.get(&pk2).unwrap();
@@ -296,7 +332,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     let incoming_control_message = FunderIncomingControl::SetRequestsStatus(set_requests_status);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
-                                 rng.clone(), identity_client1.clone()))).unwrap();
+                                 &mut rng, identity_client1))).unwrap();
 
     // Node1 will request the token:
     assert_eq!(outgoing_comms.len(), 1);
@@ -307,7 +343,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     // Node2 receives the request_token message:
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
     let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
-                                 rng.clone(), identity_client2.clone()))).unwrap();
+                                 &mut rng, identity_client2))).unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
     let friend_message = if let FunderOutgoingComm::FriendMessage((_pk, friend_message)) = &outgoing_comms[0] {
@@ -317,7 +353,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     // Node1 receives the token from Node2:
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
     let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
-                                 rng.clone(), identity_client1.clone()))).unwrap();
+                                 &mut rng, identity_client1))).unwrap();
 
     // Node1 declares that his requests are open:
     let friend_message = if let FunderOutgoingComm::FriendMessage((_pk, friend_message)) = &outgoing_comms[0] {
@@ -327,7 +363,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     // Node2 receives the set requests open message:
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
     let (_outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
-                                 rng.clone(), identity_client2.clone()))).unwrap();
+                                 &mut rng, identity_client2))).unwrap();
 
 
     // Checking the current requests status on the mutual credit for Node1:
@@ -360,7 +396,7 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     let incoming_control_message = FunderIncomingControl::RequestSendFunds(user_request_send_funds);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
-                                 rng.clone(), identity_client2.clone()))).unwrap();
+                                 &mut rng, identity_client2))).unwrap();
 
 
     // Node2 will send a RequestFunds message to Node1
@@ -369,10 +405,12 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
         friend_message.clone()
     } else { unreachable!(); };
 
+
     // Node1 receives RequestSendFunds from Node2:
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
     let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
-                                 rng.clone(), identity_client1.clone()))).unwrap();
+                                 &mut rng, identity_client1))).unwrap();
+
 
     // Node1 sends a ResponseSendFunds to Node2:
     assert_eq!(outgoing_comms.len(), 1);
@@ -392,10 +430,11 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
         _ => unreachable!(),
     };
 
+
     // Node2 receives ResponseSendFunds from Node1:
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
     let (_outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
-                                 rng.clone(), identity_client2.clone()))).unwrap();
+                                 &mut rng, identity_client2))).unwrap();
 
     // Current balance from Node1 point of view:
     let friend2 = state1.friends.get(&pk2).unwrap();
@@ -418,7 +457,6 @@ async fn task_handler_pair_basic(identity_client1: IdentityClient,
     assert_eq!(mutual_credit_state.balance.balance, -20);
     assert_eq!(mutual_credit_state.balance.remote_pending_debt, 0);
     assert_eq!(mutual_credit_state.balance.local_pending_debt, 0);
-
 }
 
 #[test]
@@ -429,16 +467,15 @@ fn test_handler_pair_basic() {
     let pkcs8 = generate_pkcs8_key_pair(&rng1);
     let identity1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
     let (requests_sender1, identity_server1) = create_identity(identity1);
-    let identity_client1 = IdentityClient::new(requests_sender1);
+    let mut identity_client1 = IdentityClient::new(requests_sender1);
     thread_pool.spawn(identity_server1.then(|_| future::ready(()))).unwrap();
 
     let rng2 = DummyRandom::new(&[2u8]);
     let pkcs8 = generate_pkcs8_key_pair(&rng2);
     let identity2 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
     let (requests_sender2, identity_server2) = create_identity(identity2);
-    let identity_client2 = IdentityClient::new(requests_sender2);
+    let mut identity_client2 = IdentityClient::new(requests_sender2);
     thread_pool.spawn(identity_server2.then(|_| future::ready(()))).unwrap();
 
-    thread_pool.run(task_handler_pair_basic(identity_client1, identity_client2));
+    thread_pool.run(task_handler_pair_basic(&mut identity_client1, &mut identity_client2));
 }
-

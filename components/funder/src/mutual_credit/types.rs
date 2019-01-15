@@ -53,7 +53,7 @@ impl McBalance {
 
 // TODO: Rename pending_local_requests to a shorter name, like local.
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct McPendingRequests {
     /// Pending requests that were opened locally and not yet completed
     pub pending_local_requests: ImHashMap<Uid, PendingRequest>,
@@ -88,7 +88,7 @@ impl McRequestsStatus {
 }
 
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct MutualCreditState {
     pub idents: McIdents,
     pub balance: McBalance,
@@ -96,7 +96,7 @@ pub struct MutualCreditState {
     pub requests_status: McRequestsStatus,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct MutualCredit {
     state: MutualCreditState,
 }

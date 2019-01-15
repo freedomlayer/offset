@@ -1,17 +1,10 @@
-#![allow(unused)]
-
-use std::convert::TryFrom;
-use std::collections::VecDeque;
-
 use crypto::identity::verify_signature;
-use crypto::hash;
 
 use common::safe_arithmetic::SafeSignedArithmetic;
 use common::int_convert::usize_to_u32;
 
 use proto::funder::messages::{FriendTcOp, RequestSendFunds, 
-    ResponseSendFunds, FailureSendFunds,FriendsRoute,
-    InvoiceId, PendingRequest, SendFundsReceipt, RequestsStatus};
+    ResponseSendFunds, FailureSendFunds, RequestsStatus};
 use proto::funder::signature_buff::{create_response_signature_buffer, 
     verify_failure_signature};
 
@@ -25,81 +18,41 @@ use crate::types::create_pending_request;
 /// Used to batch as many fundss as possible.
 pub struct OutgoingMc {
     mutual_credit: MutualCredit,
-    tc_mutations: Vec<McMutation>,
-    operations: Vec<FriendTcOp>,
-    // Used to limit the maximum amount of 
-    // outgoing operations per batch:
-    max_operations: usize,
 }
 
 #[derive(Debug)]
 pub enum QueueOperationError {
     RemoteMaxDebtTooLarge,
-    InvoiceIdAlreadyExists,
-    InvalidSendFundsReceiptSignature,
-    MissingRemoteInvoiceId,
-    InvoiceIdMismatch,
     InvalidRoute,
     PkPairNotInRoute,
     InvalidFreezeLinks,
-    RemoteIncomingRequestsDisabled,
-    ResponsePaymentProposalTooLow,
     RouteTooLong,
-    RouteEmpty,
-    RequestContentTooLong,
     CreditCalculatorFailure,
     CreditsCalcOverflow,
     InsufficientTrust,
     RequestAlreadyExists,
     RequestDoesNotExist,
     InvalidResponseSignature,
-    ProcessingFeeCollectedTooHigh,
-    ResponseContentTooLong,
     ReportingNodeNonexistent,
     InvalidReportingNode,
     InvalidFailureSignature,
     FailureSentFromDest,
-    MaxLengthReached,
     RemoteRequestsClosed,
-    MaxOperationsReached,
-}
-
-#[derive(Debug)]
-pub struct QueueOperationFailure {
-    pub operation: FriendTcOp,
-    pub error: QueueOperationError,
 }
 
 /// A wrapper over a token channel, accumulating fundss to be sent as one transcation.
 impl OutgoingMc {
-    pub fn new(mutual_credit: &MutualCredit, max_operations: usize) -> OutgoingMc {
+    pub fn new(mutual_credit: &MutualCredit) -> OutgoingMc {
         OutgoingMc {
             mutual_credit: mutual_credit.clone(),
-            tc_mutations: Vec::new(),
-            operations: Vec::new(),
-            max_operations,
         }
     }
 
-    /// Finished queueing operations.
-    /// Obtain the set of queued operations, and the expected side effects (mutations) on the token
-    /// channel.
-    pub fn done(self) -> (Vec<FriendTcOp>, Vec<McMutation>) {
-        (self.operations, self.tc_mutations)
-    }
+    pub fn queue_operation(&mut self, operation: &FriendTcOp) ->
+        Result<Vec<McMutation>, QueueOperationError> {
 
-    pub fn queue_operation(&mut self, operation: FriendTcOp) ->
-        Result<(), QueueOperationFailure> {
-
-        // Check if we can push another operation:
-        if self.operations.len() >= self.max_operations {
-            return Err(QueueOperationFailure {
-                operation,
-                error: QueueOperationError::MaxOperationsReached,
-            });
-        }
-
-        let res = match operation.clone() {
+        // TODO: Maybe remove clone from here later:
+        match operation.clone() {
             FriendTcOp::EnableRequests =>
                 self.queue_enable_requests(),
             FriendTcOp::DisableRequests =>
@@ -112,22 +65,7 @@ impl OutgoingMc {
                 self.queue_response_send_funds(response_send_funds),
             FriendTcOp::FailureSendFunds(failure_send_funds) =>
                 self.queue_failure_send_funds(failure_send_funds),
-        };
-        match res {
-            Ok(tc_mutations) => {
-                self.tc_mutations.extend(tc_mutations);
-                self.operations.push(operation);
-                Ok(())
-            },
-            Err(error) => Err(QueueOperationFailure {
-                operation,
-                error,
-            }),
         }
-    }
-
-    pub fn is_operations_empty(&self) -> bool {
-        self.operations.is_empty()
     }
 
     fn queue_enable_requests(&mut self) ->
@@ -184,7 +122,6 @@ impl OutgoingMc {
 
         // Make sure that freeze_links and route_links are compatible in length:
         let freeze_links_len = request_send_funds.freeze_links.len();
-        let route_links_len = request_send_funds.route.len();
         // Note that the sender of the request also adds his freeze link:
         // TODO: Check if add 1 here is the right thing to do:
         if freeze_links_len != local_index + 1 {

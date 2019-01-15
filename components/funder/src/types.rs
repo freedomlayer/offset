@@ -2,14 +2,109 @@ use crypto::identity::{PublicKey, Signature};
 use crypto::crypto_rand::RandValue;
 use crypto::hash::HashResult;
 
-use proto::funder::messages::{RequestSendFunds, MoveToken, FriendMessage,
-    FriendTcOp, PendingRequest, FunderIncomingControl, 
+use common::canonical_serialize::CanonicalSerialize;
+
+use proto::funder::messages::{RequestSendFunds, ResponseSendFunds, FailureSendFunds, 
+    MoveToken, FriendMessage, FriendTcOp, PendingRequest, FunderIncomingControl, 
     FunderOutgoingControl};
 
-use proto::funder::signature_buff::{operations_hash, 
-    friend_move_token_signature_buff};
+use proto::funder::signature_buff::{prefix_hash,
+    move_token_signature_buff, create_response_signature_buffer,
+    create_failure_signature_buffer};
 
 use identity::IdentityClient;
+
+
+pub type UnsignedFailureSendFunds = FailureSendFunds<()>;
+pub type UnsignedResponseSendFunds = ResponseSendFunds<()>;
+pub type UnsignedMoveToken<A> = MoveToken<A,()>;
+
+pub async fn sign_move_token<'a,A>(unsigned_move_token: UnsignedMoveToken<A>,
+                         identity_client: &'a mut IdentityClient) -> MoveToken<A> 
+where
+    A: CanonicalSerialize + 'a,
+{
+
+    let signature_buff = move_token_signature_buff(&unsigned_move_token);
+    let new_token = await!(identity_client.request_signature(signature_buff))
+            .unwrap();
+
+    MoveToken {
+        operations: unsigned_move_token.operations,
+        opt_local_address: unsigned_move_token.opt_local_address,
+        old_token: unsigned_move_token.old_token,
+        local_public_key: unsigned_move_token.local_public_key,
+        remote_public_key: unsigned_move_token.remote_public_key,
+        inconsistency_counter: unsigned_move_token.inconsistency_counter,
+        move_token_counter: unsigned_move_token.move_token_counter,
+        balance: unsigned_move_token.balance,
+        local_pending_debt: unsigned_move_token.local_pending_debt, 
+        remote_pending_debt: unsigned_move_token.remote_pending_debt,
+        rand_nonce: unsigned_move_token.rand_nonce, 
+        new_token,
+    }
+}
+
+
+pub async fn create_response_send_funds<'a>(pending_request: &'a PendingRequest,
+                                            rand_nonce: RandValue,
+                                            identity_client: &'a mut IdentityClient) -> ResponseSendFunds 
+{
+
+    let u_response_send_funds = ResponseSendFunds {
+        request_id: pending_request.request_id,
+        rand_nonce: rand_nonce,
+        signature: (),
+    };
+
+    let signature_buff = create_response_signature_buffer(&u_response_send_funds, pending_request);
+    let signature = await!(identity_client.request_signature(signature_buff))
+        .unwrap();
+
+    ResponseSendFunds {
+        request_id: u_response_send_funds.request_id,
+        rand_nonce: u_response_send_funds.rand_nonce,
+        signature,
+    }
+
+}
+
+pub async fn create_failure_send_funds<'a>(pending_request: &'a PendingRequest,
+                                         local_public_key: &'a PublicKey,
+                                         rand_nonce: RandValue,
+                                         identity_client: &'a mut IdentityClient) -> FailureSendFunds 
+{
+
+    let u_failure_send_funds = FailureSendFunds {
+        request_id: pending_request.request_id,
+        reporting_public_key: local_public_key.clone(),
+        rand_nonce: rand_nonce,
+        signature: (),
+    };
+
+    let signature_buff = create_failure_signature_buffer(&u_failure_send_funds, pending_request);
+    let signature = await!(identity_client.request_signature(signature_buff))
+        .unwrap();
+
+    FailureSendFunds {
+        request_id: u_failure_send_funds.request_id,
+        reporting_public_key: u_failure_send_funds.reporting_public_key,
+        rand_nonce: u_failure_send_funds.rand_nonce,
+        signature,
+    }
+}
+
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+pub enum UnsignedFriendTcOp {
+    EnableRequests,
+    DisableRequests,
+    SetRemoteMaxDebt(u128),
+    RequestSendFunds(RequestSendFunds),
+    ResponseSendFunds(ResponseSendFunds),
+    UnsignedResponseSendFunds(UnsignedResponseSendFunds),
+    FailureSendFunds(FailureSendFunds),
+    UnsignedFailureSendFunds(UnsignedFailureSendFunds),
+}
 
 
 
@@ -28,8 +123,10 @@ pub fn create_pending_request(request_send_funds: &RequestSendFunds) -> PendingR
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveTokenHashed {
-    pub operations_hash: HashResult,
-    pub old_token: Signature,
+    /// Hash of operations and local_address
+    pub prefix_hash: HashResult,
+    pub local_public_key: PublicKey,
+    pub remote_public_key: PublicKey,
     pub inconsistency_counter: u64,
     pub move_token_counter: u128,
     pub balance: i128,
@@ -39,8 +136,37 @@ pub struct MoveTokenHashed {
     pub new_token: Signature,
 }
 
+pub fn create_unsigned_move_token<A>(operations: Vec<FriendTcOp>,
+                 opt_local_address: Option<A>,
+                 old_token: Signature,
+                 local_public_key: PublicKey,
+                 remote_public_key: PublicKey,
+                 inconsistency_counter: u64,
+                 move_token_counter: u128,
+                 balance: i128,
+                 local_pending_debt: u128,
+                 remote_pending_debt: u128,
+                 rand_nonce: RandValue) -> UnsignedMoveToken<A> {
 
-pub async fn create_friend_move_token(operations: Vec<FriendTcOp>,
+    MoveToken {
+        operations,
+        opt_local_address,
+        old_token,
+        local_public_key,
+        remote_public_key,
+        inconsistency_counter,
+        move_token_counter,
+        balance,
+        local_pending_debt,
+        remote_pending_debt,
+        rand_nonce,
+        new_token: (),
+    }
+}
+
+/*
+pub async fn create_move_token<A>(operations: Vec<FriendTcOp>,
+                 opt_local_address: Option<A>,
                  old_token: Signature,
                  inconsistency_counter: u64,
                  move_token_counter: u128,
@@ -48,10 +174,14 @@ pub async fn create_friend_move_token(operations: Vec<FriendTcOp>,
                  local_pending_debt: u128,
                  remote_pending_debt: u128,
                  rand_nonce: RandValue,
-                 identity_client: IdentityClient) -> MoveToken {
+                 identity_client: IdentityClient) -> MoveToken<A> 
+where   
+    A: CanonicalSerialize,
+{
 
-    let mut friend_move_token = MoveToken {
+    let mut move_token = MoveToken {
         operations,
+        opt_local_address,
         old_token,
         inconsistency_counter,
         move_token_counter,
@@ -62,26 +192,32 @@ pub async fn create_friend_move_token(operations: Vec<FriendTcOp>,
         new_token: Signature::zero(),
     };
 
-    let sig_buffer = friend_move_token_signature_buff(&friend_move_token);
-    friend_move_token.new_token = await!(identity_client.request_signature(sig_buffer)).unwrap();
-    friend_move_token
+    let sig_buffer = move_token_signature_buff(&move_token);
+    move_token.new_token = await!(identity_client.request_signature(sig_buffer)).unwrap();
+    move_token
 }
+*/
+
 
 
 /// Create a hashed version of the MoveToken.
 /// Hashed version contains the hash of the operations instead of the operations themselves,
 /// hence it is usually shorter.
-pub fn create_hashed(friend_move_token: &MoveToken) -> MoveTokenHashed {
+pub fn create_hashed<A>(move_token: &MoveToken<A>) -> MoveTokenHashed
+where
+    A: CanonicalSerialize,
+{
     MoveTokenHashed {
-        operations_hash: operations_hash(friend_move_token),
-        old_token: friend_move_token.old_token.clone(),
-        inconsistency_counter: friend_move_token.inconsistency_counter,
-        move_token_counter: friend_move_token.move_token_counter,
-        balance: friend_move_token.balance,
-        local_pending_debt: friend_move_token.local_pending_debt,
-        remote_pending_debt: friend_move_token.remote_pending_debt,
-        rand_nonce: friend_move_token.rand_nonce.clone(),
-        new_token: friend_move_token.new_token.clone(),
+        prefix_hash: prefix_hash(move_token),
+        local_public_key: move_token.local_public_key.clone(),
+        remote_public_key: move_token.remote_public_key.clone(),
+        inconsistency_counter: move_token.inconsistency_counter,
+        move_token_counter: move_token.move_token_counter,
+        balance: move_token.balance,
+        local_pending_debt: move_token.local_pending_debt,
+        remote_pending_debt: move_token.remote_pending_debt,
+        rand_nonce: move_token.rand_nonce.clone(),
+        new_token: move_token.new_token.clone(),
     }
 }
 
@@ -101,7 +237,12 @@ pub struct FriendInconsistencyError {
     pub balance_for_reset: i128,
 }
 
-
+#[derive(Debug)]
+pub struct ChannelerUpdateFriend<A> {
+    pub friend_public_key: PublicKey,
+    pub friend_address: A,
+    pub local_addresses: Vec<A>,
+}
 
 #[derive(Debug)]
 pub enum ChannelerConfig<A> {
@@ -109,14 +250,14 @@ pub enum ChannelerConfig<A> {
     /// This is the address the Channeler will connect to 
     /// and listen for new connections
     SetAddress(Option<A>),
-    AddFriend((PublicKey, A)),
+    UpdateFriend(ChannelerUpdateFriend<A>),
     RemoveFriend(PublicKey),
 }
 
 #[derive(Debug, Clone)]
-pub enum FunderIncomingComm {
+pub enum FunderIncomingComm<A> {
     Liveness(IncomingLivenessMessage),
-    Friend((PublicKey, FriendMessage)),
+    Friend((PublicKey, FriendMessage<A>)),
 }
 
 /// An incoming message to the Funder:
@@ -124,7 +265,7 @@ pub enum FunderIncomingComm {
 pub enum FunderIncoming<A> {
     Init,
     Control(FunderIncomingControl<A>),
-    Comm(FunderIncomingComm),
+    Comm(FunderIncomingComm<A>),
 }
 
 #[allow(unused)]
@@ -136,6 +277,6 @@ pub enum FunderOutgoing<A: Clone> {
 
 #[derive(Debug)]
 pub enum FunderOutgoingComm<A> {
-    FriendMessage((PublicKey, FriendMessage)),
+    FriendMessage((PublicKey, FriendMessage<A>)),
     ChannelerConfig(ChannelerConfig<A>),
 }

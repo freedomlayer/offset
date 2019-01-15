@@ -2,7 +2,8 @@ use crypto::identity::{PublicKey, Signature};
 use crypto::crypto_rand::RandValue;
 
 use crate::funder::messages::{RequestSendFunds, ResponseSendFunds,
-                            ReceiptAck, AddFriend, SetFriendInfo, RemoveFriend,
+                            ReceiptAck, AddFriend, SetFriendAddress, 
+                            SetFriendName, RemoveFriend,
                             SetFriendRemoteMaxDebt, ResetFriendChannel};
 use crate::funder::report::{FunderReport, FunderReportMutation};
 
@@ -47,7 +48,8 @@ pub enum AppToAppServer<A> {
     ReceiptAck(ReceiptAck),
     /// Friend management:
     AddFriend(AddFriend<A>),
-    SetFriendInfo(SetFriendInfo<A>),
+    SetFriendAddress(SetFriendAddress<A>),
+    SetFriendName(SetFriendName),
     RemoveFriend(RemoveFriend),
     EnableFriend(PublicKey),
     DisableFriend(PublicKey),

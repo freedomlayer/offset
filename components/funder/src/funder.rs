@@ -9,6 +9,7 @@ use serde::de::DeserializeOwned;
 use crypto::crypto_rand::CryptoRandom;
 use identity::IdentityClient;
 
+use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::{FunderIncomingControl, 
     FunderOutgoingControl};
 
@@ -38,17 +39,19 @@ pub enum FunderEvent<A> {
 }
 
 pub async fn inner_funder_loop<A, R, D, E>(
-    identity_client: IdentityClient,
+    mut identity_client: IdentityClient,
     rng: R,
     incoming_control: mpsc::Receiver<FunderIncomingControl<A>>,
-    incoming_comm: mpsc::Receiver<FunderIncomingComm>,
+    incoming_comm: mpsc::Receiver<FunderIncomingComm<A>>,
     control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
     comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
     atomic_db: D,
+    max_operations_in_batch: usize,
+    max_pending_user_requests: usize,
     mut opt_event_sender: Option<mpsc::Sender<FunderEvent<A>>>) -> Result<(), FunderError<E>> 
 
 where
-    A: Serialize + DeserializeOwned + Send + Sync + Clone + Debug + PartialEq + Eq + 'static,
+    A: CanonicalSerialize + Serialize + DeserializeOwned + Send + Sync + Clone + Debug + PartialEq + Eq + 'static,
     R: CryptoRandom + 'static,
     D: AtomicDb<State=FunderState<A>, Mutation=FunderMutation<A>, Error=E> + Send + 'static,
     E: Send + 'static,
@@ -84,10 +87,12 @@ where
         }; 
 
         // Process message:
-        let res = await!(funder_handle_message(identity_client.clone(),
-                              rng.clone(),
+        let res = await!(funder_handle_message(&mut identity_client,
+                              &rng,
                               db_runner.get_state().clone(),
                               ephemeral.clone(),
+                              max_operations_in_batch,
+                              max_pending_user_requests,
                               funder_incoming));
 
 
@@ -137,12 +142,14 @@ pub async fn funder_loop<A,R,D,E>(
     identity_client: IdentityClient,
     rng: R,
     incoming_control: mpsc::Receiver<FunderIncomingControl<A>>,
-    incoming_comm: mpsc::Receiver<FunderIncomingComm>,
+    incoming_comm: mpsc::Receiver<FunderIncomingComm<A>>,
     control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
     comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
+    max_operations_in_batch: usize,
+    max_pending_user_requests: usize,
     atomic_db: D) -> Result<(), FunderError<E>> 
 where
-    A: Serialize + DeserializeOwned + Send + Sync + Clone + Debug + PartialEq + Eq + 'static,
+    A: CanonicalSerialize + Serialize + DeserializeOwned + Send + Sync + Clone + Debug + PartialEq + Eq + 'static,
     R: CryptoRandom + 'static,
     D: AtomicDb<State=FunderState<A>, Mutation=FunderMutation<A>, Error=E> + Send + 'static,
     E: Send + 'static,
@@ -155,6 +162,8 @@ where
            control_sender,
            comm_sender,
            atomic_db,
+           max_operations_in_batch,
+           max_pending_user_requests,
            None))
 
 }

@@ -8,6 +8,7 @@ use crypto::hash::{self, HashResult};
 
 
 use common::int_convert::{usize_to_u64};
+use common::canonical_serialize::CanonicalSerialize;
 
 use crate::funder::report::FunderReportMutation;
 use crate::consts::MAX_ROUTE_LEN;
@@ -76,19 +77,19 @@ pub struct RequestSendFunds {
 
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct ResponseSendFunds {
+pub struct ResponseSendFunds<S=Signature> {
     pub request_id: Uid,
     pub rand_nonce: RandValue,
-    pub signature: Signature,
+    pub signature: S,
 }
 
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct FailureSendFunds {
+pub struct FailureSendFunds<S=Signature> {
     pub request_id: Uid,
     pub reporting_public_key: PublicKey,
     pub rand_nonce: RandValue,
-    pub signature: Signature,
+    pub signature: S,
 }
 
 
@@ -103,16 +104,19 @@ pub enum FriendTcOp {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct MoveToken {
+pub struct MoveToken<A,S=Signature> {
     pub operations: Vec<FriendTcOp>,
+    pub opt_local_address: Option<A>,
     pub old_token: Signature,
+    pub local_public_key: PublicKey,
+    pub remote_public_key: PublicKey,
     pub inconsistency_counter: u64,
     pub move_token_counter: u128,
     pub balance: i128,
     pub local_pending_debt: u128,
     pub remote_pending_debt: u128,
     pub rand_nonce: RandValue,
-    pub new_token: Signature,
+    pub new_token: S,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -123,16 +127,16 @@ pub struct ResetTerms {
 }
 
 #[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
-pub struct MoveTokenRequest {
-    pub friend_move_token: MoveToken,
+pub struct MoveTokenRequest<A> {
+    pub friend_move_token: MoveToken<A>,
     // Do we want the remote side to return the token:
     pub token_wanted: bool,
 }
 
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub enum FriendMessage {
-    MoveTokenRequest(MoveTokenRequest),
+pub enum FriendMessage<A> {
+    MoveTokenRequest(MoveTokenRequest<A>),
     InconsistencyError(ResetTerms),
 }
 
@@ -166,8 +170,8 @@ pub struct PendingRequest {
 // ==================================================================
 // ==================================================================
 
-impl Ratio<u128> {
-    fn to_bytes(&self) -> Vec<u8> {
+impl CanonicalSerialize for Ratio<u128> {
+    fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         match *self {
             Ratio::One => {
@@ -182,31 +186,30 @@ impl Ratio<u128> {
     }
 }
 
-impl FreezeLink {
-    fn to_bytes(&self) -> Vec<u8> {
+impl CanonicalSerialize for FreezeLink {
+    fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.write_u128::<BigEndian>(self.shared_credits).unwrap();
-        res_bytes.extend_from_slice(&self.usable_ratio.to_bytes());
+        res_bytes.extend_from_slice(&self.usable_ratio.canonical_serialize());
         res_bytes
     }
 }
 
-impl RequestSendFunds {
-    fn to_bytes(&self) -> Vec<u8> {
+impl CanonicalSerialize for RequestSendFunds {
+    fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.request_id);
-        res_bytes.extend_from_slice(&self.route.to_bytes());
+        res_bytes.extend_from_slice(&self.route.canonical_serialize());
         res_bytes.write_u128::<BigEndian>(self.dest_payment).unwrap();
         for freeze_link in &self.freeze_links {
-            res_bytes.extend_from_slice(&freeze_link.to_bytes());
+            res_bytes.extend_from_slice(&freeze_link.canonical_serialize());
         }
         res_bytes
     }
-
 }
 
-impl ResponseSendFunds {
-    fn to_bytes(&self) -> Vec<u8> {
+impl CanonicalSerialize for ResponseSendFunds {
+    fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.request_id);
         res_bytes.extend_from_slice(&self.rand_nonce);
@@ -216,8 +219,8 @@ impl ResponseSendFunds {
 }
 
 
-impl FailureSendFunds {
-    fn to_bytes(&self) -> Vec<u8> {
+impl CanonicalSerialize for FailureSendFunds {
+    fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.request_id);
         res_bytes.extend_from_slice(&self.reporting_public_key);
@@ -226,9 +229,8 @@ impl FailureSendFunds {
     }
 }
 
-#[allow(unused)]
-impl FriendTcOp {
-    pub fn to_bytes(&self) -> Vec<u8> {
+impl CanonicalSerialize for FriendTcOp {
+    fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         match self {
             FriendTcOp::EnableRequests => {
@@ -243,25 +245,31 @@ impl FriendTcOp {
             }
             FriendTcOp::RequestSendFunds(request_send_funds) => {
                 res_bytes.push(3u8);
-                res_bytes.append(&mut request_send_funds.to_bytes())
+                res_bytes.append(&mut request_send_funds.canonical_serialize())
             }
             FriendTcOp::ResponseSendFunds(response_send_funds) => {
                 res_bytes.push(4u8);
-                res_bytes.append(&mut response_send_funds.to_bytes())
+                res_bytes.append(&mut response_send_funds.canonical_serialize())
             }
             FriendTcOp::FailureSendFunds(failure_send_funds) => {
                 res_bytes.push(5u8);
-                res_bytes.append(&mut failure_send_funds.to_bytes())
+                res_bytes.append(&mut failure_send_funds.canonical_serialize())
             }
             
         }
         res_bytes
     }
+}
 
-    /// Get an approximation of the amount of bytes required to represent 
-    /// this operation.
-    pub fn approx_bytes_count(&self) -> usize {
-        self.to_bytes().len()
+impl CanonicalSerialize for FriendsRoute {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.write_u64::<BigEndian>(
+            usize_to_u64(self.public_keys.len()).unwrap()).unwrap();
+        for public_key in &self.public_keys {
+            res_bytes.extend_from_slice(public_key);
+        }
+        res_bytes
     }
 }
 
@@ -306,19 +314,9 @@ impl FriendsRoute {
         None
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.write_u64::<BigEndian>(
-            usize_to_u64(self.public_keys.len()).unwrap()).unwrap();
-        for public_key in &self.public_keys {
-            res_bytes.extend_from_slice(public_key);
-        }
-        res_bytes
-    }
-
     /// Produce a cryptographic hash over the contents of the route.
     pub fn hash(&self) -> HashResult {
-        hash::sha_512_256(&self.to_bytes())
+        hash::sha_512_256(&self.canonical_serialize())
     }
 
     /// Find the index of a public key inside the route.
@@ -339,8 +337,8 @@ impl FriendsRoute {
     }
 }
 
-impl SendFundsReceipt {
-    pub fn to_bytes(&self) -> Vec<u8> {
+impl CanonicalSerialize for SendFundsReceipt {
+    fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.response_hash);
         res_bytes.extend_from_slice(&self.invoice_id);
@@ -407,10 +405,15 @@ pub struct SetFriendRemoteMaxDebt {
 }
 
 #[derive(Debug, Clone)]
-pub struct SetFriendInfo<A> {
+pub struct SetFriendName {
+    pub friend_public_key: PublicKey,
+    pub name: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SetFriendAddress<A> {
     pub friend_public_key: PublicKey,
     pub address: A,
-    pub name: String,
 }
 
 #[derive(Debug, Clone)]
@@ -444,7 +447,8 @@ pub enum FunderIncomingControl<A> {
     SetRequestsStatus(SetRequestsStatus),
     SetFriendStatus(SetFriendStatus),
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
-    SetFriendInfo(SetFriendInfo<A>),
+    SetFriendAddress(SetFriendAddress<A>),
+    SetFriendName(SetFriendName),
     ResetFriendChannel(ResetFriendChannel),
     RequestSendFunds(UserRequestSendFunds),
     ReceiptAck(ReceiptAck),
