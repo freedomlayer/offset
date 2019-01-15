@@ -40,7 +40,7 @@ where
         move_token_counter: unsigned_move_token.move_token_counter,
         balance: unsigned_move_token.balance,
         local_pending_debt: unsigned_move_token.local_pending_debt, 
-        remote_pending_debt: unsigned_move_token.local_pending_debt,
+        remote_pending_debt: unsigned_move_token.remote_pending_debt,
         rand_nonce: unsigned_move_token.rand_nonce, 
         new_token,
     }
