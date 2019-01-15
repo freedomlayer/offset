@@ -1,5 +1,6 @@
 use byteorder::{WriteBytesExt, BigEndian};
 use common::int_convert::{usize_to_u64};
+use common::canonical_serialize::CanonicalSerialize;
 use crypto::identity::verify_signature;
 use crypto::hash;
 
@@ -8,8 +9,9 @@ use super::messages::{UpdateFriend, IndexMutation, MutationsUpdate};
 // Canonical Serialization (To be used for signatures):
 // ----------------------------------------------------
 
-impl UpdateFriend {
-    fn to_bytes(&self) -> Vec<u8> {
+
+impl CanonicalSerialize for UpdateFriend {
+    fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.public_key);
         res_bytes.write_u128::<BigEndian>(self.send_capacity).unwrap();
@@ -18,13 +20,13 @@ impl UpdateFriend {
     }
 }
 
-impl IndexMutation {
-    fn to_bytes(&self) -> Vec<u8> {
+impl CanonicalSerialize for IndexMutation {
+    fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         match self {
             IndexMutation::UpdateFriend(update_friend) => {
                 res_bytes.push(0);
-                res_bytes.extend(update_friend.to_bytes());
+                res_bytes.extend(update_friend.canonical_serialize());
             },
             IndexMutation::RemoveFriend(public_key) => {
                 res_bytes.push(1);
@@ -45,7 +47,7 @@ impl MutationsUpdate {
 
         res_bytes.write_u64::<BigEndian>(usize_to_u64(self.index_mutations.len()).unwrap()).unwrap();
         for mutation in &self.index_mutations {
-            res_bytes.extend(mutation.to_bytes());
+            res_bytes.extend(mutation.canonical_serialize());
         }
 
         res_bytes.extend_from_slice(&self.time_hash);

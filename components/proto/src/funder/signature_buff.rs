@@ -78,7 +78,7 @@ pub fn prepare_receipt(response_send_funds: &ResponseSendFunds,
 
     let mut hash_buff = Vec::new();
     hash_buff.extend_from_slice(&pending_request.request_id);
-    hash_buff.extend_from_slice(&pending_request.route.to_bytes());
+    hash_buff.extend_from_slice(&pending_request.route.canonical_serialize());
     hash_buff.extend_from_slice(&response_send_funds.rand_nonce);
     let response_hash = hash::sha_512_256(&hash_buff);
     // = sha512/256(requestId || sha512/256(route) || randNonce)
@@ -114,7 +114,7 @@ pub fn operations_hash<A>(move_token: &MoveToken<A>) -> HashResult {
     operations_data.write_u64::<BigEndian>(
         usize_to_u64(move_token.operations.len()).unwrap()).unwrap();
     for op in &move_token.operations {
-        operations_data.extend_from_slice(&op.to_bytes());
+        operations_data.extend_from_slice(&op.canonical_serialize());
     }
     sha_512_256(&operations_data)
 }
@@ -140,7 +140,7 @@ where
     hash_buff.write_u64::<BigEndian>(
         usize_to_u64(move_token.operations.len()).unwrap()).unwrap();
     for op in &move_token.operations {
-        hash_buff.extend_from_slice(&op.to_bytes());
+        hash_buff.extend_from_slice(&op.canonical_serialize());
     }
 
     hash_buff.extend_from_slice(&move_token.opt_local_address.canonical_serialize());
