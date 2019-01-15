@@ -86,7 +86,7 @@ where
         || move_token.opt_local_address.is_some()
         || move_token.inconsistency_counter != local_reset_terms.inconsistency_counter
         || move_token.move_token_counter != 0 
-        || move_token.balance != local_reset_terms.balance_for_reset
+        || move_token.balance != local_reset_terms.balance_for_reset.checked_neg().unwrap()
         || move_token.local_pending_debt != 0 
         || move_token.remote_pending_debt != 0 
         || !verify_move_token(move_token, friend_public_key)
