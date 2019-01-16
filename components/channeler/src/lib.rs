@@ -5,9 +5,10 @@
 #![feature(generators)]
 #![feature(never_type)]
 
-mod channeler;
+// mod channeler;
 mod listen;
 mod connect;
+mod connect_pool;
 mod connector_utils;
 mod overwrite_channel;
 
