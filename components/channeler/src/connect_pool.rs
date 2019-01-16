@@ -408,7 +408,6 @@ where
         CpConnectClient::new(connect_request_sender)))
 }
 
-
 pub struct PoolConnector<B,C,ET,S> {
     timer_client: TimerClient,
     client_connector: C,
@@ -459,6 +458,7 @@ where
         let (friend_public_key, addresses) = input;
 
         Box::pin(async move {
+            // TODO: Should we keep the unwrap()-s here?
             let timer_stream = await!(self.timer_client.request_timer_stream()).unwrap();
             create_connect_pool(timer_stream,
                             self.encrypt_transform.clone(),
