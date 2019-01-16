@@ -1,7 +1,7 @@
 use common::canonical_serialize::CanonicalSerialize;
-use proto::funder::messages::FriendStatus;
+use proto::funder::messages::{FriendStatus, ChannelerUpdateFriend};
 
-use crate::types::{ChannelerConfig, ChannelerUpdateFriend};
+use crate::types::ChannelerConfig;
 
 use crate::handler::handler::MutableFunderState;
 

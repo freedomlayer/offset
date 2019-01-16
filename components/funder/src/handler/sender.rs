@@ -3,15 +3,15 @@ use std::collections::HashMap;
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
-use proto::funder::messages::{FriendTcOp, FriendMessage, RequestsStatus, MoveTokenRequest};
+use proto::funder::messages::{FriendTcOp, FriendMessage, RequestsStatus, MoveTokenRequest,
+                                ChannelerUpdateFriend};
 use common::canonical_serialize::CanonicalSerialize;
 
 use identity::IdentityClient;
 
 use crate::types::{create_pending_request, sign_move_token,
                     create_response_send_funds, create_failure_send_funds,
-                    create_unsigned_move_token, ChannelerConfig,
-                    ChannelerUpdateFriend};
+                    create_unsigned_move_token, ChannelerConfig};
 use crate::mutual_credit::outgoing::{QueueOperationError, OutgoingMc};
 
 use crate::friend::{FriendMutation, ResponseOp, 

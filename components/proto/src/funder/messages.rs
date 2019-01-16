@@ -14,6 +14,13 @@ use crate::funder::report::FunderReportMutation;
 use crate::consts::MAX_ROUTE_LEN;
 
 
+#[derive(Debug)]
+pub struct ChannelerUpdateFriend<A> {
+    pub friend_public_key: PublicKey,
+    pub friend_address: A,
+    pub local_addresses: Vec<A>,
+}
+
 #[allow(unused)]
 #[derive(Debug)]
 pub enum FunderToChanneler<A> {
@@ -23,7 +30,7 @@ pub enum FunderToChanneler<A> {
     /// None means that no address is configured.
     SetAddress(Option<A>), 
     /// Request to add a new friend
-    AddFriend((PublicKey, A)), // (friend_public_key, address)
+    UpdateFriend(ChannelerUpdateFriend<A>),
     /// Request to remove a friend
     RemoveFriend(PublicKey), // friend_public_key
 }

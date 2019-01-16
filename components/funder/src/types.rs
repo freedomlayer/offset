@@ -6,7 +6,7 @@ use common::canonical_serialize::CanonicalSerialize;
 
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds, FailureSendFunds, 
     MoveToken, FriendMessage, FriendTcOp, PendingRequest, FunderIncomingControl, 
-    FunderOutgoingControl};
+    FunderOutgoingControl, ChannelerUpdateFriend};
 
 use proto::funder::signature_buff::{prefix_hash,
     move_token_signature_buff, create_response_signature_buffer,
@@ -235,13 +235,6 @@ pub enum IncomingLivenessMessage {
 pub struct FriendInconsistencyError {
     pub reset_token: Signature,
     pub balance_for_reset: i128,
-}
-
-#[derive(Debug)]
-pub struct ChannelerUpdateFriend<A> {
-    pub friend_public_key: PublicKey,
-    pub friend_address: A,
-    pub local_addresses: Vec<A>,
 }
 
 #[derive(Debug)]

@@ -7,7 +7,7 @@ use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds,
     FailureSendFunds, FriendMessage,
     MoveTokenRequest, ResetTerms, PendingRequest, ResponseReceived,
-    FunderOutgoingControl, ResponseSendFundsResult};
+    FunderOutgoingControl, ResponseSendFundsResult, ChannelerUpdateFriend};
 use proto::funder::signature_buff::{prepare_receipt, verify_move_token};
 
 use crate::mutual_credit::incoming::{IncomingResponseSendFunds, 
@@ -15,8 +15,7 @@ use crate::mutual_credit::incoming::{IncomingResponseSendFunds,
 use crate::token_channel::{ReceiveMoveTokenOutput, 
     MoveTokenReceived, TokenChannel};
 
-use crate::types::{create_pending_request, ChannelerConfig,
-                    ChannelerUpdateFriend};
+use crate::types::{create_pending_request, ChannelerConfig};
 
 use crate::state::FunderMutation;
 use crate::friend::{FriendMutation, 

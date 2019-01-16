@@ -9,7 +9,8 @@ use proto::funder::messages::{FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel, SetFriendAddress, SetFriendName, 
     AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus,
     ReceiptAck, FunderIncomingControl, ResponseReceived, 
-    FunderOutgoingControl, ResponseSendFundsResult};
+    FunderOutgoingControl, ResponseSendFundsResult,
+    ChannelerUpdateFriend};
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::handler::{MutableFunderState, MutableEphemeral, is_friend_ready,
@@ -18,7 +19,7 @@ use crate::handler::sender::SendCommands;
 use crate::handler::canceler::{cancel_local_pending_requests, 
     cancel_pending_user_requests, cancel_pending_requests};
 
-use crate::types::{ChannelerConfig, ChannelerUpdateFriend};
+use crate::types::ChannelerConfig;
 
 #[derive(Debug)]
 pub enum HandleControlError {
