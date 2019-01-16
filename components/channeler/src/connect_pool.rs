@@ -1,3 +1,4 @@
+use std::mem;
 use std::marker::Unpin;
 use std::collections::VecDeque;
 
@@ -6,7 +7,6 @@ use futures::{select, future, FutureExt, TryFutureExt, stream, Stream, StreamExt
 use futures::task::{Spawn, SpawnExt};
 
 use common::conn::{ConnPair, FutTransform};
-use timer::TimerClient;
 
 use crypto::identity::PublicKey;
 
@@ -73,11 +73,12 @@ impl<B> CpConfigClient<B> {
 }
 
 #[derive(Debug)]
-enum ConnectPoolError {
+pub enum ConnectPoolError {
     SpawnError,
     ConnectRequestClosed,
     ConfigRequestClosed,
     TimerClosed,
+    MultipleConnectRequests,
 }
 
 enum ConnectPoolEvent<B> {
@@ -91,15 +92,17 @@ enum ConnectPoolEvent<B> {
 }
 
 enum CpStatus<B> {
-    Empty,
+    NoRequest,
     Waiting((usize, oneshot::Sender<RawConn>)),
     Connecting((B, oneshot::Sender<()>, oneshot::Sender<RawConn>)),
 }
 
 struct ConnectPool<B,C,ET,S> {
+    friend_public_key: PublicKey,
     addresses: VecDeque<B>,
     status: CpStatus<B>,
     conn_done_sender: mpsc::Sender<Option<RawConn>>,
+    backoff_ticks: usize,
     client_connector: C,
     encrypt_transform: ET,
     spawner: S,
@@ -112,8 +115,8 @@ async fn conn_attempt<B,C,ET>(friend_public_key: PublicKey,
                       canceler: oneshot::Receiver<()>) -> Option<RawConn>
 where
     B: Eq,
-    C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>>,
-    ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>>,
+    C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone,
+    ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone,
 {
     // TODO; How to remove this Box::pin?
     let connect_fut = Box::pin(async move {
@@ -130,68 +133,168 @@ where
 
 impl<B,C,ET,S> ConnectPool<B,C,ET,S> 
 where
-    B: Eq,
+    B: Clone + Eq + Send + 'static,
     S: Spawn,
-    ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>>,
-    C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>>,
+    ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
+    C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
 {
-    pub fn new(addresses: impl Into<VecDeque<B>>,
+    pub fn new(friend_public_key: PublicKey, 
+               addresses: impl Into<VecDeque<B>>,
                conn_done_sender: mpsc::Sender<Option<RawConn>>,
+               backoff_ticks: usize,
                client_connector: C,
                encrypt_transform: ET,
                spawner: S) -> Self {
 
         ConnectPool {
+            friend_public_key,
             addresses: addresses.into(),
-            status: CpStatus::Empty,
+            status: CpStatus::NoRequest,
             conn_done_sender,
+            backoff_ticks,
             client_connector,
             encrypt_transform,
             spawner,
         }
     }
 
-    pub fn handle_connect_request(&mut self, connect_request: CpConnectRequest) {
-        if let CpStatus::Empty = self.status {
-        } else {
-            panic!("ConnectPool::handle_connect_request(): We already have a connection attempt in progress!")
-        }
-        unimplemented!();
-    }
 
-    pub fn handle_config_request(&mut self, config: CpConfig<B>) {
-        // TODO:
-        match config {
-            CpConfig::AddAddress(address) => self.addresses.push_back(address),
-            CpConfig::RemoveAddress(address) => {
-                self.addresses.retain(|cur_address| cur_address != &address);
-            }
-        }
-        unimplemented!();
-    }
+    /// Start a connection attempt through a relay with a given address.
+    /// Returns a canceler.
+    fn create_conn_attempt(&mut self, address: B) 
+        -> Result<oneshot::Sender<()>, ConnectPoolError> {
 
-    pub fn handle_timer_tick(&mut self) {
-        let waiting = match &mut self.status {
-            CpStatus::Empty |
-            CpStatus::Connecting(_) => return,
-            CpStatus::Waiting(waiting) => waiting,
+        let (cancel_sender, cancel_receiver) = oneshot::channel();
+        let c_friend_public_key = self.friend_public_key.clone();
+        let c_client_connector = self.client_connector.clone();
+        let c_encrypt_transform = self.encrypt_transform.clone();
+
+        let mut c_conn_done_sender = self.conn_done_sender.clone();
+        let conn_fut = async move {
+            let opt_conn = await!(conn_attempt(c_friend_public_key.clone(), 
+                                        address,
+                                        c_client_connector.clone(),
+                                        c_encrypt_transform.clone(),
+                                        cancel_receiver));
+            let _ = await!(c_conn_done_sender.send(opt_conn));
         };
 
-        unimplemented!();
+        self.spawner.spawn(conn_fut)
+            .map_err(|_| ConnectPoolError::SpawnError)?;
+
+        Ok(cancel_sender)
+    }
+
+    pub fn handle_connect_request(&mut self, connect_request: CpConnectRequest) 
+        -> Result<(), ConnectPoolError> {
+
+        if let CpStatus::NoRequest = self.status {
+        } else {
+            return Err(ConnectPoolError::MultipleConnectRequests);
+        }
+
+        let address = match self.addresses.pop_front() {
+            None => {
+                self.status = CpStatus::Waiting((0, connect_request.response_sender));
+                return Ok(());
+            },
+            Some(address) => address,
+        };
+
+        let canceler = self.create_conn_attempt(address.clone())?;
+        self.status = CpStatus::Connecting((address, canceler, connect_request.response_sender));
+        Ok(())
+    }
+
+    pub fn handle_config_request(&mut self, config: CpConfig<B>) 
+        -> Result<(), ConnectPoolError> {
+
+        match config {
+            CpConfig::AddAddress(address) => {
+                let was_empty = self.addresses.is_empty();
+                if !self.addresses.contains(&address) {
+                    self.addresses.push_back(address);
+                }
+
+                let status = mem::replace(&mut self.status, CpStatus::NoRequest);
+                match (was_empty, status) {
+                    (true, CpStatus::Waiting((remaining_ticks, response_sender))) => {
+                        let address = self.addresses.pop_front().unwrap();
+                        let canceler = self.create_conn_attempt(address.clone())?;
+                        self.status = CpStatus::Connecting((address, canceler, response_sender));
+                    },
+                    (_, status) => self.status = status,
+                };
+            },
+            CpConfig::RemoveAddress(address) => {
+                self.addresses.retain(|cur_address| cur_address != &address);
+                match mem::replace(&mut self.status, CpStatus::NoRequest) {
+                    CpStatus::NoRequest => {},
+                    CpStatus::Waiting(waiting) => {
+                        self.status = CpStatus::Waiting(waiting);
+                    }, 
+                    CpStatus::Connecting((cur_address, canceler, response_sender)) => {
+                        if address == cur_address {
+                            // We were trying to connect to the address being removed:
+                            let _ = canceler.send(());
+                            if let Some(address) = self.addresses.pop_front() {
+                                // There is another address we can use:
+                                let canceler = self.create_conn_attempt(address.clone())?;
+                                self.status = CpStatus::Connecting((address, canceler, response_sender));
+                            } else {
+                                // There is no other address:
+                                self.status = CpStatus::Waiting((0, response_sender));
+                            }
+                        } else {
+                            self.status = CpStatus::Connecting((cur_address, canceler, response_sender));
+                        }
+                    }
+                }
+            }
+        };
+
+        Ok(())
+    }
+
+    pub fn handle_timer_tick(&mut self) -> Result<(), ConnectPoolError> {
+        let waiting = match mem::replace(&mut self.status, CpStatus::NoRequest) {
+            CpStatus::Waiting(waiting) => waiting,
+            other_status => {
+                self.status = other_status;
+                return Ok(())
+            },
+        };
+
+        let (mut backoff_ticks, response_sender) = waiting;
+        backoff_ticks = backoff_ticks.saturating_sub(1);
+        if backoff_ticks == 0 {
+            if let Some(address) = self.addresses.pop_front() {
+                let canceler = self.create_conn_attempt(address.clone())?;
+                self.status = CpStatus::Connecting((address, canceler, response_sender));
+            }
+        } else {
+            self.status = CpStatus::Waiting((backoff_ticks, response_sender));
+        }
+        Ok(())
     }
 
     pub fn handle_connect_attempt_done(&mut self, opt_conn: Option<RawConn>) {
-        match self.status {
-            CpStatus::Empty | 
+        let connecting = match mem::replace(&mut self.status, CpStatus::NoRequest) {
+            CpStatus::NoRequest | 
             CpStatus::Waiting(_) => unreachable!(),
-            CpStatus::Connecting(_) => {
-                match opt_conn {
-                    Some(raw_conn) => {},
-                    None => {
-                        unimplemented!();
-                    },
-                }
+            CpStatus::Connecting(connecting) => connecting,
+        };
+
+        let (address, _canceler, response_sender) = connecting; 
+
+        if let Some(conn) = opt_conn {
+            self.addresses.push_back(address);
+            if let Err(e) = response_sender.send(conn) {
+                warn!("handle_connect_attempt_done(): Failed to send connection response: {:?}", e);
             }
+            self.status = CpStatus::NoRequest;
+        } else {
+            self.status = CpStatus::Waiting((self.backoff_ticks, response_sender));
         }
     }
 }
@@ -200,23 +303,25 @@ where
 async fn connect_pool_loop<B,ET,TS,C,S>(incoming_requests: mpsc::Receiver<CpConnectRequest>,
                             incoming_config: mpsc::Receiver<CpConfig<B>>,
                             timer_stream: TS,
-                            mut encrypt_transform: ET,
+                            encrypt_transform: ET,
                             friend_public_key: PublicKey,
                             addresses: Vec<B>,
-                            timer_client: TimerClient,
+                            backoff_ticks: usize,
                             client_connector: C,
                             spawner: S) -> Result<(), ConnectPoolError>
 where
-    B: Eq,
-    C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>>,
+    B: Clone + Eq + Send + 'static,
+    C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
     TS: Stream + Unpin,
-    ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>>,
+    ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
     S: Spawn + Clone,
 {
 
     let (conn_done_sender, incoming_conn_done) = mpsc::channel(0);
-    let mut connect_pool = ConnectPool::new(addresses,
+    let mut connect_pool = ConnectPool::new(friend_public_key, 
+                                            addresses,
                                             conn_done_sender,
+                                            backoff_ticks,
                                             client_connector,
                                             encrypt_transform,
                                             spawner.clone());
@@ -244,13 +349,13 @@ where
     while let Some(event) = await!(incoming_events.next()) {
         match event {
             ConnectPoolEvent::ConnectRequest(connect_request) => 
-                connect_pool.handle_connect_request(connect_request),
+                connect_pool.handle_connect_request(connect_request)?,
             ConnectPoolEvent::ConnectRequestClosed => return Err(ConnectPoolError::ConnectRequestClosed),
             ConnectPoolEvent::ConfigRequest(config) => 
-                connect_pool.handle_config_request(config),
+                connect_pool.handle_config_request(config)?,
             ConnectPoolEvent::ConfigRequestClosed => return Err(ConnectPoolError::ConfigRequestClosed),
             ConnectPoolEvent::TimerTick => 
-                connect_pool.handle_timer_tick(),
+                connect_pool.handle_timer_tick()?,
             ConnectPoolEvent::TimerClosed => return Err(ConnectPoolError::TimerClosed),
             ConnectPoolEvent::ConnectAttemptDone(opt_conn) => 
                 connect_pool.handle_connect_attempt_done(opt_conn),
@@ -259,25 +364,36 @@ where
     Ok(())
 }
 
-/*
-fn create_connect_pool<B,S>(friend_public_key: PublicKey, 
-                         addresses: Vec<B>,
-                         mut spawner: S) 
-    -> Result<(CpConfigClient<B>, CpConnectClient),  ConnectPoolError>
+#[allow(unused)]
+pub fn create_connect_pool<B,ET,TS,C,S>(timer_stream: TS,
+                            mut encrypt_transform: ET,
+                            friend_public_key: PublicKey,
+                            addresses: Vec<B>,
+                            backoff_ticks: usize,
+                            client_connector: C,
+                            mut spawner: S) 
+    -> Result<(CpConfigClient<B>, CpConnectClient), ConnectPoolError> 
 
 where
-    S: Spawn + Clone + 'static,
-    B: 'static,
+    B: Clone + Eq + Send + 'static,
+    C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
+    TS: Stream + Unpin + Send + 'static,
+    ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
+    S: Spawn + Clone + Send + 'static,
 {
     let (connect_request_sender, incoming_requests) = mpsc::channel(0);
     let (config_request_sender, incoming_config) = mpsc::channel(0);
 
     let loop_fut = connect_pool_loop(incoming_requests,
-                                incoming_config,
-                                friend_public_key, 
-                                addresses, 
-                                spawner.clone())
-        .map_err(|e| error!("connect_loop() error: {:?}", e))
+                            incoming_config,
+                            timer_stream,
+                            encrypt_transform,
+                            friend_public_key,
+                            addresses,
+                            backoff_ticks,
+                            client_connector,
+                            spawner.clone())
+        .map_err(|e| error!("connect_pool_loop() error: {:?}", e))
         .map(|_| ());
 
     spawner.spawn(loop_fut)
@@ -287,4 +403,3 @@ where
     Ok((CpConfigClient::new(config_request_sender),
         CpConnectClient::new(connect_request_sender)))
 }
-*/
