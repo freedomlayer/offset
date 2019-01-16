@@ -1,12 +1,14 @@
 use std::mem;
-use std::marker::Unpin;
+use std::marker::{Unpin, PhantomData};
 use std::collections::VecDeque;
 
 use futures::channel::{mpsc, oneshot};
-use futures::{select, future, FutureExt, TryFutureExt, stream, Stream, StreamExt, SinkExt};
+use futures::{select, future, FutureExt, TryFutureExt, 
+    stream, Stream, StreamExt, SinkExt};
 use futures::task::{Spawn, SpawnExt};
 
-use common::conn::{ConnPair, FutTransform};
+use timer::TimerClient;
+use common::conn::{ConnPair, FutTransform, BoxFuture};
 
 use crypto::identity::PublicKey;
 
@@ -364,6 +366,8 @@ where
     Ok(())
 }
 
+pub type ConnectPoolControl<B> = (CpConfigClient<B>, CpConnectClient);
+
 #[allow(unused)]
 pub fn create_connect_pool<B,ET,TS,C,S>(timer_stream: TS,
                             mut encrypt_transform: ET,
@@ -372,7 +376,7 @@ pub fn create_connect_pool<B,ET,TS,C,S>(timer_stream: TS,
                             backoff_ticks: usize,
                             client_connector: C,
                             mut spawner: S) 
-    -> Result<(CpConfigClient<B>, CpConnectClient), ConnectPoolError> 
+    -> Result<ConnectPoolControl<B>, ConnectPoolError> 
 
 where
     B: Clone + Eq + Send + 'static,
@@ -402,4 +406,67 @@ where
 
     Ok((CpConfigClient::new(config_request_sender),
         CpConnectClient::new(connect_request_sender)))
+}
+
+
+pub struct PoolConnector<B,C,ET,S> {
+    timer_client: TimerClient,
+    client_connector: C,
+    encrypt_transform: ET,
+    backoff_ticks: usize,
+    spawner: S,
+    phantom_b: PhantomData<B>,
+}
+
+impl<B,C,ET,S> PoolConnector<B,C,ET,S> 
+where
+    B: Clone + Eq + Send + 'static,
+    C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
+    ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
+    S: Spawn + Clone + Send + 'static,
+{
+    fn new(timer_client: TimerClient,
+           client_connector: C,
+           encrypt_transform: ET,
+           backoff_ticks: usize,
+           spawner: S) -> Self {
+
+        PoolConnector {
+            timer_client,
+            client_connector,
+            encrypt_transform,
+            backoff_ticks,
+            spawner,
+            phantom_b: PhantomData,
+        }
+    }
+}
+
+
+impl<B,C,ET,S> FutTransform for PoolConnector<B,C,ET,S> 
+where
+    B: Clone + Eq + Send + 'static,
+    C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
+    ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
+    S: Spawn + Clone + Send + 'static,
+{
+    type Input = (PublicKey, Vec<B>);
+    type Output = ConnectPoolControl<B>;
+
+    fn transform(&mut self, input: Self::Input)
+        -> BoxFuture<'_, Self::Output> {
+
+        let (friend_public_key, addresses) = input;
+
+        Box::pin(async move {
+            let timer_stream = await!(self.timer_client.request_timer_stream()).unwrap();
+            create_connect_pool(timer_stream,
+                            self.encrypt_transform.clone(),
+                            friend_public_key,
+                            addresses,
+                            self.backoff_ticks,
+                            self.client_connector.clone(),
+                            self.spawner.clone()).unwrap()
+        })
+    }
 }
