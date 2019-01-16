@@ -29,7 +29,7 @@ pub enum FunderToChanneler<A> {
     /// Set address for relay used by local node
     /// None means that no address is configured.
     SetAddress(Option<A>), 
-    /// Request to add a new friend
+    /// Request to add a new friend or update friend's information
     UpdateFriend(ChannelerUpdateFriend<A>),
     /// Request to remove a friend
     RemoveFriend(PublicKey), // friend_public_key
