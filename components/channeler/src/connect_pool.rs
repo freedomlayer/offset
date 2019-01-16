@@ -218,7 +218,7 @@ where
 
                 let status = mem::replace(&mut self.status, CpStatus::NoRequest);
                 match (was_empty, status) {
-                    (true, CpStatus::Waiting((remaining_ticks, response_sender))) => {
+                    (true, CpStatus::Waiting((_remaining_ticks, response_sender))) => {
                         let address = self.addresses.pop_front().unwrap();
                         let canceler = self.create_conn_attempt(address.clone())?;
                         self.status = CpStatus::Connecting((address, canceler, response_sender));
