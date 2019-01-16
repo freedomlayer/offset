@@ -17,10 +17,11 @@ use crate::overwrite_channel::overwrite_send_all;
 type AccessControlPk = AccessControl<PublicKey>;
 type AccessControlOpPk = AccessControlOp<PublicKey>;
 
+
 #[derive(Debug)]
-pub enum ChannelerEvent<A> {
-    FromFunder(FunderToChanneler<A>),
-    Connection((PublicKey, ConnPair<Vec<u8>, Vec<u8>>)),
+pub enum ChannelerEvent<B> {
+    FromFunder(FunderToChanneler<Vec<B>>),
+    Connection((PublicKey, RawConn)),
     FriendEvent(FriendEvent),
 }
 
@@ -39,8 +40,8 @@ pub enum ChannelerError {
     SendAccessControlFailed,
 }
 
-struct Friend<A> {
-    address: A,
+struct Friend<B> {
+    addresses: Vec<B>,
     state: FriendState,
 }
 
@@ -68,23 +69,23 @@ enum ListenState {
     Idle,
 }
 
-struct Channeler<A,C,L,S,TF> {
+struct Channeler<B,C,L,S,TF> {
     local_public_key: PublicKey,
-    friends: HashMap<PublicKey, Friend<A>>,
+    friends: HashMap<PublicKey, Friend<B>>,
     listen_state: ListenState,
     connector: C,
     listener: L,
     spawner: S,
     to_funder: TF,
     friend_event_sender: mpsc::Sender<FriendEvent>,
-    connections_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>,
+    connections_sender: mpsc::Sender<(PublicKey, RawConn)>,
 }
 
-impl<A,C,L,S,TF> Channeler<A,C,L,S,TF> 
+impl<B,C,L,S,TF> Channeler<B,C,L,S,TF> 
 where
-    A: Clone + Send + Sync + 'static,
-    C: FutTransform<Input=(A, PublicKey), Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone + Send + Sync + 'static,
-    L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOpPk, Arg=(A, AccessControlPk)> + Clone + Send,
+    B: Clone + Send + Sync + 'static,
+    C: FutTransform<Input=(B, PublicKey), Output=RawConn> + Clone + Send + Sync + 'static,
+    L: Listener<Connection=(PublicKey, RawConn), Config=AccessControlOpPk, Arg=(B, AccessControlPk)> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
 {
@@ -94,7 +95,7 @@ where
            spawner: S,
            to_funder: TF,
            friend_event_sender: mpsc::Sender<FriendEvent>,
-           connections_sender: mpsc::Sender<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>) -> Channeler<A,C,L,S,TF> {
+           connections_sender: mpsc::Sender<(PublicKey, RawConn)>) -> Channeler<B,C,L,S,TF> {
         
 
         Channeler { 
@@ -129,8 +130,8 @@ where
     }
 
     fn spawn_friend(&mut self,
-                    public_key: PublicKey, address: A) 
-        -> Result<Friend<A>, ChannelerError> {
+                    public_key: PublicKey, address: B) 
+        -> Result<Friend<B>, ChannelerError> {
 
         if self.is_listen_friend(&public_key) {
             return Ok(Friend {
@@ -177,13 +178,13 @@ where
 }
 
 
-async fn handle_from_funder<A,C,L,S,TF>(channeler: &mut Channeler<A,C,L,S,TF>,
-                         funder_to_channeler: FunderToChanneler<A>) 
+async fn handle_from_funder<B,C,L,S,TF>(channeler: &mut Channeler<B,C,L,S,TF>,
+                         funder_to_channeler: FunderToChanneler<B>) 
     -> Result<(), ChannelerError>  
 where
-    A: Clone + Send + Sync + 'static,
-    C: FutTransform<Input=(A, PublicKey), Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone + Send + Sync + 'static,
-    L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOpPk, Arg=(A, AccessControlPk)> + Clone + Send,
+    B: Clone + Send + Sync + 'static,
+    C: FutTransform<Input=(B, PublicKey), Output=RawConn> + Clone + Send + Sync + 'static,
+    L: Listener<Connection=(PublicKey, Rawconn), Config=AccessControlOpPk, Arg=(A, AccessControlPk)> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
 {
@@ -283,7 +284,7 @@ where
 }
 
 #[allow(unused)]
-async fn channeler_loop<FF,TF,A,C,L,S>(
+async fn channeler_loop<FF,TF,B,C,L,S>(
                         local_public_key: PublicKey,
                         from_funder: FF, 
                         to_funder: TF,
@@ -291,16 +292,16 @@ async fn channeler_loop<FF,TF,A,C,L,S>(
                         listener: L,
                         spawner: S) -> Result<(), ChannelerError>
 where
-    FF: Stream<Item=FunderToChanneler<A>> + Unpin,
+    FF: Stream<Item=FunderToChanneler<Vec<B>>> + Unpin,
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
-    A: Clone + Send + Sync + 'static + std::fmt::Debug,
-    C: FutTransform<Input=(A, PublicKey), Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone + Send + Sync + 'static,
-    L: Listener<Connection=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), Config=AccessControlOpPk, Arg=(A, AccessControlPk)> + Clone + Send,
+    B: Clone + Send + Sync + 'static + std::fmt::Debug,
+    C: FutTransform<Input=(B, PublicKey), Output=RawConn> + Clone + Send + Sync + 'static,
+    L: Listener<Connection=(PublicKey, RawConn), Config=AccessControlOpPk, Arg=(B, AccessControlPk)> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
 {
 
     let (friend_event_sender, friend_event_receiver) = mpsc::channel::<FriendEvent>(0);
-    let (connections_sender, connections_receiver) = mpsc::channel::<(PublicKey, ConnPair<Vec<u8>,Vec<u8>>)>(0);
+    let (connections_sender, connections_receiver) = mpsc::channel::<(PublicKey, RawConn)>(0);
 
     let mut channeler = Channeler::new(local_public_key, 
                                        connector, 
