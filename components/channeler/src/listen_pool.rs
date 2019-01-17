@@ -69,6 +69,7 @@ struct ListenPool<B,L,S> {
     local_addresses: HashSet<B>,
     relays: HashMap<B, Relay>,
     plain_conn_sender: mpsc::Sender<(PublicKey, RawConn)>,
+    relay_closed_sender: mpsc::Sender<B>,
     listener: L,
     backoff_ticks: usize,
     spawner: S,
@@ -76,20 +77,22 @@ struct ListenPool<B,L,S> {
 
 impl<B,L,S> ListenPool<B,L,S> 
 where
-    B: Hash + Eq + Clone,
+    B: Hash + Eq + Clone + Send + 'static,
     L: Listener<Connection=(PublicKey, RawConn), 
         Config=AccessControlOpPk, Arg=(B, AccessControlPk)> + Clone + 'static,
     S: Spawn + Clone,
 {
     pub fn new(plain_conn_sender: mpsc::Sender<(PublicKey, RawConn)>,
-           listener: L,
-           backoff_ticks: usize,
-           spawner: S) -> Self {
+               relay_closed_sender: mpsc::Sender<B>,
+               listener: L,
+               backoff_ticks: usize,
+               spawner: S) -> Self {
 
         ListenPool {
             local_addresses: HashSet::new(),
             relays: HashMap::new(),
             plain_conn_sender,
+            relay_closed_sender,
             listener,
             backoff_ticks,
             spawner,
@@ -107,15 +110,16 @@ where
         }
 
         let (access_control_sender, mut connections_receiver) = 
-            self.listener.clone().listen((address, access_control));
+            self.listener.clone().listen((address.clone(), access_control));
         // TODO: Do we need the listener.clone() here? Maybe Listen doesn't need to take ownership
         // over self?
 
         let mut c_plain_conn_sender = self.plain_conn_sender.clone();
+        let mut c_relay_closed_sender = self.relay_closed_sender.clone();
         let send_fut = async move {
             let _ = await!(c_plain_conn_sender.send_all(&mut connections_receiver));
-            // TODO: We should somehow send LpEvent::RelayClosed to the main loop
-            unimplemented!();
+            // Notify that this listener was closed:
+            let _ = await!(c_relay_closed_sender.send(address));
         };
         self.spawner.clone().spawn(send_fut)
             .map_err(|_| ListenPoolError::SpawnError)?;
@@ -244,7 +248,7 @@ async fn listen_pool_loop<B,L,ET,TS,S>(incoming_config: mpsc::Receiver<LpConfig<
                                        timer_stream: TS,
                                        mut spawner: S) -> Result<(), ListenPoolError>
 where
-    B: Clone + Eq + Hash,
+    B: Clone + Eq + Hash + Send + 'static,
     L: Listener<Connection=(PublicKey, RawConn), 
         Config=AccessControlOpPk, Arg=(B, AccessControlPk)> + Clone + 'static,
     ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<(PublicKey, RawConn)>> + Clone + Send + 'static,
@@ -264,11 +268,16 @@ where
     spawner.spawn(enc_loop_fut)
         .map_err(|_| ListenPoolError::SpawnError)?;
     
+    let (relay_closed_sender, relay_closed_receiver) = mpsc::channel(0);
 
     let mut listen_pool = ListenPool::<B,L,S>::new(plain_conn_sender,
-                                      listener,
-                                      backoff_ticks,
-                                      spawner);
+                                                   relay_closed_sender,
+                                                   listener,
+                                                   backoff_ticks,
+                                                   spawner);
+
+    let incoming_relay_closed = relay_closed_receiver
+        .map(|address| LpEvent::RelayClosed(address));
 
     let incoming_config = incoming_config
         .map(|config| LpEvent::Config(config))
@@ -278,7 +287,9 @@ where
         .map(|_| LpEvent::<B>::TimerTick)
         .chain(stream::once(future::ready(LpEvent::TimerClosed)));
 
-    let mut incoming_events = incoming_config.select(timer_stream);
+    let mut incoming_events = incoming_relay_closed
+        .select(incoming_config)
+        .select(timer_stream);
 
     while let Some(event) = await!(incoming_events.next()) {
         match event {
