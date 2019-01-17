@@ -17,18 +17,9 @@ use crate::types::RawConn;
 #[derive(Debug)]
 struct ConnectPoolClientError;
 
-/*
-#[derive(Debug, Clone)]
-pub enum CpConfig<B> {
-    AddAddress(B),
-    RemoveAddress(B),
-}
-*/
-
 pub struct CpConnectRequest {
     response_sender: oneshot::Sender<RawConn>,
 }
-
 
 pub struct CpConnectClient {
     request_sender: mpsc::Sender<CpConnectRequest>,
