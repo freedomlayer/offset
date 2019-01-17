@@ -1,11 +1,14 @@
 use std::hash::Hash;
+use std::marker::PhantomData;
 use std::collections::{HashMap, HashSet};
 use futures::{future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 
-use common::conn::{Listener, FutTransform};
+use common::conn::{Listener, FutTransform, BoxFuture};
 use common::access_control::{AccessControlOp, AccessControl};
+
+use timer::TimerClient;
 
 use crypto::identity::PublicKey;
 use crate::types::{RawConn, AccessControlPk, AccessControlOpPk};
@@ -16,6 +19,8 @@ pub enum LpConfig<B> {
     UpdateFriend((PublicKey, Vec<B>)),
     RemoveFriend(PublicKey),
 }
+
+/*
 
 #[derive(Debug)]
 struct ListenPoolClientError;
@@ -38,6 +43,7 @@ impl<B> LpConfigClient<B> {
         Ok(())
     }
 }
+*/
 
 #[derive(Debug)]
 enum ListenPoolError {
@@ -304,5 +310,98 @@ where
         }
     }
     Ok(())
+}
+
+
+#[derive(Clone)]
+pub struct PoolListener<B,L,ET,S> {
+    listener: L,
+    encrypt_transform: ET,
+    max_concurrent_encrypt: usize,
+    backoff_ticks: usize,
+    timer_client: TimerClient,
+    spawner: S,
+    phantom_b: PhantomData<B>,
+}
+
+impl<B,L,ET,S> PoolListener<B,L,ET,S> {
+    pub fn new(listener: L,
+           encrypt_transform: ET,
+           max_concurrent_encrypt: usize,
+           backoff_ticks: usize,
+           timer_client: TimerClient,
+           spawner: S) -> Self {
+
+        PoolListener {
+            listener,
+            encrypt_transform,
+            max_concurrent_encrypt,
+            backoff_ticks,
+            timer_client,
+            spawner,
+            phantom_b: PhantomData,
+        }
+    }
+}
+
+
+impl<B,L,ET,S> Listener for PoolListener<B,L,ET,S> 
+where
+    B: Clone + Eq + Hash + Send + 'static,
+    L: Listener<Connection=(PublicKey, RawConn), 
+        Config=AccessControlOpPk, Arg=(B, AccessControlPk)> + Clone + Send + 'static,
+    ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<(PublicKey, RawConn)>> + Clone + Send + 'static,
+    S: Spawn + Clone + Send + 'static,
+
+{
+    type Connection = (PublicKey, RawConn);
+    type Config = LpConfig<B>;
+    type Arg = ();
+
+    fn listen(mut self, _arg: Self::Arg) -> (mpsc::Sender<Self::Config>, 
+                             mpsc::Receiver<Self::Connection>) {
+
+        let (config_sender, incoming_config) = mpsc::channel(0);
+        let (outgoing_conns, incoming_conns) = mpsc::channel(0);
+
+        let mut c_timer_client = self.timer_client.clone();
+        let c_listener = self.listener.clone();
+        let c_encrypt_transform = self.encrypt_transform.clone();
+        let c_max_concurrent_encrypt = self.max_concurrent_encrypt.clone();
+        let c_backoff_ticks = self.backoff_ticks.clone();
+        let c_spawner = self.spawner.clone();
+
+
+        let loop_fut = async move {
+            let res_timer_stream = await!(c_timer_client.request_timer_stream());
+            let timer_stream = match res_timer_stream {
+                Ok(timer_stream) => timer_stream,
+                Err(_) => {
+                    error!("PoolListener::listen(): Failed to obtain timer stream!");
+                    return;
+                },
+            };
+
+            let res = await!(listen_pool_loop(
+                incoming_config,
+                outgoing_conns,
+                c_listener,
+                c_encrypt_transform,
+                c_max_concurrent_encrypt,
+                c_backoff_ticks,
+                timer_stream,
+                c_spawner));
+            
+            if let Err(e) = res {
+                error!("listen_pool_loop() error: {:?}", e);
+            }
+        };
+
+        // If the spawn didn't work, incoming_conns will be closed (because outgoing_conns is
+        // dropped) and the user of this listener will find out about it.
+        let _ = self.spawner.spawn(loop_fut);
+
+        (config_sender, incoming_conns)
+    }
 }
 
