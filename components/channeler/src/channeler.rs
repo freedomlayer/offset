@@ -10,12 +10,7 @@ use proto::funder::messages::{FunderToChanneler, ChannelerToFunder};
 use common::conn::{Listener, FutTransform, ConnPair};
 use crypto::identity::{PublicKey, compare_public_key};
 
-use common::access_control::{AccessControlOp, AccessControl};
-
 use crate::overwrite_channel::overwrite_send_all;
-
-type AccessControlPk = AccessControl<PublicKey>;
-type AccessControlOpPk = AccessControlOp<PublicKey>;
 
 
 #[derive(Debug)]
