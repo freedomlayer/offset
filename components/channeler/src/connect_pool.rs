@@ -414,6 +414,7 @@ where
         CpConnectClient::new(connect_request_sender)))
 }
 
+#[derive(Clone)]
 pub struct PoolConnector<B,C,ET,S> {
     timer_client: TimerClient,
     client_connector: C,
