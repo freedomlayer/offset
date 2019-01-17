@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use futures::{Stream, StreamExt, SinkExt};
+use futures::{future, stream, Stream, StreamExt, SinkExt};
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 
@@ -37,8 +37,8 @@ impl<B> LpConfigClient<B> {
 }
 
 enum RelayStatus {
-    Connecting,
-    Connected,
+    Waiting(usize), // ticks left to start listening again
+    Connected(mpsc::Sender<AccessControlOpPk>),
 }
 
 struct Relay {
@@ -54,23 +54,52 @@ struct ListenPool<B> {
 
 #[derive(Debug)]
 enum ListenPoolError {
+    ConfigClosed,
+    TimerClosed,
+    SpawnError,
 }
 
-enum ConnectPoolEvent {
-
+enum LpEvent<B> {
+    Config(LpConfig<B>),
+    ConfigClosed,
+    IncomingConn((PublicKey, RawConn)), // Incoming encrypted connection
+    TimerTick,
+    TimerClosed,
 }
 
-async fn listen_pool_loop<B,L,TS,S>(incoming_config: mpsc::Receiver<LpConfig<B>>,
-                             listener: L,
-                             backoff_ticks: usize,
-                             timer_stream: TS,
-                             spawner: S) -> Result<(), ListenPoolError>
+async fn listen_pool_loop<B,L,ET,TS,S>(incoming_config: mpsc::Receiver<LpConfig<B>>,
+                                 listener: L,
+                                 encrypt_transform: ET,
+                                 backoff_ticks: usize,
+                                 timer_stream: TS,
+                                 spawner: S) -> Result<(), ListenPoolError>
 where
     L: Listener<Connection=(PublicKey, RawConn), 
         Config=AccessControlOpPk, Arg=(B, AccessControlPk)> + Clone + 'static,
-    TS: Stream,
+    ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
+    TS: Stream + Unpin,
     S: Spawn,
 {
+
+    let (conn_sender, incoming_conn) = mpsc::channel(0);
+
+    let incoming_conn = incoming_conn
+        .map(|in_conn| LpEvent::IncomingConn(in_conn));
+
+    let incoming_config = incoming_config
+        .map(|config| LpEvent::Config(config))
+        .chain(stream::once(future::ready(LpEvent::ConfigClosed)));
+
+    let timer_stream = timer_stream
+        .map(|_| LpEvent::<B>::TimerTick)
+        .chain(stream::once(future::ready(LpEvent::TimerClosed)));
+
+    let mut incoming_events = incoming_conn
+        .select(incoming_config)
+        .select(timer_stream);
+
+    while let Some(event) = await!(incoming_events.next()) {
+    }
 
     unimplemented!();
 }
