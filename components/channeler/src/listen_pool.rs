@@ -1,12 +1,13 @@
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::collections::{HashMap, HashSet};
-use futures::{future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, SinkExt};
+
+use futures::{future, FutureExt, TryFutureExt, stream, Stream, StreamExt, SinkExt};
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 
-use common::conn::{Listener, FutTransform, BoxFuture};
-use common::access_control::{AccessControlOp, AccessControl};
+use common::conn::{Listener, FutTransform};
+use common::access_control::AccessControlOp;
 
 use timer::TimerClient;
 
