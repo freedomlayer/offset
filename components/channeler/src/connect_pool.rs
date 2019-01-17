@@ -8,11 +8,10 @@ use futures::{select, future, FutureExt, TryFutureExt,
 use futures::task::{Spawn, SpawnExt};
 
 use timer::TimerClient;
-use common::conn::{ConnPair, FutTransform, BoxFuture};
+use common::conn::{FutTransform, BoxFuture};
 
 use crypto::identity::PublicKey;
-
-type RawConn = ConnPair<Vec<u8>,Vec<u8>>;
+use crate::types::RawConn;
 
 #[derive(Debug)]
 struct ConnectPoolClientError;
