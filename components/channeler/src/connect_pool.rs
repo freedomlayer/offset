@@ -434,7 +434,7 @@ where
     ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
-    fn new(timer_client: TimerClient,
+    pub fn new(timer_client: TimerClient,
            client_connector: C,
            encrypt_transform: ET,
            backoff_ticks: usize,
