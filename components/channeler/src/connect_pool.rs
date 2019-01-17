@@ -1,6 +1,7 @@
 use std::mem;
 use std::marker::{Unpin, PhantomData};
-use std::collections::VecDeque;
+use std::hash::Hash;
+use std::collections::{VecDeque, HashSet};
 
 use futures::channel::{mpsc, oneshot};
 use futures::{select, future, FutureExt, TryFutureExt, 
@@ -16,11 +17,13 @@ use crate::types::RawConn;
 #[derive(Debug)]
 struct ConnectPoolClientError;
 
+/*
 #[derive(Debug, Clone)]
 pub enum CpConfig<B> {
     AddAddress(B),
     RemoveAddress(B),
 }
+*/
 
 pub struct CpConnectRequest {
     response_sender: oneshot::Sender<RawConn>,
@@ -40,11 +43,11 @@ impl CpConnectClient {
 }
 
 pub struct CpConfigClient<B> {
-    request_sender: mpsc::Sender<CpConfig<B>>,
+    request_sender: mpsc::Sender<Vec<B>>,
 }
 
 impl<B> CpConfigClient<B> {
-    pub fn new(request_sender: mpsc::Sender<CpConfig<B>>) -> Self {
+    pub fn new(request_sender: mpsc::Sender<Vec<B>>) -> Self {
         CpConfigClient {
             request_sender,
         }
@@ -66,7 +69,7 @@ impl CpConnectClient {
 }
 
 impl<B> CpConfigClient<B> {
-    pub async fn config(&mut self, config: CpConfig<B>) -> Result<(), ConnectPoolClientError> {
+    pub async fn config(&mut self, config: Vec<B>) -> Result<(), ConnectPoolClientError> {
         await!(self.request_sender.send(config))
             .map_err(|_| ConnectPoolClientError)?;
         Ok(())
@@ -85,7 +88,7 @@ pub enum ConnectPoolError {
 enum ConnectPoolEvent<B> {
     ConnectRequest(CpConnectRequest),
     ConnectRequestClosed,
-    ConfigRequest(CpConfig<B>),
+    ConfigRequest(Vec<B>),
     ConfigRequestClosed,
     ConnectAttemptDone(Option<RawConn>),
     TimerTick,
@@ -134,7 +137,7 @@ where
 
 impl<B,C,ET,S> ConnectPool<B,C,ET,S> 
 where
-    B: Clone + Eq + Send + 'static,
+    B: Hash + Clone + Eq + Send + 'static,
     S: Spawn,
     ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
     C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
@@ -207,53 +210,70 @@ where
         Ok(())
     }
 
-    pub fn handle_config_request(&mut self, config: CpConfig<B>) 
-        -> Result<(), ConnectPoolError> {
+    fn add_address(&mut self, address: B) -> Result<(), ConnectPoolError> {
+        let was_empty = self.addresses.is_empty();
+        if !self.addresses.contains(&address) {
+            self.addresses.push_back(address);
+        }
 
-        match config {
-            CpConfig::AddAddress(address) => {
-                let was_empty = self.addresses.is_empty();
-                if !self.addresses.contains(&address) {
-                    self.addresses.push_back(address);
-                }
+        let status = mem::replace(&mut self.status, CpStatus::NoRequest);
+        match (was_empty, status) {
+            (true, CpStatus::Waiting((_remaining_ticks, response_sender))) => {
+                let address = self.addresses.pop_front().unwrap();
+                let canceler = self.create_conn_attempt(address.clone())?;
+                self.status = CpStatus::Connecting((address, canceler, response_sender));
+            },
+            (_, status) => self.status = status,
+        };
+        Ok(())
+    }
 
-                let status = mem::replace(&mut self.status, CpStatus::NoRequest);
-                match (was_empty, status) {
-                    (true, CpStatus::Waiting((_remaining_ticks, response_sender))) => {
-                        let address = self.addresses.pop_front().unwrap();
+    fn remove_address(&mut self, address: B) -> Result<(), ConnectPoolError> {
+        self.addresses.retain(|cur_address| cur_address != &address);
+        match mem::replace(&mut self.status, CpStatus::NoRequest) {
+            CpStatus::NoRequest => {},
+            CpStatus::Waiting(waiting) => {
+                self.status = CpStatus::Waiting(waiting);
+            }, 
+            CpStatus::Connecting((cur_address, canceler, response_sender)) => {
+                if address == cur_address {
+                    // We were trying to connect to the address being removed:
+                    let _ = canceler.send(());
+                    if let Some(address) = self.addresses.pop_front() {
+                        // There is another address we can use:
                         let canceler = self.create_conn_attempt(address.clone())?;
                         self.status = CpStatus::Connecting((address, canceler, response_sender));
-                    },
-                    (_, status) => self.status = status,
-                };
-            },
-            CpConfig::RemoveAddress(address) => {
-                self.addresses.retain(|cur_address| cur_address != &address);
-                match mem::replace(&mut self.status, CpStatus::NoRequest) {
-                    CpStatus::NoRequest => {},
-                    CpStatus::Waiting(waiting) => {
-                        self.status = CpStatus::Waiting(waiting);
-                    }, 
-                    CpStatus::Connecting((cur_address, canceler, response_sender)) => {
-                        if address == cur_address {
-                            // We were trying to connect to the address being removed:
-                            let _ = canceler.send(());
-                            if let Some(address) = self.addresses.pop_front() {
-                                // There is another address we can use:
-                                let canceler = self.create_conn_attempt(address.clone())?;
-                                self.status = CpStatus::Connecting((address, canceler, response_sender));
-                            } else {
-                                // There is no other address:
-                                self.status = CpStatus::Waiting((0, response_sender));
-                            }
-                        } else {
-                            self.status = CpStatus::Connecting((cur_address, canceler, response_sender));
-                        }
+                    } else {
+                        // There is no other address:
+                        self.status = CpStatus::Waiting((0, response_sender));
                     }
+                } else {
+                    self.status = CpStatus::Connecting((cur_address, canceler, response_sender));
                 }
             }
         };
+        Ok(())
+    }
 
+    pub fn handle_config_request(&mut self, config: Vec<B>) 
+        -> Result<(), ConnectPoolError> {
+
+        let old_addresses = self.addresses
+            .iter()
+            .cloned()
+            .collect::<HashSet<_>>();
+
+        let new_addresses: HashSet<B> = config
+            .into_iter()
+            .collect::<HashSet<_>>();
+
+        for removed_address in old_addresses.difference(&new_addresses) {
+            self.remove_address(removed_address.clone())?;
+        }
+
+        for added_address in new_addresses.difference(&old_addresses) {
+            self.add_address(added_address.clone())?;
+        }
         Ok(())
     }
 
@@ -302,7 +322,7 @@ where
 
 
 async fn connect_pool_loop<B,ET,TS,C,S>(incoming_requests: mpsc::Receiver<CpConnectRequest>,
-                            incoming_config: mpsc::Receiver<CpConfig<B>>,
+                            incoming_config: mpsc::Receiver<Vec<B>>,
                             timer_stream: TS,
                             encrypt_transform: ET,
                             friend_public_key: PublicKey,
@@ -311,7 +331,7 @@ async fn connect_pool_loop<B,ET,TS,C,S>(incoming_requests: mpsc::Receiver<CpConn
                             client_connector: C,
                             spawner: S) -> Result<(), ConnectPoolError>
 where
-    B: Clone + Eq + Send + 'static,
+    B: Hash + Clone + Eq + Send + 'static,
     C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
     TS: Stream + Unpin,
     ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
@@ -378,7 +398,7 @@ pub fn create_connect_pool<B,ET,TS,C,S>(timer_stream: TS,
     -> Result<ConnectPoolControl<B>, ConnectPoolError> 
 
 where
-    B: Clone + Eq + Send + 'static,
+    B: Hash + Clone + Eq + Send + 'static,
     C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
     TS: Stream + Unpin + Send + 'static,
     ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
@@ -418,7 +438,7 @@ pub struct PoolConnector<B,C,ET,S> {
 
 impl<B,C,ET,S> PoolConnector<B,C,ET,S> 
 where
-    B: Clone + Eq + Send + 'static,
+    B: Hash + Clone + Eq + Send + 'static,
     C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
     ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
@@ -443,7 +463,7 @@ where
 
 impl<B,C,ET,S> FutTransform for PoolConnector<B,C,ET,S> 
 where
-    B: Clone + Eq + Send + 'static,
+    B: Hash + Clone + Eq + Send + 'static,
     C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
     ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
