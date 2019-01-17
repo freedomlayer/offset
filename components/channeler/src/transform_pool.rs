@@ -77,14 +77,14 @@ pub enum TransformPoolError {
 
 pub fn create_transform_pool<IN,OUT,T,S>(transform: T, 
                                          max_concurrent: usize,
-                                         spawner: S) 
+                                         mut spawner: S) 
     -> Result<(mpsc::Sender<IN>, mpsc::Receiver<OUT>),  TransformPoolError>
 
 where
     IN: Send + 'static,
-    OUT: Send,
+    OUT: Send + 'static,
     T: FutTransform<Input=IN, Output=Option<OUT>> + Clone + Send + 'static,
-    S: Spawn + Clone + Send,
+    S: Spawn + Clone + Send + 'static,
 {
     let (input_sender, incoming) = mpsc::channel(0);
     let (outgoing, output_receiver) = mpsc::channel(0);
