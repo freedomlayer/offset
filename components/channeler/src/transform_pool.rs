@@ -1,4 +1,4 @@
-use futures::{FutureExt, TryFutureExt, Stream, StreamExt, Sink, SinkExt};
+use futures::{/* FutureExt, TryFutureExt, */ Stream, StreamExt, Sink, SinkExt};
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 
@@ -6,7 +6,7 @@ use common::conn::FutTransform;
 
 
 #[derive(Debug)]
-enum TransformPoolLoopError {
+pub enum TransformPoolLoopError {
     SpawnError,
 }
 
@@ -20,7 +20,7 @@ enum TransformPoolEvent<I> {
 /// might not be in the same order in which the incoming items entered.
 ///
 /// max_concurrent is the maximum amount of concurrent transformations. 
-async fn transform_pool_loop<IN,OUT,I,O,T,S>(mut incoming: I, 
+pub async fn transform_pool_loop<IN,OUT,I,O,T,S>(mut incoming: I, 
                                         outgoing: O,
                                         transform: T,
                                         max_concurrent: usize,
@@ -70,6 +70,8 @@ where
     Ok(())
 }
 
+/*
+
 #[derive(Debug)]
 pub enum TransformPoolError {
     SpawnError,
@@ -102,3 +104,4 @@ where
 
     Ok((input_sender, output_receiver))
 }
+*/
