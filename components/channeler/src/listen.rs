@@ -9,10 +9,9 @@ use timer::TimerClient;
 use timer::utils::sleep_ticks;
 
 use common::conn::{Listener, ConnPair, FutTransform};
-use common::access_control::{AccessControlOp, AccessControl};
 
-type AccessControlPk = AccessControl<PublicKey>;
-type AccessControlOpPk = AccessControlOp<PublicKey>;
+use common::access_control::{AccessControlOp, AccessControl};
+use crate::types::{AccessControlPk, AccessControlOpPk};
 
 
 #[derive(Debug)]
