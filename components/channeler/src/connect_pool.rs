@@ -25,14 +25,6 @@ pub struct CpConnectClient {
     request_sender: mpsc::Sender<CpConnectRequest>,
 }
 
-impl CpConnectClient {
-    pub fn new(request_sender: mpsc::Sender<CpConnectRequest>) -> Self {
-        CpConnectClient {
-            request_sender,
-        }
-    }
-}
-
 pub struct CpConfigClient<B> {
     request_sender: mpsc::Sender<Vec<B>>,
 }
@@ -43,9 +35,21 @@ impl<B> CpConfigClient<B> {
             request_sender,
         }
     }
+
+    pub async fn config(&mut self, config: Vec<B>) -> Result<(), ConnectPoolClientError> {
+        await!(self.request_sender.send(config))
+            .map_err(|_| ConnectPoolClientError)?;
+        Ok(())
+    }
 }
 
 impl CpConnectClient {
+    pub fn new(request_sender: mpsc::Sender<CpConnectRequest>) -> Self {
+        CpConnectClient {
+            request_sender,
+        }
+    }
+
     pub async fn connect(&mut self) -> Result<RawConn, ConnectPoolClientError> {
         let (response_sender, response_receiver) = oneshot::channel();
         let connect_request = CpConnectRequest {
@@ -56,14 +60,6 @@ impl CpConnectClient {
 
         await!(response_receiver)
             .map_err(|_| ConnectPoolClientError)
-    }
-}
-
-impl<B> CpConfigClient<B> {
-    pub async fn config(&mut self, config: Vec<B>) -> Result<(), ConnectPoolClientError> {
-        await!(self.request_sender.send(config))
-            .map_err(|_| ConnectPoolClientError)?;
-        Ok(())
     }
 }
 
