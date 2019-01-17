@@ -72,7 +72,7 @@ pub enum ConnectPoolError {
     MultipleConnectRequests,
 }
 
-enum ConnectPoolEvent<B> {
+enum CpEvent<B> {
     ConnectRequest(CpConnectRequest),
     ConnectRequestClosed,
     ConfigRequest(Vec<B>),
@@ -335,19 +335,19 @@ where
                                             spawner.clone());
 
     let incoming_conn_done = incoming_conn_done
-        .map(|opt_conn| ConnectPoolEvent::<B>::ConnectAttemptDone(opt_conn));
+        .map(|opt_conn| CpEvent::<B>::ConnectAttemptDone(opt_conn));
 
     let incoming_requests = incoming_requests
-        .map(|connect_request| ConnectPoolEvent::<B>::ConnectRequest(connect_request))
-        .chain(stream::once(future::ready(ConnectPoolEvent::ConnectRequestClosed)));
+        .map(|connect_request| CpEvent::<B>::ConnectRequest(connect_request))
+        .chain(stream::once(future::ready(CpEvent::ConnectRequestClosed)));
 
     let incoming_config = incoming_config
-        .map(|config_request| ConnectPoolEvent::ConfigRequest(config_request))
-        .chain(stream::once(future::ready(ConnectPoolEvent::ConfigRequestClosed)));
+        .map(|config_request| CpEvent::ConfigRequest(config_request))
+        .chain(stream::once(future::ready(CpEvent::ConfigRequestClosed)));
 
     let incoming_ticks = timer_stream
-        .map(|_| ConnectPoolEvent::TimerTick)
-        .chain(stream::once(future::ready(ConnectPoolEvent::TimerClosed)));
+        .map(|_| CpEvent::TimerTick)
+        .chain(stream::once(future::ready(CpEvent::TimerClosed)));
 
     let mut incoming_events = incoming_conn_done
         .select(incoming_requests)
@@ -356,16 +356,16 @@ where
 
     while let Some(event) = await!(incoming_events.next()) {
         match event {
-            ConnectPoolEvent::ConnectRequest(connect_request) => 
+            CpEvent::ConnectRequest(connect_request) => 
                 connect_pool.handle_connect_request(connect_request)?,
-            ConnectPoolEvent::ConnectRequestClosed => return Err(ConnectPoolError::ConnectRequestClosed),
-            ConnectPoolEvent::ConfigRequest(config) => 
+            CpEvent::ConnectRequestClosed => return Err(ConnectPoolError::ConnectRequestClosed),
+            CpEvent::ConfigRequest(config) => 
                 connect_pool.handle_config_request(config)?,
-            ConnectPoolEvent::ConfigRequestClosed => return Err(ConnectPoolError::ConfigRequestClosed),
-            ConnectPoolEvent::TimerTick => 
+            CpEvent::ConfigRequestClosed => return Err(ConnectPoolError::ConfigRequestClosed),
+            CpEvent::TimerTick => 
                 connect_pool.handle_timer_tick()?,
-            ConnectPoolEvent::TimerClosed => return Err(ConnectPoolError::TimerClosed),
-            ConnectPoolEvent::ConnectAttemptDone(opt_conn) => 
+            CpEvent::TimerClosed => return Err(ConnectPoolError::TimerClosed),
+            CpEvent::ConnectAttemptDone(opt_conn) => 
                 connect_pool.handle_connect_attempt_done(opt_conn),
         }
     }
