@@ -185,56 +185,6 @@ where
         compare_public_key(&self.local_public_key, friend_public_key) == Ordering::Less
     }
 
-
-    /*
-    fn spawn_friend(&mut self,
-                    public_key: PublicKey, address: B) 
-        -> Result<Friend<B>, ChannelerError> {
-
-        if self.is_listen_friend(&public_key) {
-            return Ok(Friend {
-                address,
-                state: FriendState::Listening,
-            });
-        }
-
-        let mut c_connector = self.connector.clone();
-        let mut c_connections_sender = self.connections_sender.clone();
-
-        let (close_sender, close_receiver) = oneshot::channel::<()>();
-
-        let c_address = address.clone();
-        let cancellable_fut = async move {
-            let connect_fut = c_connector.transform((c_address, public_key.clone()));
-            // Note: We assume that our connector never returns None (Because it will keep trying
-            // forever). Therefore we may unwrap connect_fut here. 
-            // Maybe we should change the design of the trait to force this behaviour.
-            let select_res = select! {
-                _close_receiver = close_receiver.fuse() => None,
-                connect_fut = connect_fut.fuse() => Some(connect_fut)
-            };
-            match select_res {
-                Some(conn_pair) => {
-                    let _ = await!(c_connections_sender.send((public_key.clone(), conn_pair)));
-                },
-                None => {/* Canceled */},
-            };
-        };
-
-        self.spawner.spawn(cancellable_fut)
-            .map_err(|_| ChannelerError::SpawnError)?;
-
-        let friend_state = FriendState::Initiating(FriendInitiating {
-            close_sender,
-        });
-
-        Ok(Friend {
-            address,
-            state: friend_state,
-        })
-    }
-    */
-
     fn connect_out_friend(&self, friend_public_key: &PublicKey) 
         -> Result<(), ChannelerError> {
 
