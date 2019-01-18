@@ -23,6 +23,7 @@ pub enum ChannelerEvent<B> {
     Connection((PublicKey, RawConn)),
     FriendEvent(FriendEvent),
     ListenerClosed,
+    ConnectorClosed,
     FunderClosed,
 }
 
@@ -43,6 +44,7 @@ pub enum ChannelerError {
     ListenerClosed,
     FunderClosed,
     ConnectorConfigError,
+    ConnectorClosed,
 }
 
 
@@ -155,7 +157,7 @@ struct Channeler<B,C,S,TF> {
 impl<B,C,S,TF> Channeler<B,C,S,TF> 
 where
     B: Clone + Send + Sync + 'static,
-    C: FutTransform<Input=(Vec<B>, PublicKey), Output=ConnectPoolControl<B>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input=PublicKey, Output=ConnectPoolControl<B>> + Clone + Send + Sync + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
 {
@@ -233,9 +235,59 @@ where
     }
     */
 
+    fn connect_out_friend(&self, friend_public_key: &PublicKey) 
+        -> Result<(), ChannelerError> {
+
+        let out_friend = match self.friends.out_friends.get(friend_public_key) {
+            Some(out_friend) => out_friend,
+            None => unreachable!(), // We assert that the out_friend exists.
+        };
+
+        let mut c_connect_client = out_friend.connect_client.clone();
+        let c_friend_public_key = friend_public_key.clone();
+        let mut c_event_sender = self.event_sender.clone();
+        let connect_fut = async move {
+            let event = match await!(c_connect_client.connect()) {
+                Ok(raw_conn) =>
+                    ChannelerEvent::Connection((c_friend_public_key, raw_conn)),
+                Err(_) => 
+                    // This should only happen if there was a real problem
+                    // with the connector.
+                    ChannelerEvent::ConnectorClosed,
+            };
+            let _ = await!(c_event_sender.send(event));
+        };
+
+        self.spawner.clone().spawn(connect_fut)
+            .map_err(|_| ChannelerError::SpawnError)?;
+
+        Ok(())
+    }
+
     /// Add friend if does not yet exist
-    fn try_create_friend(&mut self, friend_public_key: &PublicKey) {
-        unimplemented!();
+    async fn try_create_friend<'a>(&'a mut self, friend_public_key: &'a PublicKey) 
+        -> Result<(), ChannelerError> {
+
+        if !self.friends.in_friends.contains_key(friend_public_key) &&
+           !self.friends.out_friends.contains_key(friend_public_key) {
+            // Friend already exists:
+            return Ok(());
+        }
+
+        // We should add a new friend:
+        if self.is_listen_friend(friend_public_key) {
+            self.friends.in_friends.insert(friend_public_key.clone(), InFriend::Listening);
+        } else {
+            let (config_client, connect_client) = await!(self.connector.transform(friend_public_key.clone()));
+            let out_friend = OutFriend {
+                config_client,
+                connect_client,
+                status: OutFriendStatus::Connecting,
+            };
+            self.friends.out_friends.insert(friend_public_key.clone(), out_friend);
+            self.connect_out_friend(friend_public_key);
+        }
+        Ok(())
     }
 
     async fn handle_from_funder(&mut self, funder_to_channeler: FunderToChanneler<Vec<B>>) 
@@ -276,7 +328,7 @@ where
                     local_addresses
                 } = channeler_update_friend;
 
-                self.try_create_friend(&friend_public_key);
+                await!(self.try_create_friend(&friend_public_key))?;
 
                 if let Some(_in_friend) = self.friends.in_friends.get(&friend_public_key) {
                     // Move from a vector of vectors to a flat vector of addresses:
@@ -289,13 +341,9 @@ where
                                                             total_local_addresses));
                     await!(self.listen_config.send(lp_config))
                         .map_err(|_| ChannelerError::ListenerConfigError)?;
-                    return Ok(());
-                }
-
-                if let Some(out_friend) = self.friends.out_friends.get_mut(&friend_public_key) {
+                } else if let Some(out_friend) = self.friends.out_friends.get_mut(&friend_public_key) {
                     await!(out_friend.config_client.config(friend_address))
                         .map_err(|_| ChannelerError::ConnectorConfigError)?;
-                    return Ok(());
                 }
 
                 Ok(())
@@ -317,90 +365,98 @@ where
 
     async fn handle_connection(&mut self, 
                                friend_public_key: PublicKey, 
-                               conn_pair: RawConn)
+                               raw_conn: RawConn)
         -> Result<(), ChannelerError>  {
 
-        unimplemented!();
-
-        /*
-        let (sender, receiver) = conn_pair;
-
+        let (sender, receiver) = raw_conn;
         // We use an overwrite channel to make sure we are never stuck on trying to send a
         // message to remote friend. A friend only needs to know the most recent message,
         // so previous pending messages may be discarded.
         let (friend_sender, friend_receiver) = mpsc::channel(0);
-        channeler.spawner.spawn(overwrite_send_all(sender, friend_receiver)
+        self.spawner.spawn(overwrite_send_all(sender, friend_receiver)
                       .map_err(|e| error!("overwrite_send_all() error: {:?}", e))
                       .map(|_| ()))
             .map_err(|_| ChannelerError::SpawnError)?;
 
 
-        let friend = match channeler.friends.get_mut(&public_key) {
-            None => {
-                error!("Incoming message from a non listed friend {:?}", public_key);
-                continue;
-            },
-            Some(friend) => friend,
-        };
-        if let FriendState::Connected(_) = &friend.state {
-            error!("Friend is already connected!");
-            continue;
+        if let Some(in_friend) = self.friends.in_friends.get_mut(&friend_public_key) {
+            match in_friend {
+                InFriend::Connected(_) => {
+                    warn!("Already connected to in_friend: {:?}. Aborting.", 
+                          friend_public_key);
+                    return Ok(());
+                },
+                InFriend::Listening => {
+                    *in_friend = InFriend::Connected(Connected::new(friend_sender))
+                }
+            }
+
+        } else if let Some(mut out_friend) = self.friends.out_friends.get_mut(&friend_public_key) {
+            match out_friend.status {
+                OutFriendStatus::Connected(_) => {
+                    warn!("Already connected to out_friend: {:?}. Aborting.", 
+                          friend_public_key);
+                    return Ok(());
+                },
+                OutFriendStatus::Connecting => {
+                    out_friend.status = OutFriendStatus::Connected(Connected::new(friend_sender))
+                }
+            }
         }
 
-        let friend_connected = FriendConnected { 
-            opt_sender: Some(friend_sender),
-        };
-        friend.state = FriendState::Connected(friend_connected);
-
-        let c_public_key = public_key.clone();
+        let mut c_event_sender = self.event_sender.clone();
+        let c_friend_public_key = friend_public_key.clone();
         let mut receiver = receiver
-            .map(move |message| FriendEvent::IncomingMessage((c_public_key.clone(), message)))
-            .chain(stream::once(future::ready(
-                        FriendEvent::ReceiverClosed(public_key.clone()))));
-        let mut c_friend_event_sender = channeler.friend_event_sender.clone();
-        let fut = async move {
-            await!(c_friend_event_sender.send_all(&mut receiver))
-        }.then(|_| future::ready(()));
-        channeler.spawner.spawn(fut)
+            .map(move |data|
+                ChannelerEvent::FriendEvent(FriendEvent::IncomingMessage((c_friend_public_key.clone(), data))));
+        let c_friend_public_key = friend_public_key.clone();
+        let fut_recv = async move {
+            let _ = await!(c_event_sender.send_all(&mut receiver));
+            let receiver_closed_event = ChannelerEvent::FriendEvent(
+                FriendEvent::ReceiverClosed(c_friend_public_key.clone()));
+            let _ = await!(c_event_sender.send(receiver_closed_event));
+
+        };
+
+        self.spawner.spawn(fut_recv)
             .map_err(|_| ChannelerError::SpawnError)?;
 
-        let message = ChannelerToFunder::Online(public_key);
-        await!(channeler.to_funder.send(message))
-            .map_err(|_| ChannelerError::SendToFunderFailed)?
-        */
+        // Report to Funder that the friend is online:
+        let to_funder = ChannelerToFunder::Online(friend_public_key.clone());
+        await!(self.to_funder.send(to_funder))
+            .map_err(|_| ChannelerError::SendToFunderFailed)?;
+
+        Ok(())
     }
 
     async fn handle_friend_event(&mut self, friend_event: FriendEvent)
         -> Result<(), ChannelerError>  {
 
-        unimplemented!();
-        /*
         match friend_event {
-            FriendEvent::IncomingMessage((public_key, data)) => {
-                await!(channeler.handle_friend_event(&mut channeler, friend_event))?,
-                let message = ChannelerToFunder::Message((public_key, data));
-                await!(channeler.to_funder.send(message))
+            FriendEvent::IncomingMessage((friend_public_key, data)) => {
+                let message = ChannelerToFunder::Message((friend_public_key, data));
+                await!(self.to_funder.send(message))
                     .map_err(|_| ChannelerError::SendToFunderFailed)?
             },
-            FriendEvent::ReceiverClosed(public_key) => {
-                let old_friend = match channeler.friends.remove(&public_key) {
-                    None => {
-                        error!("A non listed friend's {:?} receiver was closed.", public_key);
-                        continue;
-                    },
-                    Some(old_friend) => {
-                        let message = ChannelerToFunder::Offline(public_key.clone());
-                        await!(channeler.to_funder.send(message))
-                            .map_err(|_| ChannelerError::SendToFunderFailed)?;
-                        old_friend
-                    },
-                };
+            FriendEvent::ReceiverClosed(friend_public_key) => {
+                if self.friends.get_friend_connected(&friend_public_key).is_some() {
+                    // Report Funder that the friend is offline:
+                    let to_funder = ChannelerToFunder::Offline(friend_public_key.clone());
+                    await!(self.to_funder.send(to_funder))
+                        .map_err(|_| ChannelerError::SendToFunderFailed)?;
+                }
 
-                let friend = channeler.spawn_friend(public_key.clone(), old_friend.address.clone())?;
-                channeler.friends.insert(public_key, friend);
+                if let Some(in_friend) = self.friends.in_friends.get_mut(&friend_public_key) {
+                    *in_friend = InFriend::Listening;
+
+                } else if let Some(out_friend) = self.friends.out_friends.get_mut(&friend_public_key) {
+                    // Request a new connection
+                    out_friend.status = OutFriendStatus::Connecting;
+                    self.connect_out_friend(&friend_public_key)?;
+                }
             },
         }
-        */
+        Ok(())
     }
 }
 
@@ -417,7 +473,7 @@ where
     FF: Stream<Item=FunderToChanneler<Vec<B>>> + Unpin,
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
     B: Clone + Send + Sync + 'static + std::fmt::Debug,
-    C: FutTransform<Input=(Vec<B>, PublicKey), Output=ConnectPoolControl<B>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input=PublicKey, Output=ConnectPoolControl<B>> + Clone + Send + Sync + 'static,
     L: Listener<Connection=(PublicKey, RawConn), Config=LpConfig<B>, Arg=()> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
 {
@@ -455,11 +511,12 @@ where
         match event {
             ChannelerEvent::FromFunder(funder_to_channeler) => 
                 await!(channeler.handle_from_funder(funder_to_channeler))?,
-            ChannelerEvent::Connection((public_key, conn_pair)) =>
-                await!(channeler.handle_connection(public_key, conn_pair))?,
+            ChannelerEvent::Connection((public_key, raw_conn)) =>
+                await!(channeler.handle_connection(public_key, raw_conn))?,
             ChannelerEvent::FriendEvent(friend_event) =>
                 await!(channeler.handle_friend_event(friend_event))?,
             ChannelerEvent::ListenerClosed => return Err(ChannelerError::ListenerClosed),
+            ChannelerEvent::ConnectorClosed => return Err(ChannelerError::ConnectorClosed),
             ChannelerEvent::FunderClosed => return Err(ChannelerError::FunderClosed),
         };
     }
