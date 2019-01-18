@@ -456,13 +456,13 @@ where
     ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
-    type Input = (PublicKey, Vec<B>);
+    type Input = (Vec<B>, PublicKey);
     type Output = ConnectPoolControl<B>;
 
     fn transform(&mut self, input: Self::Input)
         -> BoxFuture<'_, Self::Output> {
 
-        let (friend_public_key, addresses) = input;
+        let (addresses, friend_public_key) = input;
 
         Box::pin(async move {
             // TODO: Should we keep the unwrap()-s here?
