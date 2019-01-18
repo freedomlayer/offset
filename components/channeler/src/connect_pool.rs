@@ -15,7 +15,7 @@ use crypto::identity::PublicKey;
 use crate::types::RawConn;
 
 #[derive(Debug)]
-struct ConnectPoolClientError;
+pub struct ConnectPoolClientError;
 
 pub struct CpConnectRequest {
     response_sender: oneshot::Sender<RawConn>,
