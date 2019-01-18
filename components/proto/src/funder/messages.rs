@@ -17,7 +17,9 @@ use crate::consts::MAX_ROUTE_LEN;
 #[derive(Debug)]
 pub struct ChannelerUpdateFriend<A> {
     pub friend_public_key: PublicKey,
+    /// We should try to connect to this address:
     pub friend_address: A,
+    /// We should be listening on this address:
     pub local_addresses: Vec<A>,
 }
 
