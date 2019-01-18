@@ -326,6 +326,7 @@ pub struct PoolListener<B,L,ET,S> {
 }
 
 impl<B,L,ET,S> PoolListener<B,L,ET,S> {
+    #[allow(unused)]
     pub fn new(listener: L,
            encrypt_transform: ET,
            max_concurrent_encrypt: usize,
