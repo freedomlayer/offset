@@ -21,6 +21,7 @@ pub struct CpConnectRequest {
     response_sender: oneshot::Sender<RawConn>,
 }
 
+#[derive(Clone)]
 pub struct CpConnectClient {
     request_sender: mpsc::Sender<CpConnectRequest>,
 }
@@ -130,7 +131,6 @@ where
     C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
 {
     pub fn new(friend_public_key: PublicKey, 
-               addresses: impl Into<VecDeque<B>>,
                conn_done_sender: mpsc::Sender<Option<RawConn>>,
                backoff_ticks: usize,
                client_connector: C,
@@ -139,7 +139,7 @@ where
 
         ConnectPool {
             friend_public_key,
-            addresses: addresses.into(),
+            addresses: VecDeque::new(),
             status: CpStatus::NoRequest,
             conn_done_sender,
             backoff_ticks,
@@ -313,7 +313,6 @@ async fn connect_pool_loop<B,ET,TS,C,S>(incoming_requests: mpsc::Receiver<CpConn
                             timer_stream: TS,
                             encrypt_transform: ET,
                             friend_public_key: PublicKey,
-                            addresses: Vec<B>,
                             backoff_ticks: usize,
                             client_connector: C,
                             spawner: S) -> Result<(), ConnectPoolError>
@@ -327,7 +326,6 @@ where
 
     let (conn_done_sender, incoming_conn_done) = mpsc::channel(0);
     let mut connect_pool = ConnectPool::new(friend_public_key, 
-                                            addresses,
                                             conn_done_sender,
                                             backoff_ticks,
                                             client_connector,
@@ -378,7 +376,6 @@ pub type ConnectPoolControl<B> = (CpConfigClient<B>, CpConnectClient);
 pub fn create_connect_pool<B,ET,TS,C,S>(timer_stream: TS,
                             mut encrypt_transform: ET,
                             friend_public_key: PublicKey,
-                            addresses: Vec<B>,
                             backoff_ticks: usize,
                             client_connector: C,
                             mut spawner: S) 
@@ -399,7 +396,6 @@ where
                             timer_stream,
                             encrypt_transform,
                             friend_public_key,
-                            addresses,
                             backoff_ticks,
                             client_connector,
                             spawner.clone())
@@ -456,13 +452,11 @@ where
     ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
-    type Input = (Vec<B>, PublicKey);
+    type Input = PublicKey;
     type Output = ConnectPoolControl<B>;
 
-    fn transform(&mut self, input: Self::Input)
+    fn transform(&mut self, friend_public_key: Self::Input)
         -> BoxFuture<'_, Self::Output> {
-
-        let (addresses, friend_public_key) = input;
 
         Box::pin(async move {
             // TODO: Should we keep the unwrap()-s here?
@@ -470,7 +464,6 @@ where
             create_connect_pool(timer_stream,
                             self.encrypt_transform.clone(),
                             friend_public_key,
-                            addresses,
                             self.backoff_ticks,
                             self.client_connector.clone(),
                             self.spawner.clone()).unwrap()
