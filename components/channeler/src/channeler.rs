@@ -72,7 +72,7 @@ impl<T> Connected<T> {
                         self.opt_sender = Some(sender);
                         true
                     },
-                    Err(t) => false,
+                    Err(_t) => false,
                 }
             },
             None => false,
@@ -285,7 +285,7 @@ where
                 status: OutFriendStatus::Connecting,
             };
             self.friends.out_friends.insert(friend_public_key.clone(), out_friend);
-            self.connect_out_friend(friend_public_key);
+            self.connect_out_friend(friend_public_key)?;
         }
         Ok(())
     }
