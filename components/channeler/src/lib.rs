@@ -5,7 +5,7 @@
 #![feature(generators)]
 #![feature(never_type)]
 
-// mod channeler;
+mod channeler;
 mod types;
 mod transform_pool;
 mod listen;
