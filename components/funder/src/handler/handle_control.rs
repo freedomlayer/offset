@@ -9,7 +9,8 @@ use proto::funder::messages::{FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel, SetFriendAddress, SetFriendName, 
     AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus,
     ReceiptAck, FunderIncomingControl, ResponseReceived, 
-    FunderOutgoingControl, ResponseSendFundsResult};
+    FunderOutgoingControl, ResponseSendFundsResult,
+    ChannelerUpdateFriend};
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::handler::{MutableFunderState, MutableEphemeral, is_friend_ready,
@@ -18,7 +19,7 @@ use crate::handler::sender::SendCommands;
 use crate::handler::canceler::{cancel_local_pending_requests, 
     cancel_pending_user_requests, cancel_pending_requests};
 
-use crate::types::{ChannelerConfig, ChannelerUpdateFriend};
+use crate::types::ChannelerConfig;
 
 #[derive(Debug)]
 pub enum HandleControlError {
@@ -147,15 +148,15 @@ where
 fn control_set_address<A>(m_state: &mut MutableFunderState<A>, 
                           send_commands: &mut SendCommands,
                           outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>,
-                          opt_address: Option<A>) 
+                          address: A) 
 where
     A: CanonicalSerialize + Clone,
 {
-    let funder_mutation = FunderMutation::SetAddress(opt_address.clone());
+    let funder_mutation = FunderMutation::SetAddress(address.clone());
     m_state.mutate(funder_mutation);
 
     // Notify Channeler about relay address change:
-    let channeler_config = ChannelerConfig::SetAddress(opt_address.clone());
+    let channeler_config = ChannelerConfig::SetAddress(address.clone());
     outgoing_channeler_config.push(channeler_config);
 
     // We might need to update all friends about the address change:
@@ -520,11 +521,11 @@ where
                                          send_commands,
                                          reset_friend_channel),
 
-        FunderIncomingControl::SetAddress(opt_address) =>
+        FunderIncomingControl::SetAddress(address) =>
             Ok(control_set_address(m_state, 
                                 send_commands,
                                 outgoing_channeler_config,
-                                opt_address)),
+                                address)),
 
         FunderIncomingControl::AddFriend(add_friend) =>
             Ok(control_add_friend(m_state, 

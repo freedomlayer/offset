@@ -20,7 +20,7 @@ pub struct FunderState<A: Clone> {
     pub local_public_key: PublicKey,
     /// Address of relay we are going to connect to.
     /// None means that no address was configured.
-    pub opt_address: Option<A>,
+    pub address: A,
     pub friends: ImHashMap<PublicKey, FriendState<A>>,
     pub ready_receipts: ImHashMap<Uid, SendFundsReceipt>,
 }
@@ -28,7 +28,7 @@ pub struct FunderState<A: Clone> {
 #[derive(Debug)]
 pub enum FunderMutation<A> {
     FriendMutation((PublicKey, FriendMutation<A>)),
-    SetAddress(Option<A>),
+    SetAddress(A),
     AddFriend(AddFriend<A>), 
     RemoveFriend(PublicKey),
     AddReceipt((Uid, SendFundsReceipt)),  //(request_id, receipt)
@@ -41,10 +41,10 @@ impl<A> FunderState<A>
 where
     A: CanonicalSerialize + Clone,
 {
-    pub fn new(local_public_key: &PublicKey, opt_address: Option<&A>) -> FunderState<A> {
+    pub fn new(local_public_key: &PublicKey, address: &A) -> FunderState<A> {
         FunderState {
             local_public_key: local_public_key.clone(),
-            opt_address: opt_address.cloned(),
+            address: address.clone(),
             friends: ImHashMap::new(),
             ready_receipts: ImHashMap::new(),
         }
@@ -117,8 +117,8 @@ where
                 let friend = self.friends.get_mut(&public_key).unwrap();
                 friend.mutate(friend_mutation);
             },
-            FunderMutation::SetAddress(opt_address) => {
-                self.opt_address = opt_address.clone();
+            FunderMutation::SetAddress(address) => {
+                self.address = address.clone();
             }
             FunderMutation::AddFriend(add_friend) => {
                 let friend = FriendState::new(&self.local_public_key,

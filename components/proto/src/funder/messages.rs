@@ -14,6 +14,15 @@ use crate::funder::report::FunderReportMutation;
 use crate::consts::MAX_ROUTE_LEN;
 
 
+#[derive(Debug)]
+pub struct ChannelerUpdateFriend<A> {
+    pub friend_public_key: PublicKey,
+    /// We should try to connect to this address:
+    pub friend_address: A,
+    /// We should be listening on this address:
+    pub local_addresses: Vec<A>,
+}
+
 #[allow(unused)]
 #[derive(Debug)]
 pub enum FunderToChanneler<A> {
@@ -21,9 +30,9 @@ pub enum FunderToChanneler<A> {
     Message((PublicKey, Vec<u8>)), // (friend_public_key, message)
     /// Set address for relay used by local node
     /// None means that no address is configured.
-    SetAddress(Option<A>), 
-    /// Request to add a new friend
-    AddFriend((PublicKey, A)), // (friend_public_key, address)
+    SetAddress(A), 
+    /// Request to add a new friend or update friend's information
+    UpdateFriend(ChannelerUpdateFriend<A>),
     /// Request to remove a friend
     RemoveFriend(PublicKey), // friend_public_key
 }
@@ -441,7 +450,7 @@ pub struct ReceiptAck {
 #[derive(Debug, Clone)]
 pub enum FunderIncomingControl<A> {
     /// Set relay address used for the local node
-    SetAddress(Option<A>),
+    SetAddress(A),
     AddFriend(AddFriend<A>),
     RemoveFriend(RemoveFriend),
     SetRequestsStatus(SetRequestsStatus),

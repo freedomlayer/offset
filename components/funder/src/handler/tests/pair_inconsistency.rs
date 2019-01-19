@@ -39,9 +39,9 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
         (identity_client2, pk2, identity_client1, pk1)
     };
 
-    let mut state1 = FunderState::<u32>::new(&pk1, Some(&0x1337u32));
+    let mut state1 = FunderState::<u32>::new(&pk1, &0x1337u32);
     let mut ephemeral1 = Ephemeral::new(&state1);
-    let mut state2 = FunderState::<u32>::new(&pk2, Some(&0x1338u32));
+    let mut state2 = FunderState::<u32>::new(&pk2, &0x1338u32);
     let mut ephemeral2 = Ephemeral::new(&state2);
 
     let mut rng = RngContainer::new(DummyRandom::new(&[3u8]));

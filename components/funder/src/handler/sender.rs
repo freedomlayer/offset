@@ -3,15 +3,15 @@ use std::collections::HashMap;
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
-use proto::funder::messages::{FriendTcOp, FriendMessage, RequestsStatus, MoveTokenRequest};
+use proto::funder::messages::{FriendTcOp, FriendMessage, RequestsStatus, MoveTokenRequest,
+                                ChannelerUpdateFriend};
 use common::canonical_serialize::CanonicalSerialize;
 
 use identity::IdentityClient;
 
 use crate::types::{create_pending_request, sign_move_token,
                     create_response_send_funds, create_failure_send_funds,
-                    create_unsigned_move_token, ChannelerConfig,
-                    ChannelerUpdateFriend};
+                    create_unsigned_move_token, ChannelerConfig};
 use crate::mutual_credit::outgoing::{QueueOperationError, OutgoingMc};
 
 use crate::friend::{FriendMutation, ResponseOp, 
@@ -393,21 +393,17 @@ where
     A: CanonicalSerialize + Clone + Eq,
 {
 
-    let friend = state.friends.get(friend_public_key).unwrap();
-
     // Check if notification about local address change is required:
-    if let Some(local_address) = &state.opt_address {
-        let friend = state.friends.get(friend_public_key).unwrap();
-        match &friend.sent_local_address {
-            SentLocalAddress::NeverSent => return true,
-            SentLocalAddress::Transition((last_address, _)) |
-            SentLocalAddress::LastSent(last_address) => {
-                if last_address != local_address {
-                    return true;
-                }
+    let friend = state.friends.get(friend_public_key).unwrap();
+    match &friend.sent_local_address {
+        SentLocalAddress::NeverSent => return true,
+        SentLocalAddress::Transition((last_address, _)) |
+        SentLocalAddress::LastSent(last_address) => {
+            if last_address != &state.address {
+                return true;
             }
-        };
-    }
+        }
+    };
 
     // Check if update to remote_max_debt is required:
     match &friend.channel_status {
@@ -537,24 +533,21 @@ where
 
     // Send update about local address if needed:
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
-    let opt_new_sent_local_address = if let Some(local_address) = &m_state.state().opt_address {
-        match &friend.sent_local_address {
-            SentLocalAddress::NeverSent => {
+    let local_address = &m_state.state().address;
+    let opt_new_sent_local_address = match &friend.sent_local_address {
+        SentLocalAddress::NeverSent => {
+            pending_move_token.set_local_address(local_address.clone());
+            Some(SentLocalAddress::LastSent(local_address.clone()))
+        },
+        SentLocalAddress::Transition((last_sent_local_address, _)) |
+        SentLocalAddress::LastSent(last_sent_local_address) => {
+            if local_address != last_sent_local_address {
                 pending_move_token.set_local_address(local_address.clone());
-                Some(SentLocalAddress::LastSent(local_address.clone()))
-            },
-            SentLocalAddress::Transition((last_sent_local_address, _)) |
-            SentLocalAddress::LastSent(last_sent_local_address) => {
-                if local_address != last_sent_local_address {
-                    pending_move_token.set_local_address(local_address.clone());
-                    Some(SentLocalAddress::Transition((local_address.clone(), last_sent_local_address.clone())))
-                } else {
-                    None
-                }
-            },
-        }
-    } else {
-        None
+                Some(SentLocalAddress::Transition((local_address.clone(), last_sent_local_address.clone())))
+            } else {
+                None
+            }
+        },
     };
 
     // Update friend.sent_local_address accordingly:

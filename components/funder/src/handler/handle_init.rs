@@ -1,7 +1,7 @@
 use common::canonical_serialize::CanonicalSerialize;
-use proto::funder::messages::FriendStatus;
+use proto::funder::messages::{FriendStatus, ChannelerUpdateFriend};
 
-use crate::types::{ChannelerConfig, ChannelerUpdateFriend};
+use crate::types::ChannelerConfig;
 
 use crate::handler::handler::MutableFunderState;
 
@@ -32,7 +32,7 @@ where
     // self.add_outgoing_control(FunderOutgoingControl::Report(report));
 
     // Notify Channeler about current address:
-    outgoing_channeler_config.push(ChannelerConfig::SetAddress(m_state.state().opt_address.clone()));
+    outgoing_channeler_config.push(ChannelerConfig::SetAddress(m_state.state().address.clone()));
 
     // Notify channeler about all enabled friends:
     for enabled_friend in enabled_friends {
@@ -63,7 +63,7 @@ mod tests {
         let local_pk = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
         let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
 
-        let mut state = FunderState::new(&local_pk, Some(&1337u32));
+        let mut state = FunderState::new(&local_pk, &1337u32);
 
         // Add a remote friend:
         let add_friend = AddFriend {
@@ -97,7 +97,7 @@ mod tests {
         let channeler_config = outgoing_channeler_config.remove(0);
         match channeler_config {
             ChannelerConfig::SetAddress(opt_address) => {
-                assert_eq!(opt_address, Some(1337u32));
+                assert_eq!(opt_address, 1337u32);
             },
             _ => unreachable!(),
         };

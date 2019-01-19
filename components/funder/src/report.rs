@@ -177,7 +177,7 @@ where
 
     FunderReport {
         local_public_key: funder_state.local_public_key.clone(),
-        opt_address: funder_state.opt_address.clone(),
+        address: funder_state.address.clone(),
         friends,
         num_ready_receipts: usize_to_u64(funder_state.ready_receipts.len()).unwrap(),
     }
@@ -276,8 +276,8 @@ where
                      FunderReportMutation::FriendReportMutation((public_key.clone(), friend_report_mutation)))
                 .collect::<Vec<_>>()
         },
-        FunderMutation::SetAddress(opt_address) => {
-            vec![FunderReportMutation::SetAddress(opt_address.clone())]
+        FunderMutation::SetAddress(address) => {
+            vec![FunderReportMutation::SetAddress(address.clone())]
         },
         FunderMutation::AddFriend(add_friend) => {
             let friend_after = funder_state_after.friends.get(&add_friend.friend_public_key).unwrap();
@@ -384,8 +384,8 @@ where
 {
 
     match mutation {
-        FunderReportMutation::SetAddress(opt_address) => {
-            funder_report.opt_address = opt_address.clone();
+        FunderReportMutation::SetAddress(address) => {
+            funder_report.address = address.clone();
             Ok(())
         },
         FunderReportMutation::AddFriend(add_friend_report) => {

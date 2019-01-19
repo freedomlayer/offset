@@ -6,7 +6,7 @@ use common::canonical_serialize::CanonicalSerialize;
 
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds, FailureSendFunds, 
     MoveToken, FriendMessage, FriendTcOp, PendingRequest, FunderIncomingControl, 
-    FunderOutgoingControl};
+    FunderOutgoingControl, ChannelerUpdateFriend};
 
 use proto::funder::signature_buff::{prefix_hash,
     move_token_signature_buff, create_response_signature_buffer,
@@ -238,18 +238,11 @@ pub struct FriendInconsistencyError {
 }
 
 #[derive(Debug)]
-pub struct ChannelerUpdateFriend<A> {
-    pub friend_public_key: PublicKey,
-    pub friend_address: A,
-    pub local_addresses: Vec<A>,
-}
-
-#[derive(Debug)]
 pub enum ChannelerConfig<A> {
     /// Set relay address for local node
     /// This is the address the Channeler will connect to 
     /// and listen for new connections
-    SetAddress(Option<A>),
+    SetAddress(A),
     UpdateFriend(ChannelerUpdateFriend<A>),
     RemoveFriend(PublicKey),
 }

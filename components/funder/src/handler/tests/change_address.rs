@@ -38,9 +38,9 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
         (identity_client2, pk2, identity_client1, pk1)
     };
 
-    let mut state1 = FunderState::<u32>::new(&pk1, Some(&0x1337u32));
+    let mut state1 = FunderState::<u32>::new(&pk1, &0x1337u32);
     let mut ephemeral1 = Ephemeral::new(&state1);
-    let mut state2 = FunderState::<u32>::new(&pk2, Some(&0x1338u32));
+    let mut state2 = FunderState::<u32>::new(&pk2, &0x1338u32);
     let mut ephemeral2 = Ephemeral::new(&state2);
 
     let mut rng = RngContainer::new(DummyRandom::new(&[3u8]));
@@ -223,7 +223,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
 
 
     // Node1 decides to change his address:
-    let incoming_control_message = FunderIncomingControl::SetAddress(Some(0x2337));
+    let incoming_control_message = FunderIncomingControl::SetAddress(0x2337);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = await!(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, &mut identity_client1)).unwrap();
@@ -232,7 +232,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
     assert_eq!(outgoing_comms.len(), 3);
 
     match &outgoing_comms[0] {
-        FunderOutgoingComm::ChannelerConfig(ChannelerConfig::SetAddress(Some(0x2337))) => {},
+        FunderOutgoingComm::ChannelerConfig(ChannelerConfig::SetAddress(0x2337)) => {},
         _ => unreachable!(),
     };
 

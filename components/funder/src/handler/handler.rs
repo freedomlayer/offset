@@ -299,6 +299,8 @@ where
 
 
     // Send all possible messages according to SendCommands
+    // TODO: Maybe we should output outgoing_comms instead of friend_messages and
+    // outgoing_channeler_config. When we merge the two, we might be out of order!
     let (friend_messages, outgoing_channeler_config) = await!(create_friend_messages(
                                       &mut m_state,
                                       &mut m_ephemeral,
