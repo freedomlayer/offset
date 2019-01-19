@@ -608,7 +608,7 @@ mod tests {
 
         let config0 = await!(listen_req0.config_receiver.next()).unwrap();
         match config0 {
-            AccessControlOp::Add(pk_b) => {},
+            AccessControlOp::Add(pk) => assert_eq!(pk, pk_b),
             _ => unreachable!(),
         };
 
@@ -642,7 +642,7 @@ mod tests {
             };
         }
 
-        await!(config_sender.send(LpConfig::RemoveFriend((pk_c.clone())))).unwrap();
+        await!(config_sender.send(LpConfig::RemoveFriend(pk_c.clone()))).unwrap();
         await!(event_receiver.next()).unwrap();
 
         // Connection to relay 3u32 should be closed:
