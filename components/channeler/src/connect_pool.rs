@@ -20,7 +20,7 @@ pub struct ConnectPoolClientError;
 
 #[derive(Debug)]
 pub struct CpConnectRequest {
-    response_sender: oneshot::Sender<RawConn>,
+    pub response_sender: oneshot::Sender<RawConn>,
 }
 
 #[derive(Clone)]
