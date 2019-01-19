@@ -1,5 +1,6 @@
 use std::mem;
 use std::marker::{Unpin, PhantomData};
+use std::fmt::Debug;
 use std::hash::Hash;
 use std::collections::{VecDeque, HashSet};
 
@@ -17,6 +18,7 @@ use crate::types::RawConn;
 #[derive(Debug)]
 pub struct ConnectPoolClientError;
 
+#[derive(Debug)]
 pub struct CpConnectRequest {
     response_sender: oneshot::Sender<RawConn>,
 }
@@ -73,6 +75,7 @@ pub enum ConnectPoolError {
     MultipleConnectRequests,
 }
 
+#[derive(Debug)]
 enum CpEvent<B> {
     ConnectRequest(CpConnectRequest),
     ConnectRequestClosed,
@@ -125,7 +128,7 @@ where
 
 impl<B,C,ET,S> ConnectPool<B,C,ET,S> 
 where
-    B: Hash + Clone + Eq + Send + 'static,
+    B: Hash + Clone + Eq + Send + Debug + 'static,
     S: Spawn,
     ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
     C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
@@ -315,9 +318,10 @@ async fn connect_pool_loop<B,ET,TS,C,S>(incoming_requests: mpsc::Receiver<CpConn
                             friend_public_key: PublicKey,
                             backoff_ticks: usize,
                             client_connector: C,
-                            spawner: S) -> Result<(), ConnectPoolError>
+                            spawner: S,
+                            mut opt_event_sender: Option<mpsc::Sender<()>>) -> Result<(), ConnectPoolError>
 where
-    B: Hash + Clone + Eq + Send + 'static,
+    B: Hash + Clone + Eq + Send + Debug + 'static,
     C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
     TS: Stream + Unpin,
     ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
@@ -366,6 +370,9 @@ where
             CpEvent::ConnectAttemptDone(opt_conn) => 
                 connect_pool.handle_connect_attempt_done(opt_conn),
         }
+        if let Some(ref mut event_sender) = opt_event_sender {
+            let _ = await!(event_sender.send(()));
+        }
     }
     Ok(())
 }
@@ -382,7 +389,7 @@ pub fn create_connect_pool<B,ET,TS,C,S>(timer_stream: TS,
     -> Result<ConnectPoolControl<B>, ConnectPoolError> 
 
 where
-    B: Hash + Clone + Eq + Send + 'static,
+    B: Hash + Clone + Eq + Send + Debug + 'static,
     C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
     TS: Stream + Unpin + Send + 'static,
     ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
@@ -398,7 +405,8 @@ where
                             friend_public_key,
                             backoff_ticks,
                             client_connector,
-                            spawner.clone())
+                            spawner.clone(),
+                            None)
         .map_err(|e| error!("connect_pool_loop() error: {:?}", e))
         .map(|_| ());
 
@@ -448,7 +456,7 @@ where
 
 impl<B,C,ET,S> FutTransform for PoolConnector<B,C,ET,S> 
 where
-    B: Hash + Clone + Eq + Send + 'static,
+    B: Hash + Clone + Eq + Send + Debug + 'static,
     C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
     ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
@@ -469,5 +477,255 @@ where
                             self.client_connector.clone(),
                             self.spawner.clone()).unwrap()
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::executor::ThreadPool;
+
+    use crypto::identity::{PUBLIC_KEY_LEN};
+    use common::dummy_connector::DummyConnector;
+    use common::conn::FuncFutTransform;
+
+    use timer::{dummy_timer_multi_sender, TimerTick};
+
+    async fn task_pool_connector_cyclic_connect<S>(spawner: S) 
+    where
+        S: Spawn + Clone + Send + 'static,
+    {
+        // Create a mock time service:
+        let (mut tick_sender_receiver, timer_client) = dummy_timer_multi_sender(spawner.clone());
+
+        let backoff_ticks = 2;
+
+        let (conn_request_sender, mut conn_request_receiver) = mpsc::channel(0);
+        let client_connector = DummyConnector::new(conn_request_sender);
+
+        // We don't need encryption for this test:
+        let encrypt_transform = FuncFutTransform::new(|(_opt_public_key, conn_pair)| Some(conn_pair));
+
+        let mut pool_connector = PoolConnector::<u32,_,_,_>::new(
+            timer_client,
+            client_connector,
+            encrypt_transform,
+            backoff_ticks,
+            spawner);
+
+
+        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let (mut config_client, mut connect_client) = await!(pool_connector.transform(pk_b.clone()));
+        let tick_sender = await!(tick_sender_receiver.next()).unwrap();
+
+        let addresses = vec![0x0u32, 0x1u32, 0x2u32];
+        await!(config_client.config(addresses.clone())).unwrap();
+
+        // Addresses that we have seen an attempt to connect to:
+        let mut observed_addreses = Vec::new();
+
+        // Connect and handle the connection request at the same time
+        let connect_fut = connect_client.connect();
+        let handle_connect_fut = async {
+            let conn_request = await!(conn_request_receiver.next()).unwrap();
+            let (local_sender, remote_receiver) = mpsc::channel(0);
+            let (remote_sender, local_receiver) = mpsc::channel(0);
+
+            let (address, pk) = &conn_request.address;
+            observed_addreses.push(address.clone());
+            assert_eq!(pk, &pk_b);
+
+            conn_request.reply(Some((local_sender, local_receiver)));
+            (conn_request_receiver, (remote_sender, remote_receiver))
+        };
+        let (local_conn, (new_conn_request_receiver, remote_conn)) = await!(connect_fut.join(handle_connect_fut));
+        let mut conn_request_receiver = new_conn_request_receiver;
+
+        // Drop the connection:
+        drop(local_conn);
+
+        // Request a new connection:
+        let connect_fut = connect_client.connect();
+        let handle_connect_fut = async {
+            let conn_request = await!(conn_request_receiver.next()).unwrap();
+            let (local_sender, remote_receiver) = mpsc::channel(0);
+            let (remote_sender, local_receiver) = mpsc::channel(0);
+
+            let (address, pk) = &conn_request.address;
+            observed_addreses.push(address.clone());
+            assert_eq!(pk, &pk_b);
+
+            conn_request.reply(Some((local_sender, local_receiver)));
+            (conn_request_receiver, (remote_sender, remote_receiver))
+        };
+        let (local_conn, (new_conn_request_receiver, remote_conn)) = await!(connect_fut.join(handle_connect_fut));
+        let mut conn_request_receiver = new_conn_request_receiver;
+
+        // Drop the connection:
+        drop(local_conn);
+
+        // Request a new connection:
+        let connect_fut = connect_client.connect();
+        let handle_connect_fut = async {
+            let conn_request = await!(conn_request_receiver.next()).unwrap();
+            let (local_sender, remote_receiver) = mpsc::channel(0);
+            let (remote_sender, local_receiver) = mpsc::channel(0);
+
+            let (address, pk) = &conn_request.address;
+            observed_addreses.push(address.clone());
+            assert_eq!(pk, &pk_b);
+
+            conn_request.reply(Some((local_sender, local_receiver)));
+            (conn_request_receiver, (remote_sender, remote_receiver))
+        };
+        let (local_conn, (new_conn_request_receiver, remote_conn)) = await!(connect_fut.join(handle_connect_fut));
+        let mut conn_request_receiver = new_conn_request_receiver;
+
+        // Drop the connection:
+        drop(local_conn);
+
+        // There should be exactly 3 observed addresses:
+        let unique_observed = observed_addreses
+            .iter()
+            .cloned()
+            .collect::<HashSet<_>>();
+        assert_eq!(unique_observed.len(), 3);
+
+        // Request a new connection:
+        let c_pk_b = pk_b.clone();
+        let connect_fut = connect_client.connect();
+        let handle_connect_fut = async move {
+            let conn_request = await!(conn_request_receiver.next()).unwrap();
+            let (local_sender, remote_receiver) = mpsc::channel(0);
+            let (remote_sender, local_receiver) = mpsc::channel(0);
+
+            // We expect cyclic attempts.
+            // This time the first observed_address should be attempted again:
+            let (address, pk) = &conn_request.address;
+            assert_eq!(pk, &pk_b);
+            assert_eq!(address, &observed_addreses[0]);
+
+            conn_request.reply(Some((local_sender, local_receiver)));
+            (conn_request_receiver, (remote_sender, remote_receiver))
+        };
+        let (local_conn, (new_conn_request_receiver, remote_conn)) = await!(connect_fut.join(handle_connect_fut));
+        let mut conn_request_receiver = new_conn_request_receiver;
+    }
+
+    #[test]
+    fn test_pool_connector_cyclic_connect() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_pool_connector_cyclic_connect(thread_pool.clone()));
+    }
+
+
+    async fn task_pool_connector_backoff_ticks<S>(mut spawner: S) 
+    where
+        S: Spawn + Clone + Send + 'static,
+    {
+        // Create a mock time service:
+        let (mut tick_sender_receiver, mut timer_client) = dummy_timer_multi_sender(spawner.clone());
+
+        let backoff_ticks = 2;
+
+        let (conn_request_sender, mut conn_request_receiver) = mpsc::channel(0);
+        let client_connector = DummyConnector::new(conn_request_sender);
+
+        // We don't need encryption for this test:
+        let encrypt_transform = FuncFutTransform::new(|(_opt_public_key, conn_pair)| Some(conn_pair));
+
+        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+        let mut tick_sender = await!(tick_sender_receiver.next()).unwrap();
+
+        // Used for debugginging the loop:
+        let (event_sender, mut event_receiver) = mpsc::channel(0);
+
+        let (request_sender, incoming_requests) = mpsc::channel(0);
+        let (config_sender, incoming_config) = mpsc::channel(0);
+
+        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+
+        // We call connect_pool_loop directly instead of using the wrapper here.
+        // This is done because we need the event_sender if we want precise tests for 
+        // time ticks.
+        //
+        // If we don't use event_sender we might be sending timer ticks that are discarded, because
+        // they are not received at the correct time.
+        let loop_fut = connect_pool_loop(incoming_requests,
+                          incoming_config,
+                          timer_stream,
+                          encrypt_transform,
+                          pk_b.clone(), // friend_public_key
+                          backoff_ticks,
+                          client_connector,
+                          spawner.clone(),
+                          Some(event_sender))
+            .map_err(|e| error!("connect_pool_loop() error: {:?}", e))
+            .map(|_| ());
+
+        spawner.spawn(loop_fut).unwrap();
+
+        let mut connect_client = CpConnectClient::new(request_sender);
+        let mut config_client = CpConfigClient::new(config_sender);
+
+
+        let addresses = vec![0x0u32, 0x1u32, 0x2u32];
+        await!(config_client.config(addresses.clone())).unwrap();
+        await!(event_receiver.next()).unwrap();
+
+        // Addresses that we have seen an attempt to connect to:
+        let mut observed_addreses = Vec::new();
+
+        // Connect and handle the connection request at the same time
+        let connect_fut = connect_client.connect();
+        let handle_connect_fut = async {
+            await!(event_receiver.next()).unwrap(); // Connection request event
+            for _ in 0 .. addresses.len() {
+                let conn_request = await!(conn_request_receiver.next()).unwrap();
+
+                let (address, pk) = &conn_request.address;
+                observed_addreses.push(address.clone());
+                assert_eq!(pk, &pk_b);
+
+                // Connection attempt failed:
+                conn_request.reply(None);
+                await!(event_receiver.next()).unwrap(); // connection attempt done event
+
+                // Wait backoff_ticks:
+                for _ in 0 .. backoff_ticks {
+                    await!(tick_sender.send(TimerTick)).unwrap();
+                    await!(event_receiver.next()).unwrap(); // timer tick event
+                }
+            }
+
+            // Finally, we let the connection request succeed:
+            let conn_request = await!(conn_request_receiver.next()).unwrap();
+
+            let (local_sender, remote_receiver) = mpsc::channel(0);
+            let (remote_sender, local_receiver) = mpsc::channel(0);
+
+            // We expect cyclic attempts.
+            // This time the first observed_address should be attempted again:
+            let (address, pk) = &conn_request.address;
+            assert_eq!(pk, &pk_b);
+            assert_eq!(address, &observed_addreses[0]);
+
+            conn_request.reply(Some((local_sender, local_receiver)));
+            await!(event_receiver.next()).unwrap(); // connection attempt done event
+            (conn_request_receiver, (remote_sender, remote_receiver))
+
+        };
+        let (local_conn, (remote_conn, new_conn_request_receiver)) = await!(connect_fut.join(handle_connect_fut));
+        let mut conn_request_receiver = new_conn_request_receiver;
+
+
+        // Drop the connection:
+        drop(local_conn);
+    }
+
+    #[test]
+    fn test_pool_connector_backoff_ticks() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_pool_connector_backoff_ticks(thread_pool.clone()));
     }
 }
