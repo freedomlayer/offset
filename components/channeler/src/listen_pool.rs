@@ -1,6 +1,6 @@
 use std::hash::Hash;
 use std::marker::PhantomData;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use futures::{future, FutureExt, TryFutureExt, stream, Stream, StreamExt, SinkExt};
 use futures::channel::mpsc;
@@ -14,6 +14,7 @@ use timer::TimerClient;
 use crypto::identity::PublicKey;
 use crate::types::{RawConn, AccessControlPk, AccessControlOpPk};
 use crate::transform_pool::transform_pool_loop;
+use crate::listen_pool_state::{ListenPoolState, Relay};
 
 pub enum LpConfig<B> {
     SetLocalAddresses(Vec<B>),
@@ -67,135 +68,10 @@ enum RelayStatus {
     Connected(mpsc::Sender<AccessControlOpPk>),
 }
 
-struct Relay<P=PublicKey,ST=RelayStatus> {
-    friends: HashSet<P>,
-    status: ST,
-}
-
-struct ListenPoolState<B,P,ST> {
-    relays: HashMap<B, Relay<P,ST>>,
-    local_addresses: HashSet<B>,
-}
-
-impl<B,P,ST> ListenPoolState<B,P,ST> 
-where
-    B: Hash + Eq + Clone,
-    P: Hash + Eq + Clone,
-{
-    pub fn new() -> Self {
-        ListenPoolState {
-            relays: HashMap::new(),
-            local_addresses: HashSet::new(),
-        }
-    }
-
-    pub fn set_local_addresses(&mut self, local_addresses: Vec<B>) 
-        -> (HashSet<P>, Vec<B>) {
-            // Should spawn_listen(address, relay_friends) for 
-            // all addresses.
-
-        self.local_addresses = local_addresses
-            .iter()
-            .cloned()
-            .collect::<HashSet<_>>();
-
-        // Remove relays that we don't need to listen to anymore:
-        // This should disconnect from those relays automatically:
-        self.relays.retain(|relay_address, relay| {
-            if !relay.friends.is_empty() {
-                return true;
-            }
-            local_addresses.contains(relay_address)
-        });
-
-        // Start listening to new relays if necessary:
-        let mut new_addresses = Vec::new();
-        for address in &self.local_addresses {
-            if !self.relays.contains_key(address) {
-                new_addresses.push(address.clone());
-            }
-        }
-
-
-        // Local chosen relays should allow all friends to connect:
-        let mut relay_friends = HashSet::new();
-        for (_relay_address, relay) in &self.relays {
-            for friend in &relay.friends {
-                relay_friends.insert(friend.clone());
-            }
-        }
-
-        (relay_friends, new_addresses)
-    }
-
-    pub fn update_friend(&mut self, 
-                     friend_public_key: P,
-                     addresses: Vec<B>)
-                -> (Vec<B>, Vec<B>) {
-                    // Relays to send AccessControlOp::Add
-                    // Relays to spawn
-
-        let mut relays_add = Vec::new();
-        let mut relays_spawn = Vec::new();
-
-        // We add the friend to all relevant relays (as specified by addresses),
-        // but also to all our local addresses relays.
-        let iter_addresses = addresses
-            .into_iter()
-            .chain(self.local_addresses.iter().cloned())
-            .collect::<HashSet<_>>();
-
-        for address in iter_addresses.iter() {
-            match self.relays.get_mut(address) {
-                Some(relay) => {
-                    if relay.friends.contains(&friend_public_key) {
-                        continue;
-                    }
-                    relays_add.push(address.clone());
-                    relay.friends.insert(friend_public_key.clone());
-                },
-                None => {
-                    relays_spawn.push(address.clone());
-                },
-            }
-        }
-
-        (relays_add, relays_spawn)
-    }
-
-    /// Outputs a set of relays to send AccessControlOp::Remove(friend_public_key)
-    pub fn remove_friend(&mut self, friend_public_key: P) -> Vec<B> {
-        let local_addresses = self.local_addresses.clone();
-
-        let mut remove_friends = Vec::new();
-
-        // Update access control:
-        for (relay_address, relay) in &mut self.relays {
-            if !relay.friends.contains(&friend_public_key) {
-                continue;
-            }
-            remove_friends.push(relay_address.clone());
-        }
-
-        self.relays.retain(|relay_address, relay| {
-            // Update relay friends:
-            let _ = relay.friends.remove(&friend_public_key);
-            // We remove the relay connection if it was only required
-            // by the removed friend:
-            if !relay.friends.is_empty() {
-                return true;
-            }
-            local_addresses.contains(relay_address)
-        });
-
-        remove_friends
-    }
-}
 
 
 struct ListenPool<B,L,S> {
-    local_addresses: HashSet<B>,
-    relays: HashMap<B, Relay>,
+    state: ListenPoolState<B,PublicKey,RelayStatus>,
     plain_conn_sender: mpsc::Sender<(PublicKey, RawConn)>,
     relay_closed_sender: mpsc::Sender<B>,
     listener: L,
@@ -217,8 +93,7 @@ where
                spawner: S) -> Self {
 
         ListenPool {
-            local_addresses: HashSet::new(),
-            relays: HashMap::new(),
+            state: ListenPoolState::new(),
             plain_conn_sender,
             relay_closed_sender,
             listener,
@@ -258,103 +133,50 @@ where
     pub async fn handle_config(&mut self, config: LpConfig<B>) -> Result<(), ListenPoolError> {
         match config {
             LpConfig::SetLocalAddresses(local_addresses) => {
-                self.local_addresses = local_addresses
-                    .iter()
-                    .cloned()
-                    .collect::<HashSet<_>>();
-
-                // Remove relays that we don't need to listen to anymore:
-                // This should disconnect from those relays automatically:
-                self.relays.retain(|relay_address, relay| {
-                    if !relay.friends.is_empty() {
-                        return true;
-                    }
-                    local_addresses.contains(relay_address)
-                });
-
-                // Start listening to new relays if necessary:
-                let mut new_addresses = Vec::new();
-                for address in &self.local_addresses {
-                    if !self.relays.contains_key(address) {
-                        new_addresses.push(address.clone());
-                    }
-                }
-
-
-                // Local chosen relays should allow all friends to connect:
-                let mut relay_friends = HashSet::new();
-                for (_relay_address, relay) in &self.relays {
-                    for friend in &relay.friends {
-                        relay_friends.insert(friend.clone());
-                    }
-                }
-
-                for address in new_addresses {
+                let (relay_friends, addresses) = self.state.set_local_addresses(local_addresses);
+                for address in addresses {
                     let access_control_sender = self.spawn_listen(address.clone(), &relay_friends)?;
                     let relay = Relay {
                         friends: relay_friends.clone(),
                         status: RelayStatus::Connected(access_control_sender),
                     };
-                    self.relays.insert(address, relay);
+                    self.state.relays.insert(address, relay);
                 }
             },
             LpConfig::UpdateFriend((friend_public_key, addresses)) => {
-                // We add the friend to all relevant relays (as specified by addresses),
-                // but also to all our local addresses relays.
-                let iter_addresses = addresses
-                    .into_iter()
-                    .chain(self.local_addresses.iter().cloned())
-                    .collect::<HashSet<_>>();
+                let (relays_add, relays_spawn) = self.state.update_friend(friend_public_key.clone(), addresses);
 
-                for address in iter_addresses.iter() {
-                    match self.relays.get_mut(address) {
-                        Some(relay) => {
-                            if relay.friends.contains(&friend_public_key) {
-                                continue;
-                            }
-                            if let RelayStatus::Connected(access_control_sender) = &mut relay.status {
-                                // TODO: Error checking here?
-                                let _ = await!(access_control_sender.send(AccessControlOp::Add(friend_public_key.clone())));
-                            }
-                            relay.friends.insert(friend_public_key.clone());
-                        },
-                        None => {
-                            let mut relay_friends = HashSet::new();
-                            relay_friends.insert(friend_public_key.clone());
-                            let access_control_sender = self.spawn_listen(address.clone(), &relay_friends)?;
-                            let relay = Relay {
-                                friends: relay_friends,
-                                status: RelayStatus::Connected(access_control_sender),
-                            };
-                            self.relays.insert(address.clone(), relay);
-                        },
+                for address in relays_add {
+                    if let Some(relay) = self.state.relays.get_mut(&address) {
+                        if let RelayStatus::Connected(access_control_sender) = &mut relay.status {
+                            // TODO: Error checking here?
+                            let _ = await!(access_control_sender.send(AccessControlOp::Add(friend_public_key.clone())));
+                        }
                     }
+                }
+
+                for address in relays_spawn {
+                    let mut relay_friends = HashSet::new();
+                    relay_friends.insert(friend_public_key.clone());
+                    let access_control_sender = self.spawn_listen(address.clone(), &relay_friends)?;
+                    let relay = Relay {
+                        friends: relay_friends,
+                        status: RelayStatus::Connected(access_control_sender),
+                    };
+                    self.state.relays.insert(address.clone(), relay);
                 }
             },
             LpConfig::RemoveFriend(friend_public_key) => {
-                let local_addresses = self.local_addresses.clone();
+                let remove_relays = self.state.remove_friend(&friend_public_key);
 
-                // Update access control:
-                for (_relay_address, relay) in &mut self.relays {
-                    if !relay.friends.contains(&friend_public_key) {
-                        continue;
-                    }
-                    if let RelayStatus::Connected(access_control_sender) = &mut relay.status {
-                        // TODO: Error checking here?
-                        let _ = await!(access_control_sender.send(AccessControlOp::Remove(friend_public_key.clone())));
+                for address in remove_relays {
+                    if let Some(relay) = self.state.relays.get_mut(&address) {
+                        if let RelayStatus::Connected(access_control_sender) = &mut relay.status {
+                            // TODO: Error checking here?
+                            let _ = await!(access_control_sender.send(AccessControlOp::Remove(friend_public_key.clone())));
+                        }
                     }
                 }
-
-                self.relays.retain(|relay_address, relay| {
-                    // Update relay friends:
-                    let _ = relay.friends.remove(&friend_public_key);
-                    // We remove the relay connection if it was only required
-                    // by the removed friend:
-                    if !relay.friends.is_empty() {
-                        return true;
-                    }
-                    local_addresses.contains(relay_address)
-                });
             },
         };
         Ok(())
@@ -363,7 +185,7 @@ where
     pub fn handle_relay_closed(&mut self,
                            address: B) -> Result<(), ListenPoolError> {
 
-        let relay = match self.relays.get_mut(&address) {
+        let relay = match self.state.relays.get_mut(&address) {
             Some(relay) => relay,
             None => return Ok(()), // TODO: Could this happen?
         };
@@ -374,7 +196,7 @@ where
 
     pub fn handle_timer_tick(&mut self) -> Result<(), ListenPoolError> {
         let mut spawn_addresses = Vec::new();
-        for (address, relay) in &mut self.relays {
+        for (address, relay) in &mut self.state.relays {
             match &mut relay.status {
                 RelayStatus::Waiting(ref mut remaining_ticks) => {
                     *remaining_ticks = (*remaining_ticks).saturating_sub(1);
@@ -389,10 +211,10 @@ where
 
         // Reconnect to relays for which enough time has passed:
         for address in spawn_addresses {
-            let relay = self.relays.get(&address).unwrap();
+            let relay = self.state.relays.get(&address).unwrap();
             let access_control_sender = self.spawn_listen(address.clone(), &relay.friends)?;
 
-            let relay = self.relays.get_mut(&address).unwrap();
+            let relay = self.state.relays.get_mut(&address).unwrap();
             relay.status = RelayStatus::Connected(access_control_sender);
         }
         Ok(())
