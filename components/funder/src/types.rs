@@ -242,7 +242,7 @@ pub enum ChannelerConfig<A> {
     /// Set relay address for local node
     /// This is the address the Channeler will connect to 
     /// and listen for new connections
-    SetAddress(Option<A>),
+    SetAddress(A),
     UpdateFriend(ChannelerUpdateFriend<A>),
     RemoveFriend(PublicKey),
 }

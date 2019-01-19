@@ -129,7 +129,7 @@ pub struct FriendReport<A> {
 // TODO: Removed A: Clone here and ImHashMap. Should this struct be cloneable for some reason?
 pub struct FunderReport<A: Clone> {
     pub local_public_key: PublicKey,
-    pub opt_address: Option<A>,
+    pub address: A,
     pub friends: ImHashMap<PublicKey, FriendReport<A>>,
     pub num_ready_receipts: u64,
 }
@@ -165,7 +165,7 @@ pub struct AddFriendReport<A> {
 #[allow(unused)]
 #[derive(Debug)]
 pub enum FunderReportMutation<A> {
-    SetAddress(Option<A>),
+    SetAddress(A),
     AddFriend(AddFriendReport<A>),
     RemoveFriend(PublicKey),
     FriendReportMutation((PublicKey, FriendReportMutation<A>)),

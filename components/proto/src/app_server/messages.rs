@@ -40,15 +40,15 @@ pub enum AppServerToApp<A: Clone> {
 
 #[allow(unused)]
 #[derive(Debug)]
-pub enum AppToAppServer<A> {
+pub enum AppToAppServer<B> {
     /// Set relay address to be used locally (Could be empty)
-    SetAddress(Option<A>), 
+    SetAddress(Vec<B>), 
     /// Sending funds:
     RequestSendFunds(RequestSendFunds),
     ReceiptAck(ReceiptAck),
     /// Friend management:
-    AddFriend(AddFriend<A>),
-    SetFriendAddress(SetFriendAddress<A>),
+    AddFriend(AddFriend<Vec<B>>),
+    SetFriendAddress(SetFriendAddress<Vec<B>>),
     SetFriendName(SetFriendName),
     RemoveFriend(RemoveFriend),
     EnableFriend(PublicKey),

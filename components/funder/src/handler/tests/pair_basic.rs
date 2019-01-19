@@ -40,9 +40,9 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         (identity_client2, pk2, identity_client1, pk1)
     };
 
-    let mut state1 = FunderState::<u32>::new(&pk1, Some(&11u32));
+    let mut state1 = FunderState::<u32>::new(&pk1, &11u32);
     let mut ephemeral1 = Ephemeral::new(&state1);
-    let mut state2 = FunderState::<u32>::new(&pk2, Some(&22u32));
+    let mut state2 = FunderState::<u32>::new(&pk2, &22u32);
     let mut ephemeral2 = Ephemeral::new(&state2);
 
     let mut rng = RngContainer::new(DummyRandom::new(&[3u8]));
