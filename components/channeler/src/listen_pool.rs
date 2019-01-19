@@ -67,10 +67,131 @@ enum RelayStatus {
     Connected(mpsc::Sender<AccessControlOpPk>),
 }
 
-struct Relay {
-    friends: HashSet<PublicKey>,
-    status: RelayStatus,
+struct Relay<P=PublicKey,ST=RelayStatus> {
+    friends: HashSet<P>,
+    status: ST,
 }
+
+struct ListenPoolState<B,P,ST> {
+    relays: HashMap<B, Relay<P,ST>>,
+    local_addresses: HashSet<B>,
+}
+
+impl<B,P,ST> ListenPoolState<B,P,ST> 
+where
+    B: Hash + Eq + Clone,
+    P: Hash + Eq + Clone,
+{
+    pub fn new() -> Self {
+        ListenPoolState {
+            relays: HashMap::new(),
+            local_addresses: HashSet::new(),
+        }
+    }
+
+    fn set_local_addresses(&mut self, local_addresses: Vec<B>) 
+        -> (HashSet<P>, Vec<B>) {
+            // Should spawn_listen(address, relay_friends) for 
+            // all addresses.
+
+        self.local_addresses = local_addresses
+            .iter()
+            .cloned()
+            .collect::<HashSet<_>>();
+
+        // Remove relays that we don't need to listen to anymore:
+        // This should disconnect from those relays automatically:
+        self.relays.retain(|relay_address, relay| {
+            if !relay.friends.is_empty() {
+                return true;
+            }
+            local_addresses.contains(relay_address)
+        });
+
+        // Start listening to new relays if necessary:
+        let mut new_addresses = Vec::new();
+        for address in &self.local_addresses {
+            if !self.relays.contains_key(address) {
+                new_addresses.push(address.clone());
+            }
+        }
+
+
+        // Local chosen relays should allow all friends to connect:
+        let mut relay_friends = HashSet::new();
+        for (_relay_address, relay) in &self.relays {
+            for friend in &relay.friends {
+                relay_friends.insert(friend.clone());
+            }
+        }
+
+        (relay_friends, new_addresses)
+    }
+
+    fn update_friend(&mut self, 
+                     friend_public_key: P,
+                     addresses: Vec<B>)
+                -> (Vec<B>, Vec<B>) {
+                    // Relays to send AccessControlOp::Add
+                    // Relays to spawn
+
+        let mut relays_add = Vec::new();
+        let mut relays_spawn = Vec::new();
+
+        // We add the friend to all relevant relays (as specified by addresses),
+        // but also to all our local addresses relays.
+        let iter_addresses = addresses
+            .into_iter()
+            .chain(self.local_addresses.iter().cloned())
+            .collect::<HashSet<_>>();
+
+        for address in iter_addresses.iter() {
+            match self.relays.get_mut(address) {
+                Some(relay) => {
+                    if relay.friends.contains(&friend_public_key) {
+                        continue;
+                    }
+                    relays_add.push(address.clone());
+                    relay.friends.insert(friend_public_key.clone());
+                },
+                None => {
+                    relays_spawn.push(address.clone());
+                },
+            }
+        }
+
+        (relays_add, relays_spawn)
+    }
+
+    /// Outputs a set of relays to send AccessControlOp::Remove(friend_public_key)
+    fn remove_friend(&mut self, friend_public_key: P) -> Vec<B> {
+        let local_addresses = self.local_addresses.clone();
+
+        let mut remove_friends = Vec::new();
+
+        // Update access control:
+        for (relay_address, relay) in &mut self.relays {
+            if !relay.friends.contains(&friend_public_key) {
+                continue;
+            }
+            remove_friends.push(relay_address.clone());
+        }
+
+        self.relays.retain(|relay_address, relay| {
+            // Update relay friends:
+            let _ = relay.friends.remove(&friend_public_key);
+            // We remove the relay connection if it was only required
+            // by the removed friend:
+            if !relay.friends.is_empty() {
+                return true;
+            }
+            local_addresses.contains(relay_address)
+        });
+
+        remove_friends
+    }
+}
+
 
 struct ListenPool<B,L,S> {
     local_addresses: HashSet<B>,
