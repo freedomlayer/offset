@@ -11,9 +11,9 @@ use crypto::identity::PublicKey;
 use proto::funder::messages::{FunderOutgoingControl, FunderIncomingControl};
 use proto::app_server::messages::{AppServerToApp, AppToAppServer};
 
-use crate::config::AppServerConfig;
+use crate::config::AppPermissions;
 
-type IncomingAppConnection<B,ISA> = (PublicKey, ConnPair<AppServerToApp<B,ISA>, AppToAppServer<B,ISA>>);
+type IncomingAppConnection<B,ISA> = (PublicKey, AppPermissions, ConnPair<AppServerToApp<B,ISA>, AppToAppServer<B,ISA>>);
 
 
 pub enum AppServerError {
@@ -36,7 +36,6 @@ pub struct App<B: Clone,ISA> {
 pub struct AppServer<B: Clone,ISA,TF> {
     to_funder: TF,
     from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<B,ISA>>)>,
-    config: AppServerConfig,
     /// A long cyclic incrementing counter, 
     /// allows to give every connection a unique number.
     /// Required because an app (with one public key) might have multiple connections.
@@ -51,13 +50,11 @@ where
     TF: Sync,
 {
     pub fn new(to_funder: TF, 
-           from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<B,ISA>>)>,
-           config: AppServerConfig) -> Self {
+           from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<B,ISA>>)>) -> Self {
 
         AppServer {
             to_funder,
             from_app_sender,
-            config,
             app_counter: 0,
             apps: HashMap::new(),
         }
@@ -70,7 +67,7 @@ where
     where
         S: Spawn,
     {
-        let (public_key, (sender, mut receiver)) = incoming_app_connection;
+        let (public_key, app_permissions, (sender, mut receiver)) = incoming_app_connection;
 
         let app_counter = self.app_counter;
         let mut receiver = receiver.map(move |app_to_app_server| (app_counter.clone(), Some(app_to_app_server)))
@@ -93,10 +90,10 @@ where
 }
 
 
-pub async fn app_server_loop<B,ISA,FF,TF,IC,S>(config: AppServerConfig, 
-                                   from_funder: FF, to_funder: TF, 
-                                   incoming_connections: IC,
-                                   mut spawner: S) -> Result<(), AppServerError>
+pub async fn app_server_loop<B,ISA,FF,TF,IC,S>(from_funder: FF, 
+                                               to_funder: TF, 
+                                               incoming_connections: IC,
+                                               mut spawner: S) -> Result<(), AppServerError>
 where
     B: Clone + Send + 'static,
     ISA: Send + 'static,
@@ -107,7 +104,7 @@ where
 {
 
     let (from_app_sender, from_app_receiver) = mpsc::channel(0);
-    let mut app_server = AppServer::new(to_funder, from_app_sender, config);
+    let mut app_server = AppServer::new(to_funder, from_app_sender);
 
     let from_funder = from_funder
         .map(|funder_outgoing_control| AppServerEvent::FromFunder(funder_outgoing_control))
