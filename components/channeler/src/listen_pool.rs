@@ -411,3 +411,96 @@ where
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::executor::ThreadPool;
+    use futures::channel::mpsc;
+
+    use crypto::identity::PUBLIC_KEY_LEN;
+
+    use timer::{dummy_timer_multi_sender, TimerTick};
+    use common::dummy_listener::DummyListener;
+
+    async fn task_listen_pool_loop_basic<S>(mut spawner: S) 
+    where
+        S: Spawn + Clone + Send + 'static,
+    {
+        // Create a mock time service:
+        let (mut tick_sender_receiver, mut timer_client) 
+            = dummy_timer_multi_sender(spawner.clone());
+        let backoff_ticks = 2;
+
+        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+        let mut tick_sender = await!(tick_sender_receiver.next()).unwrap();
+
+        let (mut config_sender, incoming_config) = mpsc::channel(0);
+        let (outgoing_plain_conns, mut incoming_plain_conns) = mpsc::channel(0);
+
+        let (listen_req_sender, mut listen_req_receiver) = mpsc::channel(0);
+        let listener = DummyListener::new(listen_req_sender, spawner.clone());
+
+        let (event_sender, mut event_receiver) = mpsc::channel(0);
+        let fut_loop = listen_pool_loop::<u32,_,_,_>(incoming_config,
+                         outgoing_plain_conns,
+                         listener,
+                         backoff_ticks,
+                         timer_stream,
+                         spawner.clone(),
+                         Some(event_sender))
+            .map_err(|e| error!("listen_pool_loop() error: {:?}", e))
+            .map(|_| ());
+
+        spawner.spawn(fut_loop).unwrap();
+
+        let mut local_addresses = vec![0x0u32, 0x1u32];
+        local_addresses.sort();
+
+        await!(config_sender.send(LpConfig::SetLocalAddresses(local_addresses.clone()))).unwrap();
+        await!(event_receiver.next()).unwrap();
+
+        let mut observed_addresses = Vec::new();
+        let mut listen_req0 = await!(listen_req_receiver.next()).unwrap();
+        let (ref relay_address0, _) = listen_req0.arg;
+        observed_addresses.push(relay_address0.clone());
+
+        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+
+        // Send a few connections:
+        for _ in 0 .. 5usize {
+            let (_local_sender, remote_receiver) = mpsc::channel(0);
+            let (remote_sender, _local_receiver) = mpsc::channel(0);
+            await!(listen_req0.conn_sender.send(
+                    (pk_b.clone(), (remote_sender, remote_receiver)))).unwrap();
+
+            let (pk, conn) = await!(incoming_plain_conns.next()).unwrap();
+            assert_eq!(pk, pk_b);
+        }
+
+        let mut listen_req1 = await!(listen_req_receiver.next()).unwrap();
+        let (ref relay_address1, _) = listen_req1.arg;
+        observed_addresses.push(relay_address1.clone());
+
+        observed_addresses.sort();
+        assert_eq!(local_addresses, observed_addresses);
+
+
+        // Reduce the set of local addresses to only contain 0x1u32:
+        await!(config_sender.send(LpConfig::SetLocalAddresses(vec![0x1u32]))).unwrap();
+        await!(event_receiver.next()).unwrap();
+
+        // The 0x0u32 listener should be closed:
+        if *relay_address0 == 0x0u32 {
+            assert!(await!(listen_req0.config_receiver.next()).is_none());
+        } else {
+            assert!(await!(listen_req1.config_receiver.next()).is_none());
+        }
+    }
+
+    #[test]
+    fn test_listen_pool_loop_basic() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_listen_pool_loop_basic(thread_pool.clone()));
+    }
+}
