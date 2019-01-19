@@ -516,7 +516,7 @@ mod tests {
 
         let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
         let (mut config_client, mut connect_client) = await!(pool_connector.transform(pk_b.clone()));
-        let tick_sender = await!(tick_sender_receiver.next()).unwrap();
+        let _tick_sender = await!(tick_sender_receiver.next()).unwrap();
 
         let addresses = vec![0x0u32, 0x1u32, 0x2u32];
         await!(config_client.config(addresses.clone())).unwrap();
@@ -538,7 +538,7 @@ mod tests {
             conn_request.reply(Some((local_sender, local_receiver)));
             (conn_request_receiver, (remote_sender, remote_receiver))
         };
-        let (local_conn, (new_conn_request_receiver, remote_conn)) = await!(connect_fut.join(handle_connect_fut));
+        let (local_conn, (new_conn_request_receiver, _remote_conn)) = await!(connect_fut.join(handle_connect_fut));
         let mut conn_request_receiver = new_conn_request_receiver;
 
         // Drop the connection:
@@ -558,7 +558,7 @@ mod tests {
             conn_request.reply(Some((local_sender, local_receiver)));
             (conn_request_receiver, (remote_sender, remote_receiver))
         };
-        let (local_conn, (new_conn_request_receiver, remote_conn)) = await!(connect_fut.join(handle_connect_fut));
+        let (local_conn, (new_conn_request_receiver, _remote_conn)) = await!(connect_fut.join(handle_connect_fut));
         let mut conn_request_receiver = new_conn_request_receiver;
 
         // Drop the connection:
@@ -578,7 +578,7 @@ mod tests {
             conn_request.reply(Some((local_sender, local_receiver)));
             (conn_request_receiver, (remote_sender, remote_receiver))
         };
-        let (local_conn, (new_conn_request_receiver, remote_conn)) = await!(connect_fut.join(handle_connect_fut));
+        let (local_conn, (new_conn_request_receiver, _remote_conn)) = await!(connect_fut.join(handle_connect_fut));
         let mut conn_request_receiver = new_conn_request_receiver;
 
         // Drop the connection:
@@ -592,7 +592,6 @@ mod tests {
         assert_eq!(unique_observed.len(), 3);
 
         // Request a new connection:
-        let c_pk_b = pk_b.clone();
         let connect_fut = connect_client.connect();
         let handle_connect_fut = async move {
             let conn_request = await!(conn_request_receiver.next()).unwrap();
@@ -608,8 +607,8 @@ mod tests {
             conn_request.reply(Some((local_sender, local_receiver)));
             (conn_request_receiver, (remote_sender, remote_receiver))
         };
-        let (local_conn, (new_conn_request_receiver, remote_conn)) = await!(connect_fut.join(handle_connect_fut));
-        let mut conn_request_receiver = new_conn_request_receiver;
+        let (_local_conn, (new_conn_request_receiver, _remote_conn)) = await!(connect_fut.join(handle_connect_fut));
+        let _conn_request_receiver = new_conn_request_receiver;
     }
 
     #[test]
@@ -715,8 +714,8 @@ mod tests {
             (conn_request_receiver, (remote_sender, remote_receiver))
 
         };
-        let (local_conn, (remote_conn, new_conn_request_receiver)) = await!(connect_fut.join(handle_connect_fut));
-        let mut conn_request_receiver = new_conn_request_receiver;
+        let (local_conn, (_remote_conn, new_conn_request_receiver)) = await!(connect_fut.join(handle_connect_fut));
+        let _conn_request_receiver = new_conn_request_receiver;
 
 
         // Drop the connection:
