@@ -218,8 +218,8 @@ where
     async fn try_create_friend<'a>(&'a mut self, friend_public_key: &'a PublicKey) 
         -> Result<(), ChannelerError> {
 
-        if !self.friends.in_friends.contains_key(friend_public_key) &&
-           !self.friends.out_friends.contains_key(friend_public_key) {
+        if self.friends.in_friends.contains_key(friend_public_key) ||
+           self.friends.out_friends.contains_key(friend_public_key) {
             // Friend already exists:
             return Ok(());
         }
