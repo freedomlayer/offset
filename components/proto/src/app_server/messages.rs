@@ -1,4 +1,4 @@
-use crypto::identity::{PublicKey, Signature};
+use crypto::identity::PublicKey;
 use crypto::crypto_rand::RandValue;
 
 use crate::funder::messages::{RequestSendFunds, ResponseSendFunds,
@@ -6,36 +6,30 @@ use crate::funder::messages::{RequestSendFunds, ResponseSendFunds,
                             SetFriendName, RemoveFriend,
                             SetFriendRemoteMaxDebt, ResetFriendChannel};
 use crate::funder::report::{FunderReport, FunderReportMutation};
+use crate::index_client::messages::{IndexClientReport, IndexClientReportMutation};
 
-#[allow(unused)]
+
 #[derive(Debug)]
-pub struct RequestDelegate {
-    pub app_rand_nonce: RandValue,
+pub struct NodeReport<B:Clone,ISA> {
+    funder_report: FunderReport<Vec<B>>,
+    index_client_report: IndexClientReport<ISA>,
+}
+
+#[derive(Debug)]
+pub enum NodeReportMutation<B,ISA> {
+    Funder(FunderReportMutation<Vec<B>>),
+    IndexClient(IndexClientReportMutation<ISA>),
 }
 
 #[allow(unused)]
 #[derive(Debug)]
-pub struct ResponseDelegate {
-    pub app_public_key: PublicKey,
-    pub app_rand_nonce: RandValue,
-    pub server_rand_nonce: RandValue,
-    pub signature: Signature,
-    // sha512/256(sha512/256("DELEGATE") ||
-    //               appPublicKey ||
-    //               appRandNonce ||
-    //               serverRandNonce)
-}
-
-#[allow(unused)]
-#[derive(Debug)]
-pub enum AppServerToApp<A: Clone> {
+pub enum AppServerToApp<B: Clone,ISA> {
     /// Funds:
     ResponseSendFunds(ResponseSendFunds),
     /// Reports about current state:
-    Report(FunderReport<A>),
-    ReportMutations(Vec<FunderReportMutation<A>>),
-    /// Response for delegate request:
-    ResponseDelegate(ResponseDelegate),
+    Report(NodeReport<B,ISA>),
+    ReportMutations(Vec<NodeReportMutation<B,ISA>>),
+    ResponseRoute(()), // TODO
 }
 
 #[allow(unused)]
@@ -57,6 +51,7 @@ pub enum AppToAppServer<B> {
     CloseFriend(PublicKey),
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
     ResetFriendChannel(ResetFriendChannel),
-    /// Delegation:
-    RequestDelegate(RequestDelegate),
+    RequestRoute(()), // TODO
+    AddIndexServer(()),
+    RemoveIndexServer(()),
 }
