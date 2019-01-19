@@ -1,9 +1,8 @@
 use crypto::identity::PublicKey;
 
-use crate::funder::messages::{RequestSendFunds, ResponseSendFunds,
+use crate::funder::messages::{UserRequestSendFunds, ResponseReceived,
                             ReceiptAck, AddFriend, SetFriendAddress, 
-                            SetFriendName, RemoveFriend,
-                            SetFriendRemoteMaxDebt, ResetFriendChannel};
+                            SetFriendName, SetFriendRemoteMaxDebt, ResetFriendChannel};
 use crate::funder::report::{FunderReport, FunderReportMutation};
 use crate::index_client::messages::{IndexClientReport, IndexClientReportMutation};
 use crate::index_server::messages::{RequestRoutes, ResponseRoutes};
@@ -25,7 +24,7 @@ pub enum NodeReportMutation<B,ISA> {
 #[derive(Debug)]
 pub enum AppServerToApp<B: Clone,ISA> {
     /// Funds:
-    ResponseSendFunds(ResponseSendFunds),
+    ResponseReceived(ResponseReceived),
     /// Reports about current state:
     Report(NodeReport<B,ISA>),
     ReportMutations(Vec<NodeReportMutation<B,ISA>>),
@@ -35,22 +34,23 @@ pub enum AppServerToApp<B: Clone,ISA> {
 #[allow(unused)]
 #[derive(Debug)]
 pub enum AppToAppServer<B,ISA> {
-    /// Set relay address to be used locally (Could be empty)
-    SetAddress(Vec<B>), 
+    /// Set relay address to be used locally:
+    SetRelays(Vec<B>), 
     /// Sending funds:
-    RequestSendFunds(RequestSendFunds),
+    RequestSendFunds(UserRequestSendFunds),
     ReceiptAck(ReceiptAck),
     /// Friend management:
     AddFriend(AddFriend<Vec<B>>),
-    SetFriendAddress(SetFriendAddress<Vec<B>>),
+    SetFriendRelays(SetFriendAddress<Vec<B>>),
     SetFriendName(SetFriendName),
-    RemoveFriend(RemoveFriend),
+    RemoveFriend(PublicKey),
     EnableFriend(PublicKey),
     DisableFriend(PublicKey),
     OpenFriend(PublicKey),
     CloseFriend(PublicKey),
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
     ResetFriendChannel(ResetFriendChannel),
+    /// Request routes from one node to another:
     RequestRoutes(RequestRoutes),
     /// Manage index servers:
     AddIndexServer(ISA),
