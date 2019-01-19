@@ -17,6 +17,7 @@ use crate::types::{RawConn, AccessControlPk, AccessControlOpPk};
 use crate::transform_pool::transform_pool_loop;
 use crate::listen_pool_state::{ListenPoolState, Relay};
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum LpConfig<B> {
     SetLocalAddresses(Vec<B>),
     UpdateFriend((PublicKey, Vec<B>)),
