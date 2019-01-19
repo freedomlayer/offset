@@ -89,7 +89,7 @@ where
         }
     }
 
-    fn set_local_addresses(&mut self, local_addresses: Vec<B>) 
+    pub fn set_local_addresses(&mut self, local_addresses: Vec<B>) 
         -> (HashSet<P>, Vec<B>) {
             // Should spawn_listen(address, relay_friends) for 
             // all addresses.
@@ -128,7 +128,7 @@ where
         (relay_friends, new_addresses)
     }
 
-    fn update_friend(&mut self, 
+    pub fn update_friend(&mut self, 
                      friend_public_key: P,
                      addresses: Vec<B>)
                 -> (Vec<B>, Vec<B>) {
@@ -164,7 +164,7 @@ where
     }
 
     /// Outputs a set of relays to send AccessControlOp::Remove(friend_public_key)
-    fn remove_friend(&mut self, friend_public_key: P) -> Vec<B> {
+    pub fn remove_friend(&mut self, friend_public_key: P) -> Vec<B> {
         let local_addresses = self.local_addresses.clone();
 
         let mut remove_friends = Vec::new();
