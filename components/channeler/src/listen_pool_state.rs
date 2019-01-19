@@ -297,4 +297,30 @@ mod tests {
         relays_spawn.sort();
         assert_eq!(relays_spawn, vec![]);
     }
+
+    #[test]
+    fn test_listen_pool_state_remove_friend() {
+        let mut lps = ListenPoolStateWrap::<u32, u64>::new();
+        let _ = lps.set_local_addresses(vec![0u32, 1u32, 2u32]);
+
+        let (mut relays_add, relays_remove, mut relays_spawn) = lps.update_friend(100u64, vec![2u32, 3u32, 4u32]);
+        relays_add.sort();
+        assert_eq!(relays_add, vec![0u32, 1u32, 2u32]);
+        assert!(relays_remove.is_empty());
+        relays_spawn.sort();
+        assert_eq!(relays_spawn, vec![3u32, 4u32]);
+
+
+        let mut relays_remove = lps.remove_friend(&100u64);
+        relays_remove.sort();
+        assert_eq!(relays_remove, vec![0u32, 1u32, 2u32, 3u32, 4u32]);
+
+        let _ = lps.update_friend(200u64, vec![7u32]);
+        let _ = lps.update_friend(300u64, vec![7u32]);
+
+        let mut relays_remove = lps.remove_friend(&300u64);
+        relays_remove.sort();
+        assert_eq!(relays_remove, vec![0u32, 1u32, 2u32, 7u32]);
+        assert!(lps.0.relays.get(&7u32).is_some());
+    }
 }
