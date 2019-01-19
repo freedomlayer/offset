@@ -134,7 +134,7 @@ where
         Ok(access_control_sender)
     }
 
-    pub fn handle_config(&mut self, config: LpConfig<B>) -> Result<(), ListenPoolError> {
+    pub async fn handle_config(&mut self, config: LpConfig<B>) -> Result<(), ListenPoolError> {
         match config {
             LpConfig::SetLocalAddresses(local_addresses) => {
                 self.local_addresses = local_addresses
@@ -159,20 +159,42 @@ where
                     }
                 }
 
+
+                // Local chosen relays should allow all friends to connect:
+                let mut relay_friends = HashSet::new();
+                for (_relay_address, relay) in &self.relays {
+                    for friend in &relay.friends {
+                        relay_friends.insert(friend.clone());
+                    }
+                }
+
                 for address in new_addresses {
-                    let relay_friends = HashSet::new();
                     let access_control_sender = self.spawn_listen(address.clone(), &relay_friends)?;
                     let relay = Relay {
-                        friends: relay_friends,
+                        friends: relay_friends.clone(),
                         status: RelayStatus::Connected(access_control_sender),
                     };
                     self.relays.insert(address, relay);
                 }
             },
             LpConfig::UpdateFriend((friend_public_key, addresses)) => {
-                for address in &addresses {
+                // We add the friend to all relevant relays (as specified by addresses),
+                // but also to all our local addresses relays.
+                let iter_addresses = addresses
+                    .into_iter()
+                    .chain(self.local_addresses.iter().cloned())
+                    .collect::<HashSet<_>>();
+
+                for address in iter_addresses.iter() {
                     match self.relays.get_mut(address) {
                         Some(relay) => {
+                            if relay.friends.contains(&friend_public_key) {
+                                continue;
+                            }
+                            if let RelayStatus::Connected(access_control_sender) = &mut relay.status {
+                                // TODO: Error checking here?
+                                let _ = await!(access_control_sender.send(AccessControlOp::Add(friend_public_key.clone())));
+                            }
                             relay.friends.insert(friend_public_key.clone());
                         },
                         None => {
@@ -190,6 +212,18 @@ where
             },
             LpConfig::RemoveFriend(friend_public_key) => {
                 let local_addresses = self.local_addresses.clone();
+
+                // Update access control:
+                for (_relay_address, relay) in &mut self.relays {
+                    if !relay.friends.contains(&friend_public_key) {
+                        continue;
+                    }
+                    if let RelayStatus::Connected(access_control_sender) = &mut relay.status {
+                        // TODO: Error checking here?
+                        let _ = await!(access_control_sender.send(AccessControlOp::Remove(friend_public_key.clone())));
+                    }
+                }
+
                 self.relays.retain(|relay_address, relay| {
                     // Update relay friends:
                     let _ = relay.friends.remove(&friend_public_key);
@@ -288,7 +322,7 @@ where
     while let Some(event) = await!(incoming_events.next()) {
         match event {
             LpEvent::Config(config) => 
-                listen_pool.handle_config(config)?,
+                await!(listen_pool.handle_config(config))?,
             LpEvent::ConfigClosed => return Err(ListenPoolError::ConfigClosed),
             LpEvent::RelayClosed(address) => 
                 listen_pool.handle_relay_closed(address)?,
@@ -341,7 +375,7 @@ impl<B,L,ET,S> PoolListener<B,L,ET,S> {
 
 impl<B,L,ET,S> Listener for PoolListener<B,L,ET,S> 
 where
-    B: Clone + Eq + Hash + Send + 'static,
+    B: Clone + Eq + Hash + Send + Sync + 'static,
     L: Listener<Connection=(PublicKey, RawConn), 
         Config=AccessControlOpPk, Arg=(B, AccessControlPk)> + Clone + Send + 'static,
     ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<(PublicKey, RawConn)>> + Clone + Send + 'static,
