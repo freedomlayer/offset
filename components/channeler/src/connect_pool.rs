@@ -294,9 +294,9 @@ where
         };
 
         let (address, _canceler, response_sender) = connecting; 
+        self.addresses.push_back(address);
 
         if let Some(conn) = opt_conn {
-            self.addresses.push_back(address);
             if let Err(e) = response_sender.send(conn) {
                 warn!("handle_connect_attempt_done(): Failed to send connection response: {:?}", e);
             }
