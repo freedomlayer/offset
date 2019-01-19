@@ -457,7 +457,7 @@ mod tests {
     use timer::{dummy_timer_multi_sender, TimerTick};
     use common::dummy_listener::DummyListener;
 
-    async fn task_listen_pool_loop_basic<S>(mut spawner: S) 
+    async fn task_listen_pool_loop_set_local_addresses<S>(mut spawner: S) 
     where
         S: Spawn + Clone + Send + 'static,
     {
@@ -533,8 +533,8 @@ mod tests {
     }
 
     #[test]
-    fn test_listen_pool_loop_basic() {
+    fn test_listen_pool_loop_set_local_addresses() {
         let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_listen_pool_loop_basic(thread_pool.clone()));
+        thread_pool.run(task_listen_pool_loop_set_local_addresses(thread_pool.clone()));
     }
 }
