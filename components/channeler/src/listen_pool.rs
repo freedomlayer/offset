@@ -467,7 +467,7 @@ mod tests {
         let backoff_ticks = 2;
 
         let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
-        let mut tick_sender = await!(tick_sender_receiver.next()).unwrap();
+        let _tick_sender = await!(tick_sender_receiver.next()).unwrap();
 
         let (mut config_sender, incoming_config) = mpsc::channel(0);
         let (outgoing_plain_conns, mut incoming_plain_conns) = mpsc::channel(0);
@@ -508,7 +508,7 @@ mod tests {
             await!(listen_req0.conn_sender.send(
                     (pk_b.clone(), (remote_sender, remote_receiver)))).unwrap();
 
-            let (pk, conn) = await!(incoming_plain_conns.next()).unwrap();
+            let (pk, _conn) = await!(incoming_plain_conns.next()).unwrap();
             assert_eq!(pk, pk_b);
         }
 
@@ -536,5 +536,70 @@ mod tests {
     fn test_listen_pool_loop_set_local_addresses() {
         let mut thread_pool = ThreadPool::new().unwrap();
         thread_pool.run(task_listen_pool_loop_set_local_addresses(thread_pool.clone()));
+    }
+
+
+    // ----------------------------------------------------------------
+    // ----------------------------------------------------------------
+    
+    async fn task_listen_pool_loop_backoff_ticks<S>(mut spawner: S) 
+    where
+        S: Spawn + Clone + Send + 'static,
+    {
+        // Create a mock time service:
+        let (mut tick_sender_receiver, mut timer_client) 
+            = dummy_timer_multi_sender(spawner.clone());
+        let backoff_ticks = 2;
+
+        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+        let mut tick_sender = await!(tick_sender_receiver.next()).unwrap();
+
+        let (mut config_sender, incoming_config) = mpsc::channel(0);
+        let (outgoing_plain_conns, _incoming_plain_conns) = mpsc::channel(0);
+
+        let (listen_req_sender, mut listen_req_receiver) = mpsc::channel(0);
+        let listener = DummyListener::new(listen_req_sender, spawner.clone());
+
+        let (event_sender, mut event_receiver) = mpsc::channel(0);
+        let fut_loop = listen_pool_loop::<u32,_,_,_>(incoming_config,
+                         outgoing_plain_conns,
+                         listener,
+                         backoff_ticks,
+                         timer_stream,
+                         spawner.clone(),
+                         Some(event_sender))
+            .map_err(|e| error!("listen_pool_loop() error: {:?}", e))
+            .map(|_| ());
+
+        spawner.spawn(fut_loop).unwrap();
+
+        await!(config_sender.send(LpConfig::SetLocalAddresses(vec![0x0u32]))).unwrap();
+        await!(event_receiver.next()).unwrap();
+
+        for _ in 0 .. 5 {
+            let listen_req = await!(listen_req_receiver.next()).unwrap();
+            let (ref relay_address, _) = listen_req.arg;
+            assert_eq!(*relay_address, 0);
+
+            // Simulate closing of the listener:
+            drop(listen_req);
+            await!(event_receiver.next()).unwrap();
+
+            // Wait until backoff_ticks time passes:
+            for _ in 0 .. backoff_ticks {
+                await!(tick_sender.send(TimerTick)).unwrap();
+                await!(event_receiver.next()).unwrap();
+            }
+        }
+
+        let listen_req = await!(listen_req_receiver.next()).unwrap();
+        let (ref relay_address, _) = listen_req.arg;
+        assert_eq!(*relay_address, 0);
+    }
+
+    #[test]
+    fn test_listen_pool_loop_backoff_ticks() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_listen_pool_loop_backoff_ticks(thread_pool.clone()));
     }
 }
