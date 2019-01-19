@@ -258,15 +258,9 @@ where
                 let _ = await!(friend_connected.send(message));
                 Ok(())
             },
-            FunderToChanneler::SetAddress(opt_address) => {
+            FunderToChanneler::SetAddress(addresses) => {
                 // Our local listening addresses were set.
                 // We update the listener accordingly:
-                
-                let addresses = match opt_address {
-                    Some(addresses) => addresses,
-                    None => Vec::new(),
-                };
-
                 await!(self.listen_config.send(LpConfig::SetLocalAddresses(addresses)))
                     .map_err(|_| ChannelerError::ListenerConfigError)?;
 
@@ -523,7 +517,7 @@ mod tests {
         let mut listener_request = await!(listener_req_receiver.next()).unwrap();
 
         // Play with changing relay addresses:
-        await!(funder_sender.send(FunderToChanneler::SetAddress(Some(vec![0x1337u32])))).unwrap();
+        await!(funder_sender.send(FunderToChanneler::SetAddress(vec![0x1337u32]))).unwrap();
 
         let lp_config = await!(listener_request.config_receiver.next()).unwrap();
         match lp_config {
@@ -532,7 +526,7 @@ mod tests {
         };
 
         // Empty relay address:
-        await!(funder_sender.send(FunderToChanneler::SetAddress(None))).unwrap();
+        await!(funder_sender.send(FunderToChanneler::SetAddress(vec![]))).unwrap();
 
         let lp_config = await!(listener_request.config_receiver.next()).unwrap();
         match lp_config {
@@ -541,7 +535,7 @@ mod tests {
         };
 
         // This is the final address we set for our relay:
-        await!(funder_sender.send(FunderToChanneler::SetAddress(Some(vec![0x1u32])))).unwrap();
+        await!(funder_sender.send(FunderToChanneler::SetAddress(vec![0x1u32]))).unwrap();
 
         let lp_config = await!(listener_request.config_receiver.next()).unwrap();
         match lp_config {
@@ -703,7 +697,7 @@ mod tests {
 
         
         // Set address for our relay:
-        await!(funder_sender.send(FunderToChanneler::SetAddress(Some(vec![0x1u32])))).unwrap();
+        await!(funder_sender.send(FunderToChanneler::SetAddress(vec![0x1u32]))).unwrap();
         let mut listener_request = await!(listener_req_receiver.next()).unwrap();
 
         let lp_config = await!(listener_request.config_receiver.next()).unwrap();
