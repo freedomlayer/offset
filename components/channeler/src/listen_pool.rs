@@ -246,11 +246,9 @@ where
 
 
 #[allow(unused)]
-async fn listen_pool_loop<B,L,ET,TS,S>(incoming_config: mpsc::Receiver<LpConfig<B>>,
-                                       outgoing_conns: mpsc::Sender<(PublicKey, RawConn)>,
+async fn listen_pool_loop<B,L,TS,S>(incoming_config: mpsc::Receiver<LpConfig<B>>,
+                                       outgoing_plain_conns: mpsc::Sender<(PublicKey, RawConn)>,
                                        listener: L,
-                                       encrypt_transform: ET,
-                                       max_concurrent_encrypt: usize,
                                        backoff_ticks: usize,
                                        timer_stream: TS,
                                        mut spawner: S) -> Result<(), ListenPoolError>
@@ -258,26 +256,13 @@ where
     B: Clone + Eq + Hash + Send + 'static,
     L: Listener<Connection=(PublicKey, RawConn), 
         Config=AccessControlOpPk, Arg=(B, AccessControlPk)> + Clone + 'static,
-    ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<(PublicKey, RawConn)>> + Clone + Send + 'static,
     TS: Stream + Unpin,
     S: Spawn + Clone + Send + 'static,
 {
     
-    let (plain_conn_sender, incoming_plain_conn) = mpsc::channel(0);
-    let enc_loop_fut = transform_pool_loop(incoming_plain_conn,
-                        outgoing_conns,
-                        encrypt_transform,
-                        max_concurrent_encrypt,
-                        spawner.clone())
-        .map_err(|e| error!("transform_pool_loop: {:?}", e))
-        .map(|_| ());
-
-    spawner.spawn(enc_loop_fut)
-        .map_err(|_| ListenPoolError::SpawnError)?;
-    
     let (relay_closed_sender, relay_closed_receiver) = mpsc::channel(0);
 
-    let mut listen_pool = ListenPool::<B,L,S>::new(plain_conn_sender,
+    let mut listen_pool = ListenPool::<B,L,S>::new(outgoing_plain_conns,
                                                    relay_closed_sender,
                                                    listener,
                                                    backoff_ticks,
@@ -371,8 +356,21 @@ where
         let c_encrypt_transform = self.encrypt_transform.clone();
         let c_max_concurrent_encrypt = self.max_concurrent_encrypt.clone();
         let c_backoff_ticks = self.backoff_ticks.clone();
-        let c_spawner = self.spawner.clone();
+        let mut c_spawner = self.spawner.clone();
 
+        // Connections encryptor:
+        let (plain_conn_sender, incoming_plain_conn) = mpsc::channel(0);
+        let enc_loop_fut = transform_pool_loop(incoming_plain_conn,
+                            outgoing_conns,
+                            c_encrypt_transform,
+                            c_max_concurrent_encrypt,
+                            c_spawner.clone())
+            .map_err(|e| error!("transform_pool_loop: {:?}", e))
+            .map(|_| ());
+
+        if c_spawner.spawn(enc_loop_fut).is_err() {
+            return (config_sender, incoming_conns)
+        }
 
         let loop_fut = async move {
             let res_timer_stream = await!(c_timer_client.request_timer_stream());
@@ -386,10 +384,8 @@ where
 
             let res = await!(listen_pool_loop(
                 incoming_config,
-                outgoing_conns,
+                plain_conn_sender,
                 c_listener,
-                c_encrypt_transform,
-                c_max_concurrent_encrypt,
                 c_backoff_ticks,
                 timer_stream,
                 c_spawner));
