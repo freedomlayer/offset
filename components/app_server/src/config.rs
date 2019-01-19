@@ -2,13 +2,19 @@ use std::collections::HashMap;
 
 use crypto::identity::PublicKey;
 
-pub enum AppPermissions {
-    /// Receives updates about state, and can receive delegation:
-    Read,
-    /// Allowed to do anything:
-    Full,
+#[derive(Debug)]
+pub struct AppPermissions {
+    /// Receives reports about state
+    reports: bool,
+    /// Can request routes
+    routes: bool,
+    /// Can send credits
+    send_credits: bool,
+    /// Can configure friends
+    config: bool,
 }
 
+#[derive(Debug)]
 pub struct AppConfig {
     /// Application name
     pub name: String,
@@ -16,6 +22,7 @@ pub struct AppConfig {
 }
 
 /// Configuration for AppServer
+#[derive(Debug)]
 pub struct AppServerConfig {
     pub apps: HashMap<PublicKey, AppConfig>,
 }
