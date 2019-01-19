@@ -144,13 +144,22 @@ where
                 }
             },
             LpConfig::UpdateFriend((friend_public_key, addresses)) => {
-                let (relays_add, relays_spawn) = self.state.update_friend(friend_public_key.clone(), addresses);
+                let (relays_add, relays_remove, relays_spawn) = self.state.update_friend(friend_public_key.clone(), addresses);
 
                 for address in relays_add {
                     if let Some(relay) = self.state.relays.get_mut(&address) {
                         if let RelayStatus::Connected(access_control_sender) = &mut relay.status {
                             // TODO: Error checking here?
                             let _ = await!(access_control_sender.send(AccessControlOp::Add(friend_public_key.clone())));
+                        }
+                    }
+                }
+
+                for address in relays_remove {
+                    if let Some(relay) = self.state.relays.get_mut(&address) {
+                        if let RelayStatus::Connected(access_control_sender) = &mut relay.status {
+                            // TODO: Error checking here?
+                            let _ = await!(access_control_sender.send(AccessControlOp::Remove(friend_public_key.clone())));
                         }
                     }
                 }

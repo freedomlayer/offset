@@ -66,19 +66,20 @@ where
     /// Update relays related to a friend (Possibly adding a new friend).
     /// Returns: (relays_add, relays_spawn)
     /// - relays_add is a list of relays to add the friend to.
+    /// - relays_remove is a list of relays to remove the friend from.
     /// - relays_spawn is a list of new relays to spawn
     pub fn update_friend(&mut self, friend_public_key: P, addresses: Vec<B>)
-                -> (Vec<B>, Vec<B>) {
-                    // Relays to send AccessControlOp::Add
-                    // Relays to spawn
+                -> (Vec<B>, Vec<B>, Vec<B>) {
 
         let mut relays_add = Vec::new();
+        let mut relays_remove = Vec::new();
         let mut relays_spawn = Vec::new();
 
         // We add the friend to all relevant relays (as specified by addresses),
         // but also to all our local addresses relays.
         let iter_addresses = addresses
-            .into_iter()
+            .iter()
+            .cloned()
             .chain(self.local_addresses.iter().cloned())
             .collect::<HashSet<_>>();
 
@@ -97,7 +98,37 @@ where
             }
         }
 
-        (relays_add, relays_spawn)
+        // Relays for which we should signal for removal of this friend:
+        for (relay_address, relay) in &self.relays {
+            if addresses.contains(relay_address) {
+                continue;
+            }
+            if self.local_addresses.contains(relay_address) {
+                continue;
+            }
+            if !relay.friends.contains(&friend_public_key) {
+                continue;
+            }
+            relays_remove.push(relay_address.clone());
+        }
+
+        let c_local_addresses = self.local_addresses.clone();
+
+        // Removal:
+        self.relays.retain(|relay_address, relay| {
+            if addresses.contains(relay_address) || c_local_addresses.contains(relay_address) {
+                return true;
+            }
+            let _ = relay.friends.remove(&friend_public_key);
+            // We remove the relay connection if it was only required
+            // by the removed friend:
+            if !relay.friends.is_empty() {
+                return true;
+            }
+            false
+        });
+
+        (relays_add, relays_remove, relays_spawn)
     }
 
     /// Remove a friend
@@ -108,7 +139,7 @@ where
         let mut relays_remove = Vec::new();
 
         // Update access control:
-        for (relay_address, relay) in &mut self.relays {
+        for (relay_address, relay) in &self.relays {
             if !relay.friends.contains(friend_public_key) {
                 continue;
             }
