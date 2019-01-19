@@ -247,11 +247,13 @@ where
 
 #[allow(unused)]
 async fn listen_pool_loop<B,L,TS,S>(incoming_config: mpsc::Receiver<LpConfig<B>>,
-                                       outgoing_plain_conns: mpsc::Sender<(PublicKey, RawConn)>,
-                                       listener: L,
-                                       backoff_ticks: usize,
-                                       timer_stream: TS,
-                                       mut spawner: S) -> Result<(), ListenPoolError>
+                                    outgoing_plain_conns: mpsc::Sender<(PublicKey, RawConn)>,
+                                    listener: L,
+                                    backoff_ticks: usize,
+                                    timer_stream: TS,
+                                    mut spawner: S,
+                                    mut opt_event_sender: Option<mpsc::Sender<()>>) 
+                        -> Result<(), ListenPoolError>
 where
     B: Clone + Eq + Hash + Send + 'static,
     L: Listener<Connection=(PublicKey, RawConn), 
@@ -293,6 +295,11 @@ where
             LpEvent::TimerTick => 
                 listen_pool.handle_timer_tick()?,
             LpEvent::TimerClosed => return Err(ListenPoolError::TimerClosed),
+        };
+
+        // Used for debugging:
+        if let Some(ref mut event_sender) = opt_event_sender {
+            let _ = await!(event_sender.send(()));
         }
     }
     Ok(())
@@ -388,7 +395,8 @@ where
                 c_listener,
                 c_backoff_ticks,
                 timer_stream,
-                c_spawner));
+                c_spawner,
+                None));
             
             if let Err(e) = res {
                 error!("listen_pool_loop() error: {:?}", e);
