@@ -554,4 +554,95 @@ mod tests {
         let mut thread_pool = ThreadPool::new().unwrap();
         thread_pool.run(task_listen_pool_loop_backoff_ticks(thread_pool.clone()));
     }
+
+    // ------------------------------------------------------
+    // ------------------------------------------------------
+
+    async fn task_listen_pool_loop_update_remove_friend<S>(mut spawner: S) 
+    where
+        S: Spawn + Clone + Send + 'static,
+    {
+        // Create a mock time service:
+        let (mut tick_sender_receiver, mut timer_client) 
+            = dummy_timer_multi_sender(spawner.clone());
+        let backoff_ticks = 2;
+
+        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+        let _tick_sender = await!(tick_sender_receiver.next()).unwrap();
+
+        let (mut config_sender, incoming_config) = mpsc::channel(0);
+        let (outgoing_plain_conns, _incoming_plain_conns) = mpsc::channel(0);
+
+        let (listen_req_sender, mut listen_req_receiver) = mpsc::channel(0);
+        let listener = DummyListener::new(listen_req_sender, spawner.clone());
+
+        let (event_sender, mut event_receiver) = mpsc::channel(0);
+        let fut_loop = listen_pool_loop::<u32,_,_,_>(incoming_config,
+                         outgoing_plain_conns,
+                         listener,
+                         backoff_ticks,
+                         timer_stream,
+                         spawner.clone(),
+                         Some(event_sender))
+            .map_err(|e| error!("listen_pool_loop() error: {:?}", e))
+            .map(|_| ());
+
+        spawner.spawn(fut_loop).unwrap();
+
+        await!(config_sender.send(LpConfig::SetLocalAddresses(vec![0x0u32]))).unwrap();
+        await!(event_receiver.next()).unwrap();
+
+        let mut listen_req0 = await!(listen_req_receiver.next()).unwrap();
+        let (ref relay_address0, _) = listen_req0.arg;
+        assert_eq!(*relay_address0, 0x0u32);
+
+        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+
+        await!(config_sender.send(LpConfig::UpdateFriend((pk_b.clone(), vec![0x1u32])))).unwrap();
+        await!(event_receiver.next()).unwrap();
+
+        let mut listen_req1 = await!(listen_req_receiver.next()).unwrap();
+        let (ref relay_address1, _) = listen_req1.arg;
+        assert_eq!(*relay_address1, 0x1u32);
+
+        let config0 = await!(listen_req0.config_receiver.next()).unwrap();
+        match config0 {
+            AccessControlOp::Add(pk_b) => {},
+            _ => unreachable!(),
+        };
+
+        await!(config_sender.send(LpConfig::UpdateFriend((pk_b.clone(), vec![0x2u32])))).unwrap();
+        await!(event_receiver.next()).unwrap();
+
+        // Connection to relay 1u32 should be closed:
+        assert!(await!(listen_req1.config_receiver.next()).is_none());
+        drop(listen_req1);
+
+        // Connection to relay 2u32 is opened:
+        let mut listen_req2 = await!(listen_req_receiver.next()).unwrap();
+        let (ref relay_address2, _) = listen_req2.arg;
+        assert_eq!(*relay_address2, 0x2u32);
+
+        let pk_c = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+
+        await!(config_sender.send(LpConfig::UpdateFriend((pk_c.clone(), vec![0x2u32, 0x3u32])))).unwrap();
+        await!(event_receiver.next()).unwrap();
+
+        for listen_req in &mut [&mut listen_req0, &mut listen_req2] {
+            let config = await!(listen_req.config_receiver.next()).unwrap();
+            match config {
+                AccessControlOp::Add(pk_c) => {},
+                _ => unreachable!(),
+            };
+        }
+
+        // TODO: Continue here. Test is stuck.
+    }
+
+
+    #[test]
+    fn test_listen_pool_loop_update_remove_friend() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_listen_pool_loop_update_remove_friend(thread_pool.clone()));
+    }
 }
