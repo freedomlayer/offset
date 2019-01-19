@@ -13,7 +13,7 @@ use proto::app_server::messages::{AppServerToApp, AppToAppServer};
 
 use crate::config::AppServerConfig;
 
-type IncomingAppConnection<A> = (PublicKey, ConnPair<AppServerToApp<A>, AppToAppServer<A>>);
+type IncomingAppConnection<B,ISA> = (PublicKey, ConnPair<AppServerToApp<B,ISA>, AppToAppServer<B,ISA>>);
 
 
 pub enum AppServerError {
@@ -21,36 +21,38 @@ pub enum AppServerError {
     SpawnError,
 }
 
-pub enum AppServerEvent<A: Clone> {
-    IncomingConnection(IncomingAppConnection<A>),
-    FromFunder(FunderOutgoingControl<A>),
+pub enum AppServerEvent<B: Clone,ISA> {
+    IncomingConnection(IncomingAppConnection<B,ISA>),
+    FromFunder(FunderOutgoingControl<B>),
     FunderClosed,
-    FromApp((u128, Option<AppToAppServer<A>>)), // None means that app was closed
+    FromApp((u128, Option<AppToAppServer<B,ISA>>)), // None means that app was closed
 }
 
-pub struct App<A: Clone> {
+pub struct App<B: Clone,ISA> {
     public_key: PublicKey,
-    opt_sender: Option<mpsc::Sender<AppServerToApp<A>>>,
+    opt_sender: Option<mpsc::Sender<AppServerToApp<B,ISA>>>,
 }
 
-pub struct AppServer<A: Clone,TF> {
+pub struct AppServer<B: Clone,ISA,TF> {
     to_funder: TF,
-    from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<A>>)>,
+    from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<B,ISA>>)>,
     config: AppServerConfig,
     /// A long cyclic incrementing counter, 
-    /// allowing to give every connection a unique number.
+    /// allows to give every connection a unique number.
     /// Required because an app (with one public key) might have multiple connections.
     app_counter: u128,
-    apps: HashMap<u128, App<A>>,
+    apps: HashMap<u128, App<B,ISA>>,
 }
 
-impl<A,TF> AppServer<A,TF> 
+impl<B,ISA,TF> AppServer<B,ISA,TF> 
 where
-    A: Clone,
+    B: Clone + Send + 'static,
+    ISA: Send + 'static,
+    TF: Sync,
 {
     pub fn new(to_funder: TF, 
-           from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<A>>)>,
-           config: AppServerConfig) -> AppServer<A,TF> {
+           from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<B,ISA>>)>,
+           config: AppServerConfig) -> Self {
 
         AppServer {
             to_funder,
@@ -63,12 +65,10 @@ where
 
     /// Add an application connection
     pub fn add_app_connection<S>(&mut self, 
-                                 incoming_app_connection: IncomingAppConnection<A>,
+                                 incoming_app_connection: IncomingAppConnection<B,ISA>,
                                  spawner: &mut S) -> Result<(), AppServerError>
     where
         S: Spawn,
-        TF: Sync,
-        A: Clone + Send + 'static,
     {
         let (public_key, (sender, mut receiver)) = incoming_app_connection;
 
@@ -93,15 +93,16 @@ where
 }
 
 
-pub async fn app_server_loop<A,FF,TF,IC,S>(config: AppServerConfig, 
+pub async fn app_server_loop<B,ISA,FF,TF,IC,S>(config: AppServerConfig, 
                                    from_funder: FF, to_funder: TF, 
                                    incoming_connections: IC,
                                    mut spawner: S) -> Result<(), AppServerError>
 where
-    A: Clone + Send + 'static,
-    FF: Stream<Item=FunderOutgoingControl<A>> + Unpin,
-    TF: Sink<SinkItem=FunderIncomingControl<A>> + Unpin + Sync + Send,
-    IC: Stream<Item=IncomingAppConnection<A>> + Unpin,
+    B: Clone + Send + 'static,
+    ISA: Send + 'static,
+    FF: Stream<Item=FunderOutgoingControl<B>> + Unpin,
+    TF: Sink<SinkItem=FunderIncomingControl<B>> + Unpin + Sync + Send,
+    IC: Stream<Item=IncomingAppConnection<B,ISA>> + Unpin,
     S: Spawn,
 {
 
@@ -113,7 +114,7 @@ where
         .chain(stream::once(future::ready(AppServerEvent::FunderClosed)));
 
     let from_app_receiver = from_app_receiver
-        .map(|from_app: (u128, Option<AppToAppServer<A>>)| AppServerEvent::FromApp(from_app));
+        .map(|from_app: (u128, Option<AppToAppServer<B,ISA>>)| AppServerEvent::FromApp(from_app));
 
     let incoming_connections = incoming_connections
         .map(|incoming_connection| AppServerEvent::IncomingConnection(incoming_connection));
