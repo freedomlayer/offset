@@ -1,5 +1,4 @@
 use crypto::identity::PublicKey;
-use crypto::crypto_rand::RandValue;
 
 use crate::funder::messages::{RequestSendFunds, ResponseSendFunds,
                             ReceiptAck, AddFriend, SetFriendAddress, 
@@ -7,6 +6,7 @@ use crate::funder::messages::{RequestSendFunds, ResponseSendFunds,
                             SetFriendRemoteMaxDebt, ResetFriendChannel};
 use crate::funder::report::{FunderReport, FunderReportMutation};
 use crate::index_client::messages::{IndexClientReport, IndexClientReportMutation};
+use crate::index_server::messages::{RequestRoutes, ResponseRoutes};
 
 
 #[derive(Debug)]
@@ -29,12 +29,12 @@ pub enum AppServerToApp<B: Clone,ISA> {
     /// Reports about current state:
     Report(NodeReport<B,ISA>),
     ReportMutations(Vec<NodeReportMutation<B,ISA>>),
-    ResponseRoute(()), // TODO
+    ResponseRoute(ResponseRoutes),
 }
 
 #[allow(unused)]
 #[derive(Debug)]
-pub enum AppToAppServer<B> {
+pub enum AppToAppServer<B,ISA> {
     /// Set relay address to be used locally (Could be empty)
     SetAddress(Vec<B>), 
     /// Sending funds:
@@ -51,7 +51,8 @@ pub enum AppToAppServer<B> {
     CloseFriend(PublicKey),
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
     ResetFriendChannel(ResetFriendChannel),
-    RequestRoute(()), // TODO
-    AddIndexServer(()),
-    RemoveIndexServer(()),
+    RequestRoutes(RequestRoutes),
+    /// Manage index servers:
+    AddIndexServer(ISA),
+    RemoveIndexServer(ISA),
 }
