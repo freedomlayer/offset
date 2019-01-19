@@ -1,5 +1,6 @@
 use std::hash::Hash;
 use std::marker::PhantomData;
+use std::fmt::Debug;
 use std::collections::HashSet;
 
 use futures::{future, FutureExt, TryFutureExt, stream, Stream, StreamExt, SinkExt};
@@ -81,7 +82,7 @@ struct ListenPool<B,L,S> {
 
 impl<B,L,S> ListenPool<B,L,S> 
 where
-    B: Hash + Eq + Clone + Send + 'static,
+    B: Hash + Eq + Clone + Send + Debug + 'static,
     L: Listener<Connection=(PublicKey, RawConn), 
         Config=AccessControlOpPk, Arg=(B, AccessControlPk)> + Clone + 'static,
     S: Spawn + Clone,
@@ -241,7 +242,7 @@ async fn listen_pool_loop<B,L,TS,S>(incoming_config: mpsc::Receiver<LpConfig<B>>
                                     mut opt_event_sender: Option<mpsc::Sender<()>>) 
                         -> Result<(), ListenPoolError>
 where
-    B: Clone + Eq + Hash + Send + 'static,
+    B: Clone + Eq + Hash + Send + Debug + 'static,
     L: Listener<Connection=(PublicKey, RawConn), 
         Config=AccessControlOpPk, Arg=(B, AccessControlPk)> + Clone + 'static,
     TS: Stream + Unpin,
@@ -327,7 +328,7 @@ impl<B,L,ET,S> PoolListener<B,L,ET,S> {
 
 impl<B,L,ET,S> Listener for PoolListener<B,L,ET,S> 
 where
-    B: Clone + Eq + Hash + Send + Sync + 'static,
+    B: Clone + Eq + Hash + Send + Sync + Debug + 'static,
     L: Listener<Connection=(PublicKey, RawConn), 
         Config=AccessControlOpPk, Arg=(B, AccessControlPk)> + Clone + Send + 'static,
     ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<(PublicKey, RawConn)>> + Clone + Send + 'static,
@@ -623,22 +624,39 @@ mod tests {
         let (ref relay_address2, _) = listen_req2.arg;
         assert_eq!(*relay_address2, 0x2u32);
 
-        let pk_c = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let pk_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
 
         await!(config_sender.send(LpConfig::UpdateFriend((pk_c.clone(), vec![0x2u32, 0x3u32])))).unwrap();
         await!(event_receiver.next()).unwrap();
 
+        // Connection to relay 3u32 is opened:
+        let mut listen_req3 = await!(listen_req_receiver.next()).unwrap();
+        let (ref relay_address3, _) = listen_req3.arg;
+        assert_eq!(*relay_address3, 0x3u32);
+
         for listen_req in &mut [&mut listen_req0, &mut listen_req2] {
             let config = await!(listen_req.config_receiver.next()).unwrap();
             match config {
-                AccessControlOp::Add(pk_c) => {},
+                AccessControlOp::Add(pk) => assert_eq!(pk, pk_c),
                 _ => unreachable!(),
             };
         }
 
-        // TODO: Continue here. Test is stuck.
-    }
+        await!(config_sender.send(LpConfig::RemoveFriend((pk_c.clone())))).unwrap();
+        await!(event_receiver.next()).unwrap();
 
+        // Connection to relay 3u32 should be closed:
+        assert!(await!(listen_req3.config_receiver.next()).is_none());
+        drop(listen_req3);
+
+        for listen_req in &mut [&mut listen_req0, &mut listen_req2] {
+            let config = await!(listen_req.config_receiver.next()).unwrap();
+            match config {
+                AccessControlOp::Remove(pk) => assert_eq!(pk, pk_c),
+                _ => unreachable!(),
+            };
+        }
+    }
 
     #[test]
     fn test_listen_pool_loop_update_remove_friend() {
