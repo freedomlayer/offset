@@ -38,7 +38,7 @@ pub struct App<B: Clone,ISA> {
     opt_sender: Option<mpsc::Sender<AppServerToApp<B,ISA>>>,
 }
 
-pub struct AppServer<B: Clone,ISA,TF> {
+pub struct AppServer<B: Clone,ISA,TF,S> {
     to_funder: TF,
     from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<B,ISA>>)>,
     /// A long cyclic incrementing counter, 
@@ -46,32 +46,33 @@ pub struct AppServer<B: Clone,ISA,TF> {
     /// Required because an app (with one public key) might have multiple connections.
     app_counter: u128,
     apps: HashMap<u128, App<B,ISA>>,
+    spawner: S,
 }
 
-impl<B,ISA,TF> AppServer<B,ISA,TF> 
+impl<B,ISA,TF,S> AppServer<B,ISA,TF,S> 
 where
     B: Clone + Send + 'static,
     ISA: Send + 'static,
     TF: Sync,
+    S: Spawn,
 {
     pub fn new(to_funder: TF, 
-           from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<B,ISA>>)>) -> Self {
+           from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<B,ISA>>)>,
+           spawner: S) -> Self {
 
         AppServer {
             to_funder,
             from_app_sender,
             app_counter: 0,
             apps: HashMap::new(),
+            spawner,
         }
     }
 
     /// Add an application connection
-    pub fn add_app_connection<S>(&mut self, 
-                                 incoming_app_connection: IncomingAppConnection<B,ISA>,
-                                 spawner: &mut S) -> Result<(), AppServerError>
-    where
-        S: Spawn,
-    {
+    pub fn handle_incoming_connection(&mut self, incoming_app_connection: IncomingAppConnection<B,ISA>) 
+        -> Result<(), AppServerError> {
+
         let (public_key, permissions, (sender, mut receiver)) = incoming_app_connection;
 
         let app_counter = self.app_counter;
@@ -79,7 +80,7 @@ where
             .chain(stream::once(future::ready((app_counter, None))));
 
         let mut from_app_sender = self.from_app_sender.clone();
-        spawner.spawn(async move {
+        self.spawner.spawn(async move {
             let _ = await!(from_app_sender.send_all(&mut receiver));
         }).map_err(|_| AppServerError::SpawnError)?;
 
@@ -92,21 +93,22 @@ where
         self.apps.insert(self.app_counter, app);
         self.app_counter = self.app_counter.wrapping_add(1);
         Ok(())
+
     }
 
-    fn handle_from_funder(&mut self, funder_message: FunderOutgoingControl<Vec<B>>)
+    pub fn handle_from_funder(&mut self, funder_message: FunderOutgoingControl<Vec<B>>)
         -> Result<(), AppServerError> {
 
         unimplemented!();
     }
 
-    fn handle_from_index_client(&mut self, index_client_message: IndexClientToAppServer<ISA>) 
+    pub fn handle_from_index_client(&mut self, index_client_message: IndexClientToAppServer<ISA>) 
         -> Result<(), AppServerError> {
 
         unimplemented!();
     }
 
-    fn handle_from_app(&mut self, app_id: u128, opt_app_message: Option<AppToAppServer<B,ISA>>)
+    pub fn handle_from_app(&mut self, app_id: u128, opt_app_message: Option<AppToAppServer<B,ISA>>)
         -> Result<(), AppServerError> {
         // Old code:
         // App connection closed:
@@ -134,7 +136,9 @@ where
 {
 
     let (from_app_sender, from_app_receiver) = mpsc::channel(0);
-    let mut app_server = AppServer::new(to_funder, from_app_sender);
+    let mut app_server = AppServer::new(to_funder, 
+                                        from_app_sender,
+                                        spawner);
 
     let from_funder = from_funder
         .map(|funder_outgoing_control| AppServerEvent::FromFunder(funder_outgoing_control))
@@ -157,9 +161,8 @@ where
 
     while let Some(event) = await!(events.next()) {
         match event {
-            AppServerEvent::IncomingConnection(incoming_app_connection) => {
-                app_server.add_app_connection(incoming_app_connection, &mut spawner)?;
-            },
+            AppServerEvent::IncomingConnection(incoming_app_connection) =>
+                app_server.handle_incoming_connection(incoming_app_connection)?,
             AppServerEvent::FromFunder(funder_outgoing_control) => 
                 app_server.handle_from_funder(funder_outgoing_control)?,
             AppServerEvent::FunderClosed => return Err(AppServerError::FunderClosed),
