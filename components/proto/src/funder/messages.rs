@@ -151,7 +151,7 @@ pub enum FriendMessage<A> {
 
 /// A `SendFundsReceipt` is received if a `RequestSendFunds` is successful.
 /// It can be used a proof of payment for a specific `invoice_id`.
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct SendFundsReceipt {
     pub response_hash: HashResult,
     // = sha512/256(requestId || sha512/256(route) || randNonce)
@@ -382,7 +382,7 @@ impl RequestsStatus {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AddFriend<A> {
     pub friend_public_key: PublicKey,
     pub address: A,
@@ -390,49 +390,49 @@ pub struct AddFriend<A> {
     pub balance: i128, // Initial balance
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RemoveFriend {
     pub friend_public_key: PublicKey,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetRequestsStatus {
     pub friend_public_key: PublicKey,
     pub status: RequestsStatus,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetFriendStatus {
     pub friend_public_key: PublicKey,
     pub status: FriendStatus,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetFriendRemoteMaxDebt {
     pub friend_public_key: PublicKey,
     pub remote_max_debt: u128,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetFriendName {
     pub friend_public_key: PublicKey,
     pub name: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetFriendAddress<A> {
     pub friend_public_key: PublicKey,
     pub address: A,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResetFriendChannel {
     pub friend_public_key: PublicKey,
     pub current_token: Signature,
 }
 
 /// A request to send funds that originates from the user
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UserRequestSendFunds {
     pub request_id: Uid,
     pub route: FriendsRoute,
@@ -441,13 +441,13 @@ pub struct UserRequestSendFunds {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReceiptAck {
     pub request_id: Uid,
     pub receipt_signature: Signature,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunderIncomingControl<A> {
     /// Set relay address used for the local node
     SetAddress(A),
@@ -484,14 +484,14 @@ impl UserRequestSendFunds {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResponseSendFundsResult {
     Success(SendFundsReceipt),
     Failure(PublicKey), // Reporting public key.
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResponseReceived {
     pub request_id: Uid,
     pub result: ResponseSendFundsResult,
