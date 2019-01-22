@@ -23,6 +23,7 @@ use crate::config::AppPermissions;
 type IncomingAppConnection<B,ISA> = (AppPermissions, ConnPair<AppServerToApp<B,ISA>, AppToAppServer<B,ISA>>);
 
 
+#[derive(Debug)]
 pub enum AppServerError {
     FunderClosed,
     SpawnError,
@@ -454,4 +455,70 @@ where
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use futures::executor::ThreadPool;
+    use futures::{FutureExt, TryFutureExt};
+
+    use im::hashmap::HashMap as ImHashMap;
+
+    use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
+    use proto::funder::report::FunderReport;
+    use proto::index_client::messages::IndexClientReport;
+
+
+    async fn task_app_server_loop_basic<S>(mut spawner: S) 
+    where
+        S: Spawn + Clone + Send + 'static,
+    {
+        let (funder_sender, from_funder) = mpsc::channel(0);
+        let (to_funder, funder_receiver) = mpsc::channel(0);
+
+        let (index_client_sender, from_index_client) = mpsc::channel(0);
+        let (to_index_client, index_client_receiver) = mpsc::channel(0);
+
+        let (connections_sender, incoming_connections) = mpsc::channel(0);
+
+        // Create a dummy initial_node_report:
+        let funder_report = FunderReport {
+            local_public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
+            address: vec![0u32, 1u32],
+            friends: ImHashMap::new(),
+            num_ready_receipts: 0,
+        };
+
+        let index_client_report = IndexClientReport {
+            index_servers: vec![100u64, 101u64],
+            opt_connected_server: Some(101u64),
+        };
+
+        let initial_node_report = NodeReport {
+            funder_report,
+            index_client_report,
+        };
+
+        let fut_loop = app_server_loop(from_funder,
+                        to_funder,
+                        from_index_client,
+                        to_index_client,
+                        incoming_connections,
+                        initial_node_report,
+                        spawner.clone())
+            .map_err(|e| error!("app_server_loop() error: {:?}", e))
+            .map(|_| ());
+
+        spawner.spawn(fut_loop);
+
+        // TODO: Continue here
+    }
+
+    #[test]
+    fn test_app_server_loop_basic() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_app_server_loop_basic(thread_pool.clone()));
+    }
 }
