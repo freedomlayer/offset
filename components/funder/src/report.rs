@@ -1,21 +1,13 @@
-use std::collections::HashMap;
 use im::hashmap::HashMap as ImHashMap;
 
 use common::int_convert::usize_to_u64;
-use common::safe_arithmetic::{SafeUnsignedArithmetic};
 use common::canonical_serialize::CanonicalSerialize;
-
-use crypto::identity::PublicKey;
-
-use proto::funder::messages::{RequestsStatus, FriendStatus};
 
 use proto::funder::report::{DirectionReport, FriendLivenessReport, 
     TcReport, ResetTermsReport, ChannelInconsistentReport, ChannelStatusReport, FriendReport,
     FunderReport, FriendReportMutation, AddFriendReport, FunderReportMutation,
     McRequestsStatusReport, McBalanceReport, RequestsStatusReport, FriendStatusReport,
     MoveTokenHashedReport, SentLocalAddressReport};
-
-use proto::index_client::messages::{IndexMutation, IndexClientState, UpdateFriend};
 
 use crate::types::MoveTokenHashed;
 
