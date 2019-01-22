@@ -12,7 +12,7 @@ use crypto::identity::PublicKey;
 use proto::funder::messages::{FunderOutgoingControl, FunderIncomingControl, 
     RemoveFriend, SetFriendStatus, FriendStatus,
     RequestsStatus, SetRequestsStatus};
-use proto::app_server::messages::{AppServerToApp, AppToAppServer};
+use proto::app_server::messages::{AppServerToApp, AppToAppServer, NodeReport};
 use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClient};
 
 use crate::config::AppPermissions;
@@ -47,6 +47,7 @@ pub struct AppServer<B: Clone,ISA,TF,TIC,S> {
     to_funder: TF,
     to_index_client: TIC,
     from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<B,ISA>>)>,
+    node_report: NodeReport<B,ISA>,
     /// A long cyclic incrementing counter, 
     /// allows to give every connection a unique number.
     /// Required because an app (with one public key) might have multiple connections.
@@ -90,12 +91,14 @@ where
     pub fn new(to_funder: TF, 
                to_index_client: TIC,
                from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<B,ISA>>)>,
+               node_report: NodeReport<B,ISA>,
                spawner: S) -> Self {
 
         AppServer {
             to_funder,
             to_index_client,
             from_app_sender,
+            node_report,
             app_counter: 0,
             apps: HashMap::new(),
             spawner,
@@ -138,12 +141,22 @@ where
     pub fn handle_from_funder(&mut self, funder_message: FunderOutgoingControl<Vec<B>>)
         -> Result<(), AppServerError> {
 
+        match funder_message {
+            FunderOutgoingControl::ResponseReceived(response_received) => unimplemented!(),
+            FunderOutgoingControl::ReportMutations(report_mutations) => unimplemented!(),
+        }
         unimplemented!();
     }
 
     pub fn handle_from_index_client(&mut self, index_client_message: IndexClientToAppServer<ISA>) 
         -> Result<(), AppServerError> {
 
+        match index_client_message {
+            IndexClientToAppServer::ReportMutations(report_mutations) => unimplemented!(),
+            IndexClientToAppServer::ResponseRoutes(client_response_routes) => {
+                unimplemented!();
+            },
+        }
         unimplemented!();
     }
 
@@ -261,6 +274,7 @@ pub async fn app_server_loop<B,ISA,FF,TF,FIC,TIC,IC,S>(from_funder: FF,
                                                        from_index_client: FIC,
                                                        to_index_client: TIC,
                                                        incoming_connections: IC,
+                                                       node_report: NodeReport<B,ISA>,
                                                        mut spawner: S) -> Result<(), AppServerError>
 where
     B: Clone + Send + Debug + 'static,
@@ -277,6 +291,7 @@ where
     let mut app_server = AppServer::new(to_funder, 
                                         to_index_client,
                                         from_app_sender,
+                                        node_report,
                                         spawner);
 
     let from_funder = from_funder
