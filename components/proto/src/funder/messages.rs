@@ -484,14 +484,14 @@ impl UserRequestSendFunds {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ResponseSendFundsResult {
     Success(SendFundsReceipt),
     Failure(PublicKey), // Reporting public key.
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ResponseReceived {
     pub request_id: Uid,
     pub result: ResponseSendFundsResult,
