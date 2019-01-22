@@ -11,7 +11,8 @@ use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair, PublicK
 use crypto::test_utils::DummyRandom;
 
 use proto::funder::report::{FunderReport, FunderReportMutation, ChannelStatusReport,
-                    FriendLivenessReport, FriendStatusReport, RequestsStatusReport};
+                    FriendLivenessReport, FriendStatusReport, RequestsStatusReport,
+                    funder_report_mutate};
 
 use proto::funder::messages::{FunderIncomingControl,
     AddFriend, FriendStatus, SetFriendStatus, 
@@ -27,7 +28,7 @@ use identity::{create_identity, IdentityClient};
 use crate::state::{FunderState, FunderMutation};
 use crate::funder::inner_funder_loop;
 use crate::ephemeral::Ephemeral;
-use crate::report::{funder_report_mutate, create_report};
+use crate::report::create_report;
 
 use crate::database::AtomicDb;
 
