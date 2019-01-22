@@ -274,7 +274,7 @@ pub async fn app_server_loop<B,ISA,FF,TF,FIC,TIC,IC,S>(from_funder: FF,
                                                        from_index_client: FIC,
                                                        to_index_client: TIC,
                                                        incoming_connections: IC,
-                                                       node_report: NodeReport<B,ISA>,
+                                                       initial_node_report: NodeReport<B,ISA>,
                                                        mut spawner: S) -> Result<(), AppServerError>
 where
     B: Clone + Send + Debug + 'static,
@@ -291,7 +291,7 @@ where
     let mut app_server = AppServer::new(to_funder, 
                                         to_index_client,
                                         from_app_sender,
-                                        node_report,
+                                        initial_node_report,
                                         spawner);
 
     let from_funder = from_funder
