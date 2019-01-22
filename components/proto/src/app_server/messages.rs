@@ -9,13 +9,13 @@ use crate::index_client::messages::{IndexClientReport,
 use crate::index_server::messages::RequestRoutes;
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeReport<B:Clone,ISA> {
     pub funder_report: FunderReport<Vec<B>>,
     pub index_client_report: IndexClientReport<ISA>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NodeReportMutation<B,ISA> {
     Funder(FunderReportMutation<Vec<B>>),
     IndexClient(IndexClientReportMutation<ISA>),

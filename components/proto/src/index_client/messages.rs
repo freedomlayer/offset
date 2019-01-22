@@ -17,7 +17,7 @@ pub struct IndexClientState {
 // ---------------------------------------------------
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// ISA stands for Index Server Address
 pub struct IndexClientReport<ISA> {
     /// A list of trusted index servers.
@@ -26,7 +26,7 @@ pub struct IndexClientReport<ISA> {
     pub opt_connected_server: Option<ISA>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IndexClientReportMutation<ISA> {
     AddIndexServer(ISA),
     RemoveIndexServer(ISA),

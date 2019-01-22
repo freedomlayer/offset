@@ -12,7 +12,7 @@ use crate::index_server::messages::{IndexMutation, UpdateFriend};
 use crate::index_client::messages::IndexClientState;
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MoveTokenHashedReport {
     pub prefix_hash: HashResult,
     pub local_public_key: PublicKey,
@@ -54,7 +54,7 @@ pub struct McRequestsStatusReport {
     pub remote: RequestsStatusReport,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McBalanceReport {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
@@ -69,7 +69,7 @@ pub struct McBalanceReport {
     pub remote_pending_debt: u128,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DirectionReport {
     Incoming,
     Outgoing,
@@ -81,7 +81,7 @@ pub enum FriendLivenessReport {
     Offline,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TcReport {
     pub direction: DirectionReport,
     pub balance: McBalanceReport,
@@ -90,25 +90,25 @@ pub struct TcReport {
     pub num_remote_pending_requests: u64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResetTermsReport {
     pub reset_token: Signature,
     pub balance_for_reset: i128,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChannelInconsistentReport {
     pub local_reset_terms_balance: i128,
     pub opt_remote_reset_terms: Option<ResetTermsReport>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ChannelStatusReport {
     Inconsistent(ChannelInconsistentReport),
     Consistent(TcReport),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FriendReport<A> {
     pub remote_address: A, 
     pub name: String,
@@ -131,7 +131,7 @@ pub struct FriendReport<A> {
 
 /// A FunderReport is a summary of a FunderState.
 /// It contains the information the Funder exposes to the user apps of the Offst node.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 // TODO: Removed A: Clone here and ImHashMap. Should this struct be cloneable for some reason?
 pub struct FunderReport<A: Clone> {
     pub local_public_key: PublicKey,
@@ -141,7 +141,7 @@ pub struct FunderReport<A: Clone> {
 }
 
 #[allow(unused)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FriendReportMutation<A> {
     SetRemoteAddress(A),
     SetName(String),
@@ -157,7 +157,7 @@ pub enum FriendReportMutation<A> {
     SetLiveness(FriendLivenessReport),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AddFriendReport<A> {
     pub friend_public_key: PublicKey,
     pub address: A,
@@ -169,7 +169,7 @@ pub struct AddFriendReport<A> {
 
 
 #[allow(unused)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunderReportMutation<A> {
     SetAddress(A),
     AddFriend(AddFriendReport<A>),
