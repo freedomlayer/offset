@@ -1,62 +1,83 @@
-use crypto::identity::{PublicKey, Signature};
-use crypto::crypto_rand::RandValue;
+use crypto::identity::PublicKey;
 
-use crate::funder::messages::{RequestSendFunds, ResponseSendFunds,
+use crate::funder::messages::{UserRequestSendFunds, ResponseReceived,
                             ReceiptAck, AddFriend, SetFriendAddress, 
-                            SetFriendName, RemoveFriend,
-                            SetFriendRemoteMaxDebt, ResetFriendChannel};
+                            SetFriendName, SetFriendRemoteMaxDebt, ResetFriendChannel};
 use crate::funder::report::{FunderReport, FunderReportMutation};
+use crate::index_client::messages::{IndexClientReport, 
+    IndexClientReportMutation, ClientResponseRoutes};
+use crate::index_server::messages::RequestRoutes;
 
-#[allow(unused)]
-#[derive(Debug)]
-pub struct RequestDelegate {
-    pub app_rand_nonce: RandValue,
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NodeReport<B:Clone,ISA> {
+    pub funder_report: FunderReport<Vec<B>>,
+    pub index_client_report: IndexClientReport<ISA>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NodeReportMutation<B,ISA> {
+    Funder(FunderReportMutation<Vec<B>>),
+    IndexClient(IndexClientReportMutation<ISA>),
 }
 
 #[allow(unused)]
 #[derive(Debug)]
-pub struct ResponseDelegate {
-    pub app_public_key: PublicKey,
-    pub app_rand_nonce: RandValue,
-    pub server_rand_nonce: RandValue,
-    pub signature: Signature,
-    // sha512/256(sha512/256("DELEGATE") ||
-    //               appPublicKey ||
-    //               appRandNonce ||
-    //               serverRandNonce)
-}
-
-#[allow(unused)]
-#[derive(Debug)]
-pub enum AppServerToApp<A: Clone> {
+pub enum AppServerToApp<B: Clone,ISA> {
     /// Funds:
-    ResponseSendFunds(ResponseSendFunds),
+    ResponseReceived(ResponseReceived),
     /// Reports about current state:
-    Report(FunderReport<A>),
-    ReportMutations(Vec<FunderReportMutation<A>>),
-    /// Response for delegate request:
-    ResponseDelegate(ResponseDelegate),
+    Report(NodeReport<B,ISA>),
+    ReportMutations(Vec<NodeReportMutation<B,ISA>>),
+    ResponseRoutes(ClientResponseRoutes),
 }
 
 #[allow(unused)]
 #[derive(Debug)]
-pub enum AppToAppServer<B> {
-    /// Set relay address to be used locally (Could be empty)
-    SetAddress(Vec<B>), 
+pub enum AppToAppServer<B,ISA> {
+    /// Set relay address to be used locally:
+    SetRelays(Vec<B>), 
     /// Sending funds:
-    RequestSendFunds(RequestSendFunds),
+    RequestSendFunds(UserRequestSendFunds),
     ReceiptAck(ReceiptAck),
     /// Friend management:
     AddFriend(AddFriend<Vec<B>>),
-    SetFriendAddress(SetFriendAddress<Vec<B>>),
+    SetFriendRelays(SetFriendAddress<Vec<B>>),
     SetFriendName(SetFriendName),
-    RemoveFriend(RemoveFriend),
+    RemoveFriend(PublicKey),
     EnableFriend(PublicKey),
     DisableFriend(PublicKey),
     OpenFriend(PublicKey),
     CloseFriend(PublicKey),
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
     ResetFriendChannel(ResetFriendChannel),
-    /// Delegation:
-    RequestDelegate(RequestDelegate),
+    /// Request routes from one node to another:
+    RequestRoutes(RequestRoutes),
+    /// Manage index servers:
+    AddIndexServer(ISA),
+    RemoveIndexServer(ISA),
 }
+
+
+#[derive(Debug)]
+pub struct NodeReportMutateError;
+
+impl<B,ISA> NodeReport<B,ISA> 
+where
+    B: Clone,
+    ISA: Eq + Clone,
+{
+    pub fn mutate(&mut self, mutation: &NodeReportMutation<B,ISA>) 
+        -> Result<(), NodeReportMutateError> {
+
+        match mutation {
+            NodeReportMutation::Funder(mutation) => 
+                self.funder_report.mutate(mutation)
+                    .map_err(|_| NodeReportMutateError)?,
+            NodeReportMutation::IndexClient(mutation) => 
+                self.index_client_report.mutate(mutation),
+        };
+        Ok(())
+    }
+}
+

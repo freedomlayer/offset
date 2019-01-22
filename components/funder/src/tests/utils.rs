@@ -27,7 +27,7 @@ use identity::{create_identity, IdentityClient};
 use crate::state::{FunderState, FunderMutation};
 use crate::funder::inner_funder_loop;
 use crate::ephemeral::Ephemeral;
-use crate::report::{funder_report_mutate, create_report};
+use crate::report::create_report;
 
 use crate::database::AtomicDb;
 
@@ -204,7 +204,7 @@ impl<A: Clone> NodeControl<A> {
         match funder_outgoing_control {
             FunderOutgoingControl::ReportMutations(mutations) => {
                 for mutation in &mutations {
-                    funder_report_mutate(&mut self.report, &mutation).unwrap();
+                    self.report.mutate(&mutation).unwrap();
                 }
                 Some(NodeRecv::ReportMutations(mutations))
             },
