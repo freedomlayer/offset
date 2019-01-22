@@ -10,8 +10,8 @@ use crate::index_server::messages::{RequestRoutes, ResponseRoutes};
 
 #[derive(Debug, Clone)]
 pub struct NodeReport<B:Clone,ISA> {
-    funder_report: FunderReport<Vec<B>>,
-    index_client_report: IndexClientReport<ISA>,
+    pub funder_report: FunderReport<Vec<B>>,
+    pub index_client_report: IndexClientReport<ISA>,
 }
 
 #[derive(Debug, Clone)]
@@ -56,3 +56,27 @@ pub enum AppToAppServer<B,ISA> {
     AddIndexServer(ISA),
     RemoveIndexServer(ISA),
 }
+
+
+#[derive(Debug)]
+pub struct NodeReportMutateError;
+
+impl<B,ISA> NodeReport<B,ISA> 
+where
+    B: Clone,
+    ISA: Eq + Clone,
+{
+    pub fn mutate(&mut self, mutation: &NodeReportMutation<B,ISA>) 
+        -> Result<(), NodeReportMutateError> {
+
+        match mutation {
+            NodeReportMutation::Funder(mutation) => 
+                self.funder_report.mutate(mutation)
+                    .map_err(|_| NodeReportMutateError)?,
+            NodeReportMutation::IndexClient(mutation) => 
+                self.index_client_report.mutate(mutation),
+        };
+        Ok(())
+    }
+}
+
