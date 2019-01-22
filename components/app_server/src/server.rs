@@ -83,7 +83,7 @@ fn check_permissions<B,ISA>(app_permissions: &AppPermissions,
 impl<B,ISA,TF,TIC,S> AppServer<B,ISA,TF,TIC,S> 
 where
     B: Clone + Send + Debug + 'static,
-    ISA: Send + Debug + 'static,
+    ISA: Clone + Send + Debug + 'static,
     TF: Sink<SinkItem=FunderIncomingControl<Vec<B>>> + Unpin + Sync + Send,
     TIC: Sink<SinkItem=AppServerToIndexClient<ISA>> + Unpin,
     S: Spawn,
@@ -106,10 +106,10 @@ where
     }
 
     /// Add an application connection
-    pub fn handle_incoming_connection(&mut self, incoming_app_connection: IncomingAppConnection<B,ISA>) 
+    pub async fn handle_incoming_connection(&mut self, incoming_app_connection: IncomingAppConnection<B,ISA>) 
         -> Result<(), AppServerError> {
 
-        let (public_key, permissions, (sender, receiver)) = incoming_app_connection;
+        let (public_key, permissions, (mut sender, receiver)) = incoming_app_connection;
 
         let app_counter = self.app_counter;
         let mut receiver = receiver
@@ -126,14 +126,28 @@ where
         self.spawner.spawn(send_all_fut)
             .map_err(|_| AppServerError::SpawnError)?;
 
+        // Possibly send first report:
+        let opt_sender = if permissions.reports {
+            match await!(sender.send(AppServerToApp::Report(self.node_report.clone()))) {
+                Ok(()) => Some(sender),
+                // Note that one error we still insert the app into the map
+                // (With an empty sender)
+                // The App will be removed later, when the receiver is closed.
+                Err(_) => None,
+            }
+        } else {
+            Some(sender)
+        };
+
         let app = App {
             public_key,
             permissions,
-            opt_sender: Some(sender),
+            opt_sender,
         };
 
         self.apps.insert(self.app_counter, app);
         self.app_counter = self.app_counter.wrapping_add(1);
+
         Ok(())
 
     }
@@ -278,7 +292,7 @@ pub async fn app_server_loop<B,ISA,FF,TF,FIC,TIC,IC,S>(from_funder: FF,
                                                        mut spawner: S) -> Result<(), AppServerError>
 where
     B: Clone + Send + Debug + 'static,
-    ISA: Send + Debug + 'static,
+    ISA: Clone + Send + Debug + 'static,
     FF: Stream<Item=FunderOutgoingControl<Vec<B>>> + Unpin,
     TF: Sink<SinkItem=FunderIncomingControl<Vec<B>>> + Unpin + Sync + Send,
     FIC: Stream<Item=IndexClientToAppServer<ISA>> + Unpin,
@@ -316,7 +330,7 @@ where
     while let Some(event) = await!(events.next()) {
         match event {
             AppServerEvent::IncomingConnection(incoming_app_connection) =>
-                app_server.handle_incoming_connection(incoming_app_connection)?,
+                await!(app_server.handle_incoming_connection(incoming_app_connection))?,
             AppServerEvent::FromFunder(funder_outgoing_control) => 
                 app_server.handle_from_funder(funder_outgoing_control)?,
             AppServerEvent::FunderClosed => return Err(AppServerError::FunderClosed),
