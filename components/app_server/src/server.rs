@@ -212,16 +212,29 @@ where
         Ok(())
     }
 
-    pub fn handle_from_index_client(&mut self, index_client_message: IndexClientToAppServer<ISA>) 
+    pub async fn handle_from_index_client(&mut self, index_client_message: IndexClientToAppServer<ISA>) 
         -> Result<(), AppServerError> {
 
         match index_client_message {
-            IndexClientToAppServer::ReportMutations(report_mutations) => unimplemented!(),
+            IndexClientToAppServer::ReportMutations(report_mutations) => {
+                let mut node_report_mutations = Vec::new();
+                for index_client_report_mutation in report_mutations {
+                    let mutation = NodeReportMutation::IndexClient(index_client_report_mutation);
+                    // Mutate our node report:
+                    self.node_report.mutate(&mutation).unwrap();
+                    node_report_mutations.push(mutation);
+                }
+
+                // Send node report mutations to all connected apps
+                for (_app_id, app) in &mut self.apps {
+                    await!(app.send(AppServerToApp::ReportMutations(node_report_mutations.clone())));
+                }
+            },
             IndexClientToAppServer::ResponseRoutes(client_response_routes) => {
                 unimplemented!();
             },
         }
-        unimplemented!();
+        Ok(())
     }
 
     async fn handle_app_message(&mut self, app_id: u128, app_message: AppToAppServer<B,ISA>)
@@ -385,7 +398,7 @@ where
                 await!(app_server.handle_from_funder(funder_outgoing_control))?,
             AppServerEvent::FunderClosed => return Err(AppServerError::FunderClosed),
             AppServerEvent::FromIndexClient(from_index_client) => 
-                app_server.handle_from_index_client(from_index_client)?,
+                await!(app_server.handle_from_index_client(from_index_client))?,
             AppServerEvent::IndexClientClosed => return Err(AppServerError::IndexClientClosed),
             AppServerEvent::FromApp((app_id, opt_app_message)) => 
                 await!(app_server.handle_from_app(app_id, opt_app_message))?,
