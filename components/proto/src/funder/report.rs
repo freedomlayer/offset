@@ -200,7 +200,7 @@ impl From<&RequestsStatus> for RequestsStatusReport {
 
 #[allow(unused)]
 #[derive(Debug)]
-pub enum ReportMutateError {
+pub enum FunderReportMutateError {
     FriendDoesNotExist,
     FriendAlreadyExists,
 }
@@ -258,7 +258,7 @@ where
     A: Clone,
 {
     pub fn mutate(&mut self, mutation: &FunderReportMutation<A>) 
-        -> Result<(), ReportMutateError> {
+        -> Result<(), FunderReportMutateError> {
 
         match mutation {
             FunderReportMutation::SetAddress(address) => {
@@ -283,21 +283,21 @@ where
                 if let Some(_) = self.friends.insert(
                     add_friend_report.friend_public_key.clone(), friend_report) {
 
-                    Err(ReportMutateError::FriendAlreadyExists)
+                    Err(FunderReportMutateError::FriendAlreadyExists)
                 } else {
                     Ok(())
                 }
             },
             FunderReportMutation::RemoveFriend(friend_public_key) => {
                 if let None = self.friends.remove(&friend_public_key) {
-                    Err(ReportMutateError::FriendDoesNotExist)
+                    Err(FunderReportMutateError::FriendDoesNotExist)
                 } else {
                     Ok(())
                 }
             },
             FunderReportMutation::FriendReportMutation((friend_public_key, friend_report_mutation)) => {
                 let friend = self.friends.get_mut(friend_public_key)
-                    .ok_or(ReportMutateError::FriendDoesNotExist)?;
+                    .ok_or(FunderReportMutateError::FriendDoesNotExist)?;
                 friend.mutate(friend_report_mutation);
                 Ok(())
             },
@@ -370,7 +370,7 @@ where
 }
 
 #[allow(unused)]
-pub fn funder_report_mutation_to_index_client_mutation<A>(funder_report: &FunderReport<A>, 
+pub fn funder_report_mutation_to_index_mutation<A>(funder_report: &FunderReport<A>, 
                                                       funder_report_mutation: &FunderReportMutation<A>) -> Option<IndexMutation> 
 where
     A: Clone,
