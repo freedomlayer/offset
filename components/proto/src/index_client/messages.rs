@@ -21,9 +21,9 @@ pub struct IndexClientState {
 /// ISA stands for Index Server Address
 pub struct IndexClientReport<ISA> {
     /// A list of trusted index servers.
-    index_servers: Vec<ISA>,
+    pub index_servers: Vec<ISA>,
     /// The server we are currently connected to (None if not connected).
-    opt_connected_server: Option<ISA>,
+    pub opt_connected_server: Option<ISA>,
 }
 
 #[derive(Debug, Clone)]
