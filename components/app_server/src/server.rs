@@ -2,12 +2,11 @@ use std::marker::Unpin;
 use std::fmt::Debug;
 use std::collections::{HashMap, HashSet};
 
-use futures::{future, FutureExt, stream, Stream, StreamExt, Sink, SinkExt};
+use futures::{future, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 
 use common::conn::ConnPair;
-use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 use proto::funder::messages::{FunderOutgoingControl, FunderIncomingControl, 
@@ -21,7 +20,7 @@ use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClie
 
 use crate::config::AppPermissions;
 
-type IncomingAppConnection<B,ISA> = (PublicKey, AppPermissions, ConnPair<AppServerToApp<B,ISA>, AppToAppServer<B,ISA>>);
+type IncomingAppConnection<B,ISA> = (AppPermissions, ConnPair<AppServerToApp<B,ISA>, AppToAppServer<B,ISA>>);
 
 
 pub enum AppServerError {
@@ -42,7 +41,6 @@ pub enum AppServerEvent<B: Clone,ISA> {
 }
 
 pub struct App<B: Clone, ISA> {
-    public_key: PublicKey,
     permissions: AppPermissions,
     opt_sender: Option<mpsc::Sender<AppServerToApp<B,ISA>>>,
     open_route_requests: HashSet<Uid>,
@@ -53,12 +51,10 @@ impl<B,ISA> App<B,ISA>
 where
     B: Clone,
 {
-    pub fn new(public_key: PublicKey,
-               permissions: AppPermissions,
+    pub fn new(permissions: AppPermissions,
                sender: mpsc::Sender<AppServerToApp<B,ISA>>) -> Self {
 
         App {
-            public_key,
             permissions,
             opt_sender: Some(sender),
             open_route_requests: HashSet::new(),
@@ -145,7 +141,7 @@ where
     pub async fn handle_incoming_connection(&mut self, incoming_app_connection: IncomingAppConnection<B,ISA>) 
         -> Result<(), AppServerError> {
 
-        let (public_key, permissions, (mut sender, receiver)) = incoming_app_connection;
+        let (permissions, (sender, receiver)) = incoming_app_connection;
 
         let app_counter = self.app_counter;
         let mut receiver = receiver
@@ -162,7 +158,7 @@ where
         self.spawner.spawn(send_all_fut)
             .map_err(|_| AppServerError::SpawnError)?;
 
-        let mut app = App::new(public_key, permissions, sender);
+        let mut app = App::new(permissions, sender);
         // Possibly send the initial node report:
         if app.permissions.reports {
             await!(app.send(AppServerToApp::Report(self.node_report.clone())));
@@ -179,7 +175,15 @@ where
         -> Result<(), AppServerError> {
 
         match funder_message {
-            FunderOutgoingControl::ResponseReceived(response_received) => unimplemented!(),
+            FunderOutgoingControl::ResponseReceived(response_received) => {
+                // Find the app that issued the request, and forward the response to this app:
+                // TODO: Should we break the loop if found?
+                for (_app_id, app) in &mut self.apps {
+                    if app.open_send_funds_requests.remove(&response_received.request_id) {
+                        await!(app.send(AppServerToApp::ResponseReceived(response_received.clone())));
+                    }
+                }
+            },
             FunderOutgoingControl::ReportMutations(report_mutations) => {
                 let mut index_mutations = Vec::new();
                 for funder_report_mutation in &report_mutations {
@@ -236,9 +240,13 @@ where
                 }
             },
             IndexClientToAppServer::ResponseRoutes(client_response_routes) => {
-                // TODO: We need to somehow find out which app we need to forward this response
-                // to. This means that we need to keep track of route requests issued by apps.
-                unimplemented!();
+                // We search for the app that issued the request, and send it the response.
+                // TODO: Should we break the loop if we found one originating app?
+                for (_app_id, app) in &mut self.apps {
+                    if app.open_route_requests.remove(&client_response_routes.request_id) {
+                        await!(app.send(AppServerToApp::ResponseRoutes(client_response_routes.clone())));
+                    }
+                }
             },
         }
         Ok(())
@@ -359,6 +367,7 @@ where
 }
 
 
+#[allow(unused)]
 pub async fn app_server_loop<B,ISA,FF,TF,FIC,TIC,IC,S>(from_funder: FF, 
                                                        to_funder: TF, 
                                                        from_index_client: FIC,
