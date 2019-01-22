@@ -12,7 +12,10 @@ use crypto::identity::PublicKey;
 use proto::funder::messages::{FunderOutgoingControl, FunderIncomingControl, 
     RemoveFriend, SetFriendStatus, FriendStatus,
     RequestsStatus, SetRequestsStatus};
-use proto::app_server::messages::{AppServerToApp, AppToAppServer, NodeReport};
+use proto::funder::report::funder_report_mutation_to_index_mutation;
+
+use proto::app_server::messages::{AppServerToApp, AppToAppServer, NodeReport,
+                                    NodeReportMutation};
 use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClient};
 
 use crate::config::AppPermissions;
@@ -42,6 +45,34 @@ pub struct App<B: Clone,ISA> {
     permissions: AppPermissions,
     opt_sender: Option<mpsc::Sender<AppServerToApp<B,ISA>>>,
 }
+
+impl<B,ISA> App<B,ISA> 
+where
+    B: Clone,
+{
+    pub fn new(public_key: PublicKey,
+               permissions: AppPermissions,
+               sender: mpsc::Sender<AppServerToApp<B,ISA>>) -> Self {
+
+        App {
+            public_key,
+            permissions,
+            opt_sender: Some(sender),
+        }
+    }
+
+    pub async fn send(&mut self, message: AppServerToApp<B,ISA>)  {
+        match self.opt_sender.take() {
+            Some(mut sender) => {
+                if let Ok(()) = await!(sender.send(message)) {
+                    self.opt_sender = Some(sender);
+                }
+            },
+            None => {},
+        }
+    }
+}
+
 
 pub struct AppServer<B: Clone,ISA,TF,TIC,S> {
     to_funder: TF,
@@ -83,7 +114,7 @@ fn check_permissions<B,ISA>(app_permissions: &AppPermissions,
 impl<B,ISA,TF,TIC,S> AppServer<B,ISA,TF,TIC,S> 
 where
     B: Clone + Send + Debug + 'static,
-    ISA: Clone + Send + Debug + 'static,
+    ISA: Eq + Clone + Send + Debug + 'static,
     TF: Sink<SinkItem=FunderIncomingControl<Vec<B>>> + Unpin + Sync + Send,
     TIC: Sink<SinkItem=AppServerToIndexClient<ISA>> + Unpin,
     S: Spawn,
@@ -126,24 +157,11 @@ where
         self.spawner.spawn(send_all_fut)
             .map_err(|_| AppServerError::SpawnError)?;
 
-        // Possibly send first report:
-        let opt_sender = if permissions.reports {
-            match await!(sender.send(AppServerToApp::Report(self.node_report.clone()))) {
-                Ok(()) => Some(sender),
-                // Note that one error we still insert the app into the map
-                // (With an empty sender)
-                // The App will be removed later, when the receiver is closed.
-                Err(_) => None,
-            }
-        } else {
-            Some(sender)
-        };
-
-        let app = App {
-            public_key,
-            permissions,
-            opt_sender,
-        };
+        let mut app = App::new(public_key, permissions, sender);
+        // Possibly send the initial node report:
+        if app.permissions.reports {
+            await!(app.send(AppServerToApp::Report(self.node_report.clone())));
+        }
 
         self.apps.insert(self.app_counter, app);
         self.app_counter = self.app_counter.wrapping_add(1);
@@ -152,14 +170,46 @@ where
 
     }
 
-    pub fn handle_from_funder(&mut self, funder_message: FunderOutgoingControl<Vec<B>>)
+    pub async fn handle_from_funder(&mut self, funder_message: FunderOutgoingControl<Vec<B>>)
         -> Result<(), AppServerError> {
 
         match funder_message {
             FunderOutgoingControl::ResponseReceived(response_received) => unimplemented!(),
-            FunderOutgoingControl::ReportMutations(report_mutations) => unimplemented!(),
+            FunderOutgoingControl::ReportMutations(report_mutations) => {
+                let mut index_mutations = Vec::new();
+                for funder_report_mutation in &report_mutations {
+                    // Transform the funder report mutation to index mutations
+                    // and send it to IndexClient
+                    let opt_index_mutation = funder_report_mutation_to_index_mutation(
+                            &self.node_report.funder_report,
+                            funder_report_mutation);
+
+                    if let Some(index_mutation) = opt_index_mutation {
+                        index_mutations.push(index_mutation);
+                    }
+                }
+
+                // Send index mutations:
+                if !index_mutations.is_empty() {
+                    await!(self.to_index_client.send(AppServerToIndexClient::ApplyMutations(index_mutations)))
+                        .map_err(|_| AppServerError::SendToIndexClientError)?;
+                }
+
+                let mut node_report_mutations = Vec::new();
+                for funder_report_mutation in report_mutations {
+                    let mutation = NodeReportMutation::Funder(funder_report_mutation);
+                    // Mutate our node report:
+                    self.node_report.mutate(&mutation).unwrap();
+                    node_report_mutations.push(mutation);
+                }
+
+                // Send node report mutations to all connected apps
+                for (_app_id, app) in &mut self.apps {
+                    await!(app.send(AppServerToApp::ReportMutations(node_report_mutations.clone())));
+                }
+            },
         }
-        unimplemented!();
+        Ok(())
     }
 
     pub fn handle_from_index_client(&mut self, index_client_message: IndexClientToAppServer<ISA>) 
@@ -292,7 +342,7 @@ pub async fn app_server_loop<B,ISA,FF,TF,FIC,TIC,IC,S>(from_funder: FF,
                                                        mut spawner: S) -> Result<(), AppServerError>
 where
     B: Clone + Send + Debug + 'static,
-    ISA: Clone + Send + Debug + 'static,
+    ISA: Eq + Clone + Send + Debug + 'static,
     FF: Stream<Item=FunderOutgoingControl<Vec<B>>> + Unpin,
     TF: Sink<SinkItem=FunderIncomingControl<Vec<B>>> + Unpin + Sync + Send,
     FIC: Stream<Item=IndexClientToAppServer<ISA>> + Unpin,
@@ -332,7 +382,7 @@ where
             AppServerEvent::IncomingConnection(incoming_app_connection) =>
                 await!(app_server.handle_incoming_connection(incoming_app_connection))?,
             AppServerEvent::FromFunder(funder_outgoing_control) => 
-                app_server.handle_from_funder(funder_outgoing_control)?,
+                await!(app_server.handle_from_funder(funder_outgoing_control))?,
             AppServerEvent::FunderClosed => return Err(AppServerError::FunderClosed),
             AppServerEvent::FromIndexClient(from_index_client) => 
                 app_server.handle_from_index_client(from_index_client)?,
