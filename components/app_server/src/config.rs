@@ -5,13 +5,13 @@ use crypto::identity::PublicKey;
 #[derive(Debug)]
 pub struct AppPermissions {
     /// Receives reports about state
-    reports: bool,
+    pub reports: bool,
     /// Can request routes
-    routes: bool,
+    pub routes: bool,
     /// Can send credits
-    send_credits: bool,
+    pub send_funds: bool,
     /// Can configure friends
-    config: bool,
+    pub config: bool,
 }
 
 #[derive(Debug)]
