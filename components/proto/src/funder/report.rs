@@ -296,7 +296,7 @@ where
                 }
             },
             FunderReportMutation::FriendReportMutation((friend_public_key, friend_report_mutation)) => {
-                let mut friend = self.friends.get_mut(friend_public_key)
+                let friend = self.friends.get_mut(friend_public_key)
                     .ok_or(ReportMutateError::FriendDoesNotExist)?;
                 friend.mutate(friend_report_mutation);
                 Ok(())
