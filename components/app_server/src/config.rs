@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+// use std::collections::HashMap;
 
-use crypto::identity::PublicKey;
+// use crypto::identity::PublicKey;
 
 #[derive(Debug)]
 pub struct AppPermissions {
@@ -14,6 +14,7 @@ pub struct AppPermissions {
     pub config: bool,
 }
 
+/*
 #[derive(Debug)]
 pub struct AppConfig {
     /// Application name
@@ -26,6 +27,8 @@ pub struct AppConfig {
 pub struct AppServerConfig {
     pub apps: HashMap<PublicKey, AppConfig>,
 }
+
+*/
 
 
 // TODO: Write code that reads the AppServer configuration from a file.
