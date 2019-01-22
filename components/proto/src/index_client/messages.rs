@@ -23,7 +23,7 @@ pub struct IndexClientReport<ISA> {
     /// A list of trusted index servers.
     index_servers: Vec<ISA>,
     /// The server we are currently connected to (None if not connected).
-    connected_server: Option<ISA>,
+    opt_connected_server: Option<ISA>,
 }
 
 #[derive(Debug)]
@@ -57,4 +57,26 @@ pub enum AppServerToIndexClient<ISA> {
     RemoveIndexServer(ISA),
     RequestRoutes(RequestRoutes),
     ApplyMutations(Vec<IndexMutation>),
+}
+
+
+impl<ISA> IndexClientReport<ISA> 
+where
+    ISA: Eq + Clone,
+{
+    pub fn mutate(&mut self, mutation: &IndexClientReportMutation<ISA>) {
+        match mutation {
+            IndexClientReportMutation::AddIndexServer(address) => {
+                // Remove first, to avoid duplicates:
+                self.index_servers.retain(|cur_address| cur_address != address);
+                self.index_servers.push(address.clone());
+            },
+            IndexClientReportMutation::RemoveIndexServer(address) => {
+                self.index_servers.retain(|cur_address| cur_address != address);
+            },
+            IndexClientReportMutation::SetConnectedServer(opt_address) => {
+                self.opt_connected_server = opt_address.clone();
+            },
+        }
+    }
 }
