@@ -29,10 +29,12 @@ pub enum AppServerError {
     IndexClientClosed,
     SendToFunderError,
     SendToIndexClientError,
+    AllAppsClosed,
 }
 
 pub enum AppServerEvent<B: Clone,ISA> {
     IncomingConnection(IncomingAppConnection<B,ISA>),
+    IncomingConnectionsClosed,
     FromFunder(FunderOutgoingControl<Vec<B>>),
     FunderClosed,
     FromIndexClient(IndexClientToAppServer<ISA>),
@@ -80,6 +82,7 @@ pub struct AppServer<B: Clone,ISA,TF,TIC,S> {
     to_index_client: TIC,
     from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<B,ISA>>)>,
     node_report: NodeReport<B,ISA>,
+    incoming_connections_closed: bool,
     /// A long cyclic incrementing counter, 
     /// allows to give every connection a unique number.
     /// Required because an app (with one public key) might have multiple connections.
@@ -131,6 +134,7 @@ where
             to_index_client,
             from_app_sender,
             node_report,
+            incoming_connections_closed: false,
             app_counter: 0,
             apps: HashMap::new(),
             spawner,
@@ -169,6 +173,16 @@ where
 
         Ok(())
 
+    }
+
+    /// The channel carrying new connections was closed. 
+    /// This means we will not receive any new connections
+    pub async fn handle_incoming_connections_closed(&mut self) -> Result<(), AppServerError> {
+        self.incoming_connections_closed = true;
+        if self.apps.is_empty() {
+            return Err(AppServerError::AllAppsClosed);
+        }
+        Ok(())
     }
 
     /// Send node report mutations to all connected apps
@@ -366,6 +380,9 @@ where
                 // Remove the application. We assert that this application exists
                 // in our apps map:
                 self.apps.remove(&app_id).unwrap();
+                if self.apps.is_empty() && self.incoming_connections_closed {
+                    return Err(AppServerError::AllAppsClosed);
+                }
                 Ok(())
             },
             Some(app_message) => await!(self.handle_app_message(app_id, app_message)),
@@ -412,7 +429,8 @@ where
         .map(|from_app: (u128, Option<AppToAppServer<B,ISA>>)| AppServerEvent::FromApp(from_app));
 
     let incoming_connections = incoming_connections
-        .map(|incoming_connection| AppServerEvent::IncomingConnection(incoming_connection));
+        .map(|incoming_connection| AppServerEvent::IncomingConnection(incoming_connection))
+        .chain(stream::once(future::ready(AppServerEvent::IncomingConnectionsClosed)));
 
     let mut events = from_funder
                     .select(from_index_client)
@@ -423,6 +441,8 @@ where
         match event {
             AppServerEvent::IncomingConnection(incoming_app_connection) =>
                 await!(app_server.handle_incoming_connection(incoming_app_connection))?,
+            AppServerEvent::IncomingConnectionsClosed =>
+                await!(app_server.handle_incoming_connections_closed())?,
             AppServerEvent::FromFunder(funder_outgoing_control) => 
                 await!(app_server.handle_from_funder(funder_outgoing_control))?,
             AppServerEvent::FunderClosed => return Err(AppServerError::FunderClosed),
