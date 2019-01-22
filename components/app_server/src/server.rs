@@ -171,6 +171,18 @@ where
 
     }
 
+    /// Send node report mutations to all connected apps
+    pub async fn broadcast_node_report_mutations(&mut self, 
+                                                 node_report_mutations: Vec<NodeReportMutation<B,ISA>>) {
+
+        // Send node report mutations to all connected apps
+        for (_app_id, app) in &mut self.apps {
+            if app.permissions.reports {
+                await!(app.send(AppServerToApp::ReportMutations(node_report_mutations.clone())));
+            }
+        }
+    }
+
     pub async fn handle_from_funder(&mut self, funder_message: FunderOutgoingControl<Vec<B>>)
         -> Result<(), AppServerError> {
 
@@ -212,10 +224,8 @@ where
                     node_report_mutations.push(mutation);
                 }
 
-                // Send node report mutations to all connected apps
-                for (_app_id, app) in &mut self.apps {
-                    await!(app.send(AppServerToApp::ReportMutations(node_report_mutations.clone())));
-                }
+                await!(self.broadcast_node_report_mutations(node_report_mutations));
+
             },
         }
         Ok(())
@@ -234,10 +244,7 @@ where
                     node_report_mutations.push(mutation);
                 }
 
-                // Send node report mutations to all connected apps
-                for (_app_id, app) in &mut self.apps {
-                    await!(app.send(AppServerToApp::ReportMutations(node_report_mutations.clone())));
-                }
+                await!(self.broadcast_node_report_mutations(node_report_mutations));
             },
             IndexClientToAppServer::ResponseRoutes(client_response_routes) => {
                 // We search for the app that issued the request, and send it the response.
@@ -248,7 +255,7 @@ where
                     }
                 }
             },
-        }
+        };
         Ok(())
     }
 
