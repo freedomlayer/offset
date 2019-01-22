@@ -1,6 +1,6 @@
 use std::marker::Unpin;
 use std::fmt::Debug;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use futures::{future, FutureExt, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::channel::mpsc;
@@ -8,6 +8,7 @@ use futures::task::{Spawn, SpawnExt};
 
 use common::conn::ConnPair;
 use crypto::identity::PublicKey;
+use crypto::uid::Uid;
 
 use proto::funder::messages::{FunderOutgoingControl, FunderIncomingControl, 
     RemoveFriend, SetFriendStatus, FriendStatus,
@@ -40,10 +41,12 @@ pub enum AppServerEvent<B: Clone,ISA> {
     FromApp((u128, Option<AppToAppServer<B,ISA>>)), // None means that app was closed
 }
 
-pub struct App<B: Clone,ISA> {
+pub struct App<B: Clone, ISA> {
     public_key: PublicKey,
     permissions: AppPermissions,
     opt_sender: Option<mpsc::Sender<AppServerToApp<B,ISA>>>,
+    open_route_requests: HashSet<Uid>,
+    open_send_funds_requests: HashSet<Uid>,
 }
 
 impl<B,ISA> App<B,ISA> 
@@ -58,6 +61,8 @@ where
             public_key,
             permissions,
             opt_sender: Some(sender),
+            open_route_requests: HashSet::new(),
+            open_send_funds_requests: HashSet::new(),
         }
     }
 
@@ -231,6 +236,8 @@ where
                 }
             },
             IndexClientToAppServer::ResponseRoutes(client_response_routes) => {
+                // TODO: We need to somehow find out which app we need to forward this response
+                // to. This means that we need to keep track of route requests issued by apps.
                 unimplemented!();
             },
         }
@@ -259,9 +266,12 @@ where
             AppToAppServer::SetRelays(relays) =>
                 await!(self.to_funder.send(FunderIncomingControl::SetAddress(relays)))
                     .map_err(|_| AppServerError::SendToFunderError),
-            AppToAppServer::RequestSendFunds(user_request_send_funds) => 
+            AppToAppServer::RequestSendFunds(user_request_send_funds) => {
+                // Keep track of which application issued this request:
+                app.open_send_funds_requests.insert(user_request_send_funds.request_id.clone());
                 await!(self.to_funder.send(FunderIncomingControl::RequestSendFunds(user_request_send_funds)))
-                    .map_err(|_| AppServerError::SendToFunderError),
+                    .map_err(|_| AppServerError::SendToFunderError)
+            },
             AppToAppServer::ReceiptAck(receipt_ack) =>
                 await!(self.to_funder.send(FunderIncomingControl::ReceiptAck(receipt_ack)))
                     .map_err(|_| AppServerError::SendToFunderError),
@@ -317,9 +327,12 @@ where
             AppToAppServer::ResetFriendChannel(reset_friend_channel) =>
                 await!(self.to_funder.send(FunderIncomingControl::ResetFriendChannel(reset_friend_channel)))
                     .map_err(|_| AppServerError::SendToFunderError),
-            AppToAppServer::RequestRoutes(request_routes) =>
+            AppToAppServer::RequestRoutes(request_routes) => {
+                // Keep track of which application issued this request:
+                app.open_route_requests.insert(request_routes.request_id.clone());
                 await!(self.to_index_client.send(AppServerToIndexClient::RequestRoutes(request_routes)))
-                    .map_err(|_| AppServerError::SendToIndexClientError),
+                    .map_err(|_| AppServerError::SendToIndexClientError)
+            },
             AppToAppServer::AddIndexServer(index_server_address) =>
                 await!(self.to_index_client.send(AppServerToIndexClient::AddIndexServer(index_server_address)))
                     .map_err(|_| AppServerError::SendToIndexClientError),
