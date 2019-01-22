@@ -4,8 +4,9 @@ use crate::funder::messages::{UserRequestSendFunds, ResponseReceived,
                             ReceiptAck, AddFriend, SetFriendAddress, 
                             SetFriendName, SetFriendRemoteMaxDebt, ResetFriendChannel};
 use crate::funder::report::{FunderReport, FunderReportMutation};
-use crate::index_client::messages::{IndexClientReport, IndexClientReportMutation};
-use crate::index_server::messages::{RequestRoutes, ResponseRoutes};
+use crate::index_client::messages::{IndexClientReport, 
+    IndexClientReportMutation, ClientResponseRoutes};
+use crate::index_server::messages::RequestRoutes;
 
 
 #[derive(Debug, Clone)]
@@ -28,7 +29,7 @@ pub enum AppServerToApp<B: Clone,ISA> {
     /// Reports about current state:
     Report(NodeReport<B,ISA>),
     ReportMutations(Vec<NodeReportMutation<B,ISA>>),
-    ResponseRoute(ResponseRoutes),
+    ResponseRoutes(ClientResponseRoutes),
 }
 
 #[allow(unused)]
