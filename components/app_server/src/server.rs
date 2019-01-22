@@ -865,8 +865,8 @@ mod tests {
         let request_routes = RequestRoutes {
             request_id: Uid::from(&[3; UID_LEN]),
             capacity: 250,
-            source: PublicKey::from(PublicKey::from(&[0xee; PUBLIC_KEY_LEN])),
-            destination: PublicKey::from(PublicKey::from(&[0xff; PUBLIC_KEY_LEN])),
+            source: PublicKey::from(&[0xee; PUBLIC_KEY_LEN]),
+            destination: PublicKey::from(&[0xff; PUBLIC_KEY_LEN]),
             opt_exclude: None,
         };
 
