@@ -141,7 +141,7 @@ pub struct FunderReport<A: Clone> {
 }
 
 #[allow(unused)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum FriendReportMutation<A> {
     SetRemoteAddress(A),
     SetName(String),
@@ -169,7 +169,7 @@ pub struct AddFriendReport<A> {
 
 
 #[allow(unused)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum FunderReportMutation<A> {
     SetAddress(A),
     AddFriend(AddFriendReport<A>),
