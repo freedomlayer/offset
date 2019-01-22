@@ -11,8 +11,7 @@ use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair, PublicK
 use crypto::test_utils::DummyRandom;
 
 use proto::funder::report::{FunderReport, FunderReportMutation, ChannelStatusReport,
-                    FriendLivenessReport, FriendStatusReport, RequestsStatusReport,
-                    funder_report_mutate};
+                    FriendLivenessReport, FriendStatusReport, RequestsStatusReport};
 
 use proto::funder::messages::{FunderIncomingControl,
     AddFriend, FriendStatus, SetFriendStatus, 
@@ -205,7 +204,7 @@ impl<A: Clone> NodeControl<A> {
         match funder_outgoing_control {
             FunderOutgoingControl::ReportMutations(mutations) => {
                 for mutation in &mutations {
-                    funder_report_mutate(&mut self.report, &mutation).unwrap();
+                    self.report.mutate(&mutation).unwrap();
                 }
                 Some(NodeRecv::ReportMutations(mutations))
             },

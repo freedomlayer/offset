@@ -252,60 +252,65 @@ where
     }
 }
 
-#[allow(unused)]
-pub fn funder_report_mutate<A>(funder_report: &mut FunderReport<A>, mutation: &FunderReportMutation<A>) 
-    -> Result<(), ReportMutateError> 
+
+impl<A> FunderReport<A> 
 where
     A: Clone,
 {
+    pub fn mutate(&mut self, mutation: &FunderReportMutation<A>) 
+        -> Result<(), ReportMutateError> {
 
-    match mutation {
-        FunderReportMutation::SetAddress(address) => {
-            funder_report.address = address.clone();
-            Ok(())
-        },
-        FunderReportMutation::AddFriend(add_friend_report) => {
-            let friend_report = FriendReport {
-                remote_address: add_friend_report.address.clone(),
-                name: add_friend_report.name.clone(),
-                sent_local_address: SentLocalAddressReport::NeverSent,
-                opt_last_incoming_move_token: add_friend_report.opt_last_incoming_move_token.clone(),
-                liveness: FriendLivenessReport::Offline,
-                channel_status: add_friend_report.channel_status.clone(),
-                wanted_remote_max_debt: 0,
-                wanted_local_requests_status: RequestsStatusReport::from(&RequestsStatus::Closed),
-                num_pending_responses: 0,
-                num_pending_requests: 0,
-                status: FriendStatusReport::from(&FriendStatus::Disabled),
-                num_pending_user_requests: 0,
-            };
-            if let Some(_) = funder_report.friends.insert(
-                add_friend_report.friend_public_key.clone(), friend_report) {
+        match mutation {
+            FunderReportMutation::SetAddress(address) => {
+                self.address = address.clone();
+                Ok(())
+            },
+            FunderReportMutation::AddFriend(add_friend_report) => {
+                let friend_report = FriendReport {
+                    remote_address: add_friend_report.address.clone(),
+                    name: add_friend_report.name.clone(),
+                    sent_local_address: SentLocalAddressReport::NeverSent,
+                    opt_last_incoming_move_token: add_friend_report.opt_last_incoming_move_token.clone(),
+                    liveness: FriendLivenessReport::Offline,
+                    channel_status: add_friend_report.channel_status.clone(),
+                    wanted_remote_max_debt: 0,
+                    wanted_local_requests_status: RequestsStatusReport::from(&RequestsStatus::Closed),
+                    num_pending_responses: 0,
+                    num_pending_requests: 0,
+                    status: FriendStatusReport::from(&FriendStatus::Disabled),
+                    num_pending_user_requests: 0,
+                };
+                if let Some(_) = self.friends.insert(
+                    add_friend_report.friend_public_key.clone(), friend_report) {
 
-                Err(ReportMutateError::FriendAlreadyExists)
-            } else {
+                    Err(ReportMutateError::FriendAlreadyExists)
+                } else {
+                    Ok(())
+                }
+            },
+            FunderReportMutation::RemoveFriend(friend_public_key) => {
+                if let None = self.friends.remove(&friend_public_key) {
+                    Err(ReportMutateError::FriendDoesNotExist)
+                } else {
+                    Ok(())
+                }
+            },
+            FunderReportMutation::FriendReportMutation((friend_public_key, friend_report_mutation)) => {
+                let mut friend = self.friends.get_mut(friend_public_key)
+                    .ok_or(ReportMutateError::FriendDoesNotExist)?;
+                friend.mutate(friend_report_mutation);
                 Ok(())
-            }
-        },
-        FunderReportMutation::RemoveFriend(friend_public_key) => {
-            if let None = funder_report.friends.remove(&friend_public_key) {
-                Err(ReportMutateError::FriendDoesNotExist)
-            } else {
+            },
+            FunderReportMutation::SetNumReadyReceipts(num_ready_receipts) => {
+                self.num_ready_receipts = *num_ready_receipts;
                 Ok(())
-            }
-        },
-        FunderReportMutation::FriendReportMutation((friend_public_key, friend_report_mutation)) => {
-            let mut friend = funder_report.friends.get_mut(friend_public_key)
-                .ok_or(ReportMutateError::FriendDoesNotExist)?;
-            friend.mutate(friend_report_mutation);
-            Ok(())
-        },
-        FunderReportMutation::SetNumReadyReceipts(num_ready_receipts) => {
-            funder_report.num_ready_receipts = *num_ready_receipts;
-            Ok(())
-        },
+            },
+        }
+
     }
+
 }
+
 
 
 // Conversion to index client mutations and state
@@ -373,7 +378,7 @@ where
 
     let create_update_friend = |public_key: &PublicKey| {
         let mut new_funder_report = funder_report.clone();
-        funder_report_mutate(&mut new_funder_report, funder_report_mutation).unwrap();
+        new_funder_report.mutate(funder_report_mutation).unwrap();
         
         let new_friend_report = new_funder_report.friends
             .get(public_key)
