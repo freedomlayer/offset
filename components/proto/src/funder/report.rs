@@ -205,47 +205,50 @@ pub enum ReportMutateError {
     FriendAlreadyExists,
 }
 
-pub fn friend_report_mutate<A>(friend_report: &mut FriendReport<A>, mutation: &FriendReportMutation<A>) 
-where   
+
+impl<A> FriendReport<A> 
+where
     A: Clone,
 {
-    match mutation {
-        FriendReportMutation::SetRemoteAddress(remote_address) => {
-            friend_report.remote_address = remote_address.clone();
-        },
-        FriendReportMutation::SetName(name) => {
-            friend_report.name = name.clone();
-        },
-        FriendReportMutation::SetSentLocalAddress(sent_local_address_report) => {
-            friend_report.sent_local_address = sent_local_address_report.clone();
-        },
-        FriendReportMutation::SetChannelStatus(channel_status_report) => {
-            friend_report.channel_status = channel_status_report.clone();
-        },
-        FriendReportMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
-            friend_report.wanted_remote_max_debt = *wanted_remote_max_debt;
-        },
-        FriendReportMutation::SetWantedLocalRequestsStatus(wanted_local_requests_status) => {
-            friend_report.wanted_local_requests_status = wanted_local_requests_status.clone();
-        },
-        FriendReportMutation::SetNumPendingResponses(num_pending_responses) => {
-            friend_report.num_pending_responses = *num_pending_responses;
-        },
-        FriendReportMutation::SetNumPendingRequests(num_pending_requests) => {
-            friend_report.num_pending_requests = *num_pending_requests;
-        },
-        FriendReportMutation::SetFriendStatus(friend_status) => {
-            friend_report.status = friend_status.clone();
-        },
-        FriendReportMutation::SetNumPendingUserRequests(num_pending_user_requests) => {
-            friend_report.num_pending_user_requests = *num_pending_user_requests;
-        },
-        FriendReportMutation::SetOptLastIncomingMoveToken(opt_last_incoming_move_token) => {
-            friend_report.opt_last_incoming_move_token = opt_last_incoming_move_token.clone();
-        },
-        FriendReportMutation::SetLiveness(friend_liveness_report) => {
-            friend_report.liveness = friend_liveness_report.clone();
-        },
+    pub fn mutate(&mut self, mutation: &FriendReportMutation<A>) {
+        match mutation {
+            FriendReportMutation::SetRemoteAddress(remote_address) => {
+                self.remote_address = remote_address.clone();
+            },
+            FriendReportMutation::SetName(name) => {
+                self.name = name.clone();
+            },
+            FriendReportMutation::SetSentLocalAddress(sent_local_address_report) => {
+                self.sent_local_address = sent_local_address_report.clone();
+            },
+            FriendReportMutation::SetChannelStatus(channel_status_report) => {
+                self.channel_status = channel_status_report.clone();
+            },
+            FriendReportMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
+                self.wanted_remote_max_debt = *wanted_remote_max_debt;
+            },
+            FriendReportMutation::SetWantedLocalRequestsStatus(wanted_local_requests_status) => {
+                self.wanted_local_requests_status = wanted_local_requests_status.clone();
+            },
+            FriendReportMutation::SetNumPendingResponses(num_pending_responses) => {
+                self.num_pending_responses = *num_pending_responses;
+            },
+            FriendReportMutation::SetNumPendingRequests(num_pending_requests) => {
+                self.num_pending_requests = *num_pending_requests;
+            },
+            FriendReportMutation::SetFriendStatus(friend_status) => {
+                self.status = friend_status.clone();
+            },
+            FriendReportMutation::SetNumPendingUserRequests(num_pending_user_requests) => {
+                self.num_pending_user_requests = *num_pending_user_requests;
+            },
+            FriendReportMutation::SetOptLastIncomingMoveToken(opt_last_incoming_move_token) => {
+                self.opt_last_incoming_move_token = opt_last_incoming_move_token.clone();
+            },
+            FriendReportMutation::SetLiveness(friend_liveness_report) => {
+                self.liveness = friend_liveness_report.clone();
+            },
+        }
     }
 }
 
@@ -294,7 +297,7 @@ where
         FunderReportMutation::FriendReportMutation((friend_public_key, friend_report_mutation)) => {
             let mut friend = funder_report.friends.get_mut(friend_public_key)
                 .ok_or(ReportMutateError::FriendDoesNotExist)?;
-            friend_report_mutate(&mut friend, friend_report_mutation);
+            friend.mutate(friend_report_mutation);
             Ok(())
         },
         FunderReportMutation::SetNumReadyReceipts(num_ready_receipts) => {
