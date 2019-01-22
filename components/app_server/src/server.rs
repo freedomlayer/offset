@@ -917,6 +917,7 @@ mod tests {
             request_id: Uid::from(&[3; UID_LEN]),
             result: ResponseRoutesResult::Failure,
         };
+        await!(index_client_sender.send(IndexClientToAppServer::ResponseRoutes(client_response_routes))).unwrap();
 
         // We shouldn't get an message at any of the apps:
         assert!(app_receiver0.try_next().is_err());
