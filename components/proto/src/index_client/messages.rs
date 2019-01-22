@@ -33,7 +33,7 @@ pub enum IndexClientReportMutation<ISA> {
     SetConnectedServer(Option<ISA>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResponseRoutesResult {
     Success(Vec<RouteWithCapacity>),
     Failure,
