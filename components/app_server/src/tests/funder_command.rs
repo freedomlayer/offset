@@ -16,7 +16,7 @@ where
 {
 
     let (mut funder_sender, mut funder_receiver,
-         index_client_sender, index_client_receiver,
+         _index_client_sender, _index_client_receiver,
          mut connections_sender, initial_node_report) = spawn_dummy_app_server(spawner.clone());
 
     let (mut app_sender, app_server_receiver) = mpsc::channel(0);

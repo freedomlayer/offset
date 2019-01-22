@@ -1,10 +1,8 @@
 use futures::{StreamExt, SinkExt};
 use futures::channel::mpsc;
-use futures::task::{Spawn, SpawnExt};
+use futures::task::Spawn;
 use futures::executor::ThreadPool;
-use futures::{FutureExt, TryFutureExt};
 
-use im::hashmap::HashMap as ImHashMap;
 
 use crypto::uid::Uid;
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
@@ -14,27 +12,21 @@ use proto::funder::messages::{FunderOutgoingControl, FunderIncomingControl,
                                 UserRequestSendFunds, FriendsRoute, 
                                 InvoiceId, INVOICE_ID_LEN, ResponseReceived, 
                                 ResponseSendFundsResult};
-use proto::funder::report::FunderReport;
-use proto::app_server::messages::{AppServerToApp, AppToAppServer, NodeReport,
-                                    NodeReportMutation};
-use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClient};
-use proto::index_client::messages::{IndexClientReport, IndexClientReportMutation, 
-    ClientResponseRoutes, ResponseRoutesResult, RequestRoutes};
+use proto::app_server::messages::{AppServerToApp, AppToAppServer};
 
 use crate::config::AppPermissions;
-use crate::server::{IncomingAppConnection, app_server_loop};
 
 use super::utils::spawn_dummy_app_server;
 
 
-async fn task_app_server_loop_request_send_funds<S>(mut spawner: S) 
+async fn task_app_server_loop_request_send_funds<S>(spawner: S) 
 where
     S: Spawn + Clone + Send + 'static,
 {
 
     let (mut funder_sender, mut funder_receiver,
-         mut index_client_sender, mut index_client_receiver,
-         mut connections_sender, initial_node_report) = spawn_dummy_app_server(spawner.clone());
+         _index_client_sender, _index_client_receiver,
+         mut connections_sender, _initial_node_report) = spawn_dummy_app_server(spawner.clone());
 
     // Connect two apps:
     let (mut app_sender0, app_server_receiver) = mpsc::channel(0);
@@ -48,7 +40,7 @@ where
     };
     await!(connections_sender.send((app_permissions, app_server_conn_pair))).unwrap();
 
-    let (mut app_sender1, app_server_receiver) = mpsc::channel(0);
+    let (_app_sender1, app_server_receiver) = mpsc::channel(0);
     let (app_server_sender, mut app_receiver1) = mpsc::channel(0);
     let app_server_conn_pair = (app_server_sender, app_server_receiver);
     let app_permissions = AppPermissions {

@@ -1,27 +1,17 @@
-use futures::{StreamExt, SinkExt};
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
-use futures::executor::ThreadPool;
 use futures::{FutureExt, TryFutureExt};
 
 use im::hashmap::HashMap as ImHashMap;
 
-use crypto::uid::Uid;
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
-use crypto::uid::UID_LEN;
 
-use proto::funder::messages::{FunderOutgoingControl, FunderIncomingControl,
-                                UserRequestSendFunds, FriendsRoute, 
-                                InvoiceId, INVOICE_ID_LEN, ResponseReceived, 
-                                ResponseSendFundsResult};
+use proto::funder::messages::{FunderOutgoingControl, FunderIncomingControl};
 use proto::funder::report::FunderReport;
-use proto::app_server::messages::{AppServerToApp, AppToAppServer, NodeReport,
-                                    NodeReportMutation};
-use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClient};
-use proto::index_client::messages::{IndexClientReport, IndexClientReportMutation, 
-    ClientResponseRoutes, ResponseRoutesResult, RequestRoutes};
+use proto::app_server::messages::NodeReport;
+use proto::index_client::messages::{IndexClientToAppServer, 
+    AppServerToIndexClient, IndexClientReport};
 
-use crate::config::AppPermissions;
 use crate::server::{IncomingAppConnection, app_server_loop};
 
 /// A test util function.
@@ -38,13 +28,13 @@ pub fn spawn_dummy_app_server<S>(mut spawner: S) ->
 where
     S: Spawn + Clone + Send + 'static,
 {
-    let (mut funder_sender, from_funder) = mpsc::channel(0);
-    let (to_funder, mut funder_receiver) = mpsc::channel(0);
+    let (funder_sender, from_funder) = mpsc::channel(0);
+    let (to_funder, funder_receiver) = mpsc::channel(0);
 
     let (index_client_sender, from_index_client) = mpsc::channel(0);
     let (to_index_client, index_client_receiver) = mpsc::channel(0);
 
-    let (mut connections_sender, incoming_connections) = mpsc::channel(0);
+    let (connections_sender, incoming_connections) = mpsc::channel(0);
 
     // Create a dummy initial_node_report:
     let funder_report = FunderReport {

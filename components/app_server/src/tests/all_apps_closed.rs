@@ -1,42 +1,27 @@
 use futures::{StreamExt, SinkExt};
 use futures::channel::mpsc;
-use futures::task::{Spawn, SpawnExt};
+use futures::task::Spawn;
 use futures::executor::ThreadPool;
-use futures::{FutureExt, TryFutureExt};
 
-use im::hashmap::HashMap as ImHashMap;
-
-use crypto::uid::Uid;
-use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
-use crypto::uid::UID_LEN;
-
-use proto::funder::messages::{FunderOutgoingControl, FunderIncomingControl,
-                                UserRequestSendFunds, FriendsRoute, 
-                                InvoiceId, INVOICE_ID_LEN, ResponseReceived, 
-                                ResponseSendFundsResult};
-use proto::funder::report::FunderReport;
-use proto::app_server::messages::{AppServerToApp, AppToAppServer, NodeReport,
-                                    NodeReportMutation};
-use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClient};
-use proto::index_client::messages::{IndexClientReport, IndexClientReportMutation, 
-    ClientResponseRoutes, ResponseRoutesResult, RequestRoutes};
+use proto::app_server::messages::AppServerToApp;
+use proto::index_client::messages::{IndexClientToAppServer, 
+    IndexClientReportMutation};
 
 use crate::config::AppPermissions;
-use crate::server::{IncomingAppConnection, app_server_loop};
 
 use super::utils::spawn_dummy_app_server;
 
 
-async fn task_app_server_loop_all_apps_closed<S>(mut spawner: S) 
+async fn task_app_server_loop_all_apps_closed<S>(spawner: S) 
 where
     S: Spawn + Clone + Send + 'static,
 {
 
-    let (mut funder_sender, mut funder_receiver,
+    let (_funder_sender, mut funder_receiver,
          mut index_client_sender, mut index_client_receiver,
          mut connections_sender, initial_node_report) = spawn_dummy_app_server(spawner.clone());
 
-    let (mut app_sender, app_server_receiver) = mpsc::channel(0);
+    let (app_sender, app_server_receiver) = mpsc::channel(0);
     let (app_server_sender, mut app_receiver) = mpsc::channel(0);
     let app_server_conn_pair = (app_server_sender, app_server_receiver);
 
@@ -64,7 +49,7 @@ where
     let index_client_report_mutations = vec![index_client_report_mutation.clone()];
     await!(index_client_sender.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations))).unwrap();
 
-    let to_app_message = await!(app_receiver.next()).unwrap(); 
+    let _to_app_message = await!(app_receiver.next()).unwrap(); 
 
     // Last app disconnects:
     drop(app_sender);
