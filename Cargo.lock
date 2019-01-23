@@ -563,6 +563,7 @@ dependencies = [
  "num-traits 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "offst-common 0.1.0",
  "offst-crypto 0.1.0",
+ "offst-database 0.1.0",
  "offst-identity 0.1.0",
  "offst-proto 0.1.0",
  "pretty_env_logger 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",

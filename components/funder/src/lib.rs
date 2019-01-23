@@ -31,7 +31,7 @@ mod mutual_credit;
 mod token_channel;
 mod handler;
 mod report;
-mod database;
+// mod database;
 mod funder;
 #[cfg(test)]
 mod tests;

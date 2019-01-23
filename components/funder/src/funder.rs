@@ -9,6 +9,9 @@ use serde::de::DeserializeOwned;
 use crypto::crypto_rand::CryptoRandom;
 use identity::IdentityClient;
 
+// use crate::database::{AtomicDb, DbRunner, DbRunnerError};
+use database::DatabaseClient;
+
 use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::{FunderIncomingControl, 
     FunderOutgoingControl};
@@ -17,15 +20,13 @@ use crate::ephemeral::Ephemeral;
 use crate::handler::{funder_handle_message};
 use crate::types::{FunderIncoming, FunderOutgoingComm, FunderIncomingComm};
 use crate::state::{FunderState, FunderMutation};
-use crate::database::{AtomicDb, DbRunner, DbRunnerError};
-
 
 #[derive(Debug)]
-pub enum FunderError<E> {
+pub enum FunderError {
     IncomingControlClosed,
     IncomingCommClosed,
     IncomingMessagesError,
-    DbRunnerError(DbRunnerError<E>),
+    DbError,
     SendControlError,
     SendCommError,
 }
@@ -38,33 +39,30 @@ pub enum FunderEvent<A> {
     IncomingCommClosed,
 }
 
-pub async fn inner_funder_loop<A, R, D, E>(
+pub async fn inner_funder_loop<A,R>(
     mut identity_client: IdentityClient,
     rng: R,
     incoming_control: mpsc::Receiver<FunderIncomingControl<A>>,
     incoming_comm: mpsc::Receiver<FunderIncomingComm<A>>,
     control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
     comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
-    atomic_db: D,
+    mut funder_state: FunderState<A>,
+    mut db_client: DatabaseClient<FunderMutation<A>>,
     max_operations_in_batch: usize,
     max_pending_user_requests: usize,
-    mut opt_event_sender: Option<mpsc::Sender<FunderEvent<A>>>) -> Result<(), FunderError<E>> 
+    mut opt_event_sender: Option<mpsc::Sender<FunderEvent<A>>>) -> Result<(), FunderError> 
 
 where
     A: CanonicalSerialize + Serialize + DeserializeOwned + Send + Sync + Clone + Debug + PartialEq + Eq + 'static,
     R: CryptoRandom + 'static,
-    D: AtomicDb<State=FunderState<A>, Mutation=FunderMutation<A>, Error=E> + Send + 'static,
-    E: Send + 'static,
 {
 
     // Transform error type:
     let mut comm_sender = comm_sender.sink_map_err(|_| ());
     let mut control_sender = control_sender.sink_map_err(|_| ());
 
-    let funder_state = atomic_db.get_state().clone();
-    let mut db_runner = DbRunner::new(atomic_db);
+    // let mut db_runner = DbRunner::new(atomic_db);
     let mut ephemeral = Ephemeral::new(&funder_state);
-    let _ = funder_state;
 
     // Select over all possible events:
     let incoming_control = incoming_control
@@ -86,10 +84,9 @@ where
             FunderEvent::FunderIncoming(funder_incoming) => funder_incoming,
         }; 
 
-        // Process message:
         let res = await!(funder_handle_message(&mut identity_client,
                               &rng,
-                              db_runner.get_state().clone(),
+                              funder_state.clone(),
                               ephemeral.clone(),
                               max_operations_in_batch,
                               max_pending_user_requests,
@@ -106,9 +103,13 @@ where
         };
 
         if !handler_output.funder_mutations.is_empty() {
+            // Mutate our funder_state in memory:
+            for mutation in &handler_output.funder_mutations {
+                funder_state.mutate(mutation);
+            }
             // If there are any mutations, send them to the database:
-            await!(db_runner.mutate(handler_output.funder_mutations))
-                .map_err(FunderError::DbRunnerError)?;
+            await!(db_client.mutate(handler_output.funder_mutations))
+                .map_err(|_| FunderError::DbError)?;
         }
         
         // Apply ephemeral mutations to our ephemeral:
@@ -138,7 +139,7 @@ where
 
 
 #[allow(unused)]
-pub async fn funder_loop<A,R,D,E>(
+pub async fn funder_loop<A,R>(
     identity_client: IdentityClient,
     rng: R,
     incoming_control: mpsc::Receiver<FunderIncomingControl<A>>,
@@ -147,12 +148,11 @@ pub async fn funder_loop<A,R,D,E>(
     comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
     max_operations_in_batch: usize,
     max_pending_user_requests: usize,
-    atomic_db: D) -> Result<(), FunderError<E>> 
+    funder_state: FunderState<A>,
+    db_client: DatabaseClient<FunderMutation<A>>) -> Result<(), FunderError> 
 where
     A: CanonicalSerialize + Serialize + DeserializeOwned + Send + Sync + Clone + Debug + PartialEq + Eq + 'static,
     R: CryptoRandom + 'static,
-    D: AtomicDb<State=FunderState<A>, Mutation=FunderMutation<A>, Error=E> + Send + 'static,
-    E: Send + 'static,
 {
 
     await!(inner_funder_loop(identity_client,
@@ -161,7 +161,8 @@ where
            incoming_comm,
            control_sender,
            comm_sender,
-           atomic_db,
+           funder_state,
+           db_client,
            max_operations_in_batch,
            max_pending_user_requests,
            None))

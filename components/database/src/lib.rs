@@ -15,3 +15,8 @@ mod file_db;
 mod atomic_db;
 mod database;
 
+pub use self::database::{
+    DatabaseClient, 
+    DatabaseClientError, 
+    database_loop};
+                    

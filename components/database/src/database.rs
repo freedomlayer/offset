@@ -11,7 +11,7 @@ pub enum DatabaseError<ADE> {
 // A request to apply mutations to the database
 pub struct DatabaseRequest<M> {
     mutations: Vec<M>,
-    response_sender: oneshot::Sender<()>,
+    pub response_sender: oneshot::Sender<()>,
 }
 
 #[derive(Clone)]

@@ -25,23 +25,18 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
         .map(|nc| nc.public_key.clone())
         .collect::<Vec<PublicKey>>();
 
-    println!("Was here1");
-
     await!(node_controls[0].add_friend(&public_keys[1], 1u32, "node1", 8));
     await!(node_controls[1].add_friend(&public_keys[0], 0u32, "node0", -8));
-    println!("Was here2");
     assert_eq!(node_controls[0].report.friends.len(), 1);
     assert_eq!(node_controls[1].report.friends.len(), 1);
 
     await!(node_controls[0].set_friend_status(&public_keys[1], FriendStatus::Enabled));
     await!(node_controls[1].set_friend_status(&public_keys[0], FriendStatus::Enabled));
-    println!("Was here3");
 
     // Set remote max debt for both sides:
     await!(node_controls[0].set_remote_max_debt(&public_keys[1], 200));
     await!(node_controls[1].set_remote_max_debt(&public_keys[0], 100));
 
-    println!("Was here4");
     // Open requests:
     await!(node_controls[0].set_requests_status(&public_keys[1], RequestsStatus::Open));
     await!(node_controls[1].set_requests_status(&public_keys[0], RequestsStatus::Open));
