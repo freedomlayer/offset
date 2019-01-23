@@ -51,9 +51,27 @@ where
 {
     pub fn new(db_conn: FileDbConn) -> Result<Self, FileDbError<S::MutateError>> {
 
-        // TODO: Should create a new funder_state here if does not exist?
-        let mut fr = File::open(&db_conn.db_path)
-            .map_err(FileDbError::ReadError)?;
+        // Open file database, or create a new initial one:
+        let mut fr = match File::open(&db_conn.db_path) {
+            Ok(fr) => fr,
+            Err(_) => {
+                // There is no file, we create a new file:
+                let initial_state = S::initial();
+
+                // Serialize the state:
+                let serialized_str = serde_json::to_string(&initial_state)
+                    .map_err(FileDbError::SerializeError)?;
+                // Save the new state to file, atomically:
+                let af = atomicwrites::AtomicFile::new(
+                    &db_conn.db_path, atomicwrites::AllowOverwrite);
+                af.write(|fw| {
+                    fw.write_all(serialized_str.as_bytes())
+                }).map_err(FileDbError::WriteError)?;
+
+                File::open(&db_conn.db_path)
+                    .map_err(FileDbError::ReadError)?
+            },
+        };
 
         let mut serialized_str = String::new();
         fr.read_to_string(&mut serialized_str)
