@@ -2,6 +2,7 @@ use std::io;
 use std::io::prelude::*;
 use std::string::String;
 use std::fs::File;
+use std::path::{Path, PathBuf};
 
 use std::fmt::Debug;
 
@@ -22,23 +23,11 @@ pub enum FileDbError<ME> {
     MutateError(ME),
 }
 
-pub struct FileDbConn {
-    /// DbCore file path
-    db_path: String,
-}
-
-impl FileDbConn {
-    pub fn new(db_path: &str) -> FileDbConn {
-        FileDbConn {
-            db_path: String::from(db_path),
-        }
-    }
-}
 
 #[allow(unused)]
 pub struct FileDb<S> {
     /// Connection to the database
-    db_conn: FileDbConn,
+    path_buf: PathBuf,
     /// Current state represented by the database:
     state: S,
 }
@@ -47,12 +36,14 @@ pub struct FileDb<S> {
 #[allow(unused)]
 impl<S> FileDb<S>
 where
-    S: MutableState + Clone + Serialize + DeserializeOwned,
+    S: Clone + Serialize + DeserializeOwned + MutableState,
+    S::Mutation: Clone + Serialize + DeserializeOwned,
+    S::MutateError: Debug,
 {
-    pub fn new(db_conn: FileDbConn) -> Result<Self, FileDbError<S::MutateError>> {
+    pub fn new(path_buf: PathBuf) -> Result<Self, FileDbError<S::MutateError>> {
 
         // Open file database, or create a new initial one:
-        let mut fr = match File::open(&db_conn.db_path) {
+        let mut fr = match File::open(&path_buf) {
             Ok(fr) => fr,
             Err(_) => {
                 // There is no file, we create a new file:
@@ -63,12 +54,12 @@ where
                     .map_err(FileDbError::SerializeError)?;
                 // Save the new state to file, atomically:
                 let af = atomicwrites::AtomicFile::new(
-                    &db_conn.db_path, atomicwrites::AllowOverwrite);
+                    &path_buf, atomicwrites::AllowOverwrite);
                 af.write(|fw| {
                     fw.write_all(serialized_str.as_bytes())
                 }).map_err(FileDbError::WriteError)?;
 
-                File::open(&db_conn.db_path)
+                File::open(&path_buf)
                     .map_err(FileDbError::ReadError)?
             },
         };
@@ -81,7 +72,7 @@ where
             .map_err(FileDbError::DeserializeError)?;
 
         Ok(FileDb {
-            db_conn,
+            path_buf,
             state,
         })
     }
@@ -105,7 +96,7 @@ where
     }
 
     /// Apply a set of mutations atomically the database, and save it.
-    fn mutate(&mut self, mutations: &[Self::Mutation]) -> Result<(), Self::Error> {
+    fn mutate_db(&mut self, mutations: &[Self::Mutation]) -> Result<(), Self::Error> {
         // Apply all mutations to state:
         for mutation in mutations.iter() {
             self.state.mutate(mutation)
@@ -118,11 +109,95 @@ where
 
         // Save the new state to file, atomically:
         let af = atomicwrites::AtomicFile::new(
-            &self.db_conn.db_path, atomicwrites::AllowOverwrite);
+            &self.path_buf, atomicwrites::AllowOverwrite);
         af.write(|fw| {
             fw.write_all(serialized_str.as_bytes())
         }).map_err(FileDbError::WriteError)?;
         
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    /// A dummy state (used for testing)
+    #[derive(Debug, Serialize, Deserialize, Clone)]
+    struct DummyState {
+        pub x: u32,
+    }
+
+    impl DummyState {
+        pub fn new() -> Self {
+            DummyState {
+                x: 0u32,
+            }
+        }
+    }
+
+    /// A dummy mutation (used for testing)
+    #[derive(Debug, Serialize, Deserialize, Clone)]
+    enum DummyMutation {
+        Inc,
+        Dec
+    }
+
+    #[derive(Debug)]
+    struct DummyMutateError;
+
+    impl MutableState for DummyState {
+        type Mutation = DummyMutation;
+        type MutateError = DummyMutateError;
+
+        fn initial() -> Self {
+            DummyState::new()
+        }
+
+        fn mutate(&mut self, mutation: &Self::Mutation) -> Result<(), Self::MutateError> {
+            match mutation {
+                DummyMutation::Inc => {
+                    self.x = self.x.saturating_add(1);
+                },
+                DummyMutation::Dec => {
+                    self.x = self.x.saturating_sub(1);
+                },
+            };
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_file_db_basic() {
+        // Create a temporary directory:
+        let dir = tempdir().unwrap();
+
+        let file_path = dir.path().join("database_file");
+        let mut file_db = FileDb::<DummyState>::new(file_path.clone()).unwrap();
+
+        file_db.mutate_db(&[DummyMutation::Inc, 
+                         DummyMutation::Inc,
+                         DummyMutation::Dec]);
+
+        let state = file_db.get_state();
+        assert_eq!(state.x, 1);
+
+        file_db.mutate_db(&[DummyMutation::Inc, 
+                         DummyMutation::Inc,
+                         DummyMutation::Dec]);
+
+        let state = file_db.get_state();
+        assert_eq!(state.x, 2);
+
+        drop(file_db);
+
+        // Check persistency:
+        let mut file_db = FileDb::<DummyState>::new(file_path.clone()).unwrap();
+        let state = file_db.get_state();
+        assert_eq!(state.x, 2);
+
+        // Remove temporary directory:
+        dir.close().unwrap();
     }
 }

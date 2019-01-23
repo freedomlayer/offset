@@ -8,6 +8,9 @@
 #[macro_use]
 extern crate log;
 
+#[macro_use]
+extern crate serde_derive;
+
 mod file_db;
 mod atomic_db;
 mod database;
