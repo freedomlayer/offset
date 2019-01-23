@@ -16,5 +16,5 @@ pub trait AtomicDb {
     type Error;
 
     fn get_state(&self) -> &Self::State;
-    fn mutate(&mut self, mutations: &[Self::Mutation]) -> Result<(), Self::Error>;
+    fn mutate_db(&mut self, mutations: &[Self::Mutation]) -> Result<(), Self::Error>;
 }

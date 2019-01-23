@@ -60,7 +60,7 @@ where
     AD: AtomicDb,
 {
     while let Some(database_request) = await!(incoming_requests.next()) {
-        atomic_db.mutate(&database_request.mutations[..])
+        atomic_db.mutate_db(&database_request.mutations[..])
             .map_err(|atomic_db_error| DatabaseError::AtomicDbError(atomic_db_error))?;
 
         // Notify client that the database mutation request was processed:
@@ -122,7 +122,7 @@ mod tests {
             &self.dummy_state
         }
 
-        fn mutate(&mut self, mutations: &[Self::Mutation]) -> Result<(), Self::Error> {
+        fn mutate_db(&mut self, mutations: &[Self::Mutation]) -> Result<(), Self::Error> {
             for mutation in mutations {
                 match mutation {
                     DummyMutation::Inc => {
