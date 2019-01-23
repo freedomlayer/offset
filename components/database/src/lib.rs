@@ -10,5 +10,5 @@ extern crate log;
 
 mod file_db;
 mod atomic_db;
-// mod database;
+mod database;
 
