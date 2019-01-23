@@ -76,7 +76,6 @@ mod tests {
     use super::*;
     use futures::executor::ThreadPool;
     use futures::task::{Spawn, SpawnExt};
-    use futures::{FutureExt, TryFutureExt};
 
     /// A dummy state (used for testing)
     #[derive(Debug)]

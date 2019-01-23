@@ -2,7 +2,7 @@ use std::io;
 use std::io::prelude::*;
 use std::string::String;
 use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use std::fmt::Debug;
 
@@ -178,14 +178,14 @@ mod tests {
 
         file_db.mutate_db(&[DummyMutation::Inc, 
                          DummyMutation::Inc,
-                         DummyMutation::Dec]);
+                         DummyMutation::Dec]).unwrap();
 
         let state = file_db.get_state();
         assert_eq!(state.x, 1);
 
         file_db.mutate_db(&[DummyMutation::Inc, 
                          DummyMutation::Inc,
-                         DummyMutation::Dec]);
+                         DummyMutation::Dec]).unwrap();
 
         let state = file_db.get_state();
         assert_eq!(state.x, 2);
@@ -193,7 +193,7 @@ mod tests {
         drop(file_db);
 
         // Check persistency:
-        let mut file_db = FileDb::<DummyState>::new(file_path.clone()).unwrap();
+        let file_db = FileDb::<DummyState>::new(file_path.clone()).unwrap();
         let state = file_db.get_state();
         assert_eq!(state.x, 2);
 

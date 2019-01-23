@@ -5,9 +5,9 @@
 #![feature(generators)]
 #![feature(never_type)]
 
-#[macro_use]
 extern crate log;
 
+#[cfg(test)]
 #[macro_use]
 extern crate serde_derive;
 
