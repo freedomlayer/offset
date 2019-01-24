@@ -178,12 +178,12 @@ pub fn read_relay_address(from: &relay_address::Reader) -> Result<RelayAddress, 
     })
 }
 
-pub fn write_relay_address(from: RelayAddress, to: &mut relay_address::Builder) {
+pub fn write_relay_address(from: &RelayAddress, to: &mut relay_address::Builder) {
 
     write_public_key(&from.public_key, &mut to.reborrow().init_public_key());
     let tcp_address_builder = to.reborrow().init_address();
 
-    match from.address {
+    match &from.address {
         TcpAddress::V4(tcp_address_v4) => {
             let mut tcp_address_v4_writer = tcp_address_builder.init_v4();
             let address_u32 = BigEndian::read_u32(&tcp_address_v4.address);

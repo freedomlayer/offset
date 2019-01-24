@@ -487,27 +487,27 @@ pub enum FunderOutgoingControl<A: Clone> {
 }
 
 /// IPv4 address (TCP)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TcpAddressV4 {
     pub address: [u8; 4], // 32 bit
     pub port: u16,
 }
 
 /// IPv6 address (TCP)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TcpAddressV6 {
     pub address: [u8; 16], // 128 bit
     pub port: u16,
 }
 
 /// Address for TCP connection
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TcpAddress {
     V4(TcpAddressV4),
     V6(TcpAddressV6),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RelayAddress {
     pub public_key: PublicKey,
     pub address: TcpAddress,

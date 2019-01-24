@@ -11,7 +11,8 @@ use crate::capnp_common::{write_signature, read_signature,
                           write_rand_nonce, read_rand_nonce,
                           write_uid, read_uid,
                           write_invoice_id, read_invoice_id,
-                          write_public_key, read_public_key};
+                          write_public_key, read_public_key,
+                          write_relay_address, read_relay_address};
 use funder_capnp;
 
 use super::messages::{FriendMessage, MoveTokenRequest, ResetTerms,
@@ -119,6 +120,26 @@ fn ser_move_token(move_token: &MoveToken<Vec<RelayAddress>>,
         let mut operation_builder = operations_builder.reborrow().get(usize_to_u32(index).unwrap());
         ser_friend_operation(operation, &mut operation_builder);
     }
+
+    let mut opt_local_address_builder = move_token_builder.reborrow().init_opt_local_address();
+    match &move_token.opt_local_address {
+        Some(local_address) => {
+            let local_address_len = usize_to_u32(local_address.len()).unwrap();
+            let mut address_builder = opt_local_address_builder.init_address(local_address_len);
+            for (index, relay_address) in local_address.iter().enumerate() {
+                let mut relay_address_builder = address_builder.reborrow().get(usize_to_u32(index).unwrap());
+                write_relay_address(relay_address, &mut relay_address_builder);
+            }
+        },
+        None => {
+            opt_local_address_builder.set_empty(());
+        }
+    }
+
+    write_public_key(&move_token.local_public_key, 
+                     &mut move_token_builder.reborrow().init_local_public_key());
+    write_public_key(&move_token.remote_public_key, 
+                     &mut move_token_builder.reborrow().init_remote_public_key());
 
     write_signature(&move_token.old_token, &mut move_token_builder.reborrow().init_old_token());
     move_token_builder.reborrow().set_inconsistency_counter(move_token.inconsistency_counter);
@@ -262,11 +283,15 @@ fn deser_move_token(move_token_reader: &funder_capnp::move_token::Reader)
         operations.push(deser_friend_operation(&operation_reader)?);
     }
 
-    let opt_local_address_reader = move_token_reader.get_opt_local_address()?;
+    let opt_local_address_reader = move_token_reader.get_opt_local_address();
     let opt_local_address = match opt_local_address_reader.which()? {
         funder_capnp::move_token::opt_local_address::Empty(()) => None,
         funder_capnp::move_token::opt_local_address::Address(relay_address_reader) => {
-            read_relay_address(&relay_address_reader)?
+            let mut addresses = Vec::new();
+            for address in relay_address_reader? {
+                addresses.push(read_relay_address(&address)?);
+            }
+            Some(addresses)
         },
     };
 
@@ -341,6 +366,8 @@ mod tests {
     use crypto::uid::{Uid, UID_LEN};
     use crate::funder::messages::{InvoiceId, INVOICE_ID_LEN};
 
+    use crate::funder::messages::{TcpAddress, TcpAddressV4, TcpAddressV6};
+
     /// Create an example FriendMessage::MoveTokenRequest:
     fn create_move_token_request() -> FriendMessage<Vec<RelayAddress>> {
         let route = FriendsRoute {
@@ -376,9 +403,29 @@ mod tests {
                                   FriendTcOp::RequestSendFunds(request_send_funds),
                                   FriendTcOp::ResponseSendFunds(response_send_funds),
                                   FriendTcOp::FailureSendFunds(failure_send_funds)];
+
+        let relay_address4 = RelayAddress {
+            public_key: PublicKey::from(&[0x11; PUBLIC_KEY_LEN]),
+            address: TcpAddress::V4(TcpAddressV4 {
+                address: [0,1,2,3],
+                port: 1337,
+            }),
+        };
+
+        let relay_address6 = RelayAddress {
+            public_key: PublicKey::from(&[0x11; PUBLIC_KEY_LEN]),
+            address: TcpAddress::V6(TcpAddressV6 {
+                address: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],
+                port: 1338,
+            }),
+        };
+
         let move_token = MoveToken {
             operations,
+            opt_local_address: Some(vec![relay_address4, relay_address6]),
             old_token: Signature::from(&[0; SIGNATURE_LEN]),
+            local_public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
+            remote_public_key: PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]),
             inconsistency_counter: 2,
             move_token_counter: 18,
             balance: -5,
