@@ -148,7 +148,6 @@ pub fn read_relay_address(from: &relay_address::Reader) -> Result<RelayAddress, 
             let tcp_address_v4 = res_tcp_address_v4?;
             let address_u32 = tcp_address_v4.get_address();
             let mut address = [0u8; 4];
-            // let writer = &mut address;
             BigEndian::write_u32(&mut address, address_u32);
 
             let port = tcp_address_v4.get_port();
@@ -161,7 +160,6 @@ pub fn read_relay_address(from: &relay_address::Reader) -> Result<RelayAddress, 
         common_capnp::tcp_address::V6(res_tcp_address_v6) => {
             let tcp_address_v6 = res_tcp_address_v6?;
             let address_vec = read_buffer128(&tcp_address_v6.get_address()?);
-
             let mut address = [0u8; 16];
             address.copy_from_slice(&address_vec[..]); 
 
