@@ -17,6 +17,7 @@ mod database;
 
 pub use self::database::{
     DatabaseClient, 
+    DatabaseRequest,
     DatabaseClientError, 
     database_loop};
                     
