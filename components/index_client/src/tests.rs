@@ -12,6 +12,8 @@ use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServ
                                     IndexMutation, RequestRoutes,
                                     ResponseRoutesResult};
 
+use database::{DatabaseClient, DatabaseRequest};
+
 use crate::index_client::{index_client_loop, IndexClientConfig,
                         IndexClientConfigMutation};
 use crate::seq_friends::{SeqFriendsClient, SeqFriendsRequest};
@@ -26,7 +28,7 @@ struct IndexClientControl<ISA> {
     app_server_receiver: mpsc::Receiver<IndexClientToAppServer<ISA>>,
     seq_friends_receiver: mpsc::Receiver<SeqFriendsRequest>,
     session_receiver: mpsc::Receiver<ConnRequest<ISA,Option<SessionHandle>>>,
-    database_receiver: mpsc::Receiver<ConnRequest<IndexClientConfigMutation<ISA>,Option<()>>>,
+    database_req_receiver: mpsc::Receiver<DatabaseRequest<IndexClientConfigMutation<ISA>>>,
     tick_sender: mpsc::Sender<()>,
     #[allow(unused)]
     max_open_requests: usize,
@@ -53,8 +55,8 @@ where
     let (session_sender, session_receiver) = mpsc::channel(0);
     let index_client_session = DummyConnector::new(session_sender);
 
-    let (database_sender, database_receiver) = mpsc::channel(0);
-    let database = DummyConnector::new(database_sender);
+    let (database_req_sender, database_req_receiver) = mpsc::channel(0);
+    let db_client = DatabaseClient::new(database_req_sender);
 
     let max_open_requests = 2;
     let keepalive_ticks = 8;
@@ -70,7 +72,7 @@ where
                                max_open_requests,
                                keepalive_ticks,
                                backoff_ticks,
-                               database,
+                               db_client,
                                timer_stream,
                                spawner.clone())
         .map_err(|e| error!("index_client_loop() error: {:?}", e))
@@ -83,7 +85,7 @@ where
         app_server_receiver,
         seq_friends_receiver,
         session_receiver,
-        database_receiver,
+        database_req_receiver,
         tick_sender,
         max_open_requests,
         keepalive_ticks,
@@ -161,9 +163,9 @@ where
 
         await!(self.app_server_sender.send(AppServerToIndexClient::AddIndexServer(server_address.clone()))).unwrap();
 
-        let request = await!(self.database_receiver.next()).unwrap();
-        assert_eq!(request.address, IndexClientConfigMutation::AddIndexServer(server_address.clone()));
-        request.reply(Some(()));
+        let db_request = await!(self.database_req_receiver.next()).unwrap();
+        assert_eq!(db_request.mutations, vec![IndexClientConfigMutation::AddIndexServer(server_address.clone())]);
+        db_request.response_sender.send(()).unwrap();
 
         match await!(self.app_server_receiver.next()).unwrap() {
             IndexClientToAppServer::ReportMutations(mut mutations) => {
@@ -182,9 +184,9 @@ where
     async fn remove_index_server(&mut self, server_address: ISA)  {
         await!(self.app_server_sender.send(AppServerToIndexClient::RemoveIndexServer(server_address.clone()))).unwrap();
 
-        let request = await!(self.database_receiver.next()).unwrap();
-        assert_eq!(request.address, IndexClientConfigMutation::RemoveIndexServer(server_address.clone()));
-        request.reply(Some(()));
+        let db_request = await!(self.database_req_receiver.next()).unwrap();
+        assert_eq!(db_request.mutations, vec![IndexClientConfigMutation::RemoveIndexServer(server_address.clone())]);
+        db_request.response_sender.send(()).unwrap();
 
         match await!(self.app_server_receiver.next()).unwrap() {
             IndexClientToAppServer::ReportMutations(mut mutations) => {
