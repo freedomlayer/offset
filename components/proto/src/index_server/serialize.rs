@@ -40,16 +40,21 @@ fn ser_request_routes(request_routes: &RequestRoutes,
 fn deser_request_routes(request_routes_reader: &index_capnp::request_routes::Reader)
     -> Result<RequestRoutes, SerializeError> {
 
-    unimplemented!();
+    let opt_exclude = match request_routes_reader.get_opt_exclude().which()? {
+        index_capnp::request_routes::opt_exclude::Edge(res_edge_reader) => {
+            let edge_reader = res_edge_reader?;
+            let from_public_key = read_public_key(&edge_reader.get_from_public_key()?)?;
+            let to_public_key = read_public_key(&edge_reader.get_to_public_key()?)?;
+            Some((from_public_key, to_public_key))
+        },
+        index_capnp::request_routes::opt_exclude::Empty(()) => None,
+    };
 
-    /*
-    let mut public_keys = Vec::new();
-    for public_key_reader in friends_route_reader.get_public_keys()? {
-        public_keys.push(read_public_key(&public_key_reader)?);
-    }
-
-    Ok(FriendsRoute {
-        public_keys,
+    Ok(RequestRoutes {
+        request_id: read_uid(&request_routes_reader.get_request_id()?)?,
+        capacity: read_custom_u_int128(&request_routes_reader.get_capacity()?)?,
+        source: read_public_key(&request_routes_reader.get_source()?)?,
+        destination: read_public_key(&request_routes_reader.get_destination()?)?,
+        opt_exclude,
     })
-    */
 }
