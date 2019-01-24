@@ -16,4 +16,5 @@ members = [
   "components/index_client",
   "components/index_server",
   "components/database",
+  "components/node",
 ]
