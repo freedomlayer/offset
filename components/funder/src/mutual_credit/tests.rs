@@ -6,7 +6,7 @@ use crypto::identity::{Identity, SoftwareEd25519Identity,
 
 use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 
-use proto::funder::messages::{InvoiceId, INVOICE_ID_LEN, FreezeLink, Ratio, FriendsRoute, 
+use proto::funder::messages::{InvoiceId, INVOICE_ID_LEN, Ratio, FriendsRoute, 
     RequestSendFunds, ResponseSendFunds, FailureSendFunds, FriendTcOp,
     RequestsStatus};
 use proto::funder::signature_buff::{create_response_signature_buffer, 
