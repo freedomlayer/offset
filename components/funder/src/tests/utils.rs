@@ -20,16 +20,16 @@ use proto::funder::messages::{FunderIncomingControl,
 
 
 use common::int_convert::usize_to_u32;
-use common::canonical_serialize::CanonicalSerialize;
+
+use database::DatabaseClient;
 
 use identity::{create_identity, IdentityClient};
 
-use crate::state::{FunderState, FunderMutation};
+use crate::state::FunderState;
 use crate::funder::inner_funder_loop;
 use crate::ephemeral::Ephemeral;
 use crate::report::create_report;
 
-use crate::database::AtomicDb;
 
 use crate::types::{ChannelerConfig, FunderOutgoingComm, FunderIncomingComm,
                 IncomingLivenessMessage};
@@ -146,36 +146,6 @@ async fn router<A: Send + 'static + std::fmt::Debug>(incoming_new_node: mpsc::Re
                 await!(router_handle_outgoing_comm(&mut nodes, src_public_key, outgoing_comm));
             }
         };
-    }
-}
-
-struct MockDb<A: Clone> {
-    state: FunderState<A>,
-}
-
-impl<A: Clone + std::fmt::Debug> MockDb<A> {
-    fn new(state: FunderState<A>) -> MockDb<A> {
-        MockDb { state }
-    }
-}
-
-impl<A> AtomicDb for MockDb<A> 
-where
-    A: CanonicalSerialize + Clone + 'static + std::fmt::Debug,
-{
-    type State = FunderState<A>;
-    type Mutation = FunderMutation<A>;
-    type Error = ();
-
-    fn get_state(&self) -> &FunderState<A> {
-        &self.state
-    }
-
-    fn mutate(&mut self, mutations: Vec<FunderMutation<A>>) -> Result<(), ()> {
-        for mutation in mutations {
-            self.state.mutate(&mutation);
-        }
-        Ok(())
     }
 }
 
@@ -382,8 +352,17 @@ pub async fn create_node_controls(num_nodes: usize,
         // let report = create_report(&self.state, &self.ephemeral);
         // self.add_outgoing_control(FunderOutgoingControl::Report(report));
 
-        let mock_db = MockDb::new(funder_state);
 
+        let (db_request_sender, mut incoming_db_requests) = mpsc::channel(0);
+        let db_client = DatabaseClient::new(db_request_sender);
+
+        let fut_dispose_db_requests = async move {
+            // Read all incoming db requests:
+            while let Some(request) = await!(incoming_db_requests.next()) {
+                let _ = request.response_sender.send(());
+            }
+        };
+        spawner.spawn(fut_dispose_db_requests).unwrap();
 
         let (send_control, incoming_control) = mpsc::channel(CHANNEL_SIZE);
         let (control_sender, recv_control) = mpsc::channel(CHANNEL_SIZE);
@@ -398,7 +377,8 @@ pub async fn create_node_controls(num_nodes: usize,
             incoming_comm,
             control_sender,
             comm_sender,
-            mock_db,
+            funder_state,
+            db_client,
             TEST_MAX_OPERATIONS_IN_BATCH,
             TEST_MAX_PENDING_USER_REQUESTS,
             None);

@@ -9,6 +9,8 @@ use futures::task::{Spawn, SpawnExt};
 use common::conn::FutTransform;
 use crypto::uid::Uid;
 
+use database::DatabaseClient;
+
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer,
                                     IndexMutation,
                                     ResponseRoutesResult, ClientResponseRoutes,
@@ -78,7 +80,7 @@ enum IndexClientEvent<ISA> {
 }
 
 
-struct IndexClient<ISA,TAS,ICS,DB,S> {
+struct IndexClient<ISA,TAS,ICS,S> {
     event_sender: mpsc::Sender<IndexClientEvent<ISA>>,
     to_app_server: TAS,
     /// A cyclic list of index server addresses.
@@ -91,7 +93,7 @@ struct IndexClient<ISA,TAS,ICS,DB,S> {
     keepalive_ticks: usize,
     backoff_ticks: usize,
     conn_status: ConnStatus<ISA>,
-    database: DB,
+    db_client: DatabaseClient<IndexClientConfigMutation<ISA>>,
     spawner: S,
 }
 
@@ -128,12 +130,11 @@ async fn send_full_state(mut seq_friends_client: SeqFriendsClient,
     Ok(())
 }
 
-impl<ISA,TAS,ICS,DB,S> IndexClient<ISA,TAS,ICS,DB,S> 
+impl<ISA,TAS,ICS,S> IndexClient<ISA,TAS,ICS,S> 
 where
     ISA: Eq + Clone + Send + 'static,
     TAS: Sink<SinkItem=IndexClientToAppServer<ISA>> + Unpin,
     ICS: FutTransform<Input=ISA, Output=Option<SessionHandle>> + Clone + Send + 'static,
-    DB: FutTransform<Input=IndexClientConfigMutation<ISA>, Output=Option<()>>,
     S: Spawn + Clone + Send + 'static,
 {
     pub fn new(event_sender: mpsc::Sender<IndexClientEvent<ISA>>,
@@ -144,7 +145,7 @@ where
                max_open_requests: usize,
                keepalive_ticks: usize,
                backoff_ticks: usize,
-               database: DB,
+               db_client: DatabaseClient<IndexClientConfigMutation<ISA>>,
                spawner: S) -> Self { 
 
         let index_servers = index_client_config.index_servers
@@ -162,7 +163,7 @@ where
             keepalive_ticks,
             backoff_ticks,
             conn_status: ConnStatus::Empty(backoff_ticks),
-            database,
+            db_client,
             spawner,
         }
     }
@@ -268,8 +269,8 @@ where
     pub async fn handle_from_app_server_add_index_server(&mut self, server_address: ISA) 
                                                             -> Result<(), IndexClientError> {
         // Update database:
-        await!(self.database.transform(IndexClientConfigMutation::AddIndexServer(server_address.clone())))
-            .ok_or(IndexClientError::DatabaseError)?;
+        await!(self.db_client.mutate(vec![IndexClientConfigMutation::AddIndexServer(server_address.clone())]))
+            .map_err(|_| IndexClientError::DatabaseError)?;
 
         // Add new server_address to memory:
         self.index_servers.push_back(server_address.clone());
@@ -292,8 +293,8 @@ where
     pub async fn handle_from_app_server_remove_index_server(&mut self, server_address: ISA) 
                                                             -> Result<(), IndexClientError> {
         // Update database:
-        await!(self.database.transform(IndexClientConfigMutation::RemoveIndexServer(server_address.clone())))
-            .ok_or(IndexClientError::DatabaseError)?;
+        await!(self.db_client.mutate(vec![IndexClientConfigMutation::RemoveIndexServer(server_address.clone())]))
+            .map_err(|_| IndexClientError::DatabaseError)?;
 
         // Remove address:
         self.index_servers.retain(|cur_address| cur_address != &server_address);
@@ -536,7 +537,7 @@ where
 }
 
 #[allow(unused)]
-pub async fn index_client_loop<ISA,FAS,TAS,ICS,DB,TS,S>(from_app_server: FAS,
+pub async fn index_client_loop<ISA,FAS,TAS,ICS,TS,S>(from_app_server: FAS,
                                to_app_server: TAS,
                                index_client_config: IndexClientConfig<ISA>,
                                seq_friends_client: SeqFriendsClient,
@@ -544,7 +545,7 @@ pub async fn index_client_loop<ISA,FAS,TAS,ICS,DB,TS,S>(from_app_server: FAS,
                                max_open_requests: usize,
                                keepalive_ticks: usize,
                                backoff_ticks: usize,
-                               database: DB,
+                               db_client: DatabaseClient<IndexClientConfigMutation<ISA>>,
                                timer_stream: TS,
                                spawner: S) -> Result<(), IndexClientError>
 where
@@ -552,7 +553,6 @@ where
     FAS: Stream<Item=AppServerToIndexClient<ISA>> + Unpin,
     TAS: Sink<SinkItem=IndexClientToAppServer<ISA>> + Unpin,
     ICS: FutTransform<Input=ISA, Output=Option<SessionHandle>> + Clone + Send + 'static,
-    DB: FutTransform<Input=IndexClientConfigMutation<ISA>, Output=Option<()>>,
     TS: Stream + Unpin,
     S: Spawn + Clone + Send + 'static,
 {
@@ -565,7 +565,7 @@ where
                                             max_open_requests, 
                                             keepalive_ticks,
                                             backoff_ticks,
-                                            database,
+                                            db_client,
                                             spawner);
     
     index_client.try_connect_to_server()?;

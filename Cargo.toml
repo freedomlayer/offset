@@ -15,4 +15,5 @@ members = [
   "components/app_server",
   "components/index_client",
   "components/index_server",
+  "components/database",
 ]

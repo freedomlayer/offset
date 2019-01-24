@@ -8,7 +8,8 @@ authors = ["real <real@freedomlayer.org>"]
 common = { path = "../common", version = "0.1.0", package = "offst-common" }
 
 rand = "0.5"
-ring = "=0.13.0-alpha"
+# ring = "=0.13.0-alpha"
+ring = { git = "https://github.com/freedomlayer/ring", branch = "real/version-0.13.0-alpha4" }
 untrusted = "0.6"
 
 serde = "1"

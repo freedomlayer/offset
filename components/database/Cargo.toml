@@ -1,0 +1,25 @@
+[package]
+name = "offst-database"
+version = "0.1.0"
+authors = ["real <real@freedomlayer.org>"]
+
+edition = "2018"
+
+[dependencies]
+
+# common = { path = "../common", version = "0.1.0", package = "offst-common" }
+
+log = "0.4"
+futures-preview = "0.3.0-alpha.11"
+im = "12.0.0"
+
+atomicwrites = "0.2.2"
+
+serde = "1"
+serde_derive = "1"
+serde_json = "1.0.27"
+base64 = "0.9"
+
+[dev-dependencies]
+
+tempfile = "3.0.5"

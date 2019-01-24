@@ -12,6 +12,7 @@ common = { path = "../common", version = "0.1.0", package = "offst-common" }
 crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto"}
 identity = { path = "../identity", version = "0.1.0", package = "offst-identity" }
 proto = { path = "../proto", version = "0.1.0", package = "offst-proto" }
+database = { path = "../database", version = "0.1.0", package = "offst-database" }
 
 log = "0.4"
 pretty_env_logger = "0.2"
