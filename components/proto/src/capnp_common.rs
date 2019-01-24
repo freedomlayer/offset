@@ -2,11 +2,14 @@ use std::io;
 use std::convert::TryFrom;
 use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt, ByteOrder};
 
-use common_capnp::{buffer128, buffer256, buffer512,
+use common_capnp::{self, buffer128, buffer256, buffer512,
                     public_key, invoice_id, hash, dh_public_key, salt, signature,
-                    rand_nonce, custom_u_int128, custom_int128, uid};
+                    rand_nonce, custom_u_int128, custom_int128, uid,
+                    tcp_address_v4, tcp_address_v6, tcp_address, 
+                    relay_address};
 
-use crate::funder::messages::InvoiceId;
+use crate::funder::messages::{InvoiceId, RelayAddress, 
+    TcpAddress, TcpAddressV4, TcpAddressV6};
 
 use crypto::identity::{PublicKey, Signature};
 use crypto::dh::{DhPublicKey, Salt};
@@ -137,3 +140,46 @@ pub fn write_custom_int128(from: i128, to: &mut custom_int128::Builder) {
     write_buffer128(&data_bytes, &mut inner);
 }
 
+pub fn read_relay_address(from: &relay_address::Reader) -> Result<RelayAddress, capnp::Error> {
+    let public_key = read_public_key(&from.get_public_key()?)?;
+
+    let address = match from.get_address()?.which()? {
+        common_capnp::tcp_address::V4(res_tcp_address_v4) => {
+            let tcp_address_v4 = res_tcp_address_v4?;
+            let address_u32 = tcp_address_v4.get_address();
+            let mut address = [0u8; 4];
+            // let writer = &mut address;
+            BigEndian::write_u32(&mut address, address_u32);
+
+            let port = tcp_address_v4.get_port();
+
+            TcpAddress::V4(TcpAddressV4 {
+                address,
+                port,
+            })
+        },
+        common_capnp::tcp_address::V6(res_tcp_address_v6) => {
+            let tcp_address_v6 = res_tcp_address_v6?;
+            let address_vec = read_buffer128(&tcp_address_v6.get_address()?);
+
+            let mut address = [0u8; 16];
+            address.copy_from_slice(&address_vec[..]); 
+
+            let port = tcp_address_v6.get_port();
+
+            TcpAddress::V6(TcpAddressV6 {
+                address,
+                port,
+            })
+        },
+    };
+
+    Ok(RelayAddress {
+        public_key,
+        address,
+    })
+}
+
+pub fn write_relay_address(from: RelayAddress, to: &mut relay_address::Builder) {
+    unimplemented!();
+}
