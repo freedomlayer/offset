@@ -64,7 +64,7 @@ pub struct MutationsUpdate {
     pub session_id: Uid,
     /// Incrementing counter, making sure that mutations are received in the correct order.
     /// For a new session, the counter should begin from 0 and increment by 1 for every MutationsUpdate message.
-    /// When a new connection is established, a new sesionId should be randomly generated.
+    /// When a new connection is established, a new sessionId should be randomly generated.
     pub counter: u64,
     /// Rand nonce, used as a security measure for the next signature.
     pub rand_nonce: RandValue,

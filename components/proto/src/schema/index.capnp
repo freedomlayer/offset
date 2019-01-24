@@ -12,49 +12,33 @@ using import "funder.capnp".FriendsRoute;
 # IndexClient <-> IndexServer
 ###################
 
-# Request a direct route of friends from the source node to the destination
-# node.
-struct DirectRoute {
-        sourcePublicKey @0: PublicKey;
-        destinationPublicKey @1: PublicKey;
-}
-
-# A loop from myself through given friend, back to myself.
-# This is used for money rebalance when we owe the friend money.
-# self -> friend -> ... -> ... -> self
-struct LoopFromFriendRoute {
-        friendPublicKey @0: PublicKey;
-}
-
-# A loop from myself back to myself through given friend.
-# This is used for money rebalance when the friend owe us money.
-# self -> ... -> ... -> friend -> self
-struct LoopToFriendRoute {
-        friendPublicKey @0: PublicKey;
+struct Edge {
+        fromPublicKey @0: PublicKey;
+        toPublicKey @1: PublicKey;
 }
 
 # IndexClient -> IndexServer
-struct RequestFriendsRoute {
-        requestRouteId @0: Uid;
+struct RequestRoutes {
+        requestId @0: Uid;
         capacity @1: CustomUInt128;
-        # Wanted capacity for the route. 
-        # 0 means we want to optimize for capacity?
-        routeRequest :union {
-                direct @2: DirectRoute;
-                loopFromFriend @3: LoopFromFriendRoute;
-                loopToFriend @4: LoopToFriendRoute;
+        source @2: PublicKey;
+        destination @3: PublicKey;
+        optExclude: union {
+                empty @4: Void;
+                edge @5: Edge;
         }
 }
 
-struct FriendsRouteWithCapacity {
+
+struct RouteWithCapacity {
         route @0: FriendsRoute;
         capacity @1: CustomUInt128;
 }
 
 # IndexServer -> IndexClient
-struct ResponseFriendsRoute {
+struct ResponseRoutes {
         requestRouteId @0: Uid;
-        routes @1: List(FriendsRouteWithCapacity);
+        routes @1: List(RouteWithCapacity);
 }
 
 struct UpdateFriend {
@@ -68,7 +52,7 @@ struct UpdateFriend {
 
 
 # IndexClient -> IndexServer
-struct Mutation {
+struct IndexMutation {
         union {
                 updateFriend @0: UpdateFriend;
                 removeFriend @1: PublicKey;
@@ -78,7 +62,7 @@ struct Mutation {
 struct MutationsUpdate {
         nodePublicKey @0: PublicKey;
         # Public key of the node sending the mutations.
-        mutations @1: List(Mutation);
+        mutations @1: List(IndexMutation);
         # List of mutations to relationships with direct friends.
         timeHash @2: Hash;
         # A time hash (Given by the server previously). 
@@ -104,8 +88,6 @@ struct TimeProofLink {
         hashes @0: List(Hash);
         # List of hashes that produce a certain hash
         # sha_512_256("TIME_HASH" || hashes)
-        index @1: UInt32;
-        # Index pointing to a specific hash on the hashes list.
 }
 
 struct ForwardMutationsUpdate {
@@ -120,23 +102,23 @@ struct ForwardMutationsUpdate {
 
 ###################################################
 
-struct ServerToClient {
+struct IndexServerToClient {
         union {
                 timeHash @0: Hash;
-                responseFriendsRoute @1: ResponseFriendsRoute;
+                responseRoutes @1: ResponseRoutes;
         }
 }
 
 
-struct ClientToServer {
+struct IndexClientToServer {
         union {
                 mutationsUpdate @0: MutationsUpdate;
-                requestFriendsRoute @1: RequestFriendsRoute;
+                requestRoutes @1: RequestRoutes;
         }
 }
 
 
-struct ServerToServer {
+struct IndexServerToServer {
         union {
                 timeHash @0: Hash;
                 forwardMutationsUpdate @1: ForwardMutationsUpdate;

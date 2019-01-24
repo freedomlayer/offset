@@ -16,8 +16,8 @@ using import "common.capnp".RelayAddress;
 using import "report.capnp".Report;
 using import "report.capnp".ReportMutation;
 
-using import "index.capnp".RequestFriendsRoute;
-using import "index.capnp".ResponseFriendsRoute;
+using import "index.capnp".RequestRoutes;
+using import "index.capnp".ResponseRoutes;
 
 
 # Interface between AppServer and an Application
@@ -126,7 +126,7 @@ struct AppServerToApp {
         reportMutations @2: List(ReportMutation);
 
         # Routes:
-        responseFriendsRoute @3: ResponseFriendsRoute;
+        responseRoutes @3: ResponseRoutes;
 
     }
 }
@@ -153,7 +153,7 @@ struct AppToAppServer {
         resetFriendChannel @11: ResetFriendChannel;
 
         # Routes:
-        requestFriendsRoute @12: RequestFriendsRoute;
+        requestFriendsRoute @12: RequestRoutes;
     }
 }
 
