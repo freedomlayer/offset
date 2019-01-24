@@ -14,7 +14,6 @@ use crate::friend::{FriendMutation, ResponseOp, ChannelStatus};
 use crate::state::FunderMutation;
 
 use crate::ephemeral::EphemeralMutation;
-use crate::freeze_guard::FreezeGuardMutation;
 
 
 /*
@@ -90,11 +89,6 @@ where
 
     // Prepare a list of all remote requests that we need to cancel:
     for (local_request_id, pending_local_request) in pending_local_requests {
-        let freeze_guard_mutation = FreezeGuardMutation::SubFrozenCredit(
-            (pending_local_request.route.clone(), pending_local_request.dest_payment));
-        let ephemeral_mutation = EphemeralMutation::FreezeGuardMutation(freeze_guard_mutation);
-        m_ephemeral.mutate(ephemeral_mutation);
-
         let opt_origin_public_key = find_request_origin(m_state.state(), 
                                                         &local_request_id).cloned();
         match opt_origin_public_key {

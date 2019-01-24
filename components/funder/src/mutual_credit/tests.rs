@@ -102,17 +102,11 @@ fn test_request_response_send_funds() {
     };
     let invoice_id = InvoiceId::from(&[0; INVOICE_ID_LEN]);
 
-    let funder_freeze_link = FreezeLink {
-        shared_credits: 80,
-        usable_ratio: Ratio::One,
-    };
-
     let request_send_funds = RequestSendFunds {
         request_id: request_id.clone(),
         route,
         dest_payment: 10,
         invoice_id,
-        freeze_links: vec![funder_freeze_link],
     };
 
     let pending_request = create_pending_request(&request_send_funds);
@@ -179,17 +173,11 @@ fn test_request_failure_send_funds() {
     };
     let invoice_id = InvoiceId::from(&[0; INVOICE_ID_LEN]);
 
-    let funder_freeze_link = FreezeLink {
-        shared_credits: 80,
-        usable_ratio: Ratio::One,
-    };
-
     let request_send_funds = RequestSendFunds {
         request_id: request_id.clone(),
         route,
         dest_payment: 10,
         invoice_id,
-        freeze_links: vec![funder_freeze_link],
     };
 
     let pending_request = create_pending_request(&request_send_funds);

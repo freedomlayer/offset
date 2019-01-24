@@ -25,7 +25,6 @@ pub enum QueueOperationError {
     RemoteMaxDebtTooLarge,
     InvalidRoute,
     PkPairNotInRoute,
-    InvalidFreezeLinks,
     RouteTooLong,
     CreditCalculatorFailure,
     CreditsCalcOverflow,
@@ -119,14 +118,6 @@ impl OutgoingMc {
             &self.mutual_credit.state().idents.local_public_key,
             &self.mutual_credit.state().idents.remote_public_key)
             .ok_or(QueueOperationError::PkPairNotInRoute)?;
-
-        // Make sure that freeze_links and route_links are compatible in length:
-        let freeze_links_len = request_send_funds.freeze_links.len();
-        // Note that the sender of the request also adds his freeze link:
-        // TODO: Check if add 1 here is the right thing to do:
-        if freeze_links_len != local_index + 1 {
-            return Err(QueueOperationError::InvalidFreezeLinks);
-        }
 
         // Make sure that remote side is open to requests:
         if !self.mutual_credit.state().requests_status.remote.is_open() {

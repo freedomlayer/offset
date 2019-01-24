@@ -13,8 +13,7 @@ use proto::funder::messages::{FriendStatus, UserRequestSendFunds,
     ChannelerUpdateFriend};
 
 use crate::ephemeral::Ephemeral;
-use crate::handler::handler::{MutableFunderState, MutableEphemeral, is_friend_ready,
-                                add_local_freezing_link};
+use crate::handler::handler::{MutableFunderState, MutableEphemeral, is_friend_ready};
 use crate::handler::sender::SendCommands;
 use crate::handler::canceler::{cancel_local_pending_requests, 
     cancel_pending_user_requests, cancel_pending_requests};
@@ -426,9 +425,6 @@ where
     }
 
     let mut request_send_funds = user_request_send_funds.to_request();
-
-    // Add our freezing link:
-    add_local_freezing_link(m_state.state(), &mut request_send_funds);
 
     let friend_mutation = FriendMutation::PushBackPendingUserRequest(request_send_funds);
     let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));

@@ -23,10 +23,9 @@ use crate::friend::{FriendMutation,
     SentLocalAddress};
 
 use crate::ephemeral::{Ephemeral, EphemeralMutation};
-use crate::freeze_guard::FreezeGuardMutation;
 
 use crate::handler::handler::{MutableFunderState, MutableEphemeral, 
-    is_friend_ready, find_request_origin, add_local_freezing_link};
+    is_friend_ready, find_request_origin};
 use crate::handler::sender::SendCommands;
 use crate::handler::canceler::{cancel_local_pending_requests, 
     cancel_pending_user_requests, cancel_pending_requests,
@@ -207,8 +206,6 @@ where
                            &request_send_funds);
         return;
     } 
-    // Add our freezing link:
-    add_local_freezing_link(m_state.state(), &mut request_send_funds);
 
     // Queue message to the next node.
     forward_request(m_state, 
@@ -317,10 +314,6 @@ where
             IncomingMessage::Response(IncomingResponseSendFunds {
                                             pending_request, incoming_response}) => {
 
-                let freeze_guard_mutation = FreezeGuardMutation::SubFrozenCredit(
-                    (pending_request.route.clone(), pending_request.dest_payment));
-                let ephemeral_mutation = EphemeralMutation::FreezeGuardMutation(freeze_guard_mutation);
-                m_ephemeral.mutate(ephemeral_mutation);
                 handle_response_send_funds(m_state, 
                                            send_commands,
                                            outgoing_control,
@@ -330,10 +323,6 @@ where
             IncomingMessage::Failure(IncomingFailureSendFunds {
                                             pending_request, incoming_failure}) => {
 
-                let freeze_guard_mutation = FreezeGuardMutation::SubFrozenCredit(
-                    (pending_request.route.clone(), pending_request.dest_payment));
-                let ephemeral_mutation = EphemeralMutation::FreezeGuardMutation(freeze_guard_mutation);
-                m_ephemeral.mutate(ephemeral_mutation);
                 handle_failure_send_funds(m_state, 
                                           send_commands,
                                           outgoing_control,
