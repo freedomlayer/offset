@@ -99,36 +99,6 @@ pub struct FunderHandlerOutput<A: Clone> {
 }
 
 
-pub fn add_local_freezing_link<A>(state: &FunderState<A>,
-                               request_send_funds: &mut RequestSendFunds) 
-where
-    A: CanonicalSerialize + Clone,
-{
-
-    let index = request_send_funds.route.pk_to_index(&state.local_public_key)
-        .unwrap();
-    assert_eq!(request_send_funds.freeze_links.len(), index);
-
-    let next_index = index.checked_add(1).unwrap();
-    let next_pk = request_send_funds.route.index_to_pk(next_index).unwrap();
-
-    let opt_prev_pk = match index.checked_sub(1) {
-        Some(prev_index) =>
-            Some(request_send_funds.route.index_to_pk(prev_index).unwrap()),
-        None => None,
-    };
-
-    let funder_freeze_link = FreezeLink {
-        shared_credits: state.friends.get(&next_pk).unwrap().get_shared_credits(),
-        usable_ratio: state.get_usable_ratio(opt_prev_pk, next_pk),
-    };
-
-    // Add our freeze link
-    request_send_funds.freeze_links.push(funder_freeze_link);
-
-}
-
-
 /// Find the originator of a pending local request.
 /// This should be a pending remote request at some other friend.
 /// Returns the public key of a friend. If we are the origin of this request, the function returns None.

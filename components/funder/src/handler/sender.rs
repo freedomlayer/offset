@@ -18,8 +18,6 @@ use crate::friend::{FriendMutation, ResponseOp,
     ChannelStatus, SentLocalAddress, ChannelInconsistent};
 use crate::token_channel::{TokenChannel, TcMutation, TcDirection, SetDirection};
 
-use crate::freeze_guard::FreezeGuardMutation;
-
 use crate::state::{FunderMutation, FunderState};
 use crate::ephemeral::EphemeralMutation;
 
@@ -94,7 +92,6 @@ impl SendCommands {
 #[derive(Debug)]
 enum PendingQueueError {
     InsufficientTrust,
-    FreezeGuardBlock,
     MaxOperationsReached,
 }
 
@@ -150,19 +147,6 @@ where
             return Err(PendingQueueError::MaxOperationsReached);
         }
 
-        // Freeze guard check (Only for requests):
-        if let FriendTcOp::RequestSendFunds(request_send_funds) = operation {
-            let verify_res = m_ephemeral
-                .ephemeral()
-                .freeze_guard
-                .verify_freezing_links(&request_send_funds.route,
-                                        request_send_funds.dest_payment,
-                                       &request_send_funds.freeze_links);
-            if verify_res.is_none() {
-                return Err(PendingQueueError::FreezeGuardBlock);
-            }
-        }
-
         let mc_mutations = match self.outgoing_mc.queue_operation(operation) {
             Ok(mc_mutations) => Ok(mc_mutations),
             Err(QueueOperationError::RequestAlreadyExists) => {
@@ -176,16 +160,6 @@ where
 
         // Add operation:
         self.operations.push(operation.clone());
-
-        // Update freeze guard here (Only for requests):
-        if let FriendTcOp::RequestSendFunds(request_send_funds) = operation {
-            let pending_request = &create_pending_request(&request_send_funds);
-
-            let freeze_guard_mutation = FreezeGuardMutation::AddFrozenCredit(
-                (pending_request.route.clone(), pending_request.dest_payment));
-            let ephemeral_mutation = EphemeralMutation::FreezeGuardMutation(freeze_guard_mutation);
-            m_ephemeral.mutate(ephemeral_mutation);
-        }
 
         // Apply mutations:
         for mc_mutation in mc_mutations {
@@ -456,8 +430,7 @@ where
             // We will send this message next time we have the token:
             return Err(CollectOutgoingError::MaxOperationsReached);
         }
-        Err(PendingQueueError::InsufficientTrust) |
-        Err(PendingQueueError::FreezeGuardBlock) => {},
+        Err(PendingQueueError::InsufficientTrust) => {},
     };
 
     // The operation must have been a request if we had one of the above errors:

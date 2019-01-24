@@ -81,7 +81,7 @@ pub struct RequestSendFunds {
     pub route: FriendsRoute,
     pub dest_payment: u128,
     pub invoice_id: InvoiceId,
-    pub freeze_links: Vec<FreezeLink>,
+    // pub freeze_links: Vec<FreezeLink>,
 }
 
 
@@ -210,9 +210,6 @@ impl CanonicalSerialize for RequestSendFunds {
         res_bytes.extend_from_slice(&self.request_id);
         res_bytes.extend_from_slice(&self.route.canonical_serialize());
         res_bytes.write_u128::<BigEndian>(self.dest_payment).unwrap();
-        for freeze_link in &self.freeze_links {
-            res_bytes.extend_from_slice(&freeze_link.canonical_serialize());
-        }
         res_bytes
     }
 }
@@ -470,7 +467,6 @@ impl UserRequestSendFunds {
             route: self.route,
             invoice_id: self.invoice_id,
             dest_payment: self.dest_payment,
-            freeze_links: Vec::new(),
         }
     }
 

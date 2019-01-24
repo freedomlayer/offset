@@ -186,12 +186,6 @@ fn process_request_send_funds(mutual_credit: &mut MutualCredit,
         &mutual_credit.state().idents.local_public_key)
         .ok_or(ProcessOperationError::PkPairNotInRoute)?;
 
-    // Make sure that freeze_links and route_links are compatible in length:
-    let freeze_links_len = request_send_funds.freeze_links.len();
-    if remote_index.checked_add(1).unwrap() != freeze_links_len {
-        return Err(ProcessOperationError::InvalidFreezeLinks);
-    }
-
     // Make sure that we are open to requests:
     if !mutual_credit.state().requests_status.local.is_open() {
         return Err(ProcessOperationError::LocalRequestsClosed);

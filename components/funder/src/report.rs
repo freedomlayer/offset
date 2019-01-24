@@ -302,7 +302,6 @@ pub fn ephemeral_mutation_to_report_mutations<A: Clone>(ephemeral_mutation: &Eph
                 -> Vec<FunderReportMutation<A>> {
 
     match ephemeral_mutation {
-        EphemeralMutation::FreezeGuardMutation(_) => Vec::new(),
         EphemeralMutation::LivenessMutation(liveness_mutation) => {
             match liveness_mutation {
                 LivenessMutation::SetOnline(public_key) => {
