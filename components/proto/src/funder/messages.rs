@@ -58,12 +58,6 @@ pub enum Ratio<T> {
 }
 
 
-#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct FreezeLink {
-    pub shared_credits: u128,
-    pub usable_ratio: Ratio<u128>
-}
-
 pub const INVOICE_ID_LEN: usize = 32;
 
 /// The universal unique identifier of an invoice.
@@ -81,7 +75,6 @@ pub struct RequestSendFunds {
     pub route: FriendsRoute,
     pub dest_payment: u128,
     pub invoice_id: InvoiceId,
-    // pub freeze_links: Vec<FreezeLink>,
 }
 
 
@@ -195,14 +188,6 @@ impl CanonicalSerialize for Ratio<u128> {
     }
 }
 
-impl CanonicalSerialize for FreezeLink {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.write_u128::<BigEndian>(self.shared_credits).unwrap();
-        res_bytes.extend_from_slice(&self.usable_ratio.canonical_serialize());
-        res_bytes
-    }
-}
 
 impl CanonicalSerialize for RequestSendFunds {
     fn canonical_serialize(&self) -> Vec<u8> {
@@ -499,4 +484,31 @@ pub enum FunderOutgoingControl<A: Clone> {
     ResponseReceived(ResponseReceived),
     // Report(FunderReport<A>),
     ReportMutations(Vec<FunderReportMutation<A>>),
+}
+
+/// IPv4 address (TCP)
+#[derive(Debug, Clone)]
+pub struct TcpAddressV4 {
+    pub address: [u8; 4], // 32 bit
+    pub port: u16,
+}
+
+/// IPv6 address (TCP)
+#[derive(Debug, Clone)]
+pub struct TcpAddressV6 {
+    pub address: [u8; 16], // 128 bit
+    pub port: u16,
+}
+
+/// Address for TCP connection
+#[derive(Debug, Clone)]
+pub enum TcpAddress {
+    V4(TcpAddressV4),
+    V6(TcpAddressV6),
+}
+
+#[derive(Debug, Clone)]
+pub struct RelayAddress {
+    pub public_key: PublicKey,
+    pub address: TcpAddress,
 }
