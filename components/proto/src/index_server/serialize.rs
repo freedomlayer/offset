@@ -19,17 +19,22 @@ use crate::serialize::SerializeError;
 fn ser_request_routes(request_routes: &RequestRoutes,
                          request_routes_builder: &mut index_capnp::request_routes::Builder) {
 
+    write_uid(&request_routes.request_id, &mut request_routes_builder.reborrow().init_request_id());
+    write_custom_u_int128(request_routes.capacity, &mut request_routes_builder.reborrow().init_capacity());
+    write_public_key(&request_routes.source, &mut request_routes_builder.reborrow().init_source());
+    write_public_key(&request_routes.destination, &mut request_routes_builder.reborrow().init_destination());
 
-    unimplemented!();
-    /*
-    let public_keys_len = usize_to_u32(friends_route.public_keys.len()).unwrap();
-    let mut public_keys_builder = friends_route_builder.reborrow().init_public_keys(public_keys_len);
-
-    for (index, public_key) in friends_route.public_keys.iter().enumerate() {
-        let mut public_key_builder = public_keys_builder.reborrow().get(usize_to_u32(index).unwrap());
-        write_public_key(public_key, &mut public_key_builder);
+    let mut opt_exclude_builder = request_routes_builder.reborrow().init_opt_exclude();
+    match &request_routes.opt_exclude {
+        Some((from_public_key, to_public_key)) => {
+            let mut edge_builder = opt_exclude_builder.init_edge();
+            write_public_key(from_public_key, &mut edge_builder.reborrow().init_from_public_key());
+            write_public_key(to_public_key, &mut edge_builder.reborrow().init_to_public_key());
+        },
+        None => {
+            opt_exclude_builder.set_empty(());
+        },
     }
-    */
 }
 
 fn deser_request_routes(request_routes_reader: &index_capnp::request_routes::Reader)
