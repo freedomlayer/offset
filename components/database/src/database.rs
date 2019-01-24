@@ -10,7 +10,7 @@ pub enum DatabaseError<ADE> {
 
 // A request to apply mutations to the database
 pub struct DatabaseRequest<M> {
-    mutations: Vec<M>,
+    pub mutations: Vec<M>,
     pub response_sender: oneshot::Sender<()>,
 }
 
