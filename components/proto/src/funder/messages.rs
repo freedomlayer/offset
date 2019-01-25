@@ -500,6 +500,8 @@ pub struct TcpAddressV6 {
     pub port: u16,
 }
 
+// TODO: Possibly move TcpAddress and the structs it depends on 
+// to a more generic module in proto?
 /// Address for TCP connection
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TcpAddress {
