@@ -92,7 +92,7 @@ mod tests {
     use futures::executor::ThreadPool;
     use futures::channel::mpsc;
     use futures::task::{Spawn, SpawnExt};
-    use futures::StreamExt;
+    use futures::{future, StreamExt};
 
     use crypto::identity::{PUBLIC_KEY_LEN};
     use proto::relay::serialize::deserialize_init_connection;
@@ -111,7 +111,7 @@ mod tests {
         let connector = DummyConnector::new(req_sender);
 
         // keepalive_transform does nothing:
-        let keepalive_transform = FuncFutTransform::new(|x| x);
+        let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
 
         let mut client_connector = ClientConnector::new(
             connector,

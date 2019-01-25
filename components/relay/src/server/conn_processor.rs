@@ -160,7 +160,7 @@ mod tests {
         let first_msg = InitConnection::Listen;
         let ser_first_msg = serialize_init_connection(&first_msg);
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let keepalive_transform = FuncFutTransform::new(|x| x);
+        let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
         let incoming_conn = await!(dispatch_conn(sender, 
                                           receiver, 
                                           public_key.clone(), 
@@ -178,7 +178,7 @@ mod tests {
         let first_msg = InitConnection::Accept(accept_public_key.clone());
         let ser_first_msg = serialize_init_connection(&first_msg);
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let keepalive_transform = FuncFutTransform::new(|x| x);
+        let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
         let incoming_conn = await!(dispatch_conn(sender, 
                                           receiver, 
                                           public_key.clone(), 
@@ -197,7 +197,7 @@ mod tests {
         let first_msg = InitConnection::Connect(connect_public_key.clone());
         let ser_first_msg = serialize_init_connection(&first_msg);
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let keepalive_transform = FuncFutTransform::new(|x| x);
+        let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
         let incoming_conn = await!(dispatch_conn(sender, 
                                           receiver, 
                                           public_key.clone(), 
@@ -226,7 +226,7 @@ mod tests {
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let ser_first_msg = b"This is an invalid message".to_vec();
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
-        let keepalive_transform = FuncFutTransform::new(|x| x);
+        let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
         let res = await!(dispatch_conn(sender, 
                                           receiver, 
                                           public_key.clone(), 
@@ -257,7 +257,7 @@ mod tests {
             vec![((local_sender, local_receiver), public_key.clone())]);
 
         let conn_timeout_ticks = 16;
-        let keepalive_transform = FuncFutTransform::new(|x| x);
+        let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
 
         let processed_conns = conn_processor(incoming_conns, 
                                              keepalive_transform,

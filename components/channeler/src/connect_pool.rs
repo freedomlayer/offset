@@ -504,7 +504,8 @@ mod tests {
         let client_connector = DummyConnector::new(conn_request_sender);
 
         // We don't need encryption for this test:
-        let encrypt_transform = FuncFutTransform::new(|(_opt_public_key, conn_pair)| Some(conn_pair));
+        let encrypt_transform = FuncFutTransform::new(|(_opt_public_key, conn_pair)| 
+                                                      Box::pin(future::ready(Some(conn_pair))));
 
         let mut pool_connector = PoolConnector::<u32,_,_,_>::new(
             timer_client,
@@ -631,7 +632,8 @@ mod tests {
         let client_connector = DummyConnector::new(conn_request_sender);
 
         // We don't need encryption for this test:
-        let encrypt_transform = FuncFutTransform::new(|(_opt_public_key, conn_pair)| Some(conn_pair));
+        let encrypt_transform = FuncFutTransform::new(|(_opt_public_key, conn_pair)| 
+                                                      Box::pin(future::ready(Some(conn_pair))));
 
         let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
         let mut tick_sender = await!(tick_sender_receiver.next()).unwrap();

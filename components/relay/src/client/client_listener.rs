@@ -426,7 +426,7 @@ mod tests {
             .unwrap();
 
         // We don't need a real keepalive transform for this test:
-        let keepalive_transform = FuncFutTransform::new(|x| x);
+        let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
 
         let fut_accept = accept_connection(public_key.clone(),
                            connector,
@@ -491,7 +491,7 @@ mod tests {
 
         let (mut acl_sender, mut incoming_access_control) = mpsc::channel(0);
         let (event_sender, mut event_receiver) = mpsc::channel(0);
-        let keepalive_transform = FuncFutTransform::new(|x| x);
+        let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
 
         let c_spawner = spawner.clone();
         let fut_listener = async move {
