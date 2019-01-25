@@ -37,7 +37,7 @@ struct RouteWithCapacity {
 
 # IndexServer -> IndexClient
 struct ResponseRoutes {
-        requestRouteId @0: Uid;
+        requestId @0: Uid;
         routes @1: List(RouteWithCapacity);
 }
 
