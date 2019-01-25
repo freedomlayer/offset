@@ -14,6 +14,8 @@ use super::messages::{RequestRoutes, RouteWithCapacity, ResponseRoutes,
                         ForwardMutationsUpdate, IndexServerToClient, 
                         IndexClientToServer, IndexServerToServer};
 
+use crate::funder::serialize::{ser_friends_route, deser_friends_route};
+
 use crate::serialize::SerializeError;
 
 fn ser_request_routes(request_routes: &RequestRoutes,
@@ -58,3 +60,49 @@ fn deser_request_routes(request_routes_reader: &index_capnp::request_routes::Rea
         opt_exclude,
     })
 }
+
+
+fn ser_route_with_capacity(route_with_capacity: &RouteWithCapacity,
+                           route_with_capacity_builder: &mut index_capnp::route_with_capacity::Builder) {
+
+    ser_friends_route(&route_with_capacity.route, &mut route_with_capacity_builder.reborrow().init_route());
+    write_custom_u_int128(route_with_capacity.capacity, &mut route_with_capacity_builder.reborrow().init_capacity());
+}
+
+fn deser_route_with_capacity(route_with_capacity_reader: &index_capnp::route_with_capacity::Reader) 
+    -> Result<RouteWithCapacity, SerializeError> {
+
+    Ok(RouteWithCapacity {
+        route: deser_friends_route(&route_with_capacity_reader.get_route()?)?,
+        capacity: read_custom_u_int128(&route_with_capacity_reader.get_capacity()?)?,
+    })
+}
+
+fn ser_response_routes(response_routes: &ResponseRoutes,
+                       response_routes_builder: &mut index_capnp::response_routes::Builder) {
+
+    write_uid(&response_routes.request_id, &mut response_routes_builder.reborrow().init_request_id());
+    let routes_len = usize_to_u32(response_routes.routes.len()).unwrap();
+    let mut routes_builder = response_routes_builder.reborrow().init_routes(routes_len);
+
+    for (index, route) in response_routes.routes.iter().enumerate() {
+        let mut route_with_capacity_builder = routes_builder.reborrow().get(usize_to_u32(index).unwrap());
+        ser_route_with_capacity(&route, &mut route_with_capacity_builder);
+    }
+}
+
+fn deser_response_routes(response_routes_reader: &index_capnp::response_routes::Reader)
+    -> Result<ResponseRoutes, SerializeError> {
+    
+    let mut routes = Vec::new();
+    for route_with_capacity in response_routes_reader.get_routes()? {
+        routes.push(deser_route_with_capacity(&route_with_capacity)?);
+    }
+
+    Ok(ResponseRoutes {
+        request_id: read_uid(&response_routes_reader.get_request_id()?)?,
+        routes,
+    })
+}
+
+
