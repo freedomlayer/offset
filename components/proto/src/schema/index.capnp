@@ -62,7 +62,7 @@ struct IndexMutation {
 struct MutationsUpdate {
         nodePublicKey @0: PublicKey;
         # Public key of the node sending the mutations.
-        mutations @1: List(IndexMutation);
+        indexMutations @1: List(IndexMutation);
         # List of mutations to relationships with direct friends.
         timeHash @2: Hash;
         # A time hash (Given by the server previously). 
