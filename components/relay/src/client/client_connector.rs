@@ -24,8 +24,9 @@ pub struct ClientConnector<C,FT> {
     keepalive_transform: FT,
 }
 
-impl<A: 'static,C,FT> ClientConnector<C,FT> 
+impl<A,C,FT> ClientConnector<C,FT> 
 where
+    A: 'static,
     C: FutTransform<Input=A,Output=Option<ConnPair<Vec<u8>,Vec<u8>>>>,
     FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>,
                      Output=ConnPair<Vec<u8>,Vec<u8>>>,
