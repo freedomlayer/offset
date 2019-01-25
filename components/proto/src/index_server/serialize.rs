@@ -257,3 +257,89 @@ fn deser_forward_mutations_update(forward_mutations_update_reader: &index_capnp:
         time_proof_chain,
     })
 }
+
+fn ser_index_server_to_client(index_server_to_client: &IndexServerToClient,
+                       index_server_to_client_builder: &mut index_capnp::index_server_to_client::Builder) {
+
+    match index_server_to_client {
+        IndexServerToClient::TimeHash(hash_result) => {
+            let mut hash_builder = index_server_to_client_builder.reborrow().init_time_hash();
+            write_hash(hash_result, &mut hash_builder);
+        },
+        IndexServerToClient::ResponseRoutes(response_routes) => {
+            let mut response_routes_builder = index_server_to_client_builder.reborrow().init_response_routes();
+            ser_response_routes(response_routes, &mut response_routes_builder);
+        },
+    }
+}
+
+fn deser_index_server_to_client(index_server_to_client_reader: &index_capnp::index_server_to_client::Reader)
+    -> Result<IndexServerToClient, SerializeError> {
+
+    Ok(match index_server_to_client_reader.which()? {
+        index_capnp::index_server_to_client::TimeHash(hash_reader) => {
+            IndexServerToClient::TimeHash(read_hash(&hash_reader?)?)
+        },
+        index_capnp::index_server_to_client::ResponseRoutes(response_routes_reader) => {
+            IndexServerToClient::ResponseRoutes(deser_response_routes(&response_routes_reader?)?)
+        },
+    })
+}
+
+
+fn ser_index_client_to_server(index_client_to_server: &IndexClientToServer,
+                       index_client_to_server_builder: &mut index_capnp::index_client_to_server::Builder) {
+
+    match index_client_to_server {
+        IndexClientToServer::MutationsUpdate(mutations_update) => {
+            let mut mutations_update_builder = index_client_to_server_builder.reborrow().init_mutations_update();
+            ser_mutations_update(mutations_update, &mut mutations_update_builder);
+        },
+        IndexClientToServer::RequestRoutes(request_routes) => {
+            let mut request_routes_builder = index_client_to_server_builder.reborrow().init_request_routes();
+            ser_request_routes(request_routes, &mut request_routes_builder);
+        },
+    }
+}
+
+fn deser_index_client_to_server(index_client_to_server_reader: &index_capnp::index_client_to_server::Reader)
+    -> Result<IndexClientToServer, SerializeError> {
+
+    Ok(match index_client_to_server_reader.which()? {
+        index_capnp::index_client_to_server::MutationsUpdate(mutations_update_reader) => {
+            IndexClientToServer::MutationsUpdate(deser_mutations_update(&mutations_update_reader?)?)
+        },
+        index_capnp::index_client_to_server::RequestRoutes(request_routes_reader) => {
+            IndexClientToServer::RequestRoutes(deser_request_routes(&request_routes_reader?)?)
+        },
+    })
+}
+
+
+fn ser_index_server_to_server(index_server_to_server: &IndexServerToServer,
+                       index_server_to_server_builder: &mut index_capnp::index_server_to_server::Builder) {
+
+    match index_server_to_server {
+        IndexServerToServer::TimeHash(hash_result) => {
+            let mut hash_builder = index_server_to_server_builder.reborrow().init_time_hash();
+            write_hash(hash_result, &mut hash_builder);
+        },
+        IndexServerToServer::ForwardMutationsUpdate(forward_mutations_update) => {
+            let mut forward_mutations_update_builder = index_server_to_server_builder.reborrow().init_forward_mutations_update();
+            ser_forward_mutations_update(forward_mutations_update, &mut forward_mutations_update_builder);
+        },
+    }
+}
+
+fn deser_index_server_to_server(index_server_to_server_reader: &index_capnp::index_server_to_server::Reader)
+    -> Result<IndexServerToServer, SerializeError> {
+
+    Ok(match index_server_to_server_reader.which()? {
+        index_capnp::index_server_to_server::TimeHash(hash_reader) => {
+            IndexServerToServer::TimeHash(read_hash(&hash_reader?)?)
+        },
+        index_capnp::index_server_to_server::ForwardMutationsUpdate(forward_mutations_update_reader) => {
+            IndexServerToServer::ForwardMutationsUpdate(deser_forward_mutations_update(&forward_mutations_update_reader?)?)
+        },
+    })
+}
