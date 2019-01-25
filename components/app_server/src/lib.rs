@@ -13,3 +13,6 @@ mod config;
 
 #[cfg(test)]
 mod tests;
+
+pub use self::server::{app_server_loop, 
+    IncomingAppConnection};
