@@ -105,4 +105,21 @@ fn deser_response_routes(response_routes_reader: &index_capnp::response_routes::
     })
 }
 
+fn ser_update_friend(update_friend: &UpdateFriend,
+                       update_friend_builder: &mut index_capnp::update_friend::Builder) {
+
+    write_public_key(&update_friend.public_key, &mut update_friend_builder.reborrow().init_public_key());
+    write_custom_u_int128(update_friend.send_capacity, &mut update_friend_builder.reborrow().init_send_capacity());
+    write_custom_u_int128(update_friend.recv_capacity, &mut update_friend_builder.reborrow().init_recv_capacity());
+}
+
+fn deser_update_friend(update_friend_reader: &index_capnp::update_friend::Reader)
+    -> Result<UpdateFriend, SerializeError> {
+
+    Ok(UpdateFriend {
+        public_key: read_public_key(&update_friend_reader.get_public_key()?)?,
+        send_capacity: read_custom_u_int128(&update_friend_reader.get_send_capacity()?)?,
+        recv_capacity: read_custom_u_int128(&update_friend_reader.get_recv_capacity()?)?,
+    })
+}
 
