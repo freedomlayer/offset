@@ -123,3 +123,34 @@ fn deser_update_friend(update_friend_reader: &index_capnp::update_friend::Reader
     })
 }
 
+fn ser_index_mutation(index_mutation: &IndexMutation,
+                       index_mutation_builder: &mut index_capnp::index_mutation::Builder) {
+
+    match &index_mutation {
+        IndexMutation::UpdateFriend(update_friend) => {
+            let mut update_friend_builder = index_mutation_builder.reborrow().init_update_friend();
+            ser_update_friend(update_friend, &mut update_friend_builder);
+        },
+        IndexMutation::RemoveFriend(public_key) => {
+            let mut remove_friend_builder = index_mutation_builder.reborrow().init_remove_friend();
+            write_public_key(public_key, &mut remove_friend_builder);
+        },
+    }
+}
+
+fn deser_index_mutation(index_mutation_reader: &index_capnp::index_mutation::Reader)
+    -> Result<IndexMutation, SerializeError> {
+
+    Ok(match index_mutation_reader.which()? {
+        index_capnp::index_mutation::UpdateFriend(update_friend_reader_res) => {
+            let update_friend_reader = update_friend_reader_res?;
+            let update_friend = deser_update_friend(&update_friend_reader)?;
+            IndexMutation::UpdateFriend(update_friend)
+        },
+        index_capnp::index_mutation::RemoveFriend(remove_friend_reader_res) => {
+            let remove_friend_reader = remove_friend_reader_res?;
+            let public_key = read_public_key(&remove_friend_reader)?;
+            IndexMutation::RemoveFriend(public_key)
+        },
+    })
+}
