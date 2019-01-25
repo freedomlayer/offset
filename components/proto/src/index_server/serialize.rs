@@ -200,3 +200,60 @@ fn deser_mutations_update(mutations_update_reader: &index_capnp::mutations_updat
         signature: read_signature(&mutations_update_reader.get_signature()?)?,
     })
 }
+
+fn ser_time_proof_link(time_proof_link: &TimeProofLink,
+                       time_proof_link_builder: &mut index_capnp::time_proof_link::Builder) {
+
+    let hashes_len = usize_to_u32(time_proof_link.hashes.len()).unwrap();
+    let mut hashes_builder = time_proof_link_builder.reborrow().init_hashes(hashes_len);
+
+    for (index, hash_result) in time_proof_link.hashes.iter().enumerate() {
+        let mut hash_builder = hashes_builder.reborrow().get(usize_to_u32(index).unwrap());
+        write_hash(hash_result, &mut hash_builder);
+    }
+}
+
+
+fn deser_time_proof_link(time_proof_link_reader: &index_capnp::time_proof_link::Reader)
+    -> Result<TimeProofLink, SerializeError> {
+
+    let mut hashes = Vec::new();
+    for hash_reader in time_proof_link_reader.get_hashes()? {
+        hashes.push(read_hash(&hash_reader)?);
+    }
+
+    Ok(TimeProofLink {
+        hashes,
+    })
+}
+
+fn ser_forward_mutations_update(forward_mutations_update: &ForwardMutationsUpdate,
+                       forward_mutations_update_builder: &mut index_capnp::forward_mutations_update::Builder) {
+
+    ser_mutations_update(&forward_mutations_update.mutations_update, 
+                         &mut forward_mutations_update_builder.reborrow().init_mutations_update());
+
+    let time_proof_chain_len = usize_to_u32(
+        forward_mutations_update.time_proof_chain.len()).unwrap();
+    let mut time_proof_chain_builder = forward_mutations_update_builder.reborrow().init_time_proof_chain(time_proof_chain_len);
+
+    for (index, time_proof_link) in forward_mutations_update.time_proof_chain.iter().enumerate() {
+        let mut time_proof_link_builder = time_proof_chain_builder.reborrow().get(usize_to_u32(index).unwrap());
+        ser_time_proof_link(time_proof_link, &mut time_proof_link_builder);
+    }
+}
+
+fn deser_forward_mutations_update(forward_mutations_update_reader: &index_capnp::forward_mutations_update::Reader)
+    -> Result<ForwardMutationsUpdate, SerializeError> {
+
+    let mut time_proof_chain = Vec::new();
+    for time_proof_link_reader in forward_mutations_update_reader.get_time_proof_chain()? {
+        time_proof_chain.push(deser_time_proof_link(&time_proof_link_reader)?);
+    }
+
+    Ok(ForwardMutationsUpdate {
+        mutations_update: deser_mutations_update(
+                              &forward_mutations_update_reader.get_mutations_update()?)?,
+        time_proof_chain,
+    })
+}
