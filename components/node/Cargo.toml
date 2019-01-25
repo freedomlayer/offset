@@ -15,6 +15,12 @@ proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
 database = { path = "../database", version = "0.1.0" , package = "offst-database" }
 funder = { path = "../funder", version = "0.1.0" , package = "offst-funder" }
 index_client = { path = "../index_client", version = "0.1.0" , package = "offst-index-client" }
+app_server = { path = "../app_server", version = "0.1.0" , package = "offst-app-server" }
+channeler = { path = "../channeler", version = "0.1.0" , package = "offst-channeler" }
+relay = { path = "../relay", version = "0.1.0" , package = "offst-relay" }
+keepalive = { path = "../keepalive", version = "0.1.0" , package = "offst-keepalive" }
+secure_channel = { path = "../secure_channel", version = "0.1.0" , package = "offst-secure-channel" }
+
 
 log = "0.4"
 futures-preview = "0.3.0-alpha.11"
