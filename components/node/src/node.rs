@@ -66,10 +66,9 @@ where
         spawner.clone());
 
     // TODO: compose encryption and keepalive over net_connector.
-    // TODO: ClientConnector doesn't need to be aware about keepalive_transform.
     let relay_connector = ClientConnector::new(
         net_connector,
-        keepalive_transform);
+        keepalive_transform.clone());
 
     // C: FutTransform<Input=(RelayAddress, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
 
