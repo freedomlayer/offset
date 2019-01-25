@@ -6,7 +6,8 @@ use crate::capnp_common::{write_signature, read_signature,
                           write_uid, read_uid,
                           write_invoice_id, read_invoice_id,
                           write_public_key, read_public_key,
-                          write_relay_address, read_relay_address};
+                          write_relay_address, read_relay_address,
+                          write_hash, read_hash};
 use index_capnp;
 
 use super::messages::{RequestRoutes, RouteWithCapacity, ResponseRoutes,
@@ -152,5 +153,50 @@ fn deser_index_mutation(index_mutation_reader: &index_capnp::index_mutation::Rea
             let public_key = read_public_key(&remove_friend_reader)?;
             IndexMutation::RemoveFriend(public_key)
         },
+    })
+}
+
+
+fn ser_mutations_update(mutations_update: &MutationsUpdate,
+                       mutations_update_builder: &mut index_capnp::mutations_update::Builder) {
+
+    write_public_key(&mutations_update.node_public_key, 
+                     &mut mutations_update_builder.reborrow().init_node_public_key());
+
+    let mutations_len = usize_to_u32(mutations_update.index_mutations.len()).unwrap();
+    let mut mutations_builder = mutations_update_builder.reborrow().init_index_mutations(mutations_len);
+
+    for (index, index_mutation) in mutations_update.index_mutations.iter().enumerate() {
+        let mut index_mutation_builder = mutations_builder.reborrow().get(usize_to_u32(index).unwrap());
+        ser_index_mutation(index_mutation, &mut index_mutation_builder);
+    }
+
+    write_hash(&mutations_update.time_hash, 
+               &mut mutations_update_builder.reborrow().init_time_hash());
+    write_uid(&mutations_update.session_id, 
+              &mut mutations_update_builder.reborrow().init_session_id());
+    mutations_update_builder.reborrow().set_counter(mutations_update.counter);
+    write_rand_nonce(&mutations_update.rand_nonce, 
+                     &mut mutations_update_builder.reborrow().init_rand_nonce());
+    write_signature(&mutations_update.signature, 
+                    &mut mutations_update_builder.reborrow().init_signature());
+}
+
+fn deser_mutations_update(mutations_update_reader: &index_capnp::mutations_update::Reader)
+    -> Result<MutationsUpdate, SerializeError> {
+
+    let mut index_mutations = Vec::new();
+    for index_mutation_reader in mutations_update_reader.get_index_mutations()? {
+        index_mutations.push(deser_index_mutation(&index_mutation_reader)?);
+    }
+
+    Ok(MutationsUpdate {
+        node_public_key: read_public_key(&mutations_update_reader.get_node_public_key()?)?,
+        index_mutations,
+        time_hash: read_hash(&mutations_update_reader.get_time_hash()?)?,
+        session_id: read_uid(&mutations_update_reader.get_session_id()?)?,
+        counter: mutations_update_reader.get_counter(),
+        rand_nonce: read_rand_nonce(&mutations_update_reader.get_rand_nonce()?)?,
+        signature: read_signature(&mutations_update_reader.get_signature()?)?,
     })
 }
