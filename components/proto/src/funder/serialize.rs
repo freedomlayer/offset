@@ -23,7 +23,7 @@ use super::messages::{FriendMessage, MoveTokenRequest, ResetTerms,
 use crate::serialize::SerializeError;
 
 
-fn ser_friends_route(friends_route: &FriendsRoute,
+pub fn ser_friends_route(friends_route: &FriendsRoute,
                      friends_route_builder: &mut funder_capnp::friends_route::Builder) {
 
     let public_keys_len = usize_to_u32(friends_route.public_keys.len()).unwrap();
@@ -213,7 +213,7 @@ fn deser_ratio128(from: &funder_capnp::ratio128::Reader) -> Result<Ratio<u128>, 
     }
 }
 
-fn deser_friends_route(friends_route_reader: &funder_capnp::friends_route::Reader)
+pub fn deser_friends_route(friends_route_reader: &funder_capnp::friends_route::Reader)
     -> Result<FriendsRoute, SerializeError> {
 
     let mut public_keys = Vec::new();
