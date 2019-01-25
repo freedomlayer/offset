@@ -3,7 +3,7 @@ use crypto::uid::Uid;
 use crypto::hash::HashResult;
 use crypto::crypto_rand::RandValue;
 
-use crate::funder::messages::FriendsRoute;
+use crate::funder::messages::{FriendsRoute, TcpAddress};
 
 
 /// IndexClient -> IndexServer
@@ -115,3 +115,11 @@ pub enum IndexServerToServer {
     ForwardMutationsUpdate(ForwardMutationsUpdate),
 }
 
+// ----------------------------------------------
+// ----------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IndexServerAddress {
+    pub public_key: PublicKey,
+    pub address: TcpAddress,
+}
