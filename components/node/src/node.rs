@@ -18,6 +18,7 @@ use secure_channel::SecureChannel;
 use funder::{funder_loop, FunderError, FunderState};
 use funder::types::{FunderIncomingComm, FunderOutgoingComm, 
     IncomingLivenessMessage, ChannelerConfig};
+use index_client::index_client_loop;
 
 
 use proto::funder::messages::{RelayAddress, TcpAddress, 
@@ -33,6 +34,7 @@ use crate::types::{NodeMutation, NodeState, create_node_report};
 pub enum NodeError {
     RequestPublicKeyError,
     SpawnError,
+    RequestTimerStreamError,
 }
 
 pub struct NodeConfig {
@@ -53,6 +55,8 @@ pub struct NodeConfig {
     max_operations_in_batch: usize,
     /// The size we allocate for the user send funds requests queue.
     max_pending_user_requests: usize,
+    /// Maximum amount of concurrent index client requests:
+    max_open_index_client_requests: usize,
 }
 
 #[derive(Clone)]
@@ -351,7 +355,7 @@ where
 pub async fn node_loop<C,IA,R,S>(
                 node_config: NodeConfig,
                 identity_client: IdentityClient,
-                timer_client: TimerClient,
+                mut timer_client: TimerClient,
                 node_state: NodeState<RelayAddress, IndexServerAddress>,
                 mut database_client: DatabaseClient<NodeMutation<RelayAddress,IndexServerAddress>>,
                 net_connector: C,
@@ -415,6 +419,44 @@ where
 
     let app_server_handle = spawner.spawn_with_handle(app_server_fut)
         .map_err(|_| NodeError::SpawnError)?;
+
+    let timer_stream = await!(timer_client.request_timer_stream())
+        .map_err(|_| NodeError::RequestTimerStreamError)?;
+
+    // Database adapter:
+    let (request_sender, mut request_receiver) = mpsc::channel(0);
+    let index_client_db_client = DatabaseClient::new(request_sender);
+
+    let database_adapter_fut = async move {
+        while let Some(request) = await!(request_receiver.next()) {
+            let mutations = request.mutations
+                .into_iter()
+                .map(|index_client_mutation| 
+                     NodeMutation::IndexClient(index_client_mutation))
+                .collect::<Vec<_>>();
+
+            if let Err(_) = await!(database_client.mutate(mutations)) {
+                return;
+            }
+        }
+    };
+    spawner.spawn(database_adapter_fut)
+        .map_err(|_| NodeError::SpawnError)?;
+
+    /*
+    let index_client_fut = index_client_loop(
+                app_server_to_index_client_receiver,
+                index_client_to_app_server_sender,
+                index_client_config,
+                seq_friends_client: SeqFriendsClient,
+                index_client_session: ICS,
+                node_config.max_open_index_client_requests,
+                node_config.keepalive_ticks,
+                node_config.backoff_ticks,
+                index_client_db_client,
+                timer_stream,
+                spawner.clone());
+    */
 
     // TODO:
     // - Spawn IndexClient
