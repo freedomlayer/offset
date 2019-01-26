@@ -5,11 +5,13 @@ use crypto::identity::PublicKey;
 use funder::{FunderState, FunderMutation};
 use index_client::{IndexClientConfig, IndexClientConfigMutation};
 
+#[derive(Clone)]
 pub enum NodeMutation<B,ISA> {
     Funder(FunderMutation<Vec<B>>),
     IndexClient(IndexClientConfigMutation<ISA>)
 }
 
+#[derive(Clone)]
 pub struct NodeState<B: Clone,ISA> {
     pub funder: FunderState<Vec<B>>,
     pub index_client: IndexClientConfig<ISA>,
