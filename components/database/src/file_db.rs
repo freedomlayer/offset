@@ -12,7 +12,8 @@ use serde::de::DeserializeOwned;
 use serde_json;
 use atomicwrites;
 
-use crate::atomic_db::{AtomicDb, MutableState};
+use common::mutable_state::MutableState;
+use crate::atomic_db::AtomicDb;
 
 #[derive(Debug)]
 pub enum FileDbError<ME> {
@@ -40,15 +41,14 @@ where
     S::Mutation: Clone + Serialize + DeserializeOwned,
     S::MutateError: Debug,
 {
-    pub fn new(path_buf: PathBuf) -> Result<Self, FileDbError<S::MutateError>> {
+    pub fn new(path_buf: PathBuf, initial_state: S) 
+        -> Result<Self, FileDbError<S::MutateError>> {
 
         // Open file database, or create a new initial one:
         let mut fr = match File::open(&path_buf) {
             Ok(fr) => fr,
             Err(_) => {
                 // There is no file, we create a new file:
-                let initial_state = S::initial();
-
                 // Serialize the state:
                 let serialized_str = serde_json::to_string(&initial_state)
                     .map_err(FileDbError::SerializeError)?;
@@ -130,9 +130,9 @@ mod tests {
     }
 
     impl DummyState {
-        pub fn new() -> Self {
+        pub fn new(x: u32) -> Self {
             DummyState {
-                x: 0u32,
+                x,
             }
         }
     }
@@ -150,10 +150,6 @@ mod tests {
     impl MutableState for DummyState {
         type Mutation = DummyMutation;
         type MutateError = DummyMutateError;
-
-        fn initial() -> Self {
-            DummyState::new()
-        }
 
         fn mutate(&mut self, mutation: &Self::Mutation) -> Result<(), Self::MutateError> {
             match mutation {
@@ -174,7 +170,8 @@ mod tests {
         let dir = tempdir().unwrap();
 
         let file_path = dir.path().join("database_file");
-        let mut file_db = FileDb::<DummyState>::new(file_path.clone()).unwrap();
+        let initial_state = DummyState::new(0);
+        let mut file_db = FileDb::<DummyState>::new(file_path.clone(), initial_state).unwrap();
 
         file_db.mutate_db(&[DummyMutation::Inc, 
                          DummyMutation::Inc,
@@ -193,7 +190,8 @@ mod tests {
         drop(file_db);
 
         // Check persistency:
-        let file_db = FileDb::<DummyState>::new(file_path.clone()).unwrap();
+        let initial_state = DummyState::new(0);
+        let file_db = FileDb::<DummyState>::new(file_path.clone(), initial_state).unwrap();
         let state = file_db.get_state();
         assert_eq!(state.x, 2);
 

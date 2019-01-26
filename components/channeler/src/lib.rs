@@ -16,3 +16,10 @@ mod overwrite_channel;
 
 #[macro_use]
 extern crate log;
+
+pub use self::channeler::{
+    channeler_loop, 
+    ChannelerError};
+
+pub use self::connect_pool::PoolConnector;
+pub use self::listen_pool::PoolListener;

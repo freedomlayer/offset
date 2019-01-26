@@ -5,14 +5,10 @@
 #![feature(generators)]
 #![feature(never_type)]
 
+
 #[macro_use]
 extern crate log;
 
-mod server;
-mod config;
-
-#[cfg(test)]
-mod tests;
-
-pub use self::server::{app_server_loop, 
-    IncomingAppConnection};
+mod types;
+mod adapters;
+mod node;

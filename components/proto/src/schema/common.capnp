@@ -85,15 +85,28 @@ struct Receipt {
         # )
 }
 
-# IP address and port
-# TODO: Should add IPV6?
-struct SocketAddress {
+# Ipv4 TCP address
+struct TcpAddressV4 {
         address @0: UInt32;
         port @1: UInt16;
+}
+
+# Ipv6 TCP address
+struct TcpAddressV6 {
+        address @0: Buffer128;
+        port @1: UInt16;
+}
+
+struct TcpAddress {
+        union {
+                v4 @0: TcpAddressV4;
+                v6 @1: TcpAddressV6;
+        }
 }
 
 # Authenticated address of a Relay (Includes relay's public key)
 struct RelayAddress {
         publicKey @0: PublicKey;
-        socketAddress @1: SocketAddress;
+        address @1: TcpAddress;
 }
+

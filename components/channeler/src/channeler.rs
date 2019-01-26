@@ -407,7 +407,7 @@ where
 
 
 #[allow(unused)]
-async fn channeler_loop<FF,TF,B,C,L,S>(
+pub async fn channeler_loop<FF,TF,B,C,L,S>(
                         local_public_key: PublicKey,
                         from_funder: FF, 
                         to_funder: TF,

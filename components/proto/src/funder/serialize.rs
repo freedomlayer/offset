@@ -11,17 +11,19 @@ use crate::capnp_common::{write_signature, read_signature,
                           write_rand_nonce, read_rand_nonce,
                           write_uid, read_uid,
                           write_invoice_id, read_invoice_id,
-                          write_public_key, read_public_key};
+                          write_public_key, read_public_key,
+                          write_relay_address, read_relay_address};
 use funder_capnp;
 
 use super::messages::{FriendMessage, MoveTokenRequest, ResetTerms,
                     MoveToken, FriendTcOp, RequestSendFunds,
                     ResponseSendFunds, FailureSendFunds,
-                    FriendsRoute, FreezeLink, Ratio};
+                    FriendsRoute, Ratio, RelayAddress};
 
 use crate::serialize::SerializeError;
 
-fn ser_friends_route(friends_route: &FriendsRoute,
+
+pub fn ser_friends_route(friends_route: &FriendsRoute,
                      friends_route_builder: &mut funder_capnp::friends_route::Builder) {
 
     let public_keys_len = usize_to_u32(friends_route.public_keys.len()).unwrap();
@@ -46,17 +48,6 @@ fn ser_ratio128(ratio: &Ratio<u128>,
 }
 
 
-fn ser_freeze_link(freeze_link: &FreezeLink,
-                   freeze_link_builder: &mut funder_capnp::freeze_link::Builder) {
-
-    write_custom_u_int128(freeze_link.shared_credits, 
-              &mut freeze_link_builder.reborrow().init_shared_credits());
-
-    let mut usable_ratio_builder = freeze_link_builder.reborrow().init_usable_ratio();
-    ser_ratio128(&freeze_link.usable_ratio, &mut usable_ratio_builder);
-}
-
-
 fn ser_request_send_funds_op(request_send_funds: &RequestSendFunds,
                           request_send_funds_op_builder: &mut funder_capnp::request_send_funds_op::Builder) {
     write_uid(&request_send_funds.request_id, 
@@ -70,14 +61,6 @@ fn ser_request_send_funds_op(request_send_funds: &RequestSendFunds,
 
     write_invoice_id(&request_send_funds.invoice_id, 
               &mut request_send_funds_op_builder.reborrow().init_invoice_id());
-
-    let freeze_links_len = usize_to_u32(request_send_funds.freeze_links.len()).unwrap();
-    let mut freeze_links_builder = request_send_funds_op_builder.reborrow().init_freeze_links(freeze_links_len);
-
-    for (index, freeze_link) in request_send_funds.freeze_links.iter().enumerate() {
-        let mut freeze_link_builder = freeze_links_builder.reborrow().get(usize_to_u32(index).unwrap());
-        ser_freeze_link(freeze_link, &mut freeze_link_builder);
-    }
 }
 
 fn ser_response_send_funds_op(response_send_funds: &ResponseSendFunds,
@@ -128,7 +111,7 @@ fn ser_friend_operation(operation: &FriendTcOp,
     };
 }
 
-fn ser_move_token(move_token: &MoveToken,
+fn ser_move_token(move_token: &MoveToken<Vec<RelayAddress>>,
                       move_token_builder: &mut funder_capnp::move_token::Builder) {
 
     let operations_len = usize_to_u32(move_token.operations.len()).unwrap();
@@ -137,6 +120,26 @@ fn ser_move_token(move_token: &MoveToken,
         let mut operation_builder = operations_builder.reborrow().get(usize_to_u32(index).unwrap());
         ser_friend_operation(operation, &mut operation_builder);
     }
+
+    let mut opt_local_address_builder = move_token_builder.reborrow().init_opt_local_address();
+    match &move_token.opt_local_address {
+        Some(local_address) => {
+            let local_address_len = usize_to_u32(local_address.len()).unwrap();
+            let mut address_builder = opt_local_address_builder.init_address(local_address_len);
+            for (index, relay_address) in local_address.iter().enumerate() {
+                let mut relay_address_builder = address_builder.reborrow().get(usize_to_u32(index).unwrap());
+                write_relay_address(relay_address, &mut relay_address_builder);
+            }
+        },
+        None => {
+            opt_local_address_builder.set_empty(());
+        }
+    }
+
+    write_public_key(&move_token.local_public_key, 
+                     &mut move_token_builder.reborrow().init_local_public_key());
+    write_public_key(&move_token.remote_public_key, 
+                     &mut move_token_builder.reborrow().init_remote_public_key());
 
     write_signature(&move_token.old_token, &mut move_token_builder.reborrow().init_old_token());
     move_token_builder.reborrow().set_inconsistency_counter(move_token.inconsistency_counter);
@@ -148,7 +151,7 @@ fn ser_move_token(move_token: &MoveToken,
     write_signature(&move_token.new_token, &mut move_token_builder.reborrow().init_new_token());
 }
 
-fn ser_move_token_request(move_token_request: &MoveTokenRequest,
+fn ser_move_token_request(move_token_request: &MoveTokenRequest<Vec<RelayAddress>>,
                           mut move_token_request_builder: funder_capnp::move_token_request::Builder) {
 
     let mut move_token_builder = move_token_request_builder.reborrow().init_move_token();
@@ -170,7 +173,7 @@ fn ser_inconsistency_error(reset_terms: &ResetTerms,
 }
 
 
-fn ser_friend_message(friend_message: &FriendMessage, 
+fn ser_friend_message(friend_message: &FriendMessage<Vec<RelayAddress>>, 
                           friend_message_builder: &mut funder_capnp::friend_message::Builder) {
 
     match friend_message {
@@ -186,7 +189,7 @@ fn ser_friend_message(friend_message: &FriendMessage,
 }
 
 /// Serialize a FriendMessage into a vector of bytes
-pub fn serialize_friend_message(friend_message: &FriendMessage) -> Vec<u8> {
+pub fn serialize_friend_message(friend_message: &FriendMessage<Vec<RelayAddress>>) -> Vec<u8> {
     let mut builder = capnp::message::Builder::new_default();
     let mut friend_message_builder = builder.init_root::<funder_capnp::friend_message::Builder>();
 
@@ -210,16 +213,7 @@ fn deser_ratio128(from: &funder_capnp::ratio128::Reader) -> Result<Ratio<u128>, 
     }
 }
 
-fn deser_freeze_link(freeze_link_reader: &funder_capnp::freeze_link::Reader)
-    -> Result<FreezeLink, SerializeError> {
-
-    Ok(FreezeLink {
-        shared_credits: read_custom_u_int128(&freeze_link_reader.get_shared_credits()?)?,
-        usable_ratio: deser_ratio128(&freeze_link_reader.get_usable_ratio()?)?,
-    })
-}
-
-fn deser_friends_route(friends_route_reader: &funder_capnp::friends_route::Reader)
+pub fn deser_friends_route(friends_route_reader: &funder_capnp::friends_route::Reader)
     -> Result<FriendsRoute, SerializeError> {
 
     let mut public_keys = Vec::new();
@@ -235,17 +229,11 @@ fn deser_friends_route(friends_route_reader: &funder_capnp::friends_route::Reade
 fn deser_request_send_funds_op(request_send_funds_op_reader: &funder_capnp::request_send_funds_op::Reader)
     -> Result<RequestSendFunds, SerializeError> {
 
-    let mut freeze_links = Vec::new();
-    for freeze_link_reader in request_send_funds_op_reader.get_freeze_links()? {
-        freeze_links.push(deser_freeze_link(&freeze_link_reader)?);
-    }
-
     Ok(RequestSendFunds {
         request_id: read_uid(&request_send_funds_op_reader.get_request_id()?)?,
         route: deser_friends_route(&request_send_funds_op_reader.get_route()?)?,
         dest_payment: read_custom_u_int128(&request_send_funds_op_reader.get_dest_payment()?)?,
         invoice_id: read_invoice_id(&request_send_funds_op_reader.get_invoice_id()?)?,
-        freeze_links,
     })
 }
 
@@ -288,16 +276,31 @@ fn deser_friend_operation(friend_operation_reader: &funder_capnp::friend_operati
 }
 
 fn deser_move_token(move_token_reader: &funder_capnp::move_token::Reader) 
-    -> Result<MoveToken, SerializeError> {
+    -> Result<MoveToken<Vec<RelayAddress>>, SerializeError> {
 
     let mut operations: Vec<FriendTcOp> = Vec::new();
     for operation_reader in move_token_reader.get_operations()? {
         operations.push(deser_friend_operation(&operation_reader)?);
     }
 
+    let opt_local_address_reader = move_token_reader.get_opt_local_address();
+    let opt_local_address = match opt_local_address_reader.which()? {
+        funder_capnp::move_token::opt_local_address::Empty(()) => None,
+        funder_capnp::move_token::opt_local_address::Address(relay_address_reader) => {
+            let mut addresses = Vec::new();
+            for address in relay_address_reader? {
+                addresses.push(read_relay_address(&address)?);
+            }
+            Some(addresses)
+        },
+    };
+
     Ok(MoveToken {
         operations,
+        opt_local_address,
         old_token: read_signature(&move_token_reader.get_old_token()?)?,
+        local_public_key: read_public_key(&move_token_reader.get_local_public_key()?)?,
+        remote_public_key: read_public_key(&move_token_reader.get_remote_public_key()?)?,
         inconsistency_counter: move_token_reader.get_inconsistency_counter(),
         move_token_counter: read_custom_u_int128(&move_token_reader.get_move_token_counter()?)?,
         balance: read_custom_int128(&move_token_reader.get_balance()?)?,
@@ -310,7 +313,7 @@ fn deser_move_token(move_token_reader: &funder_capnp::move_token::Reader)
 
 
 fn deser_move_token_request(move_token_request_reader: &funder_capnp::move_token_request::Reader) 
-    -> Result<MoveTokenRequest, SerializeError> {
+    -> Result<MoveTokenRequest<Vec<RelayAddress>>, SerializeError> {
 
     let move_token_reader = move_token_request_reader.get_move_token()?;
     let move_token = deser_move_token(&move_token_reader)?;
@@ -332,7 +335,7 @@ fn deser_inconsistency_error(inconsistency_error_reader: &funder_capnp::inconsis
 }
 
 fn deser_friend_message(friend_message_reader: &funder_capnp::friend_message::Reader) 
-    -> Result<FriendMessage, SerializeError> {
+    -> Result<FriendMessage<Vec<RelayAddress>>, SerializeError> {
 
     Ok(match friend_message_reader.which()? {
         funder_capnp::friend_message::MoveTokenRequest(move_token_request_reader) => {
@@ -346,7 +349,7 @@ fn deser_friend_message(friend_message_reader: &funder_capnp::friend_message::Re
 
 
 /// Deserialize FriendMessage from an array of bytes
-pub fn deserialize_friend_message(data: &[u8]) -> Result<FriendMessage, SerializeError> {
+pub fn deserialize_friend_message(data: &[u8]) -> Result<FriendMessage<Vec<RelayAddress>>, SerializeError> {
     let mut cursor = io::Cursor::new(data);
     let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let friend_message_reader = reader.get_root::<funder_capnp::friend_message::Reader>()?;
@@ -363,8 +366,10 @@ mod tests {
     use crypto::uid::{Uid, UID_LEN};
     use crate::funder::messages::{InvoiceId, INVOICE_ID_LEN};
 
+    use crate::funder::messages::{TcpAddress, TcpAddressV4, TcpAddressV6};
+
     /// Create an example FriendMessage::MoveTokenRequest:
-    fn create_move_token_request() -> FriendMessage {
+    fn create_move_token_request() -> FriendMessage<Vec<RelayAddress>> {
         let route = FriendsRoute {
             public_keys: vec![
                 PublicKey::from(&[0x5; PUBLIC_KEY_LEN]),
@@ -373,26 +378,11 @@ mod tests {
                 PublicKey::from(&[0x8; PUBLIC_KEY_LEN])],
         };
 
-        let mut freeze_links = Vec::new();
-        freeze_links.push(FreezeLink {
-            shared_credits: 8,
-            usable_ratio: Ratio::One,
-        });
-        freeze_links.push(FreezeLink {
-            shared_credits: 100,
-            usable_ratio: Ratio::Numerator(234234),
-        });
-        freeze_links.push(FreezeLink {
-            shared_credits: 500,
-            usable_ratio: Ratio::Numerator(9876),
-        });
-
         let request_send_funds = RequestSendFunds {
             request_id: Uid::from(&[22; UID_LEN]),
             route,
             dest_payment: 48,
             invoice_id: InvoiceId::from(&[0x99; INVOICE_ID_LEN]),
-            freeze_links,
         };
         let response_send_funds = ResponseSendFunds {
             request_id: Uid::from(&[10; UID_LEN]),
@@ -413,9 +403,29 @@ mod tests {
                                   FriendTcOp::RequestSendFunds(request_send_funds),
                                   FriendTcOp::ResponseSendFunds(response_send_funds),
                                   FriendTcOp::FailureSendFunds(failure_send_funds)];
+
+        let relay_address4 = RelayAddress {
+            public_key: PublicKey::from(&[0x11; PUBLIC_KEY_LEN]),
+            address: TcpAddress::V4(TcpAddressV4 {
+                address: [0,1,2,3],
+                port: 1337,
+            }),
+        };
+
+        let relay_address6 = RelayAddress {
+            public_key: PublicKey::from(&[0x11; PUBLIC_KEY_LEN]),
+            address: TcpAddress::V6(TcpAddressV6 {
+                address: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],
+                port: 1338,
+            }),
+        };
+
         let move_token = MoveToken {
             operations,
+            opt_local_address: Some(vec![relay_address4, relay_address6]),
             old_token: Signature::from(&[0; SIGNATURE_LEN]),
+            local_public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
+            remote_public_key: PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]),
             inconsistency_counter: 2,
             move_token_counter: 18,
             balance: -5,
@@ -433,7 +443,7 @@ mod tests {
     }
 
     /// Create an example FriendMessage::InconsistencyError
-    fn create_inconsistency_error() -> FriendMessage {
+    fn create_inconsistency_error() -> FriendMessage<Vec<RelayAddress>> {
 
         let reset_terms = ResetTerms {
             reset_token: Signature::from(&[2; SIGNATURE_LEN]),

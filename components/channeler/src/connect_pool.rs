@@ -111,12 +111,12 @@ async fn conn_attempt<B,C,ET>(friend_public_key: PublicKey,
 where
     B: Eq,
     C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone,
-    ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone,
+    ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<RawConn>> + Clone,
 {
     // TODO; How to remove this Box::pin?
     let connect_fut = Box::pin(async move {
         let raw_conn = await!(client_connector.transform((address, friend_public_key.clone())))?;
-        await!(encrypt_transform.transform((Some(friend_public_key.clone()), raw_conn)))
+        await!(encrypt_transform.transform((friend_public_key.clone(), raw_conn)))
     });
 
     // We either finish connecting, or got canceled in the middle:
@@ -130,7 +130,7 @@ impl<B,C,ET,S> ConnectPool<B,C,ET,S>
 where
     B: Hash + Clone + Eq + Send + Debug + 'static,
     S: Spawn,
-    ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
+    ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
     C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
 {
     pub fn new(friend_public_key: PublicKey, 
@@ -324,7 +324,7 @@ where
     B: Hash + Clone + Eq + Send + Debug + 'static,
     C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
     TS: Stream + Unpin,
-    ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
+    ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
     S: Spawn + Clone,
 {
 
@@ -392,7 +392,7 @@ where
     B: Hash + Clone + Eq + Send + Debug + 'static,
     C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
     TS: Stream + Unpin + Send + 'static,
-    ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
+    ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
     let (connect_request_sender, incoming_requests) = mpsc::channel(0);
@@ -432,7 +432,7 @@ impl<B,C,ET,S> PoolConnector<B,C,ET,S>
 where
     B: Hash + Clone + Eq + Send + 'static,
     C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
-    ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
+    ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
     #[allow(unused)]
@@ -458,7 +458,7 @@ impl<B,C,ET,S> FutTransform for PoolConnector<B,C,ET,S>
 where
     B: Hash + Clone + Eq + Send + Debug + 'static,
     C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
-    ET: FutTransform<Input=(Option<PublicKey>, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
+    ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
     type Input = PublicKey;
@@ -504,7 +504,8 @@ mod tests {
         let client_connector = DummyConnector::new(conn_request_sender);
 
         // We don't need encryption for this test:
-        let encrypt_transform = FuncFutTransform::new(|(_opt_public_key, conn_pair)| Some(conn_pair));
+        let encrypt_transform = FuncFutTransform::new(|(_opt_public_key, conn_pair)| 
+                                                      Box::pin(future::ready(Some(conn_pair))));
 
         let mut pool_connector = PoolConnector::<u32,_,_,_>::new(
             timer_client,
@@ -631,7 +632,8 @@ mod tests {
         let client_connector = DummyConnector::new(conn_request_sender);
 
         // We don't need encryption for this test:
-        let encrypt_transform = FuncFutTransform::new(|(_opt_public_key, conn_pair)| Some(conn_pair));
+        let encrypt_transform = FuncFutTransform::new(|(_public_key, conn_pair)| 
+                                                      Box::pin(future::ready(Some(conn_pair))));
 
         let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
         let mut tick_sender = await!(tick_sender_receiver.next()).unwrap();

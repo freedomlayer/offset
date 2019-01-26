@@ -109,7 +109,7 @@ where
 
 impl<F,I,O> FuncFutTransform<F,I,O> 
 where
-    F: FnMut(I) -> O,
+    F: FnMut(I) -> BoxFuture<'static, O>,
     O: Send,
 {
     pub fn new(func: F) -> FuncFutTransform<F,I,O> {
@@ -123,7 +123,7 @@ where
 
 impl<F,I,O> FutTransform for FuncFutTransform<F,I,O> 
 where
-    F: FnMut(I) -> O,
+    F: FnMut(I) -> BoxFuture<'static, O>,
     O: Send,
 {
     type Input = I;
@@ -131,7 +131,7 @@ where
 
     fn transform(&mut self, input: Self::Input)
         -> BoxFuture<'_, Self::Output> {
-        Box::pin(future::ready((self.func)(input)))
+        (self.func)(input)
     } 
 }
 

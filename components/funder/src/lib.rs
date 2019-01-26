@@ -21,15 +21,19 @@ extern crate common;
 
 
 mod liveness;
-mod ephemeral;
+pub mod ephemeral;
 mod credit_calc;
 mod friend;
 mod state;
-mod types;
+pub mod types;
 mod mutual_credit;
 mod token_channel;
 mod handler;
-mod report;
+pub mod report;
 mod funder;
 #[cfg(test)]
 mod tests;
+
+pub use self::state::{FunderMutation, FunderState};
+pub use self::funder::{funder_loop, FunderError};
+

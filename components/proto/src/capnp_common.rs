@@ -2,11 +2,14 @@ use std::io;
 use std::convert::TryFrom;
 use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt, ByteOrder};
 
-use common_capnp::{buffer128, buffer256, buffer512,
+use common_capnp::{self, buffer128, buffer256, buffer512,
                     public_key, invoice_id, hash, dh_public_key, salt, signature,
-                    rand_nonce, custom_u_int128, custom_int128, uid};
+                    rand_nonce, custom_u_int128, custom_int128, uid,
+                    tcp_address_v4, tcp_address_v6, tcp_address, 
+                    relay_address};
 
-use crate::funder::messages::InvoiceId;
+use crate::funder::messages::{InvoiceId, RelayAddress, 
+    TcpAddress, TcpAddressV4, TcpAddressV6};
 
 use crypto::identity::{PublicKey, Signature};
 use crypto::dh::{DhPublicKey, Salt};
@@ -137,3 +140,61 @@ pub fn write_custom_int128(from: i128, to: &mut custom_int128::Builder) {
     write_buffer128(&data_bytes, &mut inner);
 }
 
+pub fn read_relay_address(from: &relay_address::Reader) -> Result<RelayAddress, capnp::Error> {
+    let public_key = read_public_key(&from.get_public_key()?)?;
+
+    let address = match from.get_address()?.which()? {
+        common_capnp::tcp_address::V4(res_tcp_address_v4) => {
+            let tcp_address_v4 = res_tcp_address_v4?;
+            let address_u32 = tcp_address_v4.get_address();
+            let mut address = [0u8; 4];
+            BigEndian::write_u32(&mut address, address_u32);
+
+            let port = tcp_address_v4.get_port();
+
+            TcpAddress::V4(TcpAddressV4 {
+                address,
+                port,
+            })
+        },
+        common_capnp::tcp_address::V6(res_tcp_address_v6) => {
+            let tcp_address_v6 = res_tcp_address_v6?;
+            let address_vec = read_buffer128(&tcp_address_v6.get_address()?);
+            let mut address = [0u8; 16];
+            address.copy_from_slice(&address_vec[..]); 
+
+            let port = tcp_address_v6.get_port();
+
+            TcpAddress::V6(TcpAddressV6 {
+                address,
+                port,
+            })
+        },
+    };
+
+    Ok(RelayAddress {
+        public_key,
+        address,
+    })
+}
+
+pub fn write_relay_address(from: &RelayAddress, to: &mut relay_address::Builder) {
+
+    write_public_key(&from.public_key, &mut to.reborrow().init_public_key());
+    let tcp_address_builder = to.reborrow().init_address();
+
+    match &from.address {
+        TcpAddress::V4(tcp_address_v4) => {
+            let mut tcp_address_v4_writer = tcp_address_builder.init_v4();
+            let address_u32 = BigEndian::read_u32(&tcp_address_v4.address);
+            tcp_address_v4_writer.set_port(tcp_address_v4.port);
+            tcp_address_v4_writer.set_address(address_u32);
+        },
+        TcpAddress::V6(tcp_address_v6) => {
+            let mut tcp_address_v6_writer = tcp_address_builder.init_v6();
+            tcp_address_v6_writer.set_port(tcp_address_v6.port);
+            let mut address_builder = tcp_address_v6_writer.init_address();
+            write_buffer128(&tcp_address_v6.address, &mut address_builder);
+        },
+    }
+}

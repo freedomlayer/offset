@@ -58,12 +58,6 @@ pub enum Ratio<T> {
 }
 
 
-#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct FreezeLink {
-    pub shared_credits: u128,
-    pub usable_ratio: Ratio<u128>
-}
-
 pub const INVOICE_ID_LEN: usize = 32;
 
 /// The universal unique identifier of an invoice.
@@ -81,7 +75,6 @@ pub struct RequestSendFunds {
     pub route: FriendsRoute,
     pub dest_payment: u128,
     pub invoice_id: InvoiceId,
-    // pub freeze_links: Vec<FreezeLink>,
 }
 
 
@@ -195,14 +188,6 @@ impl CanonicalSerialize for Ratio<u128> {
     }
 }
 
-impl CanonicalSerialize for FreezeLink {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.write_u128::<BigEndian>(self.shared_credits).unwrap();
-        res_bytes.extend_from_slice(&self.usable_ratio.canonical_serialize());
-        res_bytes
-    }
-}
 
 impl CanonicalSerialize for RequestSendFunds {
     fn canonical_serialize(&self) -> Vec<u8> {
@@ -499,4 +484,78 @@ pub enum FunderOutgoingControl<A: Clone> {
     ResponseReceived(ResponseReceived),
     // Report(FunderReport<A>),
     ReportMutations(Vec<FunderReportMutation<A>>),
+}
+
+/// IPv4 address (TCP)
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct TcpAddressV4 {
+    pub address: [u8; 4], // 32 bit
+    pub port: u16,
+}
+
+/// IPv6 address (TCP)
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct TcpAddressV6 {
+    pub address: [u8; 16], // 128 bit
+    pub port: u16,
+}
+
+// TODO: Possibly move TcpAddress and the structs it depends on 
+// to a more generic module in proto?
+/// Address for TCP connection
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TcpAddress {
+    V4(TcpAddressV4),
+    V6(TcpAddressV6),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct RelayAddress {
+    pub public_key: PublicKey,
+    pub address: TcpAddress,
+}
+
+
+impl CanonicalSerialize for TcpAddressV4 {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.address);
+        res_bytes.write_u16::<BigEndian>(self.port).unwrap();
+        res_bytes
+    }
+}
+
+impl CanonicalSerialize for TcpAddressV6 {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.address);
+        res_bytes.write_u16::<BigEndian>(self.port).unwrap();
+        res_bytes
+    }
+}
+
+impl CanonicalSerialize for TcpAddress {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        match self {
+            TcpAddress::V4(tcp_address_v4) => {
+                res_bytes.push(0);
+                res_bytes.extend_from_slice(&tcp_address_v4.canonical_serialize());
+            },
+            TcpAddress::V6(tcp_address_v4) => {
+                res_bytes.push(1);
+                res_bytes.extend_from_slice(&tcp_address_v4.canonical_serialize());
+            },
+        }
+        res_bytes
+    }
+}
+
+impl CanonicalSerialize for RelayAddress {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.public_key);
+        res_bytes.extend_from_slice(&self.address.canonical_serialize());
+        res_bytes
+    }
 }
