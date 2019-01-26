@@ -37,13 +37,8 @@ where
     B: Clone + CanonicalSerialize,
     ISA: Clone + PartialEq + Eq,
 {
-    type InitialArg = PublicKey; // local public key
     type Mutation = NodeMutation<B,ISA>;
     type MutateError = NodeMutateError;
-
-    fn initial(local_public_key: Self::InitialArg) -> Self {
-        NodeState::new(local_public_key)
-    }
 
     fn mutate(&mut self, mutation: &Self::Mutation) -> Result<(), Self::MutateError> {
         match mutation {

@@ -41,16 +41,14 @@ where
     S::Mutation: Clone + Serialize + DeserializeOwned,
     S::MutateError: Debug,
 {
-    pub fn new(path_buf: PathBuf, 
-               initial_arg: S::InitialArg) -> Result<Self, FileDbError<S::MutateError>> {
+    pub fn new(path_buf: PathBuf, initial_state: S) 
+        -> Result<Self, FileDbError<S::MutateError>> {
 
         // Open file database, or create a new initial one:
         let mut fr = match File::open(&path_buf) {
             Ok(fr) => fr,
             Err(_) => {
                 // There is no file, we create a new file:
-                let initial_state = S::initial(initial_arg);
-
                 // Serialize the state:
                 let serialized_str = serde_json::to_string(&initial_state)
                     .map_err(FileDbError::SerializeError)?;
@@ -150,13 +148,8 @@ mod tests {
     struct DummyMutateError;
 
     impl MutableState for DummyState {
-        type InitialArg = u32;
         type Mutation = DummyMutation;
         type MutateError = DummyMutateError;
-
-        fn initial(initial_arg: Self::InitialArg) -> Self {
-            DummyState::new(initial_arg)
-        }
 
         fn mutate(&mut self, mutation: &Self::Mutation) -> Result<(), Self::MutateError> {
             match mutation {
@@ -177,7 +170,8 @@ mod tests {
         let dir = tempdir().unwrap();
 
         let file_path = dir.path().join("database_file");
-        let mut file_db = FileDb::<DummyState>::new(file_path.clone(), 0).unwrap();
+        let initial_state = DummyState::new(0);
+        let mut file_db = FileDb::<DummyState>::new(file_path.clone(), initial_state).unwrap();
 
         file_db.mutate_db(&[DummyMutation::Inc, 
                          DummyMutation::Inc,
@@ -196,7 +190,8 @@ mod tests {
         drop(file_db);
 
         // Check persistency:
-        let file_db = FileDb::<DummyState>::new(file_path.clone(), 0).unwrap();
+        let initial_state = DummyState::new(0);
+        let file_db = FileDb::<DummyState>::new(file_path.clone(), initial_state).unwrap();
         let state = file_db.get_state();
         assert_eq!(state.x, 2);
 

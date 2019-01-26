@@ -46,13 +46,8 @@ impl<ISA> MutableState for IndexClientConfig<ISA>
 where
     ISA: Clone + PartialEq + Eq,
 {
-    type InitialArg = ();
     type Mutation = IndexClientConfigMutation<ISA>;
     type MutateError = !;
-
-    fn initial(_initial_arg: Self::InitialArg) -> Self {
-        IndexClientConfig::new()
-    }
 
     fn mutate(&mut self, mutation: &Self::Mutation) -> Result<(), Self::MutateError> {
         match mutation {
