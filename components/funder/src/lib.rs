@@ -25,7 +25,7 @@ mod ephemeral;
 mod credit_calc;
 mod friend;
 mod state;
-mod types;
+pub mod types;
 mod mutual_credit;
 mod token_channel;
 mod handler;
@@ -36,3 +36,4 @@ mod tests;
 
 pub use self::state::FunderMutation;
 pub use self::funder::{funder_loop, FunderError};
+
