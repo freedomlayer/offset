@@ -26,6 +26,14 @@ pub struct IndexClientConfig<ISA> {
     pub index_servers: Vec<ISA>,
 }
 
+impl<ISA> IndexClientConfig<ISA> {
+    pub fn new() -> Self {
+        IndexClientConfig {
+            index_servers: Vec::new(),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum IndexClientConfigMutation<ISA> {
     AddIndexServer(ISA),
