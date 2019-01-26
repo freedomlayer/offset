@@ -2,7 +2,7 @@ use std::marker::Unpin;
 use core::pin::Pin;
 
 use futures::task::{Spawn, SpawnExt};
-use futures::{Future, Stream};
+use futures::{Future, Stream, StreamExt};
 use futures::channel::mpsc;
 
 use common::conn::{ConnPair, ConnPairVec, FutTransform, BoxFuture};
@@ -18,6 +18,7 @@ use channeler::{channeler_loop, PoolConnector, PoolListener, ChannelerError};
 use relay::client::{client_connector::ClientConnector, client_listener::ClientListener};
 use keepalive::KeepAliveChannel;
 use secure_channel::SecureChannel;
+use funder::{funder_loop, FunderError};
 
 use proto::funder::messages::{RelayAddress, TcpAddress, 
     FunderToChanneler, ChannelerToFunder};
@@ -32,12 +33,23 @@ pub enum NodeError {
 }
 
 pub struct NodeConfig {
+    /// Memory allocated to a channel in memory (Used to connect two components)
     channel_len: usize,
+    /// The amount of ticks we wait before attempting to reconnect
     backoff_ticks: usize,
+    /// The amount of ticks we wait until we decide an idle connection has timed out.
     keepalive_ticks: usize,
+    /// Amount of ticks to wait until the next rekeying (Channel encryption)
     ticks_to_rekey: usize,
+    /// Maximum amount of encryption set ups (diffie hellman) that we allow to occur at the same
+    /// time.
     max_concurrent_encrypt: usize,
+    /// The amount of ticks we are willing to wait until a connection is established.
     conn_timeout_ticks: usize,
+    /// Maximum amount of operations in one move token message
+    max_operations_in_batch: usize,
+    /// The size we allocate for the user send funds requests queue.
+    max_pending_user_requests: usize,
 }
 
 #[derive(Clone)]
@@ -225,8 +237,8 @@ pub async fn node_loop<C,IA,R,S>(
                 node_config: NodeConfig,
                 identity_client: IdentityClient,
                 timer_client: TimerClient,
-                database_client: DatabaseClient<NodeMutation<RelayAddress,IndexServerAddress>>,
-                mut net_connector: C,
+                mut database_client: DatabaseClient<NodeMutation<RelayAddress,IndexServerAddress>>,
+                net_connector: C,
                 incoming_apps: IA,
                 rng: R,
                 mut spawner: S) -> Result<(), NodeError> 
@@ -252,6 +264,47 @@ where
                     funder_to_channeler_receiver,
                     channeler_to_funder_sender,
                     spawner.clone());
+
+    let (request_sender, mut request_receiver) = mpsc::channel(0);
+    let funder_db_client = DatabaseClient::new(request_sender);
+
+    let database_adapter_fut = async move {
+        while let Some(request) = await!(request_receiver.next()) {
+            let mutations = request.mutations
+                .into_iter()
+                .map(|funder_mutation| 
+                     NodeMutation::Funder(funder_mutation))
+                .collect::<Vec<_>>();
+
+            if let Err(_) = await!(database_client.mutate(mutations)) {
+                return;
+            }
+        }
+    };
+    spawner.spawn(database_adapter_fut)
+        .map_err(|_| NodeError::SpawnError)?;
+
+
+    /*
+    let (funder_to_app_server_sender, funder_to_app_server_receiver) = mpsc::channel(node_config.channel_len);
+    let (app_server_to_funder_sender, app_server_to_funder_receiver) = mpsc::channel(node_config.channel_len);
+
+    let funder_fut = funder_loop(
+        identity_client.clone(),
+        rng.clone(),
+        incoming_control: app_server_to_funder_receiver,
+        incoming_comm: mpsc::Receiver<FunderIncomingComm<A>>,
+        control_sender: funder_to_app_server_sender,
+        comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
+        node_config.max_operations_in_batch,
+        node_config.max_pending_user_requests,
+        funder_state: FunderState<A>,
+        db_client: DatabaseClient<FunderMutation<A>>);
+    */
+
+    // Funder TODO:
+    // - Database adapter
+    // - Serialization of communication with the channeler
 
     // TODO:
     // - Spawn Funder
