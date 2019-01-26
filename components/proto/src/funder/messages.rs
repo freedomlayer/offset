@@ -514,3 +514,48 @@ pub struct RelayAddress {
     pub public_key: PublicKey,
     pub address: TcpAddress,
 }
+
+
+impl CanonicalSerialize for TcpAddressV4 {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.address);
+        res_bytes.write_u16::<BigEndian>(self.port).unwrap();
+        res_bytes
+    }
+}
+
+impl CanonicalSerialize for TcpAddressV6 {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.address);
+        res_bytes.write_u16::<BigEndian>(self.port).unwrap();
+        res_bytes
+    }
+}
+
+impl CanonicalSerialize for TcpAddress {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        match self {
+            TcpAddress::V4(tcp_address_v4) => {
+                res_bytes.push(0);
+                res_bytes.extend_from_slice(&tcp_address_v4.canonical_serialize());
+            },
+            TcpAddress::V6(tcp_address_v4) => {
+                res_bytes.push(1);
+                res_bytes.extend_from_slice(&tcp_address_v4.canonical_serialize());
+            },
+        }
+        res_bytes
+    }
+}
+
+impl CanonicalSerialize for RelayAddress {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.public_key);
+        res_bytes.extend_from_slice(&self.address.canonical_serialize());
+        res_bytes
+    }
+}
