@@ -11,8 +11,8 @@ extern crate log;
 #[macro_use]
 extern crate serde_derive;
 
-mod file_db;
-mod atomic_db;
+pub mod file_db;
+pub mod atomic_db;
 mod database;
 
 pub use self::database::{
