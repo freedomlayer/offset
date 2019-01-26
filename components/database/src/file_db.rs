@@ -40,14 +40,15 @@ where
     S::Mutation: Clone + Serialize + DeserializeOwned,
     S::MutateError: Debug,
 {
-    pub fn new(path_buf: PathBuf) -> Result<Self, FileDbError<S::MutateError>> {
+    pub fn new(path_buf: PathBuf, 
+               initial_arg: S::InitialArg) -> Result<Self, FileDbError<S::MutateError>> {
 
         // Open file database, or create a new initial one:
         let mut fr = match File::open(&path_buf) {
             Ok(fr) => fr,
             Err(_) => {
                 // There is no file, we create a new file:
-                let initial_state = S::initial();
+                let initial_state = S::initial(initial_arg);
 
                 // Serialize the state:
                 let serialized_str = serde_json::to_string(&initial_state)
@@ -130,9 +131,9 @@ mod tests {
     }
 
     impl DummyState {
-        pub fn new() -> Self {
+        pub fn new(x: u32) -> Self {
             DummyState {
-                x: 0u32,
+                x,
             }
         }
     }
@@ -148,11 +149,12 @@ mod tests {
     struct DummyMutateError;
 
     impl MutableState for DummyState {
+        type InitialArg = u32;
         type Mutation = DummyMutation;
         type MutateError = DummyMutateError;
 
-        fn initial() -> Self {
-            DummyState::new()
+        fn initial(initial_arg: Self::InitialArg) -> Self {
+            DummyState::new(initial_arg)
         }
 
         fn mutate(&mut self, mutation: &Self::Mutation) -> Result<(), Self::MutateError> {
@@ -174,7 +176,7 @@ mod tests {
         let dir = tempdir().unwrap();
 
         let file_path = dir.path().join("database_file");
-        let mut file_db = FileDb::<DummyState>::new(file_path.clone()).unwrap();
+        let mut file_db = FileDb::<DummyState>::new(file_path.clone(), 0).unwrap();
 
         file_db.mutate_db(&[DummyMutation::Inc, 
                          DummyMutation::Inc,
@@ -193,7 +195,7 @@ mod tests {
         drop(file_db);
 
         // Check persistency:
-        let file_db = FileDb::<DummyState>::new(file_path.clone()).unwrap();
+        let file_db = FileDb::<DummyState>::new(file_path.clone(), 0).unwrap();
         let state = file_db.get_state();
         assert_eq!(state.x, 2);
 
