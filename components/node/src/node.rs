@@ -1,4 +1,3 @@
-
 use futures::task::{Spawn, SpawnExt};
 use futures::{Future, Stream, StreamExt, SinkExt};
 use futures::channel::mpsc;
@@ -21,7 +20,8 @@ use funder::types::{FunderIncomingComm, FunderOutgoingComm,
     IncomingLivenessMessage, ChannelerConfig};
 
 use proto::funder::messages::{RelayAddress, TcpAddress, 
-    FunderToChanneler, ChannelerToFunder};
+    FunderToChanneler, ChannelerToFunder, 
+    FunderIncomingControl, FunderOutgoingControl};
 use proto::funder::serialize::{serialize_friend_message, 
     deserialize_friend_message};
 use proto::index_server::messages::{IndexServerAddress};
@@ -235,39 +235,21 @@ where
         .map_err(|_| NodeError::SpawnError)
 }
 
-
-pub async fn node_loop<C,IA,R,S>(
-                node_config: NodeConfig,
+fn spawn_funder<R,S>(node_config: &NodeConfig,
                 identity_client: IdentityClient,
-                timer_client: TimerClient,
                 funder_state: FunderState<Vec<RelayAddress>>,
                 mut database_client: DatabaseClient<NodeMutation<RelayAddress,IndexServerAddress>>,
-                net_connector: C,
-                incoming_apps: IA,
+                mut from_channeler: mpsc::Receiver<ChannelerToFunder>,
+                mut to_channeler: mpsc::Sender<FunderToChanneler<Vec<RelayAddress>>>,
+                mut from_app_server: mpsc::Receiver<FunderIncomingControl<Vec<RelayAddress>>>,
+                mut to_app_server: mpsc::Sender<FunderOutgoingControl<Vec<RelayAddress>>>,
                 rng: R,
-                mut spawner: S) -> Result<(), NodeError> 
+                mut spawner: S)
+        -> Result<impl Future<Output=Result<(), FunderError>>, NodeError>
 where
-    C: FutTransform<Input=TcpAddress,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
-    IA: Stream<Item=IncomingAppConnection<RelayAddress,IndexServerAddress>> + Unpin, 
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
-    // Get local public key:
-    let local_public_key = await!(identity_client.request_public_key())
-        .map_err(|_| NodeError::RequestPublicKeyError)?;
-
-    let (channeler_to_funder_sender, mut channeler_to_funder_receiver) = mpsc::channel(node_config.channel_len);
-    let (mut funder_to_channeler_sender, funder_to_channeler_receiver) = mpsc::channel(node_config.channel_len);
-
-    let channeler_handle = spawn_channeler(&node_config,
-                    local_public_key.clone(),
-                    identity_client.clone(),
-                    timer_client.clone(),
-                    net_connector.clone(),
-                    rng.clone(),
-                    funder_to_channeler_receiver,
-                    channeler_to_funder_sender,
-                    spawner.clone());
 
     // TODO: Should we give a length > 0 for this adapter's channel?
     let (request_sender, mut request_receiver) = mpsc::channel(0);
@@ -294,7 +276,7 @@ where
     // Channeler to funder adapter:
     let (mut incoming_comm_sender, incoming_comm) = mpsc::channel(0);
     let channeler_to_funder_adapter = async move {
-        while let Some(channeler_message) = await!(channeler_to_funder_receiver.next()) {
+        while let Some(channeler_message) = await!(from_channeler.next()) {
             let opt_to_funder_message = match channeler_message {
                 ChannelerToFunder::Online(public_key) => 
                     Some(FunderIncomingComm::Liveness(IncomingLivenessMessage::Online(public_key))),
@@ -340,7 +322,7 @@ where
                     FunderToChanneler::Message((public_key, data))
                 },
             };
-            if let Err(_) = await!(funder_to_channeler_sender.send(to_channeler_message)) {
+            if let Err(_) = await!(to_channeler.send(to_channeler_message)) {
                 return;
             }
         }
@@ -349,15 +331,12 @@ where
     spawner.spawn(funder_to_channeler_adapter)
         .map_err(|_| NodeError::SpawnError)?;
 
-    let (funder_to_app_server_sender, funder_to_app_server_receiver) = mpsc::channel(node_config.channel_len);
-    let (app_server_to_funder_sender, app_server_to_funder_receiver) = mpsc::channel(node_config.channel_len);
-
     let funder_fut = funder_loop(
         identity_client.clone(),
         rng.clone(),
-        app_server_to_funder_receiver, // incoming_control
+        from_app_server,
         incoming_comm,
-        funder_to_app_server_sender, // control_sender
+        to_app_server,
         outgoing_comm_sender,
         node_config.max_operations_in_batch,
         node_config.max_pending_user_requests,
@@ -365,14 +344,59 @@ where
         funder_db_client);
 
     spawner.spawn_with_handle(funder_fut)
-        .map_err(|_| NodeError::SpawnError)?;
+        .map_err(|_| NodeError::SpawnError)
+}
 
-    // Funder TODO:
-    // - Database adapter
-    // - Serialization of communication with the channeler
+pub async fn node_loop<C,IA,R,S>(
+                node_config: NodeConfig,
+                identity_client: IdentityClient,
+                timer_client: TimerClient,
+                funder_state: FunderState<Vec<RelayAddress>>,
+                mut database_client: DatabaseClient<NodeMutation<RelayAddress,IndexServerAddress>>,
+                net_connector: C,
+                incoming_apps: IA,
+                rng: R,
+                mut spawner: S) -> Result<(), NodeError> 
+where
+    C: FutTransform<Input=TcpAddress,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
+    IA: Stream<Item=IncomingAppConnection<RelayAddress,IndexServerAddress>> + Unpin, 
+    R: CryptoRandom + Clone + 'static,
+    S: Spawn + Clone + Send + Sync + 'static,
+{
+    // Get local public key:
+    let local_public_key = await!(identity_client.request_public_key())
+        .map_err(|_| NodeError::RequestPublicKeyError)?;
+
+    // Channeler <--> Funder
+    let (channeler_to_funder_sender, channeler_to_funder_receiver) = mpsc::channel(node_config.channel_len);
+    let (funder_to_channeler_sender, funder_to_channeler_receiver) = mpsc::channel(node_config.channel_len);
+
+    let channeler_handle = spawn_channeler(&node_config,
+                    local_public_key.clone(),
+                    identity_client.clone(),
+                    timer_client.clone(),
+                    net_connector.clone(),
+                    rng.clone(),
+                    funder_to_channeler_receiver,
+                    channeler_to_funder_sender,
+                    spawner.clone());
+
+    // AppServer <--> Funder
+    let (app_server_to_funder_sender, app_server_to_funder_receiver) = mpsc::channel(node_config.channel_len);
+    let (funder_to_app_server_sender, funder_to_app_server_receiver) = mpsc::channel(node_config.channel_len);
+
+    let funder_handle = spawn_funder(&node_config,
+                identity_client.clone(),
+                funder_state,
+                database_client.clone(),
+                channeler_to_funder_receiver,
+                funder_to_channeler_sender,
+                app_server_to_funder_receiver,
+                funder_to_app_server_sender,
+                rng,
+                spawner.clone());
 
     // TODO:
-    // - Spawn Funder
     // - Spawn IndexClient
     // - Spawn AppServer
 
