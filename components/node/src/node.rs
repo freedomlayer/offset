@@ -18,7 +18,8 @@ use secure_channel::SecureChannel;
 use funder::{funder_loop, FunderError, FunderState};
 use funder::types::{FunderIncomingComm, FunderOutgoingComm, 
     IncomingLivenessMessage, ChannelerConfig};
-use index_client::index_client_loop;
+use index_client::{index_client_loop, create_seq_friends_service, SeqMap,
+                    IndexClientSession, ServerConn};
 
 
 use proto::funder::messages::{RelayAddress, TcpAddress, 
@@ -26,7 +27,12 @@ use proto::funder::messages::{RelayAddress, TcpAddress,
     FunderIncomingControl, FunderOutgoingControl};
 use proto::funder::serialize::{serialize_friend_message, 
     deserialize_friend_message};
+use proto::funder::report::funder_report_to_index_client_state;
 use proto::index_server::messages::{IndexServerAddress};
+use proto::index_server::serialize::{serialize_index_client_to_server,
+        deserialize_index_client_to_server,
+        serialize_index_server_to_client,
+        deserialize_index_server_to_client};
 
 use crate::types::{NodeMutation, NodeState, create_node_report};
 
@@ -165,6 +171,81 @@ where
         })
     }
 }
+
+
+// C: FutTransform<Input=IndexServerAddress, Output=Option<ServerConn>> + Send,
+#[derive(Clone)]
+struct EncIndexClientConnector<ET,C,S> {
+    encrypt_transform: ET,
+    net_connector: C,
+    spawner: S,
+}
+
+
+impl<ET,C,S> EncIndexClientConnector<ET,C,S> {
+    pub fn new(encrypt_transform: ET,
+               net_connector: C,
+               spawner: S) -> Self {
+
+        EncIndexClientConnector {
+            encrypt_transform,
+            net_connector,
+            spawner,
+        }
+    }
+}
+
+impl<ET,C,S> FutTransform for EncIndexClientConnector<ET,C,S> 
+where
+    ET: FutTransform<Input=(Option<PublicKey>, ConnPairVec),Output=Option<(PublicKey, ConnPairVec)>> + Send,
+    C: FutTransform<Input=TcpAddress,Output=Option<ConnPairVec>> + Clone + Send,
+    S: Spawn + Send,
+{
+    type Input = IndexServerAddress;
+    type Output = Option<ServerConn>;
+
+    fn transform(&mut self, index_server_address: Self::Input)
+        -> BoxFuture<'_, Self::Output> {
+
+        Box::pin(async move {
+            let conn_pair = await!(self.net_connector.transform(index_server_address.address))?;
+            let (public_key, (mut data_sender, mut data_receiver)) = await!(self.encrypt_transform.transform((Some(index_server_address.public_key), conn_pair)))?;
+
+            let (user_sender, mut local_receiver) = mpsc::channel(0);
+            let (mut local_sender, user_receiver) = mpsc::channel(0);
+
+            // Deserialize incoming data:
+            let deser_fut = async move {
+                while let Some(data) = await!(data_receiver.next()) {
+                    let message = match deserialize_index_server_to_client(&data) {
+                        Ok(message) => message,
+                        Err(_) => return,
+                    };
+                    if let Err(_) = await!(local_sender.send(message)) {
+                        return;
+                    }
+                }
+            };
+            self.spawner.spawn(deser_fut);
+
+            // Serialize outgoing data:
+            let ser_fut = async move {
+                while let Some(message) = await!(local_receiver.next()) {
+                    let data = serialize_index_client_to_server(&message);
+                    if let Err(_) = await!(data_sender.send(data)) {
+                        return;
+                    }
+                }
+            };
+            // If there is any error here, the user will find out when
+            // he tries to read from `user_receiver` or send through `jser_sender`
+            let _ = self.spawner.spawn(ser_fut);
+
+            Some((user_sender, user_receiver))
+        })
+    }
+}
+
 
 fn spawn_channeler<C,R,S>(node_config: &NodeConfig,
                           local_public_key: PublicKey,
@@ -414,7 +495,7 @@ where
                 index_client_to_app_server_receiver,
                 app_server_to_index_client_sender,
                 incoming_apps,
-                initial_node_report,
+                initial_node_report.clone(),
                 spawner.clone());
 
     let app_server_handle = spawner.spawn_with_handle(app_server_fut)
@@ -443,20 +524,49 @@ where
     spawner.spawn(database_adapter_fut)
         .map_err(|_| NodeError::SpawnError)?;
 
-    /*
+
+    let index_client_state = funder_report_to_index_client_state(&initial_node_report.funder_report);
+    let seq_friends = SeqMap::new(index_client_state.friends);
+    let seq_friends_client = create_seq_friends_service(seq_friends,
+                                                        spawner.clone())
+        .map_err(|_| NodeError::SpawnError)?;
+
+    let encrypt_transform = SecureChannel::new(
+        identity_client.clone(),
+        rng.clone(),
+        timer_client.clone(),
+        node_config.ticks_to_rekey,
+        spawner.clone());
+
+    let enc_index_client_connector = EncIndexClientConnector::new(
+        encrypt_transform.clone(),
+        net_connector.clone(),
+        spawner.clone());
+
+    // C: FutTransform<Input=ISA, Output=Option<ServerConn>> + Send,
+
+    let index_client_session = IndexClientSession::new(
+        enc_index_client_connector,
+        local_public_key,
+        identity_client.clone(),
+        rng.clone(),
+        spawner.clone());
+
     let index_client_fut = index_client_loop(
                 app_server_to_index_client_receiver,
                 index_client_to_app_server_sender,
                 index_client_config,
-                seq_friends_client: SeqFriendsClient,
-                index_client_session: ICS,
+                seq_friends_client,
+                index_client_session,
                 node_config.max_open_index_client_requests,
                 node_config.keepalive_ticks,
                 node_config.backoff_ticks,
                 index_client_db_client,
                 timer_stream,
                 spawner.clone());
-    */
+
+    let index_client_handle = spawner.spawn_with_handle(index_client_fut)
+        .map_err(|_| NodeError::SpawnError)?;
 
     // TODO:
     // - Spawn IndexClient
