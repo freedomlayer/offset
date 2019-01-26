@@ -268,7 +268,6 @@ where
 #[derive(Clone)]
 pub struct ClientListener<C,FT,S> {
     connector: C,
-    access_control: AccessControlPk,
     keepalive_transform: FT,
     conn_timeout_ticks: usize,
     timer_client: TimerClient,
@@ -277,7 +276,6 @@ pub struct ClientListener<C,FT,S> {
 
 impl<C,FT,S> ClientListener<C,FT,S> {
     pub fn new(connector: C,
-           access_control: AccessControlPk,
            keepalive_transform: FT,
            conn_timeout_ticks: usize,
            timer_client: TimerClient,
@@ -285,7 +283,6 @@ impl<C,FT,S> ClientListener<C,FT,S> {
 
         ClientListener {
             connector,
-            access_control,
             keepalive_transform,
             conn_timeout_ticks,
             timer_client,
