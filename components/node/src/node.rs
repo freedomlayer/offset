@@ -2,7 +2,7 @@ use futures::task::{Spawn, SpawnExt};
 use futures::{Future, FutureExt, Stream, StreamExt, SinkExt};
 use futures::channel::mpsc;
 
-use common::conn::{ConnPair, ConnPairVec, FutTransform, BoxFuture};
+use common::conn::{ConnPairVec, FutTransform, BoxFuture};
 use crypto::crypto_rand::CryptoRandom;
 use crypto::identity::PublicKey;
 
@@ -30,8 +30,6 @@ use proto::funder::serialize::{serialize_friend_message,
 use proto::funder::report::funder_report_to_index_client_state;
 use proto::index_server::messages::{IndexServerAddress};
 use proto::index_server::serialize::{serialize_index_client_to_server,
-        deserialize_index_client_to_server,
-        serialize_index_server_to_client,
         deserialize_index_server_to_client};
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer};
 
@@ -97,7 +95,7 @@ where
 
         Box::pin(async move {
             let conn_pair = await!(self.net_connector.transform(relay_address.address))?;
-            let (public_key, conn_pair) = await!(self.encrypt_transform.transform((Some(relay_address.public_key), conn_pair)))?;
+            let (_public_key, conn_pair) = await!(self.encrypt_transform.transform((Some(relay_address.public_key), conn_pair)))?;
             Some(conn_pair)
         })
     }
@@ -210,7 +208,7 @@ where
 
         Box::pin(async move {
             let conn_pair = await!(self.net_connector.transform(index_server_address.address))?;
-            let (public_key, (mut data_sender, mut data_receiver)) = await!(self.encrypt_transform.transform((Some(index_server_address.public_key), conn_pair)))?;
+            let (_public_key, (mut data_sender, mut data_receiver)) = await!(self.encrypt_transform.transform((Some(index_server_address.public_key), conn_pair)))?;
 
             let (user_sender, mut local_receiver) = mpsc::channel(0);
             let (mut local_sender, user_receiver) = mpsc::channel(0);
@@ -227,7 +225,9 @@ where
                     }
                 }
             };
-            self.spawner.spawn(deser_fut);
+            // If there is any error here, the user will find out when
+            // he tries to read from `user_receiver`
+            let _ = self.spawner.spawn(deser_fut);
 
             // Serialize outgoing data:
             let ser_fut = async move {
@@ -239,7 +239,7 @@ where
                 }
             };
             // If there is any error here, the user will find out when
-            // he tries to read from `user_receiver` or send through `jser_sender`
+            // he tries to send through `user_sender`
             let _ = self.spawner.spawn(ser_fut);
 
             Some((user_sender, user_receiver))
@@ -328,8 +328,8 @@ fn spawn_funder<R,S>(node_config: &NodeConfig,
                 mut database_client: DatabaseClient<NodeMutation<RelayAddress,IndexServerAddress>>,
                 mut from_channeler: mpsc::Receiver<ChannelerToFunder>,
                 mut to_channeler: mpsc::Sender<FunderToChanneler<Vec<RelayAddress>>>,
-                mut from_app_server: mpsc::Receiver<FunderIncomingControl<Vec<RelayAddress>>>,
-                mut to_app_server: mpsc::Sender<FunderOutgoingControl<Vec<RelayAddress>>>,
+                from_app_server: mpsc::Receiver<FunderIncomingControl<Vec<RelayAddress>>>,
+                to_app_server: mpsc::Sender<FunderOutgoingControl<Vec<RelayAddress>>>,
                 rng: R,
                 mut spawner: S)
         -> Result<impl Future<Output=Result<(), FunderError>>, NodeError>
