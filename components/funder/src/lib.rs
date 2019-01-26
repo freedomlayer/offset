@@ -21,7 +21,7 @@ extern crate common;
 
 
 mod liveness;
-mod ephemeral;
+pub mod ephemeral;
 mod credit_calc;
 mod friend;
 mod state;
@@ -29,7 +29,7 @@ pub mod types;
 mod mutual_credit;
 mod token_channel;
 mod handler;
-mod report;
+pub mod report;
 mod funder;
 #[cfg(test)]
 mod tests;
