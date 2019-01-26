@@ -20,7 +20,8 @@ mod tests;
 
 pub use self::index_client::{index_client_loop,
                             IndexClientConfigMutation,
-                            IndexClientConfig};
+                            IndexClientConfig,
+                            IndexClientError};
 
 pub use self::seq_friends::create_seq_friends_service;
 pub use self::seq_map::SeqMap;
