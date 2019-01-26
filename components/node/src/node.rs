@@ -2,7 +2,7 @@ use std::marker::Unpin;
 use core::pin::Pin;
 
 use futures::task::{Spawn, SpawnExt};
-use futures::{Future, Stream, StreamExt};
+use futures::{Future, Stream, StreamExt, SinkExt};
 use futures::channel::mpsc;
 
 use common::conn::{ConnPair, ConnPairVec, FutTransform, BoxFuture};
@@ -19,9 +19,13 @@ use relay::client::{client_connector::ClientConnector, client_listener::ClientLi
 use keepalive::KeepAliveChannel;
 use secure_channel::SecureChannel;
 use funder::{funder_loop, FunderError};
+use funder::types::{FunderIncomingComm, FunderOutgoingComm, 
+    IncomingLivenessMessage};
 
 use proto::funder::messages::{RelayAddress, TcpAddress, 
     FunderToChanneler, ChannelerToFunder};
+use proto::funder::serialize::{serialize_friend_message, 
+    deserialize_friend_message};
 use proto::index_server::messages::{IndexServerAddress};
 
 use crate::types::NodeMutation;
@@ -252,7 +256,7 @@ where
     let local_public_key = await!(identity_client.request_public_key())
         .map_err(|_| NodeError::RequestPublicKeyError)?;
 
-    let (channeler_to_funder_sender, channeler_to_funder_receiver) = mpsc::channel(node_config.channel_len);
+    let (channeler_to_funder_sender, mut channeler_to_funder_receiver) = mpsc::channel(node_config.channel_len);
     let (funder_to_channeler_sender, funder_to_channeler_receiver) = mpsc::channel(node_config.channel_len);
 
     let channeler_handle = spawn_channeler(&node_config,
@@ -265,6 +269,7 @@ where
                     channeler_to_funder_sender,
                     spawner.clone());
 
+    // TODO: Should we give a length > 0 for this adapter's channel?
     let (request_sender, mut request_receiver) = mpsc::channel(0);
     let funder_db_client = DatabaseClient::new(request_sender);
 
@@ -288,7 +293,35 @@ where
     /*
     let (funder_to_app_server_sender, funder_to_app_server_receiver) = mpsc::channel(node_config.channel_len);
     let (app_server_to_funder_sender, app_server_to_funder_receiver) = mpsc::channel(node_config.channel_len);
+    */
 
+    let (mut incoming_comm_sender, incoming_comm) = mpsc::channel(0);
+    async move {
+        while let Some(channeler_message) = await!(channeler_to_funder_receiver.next()) {
+            let opt_to_funder_message = match channeler_message {
+                ChannelerToFunder::Online(public_key) => 
+                    Some(FunderIncomingComm::Liveness(IncomingLivenessMessage::Online(public_key))),
+                ChannelerToFunder::Offline(public_key) => 
+                    Some(FunderIncomingComm::Liveness(IncomingLivenessMessage::Offline(public_key))),
+                ChannelerToFunder::Message((public_key, data)) => {
+                    if let Ok(friend_message) = deserialize_friend_message(&data[..]) {
+                        Some(FunderIncomingComm::Friend((public_key, friend_message)))
+                    } else {
+                        // We discard the message if we can't deserialize it:
+                        None
+                    }
+                },
+            };
+            if let Some(to_funder_message) = opt_to_funder_message {
+                if let Err(_) = await!(incoming_comm_sender.send(to_funder_message)) {
+                    return;
+                }
+            }
+        }
+    };
+
+
+    /*
     let funder_fut = funder_loop(
         identity_client.clone(),
         rng.clone(),
