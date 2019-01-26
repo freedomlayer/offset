@@ -35,4 +35,4 @@ mod funder;
 mod tests;
 
 pub use self::state::FunderMutation;
-pub use self::funder::funder_loop;
+pub use self::funder::{funder_loop, FunderError};
