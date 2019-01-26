@@ -87,3 +87,28 @@ where
         index_client_report: create_index_client_report(&node_state.index_client_config),
     }
 }
+
+
+#[derive(Debug, Clone)]
+pub struct NodeConfig {
+    /// Memory allocated to a channel in memory (Used to connect two components)
+    pub channel_len: usize,
+    /// The amount of ticks we wait before attempting to reconnect
+    pub backoff_ticks: usize,
+    /// The amount of ticks we wait until we decide an idle connection has timed out.
+    pub keepalive_ticks: usize,
+    /// Amount of ticks to wait until the next rekeying (Channel encryption)
+    pub ticks_to_rekey: usize,
+    /// Maximum amount of encryption set ups (diffie hellman) that we allow to occur at the same
+    /// time.
+    pub max_concurrent_encrypt: usize,
+    /// The amount of ticks we are willing to wait until a connection is established.
+    pub conn_timeout_ticks: usize,
+    /// Maximum amount of operations in one move token message
+    pub max_operations_in_batch: usize,
+    /// The size we allocate for the user send funds requests queue.
+    pub max_pending_user_requests: usize,
+    /// Maximum amount of concurrent index client requests:
+    pub max_open_index_client_requests: usize,
+}
+

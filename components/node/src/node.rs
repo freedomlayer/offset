@@ -2,7 +2,7 @@ use futures::task::{Spawn, SpawnExt};
 use futures::{Future, FutureExt, Stream, StreamExt, SinkExt};
 use futures::channel::mpsc;
 
-use common::conn::{ConnPairVec, FutTransform, BoxFuture};
+use common::conn::{ConnPairVec, FutTransform};
 use crypto::crypto_rand::CryptoRandom;
 use crypto::identity::PublicKey;
 
@@ -19,8 +19,7 @@ use funder::{funder_loop, FunderError, FunderState};
 use funder::types::{FunderIncomingComm, FunderOutgoingComm, 
     IncomingLivenessMessage, ChannelerConfig};
 use index_client::{index_client_loop, create_seq_friends_service, SeqMap,
-                    IndexClientSession, ServerConn, IndexClientError};
-
+                    IndexClientSession, IndexClientError};
 
 use proto::funder::messages::{RelayAddress, TcpAddress, 
     FunderToChanneler, ChannelerToFunder, 
@@ -28,223 +27,18 @@ use proto::funder::messages::{RelayAddress, TcpAddress,
 use proto::funder::serialize::{serialize_friend_message, 
     deserialize_friend_message};
 use proto::funder::report::funder_report_to_index_client_state;
-use proto::index_server::messages::{IndexServerAddress};
-use proto::index_server::serialize::{serialize_index_client_to_server,
-        deserialize_index_server_to_client};
+use proto::index_server::messages::IndexServerAddress;
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer};
 
-use crate::types::{NodeMutation, NodeState, create_node_report};
+use crate::types::{NodeMutation, NodeState, create_node_report, NodeConfig};
+use crate::adapters::{EncRelayConnector, ConnectEncryptTransform, ListenEncryptTransform,
+                        EncIndexClientConnector};
 
 #[derive(Debug)]
 pub enum NodeError {
     RequestPublicKeyError,
     SpawnError,
     RequestTimerStreamError,
-}
-
-pub struct NodeConfig {
-    /// Memory allocated to a channel in memory (Used to connect two components)
-    channel_len: usize,
-    /// The amount of ticks we wait before attempting to reconnect
-    backoff_ticks: usize,
-    /// The amount of ticks we wait until we decide an idle connection has timed out.
-    keepalive_ticks: usize,
-    /// Amount of ticks to wait until the next rekeying (Channel encryption)
-    ticks_to_rekey: usize,
-    /// Maximum amount of encryption set ups (diffie hellman) that we allow to occur at the same
-    /// time.
-    max_concurrent_encrypt: usize,
-    /// The amount of ticks we are willing to wait until a connection is established.
-    conn_timeout_ticks: usize,
-    /// Maximum amount of operations in one move token message
-    max_operations_in_batch: usize,
-    /// The size we allocate for the user send funds requests queue.
-    max_pending_user_requests: usize,
-    /// Maximum amount of concurrent index client requests:
-    max_open_index_client_requests: usize,
-}
-
-#[derive(Clone)]
-/// Open an encrypted connection to a relay endpoint
-struct EncRelayConnector<ET,C> {
-    encrypt_transform: ET,
-    net_connector: C,
-}
-
-impl<ET,C> EncRelayConnector<ET,C> {
-    pub fn new(encrypt_transform: ET,
-               net_connector: C) -> Self {
-
-        EncRelayConnector {
-            encrypt_transform,
-            net_connector,
-        }
-    }
-}
-
-impl<ET,C> FutTransform for EncRelayConnector<ET,C> 
-where
-    C: FutTransform<Input=TcpAddress,Output=Option<ConnPairVec>> + Clone + Send,
-    ET: FutTransform<Input=(Option<PublicKey>, ConnPairVec),Output=Option<(PublicKey, ConnPairVec)>> + Send,
-{
-    type Input = RelayAddress;
-    type Output = Option<ConnPairVec>;
-
-    fn transform(&mut self, relay_address: Self::Input)
-        -> BoxFuture<'_, Self::Output> {
-
-        Box::pin(async move {
-            let conn_pair = await!(self.net_connector.transform(relay_address.address))?;
-            let (_public_key, conn_pair) = await!(self.encrypt_transform.transform((Some(relay_address.public_key), conn_pair)))?;
-            Some(conn_pair)
-        })
-    }
-}
-
-/// A connection style encrypt transform.
-/// Does not return the public key of the remote side, because we already know it.
-#[derive(Clone)]
-struct ConnectEncryptTransform<ET> {
-    encrypt_transform: ET,
-}
-
-impl<ET> ConnectEncryptTransform<ET> {
-    pub fn new(encrypt_transform: ET) -> Self {
-
-        ConnectEncryptTransform {
-            encrypt_transform,
-        }
-    }
-}
-
-impl<ET> FutTransform for ConnectEncryptTransform<ET> 
-where
-    ET: FutTransform<Input=(Option<PublicKey>, ConnPairVec),Output=Option<(PublicKey, ConnPairVec)>> + Send,
-{
-    type Input = (PublicKey, ConnPairVec);
-    type Output = Option<ConnPairVec>;
-
-    fn transform(&mut self, input: Self::Input)
-        -> BoxFuture<'_, Self::Output> {
-
-        let (public_key, conn_pair) = input;
-
-        Box::pin(async move {
-            let (_public_key, conn_pair) = await!(
-                self.encrypt_transform.transform((Some(public_key), conn_pair)))?;
-            Some(conn_pair)
-        })
-    }
-}
-
-/// A Listen style encrypt transform.
-/// Returns the public key of the remote side
-#[derive(Clone)]
-struct ListenEncryptTransform<ET> {
-    encrypt_transform: ET,
-}
-
-impl<ET> ListenEncryptTransform<ET> {
-    pub fn new(encrypt_transform: ET) -> Self {
-
-        ListenEncryptTransform {
-            encrypt_transform,
-        }
-    }
-}
-
-impl<ET> FutTransform for ListenEncryptTransform<ET> 
-where
-    ET: FutTransform<Input=(Option<PublicKey>, ConnPairVec),Output=Option<(PublicKey, ConnPairVec)>> + Send,
-{
-    type Input = (PublicKey, ConnPairVec);
-    type Output = Option<(PublicKey, ConnPairVec)>;
-
-    fn transform(&mut self, input: Self::Input)
-        -> BoxFuture<'_, Self::Output> {
-
-        let (public_key, conn_pair) = input;
-
-        Box::pin(async move {
-            await!(self.encrypt_transform.transform((Some(public_key), conn_pair)))
-        })
-    }
-}
-
-
-// C: FutTransform<Input=IndexServerAddress, Output=Option<ServerConn>> + Send,
-#[derive(Clone)]
-struct EncIndexClientConnector<ET,C,S> {
-    encrypt_transform: ET,
-    net_connector: C,
-    spawner: S,
-}
-
-
-impl<ET,C,S> EncIndexClientConnector<ET,C,S> {
-    pub fn new(encrypt_transform: ET,
-               net_connector: C,
-               spawner: S) -> Self {
-
-        EncIndexClientConnector {
-            encrypt_transform,
-            net_connector,
-            spawner,
-        }
-    }
-}
-
-impl<ET,C,S> FutTransform for EncIndexClientConnector<ET,C,S> 
-where
-    ET: FutTransform<Input=(Option<PublicKey>, ConnPairVec),Output=Option<(PublicKey, ConnPairVec)>> + Send,
-    C: FutTransform<Input=TcpAddress,Output=Option<ConnPairVec>> + Clone + Send,
-    S: Spawn + Send,
-{
-    type Input = IndexServerAddress;
-    type Output = Option<ServerConn>;
-
-    fn transform(&mut self, index_server_address: Self::Input)
-        -> BoxFuture<'_, Self::Output> {
-
-        Box::pin(async move {
-            let conn_pair = await!(self.net_connector.transform(index_server_address.address))?;
-            let (_public_key, (mut data_sender, mut data_receiver)) = await!(self.encrypt_transform.transform((Some(index_server_address.public_key), conn_pair)))?;
-
-            let (user_sender, mut local_receiver) = mpsc::channel(0);
-            let (mut local_sender, user_receiver) = mpsc::channel(0);
-
-            // Deserialize incoming data:
-            let deser_fut = async move {
-                while let Some(data) = await!(data_receiver.next()) {
-                    let message = match deserialize_index_server_to_client(&data) {
-                        Ok(message) => message,
-                        Err(_) => return,
-                    };
-                    if let Err(_) = await!(local_sender.send(message)) {
-                        return;
-                    }
-                }
-            };
-            // If there is any error here, the user will find out when
-            // he tries to read from `user_receiver`
-            let _ = self.spawner.spawn(deser_fut);
-
-            // Serialize outgoing data:
-            let ser_fut = async move {
-                while let Some(message) = await!(local_receiver.next()) {
-                    let data = serialize_index_client_to_server(&message);
-                    if let Err(_) = await!(data_sender.send(data)) {
-                        return;
-                    }
-                }
-            };
-            // If there is any error here, the user will find out when
-            // he tries to send through `user_sender`
-            let _ = self.spawner.spawn(ser_fut);
-
-            Some((user_sender, user_receiver))
-        })
-    }
 }
 
 
@@ -490,11 +284,16 @@ where
         node_config.ticks_to_rekey,
         spawner.clone());
 
-    let enc_index_client_connector = EncIndexClientConnector::new(
-        encrypt_transform.clone(),
-        net_connector.clone(),
+    let keepalive_transform = KeepAliveChannel::new(
+        timer_client.clone(),
+        node_config.keepalive_ticks,
         spawner.clone());
 
+    let enc_index_client_connector = EncIndexClientConnector::new(
+        encrypt_transform.clone(),
+        keepalive_transform.clone(),
+        net_connector.clone(),
+        spawner.clone());
 
     let index_client_session = IndexClientSession::new(
         enc_index_client_connector,
