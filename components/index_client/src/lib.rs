@@ -19,4 +19,5 @@ mod seq_friends;
 mod tests;
 
 pub use self::index_client::{index_client_loop,
-                            IndexClientConfigMutation};
+                            IndexClientConfigMutation,
+                            IndexClientConfig};
