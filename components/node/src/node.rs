@@ -1,5 +1,3 @@
-use std::marker::Unpin;
-use core::pin::Pin;
 
 use futures::task::{Spawn, SpawnExt};
 use futures::{Future, Stream, StreamExt, SinkExt};
@@ -18,7 +16,7 @@ use channeler::{channeler_loop, PoolConnector, PoolListener, ChannelerError};
 use relay::client::{client_connector::ClientConnector, client_listener::ClientListener};
 use keepalive::KeepAliveChannel;
 use secure_channel::SecureChannel;
-use funder::{funder_loop, FunderError};
+use funder::{funder_loop, FunderError, FunderState};
 use funder::types::{FunderIncomingComm, FunderOutgoingComm, 
     IncomingLivenessMessage, ChannelerConfig};
 
@@ -237,10 +235,12 @@ where
         .map_err(|_| NodeError::SpawnError)
 }
 
+
 pub async fn node_loop<C,IA,R,S>(
                 node_config: NodeConfig,
                 identity_client: IdentityClient,
                 timer_client: TimerClient,
+                funder_state: FunderState<Vec<RelayAddress>>,
                 mut database_client: DatabaseClient<NodeMutation<RelayAddress,IndexServerAddress>>,
                 net_connector: C,
                 incoming_apps: IA,
@@ -349,8 +349,6 @@ where
     spawner.spawn(funder_to_channeler_adapter)
         .map_err(|_| NodeError::SpawnError)?;
 
-    /*
-
     let (funder_to_app_server_sender, funder_to_app_server_receiver) = mpsc::channel(node_config.channel_len);
     let (app_server_to_funder_sender, app_server_to_funder_receiver) = mpsc::channel(node_config.channel_len);
 
@@ -363,9 +361,11 @@ where
         outgoing_comm_sender,
         node_config.max_operations_in_batch,
         node_config.max_pending_user_requests,
-        funder_state: FunderState<A>,
+        funder_state,
         funder_db_client);
-    */
+
+    spawner.spawn_with_handle(funder_fut)
+        .map_err(|_| NodeError::SpawnError)?;
 
     // Funder TODO:
     // - Database adapter
