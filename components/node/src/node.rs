@@ -14,12 +14,13 @@ use identity::IdentityClient;
 use timer::TimerClient;
 
 use app_server::IncomingAppConnection;
-use channeler::{channeler_loop, PoolConnector, PoolListener};
+use channeler::{channeler_loop, PoolConnector, PoolListener, ChannelerError};
 use relay::client::{client_connector::ClientConnector, client_listener::ClientListener};
 use keepalive::KeepAliveChannel;
 use secure_channel::SecureChannel;
 
-use proto::funder::messages::{RelayAddress, TcpAddress};
+use proto::funder::messages::{RelayAddress, TcpAddress, 
+    FunderToChanneler, ChannelerToFunder};
 use proto::index_server::messages::{IndexServerAddress};
 
 use crate::types::NodeMutation;
@@ -27,6 +28,7 @@ use crate::types::NodeMutation;
 #[derive(Debug)]
 pub enum NodeError {
     RequestPublicKeyError,
+    SpawnError,
 }
 
 pub struct NodeConfig {
@@ -145,25 +147,22 @@ where
     }
 }
 
-pub async fn node_loop<C,IA,R,S>(
-                node_config: NodeConfig,
-                identity_client: IdentityClient,
-                timer_client: TimerClient,
-                database_client: DatabaseClient<NodeMutation<RelayAddress,IndexServerAddress>>,
-                mut net_connector: C,
-                incoming_apps: IA,
-                rng: R,
-                mut spawner: S) -> Result<(), NodeError> 
+fn spawn_channeler<C,R,S>(node_config: &NodeConfig,
+                          local_public_key: PublicKey,
+                          identity_client: IdentityClient,
+                          timer_client: TimerClient,
+                          net_connector: C,
+                          rng: R,
+                          from_funder: mpsc::Receiver<FunderToChanneler<Vec<RelayAddress>>>,
+                          to_funder: mpsc::Sender<ChannelerToFunder>,
+                          mut spawner: S) 
+    -> Result<impl Future<Output=Result<(), ChannelerError>>, NodeError>
+
 where
+    C: FutTransform<Input=TcpAddress,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
-    C: FutTransform<Input=TcpAddress,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
-    IA: Stream<Item=IncomingAppConnection<RelayAddress,IndexServerAddress>> + Unpin, 
 {
-    // Get local public key:
-    let local_public_key = await!(identity_client.request_public_key())
-        .map_err(|_| NodeError::RequestPublicKeyError)?;
-
     let encrypt_transform = SecureChannel::new(
         identity_client.clone(),
         rng.clone(),
@@ -193,7 +192,6 @@ where
            spawner.clone());
 
 
-
     let client_listener = ClientListener::new(
            enc_relay_connector,
            keepalive_transform.clone(),
@@ -211,21 +209,51 @@ where
            timer_client.clone(),
            spawner.clone());
 
-    let (channeler_to_funder_sender, channeler_to_funder_receiver) = mpsc::channel(node_config.channel_len);
-    let (funder_to_channeler_sender, funder_to_channeler_receiver) = mpsc::channel(node_config.channel_len);
-
     let channeler_fut = channeler_loop(
-                            local_public_key.clone(),
-                            funder_to_channeler_receiver,
-                            channeler_to_funder_sender,
+                            local_public_key,
+                            from_funder,
+                            to_funder,
                             pool_connector,
                             pool_listener,
                             spawner.clone());
 
-    spawner.spawn_with_handle(channeler_fut);
+    spawner.spawn_with_handle(channeler_fut)
+        .map_err(|_| NodeError::SpawnError)
+}
+
+pub async fn node_loop<C,IA,R,S>(
+                node_config: NodeConfig,
+                identity_client: IdentityClient,
+                timer_client: TimerClient,
+                database_client: DatabaseClient<NodeMutation<RelayAddress,IndexServerAddress>>,
+                mut net_connector: C,
+                incoming_apps: IA,
+                rng: R,
+                mut spawner: S) -> Result<(), NodeError> 
+where
+    R: CryptoRandom + Clone + 'static,
+    S: Spawn + Clone + Send + Sync + 'static,
+    C: FutTransform<Input=TcpAddress,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
+    IA: Stream<Item=IncomingAppConnection<RelayAddress,IndexServerAddress>> + Unpin, 
+{
+    // Get local public key:
+    let local_public_key = await!(identity_client.request_public_key())
+        .map_err(|_| NodeError::RequestPublicKeyError)?;
+
+    let (channeler_to_funder_sender, channeler_to_funder_receiver) = mpsc::channel(node_config.channel_len);
+    let (funder_to_channeler_sender, funder_to_channeler_receiver) = mpsc::channel(node_config.channel_len);
+
+    let channeler_handle = spawn_channeler(&node_config,
+                    local_public_key.clone(),
+                    identity_client.clone(),
+                    timer_client.clone(),
+                    net_connector.clone(),
+                    rng.clone(),
+                    funder_to_channeler_receiver,
+                    channeler_to_funder_sender,
+                    spawner.clone());
 
     // TODO:
-    // - Spawn Channeler
     // - Spawn Funder
     // - Spawn IndexClient
     // - Spawn AppServer
