@@ -1,5 +1,5 @@
 use futures::task::{Spawn, SpawnExt};
-use futures::{Future, Stream, StreamExt, SinkExt};
+use futures::{Future, FutureExt, Stream, StreamExt, SinkExt};
 use futures::channel::mpsc;
 
 use common::conn::{ConnPair, ConnPairVec, FutTransform, BoxFuture};
@@ -19,7 +19,7 @@ use funder::{funder_loop, FunderError, FunderState};
 use funder::types::{FunderIncomingComm, FunderOutgoingComm, 
     IncomingLivenessMessage, ChannelerConfig};
 use index_client::{index_client_loop, create_seq_friends_service, SeqMap,
-                    IndexClientSession, ServerConn};
+                    IndexClientSession, ServerConn, IndexClientError};
 
 
 use proto::funder::messages::{RelayAddress, TcpAddress, 
@@ -33,6 +33,7 @@ use proto::index_server::serialize::{serialize_index_client_to_server,
         deserialize_index_client_to_server,
         serialize_index_server_to_client,
         deserialize_index_server_to_client};
+use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer};
 
 use crate::types::{NodeMutation, NodeState, create_node_report};
 
@@ -433,74 +434,25 @@ where
         .map_err(|_| NodeError::SpawnError)
 }
 
-pub async fn node_loop<C,IA,R,S>(
-                node_config: NodeConfig,
+async fn spawn_index_client<'a, C,R,S>(node_config: &'a NodeConfig,
+                local_public_key: PublicKey,
                 identity_client: IdentityClient,
                 mut timer_client: TimerClient,
-                node_state: NodeState<RelayAddress, IndexServerAddress>,
+                node_state: &'a NodeState<RelayAddress, IndexServerAddress>,
                 mut database_client: DatabaseClient<NodeMutation<RelayAddress,IndexServerAddress>>,
+                from_app_server: mpsc::Receiver<AppServerToIndexClient<IndexServerAddress>>,
+                to_app_server: mpsc::Sender<IndexClientToAppServer<IndexServerAddress>>,
                 net_connector: C,
-                incoming_apps: IA,
                 rng: R,
-                mut spawner: S) -> Result<(), NodeError> 
+                mut spawner: S)
+        -> Result<impl Future<Output=Result<(), IndexClientError>>, NodeError>
 where
     C: FutTransform<Input=TcpAddress,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
-    IA: Stream<Item=IncomingAppConnection<RelayAddress,IndexServerAddress>> + Unpin + Send + 'static,  
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
-    // Get local public key:
-    let local_public_key = await!(identity_client.request_public_key())
-        .map_err(|_| NodeError::RequestPublicKeyError)?;
 
     let initial_node_report = create_node_report(&node_state);
-    let NodeState {funder_state, index_client_config} = node_state;
-
-    // Channeler <--> Funder
-    let (channeler_to_funder_sender, channeler_to_funder_receiver) = mpsc::channel(node_config.channel_len);
-    let (funder_to_channeler_sender, funder_to_channeler_receiver) = mpsc::channel(node_config.channel_len);
-
-    let channeler_handle = spawn_channeler(&node_config,
-                    local_public_key.clone(),
-                    identity_client.clone(),
-                    timer_client.clone(),
-                    net_connector.clone(),
-                    rng.clone(),
-                    funder_to_channeler_receiver,
-                    channeler_to_funder_sender,
-                    spawner.clone());
-
-    // AppServer <--> Funder
-    let (app_server_to_funder_sender, app_server_to_funder_receiver) = mpsc::channel(node_config.channel_len);
-    let (funder_to_app_server_sender, funder_to_app_server_receiver) = mpsc::channel(node_config.channel_len);
-
-    let funder_handle = spawn_funder(&node_config,
-                identity_client.clone(),
-                funder_state,
-                database_client.clone(),
-                channeler_to_funder_receiver,
-                funder_to_channeler_sender,
-                app_server_to_funder_receiver,
-                funder_to_app_server_sender,
-                rng.clone(),
-                spawner.clone());
-
-    // AppServer <--> IndexClient
-    let (app_server_to_index_client_sender, app_server_to_index_client_receiver) = mpsc::channel(node_config.channel_len);
-    let (index_client_to_app_server_sender, index_client_to_app_server_receiver) = mpsc::channel(node_config.channel_len);
-
-    let app_server_fut = app_server_loop(
-                funder_to_app_server_receiver,
-                app_server_to_funder_sender,
-                index_client_to_app_server_receiver,
-                app_server_to_index_client_sender,
-                incoming_apps,
-                initial_node_report.clone(),
-                spawner.clone());
-
-    let app_server_handle = spawner.spawn_with_handle(app_server_fut)
-        .map_err(|_| NodeError::SpawnError)?;
-
     let timer_stream = await!(timer_client.request_timer_stream())
         .map_err(|_| NodeError::RequestTimerStreamError)?;
 
@@ -543,7 +495,6 @@ where
         net_connector.clone(),
         spawner.clone());
 
-    // C: FutTransform<Input=ISA, Output=Option<ServerConn>> + Send,
 
     let index_client_session = IndexClientSession::new(
         enc_index_client_connector,
@@ -553,9 +504,9 @@ where
         spawner.clone());
 
     let index_client_fut = index_client_loop(
-                app_server_to_index_client_receiver,
-                index_client_to_app_server_sender,
-                index_client_config,
+                from_app_server,
+                to_app_server,
+                node_state.index_client_config.clone(),
                 seq_friends_client,
                 index_client_session,
                 node_config.max_open_index_client_requests,
@@ -565,11 +516,95 @@ where
                 timer_stream,
                 spawner.clone());
 
-    let index_client_handle = spawner.spawn_with_handle(index_client_fut)
+    spawner.spawn_with_handle(index_client_fut)
+        .map_err(|_| NodeError::SpawnError)
+
+}
+
+pub async fn spawn_node<C,IA,R,S>(
+                node_config: NodeConfig,
+                identity_client: IdentityClient,
+                timer_client: TimerClient,
+                node_state: NodeState<RelayAddress, IndexServerAddress>,
+                database_client: DatabaseClient<NodeMutation<RelayAddress,IndexServerAddress>>,
+                net_connector: C,
+                incoming_apps: IA,
+                rng: R,
+                mut spawner: S) -> Result<impl Future, NodeError> 
+where
+    C: FutTransform<Input=TcpAddress,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
+    IA: Stream<Item=IncomingAppConnection<RelayAddress,IndexServerAddress>> + Unpin + Send + 'static,  
+    R: CryptoRandom + Clone + 'static,
+    S: Spawn + Clone + Send + Sync + 'static,
+{
+    // Get local public key:
+    let local_public_key = await!(identity_client.request_public_key())
+        .map_err(|_| NodeError::RequestPublicKeyError)?;
+
+    let initial_node_report = create_node_report(&node_state);
+
+    // Channeler <--> Funder
+    let (channeler_to_funder_sender, channeler_to_funder_receiver) = mpsc::channel(node_config.channel_len);
+    let (funder_to_channeler_sender, funder_to_channeler_receiver) = mpsc::channel(node_config.channel_len);
+
+    let channeler_handle = spawn_channeler(&node_config,
+                    local_public_key.clone(),
+                    identity_client.clone(),
+                    timer_client.clone(),
+                    net_connector.clone(),
+                    rng.clone(),
+                    funder_to_channeler_receiver,
+                    channeler_to_funder_sender,
+                    spawner.clone())?;
+
+    // AppServer <--> Funder
+    let (app_server_to_funder_sender, app_server_to_funder_receiver) = mpsc::channel(node_config.channel_len);
+    let (funder_to_app_server_sender, funder_to_app_server_receiver) = mpsc::channel(node_config.channel_len);
+
+    let funder_handle = spawn_funder(&node_config,
+                identity_client.clone(),
+                node_state.funder_state.clone(),
+                database_client.clone(),
+                channeler_to_funder_receiver,
+                funder_to_channeler_sender,
+                app_server_to_funder_receiver,
+                funder_to_app_server_sender,
+                rng.clone(),
+                spawner.clone())?;
+
+    // AppServer <--> IndexClient
+    let (app_server_to_index_client_sender, app_server_to_index_client_receiver) = mpsc::channel(node_config.channel_len);
+    let (index_client_to_app_server_sender, index_client_to_app_server_receiver) = mpsc::channel(node_config.channel_len);
+
+    let app_server_fut = app_server_loop(
+                funder_to_app_server_receiver,
+                app_server_to_funder_sender,
+                index_client_to_app_server_receiver,
+                app_server_to_index_client_sender,
+                incoming_apps,
+                initial_node_report.clone(),
+                spawner.clone());
+
+    let app_server_handle = spawner.spawn_with_handle(app_server_fut)
         .map_err(|_| NodeError::SpawnError)?;
 
-    // TODO:
-    // - Spawn IndexClient
 
-    unimplemented!();
+    let index_client_handle = await!(spawn_index_client(
+                &node_config,
+                local_public_key,
+                identity_client,
+                timer_client,
+                &node_state,
+                database_client,
+                app_server_to_index_client_receiver,
+                index_client_to_app_server_sender,
+                net_connector,
+                rng,
+                spawner))?;
+
+    // Returns a future that resolves after all components were closed:
+    Ok(channeler_handle
+        .join(funder_handle)
+        .join(app_server_handle)
+        .join(index_client_handle))
 }
