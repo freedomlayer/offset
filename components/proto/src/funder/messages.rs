@@ -487,14 +487,14 @@ pub enum FunderOutgoingControl<A: Clone> {
 }
 
 /// IPv4 address (TCP)
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TcpAddressV4 {
     pub address: [u8; 4], // 32 bit
     pub port: u16,
 }
 
 /// IPv6 address (TCP)
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TcpAddressV6 {
     pub address: [u8; 16], // 128 bit
     pub port: u16,
@@ -503,13 +503,13 @@ pub struct TcpAddressV6 {
 // TODO: Possibly move TcpAddress and the structs it depends on 
 // to a more generic module in proto?
 /// Address for TCP connection
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TcpAddress {
     V4(TcpAddressV4),
     V6(TcpAddressV6),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RelayAddress {
     pub public_key: PublicKey,
     pub address: TcpAddress,
