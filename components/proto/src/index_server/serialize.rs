@@ -1,3 +1,6 @@
+use std::io;
+use capnp::serialize_packed;
+
 use common::int_convert::usize_to_u32;
 use crate::capnp_common::{write_signature, read_signature,
                           write_custom_int128, read_custom_int128,
@@ -342,4 +345,78 @@ fn deser_index_server_to_server(index_server_to_server_reader: &index_capnp::ind
             IndexServerToServer::ForwardMutationsUpdate(deser_forward_mutations_update(&forward_mutations_update_reader?)?)
         },
     })
+}
+
+// -------------------------------------------------------------
+// -------------------[Serialize]-------------------------------
+// -------------------------------------------------------------
+
+
+/// Serialize IndexClientToServer into a vector of bytes
+pub fn serialize_index_client_to_server(index_client_to_server: &IndexClientToServer) -> Vec<u8> {
+    let mut builder = capnp::message::Builder::new_default();
+    let mut index_client_to_server_builder = builder.init_root::<index_capnp::index_client_to_server::Builder>();
+
+    ser_index_client_to_server(index_client_to_server, &mut index_client_to_server_builder);
+
+    let mut ser_buff = Vec::new();
+    serialize_packed::write_message(&mut ser_buff, &builder).unwrap();
+    ser_buff
+}
+
+
+/// Serialize IndexServerToServer into a vector of bytes
+pub fn serialize_index_server_to_server(index_server_to_server: &IndexServerToServer) -> Vec<u8> {
+    let mut builder = capnp::message::Builder::new_default();
+    let mut index_server_to_server_builder = builder.init_root::<index_capnp::index_server_to_server::Builder>();
+
+    ser_index_server_to_server(index_server_to_server, &mut index_server_to_server_builder);
+
+    let mut ser_buff = Vec::new();
+    serialize_packed::write_message(&mut ser_buff, &builder).unwrap();
+    ser_buff
+}
+
+
+/// Serialize IndexServerToClient into a vector of bytes
+pub fn serialize_index_server_to_client(index_server_to_client: &IndexServerToClient) -> Vec<u8> {
+    let mut builder = capnp::message::Builder::new_default();
+    let mut index_server_to_client_builder = builder.init_root::<index_capnp::index_server_to_client::Builder>();
+
+    ser_index_server_to_client(index_server_to_client, &mut index_server_to_client_builder);
+
+    let mut ser_buff = Vec::new();
+    serialize_packed::write_message(&mut ser_buff, &builder).unwrap();
+    ser_buff
+}
+
+// -------------------------------------------------------------
+// -------------------[Deserialize]-----------------------------
+// -------------------------------------------------------------
+
+/// Deserialize IndexClientToServer from an array of bytes
+pub fn deserialize_index_client_to_server(data: &[u8]) -> Result<IndexClientToServer, SerializeError> {
+    let mut cursor = io::Cursor::new(data);
+    let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
+    let index_client_to_server_reader = reader.get_root::<index_capnp::index_client_to_server::Reader>()?;
+
+    deser_index_client_to_server(&index_client_to_server_reader)
+}
+
+/// Deserialize IndexServerToServer from an array of bytes
+pub fn deserialize_index_server_to_server(data: &[u8]) -> Result<IndexServerToServer, SerializeError> {
+    let mut cursor = io::Cursor::new(data);
+    let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
+    let index_server_to_server_reader = reader.get_root::<index_capnp::index_server_to_server::Reader>()?;
+
+    deser_index_server_to_server(&index_server_to_server_reader)
+}
+
+/// Deserialize IndexServerToClient from an array of bytes
+pub fn deserialize_index_server_to_client(data: &[u8]) -> Result<IndexServerToClient, SerializeError> {
+    let mut cursor = io::Cursor::new(data);
+    let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
+    let index_server_to_client_reader = reader.get_root::<index_capnp::index_server_to_client::Reader>()?;
+
+    deser_index_server_to_client(&index_server_to_client_reader)
 }
