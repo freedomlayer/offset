@@ -10,7 +10,7 @@ use database::DatabaseClient;
 use identity::IdentityClient;
 use timer::TimerClient;
 
-use app_server::IncomingAppConnection;
+use app_server::{IncomingAppConnection, app_server_loop};
 use channeler::{channeler_loop, PoolConnector, PoolListener, ChannelerError};
 use relay::client::{client_connector::ClientConnector, client_listener::ClientListener};
 use keepalive::KeepAliveChannel;
@@ -19,6 +19,7 @@ use funder::{funder_loop, FunderError, FunderState};
 use funder::types::{FunderIncomingComm, FunderOutgoingComm, 
     IncomingLivenessMessage, ChannelerConfig};
 
+
 use proto::funder::messages::{RelayAddress, TcpAddress, 
     FunderToChanneler, ChannelerToFunder, 
     FunderIncomingControl, FunderOutgoingControl};
@@ -26,7 +27,7 @@ use proto::funder::serialize::{serialize_friend_message,
     deserialize_friend_message};
 use proto::index_server::messages::{IndexServerAddress};
 
-use crate::types::NodeMutation;
+use crate::types::{NodeMutation, NodeState, create_node_report};
 
 #[derive(Debug)]
 pub enum NodeError {
@@ -351,7 +352,7 @@ pub async fn node_loop<C,IA,R,S>(
                 node_config: NodeConfig,
                 identity_client: IdentityClient,
                 timer_client: TimerClient,
-                funder_state: FunderState<Vec<RelayAddress>>,
+                node_state: NodeState<RelayAddress, IndexServerAddress>,
                 mut database_client: DatabaseClient<NodeMutation<RelayAddress,IndexServerAddress>>,
                 net_connector: C,
                 incoming_apps: IA,
@@ -359,13 +360,16 @@ pub async fn node_loop<C,IA,R,S>(
                 mut spawner: S) -> Result<(), NodeError> 
 where
     C: FutTransform<Input=TcpAddress,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
-    IA: Stream<Item=IncomingAppConnection<RelayAddress,IndexServerAddress>> + Unpin, 
+    IA: Stream<Item=IncomingAppConnection<RelayAddress,IndexServerAddress>> + Unpin + Send + 'static,  
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
     // Get local public key:
     let local_public_key = await!(identity_client.request_public_key())
         .map_err(|_| NodeError::RequestPublicKeyError)?;
+
+    let initial_node_report = create_node_report(&node_state);
+    let NodeState {funder_state, index_client_config} = node_state;
 
     // Channeler <--> Funder
     let (channeler_to_funder_sender, channeler_to_funder_receiver) = mpsc::channel(node_config.channel_len);
@@ -393,12 +397,27 @@ where
                 funder_to_channeler_sender,
                 app_server_to_funder_receiver,
                 funder_to_app_server_sender,
-                rng,
+                rng.clone(),
                 spawner.clone());
+
+    // AppServer <--> IndexClient
+    let (app_server_to_index_client_sender, app_server_to_index_client_receiver) = mpsc::channel(node_config.channel_len);
+    let (index_client_to_app_server_sender, index_client_to_app_server_receiver) = mpsc::channel(node_config.channel_len);
+
+    let app_server_fut = app_server_loop(
+                funder_to_app_server_receiver,
+                app_server_to_funder_sender,
+                index_client_to_app_server_receiver,
+                app_server_to_index_client_sender,
+                incoming_apps,
+                initial_node_report,
+                spawner.clone());
+
+    let app_server_handle = spawner.spawn_with_handle(app_server_fut)
+        .map_err(|_| NodeError::SpawnError)?;
 
     // TODO:
     // - Spawn IndexClient
-    // - Spawn AppServer
 
     unimplemented!();
 }
