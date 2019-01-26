@@ -12,7 +12,8 @@ use serde::de::DeserializeOwned;
 use serde_json;
 use atomicwrites;
 
-use crate::atomic_db::{AtomicDb, MutableState};
+use common::mutable_state::MutableState;
+use crate::atomic_db::AtomicDb;
 
 #[derive(Debug)]
 pub enum FileDbError<ME> {

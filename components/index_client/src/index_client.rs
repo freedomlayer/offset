@@ -7,6 +7,7 @@ use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 
 use common::conn::FutTransform;
+use common::mutable_state::MutableState;
 use crypto::uid::Uid;
 
 use database::DatabaseClient;
@@ -39,6 +40,35 @@ pub enum IndexClientConfigMutation<ISA> {
     AddIndexServer(ISA),
     RemoveIndexServer(ISA),
 }
+
+
+impl<ISA> MutableState for IndexClientConfig<ISA> 
+where
+    ISA: Clone + PartialEq + Eq,
+{
+    type InitialArg = ();
+    type Mutation = IndexClientConfigMutation<ISA>;
+    type MutateError = !;
+
+    fn initial(_initial_arg: Self::InitialArg) -> Self {
+        IndexClientConfig::new()
+    }
+
+    fn mutate(&mut self, mutation: &Self::Mutation) -> Result<(), Self::MutateError> {
+        match mutation {
+            IndexClientConfigMutation::AddIndexServer(address) => {
+                // Remove first, to avoid duplicates:
+                self.index_servers.retain(|cur_address| cur_address != address);
+                self.index_servers.push(address.clone());
+            },
+            IndexClientConfigMutation::RemoveIndexServer(address) => {
+                self.index_servers.retain(|cur_address| cur_address != address);
+            },
+        };
+        Ok(())
+    }
+}
+
 
 #[derive(Debug)]
 struct ServerConnecting<ISA> {
@@ -93,6 +123,8 @@ struct IndexClient<ISA,TAS,ICS,S> {
     to_app_server: TAS,
     /// A cyclic list of index server addresses.
     /// The next index server to be used is the one on the front:
+    // TODO: Why not use IndexClientConfig as state here?
+    // We perform the mutations implicitly in the implementation of IndexClient. 
     index_servers: VecDeque<ISA>,
     seq_friends_client: SeqFriendsClient,
     index_client_session: ICS,

@@ -1,9 +1,9 @@
 use common::canonical_serialize::CanonicalSerialize;
+use common::mutable_state::MutableState;
 
 use crypto::identity::PublicKey;
 use funder::{FunderState, FunderMutation};
 use index_client::{IndexClientConfig, IndexClientConfigMutation};
-use database::atomic_db::MutableState;
 
 pub enum NodeMutation<B,ISA> {
     Funder(FunderMutation<Vec<B>>),
@@ -28,20 +28,21 @@ where
     }
 }
 
-/*
 
-pub enum NodeMutateError {
-}
+#[derive(Debug)]
+pub struct NodeMutateError;
 
 impl<B,ISA> MutableState for NodeState<B,ISA> 
 where
     B: Clone + CanonicalSerialize,
+    ISA: Clone + PartialEq + Eq,
 {
+    type InitialArg = PublicKey; // local public key
     type Mutation = NodeMutation<B,ISA>;
     type MutateError = NodeMutateError;
 
-    fn initial() -> Self {
-        NodeState::new()
+    fn initial(local_public_key: Self::InitialArg) -> Self {
+        NodeState::new(local_public_key)
     }
 
     fn mutate(&mut self, mutation: &Self::Mutation) -> Result<(), Self::MutateError> {
@@ -51,10 +52,9 @@ where
                 Ok(())
             },
             NodeMutation::IndexClient(index_client_mutation) => {
-                self.index_client.mutate(index_client_mutation);
-                Ok(())
+                self.index_client.mutate(index_client_mutation)
+                    .map_err(|_| NodeMutateError)
             },
         }
     }
 }
-*/

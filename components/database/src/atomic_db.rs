@@ -1,13 +1,4 @@
 
-pub trait MutableState {
-    type InitialArg;
-    type Mutation;
-    type MutateError;
-
-    fn initial(initial_arg: Self::InitialArg) -> Self;
-    fn mutate(&mut self, mutation: &Self::Mutation) -> Result<(), Self::MutateError>;
-}
-
 
 /// An atomic database. Allows to batch a list of mutations, and guarantees to apply them to the
 /// database in an atomic manner.

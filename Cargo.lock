@@ -557,6 +557,7 @@ dependencies = [
  "futures-preview 0.3.0-alpha.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "im 12.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "offst-common 0.1.0",
  "serde 1.0.85 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.85 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.37 (registry+https://github.com/rust-lang/crates.io-index)",
