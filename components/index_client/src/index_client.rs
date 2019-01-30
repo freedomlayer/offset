@@ -6,7 +6,7 @@ use futures::{select, future, FutureExt, TryFutureExt,
 use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 
-use common::conn::FutTransform;
+use common::conn::{FutTransform, ConnPairVec};
 use common::mutable_state::MutableState;
 use crypto::uid::Uid;
 
@@ -634,3 +634,4 @@ where
     }
     Ok(())
 }
+

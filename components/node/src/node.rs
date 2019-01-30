@@ -18,8 +18,9 @@ use secure_channel::SecureChannel;
 use funder::{funder_loop, FunderError, FunderState};
 use funder::types::{FunderIncomingComm, FunderOutgoingComm, 
     IncomingLivenessMessage, ChannelerConfig};
-use index_client::{index_client_loop, create_seq_friends_service, SeqMap,
-                    IndexClientSession, IndexClientError};
+
+use index_client::{IndexClientError, 
+    SpawnIndexClientError, spawn_index_client};
 
 use proto::funder::messages::{RelayAddress, TcpAddress, 
     FunderToChanneler, ChannelerToFunder, 
@@ -32,7 +33,7 @@ use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServ
 
 use crate::types::{NodeMutation, NodeState, create_node_report, NodeConfig};
 use crate::adapters::{EncRelayConnector, ConnectEncryptTransform, ListenEncryptTransform,
-                        EncIndexClientConnector};
+                        EncKeepaliveConnector};
 
 #[derive(Debug)]
 pub enum NodeError {
@@ -42,7 +43,7 @@ pub enum NodeError {
 }
 
 
-fn spawn_channeler<C,R,S>(node_config: &NodeConfig,
+fn node_spawn_channeler<C,R,S>(node_config: &NodeConfig,
                           local_public_key: PublicKey,
                           identity_client: IdentityClient,
                           timer_client: TimerClient,
@@ -116,7 +117,7 @@ where
         .map_err(|_| NodeError::SpawnError)
 }
 
-fn spawn_funder<R,S>(node_config: &NodeConfig,
+fn node_spawn_funder<R,S>(node_config: &NodeConfig,
                 identity_client: IdentityClient,
                 funder_state: FunderState<Vec<RelayAddress>>,
                 mut database_client: DatabaseClient<NodeMutation<RelayAddress,IndexServerAddress>>,
@@ -228,7 +229,7 @@ where
         .map_err(|_| NodeError::SpawnError)
 }
 
-async fn spawn_index_client<'a, C,R,S>(node_config: &'a NodeConfig,
+async fn node_spawn_index_client<'a, C,R,S>(node_config: &'a NodeConfig,
                 local_public_key: PublicKey,
                 identity_client: IdentityClient,
                 mut timer_client: TimerClient,
@@ -272,10 +273,6 @@ where
 
 
     let index_client_state = funder_report_to_index_client_state(&initial_node_report.funder_report);
-    let seq_friends = SeqMap::new(index_client_state.friends);
-    let seq_friends_client = create_seq_friends_service(seq_friends,
-                                                        spawner.clone())
-        .map_err(|_| NodeError::SpawnError)?;
 
     let encrypt_transform = SecureChannel::new(
         identity_client.clone(),
@@ -289,33 +286,26 @@ where
         node_config.keepalive_ticks,
         spawner.clone());
 
-    let enc_index_client_connector = EncIndexClientConnector::new(
+    let enc_keepalive_connector = EncKeepaliveConnector::new(
         encrypt_transform.clone(),
         keepalive_transform.clone(),
         net_connector.clone(),
         spawner.clone());
 
-    let index_client_session = IndexClientSession::new(
-        enc_index_client_connector,
-        local_public_key,
-        identity_client.clone(),
-        rng.clone(),
-        spawner.clone());
-
-    let index_client_fut = index_client_loop(
+    await!(spawn_index_client(local_public_key,
+                node_state.index_client_config.clone(),
+                index_client_state,
+                identity_client,
+                timer_client,
+                index_client_db_client,
                 from_app_server,
                 to_app_server,
-                node_state.index_client_config.clone(),
-                seq_friends_client,
-                index_client_session,
                 node_config.max_open_index_client_requests,
                 node_config.keepalive_ticks,
                 node_config.backoff_ticks,
-                index_client_db_client,
-                timer_stream,
-                spawner.clone());
-
-    spawner.spawn_with_handle(index_client_fut)
+                enc_keepalive_connector,
+                rng,
+                spawner.clone()))
         .map_err(|_| NodeError::SpawnError)
 
 }
@@ -346,7 +336,7 @@ where
     let (channeler_to_funder_sender, channeler_to_funder_receiver) = mpsc::channel(node_config.channel_len);
     let (funder_to_channeler_sender, funder_to_channeler_receiver) = mpsc::channel(node_config.channel_len);
 
-    let channeler_handle = spawn_channeler(&node_config,
+    let channeler_handle = node_spawn_channeler(&node_config,
                     local_public_key.clone(),
                     identity_client.clone(),
                     timer_client.clone(),
@@ -360,7 +350,7 @@ where
     let (app_server_to_funder_sender, app_server_to_funder_receiver) = mpsc::channel(node_config.channel_len);
     let (funder_to_app_server_sender, funder_to_app_server_receiver) = mpsc::channel(node_config.channel_len);
 
-    let funder_handle = spawn_funder(&node_config,
+    let funder_handle = node_spawn_funder(&node_config,
                 identity_client.clone(),
                 node_state.funder_state.clone(),
                 database_client.clone(),
@@ -388,7 +378,7 @@ where
         .map_err(|_| NodeError::SpawnError)?;
 
 
-    let index_client_handle = await!(spawn_index_client(
+    let index_client_handle = await!(node_spawn_index_client(
                 &node_config,
                 local_public_key,
                 identity_client,
