@@ -9,8 +9,6 @@ use common::conn::{FutTransform, ConnPairVec, BoxFuture};
 use timer::TimerClient;
 
 use crypto::identity::PublicKey;
-use crypto::crypto_rand::CryptoRandom;
-use identity::IdentityClient;
 
 use relay::client::client_connector::ClientConnector;
 use relay::client::client_listener::ClientListener;
@@ -97,8 +95,7 @@ pub enum SpawnChannelerError {
     SpawnError,
 }
 
-pub fn spawn_channeler<B,C,ET,KT,R,S>(local_public_key: PublicKey,
-                          identity_client: IdentityClient,
+pub fn spawn_channeler<B,C,ET,KT,S>(local_public_key: PublicKey,
                           timer_client: TimerClient,
                           backoff_ticks: usize,
                           conn_timeout_ticks: usize,
@@ -106,7 +103,6 @@ pub fn spawn_channeler<B,C,ET,KT,R,S>(local_public_key: PublicKey,
                           enc_relay_connector: C,
                           encrypt_transform: ET,
                           keepalive_transform: KT,
-                          rng: R,
                           from_funder: mpsc::Receiver<FunderToChanneler<Vec<B>>>,
                           to_funder: mpsc::Sender<ChannelerToFunder>,
                           mut spawner: S) 
@@ -117,7 +113,6 @@ where
     C: FutTransform<Input=B,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
     ET: FutTransform<Input=(Option<PublicKey>, ConnPairVec),Output=Option<(PublicKey, ConnPairVec)>> + Clone + Send + Sync + 'static,
     KT: FutTransform<Input=ConnPairVec,Output=ConnPairVec> + Clone + Send + Sync + 'static,
-    R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
 

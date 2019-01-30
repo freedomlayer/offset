@@ -70,7 +70,6 @@ where
     let enc_relay_connector = EncRelayConnector::new(encrypt_transform.clone(), net_connector);
 
     spawn_channeler(local_public_key,
-                          identity_client,
                           timer_client,
                           node_config.backoff_ticks,
                           node_config.conn_timeout_ticks,
@@ -78,7 +77,6 @@ where
                           enc_relay_connector,
                           encrypt_transform,
                           keepalive_transform,
-                          rng,
                           from_funder,
                           to_funder,
                           spawner)

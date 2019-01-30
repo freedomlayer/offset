@@ -54,7 +54,6 @@ enum ListenPoolError {
     ConfigClosed,
     TimerClosed,
     SpawnError,
-    CreateEncryptPoolError,
 }
 
 enum LpEvent<B> {
