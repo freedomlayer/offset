@@ -14,10 +14,7 @@ pub enum EphemeralMutation {
 }
 
 impl Ephemeral {
-    pub fn new<A>(funder_state: &FunderState<A>) -> Ephemeral 
-    where
-        A: CanonicalSerialize + Clone,
-    {
+    pub fn new() -> Ephemeral {
         Ephemeral {
             liveness: Liveness::new(),
         }

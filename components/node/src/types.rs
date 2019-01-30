@@ -3,8 +3,7 @@ use common::mutable_state::MutableState;
 
 use crypto::identity::PublicKey;
 use funder::{FunderState, FunderMutation};
-use funder::report::create_report;
-use funder::ephemeral::Ephemeral;
+use funder::report::create_initial_report;
 use index_client::{IndexClientConfig, IndexClientConfigMutation};
 
 use proto::app_server::messages::NodeReport;
@@ -81,9 +80,8 @@ where
     B: Clone + CanonicalSerialize,
     ISA: Clone,
 {
-    let ephemeral = Ephemeral::new(&node_state.funder_state);
     NodeReport {
-        funder_report: create_report(&node_state.funder_state, &ephemeral),
+        funder_report: create_initial_report(&node_state.funder_state),
         index_client_report: create_index_client_report(&node_state.index_client_config),
     }
 }

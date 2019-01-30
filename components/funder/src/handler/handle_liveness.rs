@@ -146,7 +146,7 @@ mod tests {
         };
         assert!(token_channel.is_outgoing());
 
-        let ephemeral = Ephemeral::new(&state);
+        let ephemeral = Ephemeral::new();
 
         let mut m_state = MutableFunderState::new(state);
         let mut m_ephemeral = MutableEphemeral::new(ephemeral);

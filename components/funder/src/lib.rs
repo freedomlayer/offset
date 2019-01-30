@@ -21,7 +21,7 @@ extern crate common;
 
 
 mod liveness;
-pub mod ephemeral;
+mod ephemeral;
 mod credit_calc;
 mod friend;
 mod state;

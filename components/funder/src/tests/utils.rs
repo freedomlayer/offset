@@ -346,7 +346,7 @@ pub async fn create_node_controls(num_nodes: usize,
         // it is the easier thing to do in this code (Unless we change it to have specific A type,
         // for example, u32).
         let funder_state = FunderState::new(&public_key, &usize_to_u32(i).unwrap());
-        let ephemeral = Ephemeral::new(&funder_state);
+        let ephemeral = Ephemeral::new();
         let base_report = create_report(&funder_state, &ephemeral);
 
         // let report = create_report(&self.state, &self.ephemeral);

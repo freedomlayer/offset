@@ -11,16 +11,14 @@ use identity::IdentityClient;
 use timer::TimerClient;
 
 use app_server::{IncomingAppConnection, app_server_loop};
-use channeler::{channeler_loop, PoolConnector, PoolListener, ChannelerError};
-use relay::client::{client_connector::ClientConnector, client_listener::ClientListener};
+use channeler::{spawn_channeler, ChannelerError};
 use keepalive::KeepAliveChannel;
 use secure_channel::SecureChannel;
 use funder::{funder_loop, FunderError, FunderState};
 use funder::types::{FunderIncomingComm, FunderOutgoingComm, 
     IncomingLivenessMessage, ChannelerConfig};
 
-use index_client::{IndexClientError, 
-    SpawnIndexClientError, spawn_index_client};
+use index_client::{IndexClientError, spawn_index_client};
 
 use proto::funder::messages::{RelayAddress, TcpAddress, 
     FunderToChanneler, ChannelerToFunder, 
@@ -32,8 +30,7 @@ use proto::index_server::messages::IndexServerAddress;
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer};
 
 use crate::types::{NodeMutation, NodeState, create_node_report, NodeConfig};
-use crate::adapters::{EncRelayConnector, ConnectEncryptTransform, ListenEncryptTransform,
-                        EncKeepaliveConnector};
+use crate::adapters::{EncRelayConnector, EncKeepaliveConnector};
 
 #[derive(Debug)]
 pub enum NodeError {
@@ -71,49 +68,21 @@ where
         node_config.keepalive_ticks,
         spawner.clone());
 
-
     let enc_relay_connector = EncRelayConnector::new(encrypt_transform.clone(), net_connector);
 
-    let client_connector = ClientConnector::new(enc_relay_connector.clone(), 
-                                                keepalive_transform.clone());
-
-    let connect_encrypt_transform = ConnectEncryptTransform::new(
-        encrypt_transform.clone());
-
-    let pool_connector = PoolConnector::new(
-           timer_client.clone(),
-           client_connector.clone(),
-           connect_encrypt_transform,
-           node_config.backoff_ticks,
-           spawner.clone());
-
-
-    let client_listener = ClientListener::new(
-           enc_relay_connector,
-           keepalive_transform.clone(),
-           node_config.conn_timeout_ticks,
-           timer_client.clone(),
-           spawner.clone());
-
-    let listen_encrypt_transform = ListenEncryptTransform::new(
-        encrypt_transform.clone());
-
-    let pool_listener = PoolListener::<RelayAddress,_,_,_>::new(client_listener,
-           listen_encrypt_transform,
-           node_config.max_concurrent_encrypt,
-           node_config.backoff_ticks,
-           timer_client.clone(),
-           spawner.clone());
-
-    let channeler_fut = channeler_loop(
-                            local_public_key,
-                            from_funder,
-                            to_funder,
-                            pool_connector,
-                            pool_listener,
-                            spawner.clone());
-
-    spawner.spawn_with_handle(channeler_fut)
+    spawn_channeler(local_public_key,
+                          identity_client,
+                          timer_client,
+                          node_config.backoff_ticks,
+                          node_config.conn_timeout_ticks,
+                          node_config.max_concurrent_encrypt,
+                          enc_relay_connector,
+                          encrypt_transform,
+                          keepalive_transform,
+                          rng,
+                          from_funder,
+                          to_funder,
+                          spawner)
         .map_err(|_| NodeError::SpawnError)
 }
 
