@@ -1,11 +1,15 @@
 use futures::channel::{oneshot, mpsc};
-use futures::{StreamExt, SinkExt};
+use futures::{future, StreamExt, SinkExt};
+use futures::executor::ThreadPool;
+use futures::task::SpawnExt;
 
 use crate::atomic_db::AtomicDb;
 
 #[derive(Debug)]
 pub enum DatabaseError<ADE> {
     AtomicDbError(ADE),
+    SpawnError,
+    CreateThreadPoolError,
 }
 
 // A request to apply mutations to the database
@@ -57,14 +61,31 @@ pub async fn database_loop<AD>(mut atomic_db: AD,
                                mut incoming_requests: mpsc::Receiver<DatabaseRequest<AD::Mutation>>)
                                 -> Result<AD, DatabaseError<AD::Error>>
 where
-    AD: AtomicDb,
+    AD: AtomicDb + Send + 'static,
+    AD::Mutation: Send + 'static,
+    AD::Error: Send + 'static,
 {
+    // We use an independent thread pool, to make sure our synchronous interaction
+    // with the database doesn't block the rest of the main thread loop.
+    // TODO: Maybe there will be a better way to do this in the future (Possibly a future version
+    // of Tokio that has this feature)
+    let mut thread_pool = ThreadPool::new()
+        .map_err(|_| DatabaseError::CreateThreadPoolError)?;
+
     while let Some(database_request) = await!(incoming_requests.next()) {
-        atomic_db.mutate_db(&database_request.mutations[..])
-            .map_err(|atomic_db_error| DatabaseError::AtomicDbError(atomic_db_error))?;
+        let DatabaseRequest {mutations, response_sender} = database_request;
+        let mutate_fut = future::lazy(move |_| {
+            atomic_db.mutate_db(&mutations[..])
+                .map_err(|atomic_db_error| DatabaseError::AtomicDbError(atomic_db_error))?;
+            Ok(atomic_db)
+        });
+        let handle = thread_pool.spawn_with_handle(mutate_fut)
+            .map_err(|_| DatabaseError::SpawnError)?;
+
+        atomic_db = await!(handle)?;
 
         // Notify client that the database mutation request was processed:
-        let _ = database_request.response_sender.send(());
+        let _ = response_sender.send(());
     }
     // Return the current state
     Ok(atomic_db)

@@ -59,7 +59,6 @@ pub enum ProcessOperationError {
     RouteTooLong,
     InsufficientTrust,
     CreditsCalcOverflow,
-    InvalidFreezeLinks,
     CreditCalculatorFailure,
     RequestAlreadyExists,
     RequestDoesNotExist,

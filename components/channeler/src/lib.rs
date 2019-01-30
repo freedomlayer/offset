@@ -13,13 +13,10 @@ mod listen_pool;
 mod connect_pool;
 mod connector_utils;
 mod overwrite_channel;
+mod spawn;
 
 #[macro_use]
 extern crate log;
 
-pub use self::channeler::{
-    channeler_loop, 
-    ChannelerError};
-
-pub use self::connect_pool::PoolConnector;
-pub use self::listen_pool::PoolListener;
+pub use self::channeler::ChannelerError;
+pub use self::spawn::{spawn_channeler, SpawnChannelerError};

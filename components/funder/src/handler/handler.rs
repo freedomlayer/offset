@@ -6,8 +6,7 @@ use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
 
 use common::canonical_serialize::CanonicalSerialize;
-use proto::funder::messages::{FunderOutgoingControl, 
-    RequestSendFunds};
+use proto::funder::messages::FunderOutgoingControl;
 use proto::funder::report::FunderReportMutation;
 
 use crate::state::{FunderState, FunderMutation};
@@ -273,7 +272,6 @@ where
     // outgoing_channeler_config. When we merge the two, we might be out of order!
     let (friend_messages, outgoing_channeler_config) = await!(create_friend_messages(
                                       &mut m_state,
-                                      &mut m_ephemeral,
                                       &send_commands,
                                       max_operations_in_batch,
                                       identity_client,

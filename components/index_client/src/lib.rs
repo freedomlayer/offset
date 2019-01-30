@@ -14,16 +14,10 @@ mod index_client;
 mod client_session;
 mod seq_map;
 mod seq_friends;
+mod spawn;
 
 #[cfg(test)]
 mod tests;
 
-pub use self::index_client::{index_client_loop,
-                            IndexClientConfigMutation,
-                            IndexClientConfig,
-                            IndexClientError};
-
-pub use self::seq_friends::create_seq_friends_service;
-pub use self::seq_map::SeqMap;
-pub use self::client_session::IndexClientSession;
-pub use self::single_client::ServerConn;
+pub use self::index_client::{IndexClientError, IndexClientConfig, IndexClientConfigMutation};
+pub use self::spawn::{spawn_index_client, SpawnIndexClientError};

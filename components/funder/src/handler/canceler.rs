@@ -5,15 +5,12 @@ use proto::funder::messages::{RequestSendFunds,
                               ResponseReceived,
                               ResponseSendFundsResult, FunderOutgoingControl};
 
-use crate::handler::handler::{MutableFunderState, MutableEphemeral, 
-    find_request_origin};
+use crate::handler::handler::{MutableFunderState, find_request_origin};
 use crate::handler::sender::SendCommands;
 
 use crate::types::create_pending_request;
 use crate::friend::{FriendMutation, ResponseOp, ChannelStatus};
 use crate::state::FunderMutation;
-
-use crate::ephemeral::EphemeralMutation;
 
 
 /*
@@ -61,7 +58,6 @@ where
 /// Cancel outgoing local requests that are already inside the token channel (Possibly already
 /// communicated to the remote side).
 pub fn cancel_local_pending_requests<A>(m_state: &mut MutableFunderState<A>,
-                                     m_ephemeral: &mut MutableEphemeral,
                                      send_commands: &mut SendCommands,
                                      outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
                                      friend_public_key: &PublicKey) 

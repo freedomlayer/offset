@@ -180,7 +180,6 @@ where
 /// This is a violent operation, as it removes all the known state with the remote friend.  
 /// An inconsistency will occur if the friend is added again.
 fn control_remove_friend<A>(m_state: &mut MutableFunderState<A>, 
-                            m_ephemeral: &mut MutableEphemeral,
                             send_commands: &mut SendCommands,
                             outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
                             outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>,
@@ -200,7 +199,6 @@ where
                    &remove_friend.friend_public_key);
 
     cancel_local_pending_requests(m_state,
-                                  m_ephemeral,
                                   send_commands,
                                   outgoing_control,
                                   &remove_friend.friend_public_key);
@@ -424,8 +422,7 @@ where
         return Err(HandleControlError::PendingUserRequestsFull);
     }
 
-    let mut request_send_funds = user_request_send_funds.to_request();
-
+    let request_send_funds = user_request_send_funds.to_request();
     let friend_mutation = FriendMutation::PushBackPendingUserRequest(request_send_funds);
     let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
@@ -529,7 +526,6 @@ where
 
         FunderIncomingControl::RemoveFriend(remove_friend) =>
             control_remove_friend(m_state,
-                                  m_ephemeral,
                                   send_commands,
                                   outgoing_control,
                                   outgoing_channeler_config,

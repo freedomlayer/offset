@@ -62,7 +62,7 @@ where
     let mut control_sender = control_sender.sink_map_err(|_| ());
 
     // let mut db_runner = DbRunner::new(atomic_db);
-    let mut ephemeral = Ephemeral::new(&funder_state);
+    let mut ephemeral = Ephemeral::new();
 
     // Select over all possible events:
     let incoming_control = incoming_control

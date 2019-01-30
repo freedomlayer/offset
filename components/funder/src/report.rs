@@ -169,6 +169,14 @@ where
     }
 }
 
+#[allow(unused)]
+pub fn create_initial_report<A>(funder_state: &FunderState<A>) -> FunderReport<A> 
+where
+    A: CanonicalSerialize + Clone,
+{
+    create_report(funder_state, &Ephemeral::new())
+}
+
 
 pub fn friend_mutation_to_report_mutations<A>(friend_mutation: &FriendMutation<A>,
                                            friend: &FriendState<A>) -> Vec<FriendReportMutation<A>> 

@@ -7,6 +7,7 @@
 #![cfg_attr(not(feature = "cargo-clippy"), allow(unknown_lints))]
 
 extern crate futures_cpupool;
+
 #[macro_use]
 extern crate log;
 
@@ -21,7 +22,7 @@ extern crate common;
 
 
 mod liveness;
-pub mod ephemeral;
+mod ephemeral;
 mod credit_calc;
 mod friend;
 mod state;
