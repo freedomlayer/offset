@@ -17,4 +17,5 @@ members = [
   "components/index_server",
   "components/database",
   "components/node",
+  "components/net",
 ]

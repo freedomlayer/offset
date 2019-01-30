@@ -642,6 +642,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "offst-net"
+version = "0.1.0"
+dependencies = [
+ "futures-preview 0.3.0-alpha.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "offst-common 0.1.0",
+ "offst-proto 0.1.0",
+]
+
+[[package]]
 name = "offst-node"
 version = "0.1.0"
 dependencies = [
