@@ -1,14 +1,18 @@
 use std::net::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr};
+
+use bytes::Bytes;
+
 use common::conn::{FutTransform, BoxFuture, ConnPairVec};
 use proto::funder::messages::TcpAddress;
 
-use futures::compat::{Future01CompatExt, Stream01CompatExt};
-use futures::{Stream, StreamExt, SinkExt};
+use futures::compat::{Compat, Compat01As03, Future01CompatExt, Stream01CompatExt};
+use futures::{Stream, StreamExt, Sink, SinkExt};
 use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
 
 // We have this import to make the split() call compile.
 use futures_01::stream::{Stream as Stream01};
+use futures_01::sink::{Sink as Sink01};
 
 use tokio::net::TcpStream;
 use tokio::codec::{Framed, LengthDelimitedCodec};
@@ -54,9 +58,25 @@ fn tcp_address_to_socket_addr(tcp_address: &TcpAddress) -> SocketAddr {
     }
 }
 
+
+/*
+fn stream_01_to_03(stream: impl Stream01) -> impl Stream {
+    stream.compat()
+}
+
+fn sink_01_to_03(sink: impl Sink01) -> impl Sink {
+    sink.compat()
+}
+*/
+
+fn check_sink_01(sink01: &impl Sink01) {}
+fn check_stream_01(stream01: &impl Stream01) {}
+fn check_sink_03(sink03: &impl Sink) {}
+fn check_stream_03(stream03: &impl Stream) {}
+
 impl<S> FutTransform  for TcpConnector<S> 
 where
-    S: Spawn,
+    S: Spawn + Send,
 {
 
     type Input = TcpAddress;
@@ -73,22 +93,31 @@ where
             let mut codec = LengthDelimitedCodec::new();
             codec.set_max_frame_length(self.max_frame_length);
 
-            let (receiver, sender) = Framed::new(tcp_stream, codec).split();
+            let (sender_01, receiver_01) = Framed::new(tcp_stream, codec).split();
+            check_sink_01(&sender_01);
+            check_stream_01(&receiver_01);
 
-            let (user_sender, from_user_sender) = mpsc::channel::<Vec<u8>>(0);
-            let (to_user_receiver, user_receiver) = mpsc::channel::<Vec<u8>>(0);
+            let (user_sender, from_user_sender) = mpsc::channel::<Result<Vec<u8>,()>>(0);
+            let (to_user_receiver, user_receiver) = mpsc::channel::<Result<Vec<u8>,()>>(0);
 
             // Forward messages from user_sender:
-            self.spawner.spawn(async move {
-                let _ = await!(sender.send_all(&mut from_user_sender));
-            });
+            let from_user_sender_01 = Compat::new(from_user_sender);
+            let sender_01 = sender_01
+                .with(|vec| Ok(Bytes::from(vec)))
+                .sink_map_err(|_| ());
+
+            let send_forward = sender_01.send_all(from_user_sender_01);
+            unimplemented!();
+            /*
+            self.spawner.spawn(send_forward);
 
             // Forward messages to user_receiver:
-            self.spawner.spawn(async move {
-                let _ = await!(to_user_receiver.send_all(&mut receiver));
-            });
+            let recv_forward = to_user_receiver.send_all(receiver.compat())
+                .map(|_| ());
+            self.spawner.spawn(recv_forward);
 
             Some((user_sender, user_receiver))
+            */
         })
 
         // TODO: Apply framing on the tcp_stream

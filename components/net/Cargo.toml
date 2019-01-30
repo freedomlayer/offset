@@ -20,3 +20,5 @@ futures_01 = { version = "0.1", package = "futures" }
 futures-preview = {version = "0.3.0-alpha.11", features = ["compat"] }
 
 log = "0.4"
+
+bytes = "0.4"
