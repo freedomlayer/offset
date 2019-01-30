@@ -25,6 +25,7 @@ impl<B,ISA> NodeState<B,ISA>
 where
     B: Clone + CanonicalSerialize,
 {
+    #[allow(unused)]
     pub fn new(local_public_key: PublicKey) -> Self {
         let relay_addresses = Vec::new();
         NodeState {

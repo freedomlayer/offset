@@ -6,7 +6,7 @@
 #![feature(never_type)]
 
 
-#[macro_use]
+// #[macro_use]
 extern crate log;
 
 mod types;

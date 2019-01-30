@@ -1,6 +1,4 @@
-use futures::task::{Spawn, SpawnExt};
-use futures::channel::mpsc;
-use futures::{StreamExt, SinkExt};
+use futures::task::Spawn;
 
 use common::conn::{ConnPairVec, FutTransform, BoxFuture};
 
@@ -8,8 +6,6 @@ use crypto::identity::PublicKey;
 
 use proto::funder::messages::{RelayAddress, TcpAddress};
 use proto::index_server::messages::{IndexServerAddress};
-use proto::index_server::serialize::{serialize_index_client_to_server,
-        deserialize_index_server_to_client};
 
 #[derive(Clone)]
 /// Open an encrypted connection to a relay endpoint

@@ -36,7 +36,6 @@ use crate::adapters::{EncRelayConnector, EncKeepaliveConnector};
 pub enum NodeError {
     RequestPublicKeyError,
     SpawnError,
-    RequestTimerStreamError,
 }
 
 
@@ -48,7 +47,7 @@ fn node_spawn_channeler<C,R,S>(node_config: &NodeConfig,
                           rng: R,
                           from_funder: mpsc::Receiver<FunderToChanneler<Vec<RelayAddress>>>,
                           to_funder: mpsc::Sender<ChannelerToFunder>,
-                          mut spawner: S) 
+                          spawner: S) 
     -> Result<impl Future<Output=Result<(), ChannelerError>>, NodeError>
 
 where
@@ -201,7 +200,7 @@ where
 async fn node_spawn_index_client<'a, C,R,S>(node_config: &'a NodeConfig,
                 local_public_key: PublicKey,
                 identity_client: IdentityClient,
-                mut timer_client: TimerClient,
+                timer_client: TimerClient,
                 node_state: &'a NodeState<RelayAddress, IndexServerAddress>,
                 mut database_client: DatabaseClient<NodeMutation<RelayAddress,IndexServerAddress>>,
                 from_app_server: mpsc::Receiver<AppServerToIndexClient<IndexServerAddress>>,
@@ -217,8 +216,6 @@ where
 {
 
     let initial_node_report = create_node_report(&node_state);
-    let timer_stream = await!(timer_client.request_timer_stream())
-        .map_err(|_| NodeError::RequestTimerStreamError)?;
 
     // Database adapter:
     let (request_sender, mut request_receiver) = mpsc::channel(0);
@@ -279,6 +276,7 @@ where
 
 }
 
+#[allow(unused)]
 pub async fn spawn_node<C,IA,R,S>(
                 node_config: NodeConfig,
                 identity_client: IdentityClient,
