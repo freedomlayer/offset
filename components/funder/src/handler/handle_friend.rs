@@ -22,7 +22,7 @@ use crate::friend::{FriendMutation,
     ResponseOp, ChannelStatus, ChannelInconsistent,
     SentLocalAddress};
 
-use crate::ephemeral::{Ephemeral, EphemeralMutation};
+use crate::ephemeral::Ephemeral;
 
 use crate::handler::handler::{MutableFunderState, MutableEphemeral, 
     is_friend_ready, find_request_origin};
@@ -163,7 +163,7 @@ fn handle_request_send_funds<A>(m_state: &mut MutableFunderState<A>,
                                 ephemeral: &Ephemeral,
                                 send_commands: &mut SendCommands,
                                 remote_public_key: &PublicKey,
-                                mut request_send_funds: RequestSendFunds) 
+                                request_send_funds: RequestSendFunds) 
 where
     A: CanonicalSerialize + Clone,
 {
@@ -336,7 +336,6 @@ where
 
 /// Handle an error with incoming move token.
 fn handle_move_token_error<A,R>(m_state: &mut MutableFunderState<A>,
-                                m_ephemeral: &mut MutableEphemeral,
                                 send_commands: &mut SendCommands,
                                 outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
                                 rng: &R,
@@ -357,7 +356,6 @@ where
     // Cancel all internal pending requests inside token channel:
     cancel_local_pending_requests(
         m_state,
-        m_ephemeral,
         send_commands,
         outgoing_control,
         remote_public_key);
@@ -540,7 +538,6 @@ where
         },
         Err(_receive_move_token_error) => {
             handle_move_token_error(m_state, 
-                                    m_ephemeral,
                                     send_commands,
                                     outgoing_control,
                                     rng,

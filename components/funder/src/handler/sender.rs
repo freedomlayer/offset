@@ -19,9 +19,8 @@ use crate::friend::{FriendMutation, ResponseOp,
 use crate::token_channel::{TokenChannel, TcMutation, TcDirection, SetDirection};
 
 use crate::state::{FunderMutation, FunderState};
-use crate::ephemeral::EphemeralMutation;
 
-use crate::handler::handler::{MutableFunderState, MutableEphemeral};
+use crate::handler::handler::{MutableFunderState};
 
 
 #[derive(Debug, Clone)]
@@ -137,8 +136,7 @@ where
     /// Otherwise, an error is returned.
     fn queue_operation(&mut self, 
                        operation: &FriendTcOp,
-                       m_state: &mut MutableFunderState<A>,
-                       m_ephemeral: &mut MutableEphemeral)
+                       m_state: &mut MutableFunderState<A>)
         -> Result<(), PendingQueueError> 
     where
         A: Clone,
@@ -260,7 +258,6 @@ where
 }
 
 async fn send_friend_iter1<'a,A,R>(m_state: &'a mut MutableFunderState<A>,
-                                       m_ephemeral: &'a mut MutableEphemeral,
                                        friend_public_key: &'a PublicKey, 
                                        friend_send_commands: &'a FriendSendCommands, 
                                        pending_move_tokens: &'a mut HashMap<PublicKey, PendingMoveToken<A>>,
@@ -349,7 +346,6 @@ where
     pending_move_tokens.insert(friend_public_key.clone(), pending_move_token);
     let pending_move_token = pending_move_tokens.get_mut(friend_public_key).unwrap();
     let _ = await!(collect_outgoing_move_token(m_state, 
-                                               m_ephemeral, 
                                                outgoing_channeler_config,
                                                friend_public_key, 
                                                pending_move_token,
@@ -416,14 +412,13 @@ where
 }
 
 async fn queue_operation_or_failure<'a,A>(m_state: &'a mut MutableFunderState<A>,
-                                            m_ephemeral: &'a mut MutableEphemeral,
                                             pending_move_token: &'a mut PendingMoveToken<A>,
                                             operation: &'a FriendTcOp) -> Result<(), CollectOutgoingError> 
 where
     A: CanonicalSerialize + Clone,
 {
 
-    match pending_move_token.queue_operation(operation, m_state, m_ephemeral) {
+    match pending_move_token.queue_operation(operation, m_state) {
         Ok(()) => return Ok(()),
         Err(PendingQueueError::MaxOperationsReached) => {
             pending_move_token.token_wanted = true;
@@ -480,7 +475,6 @@ where
 /// send to the remote side. 
 /// Requests that fail to be processed are moved to the failure queues of the relevant friends.
 async fn collect_outgoing_move_token<'a,A,R>(m_state: &'a mut MutableFunderState<A>,
-                                                 m_ephemeral: &'a mut MutableEphemeral,
                                                  outgoing_channeler_config: &'a mut Vec<ChannelerConfig<A>>,
                                                  friend_public_key: &'a PublicKey,
                                                  pending_move_token: &'a mut PendingMoveToken<A>,
@@ -553,7 +547,6 @@ where
     if friend.wanted_remote_max_debt != remote_max_debt {
         let operation = FriendTcOp::SetRemoteMaxDebt(friend.wanted_remote_max_debt);
         await!(queue_operation_or_failure(m_state,
-                                          m_ephemeral,
                                           pending_move_token,
                                           &operation))?;
     }
@@ -578,7 +571,6 @@ where
             FriendTcOp::DisableRequests
         };
         await!(queue_operation_or_failure(m_state,
-                                          m_ephemeral,
                                           pending_move_token,
                                           &friend_op))?;
     }
@@ -591,7 +583,6 @@ where
         let pending_op = await!(response_op_to_friend_tc_op(m_state, pending_response,
                                                             identity_client, rng));
         await!(queue_operation_or_failure(m_state,
-                                          m_ephemeral,
                                           pending_move_token,
                                           &pending_op))?;
 
@@ -608,7 +599,6 @@ where
     while let Some(pending_request) = pending_requests.pop_front() {
         let pending_op = FriendTcOp::RequestSendFunds(pending_request);
         await!(queue_operation_or_failure(m_state,
-                                          m_ephemeral,
                                           pending_move_token,
                                           &pending_op))?;
         let friend_mutation = FriendMutation::PopFrontPendingRequest;
@@ -623,7 +613,6 @@ where
     while let Some(request_send_funds) = pending_user_requests.pop_front() {
         let request_op = FriendTcOp::RequestSendFunds(request_send_funds);
         await!(queue_operation_or_failure(m_state,
-                                          m_ephemeral,
                                           pending_move_token,
                                           &request_op))?;
         let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
@@ -636,7 +625,6 @@ where
 
 
 async fn append_failures_to_move_token<'a,A,R>(m_state: &'a mut MutableFunderState<A>,
-                                                   m_ephemeral: &'a mut MutableEphemeral,
                                                    friend_public_key: &'a PublicKey,
                                                    pending_move_token: &'a mut PendingMoveToken<A>,
                                                    identity_client: &'a mut IdentityClient,
@@ -658,7 +646,6 @@ where
                                                             identity_client,
                                                             rng));
         await!(queue_operation_or_failure(m_state,
-                                          m_ephemeral,
                                           pending_move_token,
                                           &pending_op))?;
 
@@ -745,7 +732,6 @@ where
 
 /// Send all possible messages according to SendCommands
 pub async fn create_friend_messages<'a,A,R>(m_state: &'a mut MutableFunderState<A>, 
-                        m_ephemeral: &'a mut MutableEphemeral,
                         send_commands: &'a SendCommands,
                         max_operations_in_batch: usize,
                         identity_client: &'a mut IdentityClient,
@@ -763,7 +749,6 @@ where
     // First iteration:
     for (friend_public_key, friend_send_commands) in &send_commands.send_commands {
         await!(send_friend_iter1(m_state, 
-                                 m_ephemeral,
                                  friend_public_key,
                                  friend_send_commands,
                                  &mut pending_move_tokens,
@@ -777,7 +762,6 @@ where
     // Second iteration (Attempt to queue failures created in the first iteration):
     for (friend_public_key, pending_move_token) in &mut pending_move_tokens {
         let _ = await!(append_failures_to_move_token(m_state,
-                                                     m_ephemeral,
                                                      friend_public_key, 
                                                      pending_move_token,
                                                      identity_client,

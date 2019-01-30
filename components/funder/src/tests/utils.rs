@@ -157,7 +157,7 @@ pub struct NodeControl<A: Clone> {
 }
 
 #[derive(Debug)]
-enum NodeRecv<A> {
+pub enum NodeRecv<A> {
     ReportMutations(Vec<FunderReportMutation<A>>),
     ResponseReceived(ResponseReceived),
 }

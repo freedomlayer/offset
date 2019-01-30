@@ -1,7 +1,4 @@
 use super::liveness::{Liveness, LivenessMutation};
-use super::state::FunderState;
-
-use common::canonical_serialize::CanonicalSerialize;
 
 #[derive(Clone)]
 pub struct Ephemeral {
