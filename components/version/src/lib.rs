@@ -9,6 +9,6 @@
 #[macro_use]
 extern crate log;
 
-mod proto_version;
+mod version_prefix;
 
-pub use self::proto_version::VersionPrefix;
+pub use self::version_prefix::VersionPrefix;
