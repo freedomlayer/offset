@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use core::pin::Pin;
 use futures::channel::mpsc;
-use futures::{future, Future};
+use futures::Future;
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
