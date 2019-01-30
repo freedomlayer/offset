@@ -18,4 +18,5 @@ members = [
   "components/database",
   "components/node",
   "components/net",
+  "components/version",
 ]

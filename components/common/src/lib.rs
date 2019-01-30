@@ -23,5 +23,3 @@ pub mod dummy_listener;
 pub mod access_control;
 pub mod canonical_serialize;
 pub mod mutable_state;
-pub mod proto_version;
-

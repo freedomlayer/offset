@@ -3,7 +3,7 @@ use futures::task::{Spawn, SpawnExt};
 use futures::{future, StreamExt, SinkExt};
 use futures::channel::mpsc;
 
-use crate::conn::{FutTransform, BoxFuture, ConnPairVec};
+use common::conn::{FutTransform, BoxFuture, ConnPairVec};
 
 /// Prefix a communication session (Of Vec<u8>) with each side declaring his version.
 /// If the local version does not match the stated remote version, the connection is closed.
