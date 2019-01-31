@@ -60,7 +60,7 @@ where
     let _ = spawner.spawn(recv_forward_01);
 
 
-    // We want to give the user sender and receiver of Vec<u8> (And not Result<Vec<u8>,()>),
+    // We want to give the user sender and receiver of T (And not Result<T,()>),
     // so another adapting layer is required:
 
     let (user_sender, mut from_user_sender) = mpsc::channel::<T>(0);
