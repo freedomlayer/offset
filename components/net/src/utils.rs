@@ -1,3 +1,5 @@
+use bytes::Bytes;
+
 use futures::compat::{Compat, Future01CompatExt};
 use futures::{FutureExt, StreamExt, SinkExt};
 use futures::task::{Spawn, SpawnExt};
@@ -6,10 +8,14 @@ use futures::channel::mpsc;
 use futures_01::stream::{Stream as Stream01};
 use futures_01::sink::{Sink as Sink01};
 
+use tokio::net::TcpStream;
+use tokio::codec::{Framed, LengthDelimitedCodec};
+
+use common::conn::ConnPairVec;
 
 /// Convert a connection pair (sender Sink, receiver Stream) of Futures 0.1
 /// to a pair of (mpsc::Sender, mpsc::Receiver) of Futures 0.3.
-pub fn conn_pair_01_to_03<T,ST,SI,S>(conn_pair_01: (SI, ST), spawner: &mut S) 
+fn conn_pair_01_to_03<T,ST,SI,S>(conn_pair_01: (SI, ST), spawner: &mut S) 
     -> (mpsc::Sender<T>, mpsc::Receiver<T>)
 where
     T: Send + 'static,
@@ -88,3 +94,27 @@ where
 
 }
 
+pub fn tcp_stream_to_conn_pair<S>(tcp_stream: TcpStream,
+                               max_frame_length: usize,
+                               spawner: &mut S) -> ConnPairVec 
+where
+    S: Spawn + Send,
+{
+
+    let mut codec = LengthDelimitedCodec::new();
+    codec.set_max_frame_length(max_frame_length);
+    let (sender_01, receiver_01) = Framed::new(tcp_stream, codec).split();
+
+    // Conversion layer between Vec<u8> to Bytes:
+    let sender_01 = sender_01
+        .sink_map_err(|_| ())
+        .with(|vec: Vec<u8>| -> Result<Bytes, ()> {
+            Ok(Bytes::from(vec))
+        });
+
+    let receiver_01 = receiver_01
+        .map(|bytes| bytes.to_vec());
+
+    conn_pair_01_to_03((sender_01, receiver_01), spawner)
+
+}

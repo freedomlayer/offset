@@ -10,6 +10,6 @@
 extern crate log;
 
 mod types;
-mod compat_utils;
+mod utils;
 mod tcp_connector;
 mod tcp_listener;

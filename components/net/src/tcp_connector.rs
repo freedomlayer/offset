@@ -13,7 +13,7 @@ use futures_01::sink::{Sink as Sink01};
 use tokio::net::TcpStream;
 use tokio::codec::{Framed, LengthDelimitedCodec};
 
-use crate::compat_utils::conn_pair_01_to_03;
+use crate::utils::tcp_stream_to_conn_pair;
 use crate::types::tcp_address_to_socket_addr;
 
 #[derive(Debug, Clone)]
@@ -63,22 +63,10 @@ where
             let tcp_stream = await!(TcpStream::connect(&socket_addr).compat())
                 .ok()?;
 
-            let mut codec = LengthDelimitedCodec::new();
-            codec.set_max_frame_length(self.max_frame_length);
+            Some(tcp_stream_to_conn_pair(tcp_stream,
+                                           self.max_frame_length,
+                                           &mut self.spawner))
 
-            let (sender_01, receiver_01) = Framed::new(tcp_stream, codec).split();
-
-            // Conversion layer between Vec<u8> to Bytes:
-            let sender_01 = sender_01
-                .sink_map_err(|_| ())
-                .with(|vec: Vec<u8>| -> Result<Bytes, ()> {
-                    Ok(Bytes::from(vec))
-                });
-
-            let receiver_01 = receiver_01
-                .map(|bytes| bytes.to_vec());
-
-            Some(conn_pair_01_to_03((sender_01, receiver_01), &mut self.spawner))
         })
     }
 }
