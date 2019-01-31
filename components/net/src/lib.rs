@@ -6,7 +6,8 @@
 #![feature(never_type)]
 #![feature(unboxed_closures)]
 
-#[macro_use]
+// #[macro_use]
 extern crate log;
 
+mod compat_utils;
 mod tcp_connector;
