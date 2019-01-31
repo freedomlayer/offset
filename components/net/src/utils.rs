@@ -7,6 +7,7 @@ use futures::channel::mpsc;
 
 use futures_01::stream::{Stream as Stream01};
 use futures_01::sink::{Sink as Sink01};
+use futures_01::sync::{mpsc as mpsc01};
 
 use tokio::net::TcpStream;
 use tokio::codec::{Framed, LengthDelimitedCodec};
@@ -116,5 +117,59 @@ where
         .map(|bytes| bytes.to_vec());
 
     conn_pair_01_to_03((sender_01, receiver_01), spawner)
+
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use futures::executor::ThreadPool;
+
+    async fn task_conn_pair_01_to_03_basic<S>(mut spawner: S) 
+    where
+        S: Spawn + Send,
+    {
+        let (sender_01, receiver_01) = mpsc01::channel::<u32>(0);
+        let (mut sender_03, mut receiver_03) = conn_pair_01_to_03((sender_01, receiver_01), &mut spawner);
+        await!(sender_03.send(0x1337u32)).unwrap();
+        assert_eq!(await!(receiver_03.next()), Some(0x1337u32));
+
+        drop(sender_03);
+        assert!(await!(receiver_03.next()).is_none());
+    }
+
+    #[test]
+    fn test_conn_pair_01_to_03_basic() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_conn_pair_01_to_03_basic(thread_pool.clone()));
+    }
+
+    async fn task_conn_pair_01_to_03_receiver_dropped<S>(mut spawner: S) 
+    where
+        S: Spawn + Send,
+    {
+        let (sender_01, receiver_01) = mpsc01::channel::<u32>(0);
+        let (mut sender_03, mut receiver_03) = conn_pair_01_to_03((sender_01, receiver_01), &mut spawner);
+
+        drop(receiver_03);
+
+        // The sender should be closed after a while.
+        // We are using many intermediate buffers, so the closing
+        // will only be detected after attempting to send a few messages.
+        let mut sender_closed = false;
+        for _ in 0 .. 20 {
+            if let Err(_) = await!(sender_03.send(0u32)) {
+                sender_closed = true;
+            }
+        }
+        assert!(sender_closed);
+    }
+
+    #[test]
+    fn test_conn_pair_01_to_03_receiver_dropped() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_conn_pair_01_to_03_receiver_dropped(thread_pool.clone()));
+    }
 
 }
