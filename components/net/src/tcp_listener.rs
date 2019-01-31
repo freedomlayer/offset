@@ -63,7 +63,7 @@ where
         let mut incoming_conns = listener.incoming().compat();
         let mut c_spawner = self.spawner.clone();
         let c_max_frame_length = self.max_frame_length;
-        self.spawner.spawn(async move {
+        let _ = self.spawner.spawn(async move {
             while let Some(Ok(tcp_stream)) = await!(incoming_conns.next()) {
                 let conn_pair = tcp_stream_to_conn_pair(tcp_stream,
                                                c_max_frame_length,
