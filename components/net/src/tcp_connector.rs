@@ -6,7 +6,7 @@ use common::conn::{FutTransform, BoxFuture, ConnPairVec};
 use proto::funder::messages::TcpAddress;
 
 use futures::compat::{Compat, Compat01As03, Future01CompatExt, Stream01CompatExt};
-use futures::{Stream, StreamExt, Sink, SinkExt};
+use futures::{FutureExt, Stream, StreamExt, Sink, SinkExt};
 use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
 
@@ -58,21 +58,16 @@ fn tcp_address_to_socket_addr(tcp_address: &TcpAddress) -> SocketAddr {
     }
 }
 
-
 /*
-fn stream_01_to_03(stream: impl Stream01) -> impl Stream {
-    stream.compat()
-}
-
-fn sink_01_to_03(sink: impl Sink01) -> impl Sink {
-    sink.compat()
-}
-*/
-
 fn check_sink_01(sink01: &impl Sink01) {}
 fn check_stream_01(stream01: &impl Stream01) {}
 fn check_sink_03(sink03: &impl Sink) {}
 fn check_stream_03(stream03: &impl Stream) {}
+*/
+
+// Utils for checking types:
+fn check_sender_01(sender01: &impl Sink01<SinkItem=Vec<u8>, SinkError=()>) {}
+fn check_receiver_01(receiver01: &impl Stream01<Item=Vec<u8>, Error=()>) {}
 
 impl<S> FutTransform  for TcpConnector<S> 
 where
@@ -94,33 +89,73 @@ where
             codec.set_max_frame_length(self.max_frame_length);
 
             let (sender_01, receiver_01) = Framed::new(tcp_stream, codec).split();
-            check_sink_01(&sender_01);
-            check_stream_01(&receiver_01);
 
-            let (user_sender, from_user_sender) = mpsc::channel::<Result<Vec<u8>,()>>(0);
-            let (to_user_receiver, user_receiver) = mpsc::channel::<Result<Vec<u8>,()>>(0);
+            let (mut user_sender_03, mut from_user_sender_03) = mpsc::channel::<Result<Vec<u8>,()>>(0);
+            let (mut to_user_receiver_03, mut user_receiver_03) = mpsc::channel::<Result<Vec<u8>,()>>(0);
 
             // Forward messages from user_sender:
-            let from_user_sender_01 = Compat::new(from_user_sender);
-            let sender_01 = sender_01
-                .with(|vec| Ok(Bytes::from(vec)))
-                .sink_map_err(|_| ());
+            let from_user_sender_01 = Compat::new(from_user_sender_03)
+                .map_err(|_| ());
 
-            let send_forward = sender_01.send_all(from_user_sender_01);
-            unimplemented!();
-            /*
-            self.spawner.spawn(send_forward);
+            let sender_01 = sender_01
+                .sink_map_err(|_| ())
+                .with(|vec: Vec<u8>| Ok(Bytes::from(vec)));
+
+            check_sender_01(&sender_01);
+            check_receiver_01(&from_user_sender_01);
+
+            let send_forward_03 = sender_01
+                .send_all(from_user_sender_01)
+                .compat()
+                .map(|_| ());
+            
+            let _ = self.spawner.spawn(send_forward_03);
+
 
             // Forward messages to user_receiver:
-            let recv_forward = to_user_receiver.send_all(receiver.compat())
+            let to_user_receiver_01 = Compat::new(to_user_receiver_03)
+                .sink_map_err(|_| ())
+                .with(|vec: Vec<u8>| Ok(Ok(vec)));
+
+            let receiver_01 = receiver_01
+                .map_err(|_| ())
+                .map(|bytes_mut| bytes_mut.to_vec());
+
+            check_sender_01(&to_user_receiver_01);
+            check_receiver_01(&receiver_01);
+
+            let recv_forward_01 = to_user_receiver_01
+                .send_all(receiver_01)
+                .compat()
                 .map(|_| ());
-            self.spawner.spawn(recv_forward);
+
+
+            // We want to give the user sender and receiver of Vec<u8> (And not Result<Vec<u8>,()>),
+            // so another adapting layer is required:
+
+            let (user_sender, mut from_user_sender) = mpsc::channel::<Vec<u8>>(0);
+            let (mut to_user_receiver, user_receiver) = mpsc::channel::<Vec<u8>>(0);
+
+            // Forward user_sender:
+            let _ = self.spawner.spawn(async move {
+                while let Some(data) = await!(from_user_sender.next()) {
+                    if let Err(_) = await!(user_sender_03.send(Ok(data))) {
+                        return;
+                    }
+                }
+            });
+
+            // Forward user_receiver:
+            let _ = self.spawner.spawn(async move {
+                while let Some(Ok(data)) = await!(user_receiver_03.next()) {
+                    if let Err(_) = await!(to_user_receiver.send(data)) {
+                        return;
+                    }
+                }
+            });
 
             Some((user_sender, user_receiver))
-            */
         })
-
-        // TODO: Apply framing on the tcp_stream
     }
 }
 
