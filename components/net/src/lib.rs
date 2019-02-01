@@ -15,3 +15,7 @@ mod tcp_connector;
 mod tcp_listener;
 #[cfg(test)]
 mod tests;
+
+
+pub use self::tcp_connector::TcpConnector;
+pub use self::tcp_listener::TcpListener;
