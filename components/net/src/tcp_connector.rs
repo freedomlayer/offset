@@ -35,18 +35,6 @@ impl<S> TcpConnector<S> {
 }
 
 
-/*
-fn check_sink_01(sink01: &impl Sink01) {}
-fn check_stream_01(stream01: &impl Stream01) {}
-fn check_sink_03(sink03: &impl Sink) {}
-fn check_stream_03(stream03: &impl Stream) {}
-*/
-
-// Utils for checking types:
-// fn check_sender_01(sender01: &impl Sink01<SinkItem=Vec<u8>, SinkError=()>) {}
-// fn check_receiver_01(receiver01: &impl Stream01<Item=Vec<u8>, Error=()>) {}
-
-
 impl<S> FutTransform  for TcpConnector<S> 
 where
     S: Spawn + Send,
