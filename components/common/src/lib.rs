@@ -14,7 +14,7 @@ pub mod big_array;
 #[macro_use]
 pub mod define_fixed_bytes;
 pub mod async_adapter;
-pub mod frame_codec;
+// pub mod frame_codec;
 pub mod async_test_utils;
 pub mod futures_compat;
 pub mod conn;
@@ -23,4 +23,3 @@ pub mod dummy_listener;
 pub mod access_control;
 pub mod canonical_serialize;
 pub mod mutable_state;
-

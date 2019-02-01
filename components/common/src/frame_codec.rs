@@ -12,16 +12,13 @@
 //! - `data` (bytes, with length of `length`): the actual data
 
 
-extern crate tokio_io;
-extern crate bytes;
-extern crate byteorder;
 
 use std::io;
 use std::mem;
 use std::cmp;
-use self::bytes::{BytesMut};
-use self::tokio_io::codec::{Encoder, Decoder};
-use self::byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use bytes::{BytesMut};
+use tokio_io::codec::{Encoder, Decoder};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 
 const MAX_FRAME_LEN: usize = 1 << 20;
