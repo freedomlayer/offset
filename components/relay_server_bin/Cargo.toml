@@ -18,7 +18,7 @@ secure_channel = { path = "../secure_channel", version = "0.1.0" , package = "of
 version = { path = "../version", version = "0.1.0" , package = "offst-version" }
 net = { path = "../net", version = "0.1.0" , package = "offst-net" }
 
-
+clap = "2.32.0"
 log = "0.4"
 futures-preview = "0.3.0-alpha.11"
 
