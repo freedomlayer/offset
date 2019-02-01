@@ -126,7 +126,7 @@ where
 }
 
  
-pub async fn relay_server<ML,KL,MA,KA,MC,KC,S>(mut timer_client: TimerClient, 
+pub async fn relay_server_loop<ML,KL,MA,KA,MC,KC,S>(mut timer_client: TimerClient, 
                 incoming_conns: S,
                 keepalive_ticks: usize,
                 mut spawner: impl Spawn + Clone) -> Result<(), RelayServerError> 
@@ -305,7 +305,7 @@ mod tests {
 
         let keepalive_ticks: usize = 16;
 
-        let fut_relay_server = relay_server(timer_client,
+        let fut_relay_server = relay_server_loop(timer_client,
                      incoming_conns,
                      keepalive_ticks,
                      spawner.clone());
@@ -313,7 +313,7 @@ mod tests {
         spawner.spawn(
             fut_relay_server
                 .map_err(|_e| {
-                    // println!("relay_server() error: {:?}", e);
+                    // println!("relay_server_loop() error: {:?}", e);
                     ()
                 })
                 .map(|_| ())
@@ -412,7 +412,7 @@ mod tests {
 
         let keepalive_ticks: usize = 16;
 
-        let fut_relay_server = relay_server(timer_client,
+        let fut_relay_server = relay_server_loop(timer_client,
                      incoming_conns,
                      keepalive_ticks,
                      spawner.clone());
@@ -420,7 +420,7 @@ mod tests {
         spawner.spawn(
             fut_relay_server
                 .map_err(|_e| {
-                    // println!("relay_server() error: {:?}", e);
+                    // println!("relay_server_loop() error: {:?}", e);
                     ()
                 })
                 .map(|_| ())
