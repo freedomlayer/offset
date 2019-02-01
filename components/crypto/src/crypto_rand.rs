@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::ops::Deref;
 
-use ring::rand::SecureRandom;
+use ring::rand::{SecureRandom, SystemRandom};
 use ring::error::Unspecified;
 
 pub const RAND_VALUE_LEN: usize = 16;
@@ -10,6 +10,11 @@ pub const RAND_VALUE_LEN: usize = 16;
 define_fixed_bytes!(RandValue, RAND_VALUE_LEN);
 
 pub trait CryptoRandom: SecureRandom + Clone + Sync + Send {}
+
+/// Returns a secure cryptographic random generator
+pub fn system_random() -> SystemRandom {
+    SystemRandom::new()
+}
 
 #[derive(Clone)]
 pub struct RngContainer<R> {
