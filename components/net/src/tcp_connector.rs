@@ -1,17 +1,10 @@
-use bytes::Bytes;
-
 use common::conn::{FutTransform, BoxFuture, ConnPairVec};
 use proto::funder::messages::TcpAddress;
 
 use futures::compat::{Future01CompatExt};
 use futures::task::Spawn;
 
-use futures_01::stream::{Stream as Stream01};
-use futures_01::sink::{Sink as Sink01};
-
-
 use tokio::net::TcpStream;
-use tokio::codec::{Framed, LengthDelimitedCodec};
 
 use crate::utils::tcp_stream_to_conn_pair;
 use crate::types::tcp_address_to_socket_addr;

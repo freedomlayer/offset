@@ -7,7 +7,6 @@ use futures::channel::mpsc;
 
 use futures_01::stream::{Stream as Stream01};
 use futures_01::sink::{Sink as Sink01};
-use futures_01::sync::{mpsc as mpsc01};
 
 use tokio::net::TcpStream;
 use tokio::codec::{Framed, LengthDelimitedCodec};
@@ -124,6 +123,7 @@ where
 mod tests {
     use super::*;
 
+    use futures_01::sync::{mpsc as mpsc01};
     use futures::executor::ThreadPool;
 
     async fn task_conn_pair_01_to_03_basic<S>(mut spawner: S) 
@@ -150,7 +150,7 @@ mod tests {
         S: Spawn + Send,
     {
         let (sender_01, receiver_01) = mpsc01::channel::<u32>(0);
-        let (mut sender_03, mut receiver_03) = conn_pair_01_to_03((sender_01, receiver_01), &mut spawner);
+        let (mut sender_03, receiver_03) = conn_pair_01_to_03((sender_01, receiver_01), &mut spawner);
 
         drop(receiver_03);
 

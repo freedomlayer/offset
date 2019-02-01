@@ -1,21 +1,14 @@
-use std::net::SocketAddr;
-use bytes::Bytes;
-use tokio::net::{TcpListener as TokioTcpListener, 
-                 TcpStream};
-use tokio::codec::{Framed, LengthDelimitedCodec};
+use tokio::net::{TcpListener as TokioTcpListener};
 
 use futures::{StreamExt, SinkExt};
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 
-use futures_01::stream::{Stream as Stream01};
-use futures_01::sink::{Sink as Sink01};
-
 use common::conn::{Listener, ConnPairVec};
 use proto::funder::messages::TcpAddress;
 use crate::types::tcp_address_to_socket_addr;
 
-use futures::compat::{Compat, Stream01CompatExt};
+use futures::compat::Stream01CompatExt;
 
 use crate::utils::tcp_stream_to_conn_pair;
 
@@ -48,7 +41,7 @@ where
     fn listen(mut self, tcp_address: Self::Arg) -> (mpsc::Sender<Self::Config>,
                                         mpsc::Receiver<Self::Connection>) {
 
-        let (config_sender, mut config_sender_receiver) = mpsc::channel(0);
+        let (config_sender, _config_sender_receiver) = mpsc::channel(0);
         let (mut conn_receiver_sender, conn_receiver) = mpsc::channel(0);
 
         let socket_addr = tcp_address_to_socket_addr(&tcp_address);

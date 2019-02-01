@@ -1,4 +1,4 @@
-use std::net::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr};
+use std::net::{SocketAddr, IpAddr, Ipv4Addr};
 use futures::task::Spawn;
 use futures::executor::ThreadPool;
 use futures::{StreamExt, SinkExt};
@@ -9,8 +9,7 @@ use proto::funder::messages::{TcpAddress, TcpAddressV4};
 use crate::tcp_connector::TcpConnector;
 use crate::tcp_listener::TcpListener;
 
-use tokio::net::{TcpListener as TokioTcpListener, 
-                 TcpStream};
+use tokio::net::{TcpListener as TokioTcpListener};
 
 
 /// Get an available port we can listen on
@@ -26,7 +25,7 @@ fn get_available_port_v4() -> u16 {
 
 const TEST_MAX_FRAME_LEN: usize = 0x100;
 
-async fn task_tcp_client_server_v4<S>(mut spawner: S) 
+async fn task_tcp_client_server_v4<S>(spawner: S) 
 where
     S: Spawn + Clone + Send + 'static,
 {
