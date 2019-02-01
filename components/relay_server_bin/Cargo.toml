@@ -16,6 +16,7 @@ relay = { path = "../relay", version = "0.1.0" , package = "offst-relay" }
 keepalive = { path = "../keepalive", version = "0.1.0" , package = "offst-keepalive" }
 secure_channel = { path = "../secure_channel", version = "0.1.0" , package = "offst-secure-channel" }
 version = { path = "../version", version = "0.1.0" , package = "offst-version" }
+net = { path = "../net", version = "0.1.0" , package = "offst-net" }
 
 
 log = "0.4"
