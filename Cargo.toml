@@ -19,4 +19,5 @@ members = [
   "components/node",
   "components/net",
   "components/version",
+  "components/relay_server_bin",
 ]
