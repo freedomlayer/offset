@@ -15,6 +15,7 @@ use std::io::Read;
 
 use futures::executor::ThreadPool;
 use futures::task::SpawnExt;
+use futures::channel::mpsc;
 
 use clap::{Arg, App};
 
@@ -111,7 +112,18 @@ fn main() {
         port: 0, // TODO: Should be given as argument
     });
 
-    let (_config_sender, incoming_conns) = tcp_listener.listen(tcp_address);
+    let (_config_sender, incoming_raw_conns) = tcp_listener.listen(tcp_address);
+
+    // TODO: 
+    // - Add version prefix to every incoming connection
+    // - Move transform_pool_loop() to common crate. 
+    // - Use transform_pool_loop() to encrypt all incoming connections
+
+    // let (incoming_conns_sender, incoming_conns) = mpsc::channel(0);
+    thread_pool.spawn(async move {
+        // let raw_conn = await!(incoming_raw_conns.next());
+    });
+
 
     /*
     relay_server(incoming_conns,
