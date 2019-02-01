@@ -9,6 +9,10 @@
 #[macro_use]
 extern crate log;
 
-pub mod server;
-pub mod client;
+mod server;
+mod client;
+
+pub use self::client::client_listener::ClientListener;
+pub use self::client::client_connector::ClientConnector;
+pub use self::server::server::{relay_server, RelayServerError};
 

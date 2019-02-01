@@ -61,7 +61,7 @@ enum RelayServerEvent<ML,KL,MA,KA,MC,KC> {
 }
 
 #[derive(Debug)]
-enum RelayServerError {
+pub enum RelayServerError {
     IncomingConnsError,
     RequestTimerStreamError,
     TimerStreamError,

@@ -10,8 +10,7 @@ use timer::TimerClient;
 
 use crypto::identity::PublicKey;
 
-use relay::client::client_connector::ClientConnector;
-use relay::client::client_listener::ClientListener;
+use relay::{ClientListener, ClientConnector};
 
 use proto::funder::messages::{FunderToChanneler, ChannelerToFunder};
 use crate::channeler::{channeler_loop, ChannelerError};
