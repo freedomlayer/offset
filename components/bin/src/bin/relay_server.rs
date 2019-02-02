@@ -7,6 +7,7 @@
 
 #[macro_use]
 extern crate log;
+extern crate simple_logger;
 extern crate clap;
 
 use std::time::Duration;
@@ -81,6 +82,7 @@ where
 }
 
 fn main() {
+    simple_logger::init().unwrap();
     let matches = App::new("Offst Relay Server")
                           .version("0.1")
                           .author("real <real@freedomlayer.org>")

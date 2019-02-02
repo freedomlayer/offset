@@ -28,5 +28,6 @@ net = { path = "../net", version = "0.1.0" , package = "offst-net" }
 
 clap = "2.32.0"
 log = "0.4"
+simple_logger = "1.0.1"
 futures-preview = "0.3.0-alpha.11"
 
