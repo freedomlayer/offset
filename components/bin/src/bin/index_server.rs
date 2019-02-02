@@ -106,45 +106,7 @@ enum IndexServerBinError {
     CreateIdentityError,
 }
 
-/*
-    let c_thread_pool = thread_pool.clone();
-    let c_version_enc_keepalive = version_enc_keepalive.clone();
-    let incoming_client_transform = FuncFutTransform::new(move |conn_pair| {
-        let mut c_thread_pool = c_thread_pool.clone();
-        let c_version_enc_keepalive = c_version_enc_keepalive.clone();
-        Box::pin(async move {
-            let (public_key, (mut sender, mut receiver)) = await!(c_version_enc_keepalive(conn_pair))?;
 
-            let (user_sender, mut from_user_sender) = mpsc::channel(0);
-            let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
-
-            // Deserialize received data
-            c_thread_pool.spawn(async move {
-                while let Some(data) = await!(receiver.next()) {
-                    let message = match deserialize_index_client_to_server(&data) {
-                        Ok(message) => message,
-                        Err(_) => return,
-                    };
-                    if let Err(_) = await!(to_user_receiver.send(message)) {
-                        return;
-                    }
-                }
-            });
-
-            // Serialize sent data:
-            c_thread_pool.spawn(async move {
-                while let Some(message) = await!(from_user_sender.next()) {
-                    let data = serialize_index_server_to_client(&message);
-                    if let Err(_) = await!(sender.send(data)) {
-                        return;
-                    }
-                }
-            });
-
-            Some((public_key, (user_sender, user_receiver)))
-        })
-    });
-*/
 fn run() -> Result<(), IndexServerBinError> {
     simple_logger::init_with_level(Level::Warn).unwrap();
     let matches = App::new("Offst Index Server")
@@ -253,6 +215,7 @@ fn run() -> Result<(), IndexServerBinError> {
         })
     };
 
+    // TODO: Possibly refactor this code into a separate function:
     let c_thread_pool = thread_pool.clone();
     let c_version_enc_keepalive = version_enc_keepalive.clone();
     let incoming_client_transform = FuncFutTransform::new(move |conn_pair| {
