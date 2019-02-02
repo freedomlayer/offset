@@ -14,6 +14,10 @@ name = "relay_server"
 path = "src/bin/relay_server.rs"
 
 [[bin]]
+name = "index_server"
+path = "src/bin/index_server.rs"
+
+[[bin]]
 name = "gen_identity"
 path = "src/bin/gen_identity.rs"
 

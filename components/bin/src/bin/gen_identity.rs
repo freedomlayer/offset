@@ -9,21 +9,13 @@ extern crate log;
 extern crate simple_logger;
 extern crate clap;
 
-use std::io::{self, Write};
-use std::path::PathBuf;
-use std::fs::File;
-
 use clap::{Arg, App};
 use log::Level;
 
 use crypto::crypto_rand::system_random;
 use crypto::identity::generate_pkcs8_key_pair;
 
-fn save_identity_to_file(pkcs8_buf: [u8; 85], path_buf: PathBuf) -> Result<(),io::Error> {
-    let mut file = File::create(path_buf)?;
-    file.write(&pkcs8_buf)?;
-    Ok(())
-}
+use bin::store_identity_to_file;
 
 fn main() {
     simple_logger::init_with_level(Level::Warn).unwrap();
@@ -44,7 +36,7 @@ fn main() {
     let pkcs8 = generate_pkcs8_key_pair(&rng);
 
     let output_path = matches.value_of("output").unwrap();
-    if let Err(e) = save_identity_to_file(pkcs8, output_path.into()) {
-        error!("Failed to save generated identity to file: {:?}", e);
+    if let Err(e) = store_identity_to_file(pkcs8, output_path.into()) {
+        error!("Failed to store generated identity to file: {:?}", e);
     }
 }

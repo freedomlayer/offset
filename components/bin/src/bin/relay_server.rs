@@ -11,9 +11,6 @@ extern crate simple_logger;
 extern crate clap;
 
 use std::time::Duration;
-use std::path::PathBuf;
-use std::fs::File;
-use std::io::Read;
 
 use log::Level;
 
@@ -26,7 +23,7 @@ use clap::{Arg, App};
 
 use common::conn::{Listener, FutTransform, ConnPairVec, BoxFuture};
 
-use crypto::identity::{SoftwareEd25519Identity, Identity, PublicKey};
+use crypto::identity::PublicKey;
 use crypto::crypto_rand::system_random;
 use identity::{create_identity, IdentityClient};
 
@@ -43,15 +40,8 @@ use secure_channel::SecureChannel;
 use version::VersionPrefix;
 use net::{TcpListener, socket_addr_to_tcp_address};
 
-/// Load an identity from a file
-/// The file stores the private key according to PKCS#8.
-/// TODO: Be able to read base64 style PKCS#8 files.
-fn load_identity_from_file(path_buf: PathBuf) -> Option<impl Identity> {
-    let mut file = File::open(path_buf).ok()?;
-    let mut buf = [0u8; 85]; // TODO: Make this more generic?
-    file.read(&mut buf).ok()?;
-    SoftwareEd25519Identity::from_pkcs8(&buf).ok()
-}
+use bin::load_identity_from_file;
+
 
 /// Start a secure channel without knowing the identity of the remote
 /// side ahead of time.
@@ -89,11 +79,11 @@ fn main() {
                           .version("0.1")
                           .author("real <real@freedomlayer.org>")
                           .about("Spawns an Offst Relay Server")
-                          .arg(Arg::with_name("pkfile")
-                               .short("p")
-                               .long("pkfile")
-                               .value_name("pkfile")
-                               .help("Sets private key input file to use")
+                          .arg(Arg::with_name("idfile")
+                               .short("i")
+                               .long("idfile")
+                               .value_name("idfile")
+                               .help("Identity file path")
                                .required(true))
                           .arg(Arg::with_name("laddr")
                                .short("l")
@@ -116,8 +106,8 @@ fn main() {
     };
 
     // Parse file an get identity:
-    let pkfile_path = matches.value_of("pkfile").unwrap();
-    let identity = match load_identity_from_file(pkfile_path.into()) {
+    let idfile_path = matches.value_of("idfile").unwrap();
+    let identity = match load_identity_from_file(idfile_path.into()) {
         Some(identity) => identity,
         None => {
             error!("Failed to parse key file! Aborting.");

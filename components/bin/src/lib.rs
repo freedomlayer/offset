@@ -8,3 +8,7 @@
 extern crate log;
 extern crate clap;
 
+mod identity_file;
+
+pub use self::identity_file::{load_identity_from_file, store_identity_to_file};
+
