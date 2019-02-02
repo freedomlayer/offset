@@ -44,7 +44,7 @@ async fn initial_exchange<EK, M: 'static,K: 'static,R: CryptoRandom + 'static>(m
                               rng: R)
                             -> Result<(ScState, K, M), SecureChannelError>
 where
-    R: CryptoRandom,
+    R: CryptoRandom + Clone,
     M: Stream<Item=Vec<u8>> + std::marker::Unpin,
     K: Sink<SinkItem=Vec<u8>, SinkError=EK> + std::marker::Unpin,
 {
@@ -192,7 +192,7 @@ where
     EK: 'static,
     M: Stream<Item=Vec<u8>> + std::marker::Unpin + std::marker::Send + 'static,
     K: Sink<SinkItem=Vec<u8>, SinkError=EK> + std::marker::Unpin + std::marker::Send + 'static,
-    R: CryptoRandom + 'static,
+    R: CryptoRandom + Clone + 'static,
     S: Spawn,
 {
 
