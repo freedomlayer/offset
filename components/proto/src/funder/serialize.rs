@@ -407,7 +407,7 @@ mod tests {
         let relay_address4 = RelayAddress {
             public_key: PublicKey::from(&[0x11; PUBLIC_KEY_LEN]),
             address: TcpAddress::V4(TcpAddressV4 {
-                address: [0,1,2,3],
+                octets: [0,1,2,3u8],
                 port: 1337,
             }),
         };
@@ -415,7 +415,7 @@ mod tests {
         let relay_address6 = RelayAddress {
             public_key: PublicKey::from(&[0x11; PUBLIC_KEY_LEN]),
             address: TcpAddress::V6(TcpAddressV6 {
-                address: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],
+                segments: [0,1,2,3,4,5,6,7u16],
                 port: 1338,
             }),
         };
