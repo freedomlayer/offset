@@ -489,14 +489,14 @@ pub enum FunderOutgoingControl<A: Clone> {
 /// IPv4 address (TCP)
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TcpAddressV4 {
-    pub address: [u8; 4], // 32 bit
+    pub octets: [u8; 4], // 32 bit
     pub port: u16,
 }
 
 /// IPv6 address (TCP)
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TcpAddressV6 {
-    pub address: [u8; 16], // 128 bit
+    pub segments: [u16; 8], // 128 bit
     pub port: u16,
 }
 
@@ -519,7 +519,7 @@ pub struct RelayAddress {
 impl CanonicalSerialize for TcpAddressV4 {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.address);
+        res_bytes.extend_from_slice(&self.octets);
         res_bytes.write_u16::<BigEndian>(self.port).unwrap();
         res_bytes
     }
@@ -528,7 +528,10 @@ impl CanonicalSerialize for TcpAddressV4 {
 impl CanonicalSerialize for TcpAddressV6 {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.address);
+        for s in self.segments.iter() {
+            res_bytes.push((s >> 8) as u8);
+            res_bytes.push((s & 0xff) as u8);
+        };
         res_bytes.write_u16::<BigEndian>(self.port).unwrap();
         res_bytes
     }

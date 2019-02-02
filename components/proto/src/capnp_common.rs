@@ -147,13 +147,13 @@ pub fn read_relay_address(from: &relay_address::Reader) -> Result<RelayAddress, 
         common_capnp::tcp_address::V4(res_tcp_address_v4) => {
             let tcp_address_v4 = res_tcp_address_v4?;
             let address_u32 = tcp_address_v4.get_address();
-            let mut address = [0u8; 4];
-            BigEndian::write_u32(&mut address, address_u32);
+            let mut octets = [0u8; 4];
+            BigEndian::write_u32(&mut octets, address_u32);
 
             let port = tcp_address_v4.get_port();
 
             TcpAddress::V4(TcpAddressV4 {
-                address,
+                octets,
                 port,
             })
         },
@@ -165,8 +165,13 @@ pub fn read_relay_address(from: &relay_address::Reader) -> Result<RelayAddress, 
 
             let port = tcp_address_v6.get_port();
 
+            let mut segments = [0u16; 8];
+            for i in 0 .. 8 {
+                segments[i] = ((address[2*i] as u16) << 8) | (address[2*i + 1] as u16);
+            }
+
             TcpAddress::V6(TcpAddressV6 {
-                address,
+                segments,
                 port,
             })
         },
@@ -186,7 +191,7 @@ pub fn write_relay_address(from: &RelayAddress, to: &mut relay_address::Builder)
     match &from.address {
         TcpAddress::V4(tcp_address_v4) => {
             let mut tcp_address_v4_writer = tcp_address_builder.init_v4();
-            let address_u32 = BigEndian::read_u32(&tcp_address_v4.address);
+            let address_u32 = BigEndian::read_u32(&tcp_address_v4.octets);
             tcp_address_v4_writer.set_port(tcp_address_v4.port);
             tcp_address_v4_writer.set_address(address_u32);
         },
@@ -194,7 +199,13 @@ pub fn write_relay_address(from: &RelayAddress, to: &mut relay_address::Builder)
             let mut tcp_address_v6_writer = tcp_address_builder.init_v6();
             tcp_address_v6_writer.set_port(tcp_address_v6.port);
             let mut address_builder = tcp_address_v6_writer.init_address();
-            write_buffer128(&tcp_address_v6.address, &mut address_builder);
+            let mut address = [0u8; 16];
+            for i in 0 .. 8usize {
+                let segment = tcp_address_v6.segments[i];
+                address[2*i]     = (segment >> 8) as u8;
+                address[2*i + 1] = (segment & 0xff) as u8;
+            }
+            write_buffer128(&address, &mut address_builder);
         },
     }
 }
