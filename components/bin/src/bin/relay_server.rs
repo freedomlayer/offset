@@ -109,7 +109,7 @@ fn run() -> Result<(), RelayServerBinError> {
         .map_err(|_| RelayServerBinError::ParseListenAddressError)?;
     let listen_tcp_address = socket_addr_to_tcp_address(&socket_addr);
 
-    // Parse file an get identity:
+    // Parse identity file:
     let idfile_path = matches.value_of("idfile").unwrap();
     let identity = load_identity_from_file(idfile_path.into())
         .map_err(|_| RelayServerBinError::LoadIdentityError)?;
