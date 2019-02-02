@@ -15,6 +15,8 @@ use std::path::PathBuf;
 use std::fs::File;
 use std::io::Read;
 
+use log::Level;
+
 use futures::executor::ThreadPool;
 use futures::task::SpawnExt;
 use futures::channel::mpsc;
@@ -82,7 +84,7 @@ where
 }
 
 fn main() {
-    simple_logger::init().unwrap();
+    simple_logger::init_with_level(Level::Warn).unwrap();
     let matches = App::new("Offst Relay Server")
                           .version("0.1")
                           .author("real <real@freedomlayer.org>")
@@ -201,7 +203,6 @@ fn main() {
                 KEEPALIVE_TICKS,
                 thread_pool.clone());
 
-    info!("Listening on {} ...", listen_address_str);
     if let Err(e) = thread_pool.run(relay_server_fut) {
         error!("relay_server() exited with error: {:?}", e);
     }
