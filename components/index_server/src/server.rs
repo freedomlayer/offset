@@ -274,7 +274,8 @@ where
         // Expire old edges for `node_public_key`:
         // Note: This tick happens every time a message is received from this `node_public_key`,
         // and not every constant amount of time. 
-        self.graph_client.tick(mutations_update.node_public_key.clone());
+        await!(self.graph_client.tick(mutations_update.node_public_key.clone()))
+            .map_err(|_| ServerLoopError::GraphClientError)?;
         
         // Add a link to the time proof:
         forward_mutations_update
@@ -706,6 +707,15 @@ mod tests {
 
         await!(client_sender.send(IndexClientToServer::MutationsUpdate(mutations_update))).unwrap();
 
+        // Handle tick request:
+        match await!(graph_requests_receiver.next()).unwrap() {
+            GraphRequest::Tick(node, response_sender) => {
+                assert_eq!(node, client_public_key);
+                response_sender.send(()).unwrap();
+            }
+            _ => unreachable!(),
+        }
+
         // Handle the graph request:
         match await!(graph_requests_receiver.next()).unwrap() {
             GraphRequest::RemoveEdge(src, dest, response_sender) => {
@@ -968,6 +978,15 @@ mod tests {
 
         macro_rules! process_graph_request {
             ($index:expr) => (
+                // Handle tick request:
+                match await!(test_servers[$index].graph_requests_receiver.next()).unwrap() {
+                    GraphRequest::Tick(node, response_sender) => {
+                        assert_eq!(node, client_public_key);
+                        response_sender.send(()).unwrap();
+                    }
+                    _ => unreachable!(),
+                }
+
                 match await!(test_servers[$index].graph_requests_receiver.next()).unwrap() {
                     GraphRequest::RemoveEdge(src, dest, response_sender) => {
                         assert_eq!(src, client_public_key);
