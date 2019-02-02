@@ -1,9 +1,17 @@
 [package]
-name = "offst-relay-server-bin"
+name = "offst-bin"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 
 edition = "2018"
+
+[lib]
+name = "bin"
+path = "src/lib.rs"
+
+[[bin]]
+name = "relay_server"
+path = "src/bin/relay_server.rs"
 
 [dependencies]
 

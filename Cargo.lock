@@ -520,6 +520,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "offst-bin"
+version = "0.1.0"
+dependencies = [
+ "clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures-preview 0.3.0-alpha.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "offst-common 0.1.0",
+ "offst-crypto 0.1.0",
+ "offst-identity 0.1.0",
+ "offst-keepalive 0.1.0",
+ "offst-net 0.1.0",
+ "offst-proto 0.1.0",
+ "offst-relay 0.1.0",
+ "offst-secure-channel 0.1.0",
+ "offst-timer 0.1.0",
+ "offst-version 0.1.0",
+]
+
+[[package]]
 name = "offst-channeler"
 version = "0.1.0"
 dependencies = [
@@ -713,25 +732,6 @@ dependencies = [
  "offst-keepalive 0.1.0",
  "offst-proto 0.1.0",
  "offst-timer 0.1.0",
-]
-
-[[package]]
-name = "offst-relay-server-bin"
-version = "0.1.0"
-dependencies = [
- "clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures-preview 0.3.0-alpha.12 (registry+https://github.com/rust-lang/crates.io-index)",
- "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-identity 0.1.0",
- "offst-keepalive 0.1.0",
- "offst-net 0.1.0",
- "offst-proto 0.1.0",
- "offst-relay 0.1.0",
- "offst-secure-channel 0.1.0",
- "offst-timer 0.1.0",
- "offst-version 0.1.0",
 ]
 
 [[package]]
