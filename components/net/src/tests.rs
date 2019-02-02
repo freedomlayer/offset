@@ -31,7 +31,7 @@ where
 {
     let available_port = get_available_port_v4();
     let tcp_address = TcpAddress::V4(TcpAddressV4 {
-        address: [127, 0, 0, 1],
+        octets: [127, 0, 0, 1],
         port: available_port,
     });
 
