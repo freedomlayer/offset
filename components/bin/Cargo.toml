@@ -33,6 +33,7 @@ keepalive = { path = "../keepalive", version = "0.1.0" , package = "offst-keepal
 secure_channel = { path = "../secure_channel", version = "0.1.0" , package = "offst-secure-channel" }
 version = { path = "../version", version = "0.1.0" , package = "offst-version" }
 net = { path = "../net", version = "0.1.0" , package = "offst-net" }
+index_server = { path = "../index_server", version = "0.1.0" , package = "offst-index-server" }
 
 clap = "2.32.0"
 log = "0.4"

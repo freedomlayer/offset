@@ -529,6 +529,7 @@ dependencies = [
  "offst-common 0.1.0",
  "offst-crypto 0.1.0",
  "offst-identity 0.1.0",
+ "offst-index-server 0.1.0",
  "offst-keepalive 0.1.0",
  "offst-net 0.1.0",
  "offst-proto 0.1.0",
