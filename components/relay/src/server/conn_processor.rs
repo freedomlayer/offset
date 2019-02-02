@@ -10,7 +10,7 @@ use futures::channel::mpsc;
 
 
 use common::int_convert::usize_to_u64;
-use common::conn::{FutTransform, ConnPair};
+use common::conn::{FutTransform, ConnPair, ConnPairVec};
 
 use crypto::identity::PublicKey;
 use timer::{TimerTick, TimerClient};
@@ -119,13 +119,13 @@ pub fn conn_processor<T,FT>(incoming_conns: T,
                                           impl Stream<Item=Vec<u8>>,
                                           impl Sink<SinkItem=Vec<u8>,SinkError=()>>>
 where
-    T: Stream<Item=(ConnPair<Vec<u8>,Vec<u8>>, PublicKey)> + Unpin,
-    FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>, 
-        Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone,
+    T: Stream<Item=(PublicKey, ConnPairVec)> + Unpin,
+    FT: FutTransform<Input=ConnPairVec,
+        Output=ConnPairVec> + Clone,
 {
 
     incoming_conns
-        .map(move |((sender, receiver), public_key)| {
+        .map(move |(public_key, (sender, receiver))| {
             process_conn(sender, receiver, public_key, 
                          keepalive_transform.clone(),
                          timer_client.clone(), conn_timeout_ticks)
@@ -254,7 +254,7 @@ mod tests {
         let (mut remote_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
 
         let incoming_conns = stream::iter::<_>(
-            vec![((local_sender, local_receiver), public_key.clone())]);
+            vec![(public_key.clone(), (local_sender, local_receiver))]);
 
         let conn_timeout_ticks = 16;
         let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
