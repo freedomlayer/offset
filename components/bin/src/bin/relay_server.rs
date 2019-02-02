@@ -16,10 +16,11 @@ use std::io::Read;
 use futures::executor::ThreadPool;
 use futures::task::SpawnExt;
 use futures::channel::mpsc;
+use futures::StreamExt;
 
 use clap::{Arg, App};
 
-use common::conn::Listener;
+use common::conn::{Listener, FutTransform};
 
 use crypto::identity::{SoftwareEd25519Identity, Identity};
 use crypto::crypto_rand::system_random;
@@ -31,6 +32,8 @@ use proto::consts::{TICK_MS, KEEPALIVE_TICKS,
 use proto::funder::messages::{TcpAddress, TcpAddressV4};
 
 use common::int_convert::usize_to_u64;
+use common::transform_pool::transform_pool_loop;
+
 use timer::create_timer;
 use relay::{relay_server, RelayServerError};
 use secure_channel::SecureChannel;
@@ -46,6 +49,27 @@ fn load_identity_from_file(path_buf: PathBuf) -> Option<impl Identity> {
     file.read(&mut buf).ok()?;
     SoftwareEd25519Identity::from_pkcs8(&buf).ok()
 }
+
+/*
+struct ConnTransform<VT,ET> {
+    version_transform: VT,
+    encrypt_transform: ET,
+}
+
+impl<VT,ET> FutTransform for ConnTransform<VT,ET> 
+where
+    VT: FutTransform<Input=ConnPair, Output=ConnPair>,
+    VT: FutTransform<Input=ConnPair, Output=Option<ConnPair>>,
+{
+    type Input = ConnPair;
+    type Output = Option<ConnPair>;
+
+    fn transform(&mut self, conn_pair: Self::Input)
+        -> BoxFuture<'_, Self::Output> {
+            let ver_conn_pair = await!(self.version_transform.transform(conn_pair));
+    }
+}
+*/
 
 fn main() {
     let matches = App::new("Offst Relay Server")
@@ -120,6 +144,20 @@ fn main() {
     // - Use transform_pool_loop() to encrypt all incoming connections
 
     // let (incoming_conns_sender, incoming_conns) = mpsc::channel(0);
+    
+    let incoming_ver_conns = incoming_raw_conns
+        .then(move |raw_conn| version_transform.transform(raw_conn));
+
+    let (enc_conns_sender, incoming_enc_conns) = mpsc::channel(0);
+
+    let enc_pool_fut = transform_pool_loop(incoming_ver_conns,
+                        enc_conns_sender,
+                        encrypt_transform,
+                        max_concurrent, // ???
+                        thread_pool.clone())
+        .map_err(|e| error!("transform_pool_loop() error: {:?}", e))
+        .map(|_| ());
+    thread_pool.spawn(enc_pool_fut);
     thread_pool.spawn(async move {
         /*
         while let Some(raw_conn) = await!(incoming_raw_conns.next()) {
