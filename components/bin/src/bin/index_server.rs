@@ -8,19 +8,81 @@
 extern crate log;
 
 use std::time::Duration;
+use std::net::SocketAddr;
 
 use futures::executor::ThreadPool;
+use futures::task::SpawnExt;
 
 use clap::{Arg, App};
 use log::Level;
 
 use common::int_convert::usize_to_u64;
+use common::conn::{Listener, FutTransform, ConnPairVec, BoxFuture,
+                    FuncFutTransform};
 
 use crypto::crypto_rand::system_random;
+use crypto::identity::PublicKey;
+
+use identity::{create_identity, IdentityClient};
+
 use index_server::{index_server, IndexServerError};
 use timer::create_timer;
-use proto::consts::{TICK_MS, INDEX_NODE_TIMEOUT_TICKS};
+use proto::consts::{TICK_MS, INDEX_NODE_TIMEOUT_TICKS, 
+    MAX_FRAME_LENGTH, PROTOCOL_VERSION,
+    TICKS_TO_REKEY, KEEPALIVE_TICKS};
 
+use net::{TcpConnector, TcpListener, socket_addr_to_tcp_address};
+
+use version::VersionPrefix;
+use secure_channel::SecureChannel;
+use keepalive::KeepAliveChannel;
+
+use bin::load_identity_from_file;
+
+/*
+#[derive(Clone)]
+struct VersionEncKeepalive<VT,ET,KT> {
+    version_transform: VT,
+    encrypt_transform: ET,
+    keepalive_transform: KT,
+}
+
+impl<VT,ET,KT> VersionEncKeepalive<VT,ET,KT> {
+    pub fn new(version_transform: VT,
+               encrypt_transform: ET,
+               keepalive_transform: KT) -> Self {
+
+        VersionEncKeepalive {
+            version_transform,
+            encrypt_transform,
+            keepalive_transform,
+        }
+    }
+}
+
+impl<VT,ET,KT> FutTransform for VersionEncKeepalive<VT,ET,KT>
+where
+    VT: FutTransform<Input=ConnPairVec, Output=ConnPairVec> + Send,
+    ET: FutTransform<Input=(Option<PublicKey>, ConnPairVec),
+                     Output=Option<(PublicKey, ConnPairVec)>> + Send,
+    KT: FutTransform<Input=ConnPairVec, Output=ConnPairVec> + Send,
+{
+    type Input = ConnPairVec;
+    type Output = Option<(PublicKey, ConnPairVec)>;
+
+    fn transform(&mut self, conn_pair: Self::Input)
+        -> BoxFuture<'_, Self::Output> {
+
+        Box::pin(async move {
+            let conn_pair = await!(self.version_transform.transform(conn_pair));
+            let (public_key, conn_pair) =
+                await!(self.encrypt_transform.transform((None, conn_pair)))?;
+            let conn_pair = await!(self.keepalive_transform.transform(conn_pair));
+            Some((public_key, conn_pair))
+        })
+    }
+}
+*/
 
 #[derive(Debug)]
 enum IndexServerBinError {
@@ -28,6 +90,10 @@ enum IndexServerBinError {
     CreateTimerError,
     RequestTimerStreamError,
     IndexServerError(IndexServerError),
+    ParseClientListenAddressError,
+    ParseServerListenAddressError,
+    LoadIdentityError,
+    CreateIdentityError,
 }
 
 fn run() -> Result<(), IndexServerBinError> {
@@ -60,9 +126,32 @@ fn run() -> Result<(), IndexServerBinError> {
                                .required(true))
                           .get_matches();
 
+    // Parse clients listening address
+    let client_listen_address_str = matches.value_of("lclient").unwrap();
+    let socket_addr: SocketAddr = client_listen_address_str.parse()
+        .map_err(|_| IndexServerBinError::ParseClientListenAddressError)?;
+    let client_listen_tcp_address = socket_addr_to_tcp_address(&socket_addr);
+
+    // Parse servers listening address
+    let server_listen_address_str = matches.value_of("lserver").unwrap();
+    let socket_addr: SocketAddr = client_listen_address_str.parse()
+        .map_err(|_| IndexServerBinError::ParseServerListenAddressError)?;
+    let server_listen_tcp_address = socket_addr_to_tcp_address(&socket_addr);
+
+    // Parse identity file:
+    let idfile_path = matches.value_of("idfile").unwrap();
+    let identity = load_identity_from_file(idfile_path.into())
+        .map_err(|_| IndexServerBinError::LoadIdentityError)?;
+
     // Create a ThreadPool:
     let mut thread_pool = ThreadPool::new()
         .map_err(|_| IndexServerBinError::CreateThreadPoolError)?;
+
+    // Spawn identity service:
+    let (sender, identity_loop) = create_identity(identity);
+    thread_pool.spawn(identity_loop)
+        .map_err(|_| IndexServerBinError::CreateIdentityError)?;
+    let identity_client = IdentityClient::new(sender);
 
     // Get a timer client:
     let dur = Duration::from_millis(usize_to_u64(TICK_MS).unwrap()); 
@@ -73,8 +162,60 @@ fn run() -> Result<(), IndexServerBinError> {
     let timer_stream = thread_pool.run(timer_client.request_timer_stream())
         .map_err(|_| IndexServerBinError::RequestTimerStreamError)?;
 
-    /*
+
+    // Start listening to clients:
+    let client_tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
+    let (_config_sender, incoming_client_raw_conns) = client_tcp_listener.listen(client_listen_tcp_address);
+
+    // Start listening to servers:
+    let server_tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
+    let (_config_sender, incoming_server_raw_conns) = server_tcp_listener.listen(server_listen_tcp_address);
+
+    // A tcp connector, Used to connect to remote servers:
+    let server_tcp_connector = TcpConnector::new(MAX_FRAME_LENGTH, thread_pool.clone());
+
+
+    let mut version_transform = VersionPrefix::new(PROTOCOL_VERSION,
+                                               thread_pool.clone());
     let rng = system_random();
+    let mut encrypt_transform = SecureChannel::new(
+        identity_client,
+        rng.clone(),
+        timer_client.clone(),
+        TICKS_TO_REKEY,
+        thread_pool.clone());
+
+    let mut keepalive_transform = KeepAliveChannel::new(
+        timer_client,
+        KEEPALIVE_TICKS,
+        thread_pool.clone());
+
+    let version_enc_keepalive = FuncFutTransform::new(|conn_pair| {
+        let mut c_version_transform = version_transform.clone();
+        let mut c_encrypt_transform = encrypt_transform.clone();
+        let mut c_keepalive_transform = keepalive_transform.clone();
+        Box::pin(async move {
+            let conn_pair = await!(c_version_transform.transform(conn_pair));
+            let (public_key, conn_pair) =
+                await!(c_encrypt_transform.transform((None, conn_pair)))?;
+            let conn_pair = await!(c_keepalive_transform.transform(conn_pair));
+            Some((public_key, conn_pair))
+        })
+    });
+
+    // TODO:
+    // - For every connections:
+    //      - Version prefix
+    //      - Encrypt transform (Should be done using a pool)
+    //      - keepalive transform
+    //
+    //      - Serialization (Different for each connection type)
+    
+    /*
+    // IS: Stream<Item=(PublicKey, ServerConn)> + Unpin,
+    // IC: Stream<Item=(PublicKey, ClientConn)> + Unpin,
+    // SC: FutTransform<Input=(PublicKey, A), Output=ServerConn> + Clone + Send + 'static,
+
     let index_server_fut = index_server(index_server_config: IndexServerConfig<A>,
                    incoming_server_connections: IS,
                    incoming_client_connections: IC,
