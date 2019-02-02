@@ -7,8 +7,6 @@
 
 #[macro_use]
 extern crate log;
-extern crate simple_logger;
-extern crate clap;
 
 use std::time::Duration;
 
