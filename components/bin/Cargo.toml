@@ -13,6 +13,10 @@ path = "src/lib.rs"
 name = "relay_server"
 path = "src/bin/relay_server.rs"
 
+[[bin]]
+name = "gen_identity"
+path = "src/bin/gen_identity.rs"
+
 [dependencies]
 
 common = { path = "../common", version = "0.1.0", package = "offst-common" }
