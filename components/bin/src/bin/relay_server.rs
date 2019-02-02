@@ -121,7 +121,11 @@ fn main() {
 
     // let (incoming_conns_sender, incoming_conns) = mpsc::channel(0);
     thread_pool.spawn(async move {
-        // let raw_conn = await!(incoming_raw_conns.next());
+        /*
+        while let Some(raw_conn) = await!(incoming_raw_conns.next()) {
+            version_transform.transform(raw_conn)
+        }
+        */
     });
 
 

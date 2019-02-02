@@ -1,8 +1,8 @@
-use futures::{/* FutureExt, TryFutureExt, */ Stream, StreamExt, Sink, SinkExt};
+use futures::{Stream, StreamExt, Sink, SinkExt};
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 
-use common::conn::FutTransform;
+use crate::conn::FutTransform;
 
 
 #[derive(Debug)]
