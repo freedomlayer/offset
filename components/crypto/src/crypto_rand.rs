@@ -12,7 +12,6 @@ define_fixed_bytes!(RandValue, RAND_VALUE_LEN);
 pub trait CryptoRandom: SecureRandom + Sync + Send {}
 
 
-#[derive(Clone)]
 pub struct RngContainer<R> {
     arc_rng: Arc<R>,
 }
@@ -21,6 +20,14 @@ impl<R> RngContainer<R> {
     pub fn new(rng: R) -> RngContainer<R> {
         RngContainer {
             arc_rng: Arc::new(rng),
+        }
+    }
+}
+
+impl<R> Clone for RngContainer<R> {
+    fn clone(&self) -> Self {
+        RngContainer {
+            arc_rng: self.arc_rng.clone(),
         }
     }
 }
@@ -46,7 +53,7 @@ impl<R> Deref for RngContainer<R> {
 }
 
 /// Returns a secure cryptographic random generator
-pub fn system_random() -> impl CryptoRandom {
+pub fn system_random() -> impl CryptoRandom + Clone {
     RngContainer::new(SystemRandom::new())
 }
 
