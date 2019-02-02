@@ -23,3 +23,7 @@ pub const CONN_TIMEOUT_TICKS: usize = 4;
 /// The stream TCP connection is split into prefix length frames. This is the maximum allowed
 /// length for such frame, measured in bytes.
 pub const MAX_FRAME_LENGTH: usize = 1 << 20; // 1[MB]
+
+/// Maximum amount of concurrent encrypted channel set-ups.
+/// We set this number to avoid DoS from half finished encrypted channel negotiations.
+pub const MAX_CONCURRENT_ENCRYPT: usize = 0x200;
