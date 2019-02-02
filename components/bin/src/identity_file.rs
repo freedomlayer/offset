@@ -5,19 +5,39 @@ use std::path::PathBuf;
 
 use crypto::identity::{SoftwareEd25519Identity, Identity};
 
+#[derive(Debug)]
+pub enum IdentityFileError {
+    IoError(io::Error),
+    ParseError,
+}
+
+impl From<io::Error> for IdentityFileError {
+    fn from(io_error: io::Error) -> Self {
+        IdentityFileError::IoError(io_error)
+    }
+}
+
 /// Load an identity from a file
 /// The file stores the private key according to PKCS#8.
 /// TODO: Be able to read base64 style PKCS#8 files.
-pub fn load_identity_from_file(path_buf: PathBuf) -> Option<impl Identity> {
-    let mut file = File::open(path_buf).ok()?;
+pub fn load_identity_from_file(path_buf: PathBuf) 
+    -> Result<impl Identity, IdentityFileError> {
+
+    let mut file = File::open(path_buf)?;
     let mut buf = [0u8; 85]; // TODO: Make this more generic?
-    file.read(&mut buf).ok()?;
-    SoftwareEd25519Identity::from_pkcs8(&buf).ok()
+    file.read(&mut buf)?;
+    SoftwareEd25519Identity::from_pkcs8(&buf)
+        .map_err(|_| IdentityFileError::ParseError)
 }
 
 
-pub fn store_identity_to_file(pkcs8_buf: [u8; 85], path_buf: PathBuf) -> Result<(),io::Error> {
+pub fn store_identity_to_file(pkcs8_buf: [u8; 85], path_buf: PathBuf) 
+    -> Result<(), IdentityFileError> {
+
     let mut file = File::create(path_buf)?;
     file.write(&pkcs8_buf)?;
     Ok(())
 }
+
+
+// TODO: Tests

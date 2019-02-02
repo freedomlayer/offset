@@ -108,8 +108,8 @@ fn main() {
     // Parse file an get identity:
     let idfile_path = matches.value_of("idfile").unwrap();
     let identity = match load_identity_from_file(idfile_path.into()) {
-        Some(identity) => identity,
-        None => {
+        Ok(identity) => identity,
+        Err(_) => {
             error!("Failed to parse key file! Aborting.");
             return;
         },
