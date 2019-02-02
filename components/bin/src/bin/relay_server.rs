@@ -9,6 +9,7 @@
 extern crate log;
 
 use std::time::Duration;
+use std::net::SocketAddr;
 
 use log::Level;
 
@@ -33,7 +34,7 @@ use common::int_convert::usize_to_u64;
 use common::transform_pool::transform_pool_loop;
 
 use timer::create_timer;
-use relay::relay_server;
+use relay::{relay_server, RelayServerError};
 use secure_channel::SecureChannel;
 use version::VersionPrefix;
 use net::{TcpListener, socket_addr_to_tcp_address};
@@ -71,7 +72,18 @@ where
     }
 }
 
-fn main() {
+#[derive(Debug)]
+enum RelayServerBinError {
+    ParseListenAddressError,
+    CreateThreadPoolError,
+    LoadIdentityError,
+    CreateIdentityError,
+    CreateTimerError,
+    SpawnEncryptPoolError,
+    RelayServerError(RelayServerError),
+}
+
+fn run() -> Result<(), RelayServerBinError> {
     simple_logger::init_with_level(Level::Warn).unwrap();
     let matches = App::new("Offst Relay Server")
                           .version("0.1")
@@ -93,53 +105,29 @@ fn main() {
     
     // Parse listening address
     let listen_address_str = matches.value_of("laddr").unwrap();
-    let listen_tcp_address = match listen_address_str.parse() {
-        Ok(socket_addr) => {
-            socket_addr_to_tcp_address(&socket_addr)
-        },
-        Err(_) => {
-            error!("Provided listening address is invalid!");
-            return;
-        }
-    };
+    let socket_addr: SocketAddr = listen_address_str.parse()
+        .map_err(|_| RelayServerBinError::ParseListenAddressError)?;
+    let listen_tcp_address = socket_addr_to_tcp_address(&socket_addr);
 
     // Parse file an get identity:
     let idfile_path = matches.value_of("idfile").unwrap();
-    let identity = match load_identity_from_file(idfile_path.into()) {
-        Ok(identity) => identity,
-        Err(_) => {
-            error!("Failed to parse key file! Aborting.");
-            return;
-        },
-    };
+    let identity = load_identity_from_file(idfile_path.into())
+        .map_err(|_| RelayServerBinError::LoadIdentityError)?;
 
     // Create a ThreadPool:
-    let mut thread_pool = match ThreadPool::new() {
-        Ok(thread_pool) => thread_pool,
-        Err(_) => {
-            error!("Could not create a ThreadPool! Aborting.");
-            return;
-        },
-    };
+    let mut thread_pool = ThreadPool::new()
+        .map_err(|_| RelayServerBinError::CreateThreadPoolError)?;
 
     // Spawn identity service:
     let (sender, identity_loop) = create_identity(identity);
-    if let Err(_) = thread_pool.spawn(identity_loop) {
-        error!("Could not spawn identity service. Aborting.");
-        return;
-    }
-
+    thread_pool.spawn(identity_loop)
+        .map_err(|_| RelayServerBinError::CreateIdentityError)?;
     let identity_client = IdentityClient::new(sender);
     
 
     let dur = Duration::from_millis(usize_to_u64(TICK_MS).unwrap()); 
-    let timer_client = match create_timer(dur, thread_pool.clone()) {
-        Ok(timer_client) => timer_client,
-        Err(_) => {
-            error!("Failed to create timer! Aborting.");
-            return;
-        }
-    };
+    let timer_client = create_timer(dur, thread_pool.clone()) 
+        .map_err(|_| RelayServerBinError::CreateTimerError)?;
 
     let version_transform = VersionPrefix::new(PROTOCOL_VERSION,
                                                thread_pool.clone());
@@ -180,10 +168,8 @@ fn main() {
         .map_err(|e| error!("transform_pool_loop() error: {:?}", e))
         .map(|_| ());
 
-    if let Err(_) = thread_pool.spawn(enc_pool_fut) {
-        error!("Failed to spawn encrypt pool. Aborting.");
-        return;
-    }
+    thread_pool.spawn(enc_pool_fut)
+        .map_err(|_| RelayServerBinError::SpawnEncryptPoolError)?;
 
     let relay_server_fut = relay_server(incoming_enc_conns,
                 timer_client,
@@ -191,7 +177,12 @@ fn main() {
                 KEEPALIVE_TICKS,
                 thread_pool.clone());
 
-    if let Err(e) = thread_pool.run(relay_server_fut) {
-        error!("relay_server() exited with error: {:?}", e);
+    thread_pool.run(relay_server_fut)
+        .map_err(|e| RelayServerBinError::RelayServerError(e))
+}
+
+fn main() {
+    if let Err(e) = run() {
+        error!("run() error: {:?}", e);
     }
 }
