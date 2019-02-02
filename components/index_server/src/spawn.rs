@@ -6,8 +6,6 @@ use futures::Stream;
 
 use common::conn::FutTransform;
 
-use timer::TimerClient;
-
 use crypto::identity::{PublicKey, compare_public_key};
 use crypto::crypto_rand::CryptoRandom;
 
