@@ -7,6 +7,8 @@
 #[macro_use]
 extern crate log;
 
+use std::collections::HashMap;
+
 use std::path::Path;
 use std::time::Duration;
 use std::net::SocketAddr;
@@ -50,7 +52,7 @@ use version::VersionPrefix;
 use secure_channel::SecureChannel;
 use keepalive::KeepAliveChannel;
 
-use bin::load_identity_from_file;
+use bin::{load_identity_from_file, load_trusted_servers};
 
 // TODO; Maybe take as a command line argument in the future?
 /// Maximum amount of concurrent encrypted channel set-ups.
@@ -224,8 +226,6 @@ where
     }
 }
 
-
-
 #[derive(Debug)]
 enum IndexServerBinError {
     CreateThreadPoolError,
@@ -237,6 +237,7 @@ enum IndexServerBinError {
     LoadIdentityError,
     CreateIdentityError,
     SpawnError,
+    LoadTrustedServersError,
 }
 
 
@@ -262,11 +263,11 @@ fn run() -> Result<(), IndexServerBinError> {
                                .value_name("lserver")
                                .help("Listening address for servers")
                                .required(true))
-                          .arg(Arg::with_name("config")
-                               .short("c")
-                               .long("config")
-                               .value_name("config")
-                               .help("Configuration directory path")
+                          .arg(Arg::with_name("trusted")
+                               .short("t")
+                               .long("trusted")
+                               .value_name("trusted")
+                               .help("Directory path of trusted index servers")
                                .required(true))
                           .get_matches();
 
@@ -287,6 +288,17 @@ fn run() -> Result<(), IndexServerBinError> {
     let identity = load_identity_from_file(Path::new(&idfile_path))
         .map_err(|_| IndexServerBinError::LoadIdentityError)?;
     let local_public_key = identity.get_public_key();
+
+    // Load trusted index servers
+    let trusted_dir_path = matches.value_of("trusted").unwrap();
+    // TODO: We need a more detailed error here.
+    // It might be hard for the user to detect in which file there was a problem
+    // in case of an error.
+    let trusted_servers = load_trusted_servers(Path::new(&trusted_dir_path))
+        .map_err(|_| IndexServerBinError::LoadTrustedServersError)?
+        .into_iter()
+        .map(|index_server_address| (index_server_address.public_key, index_server_address.address))
+        .collect::<HashMap<_,_>>();
 
     // Create a ThreadPool:
     let mut thread_pool = ThreadPool::new()
@@ -327,7 +339,7 @@ fn run() -> Result<(), IndexServerBinError> {
         thread_pool.clone());
 
     let mut keepalive_transform = KeepAliveChannel::new(
-        timer_client,
+        timer_client.clone(),
         KEEPALIVE_TICKS,
         thread_pool.clone());
 
@@ -385,15 +397,6 @@ fn run() -> Result<(), IndexServerBinError> {
         })
     });
 
-
-    // IS: Stream<Item=(PublicKey, ServerConn)> + Unpin,
-    // IC: Stream<Item=(PublicKey, ClientConn)> + Unpin,
-    // SC: FutTransform<Input=(PublicKey, A), Output=ServerConn> + Clone + Send + 'static,
-
-
-    // TODO: Parse configuration file, read trusted servers.
-
-    /*
     let index_server_fut = index_server(local_public_key,
                    trusted_servers,
                    incoming_server_conns,
@@ -403,11 +406,10 @@ fn run() -> Result<(), IndexServerBinError> {
                    INDEX_NODE_TIMEOUT_TICKS,
                    BACKOFF_TICKS,
                    rng,
-                   thread_pool);
+                   thread_pool.clone());
 
     thread_pool.run(index_server_fut)
         .map_err(|e| IndexServerBinError::IndexServerError(e))?;
-   */
 
     Ok(())
 }
