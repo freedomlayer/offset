@@ -116,7 +116,7 @@ fn run() -> Result<(), RelayServerBinError> {
 
     // Parse identity file:
     let idfile_path = matches.value_of("idfile").unwrap();
-    let identity = load_identity_from_file(idfile_path.into())
+    let identity = load_identity_from_file(&idfile_path.to_owned().into())
         .map_err(|_| RelayServerBinError::LoadIdentityError)?;
 
     // Create a ThreadPool:

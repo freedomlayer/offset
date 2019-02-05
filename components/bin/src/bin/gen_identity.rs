@@ -34,7 +34,7 @@ fn main() {
     let pkcs8 = generate_pkcs8_key_pair(&rng);
 
     let output_path = matches.value_of("output").unwrap();
-    if let Err(e) = store_identity_to_file(pkcs8, output_path.into()) {
+    if let Err(e) = store_identity_to_file(pkcs8, &output_path.to_owned().into()) {
         error!("Failed to store generated identity to file: {:?}", e);
     }
 }

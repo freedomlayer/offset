@@ -20,7 +20,7 @@ impl From<io::Error> for IdentityFileError {
 /// Load an identity from a file
 /// The file stores the private key according to PKCS#8.
 /// TODO: Be able to read base64 style PKCS#8 files.
-pub fn load_identity_from_file(path_buf: PathBuf) 
+pub fn load_identity_from_file(path_buf: &PathBuf) 
     -> Result<impl Identity, IdentityFileError> {
 
     let mut file = File::open(path_buf)?;
@@ -31,7 +31,7 @@ pub fn load_identity_from_file(path_buf: PathBuf)
 }
 
 
-pub fn store_identity_to_file(pkcs8_buf: [u8; 85], path_buf: PathBuf) 
+pub fn store_identity_to_file(pkcs8_buf: [u8; 85], path_buf: &PathBuf) 
     -> Result<(), IdentityFileError> {
 
     let mut file = File::create(path_buf)?;
