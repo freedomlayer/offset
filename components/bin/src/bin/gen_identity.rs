@@ -7,6 +7,8 @@
 #[macro_use]
 extern crate log;
 
+use std::path::Path;
+
 use clap::{Arg, App};
 use log::Level;
 
@@ -34,7 +36,7 @@ fn main() {
     let pkcs8 = generate_pkcs8_key_pair(&rng);
 
     let output_path = matches.value_of("output").unwrap();
-    if let Err(e) = store_identity_to_file(pkcs8, &output_path.to_owned().into()) {
+    if let Err(e) = store_identity_to_file(pkcs8, Path::new(&output_path)) {
         error!("Failed to store generated identity to file: {:?}", e);
     }
 }

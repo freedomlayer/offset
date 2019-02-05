@@ -10,6 +10,7 @@ extern crate log;
 
 use std::time::Duration;
 use std::net::SocketAddr;
+use std::path::Path;
 
 use log::Level;
 
@@ -116,7 +117,7 @@ fn run() -> Result<(), RelayServerBinError> {
 
     // Parse identity file:
     let idfile_path = matches.value_of("idfile").unwrap();
-    let identity = load_identity_from_file(&idfile_path.to_owned().into())
+    let identity = load_identity_from_file(Path::new(&idfile_path))
         .map_err(|_| RelayServerBinError::LoadIdentityError)?;
 
     // Create a ThreadPool:

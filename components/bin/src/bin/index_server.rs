@@ -7,7 +7,7 @@
 #[macro_use]
 extern crate log;
 
-
+use std::path::Path;
 use std::time::Duration;
 use std::net::SocketAddr;
 
@@ -266,7 +266,7 @@ fn run() -> Result<(), IndexServerBinError> {
                                .short("c")
                                .long("config")
                                .value_name("config")
-                               .help("Configuration file path")
+                               .help("Configuration directory path")
                                .required(true))
                           .get_matches();
 
@@ -284,7 +284,7 @@ fn run() -> Result<(), IndexServerBinError> {
 
     // Parse identity file:
     let idfile_path = matches.value_of("idfile").unwrap();
-    let identity = load_identity_from_file(&idfile_path.to_owned().into())
+    let identity = load_identity_from_file(Path::new(&idfile_path))
         .map_err(|_| IndexServerBinError::LoadIdentityError)?;
     let local_public_key = identity.get_public_key();
 
