@@ -73,3 +73,64 @@ where
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use futures::executor::ThreadPool;
+    use futures::channel::mpsc;
+    use futures::{FutureExt, StreamExt, SinkExt};
+    use futures::task::Spawn;
+
+    use common::dummy_connector::DummyConnector;
+    use common::conn::ConnPairVec;
+    use timer::{dummy_timer_multi_sender, TimerTick};
+
+    async fn task_backoff_connector_basic<S>(spawner: S) 
+    where
+        S: Spawn,
+    {
+        let (mut tick_sender_receiver, timer_client) = dummy_timer_multi_sender(spawner);
+
+        let (req_sender, mut req_receiver) = mpsc::channel(0);
+        let dummy_connector = DummyConnector::<u32, Option<ConnPairVec>>::new(req_sender);
+
+        let backoff_ticks = 8;
+
+        let mut backoff_connector = BackoffConnector::new(dummy_connector, 
+                                                      timer_client,
+                                                      backoff_ticks);
+
+        let (opt_conn, _) = await!(backoff_connector.transform(10u32)
+            .join(async move {
+                // Connection attempt fails for the first 5 times:
+                for _ in 0 .. 5usize {
+                    let req = await!(req_receiver.next()).unwrap();
+                    assert_eq!(req.address, 10u32);
+                    req.reply(None); // Connection failed
+                    let mut tick_sender = await!(tick_sender_receiver.next()).unwrap();
+                    for _ in 0 .. 8usize {
+                        await!(tick_sender.send(TimerTick)).unwrap();
+                    }
+                }
+                let req = await!(req_receiver.next()).unwrap();
+                assert_eq!(req.address, 10u32);
+
+                // Finally we let the connection attempt succeed.
+                // Return a dummy channel:
+                let (sender, receiver) = mpsc::channel(0);
+                req.reply(Some((sender, receiver))); 
+            }));
+
+        let (mut sender, mut receiver) = opt_conn.unwrap();
+        await!(sender.send(vec![1,2,3])).unwrap();
+        assert_eq!(await!(receiver.next()).unwrap(), vec![1,2,3]);
+    }
+
+    #[test]
+    fn test_backoff_connector_basic() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_backoff_connector_basic(thread_pool.clone()));
+    }
+}
