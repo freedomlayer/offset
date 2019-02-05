@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use std::io::{self, Write};
 use std::fs::{self, File};
 use std::path::Path;
@@ -108,18 +106,17 @@ pub fn store_index_server_to_file(index_server_address: &IndexServerAddress, pat
 
 /// Load a directory of index server address files, and return a map representing
 /// the information from all files
-pub fn load_trusted_servers(config_dir: &Path) -> Result<HashMap<PublicKey, IndexServerAddress>, IndexServerFileError>{
-    let mut res_map = HashMap::new();
+pub fn load_trusted_servers(config_dir: &Path) -> Result<Vec<IndexServerAddress>, IndexServerFileError> {
+    let mut res_trusted = Vec::new();
     for entry in fs::read_dir(config_dir)? {
         let entry = entry?;
         let path = entry.path();
         if path.is_dir() {
             continue;
         }
-        let index_server_address = load_index_server_from_file(&path)?;
-        res_map.insert(index_server_address.public_key.clone(), index_server_address);
+        res_trusted.push(load_index_server_from_file(&path)?);
     }
-    Ok(res_map)
+    Ok(res_trusted)
 }
 
 
@@ -208,7 +205,7 @@ mod tests {
         assert_eq!(trusted_servers.len(), 3);
 
         let mut ports = Vec::new();
-        for (public_key, t_server) in trusted_servers {
+        for t_server in trusted_servers {
             let port = match t_server.address {
                 TcpAddress::V4(tcp_address_v4) => tcp_address_v4.port,
                 _ => unreachable!(),
