@@ -21,6 +21,10 @@ path = "src/bin/index_server.rs"
 name = "gen_identity"
 path = "src/bin/gen_identity.rs"
 
+[[bin]]
+name = "node"
+path = "src/bin/node.rs"
+
 [dependencies]
 
 common = { path = "../common", version = "0.1.0", package = "offst-common" }
