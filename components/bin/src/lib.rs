@@ -14,4 +14,5 @@ mod identity_file;
 mod index_server_file;
 
 pub use self::identity_file::{load_identity_from_file, store_identity_to_file};
+pub use self::index_server_file::load_trusted_servers;
 
