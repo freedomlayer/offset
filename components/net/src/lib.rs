@@ -19,4 +19,4 @@ mod tests;
 
 pub use self::tcp_connector::TcpConnector;
 pub use self::tcp_listener::TcpListener;
-pub use types::socket_addr_to_tcp_address;
+pub use self::types::{socket_addr_to_tcp_address, tcp_address_to_socket_addr};

@@ -8,7 +8,8 @@ use toml;
 use base64::{self, URL_SAFE_NO_PAD};
 
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
-use net::{TcpListener, socket_addr_to_tcp_address};
+use net::{TcpListener, socket_addr_to_tcp_address, 
+    tcp_address_to_socket_addr};
 
 use proto::index_server::messages::IndexServerAddress;
 
@@ -16,13 +17,14 @@ use proto::index_server::messages::IndexServerAddress;
 pub enum IndexServerFileError {
     IoError(io::Error),
     TomlDeError(toml::de::Error),
+    TomlSeError(toml::ser::Error),
     Base64DecodeError(base64::DecodeError),
     ParseSocketAddrError,
     InvalidPublicKey,
 }
 
 /// A helper structure for serialize and deserializing IndexServerAddress.
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct IndexServerFile {
     public_key: String,
     address: String,
@@ -37,6 +39,12 @@ impl From<io::Error> for IndexServerFileError {
 impl From<toml::de::Error> for IndexServerFileError {
     fn from(e: toml::de::Error) -> Self {
         IndexServerFileError::TomlDeError(e)
+    }
+}
+
+impl From<toml::ser::Error> for IndexServerFileError {
+    fn from(e: toml::ser::Error) -> Self {
+        IndexServerFileError::TomlSeError(e)
     }
 }
 
@@ -72,7 +80,27 @@ pub fn load_index_server_from_file(path_buf: PathBuf) -> Result<IndexServerAddre
     })
 }
 
-pub fn store_index_server_to_file(index_server_address: &IndexServerAddress, path_buf: PathBuf) {
+
+/// Store IndexServerAddress to file
+pub fn store_index_server_to_file(index_server_address: &IndexServerAddress, path_buf: PathBuf)
+    -> Result<(), IndexServerFileError> {
+
+    let IndexServerAddress {ref public_key, ref address} = index_server_address;
+
+    let socket_addr = tcp_address_to_socket_addr(&address);
+    let socket_addr_str = format!("{}", socket_addr);
+
+    let index_server_file = IndexServerFile {
+        public_key: base64::encode_config(&public_key, URL_SAFE_NO_PAD),
+        address: socket_addr_str,
+    };
+
+    let data = toml::to_string(&index_server_file)?;
+
+    let mut file = File::create(path_buf)?;
+    file.write(&data.as_bytes())?;
+
+    Ok(())
 }
 
 #[cfg(test)]
