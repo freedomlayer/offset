@@ -35,6 +35,11 @@ version = { path = "../version", version = "0.1.0" , package = "offst-version" }
 net = { path = "../net", version = "0.1.0" , package = "offst-net" }
 index_server = { path = "../index_server", version = "0.1.0" , package = "offst-index-server" }
 
+toml = "0.4.10"
+serde_derive = "1.0.87"
+serde = "1.0.87"
+base64 = "0.10.1"
+
 clap = "2.32.0"
 log = "0.4"
 simple_logger = "1.0.1"
