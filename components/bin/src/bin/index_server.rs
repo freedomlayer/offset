@@ -56,6 +56,7 @@ use bin::load_identity_from_file;
 /// Maximum amount of concurrent encrypted channel set-ups.
 /// We set this number to avoid DoS from half finished encrypted channel negotiations.
 pub const MAX_CONCURRENT_ENCRYPT: usize = 0x200;
+pub const BACKOFF_TICKS: usize = 0x8;
 
 
 /*
@@ -347,10 +348,6 @@ fn run() -> Result<(), IndexServerBinError> {
     let mut timer_client = create_timer(dur, thread_pool.clone())
         .map_err(|_| IndexServerBinError::CreateTimerError)?;
 
-    // Get one timer_stream:
-    let timer_stream = thread_pool.run(timer_client.request_timer_stream())
-        .map_err(|_| IndexServerBinError::RequestTimerStreamError)?;
-
 
     // Start listening to clients:
     let client_tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
@@ -443,8 +440,9 @@ fn run() -> Result<(), IndexServerBinError> {
                    incoming_server_conns,
                    incoming_client_conns,
                    server_connector,
-                   timer_stream,
+                   timer_client,
                    INDEX_NODE_TIMEOUT_TICKS,
+                   BACKOFF_TICKS,
                    rng,
                    thread_pool);
 
