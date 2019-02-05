@@ -4,7 +4,7 @@ use common::conn::{FutTransform, BoxFuture};
 use timer::TimerClient;
 use timer::utils::sleep_ticks;
 
-struct BackoffConnector<I,O,C> {
+pub struct BackoffConnector<I,O,C> {
     connector: C,
     timer_client: TimerClient,
     backoff_ticks: usize,
