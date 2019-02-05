@@ -231,7 +231,7 @@ where
     }
 
     pub fn outgoing_index_server_conn_transform(&self, public_key: PublicKey, conn_pair: ConnPairVec)
-                    -> BoxFuture<'_, Option<(PublicKey, ConnPair<IndexServerToServer, IndexServerToServer>)>> 
+                    -> BoxFuture<'_, Option<ConnPair<IndexServerToServer, IndexServerToServer>>> 
     {
         let mut c_self = self.clone();
         Box::pin(async move {
@@ -263,7 +263,7 @@ where
                 }
             });
 
-            Some((public_key, (user_sender, user_receiver)))
+            Some((user_sender, user_receiver))
         })
     }
 }
@@ -448,7 +448,7 @@ fn run() -> Result<(), IndexServerBinError> {
 
     thread_pool.run(index_server_fut)
         .map_err(|e| IndexServerBinError::IndexServerError(e))?;
-        */
+   */
 
     Ok(())
 }
