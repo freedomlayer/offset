@@ -56,53 +56,9 @@ use bin::load_identity_from_file;
 /// Maximum amount of concurrent encrypted channel set-ups.
 /// We set this number to avoid DoS from half finished encrypted channel negotiations.
 pub const MAX_CONCURRENT_ENCRYPT: usize = 0x200;
+/// Amount of ticks we wait before attempting to reconnect to a remote index server.
 pub const BACKOFF_TICKS: usize = 0x8;
 
-
-/*
-#[derive(Clone)]
-struct VersionEncKeepalive<VT,ET,KT> {
-    version_transform: VT,
-    encrypt_transform: ET,
-    keepalive_transform: KT,
-}
-
-impl<VT,ET,KT> VersionEncKeepalive<VT,ET,KT> {
-    pub fn new(version_transform: VT,
-               encrypt_transform: ET,
-               keepalive_transform: KT) -> Self {
-
-        VersionEncKeepalive {
-            version_transform,
-            encrypt_transform,
-            keepalive_transform,
-        }
-    }
-}
-
-impl<VT,ET,KT> FutTransform for VersionEncKeepalive<VT,ET,KT>
-where
-    VT: FutTransform<Input=ConnPairVec, Output=ConnPairVec> + Send,
-    ET: FutTransform<Input=(Option<PublicKey>, ConnPairVec),
-                     Output=Option<(PublicKey, ConnPairVec)>> + Send,
-    KT: FutTransform<Input=ConnPairVec, Output=ConnPairVec> + Send,
-{
-    type Input = ConnPairVec;
-    type Output = Option<(PublicKey, ConnPairVec)>;
-
-    fn transform(&mut self, conn_pair: Self::Input)
-        -> BoxFuture<'_, Self::Output> {
-
-        Box::pin(async move {
-            let conn_pair = await!(self.version_transform.transform(conn_pair));
-            let (public_key, conn_pair) =
-                await!(self.encrypt_transform.transform((None, conn_pair)))?;
-            let conn_pair = await!(self.keepalive_transform.transform(conn_pair));
-            Some((public_key, conn_pair))
-        })
-    }
-}
-*/
 
 #[derive(Clone)]
 struct ConnTransformer<VT,ET,KT,S> {
@@ -267,8 +223,6 @@ where
         })
     }
 }
-
-
 
 
 
