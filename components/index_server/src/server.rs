@@ -397,7 +397,6 @@ async fn client_handler(mut graph_client: GraphClient<PublicKey, u128>,
 }
 
 
-#[allow(unused)]
 pub async fn server_loop<A,IS,IC,SC,CMP,V,TS,S>(index_server_config: IndexServerConfig<A>,
                                  incoming_server_connections: IS,
                                  incoming_client_connections: IC,
