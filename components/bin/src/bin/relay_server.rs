@@ -28,7 +28,7 @@ use identity::{create_identity, IdentityClient};
 
 use proto::consts::{TICK_MS, KEEPALIVE_TICKS, 
     CONN_TIMEOUT_TICKS, TICKS_TO_REKEY, MAX_FRAME_LENGTH,
-    PROTOCOL_VERSION, MAX_CONCURRENT_ENCRYPT};
+    PROTOCOL_VERSION};
 
 use common::int_convert::usize_to_u64;
 use common::transform_pool::transform_pool_loop;
@@ -40,6 +40,11 @@ use version::VersionPrefix;
 use net::{TcpListener, socket_addr_to_tcp_address};
 
 use bin::load_identity_from_file;
+
+// TODO; Maybe take as a command line argument in the future?
+/// Maximum amount of concurrent encrypted channel set-ups.
+/// We set this number to avoid DoS from half finished encrypted channel negotiations.
+pub const MAX_CONCURRENT_ENCRYPT: usize = 0x200;
 
 
 /// Start a secure channel without knowing the identity of the remote
