@@ -55,8 +55,8 @@ impl From<base64::DecodeError> for IndexServerFileError {
 }
 
 /// Load IndexServerAddress from a file
-pub fn load_index_server_from_file(path_buf: PathBuf) -> Result<IndexServerAddress, IndexServerFileError> {
-    let data = fs::read_to_string(path_buf)?;
+pub fn load_index_server_from_file(path_buf: &PathBuf) -> Result<IndexServerAddress, IndexServerFileError> {
+    let data = fs::read_to_string(&path_buf)?;
     let index_server_file: IndexServerFile = toml::from_str(&data)?;
 
     // Decode public key:
@@ -82,7 +82,7 @@ pub fn load_index_server_from_file(path_buf: PathBuf) -> Result<IndexServerAddre
 
 
 /// Store IndexServerAddress to file
-pub fn store_index_server_to_file(index_server_address: &IndexServerAddress, path_buf: PathBuf)
+pub fn store_index_server_to_file(index_server_address: &IndexServerAddress, path_buf: &PathBuf)
     -> Result<(), IndexServerFileError> {
 
     let IndexServerAddress {ref public_key, ref address} = index_server_address;
@@ -106,6 +106,8 @@ pub fn store_index_server_to_file(index_server_address: &IndexServerAddress, pat
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::tempdir;
+    use proto::funder::messages::{TcpAddress, TcpAddressV4};
 
     fn test_index_server_file_basic() {
         let index_server_file: IndexServerFile = toml::from_str(r#"
@@ -115,6 +117,28 @@ mod tests {
 
         assert_eq!(index_server_file.public_key, "public_key_string");
         assert_eq!(index_server_file.address, "address_string");
+    }
+
+    #[test]
+    fn test_store_load_index_server() {
+        // Create a temporary directory:
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("index_server_address_file");
+
+        let address = TcpAddress::V4(TcpAddressV4 {
+            octets: [127,0,0,1],
+            port: 1337,
+        });
+
+        let index_server_address = IndexServerAddress {
+            public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
+            address,
+        };
+
+        store_index_server_to_file(&index_server_address, &file_path).unwrap();
+        let index_server_address2 = load_index_server_from_file(&file_path).unwrap();
+
+        assert_eq!(index_server_address, index_server_address2);
     }
 }
 

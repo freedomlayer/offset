@@ -45,3 +45,7 @@ log = "0.4"
 simple_logger = "1.0.1"
 futures-preview = "0.3.0-alpha.11"
 
+[dev-dependencies]
+
+tempfile = "3.0.5"
+
