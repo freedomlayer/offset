@@ -17,4 +17,4 @@ mod backoff_connector;
 mod spawn;
 
 pub use spawn::{index_server, IndexServerError,
-                ServerConn, ClientConn, IndexServerConfig};
+                ServerConn, ClientConn};

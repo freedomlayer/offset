@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::marker::Unpin;
+use std::collections::HashMap;
 
 use futures::task::Spawn;
 use futures::Stream;
@@ -11,7 +12,7 @@ use crypto::identity::{PublicKey, compare_public_key};
 use crypto::crypto_rand::CryptoRandom;
 
 use crate::server::{server_loop, ServerLoopError};
-pub use crate::server::{ServerConn, ClientConn, IndexServerConfig};
+pub use crate::server::{ServerConn, ClientConn};
 
 use crate::verifier::simple_verifier::SimpleVerifier;
 use crate::graph::graph_service::create_graph_service;
@@ -29,7 +30,8 @@ pub enum IndexServerError {
 
 /// Run an index server
 /// Will keep running until an error occurs.
-pub async fn index_server<A,IS,IC,SC,R,S>(index_server_config: IndexServerConfig<A>,
+pub async fn index_server<A,IS,IC,SC,R,S>(local_public_key: PublicKey,
+                           trusted_servers: HashMap<PublicKey, A>, 
                            incoming_server_connections: IS,
                            incoming_client_connections: IC,
                            server_connector: SC,
@@ -61,7 +63,8 @@ where
                                                   timer_client,
                                                   backoff_ticks);
 
-    await!(server_loop(index_server_config,
+    await!(server_loop(local_public_key, 
+                trusted_servers,
                 incoming_server_connections,
                 incoming_client_connections,
                 backoff_connector,

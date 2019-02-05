@@ -37,12 +37,6 @@ pub enum ServerLoopError {
     RemoteSendError,
 }
 
-pub struct IndexServerConfig<A> {
-    local_public_key: PublicKey,
-    // map: public_key -> server_address
-    trusted_servers: HashMap<PublicKey, A>, 
-}
-
 
 /// A connected remote entity
 #[derive(Debug)]
@@ -148,16 +142,14 @@ where
     V: Verifier<Node=PublicKey, Neighbor=PublicKey, SessionId=Uid>,
     CMP: Clone + Fn(&PublicKey, &PublicKey) -> Ordering,
 {
-    pub fn new(index_server_config: IndexServerConfig<A>,
+    pub fn new(local_public_key: PublicKey,
+               trusted_servers: HashMap<PublicKey, A>, 
                server_connector: SC,
                graph_client: GraphClient<PublicKey, u128>,
                compare_public_key: CMP, 
                verifier: V,
                event_sender: mpsc::Sender<IndexServerEvent>,
                spawner: S) -> Result<Self, ServerLoopError> {
-
-        let IndexServerConfig {local_public_key, trusted_servers} 
-                = index_server_config;
 
         let mut index_server = IndexServer {
             local_public_key,
@@ -397,7 +389,8 @@ async fn client_handler(mut graph_client: GraphClient<PublicKey, u128>,
 }
 
 
-pub async fn server_loop<A,IS,IC,SC,CMP,V,TS,S>(index_server_config: IndexServerConfig<A>,
+pub async fn server_loop<A,IS,IC,SC,CMP,V,TS,S>(local_public_key: PublicKey,
+                                 trusted_servers: HashMap<PublicKey, A>, 
                                  incoming_server_connections: IS,
                                  incoming_client_connections: IC,
                                  server_connector: SC,
@@ -426,7 +419,8 @@ where
     let (event_sender, event_receiver) = mpsc::channel(0);
 
     let mut index_server = IndexServer::new(
-               index_server_config,
+               local_public_key,
+               trusted_servers,
                server_connector,
                graph_client,
                compare_public_key,
@@ -604,10 +598,8 @@ mod tests {
     {
         let server_pk = PublicKey::from(&[0; PUBLIC_KEY_LEN]);
 
-        let index_server_config: IndexServerConfig<u32> = IndexServerConfig {
-            local_public_key: server_pk.clone(),
-            trusted_servers: HashMap::new(),
-        };
+        let local_public_key = server_pk.clone();
+        let trusted_servers: HashMap<PublicKey, u8> = HashMap::new();
 
         let (_server_connections_sender, incoming_server_connections) = mpsc::channel(0);
         let (mut client_connections_sender, incoming_client_connections) = mpsc::channel(0);
@@ -628,7 +620,8 @@ mod tests {
         let verifier = SimpleVerifier::new(8, rng);
 
 
-        let server_loop_fut = server_loop(index_server_config,
+        let server_loop_fut = server_loop(local_public_key,
+                    trusted_servers,
                     incoming_server_connections,
                     incoming_client_connections,
                     server_connector,
@@ -770,10 +763,7 @@ mod tests {
             .map(|&i| (PublicKey::from(&[i; PUBLIC_KEY_LEN]), i))
             .collect::<HashMap<_,_>>();
 
-        let index_server_config: IndexServerConfig<u8> = IndexServerConfig {
-            local_public_key: server_public_key.clone(),
-            trusted_servers,
-        };
+        let local_public_key = server_public_key.clone();
 
         let (server_connections_sender, incoming_server_connections) = mpsc::channel(0);
         let (client_connections_sender, incoming_client_connections) = mpsc::channel(0);
@@ -795,7 +785,8 @@ mod tests {
 
         let (debug_event_sender, debug_event_receiver) = mpsc::channel(0);
 
-        let server_loop_fut = server_loop(index_server_config,
+        let server_loop_fut = server_loop(local_public_key,
+                    trusted_servers,
                     incoming_server_connections,
                     incoming_client_connections,
                     server_connector,
