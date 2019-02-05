@@ -13,6 +13,7 @@ extern crate log;
 mod server;
 mod graph;
 mod verifier;
+mod backoff_connector;
 mod spawn;
 
 pub use spawn::{index_server, IndexServerError,
