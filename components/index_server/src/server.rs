@@ -144,7 +144,7 @@ impl<A,S,SC,V,CMP> IndexServer<A,S,SC,V,CMP>
 where
     A: Clone + Send + std::fmt::Debug + 'static,
     S: Spawn + Send, 
-    SC: FutTransform<Input=(PublicKey, A), Output=ServerConn> + Clone + Send + 'static,
+    SC: FutTransform<Input=(PublicKey, A), Output=Option<ServerConn>> + Clone + Send + 'static,
     V: Verifier<Node=PublicKey, Neighbor=PublicKey, SessionId=Uid>,
     CMP: Clone + Fn(&PublicKey, &PublicKey) -> Ordering,
 {
@@ -211,11 +211,15 @@ where
         let cancellable_fut = async move {
             let server_conn_fut = c_server_connector.transform((public_key.clone(), c_address));
             let select_res = select! {
-                server_conn_fut = server_conn_fut.fuse() => Some(server_conn_fut),
+                server_conn_fut = server_conn_fut.fuse() => server_conn_fut,
                 _close_receiver = close_receiver.fuse() => None,
             };
             if let Some(server_conn) = select_res {
                 let _ = await!(c_event_sender.send(IndexServerEvent::ServerConnection((public_key, server_conn))));
+            } else {
+                // Failed to connect, report that the server was closed
+                // TODO: Test this functionality:
+                let _ = await!(c_event_sender.send(IndexServerEvent::FromServer((public_key, None))));
             }
         };
 
@@ -408,7 +412,7 @@ where
     A: Clone + Send + std::fmt::Debug + 'static,
     IS: Stream<Item=(PublicKey, ServerConn)> + Unpin,
     IC: Stream<Item=(PublicKey, ClientConn)> + Unpin,
-    SC: FutTransform<Input=(PublicKey, A), Output=ServerConn> + Clone + Send + 'static,
+    SC: FutTransform<Input=(PublicKey, A), Output=Option<ServerConn>> + Clone + Send + 'static,
     V: Verifier<Node=PublicKey, Neighbor=PublicKey, SessionId=Uid>,
     CMP: Clone + Fn(&PublicKey, &PublicKey) -> Ordering,
     TS: Stream + Unpin,
@@ -749,7 +753,7 @@ mod tests {
         server_connections_sender: mpsc::Sender<(PublicKey, ServerConn)>,
         client_connections_sender: mpsc::Sender<(PublicKey, ClientConn)>,
         graph_requests_receiver: mpsc::Receiver<GraphRequest<PublicKey, u128>>,
-        server_conn_request_receiver: mpsc::Receiver<ConnRequest<(PublicKey, u8), ServerConn>>,
+        server_conn_request_receiver: mpsc::Receiver<ConnRequest<(PublicKey, u8), Option<ServerConn>>>,
         debug_event_receiver: mpsc::Receiver<()>,
     }
 
@@ -831,7 +835,7 @@ mod tests {
 
         await!(test_servers[dest_index as usize].debug_event_receiver.next()).unwrap();
 
-        conn_request.reply((a_sender, a_receiver));
+        conn_request.reply(Some((a_sender, a_receiver)));
         await!(test_servers[from_index].debug_event_receiver.next()).unwrap();
     }
 

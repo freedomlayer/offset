@@ -40,7 +40,7 @@ where
     A: Debug + Send + Clone + 'static,
     IS: Stream<Item=(PublicKey, ServerConn)> + Unpin,
     IC: Stream<Item=(PublicKey, ClientConn)> + Unpin,
-    SC: FutTransform<Input=(PublicKey, A), Output=ServerConn> + Clone + Send + 'static,
+    SC: FutTransform<Input=(PublicKey, A), Output=Option<ServerConn>> + Clone + Send + 'static,
     TS: Stream + Unpin,
     R: CryptoRandom,
     S: Spawn + Clone + Send,
