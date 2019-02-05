@@ -25,7 +25,7 @@ use common::conn::{Listener, FutTransform, ConnPairVec, ConnPair,
 use common::transform_pool::transform_pool_loop;
 
 use crypto::crypto_rand::system_random;
-use crypto::identity::PublicKey;
+use crypto::identity::{Identity, PublicKey};
 
 use identity::{create_identity, IdentityClient};
 
@@ -286,6 +286,7 @@ fn run() -> Result<(), IndexServerBinError> {
     let idfile_path = matches.value_of("idfile").unwrap();
     let identity = load_identity_from_file(idfile_path.into())
         .map_err(|_| IndexServerBinError::LoadIdentityError)?;
+    let local_public_key = identity.get_public_key();
 
     // Create a ThreadPool:
     let mut thread_pool = ThreadPool::new()
@@ -389,8 +390,12 @@ fn run() -> Result<(), IndexServerBinError> {
     // IC: Stream<Item=(PublicKey, ClientConn)> + Unpin,
     // SC: FutTransform<Input=(PublicKey, A), Output=ServerConn> + Clone + Send + 'static,
 
+
+    // TODO: Parse configuration file, read trusted servers.
+
     /*
-    let index_server_fut = index_server(index_server_config: IndexServerConfig<A>,
+    let index_server_fut = index_server(local_public_key,
+                   trusted_servers,
                    incoming_server_conns,
                    incoming_client_conns,
                    server_connector,
