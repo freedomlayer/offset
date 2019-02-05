@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use std::io::{self, Write};
 use std::fs::{self, File};
 use std::path::Path;
@@ -103,6 +105,25 @@ pub fn store_index_server_to_file(index_server_address: &IndexServerAddress, pat
     Ok(())
 }
 
+
+/// Load a directory of index server address files, and return a map representing
+/// the information from all files
+pub fn load_trusted_servers(config_dir: &Path) -> Result<HashMap<PublicKey, IndexServerAddress>, IndexServerFileError>{
+    let mut res_map = HashMap::new();
+    for entry in fs::read_dir(config_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            continue;
+        }
+        let index_server_address = load_index_server_from_file(&path)?;
+        res_map.insert(index_server_address.public_key.clone(), index_server_address);
+    }
+    Ok(res_map)
+}
+
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -140,6 +161,62 @@ mod tests {
         let index_server_address2 = load_index_server_from_file(&file_path).unwrap();
 
         assert_eq!(index_server_address, index_server_address2);
+    }
+
+
+    #[test]
+    fn test_load_trusted_servers() {
+        // Create a temporary directory:
+        let dir = tempdir().unwrap();
+
+        let file_path = dir.path().join("index_server_address_file_a");
+        let address = TcpAddress::V4(TcpAddressV4 {
+            octets: [127,0,0,1],
+            port: 0xa,
+        });
+        let index_server_address = IndexServerAddress {
+            public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
+            address,
+        };
+        store_index_server_to_file(&index_server_address, &file_path).unwrap();
+
+        let file_path = dir.path().join("index_server_address_file_b");
+        let address = TcpAddress::V4(TcpAddressV4 {
+            octets: [127,0,0,1],
+            port: 0xb,
+        });
+        let index_server_address = IndexServerAddress {
+            public_key: PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]),
+            address,
+        };
+        store_index_server_to_file(&index_server_address, &file_path).unwrap();
+
+
+        let file_path = dir.path().join("index_server_address_file_c");
+        let address = TcpAddress::V4(TcpAddressV4 {
+            octets: [127,0,0,1],
+            port: 0xc,
+        });
+        let index_server_address = IndexServerAddress {
+            public_key: PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]),
+            address,
+        };
+        store_index_server_to_file(&index_server_address, &file_path).unwrap();
+
+
+        let trusted_servers = load_trusted_servers(&dir.path()).unwrap();
+        assert_eq!(trusted_servers.len(), 3);
+
+        let mut ports = Vec::new();
+        for (public_key, t_server) in trusted_servers {
+            let port = match t_server.address {
+                TcpAddress::V4(tcp_address_v4) => tcp_address_v4.port,
+                _ => unreachable!(),
+            };
+            ports.push(port);
+        }
+        ports.sort();
+        assert_eq!(ports, vec![0xa,0xb,0xc]);
     }
 }
 
