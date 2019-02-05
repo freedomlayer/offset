@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 use std::fs::{self, File};
-use std::path::PathBuf;
+use std::path::Path;
 
 use std::net::SocketAddr;
 
@@ -55,8 +55,8 @@ impl From<base64::DecodeError> for IndexServerFileError {
 }
 
 /// Load IndexServerAddress from a file
-pub fn load_index_server_from_file(path_buf: &PathBuf) -> Result<IndexServerAddress, IndexServerFileError> {
-    let data = fs::read_to_string(&path_buf)?;
+pub fn load_index_server_from_file(path: &Path) -> Result<IndexServerAddress, IndexServerFileError> {
+    let data = fs::read_to_string(&path)?;
     let index_server_file: IndexServerFile = toml::from_str(&data)?;
 
     // Decode public key:
@@ -82,7 +82,7 @@ pub fn load_index_server_from_file(path_buf: &PathBuf) -> Result<IndexServerAddr
 
 
 /// Store IndexServerAddress to file
-pub fn store_index_server_to_file(index_server_address: &IndexServerAddress, path_buf: &PathBuf)
+pub fn store_index_server_to_file(index_server_address: &IndexServerAddress, path: &Path)
     -> Result<(), IndexServerFileError> {
 
     let IndexServerAddress {ref public_key, ref address} = index_server_address;
@@ -97,7 +97,7 @@ pub fn store_index_server_to_file(index_server_address: &IndexServerAddress, pat
 
     let data = toml::to_string(&index_server_file)?;
 
-    let mut file = File::create(path_buf)?;
+    let mut file = File::create(path)?;
     file.write(&data.as_bytes())?;
 
     Ok(())
@@ -109,6 +109,7 @@ mod tests {
     use tempfile::tempdir;
     use proto::funder::messages::{TcpAddress, TcpAddressV4};
 
+    #[test]
     fn test_index_server_file_basic() {
         let index_server_file: IndexServerFile = toml::from_str(r#"
             public_key = 'public_key_string'
