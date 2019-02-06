@@ -18,7 +18,7 @@ use crate::serialize::SerializeError;
 
 use crate::index_server::messages::IndexServerAddress;
 use crate::funder::messages::{RelayAddress, UserRequestSendFunds, 
-    ResponseReceived, ResponseSendFundsResult};
+    ResponseReceived, ResponseSendFundsResult, ReceiptAck};
 use crate::funder::serialize::{ser_friends_route, deser_friends_route};
 
 use super::messages::{AppServerToApp, AppToAppServer, 
@@ -88,6 +88,24 @@ fn deser_response_received(response_received_reader: &app_server_capnp::response
     Ok(ResponseReceived {
         request_id: read_uid(&response_received_reader.get_request_id()?)?,
         result,
+    })
+}
+
+fn ser_receipt_ack(receipt_ack: &ReceiptAck,
+                          receipt_ack_builder: &mut app_server_capnp::receipt_ack::Builder) {
+
+    write_uid(&receipt_ack.request_id, 
+              &mut receipt_ack_builder.reborrow().init_request_id());
+    write_signature(&receipt_ack.receipt_signature,
+               &mut receipt_ack_builder.reborrow().init_receipt_signature());
+}
+
+fn deser_receipt_ack(receipt_ack_reader: &app_server_capnp::receipt_ack::Reader)
+    -> Result<ReceiptAck, SerializeError> {
+
+    Ok(ReceiptAck {
+        request_id: read_uid(&receipt_ack_reader.get_request_id()?)?,
+        receipt_signature: read_signature(&receipt_ack_reader.get_receipt_signature()?)?,
     })
 }
 
