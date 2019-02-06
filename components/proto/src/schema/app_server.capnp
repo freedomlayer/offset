@@ -24,31 +24,23 @@ using import "index.capnp".ResponseRoutes;
 # Interface between AppServer and an Application
 ################################################
 
-struct RequestSendFunds {
-        paymentId @0: Uid;
-        destPayment @1: CustomUInt128;
-        route @2: FriendsRoute;
-        invoiceId @3: InvoiceId;
+struct UserRequestSendFunds {
+        requestId @0: Uid;
+        route @1: FriendsRoute;
+        invoiceId @2: InvoiceId;
+        destPayment @3: CustomUInt128;
 }
 
-struct SuccessSendFunds {
-        receipt @0: Receipt;
-} 
-
-struct FailureSendFunds {
-        reportingPublicKey @0: PublicKey;
-}
-
-struct ResponseSendFunds {
-        paymentId @0: CustomUInt128;
-        response: union {
-                success @1: SuccessSendFunds;
-                failure @2: FailureSendFunds;
+struct ResponseReceived {
+        requestId @0: CustomUInt128;
+        result: union {
+                success @1: Receipt;
+                failure @2: PublicKey; # Reporting public key
         }
 }
 
 struct ReceiptAck {
-        paymentId @0: Uid;
+        requestId @0: Uid;
         receiptHash @1: Hash;
 }
 
@@ -124,7 +116,7 @@ struct ResetFriendChannel {
 struct AppServerToApp {
     union {
         # Funds
-        responseSendFunds @0: ResponseSendFunds;
+        responseReceived @0: ResponseReceived;
 
         # Reports about current state:
         report @1: Report;
@@ -143,7 +135,7 @@ struct AppToAppServer {
         setRelays @0: List(RelayAddress);
 
         # Sending Funds:
-        requestSendFunds @1: RequestSendFunds;
+        requestSendFunds @1: UserRequestSendFunds;
         receiptAck @2: ReceiptAck;
 
         # Friends management
