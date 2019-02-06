@@ -18,7 +18,7 @@ use crate::serialize::SerializeError;
 
 use crate::index_server::messages::IndexServerAddress;
 use crate::funder::messages::{RelayAddress, UserRequestSendFunds, 
-    ResponseReceived, ResponseSendFundsResult, ReceiptAck};
+    ResponseReceived, ResponseSendFundsResult, ReceiptAck, AddFriend};
 use crate::funder::serialize::{ser_friends_route, deser_friends_route};
 
 use super::messages::{AppServerToApp, AppToAppServer, 
@@ -106,6 +106,42 @@ fn deser_receipt_ack(receipt_ack_reader: &app_server_capnp::receipt_ack::Reader)
     Ok(ReceiptAck {
         request_id: read_uid(&receipt_ack_reader.get_request_id()?)?,
         receipt_signature: read_signature(&receipt_ack_reader.get_receipt_signature()?)?,
+    })
+}
+
+fn ser_add_friend(add_friend: &AddFriend<Vec<RelayAddress>>,
+                    add_friend_builder: &mut app_server_capnp::add_friend::Builder) {
+
+    write_public_key(&add_friend.friend_public_key, 
+              &mut add_friend_builder.reborrow().init_friend_public_key());
+
+
+    let relays_len = usize_to_u32(add_friend.address.len()).unwrap();
+    let mut relays_builder = add_friend_builder.reborrow().init_relays(relays_len);
+    for (index, relay_address) in add_friend.address.iter().enumerate() {
+        let mut relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
+        write_relay_address(relay_address, &mut relay_address_builder);
+    }
+
+    add_friend_builder.reborrow().set_name(&add_friend.name);
+    write_custom_int128(add_friend.balance, 
+              &mut add_friend_builder.reborrow().init_balance());
+}
+
+fn deser_add_friend(add_friend_reader: &app_server_capnp::add_friend::Reader)
+    -> Result<AddFriend<Vec<RelayAddress>>, SerializeError> {
+
+    // TODO
+    let mut relays = Vec::new();
+    for relay_address in add_friend_reader.get_relays()? {
+        relays.push(read_relay_address(&relay_address)?);
+    }
+
+    Ok(AddFriend {
+        friend_public_key: read_public_key(&add_friend_reader.get_friend_public_key()?)?,
+        address: relays,
+        name: add_friend_reader.get_name()?.to_owned(),
+        balance: read_custom_int128(&add_friend_reader.get_balance()?)?,
     })
 }
 
