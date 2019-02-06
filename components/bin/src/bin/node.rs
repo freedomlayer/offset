@@ -16,7 +16,7 @@ use std::time::Duration;
 use futures::executor::ThreadPool;
 use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
-use futures::{future, FutureExt, TryFutureExt};
+use futures::{future, FutureExt, TryFutureExt, StreamExt, SinkExt};
 
 use clap::{Arg, App};
 use log::Level;
@@ -46,6 +46,8 @@ use proto::consts::{PROTOCOL_VERSION, KEEPALIVE_TICKS, TICKS_TO_REKEY,
     MAX_OPERATIONS_IN_BATCH, TICK_MS, MAX_FRAME_LENGTH};
 use proto::index_server::messages::IndexServerAddress;
 use proto::funder::messages::RelayAddress;
+use proto::app_server::serialize::{deserialize_app_to_app_server,
+                                   serialize_app_server_to_app};
 use net::{TcpConnector, TcpListener, socket_addr_to_tcp_address};
 
 
@@ -167,11 +169,36 @@ where
             let app_permissions = trusted_apps.get(&public_key)?;
 
             // Keepalive wrapper:
-            let ka_conn = await!(self.keepalive_transform.transform(enc_conn));
+            let (mut sender, mut receiver) = await!(self.keepalive_transform.transform(enc_conn));
 
             // TODO: serializationn
+            let (user_sender, mut from_user_sender) = mpsc::channel(0);
+            let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
-            unimplemented!();
+            // Deserialize received data
+            let _ = self.spawner.spawn(async move {
+                while let Some(data) = await!(receiver.next()) {
+                    let message = match deserialize_app_to_app_server(&data) {
+                        Ok(message) => message,
+                        Err(_) => return,
+                    };
+                    if let Err(_) = await!(to_user_receiver.send(message)) {
+                        return;
+                    }
+                }
+            });
+
+            // Serialize sent data:
+            let _ = self.spawner.spawn(async move {
+                while let Some(message) = await!(from_user_sender.next()) {
+                    let data = serialize_app_server_to_app(&message);
+                    if let Err(_) = await!(sender.send(data)) {
+                        return;
+                    }
+                }
+            });
+
+            Some((app_permissions.clone(), (user_sender, user_receiver)))
         })
     }
 }
