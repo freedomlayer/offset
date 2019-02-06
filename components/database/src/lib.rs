@@ -12,12 +12,14 @@ extern crate log;
 extern crate serde_derive;
 
 pub mod file_db;
-pub mod atomic_db;
+mod atomic_db;
 mod database;
 
+pub use self::atomic_db::AtomicDb;
 pub use self::database::{
     DatabaseClient, 
     DatabaseRequest,
     DatabaseClientError, 
     database_loop};
+
                     
