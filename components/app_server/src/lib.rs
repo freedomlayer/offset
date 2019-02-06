@@ -8,11 +8,15 @@
 #[macro_use]
 extern crate log;
 
+#[macro_use]
+extern crate serde_derive;
+
 mod server;
 mod config;
 
 #[cfg(test)]
 mod tests;
 
+pub use self::config::AppPermissions;
 pub use self::server::{app_server_loop, 
     IncomingAppConnection};

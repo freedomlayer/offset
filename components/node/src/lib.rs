@@ -18,3 +18,4 @@ mod node;
 
 pub use self::node::{node, NodeError};
 pub use self::types::{NodeConfig, NodeState};
+pub use app_server::AppPermissions;
