@@ -46,7 +46,7 @@ where
 
 
 #[allow(unused)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FriendMutation<A> {
     TcMutation(TcMutation<A>),
     SetInconsistent(ChannelInconsistent),

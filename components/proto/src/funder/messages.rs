@@ -364,7 +364,7 @@ impl RequestsStatus {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AddFriend<A> {
     pub friend_public_key: PublicKey,
     pub address: A,

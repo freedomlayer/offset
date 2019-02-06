@@ -9,6 +9,9 @@
 #[macro_use]
 extern crate log;
 
+#[macro_use]
+extern crate serde_derive;
+
 mod single_client;
 mod index_client;
 mod client_session;

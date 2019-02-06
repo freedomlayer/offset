@@ -9,9 +9,12 @@
 // #[macro_use]
 extern crate log;
 
+#[macro_use]
+extern crate serde_derive;
+
 mod types;
 mod adapters;
 mod node;
 
 pub use self::node::{node, NodeError};
-pub use self::types::NodeConfig;
+pub use self::types::{NodeConfig, NodeState};

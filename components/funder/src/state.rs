@@ -25,7 +25,7 @@ pub struct FunderState<A: Clone> {
     pub ready_receipts: ImHashMap<Uid, SendFundsReceipt>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FunderMutation<A> {
     FriendMutation((PublicKey, FriendMutation<A>)),
     SetAddress(A),
