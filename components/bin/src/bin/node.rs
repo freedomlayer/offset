@@ -16,7 +16,7 @@ use std::time::Duration;
 use futures::executor::ThreadPool;
 use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
-use futures::{FutureExt, TryFutureExt};
+use futures::{future, FutureExt, TryFutureExt};
 
 use clap::{Arg, App};
 use log::Level;
@@ -126,7 +126,7 @@ where
                      Output=Option<(PublicKey, ConnPairVec)>> + Clone + Send,
     KT: FutTransform<Input=ConnPairVec, Output=ConnPairVec> + Clone + Send,
     S: Spawn + Clone + Send,
-    GT: Fn() -> Result<HashMap<PublicKey, AppPermissions>, NodeBinError> + Clone + Send,
+    GT: Fn() -> Result<HashMap<PublicKey, AppPermissions>, NodeBinError> + Clone + Send + 'static,
 {
     type Input = ConnPairVec;
     type Output = Option<IncomingAppConnection<RelayAddress,IndexServerAddress>>;
@@ -154,7 +154,16 @@ where
             let (public_key, enc_conn) = await!(self.encrypt_transform.transform((None, ver_conn)))?;
 
             // Obtain permissions for app (Or reject it if not trusted):
-            let trusted_apps = (self.get_trusted_apps)().ok()?;
+            let c_get_trusted_apps = self.get_trusted_apps.clone();
+
+            // Obtain trusted apps using a separate thread pool:
+            // At this point we re-read the directory of all trusted apps.
+            // This could be slow, therefore we perform this operation on self.thread_pool
+            // and not on self.spawner, which is the main thread_pool for this program.
+            let trusted_apps_fut = self.thread_pool.spawn_with_handle(
+                future::lazy(move |_| (c_get_trusted_apps)())).ok()?;
+            let trusted_apps = await!(trusted_apps_fut).ok()?;
+
             let app_permissions = trusted_apps.get(&public_key)?;
 
             // Keepalive wrapper:
