@@ -6,10 +6,10 @@ use common_capnp::{self, buffer128, buffer256, buffer512,
                     public_key, invoice_id, hash, dh_public_key, salt, signature,
                     rand_nonce, custom_u_int128, custom_int128, uid,
                     tcp_address_v4, tcp_address_v6, tcp_address, 
-                    relay_address, index_server_address};
+                    relay_address, index_server_address, receipt};
 
 use crate::funder::messages::{InvoiceId, RelayAddress, 
-    TcpAddress, TcpAddressV4, TcpAddressV6};
+    TcpAddress, TcpAddressV4, TcpAddressV6, Receipt};
 use crate::index_server::messages::IndexServerAddress;
 
 use crypto::identity::{PublicKey, Signature};
@@ -279,4 +279,21 @@ pub fn write_index_server_address(from: &IndexServerAddress, to: &mut index_serv
             write_buffer128(&address, &mut address_builder);
         },
     }
+}
+
+pub fn read_receipt(from: &receipt::Reader) -> Result<Receipt, capnp::Error> {
+    Ok(Receipt {
+        response_hash: read_hash(&from.get_response_hash()?)?,
+        invoice_id: read_invoice_id(&from.get_invoice_id()?)?,
+        dest_payment: read_custom_u_int128(&from.get_dest_payment()?)?,
+        signature: read_signature(&from.get_signature()?)?,
+    })
+}
+
+
+pub fn write_receipt(from: &Receipt, to: &mut receipt::Builder) {
+    write_hash(&from.response_hash, &mut to.reborrow().init_response_hash());
+    write_invoice_id(&from.invoice_id, &mut to.reborrow().init_invoice_id());
+    write_custom_u_int128(from.dest_payment, &mut to.reborrow().init_dest_payment());
+    write_signature(&from.signature, &mut to.reborrow().init_signature());
 }
