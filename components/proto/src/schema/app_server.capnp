@@ -93,9 +93,9 @@ struct SetFriendRelays {
 #       }
 
 # Application -> AppServer
-struct DisableFriend {
-        friendPublicKey @0: PublicKey;
-}
+#       struct DisableFriend {
+#               friendPublicKey @0: PublicKey;
+#       }
 
 # Application -> AppServer
 struct SetFriendRemoteMaxDebt {
