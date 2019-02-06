@@ -537,6 +537,7 @@ dependencies = [
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "offst-common 0.1.0",
  "offst-crypto 0.1.0",
+ "offst-database 0.1.0",
  "offst-identity 0.1.0",
  "offst-index-server 0.1.0",
  "offst-keepalive 0.1.0",

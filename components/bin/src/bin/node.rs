@@ -26,6 +26,9 @@ use crypto::crypto_rand::system_random;
 
 use node::{node, NodeConfig, NodeError};
 
+use database::file_db::FileDb;
+use database::AtomicDb;
+
 use proto::consts::{PROTOCOL_VERSION, KEEPALIVE_TICKS, TICKS_TO_REKEY, 
     MAX_OPERATIONS_IN_BATCH, TICK_MS, MAX_FRAME_LENGTH};
 use net::TcpConnector;
@@ -139,6 +142,12 @@ fn run() -> Result<(), NodeBinError> {
 
     // Obtain secure cryptographic random:
     let rng = system_random();
+
+    // Load database:
+    /*
+    pub fn new(path_buf: PathBuf, initial_state: S) 
+        -> Result<Self, FileDbError<S::MutateError>> {
+        */
 
     /*
     let node_fut = node(
