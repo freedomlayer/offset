@@ -44,15 +44,6 @@ struct ReceiptAck {
         receiptSignature @1: Signature;
 }
 
-
-# App -> AppServer
-struct SetAddress {
-    union {
-        address @0: RelayAddress;
-        empty @1: Void;
-    }
-}
-
 # Application -> AppServer
 struct AddFriend {
         friendPublicKey @0: PublicKey;
@@ -71,31 +62,6 @@ struct SetFriendRelays {
         friendPublicKey @0: PublicKey;
         relays @1: List(RelayAddress);
 }
-
-#       # Application -> AppServer
-#       struct RemoveFriend {
-#               friendPublicKey @0: PublicKey;
-#       }
-
-#       # Application -> AppServer
-#       struct OpenFriend {
-#               friendPublicKey @0: PublicKey;
-#       }
-
-#       # Application -> AppServer
-#       struct CloseFriend {
-#               friendPublicKey @0: PublicKey;
-#       }
-
-#       # Application -> AppServer
-#       struct EnableFriend {
-#               friendPublicKey @0: PublicKey;
-#       }
-
-# Application -> AppServer
-#       struct DisableFriend {
-#               friendPublicKey @0: PublicKey;
-#       }
 
 # Application -> AppServer
 struct SetFriendRemoteMaxDebt {
