@@ -7,7 +7,7 @@ use num_traits::identities::Zero;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
-use proto::funder::messages::{Ratio, SendFundsReceipt, AddFriend};
+use proto::funder::messages::{Ratio, Receipt, AddFriend};
 
 use common::int_convert::usize_to_u64;
 use common::canonical_serialize::CanonicalSerialize;
@@ -22,7 +22,7 @@ pub struct FunderState<A: Clone> {
     /// None means that no address was configured.
     pub address: A,
     pub friends: ImHashMap<PublicKey, FriendState<A>>,
-    pub ready_receipts: ImHashMap<Uid, SendFundsReceipt>,
+    pub ready_receipts: ImHashMap<Uid, Receipt>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,7 +31,7 @@ pub enum FunderMutation<A> {
     SetAddress(A),
     AddFriend(AddFriend<A>), 
     RemoveFriend(PublicKey),
-    AddReceipt((Uid, SendFundsReceipt)),  //(request_id, receipt)
+    AddReceipt((Uid, Receipt)),  //(request_id, receipt)
     RemoveReceipt(Uid),
 }
 

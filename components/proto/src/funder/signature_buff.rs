@@ -6,7 +6,7 @@ use common::int_convert::usize_to_u64;
 use common::canonical_serialize::CanonicalSerialize;
 
 use super::messages::{ResponseSendFunds, FailureSendFunds, 
-    SendFundsReceipt, PendingRequest, MoveToken};
+    Receipt, PendingRequest, MoveToken};
 
 pub const FUND_SUCCESS_PREFIX: &[u8] = b"FUND_SUCCESS";
 pub const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
@@ -74,7 +74,7 @@ pub fn verify_failure_signature(failure_send_funds: &FailureSendFunds,
 }
 
 pub fn prepare_receipt(response_send_funds: &ResponseSendFunds,
-                    pending_request: &PendingRequest) -> SendFundsReceipt {
+                    pending_request: &PendingRequest) -> Receipt {
 
     let mut hash_buff = Vec::new();
     hash_buff.extend_from_slice(&pending_request.request_id);
@@ -83,7 +83,7 @@ pub fn prepare_receipt(response_send_funds: &ResponseSendFunds,
     let response_hash = hash::sha_512_256(&hash_buff);
     // = sha512/256(requestId || sha512/256(route) || randNonce)
 
-    SendFundsReceipt {
+    Receipt {
         response_hash,
         invoice_id: pending_request.invoice_id.clone(),
         dest_payment: pending_request.dest_payment,
@@ -93,7 +93,7 @@ pub fn prepare_receipt(response_send_funds: &ResponseSendFunds,
 
 
 #[allow(unused)]
-pub fn verify_receipt(receipt: &SendFundsReceipt,
+pub fn verify_receipt(receipt: &Receipt,
                       public_key: &PublicKey) -> bool {
     let mut data = Vec::new();
     data.extend(FUND_SUCCESS_PREFIX);

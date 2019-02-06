@@ -142,10 +142,10 @@ pub enum FriendMessage<A> {
     InconsistencyError(ResetTerms),
 }
 
-/// A `SendFundsReceipt` is received if a `RequestSendFunds` is successful.
+/// A `Receipt` is received if a `RequestSendFunds` is successful.
 /// It can be used a proof of payment for a specific `invoice_id`.
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct SendFundsReceipt {
+pub struct Receipt {
     pub response_hash: HashResult,
     // = sha512/256(requestId || sha512/256(route) || randNonce)
     pub invoice_id: InvoiceId,
@@ -328,7 +328,7 @@ impl FriendsRoute {
     }
 }
 
-impl CanonicalSerialize for SendFundsReceipt {
+impl CanonicalSerialize for Receipt {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.response_hash);
@@ -467,7 +467,7 @@ impl UserRequestSendFunds {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResponseSendFundsResult {
-    Success(SendFundsReceipt),
+    Success(Receipt),
     Failure(PublicKey), // Reporting public key.
 }
 
