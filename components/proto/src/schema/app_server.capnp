@@ -32,7 +32,7 @@ struct UserRequestSendFunds {
 }
 
 struct ResponseReceived {
-        requestId @0: CustomUInt128;
+        requestId @0: Uid;
         result: union {
                 success @1: Receipt;
                 failure @2: PublicKey; # Reporting public key
