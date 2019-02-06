@@ -38,6 +38,7 @@ secure_channel = { path = "../secure_channel", version = "0.1.0" , package = "of
 version = { path = "../version", version = "0.1.0" , package = "offst-version" }
 net = { path = "../net", version = "0.1.0" , package = "offst-net" }
 index_server = { path = "../index_server", version = "0.1.0" , package = "offst-index-server" }
+node = { path = "../node", version = "0.1.0" , package = "offst-node" }
 
 toml = "0.4.10"
 serde_derive = "1.0.87"

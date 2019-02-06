@@ -541,6 +541,7 @@ dependencies = [
  "offst-index-server 0.1.0",
  "offst-keepalive 0.1.0",
  "offst-net 0.1.0",
+ "offst-node 0.1.0",
  "offst-proto 0.1.0",
  "offst-relay 0.1.0",
  "offst-secure-channel 0.1.0",
