@@ -261,7 +261,7 @@ fn run() -> Result<(), NodeBinError> {
 
     // Get a timer client:
     let dur = Duration::from_millis(usize_to_u64(TICK_MS).unwrap()); 
-    let mut timer_client = create_timer(dur, thread_pool.clone())
+    let timer_client = create_timer(dur, thread_pool.clone())
         .map_err(|_| NodeBinError::CreateTimerError)?;
 
     // Fill in node configuration:
@@ -336,14 +336,14 @@ fn run() -> Result<(), NodeBinError> {
     let app_tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
     let (_config_sender, incoming_app_raw_conns) = app_tcp_listener.listen(listen_tcp_address);
 
-    let mut encrypt_transform = SecureChannel::new(
+    let encrypt_transform = SecureChannel::new(
         identity_client.clone(),
         rng.clone(),
         timer_client.clone(),
         TICKS_TO_REKEY,
         thread_pool.clone());
 
-    let mut keepalive_transform = KeepAliveChannel::new(
+    let keepalive_transform = KeepAliveChannel::new(
         timer_client.clone(),
         KEEPALIVE_TICKS,
         thread_pool.clone());
