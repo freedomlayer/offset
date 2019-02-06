@@ -41,7 +41,7 @@ struct ResponseReceived {
 
 struct ReceiptAck {
         requestId @0: Uid;
-        receiptHash @1: Hash;
+        receiptSignature @1: Signature;
 }
 
 
