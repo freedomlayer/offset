@@ -7,6 +7,7 @@
 #[macro_use]
 extern crate log;
 
+use std::net::SocketAddr;
 use std::path::Path;
 use std::time::Duration;
 
@@ -19,7 +20,7 @@ use clap::{Arg, App};
 use log::Level;
 
 use common::int_convert::usize_to_u64;
-use common::conn::{FutTransform, FuncFutTransform};
+use common::conn::{FutTransform, FuncFutTransform, Listener};
 use crypto::identity::{Identity, PublicKey};
 use identity::{create_identity, IdentityClient};
 use timer::create_timer;
@@ -35,7 +36,7 @@ use proto::consts::{PROTOCOL_VERSION, KEEPALIVE_TICKS, TICKS_TO_REKEY,
     MAX_OPERATIONS_IN_BATCH, TICK_MS, MAX_FRAME_LENGTH};
 use proto::index_server::messages::IndexServerAddress;
 use proto::funder::messages::RelayAddress;
-use net::TcpConnector;
+use net::{TcpConnector, TcpListener, socket_addr_to_tcp_address};
 
 use bin::load_identity_from_file;
 
@@ -57,6 +58,7 @@ const CONN_TIMEOUT_TICKS: usize = 0x8;
 
 #[derive(Debug)]
 enum NodeBinError {
+    ParseListenAddressError,
     LoadIdentityError,
     CreateThreadPoolError,
     CreateIdentityError,
@@ -85,7 +87,19 @@ fn run() -> Result<(), NodeBinError> {
                                .value_name("idfile")
                                .help("Identity file path")
                                .required(true))
+                          .arg(Arg::with_name("laddr")
+                               .short("l")
+                               .long("laddr")
+                               .value_name("laddr")
+                               .help("Listening address. \nExamples:\n- 0.0.0.0:1337\n- fe80::14c2:3048:b1ac:85fb:1337")
+                               .required(true))
                           .get_matches();
+
+    // Parse listening address
+    let listen_address_str = matches.value_of("laddr").unwrap();
+    let socket_addr: SocketAddr = listen_address_str.parse()
+        .map_err(|_| NodeBinError::ParseListenAddressError)?;
+    let listen_tcp_address = socket_addr_to_tcp_address(&socket_addr);
 
     // Parse identity file:
     let idfile_path = matches.value_of("idfile").unwrap();
@@ -174,6 +188,11 @@ fn run() -> Result<(), NodeBinError> {
 
     // Obtain a client to the database service:
     let database_client = DatabaseClient::new(db_request_sender);
+
+    // Start listening to apps:
+    let app_tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
+    let (_config_sender, incoming_app_raw_conns) = app_tcp_listener.listen(listen_tcp_address);
+
 
     // TODO: 
     // - TcpListener to get incoming apps
