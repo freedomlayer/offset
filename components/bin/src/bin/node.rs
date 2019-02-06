@@ -63,6 +63,7 @@ enum NodeBinError {
     CreateTimerError,
     LoadDbError,
     SpawnError,
+    DatabaseIdentityMismatch,
     NodeError(NodeError),
 }
 
@@ -156,6 +157,12 @@ fn run() -> Result<(), NodeBinError> {
 
     // Get initial node_state:
     let node_state = atomic_db.get_state().clone();
+
+    // Make sure that the local public key in the database
+    // matches the local public key from the provided identity file:
+    if node_state.funder_state.local_public_key != local_public_key {
+        return Err(NodeBinError::DatabaseIdentityMismatch);
+    }
 
     // Spawn database service:
     let (db_request_sender, incoming_db_requests) = mpsc::channel(0);
