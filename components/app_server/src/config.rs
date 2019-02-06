@@ -3,7 +3,7 @@
 // use crypto::identity::PublicKey;
 
 // TODO:  Should we move this struct to offst-proto?
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppPermissions {
     /// Receives reports about state
     pub reports: bool,
