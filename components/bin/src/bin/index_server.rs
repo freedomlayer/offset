@@ -125,7 +125,7 @@ where
             let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
             // Deserialize received data
-            c_self.spawner.spawn(async move {
+            let _ = c_self.spawner.spawn(async move {
                 while let Some(data) = await!(receiver.next()) {
                     let message = match deserialize_index_client_to_server(&data) {
                         Ok(message) => message,
@@ -138,7 +138,7 @@ where
             });
 
             // Serialize sent data:
-            c_self.spawner.spawn(async move {
+            let _ = c_self.spawner.spawn(async move {
                 while let Some(message) = await!(from_user_sender.next()) {
                     let data = serialize_index_server_to_client(&message);
                     if let Err(_) = await!(sender.send(data)) {
