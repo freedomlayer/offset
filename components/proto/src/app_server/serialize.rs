@@ -18,7 +18,8 @@ use crate::serialize::SerializeError;
 
 use crate::index_server::messages::IndexServerAddress;
 use crate::funder::messages::{RelayAddress, UserRequestSendFunds, 
-    ResponseReceived, ResponseSendFundsResult, ReceiptAck, AddFriend};
+    ResponseReceived, ResponseSendFundsResult, ReceiptAck, 
+    AddFriend, SetFriendName};
 use crate::funder::serialize::{ser_friends_route, deser_friends_route};
 
 use super::messages::{AppServerToApp, AppToAppServer, 
@@ -143,6 +144,19 @@ fn deser_add_friend(add_friend_reader: &app_server_capnp::add_friend::Reader)
         name: add_friend_reader.get_name()?.to_owned(),
         balance: read_custom_int128(&add_friend_reader.get_balance()?)?,
     })
+}
+
+fn ser_set_friend_name(set_friend_name: &SetFriendName,
+                    set_friend_name_builder: &mut app_server_capnp::set_friend_name::Builder) {
+    // TODO:
+    unimplemented!();
+}
+
+fn deser_set_friend_name(set_friend_name_reader: &app_server_capnp::set_friend_name::Reader)
+    -> Result<SetFriendName, SerializeError> {
+
+    // TODO:
+    unimplemented!();
 }
 
 
