@@ -47,7 +47,7 @@ struct ReceiptAck {
 # Application -> AppServer
 struct AddFriend {
         friendPublicKey @0: PublicKey;
-        address @1: RelayAddress;
+        relays @1: List(RelayAddress);
         name @2: Text;
         balance @3: CustomInt128;
 }
