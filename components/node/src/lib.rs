@@ -12,3 +12,6 @@ extern crate log;
 mod types;
 mod adapters;
 mod node;
+
+pub use self::node::{node, NodeError};
+pub use self::types::NodeConfig;
