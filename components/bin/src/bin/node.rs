@@ -12,6 +12,8 @@ use std::time::Duration;
 
 use futures::executor::ThreadPool;
 use futures::task::SpawnExt;
+use futures::channel::mpsc;
+use futures::{FutureExt, TryFutureExt};
 
 use clap::{Arg, App};
 use log::Level;
@@ -24,13 +26,15 @@ use timer::create_timer;
 use version::VersionPrefix;
 use crypto::crypto_rand::system_random;
 
-use node::{node, NodeConfig, NodeError};
+use node::{node, NodeConfig, NodeState, NodeError};
 
 use database::file_db::FileDb;
-use database::AtomicDb;
+use database::{database_loop, DatabaseClient, AtomicDb};
 
 use proto::consts::{PROTOCOL_VERSION, KEEPALIVE_TICKS, TICKS_TO_REKEY, 
     MAX_OPERATIONS_IN_BATCH, TICK_MS, MAX_FRAME_LENGTH};
+use proto::index_server::messages::IndexServerAddress;
+use proto::funder::messages::RelayAddress;
 use net::TcpConnector;
 
 use bin::load_identity_from_file;
@@ -57,6 +61,8 @@ enum NodeBinError {
     CreateThreadPoolError,
     CreateIdentityError,
     CreateTimerError,
+    LoadDbError,
+    SpawnError,
     NodeError(NodeError),
 }
 
@@ -144,18 +150,37 @@ fn run() -> Result<(), NodeBinError> {
     let rng = system_random();
 
     // Load database:
-    /*
-    pub fn new(path_buf: PathBuf, initial_state: S) 
-        -> Result<Self, FileDbError<S::MutateError>> {
-        */
+    let db_path = matches.value_of("database").unwrap();
+    let atomic_db = FileDb::<NodeState<RelayAddress, IndexServerAddress>>::load(Path::new(&db_path).to_path_buf())
+        .map_err(|_| NodeBinError::LoadDbError)?;
+
+    // Get initial node_state:
+    let node_state = atomic_db.get_state().clone();
+
+    // Spawn database service:
+    let (db_request_sender, incoming_db_requests) = mpsc::channel(0);
+    let loop_fut = database_loop(atomic_db, incoming_db_requests)
+        .map_err(|e| error!("database_loop() error: {:?}", e))
+        .map(|_| ());
+    thread_pool.spawn(loop_fut)
+        .map_err(|_| NodeBinError::SpawnError)?;
+
+    // Obtain a client to the database service:
+    let database_client = DatabaseClient::new(db_request_sender);
+
+    // TODO: 
+    // - TcpListener to get incoming apps
+    // - Configuration directory for trusted apps? For each app:
+    //      - Public key
+    //      - permissions
 
     /*
     let node_fut = node(
         node_config,
         identity_client,
         timer_client,
-        node_state: NodeState<RelayAddress, IndexServerAddress>,
-        database_client: DatabaseClient<NodeMutation<RelayAddress,IndexServerAddress>>,
+        node_state,
+        database_client,
         version_connector,
         incoming_apps: IA,
         rng,
