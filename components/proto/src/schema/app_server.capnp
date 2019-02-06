@@ -12,6 +12,7 @@ using import "common.capnp".RandNonce;
 
 using import "common.capnp".Receipt;
 using import "common.capnp".RelayAddress;
+using import "common.capnp".IndexServerAddress;
 
 using import "report.capnp".Report;
 using import "report.capnp".ReportMutation;
@@ -69,31 +70,35 @@ struct AddFriend {
 }
 
 # Application -> AppServer
-struct SetFriendInfo {
+struct SetFriendName {
         friendPublicKey @0: PublicKey;
-        address @1: RelayAddress;
-        name @2: Text;
+        name @1: Text;
 }
 
-# Application -> AppServer
-struct RemoveFriend {
+struct SetFriendRelays {
         friendPublicKey @0: PublicKey;
+        relays @1: List(RelayAddress);
 }
 
-# Application -> AppServer
-struct OpenFriend {
-        friendPublicKey @0: PublicKey;
-}
+#       # Application -> AppServer
+#       struct RemoveFriend {
+#               friendPublicKey @0: PublicKey;
+#       }
 
-# Application -> AppServer
-struct CloseFriend {
-        friendPublicKey @0: PublicKey;
-}
+#       # Application -> AppServer
+#       struct OpenFriend {
+#               friendPublicKey @0: PublicKey;
+#       }
 
-# Application -> AppServer
-struct EnableFriend {
-        friendPublicKey @0: PublicKey;
-}
+#       # Application -> AppServer
+#       struct CloseFriend {
+#               friendPublicKey @0: PublicKey;
+#       }
+
+#       # Application -> AppServer
+#       struct EnableFriend {
+#               friendPublicKey @0: PublicKey;
+#       }
 
 # Application -> AppServer
 struct DisableFriend {
@@ -135,7 +140,7 @@ struct AppServerToApp {
 struct AppToAppServer {
     union {
         # Set relay address to be used locally (Could be empty)
-        setAddress @0: SetAddress;
+        setRelays @0: List(RelayAddress);
 
         # Sending Funds:
         requestSendFunds @1: RequestSendFunds;
@@ -143,17 +148,22 @@ struct AppToAppServer {
 
         # Friends management
         addFriend @3: AddFriend;
-        setFriendInfo @4: SetFriendInfo;
-        removeFriend @5: RemoveFriend;
-        enableFriend @6: EnableFriend;
-        disableFriend @7: DisableFriend;
-        openFriend @8: OpenFriend;
-        closeFriend @9: CloseFriend;
-        setFriendRemoteMaxDebt @10: SetFriendRemoteMaxDebt;
-        resetFriendChannel @11: ResetFriendChannel;
+        setFriendRelays @4: SetFriendRelays;
+        setFriendName @5: SetFriendName;
+        removeFriend @6: PublicKey;
+        enableFriend @7: PublicKey;
+        disableFriend @8: PublicKey;
+        openFriend @9: PublicKey;
+        closeFriend @10: PublicKey;
+        setFriendRemoteMaxDebt @11: SetFriendRemoteMaxDebt;
+        resetFriendChannel @12: ResetFriendChannel;
 
         # Routes:
-        requestFriendsRoute @12: RequestRoutes;
+        requestRoutes @13: RequestRoutes;
+
+        # Index servers management:
+        addIndexServer @14: IndexServerAddress;
+        removeIndexServer @15: IndexServerAddress;
     }
 }
 
