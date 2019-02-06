@@ -180,7 +180,14 @@ fn run() -> Result<(), NodeBinError> {
     // - Configuration directory for trusted apps? For each app:
     //      - Public key
     //      - permissions
-
+    //
+    // - For each incoming connection:
+    //      - version prefix
+    //      - encrypt (Checking against trusted apps list 
+    //              + Obtain permissions)
+    //      - keepalive
+    //      - serialization
+    
     /*
     let node_fut = node(
         node_config,
