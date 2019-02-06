@@ -106,9 +106,9 @@ pub fn store_index_server_to_file(index_server_address: &IndexServerAddress, pat
 
 /// Load a directory of index server address files, and return a map representing
 /// the information from all files
-pub fn load_trusted_servers(config_dir: &Path) -> Result<Vec<IndexServerAddress>, IndexServerFileError> {
+pub fn load_trusted_servers(dir_path: &Path) -> Result<Vec<IndexServerAddress>, IndexServerFileError> {
     let mut res_trusted = Vec::new();
-    for entry in fs::read_dir(config_dir)? {
+    for entry in fs::read_dir(dir_path)? {
         let entry = entry?;
         let path = entry.path();
         if path.is_dir() {
