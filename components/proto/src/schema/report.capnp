@@ -14,15 +14,16 @@ using import "common.capnp".IndexServerAddress;
 #########################
 
 struct MoveTokenHashed {
-        operationsHash @0: Hash;
-        oldToken @1: Signature;
-        inconsistencyCounter @2: UInt64;
-        moveTokenCounter @3: CustomUInt128;
-        balance @4: CustomInt128;
-        localPendingDebt @5: CustomUInt128;
-        remotePendingDebt @6: CustomUInt128;
-        randNonce @7: RandNonce;
-        newToken @8: Signature;
+        prefixHash @0: Hash;
+        localPublicKey @1: PublicKey;
+        remotePublicKey @2: PublicKey;
+        inconsistencyCounter @3: UInt64;
+        moveTokenCounter @4: CustomUInt128;
+        balance @5: CustomInt128;
+        localPendingDebt @6: CustomUInt128;
+        remotePendingDebt @7: CustomUInt128;
+        randNonce @8: RandNonce;
+        newToken @9: Signature;
 }
 
 
