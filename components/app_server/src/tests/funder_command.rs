@@ -5,7 +5,7 @@ use futures::executor::ThreadPool;
 
 use proto::funder::messages::{FunderOutgoingControl, FunderIncomingControl};
 use proto::app_server::messages::{AppServerToApp, AppToAppServer, NodeReportMutation};
-use proto::funder::report::FunderReportMutation;
+use proto::report::messages::FunderReportMutation;
 
 use crate::config::AppPermissions;
 use super::utils::spawn_dummy_app_server;

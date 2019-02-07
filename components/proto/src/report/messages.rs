@@ -320,6 +320,8 @@ where
 // `index_client`. This allows the offst-index-client crate to not depend on the offst-funder
 // crate.
 
+// TODO: Maybe this logic shouldn't be here? Where should we move it to?
+
 /// Calculate send and receive capacities for a given `friend_report`.
 fn calc_friend_capacities<A>(friend_report: &FriendReport<A>) -> (u128, u128) {
     if friend_report.status == FriendStatusReport::Disabled || 

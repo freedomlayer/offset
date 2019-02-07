@@ -3,7 +3,7 @@ use crypto::identity::PublicKey;
 use crate::funder::messages::{UserRequestSendFunds, ResponseReceived,
                             ReceiptAck, AddFriend, SetFriendAddress, 
                             SetFriendName, SetFriendRemoteMaxDebt, ResetFriendChannel};
-use crate::funder::report::{FunderReport, FunderReportMutation};
+use crate::report::messages::{FunderReport, FunderReportMutation};
 use crate::index_client::messages::{IndexClientReport, 
     IndexClientReportMutation, ClientResponseRoutes};
 use crate::index_server::messages::RequestRoutes;

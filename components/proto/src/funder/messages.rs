@@ -10,7 +10,7 @@ use crypto::hash::{self, HashResult};
 use common::int_convert::{usize_to_u64};
 use common::canonical_serialize::CanonicalSerialize;
 
-use crate::funder::report::FunderReportMutation;
+use crate::report::messages::FunderReportMutation;
 use crate::consts::MAX_ROUTE_LEN;
 
 

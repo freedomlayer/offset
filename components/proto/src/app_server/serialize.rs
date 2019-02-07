@@ -220,8 +220,22 @@ fn ser_reset_friend_channel(reset_friend_channel: &ResetFriendChannel,
 
     write_signature(&reset_friend_channel.reset_token,
         &mut reset_friend_channel_builder.reborrow().init_reset_token());
-
 }
+
+fn deser_reset_friend_channel(reset_friend_channel_reader: &app_server_capnp::reset_friend_channel::Reader)
+    -> Result<ResetFriendChannel, SerializeError> {
+
+    Ok(ResetFriendChannel {
+        friend_public_key: read_public_key(&reset_friend_channel_reader.get_friend_public_key()?)?,
+        reset_token: read_signature(&reset_friend_channel_reader.get_reset_token()?)?,
+    })
+}
+
+/*
+fn ser_reset_friend_channel(reset_friend_channel: &ResetFriendChannel,
+                    reset_friend_channel_builder: &mut app_server_capnp::reset_friend_channel::Builder) {
+}
+*/
 
 
 // ---------------------------------------------------

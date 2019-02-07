@@ -7,7 +7,7 @@ use crypto::crypto_rand::CryptoRandom;
 
 use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::FunderOutgoingControl;
-use proto::funder::report::FunderReportMutation;
+use proto::report::messages::FunderReportMutation;
 
 use crate::state::{FunderState, FunderMutation};
 

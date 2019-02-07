@@ -25,7 +25,7 @@ use proto::funder::messages::{RelayAddress, TcpAddress,
     FunderIncomingControl, FunderOutgoingControl};
 use proto::funder::serialize::{serialize_friend_message, 
     deserialize_friend_message};
-use proto::funder::report::funder_report_to_index_client_state;
+use proto::report::messages::funder_report_to_index_client_state;
 use proto::index_server::messages::IndexServerAddress;
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer};
 

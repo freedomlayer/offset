@@ -3,7 +3,7 @@ use im::hashmap::HashMap as ImHashMap;
 use common::int_convert::usize_to_u64;
 use common::canonical_serialize::CanonicalSerialize;
 
-use proto::funder::report::{DirectionReport, FriendLivenessReport, 
+use proto::report::messages::{DirectionReport, FriendLivenessReport, 
     TcReport, ResetTermsReport, ChannelInconsistentReport, ChannelStatusReport, FriendReport,
     FunderReport, FriendReportMutation, AddFriendReport, FunderReportMutation,
     McRequestsStatusReport, McBalanceReport, RequestsStatusReport, FriendStatusReport,

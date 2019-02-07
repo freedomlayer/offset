@@ -7,7 +7,7 @@ use im::hashmap::HashMap as ImHashMap;
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
 use proto::funder::messages::{FunderOutgoingControl, FunderIncomingControl};
-use proto::funder::report::FunderReport;
+use proto::report::messages::FunderReport;
 use proto::app_server::messages::NodeReport;
 use proto::index_client::messages::{IndexClientToAppServer, 
     AppServerToIndexClient, IndexClientReport};

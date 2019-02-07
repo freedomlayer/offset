@@ -12,7 +12,7 @@ use crypto::uid::Uid;
 use proto::funder::messages::{FunderOutgoingControl, FunderIncomingControl, 
     RemoveFriend, SetFriendStatus, FriendStatus,
     RequestsStatus, SetRequestsStatus};
-use proto::funder::report::funder_report_mutation_to_index_mutation;
+use proto::report::messages::funder_report_mutation_to_index_mutation;
 
 use proto::app_server::messages::{AppServerToApp, AppToAppServer, NodeReport,
                                     NodeReportMutation};
