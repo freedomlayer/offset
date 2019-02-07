@@ -69,3 +69,21 @@ fn deser_move_token_hashed_report(move_token_hashed_report_reader: &report_capnp
         new_token: read_signature(&move_token_hashed_report_reader.get_new_token()?)?,
     })
 }
+
+fn ser_friend_status_report(friend_status_report: &FriendStatusReport,
+                    friend_status_report_builder: &mut report_capnp::friend_status_report::Builder) {
+
+    match friend_status_report {
+        FriendStatusReport::Enabled => friend_status_report_builder.set_enabled(()),
+        FriendStatusReport::Disabled => friend_status_report_builder.set_disabled(()),
+    }
+}
+
+fn deser_friend_status_report(friend_status_report_reader: &report_capnp::friend_status_report::Reader)
+    -> Result<FriendStatusReport, SerializeError> {
+
+    Ok(match friend_status_report_reader.which()? {
+        report_capnp::friend_status_report::Enabled(()) => FriendStatusReport::Enabled,
+        report_capnp::friend_status_report::Disabled(()) => FriendStatusReport::Disabled,
+    })
+}
