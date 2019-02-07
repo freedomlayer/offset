@@ -19,7 +19,8 @@ use crate::serialize::SerializeError;
 use crate::report::messages::{MoveTokenHashedReport, FriendStatusReport, RequestsStatusReport,
                             FriendLivenessReport, DirectionReport,
                             McRequestsStatusReport, McBalanceReport, TcReport,
-                            ResetTermsReport, ChannelInconsistentReport};
+                            ResetTermsReport, ChannelInconsistentReport,
+                            ChannelStatusReport};
 
 
 fn ser_move_token_hashed_report(move_token_hashed_report: &MoveTokenHashedReport,
@@ -279,5 +280,35 @@ fn deser_channel_inconsistent_report(channel_inconsistent_report_reader: &report
     Ok(ChannelInconsistentReport {
         local_reset_terms_balance: read_custom_int128(&channel_inconsistent_report_reader.get_local_reset_terms_balance()?)?,
         opt_remote_reset_terms,
+    })
+}
+
+fn ser_channel_status_report(channel_status_report: &ChannelStatusReport,
+                    channel_status_report_builder: &mut report_capnp::channel_status_report::Builder) {
+
+    match &channel_status_report {
+        ChannelStatusReport::Inconsistent(channel_inconsistent_report) => {
+            let mut inconsistent_builder = channel_status_report_builder.reborrow().init_inconsistent();
+            ser_channel_inconsistent_report(channel_inconsistent_report,
+                                            &mut inconsistent_builder);
+        },
+        ChannelStatusReport::Consistent(tc_report) => {
+            let mut consistent_builder = channel_status_report_builder.reborrow().init_consistent();
+            ser_tc_report(tc_report,
+                          &mut consistent_builder);
+        },
+    };
+}
+
+fn deser_channel_status_report(channel_status_report_reader: &report_capnp::channel_status_report::Reader)
+    -> Result<ChannelStatusReport, SerializeError> {
+
+    Ok(match channel_status_report_reader.which()? {
+        report_capnp::channel_status_report::Inconsistent(channel_inconsistent_report_reader) =>
+            ChannelStatusReport::Inconsistent(
+                deser_channel_inconsistent_report(&channel_inconsistent_report_reader?)?),
+        report_capnp::channel_status_report::Consistent(tc_report_reader) => 
+            ChannelStatusReport::Consistent(
+                deser_tc_report(&tc_report_reader?)?),
     })
 }
