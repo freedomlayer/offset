@@ -242,23 +242,42 @@ fn deser_reset_terms_report(reset_terms_report_reader: &report_capnp::reset_term
     })
 }
 
-/*
 fn ser_channel_inconsistent_report(channel_inconsistent_report: &ChannelInconsistentReport,
                     channel_inconsistent_report_builder: &mut report_capnp::channel_inconsistent_report::Builder) {
 
     write_custom_int128(channel_inconsistent_report.local_reset_terms_balance, 
             &mut channel_inconsistent_report_builder.reborrow().init_local_reset_terms_balance());
 
-    let opt_remote_reset_terms_balance_builder = channel_inconsistent_report_builder.init_opt_remote_reset_terms_balance();
-    match channel_inconsistent_report.opt_remote_reset_terms {
+    let mut opt_remote_reset_terms_builder = channel_inconsistent_report_builder
+        .reborrow()
+        .init_opt_remote_reset_terms();
+    match &channel_inconsistent_report.opt_remote_reset_terms {
         Some(remote_reset_terms) => {
-            let mut remote_reset_terms_builder = opt_remote_reset_terms_balance_builder
+            let mut remote_reset_terms_builder = opt_remote_reset_terms_builder
                 .reborrow().init_remote_reset_terms();
-            write_custom_int128(&remote_reset_terms,
+            ser_reset_terms_report(remote_reset_terms,
                                 &mut remote_reset_terms_builder);
 
         },
-        None => {opt_remote_reset_terms_balance_builder.reborrow().set_empty(());}
+        None => {opt_remote_reset_terms_builder.reborrow().set_empty(());}
     };
 }
-*/
+
+fn deser_channel_inconsistent_report(channel_inconsistent_report_reader: &report_capnp::channel_inconsistent_report::Reader)
+    -> Result<ChannelInconsistentReport, SerializeError> {
+
+    let opt_remote_reset_terms = match channel_inconsistent_report_reader.get_opt_remote_reset_terms().which()? {
+        report_capnp::channel_inconsistent_report
+            ::opt_remote_reset_terms
+            ::RemoteResetTerms(reset_terms_report) => Some(deser_reset_terms_report(&reset_terms_report?)?),
+        report_capnp
+            ::channel_inconsistent_report
+            ::opt_remote_reset_terms
+            ::Empty(()) => None,
+    };
+
+    Ok(ChannelInconsistentReport {
+        local_reset_terms_balance: read_custom_int128(&channel_inconsistent_report_reader.get_local_reset_terms_balance()?)?,
+        opt_remote_reset_terms,
+    })
+}
