@@ -194,20 +194,31 @@ fn deser_mc_balance_report(mc_balance_report_reader: &report_capnp::mc_balance_r
     })
 }
 
-/*
 fn ser_tc_report(tc_report: &TcReport,
                     tc_report_builder: &mut report_capnp::tc_report::Builder) {
 
     ser_direction_report(&tc_report.direction, 
             &mut tc_report_builder.reborrow().init_direction());
 
-    write_custom_int128(tc_report.balance, 
+    ser_mc_balance_report(&tc_report.balance, 
             &mut tc_report_builder.reborrow().init_balance());
 
-    ser_requests_status(&tc_report.requests_status, 
+    ser_mc_requests_status_report(&tc_report.requests_status, 
             &mut tc_report_builder.reborrow().init_requests_status());
 
     tc_report_builder.reborrow().set_num_local_pending_requests(tc_report.num_local_pending_requests);
     tc_report_builder.reborrow().set_num_remote_pending_requests(tc_report.num_remote_pending_requests);
 }
-*/
+
+fn deser_tc_report(tc_report_reader: &report_capnp::tc_report::Reader)
+    -> Result<TcReport, SerializeError> {
+
+    Ok(TcReport {
+        direction: deser_direction_report(&tc_report_reader.get_direction()?)?,
+        balance: deser_mc_balance_report(&tc_report_reader.get_balance()?)?,
+        requests_status: deser_mc_requests_status_report(&tc_report_reader.get_requests_status()?)?,
+        num_local_pending_requests: tc_report_reader.get_num_local_pending_requests(),
+        num_remote_pending_requests: tc_report_reader.get_num_remote_pending_requests(),
+    })
+}
+
