@@ -17,7 +17,8 @@ use crate::capnp_common::{write_signature, read_signature,
 use report_capnp;
 use crate::serialize::SerializeError;
 use crate::report::messages::{MoveTokenHashedReport, FriendStatusReport, RequestsStatusReport,
-                            FriendLivenessReport, DirectionReport};
+                            FriendLivenessReport, DirectionReport,
+                            McRequestsStatusReport};
 
 
 fn ser_move_token_hashed_report(move_token_hashed_report: &MoveTokenHashedReport,
@@ -121,5 +122,43 @@ fn deser_friend_liveness_report(friend_liveness_report_reader: &report_capnp::fr
     Ok(match friend_liveness_report_reader.which()? {
         report_capnp::friend_liveness_report::Offline(()) => FriendLivenessReport::Offline,
         report_capnp::friend_liveness_report::Online(()) => FriendLivenessReport::Online,
+    })
+}
+
+fn ser_direction_report(direction_report: &DirectionReport,
+                    direction_report_builder: &mut report_capnp::direction_report::Builder) {
+
+    match direction_report {
+        DirectionReport::Incoming => direction_report_builder.set_incoming(()),
+        DirectionReport::Outgoing => direction_report_builder.set_outgoing(()),
+    }
+}
+
+fn deser_direction_report(direction_report_reader: &report_capnp::direction_report::Reader)
+    -> Result<DirectionReport, SerializeError> {
+
+    Ok(match direction_report_reader.which()? {
+        report_capnp::direction_report::Incoming(()) => DirectionReport::Incoming,
+        report_capnp::direction_report::Outgoing(()) => DirectionReport::Outgoing,
+    })
+}
+
+fn ser_mc_requests_status_report(mc_requests_status_report: &McRequestsStatusReport,
+                    mc_requests_status_report_builder: &mut report_capnp::mc_requests_status_report::Builder) {
+
+    ser_requests_status_report(&mc_requests_status_report.local, 
+            &mut mc_requests_status_report_builder.reborrow().init_local());
+
+    ser_requests_status_report(&mc_requests_status_report.remote, 
+            &mut mc_requests_status_report_builder.reborrow().init_remote());
+
+}
+
+fn deser_mc_requests_status_report(mc_requests_status_report: &report_capnp::mc_requests_status_report::Reader)
+    -> Result<McRequestsStatusReport, SerializeError> {
+
+    Ok(McRequestsStatusReport {
+        local: deser_requests_status_report(&mc_requests_status_report.get_local()?)?,
+        remote: deser_requests_status_report(&mc_requests_status_report.get_remote()?)?,
     })
 }
