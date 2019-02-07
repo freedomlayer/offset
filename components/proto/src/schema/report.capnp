@@ -99,7 +99,7 @@ struct ChannelInconsistentReport {
 struct ChannelStatusReport {
         union {
                 inconsistent @0: ChannelInconsistentReport;
-                consistenet @1: TcReport;
+                consistent @1: TcReport;
         }
 }
 
