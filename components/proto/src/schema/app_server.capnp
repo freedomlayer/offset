@@ -72,7 +72,7 @@ struct SetFriendRemoteMaxDebt {
 # Application -> AppServer
 struct ResetFriendChannel {
         friendPublicKey @0: PublicKey;
-        currentToken @1: Signature;
+        resetToken @1: Signature;
 }
 
 

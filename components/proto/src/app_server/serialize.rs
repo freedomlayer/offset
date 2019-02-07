@@ -218,8 +218,8 @@ fn ser_reset_friend_channel(reset_friend_channel: &ResetFriendChannel,
     write_public_key(&reset_friend_channel.friend_public_key,
         &mut reset_friend_channel_builder.reborrow().init_friend_public_key());
 
-    write_signature(&reset_friend_channel.current_token,
-        &mut reset_friend_channel_builder.reborrow().init_current_token());
+    write_signature(&reset_friend_channel.reset_token,
+        &mut reset_friend_channel_builder.reborrow().init_reset_token());
 
 }
 

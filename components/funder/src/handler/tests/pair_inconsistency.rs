@@ -232,7 +232,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
     // Node1: Reset channel, agreeing to Node2's conditions:
     let reset_friend_channel = ResetFriendChannel {
         friend_public_key: pk2.clone(),
-        current_token: reset_token2.clone(),
+        reset_token: reset_token2.clone(),
     };
     let incoming_control_message = FunderIncomingControl::ResetFriendChannel(reset_friend_channel);
     let funder_incoming = FunderIncoming::Control(incoming_control_message);

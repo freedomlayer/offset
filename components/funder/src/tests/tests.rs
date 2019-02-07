@@ -330,7 +330,7 @@ where
 
     let reset_friend_channel = ResetFriendChannel {
         friend_public_key: public_keys[1].clone(),
-        current_token: reset_terms_report.reset_token.clone(), // TODO: Rename current_token to reset_token?
+        reset_token: reset_terms_report.reset_token.clone(), // TODO: Rename reset_token to reset_token?
     };
     await!(node_controls[0].send(FunderIncomingControl::ResetFriendChannel(reset_friend_channel))).unwrap();
 

@@ -410,7 +410,7 @@ pub struct SetFriendAddress<A> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResetFriendChannel {
     pub friend_public_key: PublicKey,
-    pub current_token: Signature,
+    pub reset_token: Signature,
 }
 
 /// A request to send funds that originates from the user
