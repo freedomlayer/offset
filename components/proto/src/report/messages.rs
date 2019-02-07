@@ -59,10 +59,10 @@ pub struct McBalanceReport {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
     pub balance: i128,
-    /// Maximum possible remote debt
-    pub remote_max_debt: u128,
     /// Maximum possible local debt
     pub local_max_debt: u128,
+    /// Maximum possible remote debt
+    pub remote_max_debt: u128,
     /// Frozen credits by our side
     pub local_pending_debt: u128,
     /// Frozen credits by the remote side
