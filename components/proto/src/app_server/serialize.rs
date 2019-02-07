@@ -19,7 +19,8 @@ use crate::serialize::SerializeError;
 use crate::index_server::messages::IndexServerAddress;
 use crate::funder::messages::{RelayAddress, UserRequestSendFunds, 
     ResponseReceived, ResponseSendFundsResult, ReceiptAck, 
-    AddFriend, SetFriendName, SetFriendAddress};
+    AddFriend, SetFriendName, SetFriendAddress,
+    SetFriendRemoteMaxDebt};
 use crate::funder::serialize::{ser_friends_route, deser_friends_route};
 
 use super::messages::{AppServerToApp, AppToAppServer, 
@@ -192,6 +193,24 @@ fn deser_set_friend_relays(set_friend_relays_reader: &app_server_capnp::set_frie
     })
 }
 
+fn ser_set_friend_remote_max_debt(set_friend_remote_max_debt: &SetFriendRemoteMaxDebt,
+                    set_friend_remote_max_debt_builder: &mut app_server_capnp::set_friend_remote_max_debt::Builder) {
+
+    write_public_key(&set_friend_remote_max_debt.friend_public_key,
+        &mut set_friend_remote_max_debt_builder.reborrow().init_friend_public_key());
+
+    write_custom_u_int128(set_friend_remote_max_debt.remote_max_debt,
+        &mut set_friend_remote_max_debt_builder.reborrow().init_remote_max_debt());
+}
+
+fn deser_set_friend_remote_max_debt(set_friend_remote_max_debt_reader: &app_server_capnp::set_friend_remote_max_debt::Reader)
+    -> Result<SetFriendRemoteMaxDebt, SerializeError> {
+
+    Ok(SetFriendRemoteMaxDebt {
+        friend_public_key: read_public_key(&set_friend_remote_max_debt_reader.get_friend_public_key()?)?,
+        remote_max_debt: read_custom_u_int128(&set_friend_remote_max_debt_reader.get_remote_max_debt()?)?,
+    })
+}
 
 
 // ---------------------------------------------------
