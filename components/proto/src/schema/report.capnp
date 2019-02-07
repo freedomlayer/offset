@@ -82,10 +82,15 @@ struct TcReport {
         numRemotePendingRequests @4: UInt64;
 }
 
+struct ResetTermsReport {
+        resetToken @0: Signature;
+        balanceForReset @1: CustomInt128;
+}
+
 struct ChannelInconsistentReport {
         localResetTermsBalance @0: CustomInt128;
-        optRocalResetTermsBalance: union {
-                remoteResetTerms @1: CustomInt128;
+        optRemoteResetTermsBalance: union {
+                remoteResetTerms @1: ResetTermsReport;
                 empty @2: Void;
         }
 }
