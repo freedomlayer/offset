@@ -20,7 +20,7 @@ use crate::report::messages::{MoveTokenHashedReport, FriendStatusReport, Request
                             FriendLivenessReport, DirectionReport,
                             McRequestsStatusReport, McBalanceReport, TcReport,
                             ResetTermsReport, ChannelInconsistentReport,
-                            ChannelStatusReport};
+                            ChannelStatusReport, FriendReport};
 
 
 fn ser_move_token_hashed_report(move_token_hashed_report: &MoveTokenHashedReport,
@@ -286,7 +286,7 @@ fn deser_channel_inconsistent_report(channel_inconsistent_report_reader: &report
 fn ser_channel_status_report(channel_status_report: &ChannelStatusReport,
                     channel_status_report_builder: &mut report_capnp::channel_status_report::Builder) {
 
-    match &channel_status_report {
+    match channel_status_report {
         ChannelStatusReport::Inconsistent(channel_inconsistent_report) => {
             let mut inconsistent_builder = channel_status_report_builder.reborrow().init_inconsistent();
             ser_channel_inconsistent_report(channel_inconsistent_report,
@@ -310,5 +310,32 @@ fn deser_channel_status_report(channel_status_report_reader: &report_capnp::chan
         report_capnp::channel_status_report::Consistent(tc_report_reader) => 
             ChannelStatusReport::Consistent(
                 deser_tc_report(&tc_report_reader?)?),
+    })
+}
+
+fn ser_opt_last_incoming_move_token(opt_last_incoming_move_token: &Option<MoveTokenHashedReport>,
+                    opt_last_incoming_move_token_builder: &mut report_capnp::opt_last_incoming_move_token::Builder) {
+
+    match opt_last_incoming_move_token {
+        Some(last_incoming_move_token) => {
+            let mut move_token_hashed_builder = 
+                opt_last_incoming_move_token_builder.reborrow().init_move_token_hashed();
+
+            ser_move_token_hashed_report(last_incoming_move_token,
+                                  &mut move_token_hashed_builder);
+        },
+        None => {
+            opt_last_incoming_move_token_builder.set_empty(());
+        },
+    };
+}
+
+fn deser_opt_last_incoming_move_token(opt_last_incoming_move_token_reader: &report_capnp::opt_last_incoming_move_token::Reader)
+    -> Result<Option<MoveTokenHashedReport>, SerializeError> {
+
+    Ok(match opt_last_incoming_move_token_reader.which()? {
+        report_capnp::opt_last_incoming_move_token::MoveTokenHashed(move_token_hashed_reader) =>
+            Some(deser_move_token_hashed_report(&move_token_hashed_reader?)?),
+        report_capnp::opt_last_incoming_move_token::Empty(()) => None,
     })
 }
