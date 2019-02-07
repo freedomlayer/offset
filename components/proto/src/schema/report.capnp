@@ -89,7 +89,7 @@ struct ResetTermsReport {
 
 struct ChannelInconsistentReport {
         localResetTermsBalance @0: CustomInt128;
-        optRemoteResetTermsBalance: union {
+        optRemoteResetTerms: union {
                 remoteResetTerms @1: ResetTermsReport;
                 empty @2: Void;
         }
