@@ -48,9 +48,11 @@ struct FriendLivenessReport {
         }
 }
 
-enum DirectionReport {
-        incoming @0;
-        outgoing @1;
+struct DirectionReport {
+        union {
+                incoming @0: Void;
+                outgoing @1: Void;
+        }
 }
 
 struct McRequestsStatusReport {
