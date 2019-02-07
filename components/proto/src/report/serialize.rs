@@ -105,3 +105,21 @@ fn deser_requests_status_report(requests_status_report_reader: &report_capnp::re
         report_capnp::requests_status_report::Open(()) => RequestsStatusReport::Open,
     })
 }
+
+fn ser_friend_liveness_report(friend_liveness_report: &FriendLivenessReport,
+                    friend_liveness_report_builder: &mut report_capnp::friend_liveness_report::Builder) {
+
+    match friend_liveness_report {
+        FriendLivenessReport::Offline => friend_liveness_report_builder.set_offline(()),
+        FriendLivenessReport::Online => friend_liveness_report_builder.set_online(()),
+    }
+}
+
+fn deser_friend_liveness_report(friend_liveness_report_reader: &report_capnp::friend_liveness_report::Reader)
+    -> Result<FriendLivenessReport, SerializeError> {
+
+    Ok(match friend_liveness_report_reader.which()? {
+        report_capnp::friend_liveness_report::Offline(()) => FriendLivenessReport::Offline,
+        report_capnp::friend_liveness_report::Online(()) => FriendLivenessReport::Online,
+    })
+}
