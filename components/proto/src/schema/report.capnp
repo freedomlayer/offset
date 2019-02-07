@@ -27,19 +27,25 @@ struct MoveTokenHashedReport {
 }
 
 
-enum FriendStatusReport {
-        disabled @0;
-        enabled @1;
+struct FriendStatusReport {
+        union {
+                disabled @0: Void;
+                enabled @1: Void;
+        }
 }
 
-enum RequestsStatusReport {
-        closed @0;
-        open @1;
+struct RequestsStatusReport {
+        union {
+                closed @0: Void;
+                open @1: Void;
+        }
 }
 
-enum FriendLivenessReport {
-        offline @0;
-        online @1;
+struct FriendLivenessReport {
+        union {
+                offline @0: Void;
+                online @1: Void;
+        }
 }
 
 enum DirectionReport {
