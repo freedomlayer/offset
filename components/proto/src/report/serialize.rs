@@ -269,7 +269,7 @@ fn deser_channel_inconsistent_report(channel_inconsistent_report_reader: &report
     let opt_remote_reset_terms = match channel_inconsistent_report_reader.get_opt_remote_reset_terms().which()? {
         report_capnp::channel_inconsistent_report
             ::opt_remote_reset_terms
-            ::RemoteResetTerms(reset_terms_report) => Some(deser_reset_terms_report(&reset_terms_report?)?),
+            ::RemoteResetTerms(reset_terms_report_reader) => Some(deser_reset_terms_report(&reset_terms_report_reader?)?),
         report_capnp
             ::channel_inconsistent_report
             ::opt_remote_reset_terms
