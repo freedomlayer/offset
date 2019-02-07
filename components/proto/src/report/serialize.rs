@@ -83,7 +83,25 @@ fn deser_friend_status_report(friend_status_report_reader: &report_capnp::friend
     -> Result<FriendStatusReport, SerializeError> {
 
     Ok(match friend_status_report_reader.which()? {
-        report_capnp::friend_status_report::Enabled(()) => FriendStatusReport::Enabled,
         report_capnp::friend_status_report::Disabled(()) => FriendStatusReport::Disabled,
+        report_capnp::friend_status_report::Enabled(()) => FriendStatusReport::Enabled,
+    })
+}
+
+fn ser_requests_status_report(requests_status_report: &RequestsStatusReport,
+                    requests_status_report_builder: &mut report_capnp::requests_status_report::Builder) {
+
+    match requests_status_report {
+        RequestsStatusReport::Closed => requests_status_report_builder.set_closed(()),
+        RequestsStatusReport::Open => requests_status_report_builder.set_open(()),
+    }
+}
+
+fn deser_requests_status_report(requests_status_report_reader: &report_capnp::requests_status_report::Reader)
+    -> Result<RequestsStatusReport, SerializeError> {
+
+    Ok(match requests_status_report_reader.which()? {
+        report_capnp::requests_status_report::Closed(()) => RequestsStatusReport::Closed,
+        report_capnp::requests_status_report::Open(()) => RequestsStatusReport::Open,
     })
 }
