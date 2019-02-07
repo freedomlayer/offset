@@ -148,15 +148,20 @@ fn deser_add_friend(add_friend_reader: &app_server_capnp::add_friend::Reader)
 
 fn ser_set_friend_name(set_friend_name: &SetFriendName,
                     set_friend_name_builder: &mut app_server_capnp::set_friend_name::Builder) {
-    // TODO:
-    unimplemented!();
+
+    write_public_key(&set_friend_name.friend_public_key, 
+              &mut set_friend_name_builder.reborrow().init_friend_public_key());
+
+    set_friend_name_builder.set_name(&set_friend_name.name);
 }
 
 fn deser_set_friend_name(set_friend_name_reader: &app_server_capnp::set_friend_name::Reader)
     -> Result<SetFriendName, SerializeError> {
 
-    // TODO:
-    unimplemented!();
+    Ok(SetFriendName {
+        friend_public_key: read_public_key(&set_friend_name_reader.get_friend_public_key()?)?,
+        name: set_friend_name_reader.get_name()?.to_owned(),
+    })
 }
 
 
