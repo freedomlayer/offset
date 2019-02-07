@@ -20,7 +20,7 @@ use crate::index_server::messages::IndexServerAddress;
 use crate::funder::messages::{RelayAddress, UserRequestSendFunds, 
     ResponseReceived, ResponseSendFundsResult, ReceiptAck, 
     AddFriend, SetFriendName, SetFriendAddress,
-    SetFriendRemoteMaxDebt};
+    SetFriendRemoteMaxDebt, ResetFriendChannel};
 use crate::funder::serialize::{ser_friends_route, deser_friends_route};
 
 use super::messages::{AppServerToApp, AppToAppServer, 
@@ -210,6 +210,17 @@ fn deser_set_friend_remote_max_debt(set_friend_remote_max_debt_reader: &app_serv
         friend_public_key: read_public_key(&set_friend_remote_max_debt_reader.get_friend_public_key()?)?,
         remote_max_debt: read_custom_u_int128(&set_friend_remote_max_debt_reader.get_remote_max_debt()?)?,
     })
+}
+
+fn ser_reset_friend_channel(reset_friend_channel: &ResetFriendChannel,
+                    reset_friend_channel_builder: &mut app_server_capnp::reset_friend_channel::Builder) {
+
+    write_public_key(&reset_friend_channel.friend_public_key,
+        &mut reset_friend_channel_builder.reborrow().init_friend_public_key());
+
+    write_signature(&reset_friend_channel.current_token,
+        &mut reset_friend_channel_builder.reborrow().init_current_token());
+
 }
 
 
