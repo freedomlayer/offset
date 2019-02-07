@@ -18,7 +18,8 @@ use report_capnp;
 use crate::serialize::SerializeError;
 use crate::report::messages::{MoveTokenHashedReport, FriendStatusReport, RequestsStatusReport,
                             FriendLivenessReport, DirectionReport,
-                            McRequestsStatusReport, McBalanceReport, TcReport};
+                            McRequestsStatusReport, McBalanceReport, TcReport,
+                            ResetTermsReport, ChannelInconsistentReport};
 
 
 fn ser_move_token_hashed_report(move_token_hashed_report: &MoveTokenHashedReport,
@@ -222,3 +223,42 @@ fn deser_tc_report(tc_report_reader: &report_capnp::tc_report::Reader)
     })
 }
 
+fn ser_reset_terms_report(reset_terms_report: &ResetTermsReport,
+                    reset_terms_report_builder: &mut report_capnp::reset_terms_report::Builder) {
+
+    write_signature(&reset_terms_report.reset_token,
+                    &mut reset_terms_report_builder.reborrow().init_reset_token());
+
+    write_custom_int128(reset_terms_report.balance_for_reset,
+                    &mut reset_terms_report_builder.reborrow().init_balance_for_reset());
+}
+
+fn deser_reset_terms_report(reset_terms_report_reader: &report_capnp::reset_terms_report::Reader)
+    -> Result<ResetTermsReport, SerializeError> {
+
+    Ok(ResetTermsReport {
+        reset_token: read_signature(&reset_terms_report_reader.get_reset_token()?)?,
+        balance_for_reset: read_custom_int128(&reset_terms_report_reader.get_balance_for_reset()?)?,
+    })
+}
+
+/*
+fn ser_channel_inconsistent_report(channel_inconsistent_report: &ChannelInconsistentReport,
+                    channel_inconsistent_report_builder: &mut report_capnp::channel_inconsistent_report::Builder) {
+
+    write_custom_int128(channel_inconsistent_report.local_reset_terms_balance, 
+            &mut channel_inconsistent_report_builder.reborrow().init_local_reset_terms_balance());
+
+    let opt_remote_reset_terms_balance_builder = channel_inconsistent_report_builder.init_opt_remote_reset_terms_balance();
+    match channel_inconsistent_report.opt_remote_reset_terms {
+        Some(remote_reset_terms) => {
+            let mut remote_reset_terms_builder = opt_remote_reset_terms_balance_builder
+                .reborrow().init_remote_reset_terms();
+            write_custom_int128(&remote_reset_terms,
+                                &mut remote_reset_terms_builder);
+
+        },
+        None => {opt_remote_reset_terms_balance_builder.reborrow().set_empty(());}
+    };
+}
+*/
