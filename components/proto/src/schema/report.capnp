@@ -8,6 +8,7 @@ using import "common.capnp".Signature;
 using import "common.capnp".RandNonce;
 
 using import "common.capnp".RelayAddress;
+using import "common.capnp".IndexServerAddress;
 
 ## Report related structs
 #########################
@@ -98,7 +99,7 @@ struct FriendReport {
 
 # A full report. Contains a full summary of the current state.
 # This will usually be sent only once, and then ReportMutations will be sent.
-struct Report {
+struct FunderReport {
         localPublicKey @0: PublicKey;
         optAddress: union {
                 address @1: RelayAddress;
@@ -154,13 +155,54 @@ struct PkFriendReportMutation {
         friendReportMutation @1: FriendReportMutation;
 }
 
-# A ReportMutation. Could be applied over a Report to make small changes.
-struct ReportMutation {
+# A FunderReportMutation. Could be applied over a FunderReport to make small changes.
+struct FunderReportMutation {
         union {
                 setAddress @0: SetAddressReport;
                 addFriend @1: AddFriendReport;
                 removeFriend @2: PublicKey;
                 pkFriendReportMutation @3: PkFriendReportMutation;
                 setNumReadyReceipts @4: UInt64;
+        }
+}
+
+
+############################################################################
+##### IndexClient report
+############################################################################
+
+struct IndexClientReport {
+        indexServers @0: List(IndexServerAddress);
+        optConnectedServer: union {
+                indexServerAddress @1: IndexServerAddress;
+                empty @2: Void;
+        }
+}
+
+struct IndexClientReportMutation {
+        union {
+                addIndexServer @0: IndexServerAddress;
+                removeIndexServer @1: IndexServerAddress;
+                setConnectedServer: union {
+                        indexServerAddress @2: IndexServerAddress;
+                        empty @3: Void;
+                }
+        }
+}
+
+
+############################################################################
+##### Node report
+############################################################################
+
+struct NodeReport {
+        funderReport @0: FunderReport;
+        indexClientReport @1: IndexClientReport;
+}
+
+struct NodeReportMutation {
+        union {
+                funder @0: FunderReportMutation;
+                indexClient @1: IndexClientReportMutation;
         }
 }

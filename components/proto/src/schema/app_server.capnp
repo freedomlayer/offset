@@ -14,8 +14,8 @@ using import "common.capnp".Receipt;
 using import "common.capnp".RelayAddress;
 using import "common.capnp".IndexServerAddress;
 
-using import "report.capnp".Report;
-using import "report.capnp".ReportMutation;
+using import "report.capnp".NodeReport;
+using import "report.capnp".NodeReportMutation;
 
 using import "index.capnp".RequestRoutes;
 using import "index.capnp".ResponseRoutes;
@@ -85,8 +85,8 @@ struct AppServerToApp {
         responseReceived @0: ResponseReceived;
 
         # Reports about current state:
-        report @1: Report;
-        reportMutations @2: List(ReportMutation);
+        report @1: NodeReport;
+        reportMutations @2: List(NodeReportMutation);
 
         # Routes:
         responseRoutes @3: ResponseRoutes;
