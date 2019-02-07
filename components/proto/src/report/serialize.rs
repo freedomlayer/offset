@@ -18,7 +18,7 @@ use report_capnp;
 use crate::serialize::SerializeError;
 use crate::report::messages::{MoveTokenHashedReport, FriendStatusReport, RequestsStatusReport,
                             FriendLivenessReport, DirectionReport,
-                            McRequestsStatusReport};
+                            McRequestsStatusReport, McBalanceReport, TcReport};
 
 
 fn ser_move_token_hashed_report(move_token_hashed_report: &MoveTokenHashedReport,
@@ -162,3 +162,52 @@ fn deser_mc_requests_status_report(mc_requests_status_report: &report_capnp::mc_
         remote: deser_requests_status_report(&mc_requests_status_report.get_remote()?)?,
     })
 }
+
+fn ser_mc_balance_report(mc_balance_report: &McBalanceReport,
+                    mc_balance_report_builder: &mut report_capnp::mc_balance_report::Builder) {
+
+    write_custom_int128(mc_balance_report.balance,
+        &mut mc_balance_report_builder.reborrow().init_balance());
+
+    write_custom_u_int128(mc_balance_report.local_max_debt,
+        &mut mc_balance_report_builder.reborrow().init_local_max_debt());
+
+    write_custom_u_int128(mc_balance_report.remote_max_debt,
+        &mut mc_balance_report_builder.reborrow().init_remote_max_debt());
+
+    write_custom_u_int128(mc_balance_report.local_pending_debt,
+        &mut mc_balance_report_builder.reborrow().init_local_pending_debt());
+
+    write_custom_u_int128(mc_balance_report.remote_pending_debt,
+        &mut mc_balance_report_builder.reborrow().init_remote_pending_debt());
+}
+
+fn deser_mc_balance_report(mc_balance_report_reader: &report_capnp::mc_balance_report::Reader)
+    -> Result<McBalanceReport, SerializeError> {
+
+    Ok(McBalanceReport {
+        balance: read_custom_int128(&mc_balance_report_reader.get_balance()?)?,
+        local_max_debt: read_custom_u_int128(&mc_balance_report_reader.get_local_max_debt()?)?,
+        remote_max_debt: read_custom_u_int128(&mc_balance_report_reader.get_remote_max_debt()?)?,
+        local_pending_debt: read_custom_u_int128(&mc_balance_report_reader.get_local_pending_debt()?)?,
+        remote_pending_debt: read_custom_u_int128(&mc_balance_report_reader.get_remote_pending_debt()?)?,
+    })
+}
+
+/*
+fn ser_tc_report(tc_report: &TcReport,
+                    tc_report_builder: &mut report_capnp::tc_report::Builder) {
+
+    ser_direction_report(&tc_report.direction, 
+            &mut tc_report_builder.reborrow().init_direction());
+
+    write_custom_int128(tc_report.balance, 
+            &mut tc_report_builder.reborrow().init_balance());
+
+    ser_requests_status(&tc_report.requests_status, 
+            &mut tc_report_builder.reborrow().init_requests_status());
+
+    tc_report_builder.reborrow().set_num_local_pending_requests(tc_report.num_local_pending_requests);
+    tc_report_builder.reborrow().set_num_remote_pending_requests(tc_report.num_remote_pending_requests);
+}
+*/
