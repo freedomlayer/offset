@@ -19,7 +19,7 @@ use crate::serialize::SerializeError;
 use crate::index_server::messages::IndexServerAddress;
 use crate::funder::messages::{RelayAddress, UserRequestSendFunds, 
     ResponseReceived, ResponseSendFundsResult, ReceiptAck, 
-    AddFriend, SetFriendName};
+    AddFriend, SetFriendName, SetFriendAddress};
 use crate::funder::serialize::{ser_friends_route, deser_friends_route};
 
 use super::messages::{AppServerToApp, AppToAppServer, 
@@ -163,6 +163,35 @@ fn deser_set_friend_name(set_friend_name_reader: &app_server_capnp::set_friend_n
         name: set_friend_name_reader.get_name()?.to_owned(),
     })
 }
+
+fn ser_set_friend_relays(set_friend_address: &SetFriendAddress<Vec<RelayAddress>>,
+                    set_friend_relays_builder: &mut app_server_capnp::set_friend_relays::Builder) {
+
+    write_public_key(&set_friend_address.friend_public_key, 
+              &mut set_friend_relays_builder.reborrow().init_friend_public_key());
+
+    let relays_len = usize_to_u32(set_friend_address.address.len()).unwrap();
+    let mut relays_builder = set_friend_relays_builder.reborrow().init_relays(relays_len);
+    for (index, relay_address) in set_friend_address.address.iter().enumerate() {
+        let mut relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
+        write_relay_address(relay_address, &mut relay_address_builder);
+    }
+}
+
+fn deser_set_friend_relays(set_friend_relays_reader: &app_server_capnp::set_friend_relays::Reader)
+    -> Result<SetFriendAddress<Vec<RelayAddress>>, SerializeError> {
+
+    let mut relays = Vec::new();
+    for relay_address in set_friend_relays_reader.get_relays()? {
+        relays.push(read_relay_address(&relay_address)?);
+    }
+
+    Ok(SetFriendAddress {
+        friend_public_key: read_public_key(&set_friend_relays_reader.get_friend_public_key()?)?,
+        address: relays,
+    })
+}
+
 
 
 // ---------------------------------------------------
