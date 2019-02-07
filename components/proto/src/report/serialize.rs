@@ -22,6 +22,8 @@ use crate::report::messages::{MoveTokenHashedReport, FriendStatusReport, Request
                             ResetTermsReport, ChannelInconsistentReport,
                             ChannelStatusReport, FriendReport};
 
+use crate::funder::messages::RelayAddress;
+
 
 fn ser_move_token_hashed_report(move_token_hashed_report: &MoveTokenHashedReport,
                     move_token_hashed_report_builder: &mut report_capnp::move_token_hashed_report::Builder) {
@@ -338,4 +340,40 @@ fn deser_opt_last_incoming_move_token(opt_last_incoming_move_token_reader: &repo
             Some(deser_move_token_hashed_report(&move_token_hashed_reader?)?),
         report_capnp::opt_last_incoming_move_token::Empty(()) => None,
     })
+}
+
+fn ser_friend_report(friend_report: &FriendReport<Vec<RelayAddress>>,
+                    friend_report_builder: &mut report_capnp::friend_report::Builder) {
+
+    /*
+    write_relay_address(&friend_report.address, 
+                        &mut friend_report_builder.init_address());
+
+    friend_report_builder.set_name(&friend_report.name);
+
+    ser_opt_last_incoming_move_token(&friend_report.opt_last_incoming_move_token, 
+                        &mut friend_report_builder.init_opt_last_incoming_move_token());
+
+    ser_friend_liveness_report(&friend_report.liveness, 
+                        &mut friend_report_builder.init_liveness());
+
+    ser_channel_status_report(&friend_report.channel_status, 
+                        &mut friend_report_builder.init_channel_status());
+
+    ser_requests_status_report(&friend_report.wanted_local_requests_status, 
+                        &mut friend_report_builder.init_wanted_local_requests_status());
+
+    friend_report_builder.set_num_pending_requests(friend_report.num_pending_requests);
+    friend_report_builder.set_num_pending_responses(friend_report.num_pending_responses);
+
+    ser_friend_status_report(&friend_report.status, 
+                        &mut friend_report_builder.init_wanted_local_requests_status());
+
+    write_custom_u_int128(&friend_report.wanted_remote_max_debt, 
+                        &mut friend_report_builder.init_status());
+
+    friend_report_builder.set_num_pending_user_requests(friend_report.num_pending_user_requests);
+    */
+    unimplemented!();
+
 }
