@@ -13,7 +13,7 @@ using import "common.capnp".IndexServerAddress;
 ## Report related structs
 #########################
 
-struct MoveTokenHashed {
+struct MoveTokenHashedReport {
         prefixHash @0: Hash;
         localPublicKey @1: PublicKey;
         remotePublicKey @2: PublicKey;
@@ -27,12 +27,12 @@ struct MoveTokenHashed {
 }
 
 
-enum FriendStatus {
+enum FriendStatusReport {
         disabled @0;
         enabled @1;
 }
 
-enum RequestsStatus {
+enum RequestsStatusReport {
         closed @0;
         open @1;
 }
@@ -47,15 +47,15 @@ enum DirectionReport {
         outgoing @1;
 }
 
-struct McRequestsStatus {
-        local @0: RequestsStatus;
-        remote @1: RequestsStatus;
+struct McRequestsStatusReport {
+        local @0: RequestsStatusReport;
+        remote @1: RequestsStatusReport;
 }
 
 struct TcReport {
         direction @0: DirectionReport;
         balance @1: CustomInt128;
-        requestsStatus @2: McRequestsStatus;
+        requestsStatus @2: McRequestsStatusReport;
         numLocalPendingRequests @3: UInt64;
         numRemotePendingRequests @4: UInt64;
 }
@@ -78,7 +78,7 @@ struct ChannelStatusReport {
 
 struct OptLastIncomingMoveToken {
         union {
-                moveTokenHashed @0: MoveTokenHashed;
+                moveTokenHashed @0: MoveTokenHashedReport;
                 empty @1: Void;
         }
 }
@@ -91,10 +91,10 @@ struct FriendReport {
         liveness @3: FriendLivenessReport;
         channelStatus @4: ChannelStatusReport;
         wantedRemoteMaxDebt @5: CustomUInt128;
-        wantedLocalRequestsStatus @6: RequestsStatus;
+        wantedLocalRequestsStatus @6: RequestsStatusReport;
         numPendingRequests @7: UInt64;
         numPendingResponses @8: UInt64;
-        status @9: FriendStatus;
+        status @9: FriendStatusReport;
         numPendingUserRequests @10: UInt64;
 }
 
@@ -141,10 +141,10 @@ struct FriendReportMutation {
                 setFriendInfo @0: RelayAddressName;
                 setChannelStatus @1: ChannelStatusReport;
                 setWantedRemoteMaxDebt @2: CustomUInt128;
-                setWantedLocalRequestsStatus @3: RequestsStatus;
+                setWantedLocalRequestsStatus @3: RequestsStatusReport;
                 setNumPendingRequests @4: UInt64;
                 setNumPendingResponses @5: UInt64;
-                setFriendStatus @6: FriendStatus;
+                setFriendStatus @6: FriendStatusReport;
                 setNumPendingUserRequests @7: UInt64;
                 setOptLastIncomingMoveToken @8: OptLastIncomingMoveToken;
                 setLiveness @9: FriendLivenessReport;
