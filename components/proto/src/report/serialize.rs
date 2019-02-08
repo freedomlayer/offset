@@ -24,7 +24,8 @@ use crate::report::messages::{MoveTokenHashedReport, FriendStatusReport, Request
                             ResetTermsReport, ChannelInconsistentReport,
                             ChannelStatusReport, FriendReport,
                             SentLocalAddressReport,
-                            FunderReport, AddFriendReport};
+                            FunderReport, AddFriendReport,
+                            FriendReportMutation};
 
 use crate::funder::messages::RelayAddress;
 
@@ -598,4 +599,48 @@ fn deser_add_friend_report(add_friend_report_reader: &report_capnp::add_friend_r
             deser_opt_last_incoming_move_token(&add_friend_report_reader.get_opt_last_incoming_move_token()?)?,
         channel_status: deser_channel_status_report(&add_friend_report_reader.get_channel_status()?)?,
     })
+}
+
+fn ser_friend_report_mutation(friend_report_mutation: &FriendReportMutation<Vec<RelayAddress>>,
+                    friend_report_mutation_builder: &mut report_capnp::friend_report_mutation::Builder) {
+
+    match friend_report_mutation {
+        FriendReportMutation::SetRemoteAddress(relays) => {
+            let relays_len = usize_to_u32(relays.len()).unwrap();
+            let mut relays_builder = friend_report_mutation_builder.reborrow().init_set_remote_relays(relays_len);
+            for (index, relay_address) in relays.iter().enumerate() {
+                let mut relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
+                write_relay_address(relay_address, &mut relay_address_builder);
+            }
+        },
+        FriendReportMutation::SetName(name) => 
+            friend_report_mutation_builder.reborrow().set_set_name(name),
+        FriendReportMutation::SetSentLocalAddress(sent_local_address_report) =>
+            ser_sent_local_relays_report(sent_local_address_report,
+                                         &mut friend_report_mutation_builder.reborrow().init_set_sent_local_relays()),
+        FriendReportMutation::SetChannelStatus(channel_status_report) => 
+            ser_channel_status_report(channel_status_report,
+                                         &mut friend_report_mutation_builder.reborrow().init_set_channel_status()),
+        FriendReportMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) =>
+            write_custom_u_int128(*wanted_remote_max_debt,
+                                         &mut friend_report_mutation_builder.reborrow().init_set_wanted_remote_max_debt()),
+        FriendReportMutation::SetWantedLocalRequestsStatus(requests_status_report) =>
+            ser_requests_status_report(requests_status_report,
+                                         &mut friend_report_mutation_builder.reborrow().init_set_wanted_local_requests_status()),
+        FriendReportMutation::SetNumPendingRequests(num_pending_requests) => 
+            friend_report_mutation_builder.reborrow().set_set_num_pending_requests(*num_pending_requests),
+        FriendReportMutation::SetNumPendingResponses(num_pending_responses) => 
+            friend_report_mutation_builder.reborrow().set_set_num_pending_responses(*num_pending_responses),
+        FriendReportMutation::SetFriendStatus(friend_status_report) => 
+            ser_friend_status_report(friend_status_report,
+                                         &mut friend_report_mutation_builder.reborrow().init_set_friend_status()),
+        FriendReportMutation::SetNumPendingUserRequests(num_pending_user_requests) => 
+            friend_report_mutation_builder.reborrow().set_set_num_pending_user_requests(*num_pending_user_requests),
+        FriendReportMutation::SetOptLastIncomingMoveToken(opt_last_incoming_move_token) =>
+            ser_opt_last_incoming_move_token(opt_last_incoming_move_token,
+                                         &mut friend_report_mutation_builder.reborrow().init_set_opt_last_incoming_move_token()),
+        FriendReportMutation::SetLiveness(friend_liveness_report) =>
+            ser_friend_liveness_report(friend_liveness_report,
+                                         &mut friend_report_mutation_builder.reborrow().init_set_liveness()),
+    };
 }
