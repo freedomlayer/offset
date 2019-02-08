@@ -277,8 +277,8 @@ where
             let friend_after = funder_state_after.friends.get(&add_friend.friend_public_key).unwrap();
             let add_friend_report = AddFriendReport {
                 friend_public_key: add_friend.friend_public_key.clone(),
-                address: add_friend.address.clone(),
                 name: add_friend.name.clone(),
+                address: add_friend.address.clone(),
                 balance: add_friend.balance.clone(), // Initial balance
                 opt_last_incoming_move_token: friend_after.channel_status.get_last_incoming_move_token_hashed()
                     .map(|move_token_hashed| MoveTokenHashedReport::from(&move_token_hashed)),

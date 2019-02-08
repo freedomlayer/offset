@@ -157,8 +157,8 @@ struct FunderReport {
 
 struct AddFriendReport {
         friendPublicKey @0: PublicKey;
-        relays @1: List(RelayAddress);
         name @2: Text;
+        relays @1: List(RelayAddress);
         balance @3: CustomInt128;
         optLastIncomingMoveToken @4: OptLastIncomingMoveToken;
         channelStatus @5: ChannelStatusReport;

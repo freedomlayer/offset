@@ -160,8 +160,8 @@ pub enum FriendReportMutation<A> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AddFriendReport<A> {
     pub friend_public_key: PublicKey,
-    pub address: A,
     pub name: String,
+    pub address: A,
     pub balance: i128, // Initial balance
     pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
     pub channel_status: ChannelStatusReport,
