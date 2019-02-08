@@ -125,7 +125,7 @@ struct SentLocalRelaysReport {
 
 struct FriendReport {
         name @0: Text;
-        relays @1: List(RelayAddress);
+        remoteRelays @1: List(RelayAddress);
         sentLocalRelays @2: SentLocalRelaysReport;
         optLastIncomingMoveToken @3: OptLastIncomingMoveToken;
         liveness @4: FriendLivenessReport;
