@@ -1,3 +1,5 @@
+use im::hashmap::HashMap as ImHashMap;
+
 use capnp;
 use capnp::serialize_packed;
 use crypto::identity::PublicKey;
@@ -507,4 +509,49 @@ fn deser_pk_friend_report(pk_friend_report_reader: &report_capnp::pk_friend_repo
     let friend_report = deser_friend_report(&pk_friend_report_reader.get_friend_report()?)?;
 
     Ok((friend_public_key, friend_report))
+}
+
+fn ser_funder_report(funder_report: &FunderReport<Vec<RelayAddress>>,
+                    funder_report_builder: &mut report_capnp::funder_report::Builder) {
+
+    write_public_key(&funder_report.local_public_key, 
+                     &mut funder_report_builder.reborrow().init_local_public_key());
+
+    let relays_len = usize_to_u32(funder_report.address.len()).unwrap();
+    let mut relays_builder = funder_report_builder.reborrow().init_relays(relays_len);
+    for (index, relay_address) in funder_report.address.iter().enumerate() {
+        let mut relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
+        write_relay_address(relay_address, &mut relay_address_builder);
+    }
+
+    let friends_len = usize_to_u32(funder_report.friends.len()).unwrap();
+    let mut friends_builder = funder_report_builder.reborrow().init_friends(friends_len);
+    for (index, pk_friend) in funder_report.friends.iter().enumerate() {
+        let mut pk_friend_builder = friends_builder.reborrow().get(usize_to_u32(index).unwrap());
+        ser_pk_friend_report(pk_friend, &mut pk_friend_builder);
+    }
+
+    funder_report_builder.set_num_ready_receipts(funder_report.num_ready_receipts);
+}
+
+fn deser_funder_report(funder_report_reader: &report_capnp::funder_report::Reader)
+    -> Result<FunderReport<Vec<RelayAddress>>, SerializeError> {
+
+    let mut relays = Vec::new();
+    for relay_address in funder_report_reader.get_relays()? {
+        relays.push(read_relay_address(&relay_address)?);
+    }
+
+    let mut friends = ImHashMap::new();
+    for pk_friend in funder_report_reader.get_friends()? {
+        let (friend_public_key, friend_report) = deser_pk_friend_report(&pk_friend)?;
+        friends.insert(friend_public_key, friend_report);
+    }
+
+    Ok(FunderReport {
+        local_public_key: read_public_key(&funder_report_reader.get_local_public_key()?)?,
+        address: relays,
+        friends,
+        num_ready_receipts: funder_report_reader.get_num_ready_receipts(),
+    })
 }
