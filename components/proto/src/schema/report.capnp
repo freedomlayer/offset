@@ -143,8 +143,7 @@ struct PkFriendReport {
         friendReport @1: FriendReport;
 }
 
-# A full report. Contains a full summary of the current state.
-# This will usually be sent only once, and then ReportMutations will be sent.
+# A full Funder report.
 struct FunderReport {
         localPublicKey @0: PublicKey;
         relays @1: List(RelayAddress);
