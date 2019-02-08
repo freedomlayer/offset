@@ -21,7 +21,8 @@ use crate::report::messages::{MoveTokenHashedReport, FriendStatusReport, Request
                             McRequestsStatusReport, McBalanceReport, TcReport,
                             ResetTermsReport, ChannelInconsistentReport,
                             ChannelStatusReport, FriendReport,
-                            SentLocalAddressReport};
+                            SentLocalAddressReport,
+                            FunderReport};
 
 use crate::funder::messages::RelayAddress;
 
@@ -487,4 +488,23 @@ fn deser_friend_report(friend_report_reader: &report_capnp::friend_report::Reade
         status: deser_friend_status_report(&friend_report_reader.get_status()?)?,
         num_pending_user_requests: friend_report_reader.get_num_pending_user_requests(),
     })
+}
+
+fn ser_pk_friend_report(pk_friend_report: &(PublicKey, FriendReport<Vec<RelayAddress>>),
+                    pk_friend_report_builder: &mut report_capnp::pk_friend_report::Builder) {
+
+    let (friend_public_key, friend_report) = pk_friend_report;
+    write_public_key(friend_public_key, 
+                     &mut pk_friend_report_builder.reborrow().init_friend_public_key());
+    ser_friend_report(friend_report, 
+                     &mut pk_friend_report_builder.reborrow().init_friend_report());
+}
+
+fn deser_pk_friend_report(pk_friend_report_reader: &report_capnp::pk_friend_report::Reader)
+    -> Result<(PublicKey, FriendReport<Vec<RelayAddress>>), SerializeError> {
+
+    let friend_public_key = read_public_key(&pk_friend_report_reader.get_friend_public_key()?)?;
+    let friend_report = deser_friend_report(&pk_friend_report_reader.get_friend_report()?)?;
+
+    Ok((friend_public_key, friend_report))
 }
