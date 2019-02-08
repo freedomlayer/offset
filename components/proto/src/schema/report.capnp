@@ -174,7 +174,7 @@ struct FriendReportMutation {
                 setWantedLocalRequestsStatus @5: RequestsStatusReport;
                 setNumPendingRequests @6: UInt64;
                 setNumPendingResponses @7: UInt64;
-                setFriendStatus @8: FriendStatusReport;
+                setStatus @8: FriendStatusReport;
                 setNumPendingUserRequests @9: UInt64;
                 setOptLastIncomingMoveToken @10: OptLastIncomingMoveToken;
                 setLiveness @11: FriendLivenessReport;

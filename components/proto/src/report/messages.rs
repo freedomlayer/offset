@@ -151,7 +151,7 @@ pub enum FriendReportMutation<A> {
     SetWantedLocalRequestsStatus(RequestsStatusReport),
     SetNumPendingRequests(u64),
     SetNumPendingResponses(u64),
-    SetFriendStatus(FriendStatusReport),
+    SetStatus(FriendStatusReport),
     SetNumPendingUserRequests(u64),
     SetOptLastIncomingMoveToken(Option<MoveTokenHashedReport>),
     SetLiveness(FriendLivenessReport),
@@ -236,7 +236,7 @@ where
             FriendReportMutation::SetNumPendingRequests(num_pending_requests) => {
                 self.num_pending_requests = *num_pending_requests;
             },
-            FriendReportMutation::SetFriendStatus(friend_status) => {
+            FriendReportMutation::SetStatus(friend_status) => {
                 self.status = friend_status.clone();
             },
             FriendReportMutation::SetNumPendingUserRequests(num_pending_user_requests) => {

@@ -631,9 +631,9 @@ fn ser_friend_report_mutation(friend_report_mutation: &FriendReportMutation<Vec<
             friend_report_mutation_builder.reborrow().set_set_num_pending_requests(*num_pending_requests),
         FriendReportMutation::SetNumPendingResponses(num_pending_responses) => 
             friend_report_mutation_builder.reborrow().set_set_num_pending_responses(*num_pending_responses),
-        FriendReportMutation::SetFriendStatus(friend_status_report) => 
+        FriendReportMutation::SetStatus(friend_status_report) => 
             ser_friend_status_report(friend_status_report,
-                                         &mut friend_report_mutation_builder.reborrow().init_set_friend_status()),
+                                         &mut friend_report_mutation_builder.reborrow().init_set_status()),
         FriendReportMutation::SetNumPendingUserRequests(num_pending_user_requests) => 
             friend_report_mutation_builder.reborrow().set_set_num_pending_user_requests(*num_pending_user_requests),
         FriendReportMutation::SetOptLastIncomingMoveToken(opt_last_incoming_move_token) =>

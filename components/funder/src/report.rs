@@ -223,7 +223,7 @@ where
             vec![FriendReportMutation::SetNumPendingUserRequests(
                     usize_to_u64(friend_after.pending_user_requests.len()).unwrap())],
         FriendMutation::SetStatus(friend_status) => 
-            vec![FriendReportMutation::SetFriendStatus(FriendStatusReport::from(friend_status))],
+            vec![FriendReportMutation::SetStatus(FriendStatusReport::from(friend_status))],
         FriendMutation::SetRemoteAddress(remote_address) =>
             vec![FriendReportMutation::SetRemoteAddress(remote_address.clone())],
         FriendMutation::SetName(name) =>
