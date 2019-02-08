@@ -110,71 +110,75 @@ struct OptLastIncomingMoveToken {
         }
 }
 
+struct RelaysTransition {
+        lastSent @0: List(RelayAddress);
+        beforeLastSent @1: List(RelayAddress);
+}
+
+struct SentLocalRelaysReport {
+        union {
+                neverSent @0: Void;
+                transition @1: RelaysTransition;
+                lastSent @2: List(RelayAddress);
+        }
+}
 
 struct FriendReport {
-        address @0: RelayAddress;
-        name @1: Text;
-        optLastIncomingMoveToken @2: OptLastIncomingMoveToken;
-        liveness @3: FriendLivenessReport;
-        channelStatus @4: ChannelStatusReport;
-        wantedRemoteMaxDebt @5: CustomUInt128;
-        wantedLocalRequestsStatus @6: RequestsStatusReport;
-        numPendingRequests @7: UInt64;
-        numPendingResponses @8: UInt64;
-        status @9: FriendStatusReport;
-        numPendingUserRequests @10: UInt64;
+        name @0: Text;
+        relays @1: List(RelayAddress);
+        sentLocalRelays @2: SentLocalRelaysReport;
+        optLastIncomingMoveToken @3: OptLastIncomingMoveToken;
+        liveness @4: FriendLivenessReport;
+        channelStatus @5: ChannelStatusReport;
+        wantedRemoteMaxDebt @6: CustomUInt128;
+        wantedLocalRequestsStatus @7: RequestsStatusReport;
+        numPendingRequests @8: UInt64;
+        numPendingResponses @9: UInt64;
+        status @10: FriendStatusReport;
+        numPendingUserRequests @11: UInt64;
+}
+
+struct PkFriendReport {
+        friendPublicKey @0: PublicKey;
+        friendReport @1: FriendReport;
 }
 
 # A full report. Contains a full summary of the current state.
 # This will usually be sent only once, and then ReportMutations will be sent.
 struct FunderReport {
         localPublicKey @0: PublicKey;
-        optAddress: union {
-                address @1: RelayAddress;
-                empty @2: Void;
-        }
-        friends @3: List(FriendReport);
-        numReadyReceipts @4: UInt64;
+        relays @1: List(RelayAddress);
+        friends @2: List(PkFriendReport);
+        numReadyReceipts @3: UInt64;
 }
 
 
 ############################################################################
 ############################################################################
-
-
-struct SetAddressReport {
-    union {
-        address @0: RelayAddress;
-        empty @1: Void;
-    }
-}
 
 struct AddFriendReport {
         friendPublicKey @0: PublicKey;
-        address @1: RelayAddress;
+        relays @1: List(RelayAddress);
         name @2: Text;
         balance @3: CustomInt128;
         optLastIncomingMoveToken @4: OptLastIncomingMoveToken;
         channelStatus @5: ChannelStatusReport;
 }
 
-struct RelayAddressName {
-        address @0: RelayAddress;
-        name @1: Text;
-}
-
 struct FriendReportMutation {
         union {
-                setFriendInfo @0: RelayAddressName;
-                setChannelStatus @1: ChannelStatusReport;
-                setWantedRemoteMaxDebt @2: CustomUInt128;
-                setWantedLocalRequestsStatus @3: RequestsStatusReport;
-                setNumPendingRequests @4: UInt64;
-                setNumPendingResponses @5: UInt64;
-                setFriendStatus @6: FriendStatusReport;
-                setNumPendingUserRequests @7: UInt64;
-                setOptLastIncomingMoveToken @8: OptLastIncomingMoveToken;
-                setLiveness @9: FriendLivenessReport;
+                setRemoteRelays @0: List(RelayAddress);
+                setName @1: Text;
+                setSentLocalRelays @2: SentLocalRelaysReport;
+                setChannelStatus @3: ChannelStatusReport;
+                setWantedRemoteMaxDebt @4: CustomUInt128;
+                setWantedLocalRequestsStatus @5: RequestsStatusReport;
+                setNumPendingRequests @6: UInt64;
+                setNumPendingResponses @7: UInt64;
+                setFriendStatus @8: FriendStatusReport;
+                setNumPendingUserRequests @9: UInt64;
+                setOptLastIncomingMoveToken @10: OptLastIncomingMoveToken;
+                setLiveness @11: FriendLivenessReport;
         }
 }
 
@@ -186,7 +190,7 @@ struct PkFriendReportMutation {
 # A FunderReportMutation. Could be applied over a FunderReport to make small changes.
 struct FunderReportMutation {
         union {
-                setAddress @0: SetAddressReport;
+                setRelays @0: List(RelayAddress);
                 addFriend @1: AddFriendReport;
                 removeFriend @2: PublicKey;
                 pkFriendReportMutation @3: PkFriendReportMutation;
