@@ -110,8 +110,8 @@ pub enum ChannelStatusReport {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FriendReport<A> {
-    pub remote_address: A, 
     pub name: String,
+    pub remote_address: A, 
     pub sent_local_address: SentLocalAddressReport<A>,
     // Last message signed by the remote side. 
     // Can be used as a proof for the last known balance.

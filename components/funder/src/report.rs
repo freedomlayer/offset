@@ -130,8 +130,8 @@ where
     let channel_status = ChannelStatusReport::from(&friend_state.channel_status);
 
     FriendReport {
-        remote_address: friend_state.remote_address.clone(),
         name: friend_state.name.clone(),
+        remote_address: friend_state.remote_address.clone(),
         sent_local_address: (&friend_state.sent_local_address).into(),
         opt_last_incoming_move_token: friend_state.channel_status.get_last_incoming_move_token_hashed()
             .map(|move_token_hashed| MoveTokenHashedReport::from(&move_token_hashed)),
