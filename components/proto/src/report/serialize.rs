@@ -24,7 +24,7 @@ use crate::report::messages::{MoveTokenHashedReport, FriendStatusReport, Request
                             ResetTermsReport, ChannelInconsistentReport,
                             ChannelStatusReport, FriendReport,
                             SentLocalAddressReport,
-                            FunderReport};
+                            FunderReport, AddFriendReport};
 
 use crate::funder::messages::RelayAddress;
 
@@ -553,5 +553,49 @@ fn deser_funder_report(funder_report_reader: &report_capnp::funder_report::Reade
         address: relays,
         friends,
         num_ready_receipts: funder_report_reader.get_num_ready_receipts(),
+    })
+}
+
+fn ser_add_friend_report(add_friend_report: &AddFriendReport<Vec<RelayAddress>>,
+                    add_friend_report_builder: &mut report_capnp::add_friend_report::Builder) {
+
+    write_public_key(&add_friend_report.friend_public_key, 
+                     &mut add_friend_report_builder.reborrow().init_friend_public_key());
+
+    add_friend_report_builder.set_name(&add_friend_report.name);
+
+    let relays_len = usize_to_u32(add_friend_report.address.len()).unwrap();
+    let mut relays_builder = add_friend_report_builder.reborrow().init_relays(relays_len);
+    for (index, relay_address) in add_friend_report.address.iter().enumerate() {
+        let mut relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
+        write_relay_address(relay_address, &mut relay_address_builder);
+    }
+
+    write_custom_int128(add_friend_report.balance, 
+                     &mut add_friend_report_builder.reborrow().init_balance());
+
+    ser_opt_last_incoming_move_token(&add_friend_report.opt_last_incoming_move_token, 
+                     &mut add_friend_report_builder.reborrow().init_opt_last_incoming_move_token());
+
+    ser_channel_status_report(&add_friend_report.channel_status, 
+                     &mut add_friend_report_builder.reborrow().init_channel_status());
+}
+
+fn deser_add_friend_report(add_friend_report_reader: &report_capnp::add_friend_report::Reader)
+    -> Result<AddFriendReport<Vec<RelayAddress>>, SerializeError> {
+
+    let mut relays = Vec::new();
+    for relay_address in add_friend_report_reader.get_relays()? {
+        relays.push(read_relay_address(&relay_address)?);
+    }
+
+    Ok(AddFriendReport {
+        friend_public_key: read_public_key(&add_friend_report_reader.get_friend_public_key()?)?,
+        name: add_friend_report_reader.get_name()?.to_owned(),
+        address: relays,
+        balance: read_custom_int128(&add_friend_report_reader.get_balance()?)?, 
+        opt_last_incoming_move_token: 
+            deser_opt_last_incoming_move_token(&add_friend_report_reader.get_opt_last_incoming_move_token()?)?,
+        channel_status: deser_channel_status_report(&add_friend_report_reader.get_channel_status()?)?,
     })
 }
