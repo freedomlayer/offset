@@ -436,33 +436,55 @@ fn ser_friend_report(friend_report: &FriendReport<Vec<RelayAddress>>,
         write_relay_address(relay_address, &mut relay_address_builder);
     }
 
-    /*
+    ser_sent_local_relays_report(&friend_report.sent_local_address,
+        &mut friend_report_builder.reborrow().init_sent_local_relays());
 
-    friend_report_builder.set_name(&friend_report.name);
+    ser_opt_last_incoming_move_token(&friend_report.opt_last_incoming_move_token,
+        &mut friend_report_builder.reborrow().init_opt_last_incoming_move_token());
 
-    ser_opt_last_incoming_move_token(&friend_report.opt_last_incoming_move_token, 
-                        &mut friend_report_builder.init_opt_last_incoming_move_token());
+    ser_friend_liveness_report(&friend_report.liveness,
+        &mut friend_report_builder.reborrow().init_liveness());
 
-    ser_friend_liveness_report(&friend_report.liveness, 
-                        &mut friend_report_builder.init_liveness());
+    ser_channel_status_report(&friend_report.channel_status,
+        &mut friend_report_builder.reborrow().init_channel_status());
 
-    ser_channel_status_report(&friend_report.channel_status, 
-                        &mut friend_report_builder.init_channel_status());
+    write_custom_u_int128(friend_report.wanted_remote_max_debt,
+        &mut friend_report_builder.reborrow().init_wanted_remote_max_debt());
 
-    ser_requests_status_report(&friend_report.wanted_local_requests_status, 
-                        &mut friend_report_builder.init_wanted_local_requests_status());
+    ser_requests_status_report(&friend_report.wanted_local_requests_status,
+        &mut friend_report_builder.reborrow().init_wanted_local_requests_status());
+
 
     friend_report_builder.set_num_pending_requests(friend_report.num_pending_requests);
     friend_report_builder.set_num_pending_responses(friend_report.num_pending_responses);
 
     ser_friend_status_report(&friend_report.status, 
-                        &mut friend_report_builder.init_wanted_local_requests_status());
-
-    write_custom_u_int128(&friend_report.wanted_remote_max_debt, 
-                        &mut friend_report_builder.init_status());
+                        &mut friend_report_builder.reborrow().init_status());
 
     friend_report_builder.set_num_pending_user_requests(friend_report.num_pending_user_requests);
-    */
-    unimplemented!();
+}
 
+fn deser_friend_report(friend_report_reader: &report_capnp::friend_report::Reader)
+    -> Result<FriendReport<Vec<RelayAddress>>, SerializeError> {
+
+    let mut remote_address = Vec::new();
+    for relay_address in friend_report_reader.get_remote_relays()? {
+        remote_address.push(read_relay_address(&relay_address)?);
+    }
+
+    Ok(FriendReport {
+        name: friend_report_reader.get_name()?.to_owned(),
+        remote_address,
+        sent_local_address: deser_sent_local_relays_report(&friend_report_reader.get_sent_local_relays()?)?,
+        opt_last_incoming_move_token: deser_opt_last_incoming_move_token(
+            &friend_report_reader.get_opt_last_incoming_move_token()?)?,
+        liveness: deser_friend_liveness_report(&friend_report_reader.get_liveness()?)?,
+        channel_status: deser_channel_status_report(&friend_report_reader.get_channel_status()?)?,
+        wanted_remote_max_debt: read_custom_u_int128(&friend_report_reader.get_wanted_remote_max_debt()?)?,
+        wanted_local_requests_status: deser_requests_status_report(&friend_report_reader.get_wanted_local_requests_status()?)?,
+        num_pending_requests: friend_report_reader.get_num_pending_requests(),
+        num_pending_responses: friend_report_reader.get_num_pending_responses(),
+        status: deser_friend_status_report(&friend_report_reader.get_status()?)?,
+        num_pending_user_requests: friend_report_reader.get_num_pending_user_requests(),
+    })
 }
