@@ -808,3 +808,52 @@ fn deser_index_client_report(index_client_report_reader: &report_capnp::index_cl
         opt_connected_server,
     })
 }
+
+fn ser_index_client_report_mutation(index_client_report_mutation: &IndexClientReportMutation<IndexServerAddress>,
+                    index_client_report_mutation_builder: &mut report_capnp::index_client_report_mutation::Builder) {
+
+    match index_client_report_mutation {
+        IndexClientReportMutation::AddIndexServer(index_server_address) =>
+            write_index_server_address(index_server_address, 
+                                       &mut index_client_report_mutation_builder.reborrow().init_add_index_server()),
+        IndexClientReportMutation::RemoveIndexServer(index_server_address) => 
+            write_index_server_address(index_server_address,
+                                       &mut index_client_report_mutation_builder.reborrow().init_add_index_server()),
+        IndexClientReportMutation::SetConnectedServer(opt_index_server_address) => {
+            let mut set_connected_server_builder = index_client_report_mutation_builder.reborrow().init_set_connected_server();
+            match opt_index_server_address {
+                Some(index_server_address) => 
+                    write_index_server_address(index_server_address, 
+                                               &mut set_connected_server_builder.init_index_server_address()),
+                None => 
+                    set_connected_server_builder.set_empty(()),
+            }
+        },
+    }
+}
+
+fn deser_index_client_report_mutation(index_client_report_mutation_reader: &report_capnp::index_client_report_mutation::Reader)
+    -> Result<IndexClientReportMutation<IndexServerAddress>, SerializeError> {
+
+    Ok(match index_client_report_mutation_reader.which()? {
+        report_capnp::index_client_report_mutation::AddIndexServer(index_server_address_reader) =>
+            IndexClientReportMutation::AddIndexServer(read_index_server_address(&index_server_address_reader?)?),
+        report_capnp::index_client_report_mutation::RemoveIndexServer(index_server_address_reader) =>
+            IndexClientReportMutation::RemoveIndexServer(read_index_server_address(&index_server_address_reader?)?),
+        report_capnp::index_client_report_mutation::SetConnectedServer(set_connected_server_reader) => {
+            match set_connected_server_reader.which()? {
+                report_capnp
+                    ::index_client_report_mutation
+                    ::set_connected_server
+                    ::IndexServerAddress(index_server_address_reader) => 
+                        IndexClientReportMutation::SetConnectedServer(
+                            Some(read_index_server_address(&index_server_address_reader?)?)),
+                report_capnp
+                    ::index_client_report_mutation
+                    ::set_connected_server
+                    ::Empty(()) =>
+                        IndexClientReportMutation::SetConnectedServer(None)
+            }
+        },
+    })
+}
