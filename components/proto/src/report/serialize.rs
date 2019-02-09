@@ -644,3 +644,46 @@ fn ser_friend_report_mutation(friend_report_mutation: &FriendReportMutation<Vec<
                                          &mut friend_report_mutation_builder.reborrow().init_set_liveness()),
     };
 }
+
+fn deser_friend_report_mutation(friend_report_mutation: &report_capnp::friend_report_mutation::Reader)
+    -> Result<FriendReportMutation<Vec<RelayAddress>>, SerializeError> {
+
+    Ok(match friend_report_mutation.which()? {
+        report_capnp::friend_report_mutation::SetRemoteRelays(relays_reader) => {
+            let mut relays = Vec::new();
+            for relay_address in relays_reader? {
+                relays.push(read_relay_address(&relay_address)?);
+            }
+            FriendReportMutation::SetRemoteAddress(relays)
+        },
+        report_capnp::friend_report_mutation::SetName(name) =>
+            FriendReportMutation::SetName(name?.to_owned()),
+        report_capnp::friend_report_mutation::SetSentLocalRelays(sent_local_relays_report_reader) =>
+            FriendReportMutation::SetSentLocalAddress(
+                deser_sent_local_relays_report(&sent_local_relays_report_reader?)?),
+        report_capnp::friend_report_mutation::SetChannelStatus(channel_status_report_reader) =>
+            FriendReportMutation::SetChannelStatus(
+                deser_channel_status_report(&channel_status_report_reader?)?),
+        report_capnp::friend_report_mutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt_reader) =>
+            FriendReportMutation::SetWantedRemoteMaxDebt(
+                read_custom_u_int128(&wanted_remote_max_debt_reader?)?),
+        report_capnp::friend_report_mutation::SetWantedLocalRequestsStatus(wanted_local_requests_status_reader) =>
+            FriendReportMutation::SetWantedLocalRequestsStatus(
+                deser_requests_status_report(&wanted_local_requests_status_reader?)?),
+        report_capnp::friend_report_mutation::SetNumPendingRequests(num_pending_requests) =>
+            FriendReportMutation::SetNumPendingRequests(num_pending_requests),
+        report_capnp::friend_report_mutation::SetNumPendingResponses(num_pending_responses) =>
+            FriendReportMutation::SetNumPendingResponses(num_pending_responses),
+        report_capnp::friend_report_mutation::SetStatus(friend_status_report_reader) =>
+            FriendReportMutation::SetStatus(
+                deser_friend_status_report(&friend_status_report_reader?)?),
+        report_capnp::friend_report_mutation::SetNumPendingUserRequests(num_pending_user_requests) =>
+            FriendReportMutation::SetNumPendingUserRequests(num_pending_user_requests),
+        report_capnp::friend_report_mutation::SetOptLastIncomingMoveToken(opt_last_incoming_move_token_reader) =>
+            FriendReportMutation::SetOptLastIncomingMoveToken(
+                deser_opt_last_incoming_move_token(&opt_last_incoming_move_token_reader?)?),
+        report_capnp::friend_report_mutation::SetLiveness(friend_liveness_report_reader) =>
+            FriendReportMutation::SetLiveness(
+                deser_friend_liveness_report(&friend_liveness_report_reader?)?),
+    })
+}
