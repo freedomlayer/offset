@@ -1,3 +1,5 @@
+use std::io;
+
 use capnp;
 use capnp::serialize_packed;
 use crypto::identity::PublicKey;
@@ -453,23 +455,41 @@ fn deser_app_to_app_server(app_to_app_server: &app_server_capnp::app_to_app_serv
 
 // ---------------------------------------------------
 // ---------------------------------------------------
+//
 
 pub fn serialize_app_server_to_app(app_server_to_app: &AppServerToApp<RelayAddress, IndexServerAddress>) -> Vec<u8> {
-    // TODO
-    unimplemented!();
+    let mut builder = capnp::message::Builder::new_default();
+    let mut app_server_to_app_builder = builder.init_root::<app_server_capnp::app_server_to_app::Builder>();
+    ser_app_server_to_app(app_server_to_app, &mut app_server_to_app_builder);
+
+    let mut ser_buff = Vec::new();
+    serialize_packed::write_message(&mut ser_buff, &builder).unwrap();
+    ser_buff
 }
 
+
 pub fn deserialize_app_server_to_app(data: &[u8]) -> Result<AppServerToApp<RelayAddress, IndexServerAddress>, SerializeError> {
-    // TODO
-    unimplemented!();
+    let mut cursor = io::Cursor::new(data);
+    let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
+    let app_server_to_app_reader = reader.get_root::<app_server_capnp::app_server_to_app::Reader>()?;
+
+    deser_app_server_to_app(&app_server_to_app_reader)
 }
 
 pub fn serialize_app_to_app_server(app_server_to_app: &AppToAppServer<RelayAddress, IndexServerAddress>) -> Vec<u8> {
-    // TODO
-    unimplemented!();
+    let mut builder = capnp::message::Builder::new_default();
+    let mut app_to_app_server = builder.init_root::<app_server_capnp::app_to_app_server::Builder>();
+    ser_app_to_app_server(app_server_to_app, &mut app_to_app_server);
+
+    let mut ser_buff = Vec::new();
+    serialize_packed::write_message(&mut ser_buff, &builder).unwrap();
+    ser_buff
 }
 
 pub fn deserialize_app_to_app_server(data: &[u8]) -> Result<AppToAppServer<RelayAddress, IndexServerAddress>, SerializeError> {
-    // TODO
-    unimplemented!();
+    let mut cursor = io::Cursor::new(data);
+    let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
+    let app_to_app_server = reader.get_root::<app_server_capnp::app_to_app_server::Reader>()?;
+
+    deser_app_to_app_server(&app_to_app_server)
 }
