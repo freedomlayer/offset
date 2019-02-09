@@ -33,7 +33,7 @@ enum InitNodeDbBinError {
 fn run() -> Result<(), InitNodeDbBinError> {
     simple_logger::init_with_level(Level::Warn).unwrap();
     let matches = App::new("Offst Node database initializer")
-                          .version("0.1")
+                          .version("0.1.0")
                           .author("real <real@freedomlayer.org>")
                           .about("Initializes a new empty node database")
                           .arg(Arg::with_name("output")

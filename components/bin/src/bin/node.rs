@@ -212,7 +212,7 @@ where
 fn run() -> Result<(), NodeBinError> {
     simple_logger::init_with_level(Level::Warn).unwrap();
     let matches = App::new("Offst Node")
-                          .version("0.1")
+                          .version("0.1.0")
                           .author("real <real@freedomlayer.org>")
                           .about("Spawns Offst Node")
                           .arg(Arg::with_name("database")

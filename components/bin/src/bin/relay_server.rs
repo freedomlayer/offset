@@ -92,7 +92,7 @@ enum RelayServerBinError {
 fn run() -> Result<(), RelayServerBinError> {
     simple_logger::init_with_level(Level::Warn).unwrap();
     let matches = App::new("Offst Relay Server")
-                          .version("0.1")
+                          .version("0.1.0")
                           .author("real <real@freedomlayer.org>")
                           .about("Spawns an Offst Relay Server")
                           .arg(Arg::with_name("idfile")

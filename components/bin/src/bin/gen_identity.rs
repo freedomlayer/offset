@@ -20,7 +20,7 @@ use bin::store_identity_to_file;
 fn main() {
     simple_logger::init_with_level(Level::Warn).unwrap();
     let matches = App::new("Offst Identity Generator")
-                          .version("0.1")
+                          .version("0.1.0")
                           .author("real <real@freedomlayer.org>")
                           .about("Randomly generates a new identity file")
                           .arg(Arg::with_name("output")
