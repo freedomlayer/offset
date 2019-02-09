@@ -24,7 +24,6 @@ pub struct ChannelerUpdateFriend<A> {
     pub local_addresses: Vec<A>,
 }
 
-#[allow(unused)]
 #[derive(Debug)]
 pub enum FunderToChanneler<A> {
     /// Send a message to a friend
@@ -38,7 +37,6 @@ pub enum FunderToChanneler<A> {
     RemoveFriend(PublicKey), // friend_public_key
 }
 
-#[allow(unused)]
 #[derive(Debug)]
 pub enum ChannelerToFunder {
     /// A friend is now online
