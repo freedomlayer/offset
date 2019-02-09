@@ -1,5 +1,3 @@
-#![warn(unused)]
-
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 
@@ -28,7 +26,6 @@ pub enum SetDirection<A> {
     Outgoing(MoveToken<A>),
 }
 
-#[allow(unused)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TcMutation<A> {
     McMutation(McMutation),

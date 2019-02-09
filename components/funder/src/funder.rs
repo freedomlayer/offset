@@ -137,8 +137,6 @@ where
     Ok(())
 }
 
-
-#[allow(unused)]
 pub async fn funder_loop<A,R>(
     identity_client: IdentityClient,
     rng: R,

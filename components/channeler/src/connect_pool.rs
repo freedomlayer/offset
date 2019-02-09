@@ -379,9 +379,8 @@ where
 
 pub type ConnectPoolControl<B> = (CpConfigClient<B>, CpConnectClient);
 
-#[allow(unused)]
 pub fn create_connect_pool<B,ET,TS,C,S>(timer_stream: TS,
-                            mut encrypt_transform: ET,
+                            encrypt_transform: ET,
                             friend_public_key: PublicKey,
                             backoff_ticks: usize,
                             client_connector: C,
@@ -435,7 +434,6 @@ where
     ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
-    #[allow(unused)]
     pub fn new(timer_client: TimerClient,
            client_connector: C,
            encrypt_transform: ET,
