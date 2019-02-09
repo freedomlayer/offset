@@ -22,7 +22,7 @@ use crate::funder::serialize::{ser_friends_route, deser_friends_route};
 
 use crate::serialize::SerializeError;
 
-fn ser_request_routes(request_routes: &RequestRoutes,
+pub fn ser_request_routes(request_routes: &RequestRoutes,
                          request_routes_builder: &mut index_capnp::request_routes::Builder) {
 
     write_uid(&request_routes.request_id, &mut request_routes_builder.reborrow().init_request_id());
@@ -43,7 +43,7 @@ fn ser_request_routes(request_routes: &RequestRoutes,
     }
 }
 
-fn deser_request_routes(request_routes_reader: &index_capnp::request_routes::Reader)
+pub fn deser_request_routes(request_routes_reader: &index_capnp::request_routes::Reader)
     -> Result<RequestRoutes, SerializeError> {
 
     let opt_exclude = match request_routes_reader.get_opt_exclude().which()? {
