@@ -19,7 +19,8 @@ use crate::serialize::SerializeError;
 use crate::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult};
 
 use crate::index_server::messages::IndexServerAddress;
-use index_server::serialize::{ser_route_with_capacity, deser_route_with_capacity};
+use index_server::serialize::{ser_route_with_capacity, deser_route_with_capacity,
+                              ser_request_routes, deser_request_routes};
 use crate::report::serialize::{ser_node_report, deser_node_report, 
     ser_node_report_mutation, deser_node_report_mutation};
 
@@ -328,6 +329,66 @@ fn deser_app_server_to_app(app_server_to_app_reader: &app_server_capnp::app_serv
         app_server_capnp::app_server_to_app::ResponseRoutes(client_response_routes_reader) =>
             AppServerToApp::ResponseRoutes(deser_client_response_routes(&client_response_routes_reader?)?),
     })
+}
+
+fn ser_app_to_app_server(app_to_app_server: &AppToAppServer<RelayAddress, IndexServerAddress>,
+                    app_to_app_server_builder: &mut app_server_capnp::app_to_app_server::Builder) {
+
+    match app_to_app_server {
+        AppToAppServer::SetRelays(relays) => {
+            let relays_len = usize_to_u32(relays.len()).unwrap();
+            let mut relays_builder = app_to_app_server_builder.reborrow().init_set_relays(relays_len);
+            for (index, relay_address) in relays.iter().enumerate() {
+                let mut relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
+                write_relay_address(relay_address, &mut relay_address_builder);
+            }
+        },
+        AppToAppServer::RequestSendFunds(user_request_send_funds) =>
+            ser_user_request_send_funds(user_request_send_funds, 
+                                        &mut app_to_app_server_builder.reborrow().init_request_send_funds()),
+        AppToAppServer::ReceiptAck(receipt_ack) =>
+            ser_receipt_ack(receipt_ack, 
+                            &mut app_to_app_server_builder.reborrow().init_receipt_ack()),
+        AppToAppServer::AddFriend(add_friend) =>
+            ser_add_friend(add_friend, 
+                            &mut app_to_app_server_builder.reborrow().init_add_friend()),
+        AppToAppServer::SetFriendRelays(set_friend_address) =>
+            ser_set_friend_relays(set_friend_address, 
+                            &mut app_to_app_server_builder.reborrow().init_set_friend_relays()),
+        AppToAppServer::SetFriendName(set_friend_name) =>
+            ser_set_friend_name(set_friend_name, 
+                            &mut app_to_app_server_builder.reborrow().init_set_friend_name()),
+        AppToAppServer::RemoveFriend(friend_public_key) =>
+            write_public_key(friend_public_key, 
+                            &mut app_to_app_server_builder.reborrow().init_remove_friend()),
+        AppToAppServer::EnableFriend(friend_public_key) =>
+            write_public_key(friend_public_key, 
+                            &mut app_to_app_server_builder.reborrow().init_enable_friend()),
+        AppToAppServer::DisableFriend(friend_public_key) =>
+            write_public_key(friend_public_key, 
+                            &mut app_to_app_server_builder.reborrow().init_disable_friend()),
+        AppToAppServer::OpenFriend(friend_public_key) =>
+            write_public_key(friend_public_key, 
+                            &mut app_to_app_server_builder.reborrow().init_open_friend()),
+        AppToAppServer::CloseFriend(friend_public_key) =>
+            write_public_key(friend_public_key, 
+                            &mut app_to_app_server_builder.reborrow().init_close_friend()),
+        AppToAppServer::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) =>
+            ser_set_friend_remote_max_debt(set_friend_remote_max_debt, 
+                            &mut app_to_app_server_builder.reborrow().init_set_friend_remote_max_debt()),
+        AppToAppServer::ResetFriendChannel(reset_friend_channel) =>
+            ser_reset_friend_channel(reset_friend_channel, 
+                            &mut app_to_app_server_builder.reborrow().init_reset_friend_channel()),
+        AppToAppServer::RequestRoutes(request_routes) =>
+            ser_request_routes(request_routes, 
+                            &mut app_to_app_server_builder.reborrow().init_request_routes()),
+        AppToAppServer::AddIndexServer(index_server_address) =>
+            write_index_server_address(index_server_address, 
+                            &mut app_to_app_server_builder.reborrow().init_add_index_server()),
+        AppToAppServer::RemoveIndexServer(index_server_address) =>
+            write_index_server_address(index_server_address, 
+                            &mut app_to_app_server_builder.reborrow().init_remove_index_server()),
+    }
 }
 
 
