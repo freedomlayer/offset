@@ -366,7 +366,7 @@ mod tests {
     use crypto::uid::{Uid, UID_LEN};
     use crate::funder::messages::{InvoiceId, INVOICE_ID_LEN};
 
-    use crate::funder::messages::{TcpAddress, TcpAddressV4, TcpAddressV6};
+    use crate::net::messages::{TcpAddress, TcpAddressV4, TcpAddressV6};
 
     /// Create an example FriendMessage::MoveTokenRequest:
     fn create_move_token_request() -> FriendMessage<Vec<RelayAddress>> {

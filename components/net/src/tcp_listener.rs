@@ -5,7 +5,7 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 
 use common::conn::{Listener, ConnPairVec};
-use proto::funder::messages::TcpAddress;
+use proto::net::messages::TcpAddress;
 use crate::types::tcp_address_to_socket_addr;
 
 use futures::compat::Stream01CompatExt;

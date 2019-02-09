@@ -8,8 +8,8 @@ use common_capnp::{self, buffer128, buffer256, buffer512,
                     tcp_address_v4, tcp_address_v6, tcp_address, 
                     relay_address, index_server_address, receipt};
 
-use crate::funder::messages::{InvoiceId, RelayAddress, 
-    TcpAddress, TcpAddressV4, TcpAddressV6, Receipt};
+use crate::net::messages::{TcpAddress, TcpAddressV4, TcpAddressV6};
+use crate::funder::messages::{InvoiceId, RelayAddress, Receipt};
 use crate::index_server::messages::IndexServerAddress;
 
 use crypto::identity::{PublicKey, Signature};

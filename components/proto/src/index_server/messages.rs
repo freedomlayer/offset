@@ -3,7 +3,8 @@ use crypto::uid::Uid;
 use crypto::hash::HashResult;
 use crypto::crypto_rand::RandValue;
 
-use crate::funder::messages::{FriendsRoute, TcpAddress};
+use crate::funder::messages::FriendsRoute;
+use crate::net::messages::TcpAddress;
 
 
 /// IndexClient -> IndexServer

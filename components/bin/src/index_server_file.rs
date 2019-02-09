@@ -125,7 +125,7 @@ pub fn load_trusted_servers(dir_path: &Path) -> Result<Vec<IndexServerAddress>, 
 mod tests {
     use super::*;
     use tempfile::tempdir;
-    use proto::funder::messages::{TcpAddress, TcpAddressV4};
+    use proto::net::messages::{TcpAddress, TcpAddressV4};
 
     #[test]
     fn test_index_server_file_basic() {

@@ -4,7 +4,7 @@ use futures::executor::ThreadPool;
 use futures::{StreamExt, SinkExt};
 
 use common::conn::{Listener, FutTransform};
-use proto::funder::messages::{TcpAddress, TcpAddressV4};
+use proto::net::messages::{TcpAddress, TcpAddressV4};
 
 use crate::tcp_connector::TcpConnector;
 use crate::tcp_listener::TcpListener;

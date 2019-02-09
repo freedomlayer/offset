@@ -1,5 +1,5 @@
 use common::conn::{FutTransform, BoxFuture, ConnPairVec};
-use proto::funder::messages::TcpAddress;
+use proto::net::messages::TcpAddress;
 
 use futures::compat::{Future01CompatExt};
 use futures::task::Spawn;

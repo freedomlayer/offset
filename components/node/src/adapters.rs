@@ -4,7 +4,8 @@ use common::conn::{ConnPairVec, FutTransform, BoxFuture};
 
 use crypto::identity::PublicKey;
 
-use proto::funder::messages::{RelayAddress, TcpAddress};
+use proto::funder::messages::RelayAddress;
+use proto::net::messages::TcpAddress;
 use proto::index_server::messages::{IndexServerAddress};
 
 #[derive(Clone)]

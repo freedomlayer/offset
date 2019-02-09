@@ -497,7 +497,7 @@ pub fn deserialize_app_to_app_server(data: &[u8]) -> Result<AppToAppServer<Relay
 mod tests {
     use super::*;
     use crypto::identity::PUBLIC_KEY_LEN;
-    use crate::funder::messages::{TcpAddress, TcpAddressV4};
+    use crate::net::messages::{TcpAddress, TcpAddressV4};
     use crate::report::messages::FunderReportMutation;
     use crate::index_client::messages::IndexClientReportMutation;
 

@@ -1,5 +1,5 @@
 use std::net::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr};
-use proto::funder::messages::{TcpAddress, TcpAddressV4, TcpAddressV6};
+use proto::net::messages::{TcpAddress, TcpAddressV4, TcpAddressV6};
 
 /// Convert offst's TcpAddress to SocketAddr
 pub fn tcp_address_to_socket_addr(tcp_address: &TcpAddress) -> SocketAddr {

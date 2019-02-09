@@ -20,9 +20,10 @@ use funder::types::{FunderIncomingComm, FunderOutgoingComm,
 
 use index_client::{IndexClientError, spawn_index_client};
 
-use proto::funder::messages::{RelayAddress, TcpAddress, 
+use proto::funder::messages::{RelayAddress, 
     FunderToChanneler, ChannelerToFunder, 
     FunderIncomingControl, FunderOutgoingControl};
+use proto::net::messages::TcpAddress;
 use proto::funder::serialize::{serialize_friend_message, 
     deserialize_friend_message};
 use proto::report::messages::funder_report_to_index_client_state;
