@@ -8,7 +8,6 @@ pub struct EncryptedData(pub Vec<u8>);
 pub struct PlainData(pub Vec<u8>);
 
 /// First Diffie-Hellman message:
-#[allow(unused)]
 #[derive(Debug, PartialEq, Eq)]
 pub struct ExchangeRandNonce {
     pub rand_nonce: RandValue,
@@ -16,7 +15,6 @@ pub struct ExchangeRandNonce {
 }
 
 /// Second Diffie-Hellman message:
-#[allow(unused)]
 #[derive(Debug, PartialEq, Eq)]
 pub struct ExchangeDh {
     pub dh_public_key: DhPublicKey,
@@ -35,21 +33,18 @@ impl ExchangeDh {
     }
 }
 
-#[allow(unused)]
 #[derive(Debug, PartialEq, Eq)]
 pub struct Rekey {
     pub dh_public_key: DhPublicKey,
     pub key_salt: Salt,
 }
 
-#[allow(unused)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum ChannelContent {
     Rekey(Rekey),
     User(PlainData),
 }
 
-#[allow(unused)]
 #[derive(Debug, PartialEq, Eq)]
 pub struct ChannelMessage {
     pub rand_padding: Vec<u8>,
