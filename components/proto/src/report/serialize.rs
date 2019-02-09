@@ -25,7 +25,8 @@ use crate::report::messages::{MoveTokenHashedReport, FriendStatusReport, Request
                             ChannelStatusReport, FriendReport,
                             SentLocalAddressReport,
                             FunderReport, AddFriendReport,
-                            FriendReportMutation};
+                            FriendReportMutation,
+                            FunderReportMutation};
 
 use crate::funder::messages::RelayAddress;
 
@@ -706,4 +707,60 @@ fn deser_pk_friend_report_mutation(pk_friend_report_mutation_reader: &report_cap
     let friend_report_mutation = deser_friend_report_mutation(&pk_friend_report_mutation_reader.get_friend_report_mutation()?)?;
 
     Ok((friend_public_key, friend_report_mutation))
+}
+
+fn ser_funder_report_mutation(funder_report_mutation: &FunderReportMutation<Vec<RelayAddress>>,
+                    funder_report_mutation_builder: &mut report_capnp::funder_report_mutation::Builder) {
+
+    match funder_report_mutation {
+        FunderReportMutation::SetAddress(relays) => {
+            let relays_len = usize_to_u32(relays.len()).unwrap();
+            let mut relays_builder = funder_report_mutation_builder.reborrow().init_set_relays(relays_len);
+            for (index, relay_address) in relays.iter().enumerate() {
+                let mut relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
+                write_relay_address(relay_address, &mut relay_address_builder);
+            }
+        },
+        FunderReportMutation::AddFriend(add_friend_report) => {
+            ser_add_friend_report(add_friend_report, 
+                                  &mut funder_report_mutation_builder.reborrow().init_add_friend());
+        },
+        FunderReportMutation::RemoveFriend(friend_public_key) => {
+            write_public_key(friend_public_key, 
+                                  &mut funder_report_mutation_builder.reborrow().init_remove_friend());
+        },
+        FunderReportMutation::FriendReportMutation(pk_friend_report_mutation) => {
+            ser_pk_friend_report_mutation(pk_friend_report_mutation, 
+                                  &mut funder_report_mutation_builder.reborrow().init_pk_friend_report_mutation());
+        },
+        FunderReportMutation::SetNumReadyReceipts(num_ready_receipts) => {
+            funder_report_mutation_builder.reborrow().set_set_num_ready_receipts(*num_ready_receipts);
+        },
+    }
+}
+
+fn deser_funder_report_mutation(funder_report_mutation_reader: &report_capnp::funder_report_mutation::Reader)
+    -> Result<FunderReportMutation<Vec<RelayAddress>>, SerializeError> {
+
+
+    Ok(match funder_report_mutation_reader.which()? {
+        report_capnp::funder_report_mutation::SetRelays(relays_reader) => {
+            let mut relays = Vec::new();
+            for relay_address in relays_reader? {
+                relays.push(read_relay_address(&relay_address)?);
+            }
+            FunderReportMutation::SetAddress(relays)
+        },
+        report_capnp::funder_report_mutation::AddFriend(add_friend_report_reader) =>
+            FunderReportMutation::AddFriend(
+                deser_add_friend_report(&add_friend_report_reader?)?),
+        report_capnp::funder_report_mutation::RemoveFriend(friend_public_key_reader) =>
+            FunderReportMutation::RemoveFriend(
+                read_public_key(&friend_public_key_reader?)?),
+        report_capnp::funder_report_mutation::PkFriendReportMutation(pk_friend_report_mutation_reader) =>
+            FunderReportMutation::FriendReportMutation(
+                deser_pk_friend_report_mutation(&pk_friend_report_mutation_reader?)?),
+        report_capnp::funder_report_mutation::SetNumReadyReceipts(num_ready_receipts) => 
+            FunderReportMutation::SetNumReadyReceipts(num_ready_receipts),
+    })
 }
