@@ -18,16 +18,13 @@ name = "index_server"
 path = "src/bin/index_server.rs"
 
 [[bin]]
-name = "gen_identity"
-path = "src/bin/gen_identity.rs"
-
-[[bin]]
 name = "node"
 path = "src/bin/node.rs"
 
 [[bin]]
-name = "init_node_db"
-path = "src/bin/init_node_db.rs"
+# OffST Manager
+name = "stm"
+path = "src/bin/stm.rs"
 
 [dependencies]
 
