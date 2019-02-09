@@ -29,6 +29,9 @@ use crate::report::messages::{MoveTokenHashedReport, FriendStatusReport, Request
                             FunderReportMutation};
 
 use crate::funder::messages::RelayAddress;
+use crate::index_client::messages::{IndexClientReport, IndexClientReportMutation};
+use crate::index_server::messages::IndexServerAddress;
+use crate::app_server::messages::{NodeReport, NodeReportMutation};
 
 
 fn ser_move_token_hashed_report(move_token_hashed_report: &MoveTokenHashedReport,
@@ -742,7 +745,6 @@ fn ser_funder_report_mutation(funder_report_mutation: &FunderReportMutation<Vec<
 fn deser_funder_report_mutation(funder_report_mutation_reader: &report_capnp::funder_report_mutation::Reader)
     -> Result<FunderReportMutation<Vec<RelayAddress>>, SerializeError> {
 
-
     Ok(match funder_report_mutation_reader.which()? {
         report_capnp::funder_report_mutation::SetRelays(relays_reader) => {
             let mut relays = Vec::new();
@@ -762,5 +764,47 @@ fn deser_funder_report_mutation(funder_report_mutation_reader: &report_capnp::fu
                 deser_pk_friend_report_mutation(&pk_friend_report_mutation_reader?)?),
         report_capnp::funder_report_mutation::SetNumReadyReceipts(num_ready_receipts) => 
             FunderReportMutation::SetNumReadyReceipts(num_ready_receipts),
+    })
+}
+
+fn ser_index_client_report(index_client_report: &IndexClientReport<IndexServerAddress>,
+                    index_client_report_builder: &mut report_capnp::index_client_report::Builder) {
+
+    let index_servers_len = usize_to_u32(index_client_report.index_servers.len()).unwrap();
+    let mut index_servers_builder = index_client_report_builder.reborrow().init_index_servers(index_servers_len);
+    for (index, index_server_address) in index_client_report.index_servers.iter().enumerate() {
+        let mut index_server_address_builder = index_servers_builder.reborrow().get(usize_to_u32(index).unwrap());
+        write_index_server_address(index_server_address, &mut index_server_address_builder);
+    }
+
+    let mut opt_connected_server_builder = index_client_report_builder.reborrow().init_opt_connected_server();
+    match &index_client_report.opt_connected_server {
+        Some(index_server_address) => {
+            write_index_server_address(index_server_address, 
+                                       &mut opt_connected_server_builder.init_index_server_address());
+        },
+        None => {
+            opt_connected_server_builder.set_empty(());
+        },
+    }
+}
+
+fn deser_index_client_report(index_client_report_reader: &report_capnp::index_client_report::Reader)
+    -> Result<IndexClientReport<IndexServerAddress>, SerializeError> {
+
+    let mut index_servers = Vec::new();
+    for index_server_address in index_client_report_reader.get_index_servers()? {
+        index_servers.push(read_index_server_address(&index_server_address)?);
+    }
+
+    let opt_connected_server = match index_client_report_reader.get_opt_connected_server().which()? {
+        report_capnp::index_client_report::opt_connected_server::IndexServerAddress(index_server_address_reader) =>
+            Some(read_index_server_address(&index_server_address_reader?)?),
+        report_capnp::index_client_report::opt_connected_server::Empty(()) => None,
+    };
+
+    Ok(IndexClientReport {
+        index_servers,
+        opt_connected_server,
     })
 }
