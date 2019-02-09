@@ -8,6 +8,7 @@
 extern crate log;
 
 use std::path::{Path, PathBuf};
+use std::net::SocketAddr;
 
 use clap::{Arg, App, SubCommand, ArgMatches};
 use log::Level;
@@ -18,6 +19,8 @@ use crypto::identity::{generate_pkcs8_key_pair, Identity};
 use proto::funder::messages::RelayAddress;
 use proto::index_server::messages::IndexServerAddress;
 use proto::app_server::messages::AppPermissions;
+
+use net::socket_addr_to_tcp_address;
 
 use database::file_db::FileDb;
 use node::NodeState;
@@ -62,6 +65,7 @@ enum GenIdentityError {
     StoreToFileError,
 }
 
+/// Randomly generate an identity file (private-public key pair)
 fn gen_identity(matches: &ArgMatches) -> Result<(), GenIdentityError> {
     // Generate a new random keypair:
     let rng = system_random();
@@ -79,6 +83,13 @@ enum AppTicketError {
     StoreAppFileError,
 }
 
+/// Create an app ticket.
+/// The ticket contains:
+/// - public key
+/// - application permissions
+///
+/// The app ticket is used to authorize an application to 
+/// connect to a running node.
 fn app_ticket(matches: &ArgMatches) -> Result<(), AppTicketError> {
     let idfile = matches.value_of("idfile").unwrap();
     let output = matches.value_of("output").unwrap();
@@ -108,16 +119,19 @@ fn app_ticket(matches: &ArgMatches) -> Result<(), AppTicketError> {
         permissions,
     };
     store_trusted_app_to_file(&trusted_app, &output_path)
-        .map_err(|_| AppTicketError::StoreAppFileError)?;
-
-    Ok(())
+        .map_err(|_| AppTicketError::StoreAppFileError)
 }
 
 #[derive(Debug)]
 enum RelayTicketError {
     OutputAlreadyExists,
+    LoadIdentityError,
+    ParseAddressError,
+    StoreRelayFileError,
 }
 
+/// Create a public relay ticket
+/// The ticket can be fed into a running offst node
 fn relay_ticket(matches: &ArgMatches) -> Result<(), RelayTicketError> {
     let idfile = matches.value_of("idfile").unwrap();
     let output = matches.value_of("output").unwrap();
@@ -128,20 +142,62 @@ fn relay_ticket(matches: &ArgMatches) -> Result<(), RelayTicketError> {
         return Err(RelayTicketError::OutputAlreadyExists);
     }
 
-    // TODO
-    unimplemented!();
+    // Parse identity file:
+    let identity = load_identity_from_file(Path::new(&idfile))
+        .map_err(|_| RelayTicketError::LoadIdentityError)?;
+    let public_key = identity.get_public_key();
+
+    let address_str = matches.value_of("address").unwrap();
+    let socket_addr: SocketAddr = address_str.parse()
+        .map_err(|_| RelayTicketError::ParseAddressError)?;
+    let address = socket_addr_to_tcp_address(&socket_addr);
+
+    let relay_address = RelayAddress {
+        public_key,
+        address,
+    };
+
+    store_relay_to_file(&relay_address, &output_path)
+        .map_err(|_| RelayTicketError::StoreRelayFileError)
 }
 
 #[derive(Debug)]
 enum IndexTicketError {
+    OutputAlreadyExists,
+    LoadIdentityError,
+    ParseAddressError,
+    StoreRelayFileError,
 }
 
+/// Create a public index ticket
+/// The ticket can be fed into a running offst node
 fn index_ticket(matches: &ArgMatches) -> Result<(), IndexTicketError> {
     let idfile = matches.value_of("idfile").unwrap();
     let output = matches.value_of("output").unwrap();
 
-    // TODO
-    unimplemented!();
+    // Make sure that output_path does not exist.
+    let output_path = Path::new(output);
+    if output_path.exists() {
+        return Err(IndexTicketError::OutputAlreadyExists);
+    }
+
+    // Parse identity file:
+    let identity = load_identity_from_file(Path::new(&idfile))
+        .map_err(|_| IndexTicketError::LoadIdentityError)?;
+    let public_key = identity.get_public_key();
+
+    let address_str = matches.value_of("address").unwrap();
+    let socket_addr: SocketAddr = address_str.parse()
+        .map_err(|_| IndexTicketError::ParseAddressError)?;
+    let address = socket_addr_to_tcp_address(&socket_addr);
+
+    let relay_address = RelayAddress {
+        public_key,
+        address,
+    };
+
+    store_relay_to_file(&relay_address, &output_path)
+        .map_err(|_| IndexTicketError::StoreRelayFileError)
 }
 
 #[derive(Debug)]
@@ -289,7 +345,7 @@ fn run() -> Result<(), StmError> {
         ("app-ticket", Some(matches)) => app_ticket(matches)?,
         ("relay-ticket", Some(matches)) => relay_ticket(matches)?,
         ("index-ticket", Some(matches)) => index_ticket(matches)?,
-        _ => unreachable!(), // TODO: Could we ever get here?
+        _ => unreachable!(), // TODO: Can we ever get here?
     })
 }
 
