@@ -66,14 +66,14 @@ fn deser_request_routes(request_routes_reader: &index_capnp::request_routes::Rea
 }
 
 
-fn ser_route_with_capacity(route_with_capacity: &RouteWithCapacity,
+pub fn ser_route_with_capacity(route_with_capacity: &RouteWithCapacity,
                            route_with_capacity_builder: &mut index_capnp::route_with_capacity::Builder) {
 
     ser_friends_route(&route_with_capacity.route, &mut route_with_capacity_builder.reborrow().init_route());
     write_custom_u_int128(route_with_capacity.capacity, &mut route_with_capacity_builder.reborrow().init_capacity());
 }
 
-fn deser_route_with_capacity(route_with_capacity_reader: &index_capnp::route_with_capacity::Reader) 
+pub fn deser_route_with_capacity(route_with_capacity_reader: &index_capnp::route_with_capacity::Reader) 
     -> Result<RouteWithCapacity, SerializeError> {
 
     Ok(RouteWithCapacity {
