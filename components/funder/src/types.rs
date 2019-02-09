@@ -231,7 +231,6 @@ pub enum IncomingLivenessMessage {
 }
 
 
-#[allow(unused)]
 pub struct FriendInconsistencyError {
     pub reset_token: Signature,
     pub balance_for_reset: i128,
@@ -261,7 +260,6 @@ pub enum FunderIncoming<A> {
     Comm(FunderIncomingComm<A>),
 }
 
-#[allow(unused)]
 #[derive(Debug)]
 pub enum FunderOutgoing<A: Clone> {
     Control(FunderOutgoingControl<A>),
