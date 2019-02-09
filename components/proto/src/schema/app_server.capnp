@@ -18,7 +18,7 @@ using import "report.capnp".NodeReport;
 using import "report.capnp".NodeReportMutation;
 
 using import "index.capnp".RequestRoutes;
-using import "index.capnp".ResponseRoutes;
+using import "index.capnp".RouteWithCapacity;
 
 
 # Interface between AppServer and an Application
@@ -75,6 +75,17 @@ struct ResetFriendChannel {
         resetToken @1: Signature;
 }
 
+struct ResponseRoutesResult {
+        union {
+                success @0: List(RouteWithCapacity);
+                failure @1: Void;
+        }
+}
+
+struct ClientResponseRoutes {
+        requestId @0: Uid;
+        result @1: ResponseRoutesResult;
+}
 
 
 #####################################################################
@@ -89,7 +100,7 @@ struct AppServerToApp {
         reportMutations @2: List(NodeReportMutation);
 
         # Routes:
-        responseRoutes @3: ResponseRoutes;
+        responseRoutes @3: ClientResponseRoutes;
 
     }
 }
