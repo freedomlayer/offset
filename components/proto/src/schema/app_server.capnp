@@ -90,6 +90,17 @@ struct ClientResponseRoutes {
 
 #####################################################################
 
+struct AppPermissions {
+        reports @0: Bool;
+        # Receives reports about state
+        routes @1: Bool;
+        # Can request routes
+        sendFunds @2: Bool;
+        # Can send credits
+        config @3: Bool;
+        # Can configure friends
+}
+
 struct AppServerToApp {
     union {
         # Funds

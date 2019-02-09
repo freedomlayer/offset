@@ -32,8 +32,8 @@ use crate::funder::messages::{RelayAddress, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel};
 use crate::funder::serialize::{ser_friends_route, deser_friends_route};
 
-use super::messages::{AppServerToApp, AppToAppServer, 
-                        NodeReport, NodeReportMutation};
+use crate::app_server::messages::{AppServerToApp, AppToAppServer, 
+                        NodeReport, NodeReportMutation, AppPermissions};
 
 
 fn ser_user_request_send_funds(user_request_send_funds: &UserRequestSendFunds,
@@ -289,6 +289,25 @@ fn deser_client_response_routes(client_response_routes_reader: &app_server_capnp
     })
 }
 
+fn ser_app_permissions(app_permissions: &AppPermissions,
+                    app_permissions_builder: &mut app_server_capnp::app_permissions::Builder) {
+    app_permissions_builder.reborrow().set_reports(app_permissions.reports);
+    app_permissions_builder.reborrow().set_routes(app_permissions.routes);
+    app_permissions_builder.reborrow().set_send_funds(app_permissions.send_funds);
+    app_permissions_builder.reborrow().set_config(app_permissions.config);
+}
+
+fn deser_app_permissions(app_permissions_reader: &app_server_capnp::app_permissions::Reader)
+    -> Result<AppPermissions, SerializeError> {
+
+    Ok(AppPermissions {
+        reports: app_permissions_reader.get_reports(),
+        routes: app_permissions_reader.get_routes(),
+        send_funds: app_permissions_reader.get_send_funds(),
+        config: app_permissions_reader.get_config(),
+    })
+}
+
 fn ser_app_server_to_app(app_server_to_app: &AppServerToApp<RelayAddress, IndexServerAddress>,
                     app_server_to_app_builder: &mut app_server_capnp::app_server_to_app::Builder) {
 
@@ -455,7 +474,23 @@ fn deser_app_to_app_server(app_to_app_server: &app_server_capnp::app_to_app_serv
 
 // ---------------------------------------------------
 // ---------------------------------------------------
-//
+pub fn serialize_app_permissions(app_permissions: &AppPermissions) -> Vec<u8> {
+    let mut builder = capnp::message::Builder::new_default();
+    let mut app_permissions_builder = builder.init_root::<app_server_capnp::app_permissions::Builder>();
+    ser_app_permissions(app_permissions, &mut app_permissions_builder);
+
+    let mut ser_buff = Vec::new();
+    serialize_packed::write_message(&mut ser_buff, &builder).unwrap();
+    ser_buff
+}
+
+pub fn deserialize_app_permissions(data: &[u8]) -> Result<AppPermissions, SerializeError> {
+    let mut cursor = io::Cursor::new(data);
+    let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
+    let app_permissions_reader = reader.get_root::<app_server_capnp::app_permissions::Reader>()?;
+
+    deser_app_permissions(&app_permissions_reader)
+}
 
 pub fn serialize_app_server_to_app(app_server_to_app: &AppServerToApp<RelayAddress, IndexServerAddress>) -> Vec<u8> {
     let mut builder = capnp::message::Builder::new_default();
@@ -500,6 +535,20 @@ mod tests {
     use crate::net::messages::{TcpAddress, TcpAddressV4};
     use crate::report::messages::FunderReportMutation;
     use crate::index_client::messages::IndexClientReportMutation;
+
+    #[test]
+    fn test_serialize_app_permissions() {
+        let app_permissions = AppPermissions {
+            reports: true,
+            routes: false,
+            send_funds: true,
+            config: false,
+        };
+
+        let data = serialize_app_permissions(&app_permissions);
+        let app_permissions2 = deserialize_app_permissions(&data).unwrap();
+        assert_eq!(app_permissions, app_permissions2);
+    }
 
     #[test]
     fn test_serialize_app_server_to_app() {
