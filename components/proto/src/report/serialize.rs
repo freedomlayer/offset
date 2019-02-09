@@ -857,3 +857,21 @@ fn deser_index_client_report_mutation(index_client_report_mutation_reader: &repo
         },
     })
 }
+
+fn ser_node_report(node_report: &NodeReport<RelayAddress, IndexServerAddress>,
+                    node_report_builder: &mut report_capnp::node_report::Builder) {
+
+    ser_funder_report(&node_report.funder_report, 
+                      &mut node_report_builder.reborrow().init_funder_report());
+    ser_index_client_report(&node_report.index_client_report, 
+                            &mut node_report_builder.reborrow().init_index_client_report());
+}
+
+fn deser_node_report(node_report_reader: &report_capnp::node_report::Reader)
+    -> Result<NodeReport<RelayAddress, IndexServerAddress>, SerializeError> {
+
+    Ok(NodeReport {
+        funder_report: deser_funder_report(&node_report_reader.get_funder_report()?)?,
+        index_client_report: deser_index_client_report(&node_report_reader.get_index_client_report()?)?,
+    })
+}
