@@ -48,7 +48,8 @@ use proto::index_server::messages::IndexServerAddress;
 use proto::funder::messages::RelayAddress;
 use proto::app_server::messages::AppPermissions;
 use proto::app_server::serialize::{deserialize_app_to_app_server,
-                                   serialize_app_server_to_app};
+                                   serialize_app_server_to_app,
+                                   serialize_app_permissions};
 use net::{TcpConnector, TcpListener, socket_addr_to_tcp_address};
 
 
@@ -171,6 +172,9 @@ where
 
             // Keepalive wrapper:
             let (mut sender, mut receiver) = await!(self.keepalive_transform.transform(enc_conn));
+
+            // Tell app about its permissions: (TODO: Is this required?)
+            await!(sender.send(serialize_app_permissions(&app_permissions))).ok()?;
 
             // serialization:
             let (user_sender, mut from_user_sender) = mpsc::channel(0);
