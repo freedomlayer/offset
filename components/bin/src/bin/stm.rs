@@ -10,7 +10,7 @@ extern crate log;
 use std::path::{Path, PathBuf};
 use std::net::SocketAddr;
 
-use clap::{Arg, App, SubCommand, ArgMatches};
+use clap::{Arg, App, AppSettings, SubCommand, ArgMatches};
 use log::Level;
 
 use crypto::crypto_rand::system_random;
@@ -242,6 +242,7 @@ impl From<IndexTicketError> for StmError {
 fn run() -> Result<(), StmError> {
     simple_logger::init_with_level(Level::Warn).unwrap();
     let matches = App::new("STM: offST Manager")
+                          .setting(AppSettings::SubcommandRequiredElseHelp)
                           .version("0.1.0")
                           .author("real <real@freedomlayer.org>")
                           .about("Performs Offst related management operations")
@@ -345,7 +346,7 @@ fn run() -> Result<(), StmError> {
         ("app-ticket", Some(matches)) => app_ticket(matches)?,
         ("relay-ticket", Some(matches)) => relay_ticket(matches)?,
         ("index-ticket", Some(matches)) => index_ticket(matches)?,
-        _ => unreachable!(), // TODO: Can we ever get here?
+        _ => unreachable!(),
     })
 }
 
