@@ -198,13 +198,11 @@ impl<K,E> AsyncWrite for AsyncWriter<K,E> where K: Sink<SinkItem=Vec<u8>, SinkEr
 }
 
 #[cfg(test)]
-#[allow(unused)]
 mod tests {
     use super::*;
-    use futures::channel::{mpsc, oneshot};
-    use futures::{Future, SinkExt};
+    use futures::channel::mpsc;
+    use futures::SinkExt;
     use futures::executor::LocalPool;
-    use futures::task::SpawnExt;
     use futures::io::{AsyncReadExt, AsyncWriteExt};
 
     // TODO: Tests here are very basic.
@@ -355,13 +353,13 @@ mod tests {
         let mut async_reader = AsyncReader::new(receiver);
 
         for i in 0 .. 20 {
-            await!(sender.send(vec![i; 0x10]));
+            await!(sender.send(vec![i; 0x10])).unwrap();
         }
         drop(sender);
 
         let mut total_buf = [0u8; 20 * 0x10];
         let mut buf_pos = &mut total_buf[..];
-        while let (Ok(num_read)) = await!(async_reader.read(buf_pos)) {
+        while let Ok(num_read) = await!(async_reader.read(buf_pos)) {
             if num_read == 0 {
                 break;
             }
