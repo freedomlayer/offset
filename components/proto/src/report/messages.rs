@@ -140,7 +140,6 @@ pub struct FunderReport<A: Clone> {
     pub num_ready_receipts: u64,
 }
 
-#[allow(unused)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FriendReportMutation<A> {
     SetRemoteAddress(A),
@@ -168,7 +167,6 @@ pub struct AddFriendReport<A> {
 }
 
 
-#[allow(unused)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunderReportMutation<A> {
     SetAddress(A),
@@ -198,7 +196,6 @@ impl From<&RequestsStatus> for RequestsStatusReport {
     }
 }
 
-#[allow(unused)]
 #[derive(Debug)]
 pub enum FunderReportMutateError {
     FriendDoesNotExist,
