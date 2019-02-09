@@ -146,7 +146,6 @@ where
     }
 }
 
-#[allow(unused)]
 pub fn create_report<A>(funder_state: &FunderState<A>, ephemeral: &Ephemeral) -> FunderReport<A> 
 where
     A: CanonicalSerialize + Clone,
@@ -169,7 +168,6 @@ where
     }
 }
 
-#[allow(unused)]
 pub fn create_initial_report<A>(funder_state: &FunderState<A>) -> FunderReport<A> 
 where
     A: CanonicalSerialize + Clone,
@@ -252,7 +250,6 @@ where
 ///
 /// In the future if we simplify Funder's mutations, we might be able discard the `funder_state`
 /// argument here.
-#[allow(unused)]
 pub fn funder_mutation_to_report_mutations<A>(funder_mutation: &FunderMutation<A>,
                                            funder_state: &FunderState<A>) -> Vec<FunderReportMutation<A>> 
 where
