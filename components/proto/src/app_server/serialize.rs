@@ -19,6 +19,7 @@ use crate::serialize::SerializeError;
 use crate::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult};
 
 use crate::index_server::messages::IndexServerAddress;
+use index_server::serialize::{ser_route_with_capacity, deser_route_with_capacity};
 use crate::report::serialize::{ser_node_report, deser_node_report, 
     ser_node_report_mutation, deser_node_report_mutation};
 
@@ -237,12 +238,36 @@ fn deser_reset_friend_channel(reset_friend_channel_reader: &app_server_capnp::re
 }
 
 // TODO: Add serialization code for ResponseRoutesResult, ClientResponseRoutes
-
-/*
 fn ser_response_routes_result(response_routes_result: &ResponseRoutesResult,
-                    app_server_to_app_builder: &mut index_capnp::response_routes_result::Builder) {
+                    response_routes_result_builder: &mut app_server_capnp::response_routes_result::Builder) {
 
-                    */
+    match response_routes_result {
+        ResponseRoutesResult::Success(routes_with_capacity) => {
+            let routes_len = usize_to_u32(routes_with_capacity.len()).unwrap();
+            let mut routes_with_capacity_builder = response_routes_result_builder.reborrow().init_success(routes_len);
+            for (index, route_with_capacity) in routes_with_capacity.iter().enumerate() {
+                let mut route_with_capacity_builder = routes_with_capacity_builder.reborrow().get(usize_to_u32(index).unwrap());
+                ser_route_with_capacity(route_with_capacity, &mut route_with_capacity_builder);
+            }
+        },
+        ResponseRoutesResult::Failure => response_routes_result_builder.reborrow().set_failure(()),
+    }
+}
+
+fn deser_response_routes_result(response_routes_result_reader: &app_server_capnp::response_routes_result::Reader)
+    -> Result<ResponseRoutesResult, SerializeError> {
+
+    Ok(match response_routes_result_reader.which()? {
+        app_server_capnp::response_routes_result::Success(routes_with_capacity_reader) => {
+            let mut routes_with_capacity = Vec::new();
+            for route_with_capacity in routes_with_capacity_reader? {
+                routes_with_capacity.push(deser_route_with_capacity(&route_with_capacity)?);
+            }
+            ResponseRoutesResult::Success(routes_with_capacity)
+        },
+        app_server_capnp::response_routes_result::Failure(()) => ResponseRoutesResult::Failure,
+    })
+}
 
 fn ser_app_server_to_app(app_server_to_app: &AppServerToApp<RelayAddress, IndexServerAddress>,
                     app_server_to_app_builder: &mut app_server_capnp::app_server_to_app::Builder) {
