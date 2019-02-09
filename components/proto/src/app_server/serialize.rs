@@ -16,7 +16,12 @@ use crate::capnp_common::{write_signature, read_signature,
 use app_server_capnp;
 use crate::serialize::SerializeError;
 
+use crate::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult};
+
 use crate::index_server::messages::IndexServerAddress;
+use crate::report::serialize::{ser_node_report, deser_node_report, 
+    ser_node_report_mutation, deser_node_report_mutation};
+
 use crate::funder::messages::{RelayAddress, UserRequestSendFunds, 
     ResponseReceived, ResponseSendFundsResult, ReceiptAck, 
     AddFriend, SetFriendName, SetFriendAddress,
@@ -231,11 +236,42 @@ fn deser_reset_friend_channel(reset_friend_channel_reader: &app_server_capnp::re
     })
 }
 
+// TODO: Add serialization code for ResponseRoutesResult, ClientResponseRoutes
+
 /*
-fn ser_reset_friend_channel(reset_friend_channel: &ResetFriendChannel,
-                    reset_friend_channel_builder: &mut app_server_capnp::reset_friend_channel::Builder) {
+fn ser_response_routes_result(response_routes_result: &ResponseRoutesResult,
+                    app_server_to_app_builder: &mut index_capnp::response_routes_result::Builder) {
+
+                    */
+
+fn ser_app_server_to_app(app_server_to_app: &AppServerToApp<RelayAddress, IndexServerAddress>,
+                    app_server_to_app_builder: &mut app_server_capnp::app_server_to_app::Builder) {
+
+    unimplemented!();
+
+    /*
+    match app_server_to_app {
+        AppServerToApp::ResponseReceived(response_received) =>
+            ser_response_received(response_received, 
+                                   &mut app_server_to_app_builder.init_response_received()),
+        AppServerToApp::Report(node_report) =>
+            ser_node_report(node_report, 
+                                   &mut app_server_to_app_builder.init_report()),
+        AppServerToApp::ReportMutations(node_report_mutations) => {
+            let mutations_len = usize_to_u32(node_report_mutations.len()).unwrap();
+            let mut node_report_mutations_builder = app_server_to_app_builder.reborrow().init_report_mutations(mutations_len);
+            for (index, node_report_mutation) in node_report_mutations.iter().enumerate() {
+                let mut node_report_mutation_builder = node_report_mutations_builder.reborrow().get(usize_to_u32(index).unwrap());
+                ser_node_report_mutation(node_report_mutation, &mut node_report_mutation_builder);
+            }
+        },
+        AppServerToApp::ResponseRoutes(response_routes) => 
+            ser_client_response_routes(response_routes, 
+                                   &mut app_server_to_app_builder.init_response_routes()),
+    }
+    */
 }
-*/
+
 
 
 // ---------------------------------------------------
