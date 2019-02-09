@@ -269,6 +269,23 @@ fn deser_response_routes_result(response_routes_result_reader: &app_server_capnp
     })
 }
 
+fn ser_client_response_routes(client_response_routes: &ClientResponseRoutes,
+                    client_response_routes_builder: &mut app_server_capnp::client_response_routes::Builder) {
+    write_uid(&client_response_routes.request_id, 
+              &mut client_response_routes_builder.reborrow().init_request_id());
+    ser_response_routes_result(&client_response_routes.result, 
+              &mut client_response_routes_builder.reborrow().init_result());
+}
+
+fn deser_client_response_routes(client_response_routes_reader: &app_server_capnp::client_response_routes::Reader)
+    -> Result<ClientResponseRoutes, SerializeError> {
+
+    Ok(ClientResponseRoutes {
+        request_id: read_uid(&client_response_routes_reader.get_request_id()?)?,
+        result: deser_response_routes_result(&client_response_routes_reader.get_result()?)?,
+    })
+}
+
 fn ser_app_server_to_app(app_server_to_app: &AppServerToApp<RelayAddress, IndexServerAddress>,
                     app_server_to_app_builder: &mut app_server_capnp::app_server_to_app::Builder) {
 
