@@ -528,10 +528,11 @@ pub fn deserialize_app_to_app_server(data: &[u8]) -> Result<AppToAppServer<Relay
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crypto::identity::PUBLIC_KEY_LEN;
+    use crypto::identity::{PUBLIC_KEY_LEN, PublicKey};
     use crate::net::messages::{TcpAddress, TcpAddressV4};
     use crate::report::messages::FunderReportMutation;
-    use crate::index_client::messages::IndexClientReportMutation;
+    use crate::app_server::messages::NodeReportMutation;
+    use crate::index_client::messages::{IndexClientReportMutation};
 
     #[test]
     fn test_serialize_app_permissions() {

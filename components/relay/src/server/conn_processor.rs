@@ -133,14 +133,14 @@ where
 mod tests {
     use super::*;
 
-    use futures::channel::{mpsc, oneshot};
-    use futures::{Future, stream};
+    use futures::channel::mpsc;
+    use futures::{FutureExt, stream};
     use futures::executor::ThreadPool;
     use futures::task::{Spawn, SpawnExt};
 
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
     use timer::create_timer_incoming;
-    use common::async_test_utils::{receive, ReceiveError};
+    use common::async_test_utils::receive;
     use common::conn::FuncFutTransform;
 
     use proto::relay::serialize::serialize_init_connection;
@@ -148,7 +148,7 @@ mod tests {
     async fn task_dispatch_conn_basic(spawner: impl Spawn + Clone) {
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+        let _timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
 
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let first_msg = InitConnection::Listen;
@@ -215,7 +215,7 @@ mod tests {
     async fn task_dispatch_conn_invalid_first_msg(spawner: impl Spawn + Clone) {
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+        let _timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
 
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let ser_first_msg = b"This is an invalid message".to_vec();
@@ -275,7 +275,7 @@ mod tests {
                          }
                      }))
             }
-        );
+        ).unwrap();
 
 
         let (conn, processed_conns) =  thread_pool.run(receive(processed_conns)).unwrap();
