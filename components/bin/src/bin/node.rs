@@ -171,7 +171,7 @@ where
             // Keepalive wrapper:
             let (mut sender, mut receiver) = await!(self.keepalive_transform.transform(enc_conn));
 
-            // TODO: serializationn
+            // serialization:
             let (user_sender, mut from_user_sender) = mpsc::channel(0);
             let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
