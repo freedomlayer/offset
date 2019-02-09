@@ -875,3 +875,27 @@ fn deser_node_report(node_report_reader: &report_capnp::node_report::Reader)
         index_client_report: deser_index_client_report(&node_report_reader.get_index_client_report()?)?,
     })
 }
+
+fn ser_node_report_mutation(node_report_mutation: &NodeReportMutation<RelayAddress, IndexServerAddress>,
+                    node_report_mutation_builder: &mut report_capnp::node_report_mutation::Builder) {
+
+    match node_report_mutation {
+        NodeReportMutation::Funder(funder_report_mutation) =>
+            ser_funder_report_mutation(&funder_report_mutation, 
+                                       &mut node_report_mutation_builder.reborrow().init_funder()),
+        NodeReportMutation::IndexClient(index_client_report_mutation) =>
+            ser_index_client_report_mutation(&index_client_report_mutation, 
+                                       &mut node_report_mutation_builder.reborrow().init_index_client()),
+    }
+}
+
+fn deser_node_report_mutation(node_report_mutation_reader: &report_capnp::node_report_mutation::Reader)
+    -> Result<NodeReportMutation<RelayAddress, IndexServerAddress>, SerializeError> {
+
+    Ok(match node_report_mutation_reader.which()? {
+        report_capnp::node_report_mutation::Funder(funder_report_mutation_reader) =>
+            NodeReportMutation::Funder(deser_funder_report_mutation(&funder_report_mutation_reader?)?),
+        report_capnp::node_report_mutation::IndexClient(index_client_report_mutation_reader) =>
+            NodeReportMutation::IndexClient(deser_index_client_report_mutation(&index_client_report_mutation_reader?)?),
+    })
+}
