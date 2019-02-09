@@ -38,12 +38,14 @@ where
     }
 }
 
-/// Using the coupon collector's approximation, 
-/// after nlog(n) updates (n = self.edges.len()), all the edges should be covered.
-/// Any edge not covered over the last nlog(n) updates should be removed.
+/// The client sends us information about his neighbors in a cyclic fashion.
+/// This means that after about `N` messages a complete cycle will be completed
+/// and we will obtain information about the full client state.
+///
+/// We are being generous and willing to wait about `Const + 3 * N`
+/// until an edge is removed.
 fn max_edge_age(num_edges: usize) -> u128 {
-    let f_num_edges = num_edges as f64;
-    BASE_MAX_EDGE_AGE + (2.0 * f_num_edges * f_num_edges.ln()) as u128
+    BASE_MAX_EDGE_AGE + 3 * (num_edges as u128)
 }
 
 impl<N> NodeEdges<N> 
