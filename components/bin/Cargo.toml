@@ -25,6 +25,10 @@ path = "src/bin/gen_identity.rs"
 name = "node"
 path = "src/bin/node.rs"
 
+[[bin]]
+name = "init_node_db"
+path = "src/bin/init_node_db.rs"
+
 [dependencies]
 
 common = { path = "../common", version = "0.1.0", package = "offst-common" }
