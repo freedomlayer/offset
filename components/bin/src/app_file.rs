@@ -6,7 +6,7 @@ use toml;
 use base64::{self, URL_SAFE_NO_PAD};
 
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
-use node::AppPermissions;
+use proto::app_server::messages::AppPermissions;
 
 #[derive(Debug)]
 pub enum AppFileError {

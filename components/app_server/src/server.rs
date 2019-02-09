@@ -15,10 +15,8 @@ use proto::funder::messages::{FunderOutgoingControl, FunderIncomingControl,
 use proto::report::messages::funder_report_mutation_to_index_mutation;
 
 use proto::app_server::messages::{AppServerToApp, AppToAppServer, NodeReport,
-                                    NodeReportMutation};
+                                    NodeReportMutation, AppPermissions};
 use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClient};
-
-use crate::config::AppPermissions;
 
 pub type IncomingAppConnection<B,ISA> = (AppPermissions, ConnPair<AppServerToApp<B,ISA>, AppToAppServer<B,ISA>>);
 

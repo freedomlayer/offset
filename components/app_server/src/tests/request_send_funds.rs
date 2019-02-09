@@ -12,9 +12,7 @@ use proto::funder::messages::{FunderOutgoingControl, FunderIncomingControl,
                                 UserRequestSendFunds, FriendsRoute, 
                                 InvoiceId, INVOICE_ID_LEN, ResponseReceived, 
                                 ResponseSendFundsResult};
-use proto::app_server::messages::{AppServerToApp, AppToAppServer};
-
-use crate::config::AppPermissions;
+use proto::app_server::messages::{AppServerToApp, AppToAppServer, AppPermissions};
 
 use super::utils::spawn_dummy_app_server;
 

@@ -81,3 +81,14 @@ where
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AppPermissions {
+    /// Receives reports about state
+    pub reports: bool,
+    /// Can request routes
+    pub routes: bool,
+    /// Can send credits
+    pub send_funds: bool,
+    /// Can configure friends
+    pub config: bool,
+}

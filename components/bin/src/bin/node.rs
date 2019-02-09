@@ -37,7 +37,7 @@ use secure_channel::SecureChannel;
 use keepalive::KeepAliveChannel;
 
 use node::{node, NodeConfig, NodeState, 
-    NodeError, IncomingAppConnection, AppPermissions};
+    NodeError, IncomingAppConnection};
 
 use database::file_db::FileDb;
 use database::{database_loop, DatabaseClient, AtomicDb};
@@ -46,6 +46,7 @@ use proto::consts::{PROTOCOL_VERSION, KEEPALIVE_TICKS, TICKS_TO_REKEY,
     MAX_OPERATIONS_IN_BATCH, TICK_MS, MAX_FRAME_LENGTH};
 use proto::index_server::messages::IndexServerAddress;
 use proto::funder::messages::RelayAddress;
+use proto::app_server::messages::AppPermissions;
 use proto::app_server::serialize::{deserialize_app_to_app_server,
                                    serialize_app_server_to_app};
 use net::{TcpConnector, TcpListener, socket_addr_to_tcp_address};
