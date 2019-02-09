@@ -687,3 +687,23 @@ fn deser_friend_report_mutation(friend_report_mutation: &report_capnp::friend_re
                 deser_friend_liveness_report(&friend_liveness_report_reader?)?),
     })
 }
+
+fn ser_pk_friend_report_mutation(pk_friend_report_mutation: &(PublicKey, FriendReportMutation<Vec<RelayAddress>>),
+                    pk_friend_report_mutation_builder: &mut report_capnp::pk_friend_report_mutation::Builder) {
+
+    let (friend_public_key, friend_report_mutation) = pk_friend_report_mutation;
+    write_public_key(&friend_public_key, 
+                     &mut pk_friend_report_mutation_builder.reborrow().init_friend_public_key());
+    ser_friend_report_mutation(&friend_report_mutation, 
+                     &mut pk_friend_report_mutation_builder.reborrow().init_friend_report_mutation());
+
+}
+
+fn deser_pk_friend_report_mutation(pk_friend_report_mutation_reader: &report_capnp::pk_friend_report_mutation::Reader)
+    -> Result<(PublicKey, FriendReportMutation<Vec<RelayAddress>>), SerializeError> {
+
+    let friend_public_key = read_public_key(&pk_friend_report_mutation_reader.get_friend_public_key()?)?;
+    let friend_report_mutation = deser_friend_report_mutation(&pk_friend_report_mutation_reader.get_friend_report_mutation()?)?;
+
+    Ok((friend_public_key, friend_report_mutation))
+}
