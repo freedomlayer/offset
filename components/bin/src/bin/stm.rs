@@ -23,7 +23,8 @@ use database::file_db::FileDb;
 use node::NodeState;
 
 use bin::{load_identity_from_file, store_identity_to_file, 
-    store_trusted_app_to_file, TrustedApp};
+    store_trusted_app_to_file, TrustedApp,
+    store_relay_to_file, store_index_server_to_file};
 
 #[derive(Debug)]
 enum InitNodeDbError {
@@ -81,9 +82,8 @@ enum AppTicketError {
 fn app_ticket(matches: &ArgMatches) -> Result<(), AppTicketError> {
     let idfile = matches.value_of("idfile").unwrap();
     let output = matches.value_of("output").unwrap();
+
     // Make sure that output_path does not exist.
-    // This program should never override any file! (Otherwise users might erase their database by
-    // accident).
     let output_path = Path::new(output);
     if output_path.exists() {
         return Err(AppTicketError::OutputAlreadyExists);
@@ -114,10 +114,43 @@ fn app_ticket(matches: &ArgMatches) -> Result<(), AppTicketError> {
 }
 
 #[derive(Debug)]
+enum RelayTicketError {
+    OutputAlreadyExists,
+}
+
+fn relay_ticket(matches: &ArgMatches) -> Result<(), RelayTicketError> {
+    let idfile = matches.value_of("idfile").unwrap();
+    let output = matches.value_of("output").unwrap();
+
+    // Make sure that output_path does not exist.
+    let output_path = Path::new(output);
+    if output_path.exists() {
+        return Err(RelayTicketError::OutputAlreadyExists);
+    }
+
+    // TODO
+    unimplemented!();
+}
+
+#[derive(Debug)]
+enum IndexTicketError {
+}
+
+fn index_ticket(matches: &ArgMatches) -> Result<(), IndexTicketError> {
+    let idfile = matches.value_of("idfile").unwrap();
+    let output = matches.value_of("output").unwrap();
+
+    // TODO
+    unimplemented!();
+}
+
+#[derive(Debug)]
 enum StmError {
     InitNodeDbError(InitNodeDbError),
     GenIdentityError(GenIdentityError),
     AppTicketError(AppTicketError),
+    RelayTicketError(RelayTicketError),
+    IndexTicketError(IndexTicketError),
 }
 
 impl From<InitNodeDbError> for StmError {
@@ -138,6 +171,18 @@ impl From<AppTicketError> for StmError {
     }
 }
 
+impl From<RelayTicketError> for StmError {
+    fn from(e: RelayTicketError) -> Self {
+        StmError::RelayTicketError(e)
+    }
+}
+
+impl From<IndexTicketError> for StmError {
+    fn from(e: IndexTicketError) -> Self {
+        StmError::IndexTicketError(e)
+    }
+}
+
 fn run() -> Result<(), StmError> {
     simple_logger::init_with_level(Level::Warn).unwrap();
     let matches = App::new("STM: offST Manager")
@@ -150,7 +195,7 @@ fn run() -> Result<(), StmError> {
                                    .short("o")
                                    .long("output")
                                    .value_name("output")
-                                   .help("output database file path")
+                                   .help("Database output file path")
                                    .required(true))
                               .arg(Arg::with_name("idfile")
                                    .short("i")
@@ -164,7 +209,7 @@ fn run() -> Result<(), StmError> {
                                    .short("o")
                                    .long("output")
                                    .value_name("output")
-                                   .help("output identity file path")
+                                   .help("Identity file output file path")
                                    .required(true)))
                           .subcommand(SubCommand::with_name("app-ticket")
                               .about("Create an application ticket")
@@ -178,7 +223,7 @@ fn run() -> Result<(), StmError> {
                                    .short("o")
                                    .long("output")
                                    .value_name("output")
-                                   .help("output application ticket file path")
+                                   .help("Application ticket output file path")
                                    .required(true))
                               .arg(Arg::with_name("preports")
                                    .long("preports")
@@ -196,18 +241,57 @@ fn run() -> Result<(), StmError> {
                                    .long("pconfig")
                                    .value_name("pconfig")
                                    .help("Permission to change configuration")))
+                          .subcommand(SubCommand::with_name("relay-ticket")
+                              .about("Create a relay ticket")
+                              .arg(Arg::with_name("idfile")
+                                   .short("i")
+                                   .long("idfile")
+                                   .value_name("idfile")
+                                   .help("identity file path")
+                                   .required(true))
+                              .arg(Arg::with_name("address")
+                                   .short("a")
+                                   .long("address")
+                                   .value_name("address")
+                                   .help("Public address of the relay")
+                                   .required(true))
+                              .arg(Arg::with_name("output")
+                                   .short("o")
+                                   .long("output")
+                                   .value_name("output")
+                                   .help("Relay ticket output file path")
+                                   .required(true)))
+                          .subcommand(SubCommand::with_name("index-ticket")
+                              .about("Create an index server ticket")
+                              .arg(Arg::with_name("idfile")
+                                   .short("i")
+                                   .long("idfile")
+                                   .value_name("idfile")
+                                   .help("identity file path")
+                                   .required(true))
+                              .arg(Arg::with_name("address")
+                                   .short("a")
+                                   .long("address")
+                                   .value_name("address")
+                                   .help("Public address of the index server")
+                                   .required(true))
+                              .arg(Arg::with_name("output")
+                                   .short("o")
+                                   .long("output")
+                                   .value_name("output")
+                                   .help("Index server ticket output file path")
+                                   .required(true)))
                           .get_matches();
 
     Ok(match matches.subcommand() {
         ("init-node-db", Some(matches)) => init_node_db(matches)?,
         ("gen-ident", Some(matches)) => gen_identity(matches)?,
         ("app-ticket", Some(matches)) => app_ticket(matches)?,
-        ("relay-ticket", Some(matches)) => unimplemented!(),
-        ("index-ticket", Some(matches)) => unimplemented!(),
-        _ => unreachable!(),
+        ("relay-ticket", Some(matches)) => relay_ticket(matches)?,
+        ("index-ticket", Some(matches)) => index_ticket(matches)?,
+        _ => unreachable!(), // TODO: Could we ever get here?
     })
 }
-
 
 fn main() {
     if let Err(e) = run() {
