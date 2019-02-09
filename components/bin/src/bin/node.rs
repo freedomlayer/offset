@@ -231,7 +231,7 @@ fn run() -> Result<(), NodeBinError> {
                                .short("l")
                                .long("laddr")
                                .value_name("laddr")
-                               .help("Listening address. Examples:\n- 0.0.0.0:1337\n- fe80::14c2:3048:b1ac:85fb:1337")
+                               .help("Listening address (Used for communication with apps)\nExamples:\n- 0.0.0.0:1337\n- fe80::14c2:3048:b1ac:85fb:1337")
                                .required(true))
                           .arg(Arg::with_name("trusted")
                                .short("t")
