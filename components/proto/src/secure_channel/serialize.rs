@@ -1,13 +1,7 @@
-#![allow(unused)]
 use std::io;
-use std::convert::TryFrom;
 use capnp;
 use capnp::serialize_packed;
 use dh_capnp;
-
-use crypto::identity::{PublicKey, Signature};
-use crypto::crypto_rand::RandValue;
-use crypto::dh::{DhPublicKey, Salt};
 
 use crate::capnp_common::{write_public_key, read_public_key,
                         write_rand_nonce, read_rand_nonce,
@@ -161,6 +155,10 @@ mod tests {
     use crypto::crypto_rand::RAND_VALUE_LEN;
     use crypto::identity::{PUBLIC_KEY_LEN, SIGNATURE_LEN};
     use crypto::dh::{SALT_LEN, DH_PUBLIC_KEY_LEN};
+    use std::convert::TryFrom;
+    use crypto::identity::{PublicKey, Signature};
+    use crypto::crypto_rand::RandValue;
+    use crypto::dh::{DhPublicKey, Salt};
 
     #[test]
     fn test_serialize_exchange_rand_nonce() {

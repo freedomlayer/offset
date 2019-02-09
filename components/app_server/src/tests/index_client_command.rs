@@ -4,11 +4,9 @@ use futures::task::Spawn;
 use futures::executor::ThreadPool;
 
 use proto::app_server::messages::{AppServerToApp, AppToAppServer,
-                                    NodeReportMutation};
+                                    NodeReportMutation, AppPermissions};
 use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClient, 
     IndexClientReportMutation};
-
-use crate::config::AppPermissions;
 
 use super::utils::spawn_dummy_app_server;
 

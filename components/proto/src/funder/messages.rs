@@ -10,7 +10,8 @@ use crypto::hash::{self, HashResult};
 use common::int_convert::{usize_to_u64};
 use common::canonical_serialize::CanonicalSerialize;
 
-use crate::funder::report::FunderReportMutation;
+use crate::net::messages::TcpAddress;
+use crate::report::messages::FunderReportMutation;
 use crate::consts::MAX_ROUTE_LEN;
 
 
@@ -23,7 +24,6 @@ pub struct ChannelerUpdateFriend<A> {
     pub local_addresses: Vec<A>,
 }
 
-#[allow(unused)]
 #[derive(Debug)]
 pub enum FunderToChanneler<A> {
     /// Send a message to a friend
@@ -37,7 +37,6 @@ pub enum FunderToChanneler<A> {
     RemoveFriend(PublicKey), // friend_public_key
 }
 
-#[allow(unused)]
 #[derive(Debug)]
 pub enum ChannelerToFunder {
     /// A friend is now online
@@ -49,14 +48,6 @@ pub enum ChannelerToFunder {
 }
 
 // -------------------------------------------
-
-/// The ratio can be numeration / T::max_value(), or 1
-#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
-pub enum Ratio<T> {
-    One,
-    Numerator(T),
-}
-
 
 pub const INVOICE_ID_LEN: usize = 32;
 
@@ -142,10 +133,10 @@ pub enum FriendMessage<A> {
     InconsistencyError(ResetTerms),
 }
 
-/// A `SendFundsReceipt` is received if a `RequestSendFunds` is successful.
+/// A `Receipt` is received if a `RequestSendFunds` is successful.
 /// It can be used a proof of payment for a specific `invoice_id`.
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct SendFundsReceipt {
+pub struct Receipt {
     pub response_hash: HashResult,
     // = sha512/256(requestId || sha512/256(route) || randNonce)
     pub invoice_id: InvoiceId,
@@ -171,22 +162,6 @@ pub struct PendingRequest {
 
 // ==================================================================
 // ==================================================================
-
-impl CanonicalSerialize for Ratio<u128> {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        match *self {
-            Ratio::One => {
-                res_bytes.write_u8(0).unwrap();
-            },
-            Ratio::Numerator(num) => {
-                res_bytes.write_u8(1).unwrap();
-                res_bytes.write_u128::<BigEndian>(num).unwrap();
-            },
-        }
-        res_bytes
-    }
-}
 
 
 impl CanonicalSerialize for RequestSendFunds {
@@ -328,7 +303,7 @@ impl FriendsRoute {
     }
 }
 
-impl CanonicalSerialize for SendFundsReceipt {
+impl CanonicalSerialize for Receipt {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.response_hash);
@@ -364,7 +339,7 @@ impl RequestsStatus {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AddFriend<A> {
     pub friend_public_key: PublicKey,
     pub address: A,
@@ -410,7 +385,7 @@ pub struct SetFriendAddress<A> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResetFriendChannel {
     pub friend_public_key: PublicKey,
-    pub current_token: Signature,
+    pub reset_token: Signature,
 }
 
 /// A request to send funds that originates from the user
@@ -467,7 +442,7 @@ impl UserRequestSendFunds {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResponseSendFundsResult {
-    Success(SendFundsReceipt),
+    Success(Receipt),
     Failure(PublicKey), // Reporting public key.
 }
 
@@ -486,69 +461,10 @@ pub enum FunderOutgoingControl<A: Clone> {
     ReportMutations(Vec<FunderReportMutation<A>>),
 }
 
-/// IPv4 address (TCP)
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct TcpAddressV4 {
-    pub address: [u8; 4], // 32 bit
-    pub port: u16,
-}
-
-/// IPv6 address (TCP)
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct TcpAddressV6 {
-    pub address: [u8; 16], // 128 bit
-    pub port: u16,
-}
-
-// TODO: Possibly move TcpAddress and the structs it depends on 
-// to a more generic module in proto?
-/// Address for TCP connection
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum TcpAddress {
-    V4(TcpAddressV4),
-    V6(TcpAddressV6),
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RelayAddress {
     pub public_key: PublicKey,
     pub address: TcpAddress,
-}
-
-
-impl CanonicalSerialize for TcpAddressV4 {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.address);
-        res_bytes.write_u16::<BigEndian>(self.port).unwrap();
-        res_bytes
-    }
-}
-
-impl CanonicalSerialize for TcpAddressV6 {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.address);
-        res_bytes.write_u16::<BigEndian>(self.port).unwrap();
-        res_bytes
-    }
-}
-
-impl CanonicalSerialize for TcpAddress {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        match self {
-            TcpAddress::V4(tcp_address_v4) => {
-                res_bytes.push(0);
-                res_bytes.extend_from_slice(&tcp_address_v4.canonical_serialize());
-            },
-            TcpAddress::V6(tcp_address_v4) => {
-                res_bytes.push(1);
-                res_bytes.extend_from_slice(&tcp_address_v4.canonical_serialize());
-            },
-        }
-        res_bytes
-    }
 }
 
 impl CanonicalSerialize for RelayAddress {

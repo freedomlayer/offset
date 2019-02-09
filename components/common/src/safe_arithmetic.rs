@@ -1,3 +1,4 @@
+#![allow(trivial_numeric_casts)]
 
 pub trait SafeSignedArithmetic: Copy {
     type Unsigned;

@@ -283,7 +283,6 @@ mod tests {
     #[derive(Debug, Eq, PartialEq)]
     enum ReadError {
         Closed,
-        Error,
     }
 
     /// Util function to read from a Stream

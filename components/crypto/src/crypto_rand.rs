@@ -2,24 +2,32 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::ops::Deref;
 
-use ring::rand::SecureRandom;
+use ring::rand::{SecureRandom, SystemRandom};
 use ring::error::Unspecified;
 
 pub const RAND_VALUE_LEN: usize = 16;
 
 define_fixed_bytes!(RandValue, RAND_VALUE_LEN);
 
-pub trait CryptoRandom: SecureRandom + Clone + Sync + Send {}
+pub trait CryptoRandom: SecureRandom + Sync + Send {}
 
-#[derive(Clone)]
+
 pub struct RngContainer<R> {
     arc_rng: Arc<R>,
 }
 
-impl<R: CryptoRandom> RngContainer<R> {
+impl<R> RngContainer<R> {
     pub fn new(rng: R) -> RngContainer<R> {
         RngContainer {
             arc_rng: Arc::new(rng),
+        }
+    }
+}
+
+impl<R> Clone for RngContainer<R> {
+    fn clone(&self) -> Self {
+        RngContainer {
+            arc_rng: self.arc_rng.clone(),
         }
     }
 }
@@ -31,7 +39,10 @@ impl<R: SecureRandom> SecureRandom for RngContainer<R> {
     }
 }
 
-impl<R: CryptoRandom> CryptoRandom for RngContainer<R> {}
+impl<R: SecureRandom> CryptoRandom for RngContainer<R> 
+where
+    R: Sync + Send,
+{}
 
 impl<R> Deref for RngContainer<R> {
     type Target = R;
@@ -39,6 +50,11 @@ impl<R> Deref for RngContainer<R> {
     fn deref(&self) -> &Self::Target {
         &*self.arc_rng
     }
+}
+
+/// Returns a secure cryptographic random generator
+pub fn system_random() -> impl CryptoRandom + Clone {
+    RngContainer::new(SystemRandom::new())
 }
 
 

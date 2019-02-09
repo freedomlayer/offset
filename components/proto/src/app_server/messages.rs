@@ -3,7 +3,7 @@ use crypto::identity::PublicKey;
 use crate::funder::messages::{UserRequestSendFunds, ResponseReceived,
                             ReceiptAck, AddFriend, SetFriendAddress, 
                             SetFriendName, SetFriendRemoteMaxDebt, ResetFriendChannel};
-use crate::funder::report::{FunderReport, FunderReportMutation};
+use crate::report::messages::{FunderReport, FunderReportMutation};
 use crate::index_client::messages::{IndexClientReport, 
     IndexClientReportMutation, ClientResponseRoutes};
 use crate::index_server::messages::RequestRoutes;
@@ -21,8 +21,7 @@ pub enum NodeReportMutation<B,ISA> {
     IndexClient(IndexClientReportMutation<ISA>),
 }
 
-#[allow(unused)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum AppServerToApp<B: Clone,ISA> {
     /// Funds:
     ResponseReceived(ResponseReceived),
@@ -32,8 +31,7 @@ pub enum AppServerToApp<B: Clone,ISA> {
     ResponseRoutes(ClientResponseRoutes),
 }
 
-#[allow(unused)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum AppToAppServer<B,ISA> {
     /// Set relay address to be used locally:
     SetRelays(Vec<B>), 
@@ -81,3 +79,14 @@ where
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AppPermissions {
+    /// Receives reports about state
+    pub reports: bool,
+    /// Can request routes
+    pub routes: bool,
+    /// Can send credits
+    pub send_funds: bool,
+    /// Can configure friends
+    pub config: bool,
+}

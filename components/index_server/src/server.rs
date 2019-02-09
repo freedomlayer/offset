@@ -23,24 +23,18 @@ use crate::graph::graph_service::{GraphClient, GraphClientError};
 use crate::verifier::Verifier;
 
 
-type ServerConn = ConnPair<IndexServerToServer, IndexServerToServer>;
-type ClientConn = ConnPair<IndexServerToClient, IndexClientToServer>;
+pub type ServerConn = ConnPair<IndexServerToServer, IndexServerToServer>;
+pub type ClientConn = ConnPair<IndexServerToClient, IndexClientToServer>;
 
 
 #[derive(Debug)]
-pub enum IndexServerError {
+pub enum ServerLoopError {
     SpawnError,
     RequestTimerStreamFailed,
     GraphClientError,
     ClientEventSenderError,
     ClientSenderError,
     RemoteSendError,
-}
-
-pub struct IndexServerConfig<A> {
-    local_public_key: PublicKey,
-    // map: public_key -> server_address
-    trusted_servers: HashMap<PublicKey, A>, 
 }
 
 
@@ -62,7 +56,7 @@ impl<T> Connected<T> {
     ///
     /// Ignores new send attempts after a real failure occurs.
     pub fn try_send(&mut self, t: T) 
-        -> Result<(), IndexServerError> {
+        -> Result<(), ServerLoopError> {
 
         if let Some(mut sender) = self.opt_sender.take() {
             if let Err(e) = sender.try_send(t) {
@@ -70,7 +64,7 @@ impl<T> Connected<T> {
                     warn!("try_send() failed: {:?}", e);
                     self.opt_sender = Some(sender);
                 }
-                return Err(IndexServerError::RemoteSendError)
+                return Err(ServerLoopError::RemoteSendError)
             }
             self.opt_sender = Some(sender);
         }
@@ -109,9 +103,9 @@ struct IndexServer<A,S,SC,V,CMP> {
     spawner: S,
 }
 
-impl From<GraphClientError> for IndexServerError {
-    fn from(_from: GraphClientError) -> IndexServerError {
-        IndexServerError::GraphClientError
+impl From<GraphClientError> for ServerLoopError {
+    fn from(_from: GraphClientError) -> ServerLoopError {
+        ServerLoopError::GraphClientError
     }
 }
 
@@ -144,20 +138,18 @@ impl<A,S,SC,V,CMP> IndexServer<A,S,SC,V,CMP>
 where
     A: Clone + Send + std::fmt::Debug + 'static,
     S: Spawn + Send, 
-    SC: FutTransform<Input=(PublicKey, A), Output=ServerConn> + Clone + Send + 'static,
+    SC: FutTransform<Input=(PublicKey, A), Output=Option<ServerConn>> + Clone + Send + 'static,
     V: Verifier<Node=PublicKey, Neighbor=PublicKey, SessionId=Uid>,
     CMP: Clone + Fn(&PublicKey, &PublicKey) -> Ordering,
 {
-    pub fn new(index_server_config: IndexServerConfig<A>,
+    pub fn new(local_public_key: PublicKey,
+               trusted_servers: HashMap<PublicKey, A>, 
                server_connector: SC,
                graph_client: GraphClient<PublicKey, u128>,
                compare_public_key: CMP, 
                verifier: V,
                event_sender: mpsc::Sender<IndexServerEvent>,
-               spawner: S) -> Result<Self, IndexServerError> {
-
-        let IndexServerConfig {local_public_key, trusted_servers} 
-                = index_server_config;
+               spawner: S) -> Result<Self, ServerLoopError> {
 
         let mut index_server = IndexServer {
             local_public_key,
@@ -193,7 +185,7 @@ where
     }
 
     pub fn spawn_server(&mut self, public_key: PublicKey, address: A) 
-        -> Result<RemoteServer<A>, IndexServerError> {
+        -> Result<RemoteServer<A>, ServerLoopError> {
 
         if (self.compare_public_key)(&self.local_public_key, &public_key) == Ordering::Less {
             return Ok(RemoteServer {
@@ -211,16 +203,20 @@ where
         let cancellable_fut = async move {
             let server_conn_fut = c_server_connector.transform((public_key.clone(), c_address));
             let select_res = select! {
-                server_conn_fut = server_conn_fut.fuse() => Some(server_conn_fut),
+                server_conn_fut = server_conn_fut.fuse() => server_conn_fut,
                 _close_receiver = close_receiver.fuse() => None,
             };
             if let Some(server_conn) = select_res {
                 let _ = await!(c_event_sender.send(IndexServerEvent::ServerConnection((public_key, server_conn))));
+            } else {
+                // Failed to connect, report that the server was closed
+                // TODO: Test this functionality:
+                let _ = await!(c_event_sender.send(IndexServerEvent::FromServer((public_key, None))));
             }
         };
 
         self.spawner.spawn(cancellable_fut)
-            .map_err(|_| IndexServerError::SpawnError)?;
+            .map_err(|_| ServerLoopError::SpawnError)?;
 
         let state = RemoteServerState::Initiating(ServerInitiating {
             close_sender,
@@ -235,7 +231,7 @@ where
     pub async fn handle_forward_mutations_update(&mut self, 
                                                  opt_server_public_key: Option<PublicKey>,
                                                  mut forward_mutations_update: ForwardMutationsUpdate)
-                                                    -> Result<(), IndexServerError> 
+                                                    -> Result<(), ServerLoopError> 
     {
         // Check the signature:
         if !forward_mutations_update.mutations_update.verify_signature() {
@@ -274,7 +270,8 @@ where
         // Expire old edges for `node_public_key`:
         // Note: This tick happens every time a message is received from this `node_public_key`,
         // and not every constant amount of time. 
-        self.graph_client.tick(mutations_update.node_public_key.clone());
+        await!(self.graph_client.tick(mutations_update.node_public_key.clone()))
+            .map_err(|_| ServerLoopError::GraphClientError)?;
         
         // Add a link to the time proof:
         forward_mutations_update
@@ -312,7 +309,7 @@ where
     }
 
     pub async fn handle_from_server(&mut self, public_key: PublicKey, server_msg: IndexServerToServer)
-        -> Result<(), IndexServerError> {
+        -> Result<(), ServerLoopError> {
 
         match server_msg {
             IndexServerToServer::TimeHash(time_hash) => {
@@ -326,7 +323,7 @@ where
     }
 
     pub async fn handle_timer_tick(&mut self)
-        -> Result<(), IndexServerError> {
+        -> Result<(), ServerLoopError> {
 
         let (time_hash, removed_nodes) = self.verifier.tick();
 
@@ -354,7 +351,7 @@ async fn client_handler(mut graph_client: GraphClient<PublicKey, u128>,
                         _public_key: PublicKey, // TODO: unused?
                         client_conn: ClientConn,
                         mut event_sender: mpsc::Sender<IndexServerEvent>) 
-    -> Result<(), IndexServerError> {
+    -> Result<(), ServerLoopError> {
 
     let (mut sender, mut receiver) = client_conn;
 
@@ -363,7 +360,7 @@ async fn client_handler(mut graph_client: GraphClient<PublicKey, u128>,
             IndexClientToServer::MutationsUpdate(mutations_update) => {
                 // Forward to main server future to process:
                 await!(event_sender.send(IndexServerEvent::ClientMutationsUpdate(mutations_update)))
-                    .map_err(|_| IndexServerError::ClientEventSenderError)?;
+                    .map_err(|_| ServerLoopError::ClientEventSenderError)?;
             },
             IndexClientToServer::RequestRoutes(request_routes) => {
                 let route_tuples = await!(graph_client.get_routes(request_routes.source.clone(), 
@@ -384,7 +381,7 @@ async fn client_handler(mut graph_client: GraphClient<PublicKey, u128>,
                 };
                 let message = IndexServerToClient::ResponseRoutes(response_routes);
                 await!(sender.send(message))
-                    .map_err(|_| IndexServerError::ClientSenderError)?;
+                    .map_err(|_| ServerLoopError::ClientSenderError)?;
             },
         }
     }
@@ -392,8 +389,8 @@ async fn client_handler(mut graph_client: GraphClient<PublicKey, u128>,
 }
 
 
-#[allow(unused)]
-pub async fn server_loop<A,IS,IC,SC,CMP,V,TS,S>(index_server_config: IndexServerConfig<A>,
+pub async fn server_loop<A,IS,IC,SC,CMP,V,TS,S>(local_public_key: PublicKey,
+                                 trusted_servers: HashMap<PublicKey, A>, 
                                  incoming_server_connections: IS,
                                  incoming_client_connections: IC,
                                  server_connector: SC,
@@ -402,12 +399,12 @@ pub async fn server_loop<A,IS,IC,SC,CMP,V,TS,S>(index_server_config: IndexServer
                                  verifier: V,
                                  timer_stream: TS,
                                  spawner: S,
-                                 mut opt_debug_event_sender: Option<mpsc::Sender<()>>) -> Result<(), IndexServerError>
+                                 mut opt_debug_event_sender: Option<mpsc::Sender<()>>) -> Result<(), ServerLoopError>
 where
     A: Clone + Send + std::fmt::Debug + 'static,
     IS: Stream<Item=(PublicKey, ServerConn)> + Unpin,
     IC: Stream<Item=(PublicKey, ClientConn)> + Unpin,
-    SC: FutTransform<Input=(PublicKey, A), Output=ServerConn> + Clone + Send + 'static,
+    SC: FutTransform<Input=(PublicKey, A), Output=Option<ServerConn>> + Clone + Send + 'static,
     V: Verifier<Node=PublicKey, Neighbor=PublicKey, SessionId=Uid>,
     CMP: Clone + Fn(&PublicKey, &PublicKey) -> Ordering,
     TS: Stream + Unpin,
@@ -422,7 +419,8 @@ where
     let (event_sender, event_receiver) = mpsc::channel(0);
 
     let mut index_server = IndexServer::new(
-               index_server_config,
+               local_public_key,
+               trusted_servers,
                server_connector,
                graph_client,
                compare_public_key,
@@ -484,7 +482,7 @@ where
 
                 index_server.spawner.spawn(async move {
                     let _ = await!(c_event_sender.send_all(&mut receiver));
-                }).map_err(|_| IndexServerError::SpawnError)?;
+                }).map_err(|_| ServerLoopError::SpawnError)?;
 
                 index_server.remote_servers.insert(public_key, remote_server);
 
@@ -527,7 +525,7 @@ where
                     });
 
                 index_server.spawner.spawn(client_handler_fut)
-                    .map_err(|_| IndexServerError::SpawnError)?;
+                    .map_err(|_| ServerLoopError::SpawnError)?;
                 index_server.clients.insert(public_key, Connected::new(c_sender));
             },
             IndexServerEvent::ClientMutationsUpdate(mutations_update) => {
@@ -600,10 +598,8 @@ mod tests {
     {
         let server_pk = PublicKey::from(&[0; PUBLIC_KEY_LEN]);
 
-        let index_server_config: IndexServerConfig<u32> = IndexServerConfig {
-            local_public_key: server_pk.clone(),
-            trusted_servers: HashMap::new(),
-        };
+        let local_public_key = server_pk.clone();
+        let trusted_servers: HashMap<PublicKey, u8> = HashMap::new();
 
         let (_server_connections_sender, incoming_server_connections) = mpsc::channel(0);
         let (mut client_connections_sender, incoming_client_connections) = mpsc::channel(0);
@@ -624,7 +620,8 @@ mod tests {
         let verifier = SimpleVerifier::new(8, rng);
 
 
-        let server_loop_fut = server_loop(index_server_config,
+        let server_loop_fut = server_loop(local_public_key,
+                    trusted_servers,
                     incoming_server_connections,
                     incoming_client_connections,
                     server_connector,
@@ -706,6 +703,15 @@ mod tests {
 
         await!(client_sender.send(IndexClientToServer::MutationsUpdate(mutations_update))).unwrap();
 
+        // Handle tick request:
+        match await!(graph_requests_receiver.next()).unwrap() {
+            GraphRequest::Tick(node, response_sender) => {
+                assert_eq!(node, client_public_key);
+                response_sender.send(()).unwrap();
+            }
+            _ => unreachable!(),
+        }
+
         // Handle the graph request:
         match await!(graph_requests_receiver.next()).unwrap() {
             GraphRequest::RemoveEdge(src, dest, response_sender) => {
@@ -739,7 +745,7 @@ mod tests {
         server_connections_sender: mpsc::Sender<(PublicKey, ServerConn)>,
         client_connections_sender: mpsc::Sender<(PublicKey, ClientConn)>,
         graph_requests_receiver: mpsc::Receiver<GraphRequest<PublicKey, u128>>,
-        server_conn_request_receiver: mpsc::Receiver<ConnRequest<(PublicKey, u8), ServerConn>>,
+        server_conn_request_receiver: mpsc::Receiver<ConnRequest<(PublicKey, u8), Option<ServerConn>>>,
         debug_event_receiver: mpsc::Receiver<()>,
     }
 
@@ -757,10 +763,7 @@ mod tests {
             .map(|&i| (PublicKey::from(&[i; PUBLIC_KEY_LEN]), i))
             .collect::<HashMap<_,_>>();
 
-        let index_server_config: IndexServerConfig<u8> = IndexServerConfig {
-            local_public_key: server_public_key.clone(),
-            trusted_servers,
-        };
+        let local_public_key = server_public_key.clone();
 
         let (server_connections_sender, incoming_server_connections) = mpsc::channel(0);
         let (client_connections_sender, incoming_client_connections) = mpsc::channel(0);
@@ -782,7 +785,8 @@ mod tests {
 
         let (debug_event_sender, debug_event_receiver) = mpsc::channel(0);
 
-        let server_loop_fut = server_loop(index_server_config,
+        let server_loop_fut = server_loop(local_public_key,
+                    trusted_servers,
                     incoming_server_connections,
                     incoming_client_connections,
                     server_connector,
@@ -821,7 +825,7 @@ mod tests {
 
         await!(test_servers[dest_index as usize].debug_event_receiver.next()).unwrap();
 
-        conn_request.reply((a_sender, a_receiver));
+        conn_request.reply(Some((a_sender, a_receiver)));
         await!(test_servers[from_index].debug_event_receiver.next()).unwrap();
     }
 
@@ -968,6 +972,15 @@ mod tests {
 
         macro_rules! process_graph_request {
             ($index:expr) => (
+                // Handle tick request:
+                match await!(test_servers[$index].graph_requests_receiver.next()).unwrap() {
+                    GraphRequest::Tick(node, response_sender) => {
+                        assert_eq!(node, client_public_key);
+                        response_sender.send(()).unwrap();
+                    }
+                    _ => unreachable!(),
+                }
+
                 match await!(test_servers[$index].graph_requests_receiver.next()).unwrap() {
                     GraphRequest::RemoveEdge(src, dest, response_sender) => {
                         assert_eq!(src, client_public_key);

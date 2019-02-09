@@ -45,8 +45,7 @@ where
 }
 
 
-#[allow(unused)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FriendMutation<A> {
     TcMutation(TcMutation<A>),
     SetInconsistent(ChannelInconsistent),
@@ -95,7 +94,6 @@ where
     }
 }
 
-#[allow(unused)]
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FriendState<A> {
     pub local_public_key: PublicKey,
@@ -116,7 +114,6 @@ pub struct FriendState<A> {
 }
 
 
-#[allow(unused)]
 impl<A> FriendState<A> 
 where
     A: CanonicalSerialize + Clone,
@@ -168,12 +165,11 @@ where
         let balance = match &self.channel_status {
             ChannelStatus::Consistent(token_channel) =>
                 &token_channel.get_mutual_credit().state().balance,
-            ChannelStatus::Inconsistent(channel_inconsistent) => return 0,
+            ChannelStatus::Inconsistent(_channel_inconsistent) => return 0,
         };
         balance.local_max_debt.saturating_add_signed(balance.balance)
     }
 
-    #[allow(unused)]
     pub fn mutate(&mut self, friend_mutation: &FriendMutation<A>) {
         match friend_mutation {
             FriendMutation::TcMutation(tc_mutation) => {

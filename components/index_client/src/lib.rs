@@ -5,9 +5,16 @@
 #![feature(generators)]
 #![feature(never_type)]
 
+#![deny(
+    trivial_numeric_casts,
+    warnings
+)]
 
 #[macro_use]
 extern crate log;
+
+#[macro_use]
+extern crate serde_derive;
 
 mod single_client;
 mod index_client;

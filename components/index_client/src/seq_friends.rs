@@ -112,8 +112,6 @@ impl SeqFriendsClient {
     }
 }
 
-
-#[allow(unused)]
 pub fn create_seq_friends_service<S>(seq_friends: SeqFriends,
                                     mut spawner: S) -> Result<SeqFriendsClient, SpawnError> 
 where

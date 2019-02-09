@@ -12,8 +12,6 @@ use proto::relay::serialize::serialize_init_connection;
 pub enum ClientConnectorError {
     InnerConnectorError,
     SendInitConnectionError,
-    RequestTimerStreamError,
-    SpawnClientTunnelError,
 }
 
 /// ClientConnector is an end-to-end connector to a remote node.

@@ -9,7 +9,7 @@ build = "build.rs"
 crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
 common = { path = "../common", version = "0.1.0", package = "offst-common" }
 
-capnp = "0.8"
+capnp = "0.9.4"
 byteorder = "1.1"
 
 serde = "1"
@@ -22,4 +22,4 @@ im = "12.0.0"
 [dev-dependencies]
 
 [build-dependencies]
-capnpc = "0.8"
+capnpc = "0.9.3"

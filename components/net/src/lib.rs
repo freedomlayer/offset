@@ -6,6 +6,11 @@
 #![feature(never_type)]
 #![feature(unboxed_closures)]
 
+#![deny(
+    trivial_numeric_casts,
+    warnings
+)]
+
 // #[macro_use]
 extern crate log;
 
@@ -19,3 +24,4 @@ mod tests;
 
 pub use self::tcp_connector::TcpConnector;
 pub use self::tcp_listener::TcpListener;
+pub use self::types::{socket_addr_to_tcp_address, tcp_address_to_socket_addr};

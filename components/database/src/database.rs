@@ -29,7 +29,6 @@ pub enum DatabaseClientError {
     ResponseCanceled,
 }
 
-#[allow(unused)]
 impl<M> DatabaseClient<M> {
     pub fn new(request_sender: mpsc::Sender<DatabaseRequest<M>>) -> Self {
         DatabaseClient {
@@ -56,7 +55,6 @@ impl<M> DatabaseClient<M> {
     }
 }
 
-#[allow(unused)]
 pub async fn database_loop<AD>(mut atomic_db: AD, 
                                mut incoming_requests: mpsc::Receiver<DatabaseRequest<AD::Mutation>>)
                                 -> Result<AD, DatabaseError<AD::Error>>

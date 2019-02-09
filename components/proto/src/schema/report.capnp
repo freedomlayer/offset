@@ -8,60 +8,89 @@ using import "common.capnp".Signature;
 using import "common.capnp".RandNonce;
 
 using import "common.capnp".RelayAddress;
+using import "common.capnp".IndexServerAddress;
 
 ## Report related structs
 #########################
 
-struct MoveTokenHashed {
-        operationsHash @0: Hash;
-        oldToken @1: Signature;
-        inconsistencyCounter @2: UInt64;
-        moveTokenCounter @3: CustomUInt128;
-        balance @4: CustomInt128;
-        localPendingDebt @5: CustomUInt128;
-        remotePendingDebt @6: CustomUInt128;
-        randNonce @7: RandNonce;
-        newToken @8: Signature;
+struct MoveTokenHashedReport {
+        prefixHash @0: Hash;
+        localPublicKey @1: PublicKey;
+        remotePublicKey @2: PublicKey;
+        inconsistencyCounter @3: UInt64;
+        moveTokenCounter @4: CustomUInt128;
+        balance @5: CustomInt128;
+        localPendingDebt @6: CustomUInt128;
+        remotePendingDebt @7: CustomUInt128;
+        randNonce @8: RandNonce;
+        newToken @9: Signature;
 }
 
 
-enum FriendStatus {
-        disabled @0;
-        enabled @1;
+struct FriendStatusReport {
+        union {
+                disabled @0: Void;
+                enabled @1: Void;
+        }
 }
 
-enum RequestsStatus {
-        closed @0;
-        open @1;
+struct RequestsStatusReport {
+        union {
+                closed @0: Void;
+                open @1: Void;
+        }
 }
 
-enum FriendLivenessReport {
-        offline @0;
-        online @1;
+struct FriendLivenessReport {
+        union {
+                offline @0: Void;
+                online @1: Void;
+        }
 }
 
-enum DirectionReport {
-        incoming @0;
-        outgoing @1;
+struct DirectionReport {
+        union {
+                incoming @0: Void;
+                outgoing @1: Void;
+        }
 }
 
-struct McRequestsStatus {
-        local @0: RequestsStatus;
-        remote @1: RequestsStatus;
+struct McRequestsStatusReport {
+        local @0: RequestsStatusReport;
+        remote @1: RequestsStatusReport;
+}
+
+struct McBalanceReport {
+    balance @0: CustomInt128;
+    # Amount of credits this side has against the remote side.
+    # The other side keeps the negation of this value.
+    localMaxDebt @2: CustomUInt128;
+    # Maximum possible local debt
+    remoteMaxDebt @1: CustomUInt128;
+    # Maximum possible remote debt
+    localPendingDebt @3: CustomUInt128;
+    # Frozen credits by our side
+    remotePendingDebt @4: CustomUInt128;
+    # Frozen credits by the remote side
 }
 
 struct TcReport {
         direction @0: DirectionReport;
-        balance @1: CustomInt128;
-        requestsStatus @2: McRequestsStatus;
+        balance @1: McBalanceReport;
+        requestsStatus @2: McRequestsStatusReport;
         numLocalPendingRequests @3: UInt64;
         numRemotePendingRequests @4: UInt64;
 }
 
+struct ResetTermsReport {
+        resetToken @0: Signature;
+        balanceForReset @1: CustomInt128;
+}
+
 struct ChannelInconsistentReport {
         localResetTermsBalance @0: CustomInt128;
-        optRocalResetTermsBalance: union {
-                remoteResetTerms @1: CustomInt128;
+        optRemoteResetTerms: union {
+                remoteResetTerms @1: ResetTermsReport;
                 empty @2: Void;
         }
 }
@@ -70,82 +99,85 @@ struct ChannelInconsistentReport {
 struct ChannelStatusReport {
         union {
                 inconsistent @0: ChannelInconsistentReport;
-                consistenet @1: TcReport;
+                consistent @1: TcReport;
         }
 }
 
 struct OptLastIncomingMoveToken {
         union {
-                moveTokenHashed @0: MoveTokenHashed;
+                moveTokenHashed @0: MoveTokenHashedReport;
                 empty @1: Void;
         }
 }
 
+struct RelaysTransition {
+        lastSent @0: List(RelayAddress);
+        beforeLastSent @1: List(RelayAddress);
+}
+
+struct SentLocalRelaysReport {
+        union {
+                neverSent @0: Void;
+                transition @1: RelaysTransition;
+                lastSent @2: List(RelayAddress);
+        }
+}
 
 struct FriendReport {
-        address @0: RelayAddress;
-        name @1: Text;
-        optLastIncomingMoveToken @2: OptLastIncomingMoveToken;
-        liveness @3: FriendLivenessReport;
-        channelStatus @4: ChannelStatusReport;
-        wantedRemoteMaxDebt @5: CustomUInt128;
-        wantedLocalRequestsStatus @6: RequestsStatus;
-        numPendingRequests @7: UInt64;
-        numPendingResponses @8: UInt64;
-        status @9: FriendStatus;
-        numPendingUserRequests @10: UInt64;
+        name @0: Text;
+        remoteRelays @1: List(RelayAddress);
+        sentLocalRelays @2: SentLocalRelaysReport;
+        optLastIncomingMoveToken @3: OptLastIncomingMoveToken;
+        liveness @4: FriendLivenessReport;
+        channelStatus @5: ChannelStatusReport;
+        wantedRemoteMaxDebt @6: CustomUInt128;
+        wantedLocalRequestsStatus @7: RequestsStatusReport;
+        numPendingRequests @8: UInt64;
+        numPendingResponses @9: UInt64;
+        status @10: FriendStatusReport;
+        numPendingUserRequests @11: UInt64;
 }
 
-# A full report. Contains a full summary of the current state.
-# This will usually be sent only once, and then ReportMutations will be sent.
-struct Report {
+struct PkFriendReport {
+        friendPublicKey @0: PublicKey;
+        friendReport @1: FriendReport;
+}
+
+# A full Funder report.
+struct FunderReport {
         localPublicKey @0: PublicKey;
-        optAddress: union {
-                address @1: RelayAddress;
-                empty @2: Void;
-        }
-        friends @3: List(FriendReport);
-        numReadyReceipts @4: UInt64;
+        relays @1: List(RelayAddress);
+        friends @2: List(PkFriendReport);
+        numReadyReceipts @3: UInt64;
 }
 
 
 ############################################################################
 ############################################################################
-
-
-struct SetAddressReport {
-    union {
-        address @0: RelayAddress;
-        empty @1: Void;
-    }
-}
 
 struct AddFriendReport {
         friendPublicKey @0: PublicKey;
-        address @1: RelayAddress;
         name @2: Text;
+        relays @1: List(RelayAddress);
         balance @3: CustomInt128;
         optLastIncomingMoveToken @4: OptLastIncomingMoveToken;
         channelStatus @5: ChannelStatusReport;
 }
 
-struct RelayAddressName {
-        address @0: RelayAddress;
-        name @1: Text;
-}
-
 struct FriendReportMutation {
         union {
-                setFriendInfo @0: RelayAddressName;
-                setChannelStatus @1: ChannelStatusReport;
-                setWantedRemoteMaxDebt @2: CustomUInt128;
-                setWantedLocalRequestsStatus @3: RequestsStatus;
-                setNumPendingRequests @4: UInt64;
-                setNumPendingResponses @5: UInt64;
-                setFriendStatus @6: FriendStatus;
-                setNumPendingUserRequests @7: UInt64;
-                setOptLastIncomingMoveToken @8: OptLastIncomingMoveToken;
-                setLiveness @9: FriendLivenessReport;
+                setRemoteRelays @0: List(RelayAddress);
+                setName @1: Text;
+                setSentLocalRelays @2: SentLocalRelaysReport;
+                setChannelStatus @3: ChannelStatusReport;
+                setWantedRemoteMaxDebt @4: CustomUInt128;
+                setWantedLocalRequestsStatus @5: RequestsStatusReport;
+                setNumPendingRequests @6: UInt64;
+                setNumPendingResponses @7: UInt64;
+                setStatus @8: FriendStatusReport;
+                setNumPendingUserRequests @9: UInt64;
+                setOptLastIncomingMoveToken @10: OptLastIncomingMoveToken;
+                setLiveness @11: FriendLivenessReport;
         }
 }
 
@@ -154,13 +186,54 @@ struct PkFriendReportMutation {
         friendReportMutation @1: FriendReportMutation;
 }
 
-# A ReportMutation. Could be applied over a Report to make small changes.
-struct ReportMutation {
+# A FunderReportMutation. Could be applied over a FunderReport to make small changes.
+struct FunderReportMutation {
         union {
-                setAddress @0: SetAddressReport;
+                setRelays @0: List(RelayAddress);
                 addFriend @1: AddFriendReport;
                 removeFriend @2: PublicKey;
                 pkFriendReportMutation @3: PkFriendReportMutation;
                 setNumReadyReceipts @4: UInt64;
+        }
+}
+
+
+############################################################################
+##### IndexClient report
+############################################################################
+
+struct IndexClientReport {
+        indexServers @0: List(IndexServerAddress);
+        optConnectedServer: union {
+                indexServerAddress @1: IndexServerAddress;
+                empty @2: Void;
+        }
+}
+
+struct IndexClientReportMutation {
+        union {
+                addIndexServer @0: IndexServerAddress;
+                removeIndexServer @1: IndexServerAddress;
+                setConnectedServer: union {
+                        indexServerAddress @2: IndexServerAddress;
+                        empty @3: Void;
+                }
+        }
+}
+
+
+############################################################################
+##### Node report
+############################################################################
+
+struct NodeReport {
+        funderReport @0: FunderReport;
+        indexClientReport @1: IndexClientReport;
+}
+
+struct NodeReportMutation {
+        union {
+                funder @0: FunderReportMutation;
+                indexClient @1: IndexClientReportMutation;
         }
 }

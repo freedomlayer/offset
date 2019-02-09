@@ -1,19 +1,13 @@
-use std::iter;
 use std::marker::Unpin;
-use core::pin::Pin;
 
-use futures::{future, Future, FutureExt, stream, 
-    Stream, StreamExt, Sink, SinkExt,
-    select};
-use futures::task::Spawn;
+use futures::{future, 
+    Stream, StreamExt, Sink, SinkExt};
 use futures::channel::mpsc;
 
-
-use common::int_convert::usize_to_u64;
-use common::conn::{FutTransform, ConnPair};
+use common::conn::{FutTransform, ConnPair, ConnPairVec};
 
 use crypto::identity::PublicKey;
-use timer::{TimerTick, TimerClient};
+use timer::TimerClient;
 use timer::utils::future_timeout;
 
 use proto::relay::messages::{InitConnection, RejectConnection, IncomingConnection};
@@ -72,7 +66,7 @@ where
     })
 }
 
-async fn process_conn<FT>(mut sender: mpsc::Sender<Vec<u8>>,
+async fn process_conn<FT>(sender: mpsc::Sender<Vec<u8>>,
                 mut receiver: mpsc::Receiver<Vec<u8>>,
                 public_key: PublicKey,
                 keepalive_transform: FT,
@@ -89,7 +83,7 @@ where
     FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>, 
         Output=ConnPair<Vec<u8>,Vec<u8>>>,
 {
-    let mut fut_receiver = Box::pin(async move {
+    let fut_receiver = Box::pin(async move {
         if let Some(first_msg) = await!(receiver.next()) {
             await!(dispatch_conn(sender, receiver, public_key, first_msg, 
                          keepalive_transform))
@@ -119,13 +113,13 @@ pub fn conn_processor<T,FT>(incoming_conns: T,
                                           impl Stream<Item=Vec<u8>>,
                                           impl Sink<SinkItem=Vec<u8>,SinkError=()>>>
 where
-    T: Stream<Item=(ConnPair<Vec<u8>,Vec<u8>>, PublicKey)> + Unpin,
-    FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>, 
-        Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone,
+    T: Stream<Item=(PublicKey, ConnPairVec)> + Unpin,
+    FT: FutTransform<Input=ConnPairVec,
+        Output=ConnPairVec> + Clone,
 {
 
     incoming_conns
-        .map(move |((sender, receiver), public_key)| {
+        .map(move |(public_key, (sender, receiver))| {
             process_conn(sender, receiver, public_key, 
                          keepalive_transform.clone(),
                          timer_client.clone(), conn_timeout_ticks)
@@ -139,14 +133,14 @@ where
 mod tests {
     use super::*;
 
-    use futures::channel::{mpsc, oneshot};
-    use futures::Future;
+    use futures::channel::mpsc;
+    use futures::{FutureExt, stream};
     use futures::executor::ThreadPool;
     use futures::task::{Spawn, SpawnExt};
 
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
     use timer::create_timer_incoming;
-    use common::async_test_utils::{receive, ReceiveError};
+    use common::async_test_utils::receive;
     use common::conn::FuncFutTransform;
 
     use proto::relay::serialize::serialize_init_connection;
@@ -154,7 +148,7 @@ mod tests {
     async fn task_dispatch_conn_basic(spawner: impl Spawn + Clone) {
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+        let _timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
 
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let first_msg = InitConnection::Listen;
@@ -221,7 +215,7 @@ mod tests {
     async fn task_dispatch_conn_invalid_first_msg(spawner: impl Spawn + Clone) {
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+        let _timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
 
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let ser_first_msg = b"This is an invalid message".to_vec();
@@ -254,7 +248,7 @@ mod tests {
         let (mut remote_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
 
         let incoming_conns = stream::iter::<_>(
-            vec![((local_sender, local_receiver), public_key.clone())]);
+            vec![(public_key.clone(), (local_sender, local_receiver))]);
 
         let conn_timeout_ticks = 16;
         let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
@@ -281,7 +275,7 @@ mod tests {
                          }
                      }))
             }
-        );
+        ).unwrap();
 
 
         let (conn, processed_conns) =  thread_pool.run(receive(processed_conns)).unwrap();

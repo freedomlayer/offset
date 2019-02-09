@@ -1,33 +1,28 @@
 use crypto::identity::PublicKey;
 
-#[allow(unused)]
 pub struct IncomingListen<M,K> {
     pub receiver: M,
     pub sender: K,
 }
 
-#[allow(unused)]
 pub struct IncomingAccept<M,K> {
     pub receiver: M,
     pub sender: K,
     pub accept_public_key: PublicKey,
 }
 
-#[allow(unused)]
 pub struct IncomingConnect<M,K> {
     pub receiver: M,
     pub sender: K,
     pub connect_public_key: PublicKey,
 }
 
-#[allow(unused)]
 pub enum IncomingConnInner<ML,KL,MA,KA,MC,KC> {
     Listen(IncomingListen<ML,KL>),
     Accept(IncomingAccept<MA,KA>),
     Connect(IncomingConnect<MC,KC>),
 }
 
-#[allow(unused)]
 pub struct IncomingConn<ML,KL,MA,KA,MC,KC> {
     pub public_key: PublicKey,
     pub inner: IncomingConnInner<ML,KL,MA,KA,MC,KC>,

@@ -20,12 +20,13 @@ use funder::types::{FunderIncomingComm, FunderOutgoingComm,
 
 use index_client::{IndexClientError, spawn_index_client};
 
-use proto::funder::messages::{RelayAddress, TcpAddress, 
+use proto::funder::messages::{RelayAddress, 
     FunderToChanneler, ChannelerToFunder, 
     FunderIncomingControl, FunderOutgoingControl};
+use proto::net::messages::TcpAddress;
 use proto::funder::serialize::{serialize_friend_message, 
     deserialize_friend_message};
-use proto::funder::report::funder_report_to_index_client_state;
+use proto::report::messages::funder_report_to_index_client_state;
 use proto::index_server::messages::IndexServerAddress;
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer};
 
@@ -274,8 +275,7 @@ where
 
 }
 
-#[allow(unused)]
-pub async fn spawn_node<C,IA,R,S>(
+pub async fn node<C,IA,R,S>(
                 node_config: NodeConfig,
                 identity_client: IdentityClient,
                 timer_client: TimerClient,
@@ -284,7 +284,7 @@ pub async fn spawn_node<C,IA,R,S>(
                 net_connector: C,
                 incoming_apps: IA,
                 rng: R,
-                mut spawner: S) -> Result<impl Future, NodeError> 
+                mut spawner: S) -> Result<(), NodeError> 
 where
     C: FutTransform<Input=TcpAddress,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
     IA: Stream<Item=IncomingAppConnection<RelayAddress,IndexServerAddress>> + Unpin + Send + 'static,  
@@ -357,8 +357,11 @@ where
                 spawner))?;
 
     // Returns a future that resolves after all components were closed:
-    Ok(channeler_handle
+    let fut = channeler_handle
         .join(funder_handle)
         .join(app_server_handle)
-        .join(index_client_handle))
+        .join(index_client_handle)
+        .map(|_| ());
+
+    Ok(await!(fut))
 }

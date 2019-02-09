@@ -35,8 +35,8 @@ pub enum SentLocalAddressReport<A> {
 
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum FriendStatusReport {
-    Enabled = 1,
-    Disabled = 0,
+    Enabled,
+    Disabled,
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
@@ -59,10 +59,10 @@ pub struct McBalanceReport {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
     pub balance: i128,
-    /// Maximum possible remote debt
-    pub remote_max_debt: u128,
     /// Maximum possible local debt
     pub local_max_debt: u128,
+    /// Maximum possible remote debt
+    pub remote_max_debt: u128,
     /// Frozen credits by our side
     pub local_pending_debt: u128,
     /// Frozen credits by the remote side
@@ -110,8 +110,8 @@ pub enum ChannelStatusReport {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FriendReport<A> {
-    pub remote_address: A, 
     pub name: String,
+    pub remote_address: A, 
     pub sent_local_address: SentLocalAddressReport<A>,
     // Last message signed by the remote side. 
     // Can be used as a proof for the last known balance.
@@ -140,7 +140,6 @@ pub struct FunderReport<A: Clone> {
     pub num_ready_receipts: u64,
 }
 
-#[allow(unused)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FriendReportMutation<A> {
     SetRemoteAddress(A),
@@ -151,7 +150,7 @@ pub enum FriendReportMutation<A> {
     SetWantedLocalRequestsStatus(RequestsStatusReport),
     SetNumPendingRequests(u64),
     SetNumPendingResponses(u64),
-    SetFriendStatus(FriendStatusReport),
+    SetStatus(FriendStatusReport),
     SetNumPendingUserRequests(u64),
     SetOptLastIncomingMoveToken(Option<MoveTokenHashedReport>),
     SetLiveness(FriendLivenessReport),
@@ -160,15 +159,14 @@ pub enum FriendReportMutation<A> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AddFriendReport<A> {
     pub friend_public_key: PublicKey,
-    pub address: A,
     pub name: String,
+    pub address: A,
     pub balance: i128, // Initial balance
     pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
     pub channel_status: ChannelStatusReport,
 }
 
 
-#[allow(unused)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunderReportMutation<A> {
     SetAddress(A),
@@ -198,7 +196,6 @@ impl From<&RequestsStatus> for RequestsStatusReport {
     }
 }
 
-#[allow(unused)]
 #[derive(Debug)]
 pub enum FunderReportMutateError {
     FriendDoesNotExist,
@@ -236,7 +233,7 @@ where
             FriendReportMutation::SetNumPendingRequests(num_pending_requests) => {
                 self.num_pending_requests = *num_pending_requests;
             },
-            FriendReportMutation::SetFriendStatus(friend_status) => {
+            FriendReportMutation::SetStatus(friend_status) => {
                 self.status = friend_status.clone();
             },
             FriendReportMutation::SetNumPendingUserRequests(num_pending_user_requests) => {
@@ -319,6 +316,8 @@ where
 // This code is used as glue between FunderReport structure and input mutations given to
 // `index_client`. This allows the offst-index-client crate to not depend on the offst-funder
 // crate.
+
+// TODO: Maybe this logic shouldn't be here? Where should we move it to?
 
 /// Calculate send and receive capacities for a given `friend_report`.
 fn calc_friend_capacities<A>(friend_report: &FriendReport<A>) -> (u128, u128) {

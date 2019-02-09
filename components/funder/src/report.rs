@@ -3,7 +3,7 @@ use im::hashmap::HashMap as ImHashMap;
 use common::int_convert::usize_to_u64;
 use common::canonical_serialize::CanonicalSerialize;
 
-use proto::funder::report::{DirectionReport, FriendLivenessReport, 
+use proto::report::messages::{DirectionReport, FriendLivenessReport, 
     TcReport, ResetTermsReport, ChannelInconsistentReport, ChannelStatusReport, FriendReport,
     FunderReport, FriendReportMutation, AddFriendReport, FunderReportMutation,
     McRequestsStatusReport, McBalanceReport, RequestsStatusReport, FriendStatusReport,
@@ -130,8 +130,8 @@ where
     let channel_status = ChannelStatusReport::from(&friend_state.channel_status);
 
     FriendReport {
-        remote_address: friend_state.remote_address.clone(),
         name: friend_state.name.clone(),
+        remote_address: friend_state.remote_address.clone(),
         sent_local_address: (&friend_state.sent_local_address).into(),
         opt_last_incoming_move_token: friend_state.channel_status.get_last_incoming_move_token_hashed()
             .map(|move_token_hashed| MoveTokenHashedReport::from(&move_token_hashed)),
@@ -146,7 +146,6 @@ where
     }
 }
 
-#[allow(unused)]
 pub fn create_report<A>(funder_state: &FunderState<A>, ephemeral: &Ephemeral) -> FunderReport<A> 
 where
     A: CanonicalSerialize + Clone,
@@ -169,7 +168,6 @@ where
     }
 }
 
-#[allow(unused)]
 pub fn create_initial_report<A>(funder_state: &FunderState<A>) -> FunderReport<A> 
 where
     A: CanonicalSerialize + Clone,
@@ -223,7 +221,7 @@ where
             vec![FriendReportMutation::SetNumPendingUserRequests(
                     usize_to_u64(friend_after.pending_user_requests.len()).unwrap())],
         FriendMutation::SetStatus(friend_status) => 
-            vec![FriendReportMutation::SetFriendStatus(FriendStatusReport::from(friend_status))],
+            vec![FriendReportMutation::SetStatus(FriendStatusReport::from(friend_status))],
         FriendMutation::SetRemoteAddress(remote_address) =>
             vec![FriendReportMutation::SetRemoteAddress(remote_address.clone())],
         FriendMutation::SetName(name) =>
@@ -252,7 +250,6 @@ where
 ///
 /// In the future if we simplify Funder's mutations, we might be able discard the `funder_state`
 /// argument here.
-#[allow(unused)]
 pub fn funder_mutation_to_report_mutations<A>(funder_mutation: &FunderMutation<A>,
                                            funder_state: &FunderState<A>) -> Vec<FunderReportMutation<A>> 
 where
@@ -277,8 +274,8 @@ where
             let friend_after = funder_state_after.friends.get(&add_friend.friend_public_key).unwrap();
             let add_friend_report = AddFriendReport {
                 friend_public_key: add_friend.friend_public_key.clone(),
-                address: add_friend.address.clone(),
                 name: add_friend.name.clone(),
+                address: add_friend.address.clone(),
                 balance: add_friend.balance.clone(), // Initial balance
                 opt_last_incoming_move_token: friend_after.channel_status.get_last_incoming_move_token_hashed()
                     .map(|move_token_hashed| MoveTokenHashedReport::from(&move_token_hashed)),

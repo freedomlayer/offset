@@ -12,92 +12,55 @@ using import "common.capnp".RandNonce;
 
 using import "common.capnp".Receipt;
 using import "common.capnp".RelayAddress;
+using import "common.capnp".IndexServerAddress;
 
-using import "report.capnp".Report;
-using import "report.capnp".ReportMutation;
+using import "report.capnp".NodeReport;
+using import "report.capnp".NodeReportMutation;
 
 using import "index.capnp".RequestRoutes;
-using import "index.capnp".ResponseRoutes;
+using import "index.capnp".RouteWithCapacity;
 
 
 # Interface between AppServer and an Application
 ################################################
 
-struct RequestSendFunds {
-        paymentId @0: Uid;
-        destPayment @1: CustomUInt128;
-        route @2: FriendsRoute;
-        invoiceId @3: InvoiceId;
+struct UserRequestSendFunds {
+        requestId @0: Uid;
+        route @1: FriendsRoute;
+        invoiceId @2: InvoiceId;
+        destPayment @3: CustomUInt128;
 }
 
-struct SuccessSendFunds {
-        receipt @0: Receipt;
-} 
-
-struct FailureSendFunds {
-        reportingPublicKey @0: PublicKey;
-}
-
-struct ResponseSendFunds {
-        paymentId @0: CustomUInt128;
-        response: union {
-                success @1: SuccessSendFunds;
-                failure @2: FailureSendFunds;
+struct ResponseReceived {
+        requestId @0: Uid;
+        result: union {
+                success @1: Receipt;
+                failure @2: PublicKey; # Reporting public key
         }
 }
 
 struct ReceiptAck {
-        paymentId @0: Uid;
-        receiptHash @1: Hash;
-}
-
-
-# App -> AppServer
-struct SetAddress {
-    union {
-        address @0: RelayAddress;
-        empty @1: Void;
-    }
+        requestId @0: Uid;
+        receiptSignature @1: Signature;
 }
 
 # Application -> AppServer
 struct AddFriend {
         friendPublicKey @0: PublicKey;
-        address @1: RelayAddress;
+        relays @1: List(RelayAddress);
         name @2: Text;
         balance @3: CustomInt128;
 }
 
 # Application -> AppServer
-struct SetFriendInfo {
+struct SetFriendName {
         friendPublicKey @0: PublicKey;
-        address @1: RelayAddress;
-        name @2: Text;
+        name @1: Text;
 }
 
-# Application -> AppServer
-struct RemoveFriend {
+struct SetFriendRelays {
         friendPublicKey @0: PublicKey;
-}
-
-# Application -> AppServer
-struct OpenFriend {
-        friendPublicKey @0: PublicKey;
-}
-
-# Application -> AppServer
-struct CloseFriend {
-        friendPublicKey @0: PublicKey;
-}
-
-# Application -> AppServer
-struct EnableFriend {
-        friendPublicKey @0: PublicKey;
-}
-
-# Application -> AppServer
-struct DisableFriend {
-        friendPublicKey @0: PublicKey;
+        relays @1: List(RelayAddress);
 }
 
 # Application -> AppServer
@@ -109,24 +72,46 @@ struct SetFriendRemoteMaxDebt {
 # Application -> AppServer
 struct ResetFriendChannel {
         friendPublicKey @0: PublicKey;
-        currentToken @1: Signature;
+        resetToken @1: Signature;
 }
 
+struct ResponseRoutesResult {
+        union {
+                success @0: List(RouteWithCapacity);
+                failure @1: Void;
+        }
+}
+
+struct ClientResponseRoutes {
+        requestId @0: Uid;
+        result @1: ResponseRoutesResult;
+}
 
 
 #####################################################################
 
+struct AppPermissions {
+        reports @0: Bool;
+        # Receives reports about state
+        routes @1: Bool;
+        # Can request routes
+        sendFunds @2: Bool;
+        # Can send credits
+        config @3: Bool;
+        # Can configure friends
+}
+
 struct AppServerToApp {
     union {
         # Funds
-        responseSendFunds @0: ResponseSendFunds;
+        responseReceived @0: ResponseReceived;
 
         # Reports about current state:
-        report @1: Report;
-        reportMutations @2: List(ReportMutation);
+        report @1: NodeReport;
+        reportMutations @2: List(NodeReportMutation);
 
         # Routes:
-        responseRoutes @3: ResponseRoutes;
+        responseRoutes @3: ClientResponseRoutes;
 
     }
 }
@@ -135,25 +120,30 @@ struct AppServerToApp {
 struct AppToAppServer {
     union {
         # Set relay address to be used locally (Could be empty)
-        setAddress @0: SetAddress;
+        setRelays @0: List(RelayAddress);
 
         # Sending Funds:
-        requestSendFunds @1: RequestSendFunds;
+        requestSendFunds @1: UserRequestSendFunds;
         receiptAck @2: ReceiptAck;
 
         # Friends management
         addFriend @3: AddFriend;
-        setFriendInfo @4: SetFriendInfo;
-        removeFriend @5: RemoveFriend;
-        enableFriend @6: EnableFriend;
-        disableFriend @7: DisableFriend;
-        openFriend @8: OpenFriend;
-        closeFriend @9: CloseFriend;
-        setFriendRemoteMaxDebt @10: SetFriendRemoteMaxDebt;
-        resetFriendChannel @11: ResetFriendChannel;
+        setFriendRelays @4: SetFriendRelays;
+        setFriendName @5: SetFriendName;
+        removeFriend @6: PublicKey;
+        enableFriend @7: PublicKey;
+        disableFriend @8: PublicKey;
+        openFriend @9: PublicKey;
+        closeFriend @10: PublicKey;
+        setFriendRemoteMaxDebt @11: SetFriendRemoteMaxDebt;
+        resetFriendChannel @12: ResetFriendChannel;
 
         # Routes:
-        requestFriendsRoute @12: RequestRoutes;
+        requestRoutes @13: RequestRoutes;
+
+        # Index servers management:
+        addIndexServer @14: IndexServerAddress;
+        removeIndexServer @15: IndexServerAddress;
     }
 }
 

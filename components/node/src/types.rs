@@ -9,13 +9,13 @@ use index_client::{IndexClientConfig, IndexClientConfigMutation};
 use proto::app_server::messages::NodeReport;
 use proto::index_client::messages::IndexClientReport;
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum NodeMutation<B,ISA> {
     Funder(FunderMutation<Vec<B>>),
     IndexClient(IndexClientConfigMutation<ISA>)
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct NodeState<B: Clone,ISA> {
     pub funder_state: FunderState<Vec<B>>,
     pub index_client_config: IndexClientConfig<ISA>,

@@ -1,6 +1,11 @@
 #![feature(try_from)]
 #![feature(nll)]
 
+#![deny(
+    trivial_numeric_casts,
+    warnings
+)]
+
 extern crate capnp;
 extern crate byteorder;
 
@@ -27,6 +32,8 @@ pub mod serialize;
 pub mod app_server;
 pub mod index_server;
 pub mod index_client;
+pub mod report;
+pub mod net;
 
 
 

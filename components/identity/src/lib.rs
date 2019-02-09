@@ -5,6 +5,11 @@
 #![feature(generators)]
 #![feature(never_type)]
 
+#![deny(
+    trivial_numeric_casts,
+    warnings
+)]
+
 extern crate futures;
 
 mod identity;

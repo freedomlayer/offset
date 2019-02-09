@@ -23,11 +23,8 @@ type AccessControlOpPk = AccessControlOp<PublicKey>;
 
 #[derive(Debug)]
 pub enum ClientListenerError {
-    RequestTimerStreamError,
     SendInitConnectionError,
     ConnectionFailure,
-    TimerClosed,
-    AccessControlError,
     AccessControlClosed,
     SendToServerError,
     ServerClosed,
@@ -50,7 +47,6 @@ enum AcceptConnectionError {
     SendInitConnectionError,
     SendConnPairError,
     RequestTimerStreamError,
-    SpawnError,
 }
 
 /*

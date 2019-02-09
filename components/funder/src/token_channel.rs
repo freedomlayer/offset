@@ -1,5 +1,3 @@
-#![warn(unused)]
-
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 
@@ -22,14 +20,13 @@ use crate::types::{MoveTokenHashed, create_unsigned_move_token, create_hashed,
                     UnsignedMoveToken};
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SetDirection<A> {
     Incoming(MoveTokenHashed), 
     Outgoing(MoveToken<A>),
 }
 
-#[allow(unused)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TcMutation<A> {
     McMutation(McMutation),
     SetDirection(SetDirection<A>),

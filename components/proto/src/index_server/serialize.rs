@@ -3,13 +3,10 @@ use capnp::serialize_packed;
 
 use common::int_convert::usize_to_u32;
 use crate::capnp_common::{write_signature, read_signature,
-                          write_custom_int128, read_custom_int128,
                           write_custom_u_int128, read_custom_u_int128,
                           write_rand_nonce, read_rand_nonce,
                           write_uid, read_uid,
-                          write_invoice_id, read_invoice_id,
                           write_public_key, read_public_key,
-                          write_relay_address, read_relay_address,
                           write_hash, read_hash};
 use index_capnp;
 
@@ -22,7 +19,7 @@ use crate::funder::serialize::{ser_friends_route, deser_friends_route};
 
 use crate::serialize::SerializeError;
 
-fn ser_request_routes(request_routes: &RequestRoutes,
+pub fn ser_request_routes(request_routes: &RequestRoutes,
                          request_routes_builder: &mut index_capnp::request_routes::Builder) {
 
     write_uid(&request_routes.request_id, &mut request_routes_builder.reborrow().init_request_id());
@@ -43,7 +40,7 @@ fn ser_request_routes(request_routes: &RequestRoutes,
     }
 }
 
-fn deser_request_routes(request_routes_reader: &index_capnp::request_routes::Reader)
+pub fn deser_request_routes(request_routes_reader: &index_capnp::request_routes::Reader)
     -> Result<RequestRoutes, SerializeError> {
 
     let opt_exclude = match request_routes_reader.get_opt_exclude().which()? {
@@ -66,14 +63,14 @@ fn deser_request_routes(request_routes_reader: &index_capnp::request_routes::Rea
 }
 
 
-fn ser_route_with_capacity(route_with_capacity: &RouteWithCapacity,
+pub fn ser_route_with_capacity(route_with_capacity: &RouteWithCapacity,
                            route_with_capacity_builder: &mut index_capnp::route_with_capacity::Builder) {
 
     ser_friends_route(&route_with_capacity.route, &mut route_with_capacity_builder.reborrow().init_route());
     write_custom_u_int128(route_with_capacity.capacity, &mut route_with_capacity_builder.reborrow().init_capacity());
 }
 
-fn deser_route_with_capacity(route_with_capacity_reader: &index_capnp::route_with_capacity::Reader) 
+pub fn deser_route_with_capacity(route_with_capacity_reader: &index_capnp::route_with_capacity::Reader) 
     -> Result<RouteWithCapacity, SerializeError> {
 
     Ok(RouteWithCapacity {

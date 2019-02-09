@@ -82,7 +82,7 @@ where
             match &channel_inconsistent.opt_remote_reset_terms {
                 None => Err(HandleControlError::NotInvitedToReset),
                 Some(remote_reset_terms) => {
-                    if remote_reset_terms.reset_token != reset_friend_channel.current_token {
+                    if remote_reset_terms.reset_token != reset_friend_channel.reset_token {
                         Err(HandleControlError::ResetTokenMismatch)
                     } else {
                         Ok(())

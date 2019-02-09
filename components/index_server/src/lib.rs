@@ -6,6 +6,10 @@
 #![feature(never_type)]
 #![feature(map_get_key_value)]
 
+#![deny(
+    trivial_numeric_casts,
+    warnings
+)]
 
 #[macro_use]
 extern crate log;
@@ -13,3 +17,8 @@ extern crate log;
 mod server;
 mod graph;
 mod verifier;
+mod backoff_connector;
+mod spawn;
+
+pub use spawn::{index_server, IndexServerError,
+                ServerConn, ClientConn};

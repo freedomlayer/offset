@@ -14,7 +14,6 @@ const MAX_RAND_PADDING: u16 = 0x100;
 
 
 #[derive(Debug)]
-#[allow(unused)]
 pub enum ScStateError {
     PrivateKeyGenFailure,
     SaltGenFailure,
@@ -24,19 +23,16 @@ pub enum ScStateError {
     KeyDerivationFailure,
     CreateEncryptorFailure,
     CreateDecryptorFailure,
-    EncryptionFailure,
     DecryptionFailure,
     DeserializeError,
     RekeyInProgress,
 }
 
-#[allow(unused)]
 pub struct ScStateInitial {
     local_public_key: PublicKey,
     local_rand_nonce: RandValue,
 }
 
-#[allow(unused)]
 pub struct ScStateHalf {
     pub remote_public_key: PublicKey,
     local_public_key: PublicKey,
@@ -46,14 +42,13 @@ pub struct ScStateHalf {
 }
 
 
-#[allow(unused)]
 struct PendingRekey {
     local_dh_private_key: DhPrivateKey,
     local_salt: Salt,
 }
 
-#[allow(unused)]
 pub struct ScState {
+    #[allow(unused)]
     local_public_key: PublicKey,
     remote_public_key: PublicKey,
     sender: Encryptor,
@@ -67,7 +62,6 @@ pub struct ScState {
 
 
 
-#[allow(unused)]
 impl ScStateInitial {
     pub fn new<R: CryptoRandom>(local_public_key: &PublicKey, rng: &R) -> (ScStateInitial, ExchangeRandNonce) {
         let local_rand_nonce = RandValue::new(rng);
@@ -116,7 +110,6 @@ impl ScStateInitial {
     }
 }
 
-#[allow(unused)]
 impl ScStateHalf {
     /// Verify the signature at ExchangeDh message
     fn verify_exchange_dh(&self, exchange_dh: &ExchangeDh) -> Result<(), ScStateError> {
@@ -154,7 +147,6 @@ impl ScStateHalf {
     }
 }
 
-#[allow(unused)]
 pub struct HandleIncomingOutput {
     pub rekey_occured: bool,
     pub opt_send_message: Option<EncryptedData>,
@@ -162,7 +154,6 @@ pub struct HandleIncomingOutput {
 }
 
 
-#[allow(unused)]
 impl ScState {
     fn encrypt_outgoing<R: CryptoRandom>(&mut self, channel_content: ChannelContent, rng: &R) -> EncryptedData {
         let channel_message = ChannelMessage {

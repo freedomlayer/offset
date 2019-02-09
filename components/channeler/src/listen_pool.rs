@@ -9,12 +9,12 @@ use futures::task::{Spawn, SpawnExt};
 
 use common::conn::{Listener, FutTransform};
 use common::access_control::AccessControlOp;
+use common::transform_pool::transform_pool_loop;
 
 use timer::TimerClient;
 
 use crypto::identity::PublicKey;
 use crate::types::{RawConn, AccessControlPk, AccessControlOpPk};
-use crate::transform_pool::transform_pool_loop;
 use crate::listen_pool_state::{ListenPoolState, Relay};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -232,13 +232,12 @@ where
 }
 
 
-#[allow(unused)]
 async fn listen_pool_loop<B,L,TS,S>(incoming_config: mpsc::Receiver<LpConfig<B>>,
                                     outgoing_plain_conns: mpsc::Sender<(PublicKey, RawConn)>,
                                     listener: L,
                                     backoff_ticks: usize,
                                     timer_stream: TS,
-                                    mut spawner: S,
+                                    spawner: S,
                                     mut opt_event_sender: Option<mpsc::Sender<()>>) 
                         -> Result<(), ListenPoolError>
 where
@@ -305,7 +304,6 @@ pub struct PoolListener<B,L,ET,S> {
 }
 
 impl<B,L,ET,S> PoolListener<B,L,ET,S> {
-    #[allow(unused)]
     pub fn new(listener: L,
            encrypt_transform: ET,
            max_concurrent_encrypt: usize,

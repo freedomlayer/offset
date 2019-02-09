@@ -6,7 +6,12 @@
 #![feature(never_type)]
 #![feature(unboxed_closures)]
 
-#[macro_use]
+#![deny(
+    trivial_numeric_casts,
+    warnings
+)]
+
+// #[macro_use]
 extern crate log;
 
 mod version_prefix;

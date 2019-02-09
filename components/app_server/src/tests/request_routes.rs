@@ -7,11 +7,9 @@ use crypto::uid::Uid;
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 use crypto::uid::UID_LEN;
 
-use proto::app_server::messages::{AppServerToApp, AppToAppServer};
+use proto::app_server::messages::{AppServerToApp, AppToAppServer, AppPermissions};
 use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClient};
 use proto::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult, RequestRoutes};
-
-use crate::config::AppPermissions;
 
 use super::utils::spawn_dummy_app_server;
 

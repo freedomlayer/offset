@@ -4,6 +4,11 @@
 #![feature(try_from)]
 #![crate_type = "lib"] 
 
+#![deny(
+    trivial_numeric_casts,
+    warnings
+)]
+
 #[macro_use]
 extern crate log;
 
@@ -23,3 +28,4 @@ pub mod dummy_listener;
 pub mod access_control;
 pub mod canonical_serialize;
 pub mod mutable_state;
+pub mod transform_pool;

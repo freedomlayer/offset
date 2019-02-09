@@ -6,9 +6,18 @@
 #![feature(never_type)]
 #![type_length_limit="2097152"]
 
+#![deny(
+    trivial_numeric_casts,
+    warnings
+)]
+
 #[macro_use]
 extern crate log;
 
-pub mod server;
-pub mod client;
+mod server;
+mod client;
+
+pub use self::client::client_listener::ClientListener;
+pub use self::client::client_connector::ClientConnector;
+pub use self::server::spawn::{relay_server, RelayServerError};
 

@@ -7,6 +7,7 @@ use common::conn::{FutTransform, BoxFuture, ConnPairVec};
 
 /// Prefix a communication session (Of Vec<u8>) with each side declaring his version.
 /// If the local version does not match the stated remote version, the connection is closed.
+#[derive(Clone)]
 pub struct VersionPrefix<S> {
     local_version: u32,
     spawner: S,
