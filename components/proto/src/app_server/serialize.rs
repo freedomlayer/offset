@@ -467,7 +467,6 @@ pub fn serialize_app_server_to_app(app_server_to_app: &AppServerToApp<RelayAddre
     ser_buff
 }
 
-
 pub fn deserialize_app_server_to_app(data: &[u8]) -> Result<AppServerToApp<RelayAddress, IndexServerAddress>, SerializeError> {
     let mut cursor = io::Cursor::new(data);
     let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
@@ -492,4 +491,71 @@ pub fn deserialize_app_to_app_server(data: &[u8]) -> Result<AppToAppServer<Relay
     let app_to_app_server = reader.get_root::<app_server_capnp::app_to_app_server::Reader>()?;
 
     deser_app_to_app_server(&app_to_app_server)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crypto::identity::PUBLIC_KEY_LEN;
+    use crate::funder::messages::{TcpAddress, TcpAddressV4};
+    use crate::report::messages::FunderReportMutation;
+    use crate::index_client::messages::IndexClientReportMutation;
+
+    #[test]
+    fn test_serialize_app_server_to_app() {
+        let mut report_mutations = Vec::new();
+
+        let funder_report_mutation = FunderReportMutation::RemoveFriend(
+            PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]));
+
+        let opt_connected_server = Some(IndexServerAddress {
+            public_key: PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]),
+            address: TcpAddress::V4(TcpAddressV4 {
+                octets: [100, 200, 100, 200],
+                port: 9876,
+            })
+        });
+        let index_client_report_mutation = IndexClientReportMutation::SetConnectedServer(opt_connected_server);
+
+        report_mutations.push(NodeReportMutation::Funder(funder_report_mutation));
+        report_mutations.push(NodeReportMutation::IndexClient(index_client_report_mutation));
+        let app_server_to_app = AppServerToApp::ReportMutations(report_mutations);
+
+        let data = serialize_app_server_to_app(&app_server_to_app);
+        let app_server_to_app2 = deserialize_app_server_to_app(&data).unwrap();
+        assert_eq!(app_server_to_app, app_server_to_app2);
+    }
+
+    #[test]
+    fn test_serialize_app_to_app_server() {
+        let mut relays = Vec::new();
+        relays.push(RelayAddress {
+            public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
+            address: TcpAddress::V4(TcpAddressV4 {
+                octets: [127, 0, 0, 0xa],
+                port: 1337,
+            })
+        });
+        relays.push(RelayAddress {
+            public_key: PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]),
+            address: TcpAddress::V4(TcpAddressV4 {
+                octets: [127, 0, 0, 0xc],
+                port: 1338,
+            })
+        });
+
+        let add_friend = AddFriend {
+            friend_public_key: PublicKey::from(&[0xee; PUBLIC_KEY_LEN]),
+            address: relays,
+            name: "Friend name".to_owned(),
+            balance: -500, 
+        };
+        let app_to_app_server = AppToAppServer::AddFriend(add_friend);
+
+        let data = serialize_app_to_app_server(&app_to_app_server);
+        let app_to_app_server2 = deserialize_app_to_app_server(&data).unwrap();
+        assert_eq!(app_to_app_server, app_to_app_server2);
+    }
+
+    // TODO: More tests are required here
 }
