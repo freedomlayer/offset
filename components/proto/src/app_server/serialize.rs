@@ -289,16 +289,13 @@ fn deser_client_response_routes(client_response_routes_reader: &app_server_capnp
 fn ser_app_server_to_app(app_server_to_app: &AppServerToApp<RelayAddress, IndexServerAddress>,
                     app_server_to_app_builder: &mut app_server_capnp::app_server_to_app::Builder) {
 
-    unimplemented!();
-
-    /*
     match app_server_to_app {
         AppServerToApp::ResponseReceived(response_received) =>
             ser_response_received(response_received, 
-                                   &mut app_server_to_app_builder.init_response_received()),
+                                   &mut app_server_to_app_builder.reborrow().init_response_received()),
         AppServerToApp::Report(node_report) =>
             ser_node_report(node_report, 
-                                   &mut app_server_to_app_builder.init_report()),
+                                   &mut app_server_to_app_builder.reborrow().init_report()),
         AppServerToApp::ReportMutations(node_report_mutations) => {
             let mutations_len = usize_to_u32(node_report_mutations.len()).unwrap();
             let mut node_report_mutations_builder = app_server_to_app_builder.reborrow().init_report_mutations(mutations_len);
@@ -309,11 +306,29 @@ fn ser_app_server_to_app(app_server_to_app: &AppServerToApp<RelayAddress, IndexS
         },
         AppServerToApp::ResponseRoutes(response_routes) => 
             ser_client_response_routes(response_routes, 
-                                   &mut app_server_to_app_builder.init_response_routes()),
+                                   &mut app_server_to_app_builder.reborrow().init_response_routes()),
     }
-    */
 }
 
+fn deser_app_server_to_app(app_server_to_app_reader: &app_server_capnp::app_server_to_app::Reader)
+    -> Result<AppServerToApp<RelayAddress, IndexServerAddress>, SerializeError> {
+
+    Ok(match app_server_to_app_reader.which()? {
+        app_server_capnp::app_server_to_app::ResponseReceived(response_received_reader) =>
+            AppServerToApp::ResponseReceived(deser_response_received(&response_received_reader?)?),
+        app_server_capnp::app_server_to_app::Report(node_report_reader) =>
+            AppServerToApp::Report(deser_node_report(&node_report_reader?)?),
+        app_server_capnp::app_server_to_app::ReportMutations(report_mutations_reader) => {
+            let mut node_report_mutations = Vec::new();
+            for node_report_mutation in report_mutations_reader? {
+                node_report_mutations.push(deser_node_report_mutation(&node_report_mutation)?);
+            }
+            AppServerToApp::ReportMutations(node_report_mutations)
+        },
+        app_server_capnp::app_server_to_app::ResponseRoutes(client_response_routes_reader) =>
+            AppServerToApp::ResponseRoutes(deser_client_response_routes(&client_response_routes_reader?)?),
+    })
+}
 
 
 // ---------------------------------------------------
