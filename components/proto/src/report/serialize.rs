@@ -858,7 +858,7 @@ fn deser_index_client_report_mutation(index_client_report_mutation_reader: &repo
     })
 }
 
-fn ser_node_report(node_report: &NodeReport<RelayAddress, IndexServerAddress>,
+pub fn ser_node_report(node_report: &NodeReport<RelayAddress, IndexServerAddress>,
                     node_report_builder: &mut report_capnp::node_report::Builder) {
 
     ser_funder_report(&node_report.funder_report, 
@@ -867,7 +867,7 @@ fn ser_node_report(node_report: &NodeReport<RelayAddress, IndexServerAddress>,
                             &mut node_report_builder.reborrow().init_index_client_report());
 }
 
-fn deser_node_report(node_report_reader: &report_capnp::node_report::Reader)
+pub fn deser_node_report(node_report_reader: &report_capnp::node_report::Reader)
     -> Result<NodeReport<RelayAddress, IndexServerAddress>, SerializeError> {
 
     Ok(NodeReport {
@@ -876,7 +876,7 @@ fn deser_node_report(node_report_reader: &report_capnp::node_report::Reader)
     })
 }
 
-fn ser_node_report_mutation(node_report_mutation: &NodeReportMutation<RelayAddress, IndexServerAddress>,
+pub fn ser_node_report_mutation(node_report_mutation: &NodeReportMutation<RelayAddress, IndexServerAddress>,
                     node_report_mutation_builder: &mut report_capnp::node_report_mutation::Builder) {
 
     match node_report_mutation {
@@ -889,7 +889,7 @@ fn ser_node_report_mutation(node_report_mutation: &NodeReportMutation<RelayAddre
     }
 }
 
-fn deser_node_report_mutation(node_report_mutation_reader: &report_capnp::node_report_mutation::Reader)
+pub fn deser_node_report_mutation(node_report_mutation_reader: &report_capnp::node_report_mutation::Reader)
     -> Result<NodeReportMutation<RelayAddress, IndexServerAddress>, SerializeError> {
 
     Ok(match node_report_mutation_reader.which()? {
