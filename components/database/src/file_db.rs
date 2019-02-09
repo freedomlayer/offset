@@ -25,7 +25,6 @@ pub enum FileDbError<ME> {
 }
 
 
-#[allow(unused)]
 pub struct FileDb<S> {
     /// Connection to the database
     path_buf: PathBuf,
@@ -34,7 +33,6 @@ pub struct FileDb<S> {
 }
 
 
-#[allow(unused)]
 impl<S> FileDb<S>
 where
     S: Clone + Serialize + DeserializeOwned + MutableState,
@@ -88,7 +86,6 @@ where
 }
 
 
-#[allow(unused)]
 impl<S> AtomicDb for FileDb<S> 
 where 
     S: Clone + Serialize + DeserializeOwned + MutableState,
