@@ -1,9 +1,6 @@
-#![allow(unused)]
-
 use std::io;
 use capnp;
 use capnp::serialize_packed;
-use crypto::identity::PublicKey;
 use common::int_convert::usize_to_u32;
 use crate::capnp_common::{write_signature, read_signature,
                           write_custom_int128, read_custom_int128,
@@ -18,7 +15,7 @@ use funder_capnp;
 use super::messages::{FriendMessage, MoveTokenRequest, ResetTerms,
                     MoveToken, FriendTcOp, RequestSendFunds,
                     ResponseSendFunds, FailureSendFunds,
-                    FriendsRoute, Ratio, RelayAddress};
+                    FriendsRoute, RelayAddress};
 
 use crate::serialize::SerializeError;
 
@@ -32,18 +29,6 @@ pub fn ser_friends_route(friends_route: &FriendsRoute,
     for (index, public_key) in friends_route.public_keys.iter().enumerate() {
         let mut public_key_builder = public_keys_builder.reborrow().get(usize_to_u32(index).unwrap());
         write_public_key(public_key, &mut public_key_builder);
-    }
-}
-
-
-fn ser_ratio128(ratio: &Ratio<u128>,
-                ratio_builder: &mut funder_capnp::ratio128::Builder) {
-    match ratio {
-        Ratio::One => ratio_builder.set_one(()),
-        Ratio::Numerator(numerator) => {
-            let mut numerator_builder = ratio_builder.reborrow().init_numerator();
-            write_custom_u_int128(*numerator, &mut numerator_builder);
-        }
     }
 }
 
@@ -178,7 +163,7 @@ fn ser_friend_message(friend_message: &FriendMessage<Vec<RelayAddress>>,
 
     match friend_message {
         FriendMessage::MoveTokenRequest(move_token_request) => {
-            let mut move_token_request_builder = friend_message_builder.reborrow().init_move_token_request();
+            let move_token_request_builder = friend_message_builder.reborrow().init_move_token_request();
             ser_move_token_request(move_token_request, move_token_request_builder);
         },
         FriendMessage::InconsistencyError(inconsistency_error) => {
@@ -202,16 +187,6 @@ pub fn serialize_friend_message(friend_message: &FriendMessage<Vec<RelayAddress>
 
 // ------------ Deserialization -----------------------
 // ----------------------------------------------------
-
-fn deser_ratio128(from: &funder_capnp::ratio128::Reader) -> Result<Ratio<u128>, SerializeError> {
-    match from.which()? {
-        funder_capnp::ratio128::One(()) => Ok(Ratio::One),
-        funder_capnp::ratio128::Numerator(numerator_reader) => {
-            let numerator = read_custom_u_int128(&numerator_reader?)?;
-            Ok(Ratio::Numerator(numerator))
-        }
-    }
-}
 
 pub fn deser_friends_route(friends_route_reader: &funder_capnp::friends_route::Reader)
     -> Result<FriendsRoute, SerializeError> {
@@ -397,7 +372,7 @@ mod tests {
             signature: Signature::from(&[3; SIGNATURE_LEN]),
         };
 
-        let mut operations = vec![FriendTcOp::EnableRequests,
+        let operations = vec![FriendTcOp::EnableRequests,
                                   FriendTcOp::DisableRequests,
                                   FriendTcOp::SetRemoteMaxDebt(101),
                                   FriendTcOp::RequestSendFunds(request_send_funds),

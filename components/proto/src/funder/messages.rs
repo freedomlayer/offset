@@ -49,14 +49,6 @@ pub enum ChannelerToFunder {
 
 // -------------------------------------------
 
-/// The ratio can be numeration / T::max_value(), or 1
-#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
-pub enum Ratio<T> {
-    One,
-    Numerator(T),
-}
-
-
 pub const INVOICE_ID_LEN: usize = 32;
 
 /// The universal unique identifier of an invoice.
@@ -170,22 +162,6 @@ pub struct PendingRequest {
 
 // ==================================================================
 // ==================================================================
-
-impl CanonicalSerialize for Ratio<u128> {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        match *self {
-            Ratio::One => {
-                res_bytes.write_u8(0).unwrap();
-            },
-            Ratio::Numerator(num) => {
-                res_bytes.write_u8(1).unwrap();
-                res_bytes.write_u128::<BigEndian>(num).unwrap();
-            },
-        }
-        res_bytes
-    }
-}
 
 
 impl CanonicalSerialize for RequestSendFunds {
