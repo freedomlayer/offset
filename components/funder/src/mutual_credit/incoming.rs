@@ -41,7 +41,6 @@ pub enum IncomingMessage {
 }
 
 /// Resulting tasks to perform after processing an incoming operation.
-#[allow(unused)]
 pub struct ProcessOperationOutput {
     pub incoming_message: Option<IncomingMessage>,
     pub mc_mutations: Vec<McMutation>,
