@@ -66,8 +66,6 @@ pub struct SimpleCapacityGraph<N> {
     nodes: HashMap<N, NodeEdges<N>>,
 }
 
-
-#[allow(unused)]
 impl<N> SimpleCapacityGraph<N> 
 where
     N: cmp::Eq + hash::Hash + Clone + std::fmt::Debug,
