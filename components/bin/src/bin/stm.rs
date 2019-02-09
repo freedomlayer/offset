@@ -27,7 +27,7 @@ use node::NodeState;
 
 use bin::{load_identity_from_file, store_identity_to_file, 
     store_trusted_app_to_file, TrustedApp,
-    store_relay_to_file, store_index_server_to_file};
+    store_relay_to_file};
 
 #[derive(Debug)]
 enum InitNodeDbError {
@@ -54,7 +54,7 @@ fn init_node_db(matches: &ArgMatches) -> Result<(), InitNodeDbError> {
 
     // Create a new database file:
     let initial_state = NodeState::<RelayAddress, IndexServerAddress>::new(local_public_key);
-    let file_db = FileDb::create(output_path.to_path_buf(), initial_state)
+    let _ = FileDb::create(output_path.to_path_buf(), initial_state)
         .map_err(|_| InitNodeDbError::FileDbError)?;
 
     Ok(())

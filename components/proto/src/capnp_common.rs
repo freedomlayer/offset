@@ -5,7 +5,6 @@ use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt, ByteOrder};
 use common_capnp::{self, buffer128, buffer256, buffer512,
                     public_key, invoice_id, hash, dh_public_key, salt, signature,
                     rand_nonce, custom_u_int128, custom_int128, uid,
-                    tcp_address_v4, tcp_address_v6, tcp_address, 
                     relay_address, index_server_address, receipt};
 
 use crate::net::messages::{TcpAddress, TcpAddressV4, TcpAddressV6};

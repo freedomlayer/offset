@@ -1,19 +1,13 @@
-use std::iter;
 use std::marker::Unpin;
-use core::pin::Pin;
 
-use futures::{future, Future, FutureExt, stream, 
-    Stream, StreamExt, Sink, SinkExt,
-    select};
-use futures::task::Spawn;
+use futures::{future, 
+    Stream, StreamExt, Sink, SinkExt};
 use futures::channel::mpsc;
 
-
-use common::int_convert::usize_to_u64;
 use common::conn::{FutTransform, ConnPair, ConnPairVec};
 
 use crypto::identity::PublicKey;
-use timer::{TimerTick, TimerClient};
+use timer::TimerClient;
 use timer::utils::future_timeout;
 
 use proto::relay::messages::{InitConnection, RejectConnection, IncomingConnection};
@@ -72,7 +66,7 @@ where
     })
 }
 
-async fn process_conn<FT>(mut sender: mpsc::Sender<Vec<u8>>,
+async fn process_conn<FT>(sender: mpsc::Sender<Vec<u8>>,
                 mut receiver: mpsc::Receiver<Vec<u8>>,
                 public_key: PublicKey,
                 keepalive_transform: FT,
@@ -89,7 +83,7 @@ where
     FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>, 
         Output=ConnPair<Vec<u8>,Vec<u8>>>,
 {
-    let mut fut_receiver = Box::pin(async move {
+    let fut_receiver = Box::pin(async move {
         if let Some(first_msg) = await!(receiver.next()) {
             await!(dispatch_conn(sender, receiver, public_key, first_msg, 
                          keepalive_transform))
@@ -140,7 +134,7 @@ mod tests {
     use super::*;
 
     use futures::channel::{mpsc, oneshot};
-    use futures::Future;
+    use futures::{Future, stream};
     use futures::executor::ThreadPool;
     use futures::task::{Spawn, SpawnExt};
 

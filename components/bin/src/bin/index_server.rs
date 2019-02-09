@@ -37,14 +37,12 @@ use proto::consts::{TICK_MS, INDEX_NODE_TIMEOUT_TICKS,
     MAX_FRAME_LENGTH, PROTOCOL_VERSION,
     TICKS_TO_REKEY, KEEPALIVE_TICKS};
 
-use proto::index_server::serialize::{serialize_index_client_to_server,
-                                     deserialize_index_client_to_server,
+use proto::index_server::serialize::{deserialize_index_client_to_server,
                                      serialize_index_server_to_server,
                                      deserialize_index_server_to_server,
-                                     serialize_index_server_to_client,
-                                     deserialize_index_server_to_client};
+                                     serialize_index_server_to_client};
 use proto::index_server::messages::{IndexClientToServer, IndexServerToClient,
-                                    IndexServerToServer, IndexServerAddress};
+                                    IndexServerToServer};
 
 use net::{TcpConnector, TcpListener, socket_addr_to_tcp_address};
 
@@ -102,7 +100,7 @@ where
         Box::pin(async move {
             let conn_pair = await!(c_version_transform.transform(conn_pair));
             let (public_key, conn_pair) =
-                await!(c_encrypt_transform.transform((None, conn_pair)))?;
+                await!(c_encrypt_transform.transform((opt_public_key, conn_pair)))?;
             let conn_pair = await!(c_keepalive_transform.transform(conn_pair));
             Some((public_key, conn_pair))
         })
@@ -162,7 +160,7 @@ where
             let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
             // Deserialize received data
-            c_self.spawner.spawn(async move {
+            let _ = c_self.spawner.spawn(async move {
                 while let Some(data) = await!(receiver.next()) {
                     let message = match deserialize_index_server_to_server(&data) {
                         Ok(message) => message,
@@ -175,7 +173,7 @@ where
             });
 
             // Serialize sent data:
-            c_self.spawner.spawn(async move {
+            let _ = c_self.spawner.spawn(async move {
                 while let Some(message) = await!(from_user_sender.next()) {
                     let data = serialize_index_server_to_server(&message);
                     if let Err(_) = await!(sender.send(data)) {
@@ -193,13 +191,13 @@ where
     {
         let mut c_self = self.clone();
         Box::pin(async move {
-            let (public_key, (mut sender, mut receiver)) = await!(c_self.version_enc_keepalive(Some(public_key), conn_pair))?;
+            let (_public_key, (mut sender, mut receiver)) = await!(c_self.version_enc_keepalive(Some(public_key), conn_pair))?;
 
             let (user_sender, mut from_user_sender) = mpsc::channel(0);
             let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
             // Deserialize received data
-            c_self.spawner.spawn(async move {
+            let _ = c_self.spawner.spawn(async move {
                 while let Some(data) = await!(receiver.next()) {
                     let message = match deserialize_index_server_to_server(&data) {
                         Ok(message) => message,
@@ -212,7 +210,7 @@ where
             });
 
             // Serialize sent data:
-            c_self.spawner.spawn(async move {
+            let _ = c_self.spawner.spawn(async move {
                 while let Some(message) = await!(from_user_sender.next()) {
                     let data = serialize_index_server_to_server(&message);
                     if let Err(_) = await!(sender.send(data)) {
@@ -230,7 +228,6 @@ where
 enum IndexServerBinError {
     CreateThreadPoolError,
     CreateTimerError,
-    RequestTimerStreamError,
     IndexServerError(IndexServerError),
     ParseClientListenAddressError,
     ParseServerListenAddressError,
@@ -279,7 +276,7 @@ fn run() -> Result<(), IndexServerBinError> {
 
     // Parse servers listening address
     let server_listen_address_str = matches.value_of("lserver").unwrap();
-    let socket_addr: SocketAddr = client_listen_address_str.parse()
+    let socket_addr: SocketAddr = server_listen_address_str.parse()
         .map_err(|_| IndexServerBinError::ParseServerListenAddressError)?;
     let server_listen_tcp_address = socket_addr_to_tcp_address(&socket_addr);
 
@@ -312,7 +309,7 @@ fn run() -> Result<(), IndexServerBinError> {
 
     // Get a timer client:
     let dur = Duration::from_millis(usize_to_u64(TICK_MS).unwrap()); 
-    let mut timer_client = create_timer(dur, thread_pool.clone())
+    let timer_client = create_timer(dur, thread_pool.clone())
         .map_err(|_| IndexServerBinError::CreateTimerError)?;
 
 
@@ -328,17 +325,17 @@ fn run() -> Result<(), IndexServerBinError> {
     let raw_server_tcp_connector = TcpConnector::new(MAX_FRAME_LENGTH, thread_pool.clone());
 
 
-    let mut version_transform = VersionPrefix::new(PROTOCOL_VERSION,
+    let version_transform = VersionPrefix::new(PROTOCOL_VERSION,
                                                thread_pool.clone());
     let rng = system_random();
-    let mut encrypt_transform = SecureChannel::new(
+    let encrypt_transform = SecureChannel::new(
         identity_client,
         rng.clone(),
         timer_client.clone(),
         TICKS_TO_REKEY,
         thread_pool.clone());
 
-    let mut keepalive_transform = KeepAliveChannel::new(
+    let keepalive_transform = KeepAliveChannel::new(
         timer_client.clone(),
         KEEPALIVE_TICKS,
         thread_pool.clone());

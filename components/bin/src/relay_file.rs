@@ -8,8 +8,7 @@ use toml;
 use base64::{self, URL_SAFE_NO_PAD};
 
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
-use net::{TcpListener, socket_addr_to_tcp_address, 
-    tcp_address_to_socket_addr};
+use net::{socket_addr_to_tcp_address, tcp_address_to_socket_addr};
 
 use proto::funder::messages::RelayAddress;
 
@@ -55,6 +54,7 @@ impl From<base64::DecodeError> for RelayFileError {
 }
 
 /// Load RelayAddress from a file
+#[allow(unused)]
 pub fn load_relay_from_file(path: &Path) -> Result<RelayAddress, RelayFileError> {
     let data = fs::read_to_string(&path)?;
     let relay_file: RelayFile = toml::from_str(&data)?;

@@ -6,7 +6,7 @@
 #![feature(never_type)]
 #![feature(unboxed_closures)]
 
-#[macro_use]
+// #[macro_use]
 extern crate log;
 
 mod version_prefix;

@@ -8,7 +8,7 @@ use toml;
 use base64::{self, URL_SAFE_NO_PAD};
 
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
-use net::{TcpListener, socket_addr_to_tcp_address, 
+use net::{socket_addr_to_tcp_address, 
     tcp_address_to_socket_addr};
 
 use proto::index_server::messages::IndexServerAddress;

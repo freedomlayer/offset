@@ -2,12 +2,10 @@ use std::io;
 
 use capnp;
 use capnp::serialize_packed;
-use crypto::identity::PublicKey;
 use common::int_convert::usize_to_u32;
 use crate::capnp_common::{write_signature, read_signature,
                           write_custom_int128, read_custom_int128,
                           write_custom_u_int128, read_custom_u_int128,
-                          write_rand_nonce, read_rand_nonce,
                           write_uid, read_uid,
                           write_invoice_id, read_invoice_id,
                           write_public_key, read_public_key,
@@ -32,8 +30,7 @@ use crate::funder::messages::{RelayAddress, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel};
 use crate::funder::serialize::{ser_friends_route, deser_friends_route};
 
-use crate::app_server::messages::{AppServerToApp, AppToAppServer, 
-                        NodeReport, NodeReportMutation, AppPermissions};
+use crate::app_server::messages::{AppServerToApp, AppToAppServer, AppPermissions};
 
 
 fn ser_user_request_send_funds(user_request_send_funds: &UserRequestSendFunds,
@@ -69,7 +66,7 @@ fn ser_response_received(response_received: &ResponseReceived,
     write_uid(&response_received.request_id, 
               &mut response_received_builder.reborrow().init_request_id());
 
-    let mut result_builder = response_received_builder.reborrow().init_result();
+    let result_builder = response_received_builder.reborrow().init_result();
     match &response_received.result {
         ResponseSendFundsResult::Success(receipt) => {
             let mut success_builder = result_builder.init_success();

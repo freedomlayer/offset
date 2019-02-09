@@ -3,13 +3,10 @@ use capnp::serialize_packed;
 
 use common::int_convert::usize_to_u32;
 use crate::capnp_common::{write_signature, read_signature,
-                          write_custom_int128, read_custom_int128,
                           write_custom_u_int128, read_custom_u_int128,
                           write_rand_nonce, read_rand_nonce,
                           write_uid, read_uid,
-                          write_invoice_id, read_invoice_id,
                           write_public_key, read_public_key,
-                          write_relay_address, read_relay_address,
                           write_hash, read_hash};
 use index_capnp;
 
