@@ -6,6 +6,10 @@
 #![feature(never_type)]
 #![feature(map_get_key_value)]
 
+#![deny(
+    trivial_numeric_casts,
+    warnings
+)]
 
 #[macro_use]
 extern crate log;

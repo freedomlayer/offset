@@ -1,6 +1,11 @@
 #![feature(try_from)]
 #![feature(nll)]
 
+#![deny(
+    trivial_numeric_casts,
+    warnings
+)]
+
 extern crate capnp;
 extern crate byteorder;
 

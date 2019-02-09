@@ -4,6 +4,11 @@
 #![feature(try_from)]
 #![crate_type = "lib"] 
 
+#![deny(
+    trivial_numeric_casts,
+    warnings
+)]
+
 #[macro_use]
 extern crate log;
 

@@ -6,6 +6,11 @@
 #![feature(never_type)]
 #![feature(unboxed_closures)]
 
+#![deny(
+    trivial_numeric_casts,
+    warnings
+)]
+
 // #[macro_use]
 extern crate log;
 

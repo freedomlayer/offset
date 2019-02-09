@@ -5,6 +5,11 @@
 #![feature(generators)]
 #![feature(never_type)]
 
+#![deny(
+    trivial_numeric_casts,
+    warnings
+)]
+
 mod channeler;
 mod types;
 mod listen_pool_state;

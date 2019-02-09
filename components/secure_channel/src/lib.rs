@@ -6,6 +6,11 @@
 #![feature(never_type)]
 #![type_length_limit="2097152"]
 
+#![deny(
+    trivial_numeric_casts,
+    warnings
+)]
+
 #[macro_use]
 extern crate log;
 

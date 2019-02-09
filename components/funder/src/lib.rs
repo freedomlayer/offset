@@ -6,6 +6,11 @@
 #![feature(never_type)]
 #![cfg_attr(not(feature = "cargo-clippy"), allow(unknown_lints))]
 
+#![deny(
+    trivial_numeric_casts,
+    warnings
+)]
+
 extern crate futures_cpupool;
 
 #[macro_use]
