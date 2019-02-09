@@ -39,7 +39,7 @@ pub enum ResponseRoutesResult {
     Failure,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientResponseRoutes {
     pub request_id: Uid,
     pub result: ResponseRoutesResult,

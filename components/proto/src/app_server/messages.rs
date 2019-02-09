@@ -22,7 +22,7 @@ pub enum NodeReportMutation<B,ISA> {
 }
 
 #[allow(unused)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum AppServerToApp<B: Clone,ISA> {
     /// Funds:
     ResponseReceived(ResponseReceived),
@@ -33,7 +33,7 @@ pub enum AppServerToApp<B: Clone,ISA> {
 }
 
 #[allow(unused)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum AppToAppServer<B,ISA> {
     /// Set relay address to be used locally:
     SetRelays(Vec<B>), 
