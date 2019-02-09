@@ -391,6 +391,65 @@ fn ser_app_to_app_server(app_to_app_server: &AppToAppServer<RelayAddress, IndexS
     }
 }
 
+fn deser_app_to_app_server(app_to_app_server: &app_server_capnp::app_to_app_server::Reader)
+    -> Result<AppToAppServer<RelayAddress, IndexServerAddress>, SerializeError> {
+
+    Ok(match app_to_app_server.which()? {
+        app_server_capnp::app_to_app_server::SetRelays(relays_reader) => {
+            let mut relays = Vec::new();
+            for relay_address in relays_reader? {
+                relays.push(read_relay_address(&relay_address)?);
+            }
+            AppToAppServer::SetRelays(relays)
+        },
+        app_server_capnp::app_to_app_server::RequestSendFunds(request_send_funds_reader) => 
+            AppToAppServer::RequestSendFunds(
+                deser_user_request_send_funds(&request_send_funds_reader?)?),
+        app_server_capnp::app_to_app_server::ReceiptAck(receipt_ack_reader) => 
+            AppToAppServer::ReceiptAck(
+                deser_receipt_ack(&receipt_ack_reader?)?),
+        app_server_capnp::app_to_app_server::AddFriend(add_friend_reader) =>
+            AppToAppServer::AddFriend(
+                deser_add_friend(&add_friend_reader?)?),
+        app_server_capnp::app_to_app_server::SetFriendRelays(set_friend_relays) =>
+            AppToAppServer::SetFriendRelays(
+                deser_set_friend_relays(&set_friend_relays?)?),
+        app_server_capnp::app_to_app_server::SetFriendName(set_friend_name) =>
+            AppToAppServer::SetFriendName(
+                deser_set_friend_name(&set_friend_name?)?),
+        app_server_capnp::app_to_app_server::RemoveFriend(public_key_reader) =>
+            AppToAppServer::RemoveFriend(
+                read_public_key(&public_key_reader?)?),
+        app_server_capnp::app_to_app_server::EnableFriend(public_key_reader) =>
+            AppToAppServer::EnableFriend(
+                read_public_key(&public_key_reader?)?),
+        app_server_capnp::app_to_app_server::DisableFriend(public_key_reader) =>
+            AppToAppServer::DisableFriend(
+                read_public_key(&public_key_reader?)?),
+        app_server_capnp::app_to_app_server::OpenFriend(public_key_reader) =>
+            AppToAppServer::OpenFriend(
+                read_public_key(&public_key_reader?)?),
+        app_server_capnp::app_to_app_server::CloseFriend(public_key_reader) =>
+            AppToAppServer::CloseFriend(
+                read_public_key(&public_key_reader?)?),
+        app_server_capnp::app_to_app_server::SetFriendRemoteMaxDebt(set_friend_remote_max_debt_reader) =>
+            AppToAppServer::SetFriendRemoteMaxDebt(
+                deser_set_friend_remote_max_debt(&set_friend_remote_max_debt_reader?)?),
+        app_server_capnp::app_to_app_server::ResetFriendChannel(reset_friend_channel_reader) =>
+            AppToAppServer::ResetFriendChannel(
+                deser_reset_friend_channel(&reset_friend_channel_reader?)?),
+        app_server_capnp::app_to_app_server::RequestRoutes(request_routes_reader) =>
+            AppToAppServer::RequestRoutes(
+                deser_request_routes(&request_routes_reader?)?),
+        app_server_capnp::app_to_app_server::AddIndexServer(index_server_address_reader) =>
+            AppToAppServer::AddIndexServer(
+                read_index_server_address(&index_server_address_reader?)?),
+        app_server_capnp::app_to_app_server::RemoveIndexServer(index_server_address_reader) =>
+            AppToAppServer::RemoveIndexServer(
+                read_index_server_address(&index_server_address_reader?)?),
+    })
+}
+
 
 // ---------------------------------------------------
 // ---------------------------------------------------
