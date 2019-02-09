@@ -21,7 +21,6 @@ pub enum NodeReportMutation<B,ISA> {
     IndexClient(IndexClientReportMutation<ISA>),
 }
 
-#[allow(unused)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum AppServerToApp<B: Clone,ISA> {
     /// Funds:
@@ -32,7 +31,6 @@ pub enum AppServerToApp<B: Clone,ISA> {
     ResponseRoutes(ClientResponseRoutes),
 }
 
-#[allow(unused)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum AppToAppServer<B,ISA> {
     /// Set relay address to be used locally:
