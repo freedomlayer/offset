@@ -12,6 +12,7 @@ using import "common.capnp".RandNonce;
 
 using import "common.capnp".Receipt;
 using import "common.capnp".RelayAddress;
+using import "common.capnp".NamedRelayAddress;
 using import "common.capnp".NetAddress;
 
 using import "report.capnp".NodeReport;
@@ -126,7 +127,7 @@ struct AppServerToApp {
 struct AppToAppServer {
     union {
         # Set relay address to be used locally (Could be empty)
-        setRelays @0: List(RelayAddress);
+        setRelays @0: List(NamedRelayAddress);
 
         # Sending Funds:
         requestSendFunds @1: UserRequestSendFunds;

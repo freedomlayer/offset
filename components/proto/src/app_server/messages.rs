@@ -12,6 +12,13 @@ use crate::index_server::messages::RequestRoutes;
 use index_client::messages::AddIndexServer;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct NamedRelayAddress<B> {
+    pub public_key: PublicKey,
+    pub address: B,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RelayAddress<B> {
     pub public_key: PublicKey,
     pub address: B,
@@ -56,7 +63,7 @@ pub enum AppServerToApp<B: Clone,ISA> {
 #[derive(Debug, PartialEq, Eq)]
 pub enum AppToAppServer<B,ISA> {
     /// Set relay address to be used locally:
-    SetRelays(Vec<RelayAddress<B>>), 
+    SetRelays(Vec<NamedRelayAddress<B>>), 
     /// Sending funds:
     RequestSendFunds(UserRequestSendFunds),
     ReceiptAck(ReceiptAck),

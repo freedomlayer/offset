@@ -5,14 +5,16 @@ use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt, ByteOrder};
 use common_capnp::{buffer128, buffer256, buffer512,
                     public_key, invoice_id, hash, dh_public_key, salt, signature,
                     rand_nonce, custom_u_int128, custom_int128, uid,
-                    relay_address, receipt,
+                    relay_address, named_relay_address, receipt,
                     net_address, named_index_server_address};
+
+
 
 use crate::serialize::SerializeError;
 use crate::funder::messages::{InvoiceId, Receipt};
-use crate::app_server::messages::RelayAddress;
 use crate::index_server::messages::NamedIndexServerAddress;
 use crate::net::messages::NetAddress;
+use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
 
 use crypto::identity::{PublicKey, Signature};
 use crypto::dh::{DhPublicKey, Salt};
@@ -161,6 +163,20 @@ pub fn read_relay_address(from: &relay_address::Reader) -> Result<RelayAddress<N
 pub fn write_relay_address(from: &RelayAddress<NetAddress>, to: &mut relay_address::Builder) {
     write_public_key(&from.public_key, &mut to.reborrow().init_public_key());
     write_net_address(&from.address,&mut to.reborrow().init_address());
+}
+
+pub fn read_named_relay_address(from: &named_relay_address::Reader) -> Result<NamedRelayAddress<NetAddress>, SerializeError> {
+    Ok(NamedRelayAddress {
+        public_key: read_public_key(&from.get_public_key()?)?,
+        address: read_net_address(&from.get_address()?)?,
+        name: from.get_name()?.to_string(),
+    })
+}
+
+pub fn write_named_relay_address(from: &NamedRelayAddress<NetAddress>, to: &mut named_relay_address::Builder) {
+    write_public_key(&from.public_key, &mut to.reborrow().init_public_key());
+    write_net_address(&from.address,&mut to.reborrow().init_address());
+    to.reborrow().set_name(&from.name);
 }
 
 pub fn read_named_index_server_address(from: &named_index_server_address::Reader) -> Result<NamedIndexServerAddress<NetAddress>, SerializeError> {

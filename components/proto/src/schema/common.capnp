@@ -95,6 +95,12 @@ struct NetAddress {
 struct RelayAddress {
         publicKey @0: PublicKey;
         address @1: NetAddress;
+}
+
+# Authenticated named address of a Relay (Includes public key)
+struct NamedRelayAddress {
+        publicKey @0: PublicKey;
+        address @1: NetAddress;
         name @2: Text;
 }
 

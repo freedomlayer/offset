@@ -10,6 +10,7 @@ use crate::capnp_common::{write_signature, read_signature,
                           write_invoice_id, read_invoice_id,
                           write_public_key, read_public_key,
                           write_relay_address, read_relay_address,
+                          write_named_relay_address, read_named_relay_address,
                           write_receipt, read_receipt,
                           write_net_address, read_net_address};
 
@@ -377,9 +378,9 @@ fn ser_app_to_app_server(app_to_app_server: &AppToAppServer<NetAddress, NetAddre
         AppToAppServer::SetRelays(relays) => {
             let relays_len = usize_to_u32(relays.len()).unwrap();
             let mut relays_builder = app_to_app_server_builder.reborrow().init_set_relays(relays_len);
-            for (index, relay_address) in relays.iter().enumerate() {
-                let mut relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
-                write_relay_address(relay_address, &mut relay_address_builder);
+            for (index, named_relay_address) in relays.iter().enumerate() {
+                let mut named_relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
+                write_named_relay_address(named_relay_address, &mut named_relay_address_builder);
             }
         },
         AppToAppServer::RequestSendFunds(user_request_send_funds) =>
@@ -434,10 +435,10 @@ fn deser_app_to_app_server(app_to_app_server: &app_server_capnp::app_to_app_serv
     -> Result<AppToAppServer<NetAddress, NetAddress>, SerializeError> {
 
     Ok(match app_to_app_server.which()? {
-        app_server_capnp::app_to_app_server::SetRelays(relays_reader) => {
+        app_server_capnp::app_to_app_server::SetRelays(named_relays_reader) => {
             let mut relays = Vec::new();
-            for relay_address in relays_reader? {
-                relays.push(read_relay_address(&relay_address)?);
+            for named_relay_address_reader in named_relays_reader? {
+                relays.push(read_named_relay_address(&named_relay_address_reader)?);
             }
             AppToAppServer::SetRelays(relays)
         },
