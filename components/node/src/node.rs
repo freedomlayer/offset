@@ -337,6 +337,7 @@ where
                 app_server_to_index_client_sender,
                 incoming_apps,
                 initial_node_report.clone(),
+                node_config.max_node_relays,
                 spawner.clone());
 
     let app_server_handle = spawner.spawn_with_handle(app_server_fut)

@@ -54,12 +54,14 @@ where
         index_client_report,
     };
 
+    let max_node_relays = 16;
     let fut_loop = app_server_loop(from_funder,
                     to_funder,
                     from_index_client,
                     to_index_client,
                     incoming_connections,
                     initial_node_report.clone(),
+                    max_node_relays,
                     spawner.clone())
         .map_err(|e| error!("app_server_loop() error: {:?}", e))
         .map(|_| ());

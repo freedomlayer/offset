@@ -81,6 +81,8 @@ pub struct AppServer<B: Clone,ISA,TF,TIC,S> {
     to_index_client: TIC,
     from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<B,ISA>>)>,
     node_report: NodeReport<B,ISA>,
+    /// Maximum amount of relays the user may configure.
+    max_node_relays: usize,
     incoming_connections_closed: bool,
     /// A long cyclic incrementing counter, 
     /// allows to give every connection a unique number.
@@ -126,6 +128,8 @@ where
                to_index_client: TIC,
                from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<B,ISA>>)>,
                node_report: NodeReport<B,ISA>,
+               // Maximum amount of relays a the user may configure
+               max_node_relays: usize,
                spawner: S) -> Self {
 
         AppServer {
@@ -133,6 +137,7 @@ where
             to_index_client,
             from_app_sender,
             node_report,
+            max_node_relays,
             incoming_connections_closed: false,
             app_counter: 0,
             apps: HashMap::new(),
@@ -291,9 +296,14 @@ where
         }
 
         match app_message {
-            AppToAppServer::SetRelays(relays) =>
-                await!(self.to_funder.send(FunderIncomingControl::SetAddress(relays)))
-                    .map_err(|_| AppServerError::SendToFunderError),
+            AppToAppServer::SetRelays(relays) => {
+                // Make sure that the user doesn't configure too many relays:
+                if relays.len() <= self.max_node_relays {
+                    await!(self.to_funder.send(FunderIncomingControl::SetAddress(relays)))
+                        .map_err(|_| AppServerError::SendToFunderError)?;
+                }
+                Ok(())
+            },
             AppToAppServer::RequestSendFunds(user_request_send_funds) => {
                 // Keep track of which application issued this request:
                 app.open_send_funds_requests.insert(user_request_send_funds.request_id.clone());
@@ -397,6 +407,7 @@ pub async fn app_server_loop<B,ISA,FF,TF,FIC,TIC,IC,S>(from_funder: FF,
                                                        to_index_client: TIC,
                                                        incoming_connections: IC,
                                                        initial_node_report: NodeReport<B,ISA>,
+                                                       max_node_relays: usize,
                                                        mut spawner: S) -> Result<(), AppServerError>
 where
     B: Clone + Send + Debug + 'static,
@@ -414,6 +425,7 @@ where
                                         to_index_client,
                                         from_app_sender,
                                         initial_node_report,
+                                        max_node_relays,
                                         spawner);
 
     let from_funder = from_funder

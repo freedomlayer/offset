@@ -48,7 +48,7 @@ use database::file_db::FileDb;
 use database::{database_loop, DatabaseClient, AtomicDb};
 
 use proto::consts::{PROTOCOL_VERSION, KEEPALIVE_TICKS, TICKS_TO_REKEY, 
-    MAX_OPERATIONS_IN_BATCH, TICK_MS, MAX_FRAME_LENGTH};
+    MAX_OPERATIONS_IN_BATCH, TICK_MS, MAX_FRAME_LENGTH, MAX_NODE_RELAYS};
 use proto::index_server::messages::IndexServerAddress;
 use proto::funder::messages::RelayAddress;
 use proto::app_server::messages::AppPermissions;
@@ -299,6 +299,8 @@ fn run() -> Result<(), NodeBinError> {
         max_pending_user_requests: MAX_PENDING_USER_REQUESTS,
         /// Maximum amount of concurrent index client requests:
         max_open_index_client_requests: MAX_OPEN_INDEX_CLIENT_REQUESTS,
+        /// Maximum amount of relays a node may use.
+        max_node_relays: MAX_NODE_RELAYS,
     };
 
     // A tcp connector, Used to connect to remote servers:

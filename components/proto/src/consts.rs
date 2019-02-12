@@ -30,3 +30,8 @@ pub const INDEX_NODE_TIMEOUT_TICKS: usize = 60 * (1000 / TICK_MS); // 1 minute
 
 /// Maximum length for an address string used in NetAddress
 pub const MAX_NET_ADDRESS_LENGTH: usize = 256;
+
+/// Maximum amount of relays a node may use.
+/// We limit this number because sending many relays in a single move token message
+/// might exceed frame length
+pub const MAX_NODE_RELAYS: usize = 16;

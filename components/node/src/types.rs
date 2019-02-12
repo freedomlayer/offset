@@ -109,5 +109,7 @@ pub struct NodeConfig {
     pub max_pending_user_requests: usize,
     /// Maximum amount of concurrent index client requests:
     pub max_open_index_client_requests: usize,
+    /// Maximum amount of relays a node may use.
+    pub max_node_relays: usize,
 }
 
