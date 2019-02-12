@@ -5,9 +5,11 @@ use futures::executor::ThreadPool;
 use futures::{StreamExt, SinkExt};
 
 use common::conn::{Listener, FutTransform};
+use proto::net::messages::NetAddress;
 
 use crate::tcp_connector::TcpConnector;
 use crate::tcp_listener::TcpListener;
+use crate::net_connector::NetConnector;
 
 use tokio::net::{TcpListener as TokioTcpListener};
 
@@ -66,3 +68,37 @@ fn test_tcp_client_server_v4() {
     thread_pool.run(task_tcp_client_server_v4(thread_pool.clone()));
 }
 
+
+
+async fn task_net_connector_v4_basic<S>(spawner: S) 
+where
+    S: Spawn + Clone + Send + 'static,
+{
+    let available_port = get_available_port_v4();
+    let loopback = Ipv4Addr::new(127, 0, 0, 1);
+    let socket_addr = SocketAddr::new(IpAddr::V4(loopback), available_port);
+
+    let tcp_listener = TcpListener::new(TEST_MAX_FRAME_LEN, spawner.clone());
+    let mut net_connector = NetConnector::new(TEST_MAX_FRAME_LEN, spawner.clone()).unwrap();
+
+    let (_config_sender, mut incoming_connections) = tcp_listener.listen(socket_addr.clone());
+
+    let net_address: NetAddress = format!("localhost:{}", available_port).into();
+
+    for _ in 0 .. 5 {
+        let (mut client_sender, mut client_receiver) = await!(net_connector.transform(net_address.clone())).unwrap();
+        let (mut server_sender, mut server_receiver) = await!(incoming_connections.next()).unwrap();
+
+        await!(client_sender.send(vec![1,2,3])).unwrap();
+        assert_eq!(await!(server_receiver.next()).unwrap(), vec![1,2,3]);
+
+        await!(server_sender.send(vec![3,2,1])).unwrap();
+        assert_eq!(await!(client_receiver.next()).unwrap(), vec![3,2,1]);
+    }
+}
+
+#[test]
+fn test_net_connector_v4_basic() {
+    let mut thread_pool = ThreadPool::new().unwrap();
+    thread_pool.run(task_net_connector_v4_basic(thread_pool.clone()));
+}

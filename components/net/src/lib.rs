@@ -19,6 +19,7 @@ mod utils;
 mod resolver;
 mod tcp_connector;
 mod tcp_listener;
+mod net_connector;
 #[cfg(test)]
 mod tests;
 

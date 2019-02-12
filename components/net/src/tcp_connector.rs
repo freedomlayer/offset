@@ -15,7 +15,6 @@ pub struct TcpConnector<S> {
 }
 
 impl<S> TcpConnector<S> {
-    #[allow(unused)]
     pub fn new(max_frame_length: usize,
            spawner: S) -> Self {
 

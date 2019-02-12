@@ -13,12 +13,11 @@ pub enum ResolverError {
 }
 
 #[derive(Clone)]
-struct Resolver {
+pub struct Resolver {
     thread_pool: ThreadPool,
 }
 
 impl Resolver {
-    #[allow(unused)]
     pub fn new() -> Result<Self, ResolverError> {
         Ok(Resolver {
             thread_pool: ThreadPool::new()
