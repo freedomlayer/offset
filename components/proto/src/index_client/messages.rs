@@ -26,7 +26,7 @@ pub struct IndexClientReport<ISA> {
     pub opt_connected_server: Option<PublicKey>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AddIndexServer<ISA> {
     pub public_key: PublicKey,
     pub address: ISA,
