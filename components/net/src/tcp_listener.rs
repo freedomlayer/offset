@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use tokio::net::{TcpListener as TokioTcpListener};
 
 use futures::{StreamExt, SinkExt};
@@ -5,12 +7,10 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 
 use common::conn::{Listener, ConnPairVec};
-use proto::net::messages::TcpAddress;
-use crate::types::tcp_address_to_socket_addr;
+use crate::utils::tcp_stream_to_conn_pair;
 
 use futures::compat::Stream01CompatExt;
 
-use crate::utils::tcp_stream_to_conn_pair;
 
 
 /// Listen for incoming TCP connections
@@ -36,15 +36,14 @@ where
 {
     type Connection = ConnPairVec;
     type Config = ();
-    type Arg = TcpAddress;
+    type Arg = SocketAddr;
 
-    fn listen(mut self, tcp_address: Self::Arg) -> (mpsc::Sender<Self::Config>,
+    fn listen(mut self, socket_addr: Self::Arg) -> (mpsc::Sender<Self::Config>,
                                         mpsc::Receiver<Self::Connection>) {
 
         let (config_sender, _config_sender_receiver) = mpsc::channel(0);
         let (mut conn_receiver_sender, conn_receiver) = mpsc::channel(0);
 
-        let socket_addr = tcp_address_to_socket_addr(&tcp_address);
         let listener = match TokioTcpListener::bind(&socket_addr) {
             Ok(listener) => listener,
             Err(_) => {
