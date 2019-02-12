@@ -309,9 +309,11 @@ where
             .map_err(|_| IndexClientError::DatabaseError)?;
 
         // Add new server_address to memory:
+        // To avoid duplicates, we try to remove it from the list first:
+        self.index_servers.retain(|cur_address| cur_address != &server_address);
         self.index_servers.push_back(server_address.clone());
 
-        // Send report:
+        // Send report to AppServer:
         let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(server_address);
         let report_mutations = vec![index_client_report_mutation];
         await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(report_mutations)))
