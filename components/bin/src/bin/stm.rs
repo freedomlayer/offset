@@ -4,11 +4,15 @@
 #![feature(generators)]
 #![feature(never_type)]
 
+#![deny(
+    trivial_numeric_casts,
+    warnings
+)]
+
 #[macro_use]
 extern crate log;
 
 use std::path::{Path, PathBuf};
-use std::net::SocketAddr;
 
 use clap::{Arg, App, AppSettings, SubCommand, ArgMatches};
 use log::Level;
@@ -19,8 +23,6 @@ use crypto::identity::{generate_pkcs8_key_pair, Identity};
 use proto::funder::messages::RelayAddress;
 use proto::index_server::messages::IndexServerAddress;
 use proto::app_server::messages::AppPermissions;
-
-use net::socket_addr_to_tcp_address;
 
 use database::file_db::FileDb;
 use node::NodeState;
@@ -126,7 +128,6 @@ fn app_ticket(matches: &ArgMatches) -> Result<(), AppTicketError> {
 enum RelayTicketError {
     OutputAlreadyExists,
     LoadIdentityError,
-    ParseAddressError,
     StoreRelayFileError,
 }
 
@@ -148,13 +149,10 @@ fn relay_ticket(matches: &ArgMatches) -> Result<(), RelayTicketError> {
     let public_key = identity.get_public_key();
 
     let address_str = matches.value_of("address").unwrap();
-    let socket_addr: SocketAddr = address_str.parse()
-        .map_err(|_| RelayTicketError::ParseAddressError)?;
-    let address = socket_addr_to_tcp_address(&socket_addr);
 
     let relay_address = RelayAddress {
         public_key,
-        address,
+        address: address_str.to_owned().into(),
     };
 
     store_relay_to_file(&relay_address, &output_path)
@@ -165,7 +163,6 @@ fn relay_ticket(matches: &ArgMatches) -> Result<(), RelayTicketError> {
 enum IndexTicketError {
     OutputAlreadyExists,
     LoadIdentityError,
-    ParseAddressError,
     StoreRelayFileError,
 }
 
@@ -187,13 +184,10 @@ fn index_ticket(matches: &ArgMatches) -> Result<(), IndexTicketError> {
     let public_key = identity.get_public_key();
 
     let address_str = matches.value_of("address").unwrap();
-    let socket_addr: SocketAddr = address_str.parse()
-        .map_err(|_| IndexTicketError::ParseAddressError)?;
-    let address = socket_addr_to_tcp_address(&socket_addr);
 
     let relay_address = RelayAddress {
         public_key,
-        address,
+        address: address_str.to_owned().into(),
     };
 
     store_relay_to_file(&relay_address, &output_path)

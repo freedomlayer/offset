@@ -4,6 +4,11 @@
 #![feature(generators)]
 #![feature(never_type)]
 
+#![deny(
+    trivial_numeric_casts,
+    warnings
+)]
+
 #[macro_use]
 extern crate log;
 
@@ -50,7 +55,7 @@ use proto::app_server::messages::AppPermissions;
 use proto::app_server::serialize::{deserialize_app_to_app_server,
                                    serialize_app_server_to_app,
                                    serialize_app_permissions};
-use net::{TcpConnector, TcpListener, socket_addr_to_tcp_address};
+use net::{NetConnector, TcpListener};
 
 
 use bin::{load_identity_from_file, load_trusted_apps};
@@ -80,6 +85,7 @@ enum NodeBinError {
     LoadIdentityError,
     LoadTrustedAppsError,
     CreateThreadPoolError,
+    CreateNetConnectorError,
     CreateIdentityError,
     CreateTimerError,
     LoadDbError,
@@ -247,9 +253,8 @@ fn run() -> Result<(), NodeBinError> {
 
     // Parse listening address
     let listen_address_str = matches.value_of("laddr").unwrap();
-    let socket_addr: SocketAddr = listen_address_str.parse()
+    let listen_socket_addr: SocketAddr = listen_address_str.parse()
         .map_err(|_| NodeBinError::ParseListenAddressError)?;
-    let listen_tcp_address = socket_addr_to_tcp_address(&socket_addr);
 
     // Parse identity file:
     let idfile_path = matches.value_of("idfile").unwrap();
@@ -297,7 +302,8 @@ fn run() -> Result<(), NodeBinError> {
     };
 
     // A tcp connector, Used to connect to remote servers:
-    let net_connector = TcpConnector::new(MAX_FRAME_LENGTH, thread_pool.clone());
+    let net_connector = NetConnector::new(MAX_FRAME_LENGTH, thread_pool.clone())
+        .map_err(|_| NodeBinError::CreateNetConnectorError)?;
 
     // Wrap net connector with a version prefix:
     let version_transform = VersionPrefix::new(PROTOCOL_VERSION, 
@@ -342,7 +348,7 @@ fn run() -> Result<(), NodeBinError> {
 
     // Start listening to apps:
     let app_tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
-    let (_config_sender, incoming_app_raw_conns) = app_tcp_listener.listen(listen_tcp_address);
+    let (_config_sender, incoming_app_raw_conns) = app_tcp_listener.listen(listen_socket_addr);
 
     let encrypt_transform = SecureChannel::new(
         identity_client.clone(),

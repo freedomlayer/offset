@@ -5,6 +5,11 @@
 #![feature(never_type)]
 #![type_length_limit="4194304"]
 
+#![deny(
+    trivial_numeric_casts,
+    warnings
+)]
+
 #[macro_use]
 extern crate log;
 
@@ -38,7 +43,7 @@ use timer::create_timer;
 use relay::{relay_server, RelayServerError};
 use secure_channel::SecureChannel;
 use version::VersionPrefix;
-use net::{TcpListener, socket_addr_to_tcp_address};
+use net::TcpListener;
 
 use bin::load_identity_from_file;
 
@@ -111,9 +116,8 @@ fn run() -> Result<(), RelayServerBinError> {
     
     // Parse listening address
     let listen_address_str = matches.value_of("laddr").unwrap();
-    let socket_addr: SocketAddr = listen_address_str.parse()
+    let listen_socket_addr: SocketAddr = listen_address_str.parse()
         .map_err(|_| RelayServerBinError::ParseListenAddressError)?;
-    let listen_tcp_address = socket_addr_to_tcp_address(&socket_addr);
 
     // Parse identity file:
     let idfile_path = matches.value_of("idfile").unwrap();
@@ -148,7 +152,7 @@ fn run() -> Result<(), RelayServerBinError> {
 
 
     let tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
-    let (_config_sender, incoming_raw_conns) = tcp_listener.listen(listen_tcp_address);
+    let (_config_sender, incoming_raw_conns) = tcp_listener.listen(listen_socket_addr);
 
 
     // TODO; How to get rid of Box::pin() here?
