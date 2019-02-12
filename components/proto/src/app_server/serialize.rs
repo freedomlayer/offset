@@ -528,6 +528,7 @@ pub fn deserialize_app_to_app_server(data: &[u8]) -> Result<AppToAppServer<Relay
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::convert::TryInto;
     use crypto::identity::{PUBLIC_KEY_LEN, PublicKey};
     use crate::report::messages::FunderReportMutation;
     use crate::app_server::messages::NodeReportMutation;
@@ -556,7 +557,7 @@ mod tests {
 
         let opt_connected_server = Some(IndexServerAddress {
             public_key: PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]),
-            address: "MyAddress:1337".to_owned().into(),
+            address: "MyAddress:1337".to_owned().try_into().unwrap(),
         });
         let index_client_report_mutation = IndexClientReportMutation::SetConnectedServer(opt_connected_server);
 
@@ -574,11 +575,11 @@ mod tests {
         let mut relays = Vec::new();
         relays.push(RelayAddress {
             public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
-            address: "MyAddress:1338".to_owned().into(),
+            address: "MyAddress:1338".to_owned().try_into().unwrap(),
         });
         relays.push(RelayAddress {
             public_key: PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]),
-            address: "MyAddress:1339".to_owned().into(),
+            address: "MyAddress:1339".to_owned().try_into().unwrap(),
         });
 
         let add_friend = AddFriend {

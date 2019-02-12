@@ -336,6 +336,7 @@ pub fn deserialize_friend_message(data: &[u8]) -> Result<FriendMessage<Vec<Relay
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::convert::TryInto;
     use crypto::identity::{Signature, SIGNATURE_LEN, PublicKey, PUBLIC_KEY_LEN};
     use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
     use crypto::uid::{Uid, UID_LEN};
@@ -379,12 +380,12 @@ mod tests {
 
         let relay_address4 = RelayAddress {
             public_key: PublicKey::from(&[0x11; PUBLIC_KEY_LEN]),
-            address: "MyAddress:1337".to_owned().into(),
+            address: "MyAddress:1337".to_owned().try_into().unwrap(),
         };
 
         let relay_address6 = RelayAddress {
             public_key: PublicKey::from(&[0x11; PUBLIC_KEY_LEN]),
-            address: "MyAddress:1338".to_owned().into(),
+            address: "MyAddress:1338".to_owned().try_into().unwrap(),
         };
 
         let move_token = MoveToken {

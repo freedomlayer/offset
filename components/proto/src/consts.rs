@@ -29,4 +29,4 @@ pub const MAX_FRAME_LENGTH: usize = 1 << 20; // 1[MB]
 pub const INDEX_NODE_TIMEOUT_TICKS: usize = 60 * (1000 / TICK_MS); // 1 minute
 
 /// Maximum length for an address string used in NetAddress
-pub const MAX_NET_ADDRESS_LENGTH: usize = 255;
+pub const MAX_NET_ADDRESS_LENGTH: usize = 256;

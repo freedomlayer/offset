@@ -1,5 +1,5 @@
 use std::io;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt, ByteOrder};
 
 use common_capnp::{buffer128, buffer256, buffer512,
@@ -7,6 +7,7 @@ use common_capnp::{buffer128, buffer256, buffer512,
                     rand_nonce, custom_u_int128, custom_int128, uid,
                     relay_address, index_server_address, receipt};
 
+use crate::serialize::SerializeError;
 use crate::funder::messages::{InvoiceId, RelayAddress, Receipt};
 use crate::index_server::messages::IndexServerAddress;
 
@@ -83,7 +84,7 @@ fn write_buffer512(from: impl AsRef<[u8]>, to: &mut buffer512::Builder) {
 macro_rules! type_capnp_serde {
     ($capnp_type:ident, $native_type:ident, $read_func:ident, $write_func:ident, $inner_read_func:ident, $inner_write_func:ident) => {
 
-        pub fn $read_func(from: &$capnp_type::Reader) -> Result<$native_type, capnp::Error>  {
+        pub fn $read_func(from: &$capnp_type::Reader) -> Result<$native_type, SerializeError>  {
             let inner = from.get_inner()?;
             let data_bytes = &$inner_read_func(&inner);
             Ok($native_type::try_from(&data_bytes[..]).unwrap())
@@ -112,7 +113,7 @@ type_capnp_serde!(invoice_id, InvoiceId, read_invoice_id, write_invoice_id, read
 // 512 bits:
 type_capnp_serde!(signature, Signature, read_signature, write_signature, read_buffer512, write_buffer512);
 
-pub fn read_custom_u_int128(from: &custom_u_int128::Reader) -> Result<u128, capnp::Error> {
+pub fn read_custom_u_int128(from: &custom_u_int128::Reader) -> Result<u128, SerializeError> {
     let inner = from.get_inner()?;
     let data_bytes = read_buffer128(&inner);
     Ok(BigEndian::read_u128(&data_bytes))
@@ -126,7 +127,7 @@ pub fn write_custom_u_int128(from: u128, to: &mut custom_u_int128::Builder) {
 }
 
 
-pub fn read_custom_int128(from: &custom_int128::Reader) -> Result<i128, capnp::Error> {
+pub fn read_custom_int128(from: &custom_int128::Reader) -> Result<i128, SerializeError> {
     let inner = from.get_inner()?;
     let data_bytes = read_buffer128(&inner);
     Ok(BigEndian::read_i128(&data_bytes))
@@ -139,33 +140,33 @@ pub fn write_custom_int128(from: i128, to: &mut custom_int128::Builder) {
     write_buffer128(&data_bytes, &mut inner);
 }
 
-pub fn read_relay_address(from: &relay_address::Reader) -> Result<RelayAddress, capnp::Error> {
+pub fn read_relay_address(from: &relay_address::Reader) -> Result<RelayAddress, SerializeError> {
     Ok(RelayAddress {
         public_key: read_public_key(&from.get_public_key()?)?,
-        address: from.get_address()?.to_owned().into(),
+        address: from.get_address()?.to_owned().try_into()?,
     })
 }
 
 pub fn write_relay_address(from: &RelayAddress, to: &mut relay_address::Builder) {
 
     write_public_key(&from.public_key, &mut to.reborrow().init_public_key());
-    to.reborrow().set_address(&from.address.0);
+    to.reborrow().set_address(from.address.as_str());
 }
 
-pub fn read_index_server_address(from: &index_server_address::Reader) -> Result<IndexServerAddress, capnp::Error> {
+pub fn read_index_server_address(from: &index_server_address::Reader) -> Result<IndexServerAddress, SerializeError> {
     Ok(IndexServerAddress {
         public_key: read_public_key(&from.get_public_key()?)?,
-        address: from.get_address()?.to_owned().into(),
+        address: from.get_address()?.to_owned().try_into()?,
     })
 }
 
 pub fn write_index_server_address(from: &IndexServerAddress, to: &mut index_server_address::Builder) {
 
     write_public_key(&from.public_key, &mut to.reborrow().init_public_key());
-    to.set_address(&from.address.0);
+    to.set_address(from.address.as_str());
 }
 
-pub fn read_receipt(from: &receipt::Reader) -> Result<Receipt, capnp::Error> {
+pub fn read_receipt(from: &receipt::Reader) -> Result<Receipt, SerializeError> {
     Ok(Receipt {
         response_hash: read_hash(&from.get_response_hash()?)?,
         invoice_id: read_invoice_id(&from.get_invoice_id()?)?,
