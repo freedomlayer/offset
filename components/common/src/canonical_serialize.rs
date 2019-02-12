@@ -41,6 +41,12 @@ where T: CanonicalSerialize,
     }
 }
 
+impl CanonicalSerialize for String {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        self.as_bytes().to_vec()
+    }
+}
+
 // Used mostly for testing:
 impl CanonicalSerialize for u32 {
     fn canonical_serialize(&self) -> Vec<u8> {
@@ -49,3 +55,4 @@ impl CanonicalSerialize for u32 {
         res_data
     }
 }
+
