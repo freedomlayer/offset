@@ -1,3 +1,4 @@
+use std::convert::TryInto;
 use std::io::{self, Write};
 use std::fs::{self, File};
 use std::path::Path;
@@ -7,6 +8,7 @@ use base64::{self, URL_SAFE_NO_PAD};
 
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
+use proto::net::messages::NetAddressError;
 use proto::index_server::messages::IndexServerAddress;
 
 #[derive(Debug)]
@@ -17,6 +19,7 @@ pub enum IndexServerFileError {
     Base64DecodeError(base64::DecodeError),
     ParseSocketAddrError,
     InvalidPublicKey,
+    NetAddressError(NetAddressError),
 }
 
 /// A helper structure for serialize and deserializing IndexServerAddress.
@@ -50,6 +53,12 @@ impl From<base64::DecodeError> for IndexServerFileError {
     }
 }
 
+impl From<NetAddressError> for IndexServerFileError {
+    fn from(e: NetAddressError) -> Self {
+        IndexServerFileError::NetAddressError(e)
+    }
+}
+
 /// Load IndexServerAddress from a file
 pub fn load_index_server_from_file(path: &Path) -> Result<IndexServerAddress, IndexServerFileError> {
     let data = fs::read_to_string(&path)?;
@@ -67,7 +76,7 @@ pub fn load_index_server_from_file(path: &Path) -> Result<IndexServerAddress, In
 
     Ok(IndexServerAddress {
         public_key,
-        address: index_server_file.address.into(),
+        address: index_server_file.address.try_into()?,
     })
 }
 
@@ -80,7 +89,7 @@ pub fn store_index_server_to_file(index_server_address: &IndexServerAddress, pat
 
     let index_server_file = IndexServerFile {
         public_key: base64::encode_config(&public_key, URL_SAFE_NO_PAD),
-        address: address.0.clone(),
+        address: address.as_str().to_string(),
     };
 
     let data = toml::to_string(&index_server_file)?;
@@ -133,7 +142,7 @@ mod tests {
 
         let index_server_address = IndexServerAddress {
             public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
-            address: "127.0.0.1:1337".to_owned().into(),
+            address: "127.0.0.1:1337".to_owned().try_into().unwrap(),
         };
 
         store_index_server_to_file(&index_server_address, &file_path).unwrap();
@@ -151,14 +160,14 @@ mod tests {
         let file_path = dir.path().join("index_server_address_file_a");
         let index_server_address = IndexServerAddress {
             public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
-            address: "127.0.0.1:1000".to_owned().into(),
+            address: "127.0.0.1:1000".to_owned().try_into().unwrap(),
         };
         store_index_server_to_file(&index_server_address, &file_path).unwrap();
 
         let file_path = dir.path().join("index_server_address_file_b");
         let index_server_address = IndexServerAddress {
             public_key: PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]),
-            address: "127.0.0.1:1001".to_owned().into(),
+            address: "127.0.0.1:1001".to_owned().try_into().unwrap(),
         };
         store_index_server_to_file(&index_server_address, &file_path).unwrap();
 
@@ -166,7 +175,7 @@ mod tests {
         let file_path = dir.path().join("index_server_address_file_c");
         let index_server_address = IndexServerAddress {
             public_key: PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]),
-            address: "127.0.0.1:1002".to_owned().into(),
+            address: "127.0.0.1:1002".to_owned().try_into().unwrap(),
         };
         store_index_server_to_file(&index_server_address, &file_path).unwrap();
 
@@ -180,9 +189,9 @@ mod tests {
             .collect::<Vec<_>>();
         addresses.sort();
 
-        assert_eq!(addresses, vec!["127.0.0.1:1000".to_owned().into(),
-                                   "127.0.0.1:1001".to_owned().into(),
-                                   "127.0.0.1:1002".to_owned().into()]);
+        assert_eq!(addresses, vec!["127.0.0.1:1000".to_owned().try_into().unwrap(),
+                                   "127.0.0.1:1001".to_owned().try_into().unwrap(),
+                                   "127.0.0.1:1002".to_owned().try_into().unwrap()]);
     }
 }
 

@@ -12,6 +12,7 @@
 #[macro_use]
 extern crate log;
 
+use std::convert::TryInto;
 use std::path::{Path, PathBuf};
 
 use clap::{Arg, App, AppSettings, SubCommand, ArgMatches};
@@ -20,6 +21,7 @@ use log::Level;
 use crypto::crypto_rand::system_random;
 use crypto::identity::{generate_pkcs8_key_pair, Identity};
 
+use proto::net::messages::NetAddressError;
 use proto::funder::messages::RelayAddress;
 use proto::index_server::messages::IndexServerAddress;
 use proto::app_server::messages::AppPermissions;
@@ -129,6 +131,13 @@ enum RelayTicketError {
     OutputAlreadyExists,
     LoadIdentityError,
     StoreRelayFileError,
+    NetAddressError(NetAddressError),
+}
+
+impl From<NetAddressError> for RelayTicketError {
+    fn from(e: NetAddressError) -> Self {
+        RelayTicketError::NetAddressError(e)
+    }
 }
 
 /// Create a public relay ticket
@@ -152,7 +161,7 @@ fn relay_ticket(matches: &ArgMatches) -> Result<(), RelayTicketError> {
 
     let relay_address = RelayAddress {
         public_key,
-        address: address_str.to_owned().into(),
+        address: address_str.to_owned().try_into()?,
     };
 
     store_relay_to_file(&relay_address, &output_path)
@@ -164,6 +173,13 @@ enum IndexTicketError {
     OutputAlreadyExists,
     LoadIdentityError,
     StoreRelayFileError,
+    NetAddressError(NetAddressError),
+}
+
+impl From<NetAddressError> for IndexTicketError {
+    fn from(e: NetAddressError) -> Self {
+        IndexTicketError::NetAddressError(e)
+    }
 }
 
 /// Create a public index ticket
@@ -187,7 +203,7 @@ fn index_ticket(matches: &ArgMatches) -> Result<(), IndexTicketError> {
 
     let relay_address = RelayAddress {
         public_key,
-        address: address_str.to_owned().into(),
+        address: address_str.to_owned().try_into()?,
     };
 
     store_relay_to_file(&relay_address, &output_path)

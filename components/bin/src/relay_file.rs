@@ -1,3 +1,4 @@
+use std::convert::TryInto;
 use std::io::{self, Write};
 use std::fs::{self, File};
 use std::path::Path;
@@ -7,6 +8,7 @@ use base64::{self, URL_SAFE_NO_PAD};
 
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
+use proto::net::messages::NetAddressError;
 use proto::funder::messages::RelayAddress;
 
 #[derive(Debug)]
@@ -17,6 +19,7 @@ pub enum RelayFileError {
     Base64DecodeError(base64::DecodeError),
     ParseSocketAddrError,
     InvalidPublicKey,
+    NetAddressError(NetAddressError),
 }
 
 /// A helper structure for serialize and deserializing RelayAddress.
@@ -50,6 +53,12 @@ impl From<base64::DecodeError> for RelayFileError {
     }
 }
 
+impl From<NetAddressError> for RelayFileError {
+    fn from(e: NetAddressError) -> Self {
+        RelayFileError::NetAddressError(e)
+    }
+}
+
 /// Load RelayAddress from a file
 #[allow(unused)]
 pub fn load_relay_from_file(path: &Path) -> Result<RelayAddress, RelayFileError> {
@@ -68,7 +77,7 @@ pub fn load_relay_from_file(path: &Path) -> Result<RelayAddress, RelayFileError>
 
     Ok(RelayAddress {
         public_key,
-        address: relay_file.address.into(),
+        address: relay_file.address.try_into()?,
     })
 }
 
@@ -81,7 +90,7 @@ pub fn store_relay_to_file(relay_address: &RelayAddress, path: &Path)
 
     let relay_file = RelayFile {
         public_key: base64::encode_config(&public_key, URL_SAFE_NO_PAD),
-        address: address.0.clone(),
+        address: address.as_str().to_string(),
     };
 
     let data = toml::to_string(&relay_file)?;
@@ -116,7 +125,7 @@ mod tests {
 
         let relay_address = RelayAddress {
             public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
-            address: "127.0.0.1:1337".to_owned().into(),
+            address: "127.0.0.1:1337".to_owned().try_into().unwrap(),
         };
 
         store_relay_to_file(&relay_address, &file_path).unwrap();
