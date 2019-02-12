@@ -6,11 +6,11 @@ use common_capnp::{buffer128, buffer256, buffer512,
                     public_key, invoice_id, hash, dh_public_key, salt, signature,
                     rand_nonce, custom_u_int128, custom_int128, uid,
                     relay_address, receipt,
-                    net_address, named_index_server};
+                    net_address, named_index_server_address};
 
 use crate::serialize::SerializeError;
 use crate::funder::messages::{InvoiceId, RelayAddress, Receipt};
-use crate::index_server::messages::NamedIndexServer;
+use crate::index_server::messages::NamedIndexServerAddress;
 use crate::net::messages::NetAddress;
 
 use crypto::identity::{PublicKey, Signature};
@@ -162,15 +162,15 @@ pub fn write_relay_address(from: &RelayAddress, to: &mut relay_address::Builder)
     write_net_address(&from.address,&mut to.reborrow().init_address());
 }
 
-pub fn read_named_index_server(from: &named_index_server::Reader) -> Result<NamedIndexServer<NetAddress>, SerializeError> {
-    Ok(NamedIndexServer {
+pub fn read_named_index_server_address(from: &named_index_server_address::Reader) -> Result<NamedIndexServerAddress<NetAddress>, SerializeError> {
+    Ok(NamedIndexServerAddress {
         public_key: read_public_key(&from.get_public_key()?)?,
         address: read_net_address(&from.get_address()?)?,
         name: from.get_name()?.to_owned(),
     })
 }
 
-pub fn write_named_index_server(from: &NamedIndexServer<NetAddress>, to: &mut named_index_server::Builder) {
+pub fn write_named_index_server_address(from: &NamedIndexServerAddress<NetAddress>, to: &mut named_index_server_address::Builder) {
     write_public_key(&from.public_key, &mut to.reborrow().init_public_key());
     write_net_address(&from.address,&mut to.reborrow().init_address());
     to.reborrow().set_name(&from.name);

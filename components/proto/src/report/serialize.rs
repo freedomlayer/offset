@@ -9,7 +9,7 @@ use crate::capnp_common::{write_signature, read_signature,
                           write_public_key, read_public_key,
                           write_relay_address, read_relay_address,
                           write_hash, read_hash,
-                          write_named_index_server, read_named_index_server,
+                          write_named_index_server_address, read_named_index_server_address,
                           write_net_address, read_net_address};
 
 use report_capnp;
@@ -771,7 +771,7 @@ fn ser_index_client_report(index_client_report: &IndexClientReport<NetAddress>,
     let mut index_servers_builder = index_client_report_builder.reborrow().init_index_servers(index_servers_len);
     for (index, named_index_server) in index_client_report.index_servers.iter().enumerate() {
         let mut named_index_server_builder = index_servers_builder.reborrow().get(usize_to_u32(index).unwrap());
-        write_named_index_server(named_index_server, &mut named_index_server_builder);
+        write_named_index_server_address(named_index_server, &mut named_index_server_builder);
     }
 
     let mut opt_connected_server_builder = index_client_report_builder.reborrow().init_opt_connected_server();
@@ -809,7 +809,7 @@ fn deser_index_client_report(index_client_report_reader: &report_capnp::index_cl
 
     let mut index_servers = Vec::new();
     for named_index_server_reader in index_client_report_reader.get_index_servers()? {
-        index_servers.push(read_named_index_server(&named_index_server_reader)?);
+        index_servers.push(read_named_index_server_address(&named_index_server_reader)?);
     }
 
     let opt_connected_server = match index_client_report_reader.get_opt_connected_server().which()? {

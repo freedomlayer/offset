@@ -13,7 +13,7 @@ use crypto::crypto_rand::CryptoRandom;
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer,
                                     IndexClientState};
 
-use proto::index_server::messages::IndexServer;
+use proto::index_server::messages::IndexServerAddress;
 use proto::index_server::serialize::{serialize_index_client_to_server,
         deserialize_index_server_to_client};
 
@@ -47,10 +47,10 @@ impl<C,S> SerdeClientConnector<C,S> {
 impl<ISA,C,S> FutTransform for SerdeClientConnector<C,S> 
 where
     ISA: Send + 'static,
-    C: FutTransform<Input=IndexServer<ISA>,Output=Option<ConnPairVec>> + Clone + Send,
+    C: FutTransform<Input=IndexServerAddress<ISA>,Output=Option<ConnPairVec>> + Clone + Send,
     S: Spawn + Send,
 {
-    type Input = IndexServer<ISA>;
+    type Input = IndexServerAddress<ISA>;
     type Output = Option<ServerConn>;
 
     fn transform(&mut self, index_server: Self::Input)
@@ -121,7 +121,7 @@ pub async fn spawn_index_client<'a,ISA,C,R,S>(local_public_key: PublicKey,
         -> Result<impl Future<Output=Result<(), IndexClientError>>, SpawnIndexClientError>
 where
     ISA: Eq + Clone + Send + 'static,
-    C: FutTransform<Input=IndexServer<ISA>,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input=IndexServerAddress<ISA>,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {

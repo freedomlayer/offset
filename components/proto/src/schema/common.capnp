@@ -98,7 +98,7 @@ struct RelayAddress {
 }
 
 # Authenticated address of an Index Server (Includes public key)
-struct NamedIndexServer {
+struct NamedIndexServerAddress {
         publicKey @0: PublicKey;
         address @1: NetAddress;
         name @2: Text;

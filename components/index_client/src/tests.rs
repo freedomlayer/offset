@@ -12,7 +12,7 @@ use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServ
                                     IndexMutation, RequestRoutes,
                                     ResponseRoutesResult, AddIndexServer,
                                     AddIndexServerReport};
-use proto::index_server::messages::{IndexServer, NamedIndexServer};
+use proto::index_server::messages::{IndexServerAddress, NamedIndexServerAddress};
 
 use database::{DatabaseClient, DatabaseRequest};
 
@@ -31,7 +31,7 @@ struct IndexClientControl<ISA> {
     app_server_sender: mpsc::Sender<AppServerToIndexClient<ISA>>,
     app_server_receiver: mpsc::Receiver<IndexClientToAppServer<ISA>>,
     seq_friends_receiver: mpsc::Receiver<SeqFriendsRequest>,
-    session_receiver: mpsc::Receiver<ConnRequest<IndexServer<ISA>,Option<SessionHandle>>>,
+    session_receiver: mpsc::Receiver<ConnRequest<IndexServerAddress<ISA>,Option<SessionHandle>>>,
     database_req_receiver: mpsc::Receiver<DatabaseRequest<IndexClientConfigMutation<ISA>>>,
     tick_sender: mpsc::Sender<()>,
     #[allow(unused)]
@@ -49,7 +49,7 @@ where
     let (app_server_sender, from_app_server) = mpsc::channel(0);
     let (to_app_server, app_server_receiver) = mpsc::channel(0);
 
-    let index_server37 = NamedIndexServer {
+    let index_server37 = NamedIndexServerAddress {
         public_key: PublicKey::from(&[0x37; PUBLIC_KEY_LEN]), 
         address: 0x1337u32,
         name: "0x1337".to_owned()
@@ -123,7 +123,7 @@ where
     }
 
     /// Expect a connection to index server of a certain public key
-    async fn expect_server_connection(&mut self, index_server: IndexServer<ISA>) -> 
+    async fn expect_server_connection(&mut self, index_server: IndexServerAddress<ISA>) -> 
         (mpsc::Receiver<SingleClientControl>, oneshot::Sender<Result<(), SingleClientError>>) {
 
         // Wait for a connection request:
@@ -225,7 +225,7 @@ where
 
     let mut icc = basic_index_client(spawner.clone());
 
-    let index_server = IndexServer {
+    let index_server = IndexServerAddress {
         public_key: PublicKey::from(&[0x37; PUBLIC_KEY_LEN]), 
         address: 0x1337,
     };
@@ -264,7 +264,7 @@ where
 
     // Wait for a connection request:
     let session_conn_request = await!(icc.session_receiver.next()).unwrap();
-    let index_server = IndexServer {
+    let index_server = IndexServerAddress {
         public_key: PublicKey::from(&[0x39; PUBLIC_KEY_LEN]),
         address: 0x1339,
     };
@@ -295,7 +295,7 @@ where
 {
 
     let mut icc = basic_index_client(spawner.clone());
-    let index_server = IndexServer {
+    let index_server = IndexServerAddress {
         public_key: PublicKey::from(&[0x37; PUBLIC_KEY_LEN]), 
         address: 0x1337,
     };
@@ -360,7 +360,7 @@ where
 {
 
     let mut icc = basic_index_client(spawner.clone());
-    let index_server = IndexServer {
+    let index_server = IndexServerAddress {
         public_key: PublicKey::from(&[0x37; PUBLIC_KEY_LEN]), 
         address: 0x1337,
     };
@@ -418,7 +418,7 @@ where
 
     // Wait for a connection request:
     let session_conn_request = await!(icc.session_receiver.next()).unwrap();
-    let index_server = IndexServer {
+    let index_server = IndexServerAddress {
         public_key: PublicKey::from(&[0x37; PUBLIC_KEY_LEN]),
         address: 0x1337,
     };

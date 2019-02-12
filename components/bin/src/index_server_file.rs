@@ -9,7 +9,7 @@ use base64::{self, URL_SAFE_NO_PAD};
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
 use proto::net::messages::{NetAddressError, NetAddress};
-use proto::index_server::messages::IndexServer;
+use proto::index_server::messages::IndexServerAddress;
 
 #[derive(Debug)]
 pub enum IndexServerFileError {
@@ -60,7 +60,7 @@ impl From<NetAddressError> for IndexServerFileError {
 }
 
 /// Load IndexServer from a file
-pub fn load_index_server_from_file(path: &Path) -> Result<IndexServer<NetAddress>, IndexServerFileError> {
+pub fn load_index_server_from_file(path: &Path) -> Result<IndexServerAddress<NetAddress>, IndexServerFileError> {
     let data = fs::read_to_string(&path)?;
     let index_server_file: IndexServerFile = toml::from_str(&data)?;
 
@@ -74,7 +74,7 @@ pub fn load_index_server_from_file(path: &Path) -> Result<IndexServer<NetAddress
     public_key_array.copy_from_slice(&public_key_vec[0 .. PUBLIC_KEY_LEN]);
     let public_key = PublicKey::from(&public_key_array);
 
-    Ok(IndexServer {
+    Ok(IndexServerAddress {
         public_key,
         address: index_server_file.address.try_into()?,
     })
@@ -82,10 +82,10 @@ pub fn load_index_server_from_file(path: &Path) -> Result<IndexServer<NetAddress
 
 
 /// Store IndexServer to file
-pub fn store_index_server_to_file(index_server: &IndexServer<NetAddress>, path: &Path)
+pub fn store_index_server_to_file(index_server: &IndexServerAddress<NetAddress>, path: &Path)
     -> Result<(), IndexServerFileError> {
 
-    let IndexServer {ref public_key, ref address} = index_server;
+    let IndexServerAddress {ref public_key, ref address} = index_server;
 
     let index_server_file = IndexServerFile {
         public_key: base64::encode_config(&public_key, URL_SAFE_NO_PAD),
@@ -104,7 +104,7 @@ pub fn store_index_server_to_file(index_server: &IndexServer<NetAddress>, path: 
 /// Load a directory of index server address files, and return a map representing
 /// the information from all files
 pub fn load_trusted_servers(dir_path: &Path) 
-    -> Result<Vec<IndexServer<NetAddress>>, IndexServerFileError> {
+    -> Result<Vec<IndexServerAddress<NetAddress>>, IndexServerFileError> {
     let mut res_trusted = Vec::new();
     for entry in fs::read_dir(dir_path)? {
         let entry = entry?;
@@ -141,7 +141,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("index_server_address_file");
 
-        let index_server_address = IndexServer {
+        let index_server_address = IndexServerAddress {
             public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
             address: "127.0.0.1:1337".to_owned().try_into().unwrap(),
         };
@@ -159,14 +159,14 @@ mod tests {
         let dir = tempdir().unwrap();
 
         let file_path = dir.path().join("index_server_address_file_a");
-        let index_server_address = IndexServer {
+        let index_server_address = IndexServerAddress {
             public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
             address: "127.0.0.1:1000".to_owned().try_into().unwrap(),
         };
         store_index_server_to_file(&index_server_address, &file_path).unwrap();
 
         let file_path = dir.path().join("index_server_address_file_b");
-        let index_server_address = IndexServer {
+        let index_server_address = IndexServerAddress {
             public_key: PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]),
             address: "127.0.0.1:1001".to_owned().try_into().unwrap(),
         };
@@ -174,7 +174,7 @@ mod tests {
 
 
         let file_path = dir.path().join("index_server_address_file_c");
-        let index_server_address = IndexServer {
+        let index_server_address = IndexServerAddress {
             public_key: PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]),
             address: "127.0.0.1:1002".to_owned().try_into().unwrap(),
         };

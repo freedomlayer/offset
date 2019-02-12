@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 
-use crate::index_server::messages::{RouteWithCapacity, NamedIndexServer};
+use crate::index_server::messages::{RouteWithCapacity, NamedIndexServerAddress};
 pub use crate::index_server::messages::{RequestRoutes, IndexMutation, UpdateFriend};
 
 
@@ -21,7 +21,7 @@ pub struct IndexClientState {
 /// ISA stands for Index Server Address
 pub struct IndexClientReport<ISA> {
     /// A list of trusted index servers.
-    pub index_servers: Vec<NamedIndexServer<ISA>>,
+    pub index_servers: Vec<NamedIndexServerAddress<ISA>>,
     /// The server we are currently connected to (None if not connected).
     pub opt_connected_server: Option<PublicKey>,
 }
@@ -84,7 +84,7 @@ where
                 // Remove first, to avoid duplicates:
                 self.index_servers.retain(|index_server| 
                                           index_server.public_key != add_index_server.public_key);
-                self.index_servers.push(NamedIndexServer {
+                self.index_servers.push(NamedIndexServerAddress {
                     public_key: add_index_server.public_key.clone(),
                     address: add_index_server.address.clone(),
                     name: add_index_server.name.clone(),

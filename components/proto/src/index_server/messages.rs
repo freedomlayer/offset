@@ -119,14 +119,14 @@ pub enum IndexServerToServer {
 // ----------------------------------------------
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NamedIndexServer<ISA> {
+pub struct NamedIndexServerAddress<ISA> {
     pub public_key: PublicKey,
     pub address: ISA,
     pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct IndexServer<ISA> {
+pub struct IndexServerAddress<ISA> {
     pub public_key: PublicKey,
     pub address: ISA,
 }

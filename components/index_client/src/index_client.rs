@@ -21,7 +21,7 @@ use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServ
                                     IndexClientReportMutation,
                                     AddIndexServer,
                                     AddIndexServerReport};
-use proto::index_server::messages::{IndexServer, NamedIndexServer};
+use proto::index_server::messages::{IndexServerAddress, NamedIndexServerAddress};
 
 use crate::client_session::{SessionHandle, ControlSender};
 use crate::single_client::SingleClientControl;
@@ -30,7 +30,7 @@ use crate::seq_friends::SeqFriendsClient;
 #[allow(unused)]
 #[derive(Clone, Serialize, Deserialize)]
 pub struct IndexClientConfig<ISA> {
-    pub index_servers: Vec<NamedIndexServer<ISA>>,
+    pub index_servers: Vec<NamedIndexServerAddress<ISA>>,
 }
 
 impl<ISA> IndexClientConfig<ISA> {
@@ -61,7 +61,7 @@ where
                 // Remove first, to avoid duplicates:
                 self.index_servers.retain(|named_index_server| 
                                           named_index_server.public_key != add_index_server_report.public_key);
-                let named_index_server = NamedIndexServer {
+                let named_index_server = NamedIndexServerAddress {
                     public_key: add_index_server_report.public_key.clone(),
                     address: add_index_server_report.address.clone(),
                     name: add_index_server_report.name.clone(),
@@ -80,14 +80,14 @@ where
 
 #[derive(Debug)]
 struct ServerConnecting<ISA> {
-    index_server: IndexServer<ISA>,
+    index_server: IndexServerAddress<ISA>,
     opt_cancel_sender: Option<oneshot::Sender<()>>,
 }
 
 
 #[derive(Debug)]
 struct ServerConnected<ISA> {
-    index_server: IndexServer<ISA>,
+    index_server: IndexServerAddress<ISA>,
     opt_control_sender: Option<ControlSender>,
     /// A oneshot for closing the connection 
     /// (closing opt_control_sender is not enough, because send_full_state() task also has a
@@ -133,7 +133,7 @@ struct IndexClient<ISA,TAS,ICS,S> {
     /// The next index server to be used is the one on the front:
     // TODO: Why not use IndexClientConfig as state here?
     // We perform the mutations implicitly in the implementation of IndexClient. 
-    index_servers: VecDeque<IndexServer<ISA>>,
+    index_servers: VecDeque<IndexServerAddress<ISA>>,
     seq_friends_client: SeqFriendsClient,
     index_client_session: ICS,
     max_open_requests: usize,
@@ -182,7 +182,7 @@ impl<ISA,TAS,ICS,S> IndexClient<ISA,TAS,ICS,S>
 where
     ISA: Eq + Clone + Send + 'static,
     TAS: Sink<SinkItem=IndexClientToAppServer<ISA>> + Unpin,
-    ICS: FutTransform<Input=IndexServer<ISA>, Output=Option<SessionHandle>> + Clone + Send + 'static,
+    ICS: FutTransform<Input=IndexServerAddress<ISA>, Output=Option<SessionHandle>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
     pub fn new(event_sender: mpsc::Sender<IndexClientEvent<ISA>>,
@@ -198,7 +198,7 @@ where
 
         let index_servers = index_client_config.index_servers
                 .into_iter()
-                .map(|named_index_server| IndexServer {
+                .map(|named_index_server| IndexServerAddress {
                     public_key: named_index_server.public_key,
                     address: named_index_server.address,
                 })
@@ -332,7 +332,7 @@ where
         // Add new server_address to memory:
         // To avoid duplicates, we try to remove it from the list first:
         self.index_servers.retain(|index_server| index_server.public_key != add_index_server.public_key);
-        let index_server = IndexServer {
+        let index_server = IndexServerAddress {
             public_key: add_index_server.public_key.clone(),
             address: add_index_server.address.clone(),
         };
@@ -621,7 +621,7 @@ where
     ISA: Eq + Clone + Send + 'static,
     FAS: Stream<Item=AppServerToIndexClient<ISA>> + Unpin,
     TAS: Sink<SinkItem=IndexClientToAppServer<ISA>> + Unpin,
-    ICS: FutTransform<Input=IndexServer<ISA>, Output=Option<SessionHandle>> + Clone + Send + 'static,
+    ICS: FutTransform<Input=IndexServerAddress<ISA>, Output=Option<SessionHandle>> + Clone + Send + 'static,
     TS: Stream + Unpin,
     S: Spawn + Clone + Send + 'static,
 {

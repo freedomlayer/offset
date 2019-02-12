@@ -11,7 +11,7 @@ use proto::report::messages::FunderReport;
 use proto::app_server::messages::NodeReport;
 use proto::index_client::messages::{IndexClientToAppServer, 
     AppServerToIndexClient, IndexClientReport};
-use proto::index_server::messages::NamedIndexServer;
+use proto::index_server::messages::NamedIndexServerAddress;
 
 use crate::server::{IncomingAppConnection, app_server_loop};
 
@@ -45,13 +45,13 @@ where
         num_ready_receipts: 0,
     };
 
-    let server100 = NamedIndexServer {
+    let server100 = NamedIndexServerAddress {
         public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]), 
         address: 100u64,
         name: "server100".to_owned(),
     };
 
-    let server101 = NamedIndexServer {
+    let server101 = NamedIndexServerAddress {
         public_key: PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]), 
         address: 101u64,
         name: "server101".to_owned(),

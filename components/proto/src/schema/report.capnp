@@ -8,7 +8,7 @@ using import "common.capnp".Signature;
 using import "common.capnp".RandNonce;
 
 using import "common.capnp".RelayAddress;
-using import "common.capnp".NamedIndexServer;
+using import "common.capnp".NamedIndexServerAddress;
 using import "common.capnp".NetAddress;
 
 ## Report related structs
@@ -210,7 +210,7 @@ struct AddIndexServerReport {
 }
 
 struct IndexClientReport {
-        indexServers @0: List(NamedIndexServer);
+        indexServers @0: List(NamedIndexServerAddress);
         optConnectedServer: union {
                 publicKey @1: PublicKey;
                 empty @2: Void;
