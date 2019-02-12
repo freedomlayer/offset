@@ -107,12 +107,12 @@ struct TcpAddress {
 # Authenticated address of a Relay (Includes public key)
 struct RelayAddress {
         publicKey @0: PublicKey;
-        address @1: TcpAddress;
+        address @1: Text;
 }
 
 # Authenticated address of an Index Server (Includes public key)
 struct IndexServerAddress {
         publicKey @0: PublicKey;
-        address @1: TcpAddress;
+        address @1: Text;
 }
 

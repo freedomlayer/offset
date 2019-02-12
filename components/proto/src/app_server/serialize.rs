@@ -529,7 +529,6 @@ pub fn deserialize_app_to_app_server(data: &[u8]) -> Result<AppToAppServer<Relay
 mod tests {
     use super::*;
     use crypto::identity::{PUBLIC_KEY_LEN, PublicKey};
-    use crate::net::messages::{TcpAddress, TcpAddressV4};
     use crate::report::messages::FunderReportMutation;
     use crate::app_server::messages::NodeReportMutation;
     use crate::index_client::messages::{IndexClientReportMutation};
@@ -557,10 +556,7 @@ mod tests {
 
         let opt_connected_server = Some(IndexServerAddress {
             public_key: PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]),
-            address: TcpAddress::V4(TcpAddressV4 {
-                octets: [100, 200, 100, 200],
-                port: 9876,
-            })
+            address: "MyAddress:1337".to_owned(),
         });
         let index_client_report_mutation = IndexClientReportMutation::SetConnectedServer(opt_connected_server);
 
@@ -578,17 +574,11 @@ mod tests {
         let mut relays = Vec::new();
         relays.push(RelayAddress {
             public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
-            address: TcpAddress::V4(TcpAddressV4 {
-                octets: [127, 0, 0, 0xa],
-                port: 1337,
-            })
+            address: "MyAddress:1338".to_owned(),
         });
         relays.push(RelayAddress {
             public_key: PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]),
-            address: TcpAddress::V4(TcpAddressV4 {
-                octets: [127, 0, 0, 0xc],
-                port: 1338,
-            })
+            address: "MyAddress:1339".to_owned(),
         });
 
         let add_friend = AddFriend {

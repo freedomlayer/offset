@@ -341,8 +341,6 @@ mod tests {
     use crypto::uid::{Uid, UID_LEN};
     use crate::funder::messages::{InvoiceId, INVOICE_ID_LEN};
 
-    use crate::net::messages::{TcpAddress, TcpAddressV4, TcpAddressV6};
-
     /// Create an example FriendMessage::MoveTokenRequest:
     fn create_move_token_request() -> FriendMessage<Vec<RelayAddress>> {
         let route = FriendsRoute {
@@ -381,18 +379,12 @@ mod tests {
 
         let relay_address4 = RelayAddress {
             public_key: PublicKey::from(&[0x11; PUBLIC_KEY_LEN]),
-            address: TcpAddress::V4(TcpAddressV4 {
-                octets: [0,1,2,3u8],
-                port: 1337,
-            }),
+            address: "MyAddress:1337".to_owned(),
         };
 
         let relay_address6 = RelayAddress {
             public_key: PublicKey::from(&[0x11; PUBLIC_KEY_LEN]),
-            address: TcpAddress::V6(TcpAddressV6 {
-                segments: [0,1,2,3,4,5,6,7u16],
-                port: 1338,
-            }),
+            address: "MyAddress:1338".to_owned(),
         };
 
         let move_token = MoveToken {
