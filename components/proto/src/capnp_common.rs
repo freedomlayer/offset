@@ -9,7 +9,8 @@ use common_capnp::{buffer128, buffer256, buffer512,
                     net_address, named_index_server_address};
 
 use crate::serialize::SerializeError;
-use crate::funder::messages::{InvoiceId, RelayAddress, Receipt};
+use crate::funder::messages::{InvoiceId, Receipt};
+use crate::app_server::messages::RelayAddress;
 use crate::index_server::messages::NamedIndexServerAddress;
 use crate::net::messages::NetAddress;
 
@@ -150,14 +151,14 @@ pub fn write_net_address(from: &NetAddress, to: &mut net_address::Builder) {
     to.set_address(from.as_str());
 }
 
-pub fn read_relay_address(from: &relay_address::Reader) -> Result<RelayAddress, SerializeError> {
+pub fn read_relay_address(from: &relay_address::Reader) -> Result<RelayAddress<NetAddress>, SerializeError> {
     Ok(RelayAddress {
         public_key: read_public_key(&from.get_public_key()?)?,
         address: read_net_address(&from.get_address()?)?,
     })
 }
 
-pub fn write_relay_address(from: &RelayAddress, to: &mut relay_address::Builder) {
+pub fn write_relay_address(from: &RelayAddress<NetAddress>, to: &mut relay_address::Builder) {
     write_public_key(&from.public_key, &mut to.reborrow().init_public_key());
     write_net_address(&from.address,&mut to.reborrow().init_address());
 }

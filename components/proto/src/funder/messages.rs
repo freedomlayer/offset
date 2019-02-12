@@ -11,7 +11,6 @@ use common::int_convert::{usize_to_u64};
 use common::canonical_serialize::CanonicalSerialize;
 use crate::report::messages::FunderReportMutation;
 use crate::consts::MAX_ROUTE_LEN;
-use crate::net::messages::NetAddress;
 
 
 #[derive(Debug)]
@@ -458,19 +457,4 @@ pub enum FunderOutgoingControl<A: Clone> {
     ResponseReceived(ResponseReceived),
     // Report(FunderReport<A>),
     ReportMutations(Vec<FunderReportMutation<A>>),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct RelayAddress {
-    pub public_key: PublicKey,
-    pub address: NetAddress,
-}
-
-impl CanonicalSerialize for RelayAddress {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.public_key);
-        res_bytes.extend_from_slice(&self.address.canonical_serialize());
-        res_bytes
-    }
 }

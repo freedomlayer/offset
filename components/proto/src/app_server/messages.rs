@@ -1,3 +1,4 @@
+use common::canonical_serialize::CanonicalSerialize;
 use crypto::identity::PublicKey;
 
 use crate::funder::messages::{UserRequestSendFunds, ResponseReceived,
@@ -7,20 +8,40 @@ use crate::report::messages::{FunderReport, FunderReportMutation};
 use crate::index_client::messages::{IndexClientReport, 
     IndexClientReportMutation, ClientResponseRoutes};
 use crate::index_server::messages::RequestRoutes;
+
 use index_client::messages::AddIndexServer;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct RelayAddress<B> {
+    pub public_key: PublicKey,
+    pub address: B,
+}
+
+impl<B> CanonicalSerialize for RelayAddress<B> 
+where
+    B: CanonicalSerialize,
+{
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.public_key);
+        res_bytes.extend_from_slice(&self.address.canonical_serialize());
+        res_bytes
+    }
+}
 
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeReport<B:Clone,ISA> {
-    pub funder_report: FunderReport<Vec<B>>,
+    pub funder_report: FunderReport<Vec<RelayAddress<B>>>,
     pub index_client_report: IndexClientReport<ISA>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NodeReportMutation<B,ISA> {
-    Funder(FunderReportMutation<Vec<B>>),
+    Funder(FunderReportMutation<Vec<RelayAddress<B>>>),
     IndexClient(IndexClientReportMutation<ISA>),
 }
+
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum AppServerToApp<B: Clone,ISA> {
@@ -35,13 +56,13 @@ pub enum AppServerToApp<B: Clone,ISA> {
 #[derive(Debug, PartialEq, Eq)]
 pub enum AppToAppServer<B,ISA> {
     /// Set relay address to be used locally:
-    SetRelays(Vec<B>), 
+    SetRelays(Vec<RelayAddress<B>>), 
     /// Sending funds:
     RequestSendFunds(UserRequestSendFunds),
     ReceiptAck(ReceiptAck),
     /// Friend management:
-    AddFriend(AddFriend<Vec<B>>),
-    SetFriendRelays(SetFriendAddress<Vec<B>>),
+    AddFriend(AddFriend<Vec<RelayAddress<B>>>),
+    SetFriendRelays(SetFriendAddress<Vec<RelayAddress<B>>>),
     SetFriendName(SetFriendName),
     RemoveFriend(PublicKey),
     EnableFriend(PublicKey),
