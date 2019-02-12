@@ -7,6 +7,7 @@ use crate::report::messages::{FunderReport, FunderReportMutation};
 use crate::index_client::messages::{IndexClientReport, 
     IndexClientReportMutation, ClientResponseRoutes};
 use crate::index_server::messages::RequestRoutes;
+use index_client::messages::AddIndexServer;
 
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,8 +53,8 @@ pub enum AppToAppServer<B,ISA> {
     /// Request routes from one node to another:
     RequestRoutes(RequestRoutes),
     /// Manage index servers:
-    AddIndexServer(ISA),
-    RemoveIndexServer(ISA),
+    AddIndexServer(AddIndexServer<ISA>),
+    RemoveIndexServer(PublicKey),
 }
 
 

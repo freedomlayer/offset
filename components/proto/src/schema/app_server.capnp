@@ -12,7 +12,7 @@ using import "common.capnp".RandNonce;
 
 using import "common.capnp".Receipt;
 using import "common.capnp".RelayAddress;
-using import "common.capnp".IndexServerAddress;
+using import "common.capnp".NetAddress;
 
 using import "report.capnp".NodeReport;
 using import "report.capnp".NodeReportMutation;
@@ -87,6 +87,12 @@ struct ClientResponseRoutes {
         result @1: ResponseRoutesResult;
 }
 
+struct AddIndexServer {
+        publicKey @0: PublicKey;
+        address @1: NetAddress;
+        name @2: Text;
+}
+
 
 #####################################################################
 
@@ -142,8 +148,8 @@ struct AppToAppServer {
         requestRoutes @13: RequestRoutes;
 
         # Index servers management:
-        addIndexServer @14: IndexServerAddress;
-        removeIndexServer @15: IndexServerAddress;
+        addIndexServer @14: AddIndexServer;
+        removeIndexServer @15: PublicKey;
     }
 }
 

@@ -8,7 +8,8 @@ using import "common.capnp".Signature;
 using import "common.capnp".RandNonce;
 
 using import "common.capnp".RelayAddress;
-using import "common.capnp".IndexServerAddress;
+using import "common.capnp".NamedIndexServer;
+using import "common.capnp".NetAddress;
 
 ## Report related structs
 #########################
@@ -202,20 +203,26 @@ struct FunderReportMutation {
 ##### IndexClient report
 ############################################################################
 
+struct AddIndexServerReport {
+        publicKey @0: PublicKey;
+        address @1: NetAddress;
+        name @2: Text;
+}
+
 struct IndexClientReport {
-        indexServers @0: List(IndexServerAddress);
+        indexServers @0: List(NamedIndexServer);
         optConnectedServer: union {
-                indexServerAddress @1: IndexServerAddress;
+                publicKey @1: PublicKey;
                 empty @2: Void;
         }
 }
 
 struct IndexClientReportMutation {
         union {
-                addIndexServer @0: IndexServerAddress;
-                removeIndexServer @1: IndexServerAddress;
+                addIndexServer @0: AddIndexServerReport;
+                removeIndexServer @1: PublicKey;
                 setConnectedServer: union {
-                        indexServerAddress @2: IndexServerAddress;
+                        publicKey @2: PublicKey;
                         empty @3: Void;
                 }
         }

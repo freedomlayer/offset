@@ -3,9 +3,11 @@ use futures::channel::mpsc;
 use futures::task::Spawn;
 use futures::executor::ThreadPool;
 
+use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
 use proto::app_server::messages::{AppServerToApp, NodeReportMutation, AppPermissions};
-use proto::index_client::messages::{IndexClientToAppServer, IndexClientReportMutation};
+use proto::index_client::messages::{IndexClientToAppServer, IndexClientReportMutation,
+                                    AddIndexServerReport};
 
 use super::utils::spawn_dummy_app_server;
 
@@ -55,8 +57,12 @@ where
     };
 
     // Send a dummy report message from IndexClient:
-    let new_index_server_address = 300u64;
-    let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(new_index_server_address.clone());
+    let add_index_server_report = AddIndexServerReport {
+        public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
+        address: 300u64,
+        name: "IndexServer300".to_string(),
+    };
+    let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(add_index_server_report.clone());
     let index_client_report_mutations = vec![index_client_report_mutation.clone()];
     await!(index_client_sender.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations))).unwrap();
 

@@ -10,15 +10,15 @@ use crate::capnp_common::{write_signature, read_signature,
                           write_invoice_id, read_invoice_id,
                           write_public_key, read_public_key,
                           write_relay_address, read_relay_address,
-                          write_index_server_address, read_index_server_address,
-                          write_receipt, read_receipt};
+                          write_receipt, read_receipt,
+                          write_net_address, read_net_address};
 
 use app_server_capnp;
 use crate::serialize::SerializeError;
 
-use crate::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult};
+use crate::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult,
+                                    AddIndexServer};
 
-use crate::index_server::messages::IndexServerAddress;
 use index_server::serialize::{ser_route_with_capacity, deser_route_with_capacity,
                               ser_request_routes, deser_request_routes};
 use crate::report::serialize::{ser_node_report, deser_node_report, 
@@ -29,8 +29,10 @@ use crate::funder::messages::{RelayAddress, UserRequestSendFunds,
     AddFriend, SetFriendName, SetFriendAddress,
     SetFriendRemoteMaxDebt, ResetFriendChannel};
 use crate::funder::serialize::{ser_friends_route, deser_friends_route};
+use crate::net::messages::NetAddress;
 
-use crate::app_server::messages::{AppServerToApp, AppToAppServer, AppPermissions};
+use crate::app_server::messages::{AppServerToApp, AppToAppServer, 
+    AppPermissions};
 
 
 fn ser_user_request_send_funds(user_request_send_funds: &UserRequestSendFunds,
@@ -286,6 +288,25 @@ fn deser_client_response_routes(client_response_routes_reader: &app_server_capnp
     })
 }
 
+
+fn ser_add_index_server(add_index_server: &AddIndexServer<NetAddress>, 
+                            add_index_server_builder: &mut app_server_capnp::add_index_server::Builder) {
+
+    write_public_key(&add_index_server.public_key, &mut add_index_server_builder.reborrow().init_public_key());
+    write_net_address(&add_index_server.address,&mut add_index_server_builder.reborrow().init_address());
+    add_index_server_builder.reborrow().set_name(&add_index_server.name);
+}
+
+fn deser_add_index_server(add_index_server_reader: &app_server_capnp::add_index_server::Reader)
+    -> Result<AddIndexServer<NetAddress>, SerializeError> {
+
+    Ok(AddIndexServer {
+        public_key: read_public_key(&add_index_server_reader.get_public_key()?)?,
+        address: read_net_address(&add_index_server_reader.get_address()?)?,
+        name: add_index_server_reader.get_name()?.to_owned(),
+    })
+}
+
 fn ser_app_permissions(app_permissions: &AppPermissions,
                     app_permissions_builder: &mut app_server_capnp::app_permissions::Builder) {
     app_permissions_builder.reborrow().set_reports(app_permissions.reports);
@@ -305,7 +326,7 @@ fn deser_app_permissions(app_permissions_reader: &app_server_capnp::app_permissi
     })
 }
 
-fn ser_app_server_to_app(app_server_to_app: &AppServerToApp<RelayAddress, IndexServerAddress>,
+fn ser_app_server_to_app(app_server_to_app: &AppServerToApp<RelayAddress, NetAddress>,
                     app_server_to_app_builder: &mut app_server_capnp::app_server_to_app::Builder) {
 
     match app_server_to_app {
@@ -330,7 +351,7 @@ fn ser_app_server_to_app(app_server_to_app: &AppServerToApp<RelayAddress, IndexS
 }
 
 fn deser_app_server_to_app(app_server_to_app_reader: &app_server_capnp::app_server_to_app::Reader)
-    -> Result<AppServerToApp<RelayAddress, IndexServerAddress>, SerializeError> {
+    -> Result<AppServerToApp<RelayAddress, NetAddress>, SerializeError> {
 
     Ok(match app_server_to_app_reader.which()? {
         app_server_capnp::app_server_to_app::ResponseReceived(response_received_reader) =>
@@ -349,7 +370,7 @@ fn deser_app_server_to_app(app_server_to_app_reader: &app_server_capnp::app_serv
     })
 }
 
-fn ser_app_to_app_server(app_to_app_server: &AppToAppServer<RelayAddress, IndexServerAddress>,
+fn ser_app_to_app_server(app_to_app_server: &AppToAppServer<RelayAddress, NetAddress>,
                     app_to_app_server_builder: &mut app_server_capnp::app_to_app_server::Builder) {
 
     match app_to_app_server {
@@ -400,17 +421,17 @@ fn ser_app_to_app_server(app_to_app_server: &AppToAppServer<RelayAddress, IndexS
         AppToAppServer::RequestRoutes(request_routes) =>
             ser_request_routes(request_routes, 
                             &mut app_to_app_server_builder.reborrow().init_request_routes()),
-        AppToAppServer::AddIndexServer(index_server_address) =>
-            write_index_server_address(index_server_address, 
+        AppToAppServer::AddIndexServer(add_index_server) =>
+            ser_add_index_server(add_index_server, 
                             &mut app_to_app_server_builder.reborrow().init_add_index_server()),
-        AppToAppServer::RemoveIndexServer(index_server_address) =>
-            write_index_server_address(index_server_address, 
+        AppToAppServer::RemoveIndexServer(public_key) =>
+            write_public_key(public_key, 
                             &mut app_to_app_server_builder.reborrow().init_remove_index_server()),
     }
 }
 
 fn deser_app_to_app_server(app_to_app_server: &app_server_capnp::app_to_app_server::Reader)
-    -> Result<AppToAppServer<RelayAddress, IndexServerAddress>, SerializeError> {
+    -> Result<AppToAppServer<RelayAddress, NetAddress>, SerializeError> {
 
     Ok(match app_to_app_server.which()? {
         app_server_capnp::app_to_app_server::SetRelays(relays_reader) => {
@@ -459,12 +480,12 @@ fn deser_app_to_app_server(app_to_app_server: &app_server_capnp::app_to_app_serv
         app_server_capnp::app_to_app_server::RequestRoutes(request_routes_reader) =>
             AppToAppServer::RequestRoutes(
                 deser_request_routes(&request_routes_reader?)?),
-        app_server_capnp::app_to_app_server::AddIndexServer(index_server_address_reader) =>
+        app_server_capnp::app_to_app_server::AddIndexServer(add_index_server_reader) =>
             AppToAppServer::AddIndexServer(
-                read_index_server_address(&index_server_address_reader?)?),
-        app_server_capnp::app_to_app_server::RemoveIndexServer(index_server_address_reader) =>
+                deser_add_index_server(&add_index_server_reader?)?),
+        app_server_capnp::app_to_app_server::RemoveIndexServer(public_key_reader) =>
             AppToAppServer::RemoveIndexServer(
-                read_index_server_address(&index_server_address_reader?)?),
+                read_public_key(&public_key_reader?)?),
     })
 }
 
@@ -489,7 +510,7 @@ pub fn deserialize_app_permissions(data: &[u8]) -> Result<AppPermissions, Serial
     deser_app_permissions(&app_permissions_reader)
 }
 
-pub fn serialize_app_server_to_app(app_server_to_app: &AppServerToApp<RelayAddress, IndexServerAddress>) -> Vec<u8> {
+pub fn serialize_app_server_to_app(app_server_to_app: &AppServerToApp<RelayAddress, NetAddress>) -> Vec<u8> {
     let mut builder = capnp::message::Builder::new_default();
     let mut app_server_to_app_builder = builder.init_root::<app_server_capnp::app_server_to_app::Builder>();
     ser_app_server_to_app(app_server_to_app, &mut app_server_to_app_builder);
@@ -499,7 +520,7 @@ pub fn serialize_app_server_to_app(app_server_to_app: &AppServerToApp<RelayAddre
     ser_buff
 }
 
-pub fn deserialize_app_server_to_app(data: &[u8]) -> Result<AppServerToApp<RelayAddress, IndexServerAddress>, SerializeError> {
+pub fn deserialize_app_server_to_app(data: &[u8]) -> Result<AppServerToApp<RelayAddress, NetAddress>, SerializeError> {
     let mut cursor = io::Cursor::new(data);
     let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let app_server_to_app_reader = reader.get_root::<app_server_capnp::app_server_to_app::Reader>()?;
@@ -507,7 +528,7 @@ pub fn deserialize_app_server_to_app(data: &[u8]) -> Result<AppServerToApp<Relay
     deser_app_server_to_app(&app_server_to_app_reader)
 }
 
-pub fn serialize_app_to_app_server(app_server_to_app: &AppToAppServer<RelayAddress, IndexServerAddress>) -> Vec<u8> {
+pub fn serialize_app_to_app_server(app_server_to_app: &AppToAppServer<RelayAddress, NetAddress>) -> Vec<u8> {
     let mut builder = capnp::message::Builder::new_default();
     let mut app_to_app_server = builder.init_root::<app_server_capnp::app_to_app_server::Builder>();
     ser_app_to_app_server(app_server_to_app, &mut app_to_app_server);
@@ -517,7 +538,7 @@ pub fn serialize_app_to_app_server(app_server_to_app: &AppToAppServer<RelayAddre
     ser_buff
 }
 
-pub fn deserialize_app_to_app_server(data: &[u8]) -> Result<AppToAppServer<RelayAddress, IndexServerAddress>, SerializeError> {
+pub fn deserialize_app_to_app_server(data: &[u8]) -> Result<AppToAppServer<RelayAddress, NetAddress>, SerializeError> {
     let mut cursor = io::Cursor::new(data);
     let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let app_to_app_server = reader.get_root::<app_server_capnp::app_to_app_server::Reader>()?;
@@ -555,11 +576,8 @@ mod tests {
         let funder_report_mutation = FunderReportMutation::RemoveFriend(
             PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]));
 
-        let opt_connected_server = Some(IndexServerAddress {
-            public_key: PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]),
-            address: "MyAddress:1337".to_owned().try_into().unwrap(),
-        });
-        let index_client_report_mutation = IndexClientReportMutation::SetConnectedServer(opt_connected_server);
+        let index_client_report_mutation = IndexClientReportMutation::SetConnectedServer(
+            Some(PublicKey::from(&[0xdd; PUBLIC_KEY_LEN])));
 
         report_mutations.push(NodeReportMutation::Funder(funder_report_mutation));
         report_mutations.push(NodeReportMutation::IndexClient(index_client_report_mutation));

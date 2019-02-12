@@ -5,11 +5,13 @@ use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt, ByteOrder};
 use common_capnp::{buffer128, buffer256, buffer512,
                     public_key, invoice_id, hash, dh_public_key, salt, signature,
                     rand_nonce, custom_u_int128, custom_int128, uid,
-                    relay_address, index_server_address, receipt};
+                    relay_address, receipt,
+                    net_address, named_index_server};
 
 use crate::serialize::SerializeError;
 use crate::funder::messages::{InvoiceId, RelayAddress, Receipt};
-use crate::index_server::messages::IndexServerAddress;
+use crate::index_server::messages::NamedIndexServer;
+use crate::net::messages::NetAddress;
 
 use crypto::identity::{PublicKey, Signature};
 use crypto::dh::{DhPublicKey, Salt};
@@ -140,19 +142,42 @@ pub fn write_custom_int128(from: i128, to: &mut custom_int128::Builder) {
     write_buffer128(&data_bytes, &mut inner);
 }
 
+pub fn read_net_address(from: &net_address::Reader) -> Result<NetAddress, SerializeError> {
+    Ok(from.get_address()?.to_string().try_into()?)
+}
+
+pub fn write_net_address(from: &NetAddress, to: &mut net_address::Builder) {
+    to.set_address(from.as_str());
+}
+
 pub fn read_relay_address(from: &relay_address::Reader) -> Result<RelayAddress, SerializeError> {
     Ok(RelayAddress {
         public_key: read_public_key(&from.get_public_key()?)?,
-        address: from.get_address()?.to_owned().try_into()?,
+        address: read_net_address(&from.get_address()?)?,
     })
 }
 
 pub fn write_relay_address(from: &RelayAddress, to: &mut relay_address::Builder) {
-
     write_public_key(&from.public_key, &mut to.reborrow().init_public_key());
-    to.reborrow().set_address(from.address.as_str());
+    write_net_address(&from.address,&mut to.reborrow().init_address());
 }
 
+pub fn read_named_index_server(from: &named_index_server::Reader) -> Result<NamedIndexServer<NetAddress>, SerializeError> {
+    Ok(NamedIndexServer {
+        public_key: read_public_key(&from.get_public_key()?)?,
+        address: read_net_address(&from.get_address()?)?,
+        name: from.get_name()?.to_owned(),
+    })
+}
+
+pub fn write_named_index_server(from: &NamedIndexServer<NetAddress>, to: &mut named_index_server::Builder) {
+    write_public_key(&from.public_key, &mut to.reborrow().init_public_key());
+    write_net_address(&from.address,&mut to.reborrow().init_address());
+    to.reborrow().set_name(&from.name);
+}
+
+
+/*
 pub fn read_index_server_address(from: &index_server_address::Reader) -> Result<IndexServerAddress, SerializeError> {
     Ok(IndexServerAddress {
         public_key: read_public_key(&from.get_public_key()?)?,
@@ -165,6 +190,8 @@ pub fn write_index_server_address(from: &IndexServerAddress, to: &mut index_serv
     write_public_key(&from.public_key, &mut to.reborrow().init_public_key());
     to.set_address(from.address.as_str());
 }
+*/
+
 
 pub fn read_receipt(from: &receipt::Reader) -> Result<Receipt, SerializeError> {
     Ok(Receipt {
