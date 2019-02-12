@@ -182,7 +182,7 @@ impl<ISA,TAS,ICS,S> IndexClient<ISA,TAS,ICS,S>
 where
     ISA: Eq + Clone + Send + 'static,
     TAS: Sink<SinkItem=IndexClientToAppServer<ISA>> + Unpin,
-    ICS: FutTransform<Input=ISA, Output=Option<SessionHandle>> + Clone + Send + 'static,
+    ICS: FutTransform<Input=IndexServer<ISA>, Output=Option<SessionHandle>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
     pub fn new(event_sender: mpsc::Sender<IndexClientEvent<ISA>>,
@@ -259,7 +259,7 @@ where
 
         // TODO: Can we remove the Box::pin() from here? How?
         let connect_fut = Box::pin(async move {
-            let res = await!(c_index_client_session.transform(index_server.address))?;
+            let res = await!(c_index_client_session.transform(index_server))?;
             let (control_sender, close_receiver) = res;
 
             let c_control_sender = control_sender.clone();
@@ -621,7 +621,7 @@ where
     ISA: Eq + Clone + Send + 'static,
     FAS: Stream<Item=AppServerToIndexClient<ISA>> + Unpin,
     TAS: Sink<SinkItem=IndexClientToAppServer<ISA>> + Unpin,
-    ICS: FutTransform<Input=ISA, Output=Option<SessionHandle>> + Clone + Send + 'static,
+    ICS: FutTransform<Input=IndexServer<ISA>, Output=Option<SessionHandle>> + Clone + Send + 'static,
     TS: Stream + Unpin,
     S: Spawn + Clone + Send + 'static,
 {

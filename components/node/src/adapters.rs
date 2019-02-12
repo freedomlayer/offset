@@ -6,7 +6,7 @@ use crypto::identity::PublicKey;
 
 use proto::funder::messages::RelayAddress;
 use proto::net::messages::NetAddress;
-use proto::index_server::messages::{IndexServerAddress};
+use proto::index_server::messages::IndexServer;
 
 #[derive(Clone)]
 /// Open an encrypted connection to a relay endpoint
@@ -47,7 +47,6 @@ where
 
 
 
-// C: FutTransform<Input=IndexServerAddress, Output=Option<ServerConn>> + Send,
 #[derive(Clone)]
 pub struct EncKeepaliveConnector<ET,KT,C,S> {
     encrypt_transform: ET,
@@ -79,7 +78,7 @@ where
     C: FutTransform<Input=NetAddress,Output=Option<ConnPairVec>> + Clone + Send,
     S: Spawn + Send,
 {
-    type Input = IndexServerAddress;
+    type Input = IndexServer<NetAddress>;
     type Output = Option<ConnPairVec>;
 
     fn transform(&mut self, index_server_address: Self::Input)

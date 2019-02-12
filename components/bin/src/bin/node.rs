@@ -49,12 +49,12 @@ use database::{database_loop, DatabaseClient, AtomicDb};
 
 use proto::consts::{PROTOCOL_VERSION, KEEPALIVE_TICKS, TICKS_TO_REKEY, 
     MAX_OPERATIONS_IN_BATCH, TICK_MS, MAX_FRAME_LENGTH, MAX_NODE_RELAYS};
-use proto::index_server::messages::IndexServerAddress;
 use proto::funder::messages::RelayAddress;
 use proto::app_server::messages::AppPermissions;
 use proto::app_server::serialize::{deserialize_app_to_app_server,
                                    serialize_app_server_to_app,
                                    serialize_app_permissions};
+use proto::net::messages::NetAddress;
 use net::{NetConnector, TcpListener};
 
 
@@ -139,7 +139,7 @@ where
     GT: Fn() -> Result<HashMap<PublicKey, AppPermissions>, NodeBinError> + Clone + Send + 'static,
 {
     type Input = ConnPairVec;
-    type Output = Option<IncomingAppConnection<RelayAddress,IndexServerAddress>>;
+    type Output = Option<IncomingAppConnection<RelayAddress,NetAddress>>;
 
     fn transform(&mut self, conn_pair: Self::Input)
         -> BoxFuture<'_, Self::Output> {
@@ -325,7 +325,7 @@ fn run() -> Result<(), NodeBinError> {
 
     // Load database:
     let db_path = matches.value_of("database").unwrap();
-    let atomic_db = FileDb::<NodeState<RelayAddress, IndexServerAddress>>::load(Path::new(&db_path).to_path_buf())
+    let atomic_db = FileDb::<NodeState<RelayAddress, NetAddress>>::load(Path::new(&db_path).to_path_buf())
         .map_err(|_| NodeBinError::LoadDbError)?;
 
     // Get initial node_state:

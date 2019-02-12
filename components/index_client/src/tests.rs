@@ -31,7 +31,7 @@ struct IndexClientControl<ISA> {
     app_server_sender: mpsc::Sender<AppServerToIndexClient<ISA>>,
     app_server_receiver: mpsc::Receiver<IndexClientToAppServer<ISA>>,
     seq_friends_receiver: mpsc::Receiver<SeqFriendsRequest>,
-    session_receiver: mpsc::Receiver<ConnRequest<ISA,Option<SessionHandle>>>,
+    session_receiver: mpsc::Receiver<ConnRequest<IndexServer<ISA>,Option<SessionHandle>>>,
     database_req_receiver: mpsc::Receiver<DatabaseRequest<IndexClientConfigMutation<ISA>>>,
     tick_sender: mpsc::Sender<()>,
     #[allow(unused)]
@@ -128,7 +128,7 @@ where
 
         // Wait for a connection request:
         let session_conn_request = await!(self.session_receiver.next()).unwrap();
-        assert_eq!(session_conn_request.address, index_server.address);
+        assert_eq!(session_conn_request.address, index_server);
 
         // Send a SessionHandle back to the index client:
         let (control_sender, mut control_receiver) = mpsc::channel(0);
@@ -264,7 +264,11 @@ where
 
     // Wait for a connection request:
     let session_conn_request = await!(icc.session_receiver.next()).unwrap();
-    assert_eq!(session_conn_request.address, 0x1339);
+    let index_server = IndexServer {
+        public_key: PublicKey::from(&[0x39; PUBLIC_KEY_LEN]),
+        address: 0x1339,
+    };
+    assert_eq!(session_conn_request.address, index_server);
 
     // Send a SessionHandle back to the index client:
     let (control_sender, _control_receiver) = mpsc::channel(0);
@@ -414,7 +418,11 @@ where
 
     // Wait for a connection request:
     let session_conn_request = await!(icc.session_receiver.next()).unwrap();
-    assert_eq!(session_conn_request.address, 0x1337);
+    let index_server = IndexServer {
+        public_key: PublicKey::from(&[0x37; PUBLIC_KEY_LEN]),
+        address: 0x1337,
+    };
+    assert_eq!(session_conn_request.address, index_server);
 
     // We got a connection request, but we don't reply.
     // This leaves IndexClient in "Connecting" state, where it is not yet connected to a server.

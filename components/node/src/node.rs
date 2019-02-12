@@ -27,7 +27,6 @@ use proto::net::messages::NetAddress;
 use proto::funder::serialize::{serialize_friend_message, 
     deserialize_friend_message};
 use proto::report::messages::funder_report_to_index_client_state;
-use proto::index_server::messages::IndexServerAddress;
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer};
 
 use crate::types::{NodeMutation, NodeState, create_node_report, NodeConfig};
@@ -87,7 +86,7 @@ where
 fn node_spawn_funder<R,S>(node_config: &NodeConfig,
                 identity_client: IdentityClient,
                 funder_state: FunderState<Vec<RelayAddress>>,
-                mut database_client: DatabaseClient<NodeMutation<RelayAddress,IndexServerAddress>>,
+                mut database_client: DatabaseClient<NodeMutation<RelayAddress,NetAddress>>,
                 mut from_channeler: mpsc::Receiver<ChannelerToFunder>,
                 mut to_channeler: mpsc::Sender<FunderToChanneler<Vec<RelayAddress>>>,
                 from_app_server: mpsc::Receiver<FunderIncomingControl<Vec<RelayAddress>>>,
@@ -200,10 +199,10 @@ async fn node_spawn_index_client<'a, C,R,S>(node_config: &'a NodeConfig,
                 local_public_key: PublicKey,
                 identity_client: IdentityClient,
                 timer_client: TimerClient,
-                node_state: &'a NodeState<RelayAddress, IndexServerAddress>,
-                mut database_client: DatabaseClient<NodeMutation<RelayAddress,IndexServerAddress>>,
-                from_app_server: mpsc::Receiver<AppServerToIndexClient<IndexServerAddress>>,
-                to_app_server: mpsc::Sender<IndexClientToAppServer<IndexServerAddress>>,
+                node_state: &'a NodeState<RelayAddress, NetAddress>,
+                mut database_client: DatabaseClient<NodeMutation<RelayAddress,NetAddress>>,
+                from_app_server: mpsc::Receiver<AppServerToIndexClient<NetAddress>>,
+                to_app_server: mpsc::Sender<IndexClientToAppServer<NetAddress>>,
                 net_connector: C,
                 rng: R,
                 mut spawner: S)
@@ -279,15 +278,15 @@ pub async fn node<C,IA,R,S>(
                 node_config: NodeConfig,
                 identity_client: IdentityClient,
                 timer_client: TimerClient,
-                node_state: NodeState<RelayAddress, IndexServerAddress>,
-                database_client: DatabaseClient<NodeMutation<RelayAddress,IndexServerAddress>>,
+                node_state: NodeState<RelayAddress, NetAddress>,
+                database_client: DatabaseClient<NodeMutation<RelayAddress,NetAddress>>,
                 net_connector: C,
                 incoming_apps: IA,
                 rng: R,
                 mut spawner: S) -> Result<(), NodeError> 
 where
     C: FutTransform<Input=NetAddress,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
-    IA: Stream<Item=IncomingAppConnection<RelayAddress,IndexServerAddress>> + Unpin + Send + 'static,  
+    IA: Stream<Item=IncomingAppConnection<RelayAddress,NetAddress>> + Unpin + Send + 'static,  
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {

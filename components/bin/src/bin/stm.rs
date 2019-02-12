@@ -21,9 +21,8 @@ use log::Level;
 use crypto::crypto_rand::system_random;
 use crypto::identity::{generate_pkcs8_key_pair, Identity};
 
-use proto::net::messages::NetAddressError;
+use proto::net::messages::{NetAddress, NetAddressError};
 use proto::funder::messages::RelayAddress;
-use proto::index_server::messages::IndexServerAddress;
 use proto::app_server::messages::AppPermissions;
 
 use database::file_db::FileDb;
@@ -57,7 +56,7 @@ fn init_node_db(matches: &ArgMatches) -> Result<(), InitNodeDbError> {
     let local_public_key = identity.get_public_key();
 
     // Create a new database file:
-    let initial_state = NodeState::<RelayAddress, IndexServerAddress>::new(local_public_key);
+    let initial_state = NodeState::<RelayAddress, NetAddress>::new(local_public_key);
     let _ = FileDb::create(output_path.to_path_buf(), initial_state)
         .map_err(|_| InitNodeDbError::FileDbError)?;
 
