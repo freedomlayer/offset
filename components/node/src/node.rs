@@ -23,7 +23,7 @@ use index_client::{IndexClientError, spawn_index_client};
 use proto::funder::messages::{RelayAddress, 
     FunderToChanneler, ChannelerToFunder, 
     FunderIncomingControl, FunderOutgoingControl};
-use proto::net::messages::TcpAddress;
+use proto::net::messages::NetAddress;
 use proto::funder::serialize::{serialize_friend_message, 
     deserialize_friend_message};
 use proto::report::messages::funder_report_to_index_client_state;
@@ -52,7 +52,7 @@ fn node_spawn_channeler<C,R,S>(node_config: &NodeConfig,
     -> Result<impl Future<Output=Result<(), ChannelerError>>, NodeError>
 
 where
-    C: FutTransform<Input=TcpAddress,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input=NetAddress,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
@@ -209,7 +209,7 @@ async fn node_spawn_index_client<'a, C,R,S>(node_config: &'a NodeConfig,
                 mut spawner: S)
         -> Result<impl Future<Output=Result<(), IndexClientError>>, NodeError>
 where
-    C: FutTransform<Input=TcpAddress,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input=NetAddress,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
@@ -286,7 +286,7 @@ pub async fn node<C,IA,R,S>(
                 rng: R,
                 mut spawner: S) -> Result<(), NodeError> 
 where
-    C: FutTransform<Input=TcpAddress,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input=NetAddress,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
     IA: Stream<Item=IncomingAppConnection<RelayAddress,IndexServerAddress>> + Unpin + Send + 'static,  
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
