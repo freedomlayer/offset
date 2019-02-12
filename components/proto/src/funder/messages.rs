@@ -9,9 +9,9 @@ use crypto::hash::{self, HashResult};
 
 use common::int_convert::{usize_to_u64};
 use common::canonical_serialize::CanonicalSerialize;
-
 use crate::report::messages::FunderReportMutation;
 use crate::consts::MAX_ROUTE_LEN;
+use crate::net::messages::NetAddress;
 
 
 #[derive(Debug)]
@@ -463,7 +463,7 @@ pub enum FunderOutgoingControl<A: Clone> {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RelayAddress {
     pub public_key: PublicKey,
-    pub address: String,
+    pub address: NetAddress,
 }
 
 impl CanonicalSerialize for RelayAddress {

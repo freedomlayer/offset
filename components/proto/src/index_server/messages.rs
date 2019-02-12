@@ -4,6 +4,7 @@ use crypto::hash::HashResult;
 use crypto::crypto_rand::RandValue;
 
 use crate::funder::messages::FriendsRoute;
+use crate::net::messages::NetAddress;
 
 
 /// IndexClient -> IndexServer
@@ -121,5 +122,5 @@ pub enum IndexServerToServer {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IndexServerAddress {
     pub public_key: PublicKey,
-    pub address: String,
+    pub address: NetAddress,
 }

@@ -142,27 +142,27 @@ pub fn write_custom_int128(from: i128, to: &mut custom_int128::Builder) {
 pub fn read_relay_address(from: &relay_address::Reader) -> Result<RelayAddress, capnp::Error> {
     Ok(RelayAddress {
         public_key: read_public_key(&from.get_public_key()?)?,
-        address: from.get_address()?.to_owned(),
+        address: from.get_address()?.to_owned().into(),
     })
 }
 
 pub fn write_relay_address(from: &RelayAddress, to: &mut relay_address::Builder) {
 
     write_public_key(&from.public_key, &mut to.reborrow().init_public_key());
-    to.reborrow().set_address(&from.address);
+    to.reborrow().set_address(&from.address.0);
 }
 
 pub fn read_index_server_address(from: &index_server_address::Reader) -> Result<IndexServerAddress, capnp::Error> {
     Ok(IndexServerAddress {
         public_key: read_public_key(&from.get_public_key()?)?,
-        address: from.get_address()?.to_owned(),
+        address: from.get_address()?.to_owned().into(),
     })
 }
 
 pub fn write_index_server_address(from: &IndexServerAddress, to: &mut index_server_address::Builder) {
 
     write_public_key(&from.public_key, &mut to.reborrow().init_public_key());
-    to.set_address(&from.address);
+    to.set_address(&from.address.0);
 }
 
 pub fn read_receipt(from: &receipt::Reader) -> Result<Receipt, capnp::Error> {

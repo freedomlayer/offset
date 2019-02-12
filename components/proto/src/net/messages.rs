@@ -1,6 +1,7 @@
-use byteorder::{WriteBytesExt, BigEndian};
+// use byteorder::{WriteBytesExt, BigEndian};
 use common::canonical_serialize::CanonicalSerialize;
 
+/*
 /// IPv4 address (TCP)
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TcpAddressV4 {
@@ -23,7 +24,24 @@ pub enum TcpAddress {
     V4(TcpAddressV4),
     V6(TcpAddressV6),
 }
+*/
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct NetAddress(pub String);
+
+impl CanonicalSerialize for NetAddress {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        self.0.canonical_serialize()
+    }
+}
+
+impl From<String> for NetAddress {
+    fn from(address: String) -> NetAddress {
+        NetAddress(address)
+    }
+}
+
+/*
 
 impl CanonicalSerialize for TcpAddressV4 {
     fn canonical_serialize(&self) -> Vec<u8> {
@@ -62,4 +80,5 @@ impl CanonicalSerialize for TcpAddress {
         res_bytes
     }
 }
+*/
 

@@ -556,7 +556,7 @@ mod tests {
 
         let opt_connected_server = Some(IndexServerAddress {
             public_key: PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]),
-            address: "MyAddress:1337".to_owned(),
+            address: "MyAddress:1337".to_owned().into(),
         });
         let index_client_report_mutation = IndexClientReportMutation::SetConnectedServer(opt_connected_server);
 
@@ -574,11 +574,11 @@ mod tests {
         let mut relays = Vec::new();
         relays.push(RelayAddress {
             public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
-            address: "MyAddress:1338".to_owned(),
+            address: "MyAddress:1338".to_owned().into(),
         });
         relays.push(RelayAddress {
             public_key: PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]),
-            address: "MyAddress:1339".to_owned(),
+            address: "MyAddress:1339".to_owned().into(),
         });
 
         let add_friend = AddFriend {

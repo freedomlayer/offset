@@ -379,12 +379,12 @@ mod tests {
 
         let relay_address4 = RelayAddress {
             public_key: PublicKey::from(&[0x11; PUBLIC_KEY_LEN]),
-            address: "MyAddress:1337".to_owned(),
+            address: "MyAddress:1337".to_owned().into(),
         };
 
         let relay_address6 = RelayAddress {
             public_key: PublicKey::from(&[0x11; PUBLIC_KEY_LEN]),
-            address: "MyAddress:1338".to_owned(),
+            address: "MyAddress:1338".to_owned().into(),
         };
 
         let move_token = MoveToken {
