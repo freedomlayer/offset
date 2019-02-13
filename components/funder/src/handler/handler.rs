@@ -92,7 +92,7 @@ pub struct FunderHandlerOutput<FS: FunderScheme> {
     pub funder_mutations: Vec<FunderMutation<FS>>,
     pub ephemeral_mutations: Vec<EphemeralMutation>,
     pub outgoing_comms: Vec<FunderOutgoingComm<FS>>,
-    pub outgoing_control: Vec<FunderOutgoingControl<FS>>,
+    pub outgoing_control: Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
 }
 
 
@@ -151,7 +151,7 @@ pub fn funder_handle_incoming<FS,R>(mut m_state: &mut MutableFunderState<FS>,
                                    max_pending_user_requests: usize,
                                    funder_incoming: FunderIncoming<FS>)
                                     -> Result<(SendCommands, 
-                                        Vec<FunderOutgoingControl<FS>>, 
+                                        Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>, 
                                         Vec<ChannelerConfig<FS::Address>>), FunderHandlerError>
 
 where

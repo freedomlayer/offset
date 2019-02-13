@@ -158,8 +158,8 @@ where
 
 pub struct NodeControl<FS: FunderScheme> {
     pub public_key: PublicKey,
-    send_control: mpsc::Sender<FunderIncomingControl<FS>>,
-    recv_control: mpsc::Receiver<FunderOutgoingControl<FS>>,
+    send_control: mpsc::Sender<FunderIncomingControl<FS::Address, FS::NamedAddress>>,
+    recv_control: mpsc::Receiver<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
     pub report: FunderReport<FS::Address, FS::NamedAddress>,
 }
 
@@ -170,7 +170,7 @@ pub enum NodeRecv<FS: FunderScheme> {
 }
 
 impl<FS: FunderScheme> NodeControl<FS> {
-    pub async fn send(&mut self, msg: FunderIncomingControl<FS>) -> Option<()> {
+    pub async fn send(&mut self, msg: FunderIncomingControl<FS::Address, FS::NamedAddress>) -> Option<()> {
         await!(self.send_control.send(msg))
             .ok()
             .map(|_| ())

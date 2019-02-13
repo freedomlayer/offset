@@ -38,9 +38,9 @@ pub enum FunderEvent<FS: FunderScheme> {
 pub async fn inner_funder_loop<FS,R>(
     mut identity_client: IdentityClient,
     rng: R,
-    incoming_control: mpsc::Receiver<FunderIncomingControl<FS>>,
+    incoming_control: mpsc::Receiver<FunderIncomingControl<FS::Address, FS::NamedAddress>>,
     incoming_comm: mpsc::Receiver<FunderIncomingComm<FS>>,
-    control_sender: mpsc::Sender<FunderOutgoingControl<FS>>,
+    control_sender: mpsc::Sender<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
     comm_sender: mpsc::Sender<FunderOutgoingComm<FS>>,
     mut funder_state: FunderState<FS>,
     mut db_client: DatabaseClient<FunderMutation<FS>>,
@@ -136,9 +136,9 @@ where
 pub async fn funder_loop<FS,R>(
     identity_client: IdentityClient,
     rng: R,
-    incoming_control: mpsc::Receiver<FunderIncomingControl<FS>>,
+    incoming_control: mpsc::Receiver<FunderIncomingControl<FS::Address, FS::NamedAddress>>,
     incoming_comm: mpsc::Receiver<FunderIncomingComm<FS>>,
-    control_sender: mpsc::Sender<FunderOutgoingControl<FS>>,
+    control_sender: mpsc::Sender<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
     comm_sender: mpsc::Sender<FunderOutgoingComm<FS>>,
     max_operations_in_batch: usize,
     max_pending_user_requests: usize,

@@ -22,7 +22,7 @@ pub async fn apply_funder_incoming<'a,FS,R>(funder_incoming: FunderIncoming<FS>,
                                ephemeral: &'a mut Ephemeral, 
                                rng: &'a mut R, 
                                identity_client: &'a mut IdentityClient) 
-                -> Result<(Vec<FunderOutgoingComm<FS>>, Vec<FunderOutgoingControl<FS>>), FunderHandlerError> 
+                -> Result<(Vec<FunderOutgoingComm<FS>>, Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>), FunderHandlerError> 
 where
     FS: FunderScheme,
     R: CryptoRandom + 'a,

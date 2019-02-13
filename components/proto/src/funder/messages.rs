@@ -406,15 +406,15 @@ pub struct ReceiptAck {
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// A  -- Anonymous address
 /// NA -- Named address
-pub enum FunderIncomingControl<FS: FunderScheme> {
+pub enum FunderIncomingControl<RA,NRA> {
     /// Set relay address used for the local node
-    SetAddress(FS::NamedAddress),
-    AddFriend(AddFriend<FS::Address>),
+    SetAddress(NRA),
+    AddFriend(AddFriend<RA>),
     RemoveFriend(RemoveFriend),
     SetRequestsStatus(SetRequestsStatus),
     SetFriendStatus(SetFriendStatus),
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
-    SetFriendAddress(SetFriendAddress<FS::Address>),
+    SetFriendAddress(SetFriendAddress<RA>),
     SetFriendName(SetFriendName),
     ResetFriendChannel(ResetFriendChannel),
     RequestSendFunds(UserRequestSendFunds),
@@ -456,7 +456,7 @@ pub struct ResponseReceived {
 
 
 #[derive(Debug)]
-pub enum FunderOutgoingControl<FS:FunderScheme> {
+pub enum FunderOutgoingControl<RA,NRA> {
     ResponseReceived(ResponseReceived),
-    ReportMutations(Vec<FunderReportMutation<FS::Address, FS::NamedAddress>>),
+    ReportMutations(Vec<FunderReportMutation<RA,NRA>>),
 }

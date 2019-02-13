@@ -21,7 +21,7 @@ pub enum HandleLivenessError {
 pub fn handle_liveness_message<FS>(m_state: &mut MutableFunderState<FS>,
                                     m_ephemeral: &mut MutableEphemeral,
                                     send_commands: &mut SendCommands,
-                                    outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
+                                    outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                                     liveness_message: IncomingLivenessMessage)
     -> Result<(), HandleLivenessError> 
 

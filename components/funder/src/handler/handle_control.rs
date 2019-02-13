@@ -122,7 +122,7 @@ where
 
 fn disable_friend<FS>(m_state: &mut MutableFunderState<FS>,
                      send_commands: &mut SendCommands,
-                     outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
+                     outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                      outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
                      friend_public_key: &PublicKey) 
 where
@@ -182,7 +182,7 @@ where
 /// An inconsistency will occur if the friend is added again.
 fn control_remove_friend<FS>(m_state: &mut MutableFunderState<FS>,
                             send_commands: &mut SendCommands,
-                            outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
+                            outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                             outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
                             remove_friend: RemoveFriend) 
     -> Result<(), HandleControlError> 
@@ -213,7 +213,7 @@ where
 
 fn control_set_friend_status<FS>(m_state: &mut MutableFunderState<FS>, 
                                 send_commands: &mut SendCommands,
-                                outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
+                                outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                                 outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
                                 set_friend_status: SetFriendStatus) 
     -> Result<(), HandleControlError> 
@@ -345,7 +345,7 @@ fn check_user_request_valid(user_request_send_funds: &UserRequestSendFunds)
 
 fn control_request_send_funds_inner<FS>(m_state: &mut MutableFunderState<FS>,
                                        ephemeral: &Ephemeral,
-                                       outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
+                                       outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                                        send_commands: &mut SendCommands,
                                        max_pending_user_requests: usize,
                                        user_request_send_funds: UserRequestSendFunds)
@@ -435,7 +435,7 @@ where
 
 fn control_request_send_funds<FS>(m_state: &mut MutableFunderState<FS>, 
                                  ephemeral: &Ephemeral,
-                                 outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
+                                 outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                                  send_commands: &mut SendCommands,
                                  max_pending_user_requests: usize,
                                  user_request_send_funds: UserRequestSendFunds) 
@@ -495,10 +495,10 @@ where
 pub fn handle_control_message<FS>(m_state: &mut MutableFunderState<FS>,
                                  m_ephemeral: &mut MutableEphemeral,
                                  send_commands: &mut SendCommands,
-                                 outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
+                                 outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                                  outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
                                  max_pending_user_requests: usize,
-                                 incoming_control: FunderIncomingControl<FS>) 
+                                 incoming_control: FunderIncomingControl<FS::Address, FS::NamedAddress>) 
     -> Result<(), HandleControlError> 
 where
     FS: FunderScheme,

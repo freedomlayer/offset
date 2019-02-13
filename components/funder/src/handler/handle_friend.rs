@@ -189,7 +189,7 @@ where
 
 fn handle_response_send_funds<FS>(m_state: &mut MutableFunderState<FS>,
                                  send_commands: &mut SendCommands,
-                                 outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
+                                 outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                                  response_send_funds: ResponseSendFunds,
                                  pending_request: PendingRequest) 
 where
@@ -230,7 +230,7 @@ where
 
 fn handle_failure_send_funds<FS>(m_state: &mut MutableFunderState<FS>,
                                 send_commands: &mut SendCommands,
-                                outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
+                                outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                                 failure_send_funds: FailureSendFunds,
                                 pending_request: PendingRequest) 
 where
@@ -268,7 +268,7 @@ where
 fn handle_move_token_output<FS>(m_state: &mut MutableFunderState<FS>,
                                m_ephemeral: &mut MutableEphemeral,
                                send_commands: &mut SendCommands,
-                               outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
+                               outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                                remote_public_key: &PublicKey,
                                incoming_messages: Vec<IncomingMessage>) 
 where
@@ -310,7 +310,7 @@ where
 /// Handle an error with incoming move token.
 fn handle_move_token_error<FS,R>(m_state: &mut MutableFunderState<FS>,
                                 send_commands: &mut SendCommands,
-                                outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
+                                outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                                 rng: &R,
                                 remote_public_key: &PublicKey)
 where
@@ -360,7 +360,7 @@ where
 fn handle_move_token_success<FS>(m_state: &mut MutableFunderState<FS>,
                                 m_ephemeral: &mut MutableEphemeral,
                                 send_commands: &mut SendCommands,
-                                outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
+                                outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                                 outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
                                 remote_public_key: &PublicKey,
                                 receive_move_token_output: ReceiveMoveTokenOutput<FS>,
@@ -465,7 +465,7 @@ where
 fn handle_move_token_request<FS,R>(m_state: &mut MutableFunderState<FS>, 
                                 m_ephemeral: &mut MutableEphemeral,
                                 send_commands: &mut SendCommands,
-                                outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
+                                outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                                 outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
                                 rng: &R,
                                 remote_public_key: &PublicKey,
@@ -522,7 +522,7 @@ where
 
 fn handle_inconsistency_error<FS,R>(m_state: &mut MutableFunderState<FS>,
                                    send_commands: &mut SendCommands,
-                                   outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
+                                   outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                                    rng: &R,
                                    remote_public_key: &PublicKey,
                                    remote_reset_terms: ResetTerms)
@@ -591,7 +591,7 @@ where
 pub fn handle_friend_message<FS,R>(m_state: &mut MutableFunderState<FS>, 
                                   m_ephemeral: &mut MutableEphemeral,
                                   send_commands: &mut SendCommands,
-                                  outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
+                                  outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                                   outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
                                   rng: &R,
                                   remote_public_key: &PublicKey, 

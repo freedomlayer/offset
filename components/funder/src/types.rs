@@ -253,13 +253,13 @@ pub enum FunderIncomingComm<FS:FunderScheme> {
 #[derive(Clone, Debug)]
 pub enum FunderIncoming<FS:FunderScheme> {
     Init,
-    Control(FunderIncomingControl<FS>),
+    Control(FunderIncomingControl<FS::Address, FS::NamedAddress>),
     Comm(FunderIncomingComm<FS>),
 }
 
 #[derive(Debug)]
 pub enum FunderOutgoing<FS:FunderScheme> {
-    Control(FunderOutgoingControl<FS>),
+    Control(FunderOutgoingControl<FS::Address, FS::NamedAddress>),
     Comm(FunderOutgoingComm<FS>),
 }
 

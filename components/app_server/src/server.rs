@@ -23,7 +23,9 @@ use proto::app_server::messages::{AppServerToApp, AppToAppServer, NodeReport,
                                     NodeReportMutation, AppPermissions};
 use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClient};
 
-pub type IncomingAppConnection<FS,ISA> = (AppPermissions, ConnPair<AppServerToApp<FS,ISA>, AppToAppServer<FS,ISA>>);
+pub type IncomingAppConnection<RA,NRA,ISA> = (AppPermissions, 
+                                          ConnPair<AppServerToApp<RA,NRA,ISA>, 
+                                                   AppToAppServer<RA,NRA,ISA>>);
 
 
 #[derive(Debug)]
@@ -37,7 +39,7 @@ pub enum AppServerError {
 }
 
 pub enum AppServerEvent<FS: FunderScheme,ISA> {
-    IncomingConnection(IncomingAppConnection<FS,ISA>),
+    IncomingConnection(IncomingAppConnection<RA,NRA,ISA>),
     IncomingConnectionsClosed,
     FromFunder(FunderOutgoingControl<FS>),
     FunderClosed,
@@ -48,7 +50,7 @@ pub enum AppServerEvent<FS: FunderScheme,ISA> {
 
 pub struct App<FS: FunderScheme, ISA> {
     permissions: AppPermissions,
-    opt_sender: Option<mpsc::Sender<AppServerToApp<FS,ISA>>>,
+    opt_sender: Option<mpsc::Sender<AppServerToApp<FS::Address,FS::NamedAddress,ISA>>>,
     open_route_requests: HashSet<Uid>,
     open_send_funds_requests: HashSet<Uid>,
 }
@@ -58,7 +60,7 @@ where
     FS: FunderScheme,
 {
     pub fn new(permissions: AppPermissions,
-               sender: mpsc::Sender<AppServerToApp<FS,ISA>>) -> Self {
+               sender: mpsc::Sender<AppServerToApp<FS::Address,FS::NamedAddress,ISA>>) -> Self {
 
         App {
             permissions,
@@ -68,7 +70,7 @@ where
         }
     }
 
-    pub async fn send(&mut self, message: AppServerToApp<FS,ISA>)  {
+    pub async fn send(&mut self, message: AppServerToApp<FS::Address,FS::NamedAddress,ISA>)  {
         match self.opt_sender.take() {
             Some(mut sender) => {
                 if let Ok(()) = await!(sender.send(message)) {

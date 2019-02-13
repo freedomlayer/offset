@@ -59,7 +59,7 @@ where
 /// communicated to the remote side).
 pub fn cancel_local_pending_requests<FS>(m_state: &mut MutableFunderState<FS>,
                                      send_commands: &mut SendCommands,
-                                     outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
+                                     outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                                      friend_public_key: &PublicKey) 
 where
     FS: FunderScheme,
@@ -112,7 +112,7 @@ where
 
 pub fn cancel_pending_requests<FS>(m_state: &mut MutableFunderState<FS>,
                                   send_commands: &mut SendCommands,
-                                  outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
+                                  outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                                   friend_public_key: &PublicKey) 
 where
     FS: FunderScheme,
@@ -150,7 +150,7 @@ where
 }
 
 pub fn cancel_pending_user_requests<FS>(m_state: &mut MutableFunderState<FS>,
-                                       outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
+                                       outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                                        friend_public_key: &PublicKey) 
 where
     FS: FunderScheme,
