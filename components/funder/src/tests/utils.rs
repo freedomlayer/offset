@@ -160,12 +160,12 @@ pub struct NodeControl<FS: FunderScheme> {
     pub public_key: PublicKey,
     send_control: mpsc::Sender<FunderIncomingControl<FS>>,
     recv_control: mpsc::Receiver<FunderOutgoingControl<FS>>,
-    pub report: FunderReport<FS>,
+    pub report: FunderReport<FS::Address, FS::NamedAddress>,
 }
 
 #[derive(Debug)]
 pub enum NodeRecv<FS: FunderScheme> {
-    ReportMutations(Vec<FunderReportMutation<FS>>),
+    ReportMutations(Vec<FunderReportMutation<FS::Address, FS::NamedAddress>>),
     ResponseReceived(ResponseReceived),
 }
 
@@ -192,7 +192,7 @@ impl<FS: FunderScheme> NodeControl<FS> {
 
     pub async fn recv_until<'a, P: 'a>(&'a mut self, predicate: P)
     where
-        P: Fn(&FunderReport<FS>) -> bool,
+        P: Fn(&FunderReport<FS::Address, FS::NamedAddress>) -> bool,
     {
         while !predicate(&self.report) {
             match await!(self.recv()).unwrap() {
@@ -213,7 +213,7 @@ impl<FS: FunderScheme> NodeControl<FS> {
 
     pub async fn set_address<'a>(&'a mut self, address: FS::NamedAddress) {
         await!(self.send(FunderIncomingControl::SetAddress(address.clone()))).unwrap();
-        let pred = |report: &FunderReport<_>| report.address == address;
+        let pred = |report: &FunderReport<_,_>| report.address == address;
         await!(self.recv_until(pred));
     }
 
@@ -230,7 +230,7 @@ impl<FS: FunderScheme> NodeControl<FS> {
             balance, 
         };
         await!(self.send(FunderIncomingControl::AddFriend(add_friend))).unwrap();
-        let pred = |report: &FunderReport<_>| report.friends.contains_key(&friend_public_key);
+        let pred = |report: &FunderReport<_,_>| report.friends.contains_key(&friend_public_key);
         await!(self.recv_until(pred));
     }
 
@@ -243,7 +243,7 @@ impl<FS: FunderScheme> NodeControl<FS> {
             status: status.clone(),
         };
         await!(self.send(FunderIncomingControl::SetFriendStatus(set_friend_status))).unwrap();
-        let pred = |report: &FunderReport<_>| {
+        let pred = |report: &FunderReport<_,_>| {
            match report.friends.get(&friend_public_key) {
                None => false,
                Some(friend) => friend.status == FriendStatusReport::from(&status),
@@ -262,7 +262,7 @@ impl<FS: FunderScheme> NodeControl<FS> {
         };
         await!(self.send(FunderIncomingControl::SetFriendRemoteMaxDebt(set_remote_max_debt))).unwrap();
 
-        let pred = |report: &FunderReport<_>| {
+        let pred = |report: &FunderReport<_,_>| {
            let friend = match report.friends.get(&friend_public_key) {
                Some(friend) => friend,
                None => return false,
@@ -286,7 +286,7 @@ impl<FS: FunderScheme> NodeControl<FS> {
         };
         await!(self.send(FunderIncomingControl::SetRequestsStatus(set_requests_status))).unwrap();
 
-        let pred = |report: &FunderReport<_>| {
+        let pred = |report: &FunderReport<_,_>| {
            let friend = match report.friends.get(&friend_public_key) {
                Some(friend) => friend,
                None => return false,
@@ -303,7 +303,7 @@ impl<FS: FunderScheme> NodeControl<FS> {
     pub async fn wait_until_ready<'a>(&'a mut self, 
                          friend_public_key: &'a PublicKey) {
 
-        let pred = |report: &FunderReport<_>| {
+        let pred = |report: &FunderReport<_,_>| {
            let friend = match report.friends.get(&friend_public_key) {
                None => return false,
                Some(friend) => friend,

@@ -458,5 +458,5 @@ pub struct ResponseReceived {
 #[derive(Debug)]
 pub enum FunderOutgoingControl<FS:FunderScheme> {
     ResponseReceived(ResponseReceived),
-    ReportMutations(Vec<FunderReportMutation<FS>>),
+    ReportMutations(Vec<FunderReportMutation<FS::Address, FS::NamedAddress>>),
 }

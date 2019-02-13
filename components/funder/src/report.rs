@@ -21,8 +21,8 @@ use crate::ephemeral::{Ephemeral, EphemeralMutation};
 
 
 
-impl<FS:FunderScheme> Into<SentLocalAddressReport<FS>> for &SentLocalAddress<FS> {
-    fn into(self) -> SentLocalAddressReport<FS> {
+impl<FS:FunderScheme> Into<SentLocalAddressReport<FS::NamedAddress>> for &SentLocalAddress<FS> {
+    fn into(self) -> SentLocalAddressReport<FS::NamedAddress> {
         match self {
             SentLocalAddress::NeverSent => 
                 SentLocalAddressReport::NeverSent,
@@ -114,7 +114,8 @@ impl<FS:FunderScheme> From<&ChannelStatus<FS>> for ChannelStatusReport {
     }
 }
 
-fn create_friend_report<FS:FunderScheme>(friend_state: &FriendState<FS>, friend_liveness: &FriendLivenessReport) -> FriendReport<FS> {
+fn create_friend_report<FS:FunderScheme>(friend_state: &FriendState<FS>, friend_liveness: &FriendLivenessReport) 
+        -> FriendReport<FS::Address, FS::NamedAddress> {
     let channel_status = ChannelStatusReport::from(&friend_state.channel_status);
 
     FriendReport {
@@ -134,7 +135,8 @@ fn create_friend_report<FS:FunderScheme>(friend_state: &FriendState<FS>, friend_
     }
 }
 
-pub fn create_report<FS>(funder_state: &FunderState<FS>, ephemeral: &Ephemeral) -> FunderReport<FS> 
+pub fn create_report<FS>(funder_state: &FunderState<FS>, ephemeral: &Ephemeral) 
+    -> FunderReport<FS::Address, FS::NamedAddress> 
 where
     FS: FunderScheme,
 {
@@ -156,7 +158,8 @@ where
     }
 }
 
-pub fn create_initial_report<FS>(funder_state: &FunderState<FS>) -> FunderReport<FS> 
+pub fn create_initial_report<FS>(funder_state: &FunderState<FS>) 
+    -> FunderReport<FS::Address, FS::NamedAddress> 
 where
     FS: FunderScheme,
 {
@@ -165,7 +168,8 @@ where
 
 
 pub fn friend_mutation_to_report_mutations<FS>(friend_mutation: &FriendMutation<FS>,
-                                           friend: &FriendState<FS>) -> Vec<FriendReportMutation<FS>> 
+                                           friend: &FriendState<FS>) 
+    -> Vec<FriendReportMutation<FS::Address, FS::NamedAddress>> 
 where
     FS: FunderScheme,
 {
@@ -239,7 +243,8 @@ where
 /// In the future if we simplify Funder's mutations, we might be able discard the `funder_state`
 /// argument here.
 pub fn funder_mutation_to_report_mutations<FS>(funder_mutation: &FunderMutation<FS>,
-                                           funder_state: &FunderState<FS>) -> Vec<FunderReportMutation<FS>> 
+                                           funder_state: &FunderState<FS>) 
+    -> Vec<FunderReportMutation<FS::Address, FS::NamedAddress>> 
 where
     FS: FunderScheme,
 {
@@ -292,7 +297,7 @@ where
 }
 
 pub fn ephemeral_mutation_to_report_mutations<FS:FunderScheme>(ephemeral_mutation: &EphemeralMutation) 
-                -> Vec<FunderReportMutation<FS>> {
+                -> Vec<FunderReportMutation<FS::Address, FS::NamedAddress>> {
 
     match ephemeral_mutation {
         EphemeralMutation::LivenessMutation(liveness_mutation) => {

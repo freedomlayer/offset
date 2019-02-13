@@ -1,5 +1,3 @@
-use identity::IdentityClient;
-
 use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
@@ -7,6 +5,8 @@ use crypto::crypto_rand::CryptoRandom;
 use proto::funder::messages::FunderOutgoingControl;
 use proto::funder::scheme::FunderScheme;
 use proto::report::messages::FunderReportMutation;
+
+use identity::IdentityClient;
 
 use crate::state::{FunderState, FunderMutation};
 
@@ -22,6 +22,7 @@ use crate::ephemeral::{Ephemeral, EphemeralMutation};
 use crate::friend::ChannelStatus;
 use crate::report::{funder_mutation_to_report_mutations, 
     ephemeral_mutation_to_report_mutations};
+
 
 
 
@@ -206,7 +207,8 @@ where
 
 fn create_report_mutations<FS>(initial_state: FunderState<FS>,
                            funder_mutations: &[FunderMutation<FS>],
-                           ephemeral_mutations: &[EphemeralMutation]) -> Vec<FunderReportMutation<FS>> 
+                           ephemeral_mutations: &[EphemeralMutation]) 
+    -> Vec<FunderReportMutation<FS::Address, FS::NamedAddress>> 
 where
     FS: FunderScheme,
 {
@@ -219,7 +221,7 @@ where
     }
     
     for ephemeral_mutation in ephemeral_mutations {
-        report_mutations.extend(ephemeral_mutation_to_report_mutations(ephemeral_mutation));
+        report_mutations.extend(ephemeral_mutation_to_report_mutations::<FS>(ephemeral_mutation));
     }
 
     report_mutations
