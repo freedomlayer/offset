@@ -9,18 +9,19 @@ use crate::report::messages::{FunderReport, FunderReportMutation};
 use crate::index_client::messages::{IndexClientReport, 
     IndexClientReportMutation, ClientResponseRoutes};
 use crate::index_server::messages::RequestRoutes;
+use crate::net::messages::NetAddress;
 
 use index_client::messages::AddIndexServer;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct NamedRelayAddress<B> {
+pub struct NamedRelayAddress<B=NetAddress> {
     pub public_key: PublicKey,
     pub address: B,
     pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct RelayAddress<B> {
+pub struct RelayAddress<B=NetAddress> {
     pub public_key: PublicKey,
     pub address: B,
 }
@@ -62,15 +63,15 @@ pub enum AppServerToApp<FS: FunderScheme,ISA> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum AppToAppServer<FS: FunderScheme,ISA> {
+pub enum AppToAppServer<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>,ISA=NetAddress> {
     /// Set relay address to be used locally:
-    SetRelays(FS::NamedAddress),
+    SetRelays(NRA),
     /// Sending funds:
     RequestSendFunds(UserRequestSendFunds),
     ReceiptAck(ReceiptAck),
     /// Friend management:
-    AddFriend(AddFriend<FS>),
-    SetFriendRelays(SetFriendAddress<FS>),
+    AddFriend(AddFriend<RA>),
+    SetFriendRelays(SetFriendAddress<RA>),
     SetFriendName(SetFriendName),
     RemoveFriend(PublicKey),
     EnableFriend(PublicKey),

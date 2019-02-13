@@ -12,25 +12,26 @@ use common::canonical_serialize::CanonicalSerialize;
 use crate::report::messages::FunderReportMutation;
 use crate::consts::MAX_ROUTE_LEN;
 use crate::funder::scheme::FunderScheme;
+use crate::app_server::messages::RelayAddress;
 
 
 #[derive(Debug)]
-pub struct ChannelerUpdateFriend<FS: FunderScheme> {
+pub struct ChannelerUpdateFriend<RA> {
     pub friend_public_key: PublicKey,
     /// We should try to connect to this address:
-    pub friend_address: FS::Address,
+    pub friend_address: RA,
     /// We should be listening on this address:
-    pub local_addresses: Vec<FS::Address>,
+    pub local_addresses: Vec<RA>,
 }
 
 #[derive(Debug)]
-pub enum FunderToChanneler<FS:FunderScheme> {
+pub enum FunderToChanneler<RA> {
     /// Send a message to a friend
     Message((PublicKey, Vec<u8>)), // (friend_public_key, message)
     /// Set address for relay used by local node
-    SetAddress(FS::Address), 
+    SetAddress(RA), 
     /// Request to add a new friend or update friend's information
-    UpdateFriend(ChannelerUpdateFriend<FS>),
+    UpdateFriend(ChannelerUpdateFriend<RA>),
     /// Request to remove a friend
     RemoveFriend(PublicKey), // friend_public_key
 }
@@ -338,9 +339,9 @@ impl RequestsStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AddFriend<FS:FunderScheme> {
+pub struct AddFriend<RA=Vec<RelayAddress>> {
     pub friend_public_key: PublicKey,
-    pub address: FS::Address,
+    pub address: RA,
     pub name: String,
     pub balance: i128, // Initial balance
 }
@@ -375,9 +376,9 @@ pub struct SetFriendName {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SetFriendAddress<FS:FunderScheme> {
+pub struct SetFriendAddress<RA> {
     pub friend_public_key: PublicKey,
-    pub address: FS::Address,
+    pub address: RA,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -408,12 +409,12 @@ pub struct ReceiptAck {
 pub enum FunderIncomingControl<FS: FunderScheme> {
     /// Set relay address used for the local node
     SetAddress(FS::NamedAddress),
-    AddFriend(AddFriend<FS>),
+    AddFriend(AddFriend<FS::Address>),
     RemoveFriend(RemoveFriend),
     SetRequestsStatus(SetRequestsStatus),
     SetFriendStatus(SetFriendStatus),
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
-    SetFriendAddress(SetFriendAddress<FS>),
+    SetFriendAddress(SetFriendAddress<FS::Address>),
     SetFriendName(SetFriendName),
     ResetFriendChannel(ResetFriendChannel),
     RequestSendFunds(UserRequestSendFunds),

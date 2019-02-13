@@ -33,7 +33,7 @@ use crate::funder::serialize::{ser_friends_route, deser_friends_route};
 use crate::net::messages::NetAddress;
 
 use crate::app_server::messages::{AppServerToApp, AppToAppServer, 
-    AppPermissions};
+    AppPermissions, RelayAddress};
 use crate::scheme::OffstScheme;
 
 
@@ -121,7 +121,7 @@ fn deser_receipt_ack(receipt_ack_reader: &app_server_capnp::receipt_ack::Reader)
     })
 }
 
-fn ser_add_friend(add_friend: &AddFriend<OffstScheme>,
+fn ser_add_friend(add_friend: &AddFriend,
                     add_friend_builder: &mut app_server_capnp::add_friend::Builder) {
 
     write_public_key(&add_friend.friend_public_key, 
@@ -141,7 +141,7 @@ fn ser_add_friend(add_friend: &AddFriend<OffstScheme>,
 }
 
 fn deser_add_friend(add_friend_reader: &app_server_capnp::add_friend::Reader)
-    -> Result<AddFriend<OffstScheme>, SerializeError> {
+    -> Result<AddFriend, SerializeError> {
 
     // TODO
     let mut relays = Vec::new();
@@ -175,7 +175,7 @@ fn deser_set_friend_name(set_friend_name_reader: &app_server_capnp::set_friend_n
     })
 }
 
-fn ser_set_friend_relays(set_friend_address: &SetFriendAddress<OffstScheme>,
+fn ser_set_friend_relays(set_friend_address: &SetFriendAddress<Vec<RelayAddress>>,
                     set_friend_relays_builder: &mut app_server_capnp::set_friend_relays::Builder) {
 
     write_public_key(&set_friend_address.friend_public_key, 
@@ -190,7 +190,7 @@ fn ser_set_friend_relays(set_friend_address: &SetFriendAddress<OffstScheme>,
 }
 
 fn deser_set_friend_relays(set_friend_relays_reader: &app_server_capnp::set_friend_relays::Reader)
-    -> Result<SetFriendAddress<OffstScheme>, SerializeError> {
+    -> Result<SetFriendAddress<Vec<RelayAddress>>, SerializeError> {
 
     let mut relays = Vec::new();
     for relay_address in set_friend_relays_reader.get_relays()? {
@@ -372,7 +372,7 @@ fn deser_app_server_to_app(app_server_to_app_reader: &app_server_capnp::app_serv
     })
 }
 
-fn ser_app_to_app_server(app_to_app_server: &AppToAppServer<OffstScheme, NetAddress>,
+fn ser_app_to_app_server(app_to_app_server: &AppToAppServer,
                     app_to_app_server_builder: &mut app_server_capnp::app_to_app_server::Builder) {
 
     match app_to_app_server {
@@ -433,7 +433,7 @@ fn ser_app_to_app_server(app_to_app_server: &AppToAppServer<OffstScheme, NetAddr
 }
 
 fn deser_app_to_app_server(app_to_app_server: &app_server_capnp::app_to_app_server::Reader)
-    -> Result<AppToAppServer<OffstScheme, NetAddress>, SerializeError> {
+    -> Result<AppToAppServer, SerializeError> {
 
     Ok(match app_to_app_server.which()? {
         app_server_capnp::app_to_app_server::SetRelays(named_relays_reader) => {
@@ -530,7 +530,7 @@ pub fn deserialize_app_server_to_app(data: &[u8]) -> Result<AppServerToApp<Offst
     deser_app_server_to_app(&app_server_to_app_reader)
 }
 
-pub fn serialize_app_to_app_server(app_server_to_app: &AppToAppServer<OffstScheme, NetAddress>) -> Vec<u8> {
+pub fn serialize_app_to_app_server(app_server_to_app: &AppToAppServer) -> Vec<u8> {
     let mut builder = capnp::message::Builder::new_default();
     let mut app_to_app_server = builder.init_root::<app_server_capnp::app_to_app_server::Builder>();
     ser_app_to_app_server(app_server_to_app, &mut app_to_app_server);
@@ -540,7 +540,7 @@ pub fn serialize_app_to_app_server(app_server_to_app: &AppToAppServer<OffstSchem
     ser_buff
 }
 
-pub fn deserialize_app_to_app_server(data: &[u8]) -> Result<AppToAppServer<OffstScheme, NetAddress>, SerializeError> {
+pub fn deserialize_app_to_app_server(data: &[u8]) -> Result<AppToAppServer, SerializeError> {
     let mut cursor = io::Cursor::new(data);
     let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let app_to_app_server = reader.get_root::<app_server_capnp::app_to_app_server::Reader>()?;

@@ -151,7 +151,7 @@ pub fn funder_handle_incoming<FS,R>(mut m_state: &mut MutableFunderState<FS>,
                                    funder_incoming: FunderIncoming<FS>)
                                     -> Result<(SendCommands, 
                                         Vec<FunderOutgoingControl<FS>>, 
-                                        Vec<ChannelerConfig<FS>>), FunderHandlerError>
+                                        Vec<ChannelerConfig<FS::Address>>), FunderHandlerError>
 
 where
     FS: FunderScheme,

@@ -6,7 +6,7 @@ use crate::types::ChannelerConfig;
 use crate::handler::handler::MutableFunderState;
 
 pub fn handle_init<FS>(m_state: &MutableFunderState<FS>,
-                      outgoing_channeler_config: &mut Vec<ChannelerConfig<FS>>)
+                      outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>)
 where
     FS: FunderScheme,
 {

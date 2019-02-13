@@ -234,12 +234,12 @@ pub struct FriendInconsistencyError {
 }
 
 #[derive(Debug)]
-pub enum ChannelerConfig<FS:FunderScheme> {
+pub enum ChannelerConfig<RA> {
     /// Set relay address for local node
     /// This is the address the Channeler will connect to 
     /// and listen for new connections
-    SetAddress(FS::Address),
-    UpdateFriend(ChannelerUpdateFriend<FS>),
+    SetAddress(RA),
+    UpdateFriend(ChannelerUpdateFriend<RA>),
     RemoveFriend(PublicKey),
 }
 
@@ -266,5 +266,5 @@ pub enum FunderOutgoing<FS:FunderScheme> {
 #[derive(Debug)]
 pub enum FunderOutgoingComm<FS:FunderScheme> {
     FriendMessage((PublicKey, FriendMessage<FS>)),
-    ChannelerConfig(ChannelerConfig<FS>),
+    ChannelerConfig(ChannelerConfig<FS::Address>),
 }

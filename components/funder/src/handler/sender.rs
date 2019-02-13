@@ -263,7 +263,7 @@ async fn send_friend_iter1<'a,FS,R>(m_state: &'a mut MutableFunderState<FS>,
                                        rng: &'a R,
                                        max_operations_in_batch: usize,
                                        mut outgoing_messages: &'a mut Vec<OutgoingMessage<FS>>,
-                                       outgoing_channeler_config: &'a mut Vec<ChannelerConfig<FS>>)
+                                       outgoing_channeler_config: &'a mut Vec<ChannelerConfig<FS::Address>>)
 where
     FS: FunderScheme,
     R: CryptoRandom,
@@ -473,7 +473,7 @@ where
 /// send to the remote side. 
 /// Requests that fail to be processed are moved to the failure queues of the relevant friends.
 async fn collect_outgoing_move_token<'a,FS,R>(m_state: &'a mut MutableFunderState<FS>,
-                                                 outgoing_channeler_config: &'a mut Vec<ChannelerConfig<FS>>,
+                                                 outgoing_channeler_config: &'a mut Vec<ChannelerConfig<FS::Address>>,
                                                  friend_public_key: &'a PublicKey,
                                                  pending_move_token: &'a mut PendingMoveToken<FS>,
                                                  identity_client: &'a mut IdentityClient,
@@ -524,7 +524,7 @@ where
         let friend = m_state.state().friends.get(friend_public_key).unwrap();
 
         // Notify Channeler to change the friend's address:
-        let update_friend: ChannelerUpdateFriend<FS> = ChannelerUpdateFriend {
+        let update_friend: ChannelerUpdateFriend<FS::Address> = ChannelerUpdateFriend {
             friend_public_key: friend_public_key.clone(),
             friend_address: friend.remote_address.clone(),
             local_addresses: friend.sent_local_address.to_vec(),
@@ -733,7 +733,7 @@ pub async fn create_friend_messages<'a,FS,R>(m_state: &'a mut MutableFunderState
                         send_commands: &'a SendCommands,
                         max_operations_in_batch: usize,
                         identity_client: &'a mut IdentityClient,
-                        rng: &'a R) -> (Vec<OutgoingMessage<FS>>, Vec<ChannelerConfig<FS>>) 
+                        rng: &'a R) -> (Vec<OutgoingMessage<FS>>, Vec<ChannelerConfig<FS::Address>>) 
 where
     FS: FunderScheme,
     R: CryptoRandom,

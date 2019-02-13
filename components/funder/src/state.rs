@@ -23,7 +23,7 @@ pub struct FunderState<FS:FunderScheme> {
 pub enum FunderMutation<FS:FunderScheme> {
     FriendMutation((PublicKey, FriendMutation<FS>)),
     SetAddress(FS::NamedAddress),
-    AddFriend(AddFriend<FS>), 
+    AddFriend(AddFriend<FS::Address>), 
     RemoveFriend(PublicKey),
     AddReceipt((Uid, Receipt)),  //(request_id, receipt)
     RemoveReceipt(Uid),

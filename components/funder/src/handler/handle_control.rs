@@ -101,7 +101,7 @@ where
 }
 
 fn enable_friend<FS>(m_state: &mut MutableFunderState<FS>,
-                 outgoing_channeler_config: &mut Vec<ChannelerConfig<FS>>,
+                 outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
                  friend_public_key: &PublicKey,
                  friend_address: &FS::Address) 
 where
@@ -123,7 +123,7 @@ where
 fn disable_friend<FS>(m_state: &mut MutableFunderState<FS>,
                      send_commands: &mut SendCommands,
                      outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
-                     outgoing_channeler_config: &mut Vec<ChannelerConfig<FS>>,
+                     outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
                      friend_public_key: &PublicKey) 
 where
     FS: FunderScheme,
@@ -147,7 +147,7 @@ where
 
 fn control_set_address<FS>(m_state: &mut MutableFunderState<FS>, 
                           send_commands: &mut SendCommands,
-                          outgoing_channeler_config: &mut Vec<ChannelerConfig<FS>>,
+                          outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
                           address: FS::NamedAddress) 
 where
     FS: FunderScheme,
@@ -170,7 +170,7 @@ where
 }
 
 fn control_add_friend<FS>(m_state: &mut MutableFunderState<FS>, 
-                         add_friend: AddFriend<FS>)
+                         add_friend: AddFriend<FS::Address>)
 where
     FS: FunderScheme,
 {
@@ -183,7 +183,7 @@ where
 fn control_remove_friend<FS>(m_state: &mut MutableFunderState<FS>,
                             send_commands: &mut SendCommands,
                             outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
-                            outgoing_channeler_config: &mut Vec<ChannelerConfig<FS>>,
+                            outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
                             remove_friend: RemoveFriend) 
     -> Result<(), HandleControlError> 
 where
@@ -214,7 +214,7 @@ where
 fn control_set_friend_status<FS>(m_state: &mut MutableFunderState<FS>, 
                                 send_commands: &mut SendCommands,
                                 outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
-                                outgoing_channeler_config: &mut Vec<ChannelerConfig<FS>>,
+                                outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
                                 set_friend_status: SetFriendStatus) 
     -> Result<(), HandleControlError> 
 where
@@ -273,8 +273,8 @@ where
 }
 
 fn control_set_friend_address<FS>(m_state: &mut MutableFunderState<FS>, 
-                                 outgoing_channeler_config: &mut Vec<ChannelerConfig<FS>>,
-                                 set_friend_address: SetFriendAddress<FS>)
+                                 outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
+                                 set_friend_address: SetFriendAddress<FS::Address>)
     -> Result<(), HandleControlError> 
 where
     FS: FunderScheme,
@@ -496,7 +496,7 @@ pub fn handle_control_message<FS>(m_state: &mut MutableFunderState<FS>,
                                  m_ephemeral: &mut MutableEphemeral,
                                  send_commands: &mut SendCommands,
                                  outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
-                                 outgoing_channeler_config: &mut Vec<ChannelerConfig<FS>>,
+                                 outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
                                  max_pending_user_requests: usize,
                                  incoming_control: FunderIncomingControl<FS>) 
     -> Result<(), HandleControlError> 
