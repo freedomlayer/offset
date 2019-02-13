@@ -40,7 +40,9 @@ where
     };
 
     // Send a command through the app:
-    let new_address = vec![0u32, 1u32, 2u32];
+    let new_address = vec![("0".to_string(), 0u32), 
+                           ("1".to_string(), 1u32), 
+                           ("2".to_string(), 2u32)];
     await!(app_sender.send(AppToAppServer::SetRelays(new_address.clone()))).unwrap();
 
     // SetRelays command should be forwarded to the Funder:

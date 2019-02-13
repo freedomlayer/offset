@@ -15,16 +15,36 @@ use proto::index_server::messages::NamedIndexServerAddress;
 
 use crate::server::{IncomingAppConnection, app_server_loop};
 
+use proto::funder::scheme::FunderScheme;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TestFunderScheme;
+
+impl FunderScheme for TestFunderScheme {
+    /// An anonymous address
+    type Address = Vec<u32>;
+    /// An address that contains a name (Provided by the user of this node)
+    type NamedAddress = Vec<(String, u32)>;
+
+    /// A function to convert a NamedAddress to Address
+    fn anonymize_address(vec: Self::NamedAddress) -> Self::Address {
+        vec
+            .into_iter()
+            .map(|(_name, num)| num)
+            .collect::<Vec<_>>()
+    }
+}
+
 /// A test util function.
 /// Spawns an app server loop and returns all relevant channels
 /// used for control or communication.
 pub fn spawn_dummy_app_server<S>(mut spawner: S) -> 
-    (mpsc::Sender<FunderOutgoingControl<Vec<u32>>>,
-     mpsc::Receiver<FunderIncomingControl<Vec<u32>>>,
+    (mpsc::Sender<FunderOutgoingControl<TestFunderScheme>>,
+     mpsc::Receiver<FunderIncomingControl<TestFunderScheme>>,
      mpsc::Sender<IndexClientToAppServer<u64>>,
      mpsc::Receiver<AppServerToIndexClient<u64>>,
-     mpsc::Sender<IncomingAppConnection<u32,u64>>,
-     NodeReport<u32,u64>)
+     mpsc::Sender<IncomingAppConnection<TestFunderScheme,u64>>,
+     NodeReport<TestFunderScheme,u64>)
 
 where
     S: Spawn + Clone + Send + 'static,
@@ -40,7 +60,7 @@ where
     // Create a dummy initial_node_report:
     let funder_report = FunderReport {
         local_public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
-        address: vec![0u32, 1u32],
+        address: vec![("0".to_string(), 0u32), ("1".to_string(), 1u32)],
         friends: ImHashMap::new(),
         num_ready_receipts: 0,
     };

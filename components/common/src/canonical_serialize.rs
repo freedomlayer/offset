@@ -56,3 +56,17 @@ impl CanonicalSerialize for u32 {
     }
 }
 
+impl<T,W> CanonicalSerialize for (T,W) 
+where   
+    T: CanonicalSerialize,
+    W: CanonicalSerialize,
+{
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let (t, w) = self;
+        let mut res_data = Vec::new();
+        res_data.extend_from_slice(&t.canonical_serialize());
+        res_data.extend_from_slice(&w.canonical_serialize());
+        res_data
+    }
+}
+
