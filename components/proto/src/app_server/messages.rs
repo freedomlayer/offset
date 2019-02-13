@@ -4,6 +4,7 @@ use crypto::identity::PublicKey;
 use crate::funder::messages::{UserRequestSendFunds, ResponseReceived,
                             ReceiptAck, AddFriend, SetFriendAddress, 
                             SetFriendName, SetFriendRemoteMaxDebt, ResetFriendChannel};
+use crate::funder::scheme::FunderScheme;
 use crate::report::messages::{FunderReport, FunderReportMutation};
 use crate::index_client::messages::{IndexClientReport, 
     IndexClientReportMutation, ClientResponseRoutes};
@@ -38,38 +39,38 @@ where
 
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NodeReport<B:Clone,ISA> {
-    pub funder_report: FunderReport<Vec<RelayAddress<B>>>,
+pub struct NodeReport<FS:FunderScheme,ISA> {
+    pub funder_report: FunderReport<FS>,
     pub index_client_report: IndexClientReport<ISA>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NodeReportMutation<B,ISA> {
-    Funder(FunderReportMutation<Vec<RelayAddress<B>>>),
+pub enum NodeReportMutation<FS:FunderScheme,ISA> {
+    Funder(FunderReportMutation<FS>),
     IndexClient(IndexClientReportMutation<ISA>),
 }
 
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum AppServerToApp<B: Clone,ISA> {
+pub enum AppServerToApp<FS: FunderScheme,ISA> {
     /// Funds:
     ResponseReceived(ResponseReceived),
     /// Reports about current state:
-    Report(NodeReport<B,ISA>),
-    ReportMutations(Vec<NodeReportMutation<B,ISA>>),
+    Report(NodeReport<FS,ISA>),
+    ReportMutations(Vec<NodeReportMutation<FS,ISA>>),
     ResponseRoutes(ClientResponseRoutes),
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum AppToAppServer<B,ISA> {
+pub enum AppToAppServer<FS: FunderScheme,ISA> {
     /// Set relay address to be used locally:
-    SetRelays(Vec<NamedRelayAddress<B>>), 
+    SetRelays(FS::NamedAddress),
     /// Sending funds:
     RequestSendFunds(UserRequestSendFunds),
     ReceiptAck(ReceiptAck),
     /// Friend management:
-    AddFriend(AddFriend<Vec<RelayAddress<B>>>),
-    SetFriendRelays(SetFriendAddress<Vec<RelayAddress<B>>>),
+    AddFriend(AddFriend<FS>),
+    SetFriendRelays(SetFriendAddress<FS>),
     SetFriendName(SetFriendName),
     RemoveFriend(PublicKey),
     EnableFriend(PublicKey),
@@ -89,12 +90,12 @@ pub enum AppToAppServer<B,ISA> {
 #[derive(Debug)]
 pub struct NodeReportMutateError;
 
-impl<B,ISA> NodeReport<B,ISA> 
+impl<FS,ISA> NodeReport<FS,ISA> 
 where
-    B: Clone,
+    FS: FunderScheme,
     ISA: Eq + Clone,
 {
-    pub fn mutate(&mut self, mutation: &NodeReportMutation<B,ISA>) 
+    pub fn mutate(&mut self, mutation: &NodeReportMutation<FS,ISA>) 
         -> Result<(), NodeReportMutateError> {
 
         match mutation {

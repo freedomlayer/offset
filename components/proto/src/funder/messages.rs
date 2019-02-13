@@ -11,26 +11,26 @@ use common::int_convert::{usize_to_u64};
 use common::canonical_serialize::CanonicalSerialize;
 use crate::report::messages::FunderReportMutation;
 use crate::consts::MAX_ROUTE_LEN;
+use crate::funder::scheme::FunderScheme;
 
 
 #[derive(Debug)]
-pub struct ChannelerUpdateFriend<A> {
+pub struct ChannelerUpdateFriend<FS: FunderScheme> {
     pub friend_public_key: PublicKey,
     /// We should try to connect to this address:
-    pub friend_address: A,
+    pub friend_address: FS::Address,
     /// We should be listening on this address:
-    pub local_addresses: Vec<A>,
+    pub local_addresses: Vec<FS::Address>,
 }
 
 #[derive(Debug)]
-pub enum FunderToChanneler<A> {
+pub enum FunderToChanneler<FS:FunderScheme> {
     /// Send a message to a friend
     Message((PublicKey, Vec<u8>)), // (friend_public_key, message)
     /// Set address for relay used by local node
-    /// None means that no address is configured.
-    SetAddress(A), 
+    SetAddress(FS::Address), 
     /// Request to add a new friend or update friend's information
-    UpdateFriend(ChannelerUpdateFriend<A>),
+    UpdateFriend(ChannelerUpdateFriend<FS>),
     /// Request to remove a friend
     RemoveFriend(PublicKey), // friend_public_key
 }
@@ -95,9 +95,9 @@ pub enum FriendTcOp {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct MoveToken<A,S=Signature> {
+pub struct MoveToken<FS:FunderScheme,S=Signature> {
     pub operations: Vec<FriendTcOp>,
-    pub opt_local_address: Option<A>,
+    pub opt_local_address: Option<FS::Address>,
     pub old_token: Signature,
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,
@@ -117,17 +117,17 @@ pub struct ResetTerms {
     pub balance_for_reset: i128,
 }
 
-#[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
-pub struct MoveTokenRequest<A> {
-    pub friend_move_token: MoveToken<A>,
+#[derive(PartialEq, Eq, Clone, Serialize, Debug)]
+pub struct MoveTokenRequest<FS:FunderScheme> {
+    pub friend_move_token: MoveToken<FS>,
     // Do we want the remote side to return the token:
     pub token_wanted: bool,
 }
 
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub enum FriendMessage<A> {
-    MoveTokenRequest(MoveTokenRequest<A>),
+pub enum FriendMessage<FS:FunderScheme> {
+    MoveTokenRequest(MoveTokenRequest<FS>),
     InconsistencyError(ResetTerms),
 }
 
@@ -338,9 +338,9 @@ impl RequestsStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AddFriend<A> {
+pub struct AddFriend<FS:FunderScheme> {
     pub friend_public_key: PublicKey,
-    pub address: A,
+    pub address: FS::Address,
     pub name: String,
     pub balance: i128, // Initial balance
 }
@@ -375,9 +375,9 @@ pub struct SetFriendName {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SetFriendAddress<A> {
+pub struct SetFriendAddress<FS:FunderScheme> {
     pub friend_public_key: PublicKey,
-    pub address: A,
+    pub address: FS::Address,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -403,15 +403,17 @@ pub struct ReceiptAck {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FunderIncomingControl<A> {
+/// A  -- Anonymous address
+/// NA -- Named address
+pub enum FunderIncomingControl<FS: FunderScheme> {
     /// Set relay address used for the local node
-    SetAddress(A),
-    AddFriend(AddFriend<A>),
+    SetAddress(FS::NamedAddress),
+    AddFriend(AddFriend<FS>),
     RemoveFriend(RemoveFriend),
     SetRequestsStatus(SetRequestsStatus),
     SetFriendStatus(SetFriendStatus),
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
-    SetFriendAddress(SetFriendAddress<A>),
+    SetFriendAddress(SetFriendAddress<FS>),
     SetFriendName(SetFriendName),
     ResetFriendChannel(ResetFriendChannel),
     RequestSendFunds(UserRequestSendFunds),
@@ -453,8 +455,7 @@ pub struct ResponseReceived {
 
 
 #[derive(Debug)]
-pub enum FunderOutgoingControl<A: Clone> {
+pub enum FunderOutgoingControl<FS:FunderScheme> {
     ResponseReceived(ResponseReceived),
-    // Report(FunderReport<A>),
-    ReportMutations(Vec<FunderReportMutation<A>>),
+    ReportMutations(Vec<FunderReportMutation<FS>>),
 }

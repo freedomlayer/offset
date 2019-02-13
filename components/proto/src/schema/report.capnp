@@ -8,6 +8,7 @@ using import "common.capnp".Signature;
 using import "common.capnp".RandNonce;
 
 using import "common.capnp".RelayAddress;
+using import "common.capnp".NamedRelayAddress;
 using import "common.capnp".NamedIndexServerAddress;
 using import "common.capnp".NetAddress;
 
@@ -147,7 +148,7 @@ struct PkFriendReport {
 # A full Funder report.
 struct FunderReport {
         localPublicKey @0: PublicKey;
-        relays @1: List(RelayAddress);
+        relays @1: List(NamedRelayAddress);
         friends @2: List(PkFriendReport);
         numReadyReceipts @3: UInt64;
 }
@@ -190,7 +191,7 @@ struct PkFriendReportMutation {
 # A FunderReportMutation. Could be applied over a FunderReport to make small changes.
 struct FunderReportMutation {
         union {
-                setRelays @0: List(RelayAddress);
+                setRelays @0: List(NamedRelayAddress);
                 addFriend @1: AddFriendReport;
                 removeFriend @2: PublicKey;
                 pkFriendReportMutation @3: PkFriendReportMutation;
