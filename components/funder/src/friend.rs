@@ -3,11 +3,11 @@ use im::vector::Vector;
 use crypto::identity::PublicKey;
 
 use common::safe_arithmetic::SafeUnsignedArithmetic;
-use common::canonical_serialize::CanonicalSerialize;
 
 use proto::funder::messages::{RequestSendFunds,
     ResponseSendFunds, FailureSendFunds, ResetTerms,
     FriendStatus, RequestsStatus, PendingRequest};
+use proto::funder::scheme::FunderScheme;
 
 use crate::token_channel::{TcMutation, TokenChannel};
 use crate::types::MoveTokenHashed;
@@ -23,33 +23,31 @@ pub enum ResponseOp {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum SentLocalAddress<A> {
+pub enum SentLocalAddress<FS:FunderScheme> {
     NeverSent,
-    Transition((A, A)), // (last sent, before last sent)
-    LastSent(A),
+    Transition((FS::NamedAddress, FS::NamedAddress)), // (last sent, before last sent)
+    LastSent(FS::NamedAddress),
 }
 
-impl<A> SentLocalAddress<A> 
-where
-    A: Clone,
-{
-    pub fn to_vec(&self) -> Vec<A> {
+impl<FS:FunderScheme> SentLocalAddress<FS> {
+    pub fn to_vec(&self) -> Vec<FS::Address> {
         match self {
             SentLocalAddress::NeverSent => Vec::new(),
             SentLocalAddress::Transition((last_address, prev_last_address)) =>
-                vec![last_address.clone(), prev_last_address.clone()],
+                vec![FS::anonymize_address(last_address.clone()), 
+                     FS::anonymize_address(prev_last_address.clone())],
             SentLocalAddress::LastSent(last_address) =>
-                vec![last_address.clone()],
+                vec![FS::anonymize_address(last_address.clone())],
         }
     }
 }
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum FriendMutation<A> {
-    TcMutation(TcMutation<A>),
+pub enum FriendMutation<FS:FunderScheme> {
+    TcMutation(TcMutation<FS>),
     SetInconsistent(ChannelInconsistent),
-    SetConsistent(TokenChannel<A>),
+    SetConsistent(TokenChannel<FS>),
     SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatus),
     PushBackPendingRequest(RequestSendFunds),
@@ -59,12 +57,9 @@ pub enum FriendMutation<A> {
     PushBackPendingUserRequest(RequestSendFunds),
     PopFrontPendingUserRequest,
     SetStatus(FriendStatus),
-    SetRemoteAddress(A),
+    SetRemoteAddress(FS::Address),
     SetName(String),
-    SetSentLocalAddress(SentLocalAddress<A>),
-    // LocalReset(UnsignedMoveToken<A>),
-    // The outgoing move token message we have sent to reset the channel.
-    // RemoteReset(MoveToken<A>),
+    SetSentLocalAddress(SentLocalAddress<FS>),
 }
 
 #[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
@@ -75,15 +70,12 @@ pub struct ChannelInconsistent {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub enum ChannelStatus<A> {
+pub enum ChannelStatus<FS:FunderScheme> {
     Inconsistent(ChannelInconsistent),
-    Consistent(TokenChannel<A>),
+    Consistent(TokenChannel<FS>),
 }
 
-impl<A> ChannelStatus<A> 
-where
-    A: CanonicalSerialize + Clone,
-{
+impl<FS:FunderScheme> ChannelStatus<FS> {
     pub fn get_last_incoming_move_token_hashed(&self) -> Option<MoveTokenHashed> {
         match &self {
             ChannelStatus::Inconsistent(channel_inconsistent) => 
@@ -95,13 +87,13 @@ where
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct FriendState<A> {
+pub struct FriendState<FS:FunderScheme> {
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,
-    pub remote_address: A, 
-    pub sent_local_address: SentLocalAddress<A>,
+    pub remote_address: FS::Address, 
+    pub sent_local_address: SentLocalAddress<FS>,
     pub name: String,
-    pub channel_status: ChannelStatus<A>,
+    pub channel_status: ChannelStatus<FS>,
     pub wanted_remote_max_debt: u128,
     pub wanted_local_requests_status: RequestsStatus,
     pub pending_requests: Vector<RequestSendFunds>,
@@ -114,15 +106,12 @@ pub struct FriendState<A> {
 }
 
 
-impl<A> FriendState<A> 
-where
-    A: CanonicalSerialize + Clone,
-{
+impl<FS: FunderScheme> FriendState<FS> {
     pub fn new(local_public_key: &PublicKey,
                remote_public_key: &PublicKey,
-               remote_address: A,
+               remote_address: FS::Address,
                name: String,
-               balance: i128) -> FriendState<A> {
+               balance: i128) -> Self {
 
         let token_channel = TokenChannel::new(local_public_key, remote_public_key, balance);
 
@@ -147,6 +136,7 @@ where
         }
     }
 
+    // TODO: Do we use this function somewhere?
     /// Find the shared credits we have with this friend.
     /// This value is used for freeze guard calculations.
     /// This value is the capacity shared between the rest of the friends.
@@ -170,7 +160,7 @@ where
         balance.local_max_debt.saturating_add_signed(balance.balance)
     }
 
-    pub fn mutate(&mut self, friend_mutation: &FriendMutation<A>) {
+    pub fn mutate(&mut self, friend_mutation: &FriendMutation<FS>) {
         match friend_mutation {
             FriendMutation::TcMutation(tc_mutation) => {
                 match &mut self.channel_status {

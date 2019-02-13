@@ -31,8 +31,8 @@ pub struct MoveTokenHashedReport {
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum SentLocalAddressReport<FS:FunderScheme> {
     NeverSent,
-    Transition((FS::Address, FS::Address)), // (last sent, before last sent)
-    LastSent(FS::Address),
+    Transition((FS::NamedAddress, FS::NamedAddress)), // (last sent, before last sent)
+    LastSent(FS::NamedAddress),
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]

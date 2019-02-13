@@ -5,7 +5,7 @@ use common::canonical_serialize::CanonicalSerialize;
 
 /// A trait that describes generic types that the Funder works with
 /// and the relationships between them.
-pub trait FunderScheme: Clone + PartialEq + Eq + Debug + Serialize + DeserializeOwned {
+pub trait FunderScheme: Clone + PartialEq + Eq + Debug {
     /// An anonymous address
     type Address: Clone + CanonicalSerialize + PartialEq + Eq + Debug + Serialize + DeserializeOwned;
     /// An address that contains a name (Provided by the user of this node)

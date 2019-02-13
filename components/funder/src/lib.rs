@@ -42,4 +42,3 @@ mod tests;
 
 pub use self::state::{FunderMutation, FunderState};
 pub use self::funder::{funder_loop, FunderError};
-pub use self::scheme::FunderScheme;

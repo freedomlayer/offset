@@ -1,12 +1,11 @@
-use std::fmt::Debug;
 use identity::IdentityClient;
 
 use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
 
-use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::FunderOutgoingControl;
+use proto::funder::scheme::FunderScheme;
 use proto::report::messages::FunderReportMutation;
 
 use crate::state::{FunderState, FunderMutation};
@@ -25,17 +24,15 @@ use crate::report::{funder_mutation_to_report_mutations,
     ephemeral_mutation_to_report_mutations};
 
 
-pub struct MutableFunderState<A: Clone> {
-    initial_state: FunderState<A>,
-    state: FunderState<A>,
-    mutations: Vec<FunderMutation<A>>,
+
+pub struct MutableFunderState<FS: FunderScheme> {
+    initial_state: FunderState<FS>,
+    state: FunderState<FS>,
+    mutations: Vec<FunderMutation<FS>>,
 }
 
-impl<A> MutableFunderState<A> 
-where
-    A: CanonicalSerialize + Clone,
-{
-    pub fn new(state: FunderState<A>) -> Self {
+impl<FS: FunderScheme> MutableFunderState<FS> {
+    pub fn new(state: FunderState<FS>) -> Self {
         MutableFunderState {
             initial_state: state.clone(),
             state,
@@ -43,16 +40,16 @@ where
         }
     }
 
-    pub fn mutate(&mut self, mutation: FunderMutation<A>) {
+    pub fn mutate(&mut self, mutation: FunderMutation<FS>) {
         self.state.mutate(&mutation);
         self.mutations.push(mutation);
     }
 
-    pub fn state(&self) -> &FunderState<A> {
+    pub fn state(&self) -> &FunderState<FS> {
         &self.state
     }
 
-    pub fn done(self) -> (FunderState<A>, Vec<FunderMutation<A>>, FunderState<A>) {
+    pub fn done(self) -> (FunderState<FS>, Vec<FunderMutation<FS>>, FunderState<FS>) {
         (self.initial_state, self.mutations, self.state)
     }
 }
@@ -90,11 +87,11 @@ pub enum FunderHandlerError {
     HandleLivenessError(HandleLivenessError),
 }
 
-pub struct FunderHandlerOutput<A: Clone> {
-    pub funder_mutations: Vec<FunderMutation<A>>,
+pub struct FunderHandlerOutput<FS: FunderScheme> {
+    pub funder_mutations: Vec<FunderMutation<FS>>,
     pub ephemeral_mutations: Vec<EphemeralMutation>,
-    pub outgoing_comms: Vec<FunderOutgoingComm<A>>,
-    pub outgoing_control: Vec<FunderOutgoingControl<A>>,
+    pub outgoing_comms: Vec<FunderOutgoingComm<FS>>,
+    pub outgoing_control: Vec<FunderOutgoingControl<FS>>,
 }
 
 
@@ -104,11 +101,8 @@ pub struct FunderHandlerOutput<A: Clone> {
 ///
 /// TODO: We need to change this search to be O(1) in the future. Possibly by maintaining a map
 /// between request_id and (friend_public_key, friend).
-pub fn find_request_origin<'a, A>(state: &'a FunderState<A>,
-                                  request_id: &Uid) -> Option<&'a PublicKey> 
-where
-    A: CanonicalSerialize + Clone,
-{
+pub fn find_request_origin<'a, FS:FunderScheme>(state: &'a FunderState<FS>,
+                                  request_id: &Uid) -> Option<&'a PublicKey> {
     for (friend_public_key, friend) in &state.friends {
         match &friend.channel_status {
             ChannelStatus::Inconsistent(_) => continue,
@@ -127,12 +121,9 @@ where
     None
 }
 
-pub fn is_friend_ready<A>(state: &FunderState<A>, 
+pub fn is_friend_ready<FS:FunderScheme>(state: &FunderState<FS>, 
                           ephemeral: &Ephemeral,
-                          friend_public_key: &PublicKey) -> bool 
-where
-    A: CanonicalSerialize + Clone,
-{
+                          friend_public_key: &PublicKey) -> bool {
 
     let friend = state.friends.get(friend_public_key).unwrap();
     if !ephemeral.liveness.is_online(friend_public_key) {
@@ -153,17 +144,17 @@ where
         .is_open()
 }
 
-pub fn funder_handle_incoming<A,R>(mut m_state: &mut MutableFunderState<A>,
+pub fn funder_handle_incoming<FS,R>(mut m_state: &mut MutableFunderState<FS>,
                                    mut m_ephemeral: &mut MutableEphemeral,
                                    rng: &R,
                                    max_pending_user_requests: usize,
-                                   funder_incoming: FunderIncoming<A>)
+                                   funder_incoming: FunderIncoming<FS>)
                                     -> Result<(SendCommands, 
-                                        Vec<FunderOutgoingControl<A>>, 
-                                        Vec<ChannelerConfig<A>>), FunderHandlerError>
+                                        Vec<FunderOutgoingControl<FS>>, 
+                                        Vec<ChannelerConfig<FS>>), FunderHandlerError>
 
 where
-    A: CanonicalSerialize + Clone + Eq + Debug,
+    FS: FunderScheme,
     R: CryptoRandom,
 {
     let mut send_commands = SendCommands::new();
@@ -188,7 +179,7 @@ where
         FunderIncoming::Comm(incoming_comm) => {
             match incoming_comm {
                 FunderIncomingComm::Liveness(liveness_message) =>
-                    handle_liveness_message::<A>(&mut m_state, 
+                    handle_liveness_message::<FS>(&mut m_state, 
                                             &mut m_ephemeral, 
                                             &mut send_commands,
                                             &mut outgoing_control,
@@ -213,11 +204,11 @@ where
 
 }
 
-fn create_report_mutations<A>(initial_state: FunderState<A>,
-                           funder_mutations: &[FunderMutation<A>],
-                           ephemeral_mutations: &[EphemeralMutation]) -> Vec<FunderReportMutation<A>> 
+fn create_report_mutations<FS>(initial_state: FunderState<FS>,
+                           funder_mutations: &[FunderMutation<FS>],
+                           ephemeral_mutations: &[EphemeralMutation]) -> Vec<FunderReportMutation<FS>> 
 where
-    A: CanonicalSerialize + Clone,
+    FS: FunderScheme,
 {
 
     let mut report_mutations = Vec::new();
@@ -236,17 +227,17 @@ where
 }
 
 
-pub async fn funder_handle_message<'a, A,R>(
+pub async fn funder_handle_message<'a,FS,R>(
                       identity_client: &'a mut IdentityClient,
                       rng: &'a R,
-                      funder_state: FunderState<A>,
+                      funder_state: FunderState<FS>,
                       funder_ephemeral: Ephemeral,
                       max_operations_in_batch: usize,
                       max_pending_user_requests: usize,
-                      funder_incoming: FunderIncoming<A>) 
-        -> Result<FunderHandlerOutput<A>, FunderHandlerError> 
+                      funder_incoming: FunderIncoming<FS>) 
+        -> Result<FunderHandlerOutput<FS>, FunderHandlerError> 
 where
-    A: CanonicalSerialize + Clone + Debug + Eq + 'a,
+    FS: FunderScheme + 'a,
     R: CryptoRandom + 'a,
 {
 

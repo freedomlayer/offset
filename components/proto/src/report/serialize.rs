@@ -25,7 +25,7 @@ use crate::report::messages::{MoveTokenHashedReport, FriendStatusReport, Request
                             FriendReportMutation,
                             FunderReportMutation};
 
-use crate::app_server::messages::RelayAddress;
+use crate::app_server::messages::NamedRelayAddress;
 use crate::index_client::messages::{IndexClientReport, 
     IndexClientReportMutation, AddIndexServerReport};
 use crate::app_server::messages::{NodeReport, NodeReportMutation};
@@ -351,7 +351,7 @@ fn deser_opt_last_incoming_move_token(opt_last_incoming_move_token_reader: &repo
     })
 }
 
-fn ser_relays_transition(relays_transition: &(Vec<RelayAddress<NetAddress>>, Vec<RelayAddress<NetAddress>>),
+fn ser_relays_transition(relays_transition: &(Vec<NamedRelayAddress<NetAddress>>, Vec<NamedRelayAddress<NetAddress>>),
                     relays_transition_builder: &mut report_capnp::relays_transition::Builder) {
 
     let (last_sent, before_last_sent) = relays_transition;
@@ -360,32 +360,32 @@ fn ser_relays_transition(relays_transition: &(Vec<RelayAddress<NetAddress>>, Vec
         .reborrow()
         .init_last_sent(usize_to_u32(last_sent.len()).unwrap());
 
-    for (index, relay_address) in last_sent.iter().enumerate() {
-        let mut relay_address_builder = last_sent_builder.reborrow().get(usize_to_u32(index).unwrap());
-        write_relay_address(relay_address, &mut relay_address_builder);
+    for (index, named_relay_address) in last_sent.iter().enumerate() {
+        let mut named_relay_address_builder = last_sent_builder.reborrow().get(usize_to_u32(index).unwrap());
+        write_named_relay_address(named_relay_address, &mut named_relay_address_builder);
     }
 
     let mut before_last_sent_builder = relays_transition_builder
         .reborrow()
         .init_before_last_sent(usize_to_u32(last_sent.len()).unwrap());
 
-    for (index, relay_address) in before_last_sent.iter().enumerate() {
-        let mut relay_address_builder = before_last_sent_builder.reborrow().get(usize_to_u32(index).unwrap());
-        write_relay_address(relay_address, &mut relay_address_builder);
+    for (index, named_relay_address) in before_last_sent.iter().enumerate() {
+        let mut named_relay_address_builder = before_last_sent_builder.reborrow().get(usize_to_u32(index).unwrap());
+        write_named_relay_address(named_relay_address, &mut named_relay_address_builder);
     }
 }
 
 fn deser_relays_transition(relays_transition_reader: &report_capnp::relays_transition::Reader)
-    -> Result<(Vec<RelayAddress<NetAddress>>, Vec<RelayAddress<NetAddress>>), SerializeError> {
+    -> Result<(Vec<NamedRelayAddress<NetAddress>>, Vec<NamedRelayAddress<NetAddress>>), SerializeError> {
 
     let mut last_sent = Vec::new();
-    for relay_address in relays_transition_reader.get_last_sent()? {
-        last_sent.push(read_relay_address(&relay_address)?);
+    for named_relay_address in relays_transition_reader.get_last_sent()? {
+        last_sent.push(read_named_relay_address(&named_relay_address)?);
     }
 
     let mut before_last_sent = Vec::new();
-    for relay_address in relays_transition_reader.get_before_last_sent()? {
-        before_last_sent.push(read_relay_address(&relay_address)?);
+    for named_relay_address in relays_transition_reader.get_before_last_sent()? {
+        before_last_sent.push(read_named_relay_address(&named_relay_address)?);
     }
 
     Ok((last_sent, before_last_sent))
@@ -405,9 +405,9 @@ fn ser_sent_local_relays_report(sent_local_address_report: &SentLocalAddressRepo
         SentLocalAddressReport::LastSent(last_sent) => {
             let relays_len = usize_to_u32(last_sent.len()).unwrap();
             let mut last_sent_builder = sent_local_relays_report_builder.reborrow().init_last_sent(relays_len);
-            for (index, relay_address) in last_sent.iter().enumerate() {
-                let mut relay_address_builder = last_sent_builder.reborrow().get(usize_to_u32(index).unwrap());
-                write_relay_address(relay_address, &mut relay_address_builder);
+            for (index, named_relay_address) in last_sent.iter().enumerate() {
+                let mut named_relay_address_builder = last_sent_builder.reborrow().get(usize_to_u32(index).unwrap());
+                write_named_relay_address(named_relay_address, &mut named_relay_address_builder);
             }
         },
     }
@@ -422,8 +422,8 @@ fn deser_sent_local_relays_report(sent_local_relays_report_reader: &report_capnp
             SentLocalAddressReport::Transition(deser_relays_transition(&relays_transition_reader?)?),
         report_capnp::sent_local_relays_report::LastSent(last_sent_reader) => {
             let mut last_sent = Vec::new();
-            for relay_address in last_sent_reader? {
-                last_sent.push(read_relay_address(&relay_address)?);
+            for named_relay_address in last_sent_reader? {
+                last_sent.push(read_named_relay_address(&named_relay_address)?);
             }
             SentLocalAddressReport::LastSent(last_sent)
         },

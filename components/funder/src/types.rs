@@ -2,8 +2,6 @@ use crypto::identity::{PublicKey, Signature};
 use crypto::crypto_rand::RandValue;
 use crypto::hash::HashResult;
 
-use common::canonical_serialize::CanonicalSerialize;
-
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds, FailureSendFunds, 
     MoveToken, FriendMessage, FriendTcOp, PendingRequest, FunderIncomingControl, 
     FunderOutgoingControl, ChannelerUpdateFriend};
@@ -12,17 +10,19 @@ use proto::funder::signature_buff::{prefix_hash,
     move_token_signature_buff, create_response_signature_buffer,
     create_failure_signature_buffer};
 
+use proto::funder::scheme::FunderScheme;
+
 use identity::IdentityClient;
 
 
 pub type UnsignedFailureSendFunds = FailureSendFunds<()>;
 pub type UnsignedResponseSendFunds = ResponseSendFunds<()>;
-pub type UnsignedMoveToken<A> = MoveToken<A,()>;
+pub type UnsignedMoveToken<FS> = MoveToken<FS,()>;
 
-pub async fn sign_move_token<'a,A>(unsigned_move_token: UnsignedMoveToken<A>,
-                         identity_client: &'a mut IdentityClient) -> MoveToken<A> 
-where
-    A: CanonicalSerialize + 'a,
+pub async fn sign_move_token<'a,FS:FunderScheme>(unsigned_move_token: UnsignedMoveToken<FS>,
+                         identity_client: &'a mut IdentityClient) -> MoveToken<FS> 
+where   
+    FS: 'a,
 {
 
     let signature_buff = move_token_signature_buff(&unsigned_move_token);
@@ -136,8 +136,8 @@ pub struct MoveTokenHashed {
     pub new_token: Signature,
 }
 
-pub fn create_unsigned_move_token<A>(operations: Vec<FriendTcOp>,
-                 opt_local_address: Option<A>,
+pub fn create_unsigned_move_token<FS:FunderScheme>(operations: Vec<FriendTcOp>,
+                 opt_local_address: Option<FS::Address>,
                  old_token: Signature,
                  local_public_key: PublicKey,
                  remote_public_key: PublicKey,
@@ -146,7 +146,7 @@ pub fn create_unsigned_move_token<A>(operations: Vec<FriendTcOp>,
                  balance: i128,
                  local_pending_debt: u128,
                  remote_pending_debt: u128,
-                 rand_nonce: RandValue) -> UnsignedMoveToken<A> {
+                 rand_nonce: RandValue) -> UnsignedMoveToken<FS> {
 
     MoveToken {
         operations,
@@ -203,10 +203,7 @@ where
 /// Create a hashed version of the MoveToken.
 /// Hashed version contains the hash of the operations instead of the operations themselves,
 /// hence it is usually shorter.
-pub fn create_hashed<A>(move_token: &MoveToken<A>) -> MoveTokenHashed
-where
-    A: CanonicalSerialize,
-{
+pub fn create_hashed<FS: FunderScheme>(move_token: &MoveToken<FS>) -> MoveTokenHashed {
     MoveTokenHashed {
         prefix_hash: prefix_hash(move_token),
         local_public_key: move_token.local_public_key.clone(),
@@ -237,37 +234,37 @@ pub struct FriendInconsistencyError {
 }
 
 #[derive(Debug)]
-pub enum ChannelerConfig<A> {
+pub enum ChannelerConfig<FS:FunderScheme> {
     /// Set relay address for local node
     /// This is the address the Channeler will connect to 
     /// and listen for new connections
-    SetAddress(A),
-    UpdateFriend(ChannelerUpdateFriend<A>),
+    SetAddress(FS::Address),
+    UpdateFriend(ChannelerUpdateFriend<FS>),
     RemoveFriend(PublicKey),
 }
 
 #[derive(Debug, Clone)]
-pub enum FunderIncomingComm<A> {
+pub enum FunderIncomingComm<FS:FunderScheme> {
     Liveness(IncomingLivenessMessage),
-    Friend((PublicKey, FriendMessage<A>)),
+    Friend((PublicKey, FriendMessage<FS>)),
 }
 
 /// An incoming message to the Funder:
 #[derive(Clone, Debug)]
-pub enum FunderIncoming<A> {
+pub enum FunderIncoming<FS:FunderScheme> {
     Init,
-    Control(FunderIncomingControl<A>),
-    Comm(FunderIncomingComm<A>),
+    Control(FunderIncomingControl<FS>),
+    Comm(FunderIncomingComm<FS>),
 }
 
 #[derive(Debug)]
-pub enum FunderOutgoing<A: Clone> {
-    Control(FunderOutgoingControl<A>),
-    Comm(FunderOutgoingComm<A>),
+pub enum FunderOutgoing<FS:FunderScheme> {
+    Control(FunderOutgoingControl<FS>),
+    Comm(FunderOutgoingComm<FS>),
 }
 
 #[derive(Debug)]
-pub enum FunderOutgoingComm<A> {
-    FriendMessage((PublicKey, FriendMessage<A>)),
-    ChannelerConfig(ChannelerConfig<A>),
+pub enum FunderOutgoingComm<FS:FunderScheme> {
+    FriendMessage((PublicKey, FriendMessage<FS>)),
+    ChannelerConfig(ChannelerConfig<FS>),
 }

@@ -1,5 +1,5 @@
-use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::{FriendStatus, FunderOutgoingControl};
+use proto::funder::scheme::FunderScheme;
 
 use crate::types::{IncomingLivenessMessage};
 
@@ -18,15 +18,15 @@ pub enum HandleLivenessError {
     FriendAlreadyOnline,
 }
 
-pub fn handle_liveness_message<A>(m_state: &mut MutableFunderState<A>,
+pub fn handle_liveness_message<FS>(m_state: &mut MutableFunderState<FS>,
                                     m_ephemeral: &mut MutableEphemeral,
                                     send_commands: &mut SendCommands,
-                                    outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
+                                    outgoing_control: &mut Vec<FunderOutgoingControl<FS>>,
                                     liveness_message: IncomingLivenessMessage)
     -> Result<(), HandleLivenessError> 
 
 where
-    A: CanonicalSerialize + Clone + PartialEq + Eq,
+    FS: FunderScheme,
 {
 
     match liveness_message {
