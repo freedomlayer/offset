@@ -4,7 +4,6 @@ use crypto::identity::PublicKey;
 use crate::funder::messages::{UserRequestSendFunds, ResponseReceived,
                             ReceiptAck, AddFriend, SetFriendAddress, 
                             SetFriendName, SetFriendRemoteMaxDebt, ResetFriendChannel};
-use crate::funder::scheme::FunderScheme;
 use crate::report::messages::{FunderReport, FunderReportMutation};
 use crate::index_client::messages::{IndexClientReport, 
     IndexClientReportMutation, ClientResponseRoutes};
@@ -98,12 +97,13 @@ pub enum AppToAppServer<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>,ISA=NetA
 #[derive(Debug)]
 pub struct NodeReportMutateError;
 
-impl<FS,ISA> NodeReport<FS,ISA> 
+impl<RA,NRA,ISA> NodeReport<RA,NRA,ISA> 
 where
-    FS: FunderScheme,
+    RA: Clone,
+    NRA: Clone,
     ISA: Eq + Clone,
 {
-    pub fn mutate(&mut self, mutation: &NodeReportMutation<FS,ISA>) 
+    pub fn mutate(&mut self, mutation: &NodeReportMutation<RA,NRA,ISA>) 
         -> Result<(), NodeReportMutateError> {
 
         match mutation {
