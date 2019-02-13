@@ -40,25 +40,32 @@ where
 
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NodeReport<FS:FunderScheme,ISA> {
-    pub funder_report: FunderReport<FS>,
+pub struct NodeReport<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>,ISA=NetAddress> 
+where
+    RA: Clone,
+    NRA: Clone,
+{
+    pub funder_report: FunderReport<RA,NRA>,
     pub index_client_report: IndexClientReport<ISA>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NodeReportMutation<FS:FunderScheme,ISA> {
-    Funder(FunderReportMutation<FS>),
+pub enum NodeReportMutation<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>,ISA=NetAddress> {
+    Funder(FunderReportMutation<RA,NRA>),
     IndexClient(IndexClientReportMutation<ISA>),
 }
 
-
 #[derive(Debug, PartialEq, Eq)]
-pub enum AppServerToApp<FS: FunderScheme,ISA> {
+pub enum AppServerToApp<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>,ISA=NetAddress> 
+where
+    RA: Clone,
+    NRA: Clone,
+{
     /// Funds:
     ResponseReceived(ResponseReceived),
     /// Reports about current state:
-    Report(NodeReport<FS,ISA>),
-    ReportMutations(Vec<NodeReportMutation<FS,ISA>>),
+    Report(NodeReport<RA,NRA,ISA>),
+    ReportMutations(Vec<NodeReportMutation<RA,NRA,ISA>>),
     ResponseRoutes(ClientResponseRoutes),
 }
 

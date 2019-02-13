@@ -31,8 +31,6 @@ use crate::index_client::messages::{IndexClientReport,
 use crate::app_server::messages::{NodeReport, NodeReportMutation};
 use crate::net::messages::NetAddress;
 
-use crate::scheme::OffstScheme;
-
 
 fn ser_move_token_hashed_report(move_token_hashed_report: &MoveTokenHashedReport,
                     move_token_hashed_report_builder: &mut report_capnp::move_token_hashed_report::Builder) {
@@ -391,7 +389,7 @@ fn deser_relays_transition(relays_transition_reader: &report_capnp::relays_trans
     Ok((last_sent, before_last_sent))
 }
 
-fn ser_sent_local_relays_report(sent_local_address_report: &SentLocalAddressReport<OffstScheme>,
+fn ser_sent_local_relays_report(sent_local_address_report: &SentLocalAddressReport,
                     sent_local_relays_report_builder: &mut report_capnp::sent_local_relays_report::Builder) {
 
     match sent_local_address_report {
@@ -414,7 +412,7 @@ fn ser_sent_local_relays_report(sent_local_address_report: &SentLocalAddressRepo
 }
 
 fn deser_sent_local_relays_report(sent_local_relays_report_reader: &report_capnp::sent_local_relays_report::Reader)
-    -> Result<SentLocalAddressReport<OffstScheme>, SerializeError> {
+    -> Result<SentLocalAddressReport, SerializeError> {
 
     Ok(match sent_local_relays_report_reader.which()? {
         report_capnp::sent_local_relays_report::NeverSent(()) => SentLocalAddressReport::NeverSent,
@@ -431,7 +429,7 @@ fn deser_sent_local_relays_report(sent_local_relays_report_reader: &report_capnp
 }
 
 
-fn ser_friend_report(friend_report: &FriendReport<OffstScheme>,
+fn ser_friend_report(friend_report: &FriendReport,
                     friend_report_builder: &mut report_capnp::friend_report::Builder) {
 
     friend_report_builder.reborrow().set_name(&friend_report.name);
@@ -473,7 +471,7 @@ fn ser_friend_report(friend_report: &FriendReport<OffstScheme>,
 }
 
 fn deser_friend_report(friend_report_reader: &report_capnp::friend_report::Reader)
-    -> Result<FriendReport<OffstScheme>, SerializeError> {
+    -> Result<FriendReport, SerializeError> {
 
     let mut remote_address = Vec::new();
     for relay_address in friend_report_reader.get_remote_relays()? {
@@ -497,7 +495,7 @@ fn deser_friend_report(friend_report_reader: &report_capnp::friend_report::Reade
     })
 }
 
-fn ser_pk_friend_report(pk_friend_report: &(PublicKey, FriendReport<OffstScheme>),
+fn ser_pk_friend_report(pk_friend_report: &(PublicKey, FriendReport),
                     pk_friend_report_builder: &mut report_capnp::pk_friend_report::Builder) {
 
     let (friend_public_key, friend_report) = pk_friend_report;
@@ -508,7 +506,7 @@ fn ser_pk_friend_report(pk_friend_report: &(PublicKey, FriendReport<OffstScheme>
 }
 
 fn deser_pk_friend_report(pk_friend_report_reader: &report_capnp::pk_friend_report::Reader)
-    -> Result<(PublicKey, FriendReport<OffstScheme>), SerializeError> {
+    -> Result<(PublicKey, FriendReport), SerializeError> {
 
     let friend_public_key = read_public_key(&pk_friend_report_reader.get_friend_public_key()?)?;
     let friend_report = deser_friend_report(&pk_friend_report_reader.get_friend_report()?)?;
@@ -516,7 +514,7 @@ fn deser_pk_friend_report(pk_friend_report_reader: &report_capnp::pk_friend_repo
     Ok((friend_public_key, friend_report))
 }
 
-fn ser_funder_report(funder_report: &FunderReport<OffstScheme>,
+fn ser_funder_report(funder_report: &FunderReport,
                     funder_report_builder: &mut report_capnp::funder_report::Builder) {
 
     write_public_key(&funder_report.local_public_key, 
@@ -540,7 +538,7 @@ fn ser_funder_report(funder_report: &FunderReport<OffstScheme>,
 }
 
 fn deser_funder_report(funder_report_reader: &report_capnp::funder_report::Reader)
-    -> Result<FunderReport<OffstScheme>, SerializeError> {
+    -> Result<FunderReport, SerializeError> {
 
     let mut named_relays = Vec::new();
     for named_relay_address in funder_report_reader.get_relays()? {
@@ -561,7 +559,7 @@ fn deser_funder_report(funder_report_reader: &report_capnp::funder_report::Reade
     })
 }
 
-fn ser_add_friend_report(add_friend_report: &AddFriendReport<OffstScheme>,
+fn ser_add_friend_report(add_friend_report: &AddFriendReport,
                     add_friend_report_builder: &mut report_capnp::add_friend_report::Builder) {
 
     write_public_key(&add_friend_report.friend_public_key, 
@@ -587,7 +585,7 @@ fn ser_add_friend_report(add_friend_report: &AddFriendReport<OffstScheme>,
 }
 
 fn deser_add_friend_report(add_friend_report_reader: &report_capnp::add_friend_report::Reader)
-    -> Result<AddFriendReport<OffstScheme>, SerializeError> {
+    -> Result<AddFriendReport, SerializeError> {
 
     let mut relays = Vec::new();
     for relay_address in add_friend_report_reader.get_relays()? {
@@ -605,7 +603,7 @@ fn deser_add_friend_report(add_friend_report_reader: &report_capnp::add_friend_r
     })
 }
 
-fn ser_friend_report_mutation(friend_report_mutation: &FriendReportMutation<OffstScheme>,
+fn ser_friend_report_mutation(friend_report_mutation: &FriendReportMutation,
                     friend_report_mutation_builder: &mut report_capnp::friend_report_mutation::Builder) {
 
     match friend_report_mutation {
@@ -650,7 +648,7 @@ fn ser_friend_report_mutation(friend_report_mutation: &FriendReportMutation<Offs
 }
 
 fn deser_friend_report_mutation(friend_report_mutation: &report_capnp::friend_report_mutation::Reader)
-    -> Result<FriendReportMutation<OffstScheme>, SerializeError> {
+    -> Result<FriendReportMutation, SerializeError> {
 
     Ok(match friend_report_mutation.which()? {
         report_capnp::friend_report_mutation::SetRemoteRelays(relays_reader) => {
@@ -692,7 +690,7 @@ fn deser_friend_report_mutation(friend_report_mutation: &report_capnp::friend_re
     })
 }
 
-fn ser_pk_friend_report_mutation(pk_friend_report_mutation: &(PublicKey, FriendReportMutation<OffstScheme>),
+fn ser_pk_friend_report_mutation(pk_friend_report_mutation: &(PublicKey, FriendReportMutation),
                     pk_friend_report_mutation_builder: &mut report_capnp::pk_friend_report_mutation::Builder) {
 
     let (friend_public_key, friend_report_mutation) = pk_friend_report_mutation;
@@ -704,7 +702,7 @@ fn ser_pk_friend_report_mutation(pk_friend_report_mutation: &(PublicKey, FriendR
 }
 
 fn deser_pk_friend_report_mutation(pk_friend_report_mutation_reader: &report_capnp::pk_friend_report_mutation::Reader)
-    -> Result<(PublicKey, FriendReportMutation<OffstScheme>), SerializeError> {
+    -> Result<(PublicKey, FriendReportMutation), SerializeError> {
 
     let friend_public_key = read_public_key(&pk_friend_report_mutation_reader.get_friend_public_key()?)?;
     let friend_report_mutation = deser_friend_report_mutation(&pk_friend_report_mutation_reader.get_friend_report_mutation()?)?;
@@ -712,7 +710,7 @@ fn deser_pk_friend_report_mutation(pk_friend_report_mutation_reader: &report_cap
     Ok((friend_public_key, friend_report_mutation))
 }
 
-fn ser_funder_report_mutation(funder_report_mutation: &FunderReportMutation<OffstScheme>,
+fn ser_funder_report_mutation(funder_report_mutation: &FunderReportMutation,
                     funder_report_mutation_builder: &mut report_capnp::funder_report_mutation::Builder) {
 
     match funder_report_mutation {
@@ -743,7 +741,7 @@ fn ser_funder_report_mutation(funder_report_mutation: &FunderReportMutation<Offs
 }
 
 fn deser_funder_report_mutation(funder_report_mutation_reader: &report_capnp::funder_report_mutation::Reader)
-    -> Result<FunderReportMutation<OffstScheme>, SerializeError> {
+    -> Result<FunderReportMutation, SerializeError> {
 
     Ok(match funder_report_mutation_reader.which()? {
         report_capnp::funder_report_mutation::SetRelays(named_relays_reader) => {
@@ -876,7 +874,7 @@ fn deser_index_client_report_mutation(index_client_report_mutation_reader: &repo
     })
 }
 
-pub fn ser_node_report(node_report: &NodeReport<OffstScheme, NetAddress>,
+pub fn ser_node_report(node_report: &NodeReport,
                     node_report_builder: &mut report_capnp::node_report::Builder) {
 
     ser_funder_report(&node_report.funder_report, 
@@ -886,7 +884,7 @@ pub fn ser_node_report(node_report: &NodeReport<OffstScheme, NetAddress>,
 }
 
 pub fn deser_node_report(node_report_reader: &report_capnp::node_report::Reader)
-    -> Result<NodeReport<OffstScheme, NetAddress>, SerializeError> {
+    -> Result<NodeReport, SerializeError> {
 
     Ok(NodeReport {
         funder_report: deser_funder_report(&node_report_reader.get_funder_report()?)?,
@@ -894,7 +892,7 @@ pub fn deser_node_report(node_report_reader: &report_capnp::node_report::Reader)
     })
 }
 
-pub fn ser_node_report_mutation(node_report_mutation: &NodeReportMutation<OffstScheme, NetAddress>,
+pub fn ser_node_report_mutation(node_report_mutation: &NodeReportMutation,
                     node_report_mutation_builder: &mut report_capnp::node_report_mutation::Builder) {
 
     match node_report_mutation {
@@ -908,7 +906,7 @@ pub fn ser_node_report_mutation(node_report_mutation: &NodeReportMutation<OffstS
 }
 
 pub fn deser_node_report_mutation(node_report_mutation_reader: &report_capnp::node_report_mutation::Reader)
-    -> Result<NodeReportMutation<OffstScheme, NetAddress>, SerializeError> {
+    -> Result<NodeReportMutation, SerializeError> {
 
     Ok(match node_report_mutation_reader.which()? {
         report_capnp::node_report_mutation::Funder(funder_report_mutation_reader) =>

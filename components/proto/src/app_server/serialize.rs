@@ -34,7 +34,6 @@ use crate::net::messages::NetAddress;
 
 use crate::app_server::messages::{AppServerToApp, AppToAppServer, 
     AppPermissions, RelayAddress};
-use crate::scheme::OffstScheme;
 
 
 fn ser_user_request_send_funds(user_request_send_funds: &UserRequestSendFunds,
@@ -328,7 +327,7 @@ fn deser_app_permissions(app_permissions_reader: &app_server_capnp::app_permissi
     })
 }
 
-fn ser_app_server_to_app(app_server_to_app: &AppServerToApp<OffstScheme, NetAddress>,
+fn ser_app_server_to_app(app_server_to_app: &AppServerToApp,
                     app_server_to_app_builder: &mut app_server_capnp::app_server_to_app::Builder) {
 
     match app_server_to_app {
@@ -353,7 +352,7 @@ fn ser_app_server_to_app(app_server_to_app: &AppServerToApp<OffstScheme, NetAddr
 }
 
 fn deser_app_server_to_app(app_server_to_app_reader: &app_server_capnp::app_server_to_app::Reader)
-    -> Result<AppServerToApp<OffstScheme, NetAddress>, SerializeError> {
+    -> Result<AppServerToApp, SerializeError> {
 
     Ok(match app_server_to_app_reader.which()? {
         app_server_capnp::app_server_to_app::ResponseReceived(response_received_reader) =>
@@ -512,7 +511,7 @@ pub fn deserialize_app_permissions(data: &[u8]) -> Result<AppPermissions, Serial
     deser_app_permissions(&app_permissions_reader)
 }
 
-pub fn serialize_app_server_to_app(app_server_to_app: &AppServerToApp<OffstScheme, NetAddress>) -> Vec<u8> {
+pub fn serialize_app_server_to_app(app_server_to_app: &AppServerToApp) -> Vec<u8> {
     let mut builder = capnp::message::Builder::new_default();
     let mut app_server_to_app_builder = builder.init_root::<app_server_capnp::app_server_to_app::Builder>();
     ser_app_server_to_app(app_server_to_app, &mut app_server_to_app_builder);
@@ -522,7 +521,7 @@ pub fn serialize_app_server_to_app(app_server_to_app: &AppServerToApp<OffstSchem
     ser_buff
 }
 
-pub fn deserialize_app_server_to_app(data: &[u8]) -> Result<AppServerToApp<OffstScheme, NetAddress>, SerializeError> {
+pub fn deserialize_app_server_to_app(data: &[u8]) -> Result<AppServerToApp, SerializeError> {
     let mut cursor = io::Cursor::new(data);
     let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let app_server_to_app_reader = reader.get_root::<app_server_capnp::app_server_to_app::Reader>()?;
