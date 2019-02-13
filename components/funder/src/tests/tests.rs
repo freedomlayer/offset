@@ -373,7 +373,7 @@ async fn task_funder_set_address(spawner: impl Spawn + Clone + Send + 'static) {
     let mut node_controls = await!(create_node_controls(num_nodes, spawner));
 
     // Change the node's relay address:
-    await!(node_controls[0].set_address(9876u32));
+    await!(node_controls[0].set_address(("9876".to_string(), 9876u32)));
 }
 
 

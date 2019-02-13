@@ -88,6 +88,10 @@ mod tests {
     use std::cmp::Ordering;
 
     use proto::funder::messages::{FriendStatus, AddFriend};
+    use crypto::test_utils::DummyRandom;
+    use crypto::identity::{SoftwareEd25519Identity,
+                            generate_pkcs8_key_pair, compare_public_key,
+                            Identity};
 
     use crate::state::{FunderState, FunderMutation};
     use crate::ephemeral::Ephemeral;
@@ -96,10 +100,7 @@ mod tests {
     use crate::handler::handler::{MutableFunderState, MutableEphemeral};
     use crate::handler::sender::{SendCommands};
 
-    use crypto::test_utils::DummyRandom;
-    use crypto::identity::{SoftwareEd25519Identity,
-                            generate_pkcs8_key_pair, compare_public_key,
-                            Identity};
+    use crate::test_scheme::TestFunderScheme;
 
 
     #[test]
@@ -122,7 +123,7 @@ mod tests {
             (identity2, pk2, identity1, pk1)
         };
 
-        let mut state = FunderState::new(&local_pk, &1337u32);
+        let mut state = FunderState::<TestFunderScheme>::new(&local_pk, &("1337".to_string(), 1337u32));
         // Add a remote friend:
         let add_friend = AddFriend {
             friend_public_key: remote_pk.clone(),

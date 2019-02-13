@@ -476,10 +476,11 @@ mod tests {
     use crypto::test_utils::DummyRandom;
     use crypto::identity::{SoftwareEd25519Identity,
                             generate_pkcs8_key_pair};
-
     use crypto::identity::Identity;
 
     use proto::funder::signature_buff::move_token_signature_buff;
+
+    use crate::test_scheme::TestFunderScheme;
 
     /// A helper function to sign an UnsignedMoveToken using an identity:
     fn dummy_sign_move_token<FS,I>(unsigned_move_token: UnsignedMoveToken<FS>, 
@@ -512,8 +513,8 @@ mod tests {
     fn test_initial_direction() {
         let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
         let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
-        let token_channel_a_b = TokenChannel::<u32>::new(&pk_a, &pk_b, 0i128);
-        let token_channel_b_a = TokenChannel::<u32>::new(&pk_b, &pk_a, 0i128);
+        let token_channel_a_b = TokenChannel::<TestFunderScheme>::new(&pk_a, &pk_b, 0i128);
+        let token_channel_b_a = TokenChannel::<TestFunderScheme>::new(&pk_b, &pk_a, 0i128);
 
         // Only one of those token channels is outgoing:
         let is_a_b_outgoing = token_channel_a_b.is_outgoing();
@@ -561,7 +562,7 @@ mod tests {
 
         let pk1 = identity1.get_public_key();
         let pk2 = identity2.get_public_key();
-        let token_channel12 = TokenChannel::<u32>::new(&pk1, &pk2, 0i128); // (local, remote)
+        let token_channel12 = TokenChannel::<TestFunderScheme>::new(&pk1, &pk2, 0i128); // (local, remote)
         if token_channel12.is_outgoing() {
             (identity1, identity2)
         } else {
@@ -574,8 +575,8 @@ mod tests {
     /// After: tc1: incoming, tc2: outgoing
     fn set_remote_max_debt21<I>(_identity1: &I,
                             identity2: &I,
-                            tc1: &mut TokenChannel<u32>,
-                            tc2: &mut TokenChannel<u32>) 
+                            tc1: &mut TokenChannel<TestFunderScheme>,
+                            tc2: &mut TokenChannel<TestFunderScheme>) 
     where
         I: Identity,
     {

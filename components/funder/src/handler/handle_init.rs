@@ -48,13 +48,13 @@ mod tests {
     use super::*;
 
     use proto::funder::messages::AddFriend;
+    use crypto::identity::{PUBLIC_KEY_LEN, PublicKey};
 
     use crate::state::{FunderState, FunderMutation};
     use crate::friend::FriendMutation;
 
     use crate::handler::handler::MutableFunderState;
-
-    use crypto::identity::{PUBLIC_KEY_LEN, PublicKey};
+    use crate::test_scheme::TestFunderScheme;
 
 
     #[test]
@@ -64,7 +64,7 @@ mod tests {
         let local_pk = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
         let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
 
-        let mut state = FunderState::new(&local_pk, &1337u32);
+        let mut state = FunderState::<TestFunderScheme>::new(&local_pk, &("1337".to_string(), 1337u32));
 
         // Add a remote friend:
         let add_friend = AddFriend {

@@ -7,9 +7,9 @@ use common::canonical_serialize::CanonicalSerialize;
 /// and the relationships between them.
 pub trait FunderScheme: Clone + PartialEq + Eq + Debug {
     /// An anonymous address
-    type Address: Clone + CanonicalSerialize + PartialEq + Eq + Debug + Serialize + DeserializeOwned;
+    type Address: Send + Sync + Clone + CanonicalSerialize + PartialEq + Eq + Debug + Serialize + DeserializeOwned;
     /// An address that contains a name (Provided by the user of this node)
-    type NamedAddress: Clone + PartialEq + Eq + Debug + Serialize + DeserializeOwned;
+    type NamedAddress: Send + Sync + Clone + PartialEq + Eq + Debug + Serialize + DeserializeOwned;
 
     /// A function to convert a NamedAddress to Address
     fn anonymize_address(named_address: Self::NamedAddress) -> Self::Address;
