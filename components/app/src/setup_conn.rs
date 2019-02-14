@@ -12,7 +12,7 @@ use proto::app_server::messages::{AppToAppServer, AppServerToApp, AppPermissions
 use proto::app_server::serialize::{deserialize_app_server_to_app,
                                    serialize_app_to_app_server,
                                    deserialize_app_permissions};
-// use proto::net::messages::NetAddress;
+
 use proto::consts::{PROTOCOL_VERSION, TICKS_TO_REKEY, KEEPALIVE_TICKS};
 
 use secure_channel::SecureChannel;
