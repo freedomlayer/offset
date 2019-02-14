@@ -17,7 +17,7 @@ pub struct AppRoutes;
 pub struct AppSendFunds;
 
 impl NodeConnection {
-    pub fn report() -> Option<(NodeReport, mpsc::Receiver<NodeReportMutation>)> {
+    pub async fn report() -> Option<(NodeReport, mpsc::Receiver<NodeReportMutation>)> {
         unimplemented!();
     }
 
