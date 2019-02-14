@@ -1,4 +1,5 @@
 use common::canonical_serialize::CanonicalSerialize;
+use common::mutable_state::MutableState;
 use crypto::identity::PublicKey;
 
 use crate::funder::messages::{UserRequestSendFunds, ResponseReceived,
@@ -97,13 +98,17 @@ pub enum AppToAppServer<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>,ISA=NetA
 #[derive(Debug)]
 pub struct NodeReportMutateError;
 
-impl<RA,NRA,ISA> NodeReport<RA,NRA,ISA> 
+
+impl<RA,NRA,ISA> MutableState for NodeReport<RA,NRA,ISA> 
 where
     RA: Clone,
     NRA: Clone,
     ISA: Eq + Clone,
 {
-    pub fn mutate(&mut self, mutation: &NodeReportMutation<RA,NRA,ISA>) 
+    type Mutation = NodeReportMutation<RA,NRA,ISA>;
+    type MutateError = NodeReportMutateError;
+
+    fn mutate(&mut self, mutation: &NodeReportMutation<RA,NRA,ISA>) 
         -> Result<(), NodeReportMutateError> {
 
         match mutation {
