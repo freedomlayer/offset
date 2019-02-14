@@ -84,6 +84,6 @@ mod tests {
 
         let loopback = Ipv4Addr::new(127, 0, 0, 1);
         let socket_addr = SocketAddr::new(IpAddr::V4(loopback), 1339);
-        assert_eq!(res_vec, vec![socket_addr]);
+        assert!(res_vec.contains(&socket_addr));
     }
 }

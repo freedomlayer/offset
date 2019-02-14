@@ -84,7 +84,7 @@ where
 
     let (_config_sender, mut incoming_connections) = tcp_listener.listen(socket_addr.clone());
 
-    let net_address: NetAddress = format!("localhost:{}", available_port).try_into().unwrap();
+    let net_address: NetAddress = format!("127.0.0.1:{}", available_port).try_into().unwrap();
 
     for _ in 0 .. 5 {
         let (mut client_sender, mut client_receiver) = await!(net_connector.transform(net_address.clone())).unwrap();
