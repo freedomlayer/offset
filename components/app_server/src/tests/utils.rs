@@ -15,36 +15,20 @@ use proto::index_server::messages::NamedIndexServerAddress;
 
 use crate::server::{IncomingAppConnection, app_server_loop};
 
-use proto::funder::scheme::FunderScheme;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct TestFunderScheme;
-
-impl FunderScheme for TestFunderScheme {
-    /// An anonymous address
-    type Address = Vec<u32>;
-    /// An address that contains a name (Provided by the user of this node)
-    type NamedAddress = Vec<(String, u32)>;
-
-    /// A function to convert a NamedAddress to Address
-    fn anonymize_address(vec: Self::NamedAddress) -> Self::Address {
-        vec
-            .into_iter()
-            .map(|(_name, num)| num)
-            .collect::<Vec<_>>()
-    }
-}
+type TAddr = Vec<u32>;
+type TNamedAddr = Vec<(String, u32)>;
 
 /// A test util function.
 /// Spawns an app server loop and returns all relevant channels
 /// used for control or communication.
 pub fn spawn_dummy_app_server<S>(mut spawner: S) -> 
-    (mpsc::Sender<FunderOutgoingControl<TestFunderScheme>>,
-     mpsc::Receiver<FunderIncomingControl<TestFunderScheme>>,
+    (mpsc::Sender<FunderOutgoingControl<TAddr, TNamedAddr>>,
+     mpsc::Receiver<FunderIncomingControl<TAddr, TNamedAddr>>,
      mpsc::Sender<IndexClientToAppServer<u64>>,
      mpsc::Receiver<AppServerToIndexClient<u64>>,
-     mpsc::Sender<IncomingAppConnection<TestFunderScheme,u64>>,
-     NodeReport<TestFunderScheme,u64>)
+     mpsc::Sender<IncomingAppConnection<u32,(String, u32),u64>>,
+     NodeReport<TAddr,TNamedAddr,u64>)
 
 where
     S: Spawn + Clone + Send + 'static,
