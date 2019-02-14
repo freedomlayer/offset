@@ -29,11 +29,10 @@ pub enum ConnectError {
 }
 
 /// Connect to an offst-node
-#[allow(unused)]
 pub async fn connect<C,R,S>(net_address: NetAddress,
                             node_public_key: PublicKey,
                             app_identity_client: IdentityClient,
-                            mut spawner: S) -> Result<NodeConnection, ConnectError>
+                            spawner: S) -> Result<NodeConnection, ConnectError>
 where
     S: Spawn + Clone + Sync + Send + 'static,
 {
