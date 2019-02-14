@@ -9,7 +9,10 @@
     warnings
 )]
 
+#![allow(unused)]
+
+mod report_service;
 mod setup_conn;
 pub mod identity;
-pub mod connect;
-pub mod proto;
+mod connect;
+pub mod connection;
