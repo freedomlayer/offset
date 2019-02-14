@@ -1,3 +1,4 @@
+/*
 use std::net::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr};
 use proto::net::messages::{TcpAddress, TcpAddressV4, TcpAddressV6};
 
@@ -39,3 +40,4 @@ pub fn socket_addr_to_tcp_address(socket_addr: &SocketAddr) -> TcpAddress {
         },
     }
 }
+*/

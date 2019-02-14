@@ -41,6 +41,12 @@ where T: CanonicalSerialize,
     }
 }
 
+impl CanonicalSerialize for String {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        self.as_bytes().to_vec()
+    }
+}
+
 // Used mostly for testing:
 impl CanonicalSerialize for u32 {
     fn canonical_serialize(&self) -> Vec<u8> {
@@ -49,3 +55,18 @@ impl CanonicalSerialize for u32 {
         res_data
     }
 }
+
+impl<T,W> CanonicalSerialize for (T,W) 
+where   
+    T: CanonicalSerialize,
+    W: CanonicalSerialize,
+{
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let (t, w) = self;
+        let mut res_data = Vec::new();
+        res_data.extend_from_slice(&t.canonical_serialize());
+        res_data.extend_from_slice(&w.canonical_serialize());
+        res_data
+    }
+}
+

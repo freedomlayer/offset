@@ -4,38 +4,37 @@ use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 use proto::funder::messages::{Receipt, AddFriend};
-
-use common::canonical_serialize::CanonicalSerialize;
+use proto::funder::scheme::FunderScheme;
 
 use crate::friend::{FriendState, FriendMutation};
 
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct FunderState<A: Clone> {
+pub struct FunderState<FS:FunderScheme> {
     pub local_public_key: PublicKey,
     /// Address of relay we are going to connect to.
     /// None means that no address was configured.
-    pub address: A,
-    pub friends: ImHashMap<PublicKey, FriendState<A>>,
+    pub address: FS::NamedAddress,
+    pub friends: ImHashMap<PublicKey, FriendState<FS>>,
     pub ready_receipts: ImHashMap<Uid, Receipt>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum FunderMutation<A> {
-    FriendMutation((PublicKey, FriendMutation<A>)),
-    SetAddress(A),
-    AddFriend(AddFriend<A>), 
+pub enum FunderMutation<FS:FunderScheme> {
+    FriendMutation((PublicKey, FriendMutation<FS>)),
+    SetAddress(FS::NamedAddress),
+    AddFriend(AddFriend<FS::Address>), 
     RemoveFriend(PublicKey),
     AddReceipt((Uid, Receipt)),  //(request_id, receipt)
     RemoveReceipt(Uid),
 }
 
 
-impl<A> FunderState<A> 
+impl<FS> FunderState<FS> 
 where
-    A: CanonicalSerialize + Clone,
+    FS: FunderScheme,
 {
-    pub fn new(local_public_key: &PublicKey, address: &A) -> FunderState<A> {
+    pub fn new(local_public_key: &PublicKey, address: &FS::NamedAddress) -> FunderState<FS> {
         FunderState {
             local_public_key: local_public_key.clone(),
             address: address.clone(),
@@ -45,7 +44,7 @@ where
     }
     // TODO: Add code for initialization from database?
 
-    pub fn mutate(&mut self, funder_mutation: &FunderMutation<A>) {
+    pub fn mutate(&mut self, funder_mutation: &FunderMutation<FS>) {
         match funder_mutation {
             FunderMutation::FriendMutation((public_key, friend_mutation)) => {
                 let friend = self.friends.get_mut(&public_key).unwrap();

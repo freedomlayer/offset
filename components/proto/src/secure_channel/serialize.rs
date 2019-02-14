@@ -9,34 +9,11 @@ use crate::capnp_common::{write_public_key, read_public_key,
                         write_salt, read_salt,
                         write_signature, read_signature};
 
+use crate::serialize::SerializeError;
+
 use super::messages::{PlainData, ChannelMessage, ChannelContent, 
     ExchangeRandNonce, ExchangeDh, Rekey};
 
-#[derive(Debug)]
-pub enum DhSerializeError {
-    CapnpError(capnp::Error),
-    NotInSchema(capnp::NotInSchema),
-    IoError(io::Error),
-}
-
-
-impl From<capnp::Error> for DhSerializeError {
-    fn from(e: capnp::Error) -> DhSerializeError {
-        DhSerializeError::CapnpError(e)
-    }
-}
-
-impl From<capnp::NotInSchema> for DhSerializeError {
-    fn from(e: capnp::NotInSchema) -> DhSerializeError {
-        DhSerializeError::NotInSchema(e)
-    }
-}
-
-impl From<io::Error> for DhSerializeError {
-    fn from(e: io::Error) -> DhSerializeError {
-        DhSerializeError::IoError(e)
-    }
-}
 
 pub fn serialize_exchange_rand_nonce(exchange_rand_nonce: &ExchangeRandNonce) -> Vec<u8> {
     let mut builder = capnp::message::Builder::new_default();
@@ -50,7 +27,7 @@ pub fn serialize_exchange_rand_nonce(exchange_rand_nonce: &ExchangeRandNonce) ->
     serialized_msg
 }
 
-pub fn deserialize_exchange_rand_nonce(data: &[u8]) -> Result<ExchangeRandNonce, DhSerializeError> {
+pub fn deserialize_exchange_rand_nonce(data: &[u8]) -> Result<ExchangeRandNonce, SerializeError> {
     let mut cursor = io::Cursor::new(data);
     let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let msg = reader.get_root::<dh_capnp::exchange_rand_nonce::Reader>()?;
@@ -79,7 +56,7 @@ pub fn serialize_exchange_dh(exchange_dh: &ExchangeDh) -> Vec<u8> {
     serialized_msg
 }
 
-pub fn deserialize_exchange_dh(data: &[u8]) -> Result<ExchangeDh, DhSerializeError> {
+pub fn deserialize_exchange_dh(data: &[u8]) -> Result<ExchangeDh, SerializeError> {
     let mut cursor = io::Cursor::new(data);
     let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let msg = reader.get_root::<dh_capnp::exchange_dh::Reader>()?;
@@ -121,7 +98,7 @@ pub fn serialize_channel_message(channel_message: &ChannelMessage) -> Vec<u8> {
 }
 
 
-pub fn deserialize_channel_message(data: &[u8]) -> Result<ChannelMessage, DhSerializeError> {
+pub fn deserialize_channel_message(data: &[u8]) -> Result<ChannelMessage, SerializeError> {
     let mut cursor = io::Cursor::new(data);
     let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let msg = reader.get_root::<dh_capnp::channel_message::Reader>()?;
@@ -138,7 +115,7 @@ pub fn deserialize_channel_message(data: &[u8]) -> Result<ChannelMessage, DhSeri
             })
         },
         Ok(dh_capnp::channel_message::content::User(data)) => ChannelContent::User(PlainData(data?.to_vec())),
-        Err(e) => return Err(DhSerializeError::NotInSchema(e)),
+        Err(e) => return Err(SerializeError::NotInSchema(e)),
     };
 
     Ok(ChannelMessage {

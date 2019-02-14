@@ -4,9 +4,9 @@ use common::conn::{ConnPairVec, FutTransform, BoxFuture};
 
 use crypto::identity::PublicKey;
 
-use proto::funder::messages::RelayAddress;
-use proto::net::messages::TcpAddress;
-use proto::index_server::messages::{IndexServerAddress};
+use proto::app_server::messages::RelayAddress;
+use proto::net::messages::NetAddress;
+use proto::index_server::messages::IndexServerAddress;
 
 #[derive(Clone)]
 /// Open an encrypted connection to a relay endpoint
@@ -28,7 +28,7 @@ impl<ET,C> EncRelayConnector<ET,C> {
 
 impl<ET,C> FutTransform for EncRelayConnector<ET,C> 
 where
-    C: FutTransform<Input=TcpAddress,Output=Option<ConnPairVec>> + Clone + Send,
+    C: FutTransform<Input=NetAddress,Output=Option<ConnPairVec>> + Clone + Send,
     ET: FutTransform<Input=(Option<PublicKey>, ConnPairVec),Output=Option<(PublicKey, ConnPairVec)>> + Send,
 {
     type Input = RelayAddress;
@@ -47,7 +47,6 @@ where
 
 
 
-// C: FutTransform<Input=IndexServerAddress, Output=Option<ServerConn>> + Send,
 #[derive(Clone)]
 pub struct EncKeepaliveConnector<ET,KT,C,S> {
     encrypt_transform: ET,
@@ -76,10 +75,10 @@ impl<ET,KT,C,S> FutTransform for EncKeepaliveConnector<ET,KT,C,S>
 where
     ET: FutTransform<Input=(Option<PublicKey>, ConnPairVec),Output=Option<(PublicKey, ConnPairVec)>> + Send,
     KT: FutTransform<Input=ConnPairVec,Output=ConnPairVec> + Send,
-    C: FutTransform<Input=TcpAddress,Output=Option<ConnPairVec>> + Clone + Send,
+    C: FutTransform<Input=NetAddress,Output=Option<ConnPairVec>> + Clone + Send,
     S: Spawn + Send,
 {
-    type Input = IndexServerAddress;
+    type Input = IndexServerAddress<NetAddress>;
     type Output = Option<ConnPairVec>;
 
     fn transform(&mut self, index_server_address: Self::Input)

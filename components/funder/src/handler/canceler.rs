@@ -1,9 +1,9 @@
 use crypto::identity::PublicKey;
 
-use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::{RequestSendFunds,
                               ResponseReceived,
                               ResponseSendFundsResult, FunderOutgoingControl};
+use proto::funder::scheme::FunderScheme;
 
 use crate::handler::handler::{MutableFunderState, find_request_origin};
 use crate::handler::sender::SendCommands;
@@ -39,12 +39,12 @@ R: CryptoRandom + 'static,
     */
 
 /// Reply to a request message with failure.
-pub fn reply_with_failure<A>(m_state: &mut MutableFunderState<A>,
+pub fn reply_with_failure<FS>(m_state: &mut MutableFunderState<FS>,
                              send_commands: &mut SendCommands,
                              remote_public_key: &PublicKey,
                              request_send_funds: &RequestSendFunds) 
 where
-    A: CanonicalSerialize + Clone,
+    FS: FunderScheme,
 {
 
     let pending_request = create_pending_request(request_send_funds);
@@ -57,12 +57,12 @@ where
 
 /// Cancel outgoing local requests that are already inside the token channel (Possibly already
 /// communicated to the remote side).
-pub fn cancel_local_pending_requests<A>(m_state: &mut MutableFunderState<A>,
+pub fn cancel_local_pending_requests<FS>(m_state: &mut MutableFunderState<FS>,
                                      send_commands: &mut SendCommands,
-                                     outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
+                                     outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                                      friend_public_key: &PublicKey) 
 where
-    A: CanonicalSerialize + Clone,
+    FS: FunderScheme,
 {
 
 
@@ -110,12 +110,12 @@ where
     }
 }
 
-pub fn cancel_pending_requests<A>(m_state: &mut MutableFunderState<A>,
+pub fn cancel_pending_requests<FS>(m_state: &mut MutableFunderState<FS>,
                                   send_commands: &mut SendCommands,
-                                  outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
+                                  outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                                   friend_public_key: &PublicKey) 
 where
-    A: CanonicalSerialize + Clone,
+    FS: FunderScheme,
 {
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
@@ -149,11 +149,11 @@ where
     }
 }
 
-pub fn cancel_pending_user_requests<A>(m_state: &mut MutableFunderState<A>,
-                                       outgoing_control: &mut Vec<FunderOutgoingControl<A>>,
+pub fn cancel_pending_user_requests<FS>(m_state: &mut MutableFunderState<FS>,
+                                       outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
                                        friend_public_key: &PublicKey) 
 where
-    A: CanonicalSerialize + Clone,
+    FS: FunderScheme,
 {
 
     let friend = m_state.state().friends.get(&friend_public_key).unwrap();

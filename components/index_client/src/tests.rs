@@ -10,7 +10,9 @@ use crypto::uid::{Uid, UID_LEN};
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer,
                                     IndexClientReportMutation, UpdateFriend,
                                     IndexMutation, RequestRoutes,
-                                    ResponseRoutesResult};
+                                    ResponseRoutesResult, AddIndexServer,
+                                    AddIndexServerReport};
+use proto::index_server::messages::{IndexServerAddress, NamedIndexServerAddress};
 
 use database::{DatabaseClient, DatabaseRequest};
 
@@ -21,13 +23,15 @@ use crate::single_client::{SingleClientControl, SingleClientError};
 use crate::client_session::SessionHandle;
 
 
+
+
 /// A test util struct
 /// Holds sender/receiver interface for an IndexClient.
 struct IndexClientControl<ISA> {
     app_server_sender: mpsc::Sender<AppServerToIndexClient<ISA>>,
     app_server_receiver: mpsc::Receiver<IndexClientToAppServer<ISA>>,
     seq_friends_receiver: mpsc::Receiver<SeqFriendsRequest>,
-    session_receiver: mpsc::Receiver<ConnRequest<ISA,Option<SessionHandle>>>,
+    session_receiver: mpsc::Receiver<ConnRequest<IndexServerAddress<ISA>,Option<SessionHandle>>>,
     database_req_receiver: mpsc::Receiver<DatabaseRequest<IndexClientConfigMutation<ISA>>>,
     tick_sender: mpsc::Sender<()>,
     #[allow(unused)]
@@ -45,8 +49,13 @@ where
     let (app_server_sender, from_app_server) = mpsc::channel(0);
     let (to_app_server, app_server_receiver) = mpsc::channel(0);
 
+    let index_server37 = NamedIndexServerAddress {
+        public_key: PublicKey::from(&[0x37; PUBLIC_KEY_LEN]), 
+        address: 0x1337u32,
+        name: "0x1337".to_owned()
+    };
     let index_client_config = IndexClientConfig {
-        index_servers: vec![0x1337u32],
+        index_servers: vec![index_server37],
     };
 
     let (seq_friends_sender, seq_friends_receiver) = mpsc::channel(0);
@@ -99,13 +108,13 @@ where
     ISA: std::cmp::Eq + std::fmt::Debug + Clone,
 {
     /// Expect an IndexClient report of SetConnectedServer
-    async fn expect_set_connected_server(&mut self, expected_opt_address: Option<ISA>) {
+    async fn expect_set_connected_server(&mut self, expected_opt_public_key: Option<PublicKey>) {
         match await!(self.app_server_receiver.next()).unwrap() {
             IndexClientToAppServer::ReportMutations(mut mutations) => {
                 assert_eq!(mutations.len(), 1);
                 match mutations.pop().unwrap() {
-                    IndexClientReportMutation::SetConnectedServer(opt_address) =>
-                        assert_eq!(opt_address, expected_opt_address),
+                    IndexClientReportMutation::SetConnectedServer(opt_public_key) =>
+                        assert_eq!(opt_public_key, expected_opt_public_key),
                     _ => unreachable!(),
                 };
             },
@@ -113,13 +122,13 @@ where
         };
     }
 
-    /// Expect a connection to index server of address `server_address`.
-    async fn expect_server_connection(&mut self, server_address: ISA) -> 
+    /// Expect a connection to index server of a certain public key
+    async fn expect_server_connection(&mut self, index_server: IndexServerAddress<ISA>) -> 
         (mpsc::Receiver<SingleClientControl>, oneshot::Sender<Result<(), SingleClientError>>) {
 
         // Wait for a connection request:
         let session_conn_request = await!(self.session_receiver.next()).unwrap();
-        assert_eq!(session_conn_request.address, server_address);
+        assert_eq!(session_conn_request.address, index_server);
 
         // Send a SessionHandle back to the index client:
         let (control_sender, mut control_receiver) = mpsc::channel(0);
@@ -127,7 +136,7 @@ where
         session_conn_request.reply(Some((control_sender, close_receiver)));
 
         // We should be notified that a connection to a server was established:
-        await!(self.expect_set_connected_server(Some(server_address)));
+        await!(self.expect_set_connected_server(Some(index_server.public_key)));
 
         match await!(self.seq_friends_receiver.next()).unwrap() {
             SeqFriendsRequest::ResetCountdown(response_sender) => {
@@ -159,20 +168,26 @@ where
     }
 
     /// Add an index server to the IndexClient (From AppServer)
-    async fn add_index_server(&mut self, server_address: ISA) {
+    async fn add_index_server(&mut self, add_index_server: AddIndexServer<ISA>) {
 
-        await!(self.app_server_sender.send(AppServerToIndexClient::AddIndexServer(server_address.clone()))).unwrap();
+        await!(self.app_server_sender.send(AppServerToIndexClient::AddIndexServer(add_index_server.clone()))).unwrap();
 
         let db_request = await!(self.database_req_receiver.next()).unwrap();
-        assert_eq!(db_request.mutations, vec![IndexClientConfigMutation::AddIndexServer(server_address.clone())]);
+        assert_eq!(db_request.mutations, vec![IndexClientConfigMutation::AddIndexServer(add_index_server.clone())]);
         db_request.response_sender.send(()).unwrap();
+
+        let add_index_server_report = AddIndexServerReport {
+            public_key: add_index_server.public_key,
+            address: add_index_server.address,
+            name: add_index_server.name,
+        };
 
         match await!(self.app_server_receiver.next()).unwrap() {
             IndexClientToAppServer::ReportMutations(mut mutations) => {
                 assert_eq!(mutations.len(), 1);
                 match mutations.pop().unwrap() {
-                    IndexClientReportMutation::AddIndexServer(address) => 
-                        assert_eq!(address, server_address),
+                    IndexClientReportMutation::AddIndexServer(add_index_server_report0) => 
+                        assert_eq!(add_index_server_report0, add_index_server_report),
                     _ => unreachable!(),
                 };
             },
@@ -181,19 +196,19 @@ where
     }
 
     /// Remove an index server to the IndexClient (From AppServer)
-    async fn remove_index_server(&mut self, server_address: ISA)  {
-        await!(self.app_server_sender.send(AppServerToIndexClient::RemoveIndexServer(server_address.clone()))).unwrap();
+    async fn remove_index_server(&mut self, public_key: PublicKey)  {
+        await!(self.app_server_sender.send(AppServerToIndexClient::RemoveIndexServer(public_key.clone()))).unwrap();
 
         let db_request = await!(self.database_req_receiver.next()).unwrap();
-        assert_eq!(db_request.mutations, vec![IndexClientConfigMutation::RemoveIndexServer(server_address.clone())]);
+        assert_eq!(db_request.mutations, vec![IndexClientConfigMutation::RemoveIndexServer(public_key.clone())]);
         db_request.response_sender.send(()).unwrap();
 
         match await!(self.app_server_receiver.next()).unwrap() {
             IndexClientToAppServer::ReportMutations(mut mutations) => {
                 assert_eq!(mutations.len(), 1);
                 match mutations.pop().unwrap() {
-                    IndexClientReportMutation::RemoveIndexServer(address) => 
-                        assert_eq!(address, server_address.clone()),
+                    IndexClientReportMutation::RemoveIndexServer(public_key0) => 
+                        assert_eq!(public_key0, public_key.clone()),
                     _ => unreachable!(),
                 };
             },
@@ -210,13 +225,26 @@ where
 
     let mut icc = basic_index_client(spawner.clone());
 
-    let (mut control_receiver, close_sender) = await!(icc.expect_server_connection(0x1337));
+    let index_server = IndexServerAddress {
+        public_key: PublicKey::from(&[0x37; PUBLIC_KEY_LEN]), 
+        address: 0x1337,
+    };
+    let (mut control_receiver, close_sender) = await!(icc.expect_server_connection(index_server));
 
-    await!(icc.add_index_server(0x1338));
-    await!(icc.add_index_server(0x1339));
-    await!(icc.remove_index_server(0x1338));
+
+    await!(icc.add_index_server(AddIndexServer {
+        public_key: PublicKey::from(&[0x38; PUBLIC_KEY_LEN]), 
+        address: 0x1338,
+        name: "0x1338".to_owned()
+    }));
+    await!(icc.add_index_server(AddIndexServer {
+        public_key: PublicKey::from(&[0x39; PUBLIC_KEY_LEN]), 
+        address: 0x1339,
+        name: "0x1339".to_owned()
+    }));
+    await!(icc.remove_index_server(PublicKey::from(&[0x38; PUBLIC_KEY_LEN])));
     // Remove index server in use (0x1337):
-    await!(icc.remove_index_server(0x1337));
+    await!(icc.remove_index_server(PublicKey::from(&[0x37; PUBLIC_KEY_LEN])));
 
     
     // We expect that control_receiver will be closed eventually:
@@ -236,7 +264,11 @@ where
 
     // Wait for a connection request:
     let session_conn_request = await!(icc.session_receiver.next()).unwrap();
-    assert_eq!(session_conn_request.address, 0x1339);
+    let index_server = IndexServerAddress {
+        public_key: PublicKey::from(&[0x39; PUBLIC_KEY_LEN]),
+        address: 0x1339,
+    };
+    assert_eq!(session_conn_request.address, index_server);
 
     // Send a SessionHandle back to the index client:
     let (control_sender, _control_receiver) = mpsc::channel(0);
@@ -244,7 +276,8 @@ where
     session_conn_request.reply(Some((control_sender, close_receiver)));
 
     // A new connection should be made to 0x1339:
-    await!(icc.expect_set_connected_server(Some(0x1339)));
+    await!(icc.expect_set_connected_server(
+            Some(PublicKey::from(&[0x39; PUBLIC_KEY_LEN]))));
 }
 
 
@@ -262,7 +295,11 @@ where
 {
 
     let mut icc = basic_index_client(spawner.clone());
-    let (mut control_receiver, _close_sender) = await!(icc.expect_server_connection(0x1337));
+    let index_server = IndexServerAddress {
+        public_key: PublicKey::from(&[0x37; PUBLIC_KEY_LEN]), 
+        address: 0x1337,
+    };
+    let (mut control_receiver, _close_sender) = await!(icc.expect_server_connection(index_server));
 
     let update_friend = UpdateFriend {
         public_key: PublicKey::from(PublicKey::from(&[0xbb; PUBLIC_KEY_LEN])),
@@ -323,7 +360,11 @@ where
 {
 
     let mut icc = basic_index_client(spawner.clone());
-    let (mut control_receiver, _close_sender) = await!(icc.expect_server_connection(0x1337));
+    let index_server = IndexServerAddress {
+        public_key: PublicKey::from(&[0x37; PUBLIC_KEY_LEN]), 
+        address: 0x1337,
+    };
+    let (mut control_receiver, _close_sender) = await!(icc.expect_server_connection(index_server));
 
 
     let request_routes = RequestRoutes {
@@ -377,7 +418,11 @@ where
 
     // Wait for a connection request:
     let session_conn_request = await!(icc.session_receiver.next()).unwrap();
-    assert_eq!(session_conn_request.address, 0x1337);
+    let index_server = IndexServerAddress {
+        public_key: PublicKey::from(&[0x37; PUBLIC_KEY_LEN]),
+        address: 0x1337,
+    };
+    assert_eq!(session_conn_request.address, index_server);
 
     // We got a connection request, but we don't reply.
     // This leaves IndexClient in "Connecting" state, where it is not yet connected to a server.

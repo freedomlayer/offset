@@ -1,10 +1,5 @@
-use std::fmt::Debug;
-
 use futures::channel::mpsc;
 use futures::{future, stream, SinkExt, StreamExt};
-
-use serde::Serialize;
-use serde::de::DeserializeOwned;
 
 use crypto::crypto_rand::CryptoRandom;
 use identity::IdentityClient;
@@ -12,14 +7,15 @@ use identity::IdentityClient;
 // use crate::database::{AtomicDb, DbRunner, DbRunnerError};
 use database::DatabaseClient;
 
-use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::{FunderIncomingControl, 
     FunderOutgoingControl};
+use proto::funder::scheme::FunderScheme;
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::{funder_handle_message};
 use crate::types::{FunderIncoming, FunderOutgoingComm, FunderIncomingComm};
 use crate::state::{FunderState, FunderMutation};
+
 
 #[derive(Debug)]
 pub enum FunderError {
@@ -33,27 +29,27 @@ pub enum FunderError {
 
 
 #[derive(Debug, Clone)]
-pub enum FunderEvent<A> {
-    FunderIncoming(FunderIncoming<A>),
+pub enum FunderEvent<FS: FunderScheme> {
+    FunderIncoming(FunderIncoming<FS>),
     IncomingControlClosed,
     IncomingCommClosed,
 }
 
-pub async fn inner_funder_loop<A,R>(
+pub async fn inner_funder_loop<FS,R>(
     mut identity_client: IdentityClient,
     rng: R,
-    incoming_control: mpsc::Receiver<FunderIncomingControl<A>>,
-    incoming_comm: mpsc::Receiver<FunderIncomingComm<A>>,
-    control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
-    comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
-    mut funder_state: FunderState<A>,
-    mut db_client: DatabaseClient<FunderMutation<A>>,
+    incoming_control: mpsc::Receiver<FunderIncomingControl<FS::Address, FS::NamedAddress>>,
+    incoming_comm: mpsc::Receiver<FunderIncomingComm<FS>>,
+    control_sender: mpsc::Sender<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
+    comm_sender: mpsc::Sender<FunderOutgoingComm<FS>>,
+    mut funder_state: FunderState<FS>,
+    mut db_client: DatabaseClient<FunderMutation<FS>>,
     max_operations_in_batch: usize,
     max_pending_user_requests: usize,
-    mut opt_event_sender: Option<mpsc::Sender<FunderEvent<A>>>) -> Result<(), FunderError> 
+    mut opt_event_sender: Option<mpsc::Sender<FunderEvent<FS>>>) -> Result<(), FunderError> 
 
 where
-    A: CanonicalSerialize + Serialize + DeserializeOwned + Send + Sync + Clone + Debug + PartialEq + Eq + 'static,
+    FS: FunderScheme,
     R: CryptoRandom + 'static,
 {
 
@@ -137,19 +133,19 @@ where
     Ok(())
 }
 
-pub async fn funder_loop<A,R>(
+pub async fn funder_loop<FS,R>(
     identity_client: IdentityClient,
     rng: R,
-    incoming_control: mpsc::Receiver<FunderIncomingControl<A>>,
-    incoming_comm: mpsc::Receiver<FunderIncomingComm<A>>,
-    control_sender: mpsc::Sender<FunderOutgoingControl<A>>,
-    comm_sender: mpsc::Sender<FunderOutgoingComm<A>>,
+    incoming_control: mpsc::Receiver<FunderIncomingControl<FS::Address, FS::NamedAddress>>,
+    incoming_comm: mpsc::Receiver<FunderIncomingComm<FS>>,
+    control_sender: mpsc::Sender<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
+    comm_sender: mpsc::Sender<FunderOutgoingComm<FS>>,
     max_operations_in_batch: usize,
     max_pending_user_requests: usize,
-    funder_state: FunderState<A>,
-    db_client: DatabaseClient<FunderMutation<A>>) -> Result<(), FunderError> 
+    funder_state: FunderState<FS>,
+    db_client: DatabaseClient<FunderMutation<FS>>) -> Result<(), FunderError> 
 where
-    A: CanonicalSerialize + Serialize + DeserializeOwned + Send + Sync + Clone + Debug + PartialEq + Eq + 'static,
+    FS: FunderScheme,
     R: CryptoRandom + 'static,
 {
 

@@ -18,7 +18,9 @@ use proto::app_server::messages::{AppServerToApp, AppToAppServer, NodeReport,
                                     NodeReportMutation, AppPermissions};
 use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClient};
 
-pub type IncomingAppConnection<B,ISA> = (AppPermissions, ConnPair<AppServerToApp<B,ISA>, AppToAppServer<B,ISA>>);
+pub type IncomingAppConnection<B,NB,ISA> = (AppPermissions, 
+                                          ConnPair<AppServerToApp<Vec<B>,Vec<NB>,ISA>, 
+                                                   AppToAppServer<Vec<B>,Vec<NB>,ISA>>);
 
 
 #[derive(Debug)]
@@ -31,29 +33,30 @@ pub enum AppServerError {
     AllAppsClosed,
 }
 
-pub enum AppServerEvent<B: Clone,ISA> {
-    IncomingConnection(IncomingAppConnection<B,ISA>),
+pub enum AppServerEvent<B:Clone,NB:Clone,ISA> {
+    IncomingConnection(IncomingAppConnection<B,NB,ISA>),
     IncomingConnectionsClosed,
-    FromFunder(FunderOutgoingControl<Vec<B>>),
+    FromFunder(FunderOutgoingControl<Vec<B>,Vec<NB>>),
     FunderClosed,
     FromIndexClient(IndexClientToAppServer<ISA>),
     IndexClientClosed,
-    FromApp((u128, Option<AppToAppServer<B,ISA>>)), // None means that app was closed
+    FromApp((u128, Option<AppToAppServer<Vec<B>,Vec<NB>,ISA>>)), // None means that app was closed
 }
 
-pub struct App<B: Clone, ISA> {
+pub struct App<B:Clone,NB:Clone,ISA> {
     permissions: AppPermissions,
-    opt_sender: Option<mpsc::Sender<AppServerToApp<B,ISA>>>,
+    opt_sender: Option<mpsc::Sender<AppServerToApp<Vec<B>,Vec<NB>,ISA>>>,
     open_route_requests: HashSet<Uid>,
     open_send_funds_requests: HashSet<Uid>,
 }
 
-impl<B,ISA> App<B,ISA> 
+impl<B,NB,ISA> App<B,NB,ISA> 
 where
     B: Clone,
+    NB: Clone,
 {
     pub fn new(permissions: AppPermissions,
-               sender: mpsc::Sender<AppServerToApp<B,ISA>>) -> Self {
+               sender: mpsc::Sender<AppServerToApp<Vec<B>,Vec<NB>,ISA>>) -> Self {
 
         App {
             permissions,
@@ -63,7 +66,7 @@ where
         }
     }
 
-    pub async fn send(&mut self, message: AppServerToApp<B,ISA>)  {
+    pub async fn send(&mut self, message: AppServerToApp<Vec<B>,Vec<NB>,ISA>)  {
         match self.opt_sender.take() {
             Some(mut sender) => {
                 if let Ok(()) = await!(sender.send(message)) {
@@ -76,23 +79,25 @@ where
 }
 
 
-pub struct AppServer<B: Clone,ISA,TF,TIC,S> {
+pub struct AppServer<B:Clone,NB:Clone,ISA,TF,TIC,S> {
     to_funder: TF,
     to_index_client: TIC,
-    from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<B,ISA>>)>,
-    node_report: NodeReport<B,ISA>,
+    from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<Vec<B>,Vec<NB>,ISA>>)>,
+    node_report: NodeReport<Vec<B>,Vec<NB>,ISA>,
+    /// Maximum amount of relays the user may configure.
+    max_node_relays: usize,
     incoming_connections_closed: bool,
     /// A long cyclic incrementing counter, 
     /// allows to give every connection a unique number.
     /// Required because an app (with one public key) might have multiple connections.
     app_counter: u128,
-    apps: HashMap<u128, App<B,ISA>>,
+    apps: HashMap<u128, App<B,NB,ISA>>,
     spawner: S,
 }
 
 /// Check if we should process an app_message from an app with certain permissions
-fn check_permissions<B,ISA>(app_permissions: &AppPermissions, 
-                     app_message: &AppToAppServer<B,ISA>) -> bool {
+fn check_permissions<B,NB,ISA>(app_permissions: &AppPermissions, 
+                     app_message: &AppToAppServer<Vec<B>,Vec<NB>,ISA>) -> bool {
 
     match app_message {
         AppToAppServer::SetRelays(_) => app_permissions.config,
@@ -114,18 +119,21 @@ fn check_permissions<B,ISA>(app_permissions: &AppPermissions,
     }
 }
 
-impl<B,ISA,TF,TIC,S> AppServer<B,ISA,TF,TIC,S> 
+impl<B,NB,ISA,TF,TIC,S> AppServer<B,NB,ISA,TF,TIC,S> 
 where
-    B: Clone + Send + Debug + 'static,
+    B: Clone + Debug + Send + Sync + 'static,
+    NB: Clone + Debug + Send + Sync + 'static,
     ISA: Eq + Clone + Send + Debug + 'static,
-    TF: Sink<SinkItem=FunderIncomingControl<Vec<B>>> + Unpin + Sync + Send,
+    TF: Sink<SinkItem=FunderIncomingControl<Vec<B>,Vec<NB>>> + Unpin + Sync + Send,
     TIC: Sink<SinkItem=AppServerToIndexClient<ISA>> + Unpin,
     S: Spawn,
 {
     pub fn new(to_funder: TF, 
                to_index_client: TIC,
-               from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<B,ISA>>)>,
-               node_report: NodeReport<B,ISA>,
+               from_app_sender: mpsc::Sender<(u128, Option<AppToAppServer<Vec<B>,Vec<NB>,ISA>>)>,
+               node_report: NodeReport<Vec<B>,Vec<NB>,ISA>,
+               // Maximum amount of relays a the user may configure
+               max_node_relays: usize,
                spawner: S) -> Self {
 
         AppServer {
@@ -133,6 +141,7 @@ where
             to_index_client,
             from_app_sender,
             node_report,
+            max_node_relays,
             incoming_connections_closed: false,
             app_counter: 0,
             apps: HashMap::new(),
@@ -141,7 +150,7 @@ where
     }
 
     /// Add an application connection
-    pub async fn handle_incoming_connection(&mut self, incoming_app_connection: IncomingAppConnection<B,ISA>) 
+    pub async fn handle_incoming_connection(&mut self, incoming_app_connection: IncomingAppConnection<B,NB,ISA>) 
         -> Result<(), AppServerError> {
 
         let (permissions, (sender, receiver)) = incoming_app_connection;
@@ -186,7 +195,7 @@ where
 
     /// Send node report mutations to all connected apps
     pub async fn broadcast_node_report_mutations(&mut self, 
-                                                 node_report_mutations: Vec<NodeReportMutation<B,ISA>>) {
+                                                 node_report_mutations: Vec<NodeReportMutation<Vec<B>,Vec<NB>,ISA>>) {
 
         // Send node report mutations to all connected apps
         for (_app_id, app) in &mut self.apps {
@@ -196,7 +205,7 @@ where
         }
     }
 
-    pub async fn handle_from_funder(&mut self, funder_message: FunderOutgoingControl<Vec<B>>)
+    pub async fn handle_from_funder(&mut self, funder_message: FunderOutgoingControl<Vec<B>,Vec<NB>>)
         -> Result<(), AppServerError> {
 
         match funder_message {
@@ -272,7 +281,7 @@ where
         Ok(())
     }
 
-    async fn handle_app_message(&mut self, app_id: u128, app_message: AppToAppServer<B,ISA>)
+    async fn handle_app_message(&mut self, app_id: u128, app_message: AppToAppServer<Vec<B>,Vec<NB>,ISA>)
         -> Result<(), AppServerError> {
 
         // Get the relevant application:
@@ -291,9 +300,14 @@ where
         }
 
         match app_message {
-            AppToAppServer::SetRelays(relays) =>
-                await!(self.to_funder.send(FunderIncomingControl::SetAddress(relays)))
-                    .map_err(|_| AppServerError::SendToFunderError),
+            AppToAppServer::SetRelays(relays) => {
+                // Make sure that the user doesn't configure too many relays:
+                if relays.len() <= self.max_node_relays {
+                    await!(self.to_funder.send(FunderIncomingControl::SetAddress(relays)))
+                        .map_err(|_| AppServerError::SendToFunderError)?;
+                }
+                Ok(())
+            },
             AppToAppServer::RequestSendFunds(user_request_send_funds) => {
                 // Keep track of which application issued this request:
                 app.open_send_funds_requests.insert(user_request_send_funds.request_id.clone());
@@ -371,7 +385,7 @@ where
         }
     }
 
-    pub async fn handle_from_app(&mut self, app_id: u128, opt_app_message: Option<AppToAppServer<B,ISA>>)
+    pub async fn handle_from_app(&mut self, app_id: u128, opt_app_message: Option<AppToAppServer<Vec<B>,Vec<NB>,ISA>>)
         -> Result<(), AppServerError> {
 
         match opt_app_message {
@@ -391,21 +405,23 @@ where
 
 
 #[allow(unused)]
-pub async fn app_server_loop<B,ISA,FF,TF,FIC,TIC,IC,S>(from_funder: FF, 
+pub async fn app_server_loop<B,NB,ISA,FF,TF,FIC,TIC,IC,S>(from_funder: FF, 
                                                        to_funder: TF, 
                                                        from_index_client: FIC,
                                                        to_index_client: TIC,
                                                        incoming_connections: IC,
-                                                       initial_node_report: NodeReport<B,ISA>,
+                                                       initial_node_report: NodeReport<Vec<B>,Vec<NB>,ISA>,
+                                                       max_node_relays: usize,
                                                        mut spawner: S) -> Result<(), AppServerError>
 where
-    B: Clone + Send + Debug + 'static,
+    B: Clone + Debug + Send + Sync + 'static,
+    NB: Clone + Debug + Send + Sync + 'static,
     ISA: Eq + Clone + Send + Debug + 'static,
-    FF: Stream<Item=FunderOutgoingControl<Vec<B>>> + Unpin,
-    TF: Sink<SinkItem=FunderIncomingControl<Vec<B>>> + Unpin + Sync + Send,
+    FF: Stream<Item=FunderOutgoingControl<Vec<B>,Vec<NB>>> + Unpin,
+    TF: Sink<SinkItem=FunderIncomingControl<Vec<B>,Vec<NB>>> + Unpin + Sync + Send,
     FIC: Stream<Item=IndexClientToAppServer<ISA>> + Unpin,
     TIC: Sink<SinkItem=AppServerToIndexClient<ISA>> + Unpin,
-    IC: Stream<Item=IncomingAppConnection<B,ISA>> + Unpin,
+    IC: Stream<Item=IncomingAppConnection<B,NB,ISA>> + Unpin,
     S: Spawn,
 {
 
@@ -414,6 +430,7 @@ where
                                         to_index_client,
                                         from_app_sender,
                                         initial_node_report,
+                                        max_node_relays,
                                         spawner);
 
     let from_funder = from_funder
@@ -425,7 +442,7 @@ where
         .chain(stream::once(future::ready(AppServerEvent::IndexClientClosed)));
 
     let from_app_receiver = from_app_receiver
-        .map(|from_app: (u128, Option<AppToAppServer<B,ISA>>)| AppServerEvent::FromApp(from_app));
+        .map(|from_app: (u128, Option<AppToAppServer<Vec<B>,Vec<NB>,ISA>>)| AppServerEvent::FromApp(from_app));
 
     let incoming_connections = incoming_connections
         .map(|incoming_connection| AppServerEvent::IncomingConnection(incoming_connection))

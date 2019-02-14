@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 
-use crate::index_server::messages::RouteWithCapacity;
+use crate::index_server::messages::{RouteWithCapacity, NamedIndexServerAddress};
 pub use crate::index_server::messages::{RequestRoutes, IndexMutation, UpdateFriend};
 
 
@@ -21,16 +21,30 @@ pub struct IndexClientState {
 /// ISA stands for Index Server Address
 pub struct IndexClientReport<ISA> {
     /// A list of trusted index servers.
-    pub index_servers: Vec<ISA>,
+    pub index_servers: Vec<NamedIndexServerAddress<ISA>>,
     /// The server we are currently connected to (None if not connected).
-    pub opt_connected_server: Option<ISA>,
+    pub opt_connected_server: Option<PublicKey>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AddIndexServer<ISA> {
+    pub public_key: PublicKey,
+    pub address: ISA,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AddIndexServerReport<ISA> {
+    pub public_key: PublicKey,
+    pub address: ISA,
+    pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IndexClientReportMutation<ISA> {
-    AddIndexServer(ISA),
-    RemoveIndexServer(ISA),
-    SetConnectedServer(Option<ISA>),
+    AddIndexServer(AddIndexServerReport<ISA>),
+    RemoveIndexServer(PublicKey),
+    SetConnectedServer(Option<PublicKey>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,8 +67,8 @@ pub enum IndexClientToAppServer<ISA> {
 
 #[derive(Debug)]
 pub enum AppServerToIndexClient<ISA> {
-    AddIndexServer(ISA),
-    RemoveIndexServer(ISA),
+    AddIndexServer(AddIndexServer<ISA>),
+    RemoveIndexServer(PublicKey),
     RequestRoutes(RequestRoutes),
     ApplyMutations(Vec<IndexMutation>),
 }
@@ -66,16 +80,22 @@ where
 {
     pub fn mutate(&mut self, mutation: &IndexClientReportMutation<ISA>) {
         match mutation {
-            IndexClientReportMutation::AddIndexServer(address) => {
+            IndexClientReportMutation::AddIndexServer(add_index_server) => {
                 // Remove first, to avoid duplicates:
-                self.index_servers.retain(|cur_address| cur_address != address);
-                self.index_servers.push(address.clone());
+                self.index_servers.retain(|index_server| 
+                                          index_server.public_key != add_index_server.public_key);
+                self.index_servers.push(NamedIndexServerAddress {
+                    public_key: add_index_server.public_key.clone(),
+                    address: add_index_server.address.clone(),
+                    name: add_index_server.name.clone(),
+                });
             },
-            IndexClientReportMutation::RemoveIndexServer(address) => {
-                self.index_servers.retain(|cur_address| cur_address != address);
+            IndexClientReportMutation::RemoveIndexServer(public_key) => {
+                self.index_servers.retain(|index_server| 
+                                          &index_server.public_key != public_key);
             },
-            IndexClientReportMutation::SetConnectedServer(opt_address) => {
-                self.opt_connected_server = opt_address.clone();
+            IndexClientReportMutation::SetConnectedServer(opt_public_key) => {
+                self.opt_connected_server = opt_public_key.clone();
             },
         }
     }

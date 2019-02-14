@@ -1,16 +1,15 @@
+use std::convert::TryInto;
 use std::io::{self, Write};
 use std::fs::{self, File};
 use std::path::Path;
-
-use std::net::SocketAddr;
 
 use toml;
 use base64::{self, URL_SAFE_NO_PAD};
 
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
-use net::{socket_addr_to_tcp_address, tcp_address_to_socket_addr};
 
-use proto::funder::messages::RelayAddress;
+use proto::net::messages::NetAddressError;
+use proto::app_server::messages::RelayAddress;
 
 #[derive(Debug)]
 pub enum RelayFileError {
@@ -20,6 +19,7 @@ pub enum RelayFileError {
     Base64DecodeError(base64::DecodeError),
     ParseSocketAddrError,
     InvalidPublicKey,
+    NetAddressError(NetAddressError),
 }
 
 /// A helper structure for serialize and deserializing RelayAddress.
@@ -53,6 +53,12 @@ impl From<base64::DecodeError> for RelayFileError {
     }
 }
 
+impl From<NetAddressError> for RelayFileError {
+    fn from(e: NetAddressError) -> Self {
+        RelayFileError::NetAddressError(e)
+    }
+}
+
 /// Load RelayAddress from a file
 #[allow(unused)]
 pub fn load_relay_from_file(path: &Path) -> Result<RelayAddress, RelayFileError> {
@@ -69,14 +75,9 @@ pub fn load_relay_from_file(path: &Path) -> Result<RelayAddress, RelayFileError>
     public_key_array.copy_from_slice(&public_key_vec[0 .. PUBLIC_KEY_LEN]);
     let public_key = PublicKey::from(&public_key_array);
 
-    // Decode address:
-    let socket_addr: SocketAddr = relay_file.address.parse()
-        .map_err(|_| RelayFileError::ParseSocketAddrError)?;
-    let address = socket_addr_to_tcp_address(&socket_addr);
-
     Ok(RelayAddress {
         public_key,
-        address,
+        address: relay_file.address.try_into()?,
     })
 }
 
@@ -87,12 +88,9 @@ pub fn store_relay_to_file(relay_address: &RelayAddress, path: &Path)
 
     let RelayAddress {ref public_key, ref address} = relay_address;
 
-    let socket_addr = tcp_address_to_socket_addr(&address);
-    let socket_addr_str = format!("{}", socket_addr);
-
     let relay_file = RelayFile {
         public_key: base64::encode_config(&public_key, URL_SAFE_NO_PAD),
-        address: socket_addr_str,
+        address: address.as_str().to_string(),
     };
 
     let data = toml::to_string(&relay_file)?;
@@ -107,7 +105,6 @@ pub fn store_relay_to_file(relay_address: &RelayAddress, path: &Path)
 mod tests {
     use super::*;
     use tempfile::tempdir;
-    use proto::net::messages::{TcpAddress, TcpAddressV4};
 
     #[test]
     fn test_relay_file_basic() {
@@ -126,14 +123,9 @@ mod tests {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("relay_address_file");
 
-        let address = TcpAddress::V4(TcpAddressV4 {
-            octets: [127,0,0,1],
-            port: 1337,
-        });
-
         let relay_address = RelayAddress {
             public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
-            address,
+            address: "127.0.0.1:1337".to_owned().try_into().unwrap(),
         };
 
         store_relay_to_file(&relay_address, &file_path).unwrap();

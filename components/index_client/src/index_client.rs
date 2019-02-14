@@ -8,6 +8,8 @@ use futures::task::{Spawn, SpawnExt};
 
 use common::conn::FutTransform;
 use common::mutable_state::MutableState;
+
+use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 use database::DatabaseClient;
@@ -16,7 +18,10 @@ use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServ
                                     IndexMutation,
                                     ResponseRoutesResult, ClientResponseRoutes,
                                     RequestRoutes,
-                                    IndexClientReportMutation};
+                                    IndexClientReportMutation,
+                                    AddIndexServer,
+                                    AddIndexServerReport};
+use proto::index_server::messages::{IndexServerAddress, NamedIndexServerAddress};
 
 use crate::client_session::{SessionHandle, ControlSender};
 use crate::single_client::SingleClientControl;
@@ -25,7 +30,7 @@ use crate::seq_friends::SeqFriendsClient;
 #[allow(unused)]
 #[derive(Clone, Serialize, Deserialize)]
 pub struct IndexClientConfig<ISA> {
-    pub index_servers: Vec<ISA>,
+    pub index_servers: Vec<NamedIndexServerAddress<ISA>>,
 }
 
 impl<ISA> IndexClientConfig<ISA> {
@@ -38,8 +43,8 @@ impl<ISA> IndexClientConfig<ISA> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IndexClientConfigMutation<ISA> {
-    AddIndexServer(ISA),
-    RemoveIndexServer(ISA),
+    AddIndexServer(AddIndexServer<ISA>),
+    RemoveIndexServer(PublicKey),
 }
 
 
@@ -52,13 +57,20 @@ where
 
     fn mutate(&mut self, mutation: &Self::Mutation) -> Result<(), Self::MutateError> {
         match mutation {
-            IndexClientConfigMutation::AddIndexServer(address) => {
+            IndexClientConfigMutation::AddIndexServer(add_index_server_report) => {
                 // Remove first, to avoid duplicates:
-                self.index_servers.retain(|cur_address| cur_address != address);
-                self.index_servers.push(address.clone());
+                self.index_servers.retain(|named_index_server| 
+                                          named_index_server.public_key != add_index_server_report.public_key);
+                let named_index_server = NamedIndexServerAddress {
+                    public_key: add_index_server_report.public_key.clone(),
+                    address: add_index_server_report.address.clone(),
+                    name: add_index_server_report.name.clone(),
+                };
+                self.index_servers.push(named_index_server);
             },
-            IndexClientConfigMutation::RemoveIndexServer(address) => {
-                self.index_servers.retain(|cur_address| cur_address != address);
+            IndexClientConfigMutation::RemoveIndexServer(public_key) => {
+                self.index_servers.retain(|named_index_server| 
+                                          &named_index_server.public_key != public_key);
             },
         };
         Ok(())
@@ -68,14 +80,14 @@ where
 
 #[derive(Debug)]
 struct ServerConnecting<ISA> {
-    address: ISA,
+    index_server: IndexServerAddress<ISA>,
     opt_cancel_sender: Option<oneshot::Sender<()>>,
 }
 
 
 #[derive(Debug)]
 struct ServerConnected<ISA> {
-    address: ISA,
+    index_server: IndexServerAddress<ISA>,
     opt_control_sender: Option<ControlSender>,
     /// A oneshot for closing the connection 
     /// (closing opt_control_sender is not enough, because send_full_state() task also has a
@@ -121,7 +133,7 @@ struct IndexClient<ISA,TAS,ICS,S> {
     /// The next index server to be used is the one on the front:
     // TODO: Why not use IndexClientConfig as state here?
     // We perform the mutations implicitly in the implementation of IndexClient. 
-    index_servers: VecDeque<ISA>,
+    index_servers: VecDeque<IndexServerAddress<ISA>>,
     seq_friends_client: SeqFriendsClient,
     index_client_session: ICS,
     max_open_requests: usize,
@@ -170,7 +182,7 @@ impl<ISA,TAS,ICS,S> IndexClient<ISA,TAS,ICS,S>
 where
     ISA: Eq + Clone + Send + 'static,
     TAS: Sink<SinkItem=IndexClientToAppServer<ISA>> + Unpin,
-    ICS: FutTransform<Input=ISA, Output=Option<SessionHandle>> + Clone + Send + 'static,
+    ICS: FutTransform<Input=IndexServerAddress<ISA>, Output=Option<SessionHandle>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
     pub fn new(event_sender: mpsc::Sender<IndexClientEvent<ISA>>,
@@ -186,6 +198,10 @@ where
 
         let index_servers = index_client_config.index_servers
                 .into_iter()
+                .map(|named_index_server| IndexServerAddress {
+                    public_key: named_index_server.public_key,
+                    address: named_index_server.address,
+                })
                 .collect::<VecDeque<_>>();
 
         IndexClient {
@@ -213,8 +229,8 @@ where
             unreachable!();
         }
 
-        let server_address = match self.index_servers.pop_front() {
-            Some(server_address) => server_address,
+        let index_server = match self.index_servers.pop_front() {
+            Some(index_server) => index_server,
             None => {
                 // We don't have any index servers to connect to:
                 self.conn_status = ConnStatus::Empty(0);
@@ -222,14 +238,14 @@ where
             }
         };
         // Move the chosen address to the end, rotating the addresses VecDeque 1 to the left:
-        self.index_servers.push_back(server_address.clone());
+        self.index_servers.push_back(index_server.clone());
 
         let mut c_index_client_session = self.index_client_session.clone();
         let mut c_event_sender = self.event_sender.clone();
 
         let (cancel_sender, cancel_receiver) = oneshot::channel();
         let server_connecting = ServerConnecting {
-            address: server_address.clone(),
+            index_server: index_server.clone(),
             opt_cancel_sender: Some(cancel_sender),
         };
         self.conn_status = ConnStatus::Connecting(server_connecting);
@@ -243,7 +259,7 @@ where
 
         // TODO: Can we remove the Box::pin() from here? How?
         let connect_fut = Box::pin(async move {
-            let res = await!(c_index_client_session.transform(server_address))?;
+            let res = await!(c_index_client_session.transform(index_server))?;
             let (control_sender, close_receiver) = res;
 
             let c_control_sender = control_sender.clone();
@@ -302,17 +318,34 @@ where
             .map_err(|_| IndexClientError::SendToAppServerFailed)
     }
 
-    pub async fn handle_from_app_server_add_index_server(&mut self, server_address: ISA) 
+    pub async fn handle_from_app_server_add_index_server(&mut self, add_index_server: AddIndexServer<ISA>) 
                                                             -> Result<(), IndexClientError> {
+        let add_index_server = AddIndexServer {
+            public_key: add_index_server.public_key.clone(),
+            address: add_index_server.address.clone(),
+            name: add_index_server.name.clone(),
+        };
         // Update database:
-        await!(self.db_client.mutate(vec![IndexClientConfigMutation::AddIndexServer(server_address.clone())]))
+        await!(self.db_client.mutate(vec![IndexClientConfigMutation::AddIndexServer(add_index_server.clone())]))
             .map_err(|_| IndexClientError::DatabaseError)?;
 
         // Add new server_address to memory:
-        self.index_servers.push_back(server_address.clone());
+        // To avoid duplicates, we try to remove it from the list first:
+        self.index_servers.retain(|index_server| index_server.public_key != add_index_server.public_key);
+        let index_server = IndexServerAddress {
+            public_key: add_index_server.public_key.clone(),
+            address: add_index_server.address.clone(),
+        };
+        self.index_servers.push_back(index_server);
 
-        // Send report:
-        let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(server_address);
+        let add_index_server_report = AddIndexServerReport {
+            public_key: add_index_server.public_key.clone(),
+            address: add_index_server.address.clone(),
+            name: add_index_server.name.clone(),
+        };
+
+        // Send report to AppServer:
+        let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(add_index_server_report);
         let report_mutations = vec![index_client_report_mutation];
         await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(report_mutations)))
             .map_err(|_| IndexClientError::SendToAppServerFailed)?;
@@ -326,17 +359,17 @@ where
         self.try_connect_to_server()
     }
 
-    pub async fn handle_from_app_server_remove_index_server(&mut self, server_address: ISA) 
+    pub async fn handle_from_app_server_remove_index_server(&mut self, public_key: PublicKey) 
                                                             -> Result<(), IndexClientError> {
         // Update database:
-        await!(self.db_client.mutate(vec![IndexClientConfigMutation::RemoveIndexServer(server_address.clone())]))
+        await!(self.db_client.mutate(vec![IndexClientConfigMutation::RemoveIndexServer(public_key.clone())]))
             .map_err(|_| IndexClientError::DatabaseError)?;
 
         // Remove address:
-        self.index_servers.retain(|cur_address| cur_address != &server_address);
+        self.index_servers.retain(|index_server| index_server.public_key != public_key);
 
         // Send report:
-        let index_client_report_mutation = IndexClientReportMutation::RemoveIndexServer(server_address.clone());
+        let index_client_report_mutation = IndexClientReportMutation::RemoveIndexServer(public_key.clone());
         let report_mutations = vec![index_client_report_mutation];
         await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(report_mutations)))
             .map_err(|_| IndexClientError::SendToAppServerFailed)?;
@@ -345,14 +378,14 @@ where
         match &mut self.conn_status {
             ConnStatus::Empty(_) => {}, // Nothing to do here
             ConnStatus::Connecting(server_connecting) => {
-                if server_connecting.address == server_address {
+                if server_connecting.index_server.public_key == public_key {
                     if let Some(cancel_sender) = server_connecting.opt_cancel_sender.take() {
                         let _ = cancel_sender.send(());
                     }
                 }
             },
             ConnStatus::Connected(server_connected) => {
-                if server_connected.address == server_address {
+                if server_connected.index_server.public_key == public_key {
                     server_connected.opt_control_sender.take();
                     server_connected.opt_cancel_sender.take();
                 }
@@ -448,10 +481,10 @@ where
                                     -> Result<(), IndexClientError> {
 
         match app_server_to_index_client {
-            AppServerToIndexClient::AddIndexServer(server_address) => 
-                await!(self.handle_from_app_server_add_index_server(server_address)),
-            AppServerToIndexClient::RemoveIndexServer(server_address) =>
-                await!(self.handle_from_app_server_remove_index_server(server_address)),
+            AppServerToIndexClient::AddIndexServer(add_index_server) => 
+                await!(self.handle_from_app_server_add_index_server(add_index_server)),
+            AppServerToIndexClient::RemoveIndexServer(public_key) =>
+                await!(self.handle_from_app_server_remove_index_server(public_key)),
             AppServerToIndexClient::RequestRoutes(request_routes) =>
                 await!(self.handle_from_app_server_request_routes(request_routes)),
             AppServerToIndexClient::ApplyMutations(mutations) =>
@@ -463,7 +496,7 @@ where
     pub async fn handle_index_server_connected(&mut self, control_sender: ControlSender) 
         -> Result<(), IndexClientError> {
 
-        let (address, opt_cancel_sender) = match &mut self.conn_status {
+        let (index_server, opt_cancel_sender) = match &mut self.conn_status {
             ConnStatus::Empty(_) => {
                 error!("Did not attempt to connect!");
                 return Ok(());
@@ -473,18 +506,18 @@ where
                 return Ok(());
             }
             ConnStatus::Connecting(server_connecting) => 
-                (server_connecting.address.clone(), server_connecting.opt_cancel_sender.take()),
+                (server_connecting.index_server.clone(), server_connecting.opt_cancel_sender.take()),
         };
 
         self.conn_status = ConnStatus::Connected(ServerConnected {
-            address: address.clone(),
+            index_server: index_server.clone(),
             opt_control_sender: Some(control_sender.clone()),
             opt_cancel_sender,
             ticks_to_send_keepalive: self.keepalive_ticks,
         });
 
         // Send report:
-        let index_client_report_mutation = IndexClientReportMutation::SetConnectedServer(Some(address.clone()));
+        let index_client_report_mutation = IndexClientReportMutation::SetConnectedServer(Some(index_server.public_key.clone()));
         let report_mutations = vec![index_client_report_mutation];
         await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(report_mutations)))
             .map_err(|_| IndexClientError::SendToAppServerFailed)?;
@@ -588,7 +621,7 @@ where
     ISA: Eq + Clone + Send + 'static,
     FAS: Stream<Item=AppServerToIndexClient<ISA>> + Unpin,
     TAS: Sink<SinkItem=IndexClientToAppServer<ISA>> + Unpin,
-    ICS: FutTransform<Input=ISA, Output=Option<SessionHandle>> + Clone + Send + 'static,
+    ICS: FutTransform<Input=IndexServerAddress<ISA>, Output=Option<SessionHandle>> + Clone + Send + 'static,
     TS: Stream + Unpin,
     S: Spawn + Clone + Send + 'static,
 {

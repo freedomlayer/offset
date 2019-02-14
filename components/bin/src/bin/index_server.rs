@@ -4,6 +4,12 @@
 #![feature(generators)]
 #![feature(never_type)]
 
+#![deny(
+    trivial_numeric_casts,
+    warnings
+)]
+
+
 #[macro_use]
 extern crate log;
 
@@ -44,7 +50,7 @@ use proto::index_server::serialize::{deserialize_index_client_to_server,
 use proto::index_server::messages::{IndexClientToServer, IndexServerToClient,
                                     IndexServerToServer};
 
-use net::{TcpConnector, TcpListener, socket_addr_to_tcp_address};
+use net::{NetConnector, TcpListener};
 
 use version::VersionPrefix;
 use secure_channel::SecureChannel;
@@ -228,6 +234,7 @@ where
 enum IndexServerBinError {
     CreateThreadPoolError,
     CreateTimerError,
+    CreateNetConnectorError,
     IndexServerError(IndexServerError),
     ParseClientListenAddressError,
     ParseServerListenAddressError,
@@ -270,15 +277,13 @@ fn run() -> Result<(), IndexServerBinError> {
 
     // Parse clients listening address
     let client_listen_address_str = matches.value_of("lclient").unwrap();
-    let socket_addr: SocketAddr = client_listen_address_str.parse()
+    let client_listen_socket_addr: SocketAddr = client_listen_address_str.parse()
         .map_err(|_| IndexServerBinError::ParseClientListenAddressError)?;
-    let client_listen_tcp_address = socket_addr_to_tcp_address(&socket_addr);
 
     // Parse servers listening address
     let server_listen_address_str = matches.value_of("lserver").unwrap();
-    let socket_addr: SocketAddr = server_listen_address_str.parse()
+    let server_listen_socket_addr: SocketAddr = server_listen_address_str.parse()
         .map_err(|_| IndexServerBinError::ParseServerListenAddressError)?;
-    let server_listen_tcp_address = socket_addr_to_tcp_address(&socket_addr);
 
     // Parse identity file:
     let idfile_path = matches.value_of("idfile").unwrap();
@@ -315,14 +320,15 @@ fn run() -> Result<(), IndexServerBinError> {
 
     // Start listening to clients:
     let client_tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
-    let (_config_sender, incoming_client_raw_conns) = client_tcp_listener.listen(client_listen_tcp_address);
+    let (_config_sender, incoming_client_raw_conns) = client_tcp_listener.listen(client_listen_socket_addr);
 
     // Start listening to servers:
     let server_tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
-    let (_config_sender, incoming_server_raw_conns) = server_tcp_listener.listen(server_listen_tcp_address);
+    let (_config_sender, incoming_server_raw_conns) = server_tcp_listener.listen(server_listen_socket_addr);
 
     // A tcp connector, Used to connect to remote servers:
-    let raw_server_tcp_connector = TcpConnector::new(MAX_FRAME_LENGTH, thread_pool.clone());
+    let raw_server_net_connector = NetConnector::new(MAX_FRAME_LENGTH, thread_pool.clone())
+        .map_err(|_| IndexServerBinError::CreateNetConnectorError)?;
 
 
     let version_transform = VersionPrefix::new(PROTOCOL_VERSION,
@@ -385,11 +391,11 @@ fn run() -> Result<(), IndexServerBinError> {
 
     // Apply transform to create server connector:
     let c_conn_transformer = conn_transformer.clone();
-    let server_connector = FuncFutTransform::new(move |(public_key, tcp_address)| {
-        let mut c_raw_server_tcp_connector = raw_server_tcp_connector.clone();
+    let server_connector = FuncFutTransform::new(move |(public_key, net_address)| {
+        let mut c_raw_server_net_connector = raw_server_net_connector.clone();
         let c_conn_transformer = c_conn_transformer.clone();
         Box::pin(async move {
-            let raw_conn = await!(c_raw_server_tcp_connector.transform(tcp_address))?;
+            let raw_conn = await!(c_raw_server_net_connector.transform(net_address))?;
             await!(c_conn_transformer.outgoing_index_server_conn_transform(public_key, raw_conn))
         })
     });

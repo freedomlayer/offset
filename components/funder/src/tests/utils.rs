@@ -18,6 +18,8 @@ use proto::funder::messages::{FunderIncomingControl,
     SetFriendRemoteMaxDebt, RequestsStatus, SetRequestsStatus, 
     FunderOutgoingControl, ResponseReceived};
 
+use proto::funder::scheme::FunderScheme;
+
 
 use common::int_convert::usize_to_u32;
 
@@ -33,6 +35,7 @@ use crate::report::create_report;
 
 use crate::types::{ChannelerConfig, FunderOutgoingComm, FunderIncomingComm,
                 IncomingLivenessMessage};
+use crate::test_scheme::TestFunderScheme;
 
 const TEST_MAX_OPERATIONS_IN_BATCH: usize = 16;
 const TEST_MAX_PENDING_USER_REQUESTS: usize = 16;
@@ -45,27 +48,27 @@ const TEST_MAX_PENDING_USER_REQUESTS: usize = 16;
 const CHANNEL_SIZE: usize = 64;
 
 #[derive(Debug)]
-struct Node<A> {
+struct Node<FS: FunderScheme> {
     friends: HashSet<PublicKey>,
-    comm_out: mpsc::Sender<FunderIncomingComm<A>>,
+    comm_out: mpsc::Sender<FunderIncomingComm<FS>>,
 }
 
 #[derive(Debug)]
-struct NewNode<A> {
+struct NewNode<FS: FunderScheme> {
     public_key: PublicKey,
-    comm_in: mpsc::Receiver<FunderOutgoingComm<A>>,
-    comm_out: mpsc::Sender<FunderIncomingComm<A>>,
+    comm_in: mpsc::Receiver<FunderOutgoingComm<FS>>,
+    comm_out: mpsc::Sender<FunderIncomingComm<FS>>,
 }
 
 #[derive(Debug)]
-enum RouterEvent<A> {
-    NewNode(NewNode<A>),
-    OutgoingComm((PublicKey, FunderOutgoingComm<A>)), // (src_public_key, outgoing_comm)
+enum RouterEvent<FS: FunderScheme> {
+    NewNode(NewNode<FS>),
+    OutgoingComm((PublicKey, FunderOutgoingComm<FS>)), // (src_public_key, outgoing_comm)
 }
 
-async fn router_handle_outgoing_comm<'a, A: 'a>(nodes: &'a mut HashMap<PublicKey, Node<A>>, 
+async fn router_handle_outgoing_comm<'a, FS: FunderScheme + 'a>(nodes: &'a mut HashMap<PublicKey, Node<FS>>, 
                                         src_public_key: PublicKey,
-                                        outgoing_comm: FunderOutgoingComm<A>) {
+                                        outgoing_comm: FunderOutgoingComm<FS>) {
     match outgoing_comm {
         FunderOutgoingComm::FriendMessage((dest_public_key, friend_message)) => {
             let node = nodes.get_mut(&dest_public_key).unwrap();
@@ -115,10 +118,14 @@ async fn router_handle_outgoing_comm<'a, A: 'a>(nodes: &'a mut HashMap<PublicKey
 
 /// A future that forwards communication between nodes. Used for testing.
 /// Simulates the Channeler interface
-async fn router<A: Send + 'static + std::fmt::Debug>(incoming_new_node: mpsc::Receiver<NewNode<A>>, 
-                                                     mut spawner: impl Spawn + Clone) {
-    let mut nodes: HashMap<PublicKey, Node<A>> = HashMap::new();
-    let (comm_sender, comm_receiver) = mpsc::channel::<(PublicKey, FunderOutgoingComm<A>)>(0);
+async fn router<FS,S>(incoming_new_node: mpsc::Receiver<NewNode<FS>>, 
+                    mut spawner: S)
+where
+    FS: FunderScheme + Send + 'static,
+    S: Spawn + Clone,
+{
+    let mut nodes: HashMap<PublicKey, Node<FS>> = HashMap::new();
+    let (comm_sender, comm_receiver) = mpsc::channel::<(PublicKey, FunderOutgoingComm<FS>)>(0);
 
     let incoming_new_node = incoming_new_node
         .map(|new_node| RouterEvent::NewNode(new_node));
@@ -149,27 +156,27 @@ async fn router<A: Send + 'static + std::fmt::Debug>(incoming_new_node: mpsc::Re
     }
 }
 
-pub struct NodeControl<A: Clone> {
+pub struct NodeControl<FS: FunderScheme> {
     pub public_key: PublicKey,
-    send_control: mpsc::Sender<FunderIncomingControl<A>>,
-    recv_control: mpsc::Receiver<FunderOutgoingControl<A>>,
-    pub report: FunderReport<A>,
+    send_control: mpsc::Sender<FunderIncomingControl<FS::Address, FS::NamedAddress>>,
+    recv_control: mpsc::Receiver<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
+    pub report: FunderReport<FS::Address, FS::NamedAddress>,
 }
 
 #[derive(Debug)]
-pub enum NodeRecv<A> {
-    ReportMutations(Vec<FunderReportMutation<A>>),
+pub enum NodeRecv<FS: FunderScheme> {
+    ReportMutations(Vec<FunderReportMutation<FS::Address, FS::NamedAddress>>),
     ResponseReceived(ResponseReceived),
 }
 
-impl<A: Clone> NodeControl<A> {
-    pub async fn send(&mut self, msg: FunderIncomingControl<A>) -> Option<()> {
+impl<FS: FunderScheme> NodeControl<FS> {
+    pub async fn send(&mut self, msg: FunderIncomingControl<FS::Address, FS::NamedAddress>) -> Option<()> {
         await!(self.send_control.send(msg))
             .ok()
             .map(|_| ())
     }
 
-    pub async fn recv(&mut self) -> Option<NodeRecv<A>> {
+    pub async fn recv(&mut self) -> Option<NodeRecv<FS>> {
         let funder_outgoing_control = await!(self.recv_control.next())?;
         match funder_outgoing_control {
             FunderOutgoingControl::ReportMutations(mutations) => {
@@ -185,7 +192,7 @@ impl<A: Clone> NodeControl<A> {
 
     pub async fn recv_until<'a, P: 'a>(&'a mut self, predicate: P)
     where
-        P: Fn(&FunderReport<A>) -> bool,
+        P: Fn(&FunderReport<FS::Address, FS::NamedAddress>) -> bool,
     {
         while !predicate(&self.report) {
             match await!(self.recv()).unwrap() {
@@ -204,18 +211,15 @@ impl<A: Clone> NodeControl<A> {
         }
     }
 
-    pub async fn set_address<'a>(&'a mut self, address: A) 
-    where
-        A: PartialEq + Eq,
-    {
+    pub async fn set_address<'a>(&'a mut self, address: FS::NamedAddress) {
         await!(self.send(FunderIncomingControl::SetAddress(address.clone()))).unwrap();
-        let pred = |report: &FunderReport<_>| report.address == address;
+        let pred = |report: &FunderReport<_,_>| report.address == address;
         await!(self.recv_until(pred));
     }
 
     pub async fn add_friend<'a>(&'a mut self, 
                          friend_public_key: &'a PublicKey,
-                         address: A,
+                         address: FS::Address,
                          name: &'a str,
                          balance: i128) {
 
@@ -226,7 +230,7 @@ impl<A: Clone> NodeControl<A> {
             balance, 
         };
         await!(self.send(FunderIncomingControl::AddFriend(add_friend))).unwrap();
-        let pred = |report: &FunderReport<_>| report.friends.contains_key(&friend_public_key);
+        let pred = |report: &FunderReport<_,_>| report.friends.contains_key(&friend_public_key);
         await!(self.recv_until(pred));
     }
 
@@ -239,7 +243,7 @@ impl<A: Clone> NodeControl<A> {
             status: status.clone(),
         };
         await!(self.send(FunderIncomingControl::SetFriendStatus(set_friend_status))).unwrap();
-        let pred = |report: &FunderReport<_>| {
+        let pred = |report: &FunderReport<_,_>| {
            match report.friends.get(&friend_public_key) {
                None => false,
                Some(friend) => friend.status == FriendStatusReport::from(&status),
@@ -258,7 +262,7 @@ impl<A: Clone> NodeControl<A> {
         };
         await!(self.send(FunderIncomingControl::SetFriendRemoteMaxDebt(set_remote_max_debt))).unwrap();
 
-        let pred = |report: &FunderReport<_>| {
+        let pred = |report: &FunderReport<_,_>| {
            let friend = match report.friends.get(&friend_public_key) {
                Some(friend) => friend,
                None => return false,
@@ -282,7 +286,7 @@ impl<A: Clone> NodeControl<A> {
         };
         await!(self.send(FunderIncomingControl::SetRequestsStatus(set_requests_status))).unwrap();
 
-        let pred = |report: &FunderReport<_>| {
+        let pred = |report: &FunderReport<_,_>| {
            let friend = match report.friends.get(&friend_public_key) {
                Some(friend) => friend,
                None => return false,
@@ -299,7 +303,7 @@ impl<A: Clone> NodeControl<A> {
     pub async fn wait_until_ready<'a>(&'a mut self, 
                          friend_public_key: &'a PublicKey) {
 
-        let pred = |report: &FunderReport<_>| {
+        let pred = |report: &FunderReport<_,_>| {
            let friend = match report.friends.get(&friend_public_key) {
                None => return false,
                Some(friend) => friend,
@@ -320,12 +324,14 @@ impl<A: Clone> NodeControl<A> {
 /// Create a few node_controls, together with a router connecting them all.
 /// This allows having a conversation between any two nodes.
 /// We use A = u32:
-pub async fn create_node_controls(num_nodes: usize, 
-                              mut spawner: impl Spawn + Clone + Send + 'static)
-                                -> Vec<NodeControl<u32>>
+pub async fn create_node_controls<S>(num_nodes: usize, 
+                              mut spawner: S)
+                                -> Vec<NodeControl<TestFunderScheme>>
+where
+    S: Spawn + Clone + Send + 'static,
 {
 
-    let (mut send_new_node, recv_new_node) = mpsc::channel::<NewNode<u32>>(0);
+    let (mut send_new_node, recv_new_node) = mpsc::channel::<NewNode<TestFunderScheme>>(0);
     spawner.spawn(router(recv_new_node, spawner.clone())).unwrap();
 
     // Avoid problems with casting to u8:
@@ -345,7 +351,8 @@ pub async fn create_node_controls(num_nodes: usize,
         // We give all the nodes the same relay address. Usually this will not happen, but
         // it is the easier thing to do in this code (Unless we change it to have specific A type,
         // for example, u32).
-        let funder_state = FunderState::new(&public_key, &usize_to_u32(i).unwrap());
+        let name = format!("{}", i);
+        let funder_state = FunderState::new(&public_key, &(name, usize_to_u32(i).unwrap()));
         let ephemeral = Ephemeral::new();
         let base_report = create_report(&funder_state, &ephemeral);
 

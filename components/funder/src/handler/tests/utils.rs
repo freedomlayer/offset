@@ -1,12 +1,9 @@
-use std::fmt::Debug;
-
 use identity::{IdentityClient};
 
 use crypto::crypto_rand::CryptoRandom;
 
-use common::canonical_serialize::CanonicalSerialize;
-
 use proto::funder::messages::FunderOutgoingControl;
+use proto::funder::scheme::FunderScheme;
 
 use crate::types::{FunderIncoming, FunderOutgoingComm};
 use crate::ephemeral::Ephemeral;
@@ -14,19 +11,20 @@ use crate::state::FunderState;
 use crate::handler::handler::{funder_handle_message, FunderHandlerError,
                                 FunderHandlerOutput};
 
+
 const TEST_MAX_OPERATIONS_IN_BATCH: usize = 16;
 const TEST_MAX_PENDING_USER_REQUESTS: usize = 16;
 
 /// A helper function. Applies an incoming funder message, updating state and ephemeral
 /// accordingly:
-pub async fn apply_funder_incoming<'a,A,R>(funder_incoming: FunderIncoming<A>,
-                               state: &'a mut FunderState<A>, 
+pub async fn apply_funder_incoming<'a,FS,R>(funder_incoming: FunderIncoming<FS>,
+                               state: &'a mut FunderState<FS>, 
                                ephemeral: &'a mut Ephemeral, 
                                rng: &'a mut R, 
                                identity_client: &'a mut IdentityClient) 
-                -> Result<(Vec<FunderOutgoingComm<A>>, Vec<FunderOutgoingControl<A>>), FunderHandlerError> 
+                -> Result<(Vec<FunderOutgoingComm<FS>>, Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>), FunderHandlerError> 
 where
-    A: CanonicalSerialize + Clone + Debug + Eq + 'a,
+    FS: FunderScheme,
     R: CryptoRandom + 'a,
 {
 

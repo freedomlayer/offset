@@ -8,8 +8,10 @@ use crate::capnp_common::{write_signature, read_signature,
                           write_rand_nonce, read_rand_nonce,
                           write_public_key, read_public_key,
                           write_relay_address, read_relay_address,
-                          write_index_server_address, read_index_server_address,
-                          write_hash, read_hash};
+                          write_named_relay_address, read_named_relay_address,
+                          write_hash, read_hash,
+                          write_named_index_server_address, read_named_index_server_address,
+                          write_net_address, read_net_address};
 
 use report_capnp;
 use crate::serialize::SerializeError;
@@ -23,10 +25,11 @@ use crate::report::messages::{MoveTokenHashedReport, FriendStatusReport, Request
                             FriendReportMutation,
                             FunderReportMutation};
 
-use crate::funder::messages::RelayAddress;
-use crate::index_client::messages::{IndexClientReport, IndexClientReportMutation};
-use crate::index_server::messages::IndexServerAddress;
+use crate::app_server::messages::NamedRelayAddress;
+use crate::index_client::messages::{IndexClientReport, 
+    IndexClientReportMutation, AddIndexServerReport};
 use crate::app_server::messages::{NodeReport, NodeReportMutation};
+use crate::net::messages::NetAddress;
 
 
 fn ser_move_token_hashed_report(move_token_hashed_report: &MoveTokenHashedReport,
@@ -346,7 +349,7 @@ fn deser_opt_last_incoming_move_token(opt_last_incoming_move_token_reader: &repo
     })
 }
 
-fn ser_relays_transition(relays_transition: &(Vec<RelayAddress>, Vec<RelayAddress>),
+fn ser_relays_transition(relays_transition: &(Vec<NamedRelayAddress<NetAddress>>, Vec<NamedRelayAddress<NetAddress>>),
                     relays_transition_builder: &mut report_capnp::relays_transition::Builder) {
 
     let (last_sent, before_last_sent) = relays_transition;
@@ -355,38 +358,38 @@ fn ser_relays_transition(relays_transition: &(Vec<RelayAddress>, Vec<RelayAddres
         .reborrow()
         .init_last_sent(usize_to_u32(last_sent.len()).unwrap());
 
-    for (index, relay_address) in last_sent.iter().enumerate() {
-        let mut relay_address_builder = last_sent_builder.reborrow().get(usize_to_u32(index).unwrap());
-        write_relay_address(relay_address, &mut relay_address_builder);
+    for (index, named_relay_address) in last_sent.iter().enumerate() {
+        let mut named_relay_address_builder = last_sent_builder.reborrow().get(usize_to_u32(index).unwrap());
+        write_named_relay_address(named_relay_address, &mut named_relay_address_builder);
     }
 
     let mut before_last_sent_builder = relays_transition_builder
         .reborrow()
         .init_before_last_sent(usize_to_u32(last_sent.len()).unwrap());
 
-    for (index, relay_address) in before_last_sent.iter().enumerate() {
-        let mut relay_address_builder = before_last_sent_builder.reborrow().get(usize_to_u32(index).unwrap());
-        write_relay_address(relay_address, &mut relay_address_builder);
+    for (index, named_relay_address) in before_last_sent.iter().enumerate() {
+        let mut named_relay_address_builder = before_last_sent_builder.reborrow().get(usize_to_u32(index).unwrap());
+        write_named_relay_address(named_relay_address, &mut named_relay_address_builder);
     }
 }
 
 fn deser_relays_transition(relays_transition_reader: &report_capnp::relays_transition::Reader)
-    -> Result<(Vec<RelayAddress>, Vec<RelayAddress>), SerializeError> {
+    -> Result<(Vec<NamedRelayAddress<NetAddress>>, Vec<NamedRelayAddress<NetAddress>>), SerializeError> {
 
     let mut last_sent = Vec::new();
-    for relay_address in relays_transition_reader.get_last_sent()? {
-        last_sent.push(read_relay_address(&relay_address)?);
+    for named_relay_address in relays_transition_reader.get_last_sent()? {
+        last_sent.push(read_named_relay_address(&named_relay_address)?);
     }
 
     let mut before_last_sent = Vec::new();
-    for relay_address in relays_transition_reader.get_before_last_sent()? {
-        before_last_sent.push(read_relay_address(&relay_address)?);
+    for named_relay_address in relays_transition_reader.get_before_last_sent()? {
+        before_last_sent.push(read_named_relay_address(&named_relay_address)?);
     }
 
     Ok((last_sent, before_last_sent))
 }
 
-fn ser_sent_local_relays_report(sent_local_address_report: &SentLocalAddressReport<Vec<RelayAddress>>,
+fn ser_sent_local_relays_report(sent_local_address_report: &SentLocalAddressReport,
                     sent_local_relays_report_builder: &mut report_capnp::sent_local_relays_report::Builder) {
 
     match sent_local_address_report {
@@ -400,16 +403,16 @@ fn ser_sent_local_relays_report(sent_local_address_report: &SentLocalAddressRepo
         SentLocalAddressReport::LastSent(last_sent) => {
             let relays_len = usize_to_u32(last_sent.len()).unwrap();
             let mut last_sent_builder = sent_local_relays_report_builder.reborrow().init_last_sent(relays_len);
-            for (index, relay_address) in last_sent.iter().enumerate() {
-                let mut relay_address_builder = last_sent_builder.reborrow().get(usize_to_u32(index).unwrap());
-                write_relay_address(relay_address, &mut relay_address_builder);
+            for (index, named_relay_address) in last_sent.iter().enumerate() {
+                let mut named_relay_address_builder = last_sent_builder.reborrow().get(usize_to_u32(index).unwrap());
+                write_named_relay_address(named_relay_address, &mut named_relay_address_builder);
             }
         },
     }
 }
 
 fn deser_sent_local_relays_report(sent_local_relays_report_reader: &report_capnp::sent_local_relays_report::Reader)
-    -> Result<SentLocalAddressReport<Vec<RelayAddress>>, SerializeError> {
+    -> Result<SentLocalAddressReport, SerializeError> {
 
     Ok(match sent_local_relays_report_reader.which()? {
         report_capnp::sent_local_relays_report::NeverSent(()) => SentLocalAddressReport::NeverSent,
@@ -417,8 +420,8 @@ fn deser_sent_local_relays_report(sent_local_relays_report_reader: &report_capnp
             SentLocalAddressReport::Transition(deser_relays_transition(&relays_transition_reader?)?),
         report_capnp::sent_local_relays_report::LastSent(last_sent_reader) => {
             let mut last_sent = Vec::new();
-            for relay_address in last_sent_reader? {
-                last_sent.push(read_relay_address(&relay_address)?);
+            for named_relay_address in last_sent_reader? {
+                last_sent.push(read_named_relay_address(&named_relay_address)?);
             }
             SentLocalAddressReport::LastSent(last_sent)
         },
@@ -426,7 +429,7 @@ fn deser_sent_local_relays_report(sent_local_relays_report_reader: &report_capnp
 }
 
 
-fn ser_friend_report(friend_report: &FriendReport<Vec<RelayAddress>>,
+fn ser_friend_report(friend_report: &FriendReport,
                     friend_report_builder: &mut report_capnp::friend_report::Builder) {
 
     friend_report_builder.reborrow().set_name(&friend_report.name);
@@ -468,7 +471,7 @@ fn ser_friend_report(friend_report: &FriendReport<Vec<RelayAddress>>,
 }
 
 fn deser_friend_report(friend_report_reader: &report_capnp::friend_report::Reader)
-    -> Result<FriendReport<Vec<RelayAddress>>, SerializeError> {
+    -> Result<FriendReport, SerializeError> {
 
     let mut remote_address = Vec::new();
     for relay_address in friend_report_reader.get_remote_relays()? {
@@ -492,7 +495,7 @@ fn deser_friend_report(friend_report_reader: &report_capnp::friend_report::Reade
     })
 }
 
-fn ser_pk_friend_report(pk_friend_report: &(PublicKey, FriendReport<Vec<RelayAddress>>),
+fn ser_pk_friend_report(pk_friend_report: &(PublicKey, FriendReport),
                     pk_friend_report_builder: &mut report_capnp::pk_friend_report::Builder) {
 
     let (friend_public_key, friend_report) = pk_friend_report;
@@ -503,7 +506,7 @@ fn ser_pk_friend_report(pk_friend_report: &(PublicKey, FriendReport<Vec<RelayAdd
 }
 
 fn deser_pk_friend_report(pk_friend_report_reader: &report_capnp::pk_friend_report::Reader)
-    -> Result<(PublicKey, FriendReport<Vec<RelayAddress>>), SerializeError> {
+    -> Result<(PublicKey, FriendReport), SerializeError> {
 
     let friend_public_key = read_public_key(&pk_friend_report_reader.get_friend_public_key()?)?;
     let friend_report = deser_friend_report(&pk_friend_report_reader.get_friend_report()?)?;
@@ -511,7 +514,7 @@ fn deser_pk_friend_report(pk_friend_report_reader: &report_capnp::pk_friend_repo
     Ok((friend_public_key, friend_report))
 }
 
-fn ser_funder_report(funder_report: &FunderReport<Vec<RelayAddress>>,
+fn ser_funder_report(funder_report: &FunderReport,
                     funder_report_builder: &mut report_capnp::funder_report::Builder) {
 
     write_public_key(&funder_report.local_public_key, 
@@ -519,9 +522,9 @@ fn ser_funder_report(funder_report: &FunderReport<Vec<RelayAddress>>,
 
     let relays_len = usize_to_u32(funder_report.address.len()).unwrap();
     let mut relays_builder = funder_report_builder.reborrow().init_relays(relays_len);
-    for (index, relay_address) in funder_report.address.iter().enumerate() {
-        let mut relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
-        write_relay_address(relay_address, &mut relay_address_builder);
+    for (index, named_relay_address) in funder_report.address.iter().enumerate() {
+        let mut named_relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
+        write_named_relay_address(named_relay_address, &mut named_relay_address_builder);
     }
 
     let friends_len = usize_to_u32(funder_report.friends.len()).unwrap();
@@ -535,11 +538,11 @@ fn ser_funder_report(funder_report: &FunderReport<Vec<RelayAddress>>,
 }
 
 fn deser_funder_report(funder_report_reader: &report_capnp::funder_report::Reader)
-    -> Result<FunderReport<Vec<RelayAddress>>, SerializeError> {
+    -> Result<FunderReport, SerializeError> {
 
-    let mut relays = Vec::new();
-    for relay_address in funder_report_reader.get_relays()? {
-        relays.push(read_relay_address(&relay_address)?);
+    let mut named_relays = Vec::new();
+    for named_relay_address in funder_report_reader.get_relays()? {
+        named_relays.push(read_named_relay_address(&named_relay_address)?);
     }
 
     let mut friends = ImHashMap::new();
@@ -550,13 +553,13 @@ fn deser_funder_report(funder_report_reader: &report_capnp::funder_report::Reade
 
     Ok(FunderReport {
         local_public_key: read_public_key(&funder_report_reader.get_local_public_key()?)?,
-        address: relays,
+        address: named_relays,
         friends,
         num_ready_receipts: funder_report_reader.get_num_ready_receipts(),
     })
 }
 
-fn ser_add_friend_report(add_friend_report: &AddFriendReport<Vec<RelayAddress>>,
+fn ser_add_friend_report(add_friend_report: &AddFriendReport,
                     add_friend_report_builder: &mut report_capnp::add_friend_report::Builder) {
 
     write_public_key(&add_friend_report.friend_public_key, 
@@ -582,7 +585,7 @@ fn ser_add_friend_report(add_friend_report: &AddFriendReport<Vec<RelayAddress>>,
 }
 
 fn deser_add_friend_report(add_friend_report_reader: &report_capnp::add_friend_report::Reader)
-    -> Result<AddFriendReport<Vec<RelayAddress>>, SerializeError> {
+    -> Result<AddFriendReport, SerializeError> {
 
     let mut relays = Vec::new();
     for relay_address in add_friend_report_reader.get_relays()? {
@@ -600,7 +603,7 @@ fn deser_add_friend_report(add_friend_report_reader: &report_capnp::add_friend_r
     })
 }
 
-fn ser_friend_report_mutation(friend_report_mutation: &FriendReportMutation<Vec<RelayAddress>>,
+fn ser_friend_report_mutation(friend_report_mutation: &FriendReportMutation,
                     friend_report_mutation_builder: &mut report_capnp::friend_report_mutation::Builder) {
 
     match friend_report_mutation {
@@ -645,7 +648,7 @@ fn ser_friend_report_mutation(friend_report_mutation: &FriendReportMutation<Vec<
 }
 
 fn deser_friend_report_mutation(friend_report_mutation: &report_capnp::friend_report_mutation::Reader)
-    -> Result<FriendReportMutation<Vec<RelayAddress>>, SerializeError> {
+    -> Result<FriendReportMutation, SerializeError> {
 
     Ok(match friend_report_mutation.which()? {
         report_capnp::friend_report_mutation::SetRemoteRelays(relays_reader) => {
@@ -687,7 +690,7 @@ fn deser_friend_report_mutation(friend_report_mutation: &report_capnp::friend_re
     })
 }
 
-fn ser_pk_friend_report_mutation(pk_friend_report_mutation: &(PublicKey, FriendReportMutation<Vec<RelayAddress>>),
+fn ser_pk_friend_report_mutation(pk_friend_report_mutation: &(PublicKey, FriendReportMutation),
                     pk_friend_report_mutation_builder: &mut report_capnp::pk_friend_report_mutation::Builder) {
 
     let (friend_public_key, friend_report_mutation) = pk_friend_report_mutation;
@@ -699,7 +702,7 @@ fn ser_pk_friend_report_mutation(pk_friend_report_mutation: &(PublicKey, FriendR
 }
 
 fn deser_pk_friend_report_mutation(pk_friend_report_mutation_reader: &report_capnp::pk_friend_report_mutation::Reader)
-    -> Result<(PublicKey, FriendReportMutation<Vec<RelayAddress>>), SerializeError> {
+    -> Result<(PublicKey, FriendReportMutation), SerializeError> {
 
     let friend_public_key = read_public_key(&pk_friend_report_mutation_reader.get_friend_public_key()?)?;
     let friend_report_mutation = deser_friend_report_mutation(&pk_friend_report_mutation_reader.get_friend_report_mutation()?)?;
@@ -707,16 +710,16 @@ fn deser_pk_friend_report_mutation(pk_friend_report_mutation_reader: &report_cap
     Ok((friend_public_key, friend_report_mutation))
 }
 
-fn ser_funder_report_mutation(funder_report_mutation: &FunderReportMutation<Vec<RelayAddress>>,
+fn ser_funder_report_mutation(funder_report_mutation: &FunderReportMutation,
                     funder_report_mutation_builder: &mut report_capnp::funder_report_mutation::Builder) {
 
     match funder_report_mutation {
-        FunderReportMutation::SetAddress(relays) => {
-            let relays_len = usize_to_u32(relays.len()).unwrap();
-            let mut relays_builder = funder_report_mutation_builder.reborrow().init_set_relays(relays_len);
-            for (index, relay_address) in relays.iter().enumerate() {
-                let mut relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
-                write_relay_address(relay_address, &mut relay_address_builder);
+        FunderReportMutation::SetAddress(named_relays) => {
+            let named_relays_len = usize_to_u32(named_relays.len()).unwrap();
+            let mut named_relays_builder = funder_report_mutation_builder.reborrow().init_set_relays(named_relays_len);
+            for (index, named_relay_address) in named_relays.iter().enumerate() {
+                let mut named_relay_address_builder = named_relays_builder.reborrow().get(usize_to_u32(index).unwrap());
+                write_named_relay_address(named_relay_address, &mut named_relay_address_builder);
             }
         },
         FunderReportMutation::AddFriend(add_friend_report) => {
@@ -738,15 +741,15 @@ fn ser_funder_report_mutation(funder_report_mutation: &FunderReportMutation<Vec<
 }
 
 fn deser_funder_report_mutation(funder_report_mutation_reader: &report_capnp::funder_report_mutation::Reader)
-    -> Result<FunderReportMutation<Vec<RelayAddress>>, SerializeError> {
+    -> Result<FunderReportMutation, SerializeError> {
 
     Ok(match funder_report_mutation_reader.which()? {
-        report_capnp::funder_report_mutation::SetRelays(relays_reader) => {
-            let mut relays = Vec::new();
-            for relay_address in relays_reader? {
-                relays.push(read_relay_address(&relay_address)?);
+        report_capnp::funder_report_mutation::SetRelays(named_relays_reader) => {
+            let mut named_relays = Vec::new();
+            for named_relay_address in named_relays_reader? {
+                named_relays.push(read_named_relay_address(&named_relay_address)?);
             }
-            FunderReportMutation::SetAddress(relays)
+            FunderReportMutation::SetAddress(named_relays)
         },
         report_capnp::funder_report_mutation::AddFriend(add_friend_report_reader) =>
             FunderReportMutation::AddFriend(
@@ -762,21 +765,21 @@ fn deser_funder_report_mutation(funder_report_mutation_reader: &report_capnp::fu
     })
 }
 
-fn ser_index_client_report(index_client_report: &IndexClientReport<IndexServerAddress>,
+fn ser_index_client_report(index_client_report: &IndexClientReport<NetAddress>,
                     index_client_report_builder: &mut report_capnp::index_client_report::Builder) {
 
     let index_servers_len = usize_to_u32(index_client_report.index_servers.len()).unwrap();
     let mut index_servers_builder = index_client_report_builder.reborrow().init_index_servers(index_servers_len);
-    for (index, index_server_address) in index_client_report.index_servers.iter().enumerate() {
-        let mut index_server_address_builder = index_servers_builder.reborrow().get(usize_to_u32(index).unwrap());
-        write_index_server_address(index_server_address, &mut index_server_address_builder);
+    for (index, named_index_server) in index_client_report.index_servers.iter().enumerate() {
+        let mut named_index_server_builder = index_servers_builder.reborrow().get(usize_to_u32(index).unwrap());
+        write_named_index_server_address(named_index_server, &mut named_index_server_builder);
     }
 
     let mut opt_connected_server_builder = index_client_report_builder.reborrow().init_opt_connected_server();
     match &index_client_report.opt_connected_server {
-        Some(index_server_address) => {
-            write_index_server_address(index_server_address, 
-                                       &mut opt_connected_server_builder.init_index_server_address());
+        Some(public_key) => {
+            write_public_key(public_key, 
+                              &mut opt_connected_server_builder.init_public_key());
         },
         None => {
             opt_connected_server_builder.set_empty(());
@@ -784,17 +787,35 @@ fn ser_index_client_report(index_client_report: &IndexClientReport<IndexServerAd
     }
 }
 
+fn ser_add_index_server_report(add_index_server_report: &AddIndexServerReport<NetAddress>, 
+                            add_index_server_report_builder: &mut report_capnp::add_index_server_report::Builder) {
+
+    write_public_key(&add_index_server_report.public_key, &mut add_index_server_report_builder.reborrow().init_public_key());
+    write_net_address(&add_index_server_report.address,&mut add_index_server_report_builder.reborrow().init_address());
+    add_index_server_report_builder.reborrow().set_name(&add_index_server_report.name);
+}
+
+fn deser_add_index_server_report(add_index_server_report_reader: &report_capnp::add_index_server_report::Reader)
+    -> Result<AddIndexServerReport<NetAddress>, SerializeError> {
+
+    Ok(AddIndexServerReport {
+        public_key: read_public_key(&add_index_server_report_reader.get_public_key()?)?,
+        address: read_net_address(&add_index_server_report_reader.get_address()?)?,
+        name: add_index_server_report_reader.get_name()?.to_owned(),
+    })
+}
+
 fn deser_index_client_report(index_client_report_reader: &report_capnp::index_client_report::Reader)
-    -> Result<IndexClientReport<IndexServerAddress>, SerializeError> {
+    -> Result<IndexClientReport<NetAddress>, SerializeError> {
 
     let mut index_servers = Vec::new();
-    for index_server_address in index_client_report_reader.get_index_servers()? {
-        index_servers.push(read_index_server_address(&index_server_address)?);
+    for named_index_server_reader in index_client_report_reader.get_index_servers()? {
+        index_servers.push(read_named_index_server_address(&named_index_server_reader)?);
     }
 
     let opt_connected_server = match index_client_report_reader.get_opt_connected_server().which()? {
-        report_capnp::index_client_report::opt_connected_server::IndexServerAddress(index_server_address_reader) =>
-            Some(read_index_server_address(&index_server_address_reader?)?),
+        report_capnp::index_client_report::opt_connected_server::PublicKey(public_key_reader) =>
+            Some(read_public_key(&public_key_reader?)?),
         report_capnp::index_client_report::opt_connected_server::Empty(()) => None,
     };
 
@@ -804,22 +825,22 @@ fn deser_index_client_report(index_client_report_reader: &report_capnp::index_cl
     })
 }
 
-fn ser_index_client_report_mutation(index_client_report_mutation: &IndexClientReportMutation<IndexServerAddress>,
+fn ser_index_client_report_mutation(index_client_report_mutation: &IndexClientReportMutation<NetAddress>,
                     index_client_report_mutation_builder: &mut report_capnp::index_client_report_mutation::Builder) {
 
     match index_client_report_mutation {
-        IndexClientReportMutation::AddIndexServer(index_server_address) =>
-            write_index_server_address(index_server_address, 
+        IndexClientReportMutation::AddIndexServer(add_index_server_report) =>
+            ser_add_index_server_report(add_index_server_report, 
                                        &mut index_client_report_mutation_builder.reborrow().init_add_index_server()),
-        IndexClientReportMutation::RemoveIndexServer(index_server_address) => 
-            write_index_server_address(index_server_address,
-                                       &mut index_client_report_mutation_builder.reborrow().init_add_index_server()),
+        IndexClientReportMutation::RemoveIndexServer(public_key) => 
+            write_public_key(public_key,
+                             &mut index_client_report_mutation_builder.reborrow().init_remove_index_server()),
         IndexClientReportMutation::SetConnectedServer(opt_index_server_address) => {
             let mut set_connected_server_builder = index_client_report_mutation_builder.reborrow().init_set_connected_server();
             match opt_index_server_address {
-                Some(index_server_address) => 
-                    write_index_server_address(index_server_address, 
-                                               &mut set_connected_server_builder.init_index_server_address()),
+                Some(public_key) => 
+                    write_public_key(public_key, 
+                                     &mut set_connected_server_builder.init_public_key()),
                 None => 
                     set_connected_server_builder.set_empty(()),
             }
@@ -828,21 +849,21 @@ fn ser_index_client_report_mutation(index_client_report_mutation: &IndexClientRe
 }
 
 fn deser_index_client_report_mutation(index_client_report_mutation_reader: &report_capnp::index_client_report_mutation::Reader)
-    -> Result<IndexClientReportMutation<IndexServerAddress>, SerializeError> {
+    -> Result<IndexClientReportMutation<NetAddress>, SerializeError> {
 
     Ok(match index_client_report_mutation_reader.which()? {
-        report_capnp::index_client_report_mutation::AddIndexServer(index_server_address_reader) =>
-            IndexClientReportMutation::AddIndexServer(read_index_server_address(&index_server_address_reader?)?),
-        report_capnp::index_client_report_mutation::RemoveIndexServer(index_server_address_reader) =>
-            IndexClientReportMutation::RemoveIndexServer(read_index_server_address(&index_server_address_reader?)?),
+        report_capnp::index_client_report_mutation::AddIndexServer(add_index_server_report) =>
+            IndexClientReportMutation::AddIndexServer(deser_add_index_server_report(&add_index_server_report?)?),
+        report_capnp::index_client_report_mutation::RemoveIndexServer(public_key_reader) =>
+            IndexClientReportMutation::RemoveIndexServer(read_public_key(&public_key_reader?)?),
         report_capnp::index_client_report_mutation::SetConnectedServer(set_connected_server_reader) => {
             match set_connected_server_reader.which()? {
                 report_capnp
                     ::index_client_report_mutation
                     ::set_connected_server
-                    ::IndexServerAddress(index_server_address_reader) => 
+                    ::PublicKey(public_key_reader) => 
                         IndexClientReportMutation::SetConnectedServer(
-                            Some(read_index_server_address(&index_server_address_reader?)?)),
+                            Some(read_public_key(&public_key_reader?)?)),
                 report_capnp
                     ::index_client_report_mutation
                     ::set_connected_server
@@ -853,7 +874,7 @@ fn deser_index_client_report_mutation(index_client_report_mutation_reader: &repo
     })
 }
 
-pub fn ser_node_report(node_report: &NodeReport<RelayAddress, IndexServerAddress>,
+pub fn ser_node_report(node_report: &NodeReport,
                     node_report_builder: &mut report_capnp::node_report::Builder) {
 
     ser_funder_report(&node_report.funder_report, 
@@ -863,7 +884,7 @@ pub fn ser_node_report(node_report: &NodeReport<RelayAddress, IndexServerAddress
 }
 
 pub fn deser_node_report(node_report_reader: &report_capnp::node_report::Reader)
-    -> Result<NodeReport<RelayAddress, IndexServerAddress>, SerializeError> {
+    -> Result<NodeReport, SerializeError> {
 
     Ok(NodeReport {
         funder_report: deser_funder_report(&node_report_reader.get_funder_report()?)?,
@@ -871,7 +892,7 @@ pub fn deser_node_report(node_report_reader: &report_capnp::node_report::Reader)
     })
 }
 
-pub fn ser_node_report_mutation(node_report_mutation: &NodeReportMutation<RelayAddress, IndexServerAddress>,
+pub fn ser_node_report_mutation(node_report_mutation: &NodeReportMutation,
                     node_report_mutation_builder: &mut report_capnp::node_report_mutation::Builder) {
 
     match node_report_mutation {
@@ -885,7 +906,7 @@ pub fn ser_node_report_mutation(node_report_mutation: &NodeReportMutation<RelayA
 }
 
 pub fn deser_node_report_mutation(node_report_mutation_reader: &report_capnp::node_report_mutation::Reader)
-    -> Result<NodeReportMutation<RelayAddress, IndexServerAddress>, SerializeError> {
+    -> Result<NodeReportMutation, SerializeError> {
 
     Ok(match node_report_mutation_reader.which()? {
         report_capnp::node_report_mutation::Funder(funder_report_mutation_reader) =>

@@ -1,4 +1,3 @@
-use common::canonical_serialize::CanonicalSerialize;
 use common::mutable_state::MutableState;
 
 use crypto::identity::PublicKey;
@@ -8,28 +7,27 @@ use index_client::{IndexClientConfig, IndexClientConfigMutation};
 
 use proto::app_server::messages::NodeReport;
 use proto::index_client::messages::IndexClientReport;
+use proto::funder::scheme::FunderScheme;
 
 #[derive(Clone, Serialize, Deserialize)]
-pub enum NodeMutation<B,ISA> {
-    Funder(FunderMutation<Vec<B>>),
+pub enum NodeMutation<FS:FunderScheme,ISA> {
+    Funder(FunderMutation<FS>),
     IndexClient(IndexClientConfigMutation<ISA>)
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct NodeState<B: Clone,ISA> {
-    pub funder_state: FunderState<Vec<B>>,
+pub struct NodeState<FS:FunderScheme,ISA> {
+    pub funder_state: FunderState<FS>,
     pub index_client_config: IndexClientConfig<ISA>,
 }
 
-impl<B,ISA> NodeState<B,ISA> 
+impl<FS,ISA> NodeState<FS,ISA> 
 where
-    B: Clone + CanonicalSerialize,
+    FS: FunderScheme
 {
-    #[allow(unused)]
-    pub fn new(local_public_key: PublicKey) -> Self {
-        let relay_addresses = Vec::new();
+    pub fn new(local_public_key: PublicKey, named_address: FS::NamedAddress) -> Self {
         NodeState {
-            funder_state: FunderState::new(&local_public_key, &relay_addresses),
+            funder_state: FunderState::new(&local_public_key, &named_address),
             index_client_config: IndexClientConfig::new(),
         }
     }
@@ -39,12 +37,12 @@ where
 #[derive(Debug)]
 pub struct NodeMutateError;
 
-impl<B,ISA> MutableState for NodeState<B,ISA> 
+impl<FS,ISA> MutableState for NodeState<FS,ISA> 
 where
-    B: Clone + CanonicalSerialize,
+    FS: FunderScheme,
     ISA: Clone + PartialEq + Eq,
 {
-    type Mutation = NodeMutation<B,ISA>;
+    type Mutation = NodeMutation<FS,ISA>;
     type MutateError = NodeMutateError;
 
     fn mutate(&mut self, mutation: &Self::Mutation) -> Result<(), Self::MutateError> {
@@ -76,9 +74,9 @@ where
 
 
 /// Create an initial NodeReport, based on a NodeState
-pub fn create_node_report<B,ISA>(node_state: &NodeState<B,ISA>) -> NodeReport<B,ISA> 
+pub fn create_node_report<FS,ISA>(node_state: &NodeState<FS,ISA>) -> NodeReport<FS::Address, FS::NamedAddress,ISA> 
 where
-    B: Clone + CanonicalSerialize,
+    FS: FunderScheme,
     ISA: Clone,
 {
     NodeReport {
@@ -109,5 +107,7 @@ pub struct NodeConfig {
     pub max_pending_user_requests: usize,
     /// Maximum amount of concurrent index client requests:
     pub max_open_index_client_requests: usize,
+    /// Maximum amount of relays a node may use.
+    pub max_node_relays: usize,
 }
 

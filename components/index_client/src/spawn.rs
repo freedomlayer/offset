@@ -13,6 +13,7 @@ use crypto::crypto_rand::CryptoRandom;
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer,
                                     IndexClientState};
 
+use proto::index_server::messages::IndexServerAddress;
 use proto::index_server::serialize::{serialize_index_client_to_server,
         deserialize_index_server_to_client};
 
@@ -22,6 +23,7 @@ use crate::client_session::IndexClientSession;
 use crate::seq_map::SeqMap;
 use crate::seq_friends::create_seq_friends_service;
 use crate::single_client::ServerConn;
+
 
 #[derive(Clone)]
 /// Connect to an index server
@@ -45,18 +47,18 @@ impl<C,S> SerdeClientConnector<C,S> {
 impl<ISA,C,S> FutTransform for SerdeClientConnector<C,S> 
 where
     ISA: Send + 'static,
-    C: FutTransform<Input=ISA,Output=Option<ConnPairVec>> + Clone + Send,
+    C: FutTransform<Input=IndexServerAddress<ISA>,Output=Option<ConnPairVec>> + Clone + Send,
     S: Spawn + Send,
 {
-    type Input = ISA;
+    type Input = IndexServerAddress<ISA>;
     type Output = Option<ServerConn>;
 
-    fn transform(&mut self, index_server_address: Self::Input)
+    fn transform(&mut self, index_server: Self::Input)
         -> BoxFuture<'_, Self::Output> {
 
         Box::pin(async move {
             // This line performs connection and then handshake:
-            let (mut data_sender, mut data_receiver) = await!(self.net_connector.transform(index_server_address))?;
+            let (mut data_sender, mut data_receiver) = await!(self.net_connector.transform(index_server))?;
 
             let (user_sender, mut local_receiver) = mpsc::channel(0);
             let (mut local_sender, user_receiver) = mpsc::channel(0);
@@ -119,7 +121,7 @@ pub async fn spawn_index_client<'a,ISA,C,R,S>(local_public_key: PublicKey,
         -> Result<impl Future<Output=Result<(), IndexClientError>>, SpawnIndexClientError>
 where
     ISA: Eq + Clone + Send + 'static,
-    C: FutTransform<Input=ISA,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input=IndexServerAddress<ISA>,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {

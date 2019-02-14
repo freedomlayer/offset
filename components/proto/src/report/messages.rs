@@ -10,6 +10,7 @@ use crypto::crypto_rand::RandValue;
 use crate::funder::messages::{RequestsStatus, FriendStatus};
 use crate::index_server::messages::{IndexMutation, UpdateFriend};
 use crate::index_client::messages::IndexClientState;
+use crate::app_server::messages::{RelayAddress, NamedRelayAddress};
 
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -27,10 +28,10 @@ pub struct MoveTokenHashedReport {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub enum SentLocalAddressReport<A> {
+pub enum SentLocalAddressReport<NRA=Vec<NamedRelayAddress>> {
     NeverSent,
-    Transition((A, A)), // (last sent, before last sent)
-    LastSent(A),
+    Transition((NRA, NRA)), // (last sent, before last sent)
+    LastSent(NRA),
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
@@ -109,10 +110,10 @@ pub enum ChannelStatusReport {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FriendReport<A> {
+pub struct FriendReport<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>> {
     pub name: String,
-    pub remote_address: A, 
-    pub sent_local_address: SentLocalAddressReport<A>,
+    pub remote_address: RA,
+    pub sent_local_address: SentLocalAddressReport<NRA>,
     // Last message signed by the remote side. 
     // Can be used as a proof for the last known balance.
     pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
@@ -133,18 +134,22 @@ pub struct FriendReport<A> {
 /// It contains the information the Funder exposes to the user apps of the Offst node.
 #[derive(Debug, Clone, PartialEq, Eq)]
 // TODO: Removed A: Clone here and ImHashMap. Should this struct be cloneable for some reason?
-pub struct FunderReport<A: Clone> {
+pub struct FunderReport<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>> 
+where   
+    RA: Clone,
+    NRA: Clone,
+{
     pub local_public_key: PublicKey,
-    pub address: A,
-    pub friends: ImHashMap<PublicKey, FriendReport<A>>,
+    pub address: NRA,
+    pub friends: ImHashMap<PublicKey, FriendReport<RA,NRA>>,
     pub num_ready_receipts: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FriendReportMutation<A> {
-    SetRemoteAddress(A),
+pub enum FriendReportMutation<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>> {
+    SetRemoteAddress(RA),
     SetName(String),
-    SetSentLocalAddress(SentLocalAddressReport<A>),
+    SetSentLocalAddress(SentLocalAddressReport<NRA>),
     SetChannelStatus(ChannelStatusReport),
     SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatusReport),
@@ -157,10 +162,10 @@ pub enum FriendReportMutation<A> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AddFriendReport<A> {
+pub struct AddFriendReport<RA=Vec<RelayAddress>> {
     pub friend_public_key: PublicKey,
     pub name: String,
-    pub address: A,
+    pub address: RA,
     pub balance: i128, // Initial balance
     pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
     pub channel_status: ChannelStatusReport,
@@ -168,11 +173,11 @@ pub struct AddFriendReport<A> {
 
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FunderReportMutation<A> {
-    SetAddress(A),
-    AddFriend(AddFriendReport<A>),
+pub enum FunderReportMutation<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>> {
+    SetAddress(NRA),
+    AddFriend(AddFriendReport<RA>),
     RemoveFriend(PublicKey),
-    FriendReportMutation((PublicKey, FriendReportMutation<A>)),
+    FriendReportMutation((PublicKey, FriendReportMutation<RA,NRA>)),
     SetNumReadyReceipts(u64),
 }
 
@@ -203,11 +208,12 @@ pub enum FunderReportMutateError {
 }
 
 
-impl<A> FriendReport<A> 
+impl<RA,NRA> FriendReport<RA,NRA> 
 where
-    A: Clone,
+    RA: Clone,
+    NRA: Clone,
 {
-    pub fn mutate(&mut self, mutation: &FriendReportMutation<A>) {
+    pub fn mutate(&mut self, mutation: &FriendReportMutation<RA,NRA>) {
         match mutation {
             FriendReportMutation::SetRemoteAddress(remote_address) => {
                 self.remote_address = remote_address.clone();
@@ -250,11 +256,12 @@ where
 }
 
 
-impl<A> FunderReport<A> 
-where
-    A: Clone,
+impl<RA,NRA> FunderReport<RA,NRA> 
+where   
+    RA: Clone,
+    NRA: Clone,
 {
-    pub fn mutate(&mut self, mutation: &FunderReportMutation<A>) 
+    pub fn mutate(&mut self, mutation: &FunderReportMutation<RA,NRA>) 
         -> Result<(), FunderReportMutateError> {
 
         match mutation {
@@ -320,7 +327,7 @@ where
 // TODO: Maybe this logic shouldn't be here? Where should we move it to?
 
 /// Calculate send and receive capacities for a given `friend_report`.
-fn calc_friend_capacities<A>(friend_report: &FriendReport<A>) -> (u128, u128) {
+fn calc_friend_capacities<RA,NRA>(friend_report: &FriendReport<RA,NRA>) -> (u128, u128) {
     if friend_report.status == FriendStatusReport::Disabled || 
         friend_report.liveness == FriendLivenessReport::Offline {
         return (0, 0);
@@ -350,9 +357,11 @@ fn calc_friend_capacities<A>(friend_report: &FriendReport<A>) -> (u128, u128) {
     (send_capacity, recv_capacity)
 }
 
-pub fn funder_report_to_index_client_state<A>(funder_report: &FunderReport<A>) -> IndexClientState 
+pub fn funder_report_to_index_client_state<RA,NRA>(funder_report: &FunderReport<RA,NRA>) -> IndexClientState 
+
 where
-    A: Clone,
+    RA: Clone,
+    NRA: Clone,
 {
     let friends = funder_report.friends
         .iter()
@@ -366,10 +375,11 @@ where
     }
 }
 
-pub fn funder_report_mutation_to_index_mutation<A>(funder_report: &FunderReport<A>, 
-                                                      funder_report_mutation: &FunderReportMutation<A>) -> Option<IndexMutation> 
+pub fn funder_report_mutation_to_index_mutation<RA,NRA>(funder_report: &FunderReport<RA,NRA>, 
+                                                      funder_report_mutation: &FunderReportMutation<RA,NRA>) -> Option<IndexMutation> 
 where
-    A: Clone,
+    RA: Clone,
+    NRA: Clone,
 {
 
     let create_update_friend = |public_key: &PublicKey| {

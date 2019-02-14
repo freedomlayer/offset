@@ -4,6 +4,11 @@
 #![feature(generators)]
 #![feature(never_type)]
 
+#![deny(
+    trivial_numeric_casts,
+    warnings
+)]
+
 #[macro_use]
 extern crate log;
 
@@ -43,14 +48,14 @@ use database::file_db::FileDb;
 use database::{database_loop, DatabaseClient, AtomicDb};
 
 use proto::consts::{PROTOCOL_VERSION, KEEPALIVE_TICKS, TICKS_TO_REKEY, 
-    MAX_OPERATIONS_IN_BATCH, TICK_MS, MAX_FRAME_LENGTH};
-use proto::index_server::messages::IndexServerAddress;
-use proto::funder::messages::RelayAddress;
-use proto::app_server::messages::AppPermissions;
+    MAX_OPERATIONS_IN_BATCH, TICK_MS, MAX_FRAME_LENGTH, MAX_NODE_RELAYS};
+use proto::app_server::messages::{RelayAddress, NamedRelayAddress, AppPermissions};
 use proto::app_server::serialize::{deserialize_app_to_app_server,
                                    serialize_app_server_to_app,
                                    serialize_app_permissions};
-use net::{TcpConnector, TcpListener, socket_addr_to_tcp_address};
+use proto::net::messages::NetAddress;
+use proto::scheme::OffstScheme;
+use net::{NetConnector, TcpListener};
 
 
 use bin::{load_identity_from_file, load_trusted_apps};
@@ -80,6 +85,7 @@ enum NodeBinError {
     LoadIdentityError,
     LoadTrustedAppsError,
     CreateThreadPoolError,
+    CreateNetConnectorError,
     CreateIdentityError,
     CreateTimerError,
     LoadDbError,
@@ -133,7 +139,7 @@ where
     GT: Fn() -> Result<HashMap<PublicKey, AppPermissions>, NodeBinError> + Clone + Send + 'static,
 {
     type Input = ConnPairVec;
-    type Output = Option<IncomingAppConnection<RelayAddress,IndexServerAddress>>;
+    type Output = Option<IncomingAppConnection<RelayAddress,NamedRelayAddress, NetAddress>>;
 
     fn transform(&mut self, conn_pair: Self::Input)
         -> BoxFuture<'_, Self::Output> {
@@ -247,9 +253,8 @@ fn run() -> Result<(), NodeBinError> {
 
     // Parse listening address
     let listen_address_str = matches.value_of("laddr").unwrap();
-    let socket_addr: SocketAddr = listen_address_str.parse()
+    let listen_socket_addr: SocketAddr = listen_address_str.parse()
         .map_err(|_| NodeBinError::ParseListenAddressError)?;
-    let listen_tcp_address = socket_addr_to_tcp_address(&socket_addr);
 
     // Parse identity file:
     let idfile_path = matches.value_of("idfile").unwrap();
@@ -294,10 +299,13 @@ fn run() -> Result<(), NodeBinError> {
         max_pending_user_requests: MAX_PENDING_USER_REQUESTS,
         /// Maximum amount of concurrent index client requests:
         max_open_index_client_requests: MAX_OPEN_INDEX_CLIENT_REQUESTS,
+        /// Maximum amount of relays a node may use.
+        max_node_relays: MAX_NODE_RELAYS,
     };
 
     // A tcp connector, Used to connect to remote servers:
-    let net_connector = TcpConnector::new(MAX_FRAME_LENGTH, thread_pool.clone());
+    let net_connector = NetConnector::new(MAX_FRAME_LENGTH, thread_pool.clone())
+        .map_err(|_| NodeBinError::CreateNetConnectorError)?;
 
     // Wrap net connector with a version prefix:
     let version_transform = VersionPrefix::new(PROTOCOL_VERSION, 
@@ -317,7 +325,7 @@ fn run() -> Result<(), NodeBinError> {
 
     // Load database:
     let db_path = matches.value_of("database").unwrap();
-    let atomic_db = FileDb::<NodeState<RelayAddress, IndexServerAddress>>::load(Path::new(&db_path).to_path_buf())
+    let atomic_db = FileDb::<NodeState<OffstScheme, NetAddress>>::load(Path::new(&db_path).to_path_buf())
         .map_err(|_| NodeBinError::LoadDbError)?;
 
     // Get initial node_state:
@@ -342,7 +350,7 @@ fn run() -> Result<(), NodeBinError> {
 
     // Start listening to apps:
     let app_tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
-    let (_config_sender, incoming_app_raw_conns) = app_tcp_listener.listen(listen_tcp_address);
+    let (_config_sender, incoming_app_raw_conns) = app_tcp_listener.listen(listen_socket_addr);
 
     let encrypt_transform = SecureChannel::new(
         identity_client.clone(),

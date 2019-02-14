@@ -69,11 +69,11 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     };
     await!(node_controls[0].send(FunderIncomingControl::ReceiptAck(receipt_ack))).unwrap();
 
-    let pred = |report: &FunderReport<_>| report.num_ready_receipts == 0;
+    let pred = |report: &FunderReport<_,_>| report.num_ready_receipts == 0;
     await!(node_controls[0].recv_until(pred));
 
     // Verify expected balances:
-    let pred = |report: &FunderReport<_>| {
+    let pred = |report: &FunderReport<_,_>| {
        let friend = report.friends.get(&public_keys[1]).unwrap();
        let tc_report = match &friend.channel_status {
            ChannelStatusReport::Consistent(tc_report) => tc_report,
@@ -84,7 +84,7 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     await!(node_controls[0].recv_until(pred));
 
 
-    let pred = |report: &FunderReport<_>| {
+    let pred = |report: &FunderReport<_,_>| {
        let friend = report.friends.get(&public_keys[0]).unwrap();
        let tc_report = match &friend.channel_status {
            ChannelStatusReport::Consistent(tc_report) => tc_report,
@@ -169,11 +169,11 @@ async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'stati
     };
     await!(node_controls[0].send(FunderIncomingControl::ReceiptAck(receipt_ack))).unwrap();
 
-    let pred = |report: &FunderReport<_>| report.num_ready_receipts == 0;
+    let pred = |report: &FunderReport<_,_>| report.num_ready_receipts == 0;
     await!(node_controls[0].recv_until(pred));
 
     // Make sure that node2 got the credits:
-    let pred = |report: &FunderReport<_>| {
+    let pred = |report: &FunderReport<_,_>| {
         let friend = match report.friends.get(&public_keys[1]) {
             None => return false,
             Some(friend) => friend,
@@ -294,7 +294,7 @@ where
     await!(node_controls[1].set_friend_status(&public_keys[0], FriendStatus::Enabled));
 
     // Expect inconsistency, together with reset terms:
-    let pred = |report: &FunderReport<_>| {
+    let pred = |report: &FunderReport<_,_>| {
         let friend = report.friends.get(&public_keys[1]).unwrap();
         let channel_inconsistent_report = match &friend.channel_status {
             ChannelStatusReport::Consistent(_) => return false,
@@ -334,7 +334,7 @@ where
     await!(node_controls[0].send(FunderIncomingControl::ResetFriendChannel(reset_friend_channel))).unwrap();
 
     // Wait until channel is consistent with the correct balance:
-    let pred = |report: &FunderReport<_>| {
+    let pred = |report: &FunderReport<_,_>| {
         let friend = report.friends.get(&public_keys[1]).unwrap();
         let tc_report = match &friend.channel_status {
             ChannelStatusReport::Consistent(tc_report) => tc_report,
@@ -345,7 +345,7 @@ where
     await!(node_controls[0].recv_until(pred));
 
     // Wait until channel is consistent with the correct balance:
-    let pred = |report: &FunderReport<_>| {
+    let pred = |report: &FunderReport<_,_>| {
         let friend = report.friends.get(&public_keys[0]).unwrap();
         let tc_report = match &friend.channel_status {
             ChannelStatusReport::Consistent(tc_report) => tc_report,
@@ -373,7 +373,7 @@ async fn task_funder_set_address(spawner: impl Spawn + Clone + Send + 'static) {
     let mut node_controls = await!(create_node_controls(num_nodes, spawner));
 
     // Change the node's relay address:
-    await!(node_controls[0].set_address(9876u32));
+    await!(node_controls[0].set_address(("9876".to_string(), 9876u32)));
 }
 
 

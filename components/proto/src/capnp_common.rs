@@ -1,15 +1,20 @@
 use std::io;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt, ByteOrder};
 
-use common_capnp::{self, buffer128, buffer256, buffer512,
+use common_capnp::{buffer128, buffer256, buffer512,
                     public_key, invoice_id, hash, dh_public_key, salt, signature,
                     rand_nonce, custom_u_int128, custom_int128, uid,
-                    relay_address, index_server_address, receipt};
+                    relay_address, named_relay_address, receipt,
+                    net_address, named_index_server_address};
 
-use crate::net::messages::{TcpAddress, TcpAddressV4, TcpAddressV6};
-use crate::funder::messages::{InvoiceId, RelayAddress, Receipt};
-use crate::index_server::messages::IndexServerAddress;
+
+
+use crate::serialize::SerializeError;
+use crate::funder::messages::{InvoiceId, Receipt};
+use crate::index_server::messages::NamedIndexServerAddress;
+use crate::net::messages::NetAddress;
+use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
 
 use crypto::identity::{PublicKey, Signature};
 use crypto::dh::{DhPublicKey, Salt};
@@ -84,7 +89,7 @@ fn write_buffer512(from: impl AsRef<[u8]>, to: &mut buffer512::Builder) {
 macro_rules! type_capnp_serde {
     ($capnp_type:ident, $native_type:ident, $read_func:ident, $write_func:ident, $inner_read_func:ident, $inner_write_func:ident) => {
 
-        pub fn $read_func(from: &$capnp_type::Reader) -> Result<$native_type, capnp::Error>  {
+        pub fn $read_func(from: &$capnp_type::Reader) -> Result<$native_type, SerializeError>  {
             let inner = from.get_inner()?;
             let data_bytes = &$inner_read_func(&inner);
             Ok($native_type::try_from(&data_bytes[..]).unwrap())
@@ -113,7 +118,7 @@ type_capnp_serde!(invoice_id, InvoiceId, read_invoice_id, write_invoice_id, read
 // 512 bits:
 type_capnp_serde!(signature, Signature, read_signature, write_signature, read_buffer512, write_buffer512);
 
-pub fn read_custom_u_int128(from: &custom_u_int128::Reader) -> Result<u128, capnp::Error> {
+pub fn read_custom_u_int128(from: &custom_u_int128::Reader) -> Result<u128, SerializeError> {
     let inner = from.get_inner()?;
     let data_bytes = read_buffer128(&inner);
     Ok(BigEndian::read_u128(&data_bytes))
@@ -127,7 +132,7 @@ pub fn write_custom_u_int128(from: u128, to: &mut custom_u_int128::Builder) {
 }
 
 
-pub fn read_custom_int128(from: &custom_int128::Reader) -> Result<i128, capnp::Error> {
+pub fn read_custom_int128(from: &custom_int128::Reader) -> Result<i128, SerializeError> {
     let inner = from.get_inner()?;
     let data_bytes = read_buffer128(&inner);
     Ok(BigEndian::read_i128(&data_bytes))
@@ -140,147 +145,72 @@ pub fn write_custom_int128(from: i128, to: &mut custom_int128::Builder) {
     write_buffer128(&data_bytes, &mut inner);
 }
 
-pub fn read_relay_address(from: &relay_address::Reader) -> Result<RelayAddress, capnp::Error> {
-    let public_key = read_public_key(&from.get_public_key()?)?;
+pub fn read_net_address(from: &net_address::Reader) -> Result<NetAddress, SerializeError> {
+    Ok(from.get_address()?.to_string().try_into()?)
+}
 
-    let address = match from.get_address()?.which()? {
-        common_capnp::tcp_address::V4(res_tcp_address_v4) => {
-            let tcp_address_v4 = res_tcp_address_v4?;
-            let address_u32 = tcp_address_v4.get_address();
-            let mut octets = [0u8; 4];
-            BigEndian::write_u32(&mut octets, address_u32);
+pub fn write_net_address(from: &NetAddress, to: &mut net_address::Builder) {
+    to.set_address(from.as_str());
+}
 
-            let port = tcp_address_v4.get_port();
-
-            TcpAddress::V4(TcpAddressV4 {
-                octets,
-                port,
-            })
-        },
-        common_capnp::tcp_address::V6(res_tcp_address_v6) => {
-            let tcp_address_v6 = res_tcp_address_v6?;
-            let address_vec = read_buffer128(&tcp_address_v6.get_address()?);
-            let mut address = [0u8; 16];
-            address.copy_from_slice(&address_vec[..]); 
-
-            let port = tcp_address_v6.get_port();
-
-            let mut segments = [0u16; 8];
-            for i in 0 .. 8 {
-                segments[i] = ((address[2*i] as u16) << 8) | (address[2*i + 1] as u16);
-            }
-
-            TcpAddress::V6(TcpAddressV6 {
-                segments,
-                port,
-            })
-        },
-    };
-
+pub fn read_relay_address(from: &relay_address::Reader) -> Result<RelayAddress<NetAddress>, SerializeError> {
     Ok(RelayAddress {
-        public_key,
-        address,
+        public_key: read_public_key(&from.get_public_key()?)?,
+        address: read_net_address(&from.get_address()?)?,
     })
 }
 
-pub fn write_relay_address(from: &RelayAddress, to: &mut relay_address::Builder) {
-
+pub fn write_relay_address(from: &RelayAddress<NetAddress>, to: &mut relay_address::Builder) {
     write_public_key(&from.public_key, &mut to.reborrow().init_public_key());
-    let tcp_address_builder = to.reborrow().init_address();
-
-    match &from.address {
-        TcpAddress::V4(tcp_address_v4) => {
-            let mut tcp_address_v4_writer = tcp_address_builder.init_v4();
-            let address_u32 = BigEndian::read_u32(&tcp_address_v4.octets);
-            tcp_address_v4_writer.set_port(tcp_address_v4.port);
-            tcp_address_v4_writer.set_address(address_u32);
-        },
-        TcpAddress::V6(tcp_address_v6) => {
-            let mut tcp_address_v6_writer = tcp_address_builder.init_v6();
-            tcp_address_v6_writer.set_port(tcp_address_v6.port);
-            let mut address_builder = tcp_address_v6_writer.init_address();
-            let mut address = [0u8; 16];
-            for i in 0 .. 8usize {
-                let segment = tcp_address_v6.segments[i];
-                address[2*i]     = (segment >> 8) as u8;
-                address[2*i + 1] = (segment & 0xff) as u8;
-            }
-            write_buffer128(&address, &mut address_builder);
-        },
-    }
+    write_net_address(&from.address,&mut to.reborrow().init_address());
 }
 
-pub fn read_index_server_address(from: &index_server_address::Reader) -> Result<IndexServerAddress, capnp::Error> {
-    let public_key = read_public_key(&from.get_public_key()?)?;
+pub fn read_named_relay_address(from: &named_relay_address::Reader) -> Result<NamedRelayAddress<NetAddress>, SerializeError> {
+    Ok(NamedRelayAddress {
+        public_key: read_public_key(&from.get_public_key()?)?,
+        address: read_net_address(&from.get_address()?)?,
+        name: from.get_name()?.to_string(),
+    })
+}
 
-    let address = match from.get_address()?.which()? {
-        common_capnp::tcp_address::V4(res_tcp_address_v4) => {
-            let tcp_address_v4 = res_tcp_address_v4?;
-            let address_u32 = tcp_address_v4.get_address();
-            let mut octets = [0u8; 4];
-            BigEndian::write_u32(&mut octets, address_u32);
+pub fn write_named_relay_address(from: &NamedRelayAddress<NetAddress>, to: &mut named_relay_address::Builder) {
+    write_public_key(&from.public_key, &mut to.reborrow().init_public_key());
+    write_net_address(&from.address,&mut to.reborrow().init_address());
+    to.reborrow().set_name(&from.name);
+}
 
-            let port = tcp_address_v4.get_port();
+pub fn read_named_index_server_address(from: &named_index_server_address::Reader) -> Result<NamedIndexServerAddress<NetAddress>, SerializeError> {
+    Ok(NamedIndexServerAddress {
+        public_key: read_public_key(&from.get_public_key()?)?,
+        address: read_net_address(&from.get_address()?)?,
+        name: from.get_name()?.to_owned(),
+    })
+}
 
-            TcpAddress::V4(TcpAddressV4 {
-                octets,
-                port,
-            })
-        },
-        common_capnp::tcp_address::V6(res_tcp_address_v6) => {
-            let tcp_address_v6 = res_tcp_address_v6?;
-            let address_vec = read_buffer128(&tcp_address_v6.get_address()?);
-            let mut address = [0u8; 16];
-            address.copy_from_slice(&address_vec[..]); 
+pub fn write_named_index_server_address(from: &NamedIndexServerAddress<NetAddress>, to: &mut named_index_server_address::Builder) {
+    write_public_key(&from.public_key, &mut to.reborrow().init_public_key());
+    write_net_address(&from.address,&mut to.reborrow().init_address());
+    to.reborrow().set_name(&from.name);
+}
 
-            let port = tcp_address_v6.get_port();
 
-            let mut segments = [0u16; 8];
-            for i in 0 .. 8 {
-                segments[i] = ((address[2*i] as u16) << 8) | (address[2*i + 1] as u16);
-            }
-
-            TcpAddress::V6(TcpAddressV6 {
-                segments,
-                port,
-            })
-        },
-    };
-
+/*
+pub fn read_index_server_address(from: &index_server_address::Reader) -> Result<IndexServerAddress, SerializeError> {
     Ok(IndexServerAddress {
-        public_key,
-        address,
+        public_key: read_public_key(&from.get_public_key()?)?,
+        address: from.get_address()?.to_owned().try_into()?,
     })
 }
 
 pub fn write_index_server_address(from: &IndexServerAddress, to: &mut index_server_address::Builder) {
 
     write_public_key(&from.public_key, &mut to.reborrow().init_public_key());
-    let tcp_address_builder = to.reborrow().init_address();
-
-    match &from.address {
-        TcpAddress::V4(tcp_address_v4) => {
-            let mut tcp_address_v4_writer = tcp_address_builder.init_v4();
-            let address_u32 = BigEndian::read_u32(&tcp_address_v4.octets);
-            tcp_address_v4_writer.set_port(tcp_address_v4.port);
-            tcp_address_v4_writer.set_address(address_u32);
-        },
-        TcpAddress::V6(tcp_address_v6) => {
-            let mut tcp_address_v6_writer = tcp_address_builder.init_v6();
-            tcp_address_v6_writer.set_port(tcp_address_v6.port);
-            let mut address_builder = tcp_address_v6_writer.init_address();
-            let mut address = [0u8; 16];
-            for i in 0 .. 8usize {
-                let segment = tcp_address_v6.segments[i];
-                address[2*i]     = (segment >> 8) as u8;
-                address[2*i + 1] = (segment & 0xff) as u8;
-            }
-            write_buffer128(&address, &mut address_builder);
-        },
-    }
+    to.set_address(from.address.as_str());
 }
+*/
 
-pub fn read_receipt(from: &receipt::Reader) -> Result<Receipt, capnp::Error> {
+
+pub fn read_receipt(from: &receipt::Reader) -> Result<Receipt, SerializeError> {
     Ok(Receipt {
         response_hash: read_hash(&from.get_response_hash()?)?,
         invoice_id: read_invoice_id(&from.get_invoice_id()?)?,

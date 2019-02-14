@@ -1,14 +1,14 @@
-use common::canonical_serialize::CanonicalSerialize;
 use proto::funder::messages::{FriendStatus, ChannelerUpdateFriend};
+use proto::funder::scheme::FunderScheme;
 
 use crate::types::ChannelerConfig;
 
 use crate::handler::handler::MutableFunderState;
 
-pub fn handle_init<A>(m_state: &MutableFunderState<A>,
-                      outgoing_channeler_config: &mut Vec<ChannelerConfig<A>>)
+pub fn handle_init<FS>(m_state: &MutableFunderState<FS>,
+                      outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>)
 where
-    A: CanonicalSerialize + Clone,
+    FS: FunderScheme,
 {
     let mut enabled_friends = Vec::new();
     for (_friend_public_key, friend) in &m_state.state().friends {
@@ -32,7 +32,8 @@ where
     // self.add_outgoing_control(FunderOutgoingControl::Report(report));
 
     // Notify Channeler about current address:
-    outgoing_channeler_config.push(ChannelerConfig::SetAddress(m_state.state().address.clone()));
+    let anon_address = FS::anonymize_address(m_state.state().address.clone());
+    outgoing_channeler_config.push(ChannelerConfig::SetAddress(anon_address));
 
     // Notify channeler about all enabled friends:
     for enabled_friend in enabled_friends {
@@ -47,13 +48,13 @@ mod tests {
     use super::*;
 
     use proto::funder::messages::AddFriend;
+    use crypto::identity::{PUBLIC_KEY_LEN, PublicKey};
 
     use crate::state::{FunderState, FunderMutation};
     use crate::friend::FriendMutation;
 
     use crate::handler::handler::MutableFunderState;
-
-    use crypto::identity::{PUBLIC_KEY_LEN, PublicKey};
+    use crate::test_scheme::TestFunderScheme;
 
 
     #[test]
@@ -63,7 +64,7 @@ mod tests {
         let local_pk = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
         let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
 
-        let mut state = FunderState::new(&local_pk, &1337u32);
+        let mut state = FunderState::<TestFunderScheme>::new(&local_pk, &("1337".to_string(), 1337u32));
 
         // Add a remote friend:
         let add_friend = AddFriend {

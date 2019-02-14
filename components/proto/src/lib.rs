@@ -34,6 +34,7 @@ pub mod index_server;
 pub mod index_client;
 pub mod report;
 pub mod net;
+pub mod scheme;
 
 
 

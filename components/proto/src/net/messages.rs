@@ -1,65 +1,35 @@
-use byteorder::{WriteBytesExt, BigEndian};
+use std::convert::TryFrom;
+// use byteorder::{WriteBytesExt, BigEndian};
 use common::canonical_serialize::CanonicalSerialize;
-
-/// IPv4 address (TCP)
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct TcpAddressV4 {
-    pub octets: [u8; 4], // 32 bit
-    pub port: u16,
-}
-
-/// IPv6 address (TCP)
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct TcpAddressV6 {
-    pub segments: [u16; 8], // 128 bit
-    pub port: u16,
-}
-
-// TODO: Possibly move TcpAddress and the structs it depends on 
-// to a more generic module in proto?
-/// Address for TCP connection
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum TcpAddress {
-    V4(TcpAddressV4),
-    V6(TcpAddressV6),
-}
+use crate::consts::MAX_NET_ADDRESS_LENGTH;
 
 
-impl CanonicalSerialize for TcpAddressV4 {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.octets);
-        res_bytes.write_u16::<BigEndian>(self.port).unwrap();
-        res_bytes
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct NetAddress(String);
+
+impl NetAddress {
+    pub fn as_str(&self) -> &str {
+        &self.0
     }
 }
 
-impl CanonicalSerialize for TcpAddressV6 {
+impl CanonicalSerialize for NetAddress {
     fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        for s in self.segments.iter() {
-            res_bytes.push((s >> 8) as u8);
-            res_bytes.push((s & 0xff) as u8);
-        };
-        res_bytes.write_u16::<BigEndian>(self.port).unwrap();
-        res_bytes
+        self.0.canonical_serialize()
     }
 }
 
-impl CanonicalSerialize for TcpAddress {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        match self {
-            TcpAddress::V4(tcp_address_v4) => {
-                res_bytes.push(0);
-                res_bytes.extend_from_slice(&tcp_address_v4.canonical_serialize());
-            },
-            TcpAddress::V6(tcp_address_v4) => {
-                res_bytes.push(1);
-                res_bytes.extend_from_slice(&tcp_address_v4.canonical_serialize());
-            },
+#[derive(Debug)]
+pub enum NetAddressError {
+    AddressTooLong,
+}
+
+impl TryFrom<String> for NetAddress {
+    type Error = NetAddressError;
+    fn try_from(address: String) -> Result<Self, Self::Error> {
+        if address.len() > MAX_NET_ADDRESS_LENGTH {
+            return Err(NetAddressError::AddressTooLong);
         }
-        res_bytes
+        Ok(NetAddress(address))
     }
 }
-

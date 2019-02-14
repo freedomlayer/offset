@@ -1,16 +1,14 @@
+use std::convert::TryInto;
 use std::io::{self, Write};
 use std::fs::{self, File};
 use std::path::Path;
-
-use std::net::SocketAddr;
 
 use toml;
 use base64::{self, URL_SAFE_NO_PAD};
 
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
-use net::{socket_addr_to_tcp_address, 
-    tcp_address_to_socket_addr};
 
+use proto::net::messages::{NetAddressError, NetAddress};
 use proto::index_server::messages::IndexServerAddress;
 
 #[derive(Debug)]
@@ -21,9 +19,10 @@ pub enum IndexServerFileError {
     Base64DecodeError(base64::DecodeError),
     ParseSocketAddrError,
     InvalidPublicKey,
+    NetAddressError(NetAddressError),
 }
 
-/// A helper structure for serialize and deserializing IndexServerAddress.
+/// A helper structure for serialize and deserializing IndexServer.
 #[derive(Serialize, Deserialize)]
 struct IndexServerFile {
     public_key: String,
@@ -54,8 +53,14 @@ impl From<base64::DecodeError> for IndexServerFileError {
     }
 }
 
-/// Load IndexServerAddress from a file
-pub fn load_index_server_from_file(path: &Path) -> Result<IndexServerAddress, IndexServerFileError> {
+impl From<NetAddressError> for IndexServerFileError {
+    fn from(e: NetAddressError) -> Self {
+        IndexServerFileError::NetAddressError(e)
+    }
+}
+
+/// Load IndexServer from a file
+pub fn load_index_server_from_file(path: &Path) -> Result<IndexServerAddress<NetAddress>, IndexServerFileError> {
     let data = fs::read_to_string(&path)?;
     let index_server_file: IndexServerFile = toml::from_str(&data)?;
 
@@ -69,30 +74,22 @@ pub fn load_index_server_from_file(path: &Path) -> Result<IndexServerAddress, In
     public_key_array.copy_from_slice(&public_key_vec[0 .. PUBLIC_KEY_LEN]);
     let public_key = PublicKey::from(&public_key_array);
 
-    // Decode address:
-    let socket_addr: SocketAddr = index_server_file.address.parse()
-        .map_err(|_| IndexServerFileError::ParseSocketAddrError)?;
-    let address = socket_addr_to_tcp_address(&socket_addr);
-
     Ok(IndexServerAddress {
         public_key,
-        address,
+        address: index_server_file.address.try_into()?,
     })
 }
 
 
-/// Store IndexServerAddress to file
-pub fn store_index_server_to_file(index_server_address: &IndexServerAddress, path: &Path)
+/// Store IndexServer to file
+pub fn store_index_server_to_file(index_server: &IndexServerAddress<NetAddress>, path: &Path)
     -> Result<(), IndexServerFileError> {
 
-    let IndexServerAddress {ref public_key, ref address} = index_server_address;
-
-    let socket_addr = tcp_address_to_socket_addr(&address);
-    let socket_addr_str = format!("{}", socket_addr);
+    let IndexServerAddress {ref public_key, ref address} = index_server;
 
     let index_server_file = IndexServerFile {
         public_key: base64::encode_config(&public_key, URL_SAFE_NO_PAD),
-        address: socket_addr_str,
+        address: address.as_str().to_string(),
     };
 
     let data = toml::to_string(&index_server_file)?;
@@ -106,7 +103,8 @@ pub fn store_index_server_to_file(index_server_address: &IndexServerAddress, pat
 
 /// Load a directory of index server address files, and return a map representing
 /// the information from all files
-pub fn load_trusted_servers(dir_path: &Path) -> Result<Vec<IndexServerAddress>, IndexServerFileError> {
+pub fn load_trusted_servers(dir_path: &Path) 
+    -> Result<Vec<IndexServerAddress<NetAddress>>, IndexServerFileError> {
     let mut res_trusted = Vec::new();
     for entry in fs::read_dir(dir_path)? {
         let entry = entry?;
@@ -125,17 +123,16 @@ pub fn load_trusted_servers(dir_path: &Path) -> Result<Vec<IndexServerAddress>, 
 mod tests {
     use super::*;
     use tempfile::tempdir;
-    use proto::net::messages::{TcpAddress, TcpAddressV4};
 
     #[test]
     fn test_index_server_file_basic() {
         let index_server_file: IndexServerFile = toml::from_str(r#"
             public_key = 'public_key_string'
-            address = 'address_string'
+            address = 'localhost:1337'
         "#).unwrap();
 
         assert_eq!(index_server_file.public_key, "public_key_string");
-        assert_eq!(index_server_file.address, "address_string");
+        assert_eq!(index_server_file.address, "localhost:1337");
     }
 
     #[test]
@@ -144,14 +141,9 @@ mod tests {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("index_server_address_file");
 
-        let address = TcpAddress::V4(TcpAddressV4 {
-            octets: [127,0,0,1],
-            port: 1337,
-        });
-
         let index_server_address = IndexServerAddress {
             public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
-            address,
+            address: "127.0.0.1:1337".to_owned().try_into().unwrap(),
         };
 
         store_index_server_to_file(&index_server_address, &file_path).unwrap();
@@ -162,41 +154,29 @@ mod tests {
 
 
     #[test]
-    fn test_load_trusted_servers() {
+    fn test_load_trusted_index_servers() {
         // Create a temporary directory:
         let dir = tempdir().unwrap();
 
         let file_path = dir.path().join("index_server_address_file_a");
-        let address = TcpAddress::V4(TcpAddressV4 {
-            octets: [127,0,0,1],
-            port: 0xa,
-        });
         let index_server_address = IndexServerAddress {
             public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
-            address,
+            address: "127.0.0.1:1000".to_owned().try_into().unwrap(),
         };
         store_index_server_to_file(&index_server_address, &file_path).unwrap();
 
         let file_path = dir.path().join("index_server_address_file_b");
-        let address = TcpAddress::V4(TcpAddressV4 {
-            octets: [127,0,0,1],
-            port: 0xb,
-        });
         let index_server_address = IndexServerAddress {
             public_key: PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]),
-            address,
+            address: "127.0.0.1:1001".to_owned().try_into().unwrap(),
         };
         store_index_server_to_file(&index_server_address, &file_path).unwrap();
 
 
         let file_path = dir.path().join("index_server_address_file_c");
-        let address = TcpAddress::V4(TcpAddressV4 {
-            octets: [127,0,0,1],
-            port: 0xc,
-        });
         let index_server_address = IndexServerAddress {
             public_key: PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]),
-            address,
+            address: "127.0.0.1:1002".to_owned().try_into().unwrap(),
         };
         store_index_server_to_file(&index_server_address, &file_path).unwrap();
 
@@ -204,16 +184,15 @@ mod tests {
         let trusted_servers = load_trusted_servers(&dir.path()).unwrap();
         assert_eq!(trusted_servers.len(), 3);
 
-        let mut ports = Vec::new();
-        for t_server in trusted_servers {
-            let port = match t_server.address {
-                TcpAddress::V4(tcp_address_v4) => tcp_address_v4.port,
-                _ => unreachable!(),
-            };
-            ports.push(port);
-        }
-        ports.sort();
-        assert_eq!(ports, vec![0xa,0xb,0xc]);
+        let mut addresses = trusted_servers
+            .iter()
+            .map(|server| server.address.clone())
+            .collect::<Vec<_>>();
+        addresses.sort();
+
+        assert_eq!(addresses, vec!["127.0.0.1:1000".to_owned().try_into().unwrap(),
+                                   "127.0.0.1:1001".to_owned().try_into().unwrap(),
+                                   "127.0.0.1:1002".to_owned().try_into().unwrap()]);
     }
 }
 

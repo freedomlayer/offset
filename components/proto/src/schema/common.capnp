@@ -85,34 +85,29 @@ struct Receipt {
         # )
 }
 
-# Ipv4 TCP address
-struct TcpAddressV4 {
-        address @0: UInt32;
-        port @1: UInt16;
-}
-
-# Ipv6 TCP address
-struct TcpAddressV6 {
-        address @0: Buffer128;
-        port @1: UInt16;
-}
-
-struct TcpAddress {
-        union {
-                v4 @0: TcpAddressV4;
-                v6 @1: TcpAddressV6;
-        }
+# Stringly represented address.
+# For example: "127.0.0.1:1337"
+struct NetAddress {
+        address @0: Text;
 }
 
 # Authenticated address of a Relay (Includes public key)
 struct RelayAddress {
         publicKey @0: PublicKey;
-        address @1: TcpAddress;
+        address @1: NetAddress;
+}
+
+# Authenticated named address of a Relay (Includes public key)
+struct NamedRelayAddress {
+        publicKey @0: PublicKey;
+        address @1: NetAddress;
+        name @2: Text;
 }
 
 # Authenticated address of an Index Server (Includes public key)
-struct IndexServerAddress {
+struct NamedIndexServerAddress {
         publicKey @0: PublicKey;
-        address @1: TcpAddress;
+        address @1: NetAddress;
+        name @2: Text;
 }
 

@@ -3,10 +3,11 @@ use futures::channel::mpsc;
 use futures::task::Spawn;
 use futures::executor::ThreadPool;
 
+use crypto::identity::{PUBLIC_KEY_LEN, PublicKey};
 use proto::app_server::messages::{AppServerToApp, AppToAppServer,
                                     NodeReportMutation, AppPermissions};
 use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClient, 
-    IndexClientReportMutation};
+    IndexClientReportMutation, AddIndexServer, AddIndexServerReport};
 
 use super::utils::spawn_dummy_app_server;
 
@@ -40,17 +41,26 @@ where
     };
 
     // Send a command through the app:
-    let new_index_server_address = 300u64;
-    await!(app_sender.send(AppToAppServer::AddIndexServer(new_index_server_address))).unwrap();
+    let add_index_server = AddIndexServer {
+        public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
+        address: 300u64,
+        name: "IndexServer300".to_string(),
+    };
+    await!(app_sender.send(AppToAppServer::AddIndexServer(add_index_server.clone()))).unwrap();
 
     // AddIndexServer command should be forwarded to IndexClient:
     let to_index_client_message = await!(index_client_receiver.next()).unwrap();
     match to_index_client_message {
-        AppServerToIndexClient::AddIndexServer(address) => assert_eq!(address, new_index_server_address),
+        AppServerToIndexClient::AddIndexServer(add_index_server0) => assert_eq!(add_index_server0, add_index_server),
         _ => unreachable!(),
     };
 
-    let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(new_index_server_address.clone());
+    let add_index_server_report = AddIndexServerReport {
+        public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
+        address: 300u64,
+        name: "IndexServer300".to_string(),
+    };
+    let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(add_index_server_report);
     let index_client_report_mutations = vec![index_client_report_mutation.clone()];
     await!(index_client_sender.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations))).unwrap();
 
