@@ -29,8 +29,8 @@ pub enum ConnectError {
 }
 
 /// Connect to an offst-node
-pub async fn connect<C,R,S>(net_address: NetAddress,
-                            node_public_key: PublicKey,
+pub async fn connect<C,R,S>(node_public_key: PublicKey,
+                            net_address: NetAddress,
                             app_identity_client: IdentityClient,
                             spawner: S) -> Result<NodeConnection, ConnectError>
 where
