@@ -21,12 +21,7 @@ secure_channel = { path = "../secure_channel", version = "0.1.0" , package = "of
 version = { path = "../version", version = "0.1.0" , package = "offst-version" }
 net = { path = "../net", version = "0.1.0" , package = "offst-net" }
 
-toml = "0.4.10"
-serde_derive = "1.0.87"
-serde = "1.0.87"
-base64 = "0.10.1"
 
-clap = "2.32.0"
 log = "0.4"
 simple_logger = "1.0.1"
 futures-preview = "0.3.0-alpha.11"
