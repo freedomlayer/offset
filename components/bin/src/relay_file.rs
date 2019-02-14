@@ -9,7 +9,7 @@ use base64::{self, URL_SAFE_NO_PAD};
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
 use proto::net::messages::NetAddressError;
-use proto::funder::messages::RelayAddress;
+use proto::app_server::messages::RelayAddress;
 
 #[derive(Debug)]
 pub enum RelayFileError {

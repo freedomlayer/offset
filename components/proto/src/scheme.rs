@@ -20,5 +20,11 @@ impl FunderScheme for OffstScheme {
             })
             .collect::<Vec<_>>()
     }
+
+    /*
+    fn default_named_address() -> Self::NamedAddress {
+        Vec::new()
+    }
+    */
 }
 

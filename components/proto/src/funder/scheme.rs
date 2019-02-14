@@ -9,8 +9,11 @@ pub trait FunderScheme: Clone + PartialEq + Eq + Debug {
     /// An anonymous address
     type Address: Send + Sync + Clone + CanonicalSerialize + PartialEq + Eq + Debug + Serialize + DeserializeOwned;
     /// An address that contains a name (Provided by the user of this node)
-    type NamedAddress: Send + Sync + Clone + PartialEq + Eq + Debug + Serialize + DeserializeOwned;
+    type NamedAddress: Send + Sync + Clone + PartialEq + Eq + Debug + Serialize + DeserializeOwned + Default;
 
     /// A function to convert a NamedAddress to Address
     fn anonymize_address(named_address: Self::NamedAddress) -> Self::Address;
+
+    // /// A default NamedAddress (Used for initialization)
+    // fn default_named_address() -> Self::NamedAddress;
 }
