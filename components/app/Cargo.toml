@@ -5,10 +5,6 @@ authors = ["real <real@freedomlayer.org>"]
 
 edition = "2018"
 
-[lib]
-name = "bin"
-path = "src/lib.rs"
-
 [dependencies]
 
 common = { path = "../common", version = "0.1.0", package = "offst-common" }
@@ -20,6 +16,7 @@ keepalive = { path = "../keepalive", version = "0.1.0" , package = "offst-keepal
 secure_channel = { path = "../secure_channel", version = "0.1.0" , package = "offst-secure-channel" }
 version = { path = "../version", version = "0.1.0" , package = "offst-version" }
 net = { path = "../net", version = "0.1.0" , package = "offst-net" }
+bin = { path = "../bin", version = "0.1.0" , package = "offst-bin" }
 
 
 log = "0.4"

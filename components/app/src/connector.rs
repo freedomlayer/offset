@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
 use futures::{StreamExt, SinkExt};
@@ -21,32 +19,25 @@ use secure_channel::SecureChannel;
 use version::VersionPrefix;
 use keepalive::KeepAliveChannel;
 
-#[allow(unused)]
-pub fn identity_client_from_idfile(idfile_path: &Path) -> IdentityClient {
-    unimplemented!();
-}
 
-type NodeConnection = (AppPermissions, ConnPair<AppToAppServer,AppServerToApp>);
+pub type NodeConnection = (AppPermissions, ConnPair<AppToAppServer,AppServerToApp>);
 
 #[derive(Debug)]
-pub enum ConnectError {
-    NodeConnectorError,
+pub enum SetupConnectionError {
     EncryptSetupError,
     RecvAppPermissionsError,
     DeserializeAppPermissionsError,
 }
 
 /// Connect to an offst-node
-#[allow(unused)]
-async fn connect<C,R,S>(
-                    mut node_connector: C,
+pub async fn setup_connection<R,S>(
+                    conn_pair: ConnPairVec,
                     timer_client: TimerClient,
                     rng: R,
                     node_public_key: PublicKey,
                     app_identity_client: IdentityClient,
-                    mut spawner: S) -> Result<NodeConnection, ConnectError>
+                    mut spawner: S) -> Result<NodeConnection, SetupConnectionError>
 where   
-    C: FutTransform<Input=(), Output=Option<ConnPairVec>> + 'static,
     R: Clone + CryptoRandom + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
@@ -65,17 +56,13 @@ where
         KEEPALIVE_TICKS,
         spawner.clone());
 
-    // Connect:
-    let conn_pair = await!(node_connector.transform(()))
-        .ok_or(ConnectError::NodeConnectorError)?;
-
     // Report version and check remote side's version:
     let ver_conn = await!(version_transform.transform(conn_pair));
 
     // Encrypt, requiring that the remote side will have node_public_key as public key:
     let (public_key, enc_conn) = await!(encrypt_transform.transform(
             (Some(node_public_key.clone()), ver_conn)))
-        .ok_or(ConnectError::EncryptSetupError)?;
+        .ok_or(SetupConnectionError::EncryptSetupError)?;
     assert_eq!(public_key, node_public_key);
 
     // Keepalive wrapper:
@@ -83,9 +70,9 @@ where
 
     // Get AppPermissions:
     let app_permissions_data = await!(receiver.next())
-        .ok_or(ConnectError::RecvAppPermissionsError)?;
+        .ok_or(SetupConnectionError::RecvAppPermissionsError)?;
     let app_permissions = deserialize_app_permissions(&app_permissions_data)
-        .map_err(|_| ConnectError::DeserializeAppPermissionsError)?;
+        .map_err(|_| SetupConnectionError::DeserializeAppPermissionsError)?;
 
     // serialization:
     let (user_sender, mut from_user_sender) = mpsc::channel(0);
