@@ -20,7 +20,7 @@ use version::VersionPrefix;
 use keepalive::KeepAliveChannel;
 
 
-pub type NodeConnection = (AppPermissions, ConnPair<AppToAppServer,AppServerToApp>);
+pub type NodeConnectionTuple = (AppPermissions, ConnPair<AppToAppServer,AppServerToApp>);
 
 #[derive(Debug)]
 pub enum SetupConnectionError {
@@ -36,7 +36,7 @@ pub async fn setup_connection<R,S>(
                     rng: R,
                     node_public_key: PublicKey,
                     app_identity_client: IdentityClient,
-                    mut spawner: S) -> Result<NodeConnection, SetupConnectionError>
+                    mut spawner: S) -> Result<NodeConnectionTuple, SetupConnectionError>
 where   
     R: Clone + CryptoRandom + 'static,
     S: Spawn + Clone + Send + Sync + 'static,

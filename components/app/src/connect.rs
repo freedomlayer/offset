@@ -15,7 +15,7 @@ use identity::IdentityClient;
 use net::NetConnector;
 
 use crate::setup_conn::{setup_connection, SetupConnectionError};
-pub use crate::setup_conn::NodeConnection;
+pub use crate::setup_conn::NodeConnectionTuple;
 
 
 
@@ -32,7 +32,7 @@ pub enum ConnectError {
 pub async fn connect<C,R,S>(node_public_key: PublicKey,
                             net_address: NetAddress,
                             app_identity_client: IdentityClient,
-                            spawner: S) -> Result<NodeConnection, ConnectError>
+                            spawner: S) -> Result<NodeConnectionTuple, ConnectError>
 where
     S: Spawn + Clone + Sync + Send + 'static,
 {
