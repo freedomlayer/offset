@@ -14,8 +14,8 @@ use identity::IdentityClient;
 
 use net::NetConnector;
 
-use crate::connector::{setup_connection, SetupConnectionError};
-pub use crate::connector::NodeConnection;
+use crate::setup_conn::{setup_connection, SetupConnectionError};
+pub use crate::setup_conn::NodeConnection;
 
 
 

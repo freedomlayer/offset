@@ -12,12 +12,7 @@
 // #[macro_use]
 // extern crate log;
 
-mod connector;
-mod identity;
-mod interface;
-
-pub use self::interface::{ConnectError, connect};
-pub use self::identity::{identity_from_file, IdentityFromFileError};
-pub use self::connector::NodeConnection;
-
-pub use proto::app_server::messages::{AppToAppServer, AppServerToApp, AppPermissions};
+mod setup_conn;
+pub mod identity;
+pub mod connect;
+pub mod proto;
