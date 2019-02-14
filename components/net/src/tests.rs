@@ -52,6 +52,7 @@ where
         assert_eq!(await!(client_receiver.next()).unwrap(), vec![3,2,1]);
     }
 
+    /*
     // Dropping incoming_connections should close the listener after a while
     drop(incoming_connections);
 
@@ -61,6 +62,7 @@ where
         await!(tcp_connector.transform(socket_addr.clone()));
     }
     assert!(await!(tcp_connector.transform(socket_addr.clone())).is_none());
+    */
 }
 
 #[test]
