@@ -67,7 +67,7 @@ enum Event<T> {
 /// A service for splitting a stream into multiple streams.
 /// Requires that the sent item is Clone.
 /// Should be used together with a MultiConsumerClient to request new streams.
-pub async fn multi_consumer<T,I>(incoming_items: I,
+pub async fn multi_consumer_service<T,I>(incoming_items: I,
                                  incoming_requests: mpsc::Receiver<MultiConsumerRequest<T>>) 
     -> Result<(), MultiConsumerError> 
 where
