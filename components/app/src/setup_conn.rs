@@ -8,7 +8,8 @@ use crypto::crypto_rand::CryptoRandom;
 use identity::IdentityClient;
 use timer::TimerClient;
 
-use proto::app_server::messages::{AppToAppServer, AppServerToApp, AppPermissions};
+use proto::app_server::messages::{AppToAppServer, AppServerToApp, 
+    AppPermissions, NodeReport};
 use proto::app_server::serialize::{deserialize_app_server_to_app,
                                    serialize_app_to_app_server,
                                    deserialize_app_permissions};
@@ -20,13 +21,17 @@ use version::VersionPrefix;
 use keepalive::KeepAliveChannel;
 
 
-pub type NodeConnectionTuple = (AppPermissions, ConnPair<AppToAppServer,AppServerToApp>);
+pub type NodeConnectionTuple = (AppPermissions, Option<NodeReport>, 
+                                ConnPair<AppToAppServer,AppServerToApp>);
 
 #[derive(Debug)]
 pub enum SetupConnectionError {
     EncryptSetupError,
     RecvAppPermissionsError,
     DeserializeAppPermissionsError,
+    ClosedBeforeNodeReport,
+    DeserializeNodeReportError,
+    FirstMessageNotNodeReport,
 }
 
 /// Connect to an offst-node
@@ -74,6 +79,22 @@ where
     let app_permissions = deserialize_app_permissions(&app_permissions_data)
         .map_err(|_| SetupConnectionError::DeserializeAppPermissionsError)?;
 
+    // If Permissions contain report permissions, we should wait for the first NodeReport.
+    let opt_node_report = if app_permissions.reports {
+        let data = await!(receiver.next())
+            .ok_or(SetupConnectionError::ClosedBeforeNodeReport)?;
+        let message = deserialize_app_server_to_app(&data)
+            .map_err(|_| SetupConnectionError::DeserializeNodeReportError)?;
+
+        if let AppServerToApp::Report(node_report) = message {
+            Some(node_report)
+        } else {
+            return Err(SetupConnectionError::FirstMessageNotNodeReport)?;
+        }
+    } else {
+        None
+    };
+
     // serialization:
     let (user_sender, mut from_user_sender) = mpsc::channel(0);
     let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
@@ -101,5 +122,5 @@ where
         }
     });
 
-    Ok((app_permissions, (user_sender, user_receiver)))
+    Ok((app_permissions, opt_node_report, (user_sender, user_receiver)))
 }
