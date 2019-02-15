@@ -13,6 +13,11 @@ use common::multi_consumer::{multi_consumer_service, MultiConsumerClient};
 
 use crate::connect::NodeConnectionTuple;
 
+use super::report::AppReport;
+use super::config::AppConfig;
+use super::routes::AppRoutes;
+use super::send_funds::AppSendFunds;
+
 #[derive(Debug)]
 pub enum NodeConnectionError {
     SpawnError,
@@ -26,12 +31,6 @@ pub struct NodeConnection {
     routes_mc: MultiConsumerClient<ClientResponseRoutes>,
     send_funds_mc: MultiConsumerClient<ResponseReceived>,
 }
-
-// TODO:
-pub struct AppReport;
-pub struct AppConfig;
-pub struct AppRoutes;
-pub struct AppSendFunds;
 
 impl NodeConnection {
     pub fn new<S>(conn_tuple: NodeConnectionTuple, spawner: &mut S) 
