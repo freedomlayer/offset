@@ -3,7 +3,7 @@ use futures::task::Spawn;
 
 use proto::app_server::messages::{AppToAppServer, 
     AppPermissions, NodeReport, NodeReportMutation};
-use crate::state_service::StateClient;
+use common::state_service::StateClient;
 
 use crate::connect::NodeConnectionTuple;
 

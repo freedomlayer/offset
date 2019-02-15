@@ -29,3 +29,4 @@ pub mod access_control;
 pub mod canonical_serialize;
 pub mod mutable_state;
 pub mod transform_pool;
+pub mod state_service;

@@ -11,7 +11,6 @@
 
 #![allow(unused)]
 
-mod state_service;
 mod setup_conn;
 pub mod identity;
 mod connect;

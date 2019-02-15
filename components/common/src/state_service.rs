@@ -1,7 +1,7 @@
 use futures::{future, stream, StreamExt, SinkExt};
 use futures::channel::{mpsc, oneshot};
 
-use common::mutable_state::MutableState;
+use crate::mutable_state::MutableState;
 
 /// A present state and a receiver of future mutations
 pub type StateResponse<ST,MU> = (ST, mpsc::Receiver<MU>);
