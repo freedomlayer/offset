@@ -11,6 +11,9 @@
 
 #![allow(unused)]
 
+#[macro_use]
+extern crate log;
+
 mod setup_conn;
 pub mod identity;
 mod connect;
