@@ -14,6 +14,7 @@ using import "common.capnp".Receipt;
 using import "common.capnp".RelayAddress;
 using import "common.capnp".NamedRelayAddress;
 using import "common.capnp".NetAddress;
+using import "common.capnp".NamedIndexServerAddress;
 
 using import "report.capnp".NodeReport;
 using import "report.capnp".NodeReportMutation;
@@ -88,13 +89,6 @@ struct ClientResponseRoutes {
         result @1: ResponseRoutesResult;
 }
 
-struct AddIndexServer {
-        publicKey @0: PublicKey;
-        address @1: NetAddress;
-        name @2: Text;
-}
-
-
 #####################################################################
 
 struct AppPermissions {
@@ -150,7 +144,7 @@ struct AppToAppServer {
         requestRoutes @14: RequestRoutes;
 
         # Index servers management:
-        addIndexServer @15: AddIndexServer;
+        addIndexServer @15: NamedIndexServerAddress;
         removeIndexServer @16: PublicKey;
     }
 }

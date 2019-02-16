@@ -8,10 +8,9 @@ use crate::funder::messages::{UserRequestSendFunds, ResponseReceived,
 use crate::report::messages::{FunderReport, FunderReportMutation};
 use crate::index_client::messages::{IndexClientReport, 
     IndexClientReportMutation, ClientResponseRoutes};
-use crate::index_server::messages::RequestRoutes;
+use crate::index_server::messages::{RequestRoutes, NamedIndexServerAddress};
 use crate::net::messages::NetAddress;
 
-use index_client::messages::AddIndexServer;
 
 // TODO: Move NamedRelayAddress and RelayAddress to another place in offst-proto?
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -107,7 +106,7 @@ pub enum AppToAppServer<B=NetAddress> {
     /// Request routes from one node to another:
     RequestRoutes(RequestRoutes),
     /// Manage index servers:
-    AddIndexServer(AddIndexServer<B>),
+    AddIndexServer(NamedIndexServerAddress<B>),
     RemoveIndexServer(PublicKey),
 }
 

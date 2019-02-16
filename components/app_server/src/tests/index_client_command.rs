@@ -8,6 +8,7 @@ use proto::app_server::messages::{AppServerToApp, AppToAppServer,
                                     NodeReportMutation, AppPermissions};
 use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClient, 
     IndexClientReportMutation, AddIndexServer, AddIndexServerReport};
+use proto::index_server::messages::NamedIndexServerAddress;
 
 use super::utils::spawn_dummy_app_server;
 
@@ -41,14 +42,19 @@ where
     };
 
     // Send a command through the app:
+    let named_index_server_address = NamedIndexServerAddress {
+        public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
+        address: 300u32,
+        name: "IndexServer300".to_string(),
+    };
+    await!(app_sender.send(AppToAppServer::AddIndexServer(named_index_server_address.clone()))).unwrap();
+
+    // AddIndexServer command should be forwarded to IndexClient, in the form of AddIndexServer:
     let add_index_server = AddIndexServer {
         public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
         address: 300u32,
         name: "IndexServer300".to_string(),
     };
-    await!(app_sender.send(AppToAppServer::AddIndexServer(add_index_server.clone()))).unwrap();
-
-    // AddIndexServer command should be forwarded to IndexClient:
     let to_index_client_message = await!(index_client_receiver.next()).unwrap();
     match to_index_client_message {
         AppServerToIndexClient::AddIndexServer(add_index_server0) => assert_eq!(add_index_server0, add_index_server),

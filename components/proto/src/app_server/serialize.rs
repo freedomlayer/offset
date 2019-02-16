@@ -11,14 +11,13 @@ use crate::capnp_common::{write_signature, read_signature,
                           write_public_key, read_public_key,
                           write_relay_address, read_relay_address,
                           write_named_relay_address, read_named_relay_address,
-                          write_receipt, read_receipt,
-                          write_net_address, read_net_address};
+                          write_named_index_server_address, read_named_index_server_address,
+                          write_receipt, read_receipt};
 
 use app_server_capnp;
 use crate::serialize::SerializeError;
 
-use crate::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult,
-                                    AddIndexServer};
+use crate::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult};
 
 use index_server::serialize::{ser_route_with_capacity, deser_route_with_capacity,
                               ser_request_routes, deser_request_routes};
@@ -30,7 +29,6 @@ use crate::funder::messages::{UserRequestSendFunds,
     AddFriend, SetFriendName, SetFriendRelays,
     SetFriendRemoteMaxDebt, ResetFriendChannel};
 use crate::funder::serialize::{ser_friends_route, deser_friends_route};
-use crate::net::messages::NetAddress;
 
 use crate::app_server::messages::{AppServerToApp, AppToAppServer, 
     AppPermissions};
@@ -290,6 +288,7 @@ fn deser_client_response_routes(client_response_routes_reader: &app_server_capnp
 }
 
 
+/*
 fn ser_add_index_server(add_index_server: &AddIndexServer<NetAddress>, 
                             add_index_server_builder: &mut app_server_capnp::add_index_server::Builder) {
 
@@ -307,6 +306,7 @@ fn deser_add_index_server(add_index_server_reader: &app_server_capnp::add_index_
         name: add_index_server_reader.get_name()?.to_owned(),
     })
 }
+*/
 
 fn ser_app_permissions(app_permissions: &AppPermissions,
                     app_permissions_builder: &mut app_server_capnp::app_permissions::Builder) {
@@ -420,8 +420,8 @@ fn ser_app_to_app_server(app_to_app_server: &AppToAppServer,
         AppToAppServer::RequestRoutes(request_routes) =>
             ser_request_routes(request_routes, 
                             &mut app_to_app_server_builder.reborrow().init_request_routes()),
-        AppToAppServer::AddIndexServer(add_index_server) =>
-            ser_add_index_server(add_index_server, 
+        AppToAppServer::AddIndexServer(named_index_server_address_reader) =>
+            write_named_index_server_address(named_index_server_address_reader, 
                             &mut app_to_app_server_builder.reborrow().init_add_index_server()),
         AppToAppServer::RemoveIndexServer(public_key) =>
             write_public_key(public_key, 
@@ -478,7 +478,7 @@ fn deser_app_to_app_server(app_to_app_server: &app_server_capnp::app_to_app_serv
                 deser_request_routes(&request_routes_reader?)?),
         app_server_capnp::app_to_app_server::AddIndexServer(add_index_server_reader) =>
             AppToAppServer::AddIndexServer(
-                deser_add_index_server(&add_index_server_reader?)?),
+                read_named_index_server_address(&add_index_server_reader?)?),
         app_server_capnp::app_to_app_server::RemoveIndexServer(public_key_reader) =>
             AppToAppServer::RemoveIndexServer(
                 read_public_key(&public_key_reader?)?),
