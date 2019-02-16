@@ -59,7 +59,7 @@ where
     // Send a dummy report message from IndexClient:
     let add_index_server_report = AddIndexServerReport {
         public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
-        address: 300u64,
+        address: 300u32,
         name: "IndexServer300".to_string(),
     };
     let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(add_index_server_report.clone());

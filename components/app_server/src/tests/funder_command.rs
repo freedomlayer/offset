@@ -8,7 +8,7 @@ use proto::app_server::messages::{AppServerToApp, AppToAppServer, NodeReportMuta
                                     AppPermissions};
 use proto::report::messages::FunderReportMutation;
 
-use super::utils::spawn_dummy_app_server;
+use super::utils::{spawn_dummy_app_server, dummy_named_relay_address};
 
 async fn task_app_server_loop_funder_command<S>(spawner: S) 
 where
@@ -40,19 +40,16 @@ where
     };
 
     // Send a command through the app:
-    let new_address = vec![("0".to_string(), 0u32), 
-                           ("1".to_string(), 1u32), 
-                           ("2".to_string(), 2u32)];
-    await!(app_sender.send(AppToAppServer::SetRelays(new_address.clone()))).unwrap();
+    await!(app_sender.send(AppToAppServer::AddRelay(dummy_named_relay_address(0)))).unwrap();
 
     // SetRelays command should be forwarded to the Funder:
     let to_funder_message = await!(funder_receiver.next()).unwrap();
     match to_funder_message {
-        FunderIncomingControl::SetAddress(address) => assert_eq!(address, new_address),
+        FunderIncomingControl::AddRelay(address) => assert_eq!(address, dummy_named_relay_address(0)),
         _ => unreachable!(),
     };
 
-    let funder_report_mutation = FunderReportMutation::SetAddress(new_address.clone());
+    let funder_report_mutation = FunderReportMutation::AddRelay(dummy_named_relay_address(0));
     let funder_report_mutations = vec![funder_report_mutation.clone()];
     await!(funder_sender.send(FunderOutgoingControl::ReportMutations(funder_report_mutations))).unwrap();
 
