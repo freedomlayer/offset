@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use im::vector::Vector as ImVec;
 
 use crypto::identity::PublicKey;
@@ -34,7 +35,7 @@ where
 
 impl<B> SentLocalAddress<B> 
 where
-    B: Clone,
+    B: Clone + Debug,
 {
     pub fn to_vec(&self) -> Vec<RelayAddress<B>> {
         match self {
@@ -48,6 +49,8 @@ where
                 for relay in prev_last_relays {
                     relays.push(relay.clone().into());
                 }
+                // Note: a vector must be sorted in order to use dedup_by_key()!
+                relays.sort_by_key(|relay_address| relay_address.public_key.clone());
                 relays.dedup_by_key(|relay_address| relay_address.public_key.clone());
                 relays
             },
