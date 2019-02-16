@@ -186,6 +186,7 @@ where
         incoming_comm,
         to_app_server,
         outgoing_comm_sender,
+        node_config.max_node_relays,
         node_config.max_operations_in_batch,
         node_config.max_pending_user_requests,
         funder_state,
