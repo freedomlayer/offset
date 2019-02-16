@@ -94,7 +94,7 @@ pub enum SpawnChannelerError {
     SpawnError,
 }
 
-pub fn spawn_channeler<B,C,ET,KT,S>(local_public_key: PublicKey,
+pub fn spawn_channeler<RA,C,ET,KT,S>(local_public_key: PublicKey,
                           timer_client: TimerClient,
                           backoff_ticks: usize,
                           conn_timeout_ticks: usize,
@@ -102,14 +102,14 @@ pub fn spawn_channeler<B,C,ET,KT,S>(local_public_key: PublicKey,
                           enc_relay_connector: C,
                           encrypt_transform: ET,
                           keepalive_transform: KT,
-                          from_funder: mpsc::Receiver<FunderToChanneler<B>>,
+                          from_funder: mpsc::Receiver<FunderToChanneler<RA>>,
                           to_funder: mpsc::Sender<ChannelerToFunder>,
                           mut spawner: S) 
     -> Result<impl Future<Output=Result<(), ChannelerError>>, SpawnChannelerError>
 
 where
-    B: Eq + Hash + Clone + Send + Sync + Debug + 'static,
-    C: FutTransform<Input=B,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
+    RA: Eq + Hash + Clone + Send + Sync + Debug + 'static,
+    C: FutTransform<Input=RA,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
     ET: FutTransform<Input=(Option<PublicKey>, ConnPairVec),Output=Option<(PublicKey, ConnPairVec)>> + Clone + Send + Sync + 'static,
     KT: FutTransform<Input=ConnPairVec,Output=ConnPairVec> + Clone + Send + Sync + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
@@ -138,7 +138,7 @@ where
     let listen_encrypt_transform = ListenEncryptTransform::new(
         encrypt_transform.clone());
 
-    let pool_listener = PoolListener::<B,_,_,_>::new(client_listener,
+    let pool_listener = PoolListener::<RA,_,_,_>::new(client_listener,
            listen_encrypt_transform,
            max_concurrent_encrypt,
            backoff_ticks,

@@ -28,18 +28,18 @@ pub struct CpConnectClient {
     request_sender: mpsc::Sender<CpConnectRequest>,
 }
 
-pub struct CpConfigClient<B> {
-    request_sender: mpsc::Sender<Vec<B>>,
+pub struct CpConfigClient<RA> {
+    request_sender: mpsc::Sender<Vec<RA>>,
 }
 
-impl<B> CpConfigClient<B> {
-    pub fn new(request_sender: mpsc::Sender<Vec<B>>) -> Self {
+impl<RA> CpConfigClient<RA> {
+    pub fn new(request_sender: mpsc::Sender<Vec<RA>>) -> Self {
         CpConfigClient {
             request_sender,
         }
     }
 
-    pub async fn config(&mut self, config: Vec<B>) -> Result<(), ConnectPoolClientError> {
+    pub async fn config(&mut self, config: Vec<RA>) -> Result<(), ConnectPoolClientError> {
         await!(self.request_sender.send(config))
             .map_err(|_| ConnectPoolClientError)?;
         Ok(())
@@ -76,26 +76,26 @@ pub enum ConnectPoolError {
 }
 
 #[derive(Debug)]
-enum CpEvent<B> {
+enum CpEvent<RA> {
     ConnectRequest(CpConnectRequest),
     ConnectRequestClosed,
-    ConfigRequest(Vec<B>),
+    ConfigRequest(Vec<RA>),
     ConfigRequestClosed,
     ConnectAttemptDone(Option<RawConn>),
     TimerTick,
     TimerClosed,
 }
 
-enum CpStatus<B> {
+enum CpStatus<RA> {
     NoRequest,
     Waiting((usize, oneshot::Sender<RawConn>)),
-    Connecting((B, oneshot::Sender<()>, oneshot::Sender<RawConn>)),
+    Connecting((RA, oneshot::Sender<()>, oneshot::Sender<RawConn>)),
 }
 
-struct ConnectPool<B,C,ET,S> {
+struct ConnectPool<RA,C,ET,S> {
     friend_public_key: PublicKey,
-    addresses: VecDeque<B>,
-    status: CpStatus<B>,
+    addresses: VecDeque<RA>,
+    status: CpStatus<RA>,
     conn_done_sender: mpsc::Sender<Option<RawConn>>,
     backoff_ticks: usize,
     client_connector: C,
@@ -103,14 +103,14 @@ struct ConnectPool<B,C,ET,S> {
     spawner: S,
 }
 
-async fn conn_attempt<B,C,ET>(friend_public_key: PublicKey, 
-                      address: B,
+async fn conn_attempt<RA,C,ET>(friend_public_key: PublicKey, 
+                      address: RA,
                       mut client_connector: C,
                       mut encrypt_transform: ET,
                       canceler: oneshot::Receiver<()>) -> Option<RawConn>
 where
-    B: Eq,
-    C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone,
+    RA: Eq,
+    C: FutTransform<Input=(RA, PublicKey), Output=Option<RawConn>> + Clone,
     ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<RawConn>> + Clone,
 {
     // TODO; How to remove this Box::pin?
@@ -126,12 +126,12 @@ where
     }
 }
 
-impl<B,C,ET,S> ConnectPool<B,C,ET,S> 
+impl<RA,C,ET,S> ConnectPool<RA,C,ET,S> 
 where
-    B: Hash + Clone + Eq + Send + Debug + 'static,
+    RA: Hash + Clone + Eq + Send + Debug + 'static,
     S: Spawn,
     ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
-    C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
+    C: FutTransform<Input=(RA, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
 {
     pub fn new(friend_public_key: PublicKey, 
                conn_done_sender: mpsc::Sender<Option<RawConn>>,
@@ -155,7 +155,7 @@ where
 
     /// Start a connection attempt through a relay with a given address.
     /// Returns a canceler.
-    fn create_conn_attempt(&mut self, address: B) 
+    fn create_conn_attempt(&mut self, address: RA) 
         -> Result<oneshot::Sender<()>, ConnectPoolError> {
 
         let (cancel_sender, cancel_receiver) = oneshot::channel();
@@ -200,7 +200,7 @@ where
         Ok(())
     }
 
-    fn add_address(&mut self, address: B) -> Result<(), ConnectPoolError> {
+    fn add_address(&mut self, address: RA) -> Result<(), ConnectPoolError> {
         let was_empty = self.addresses.is_empty();
         if !self.addresses.contains(&address) {
             self.addresses.push_back(address);
@@ -218,7 +218,7 @@ where
         Ok(())
     }
 
-    fn remove_address(&mut self, address: B) -> Result<(), ConnectPoolError> {
+    fn remove_address(&mut self, address: RA) -> Result<(), ConnectPoolError> {
         self.addresses.retain(|cur_address| cur_address != &address);
         match mem::replace(&mut self.status, CpStatus::NoRequest) {
             CpStatus::NoRequest => {},
@@ -245,7 +245,7 @@ where
         Ok(())
     }
 
-    pub fn handle_config_request(&mut self, config: Vec<B>) 
+    pub fn handle_config_request(&mut self, config: Vec<RA>) 
         -> Result<(), ConnectPoolError> {
 
         let old_addresses = self.addresses
@@ -253,7 +253,7 @@ where
             .cloned()
             .collect::<HashSet<_>>();
 
-        let new_addresses: HashSet<B> = config
+        let new_addresses: HashSet<RA> = config
             .into_iter()
             .collect::<HashSet<_>>();
 
@@ -311,8 +311,8 @@ where
 }
 
 
-async fn connect_pool_loop<B,ET,TS,C,S>(incoming_requests: mpsc::Receiver<CpConnectRequest>,
-                            incoming_config: mpsc::Receiver<Vec<B>>,
+async fn connect_pool_loop<RA,ET,TS,C,S>(incoming_requests: mpsc::Receiver<CpConnectRequest>,
+                            incoming_config: mpsc::Receiver<Vec<RA>>,
                             timer_stream: TS,
                             encrypt_transform: ET,
                             friend_public_key: PublicKey,
@@ -321,8 +321,8 @@ async fn connect_pool_loop<B,ET,TS,C,S>(incoming_requests: mpsc::Receiver<CpConn
                             spawner: S,
                             mut opt_event_sender: Option<mpsc::Sender<()>>) -> Result<(), ConnectPoolError>
 where
-    B: Hash + Clone + Eq + Send + Debug + 'static,
-    C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
+    RA: Hash + Clone + Eq + Send + Debug + 'static,
+    C: FutTransform<Input=(RA, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
     TS: Stream + Unpin,
     ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
     S: Spawn + Clone,
@@ -337,10 +337,10 @@ where
                                             spawner.clone());
 
     let incoming_conn_done = incoming_conn_done
-        .map(|opt_conn| CpEvent::<B>::ConnectAttemptDone(opt_conn));
+        .map(|opt_conn| CpEvent::<RA>::ConnectAttemptDone(opt_conn));
 
     let incoming_requests = incoming_requests
-        .map(|connect_request| CpEvent::<B>::ConnectRequest(connect_request))
+        .map(|connect_request| CpEvent::<RA>::ConnectRequest(connect_request))
         .chain(stream::once(future::ready(CpEvent::ConnectRequestClosed)));
 
     let incoming_config = incoming_config
@@ -377,19 +377,19 @@ where
     Ok(())
 }
 
-pub type ConnectPoolControl<B> = (CpConfigClient<B>, CpConnectClient);
+pub type ConnectPoolControl<RA> = (CpConfigClient<RA>, CpConnectClient);
 
-pub fn create_connect_pool<B,ET,TS,C,S>(timer_stream: TS,
+pub fn create_connect_pool<RA,ET,TS,C,S>(timer_stream: TS,
                             encrypt_transform: ET,
                             friend_public_key: PublicKey,
                             backoff_ticks: usize,
                             client_connector: C,
                             mut spawner: S) 
-    -> Result<ConnectPoolControl<B>, ConnectPoolError> 
+    -> Result<ConnectPoolControl<RA>, ConnectPoolError> 
 
 where
-    B: Hash + Clone + Eq + Send + Debug + 'static,
-    C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
+    RA: Hash + Clone + Eq + Send + Debug + 'static,
+    C: FutTransform<Input=(RA, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
     TS: Stream + Unpin + Send + 'static,
     ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
@@ -418,19 +418,19 @@ where
 }
 
 #[derive(Clone)]
-pub struct PoolConnector<B,C,ET,S> {
+pub struct PoolConnector<RA,C,ET,S> {
     timer_client: TimerClient,
     client_connector: C,
     encrypt_transform: ET,
     backoff_ticks: usize,
     spawner: S,
-    phantom_b: PhantomData<B>,
+    phantom_b: PhantomData<RA>,
 }
 
-impl<B,C,ET,S> PoolConnector<B,C,ET,S> 
+impl<RA,C,ET,S> PoolConnector<RA,C,ET,S> 
 where
-    B: Hash + Clone + Eq + Send + 'static,
-    C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
+    RA: Hash + Clone + Eq + Send + 'static,
+    C: FutTransform<Input=(RA, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
     ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
@@ -452,15 +452,15 @@ where
 }
 
 
-impl<B,C,ET,S> FutTransform for PoolConnector<B,C,ET,S> 
+impl<RA,C,ET,S> FutTransform for PoolConnector<RA,C,ET,S> 
 where
-    B: Hash + Clone + Eq + Send + Debug + 'static,
-    C: FutTransform<Input=(B, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
+    RA: Hash + Clone + Eq + Send + Debug + 'static,
+    C: FutTransform<Input=(RA, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
     ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
     type Input = PublicKey;
-    type Output = ConnectPoolControl<B>;
+    type Output = ConnectPoolControl<RA>;
 
     fn transform(&mut self, friend_public_key: Self::Input)
         -> BoxFuture<'_, Self::Output> {

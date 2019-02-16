@@ -19,8 +19,8 @@ use crate::listen_pool::LpConfig;
 
 
 #[derive(Debug)]
-pub enum ChannelerEvent<B> {
-    FromFunder(FunderToChanneler<B>),
+pub enum ChannelerEvent<RA> {
+    FromFunder(FunderToChanneler<RA>),
     Connection((PublicKey, RawConn)),
     FriendEvent(FriendEvent),
     ListenerClosed,
@@ -94,21 +94,21 @@ enum OutFriendStatus {
     Connected(FriendConnected),
 }
 
-struct OutFriend<B> {
-    config_client: CpConfigClient<B>,
+struct OutFriend<RA> {
+    config_client: CpConfigClient<RA>,
     connect_client: CpConnectClient,
     status: OutFriendStatus,
 }
 
-struct Friends<B> {
+struct Friends<RA> {
     /// Friends that should connect to us:
     in_friends: HashMap<PublicKey, InFriend>,
     /// Friends that wait for our connection:
-    out_friends: HashMap<PublicKey, OutFriend<B>>,
+    out_friends: HashMap<PublicKey, OutFriend<RA>>,
 }
 
 
-impl<B> Friends<B> {
+impl<RA> Friends<RA> {
     pub fn new() -> Self {
         Friends {
             in_friends: HashMap::new(),
@@ -144,30 +144,30 @@ impl<B> Friends<B> {
 }
 
 
-struct Channeler<B,C,S,TF> {
+struct Channeler<RA,C,S,TF> {
     local_public_key: PublicKey,
-    friends: Friends<B>,
+    friends: Friends<RA>,
     connector: C,
     /// Configuration sender for the listening task:
-    listen_config: mpsc::Sender<LpConfig<B>>,
+    listen_config: mpsc::Sender<LpConfig<RA>>,
     spawner: S,
     to_funder: TF,
-    event_sender: mpsc::Sender<ChannelerEvent<B>>,
+    event_sender: mpsc::Sender<ChannelerEvent<RA>>,
 }
 
-impl<B,C,S,TF> Channeler<B,C,S,TF> 
+impl<RA,C,S,TF> Channeler<RA,C,S,TF> 
 where
-    B: Clone + Send + Sync + 'static,
-    C: FutTransform<Input=PublicKey, Output=ConnectPoolControl<B>> + Clone + Send + Sync + 'static,
+    RA: Clone + Send + Sync + 'static,
+    C: FutTransform<Input=PublicKey, Output=ConnectPoolControl<RA>> + Clone + Send + Sync + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
 {
     fn new(local_public_key: PublicKey,
            connector: C, 
-           listen_config: mpsc::Sender<LpConfig<B>>,
+           listen_config: mpsc::Sender<LpConfig<RA>>,
            spawner: S,
            to_funder: TF,
-           event_sender: mpsc::Sender<ChannelerEvent<B>>) -> Self {
+           event_sender: mpsc::Sender<ChannelerEvent<RA>>) -> Self {
 
         Channeler { 
             local_public_key,
@@ -241,7 +241,7 @@ where
         Ok(())
     }
 
-    async fn handle_from_funder(&mut self, funder_to_channeler: FunderToChanneler<B>) 
+    async fn handle_from_funder(&mut self, funder_to_channeler: FunderToChanneler<RA>) 
         -> Result<(), ChannelerError>  {
 
         match funder_to_channeler {
@@ -401,7 +401,7 @@ where
 
 
 #[allow(unused)]
-pub async fn channeler_loop<FF,TF,B,C,L,S>(
+pub async fn channeler_loop<FF,TF,RA,C,L,S>(
                         local_public_key: PublicKey,
                         from_funder: FF, 
                         to_funder: TF,
@@ -409,11 +409,11 @@ pub async fn channeler_loop<FF,TF,B,C,L,S>(
                         listener: L,
                         spawner: S) -> Result<(), ChannelerError>
 where
-    FF: Stream<Item=FunderToChanneler<B>> + Unpin,
+    FF: Stream<Item=FunderToChanneler<RA>> + Unpin,
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
-    B: Clone + Send + Sync + Debug + 'static,
-    C: FutTransform<Input=PublicKey, Output=ConnectPoolControl<B>> + Clone + Send + Sync + 'static,
-    L: Listener<Connection=(PublicKey, RawConn), Config=LpConfig<B>, Arg=()> + Clone + Send,
+    RA: Clone + Send + Sync + Debug + 'static,
+    C: FutTransform<Input=PublicKey, Output=ConnectPoolControl<RA>> + Clone + Send + Sync + 'static,
+    L: Listener<Connection=(PublicKey, RawConn), Config=LpConfig<RA>, Arg=()> + Clone + Send,
     S: Spawn + Clone + Send + Sync + 'static,
 {
 
