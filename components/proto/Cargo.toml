@@ -17,7 +17,7 @@ serde_derive = "1"
 serde_json = "1.0.27"
 bytes = "0.4"
 
-im = "12.0.0"
+im = {version = "12.0.0", features = ["serde"]}
 
 [dev-dependencies]
 
