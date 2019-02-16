@@ -1,4 +1,5 @@
 use super::utils::apply_funder_incoming;
+    
 
 use std::cmp::Ordering;
 
@@ -24,6 +25,8 @@ use crate::ephemeral::Ephemeral;
 use crate::state::FunderState;
 use crate::friend::ChannelStatus;
 
+use crate::tests::utils::{dummy_named_relay_address, dummy_relay_address};
+
 async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityClient, 
                                              identity_client2: &'a mut IdentityClient) {
     // NOTE: We use Box::pin() in order to make sure we don't get a too large Future which will
@@ -39,9 +42,11 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
         (identity_client2, pk2, identity_client1, pk1)
     };
 
-    let mut state1 = FunderState::<u32>::new(&pk1, &("1337".to_string(), 0x1337u32));
+    let relays1 = vec![dummy_named_relay_address(1)];
+    let mut state1 = FunderState::<u32>::new(pk1.clone(), relays1);
     let mut ephemeral1 = Ephemeral::new();
-    let mut state2 = FunderState::<u32>::new(&pk2, &("1338".to_string(), 0x1338u32));
+    let relays2 = vec![dummy_named_relay_address(2)];
+    let mut state2 = FunderState::<u32>::new(pk2.clone(), relays2);
     let mut ephemeral2 = Ephemeral::new();
 
     let mut rng = RngContainer::new(DummyRandom::new(&[3u8]));
@@ -59,7 +64,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
     // Node1: Add friend 2:
     let add_friend = AddFriend {
         friend_public_key: pk2.clone(),
-        address: 22u32,
+        address: vec![dummy_relay_address(2)],
         name: String::from("pk2"),
         balance: 20i128,
     };
@@ -83,7 +88,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
     // -20i128, but we assign -10i128 to cause an inconsistency.
     let add_friend = AddFriend {
         friend_public_key: pk1.clone(),
-        address: 11u32,
+        address: vec![dummy_relay_address(1)],
         name: String::from("pk1"),
         balance: -10i128,
     };
@@ -319,7 +324,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
                 assert_eq!(friend_move_token.move_token_counter, 2);
                 assert_eq!(friend_move_token.inconsistency_counter, 1);
                 assert_eq!(friend_move_token.balance, 10i128);
-                assert_eq!(friend_move_token.opt_local_address, Some(0x1337u32));
+                assert_eq!(friend_move_token.opt_local_address, Some(vec![dummy_relay_address(1)]));
 
             } else {
                 unreachable!();

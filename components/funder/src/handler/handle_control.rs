@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use common::canonical_serialize::CanonicalSerialize;
 
 use crypto::identity::PublicKey;
@@ -43,7 +45,7 @@ fn control_set_friend_remote_max_debt<B>(m_state: &mut MutableFunderState<B>,
                                          set_friend_remote_max_debt: SetFriendRemoteMaxDebt) 
     -> Result<(), HandleControlError> 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     // Make sure that friend exists:
@@ -72,7 +74,7 @@ fn control_reset_friend_channel<B>(m_state: &mut MutableFunderState<B>,
                                 reset_friend_channel: ResetFriendChannel) 
     -> Result<(), HandleControlError> 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     let friend = m_state.state().friends.get(&reset_friend_channel.friend_public_key)
@@ -106,7 +108,7 @@ fn enable_friend<B>(m_state: &mut MutableFunderState<B>,
                  friend_public_key: &PublicKey,
                  friend_relays: &Vec<RelayAddress<B>>) 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
@@ -128,7 +130,7 @@ fn disable_friend<B>(m_state: &mut MutableFunderState<B>,
                      outgoing_channeler_config: &mut Vec<ChannelerConfig<B>>,
                      friend_public_key: &PublicKey) 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     // Cancel all pending requests to this friend:
@@ -153,7 +155,7 @@ fn control_add_relay<B>(m_state: &mut MutableFunderState<B>,
                           outgoing_channeler_config: &mut Vec<ChannelerConfig<B>>,
                           named_relay_address: NamedRelayAddress<B>) 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     let funder_mutation = FunderMutation::AddRelay(named_relay_address);
@@ -186,7 +188,7 @@ fn control_remove_relay<B>(m_state: &mut MutableFunderState<B>,
                           outgoing_channeler_config: &mut Vec<ChannelerConfig<B>>,
                           public_key: PublicKey) 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     let funder_mutation = FunderMutation::RemoveRelay(public_key);
@@ -217,7 +219,7 @@ where
 fn control_add_friend<B>(m_state: &mut MutableFunderState<B>, 
                          add_friend: AddFriend<B>) 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     let funder_mutation = FunderMutation::AddFriend(add_friend.clone());
@@ -232,7 +234,7 @@ fn control_remove_friend<B>(m_state: &mut MutableFunderState<B>,
                             remove_friend: RemoveFriend) 
     -> Result<(), HandleControlError> 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     // Make sure that friend exists:
@@ -264,7 +266,7 @@ fn control_set_friend_status<B>(m_state: &mut MutableFunderState<B>,
                                 set_friend_status: SetFriendStatus) 
     -> Result<(), HandleControlError> 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     // Make sure that friend exists:
@@ -302,7 +304,7 @@ fn control_set_requests_status<B>(m_state: &mut MutableFunderState<B>,
                                set_requests_status: SetRequestsStatus) 
     -> Result<(), HandleControlError> 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     // Make sure that friend exists:
@@ -323,7 +325,7 @@ fn control_set_friend_address<B>(m_state: &mut MutableFunderState<B>,
                                  set_friend_address: SetFriendAddress<B>)
     -> Result<(), HandleControlError> 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     // Make sure that friend exists:
@@ -360,7 +362,7 @@ fn control_set_friend_name<B>(m_state: &mut MutableFunderState<B>,
                               set_friend_name: SetFriendName)
     -> Result<(), HandleControlError> 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     // Make sure that friend exists:
@@ -397,7 +399,7 @@ fn control_request_send_funds_inner<B>(m_state: &mut MutableFunderState<B>,
                                        user_request_send_funds: UserRequestSendFunds)
     -> Result<(), HandleControlError> 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     check_user_request_valid(&user_request_send_funds)
@@ -487,7 +489,7 @@ fn control_request_send_funds<B>(m_state: &mut MutableFunderState<B>,
                                  user_request_send_funds: UserRequestSendFunds) 
     -> Result<(), HandleControlError> 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
     
     // If we managed to push the message, we return an Ok(()).
@@ -518,7 +520,7 @@ fn control_receipt_ack<B>(m_state: &mut MutableFunderState<B>,
                           receipt_ack: ReceiptAck) 
     -> Result<(), HandleControlError> 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     let receipt = m_state.state().ready_receipts.get(&receipt_ack.request_id)
@@ -547,7 +549,7 @@ pub fn handle_control_message<B>(m_state: &mut MutableFunderState<B>,
                                  incoming_control: FunderIncomingControl<B>) 
     -> Result<(), HandleControlError> 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     match incoming_control {

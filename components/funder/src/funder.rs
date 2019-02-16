@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use futures::channel::mpsc;
 use futures::{future, stream, SinkExt, StreamExt};
 
@@ -50,7 +52,7 @@ pub async fn inner_funder_loop<B,R>(
     mut opt_event_sender: Option<mpsc::Sender<FunderEvent<B>>>) -> Result<(), FunderError> 
 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
     R: CryptoRandom + 'static,
 {
 
@@ -146,7 +148,7 @@ pub async fn funder_loop<B,R>(
     funder_state: FunderState<B>,
     db_client: DatabaseClient<FunderMutation<B>>) -> Result<(), FunderError> 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
     R: CryptoRandom + 'static,
 {
 

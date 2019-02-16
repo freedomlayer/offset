@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use common::canonical_serialize::CanonicalSerialize;
 
 use crypto::uid::Uid;
@@ -35,7 +37,7 @@ pub struct MutableFunderState<B:Clone> {
 
 impl<B> MutableFunderState<B> 
 where
-    B: Clone + CanonicalSerialize + PartialEq + Eq,
+    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
 {
     pub fn new(state: FunderState<B>) -> Self {
         MutableFunderState {
@@ -112,7 +114,7 @@ where
 pub fn find_request_origin<'a, B>(state: &'a FunderState<B>,
                                   request_id: &Uid) -> Option<&'a PublicKey> 
 where   
-    B: Clone + CanonicalSerialize + PartialEq + Eq,
+    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
 {
     for (friend_public_key, friend) in &state.friends {
         match &friend.channel_status {
@@ -136,7 +138,7 @@ pub fn is_friend_ready<B>(state: &FunderState<B>,
                           ephemeral: &Ephemeral,
                           friend_public_key: &PublicKey) -> bool 
 where   
-    B: Clone + CanonicalSerialize + PartialEq + Eq,
+    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
 {
 
     let friend = state.friends.get(friend_public_key).unwrap();
@@ -168,7 +170,7 @@ pub fn funder_handle_incoming<B,R>(mut m_state: &mut MutableFunderState<B>,
                                         Vec<ChannelerConfig<B>>), FunderHandlerError>
 
 where
-    B: Clone + CanonicalSerialize + PartialEq + Eq,
+    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
     R: CryptoRandom,
 {
     let mut send_commands = SendCommands::new();
@@ -223,7 +225,7 @@ fn create_report_mutations<B>(initial_state: FunderState<B>,
                            ephemeral_mutations: &[EphemeralMutation]) 
     -> Vec<FunderReportMutation<B>> 
 where
-    B: Clone + CanonicalSerialize + PartialEq + Eq,
+    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
 {
 
     let mut report_mutations = Vec::new();
@@ -252,7 +254,7 @@ pub async fn funder_handle_message<'a,B,R>(
                       funder_incoming: FunderIncoming<B>) 
         -> Result<FunderHandlerOutput<B>, FunderHandlerError> 
 where
-    B: 'a + Clone + PartialEq + Eq + CanonicalSerialize,
+    B: 'a + Clone + PartialEq + Eq + CanonicalSerialize + Debug,
     R: CryptoRandom + 'a,
 {
 

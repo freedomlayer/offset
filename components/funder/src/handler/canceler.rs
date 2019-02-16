@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use crypto::identity::PublicKey;
 use common::canonical_serialize::CanonicalSerialize;
 
@@ -44,7 +45,7 @@ pub fn reply_with_failure<B>(m_state: &mut MutableFunderState<B>,
                              remote_public_key: &PublicKey,
                              request_send_funds: &RequestSendFunds) 
 where
-    B: Clone + CanonicalSerialize + PartialEq + Eq,
+    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
 {
 
     let pending_request = create_pending_request(request_send_funds);
@@ -62,7 +63,7 @@ pub fn cancel_local_pending_requests<B>(m_state: &mut MutableFunderState<B>,
                                      outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
                                      friend_public_key: &PublicKey) 
 where
-    B: Clone + CanonicalSerialize + PartialEq + Eq,
+    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
 {
 
 
@@ -115,7 +116,7 @@ pub fn cancel_pending_requests<B>(m_state: &mut MutableFunderState<B>,
                                   outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
                                   friend_public_key: &PublicKey) 
 where
-    B: Clone + CanonicalSerialize + PartialEq + Eq,
+    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
 {
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
@@ -153,7 +154,7 @@ pub fn cancel_pending_user_requests<B>(m_state: &mut MutableFunderState<B>,
                                        outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
                                        friend_public_key: &PublicKey) 
 where
-    B: Clone + CanonicalSerialize + PartialEq + Eq,
+    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
 {
 
     let friend = m_state.state().friends.get(&friend_public_key).unwrap();

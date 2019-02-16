@@ -1,2 +1,2 @@
-mod utils;
+pub mod utils;
 mod tests;

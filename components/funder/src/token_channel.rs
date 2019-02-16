@@ -490,6 +490,7 @@ mod tests {
                                   identity: &I) 
         -> MoveToken<B> 
     where
+        B: CanonicalSerialize,
         I: Identity,
     {
         let signature_buff = move_token_signature_buff(&unsigned_move_token);

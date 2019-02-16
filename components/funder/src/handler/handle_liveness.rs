@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use common::canonical_serialize::CanonicalSerialize;
 
 use proto::funder::messages::{FriendStatus, FunderOutgoingControl};
@@ -26,7 +27,7 @@ pub fn handle_liveness_message<B>(m_state: &mut MutableFunderState<B>,
                                     liveness_message: IncomingLivenessMessage)
     -> Result<(), HandleLivenessError> 
 where
-    B: Clone + CanonicalSerialize + PartialEq + Eq,
+    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
 {
 
     match liveness_message {
@@ -99,6 +100,7 @@ mod tests {
 
     use crate::handler::handler::{MutableFunderState, MutableEphemeral};
     use crate::handler::sender::{SendCommands};
+    use crate::tests::utils::{dummy_named_relay_address, dummy_relay_address};
 
 
     #[test]
@@ -121,11 +123,12 @@ mod tests {
             (identity2, pk2, identity1, pk1)
         };
 
-        let mut state = FunderState::<u32>::new(&local_pk, &("1337".to_string(), 1337u32));
+        let relays = vec![dummy_named_relay_address(0)];
+        let mut state = FunderState::<u32>::new(local_pk, relays);
         // Add a remote friend:
         let add_friend = AddFriend {
             friend_public_key: remote_pk.clone(),
-            address: 3u32,
+            address: vec![dummy_relay_address(1)],
             name: "remote_pk".into(),
             balance: 0i128,
         };

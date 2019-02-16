@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use common::canonical_serialize::CanonicalSerialize;
 
 use crypto::crypto_rand::CryptoRandom;
@@ -53,7 +54,7 @@ pub fn gen_reset_terms<B,R>(token_channel: &TokenChannel<B>,
                              rng: &R) -> ResetTerms 
 where
     R: CryptoRandom,
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
     // We add 2 for the new counter in case 
     // the remote side has already used the next counter.
@@ -77,7 +78,7 @@ pub fn try_reset_channel<B>(m_state: &mut MutableFunderState<B>,
                             local_reset_terms: &ResetTerms,
                             move_token_request: &MoveTokenRequest<B>) 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     let move_token = &move_token_request.friend_move_token;
@@ -119,7 +120,7 @@ fn forward_request<B>(m_state: &mut MutableFunderState<B>,
                       send_commands: &mut SendCommands,
                       request_send_funds: RequestSendFunds) 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
     let index = request_send_funds.route.pk_to_index(&m_state.state().local_public_key)
         .unwrap();
@@ -141,7 +142,7 @@ fn handle_request_send_funds<B>(m_state: &mut MutableFunderState<B>,
                                 remote_public_key: &PublicKey,
                                 request_send_funds: RequestSendFunds) 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     // Find ourselves on the route. If we are not there, abort.
@@ -197,7 +198,7 @@ fn handle_response_send_funds<B>(m_state: &mut MutableFunderState<B>,
                                  response_send_funds: ResponseSendFunds,
                                  pending_request: PendingRequest) 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     match find_request_origin(m_state.state(), 
@@ -238,7 +239,7 @@ fn handle_failure_send_funds<B>(m_state: &mut MutableFunderState<B>,
                                 failure_send_funds: FailureSendFunds,
                                 pending_request: PendingRequest) 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     match find_request_origin(m_state.state(), 
@@ -276,7 +277,7 @@ fn handle_move_token_output<B>(m_state: &mut MutableFunderState<B>,
                                remote_public_key: &PublicKey,
                                incoming_messages: Vec<IncomingMessage>) 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     for incoming_message in incoming_messages {
@@ -318,7 +319,7 @@ fn handle_move_token_error<B,R>(m_state: &mut MutableFunderState<B>,
                                 rng: &R,
                                 remote_public_key: &PublicKey)
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
     R: CryptoRandom,
 {
     let friend = m_state.state().friends.get(remote_public_key).unwrap();
@@ -370,7 +371,7 @@ fn handle_move_token_success<B>(m_state: &mut MutableFunderState<B>,
                                 receive_move_token_output: ReceiveMoveTokenOutput<B>,
                                 token_wanted: bool) 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     match receive_move_token_output {
@@ -482,7 +483,7 @@ fn handle_move_token_request<B,R>(m_state: &mut MutableFunderState<B>,
                                 friend_move_token_request: MoveTokenRequest<B>) 
     -> Result<(), HandleFriendError> 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
     R: CryptoRandom,
 {
     // Find friend:
@@ -538,7 +539,7 @@ fn handle_inconsistency_error<B,R>(m_state: &mut MutableFunderState<B>,
                                    remote_reset_terms: ResetTerms)
                                     -> Result<(), HandleFriendError> 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
     R: CryptoRandom,
 {
 
@@ -608,7 +609,7 @@ pub fn handle_friend_message<B,R>(m_state: &mut MutableFunderState<B>,
                                   friend_message: FriendMessage<B>)
                                     -> Result<(), HandleFriendError> 
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
     R: CryptoRandom,
 {
     // Make sure that friend exists:
