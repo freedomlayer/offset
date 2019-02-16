@@ -29,7 +29,7 @@ pub enum FunderToChanneler<RA> {
     /// Send a message to a friend
     Message((PublicKey, Vec<u8>)), // (friend_public_key, message)
     /// Set address for relay used by local node
-    SetAddress(Vec<RA>), 
+    SetRelays(Vec<RA>), 
     /// Request to add a new friend or update friend's information
     UpdateFriend(ChannelerUpdateFriend<RA>),
     /// Request to remove a friend

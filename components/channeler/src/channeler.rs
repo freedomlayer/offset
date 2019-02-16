@@ -258,7 +258,7 @@ where
                 let _ = await!(friend_connected.send(message));
                 Ok(())
             },
-            FunderToChanneler::SetAddress(addresses) => {
+            FunderToChanneler::SetRelays(addresses) => {
                 // Our local listening addresses were set.
                 // We update the listener accordingly:
                 await!(self.listen_config.send(LpConfig::SetLocalAddresses(addresses)))
@@ -511,7 +511,7 @@ mod tests {
         let mut listener_request = await!(listener_req_receiver.next()).unwrap();
 
         // Play with changing relay addresses:
-        await!(funder_sender.send(FunderToChanneler::SetAddress(vec![0x1337u32]))).unwrap();
+        await!(funder_sender.send(FunderToChanneler::SetRelays(vec![0x1337u32]))).unwrap();
 
         let lp_config = await!(listener_request.config_receiver.next()).unwrap();
         match lp_config {
@@ -520,7 +520,7 @@ mod tests {
         };
 
         // Empty relay address:
-        await!(funder_sender.send(FunderToChanneler::SetAddress(vec![]))).unwrap();
+        await!(funder_sender.send(FunderToChanneler::SetRelays(vec![]))).unwrap();
 
         let lp_config = await!(listener_request.config_receiver.next()).unwrap();
         match lp_config {
@@ -529,7 +529,7 @@ mod tests {
         };
 
         // This is the final address we set for our relay:
-        await!(funder_sender.send(FunderToChanneler::SetAddress(vec![0x1u32]))).unwrap();
+        await!(funder_sender.send(FunderToChanneler::SetRelays(vec![0x1u32]))).unwrap();
 
         let lp_config = await!(listener_request.config_receiver.next()).unwrap();
         match lp_config {
@@ -691,7 +691,7 @@ mod tests {
 
         
         // Set address for our relay:
-        await!(funder_sender.send(FunderToChanneler::SetAddress(vec![0x1u32]))).unwrap();
+        await!(funder_sender.send(FunderToChanneler::SetRelays(vec![0x1u32]))).unwrap();
         let mut listener_request = await!(listener_req_receiver.next()).unwrap();
 
         let lp_config = await!(listener_request.config_receiver.next()).unwrap();

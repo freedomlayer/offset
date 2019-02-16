@@ -159,7 +159,7 @@ where
                 FunderOutgoingComm::ChannelerConfig(channeler_config) =>
                     match channeler_config {
                         ChannelerConfig::SetRelays(relay_addresses) =>
-                            FunderToChanneler::SetAddress(relay_addresses),
+                            FunderToChanneler::SetRelays(relay_addresses),
                         ChannelerConfig::UpdateFriend(channeler_update_friend) =>
                             FunderToChanneler::UpdateFriend(channeler_update_friend),
                         ChannelerConfig::RemoveFriend(friend_public_key) => 
