@@ -34,6 +34,7 @@ use crate::report::create_report;
 use crate::types::{ChannelerConfig, FunderOutgoingComm, FunderIncomingComm,
                 IncomingLivenessMessage};
 
+const TEST_MAX_NODE_RELAYS: usize = 16;
 const TEST_MAX_OPERATIONS_IN_BATCH: usize = 16;
 const TEST_MAX_PENDING_USER_REQUESTS: usize = 16;
 
@@ -410,6 +411,7 @@ where
             comm_sender,
             funder_state,
             db_client,
+            TEST_MAX_NODE_RELAYS,
             TEST_MAX_OPERATIONS_IN_BATCH,
             TEST_MAX_PENDING_USER_REQUESTS,
             None);

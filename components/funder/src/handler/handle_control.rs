@@ -37,6 +37,7 @@ pub enum HandleControlError {
     ReceiptSignatureMismatch,
     UserRequestInvalid,
     FriendNotReady,
+    MaxNodeRelaysReached,
 }
 
 
@@ -153,10 +154,16 @@ where
 fn control_add_relay<B>(m_state: &mut MutableFunderState<B>, 
                           send_commands: &mut SendCommands,
                           outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
-                          named_relay_address: NamedRelayAddress<B>) 
+                          max_node_relays: usize,
+                          named_relay_address: NamedRelayAddress<B>) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
+
+    // We can't have more than `max_node_relays` relays
+    if m_state.state().relays.len() >= max_node_relays {
+        return Err(HandleControlError::MaxNodeRelaysReached);
+    }
 
     let funder_mutation = FunderMutation::AddRelay(named_relay_address);
     m_state.mutate(funder_mutation);
@@ -181,6 +188,7 @@ where
     for friend_public_key in &friend_public_keys {
         send_commands.set_try_send(friend_public_key);
     }
+    Ok(())
 }
 
 fn control_remove_relay<B>(m_state: &mut MutableFunderState<B>, 
@@ -545,6 +553,7 @@ pub fn handle_control_message<B>(m_state: &mut MutableFunderState<B>,
                                  send_commands: &mut SendCommands,
                                  outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
                                  outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
+                                 max_node_relays: usize,
                                  max_pending_user_requests: usize,
                                  incoming_control: FunderIncomingControl<B>) 
     -> Result<(), HandleControlError> 
@@ -564,10 +573,11 @@ where
                                          reset_friend_channel),
 
         FunderIncomingControl::AddRelay(named_relay_address) =>
-            Ok(control_add_relay(m_state, 
+            control_add_relay(m_state, 
                                 send_commands,
                                 outgoing_channeler_config,
-                                named_relay_address)),
+                                max_node_relays,
+                                named_relay_address),
 
         FunderIncomingControl::RemoveRelay(public_key) =>
             Ok(control_remove_relay(m_state, 

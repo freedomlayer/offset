@@ -13,6 +13,7 @@ use crate::handler::handler::{funder_handle_message, FunderHandlerError,
                                 FunderHandlerOutput};
 
 
+const TEST_MAX_NODE_RELAYS: usize = 16;
 const TEST_MAX_OPERATIONS_IN_BATCH: usize = 16;
 const TEST_MAX_PENDING_USER_REQUESTS: usize = 16;
 
@@ -34,6 +35,7 @@ where
                           rng,
                           state.clone(),
                           ephemeral.clone(),
+                          TEST_MAX_NODE_RELAYS,
                           TEST_MAX_OPERATIONS_IN_BATCH,
                           TEST_MAX_PENDING_USER_REQUESTS,
                           funder_incoming))?;

@@ -48,6 +48,7 @@ pub async fn inner_funder_loop<B,R>(
     mut funder_state: FunderState<B>,
     mut db_client: DatabaseClient<FunderMutation<B>>,
     max_operations_in_batch: usize,
+    max_node_relays: usize,
     max_pending_user_requests: usize,
     mut opt_event_sender: Option<mpsc::Sender<FunderEvent<B>>>) -> Result<(), FunderError> 
 
@@ -87,6 +88,7 @@ where
                               &rng,
                               funder_state.clone(),
                               ephemeral.clone(),
+                              max_node_relays,
                               max_operations_in_batch,
                               max_pending_user_requests,
                               funder_incoming));
@@ -144,6 +146,7 @@ pub async fn funder_loop<B,R>(
     control_sender: mpsc::Sender<FunderOutgoingControl<B>>,
     comm_sender: mpsc::Sender<FunderOutgoingComm<B>>,
     max_operations_in_batch: usize,
+    max_node_relays: usize,
     max_pending_user_requests: usize,
     funder_state: FunderState<B>,
     db_client: DatabaseClient<FunderMutation<B>>) -> Result<(), FunderError> 
@@ -161,6 +164,7 @@ where
            funder_state,
            db_client,
            max_operations_in_batch,
+           max_node_relays,
            max_pending_user_requests,
            None))
 }
