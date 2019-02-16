@@ -64,7 +64,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
     // Node1: Add friend 2:
     let add_friend = AddFriend {
         friend_public_key: pk2.clone(),
-        address: vec![dummy_relay_address(2)],
+        relays: vec![dummy_relay_address(2)],
         name: String::from("pk2"),
         balance: 20i128,
     };
@@ -88,7 +88,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
     // -20i128, but we assign -10i128 to cause an inconsistency.
     let add_friend = AddFriend {
         friend_public_key: pk1.clone(),
-        address: vec![dummy_relay_address(1)],
+        relays: vec![dummy_relay_address(1)],
         name: String::from("pk1"),
         balance: -10i128,
     };
@@ -128,7 +128,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
                 assert_eq!(friend_move_token.move_token_counter, 0);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 20i128);
-                assert!(friend_move_token.opt_local_address.is_none());
+                assert!(friend_move_token.opt_local_relays.is_none());
 
             } else {
                 unreachable!();
@@ -169,7 +169,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
                 assert_eq!(friend_move_token.move_token_counter, 1);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, -10i128);
-                assert!(friend_move_token.opt_local_address.is_some());
+                assert!(friend_move_token.opt_local_relays.is_some());
 
             } else {
                 unreachable!();
@@ -266,7 +266,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
                 assert_eq!(friend_move_token.move_token_counter, 0);
                 assert_eq!(friend_move_token.inconsistency_counter, 1);
                 assert_eq!(friend_move_token.balance, 10i128);
-                assert!(friend_move_token.opt_local_address.is_none());
+                assert!(friend_move_token.opt_local_relays.is_none());
 
             } else {
                 unreachable!();
@@ -295,7 +295,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
                 assert_eq!(friend_move_token.move_token_counter, 1);
                 assert_eq!(friend_move_token.inconsistency_counter, 1);
                 assert_eq!(friend_move_token.balance, -10i128);
-                assert!(friend_move_token.opt_local_address.is_none());
+                assert!(friend_move_token.opt_local_relays.is_none());
 
             } else {
                 unreachable!();
@@ -324,7 +324,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
                 assert_eq!(friend_move_token.move_token_counter, 2);
                 assert_eq!(friend_move_token.inconsistency_counter, 1);
                 assert_eq!(friend_move_token.balance, 10i128);
-                assert_eq!(friend_move_token.opt_local_address, Some(vec![dummy_relay_address(1)]));
+                assert_eq!(friend_move_token.opt_local_relays, Some(vec![dummy_relay_address(1)]));
 
             } else {
                 unreachable!();
@@ -351,7 +351,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
                 assert_eq!(friend_move_token.move_token_counter, 3);
                 assert_eq!(friend_move_token.inconsistency_counter, 1);
                 assert_eq!(friend_move_token.balance, -10i128);
-                assert_eq!(friend_move_token.opt_local_address, None);
+                assert_eq!(friend_move_token.opt_local_relays, None);
             } else {
                 unreachable!();
             }

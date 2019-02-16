@@ -3,7 +3,7 @@ use common::mutable_state::MutableState;
 use crypto::identity::PublicKey;
 
 use crate::funder::messages::{UserRequestSendFunds, ResponseReceived,
-                            ReceiptAck, AddFriend, SetFriendAddress, 
+                            ReceiptAck, AddFriend, SetFriendRelays, 
                             SetFriendName, SetFriendRemoteMaxDebt, ResetFriendChannel};
 use crate::report::messages::{FunderReport, FunderReportMutation};
 use crate::index_client::messages::{IndexClientReport, 
@@ -95,7 +95,7 @@ pub enum AppToAppServer<B=NetAddress> {
     ReceiptAck(ReceiptAck),
     /// Friend management:
     AddFriend(AddFriend<B>),
-    SetFriendRelays(SetFriendAddress<B>),
+    SetFriendRelays(SetFriendRelays<B>),
     SetFriendName(SetFriendName),
     RemoveFriend(PublicKey),
     EnableFriend(PublicKey),

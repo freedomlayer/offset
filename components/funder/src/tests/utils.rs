@@ -247,13 +247,13 @@ where
 
     pub async fn add_friend<'a>(&'a mut self, 
                          friend_public_key: &'a PublicKey,
-                         address: Vec<RelayAddress<B>>,
+                         relays: Vec<RelayAddress<B>>,
                          name: &'a str,
                          balance: i128) {
 
         let add_friend = AddFriend {
             friend_public_key: friend_public_key.clone(),
-            address,
+            relays,
             name: name.into(),
             balance, 
         };

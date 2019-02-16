@@ -176,7 +176,7 @@ where
 pub struct AddFriendReport<B=NetAddress> {
     pub friend_public_key: PublicKey,
     pub name: String,
-    pub address: Vec<RelayAddress<B>>,
+    pub relays: Vec<RelayAddress<B>>,
     pub balance: i128, // Initial balance
     pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
     pub channel_status: ChannelStatusReport,
@@ -300,7 +300,7 @@ where
             },
             FunderReportMutation::AddFriend(add_friend_report) => {
                 let friend_report = FriendReport {
-                    remote_address: add_friend_report.address.clone(),
+                    remote_address: add_friend_report.relays.clone(),
                     name: add_friend_report.name.clone(),
                     sent_local_address: SentLocalAddressReport::NeverSent,
                     opt_last_incoming_move_token: add_friend_report.opt_last_incoming_move_token.clone(),

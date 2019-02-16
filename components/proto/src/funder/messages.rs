@@ -98,7 +98,7 @@ pub enum FriendTcOp {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveToken<B=NetAddress,S=Signature> {
     pub operations: Vec<FriendTcOp>,
-    pub opt_local_address: Option<Vec<RelayAddress<B>>>,
+    pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
     pub old_token: Signature,
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,
@@ -341,7 +341,7 @@ impl RequestsStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AddFriend<B=NetAddress> {
     pub friend_public_key: PublicKey,
-    pub address: Vec<RelayAddress<B>>,
+    pub relays: Vec<RelayAddress<B>>,
     pub name: String,
     pub balance: i128, // Initial balance
 }
@@ -376,9 +376,9 @@ pub struct SetFriendName {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SetFriendAddress<B=NetAddress> {
+pub struct SetFriendRelays<B=NetAddress> {
     pub friend_public_key: PublicKey,
-    pub address: Vec<RelayAddress<B>>,
+    pub relays: Vec<RelayAddress<B>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -404,10 +404,7 @@ pub struct ReceiptAck {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// A  -- Anonymous address
-/// NA -- Named address
 pub enum FunderIncomingControl<B> {
-    /// Set relay address used for the local node
     AddRelay(NamedRelayAddress<B>),
     RemoveRelay(PublicKey),
     AddFriend(AddFriend<B>),
@@ -415,7 +412,7 @@ pub enum FunderIncomingControl<B> {
     SetRequestsStatus(SetRequestsStatus),
     SetFriendStatus(SetFriendStatus),
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
-    SetFriendAddress(SetFriendAddress<B>),
+    SetFriendRelays(SetFriendRelays<B>),
     SetFriendName(SetFriendName),
     ResetFriendChannel(ResetFriendChannel),
     RequestSendFunds(UserRequestSendFunds),

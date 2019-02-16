@@ -107,18 +107,18 @@ fn ser_move_token(move_token: &MoveToken,
         ser_friend_operation(operation, &mut operation_builder);
     }
 
-    let mut opt_local_address_builder = move_token_builder.reborrow().init_opt_local_address();
-    match &move_token.opt_local_address {
+    let mut opt_local_relays_builder = move_token_builder.reborrow().init_opt_local_relays();
+    match &move_token.opt_local_relays {
         Some(local_address) => {
             let local_address_len = usize_to_u32(local_address.len()).unwrap();
-            let mut address_builder = opt_local_address_builder.init_address(local_address_len);
+            let mut address_builder = opt_local_relays_builder.init_relays(local_address_len);
             for (index, relay_address) in local_address.iter().enumerate() {
                 let mut relay_address_builder = address_builder.reborrow().get(usize_to_u32(index).unwrap());
                 write_relay_address(relay_address, &mut relay_address_builder);
             }
         },
         None => {
-            opt_local_address_builder.set_empty(());
+            opt_local_relays_builder.set_empty(());
         }
     }
 
@@ -259,10 +259,10 @@ fn deser_move_token(move_token_reader: &funder_capnp::move_token::Reader)
         operations.push(deser_friend_operation(&operation_reader)?);
     }
 
-    let opt_local_address_reader = move_token_reader.get_opt_local_address();
-    let opt_local_address = match opt_local_address_reader.which()? {
-        funder_capnp::move_token::opt_local_address::Empty(()) => None,
-        funder_capnp::move_token::opt_local_address::Address(relay_address_reader) => {
+    let opt_local_relays_reader = move_token_reader.get_opt_local_relays();
+    let opt_local_relays = match opt_local_relays_reader.which()? {
+        funder_capnp::move_token::opt_local_relays::Empty(()) => None,
+        funder_capnp::move_token::opt_local_relays::Relays(relay_address_reader) => {
             let mut addresses = Vec::new();
             for address in relay_address_reader? {
                 addresses.push(read_relay_address(&address)?);
@@ -273,7 +273,7 @@ fn deser_move_token(move_token_reader: &funder_capnp::move_token::Reader)
 
     Ok(MoveToken {
         operations,
-        opt_local_address,
+        opt_local_relays,
         old_token: read_signature(&move_token_reader.get_old_token()?)?,
         local_public_key: read_public_key(&move_token_reader.get_local_public_key()?)?,
         remote_public_key: read_public_key(&move_token_reader.get_remote_public_key()?)?,
@@ -392,7 +392,7 @@ mod tests {
 
         let move_token = MoveToken {
             operations,
-            opt_local_address: Some(vec![relay_address4, relay_address6]),
+            opt_local_relays: Some(vec![relay_address4, relay_address6]),
             old_token: Signature::from(&[0; SIGNATURE_LEN]),
             local_public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
             remote_public_key: PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]),

@@ -65,7 +65,7 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
     // Node1: Add friend 2:
     let add_friend = AddFriend {
         friend_public_key: pk2.clone(),
-        address: vec![dummy_relay_address(2)],
+        relays: vec![dummy_relay_address(2)],
         name: String::from("pk2"),
         balance: 0i128,
     };
@@ -87,7 +87,7 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
     // Node2: Add friend 1:
     let add_friend = AddFriend {
         friend_public_key: pk1.clone(),
-        address: vec![dummy_relay_address(1)],
+        relays: vec![dummy_relay_address(1)],
         name: String::from("pk1"),
         balance: 0i128,
     };
@@ -127,7 +127,7 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 0);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert!(friend_move_token.opt_local_address.is_none());
+                assert!(friend_move_token.opt_local_relays.is_none());
 
             } else {
                 unreachable!();
@@ -175,7 +175,7 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 1);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert_eq!(friend_move_token.opt_local_address, Some(vec![dummy_relay_address(2)]));
+                assert_eq!(friend_move_token.opt_local_relays, Some(vec![dummy_relay_address(2)]));
 
             } else {
                 unreachable!();
@@ -191,7 +191,7 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
                                  &mut rng, identity_client1))).unwrap();
 
     assert_eq!(outgoing_comms.len(), 2);
-    // Node1 should send a message containing opt_local_address to Node2:
+    // Node1 should send a message containing opt_local_relays to Node2:
     let friend_message = match &outgoing_comms[1] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
@@ -202,7 +202,7 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 2);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert_eq!(friend_move_token.opt_local_address, Some(vec![dummy_relay_address(1)]));
+                assert_eq!(friend_move_token.opt_local_relays, Some(vec![dummy_relay_address(1)]));
 
             } else {
                 unreachable!();
@@ -231,7 +231,7 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 3);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert_eq!(friend_move_token.opt_local_address, None);
+                assert_eq!(friend_move_token.opt_local_relays, None);
 
             } else {
                 unreachable!();

@@ -568,9 +568,9 @@ fn ser_add_friend_report(add_friend_report: &AddFriendReport,
 
     add_friend_report_builder.set_name(&add_friend_report.name);
 
-    let relays_len = usize_to_u32(add_friend_report.address.len()).unwrap();
+    let relays_len = usize_to_u32(add_friend_report.relays.len()).unwrap();
     let mut relays_builder = add_friend_report_builder.reborrow().init_relays(relays_len);
-    for (index, relay_address) in add_friend_report.address.iter().enumerate() {
+    for (index, relay_address) in add_friend_report.relays.iter().enumerate() {
         let mut relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
         write_relay_address(relay_address, &mut relay_address_builder);
     }
@@ -596,7 +596,7 @@ fn deser_add_friend_report(add_friend_report_reader: &report_capnp::add_friend_r
     Ok(AddFriendReport {
         friend_public_key: read_public_key(&add_friend_report_reader.get_friend_public_key()?)?,
         name: add_friend_report_reader.get_name()?.to_owned(),
-        address: relays,
+        relays,
         balance: read_custom_int128(&add_friend_report_reader.get_balance()?)?, 
         opt_last_incoming_move_token: 
             deser_opt_last_incoming_move_token(&add_friend_report_reader.get_opt_last_incoming_move_token()?)?,

@@ -86,7 +86,7 @@ where
     // Check if incoming message is a valid attempt to reset the channel:
     if move_token.old_token != local_reset_terms.reset_token 
         || !move_token.operations.is_empty()
-        || move_token.opt_local_address.is_some()
+        || move_token.opt_local_relays.is_some()
         || move_token.inconsistency_counter != local_reset_terms.inconsistency_counter
         || move_token.move_token_counter != 0 
         || move_token.balance != local_reset_terms.balance_for_reset.checked_neg().unwrap()
@@ -389,11 +389,11 @@ where
                 incoming_messages, 
                 mutations, 
                 remote_requests_closed, 
-                opt_local_address
+                opt_local_relays,
             } = move_token_received;
 
             // Update address for remote side if necessary:
-            if let Some(new_remote_address) = opt_local_address {
+            if let Some(new_remote_address) = opt_local_relays {
                 let friend = m_state.state().friends.get(remote_public_key).unwrap();
                 // Make sure that the newly sent remote address is different than the one we
                 // already have:

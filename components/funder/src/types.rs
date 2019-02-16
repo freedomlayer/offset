@@ -32,7 +32,7 @@ where
 
     MoveToken {
         operations: unsigned_move_token.operations,
-        opt_local_address: unsigned_move_token.opt_local_address,
+        opt_local_relays: unsigned_move_token.opt_local_relays,
         old_token: unsigned_move_token.old_token,
         local_public_key: unsigned_move_token.local_public_key,
         remote_public_key: unsigned_move_token.remote_public_key,
@@ -124,7 +124,7 @@ pub fn create_pending_request(request_send_funds: &RequestSendFunds) -> PendingR
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveTokenHashed {
-    /// Hash of operations and local_address
+    /// Hash of operations and local_relays
     pub prefix_hash: HashResult,
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,
@@ -138,7 +138,7 @@ pub struct MoveTokenHashed {
 }
 
 pub fn create_unsigned_move_token<B>(operations: Vec<FriendTcOp>,
-                 opt_local_address: Option<Vec<RelayAddress<B>>>,
+                 opt_local_relays: Option<Vec<RelayAddress<B>>>,
                  old_token: Signature,
                  local_public_key: PublicKey,
                  remote_public_key: PublicKey,
@@ -151,7 +151,7 @@ pub fn create_unsigned_move_token<B>(operations: Vec<FriendTcOp>,
 
     MoveToken {
         operations,
-        opt_local_address,
+        opt_local_relays,
         old_token,
         local_public_key,
         remote_public_key,
@@ -167,7 +167,7 @@ pub fn create_unsigned_move_token<B>(operations: Vec<FriendTcOp>,
 
 /*
 pub async fn create_move_token<A>(operations: Vec<FriendTcOp>,
-                 opt_local_address: Option<A>,
+                 opt_local_relays: Option<A>,
                  old_token: Signature,
                  inconsistency_counter: u64,
                  move_token_counter: u128,
@@ -182,7 +182,7 @@ where
 
     let mut move_token = MoveToken {
         operations,
-        opt_local_address,
+        opt_local_relays,
         old_token,
         inconsistency_counter,
         move_token_counter,

@@ -74,7 +74,7 @@ pub struct MoveTokenReceived<B> {
     pub incoming_messages: Vec<IncomingMessage>,
     pub mutations: Vec<TcMutation<B>>,
     pub remote_requests_closed: bool,
-    pub opt_local_address: Option<Vec<RelayAddress<B>>>,
+    pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
 }
 
 
@@ -122,7 +122,7 @@ fn initial_move_token<B>(low_public_key: &PublicKey,
     // doesn't have the private key). Therefore we use a dummy new_token instead.
     MoveToken {
         operations: Vec::new(),
-        opt_local_address: None,
+        opt_local_relays: None,
         old_token: token_from_public_key(&low_public_key),
         local_public_key: low_public_key.clone(),
         remote_public_key: high_public_key.clone(),
@@ -326,12 +326,12 @@ impl TcIncoming {
 
     pub fn create_unsigned_move_token<B>(&self,
                                     operations: Vec<FriendTcOp>,
-                                    opt_local_address: Option<Vec<RelayAddress<B>>>,
+                                    opt_local_relays: Option<Vec<RelayAddress<B>>>,
                                     rand_nonce: RandValue) -> UnsignedMoveToken<B> {
 
         create_unsigned_move_token(
             operations,
-            opt_local_address,
+            opt_local_relays,
             self.move_token_in.new_token.clone(),
             // Note the swap here (remote, local):
             self.move_token_in.remote_public_key.clone(),
@@ -456,7 +456,7 @@ where
                     mutations,
                     // Were the remote requests initially open and now it is closed?
                     remote_requests_closed: final_remote_requests && !initial_remote_requests,
-                    opt_local_address: new_move_token.opt_local_address.clone(),
+                    opt_local_relays: new_move_token.opt_local_relays.clone(),
                 };
 
                 Ok(ReceiveMoveTokenOutput::Received(move_token_received))
@@ -497,7 +497,7 @@ mod tests {
 
         MoveToken {
             operations: unsigned_move_token.operations,
-            opt_local_address: unsigned_move_token.opt_local_address,
+            opt_local_relays: unsigned_move_token.opt_local_relays,
             old_token: unsigned_move_token.old_token,
             local_public_key: unsigned_move_token.local_public_key,
             remote_public_key: unsigned_move_token.remote_public_key,
@@ -597,9 +597,9 @@ mod tests {
         let operations = vec![friend_tc_op];
 
         let rand_nonce = RandValue::from(&[5; RAND_VALUE_LEN]);
-        let opt_local_address = None;
+        let opt_local_relays = None;
         let unsigned_move_token = tc2_incoming.create_unsigned_move_token(operations, 
-                                                    opt_local_address,
+                                                    opt_local_relays,
                                                     rand_nonce);
 
         let friend_move_token = dummy_sign_move_token(unsigned_move_token, identity2);

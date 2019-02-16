@@ -9,7 +9,7 @@ use crate::state::{FunderMutation};
 
 
 use proto::funder::messages::{FriendStatus, UserRequestSendFunds,
-    SetFriendRemoteMaxDebt, ResetFriendChannel, SetFriendAddress, SetFriendName, 
+    SetFriendRemoteMaxDebt, ResetFriendChannel, SetFriendRelays, SetFriendName, 
     AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus,
     ReceiptAck, FunderIncomingControl, ResponseReceived, 
     FunderOutgoingControl, ResponseSendFundsResult,
@@ -328,36 +328,36 @@ where
     Ok(())
 }
 
-fn control_set_friend_address<B>(m_state: &mut MutableFunderState<B>, 
+fn control_set_friend_relays<B>(m_state: &mut MutableFunderState<B>, 
                                  outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
-                                 set_friend_address: SetFriendAddress<B>)
+                                 set_friend_relays: SetFriendRelays<B>)
     -> Result<(), HandleControlError> 
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     // Make sure that friend exists:
-    let friend = m_state.state().friends.get(&set_friend_address.friend_public_key)
+    let friend = m_state.state().friends.get(&set_friend_relays.friend_public_key)
         .ok_or(HandleControlError::FriendDoesNotExist)?;
 
 
     // If the newly proposed address is the same as the old one,
     // we do nothing:
-    if set_friend_address.address == friend.remote_address {
+    if set_friend_relays.relays == friend.remote_address {
         return Ok(())
     }
 
     let local_relays = friend.sent_local_address.to_vec();
 
-    let friend_mutation = FriendMutation::SetRemoteAddress(set_friend_address.address.clone());
+    let friend_mutation = FriendMutation::SetRemoteAddress(set_friend_relays.relays.clone());
     let funder_mutation = FunderMutation::FriendMutation(
-        (set_friend_address.friend_public_key.clone(), friend_mutation));
+        (set_friend_relays.friend_public_key.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
 
     // Notify Channeler to change the friend's address:
     let update_friend = ChannelerUpdateFriend {
-        friend_public_key: set_friend_address.friend_public_key.clone(),
-        friend_relays: set_friend_address.address.clone(),
+        friend_public_key: set_friend_relays.friend_public_key.clone(),
+        friend_relays: set_friend_relays.relays.clone(),
         local_relays,
     };
     let channeler_config = ChannelerConfig::UpdateFriend(update_friend);
@@ -608,10 +608,10 @@ where
                                         send_commands,
                                         set_requests_status),
 
-        FunderIncomingControl::SetFriendAddress(set_friend_address) =>
-            control_set_friend_address(m_state, 
+        FunderIncomingControl::SetFriendRelays(set_friend_relays) =>
+            control_set_friend_relays(m_state, 
                                        outgoing_channeler_config,
-                                       set_friend_address),
+                                       set_friend_relays),
 
         FunderIncomingControl::SetFriendName(set_friend_name) =>
             control_set_friend_name(m_state, 

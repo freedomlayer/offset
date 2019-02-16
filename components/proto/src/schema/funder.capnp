@@ -17,9 +17,9 @@ struct MoveToken {
         operations @0: List(FriendOperation);
         # Ordered batched operations for this move token.
         # First operation should be applied first.
-        optLocalAddress: union {
+        optLocalRelays: union {
                 empty @1: Void;
-                address @2: List(RelayAddress);
+                relays @2: List(RelayAddress);
         }
         oldToken @3: Signature;
         # Token of the previous move token. This is a proof that we have

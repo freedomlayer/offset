@@ -61,7 +61,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
     // Node1: Add friend 2:
     let add_friend = AddFriend {
         friend_public_key: pk2.clone(),
-        address: vec![dummy_relay_address(2)],
+        relays: vec![dummy_relay_address(2)],
         name: String::from("pk2"),
         balance: 0i128,
     };
@@ -83,7 +83,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
     // Node2: Add friend 1:
     let add_friend = AddFriend {
         friend_public_key: pk1.clone(),
-        address: vec![dummy_relay_address(1)],
+        relays: vec![dummy_relay_address(1)],
         name: String::from("pk1"),
         balance: 0i128,
     };
@@ -122,7 +122,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 0);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert_eq!(friend_move_token.opt_local_address, None);
+                assert_eq!(friend_move_token.opt_local_relays, None);
 
             } else {
                 unreachable!();
@@ -156,7 +156,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 1);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert_eq!(friend_move_token.opt_local_address, Some(vec![dummy_relay_address(2)]));
+                assert_eq!(friend_move_token.opt_local_relays, Some(vec![dummy_relay_address(2)]));
             } else {
                 unreachable!();
             }
@@ -182,7 +182,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 2);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert_eq!(friend_move_token.opt_local_address, Some(vec![dummy_relay_address(1)]));
+                assert_eq!(friend_move_token.opt_local_relays, Some(vec![dummy_relay_address(1)]));
             } else {
                 unreachable!();
             }
@@ -208,7 +208,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 3);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert_eq!(friend_move_token.opt_local_address, None);
+                assert_eq!(friend_move_token.opt_local_relays, None);
             } else {
                 unreachable!();
             }
@@ -262,7 +262,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
                 let expected_address = vec![dummy_relay_address(1), dummy_relay_address(11)];
-                assert_eq!(friend_move_token.opt_local_address, Some(expected_address));
+                assert_eq!(friend_move_token.opt_local_relays, Some(expected_address));
             } else {
                 unreachable!();
             }
@@ -288,7 +288,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 5);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert_eq!(friend_move_token.opt_local_address, None);
+                assert_eq!(friend_move_token.opt_local_relays, None);
             } else {
                 unreachable!();
             }

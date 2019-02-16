@@ -27,7 +27,7 @@ use crate::report::serialize::{ser_node_report, deser_node_report,
 
 use crate::funder::messages::{UserRequestSendFunds, 
     ResponseReceived, ResponseSendFundsResult, ReceiptAck, 
-    AddFriend, SetFriendName, SetFriendAddress,
+    AddFriend, SetFriendName, SetFriendRelays,
     SetFriendRemoteMaxDebt, ResetFriendChannel};
 use crate::funder::serialize::{ser_friends_route, deser_friends_route};
 use crate::net::messages::NetAddress;
@@ -127,9 +127,9 @@ fn ser_add_friend(add_friend: &AddFriend,
               &mut add_friend_builder.reborrow().init_friend_public_key());
 
 
-    let relays_len = usize_to_u32(add_friend.address.len()).unwrap();
+    let relays_len = usize_to_u32(add_friend.relays.len()).unwrap();
     let mut relays_builder = add_friend_builder.reborrow().init_relays(relays_len);
-    for (index, relay_address) in add_friend.address.iter().enumerate() {
+    for (index, relay_address) in add_friend.relays.iter().enumerate() {
         let mut relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
         write_relay_address(relay_address, &mut relay_address_builder);
     }
@@ -150,7 +150,7 @@ fn deser_add_friend(add_friend_reader: &app_server_capnp::add_friend::Reader)
 
     Ok(AddFriend {
         friend_public_key: read_public_key(&add_friend_reader.get_friend_public_key()?)?,
-        address: relays,
+        relays,
         name: add_friend_reader.get_name()?.to_owned(),
         balance: read_custom_int128(&add_friend_reader.get_balance()?)?,
     })
@@ -174,31 +174,31 @@ fn deser_set_friend_name(set_friend_name_reader: &app_server_capnp::set_friend_n
     })
 }
 
-fn ser_set_friend_relays(set_friend_address: &SetFriendAddress,
+fn ser_set_friend_relays(set_friend_relays: &SetFriendRelays,
                     set_friend_relays_builder: &mut app_server_capnp::set_friend_relays::Builder) {
 
-    write_public_key(&set_friend_address.friend_public_key, 
+    write_public_key(&set_friend_relays.friend_public_key, 
               &mut set_friend_relays_builder.reborrow().init_friend_public_key());
 
-    let relays_len = usize_to_u32(set_friend_address.address.len()).unwrap();
+    let relays_len = usize_to_u32(set_friend_relays.relays.len()).unwrap();
     let mut relays_builder = set_friend_relays_builder.reborrow().init_relays(relays_len);
-    for (index, relay_address) in set_friend_address.address.iter().enumerate() {
+    for (index, relay_address) in set_friend_relays.relays.iter().enumerate() {
         let mut relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
         write_relay_address(relay_address, &mut relay_address_builder);
     }
 }
 
 fn deser_set_friend_relays(set_friend_relays_reader: &app_server_capnp::set_friend_relays::Reader)
-    -> Result<SetFriendAddress, SerializeError> {
+    -> Result<SetFriendRelays, SerializeError> {
 
     let mut relays = Vec::new();
     for relay_address in set_friend_relays_reader.get_relays()? {
         relays.push(read_relay_address(&relay_address)?);
     }
 
-    Ok(SetFriendAddress {
+    Ok(SetFriendRelays {
         friend_public_key: read_public_key(&set_friend_relays_reader.get_friend_public_key()?)?,
-        address: relays,
+        relays,
     })
 }
 
@@ -390,8 +390,8 @@ fn ser_app_to_app_server(app_to_app_server: &AppToAppServer,
         AppToAppServer::AddFriend(add_friend) =>
             ser_add_friend(add_friend, 
                             &mut app_to_app_server_builder.reborrow().init_add_friend()),
-        AppToAppServer::SetFriendRelays(set_friend_address) =>
-            ser_set_friend_relays(set_friend_address, 
+        AppToAppServer::SetFriendRelays(set_friend_relays) =>
+            ser_set_friend_relays(set_friend_relays, 
                             &mut app_to_app_server_builder.reborrow().init_set_friend_relays()),
         AppToAppServer::SetFriendName(set_friend_name) =>
             ser_set_friend_name(set_friend_name, 
@@ -598,7 +598,7 @@ mod tests {
 
         let add_friend = AddFriend {
             friend_public_key: PublicKey::from(&[0xee; PUBLIC_KEY_LEN]),
-            address: relays,
+            relays,
             name: "Friend name".to_owned(),
             balance: -500, 
         };

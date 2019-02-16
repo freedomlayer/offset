@@ -318,7 +318,7 @@ where
                                   &mut outgoing_messages);
             } else {
                 if friend_send_commands.resend_outgoing {
-                    let is_token_wanted = tc_outgoing.move_token_out.opt_local_address.is_some();
+                    let is_token_wanted = tc_outgoing.move_token_out.opt_local_relays.is_some();
                     transmit_outgoing(m_state,
                                       &friend_public_key,
                                       is_token_wanted,

@@ -125,7 +125,7 @@ pub fn local_address_hash<B>(move_token: &MoveToken<B>) -> HashResult
 where
     B: CanonicalSerialize,
 {
-    sha_512_256(&move_token.opt_local_address.canonical_serialize())
+    sha_512_256(&move_token.opt_local_relays.canonical_serialize())
 }
 
 /// Hash operations and local_address:
@@ -144,7 +144,7 @@ where
         hash_buff.extend_from_slice(&op.canonical_serialize());
     }
 
-    hash_buff.extend_from_slice(&move_token.opt_local_address.canonical_serialize());
+    hash_buff.extend_from_slice(&move_token.opt_local_relays.canonical_serialize());
     sha_512_256(&hash_buff)
 }
 

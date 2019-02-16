@@ -76,7 +76,7 @@ mod tests {
         // Add a remote friend:
         let add_friend = AddFriend {
             friend_public_key: pk_b.clone(),
-            address: vec![dummy_relay_address(3)],
+            relays: vec![dummy_relay_address(3)],
             name: "pk_b".into(),
             balance: 0i128,
         };

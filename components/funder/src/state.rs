@@ -74,7 +74,7 @@ where
             FunderMutation::AddFriend(add_friend) => {
                 let friend = FriendState::new(&self.local_public_key,
                                                   &add_friend.friend_public_key,
-                                                  add_friend.address.clone(),
+                                                  add_friend.relays.clone(),
                                                   add_friend.name.clone(),
                                                   add_friend.balance);
                 // Insert friend, but also make sure that we didn't override an existing friend

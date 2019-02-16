@@ -312,7 +312,7 @@ where
                 await!(self.to_funder.send(FunderIncomingControl::AddFriend(add_friend)))
                     .map_err(|_| AppServerError::SendToFunderError),
             AppToAppServer::SetFriendRelays(set_friend_address) =>
-                await!(self.to_funder.send(FunderIncomingControl::SetFriendAddress(set_friend_address)))
+                await!(self.to_funder.send(FunderIncomingControl::SetFriendRelays(set_friend_address)))
                     .map_err(|_| AppServerError::SendToFunderError),
             AppToAppServer::SetFriendName(set_friend_name) => 
                 await!(self.to_funder.send(FunderIncomingControl::SetFriendName(set_friend_name)))
