@@ -19,7 +19,6 @@ use super::messages::{FriendMessage, MoveTokenRequest, ResetTerms,
                     FriendsRoute};
 
 use crate::serialize::SerializeError;
-use crate::scheme::OffstScheme;
 
 
 pub fn ser_friends_route(friends_route: &FriendsRoute,
@@ -98,7 +97,7 @@ fn ser_friend_operation(operation: &FriendTcOp,
     };
 }
 
-fn ser_move_token(move_token: &MoveToken<OffstScheme>,
+fn ser_move_token(move_token: &MoveToken,
                       move_token_builder: &mut funder_capnp::move_token::Builder) {
 
     let operations_len = usize_to_u32(move_token.operations.len()).unwrap();
@@ -138,7 +137,7 @@ fn ser_move_token(move_token: &MoveToken<OffstScheme>,
     write_signature(&move_token.new_token, &mut move_token_builder.reborrow().init_new_token());
 }
 
-fn ser_move_token_request(move_token_request: &MoveTokenRequest<OffstScheme>,
+fn ser_move_token_request(move_token_request: &MoveTokenRequest,
                           mut move_token_request_builder: funder_capnp::move_token_request::Builder) {
 
     let mut move_token_builder = move_token_request_builder.reborrow().init_move_token();
@@ -160,7 +159,7 @@ fn ser_inconsistency_error(reset_terms: &ResetTerms,
 }
 
 
-fn ser_friend_message(friend_message: &FriendMessage<OffstScheme>, 
+fn ser_friend_message(friend_message: &FriendMessage, 
                           friend_message_builder: &mut funder_capnp::friend_message::Builder) {
 
     match friend_message {
@@ -176,7 +175,7 @@ fn ser_friend_message(friend_message: &FriendMessage<OffstScheme>,
 }
 
 /// Serialize a FriendMessage into a vector of bytes
-pub fn serialize_friend_message(friend_message: &FriendMessage<OffstScheme>) -> Vec<u8> {
+pub fn serialize_friend_message(friend_message: &FriendMessage) -> Vec<u8> {
     let mut builder = capnp::message::Builder::new_default();
     let mut friend_message_builder = builder.init_root::<funder_capnp::friend_message::Builder>();
 
@@ -253,7 +252,7 @@ fn deser_friend_operation(friend_operation_reader: &funder_capnp::friend_operati
 }
 
 fn deser_move_token(move_token_reader: &funder_capnp::move_token::Reader) 
-    -> Result<MoveToken<OffstScheme>, SerializeError> {
+    -> Result<MoveToken, SerializeError> {
 
     let mut operations: Vec<FriendTcOp> = Vec::new();
     for operation_reader in move_token_reader.get_operations()? {
@@ -290,7 +289,7 @@ fn deser_move_token(move_token_reader: &funder_capnp::move_token::Reader)
 
 
 fn deser_move_token_request(move_token_request_reader: &funder_capnp::move_token_request::Reader) 
-    -> Result<MoveTokenRequest<OffstScheme>, SerializeError> {
+    -> Result<MoveTokenRequest, SerializeError> {
 
     let move_token_reader = move_token_request_reader.get_move_token()?;
     let move_token = deser_move_token(&move_token_reader)?;
@@ -312,7 +311,7 @@ fn deser_inconsistency_error(inconsistency_error_reader: &funder_capnp::inconsis
 }
 
 fn deser_friend_message(friend_message_reader: &funder_capnp::friend_message::Reader) 
-    -> Result<FriendMessage<OffstScheme>, SerializeError> {
+    -> Result<FriendMessage, SerializeError> {
 
     Ok(match friend_message_reader.which()? {
         funder_capnp::friend_message::MoveTokenRequest(move_token_request_reader) => {
@@ -326,7 +325,7 @@ fn deser_friend_message(friend_message_reader: &funder_capnp::friend_message::Re
 
 
 /// Deserialize FriendMessage from an array of bytes
-pub fn deserialize_friend_message(data: &[u8]) -> Result<FriendMessage<OffstScheme>, SerializeError> {
+pub fn deserialize_friend_message(data: &[u8]) -> Result<FriendMessage, SerializeError> {
     let mut cursor = io::Cursor::new(data);
     let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let friend_message_reader = reader.get_root::<funder_capnp::friend_message::Reader>()?;
@@ -346,7 +345,7 @@ mod tests {
     use crate::app_server::messages::RelayAddress;
 
     /// Create an example FriendMessage::MoveTokenRequest:
-    fn create_move_token_request() -> FriendMessage<OffstScheme> {
+    fn create_move_token_request() -> FriendMessage {
         let route = FriendsRoute {
             public_keys: vec![
                 PublicKey::from(&[0x5; PUBLIC_KEY_LEN]),
@@ -414,7 +413,7 @@ mod tests {
     }
 
     /// Create an example FriendMessage::InconsistencyError
-    fn create_inconsistency_error() -> FriendMessage<OffstScheme> {
+    fn create_inconsistency_error() -> FriendMessage {
 
         let reset_terms = ResetTerms {
             reset_token: Signature::from(&[2; SIGNATURE_LEN]),

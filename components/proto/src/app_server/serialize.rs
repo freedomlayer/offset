@@ -33,7 +33,7 @@ use crate::funder::serialize::{ser_friends_route, deser_friends_route};
 use crate::net::messages::NetAddress;
 
 use crate::app_server::messages::{AppServerToApp, AppToAppServer, 
-    AppPermissions, RelayAddress};
+    AppPermissions};
 
 
 fn ser_user_request_send_funds(user_request_send_funds: &UserRequestSendFunds,
@@ -174,7 +174,7 @@ fn deser_set_friend_name(set_friend_name_reader: &app_server_capnp::set_friend_n
     })
 }
 
-fn ser_set_friend_relays(set_friend_address: &SetFriendAddress<Vec<RelayAddress>>,
+fn ser_set_friend_relays(set_friend_address: &SetFriendAddress,
                     set_friend_relays_builder: &mut app_server_capnp::set_friend_relays::Builder) {
 
     write_public_key(&set_friend_address.friend_public_key, 
@@ -189,7 +189,7 @@ fn ser_set_friend_relays(set_friend_address: &SetFriendAddress<Vec<RelayAddress>
 }
 
 fn deser_set_friend_relays(set_friend_relays_reader: &app_server_capnp::set_friend_relays::Reader)
-    -> Result<SetFriendAddress<Vec<RelayAddress>>, SerializeError> {
+    -> Result<SetFriendAddress, SerializeError> {
 
     let mut relays = Vec::new();
     for relay_address in set_friend_relays_reader.get_relays()? {

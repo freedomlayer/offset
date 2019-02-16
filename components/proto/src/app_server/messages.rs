@@ -44,13 +44,13 @@ pub struct NodeReport<B=NetAddress>
 where   
     B: Clone,
 {
-    pub funder_report: FunderReport<Vec<RelayAddress<B>>,Vec<NamedRelayAddress<B>>>,
+    pub funder_report: FunderReport<B>,
     pub index_client_report: IndexClientReport<B>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NodeReportMutation<B=NetAddress> {
-    Funder(FunderReportMutation<Vec<RelayAddress<B>>,Vec<NamedRelayAddress<B>>>),
+    Funder(FunderReportMutation<B>),
     IndexClient(IndexClientReportMutation<B>),
 }
 
@@ -67,6 +67,11 @@ where
     ResponseRoutes(ClientResponseRoutes),
 }
 
+pub enum NamedRelaysMutation<B=NetAddress> {
+    AddRelay(NamedRelayAddress<B>),
+    RemoveRelay(PublicKey),
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum AppToAppServer<B=NetAddress> {
     /// Manage locally used relays:
@@ -76,8 +81,8 @@ pub enum AppToAppServer<B=NetAddress> {
     RequestSendFunds(UserRequestSendFunds),
     ReceiptAck(ReceiptAck),
     /// Friend management:
-    AddFriend(AddFriend<Vec<RelayAddress<B>>>),
-    SetFriendRelays(SetFriendAddress<Vec<RelayAddress<B>>>),
+    AddFriend(AddFriend<B>),
+    SetFriendRelays(SetFriendAddress<B>),
     SetFriendName(SetFriendName),
     RemoveFriend(PublicKey),
     EnableFriend(PublicKey),

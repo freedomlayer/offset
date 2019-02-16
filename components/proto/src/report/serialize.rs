@@ -520,9 +520,9 @@ fn ser_funder_report(funder_report: &FunderReport,
     write_public_key(&funder_report.local_public_key, 
                      &mut funder_report_builder.reborrow().init_local_public_key());
 
-    let relays_len = usize_to_u32(funder_report.address.len()).unwrap();
+    let relays_len = usize_to_u32(funder_report.relays.len()).unwrap();
     let mut relays_builder = funder_report_builder.reborrow().init_relays(relays_len);
-    for (index, named_relay_address) in funder_report.address.iter().enumerate() {
+    for (index, named_relay_address) in funder_report.relays.iter().enumerate() {
         let mut named_relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
         write_named_relay_address(named_relay_address, &mut named_relay_address_builder);
     }
@@ -553,7 +553,7 @@ fn deser_funder_report(funder_report_reader: &report_capnp::funder_report::Reade
 
     Ok(FunderReport {
         local_public_key: read_public_key(&funder_report_reader.get_local_public_key()?)?,
-        address: named_relays,
+        relays: named_relays,
         friends,
         num_ready_receipts: funder_report_reader.get_num_ready_receipts(),
     })
@@ -714,13 +714,13 @@ fn ser_funder_report_mutation(funder_report_mutation: &FunderReportMutation,
                     funder_report_mutation_builder: &mut report_capnp::funder_report_mutation::Builder) {
 
     match funder_report_mutation {
-        FunderReportMutation::SetAddress(named_relays) => {
-            let named_relays_len = usize_to_u32(named_relays.len()).unwrap();
-            let mut named_relays_builder = funder_report_mutation_builder.reborrow().init_set_relays(named_relays_len);
-            for (index, named_relay_address) in named_relays.iter().enumerate() {
-                let mut named_relay_address_builder = named_relays_builder.reborrow().get(usize_to_u32(index).unwrap());
-                write_named_relay_address(named_relay_address, &mut named_relay_address_builder);
-            }
+        FunderReportMutation::AddRelay(named_relay_address) => {
+            write_named_relay_address(named_relay_address, 
+                                  &mut funder_report_mutation_builder.reborrow().init_add_relay());
+        },
+        FunderReportMutation::RemoveRelay(public_key) => {
+            write_public_key(public_key, 
+                             &mut funder_report_mutation_builder.reborrow().init_remove_relay());
         },
         FunderReportMutation::AddFriend(add_friend_report) => {
             ser_add_friend_report(add_friend_report, 
@@ -744,13 +744,10 @@ fn deser_funder_report_mutation(funder_report_mutation_reader: &report_capnp::fu
     -> Result<FunderReportMutation, SerializeError> {
 
     Ok(match funder_report_mutation_reader.which()? {
-        report_capnp::funder_report_mutation::SetRelays(named_relays_reader) => {
-            let mut named_relays = Vec::new();
-            for named_relay_address in named_relays_reader? {
-                named_relays.push(read_named_relay_address(&named_relay_address)?);
-            }
-            FunderReportMutation::SetAddress(named_relays)
-        },
+        report_capnp::funder_report_mutation::AddRelay(named_relay_address_reader) =>
+            FunderReportMutation::AddRelay(read_named_relay_address(&named_relay_address_reader?)?),
+        report_capnp::funder_report_mutation::RemoveRelay(public_key_reader) =>
+            FunderReportMutation::RemoveRelay(read_public_key(&public_key_reader?)?),
         report_capnp::funder_report_mutation::AddFriend(add_friend_report_reader) =>
             FunderReportMutation::AddFriend(
                 deser_add_friend_report(&add_friend_report_reader?)?),
