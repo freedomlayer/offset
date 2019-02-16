@@ -34,15 +34,8 @@ pub struct AddIndexServer<ISA> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AddIndexServerReport<ISA> {
-    pub public_key: PublicKey,
-    pub address: ISA,
-    pub name: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IndexClientReportMutation<ISA> {
-    AddIndexServer(AddIndexServerReport<ISA>),
+    AddIndexServer(NamedIndexServerAddress<ISA>),
     RemoveIndexServer(PublicKey),
     SetConnectedServer(Option<PublicKey>),
 }
@@ -67,7 +60,7 @@ pub enum IndexClientToAppServer<ISA> {
 
 #[derive(Debug)]
 pub enum AppServerToIndexClient<ISA> {
-    AddIndexServer(AddIndexServer<ISA>),
+    AddIndexServer(NamedIndexServerAddress<ISA>),
     RemoveIndexServer(PublicKey),
     RequestRoutes(RequestRoutes),
     ApplyMutations(Vec<IndexMutation>),

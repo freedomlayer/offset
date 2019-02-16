@@ -17,8 +17,7 @@ use proto::report::messages::funder_report_mutation_to_index_mutation;
 
 use proto::app_server::messages::{AppServerToApp, AppToAppServer, NodeReport,
                                     NodeReportMutation, AppPermissions};
-use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClient,
-                                    AddIndexServer};
+use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClient};
 
 pub type IncomingAppConnection<B> = (AppPermissions, 
                                      ConnPair<AppServerToApp<B>, AppToAppServer<B>>);
@@ -367,16 +366,9 @@ where
                 await!(self.to_index_client.send(AppServerToIndexClient::RequestRoutes(request_routes)))
                     .map_err(|_| AppServerError::SendToIndexClientError)
             },
-            AppToAppServer::AddIndexServer(named_index_server_address) => {
-                let add_index_server = AddIndexServer {
-                    public_key: named_index_server_address.public_key,
-                    address: named_index_server_address.address,
-                    name: named_index_server_address.name,
-                };
-                await!(self.to_index_client.send(AppServerToIndexClient::AddIndexServer(add_index_server)))
-                    .map_err(|_| AppServerError::SendToIndexClientError)?;
-                Ok(())
-            },
+            AppToAppServer::AddIndexServer(named_index_server_address) =>
+                await!(self.to_index_client.send(AppServerToIndexClient::AddIndexServer(named_index_server_address)))
+                    .map_err(|_| AppServerError::SendToIndexClientError),
             AppToAppServer::RemoveIndexServer(index_server_address) =>
                 await!(self.to_index_client.send(AppServerToIndexClient::RemoveIndexServer(index_server_address)))
                     .map_err(|_| AppServerError::SendToIndexClientError),

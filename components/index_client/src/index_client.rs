@@ -18,9 +18,7 @@ use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServ
                                     IndexMutation,
                                     ResponseRoutesResult, ClientResponseRoutes,
                                     RequestRoutes,
-                                    IndexClientReportMutation,
-                                    AddIndexServer,
-                                    AddIndexServerReport};
+                                    IndexClientReportMutation};
 use proto::index_server::messages::{IndexServerAddress, NamedIndexServerAddress};
 
 use crate::client_session::{SessionHandle, ControlSender};
@@ -43,7 +41,7 @@ impl<ISA> IndexClientConfig<ISA> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IndexClientConfigMutation<ISA> {
-    AddIndexServer(AddIndexServer<ISA>),
+    AddIndexServer(NamedIndexServerAddress<ISA>),
     RemoveIndexServer(PublicKey),
 }
 
@@ -57,16 +55,11 @@ where
 
     fn mutate(&mut self, mutation: &Self::Mutation) -> Result<(), Self::MutateError> {
         match mutation {
-            IndexClientConfigMutation::AddIndexServer(add_index_server_report) => {
+            IndexClientConfigMutation::AddIndexServer(named_index_server_address) => {
                 // Remove first, to avoid duplicates:
-                self.index_servers.retain(|named_index_server| 
-                                          named_index_server.public_key != add_index_server_report.public_key);
-                let named_index_server = NamedIndexServerAddress {
-                    public_key: add_index_server_report.public_key.clone(),
-                    address: add_index_server_report.address.clone(),
-                    name: add_index_server_report.name.clone(),
-                };
-                self.index_servers.push(named_index_server);
+                self.index_servers.retain(|cur_named_index_server_address| 
+                                          cur_named_index_server_address.public_key != named_index_server_address.public_key);
+                self.index_servers.push(named_index_server_address.clone());
             },
             IndexClientConfigMutation::RemoveIndexServer(public_key) => {
                 self.index_servers.retain(|named_index_server| 
@@ -318,34 +311,21 @@ where
             .map_err(|_| IndexClientError::SendToAppServerFailed)
     }
 
-    pub async fn handle_from_app_server_add_index_server(&mut self, add_index_server: AddIndexServer<ISA>) 
+    pub async fn handle_from_app_server_add_index_server(&mut self, named_index_server_address: NamedIndexServerAddress<ISA>) 
                                                             -> Result<(), IndexClientError> {
-        let add_index_server = AddIndexServer {
-            public_key: add_index_server.public_key.clone(),
-            address: add_index_server.address.clone(),
-            name: add_index_server.name.clone(),
-        };
         // Update database:
-        await!(self.db_client.mutate(vec![IndexClientConfigMutation::AddIndexServer(add_index_server.clone())]))
+        await!(self.db_client.mutate(vec![IndexClientConfigMutation::AddIndexServer(named_index_server_address.clone())]))
             .map_err(|_| IndexClientError::DatabaseError)?;
 
         // Add new server_address to memory:
         // To avoid duplicates, we try to remove it from the list first:
-        self.index_servers.retain(|index_server| index_server.public_key != add_index_server.public_key);
-        let index_server = IndexServerAddress {
-            public_key: add_index_server.public_key.clone(),
-            address: add_index_server.address.clone(),
-        };
+        self.index_servers.retain(|index_server| index_server.public_key != named_index_server_address.public_key);
+
+        let index_server = IndexServerAddress::from(named_index_server_address.clone());
         self.index_servers.push_back(index_server);
 
-        let add_index_server_report = AddIndexServerReport {
-            public_key: add_index_server.public_key.clone(),
-            address: add_index_server.address.clone(),
-            name: add_index_server.name.clone(),
-        };
-
         // Send report to AppServer:
-        let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(add_index_server_report);
+        let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(named_index_server_address.clone());
         let report_mutations = vec![index_client_report_mutation];
         await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(report_mutations)))
             .map_err(|_| IndexClientError::SendToAppServerFailed)?;

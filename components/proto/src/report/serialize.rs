@@ -11,8 +11,7 @@ use crate::capnp_common::{write_signature, read_signature,
                           write_relay_address, read_relay_address,
                           write_named_relay_address, read_named_relay_address,
                           write_hash, read_hash,
-                          write_named_index_server_address, read_named_index_server_address,
-                          write_net_address, read_net_address};
+                          write_named_index_server_address, read_named_index_server_address};
 
 use report_capnp;
 use crate::serialize::SerializeError;
@@ -27,8 +26,7 @@ use crate::report::messages::{MoveTokenHashedReport, FriendStatusReport, Request
                             FunderReportMutation};
 
 use crate::app_server::messages::NamedRelayAddress;
-use crate::index_client::messages::{IndexClientReport, 
-    IndexClientReportMutation, AddIndexServerReport};
+use crate::index_client::messages::{IndexClientReport, IndexClientReportMutation};
 use crate::app_server::messages::{NodeReport, NodeReportMutation};
 use crate::net::messages::NetAddress;
 
@@ -785,23 +783,6 @@ fn ser_index_client_report(index_client_report: &IndexClientReport<NetAddress>,
     }
 }
 
-fn ser_add_index_server_report(add_index_server_report: &AddIndexServerReport<NetAddress>, 
-                            add_index_server_report_builder: &mut report_capnp::add_index_server_report::Builder) {
-
-    write_public_key(&add_index_server_report.public_key, &mut add_index_server_report_builder.reborrow().init_public_key());
-    write_net_address(&add_index_server_report.address,&mut add_index_server_report_builder.reborrow().init_address());
-    add_index_server_report_builder.reborrow().set_name(&add_index_server_report.name);
-}
-
-fn deser_add_index_server_report(add_index_server_report_reader: &report_capnp::add_index_server_report::Reader)
-    -> Result<AddIndexServerReport<NetAddress>, SerializeError> {
-
-    Ok(AddIndexServerReport {
-        public_key: read_public_key(&add_index_server_report_reader.get_public_key()?)?,
-        address: read_net_address(&add_index_server_report_reader.get_address()?)?,
-        name: add_index_server_report_reader.get_name()?.to_owned(),
-    })
-}
 
 fn deser_index_client_report(index_client_report_reader: &report_capnp::index_client_report::Reader)
     -> Result<IndexClientReport<NetAddress>, SerializeError> {
@@ -827,8 +808,8 @@ fn ser_index_client_report_mutation(index_client_report_mutation: &IndexClientRe
                     index_client_report_mutation_builder: &mut report_capnp::index_client_report_mutation::Builder) {
 
     match index_client_report_mutation {
-        IndexClientReportMutation::AddIndexServer(add_index_server_report) =>
-            ser_add_index_server_report(add_index_server_report, 
+        IndexClientReportMutation::AddIndexServer(named_index_server_address) =>
+            write_named_index_server_address(named_index_server_address, 
                                        &mut index_client_report_mutation_builder.reborrow().init_add_index_server()),
         IndexClientReportMutation::RemoveIndexServer(public_key) => 
             write_public_key(public_key,
@@ -850,8 +831,8 @@ fn deser_index_client_report_mutation(index_client_report_mutation_reader: &repo
     -> Result<IndexClientReportMutation<NetAddress>, SerializeError> {
 
     Ok(match index_client_report_mutation_reader.which()? {
-        report_capnp::index_client_report_mutation::AddIndexServer(add_index_server_report) =>
-            IndexClientReportMutation::AddIndexServer(deser_add_index_server_report(&add_index_server_report?)?),
+        report_capnp::index_client_report_mutation::AddIndexServer(named_index_server_address_reader) =>
+            IndexClientReportMutation::AddIndexServer(read_named_index_server_address(&named_index_server_address_reader?)?),
         report_capnp::index_client_report_mutation::RemoveIndexServer(public_key_reader) =>
             IndexClientReportMutation::RemoveIndexServer(read_public_key(&public_key_reader?)?),
         report_capnp::index_client_report_mutation::SetConnectedServer(set_connected_server_reader) => {

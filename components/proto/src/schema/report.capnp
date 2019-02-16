@@ -205,12 +205,6 @@ struct FunderReportMutation {
 ##### IndexClient report
 ############################################################################
 
-struct AddIndexServerReport {
-        publicKey @0: PublicKey;
-        address @1: NetAddress;
-        name @2: Text;
-}
-
 struct IndexClientReport {
         indexServers @0: List(NamedIndexServerAddress);
         optConnectedServer: union {
@@ -221,7 +215,7 @@ struct IndexClientReport {
 
 struct IndexClientReportMutation {
         union {
-                addIndexServer @0: AddIndexServerReport;
+                addIndexServer @0: NamedIndexServerAddress;
                 removeIndexServer @1: PublicKey;
                 setConnectedServer: union {
                         publicKey @2: PublicKey;

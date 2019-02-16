@@ -7,7 +7,7 @@ use crypto::identity::{PUBLIC_KEY_LEN, PublicKey};
 use proto::app_server::messages::{AppServerToApp, AppToAppServer,
                                     NodeReportMutation, AppPermissions};
 use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClient, 
-    IndexClientReportMutation, AddIndexServer, AddIndexServerReport};
+    IndexClientReportMutation};
 use proto::index_server::messages::NamedIndexServerAddress;
 
 use super::utils::spawn_dummy_app_server;
@@ -50,23 +50,19 @@ where
     await!(app_sender.send(AppToAppServer::AddIndexServer(named_index_server_address.clone()))).unwrap();
 
     // AddIndexServer command should be forwarded to IndexClient, in the form of AddIndexServer:
-    let add_index_server = AddIndexServer {
-        public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
-        address: 300u32,
-        name: "IndexServer300".to_string(),
-    };
     let to_index_client_message = await!(index_client_receiver.next()).unwrap();
     match to_index_client_message {
-        AppServerToIndexClient::AddIndexServer(add_index_server0) => assert_eq!(add_index_server0, add_index_server),
+        AppServerToIndexClient::AddIndexServer(named_index_server_address0) => 
+            assert_eq!(named_index_server_address0, named_index_server_address),
         _ => unreachable!(),
     };
 
-    let add_index_server_report = AddIndexServerReport {
+    let named_index_server_address = NamedIndexServerAddress {
         public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
         address: 300u32,
         name: "IndexServer300".to_string(),
     };
-    let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(add_index_server_report);
+    let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(named_index_server_address);
     let index_client_report_mutations = vec![index_client_report_mutation.clone()];
     await!(index_client_sender.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations))).unwrap();
 

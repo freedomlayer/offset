@@ -131,3 +131,12 @@ pub struct IndexServerAddress<ISA=NetAddress> {
     pub public_key: PublicKey,
     pub address: ISA,
 }
+
+impl<ISA> From<NamedIndexServerAddress<ISA>> for IndexServerAddress<ISA> {
+    fn from(from: NamedIndexServerAddress<ISA>) -> Self {
+        IndexServerAddress {
+            public_key: from.public_key,
+            address: from.address,
+        }
+    }
+}

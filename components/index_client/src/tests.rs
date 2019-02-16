@@ -10,8 +10,7 @@ use crypto::uid::{Uid, UID_LEN};
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer,
                                     IndexClientReportMutation, UpdateFriend,
                                     IndexMutation, RequestRoutes,
-                                    ResponseRoutesResult, AddIndexServer,
-                                    AddIndexServerReport};
+                                    ResponseRoutesResult};
 use proto::index_server::messages::{IndexServerAddress, NamedIndexServerAddress};
 
 use database::{DatabaseClient, DatabaseRequest};
@@ -168,26 +167,20 @@ where
     }
 
     /// Add an index server to the IndexClient (From AppServer)
-    async fn add_index_server(&mut self, add_index_server: AddIndexServer<ISA>) {
+    async fn add_index_server(&mut self, named_index_server_address: NamedIndexServerAddress<ISA>) {
 
-        await!(self.app_server_sender.send(AppServerToIndexClient::AddIndexServer(add_index_server.clone()))).unwrap();
+        await!(self.app_server_sender.send(AppServerToIndexClient::AddIndexServer(named_index_server_address.clone()))).unwrap();
 
         let db_request = await!(self.database_req_receiver.next()).unwrap();
-        assert_eq!(db_request.mutations, vec![IndexClientConfigMutation::AddIndexServer(add_index_server.clone())]);
+        assert_eq!(db_request.mutations, vec![IndexClientConfigMutation::AddIndexServer(named_index_server_address.clone())]);
         db_request.response_sender.send(()).unwrap();
-
-        let add_index_server_report = AddIndexServerReport {
-            public_key: add_index_server.public_key,
-            address: add_index_server.address,
-            name: add_index_server.name,
-        };
 
         match await!(self.app_server_receiver.next()).unwrap() {
             IndexClientToAppServer::ReportMutations(mut mutations) => {
                 assert_eq!(mutations.len(), 1);
                 match mutations.pop().unwrap() {
-                    IndexClientReportMutation::AddIndexServer(add_index_server_report0) => 
-                        assert_eq!(add_index_server_report0, add_index_server_report),
+                    IndexClientReportMutation::AddIndexServer(named_index_server_address0) => 
+                        assert_eq!(named_index_server_address0, named_index_server_address),
                     _ => unreachable!(),
                 };
             },
@@ -232,12 +225,12 @@ where
     let (mut control_receiver, close_sender) = await!(icc.expect_server_connection(index_server));
 
 
-    await!(icc.add_index_server(AddIndexServer {
+    await!(icc.add_index_server(NamedIndexServerAddress {
         public_key: PublicKey::from(&[0x38; PUBLIC_KEY_LEN]), 
         address: 0x1338,
         name: "0x1338".to_owned()
     }));
-    await!(icc.add_index_server(AddIndexServer {
+    await!(icc.add_index_server(NamedIndexServerAddress {
         public_key: PublicKey::from(&[0x39; PUBLIC_KEY_LEN]), 
         address: 0x1339,
         name: "0x1339".to_owned()
