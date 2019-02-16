@@ -375,14 +375,12 @@ fn ser_app_to_app_server(app_to_app_server: &AppToAppServer,
                     app_to_app_server_builder: &mut app_server_capnp::app_to_app_server::Builder) {
 
     match app_to_app_server {
-        AppToAppServer::SetRelays(relays) => {
-            let relays_len = usize_to_u32(relays.len()).unwrap();
-            let mut relays_builder = app_to_app_server_builder.reborrow().init_set_relays(relays_len);
-            for (index, named_relay_address) in relays.iter().enumerate() {
-                let mut named_relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
-                write_named_relay_address(named_relay_address, &mut named_relay_address_builder);
-            }
-        },
+        AppToAppServer::AddRelay(named_relay_address) =>
+            write_named_relay_address(named_relay_address, 
+                                      &mut app_to_app_server_builder.reborrow().init_add_relay()),
+        AppToAppServer::RemoveRelay(public_key) =>
+            write_public_key(public_key, 
+                             &mut app_to_app_server_builder.reborrow().init_remove_relay()),
         AppToAppServer::RequestSendFunds(user_request_send_funds) =>
             ser_user_request_send_funds(user_request_send_funds, 
                                         &mut app_to_app_server_builder.reborrow().init_request_send_funds()),
@@ -435,13 +433,10 @@ fn deser_app_to_app_server(app_to_app_server: &app_server_capnp::app_to_app_serv
     -> Result<AppToAppServer, SerializeError> {
 
     Ok(match app_to_app_server.which()? {
-        app_server_capnp::app_to_app_server::SetRelays(named_relays_reader) => {
-            let mut relays = Vec::new();
-            for named_relay_address_reader in named_relays_reader? {
-                relays.push(read_named_relay_address(&named_relay_address_reader)?);
-            }
-            AppToAppServer::SetRelays(relays)
-        },
+        app_server_capnp::app_to_app_server::AddRelay(named_relay_address_reader) =>
+            AppToAppServer::AddRelay(read_named_relay_address(&named_relay_address_reader?)?),
+        app_server_capnp::app_to_app_server::RemoveRelay(public_key_reader) =>
+            AppToAppServer::RemoveRelay(read_public_key(&public_key_reader?)?),
         app_server_capnp::app_to_app_server::RequestSendFunds(request_send_funds_reader) => 
             AppToAppServer::RequestSendFunds(
                 deser_user_request_send_funds(&request_send_funds_reader?)?),

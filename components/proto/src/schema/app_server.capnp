@@ -127,30 +127,31 @@ struct AppServerToApp {
 struct AppToAppServer {
     union {
         # Set relay address to be used locally (Could be empty)
-        setRelays @0: List(NamedRelayAddress);
+        addRelay @0: NamedRelayAddress;
+        removeRelay @1: PublicKey;
 
         # Sending Funds:
-        requestSendFunds @1: UserRequestSendFunds;
-        receiptAck @2: ReceiptAck;
+        requestSendFunds @2: UserRequestSendFunds;
+        receiptAck @3: ReceiptAck;
 
         # Friends management
-        addFriend @3: AddFriend;
-        setFriendRelays @4: SetFriendRelays;
-        setFriendName @5: SetFriendName;
-        removeFriend @6: PublicKey;
-        enableFriend @7: PublicKey;
-        disableFriend @8: PublicKey;
-        openFriend @9: PublicKey;
-        closeFriend @10: PublicKey;
-        setFriendRemoteMaxDebt @11: SetFriendRemoteMaxDebt;
-        resetFriendChannel @12: ResetFriendChannel;
+        addFriend @4: AddFriend;
+        setFriendRelays @5: SetFriendRelays;
+        setFriendName @6: SetFriendName;
+        removeFriend @7: PublicKey;
+        enableFriend @8: PublicKey;
+        disableFriend @9: PublicKey;
+        openFriend @10: PublicKey;
+        closeFriend @11: PublicKey;
+        setFriendRemoteMaxDebt @12: SetFriendRemoteMaxDebt;
+        resetFriendChannel @13: ResetFriendChannel;
 
         # Routes:
-        requestRoutes @13: RequestRoutes;
+        requestRoutes @14: RequestRoutes;
 
         # Index servers management:
-        addIndexServer @14: AddIndexServer;
-        removeIndexServer @15: PublicKey;
+        addIndexServer @15: AddIndexServer;
+        removeIndexServer @16: PublicKey;
     }
 }
 

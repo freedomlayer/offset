@@ -40,45 +40,44 @@ where
 
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NodeReport<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>,ISA=NetAddress> 
-where
-    RA: Clone,
-    NRA: Clone,
+pub struct NodeReport<B=NetAddress> 
+where   
+    B: Clone,
 {
-    pub funder_report: FunderReport<RA,NRA>,
-    pub index_client_report: IndexClientReport<ISA>,
+    pub funder_report: FunderReport<Vec<RelayAddress<B>>,Vec<NamedRelayAddress<B>>>,
+    pub index_client_report: IndexClientReport<B>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NodeReportMutation<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>,ISA=NetAddress> {
-    Funder(FunderReportMutation<RA,NRA>),
-    IndexClient(IndexClientReportMutation<ISA>),
+pub enum NodeReportMutation<B=NetAddress> {
+    Funder(FunderReportMutation<Vec<RelayAddress<B>>,Vec<NamedRelayAddress<B>>>),
+    IndexClient(IndexClientReportMutation<B>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum AppServerToApp<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>,ISA=NetAddress> 
+pub enum AppServerToApp<B=NetAddress> 
 where
-    RA: Clone,
-    NRA: Clone,
+    B: Clone,
 {
     /// Funds:
     ResponseReceived(ResponseReceived),
     /// Reports about current state:
-    Report(NodeReport<RA,NRA,ISA>),
-    ReportMutations(Vec<NodeReportMutation<RA,NRA,ISA>>),
+    Report(NodeReport<B>),
+    ReportMutations(Vec<NodeReportMutation<B>>),
     ResponseRoutes(ClientResponseRoutes),
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum AppToAppServer<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>,ISA=NetAddress> {
-    /// Set relay address to be used locally:
-    SetRelays(NRA),
+pub enum AppToAppServer<B=NetAddress> {
+    /// Manage locally used relays:
+    AddRelay(NamedRelayAddress<B>),
+    RemoveRelay(PublicKey),
     /// Sending funds:
     RequestSendFunds(UserRequestSendFunds),
     ReceiptAck(ReceiptAck),
     /// Friend management:
-    AddFriend(AddFriend<RA>),
-    SetFriendRelays(SetFriendAddress<RA>),
+    AddFriend(AddFriend<Vec<RelayAddress<B>>>),
+    SetFriendRelays(SetFriendAddress<Vec<RelayAddress<B>>>),
     SetFriendName(SetFriendName),
     RemoveFriend(PublicKey),
     EnableFriend(PublicKey),
@@ -90,7 +89,7 @@ pub enum AppToAppServer<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>,ISA=NetA
     /// Request routes from one node to another:
     RequestRoutes(RequestRoutes),
     /// Manage index servers:
-    AddIndexServer(AddIndexServer<ISA>),
+    AddIndexServer(AddIndexServer<B>),
     RemoveIndexServer(PublicKey),
 }
 
@@ -99,16 +98,14 @@ pub enum AppToAppServer<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>,ISA=NetA
 pub struct NodeReportMutateError;
 
 
-impl<RA,NRA,ISA> MutableState for NodeReport<RA,NRA,ISA> 
+impl<B> MutableState for NodeReport<B>
 where
-    RA: Clone,
-    NRA: Clone,
-    ISA: Eq + Clone,
+    B: Eq + Clone,
 {
-    type Mutation = NodeReportMutation<RA,NRA,ISA>;
+    type Mutation = NodeReportMutation<B>;
     type MutateError = NodeReportMutateError;
 
-    fn mutate(&mut self, mutation: &NodeReportMutation<RA,NRA,ISA>) 
+    fn mutate(&mut self, mutation: &NodeReportMutation<B>)
         -> Result<(), NodeReportMutateError> {
 
         match mutation {
