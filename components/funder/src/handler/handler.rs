@@ -8,6 +8,7 @@ use crypto::crypto_rand::CryptoRandom;
 
 use proto::funder::messages::FunderOutgoingControl;
 use proto::report::messages::FunderReportMutation;
+use proto::app_server::messages::RelayAddress;
 
 use identity::IdentityClient;
 
@@ -167,7 +168,7 @@ pub fn funder_handle_incoming<B,R>(mut m_state: &mut MutableFunderState<B>,
                                    funder_incoming: FunderIncoming<B>)
                                     -> Result<(SendCommands, 
                                         Vec<FunderOutgoingControl<B>>,
-                                        Vec<ChannelerConfig<B>>), FunderHandlerError>
+                                        Vec<ChannelerConfig<RelayAddress<B>>>), FunderHandlerError>
 
 where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,

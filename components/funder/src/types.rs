@@ -238,12 +238,12 @@ pub struct FriendInconsistencyError {
 }
 
 #[derive(Debug)]
-pub enum ChannelerConfig<B> {
+pub enum ChannelerConfig<RA> {
     /// Set relay address for local node
     /// This is the address the Channeler will connect to 
     /// and listen for new connections
-    SetRelays(Vec<RelayAddress<B>>),
-    UpdateFriend(ChannelerUpdateFriend<B>),
+    SetRelays(Vec<RA>),
+    UpdateFriend(ChannelerUpdateFriend<RA>),
     RemoveFriend(PublicKey),
 }
 
@@ -273,5 +273,5 @@ where
 #[derive(Debug)]
 pub enum FunderOutgoingComm<B> {
     FriendMessage((PublicKey, FriendMessage<B>)),
-    ChannelerConfig(ChannelerConfig<B>),
+    ChannelerConfig(ChannelerConfig<RelayAddress<B>>),
 }

@@ -8,7 +8,7 @@ use crate::types::ChannelerConfig;
 use crate::handler::handler::MutableFunderState;
 
 pub fn handle_init<B>(m_state: &MutableFunderState<B>,
-                      outgoing_channeler_config: &mut Vec<ChannelerConfig<B>>) 
+                      outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>) 
 where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
 {

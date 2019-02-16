@@ -266,7 +266,7 @@ async fn send_friend_iter1<'a,B,R>(m_state: &'a mut MutableFunderState<B>,
                                        rng: &'a R,
                                        max_operations_in_batch: usize,
                                        mut outgoing_messages: &'a mut Vec<OutgoingMessage<B>>,
-                                       outgoing_channeler_config: &'a mut Vec<ChannelerConfig<B>>)
+                                       outgoing_channeler_config: &'a mut Vec<ChannelerConfig<RelayAddress<B>>>)
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
     R: CryptoRandom,
@@ -476,7 +476,7 @@ where
 /// send to the remote side. 
 /// Requests that fail to be processed are moved to the failure queues of the relevant friends.
 async fn collect_outgoing_move_token<'a,B,R>(m_state: &'a mut MutableFunderState<B>,
-                                                 outgoing_channeler_config: &'a mut Vec<ChannelerConfig<B>>,
+                                                 outgoing_channeler_config: &'a mut Vec<ChannelerConfig<RelayAddress<B>>>,
                                                  friend_public_key: &'a PublicKey,
                                                  pending_move_token: &'a mut PendingMoveToken<B>,
                                                  identity_client: &'a mut IdentityClient,
@@ -534,7 +534,7 @@ where
         let friend = m_state.state().friends.get(friend_public_key).unwrap();
 
         // Notify Channeler to change the friend's address:
-        let update_friend: ChannelerUpdateFriend<B> = ChannelerUpdateFriend {
+        let update_friend = ChannelerUpdateFriend {
             friend_public_key: friend_public_key.clone(),
             friend_relays: friend.remote_address.clone(),
             local_relays: friend.sent_local_address.to_vec(),
@@ -743,7 +743,7 @@ pub async fn create_friend_messages<'a,B,R>(m_state: &'a mut MutableFunderState<
                         send_commands: &'a SendCommands,
                         max_operations_in_batch: usize,
                         identity_client: &'a mut IdentityClient,
-                        rng: &'a R) -> (Vec<OutgoingMessage<B>>, Vec<ChannelerConfig<B>>) 
+                        rng: &'a R) -> (Vec<OutgoingMessage<B>>, Vec<ChannelerConfig<RelayAddress<B>>>) 
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
     R: CryptoRandom,

@@ -104,7 +104,7 @@ where
 }
 
 fn enable_friend<B>(m_state: &mut MutableFunderState<B>,
-                 outgoing_channeler_config: &mut Vec<ChannelerConfig<B>>,
+                 outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
                  friend_public_key: &PublicKey,
                  friend_relays: &Vec<RelayAddress<B>>) 
 where
@@ -127,7 +127,7 @@ where
 fn disable_friend<B>(m_state: &mut MutableFunderState<B>,
                      send_commands: &mut SendCommands,
                      outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-                     outgoing_channeler_config: &mut Vec<ChannelerConfig<B>>,
+                     outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
                      friend_public_key: &PublicKey) 
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
@@ -152,7 +152,7 @@ where
 
 fn control_add_relay<B>(m_state: &mut MutableFunderState<B>, 
                           send_commands: &mut SendCommands,
-                          outgoing_channeler_config: &mut Vec<ChannelerConfig<B>>,
+                          outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
                           named_relay_address: NamedRelayAddress<B>) 
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
@@ -185,7 +185,7 @@ where
 
 fn control_remove_relay<B>(m_state: &mut MutableFunderState<B>, 
                           send_commands: &mut SendCommands,
-                          outgoing_channeler_config: &mut Vec<ChannelerConfig<B>>,
+                          outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
                           public_key: PublicKey) 
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
@@ -230,7 +230,7 @@ where
 fn control_remove_friend<B>(m_state: &mut MutableFunderState<B>,
                             send_commands: &mut SendCommands,
                             outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-                            outgoing_channeler_config: &mut Vec<ChannelerConfig<B>>,
+                            outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
                             remove_friend: RemoveFriend) 
     -> Result<(), HandleControlError> 
 where
@@ -262,7 +262,7 @@ where
 fn control_set_friend_status<B>(m_state: &mut MutableFunderState<B>,
                                 send_commands: &mut SendCommands,
                                 outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-                                outgoing_channeler_config: &mut Vec<ChannelerConfig<B>>,
+                                outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
                                 set_friend_status: SetFriendStatus) 
     -> Result<(), HandleControlError> 
 where
@@ -321,7 +321,7 @@ where
 }
 
 fn control_set_friend_address<B>(m_state: &mut MutableFunderState<B>, 
-                                 outgoing_channeler_config: &mut Vec<ChannelerConfig<B>>,
+                                 outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
                                  set_friend_address: SetFriendAddress<B>)
     -> Result<(), HandleControlError> 
 where
@@ -544,7 +544,7 @@ pub fn handle_control_message<B>(m_state: &mut MutableFunderState<B>,
                                  m_ephemeral: &mut MutableEphemeral,
                                  send_commands: &mut SendCommands,
                                  outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-                                 outgoing_channeler_config: &mut Vec<ChannelerConfig<B>>,
+                                 outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
                                  max_pending_user_requests: usize,
                                  incoming_control: FunderIncomingControl<B>) 
     -> Result<(), HandleControlError> 

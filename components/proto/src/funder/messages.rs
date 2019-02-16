@@ -16,24 +16,22 @@ use crate::net::messages::NetAddress;
 
 
 #[derive(Debug)]
-pub struct ChannelerUpdateFriend<B> {
+pub struct ChannelerUpdateFriend<RA> {
     pub friend_public_key: PublicKey,
     /// We should try to connect to this address:
-    pub friend_relays: Vec<RelayAddress<B>>,
+    pub friend_relays: Vec<RA>,
     /// We should be listening on this address:
-    pub local_relays: Vec<RelayAddress<B>>, 
-    // TODO: Used to be Vec<Vec<_>>.
-    // Should be fixed at the Channeler's side
+    pub local_relays: Vec<RA>, 
 }
 
 #[derive(Debug)]
-pub enum FunderToChanneler<B> {
+pub enum FunderToChanneler<RA> {
     /// Send a message to a friend
     Message((PublicKey, Vec<u8>)), // (friend_public_key, message)
     /// Set address for relay used by local node
-    SetAddress(Vec<RelayAddress<B>>), 
+    SetAddress(Vec<RA>), 
     /// Request to add a new friend or update friend's information
-    UpdateFriend(ChannelerUpdateFriend<B>),
+    UpdateFriend(ChannelerUpdateFriend<RA>),
     /// Request to remove a friend
     RemoveFriend(PublicKey), // friend_public_key
 }
