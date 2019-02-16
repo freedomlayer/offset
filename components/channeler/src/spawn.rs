@@ -102,7 +102,7 @@ pub fn spawn_channeler<B,C,ET,KT,S>(local_public_key: PublicKey,
                           enc_relay_connector: C,
                           encrypt_transform: ET,
                           keepalive_transform: KT,
-                          from_funder: mpsc::Receiver<FunderToChanneler<Vec<B>>>,
+                          from_funder: mpsc::Receiver<FunderToChanneler<B>>,
                           to_funder: mpsc::Sender<ChannelerToFunder>,
                           mut spawner: S) 
     -> Result<impl Future<Output=Result<(), ChannelerError>>, SpawnChannelerError>

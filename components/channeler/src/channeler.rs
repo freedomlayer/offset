@@ -20,7 +20,7 @@ use crate::listen_pool::LpConfig;
 
 #[derive(Debug)]
 pub enum ChannelerEvent<B> {
-    FromFunder(FunderToChanneler<Vec<B>>),
+    FromFunder(FunderToChanneler<B>),
     Connection((PublicKey, RawConn)),
     FriendEvent(FriendEvent),
     ListenerClosed,
@@ -241,7 +241,7 @@ where
         Ok(())
     }
 
-    async fn handle_from_funder(&mut self, funder_to_channeler: FunderToChanneler<Vec<B>>) 
+    async fn handle_from_funder(&mut self, funder_to_channeler: FunderToChanneler<B>) 
         -> Result<(), ChannelerError>  {
 
         match funder_to_channeler {
@@ -269,25 +269,19 @@ where
             FunderToChanneler::UpdateFriend(channeler_update_friend) => {
                 let ChannelerUpdateFriend {
                     friend_public_key,
-                    friend_address,
-                    local_addresses
+                    friend_relays,
+                    local_relays,
                 } = channeler_update_friend;
 
                 await!(self.try_create_friend(&friend_public_key))?;
 
                 if let Some(_in_friend) = self.friends.in_friends.get(&friend_public_key) {
-                    // Move from a vector of vectors to a flat vector of addresses:
-                    let mut total_local_addresses = Vec::new();
-                    for mut addresses in local_addresses {
-                        total_local_addresses.append(&mut addresses);
-                    }
-
                     let lp_config = LpConfig::UpdateFriend((friend_public_key.clone(),
-                                                            total_local_addresses));
+                                                            local_relays));
                     await!(self.listen_config.send(lp_config))
                         .map_err(|_| ChannelerError::ListenerConfigError)?;
                 } else if let Some(out_friend) = self.friends.out_friends.get_mut(&friend_public_key) {
-                    await!(out_friend.config_client.config(friend_address))
+                    await!(out_friend.config_client.config(friend_relays))
                         .map_err(|_| ChannelerError::ConnectorConfigError)?;
                 }
 
@@ -415,7 +409,7 @@ pub async fn channeler_loop<FF,TF,B,C,L,S>(
                         listener: L,
                         spawner: S) -> Result<(), ChannelerError>
 where
-    FF: Stream<Item=FunderToChanneler<Vec<B>>> + Unpin,
+    FF: Stream<Item=FunderToChanneler<B>> + Unpin,
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
     B: Clone + Send + Sync + Debug + 'static,
     C: FutTransform<Input=PublicKey, Output=ConnectPoolControl<B>> + Clone + Send + Sync + 'static,
@@ -547,8 +541,8 @@ mod tests {
         // Add a friend:
         let channeler_update_friend = ChannelerUpdateFriend {
             friend_public_key: pks[0].clone(),
-            friend_address: vec![0x0u32],
-            local_addresses: vec![vec![0x2u32, 0x3u32]],
+            friend_relays: vec![0x0u32],
+            local_relays: vec![0x2u32, 0x3u32],
         };
 
         await!(funder_sender.send(FunderToChanneler::UpdateFriend(channeler_update_friend))).unwrap();
@@ -706,8 +700,8 @@ mod tests {
         // Add a friend:
         let channeler_update_friend = ChannelerUpdateFriend {
             friend_public_key: pks[2].clone(),
-            friend_address: vec![0x0u32],
-            local_addresses: vec![vec![0x2u32, 0x3u32]],
+            friend_relays: vec![0x0u32],
+            local_relays: vec![0x2u32, 0x3u32],
         };
         await!(funder_sender.send(FunderToChanneler::UpdateFriend(channeler_update_friend))).unwrap();
 
