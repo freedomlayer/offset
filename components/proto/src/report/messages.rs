@@ -31,7 +31,7 @@ pub struct MoveTokenHashedReport {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub enum SentLocalAddressReport<B=NetAddress> 
+pub enum SentLocalRelaysReport<B=NetAddress> 
 where
     B: Clone,
 {
@@ -121,8 +121,8 @@ where
     B: Clone,
 {
     pub name: String,
-    pub remote_address: Vec<RelayAddress<B>>,
-    pub sent_local_address: SentLocalAddressReport<B>,
+    pub remote_relays: Vec<RelayAddress<B>>,
+    pub sent_local_relays: SentLocalRelaysReport<B>,
     // Last message signed by the remote side. 
     // Can be used as a proof for the last known balance.
     pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
@@ -158,9 +158,9 @@ pub enum FriendReportMutation<B=NetAddress>
 where
     B: Clone,
 {
-    SetRemoteAddress(Vec<RelayAddress<B>>),
+    SetRemoteRelays(Vec<RelayAddress<B>>),
     SetName(String),
-    SetSentLocalAddress(SentLocalAddressReport<B>),
+    SetSentLocalRelays(SentLocalRelaysReport<B>),
     SetChannelStatus(ChannelStatusReport),
     SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatusReport),
@@ -232,14 +232,14 @@ where
 
     fn mutate(&mut self, mutation: &Self::Mutation) -> Result<(), Self::MutateError> {
         match mutation {
-            FriendReportMutation::SetRemoteAddress(remote_address) => {
-                self.remote_address = remote_address.clone();
-            },
             FriendReportMutation::SetName(name) => {
                 self.name = name.clone();
             },
-            FriendReportMutation::SetSentLocalAddress(sent_local_address_report) => {
-                self.sent_local_address = sent_local_address_report.clone();
+            FriendReportMutation::SetRemoteRelays(remote_relays) => {
+                self.remote_relays = remote_relays.clone();
+            },
+            FriendReportMutation::SetSentLocalRelays(sent_local_relays_report) => {
+                self.sent_local_relays = sent_local_relays_report.clone();
             },
             FriendReportMutation::SetChannelStatus(channel_status_report) => {
                 self.channel_status = channel_status_report.clone();
@@ -300,9 +300,9 @@ where
             },
             FunderReportMutation::AddFriend(add_friend_report) => {
                 let friend_report = FriendReport {
-                    remote_address: add_friend_report.relays.clone(),
                     name: add_friend_report.name.clone(),
-                    sent_local_address: SentLocalAddressReport::NeverSent,
+                    remote_relays: add_friend_report.relays.clone(),
+                    sent_local_relays: SentLocalRelaysReport::NeverSent,
                     opt_last_incoming_move_token: add_friend_report.opt_last_incoming_move_token.clone(),
                     liveness: FriendLivenessReport::Offline,
                     channel_status: add_friend_report.channel_status.clone(),

@@ -18,8 +18,8 @@ where
             FriendStatus::Enabled => {
                 let channeler_add_friend = ChannelerUpdateFriend {
                     friend_public_key: friend.remote_public_key.clone(),
-                    friend_relays: friend.remote_address.clone(),
-                    local_relays: friend.sent_local_address.to_vec(),
+                    friend_relays: friend.remote_relays.clone(),
+                    local_relays: friend.sent_local_relays.to_vec(),
                 };
                 enabled_friends.push(channeler_add_friend);
             },

@@ -7,12 +7,12 @@ use proto::report::messages::{DirectionReport, FriendLivenessReport,
     TcReport, ResetTermsReport, ChannelInconsistentReport, ChannelStatusReport, FriendReport,
     FunderReport, FriendReportMutation, AddFriendReport, FunderReportMutation,
     McRequestsStatusReport, McBalanceReport, RequestsStatusReport, FriendStatusReport,
-    MoveTokenHashedReport, SentLocalAddressReport};
+    MoveTokenHashedReport, SentLocalRelaysReport};
 
 use crate::types::MoveTokenHashed;
 
 use crate::friend::{FriendState, ChannelStatus, FriendMutation, 
-    SentLocalAddress};
+    SentLocalRelays};
 use crate::state::{FunderState, FunderMutation};
 use crate::mutual_credit::types::{McBalance, McRequestsStatus};
 use crate::token_channel::{TokenChannel, TcDirection, TcMutation}; 
@@ -21,18 +21,18 @@ use crate::ephemeral::{Ephemeral, EphemeralMutation};
 
 
 
-impl<B> Into<SentLocalAddressReport<B>> for &SentLocalAddress<B> 
+impl<B> Into<SentLocalRelaysReport<B>> for &SentLocalRelays<B> 
 where
     B: Clone,
 {
-    fn into(self) -> SentLocalAddressReport<B> {
+    fn into(self) -> SentLocalRelaysReport<B> {
         match self {
-            SentLocalAddress::NeverSent => 
-                SentLocalAddressReport::NeverSent,
-            SentLocalAddress::Transition(t) => 
-                SentLocalAddressReport::Transition(t.clone()),
-            SentLocalAddress::LastSent(address) => 
-                SentLocalAddressReport::LastSent(address.clone()),
+            SentLocalRelays::NeverSent => 
+                SentLocalRelaysReport::NeverSent,
+            SentLocalRelays::Transition(t) => 
+                SentLocalRelaysReport::Transition(t.clone()),
+            SentLocalRelays::LastSent(address) => 
+                SentLocalRelaysReport::LastSent(address.clone()),
         }
     }
 }
@@ -132,8 +132,8 @@ where
 
     FriendReport {
         name: friend_state.name.clone(),
-        remote_address: friend_state.remote_address.clone(),
-        sent_local_address: (&friend_state.sent_local_address).into(),
+        remote_relays: friend_state.remote_relays.clone(),
+        sent_local_relays: (&friend_state.sent_local_relays).into(),
         opt_last_incoming_move_token: friend_state.channel_status.get_last_incoming_move_token_hashed()
             .map(|move_token_hashed| MoveTokenHashedReport::from(&move_token_hashed)),
         liveness: friend_liveness.clone(),
@@ -226,12 +226,12 @@ where
                     usize_to_u64(friend_after.pending_user_requests.len()).unwrap())],
         FriendMutation::SetStatus(friend_status) => 
             vec![FriendReportMutation::SetStatus(FriendStatusReport::from(friend_status))],
-        FriendMutation::SetRemoteAddress(remote_address) =>
-            vec![FriendReportMutation::SetRemoteAddress(remote_address.clone())],
+        FriendMutation::SetRemoteRelays(remote_relays) =>
+            vec![FriendReportMutation::SetRemoteRelays(remote_relays.clone())],
         FriendMutation::SetName(name) =>
             vec![FriendReportMutation::SetName(name.clone())],
-        FriendMutation::SetSentLocalAddress(sent_local_address) =>
-            vec![FriendReportMutation::SetSentLocalAddress(sent_local_address.into())],
+        FriendMutation::SetSentLocalRelays(sent_local_relays) =>
+            vec![FriendReportMutation::SetSentLocalRelays(sent_local_relays.into())],
         FriendMutation::SetInconsistent(_) |
         FriendMutation::SetConsistent(_) => {
             let channel_status_report = ChannelStatusReport::from(&friend_after.channel_status);

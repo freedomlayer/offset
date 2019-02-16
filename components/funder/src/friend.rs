@@ -24,7 +24,7 @@ pub enum ResponseOp {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum SentLocalAddress<B> 
+pub enum SentLocalRelays<B> 
 where
     B: Clone,
 {
@@ -33,14 +33,14 @@ where
     LastSent(ImVec<NamedRelayAddress<B>>),
 }
 
-impl<B> SentLocalAddress<B> 
+impl<B> SentLocalRelays<B> 
 where
     B: Clone + Debug,
 {
     pub fn to_vec(&self) -> Vec<RelayAddress<B>> {
         match self {
-            SentLocalAddress::NeverSent => Vec::new(),
-            SentLocalAddress::Transition((last_relays, prev_last_relays)) => {
+            SentLocalRelays::NeverSent => Vec::new(),
+            SentLocalRelays::Transition((last_relays, prev_last_relays)) => {
                 // Create a unique list of all relay public keys:
                 let mut relays: Vec<RelayAddress<B>> = Vec::new();
                 for relay in last_relays {
@@ -54,7 +54,7 @@ where
                 relays.dedup_by_key(|relay_address| relay_address.public_key.clone());
                 relays
             },
-            SentLocalAddress::LastSent(last_address) =>
+            SentLocalRelays::LastSent(last_address) =>
                 last_address
                     .iter()
                     .cloned()
@@ -79,9 +79,9 @@ pub enum FriendMutation<B: Clone> {
     PushBackPendingUserRequest(RequestSendFunds),
     PopFrontPendingUserRequest,
     SetStatus(FriendStatus),
-    SetRemoteAddress(Vec<RelayAddress<B>>),
+    SetRemoteRelays(Vec<RelayAddress<B>>),
     SetName(String),
-    SetSentLocalAddress(SentLocalAddress<B>),
+    SetSentLocalRelays(SentLocalRelays<B>),
 }
 
 #[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
@@ -115,8 +115,8 @@ where
 pub struct FriendState<B: Clone> {
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,
-    pub remote_address: Vec<RelayAddress<B>>,
-    pub sent_local_address: SentLocalAddress<B>,
+    pub remote_relays: Vec<RelayAddress<B>>,
+    pub sent_local_relays: SentLocalRelays<B>,
     pub name: String,
     pub channel_status: ChannelStatus<B>,
     pub wanted_remote_max_debt: u128,
@@ -137,7 +137,7 @@ where
 {
     pub fn new(local_public_key: &PublicKey,
                remote_public_key: &PublicKey,
-               remote_address: Vec<RelayAddress<B>>,
+               remote_relays: Vec<RelayAddress<B>>,
                name: String,
                balance: i128) -> Self {
 
@@ -146,8 +146,8 @@ where
         FriendState {
             local_public_key: local_public_key.clone(),
             remote_public_key: remote_public_key.clone(),
-            remote_address,
-            sent_local_address: SentLocalAddress::NeverSent,
+            remote_relays,
+            sent_local_relays: SentLocalRelays::NeverSent,
             name,
             channel_status: ChannelStatus::Consistent(token_channel),
 
@@ -230,14 +230,14 @@ where
             FriendMutation::SetStatus(friend_status) => {
                 self.status = friend_status.clone();
             },
-            FriendMutation::SetRemoteAddress(friend_addr) => {
-                self.remote_address = friend_addr.clone();
+            FriendMutation::SetRemoteRelays(remote_relays) => {
+                self.remote_relays = remote_relays.clone();
             },
             FriendMutation::SetName(friend_name) => {
                 self.name = friend_name.clone();
             },
-            FriendMutation::SetSentLocalAddress(sent_local_address) => {
-                self.sent_local_address = sent_local_address.clone();
+            FriendMutation::SetSentLocalRelays(sent_local_relays) => {
+                self.sent_local_relays = sent_local_relays.clone();
             },
         }
     }

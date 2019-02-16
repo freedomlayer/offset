@@ -21,7 +21,7 @@ use crate::types::{create_pending_request, ChannelerConfig};
 use crate::state::FunderMutation;
 use crate::friend::{FriendMutation, 
     ResponseOp, ChannelStatus, ChannelInconsistent,
-    SentLocalAddress};
+    SentLocalRelays};
 
 use crate::ephemeral::Ephemeral;
 
@@ -393,13 +393,13 @@ where
             } = move_token_received;
 
             // Update address for remote side if necessary:
-            if let Some(new_remote_address) = opt_local_relays {
+            if let Some(new_remote_relays) = opt_local_relays {
                 let friend = m_state.state().friends.get(remote_public_key).unwrap();
                 // Make sure that the newly sent remote address is different than the one we
                 // already have:
-                if friend.remote_address != new_remote_address {
+                if friend.remote_relays != new_remote_relays {
                     // Update remote address:
-                    let friend_mutation = FriendMutation::SetRemoteAddress(new_remote_address.clone());
+                    let friend_mutation = FriendMutation::SetRemoteRelays(new_remote_relays.clone());
                     let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
                     m_state.mutate(funder_mutation);
                 }
@@ -415,13 +415,13 @@ where
             // If address update was pending, we can clear it, as this is a proof that the
             // remote side has received our update:
             let friend = m_state.state().friends.get(remote_public_key).unwrap();
-            match &friend.sent_local_address {
-                SentLocalAddress::NeverSent |
-                SentLocalAddress::LastSent(_) => {},
-                SentLocalAddress::Transition((last_address, _prev_last_address)) => {
+            match &friend.sent_local_relays {
+                SentLocalRelays::NeverSent |
+                SentLocalRelays::LastSent(_) => {},
+                SentLocalRelays::Transition((last_address, _prev_last_address)) => {
                     let c_last_address = last_address.clone();
-                    // Update SentLocalAddress:
-                    let friend_mutation = FriendMutation::SetSentLocalAddress(SentLocalAddress::LastSent(c_last_address.clone()));
+                    // Update SentLocalRelays:
+                    let friend_mutation = FriendMutation::SetSentLocalRelays(SentLocalRelays::LastSent(c_last_address.clone()));
                     let funder_mutation = FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
                     m_state.mutate(funder_mutation);
 
@@ -435,7 +435,7 @@ where
                     // Notify Channeler to change the friend's address:
                     let update_friend = ChannelerUpdateFriend {
                         friend_public_key: remote_public_key.clone(),
-                        friend_relays: friend.remote_address.clone(),
+                        friend_relays: friend.remote_relays.clone(),
                         local_relays,
                     };
                     let channeler_config = ChannelerConfig::UpdateFriend(update_friend);

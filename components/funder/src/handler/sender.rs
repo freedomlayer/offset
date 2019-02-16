@@ -18,7 +18,7 @@ use crate::types::{create_pending_request, sign_move_token,
 use crate::mutual_credit::outgoing::{QueueOperationError, OutgoingMc};
 
 use crate::friend::{FriendMutation, ResponseOp, 
-    ChannelStatus, SentLocalAddress, ChannelInconsistent};
+    ChannelStatus, SentLocalRelays, ChannelInconsistent};
 use crate::token_channel::{TokenChannel, TcMutation, TcDirection, SetDirection};
 
 use crate::state::{FunderMutation, FunderState};
@@ -106,7 +106,7 @@ struct PendingMoveToken<B> {
     friend_public_key: PublicKey,
     outgoing_mc: OutgoingMc,
     operations: Vec<FriendTcOp>,
-    opt_local_address: Option<Vec<RelayAddress<B>>>,
+    opt_local_relays: Option<Vec<RelayAddress<B>>>,
     token_wanted: bool,
     max_operations_in_batch: usize,
     /// Can we send this move token with empty operations list
@@ -127,7 +127,7 @@ where
             friend_public_key,
             outgoing_mc,
             operations: Vec::new(),
-            opt_local_address: None,
+            opt_local_relays: None,
             token_wanted: false,
             max_operations_in_batch,
             may_send_empty,
@@ -172,10 +172,10 @@ where
     }
 
     /// Set local address inside pending move token.
-    fn set_local_address(&mut self, 
-                         local_address: Vec<RelayAddress<B>>) {
+    fn set_local_relays(&mut self, 
+                         local_relays: Vec<RelayAddress<B>>) {
 
-        self.opt_local_address = Some(local_address);
+        self.opt_local_relays = Some(local_relays);
     }
 }
 
@@ -228,11 +228,11 @@ where
 
     let local_pending_debt = 0;
     let remote_pending_debt = 0;
-    let opt_local_address = None;
+    let opt_local_relays = None;
     let u_reset_move_token = create_unsigned_move_token(
         // No operations are required for a reset move token
         Vec::new(), 
-        opt_local_address,
+        opt_local_relays,
         remote_reset_terms.reset_token.clone(),
         m_state.state().local_public_key.clone(),
         friend_public_key.clone(),
@@ -366,10 +366,10 @@ where
 
     // Check if notification about local address change is required:
     let friend = state.friends.get(friend_public_key).unwrap();
-    match &friend.sent_local_address {
-        SentLocalAddress::NeverSent => return true,
-        SentLocalAddress::Transition((relays, _)) |
-        SentLocalAddress::LastSent(relays) => {
+    match &friend.sent_local_relays {
+        SentLocalRelays::NeverSent => return true,
+        SentLocalRelays::Transition((relays, _)) |
+        SentLocalRelays::LastSent(relays) => {
             if relays != &state.relays {
                 return true;
             }
@@ -509,25 +509,25 @@ where
         .map(RelayAddress::from)
         .collect();
 
-    let opt_new_sent_local_address = match &friend.sent_local_address {
-        SentLocalAddress::NeverSent => {
-            pending_move_token.set_local_address(local_relays);
-            Some(SentLocalAddress::LastSent(local_named_relays.clone()))
+    let opt_new_sent_local_relays = match &friend.sent_local_relays {
+        SentLocalRelays::NeverSent => {
+            pending_move_token.set_local_relays(local_relays);
+            Some(SentLocalRelays::LastSent(local_named_relays.clone()))
         },
-        SentLocalAddress::Transition((last_sent_local_address, _)) |
-        SentLocalAddress::LastSent(last_sent_local_address) => {
-            if &local_named_relays != last_sent_local_address {
-                pending_move_token.set_local_address(local_relays.clone());
-                Some(SentLocalAddress::Transition((local_named_relays.clone(), last_sent_local_address.clone())))
+        SentLocalRelays::Transition((last_sent_local_relays, _)) |
+        SentLocalRelays::LastSent(last_sent_local_relays) => {
+            if &local_named_relays != last_sent_local_relays {
+                pending_move_token.set_local_relays(local_relays.clone());
+                Some(SentLocalRelays::Transition((local_named_relays.clone(), last_sent_local_relays.clone())))
             } else {
                 None
             }
         },
     };
 
-    // Update friend.sent_local_address accordingly:
-    if let Some(new_sent_local_address) = opt_new_sent_local_address {
-        let friend_mutation = FriendMutation::SetSentLocalAddress(new_sent_local_address);
+    // Update friend.sent_local_relays accordingly:
+    if let Some(new_sent_local_relays) = opt_new_sent_local_relays {
+        let friend_mutation = FriendMutation::SetSentLocalRelays(new_sent_local_relays);
         let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
         m_state.mutate(funder_mutation);
 
@@ -536,8 +536,8 @@ where
         // Notify Channeler to change the friend's address:
         let update_friend = ChannelerUpdateFriend {
             friend_public_key: friend_public_key.clone(),
-            friend_relays: friend.remote_address.clone(),
-            local_relays: friend.sent_local_address.to_vec(),
+            friend_relays: friend.remote_relays.clone(),
+            local_relays: friend.sent_local_relays.to_vec(),
         };
         let channeler_config = ChannelerConfig::UpdateFriend(update_friend);
         outgoing_channeler_config.push(channeler_config);
@@ -677,19 +677,19 @@ where
 
     let PendingMoveToken {
         operations,
-        opt_local_address,
+        opt_local_relays,
         token_wanted,
         may_send_empty,
         ..
     } = pending_move_token;
 
-    if operations.is_empty() && opt_local_address.is_none() && !may_send_empty {
+    if operations.is_empty() && opt_local_relays.is_none() && !may_send_empty {
         return;
     }
 
     // We want the token back if we just set a new address, to be sure 
     // that the remote side knows about the new address.
-    let token_wanted = token_wanted || opt_local_address.is_some();
+    let token_wanted = token_wanted || opt_local_relays.is_some();
 
     let friend = m_state.state().friends.get(&friend_public_key).unwrap();
 
@@ -705,7 +705,7 @@ where
     };
 
     let u_move_token = tc_incoming.create_unsigned_move_token(operations, 
-                                         opt_local_address,
+                                         opt_local_relays,
                                          rand_nonce);
 
     let move_token = await!(sign_move_token(u_move_token, identity_client));

@@ -21,7 +21,7 @@ use crate::report::messages::{MoveTokenHashedReport, FriendStatusReport, Request
                             McRequestsStatusReport, McBalanceReport, TcReport,
                             ResetTermsReport, ChannelInconsistentReport,
                             ChannelStatusReport, FriendReport,
-                            SentLocalAddressReport,
+                            SentLocalRelaysReport,
                             FunderReport, AddFriendReport,
                             FriendReportMutation,
                             FunderReportMutation};
@@ -390,18 +390,18 @@ fn deser_relays_transition(relays_transition_reader: &report_capnp::relays_trans
     Ok((last_sent, before_last_sent))
 }
 
-fn ser_sent_local_relays_report(sent_local_address_report: &SentLocalAddressReport,
+fn ser_sent_local_relays_report(sent_local_relays_report: &SentLocalRelaysReport,
                     sent_local_relays_report_builder: &mut report_capnp::sent_local_relays_report::Builder) {
 
-    match sent_local_address_report {
-        SentLocalAddressReport::NeverSent => {
+    match sent_local_relays_report {
+        SentLocalRelaysReport::NeverSent => {
             sent_local_relays_report_builder.set_never_sent(());
         },
-        SentLocalAddressReport::Transition(relays_transition) => {
+        SentLocalRelaysReport::Transition(relays_transition) => {
             let mut relays_transition_builder = sent_local_relays_report_builder.reborrow().init_transition();
             ser_relays_transition(&relays_transition, &mut relays_transition_builder);
         },
-        SentLocalAddressReport::LastSent(last_sent) => {
+        SentLocalRelaysReport::LastSent(last_sent) => {
             let relays_len = usize_to_u32(last_sent.len()).unwrap();
             let mut last_sent_builder = sent_local_relays_report_builder.reborrow().init_last_sent(relays_len);
             for (index, named_relay_address) in last_sent.iter().enumerate() {
@@ -413,18 +413,18 @@ fn ser_sent_local_relays_report(sent_local_address_report: &SentLocalAddressRepo
 }
 
 fn deser_sent_local_relays_report(sent_local_relays_report_reader: &report_capnp::sent_local_relays_report::Reader)
-    -> Result<SentLocalAddressReport, SerializeError> {
+    -> Result<SentLocalRelaysReport, SerializeError> {
 
     Ok(match sent_local_relays_report_reader.which()? {
-        report_capnp::sent_local_relays_report::NeverSent(()) => SentLocalAddressReport::NeverSent,
+        report_capnp::sent_local_relays_report::NeverSent(()) => SentLocalRelaysReport::NeverSent,
         report_capnp::sent_local_relays_report::Transition(relays_transition_reader) =>
-            SentLocalAddressReport::Transition(deser_relays_transition(&relays_transition_reader?)?),
+            SentLocalRelaysReport::Transition(deser_relays_transition(&relays_transition_reader?)?),
         report_capnp::sent_local_relays_report::LastSent(last_sent_reader) => {
             let mut last_sent = Vec::new();
             for named_relay_address in last_sent_reader? {
                 last_sent.push(read_named_relay_address(&named_relay_address)?);
             }
-            SentLocalAddressReport::LastSent(last_sent.into_iter().collect())
+            SentLocalRelaysReport::LastSent(last_sent.into_iter().collect())
         },
     })
 }
@@ -436,14 +436,14 @@ fn ser_friend_report(friend_report: &FriendReport,
     friend_report_builder.reborrow().set_name(&friend_report.name);
 
     // remote_relays:
-    let relays_len = usize_to_u32(friend_report.remote_address.len()).unwrap();
+    let relays_len = usize_to_u32(friend_report.remote_relays.len()).unwrap();
     let mut relays_builder = friend_report_builder.reborrow().init_remote_relays(relays_len);
-    for (index, relay_address) in friend_report.remote_address.iter().enumerate() {
+    for (index, relay_address) in friend_report.remote_relays.iter().enumerate() {
         let mut relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
         write_relay_address(relay_address, &mut relay_address_builder);
     }
 
-    ser_sent_local_relays_report(&friend_report.sent_local_address,
+    ser_sent_local_relays_report(&friend_report.sent_local_relays,
         &mut friend_report_builder.reborrow().init_sent_local_relays());
 
     ser_opt_last_incoming_move_token(&friend_report.opt_last_incoming_move_token,
@@ -474,15 +474,15 @@ fn ser_friend_report(friend_report: &FriendReport,
 fn deser_friend_report(friend_report_reader: &report_capnp::friend_report::Reader)
     -> Result<FriendReport, SerializeError> {
 
-    let mut remote_address = Vec::new();
+    let mut remote_relays = Vec::new();
     for relay_address in friend_report_reader.get_remote_relays()? {
-        remote_address.push(read_relay_address(&relay_address)?);
+        remote_relays.push(read_relay_address(&relay_address)?);
     }
 
     Ok(FriendReport {
         name: friend_report_reader.get_name()?.to_owned(),
-        remote_address,
-        sent_local_address: deser_sent_local_relays_report(&friend_report_reader.get_sent_local_relays()?)?,
+        remote_relays,
+        sent_local_relays: deser_sent_local_relays_report(&friend_report_reader.get_sent_local_relays()?)?,
         opt_last_incoming_move_token: deser_opt_last_incoming_move_token(
             &friend_report_reader.get_opt_last_incoming_move_token()?)?,
         liveness: deser_friend_liveness_report(&friend_report_reader.get_liveness()?)?,
@@ -608,7 +608,7 @@ fn ser_friend_report_mutation(friend_report_mutation: &FriendReportMutation,
                     friend_report_mutation_builder: &mut report_capnp::friend_report_mutation::Builder) {
 
     match friend_report_mutation {
-        FriendReportMutation::SetRemoteAddress(relays) => {
+        FriendReportMutation::SetRemoteRelays(relays) => {
             let relays_len = usize_to_u32(relays.len()).unwrap();
             let mut relays_builder = friend_report_mutation_builder.reborrow().init_set_remote_relays(relays_len);
             for (index, relay_address) in relays.iter().enumerate() {
@@ -618,8 +618,8 @@ fn ser_friend_report_mutation(friend_report_mutation: &FriendReportMutation,
         },
         FriendReportMutation::SetName(name) => 
             friend_report_mutation_builder.reborrow().set_set_name(name),
-        FriendReportMutation::SetSentLocalAddress(sent_local_address_report) =>
-            ser_sent_local_relays_report(sent_local_address_report,
+        FriendReportMutation::SetSentLocalRelays(sent_local_relays_report) =>
+            ser_sent_local_relays_report(sent_local_relays_report,
                                          &mut friend_report_mutation_builder.reborrow().init_set_sent_local_relays()),
         FriendReportMutation::SetChannelStatus(channel_status_report) => 
             ser_channel_status_report(channel_status_report,
@@ -657,12 +657,12 @@ fn deser_friend_report_mutation(friend_report_mutation: &report_capnp::friend_re
             for relay_address in relays_reader? {
                 relays.push(read_relay_address(&relay_address)?);
             }
-            FriendReportMutation::SetRemoteAddress(relays)
+            FriendReportMutation::SetRemoteRelays(relays)
         },
         report_capnp::friend_report_mutation::SetName(name) =>
             FriendReportMutation::SetName(name?.to_owned()),
         report_capnp::friend_report_mutation::SetSentLocalRelays(sent_local_relays_report_reader) =>
-            FriendReportMutation::SetSentLocalAddress(
+            FriendReportMutation::SetSentLocalRelays(
                 deser_sent_local_relays_report(&sent_local_relays_report_reader?)?),
         report_capnp::friend_report_mutation::SetChannelStatus(channel_status_report_reader) =>
             FriendReportMutation::SetChannelStatus(

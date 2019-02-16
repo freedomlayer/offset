@@ -118,7 +118,7 @@ where
     let channeler_add_friend = ChannelerUpdateFriend {
         friend_public_key: friend_public_key.clone(),
         friend_relays: friend_relays.clone(),
-        local_relays: friend.sent_local_address.to_vec(),
+        local_relays: friend.sent_local_relays.to_vec(),
     };
     let channeler_config = ChannelerConfig::UpdateFriend(channeler_add_friend);
     outgoing_channeler_config.push(channeler_config);
@@ -290,7 +290,7 @@ where
         .ok_or(HandleControlError::FriendDoesNotExist)?;
 
     let friend_public_key = &set_friend_status.friend_public_key;
-    let friend_address = friend.remote_address.clone();
+    let friend_address = friend.remote_relays.clone();
 
     match set_friend_status.status {
         FriendStatus::Enabled => enable_friend(m_state, 
@@ -343,13 +343,13 @@ where
 
     // If the newly proposed address is the same as the old one,
     // we do nothing:
-    if set_friend_relays.relays == friend.remote_address {
+    if set_friend_relays.relays == friend.remote_relays {
         return Ok(())
     }
 
-    let local_relays = friend.sent_local_address.to_vec();
+    let local_relays = friend.sent_local_relays.to_vec();
 
-    let friend_mutation = FriendMutation::SetRemoteAddress(set_friend_relays.relays.clone());
+    let friend_mutation = FriendMutation::SetRemoteRelays(set_friend_relays.relays.clone());
     let funder_mutation = FunderMutation::FriendMutation(
         (set_friend_relays.friend_public_key.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
