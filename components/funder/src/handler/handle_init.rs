@@ -1,14 +1,15 @@
+use common::canonical_serialize::CanonicalSerialize;
+
 use proto::funder::messages::{FriendStatus, ChannelerUpdateFriend};
-use proto::funder::scheme::FunderScheme;
+use proto::app_server::messages::RelayAddress;
 
 use crate::types::ChannelerConfig;
-
 use crate::handler::handler::MutableFunderState;
 
-pub fn handle_init<FS>(m_state: &MutableFunderState<FS>,
-                      outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>)
+pub fn handle_init<B>(m_state: &MutableFunderState<B>,
+                      outgoing_channeler_config: &mut Vec<ChannelerConfig<B>>) 
 where
-    FS: FunderScheme,
+    B: Clone + CanonicalSerialize + PartialEq + Eq,
 {
     let mut enabled_friends = Vec::new();
     for (_friend_public_key, friend) in &m_state.state().friends {
@@ -16,8 +17,8 @@ where
             FriendStatus::Enabled => {
                 let channeler_add_friend = ChannelerUpdateFriend {
                     friend_public_key: friend.remote_public_key.clone(),
-                    friend_address: friend.remote_address.clone(),
-                    local_addresses: friend.sent_local_address.to_vec(),
+                    friend_relays: friend.remote_address.clone(),
+                    local_relays: friend.sent_local_address.to_vec(),
                 };
                 enabled_friends.push(channeler_add_friend);
             },
@@ -31,9 +32,14 @@ where
     // let report = create_report(&self.state, &self.ephemeral);
     // self.add_outgoing_control(FunderOutgoingControl::Report(report));
 
+
     // Notify Channeler about current address:
-    let anon_address = FS::anonymize_address(m_state.state().address.clone());
-    outgoing_channeler_config.push(ChannelerConfig::SetAddress(anon_address));
+    let relays = m_state.state().relays
+        .iter()
+        .cloned()
+        .map(RelayAddress::from)
+        .collect();
+    outgoing_channeler_config.push(ChannelerConfig::SetRelays(relays));
 
     // Notify channeler about all enabled friends:
     for enabled_friend in enabled_friends {
@@ -54,7 +60,6 @@ mod tests {
     use crate::friend::FriendMutation;
 
     use crate::handler::handler::MutableFunderState;
-    use crate::test_scheme::TestFunderScheme;
 
 
     #[test]
@@ -64,7 +69,7 @@ mod tests {
         let local_pk = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
         let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
 
-        let mut state = FunderState::<TestFunderScheme>::new(&local_pk, &("1337".to_string(), 1337u32));
+        let mut state = FunderState::<u32>::new(&local_pk, &("1337".to_string(), 1337u32));
 
         // Add a remote friend:
         let add_friend = AddFriend {

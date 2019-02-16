@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use im::hashmap::HashMap as ImHashMap;
+use im::vector::Vector as ImVec;
 
 use common::safe_arithmetic::SafeUnsignedArithmetic;
 use common::mutable_state::MutableState;
@@ -30,10 +31,13 @@ pub struct MoveTokenHashedReport {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub enum SentLocalAddressReport<B=NetAddress> {
+pub enum SentLocalAddressReport<B=NetAddress> 
+where
+    B: Clone,
+{
     NeverSent,
-    Transition((Vec<NamedRelayAddress<B>>, Vec<NamedRelayAddress<B>>)), // (last sent, before last sent)
-    LastSent(Vec<NamedRelayAddress<B>>),
+    Transition((ImVec<NamedRelayAddress<B>>, ImVec<NamedRelayAddress<B>>)), // (last sent, before last sent)
+    LastSent(ImVec<NamedRelayAddress<B>>),
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
@@ -112,7 +116,10 @@ pub enum ChannelStatusReport {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FriendReport<B=NetAddress> {
+pub struct FriendReport<B=NetAddress> 
+where   
+    B: Clone,
+{
     pub name: String,
     pub remote_address: Vec<RelayAddress<B>>,
     pub sent_local_address: SentLocalAddressReport<B>,
@@ -141,13 +148,16 @@ where
     B: Clone,
 {
     pub local_public_key: PublicKey,
-    pub relays: Vec<NamedRelayAddress<B>>,
+    pub relays: ImVec<NamedRelayAddress<B>>,
     pub friends: ImHashMap<PublicKey, FriendReport<B>>,
     pub num_ready_receipts: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FriendReportMutation<B=NetAddress> {
+pub enum FriendReportMutation<B=NetAddress> 
+where
+    B: Clone,
+{
     SetRemoteAddress(Vec<RelayAddress<B>>),
     SetName(String),
     SetSentLocalAddress(SentLocalAddressReport<B>),
@@ -174,7 +184,10 @@ pub struct AddFriendReport<B=NetAddress> {
 
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FunderReportMutation<B=NetAddress> {
+pub enum FunderReportMutation<B=NetAddress> 
+where   
+    B: Clone,
+{
     AddRelay(NamedRelayAddress<B>),
     RemoveRelay(PublicKey),
     AddFriend(AddFriendReport<B>),
@@ -277,7 +290,7 @@ where
                 self.relays.retain(|cur_named_relay_address|
                                    cur_named_relay_address.public_key != named_relay_address.public_key);
                 // Insert:
-                self.relays.push(named_relay_address.clone());
+                self.relays.push_back(named_relay_address.clone());
                 Ok(())
             },
             FunderReportMutation::RemoveRelay(public_key) => {
@@ -342,7 +355,10 @@ where
 // TODO: Maybe this logic shouldn't be here? Where should we move it to?
 
 /// Calculate send and receive capacities for a given `friend_report`.
-fn calc_friend_capacities<B>(friend_report: &FriendReport<B>) -> (u128, u128) {
+fn calc_friend_capacities<B>(friend_report: &FriendReport<B>) -> (u128, u128) 
+where
+    B: Clone,
+{
     if friend_report.status == FriendStatusReport::Disabled || 
         friend_report.liveness == FriendLivenessReport::Offline {
         return (0, 0);

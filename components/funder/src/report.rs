@@ -1,13 +1,13 @@
 use im::hashmap::HashMap as ImHashMap;
 
 use common::int_convert::usize_to_u64;
+use common::canonical_serialize::CanonicalSerialize;
 
 use proto::report::messages::{DirectionReport, FriendLivenessReport, 
     TcReport, ResetTermsReport, ChannelInconsistentReport, ChannelStatusReport, FriendReport,
     FunderReport, FriendReportMutation, AddFriendReport, FunderReportMutation,
     McRequestsStatusReport, McBalanceReport, RequestsStatusReport, FriendStatusReport,
     MoveTokenHashedReport, SentLocalAddressReport};
-use proto::funder::scheme::FunderScheme;
 
 use crate::types::MoveTokenHashed;
 
@@ -21,8 +21,11 @@ use crate::ephemeral::{Ephemeral, EphemeralMutation};
 
 
 
-impl<FS:FunderScheme> Into<SentLocalAddressReport<FS::NamedAddress>> for &SentLocalAddress<FS> {
-    fn into(self) -> SentLocalAddressReport<FS::NamedAddress> {
+impl<B> Into<SentLocalAddressReport<B>> for &SentLocalAddress<B> 
+where
+    B: Clone,
+{
+    fn into(self) -> SentLocalAddressReport<B> {
         match self {
             SentLocalAddress::NeverSent => 
                 SentLocalAddressReport::NeverSent,
@@ -73,8 +76,11 @@ impl From<&MoveTokenHashed> for MoveTokenHashedReport {
     }
 }
 
-impl<FS:FunderScheme> From<&TokenChannel<FS>> for TcReport {
-    fn from(token_channel: &TokenChannel<FS>) -> TcReport {
+impl<B> From<&TokenChannel<B>> for TcReport 
+where
+    B: Clone + CanonicalSerialize,
+{
+    fn from(token_channel: &TokenChannel<B>) -> TcReport {
         let direction = match token_channel.get_direction() {
             TcDirection::Incoming(_) => DirectionReport::Incoming,
             TcDirection::Outgoing(_) => DirectionReport::Outgoing,
@@ -90,8 +96,11 @@ impl<FS:FunderScheme> From<&TokenChannel<FS>> for TcReport {
     }
 }
 
-impl<FS:FunderScheme> From<&ChannelStatus<FS>> for ChannelStatusReport {
-    fn from(channel_status: &ChannelStatus<FS>) -> ChannelStatusReport {
+impl<B> From<&ChannelStatus<B>> for ChannelStatusReport
+where
+    B: Clone + CanonicalSerialize,
+{
+    fn from(channel_status: &ChannelStatus<B>) -> ChannelStatusReport {
         match channel_status {
             ChannelStatus::Inconsistent(channel_inconsistent) => {
                 let opt_remote_reset_terms = channel_inconsistent.opt_remote_reset_terms
@@ -114,8 +123,11 @@ impl<FS:FunderScheme> From<&ChannelStatus<FS>> for ChannelStatusReport {
     }
 }
 
-fn create_friend_report<FS:FunderScheme>(friend_state: &FriendState<FS>, friend_liveness: &FriendLivenessReport) 
-        -> FriendReport<FS::Address, FS::NamedAddress> {
+fn create_friend_report<B>(friend_state: &FriendState<B>, friend_liveness: &FriendLivenessReport) 
+        -> FriendReport<B> 
+where
+    B: Clone + CanonicalSerialize,
+{
     let channel_status = ChannelStatusReport::from(&friend_state.channel_status);
 
     FriendReport {
@@ -135,10 +147,10 @@ fn create_friend_report<FS:FunderScheme>(friend_state: &FriendState<FS>, friend_
     }
 }
 
-pub fn create_report<FS>(funder_state: &FunderState<FS>, ephemeral: &Ephemeral) 
-    -> FunderReport<FS::Address, FS::NamedAddress> 
+pub fn create_report<B>(funder_state: &FunderState<B>, ephemeral: &Ephemeral) 
+    -> FunderReport<B> 
 where
-    FS: FunderScheme,
+    B: Clone + CanonicalSerialize,
 {
     let mut friends = ImHashMap::new();
     for (friend_public_key, friend_state) in &funder_state.friends {
@@ -152,26 +164,26 @@ where
 
     FunderReport {
         local_public_key: funder_state.local_public_key.clone(),
-        address: funder_state.address.clone(),
+        relays: funder_state.relays.clone(),
         friends,
         num_ready_receipts: usize_to_u64(funder_state.ready_receipts.len()).unwrap(),
     }
 }
 
-pub fn create_initial_report<FS>(funder_state: &FunderState<FS>) 
-    -> FunderReport<FS::Address, FS::NamedAddress> 
+pub fn create_initial_report<B>(funder_state: &FunderState<B>) 
+    -> FunderReport<B> 
 where
-    FS: FunderScheme,
+    B: Clone + CanonicalSerialize,
 {
     create_report(funder_state, &Ephemeral::new())
 }
 
 
-pub fn friend_mutation_to_report_mutations<FS>(friend_mutation: &FriendMutation<FS>,
-                                           friend: &FriendState<FS>) 
-    -> Vec<FriendReportMutation<FS::Address, FS::NamedAddress>> 
+pub fn friend_mutation_to_report_mutations<B>(friend_mutation: &FriendMutation<B>,
+                                           friend: &FriendState<B>) 
+    -> Vec<FriendReportMutation<B>> 
 where
-    FS: FunderScheme,
+    B: Clone + CanonicalSerialize,
 {
 
     let mut friend_after = friend.clone();
@@ -233,8 +245,6 @@ where
     }
 }
 
-// TODO: How to add liveness mutation?
-
 /// Convert a FunderMutation to FunderReportMutation
 /// FunderReportMutation are simpler than FunderMutations. They do not require reading the current
 /// FunderReport. However, FunderMutations sometimes require access to the current funder_state to
@@ -242,11 +252,11 @@ where
 ///
 /// In the future if we simplify Funder's mutations, we might be able discard the `funder_state`
 /// argument here.
-pub fn funder_mutation_to_report_mutations<FS>(funder_mutation: &FunderMutation<FS>,
-                                           funder_state: &FunderState<FS>) 
-    -> Vec<FunderReportMutation<FS::Address, FS::NamedAddress>> 
-where
-    FS: FunderScheme,
+pub fn funder_mutation_to_report_mutations<B>(funder_mutation: &FunderMutation<B>,
+                                           funder_state: &FunderState<B>) 
+    -> Vec<FunderReportMutation<B>> 
+where   
+    B: Clone + CanonicalSerialize,
 {
 
     let mut funder_state_after = funder_state.clone();
@@ -260,9 +270,10 @@ where
                      FunderReportMutation::FriendReportMutation((public_key.clone(), friend_report_mutation)))
                 .collect::<Vec<_>>()
         },
-        FunderMutation::SetAddress(address) => {
-            vec![FunderReportMutation::SetAddress(address.clone())]
-        },
+        FunderMutation::AddRelay(named_relay_address) =>
+            vec![FunderReportMutation::AddRelay(named_relay_address.clone())],
+        FunderMutation::RemoveRelay(public_key) =>
+            vec![FunderReportMutation::RemoveRelay(public_key.clone())],
         FunderMutation::AddFriend(add_friend) => {
             let friend_after = funder_state_after.friends.get(&add_friend.friend_public_key).unwrap();
             let add_friend_report = AddFriendReport {
@@ -296,8 +307,11 @@ where
     }
 }
 
-pub fn ephemeral_mutation_to_report_mutations<FS:FunderScheme>(ephemeral_mutation: &EphemeralMutation) 
-                -> Vec<FunderReportMutation<FS::Address, FS::NamedAddress>> {
+pub fn ephemeral_mutation_to_report_mutations<B>(ephemeral_mutation: &EphemeralMutation) 
+                -> Vec<FunderReportMutation<B>> 
+where
+    B: Clone,
+{
 
     match ephemeral_mutation {
         EphemeralMutation::LivenessMutation(liveness_mutation) => {

@@ -13,6 +13,7 @@ use crate::net::messages::NetAddress;
 
 use index_client::messages::AddIndexServer;
 
+// TODO: Move NamedRelayAddress and RelayAddress to another place in offst-proto?
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NamedRelayAddress<B=NetAddress> {
     pub public_key: PublicKey,
@@ -24,6 +25,15 @@ pub struct NamedRelayAddress<B=NetAddress> {
 pub struct RelayAddress<B=NetAddress> {
     pub public_key: PublicKey,
     pub address: B,
+}
+
+impl<B> From<NamedRelayAddress<B>> for RelayAddress<B> {
+    fn from(from: NamedRelayAddress<B>) -> Self {
+        RelayAddress {
+            public_key: from.public_key,
+            address: from.address,
+        }
+    }
 }
 
 impl<B> CanonicalSerialize for RelayAddress<B> 
@@ -49,7 +59,10 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NodeReportMutation<B=NetAddress> {
+pub enum NodeReportMutation<B=NetAddress> 
+where
+    B: Clone,
+{
     Funder(FunderReportMutation<B>),
     IndexClient(IndexClientReportMutation<B>),
 }

@@ -1,57 +1,75 @@
 use im::hashmap::HashMap as ImHashMap;
+use im::vector::Vector as ImVec;
 
+use common::canonical_serialize::CanonicalSerialize;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 use proto::funder::messages::{Receipt, AddFriend};
-use proto::funder::scheme::FunderScheme;
+use proto::app_server::messages::NamedRelayAddress; 
 
 use crate::friend::{FriendState, FriendMutation};
 
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct FunderState<FS:FunderScheme> {
+pub struct FunderState<B:Clone> {
     pub local_public_key: PublicKey,
     /// Address of relay we are going to connect to.
     /// None means that no address was configured.
-    pub address: FS::NamedAddress,
-    pub friends: ImHashMap<PublicKey, FriendState<FS>>,
+    pub relays: ImVec<NamedRelayAddress<B>>,
+    pub friends: ImHashMap<PublicKey, FriendState<B>>,
     pub ready_receipts: ImHashMap<Uid, Receipt>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum FunderMutation<FS:FunderScheme> {
-    FriendMutation((PublicKey, FriendMutation<FS>)),
-    SetAddress(FS::NamedAddress),
-    AddFriend(AddFriend<FS::Address>), 
+pub enum FunderMutation<B: Clone> {
+    FriendMutation((PublicKey, FriendMutation<B>)),
+    AddRelay(NamedRelayAddress<B>),
+    RemoveRelay(PublicKey),
+    AddFriend(AddFriend<B>),
     RemoveFriend(PublicKey),
     AddReceipt((Uid, Receipt)),  //(request_id, receipt)
     RemoveReceipt(Uid),
 }
 
 
-impl<FS> FunderState<FS> 
+impl<B> FunderState<B> 
 where
-    FS: FunderScheme,
+    B: Clone + CanonicalSerialize,
 {
-    pub fn new(local_public_key: &PublicKey, address: &FS::NamedAddress) -> FunderState<FS> {
+    pub fn new(local_public_key: PublicKey, relays: Vec<NamedRelayAddress<B>>) -> Self {
+
+        // Convert relays into a map:
+        let relays = relays
+            .into_iter()
+            .collect();
+
         FunderState {
-            local_public_key: local_public_key.clone(),
-            address: address.clone(),
+            local_public_key,
+            relays,
             friends: ImHashMap::new(),
             ready_receipts: ImHashMap::new(),
         }
     }
     // TODO: Add code for initialization from database?
 
-    pub fn mutate(&mut self, funder_mutation: &FunderMutation<FS>) {
+    // TODO: Use MutableState trait instead:
+    pub fn mutate(&mut self, funder_mutation: &FunderMutation<B>) {
         match funder_mutation {
             FunderMutation::FriendMutation((public_key, friend_mutation)) => {
                 let friend = self.friends.get_mut(&public_key).unwrap();
                 friend.mutate(friend_mutation);
             },
-            FunderMutation::SetAddress(address) => {
-                self.address = address.clone();
+            FunderMutation::AddRelay(named_relay_address) => {
+                // Check for duplicates:
+                self.relays.retain(|cur_named_relay_address| 
+                                   cur_named_relay_address.public_key != named_relay_address.public_key);
+                self.relays.push_back(named_relay_address.clone());
+                // TODO: Should check here if we have more than a constant amount of relays
+            }
+            FunderMutation::RemoveRelay(public_key) => {
+                self.relays.retain(|cur_named_relay_address| 
+                                   &cur_named_relay_address.public_key != public_key);
             }
             FunderMutation::AddFriend(add_friend) => {
                 let friend = FriendState::new(&self.local_public_key,

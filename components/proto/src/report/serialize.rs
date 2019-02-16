@@ -1,4 +1,5 @@
 use im::hashmap::HashMap as ImHashMap;
+use im::vector::Vector as ImVec;
 
 use crypto::identity::PublicKey;
 use common::int_convert::usize_to_u32;
@@ -349,7 +350,7 @@ fn deser_opt_last_incoming_move_token(opt_last_incoming_move_token_reader: &repo
     })
 }
 
-fn ser_relays_transition(relays_transition: &(Vec<NamedRelayAddress<NetAddress>>, Vec<NamedRelayAddress<NetAddress>>),
+fn ser_relays_transition(relays_transition: &(ImVec<NamedRelayAddress<NetAddress>>, ImVec<NamedRelayAddress<NetAddress>>),
                     relays_transition_builder: &mut report_capnp::relays_transition::Builder) {
 
     let (last_sent, before_last_sent) = relays_transition;
@@ -374,16 +375,16 @@ fn ser_relays_transition(relays_transition: &(Vec<NamedRelayAddress<NetAddress>>
 }
 
 fn deser_relays_transition(relays_transition_reader: &report_capnp::relays_transition::Reader)
-    -> Result<(Vec<NamedRelayAddress<NetAddress>>, Vec<NamedRelayAddress<NetAddress>>), SerializeError> {
+    -> Result<(ImVec<NamedRelayAddress<NetAddress>>, ImVec<NamedRelayAddress<NetAddress>>), SerializeError> {
 
-    let mut last_sent = Vec::new();
+    let mut last_sent = ImVec::new();
     for named_relay_address in relays_transition_reader.get_last_sent()? {
-        last_sent.push(read_named_relay_address(&named_relay_address)?);
+        last_sent.push_back(read_named_relay_address(&named_relay_address)?);
     }
 
-    let mut before_last_sent = Vec::new();
+    let mut before_last_sent = ImVec::new();
     for named_relay_address in relays_transition_reader.get_before_last_sent()? {
-        before_last_sent.push(read_named_relay_address(&named_relay_address)?);
+        before_last_sent.push_back(read_named_relay_address(&named_relay_address)?);
     }
 
     Ok((last_sent, before_last_sent))
@@ -423,7 +424,7 @@ fn deser_sent_local_relays_report(sent_local_relays_report_reader: &report_capnp
             for named_relay_address in last_sent_reader? {
                 last_sent.push(read_named_relay_address(&named_relay_address)?);
             }
-            SentLocalAddressReport::LastSent(last_sent)
+            SentLocalAddressReport::LastSent(last_sent.into_iter().collect())
         },
     })
 }
@@ -553,7 +554,7 @@ fn deser_funder_report(funder_report_reader: &report_capnp::funder_report::Reade
 
     Ok(FunderReport {
         local_public_key: read_public_key(&funder_report_reader.get_local_public_key()?)?,
-        relays: named_relays,
+        relays: named_relays.into_iter().collect(),
         friends,
         num_ready_receipts: funder_report_reader.get_num_ready_receipts(),
     })

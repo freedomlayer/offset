@@ -1,17 +1,17 @@
-use im::vector::Vector;
+use im::vector::Vector as ImVec;
 
 use crypto::identity::PublicKey;
 
 use common::safe_arithmetic::SafeUnsignedArithmetic;
+use common::canonical_serialize::CanonicalSerialize;
 
 use proto::funder::messages::{RequestSendFunds,
     ResponseSendFunds, FailureSendFunds, ResetTerms,
     FriendStatus, RequestsStatus, PendingRequest};
-use proto::funder::scheme::FunderScheme;
+use proto::app_server::messages::{RelayAddress, NamedRelayAddress};
 
 use crate::token_channel::{TcMutation, TokenChannel};
 use crate::types::MoveTokenHashed;
-
 
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -23,31 +23,50 @@ pub enum ResponseOp {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum SentLocalAddress<FS:FunderScheme> {
+pub enum SentLocalAddress<B> 
+where
+    B: Clone,
+{
     NeverSent,
-    Transition((FS::NamedAddress, FS::NamedAddress)), // (last sent, before last sent)
-    LastSent(FS::NamedAddress),
+    Transition((ImVec<NamedRelayAddress<B>>, ImVec<NamedRelayAddress<B>>)), // (last sent, before last sent)
+    LastSent(ImVec<NamedRelayAddress<B>>),
 }
 
-impl<FS:FunderScheme> SentLocalAddress<FS> {
-    pub fn to_vec(&self) -> Vec<FS::Address> {
+impl<B> SentLocalAddress<B> 
+where
+    B: Clone,
+{
+    pub fn to_vec(&self) -> Vec<RelayAddress<B>> {
         match self {
             SentLocalAddress::NeverSent => Vec::new(),
-            SentLocalAddress::Transition((last_address, prev_last_address)) =>
-                vec![FS::anonymize_address(last_address.clone()), 
-                     FS::anonymize_address(prev_last_address.clone())],
+            SentLocalAddress::Transition((last_relays, prev_last_relays)) => {
+                // Create a unique list of all relay public keys:
+                let mut relays: Vec<RelayAddress<B>> = Vec::new();
+                for relay in last_relays {
+                    relays.push(relay.clone().into());
+                }
+                for relay in prev_last_relays {
+                    relays.push(relay.clone().into());
+                }
+                relays.dedup_by_key(|relay_address| relay_address.public_key.clone());
+                relays
+            },
             SentLocalAddress::LastSent(last_address) =>
-                vec![FS::anonymize_address(last_address.clone())],
+                last_address
+                    .iter()
+                    .cloned()
+                    .map(|named_relay_address| named_relay_address.into())
+                    .collect::<Vec<_>>()
         }
     }
 }
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum FriendMutation<FS:FunderScheme> {
-    TcMutation(TcMutation<FS>),
+pub enum FriendMutation<B: Clone> {
+    TcMutation(TcMutation<B>),
     SetInconsistent(ChannelInconsistent),
-    SetConsistent(TokenChannel<FS>),
+    SetConsistent(TokenChannel<B>),
     SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatus),
     PushBackPendingRequest(RequestSendFunds),
@@ -57,9 +76,9 @@ pub enum FriendMutation<FS:FunderScheme> {
     PushBackPendingUserRequest(RequestSendFunds),
     PopFrontPendingUserRequest,
     SetStatus(FriendStatus),
-    SetRemoteAddress(FS::Address),
+    SetRemoteAddress(Vec<RelayAddress<B>>),
     SetName(String),
-    SetSentLocalAddress(SentLocalAddress<FS>),
+    SetSentLocalAddress(SentLocalAddress<B>),
 }
 
 #[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
@@ -70,12 +89,15 @@ pub struct ChannelInconsistent {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub enum ChannelStatus<FS:FunderScheme> {
+pub enum ChannelStatus<B> {
     Inconsistent(ChannelInconsistent),
-    Consistent(TokenChannel<FS>),
+    Consistent(TokenChannel<B>),
 }
 
-impl<FS:FunderScheme> ChannelStatus<FS> {
+impl<B> ChannelStatus<B> 
+where
+    B: Clone + CanonicalSerialize,
+{
     pub fn get_last_incoming_move_token_hashed(&self) -> Option<MoveTokenHashed> {
         match &self {
             ChannelStatus::Inconsistent(channel_inconsistent) => 
@@ -87,29 +109,32 @@ impl<FS:FunderScheme> ChannelStatus<FS> {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct FriendState<FS:FunderScheme> {
+pub struct FriendState<B: Clone> {
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,
-    pub remote_address: FS::Address, 
-    pub sent_local_address: SentLocalAddress<FS>,
+    pub remote_address: Vec<RelayAddress<B>>,
+    pub sent_local_address: SentLocalAddress<B>,
     pub name: String,
-    pub channel_status: ChannelStatus<FS>,
+    pub channel_status: ChannelStatus<B>,
     pub wanted_remote_max_debt: u128,
     pub wanted_local_requests_status: RequestsStatus,
-    pub pending_requests: Vector<RequestSendFunds>,
-    pub pending_responses: Vector<ResponseOp>,
+    pub pending_requests: ImVec<RequestSendFunds>,
+    pub pending_responses: ImVec<ResponseOp>,
     // Pending operations to be sent to the token channel.
     pub status: FriendStatus,
-    pub pending_user_requests: Vector<RequestSendFunds>,
+    pub pending_user_requests: ImVec<RequestSendFunds>,
     // Request that the user has sent to this neighbor, 
     // but have not been processed yet. Bounded in size.
 }
 
 
-impl<FS: FunderScheme> FriendState<FS> {
+impl<B> FriendState<B> 
+where
+    B: Clone + CanonicalSerialize,
+{
     pub fn new(local_public_key: &PublicKey,
                remote_public_key: &PublicKey,
-               remote_address: FS::Address,
+               remote_address: Vec<RelayAddress<B>>,
                name: String,
                balance: i128) -> Self {
 
@@ -129,10 +154,10 @@ impl<FS: FunderScheme> FriendState<FS> {
             wanted_local_requests_status: RequestsStatus::Closed,
             // The local_send_price we want to have (Or possibly close requests, by having an empty
             // send price). When possible, this will be updated with the TokenChannel.
-            pending_requests: Vector::new(),
-            pending_responses: Vector::new(),
+            pending_requests: ImVec::new(),
+            pending_responses: ImVec::new(),
             status: FriendStatus::Disabled,
-            pending_user_requests: Vector::new(),
+            pending_user_requests: ImVec::new(),
         }
     }
 
@@ -160,7 +185,7 @@ impl<FS: FunderScheme> FriendState<FS> {
         balance.local_max_debt.saturating_add_signed(balance.balance)
     }
 
-    pub fn mutate(&mut self, friend_mutation: &FriendMutation<FS>) {
+    pub fn mutate(&mut self, friend_mutation: &FriendMutation<B>) {
         match friend_mutation {
             FriendMutation::TcMutation(tc_mutation) => {
                 match &mut self.channel_status {
@@ -211,49 +236,6 @@ impl<FS: FunderScheme> FriendState<FS> {
             FriendMutation::SetSentLocalAddress(sent_local_address) => {
                 self.sent_local_address = sent_local_address.clone();
             },
-            /*
-            FriendMutation::LocalReset(reset_move_token) => {
-                // Local reset was applied (We sent a reset from the control line)
-                match &self.channel_status {
-                    ChannelStatus::Consistent(_) => unreachable!(),
-                    ChannelStatus::Inconsistent(channel_inconsistent) => {
-                        let ChannelInconsistent {
-                            opt_last_incoming_move_token,
-                            local_reset_terms,
-                            opt_remote_reset_terms,
-                        } = channel_inconsistent;
-
-                        match opt_remote_reset_terms {
-                            None => unreachable!(),
-                            Some(remote_reset_terms) => {
-                                assert_eq!(reset_move_token.old_token, remote_reset_terms.reset_token);
-                                let token_channel = TokenChannel::new_from_local_reset(
-                                    &self.local_public_key,
-                                    &self.remote_public_key,
-                                    &reset_move_token,
-                                    remote_reset_terms.balance_for_reset.checked_neg().unwrap(),
-                                    opt_last_incoming_move_token.clone());
-                                self.channel_status = ChannelStatus::Consistent(token_channel);
-                            },
-                        }
-                    },
-                }
-            },
-            FriendMutation::RemoteReset(reset_move_token) => {
-                // Remote reset was applied (Remote side has given a reset command)
-                match &self.channel_status {
-                    ChannelStatus::Consistent(_) => unreachable!(),
-                    ChannelStatus::Inconsistent(channel_inconsistent) => {
-                        let token_channel = TokenChannel::new_from_remote_reset(
-                            &self.local_public_key,
-                            &self.remote_public_key,
-                            &reset_move_token,
-                            channel_inconsistent.local_reset_terms.balance_for_reset);
-                        self.channel_status = ChannelStatus::Consistent(token_channel);
-                    },
-                }
-            },
-            */
         }
     }
 }

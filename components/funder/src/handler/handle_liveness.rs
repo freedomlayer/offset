@@ -1,5 +1,6 @@
+use common::canonical_serialize::CanonicalSerialize;
+
 use proto::funder::messages::{FriendStatus, FunderOutgoingControl};
-use proto::funder::scheme::FunderScheme;
 
 use crate::types::{IncomingLivenessMessage};
 
@@ -18,15 +19,14 @@ pub enum HandleLivenessError {
     FriendAlreadyOnline,
 }
 
-pub fn handle_liveness_message<FS>(m_state: &mut MutableFunderState<FS>,
+pub fn handle_liveness_message<B>(m_state: &mut MutableFunderState<B>,
                                     m_ephemeral: &mut MutableEphemeral,
                                     send_commands: &mut SendCommands,
-                                    outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
+                                    outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
                                     liveness_message: IncomingLivenessMessage)
     -> Result<(), HandleLivenessError> 
-
 where
-    FS: FunderScheme,
+    B: Clone + CanonicalSerialize + PartialEq + Eq,
 {
 
     match liveness_message {
@@ -100,8 +100,6 @@ mod tests {
     use crate::handler::handler::{MutableFunderState, MutableEphemeral};
     use crate::handler::sender::{SendCommands};
 
-    use crate::test_scheme::TestFunderScheme;
-
 
     #[test]
     fn test_handle_liveness_basic() {
@@ -123,7 +121,7 @@ mod tests {
             (identity2, pk2, identity1, pk1)
         };
 
-        let mut state = FunderState::<TestFunderScheme>::new(&local_pk, &("1337".to_string(), 1337u32));
+        let mut state = FunderState::<u32>::new(&local_pk, &("1337".to_string(), 1337u32));
         // Add a remote friend:
         let add_friend = AddFriend {
             friend_public_key: remote_pk.clone(),

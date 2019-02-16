@@ -3,7 +3,6 @@ use identity::{IdentityClient};
 use crypto::crypto_rand::CryptoRandom;
 
 use proto::funder::messages::FunderOutgoingControl;
-use proto::funder::scheme::FunderScheme;
 
 use crate::types::{FunderIncoming, FunderOutgoingComm};
 use crate::ephemeral::Ephemeral;
@@ -17,14 +16,13 @@ const TEST_MAX_PENDING_USER_REQUESTS: usize = 16;
 
 /// A helper function. Applies an incoming funder message, updating state and ephemeral
 /// accordingly:
-pub async fn apply_funder_incoming<'a,FS,R>(funder_incoming: FunderIncoming<FS>,
+pub async fn apply_funder_incoming<'a,B,R>(funder_incoming: FunderIncoming<B>,
                                state: &'a mut FunderState<FS>, 
                                ephemeral: &'a mut Ephemeral, 
                                rng: &'a mut R, 
                                identity_client: &'a mut IdentityClient) 
-                -> Result<(Vec<FunderOutgoingComm<FS>>, Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>), FunderHandlerError> 
+                -> Result<(Vec<FunderOutgoingComm<FS>>, Vec<FunderOutgoingControl<B>>), FunderHandlerError> 
 where
-    FS: FunderScheme,
     R: CryptoRandom + 'a,
 {
 

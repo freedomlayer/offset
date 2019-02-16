@@ -19,9 +19,9 @@ use crate::net::messages::NetAddress;
 pub struct ChannelerUpdateFriend<B> {
     pub friend_public_key: PublicKey,
     /// We should try to connect to this address:
-    pub friend_address: Vec<RelayAddress<B>>,
+    pub friend_relays: Vec<RelayAddress<B>>,
     /// We should be listening on this address:
-    pub local_addresses: Vec<RelayAddress<B>>, 
+    pub local_relays: Vec<RelayAddress<B>>, 
     // TODO: Used to be Vec<Vec<_>>.
     // Should be fixed at the Channeler's side
 }
@@ -459,7 +459,10 @@ pub struct ResponseReceived {
 
 
 #[derive(Debug)]
-pub enum FunderOutgoingControl<B> {
+pub enum FunderOutgoingControl<B> 
+where
+    B: Clone,
+{
     ResponseReceived(ResponseReceived),
     ReportMutations(Vec<FunderReportMutation<B>>),
 }

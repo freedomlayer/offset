@@ -23,7 +23,6 @@ use crate::types::{FunderIncoming, IncomingLivenessMessage,
 use crate::ephemeral::Ephemeral;
 use crate::state::FunderState;
 use crate::friend::ChannelStatus;
-use crate::test_scheme::TestFunderScheme;
 
 async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityClient, 
                                              identity_client2: &'a mut IdentityClient) {
@@ -40,9 +39,9 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
         (identity_client2, pk2, identity_client1, pk1)
     };
 
-    let mut state1 = FunderState::<TestFunderScheme>::new(&pk1, &("1337".to_string(), 0x1337u32));
+    let mut state1 = FunderState::<u32>::new(&pk1, &("1337".to_string(), 0x1337u32));
     let mut ephemeral1 = Ephemeral::new();
-    let mut state2 = FunderState::<TestFunderScheme>::new(&pk2, &("1338".to_string(), 0x1338u32));
+    let mut state2 = FunderState::<u32>::new(&pk2, &("1338".to_string(), 0x1338u32));
     let mut ephemeral2 = Ephemeral::new();
 
     let mut rng = RngContainer::new(DummyRandom::new(&[3u8]));

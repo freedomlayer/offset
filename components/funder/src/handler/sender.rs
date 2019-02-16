@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 
+use common::canonical_serialize::CanonicalSerialize;
+
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
 use proto::funder::messages::{FriendTcOp, FriendMessage, RequestsStatus, MoveTokenRequest,
                                 ChannelerUpdateFriend};
-use proto::funder::scheme::FunderScheme;
+use proto::app_server::messages::RelayAddress;
 
 use identity::IdentityClient;
 
@@ -46,7 +48,7 @@ impl FriendSendCommands {
     }
 }
 
-pub type OutgoingMessage<FS> = (PublicKey, FriendMessage<FS>);
+pub type OutgoingMessage<B> = (PublicKey, FriendMessage<B>);
 
 
 
@@ -99,11 +101,11 @@ enum CollectOutgoingError {
     MaxOperationsReached,
 }
 
-struct PendingMoveToken<FS:FunderScheme> {
+struct PendingMoveToken<B> {
     friend_public_key: PublicKey,
     outgoing_mc: OutgoingMc,
     operations: Vec<FriendTcOp>,
-    opt_local_address: Option<FS::Address>,
+    opt_local_address: Option<Vec<RelayAddress<B>>>,
     token_wanted: bool,
     max_operations_in_batch: usize,
     /// Can we send this move token with empty operations list
@@ -111,9 +113,9 @@ struct PendingMoveToken<FS:FunderScheme> {
     may_send_empty: bool,
 }
 
-impl<FS> PendingMoveToken<FS> 
+impl<B> PendingMoveToken<B> 
 where
-    FS: FunderScheme,
+    B: Clone + CanonicalSerialize + PartialEq + Eq,
 {
     fn new(friend_public_key: PublicKey,
            outgoing_mc: OutgoingMc,
@@ -136,7 +138,7 @@ where
     /// Otherwise, an error is returned.
     fn queue_operation(&mut self, 
                        operation: &FriendTcOp,
-                       m_state: &mut MutableFunderState<FS>)
+                       m_state: &mut MutableFunderState<B>)
         -> Result<(), PendingQueueError> {
 
         if self.operations.len() >= self.max_operations_in_batch {
@@ -170,18 +172,18 @@ where
 
     /// Set local address inside pending move token.
     fn set_local_address(&mut self, 
-                         local_address: FS::Address) {
+                         local_address: Vec<RelayAddress<B>>) {
 
         self.opt_local_address = Some(local_address);
     }
 }
 
-fn transmit_outgoing<FS>(m_state: &MutableFunderState<FS>,
+fn transmit_outgoing<B>(m_state: &MutableFunderState<B>,
                         friend_public_key: &PublicKey,
                         token_wanted: bool,
-                        outgoing_messages: &mut Vec<OutgoingMessage<FS>>)
+                        outgoing_messages: &mut Vec<OutgoingMessage<B>>) 
 where
-    FS: FunderScheme,
+    B: Clone + CanonicalSerialize + PartialEq + Eq,
 {
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
@@ -205,13 +207,13 @@ where
             FriendMessage::MoveTokenRequest(move_token_request)));
 }
 
-pub async fn apply_local_reset<'a,FS,R>(m_state: &'a mut MutableFunderState<FS>, 
+pub async fn apply_local_reset<'a,B,R>(m_state: &'a mut MutableFunderState<B>, 
                                   friend_public_key: &'a PublicKey,
                                   channel_inconsistent: &'a ChannelInconsistent,
                                   identity_client: &'a mut IdentityClient,
                                   rng: &'a R) 
 where
-    FS: FunderScheme,
+    B: Clone + CanonicalSerialize + PartialEq + Eq,
     R: CryptoRandom,
 {
 
@@ -255,17 +257,17 @@ where
 
 }
 
-async fn send_friend_iter1<'a,FS,R>(m_state: &'a mut MutableFunderState<FS>,
+async fn send_friend_iter1<'a,B,R>(m_state: &'a mut MutableFunderState<B>,
                                        friend_public_key: &'a PublicKey, 
                                        friend_send_commands: &'a FriendSendCommands, 
-                                       pending_move_tokens: &'a mut HashMap<PublicKey, PendingMoveToken<FS>>,
+                                       pending_move_tokens: &'a mut HashMap<PublicKey, PendingMoveToken<B>>,
                                        identity_client: &'a mut IdentityClient,
                                        rng: &'a R,
                                        max_operations_in_batch: usize,
-                                       mut outgoing_messages: &'a mut Vec<OutgoingMessage<FS>>,
-                                       outgoing_channeler_config: &'a mut Vec<ChannelerConfig<FS::Address>>)
+                                       mut outgoing_messages: &'a mut Vec<OutgoingMessage<B>>,
+                                       outgoing_channeler_config: &'a mut Vec<ChannelerConfig<B>>)
 where
-    FS: FunderScheme,
+    B: Clone + PartialEq + Eq + CanonicalSerialize,
     R: CryptoRandom,
 {
 
@@ -355,19 +357,19 @@ where
 /// Do we need to send anything to the remote side?
 /// Note that this is only an estimation. It is possible that when the token from remote side
 /// arrives, the state will be different.
-fn estimate_should_send<'a, FS>(state: &'a FunderState<FS>, 
+fn estimate_should_send<'a, B>(state: &'a FunderState<B>, 
                             friend_public_key: &'a PublicKey) -> bool 
-where
-    FS: FunderScheme,
+where   
+    B: Clone + PartialEq + Eq + CanonicalSerialize,
 {
 
     // Check if notification about local address change is required:
     let friend = state.friends.get(friend_public_key).unwrap();
     match &friend.sent_local_address {
         SentLocalAddress::NeverSent => return true,
-        SentLocalAddress::Transition((last_address, _)) |
-        SentLocalAddress::LastSent(last_address) => {
-            if last_address != &state.address {
+        SentLocalAddress::Transition((relays, _)) |
+        SentLocalAddress::LastSent(relays) => {
+            if relays != &state.relays {
                 return true;
             }
         }
@@ -409,11 +411,11 @@ where
     false
 }
 
-async fn queue_operation_or_failure<'a,FS>(m_state: &'a mut MutableFunderState<FS>,
-                                            pending_move_token: &'a mut PendingMoveToken<FS>,
+async fn queue_operation_or_failure<'a,B>(m_state: &'a mut MutableFunderState<B>,
+                                            pending_move_token: &'a mut PendingMoveToken<B>,
                                             operation: &'a FriendTcOp) -> Result<(), CollectOutgoingError> 
-where
-    FS: FunderScheme,
+where   
+    B: Clone + CanonicalSerialize + PartialEq + Eq,
 {
 
     match pending_move_token.queue_operation(operation, m_state) {
@@ -444,12 +446,12 @@ where
     Ok(())
 }
 
-async fn response_op_to_friend_tc_op<'a,FS,R>(m_state: &'a mut MutableFunderState<FS>, 
+async fn response_op_to_friend_tc_op<'a,B,R>(m_state: &'a mut MutableFunderState<B>, 
                                      response_op: ResponseOp,
                                      mut identity_client: &'a mut IdentityClient,
                                      rng: &'a R) -> FriendTcOp 
 where
-    FS: FunderScheme,
+    B: Clone + CanonicalSerialize + PartialEq + Eq,
     R: CryptoRandom,
 {
     match response_op {
@@ -472,15 +474,15 @@ where
 /// Given a friend with an incoming move token state, create the largest possible move token to
 /// send to the remote side. 
 /// Requests that fail to be processed are moved to the failure queues of the relevant friends.
-async fn collect_outgoing_move_token<'a,FS,R>(m_state: &'a mut MutableFunderState<FS>,
-                                                 outgoing_channeler_config: &'a mut Vec<ChannelerConfig<FS::Address>>,
+async fn collect_outgoing_move_token<'a,B,R>(m_state: &'a mut MutableFunderState<B>,
+                                                 outgoing_channeler_config: &'a mut Vec<ChannelerConfig<B>>,
                                                  friend_public_key: &'a PublicKey,
-                                                 pending_move_token: &'a mut PendingMoveToken<FS>,
+                                                 pending_move_token: &'a mut PendingMoveToken<B>,
                                                  identity_client: &'a mut IdentityClient,
                                                  rng: &'a R) 
                                                     -> Result<(), CollectOutgoingError> 
 where
-    FS: FunderScheme,
+    B: Clone + PartialEq + Eq + CanonicalSerialize,
     R: CryptoRandom,
 {
     /*
@@ -498,17 +500,24 @@ where
 
     // Send update about local address if needed:
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
-    let local_address = &m_state.state().address;
+    let local_named_relays = m_state.state().relays.clone();
+
+    let local_relays = local_named_relays
+        .iter()
+        .cloned()
+        .map(RelayAddress::from)
+        .collect();
+
     let opt_new_sent_local_address = match &friend.sent_local_address {
         SentLocalAddress::NeverSent => {
-            pending_move_token.set_local_address(FS::anonymize_address(local_address.clone()));
-            Some(SentLocalAddress::LastSent(local_address.clone()))
+            pending_move_token.set_local_address(local_relays);
+            Some(SentLocalAddress::LastSent(local_named_relays.clone()))
         },
         SentLocalAddress::Transition((last_sent_local_address, _)) |
         SentLocalAddress::LastSent(last_sent_local_address) => {
-            if local_address != last_sent_local_address {
-                pending_move_token.set_local_address(FS::anonymize_address(local_address.clone()));
-                Some(SentLocalAddress::Transition((local_address.clone(), last_sent_local_address.clone())))
+            if &local_named_relays != last_sent_local_address {
+                pending_move_token.set_local_address(local_relays.clone());
+                Some(SentLocalAddress::Transition((local_named_relays.clone(), last_sent_local_address.clone())))
             } else {
                 None
             }
@@ -524,10 +533,10 @@ where
         let friend = m_state.state().friends.get(friend_public_key).unwrap();
 
         // Notify Channeler to change the friend's address:
-        let update_friend: ChannelerUpdateFriend<FS::Address> = ChannelerUpdateFriend {
+        let update_friend: ChannelerUpdateFriend<B> = ChannelerUpdateFriend {
             friend_public_key: friend_public_key.clone(),
-            friend_address: friend.remote_address.clone(),
-            local_addresses: friend.sent_local_address.to_vec(),
+            friend_relays: friend.remote_address.clone(),
+            local_relays: friend.sent_local_address.to_vec(),
         };
         let channeler_config = ChannelerConfig::UpdateFriend(update_friend);
         outgoing_channeler_config.push(channeler_config);
@@ -622,14 +631,14 @@ where
 
 
 
-async fn append_failures_to_move_token<'a,FS,R>(m_state: &'a mut MutableFunderState<FS>,
+async fn append_failures_to_move_token<'a,B,R>(m_state: &'a mut MutableFunderState<B>,
                                                    friend_public_key: &'a PublicKey,
-                                                   pending_move_token: &'a mut PendingMoveToken<FS>,
+                                                   pending_move_token: &'a mut PendingMoveToken<B>,
                                                    identity_client: &'a mut IdentityClient,
                                                    rng: &'a R) 
                                                     -> Result<(), CollectOutgoingError> 
 where
-    FS: FunderScheme,
+    B: Clone + CanonicalSerialize + PartialEq + Eq,
     R: CryptoRandom,
 {
 
@@ -654,14 +663,14 @@ where
     Ok(())
 }
 
-async fn send_move_token<'a,FS,R>(m_state: &'a mut MutableFunderState<FS>,
+async fn send_move_token<'a,B,R>(m_state: &'a mut MutableFunderState<B>,
                                  friend_public_key: PublicKey,
-                                 pending_move_token: PendingMoveToken<FS>,
+                                 pending_move_token: PendingMoveToken<B>,
                                  identity_client: &'a mut IdentityClient,
                                  rng: &'a R,
-                                 outgoing_messages: &'a mut Vec<OutgoingMessage<FS>>) 
+                                 outgoing_messages: &'a mut Vec<OutgoingMessage<B>>) 
 where
-    FS: FunderScheme,
+    B: Clone + CanonicalSerialize + PartialEq + Eq,
     R: CryptoRandom,
 {
 
@@ -729,19 +738,19 @@ where
 
 
 /// Send all possible messages according to SendCommands
-pub async fn create_friend_messages<'a,FS,R>(m_state: &'a mut MutableFunderState<FS>, 
+pub async fn create_friend_messages<'a,B,R>(m_state: &'a mut MutableFunderState<B>, 
                         send_commands: &'a SendCommands,
                         max_operations_in_batch: usize,
                         identity_client: &'a mut IdentityClient,
-                        rng: &'a R) -> (Vec<OutgoingMessage<FS>>, Vec<ChannelerConfig<FS::Address>>) 
+                        rng: &'a R) -> (Vec<OutgoingMessage<B>>, Vec<ChannelerConfig<B>>) 
 where
-    FS: FunderScheme,
+    B: Clone + PartialEq + Eq + CanonicalSerialize,
     R: CryptoRandom,
 {
 
     let mut outgoing_messages = Vec::new();
     let mut outgoing_channeler_config = Vec::new();
-    let mut pending_move_tokens: HashMap<PublicKey, PendingMoveToken<FS>> 
+    let mut pending_move_tokens: HashMap<PublicKey, PendingMoveToken<B>> 
         = HashMap::new();
 
     // First iteration:
