@@ -11,9 +11,9 @@ use crate::state::{FunderMutation};
 use proto::funder::messages::{FriendStatus, UserRequestSendFunds,
     SetFriendRemoteMaxDebt, ResetFriendChannel, SetFriendRelays, SetFriendName, 
     AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus,
-    ReceiptAck, FunderIncomingControl, ResponseReceived, 
+    ReceiptAck, ResponseReceived, 
     FunderOutgoingControl, ResponseSendFundsResult,
-    ChannelerUpdateFriend};
+    ChannelerUpdateFriend, FunderControl};
 use proto::app_server::messages::{RelayAddress, NamedRelayAddress};
 
 use crate::ephemeral::Ephemeral;
@@ -555,69 +555,69 @@ pub fn handle_control_message<B>(m_state: &mut MutableFunderState<B>,
                                  outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
                                  max_node_relays: usize,
                                  max_pending_user_requests: usize,
-                                 incoming_control: FunderIncomingControl<B>) 
+                                 incoming_control: FunderControl<B>) 
     -> Result<(), HandleControlError> 
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     match incoming_control {
-        FunderIncomingControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) =>
+        FunderControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) =>
             control_set_friend_remote_max_debt(m_state, 
                                                send_commands, 
                                                set_friend_remote_max_debt),
 
-        FunderIncomingControl::ResetFriendChannel(reset_friend_channel) =>
+        FunderControl::ResetFriendChannel(reset_friend_channel) =>
             control_reset_friend_channel(m_state, 
                                          send_commands,
                                          reset_friend_channel),
 
-        FunderIncomingControl::AddRelay(named_relay_address) =>
+        FunderControl::AddRelay(named_relay_address) =>
             control_add_relay(m_state, 
                                 send_commands,
                                 outgoing_channeler_config,
                                 max_node_relays,
                                 named_relay_address),
 
-        FunderIncomingControl::RemoveRelay(public_key) =>
+        FunderControl::RemoveRelay(public_key) =>
             Ok(control_remove_relay(m_state, 
                                     send_commands,
                                     outgoing_channeler_config,
                                     public_key)),
 
-        FunderIncomingControl::AddFriend(add_friend) =>
+        FunderControl::AddFriend(add_friend) =>
             Ok(control_add_friend(m_state, 
                                add_friend)),
 
-        FunderIncomingControl::RemoveFriend(remove_friend) =>
+        FunderControl::RemoveFriend(remove_friend) =>
             control_remove_friend(m_state,
                                   send_commands,
                                   outgoing_control,
                                   outgoing_channeler_config,
                                   remove_friend),
 
-        FunderIncomingControl::SetFriendStatus(set_friend_status) =>
+        FunderControl::SetFriendStatus(set_friend_status) =>
             control_set_friend_status(m_state, 
                                       send_commands,
                                       outgoing_control,
                                       outgoing_channeler_config,
                                       set_friend_status),
 
-        FunderIncomingControl::SetRequestsStatus(set_requests_status) =>
+        FunderControl::SetRequestsStatus(set_requests_status) =>
             control_set_requests_status(m_state, 
                                         send_commands,
                                         set_requests_status),
 
-        FunderIncomingControl::SetFriendRelays(set_friend_relays) =>
+        FunderControl::SetFriendRelays(set_friend_relays) =>
             control_set_friend_relays(m_state, 
                                        outgoing_channeler_config,
                                        set_friend_relays),
 
-        FunderIncomingControl::SetFriendName(set_friend_name) =>
+        FunderControl::SetFriendName(set_friend_name) =>
             control_set_friend_name(m_state, 
                                     set_friend_name),
 
-        FunderIncomingControl::RequestSendFunds(user_request_send_funds) =>
+        FunderControl::RequestSendFunds(user_request_send_funds) =>
             control_request_send_funds(m_state, 
                                        m_ephemeral.ephemeral(),
                                        outgoing_control, 
@@ -625,7 +625,7 @@ where
                                        max_pending_user_requests,
                                        user_request_send_funds),
 
-        FunderIncomingControl::ReceiptAck(receipt_ack) =>
+        FunderControl::ReceiptAck(receipt_ack) =>
             control_receipt_ack(m_state, 
                                 receipt_ack),
     }

@@ -11,12 +11,13 @@ use identity::{create_identity, IdentityClient};
 use crypto::test_utils::DummyRandom;
 use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair, compare_public_key};
 use crypto::crypto_rand::RngContainer;
+use crypto::uid::{Uid, UID_LEN};
 
 
 use proto::funder::messages::{FriendMessage, 
     FunderIncomingControl, 
     AddFriend, FriendStatus,
-    SetFriendStatus};
+    SetFriendStatus, FunderControl};
 
 use crate::types::{FunderIncoming, IncomingLivenessMessage, 
     FunderOutgoingComm, FunderIncomingComm, ChannelerConfig};
@@ -65,7 +66,9 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
         name: String::from("pk2"),
         balance: 0i128,
     };
-    let incoming_control_message = FunderIncomingControl::AddFriend(add_friend);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[11; UID_LEN]),
+        FunderControl::AddFriend(add_friend));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, &mut identity_client1)).unwrap();
@@ -75,7 +78,9 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
         friend_public_key: pk2.clone(),
         status: FriendStatus::Enabled,
     };
-    let incoming_control_message = FunderIncomingControl::SetFriendStatus(set_friend_status);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[12; UID_LEN]),
+        FunderControl::SetFriendStatus(set_friend_status));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, &mut identity_client1))).unwrap();
@@ -87,7 +92,9 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
         name: String::from("pk1"),
         balance: 0i128,
     };
-    let incoming_control_message = FunderIncomingControl::AddFriend(add_friend);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[13; UID_LEN]),
+        FunderControl::AddFriend(add_friend));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, &mut identity_client2))).unwrap();
@@ -98,7 +105,9 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
         friend_public_key: pk1.clone(),
         status: FriendStatus::Enabled,
     };
-    let incoming_control_message = FunderIncomingControl::SetFriendStatus(set_friend_status);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[14; UID_LEN]),
+        FunderControl::SetFriendStatus(set_friend_status));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, &mut identity_client2))).unwrap();
@@ -225,7 +234,9 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
 
 
     // Node1 decides to change his address:
-    let incoming_control_message = FunderIncomingControl::AddRelay(dummy_named_relay_address(11));
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[15; UID_LEN]),
+        FunderControl::AddRelay(dummy_named_relay_address(11)));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = await!(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, &mut identity_client1)).unwrap();

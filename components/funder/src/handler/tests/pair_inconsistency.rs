@@ -9,6 +9,7 @@ use futures::task::SpawnExt;
 
 use identity::{create_identity, IdentityClient};
 
+use crypto::uid::{Uid, UID_LEN};
 use crypto::test_utils::DummyRandom;
 use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair, compare_public_key};
 use crypto::crypto_rand::RngContainer;
@@ -17,7 +18,8 @@ use crypto::crypto_rand::RngContainer;
 use proto::funder::messages::{FriendMessage, 
     FunderIncomingControl, 
     AddFriend, FriendStatus,
-    SetFriendStatus, ResetFriendChannel};
+    SetFriendStatus, ResetFriendChannel,
+    FunderControl};
 
 use crate::types::{FunderIncoming, IncomingLivenessMessage, 
     FunderOutgoingComm, FunderIncomingComm};
@@ -68,7 +70,9 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
         name: String::from("pk2"),
         balance: 20i128,
     };
-    let incoming_control_message = FunderIncomingControl::AddFriend(add_friend);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[11; UID_LEN]),
+        FunderControl::AddFriend(add_friend));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, identity_client1))).unwrap();
@@ -78,7 +82,9 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
         friend_public_key: pk2.clone(),
         status: FriendStatus::Enabled,
     };
-    let incoming_control_message = FunderIncomingControl::SetFriendStatus(set_friend_status);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[12; UID_LEN]),
+        FunderControl::SetFriendStatus(set_friend_status));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, identity_client1))).unwrap();
@@ -92,7 +98,9 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
         name: String::from("pk1"),
         balance: -10i128,
     };
-    let incoming_control_message = FunderIncomingControl::AddFriend(add_friend);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[13; UID_LEN]),
+        FunderControl::AddFriend(add_friend));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, identity_client2))).unwrap();
@@ -103,7 +111,9 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
         friend_public_key: pk1.clone(),
         status: FriendStatus::Enabled,
     };
-    let incoming_control_message = FunderIncomingControl::SetFriendStatus(set_friend_status);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[14; UID_LEN]),
+        FunderControl::SetFriendStatus(set_friend_status));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, identity_client2))).unwrap();
@@ -239,7 +249,9 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
         friend_public_key: pk2.clone(),
         reset_token: reset_token2.clone(),
     };
-    let incoming_control_message = FunderIncomingControl::ResetFriendChannel(reset_friend_channel);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[15; UID_LEN]),
+        FunderControl::ResetFriendChannel(reset_friend_channel));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, identity_client1))).unwrap();

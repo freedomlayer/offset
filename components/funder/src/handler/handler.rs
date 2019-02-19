@@ -6,7 +6,7 @@ use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
 
-use proto::funder::messages::FunderOutgoingControl;
+use proto::funder::messages::{FunderOutgoingControl, FunderReportMutations};
 use proto::report::messages::FunderReportMutation;
 use proto::app_server::messages::RelayAddress;
 
@@ -14,7 +14,7 @@ use identity::IdentityClient;
 
 use crate::state::{FunderState, FunderMutation};
 
-use crate::handler::handle_control::{handle_control_message, HandleControlError};
+use crate::handler::handle_control::handle_control_message;
 use crate::handler::handle_friend::{handle_friend_message, HandleFriendError};
 use crate::handler::handle_liveness::{handle_liveness_message, HandleLivenessError};
 use crate::handler::handle_init::handle_init;
@@ -90,7 +90,7 @@ impl MutableEphemeral {
 
 #[derive(Debug)]
 pub enum FunderHandlerError {
-    HandleControlError(HandleControlError),
+    // HandleControlError(HandleControlError),
     HandleFriendError(HandleFriendError),
     HandleLivenessError(HandleLivenessError),
 }
@@ -169,7 +169,8 @@ pub fn funder_handle_incoming<B,R>(mut m_state: &mut MutableFunderState<B>,
                                    funder_incoming: FunderIncoming<B>)
                                     -> Result<(SendCommands, 
                                         Vec<FunderOutgoingControl<B>>,
-                                        Vec<ChannelerConfig<RelayAddress<B>>>), FunderHandlerError>
+                                        Vec<ChannelerConfig<RelayAddress<B>>>,
+                                        Option<Uid>), FunderHandlerError>
 
 where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
@@ -179,21 +180,28 @@ where
     let mut outgoing_control = Vec::new();
     let mut outgoing_channeler_config = Vec::new();
 
-    match funder_incoming {
+    let opt_app_request_id = match funder_incoming {
         FunderIncoming::Init =>  {
             handle_init(&m_state, &mut outgoing_channeler_config);
+            None
         },
 
-        FunderIncoming::Control(control_message) =>
-            handle_control_message(&mut m_state, 
+        FunderIncoming::Control(funder_incoming_control) => {
+            // Even if an error occurs, we must return an indication to the
+            // user that the control request was received.
+            if let Err(e) = handle_control_message(&mut m_state, 
                                    &mut m_ephemeral,
                                    &mut send_commands,
                                    &mut outgoing_control,
                                    &mut outgoing_channeler_config,
                                    max_node_relays,
                                    max_pending_user_requests,
-                                   control_message)
-                .map_err(FunderHandlerError::HandleControlError)?,
+                                   funder_incoming_control.funder_control) {
+
+                error!("handle_control_error(): {:?}", e);
+            }
+            Some(funder_incoming_control.app_request_id)
+        },
 
         FunderIncoming::Comm(incoming_comm) => {
             match incoming_comm {
@@ -215,11 +223,12 @@ where
                                           &origin_public_key, 
                                           friend_message)
                         .map_err(FunderHandlerError::HandleFriendError)?,
-            }
+            };
+            None
         },
     };
 
-    Ok((send_commands, outgoing_control, outgoing_channeler_config))
+    Ok((send_commands, outgoing_control, outgoing_channeler_config, opt_app_request_id))
 
 }
 
@@ -266,7 +275,7 @@ where
     let mut m_ephemeral = MutableEphemeral::new(funder_ephemeral);
     let mut outgoing_comms = Vec::new();
 
-    let (send_commands, mut outgoing_control, outgoing_channeler_config) = 
+    let (send_commands, handle_outgoing_control, outgoing_channeler_config, opt_app_request_id) = 
         funder_handle_incoming(&mut m_state, 
                                &mut m_ephemeral, 
                                rng, 
@@ -306,9 +315,20 @@ where
                             &funder_mutations[..], 
                             &ephemeral_mutations[..]);
 
-    if !report_mutations.is_empty() {
-        outgoing_control.push(FunderOutgoingControl::ReportMutations(report_mutations));
+    let funder_report_mutations = FunderReportMutations {
+        opt_app_request_id,
+        mutations: report_mutations,
+    };
+
+    let mut outgoing_control = Vec::new();
+    if !funder_report_mutations.mutations.is_empty() 
+        || funder_report_mutations.opt_app_request_id.is_some() {
+
+        outgoing_control.push(FunderOutgoingControl::ReportMutations(funder_report_mutations));
     }
+
+    // We always send the report mutations first through the outgoing control:
+    outgoing_control.extend(handle_outgoing_control);
 
     Ok(FunderHandlerOutput {
         funder_mutations,

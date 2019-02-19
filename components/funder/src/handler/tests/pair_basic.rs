@@ -17,7 +17,8 @@ use proto::funder::messages::{FriendMessage, FriendsRoute,
     InvoiceId, INVOICE_ID_LEN, FunderIncomingControl, 
     AddFriend, FriendStatus,
     SetFriendStatus, SetFriendRemoteMaxDebt,
-    UserRequestSendFunds, SetRequestsStatus, RequestsStatus};
+    UserRequestSendFunds, SetRequestsStatus, RequestsStatus,
+    FunderControl};
 
 use crate::types::{FunderIncoming, IncomingLivenessMessage, 
     FunderOutgoingComm, FunderIncomingComm, ChannelerConfig};
@@ -69,7 +70,9 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         name: String::from("pk2"),
         balance: 0i128,
     };
-    let incoming_control_message = FunderIncomingControl::AddFriend(add_friend);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[11; UID_LEN]),
+        FunderControl::AddFriend(add_friend));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, identity_client1))).unwrap();
@@ -79,7 +82,9 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         friend_public_key: pk2.clone(),
         status: FriendStatus::Enabled,
     };
-    let incoming_control_message = FunderIncomingControl::SetFriendStatus(set_friend_status);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[12; UID_LEN]),
+        FunderControl::SetFriendStatus(set_friend_status));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, identity_client1))).unwrap();
@@ -91,7 +96,9 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         name: String::from("pk1"),
         balance: 0i128,
     };
-    let incoming_control_message = FunderIncomingControl::AddFriend(add_friend);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[13; UID_LEN]),
+        FunderControl::AddFriend(add_friend));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, identity_client2))).unwrap();
@@ -102,7 +109,9 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         friend_public_key: pk1.clone(),
         status: FriendStatus::Enabled,
     };
-    let incoming_control_message = FunderIncomingControl::SetFriendStatus(set_friend_status);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[14; UID_LEN]),
+        FunderControl::SetFriendStatus(set_friend_status));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, identity_client2))).unwrap();
@@ -253,7 +262,9 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         friend_public_key: pk2.clone(),
         remote_max_debt: 100,
     };
-    let incoming_control_message = FunderIncomingControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[15; UID_LEN]),
+        FunderControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, identity_client1))).unwrap();
@@ -306,7 +317,9 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
         dest_payment: 20,
     };
-    let incoming_control_message = FunderIncomingControl::RequestSendFunds(user_request_send_funds);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[16; UID_LEN]),
+        FunderControl::RequestSendFunds(user_request_send_funds));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, identity_client2))).unwrap();
@@ -315,8 +328,7 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
     // Node2 will not send the RequestFunds message to Node1, because he knows Node1 is
     // not ready:
     assert_eq!(outgoing_comms.len(), 0);
-    assert_eq!(outgoing_control.len(), 1);
-
+    assert_eq!(dbg!(outgoing_control).len(), 2);
 
     // Checking the current requests status on the mutual credit:
     let friend2 = state1.friends.get(&pk2).unwrap();
@@ -334,7 +346,9 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         friend_public_key: pk2.clone(),
         status: RequestsStatus::Open,
     };
-    let incoming_control_message = FunderIncomingControl::SetRequestsStatus(set_requests_status);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[17; UID_LEN]),
+        FunderControl::SetRequestsStatus(set_requests_status));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, identity_client1))).unwrap();
@@ -398,7 +412,9 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
         dest_payment: 20,
     };
-    let incoming_control_message = FunderIncomingControl::RequestSendFunds(user_request_send_funds);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[18; UID_LEN]),
+        FunderControl::RequestSendFunds(user_request_send_funds));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, identity_client2))).unwrap();
