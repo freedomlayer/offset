@@ -1,4 +1,5 @@
 
 #[derive(Clone)]
-pub struct AppSendFunds {
+pub struct AppSendFunds<R> {
+    rng: R,
 }
