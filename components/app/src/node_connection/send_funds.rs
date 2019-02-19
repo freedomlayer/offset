@@ -75,8 +75,7 @@ where
 
         while let Some(response_received) = await!(incoming_send_funds.next()) {
             if response_received.request_id != request_id {
-                // This is not our request:
-                error!("Received a ResponseReceived for unknown request_id: {:?}", request_id);
+                // This is not our request
                 continue;
             }
             match response_received.result {
