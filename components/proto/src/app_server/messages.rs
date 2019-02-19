@@ -67,7 +67,7 @@ where
     IndexClient(IndexClientReportMutation<B>),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReportMutations<B=NetAddress> 
 where
     B: Clone,
@@ -124,6 +124,17 @@ pub enum AppRequest<B=NetAddress> {
 pub struct AppToAppServer<B=NetAddress> {
     pub app_request_id: Uid,
     pub app_request: AppRequest<B>,
+}
+
+impl<B> AppToAppServer<B> {
+    pub fn new(app_request_id: Uid,
+               app_request: AppRequest<B>) -> Self {
+
+        AppToAppServer {
+            app_request_id,
+            app_request,
+        }
+    }
 }
 
 

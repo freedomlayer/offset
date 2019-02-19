@@ -7,9 +7,9 @@ use crypto::uid::Uid;
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 use crypto::uid::UID_LEN;
 
-use proto::app_server::messages::{AppServerToApp, AppToAppServer, AppPermissions};
-use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClient};
-use proto::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult, RequestRoutes};
+use proto::app_server::messages::{AppServerToApp, AppToAppServer, AppPermissions, AppRequest};
+use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClient, IndexClientRequest,
+                                    ClientResponseRoutes, ResponseRoutesResult, RequestRoutes};
 
 use super::utils::spawn_dummy_app_server;
 
@@ -60,13 +60,17 @@ where
         opt_exclude: None,
     };
 
-    await!(app_sender0.send(AppToAppServer::RequestRoutes(request_routes.clone()))).unwrap();
+    let to_app_server = AppToAppServer::new(Uid::from(&[22; UID_LEN]),
+        AppRequest::RequestRoutes(request_routes.clone()));
+    await!(app_sender0.send(to_app_server)).unwrap();
 
     // RequestRoutes command should be forwarded to IndexClient:
     let to_index_client_message = await!(index_client_receiver.next()).unwrap();
     match to_index_client_message {
-        AppServerToIndexClient::RequestRoutes(received_request_routes) => 
-            assert_eq!(received_request_routes, request_routes),
+        AppServerToIndexClient::AppRequest((app_request_id, IndexClientRequest::RequestRoutes(received_request_routes))) => {
+            assert_eq!(app_request_id, Uid::from(&[22; UID_LEN]));
+            assert_eq!(received_request_routes, request_routes);
+        },
         _ => unreachable!(),
     };
 

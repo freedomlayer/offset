@@ -404,7 +404,7 @@ pub struct ReceiptAck {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FunderIncomingControl<B> {
+pub enum FunderControl<B> {
     AddRelay(NamedRelayAddress<B>),
     RemoveRelay(PublicKey),
     AddFriend(AddFriend<B>),
@@ -417,6 +417,23 @@ pub enum FunderIncomingControl<B> {
     ResetFriendChannel(ResetFriendChannel),
     RequestSendFunds(UserRequestSendFunds),
     ReceiptAck(ReceiptAck),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FunderIncomingControl<B> {
+    pub app_request_id: Uid,
+    pub funder_control: FunderControl<B>,
+}
+
+impl<B> FunderIncomingControl<B> {
+    pub fn new(app_request_id: Uid,
+           funder_control: FunderControl<B>) -> Self {
+
+        FunderIncomingControl {
+            app_request_id,
+            funder_control,
+        }
+    }
 }
 
 impl UserRequestSendFunds {
@@ -452,12 +469,14 @@ pub struct ResponseReceived {
     pub result: ResponseSendFundsResult,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FunderReportMutations<B: Clone> {
+    pub opt_app_request_id: Option<Uid>,
+    pub mutations: Vec<FunderReportMutation<B>>,
+}
 
 #[derive(Debug)]
-pub enum FunderOutgoingControl<B> 
-where
-    B: Clone,
-{
+pub enum FunderOutgoingControl<B: Clone> {
     ResponseReceived(ResponseReceived),
-    ReportMutations(Vec<FunderReportMutation<B>>),
+    ReportMutations(FunderReportMutations<B>),
 }

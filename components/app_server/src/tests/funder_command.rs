@@ -3,9 +3,12 @@ use futures::channel::mpsc;
 use futures::task::Spawn;
 use futures::executor::ThreadPool;
 
-use proto::funder::messages::{FunderOutgoingControl, FunderIncomingControl};
+use crypto::uid::{Uid, UID_LEN};
+
+use proto::funder::messages::{FunderOutgoingControl, FunderControl, 
+    FunderReportMutations};
 use proto::app_server::messages::{AppServerToApp, AppToAppServer, NodeReportMutation,
-                                    AppPermissions};
+                                    AppPermissions, AppRequest};
 use proto::report::messages::FunderReportMutation;
 
 use super::utils::{spawn_dummy_app_server, dummy_named_relay_address};
@@ -40,24 +43,32 @@ where
     };
 
     // Send a command through the app:
-    await!(app_sender.send(AppToAppServer::AddRelay(dummy_named_relay_address(0)))).unwrap();
+    let funder_command = AppToAppServer::new(Uid::from(&[22; UID_LEN]),
+                AppRequest::AddRelay(dummy_named_relay_address(0)));
+    await!(app_sender.send(funder_command)).unwrap();
 
     // SetRelays command should be forwarded to the Funder:
     let to_funder_message = await!(funder_receiver.next()).unwrap();
-    match to_funder_message {
-        FunderIncomingControl::AddRelay(address) => assert_eq!(address, dummy_named_relay_address(0)),
+    assert_eq!(to_funder_message.app_request_id, Uid::from(&[22; UID_LEN]));
+    match to_funder_message.funder_control {
+        FunderControl::AddRelay(address) => assert_eq!(address, dummy_named_relay_address(0)),
         _ => unreachable!(),
     };
 
     let funder_report_mutation = FunderReportMutation::AddRelay(dummy_named_relay_address(0));
-    let funder_report_mutations = vec![funder_report_mutation.clone()];
+    let mutations = vec![funder_report_mutation.clone()];
+    let funder_report_mutations = FunderReportMutations {
+        opt_app_request_id: Some(Uid::from(&[22; UID_LEN])),
+        mutations,
+    };
     await!(funder_sender.send(FunderOutgoingControl::ReportMutations(funder_report_mutations))).unwrap();
 
     let to_app_message = await!(app_receiver.next()).unwrap();
     match to_app_message {
         AppServerToApp::ReportMutations(report_mutations) => {
-            assert_eq!(report_mutations.len(), 1);
-            let report_mutation = &report_mutations[0];
+            assert_eq!(report_mutations.opt_app_request_id, Some(Uid::from(&[22; UID_LEN])));
+            assert_eq!(report_mutations.mutations.len(), 1);
+            let report_mutation = &report_mutations.mutations[0];
             match report_mutation {
                 NodeReportMutation::Funder(received_funder_report_mutation) => {
                     assert_eq!(received_funder_report_mutation, 

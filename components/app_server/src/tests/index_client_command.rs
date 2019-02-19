@@ -3,11 +3,13 @@ use futures::channel::mpsc;
 use futures::task::Spawn;
 use futures::executor::ThreadPool;
 
+
+use crypto::uid::{Uid, UID_LEN};
 use crypto::identity::{PUBLIC_KEY_LEN, PublicKey};
 use proto::app_server::messages::{AppServerToApp, AppToAppServer,
-                                    NodeReportMutation, AppPermissions};
+                                    NodeReportMutation, AppPermissions, AppRequest};
 use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClient, 
-    IndexClientReportMutation};
+    IndexClientReportMutation, IndexClientRequest, IndexClientReportMutations};
 use proto::index_server::messages::NamedIndexServerAddress;
 
 use super::utils::spawn_dummy_app_server;
@@ -47,12 +49,17 @@ where
         address: 300u32,
         name: "IndexServer300".to_string(),
     };
-    await!(app_sender.send(AppToAppServer::AddIndexServer(named_index_server_address.clone()))).unwrap();
+    let to_app_server = AppToAppServer {
+        app_request_id: Uid::from(&[11; UID_LEN]),
+        app_request: AppRequest::AddIndexServer(named_index_server_address.clone()),
+    };
+    await!(app_sender.send(to_app_server)).unwrap();
 
     // AddIndexServer command should be forwarded to IndexClient, in the form of AddIndexServer:
     let to_index_client_message = await!(index_client_receiver.next()).unwrap();
     match to_index_client_message {
-        AppServerToIndexClient::AddIndexServer(named_index_server_address0) => 
+        AppServerToIndexClient::AppRequest(
+            (_app_request_id, IndexClientRequest::AddIndexServer(named_index_server_address0))) => 
             assert_eq!(named_index_server_address0, named_index_server_address),
         _ => unreachable!(),
     };
@@ -63,14 +70,18 @@ where
         name: "IndexServer300".to_string(),
     };
     let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(named_index_server_address);
-    let index_client_report_mutations = vec![index_client_report_mutation.clone()];
+    let mutations = vec![index_client_report_mutation.clone()];
+    let index_client_report_mutations = IndexClientReportMutations {
+        opt_app_request_id: Some(Uid::from(&[11; UID_LEN])),
+        mutations,
+    };
     await!(index_client_sender.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations))).unwrap();
 
     let to_app_message = await!(app_receiver.next()).unwrap();
     match to_app_message {
         AppServerToApp::ReportMutations(report_mutations) => {
-            assert_eq!(report_mutations.len(), 1);
-            let report_mutation = &report_mutations[0];
+            assert_eq!(report_mutations.mutations.len(), 1);
+            let report_mutation = &report_mutations.mutations[0];
             match report_mutation {
                 NodeReportMutation::IndexClient(received_index_client_report_mutation) => {
                     assert_eq!(received_index_client_report_mutation, 

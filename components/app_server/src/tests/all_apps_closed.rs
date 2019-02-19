@@ -7,7 +7,7 @@ use crypto::identity::{PUBLIC_KEY_LEN, PublicKey};
 
 use proto::app_server::messages::{AppServerToApp, AppPermissions};
 use proto::index_client::messages::{IndexClientToAppServer, 
-    IndexClientReportMutation};
+    IndexClientReportMutation, IndexClientReportMutations};
 use proto::index_server::messages::NamedIndexServerAddress;
 
 use super::utils::spawn_dummy_app_server;
@@ -51,7 +51,11 @@ where
         name: "IndexServer300".to_string(),
     };
     let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(named_index_server_address);
-    let index_client_report_mutations = vec![index_client_report_mutation.clone()];
+    let mutations = vec![index_client_report_mutation.clone()];
+    let index_client_report_mutations = IndexClientReportMutations {
+        opt_app_request_id: None,
+        mutations,
+    };
     await!(index_client_sender.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations))).unwrap();
 
     let _to_app_message = await!(app_receiver.next()).unwrap(); 

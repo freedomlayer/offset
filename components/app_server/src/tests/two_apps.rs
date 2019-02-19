@@ -6,7 +6,8 @@ use futures::executor::ThreadPool;
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
 use proto::app_server::messages::{AppServerToApp, NodeReportMutation, AppPermissions};
-use proto::index_client::messages::{IndexClientToAppServer, IndexClientReportMutation};
+use proto::index_client::messages::{IndexClientToAppServer, IndexClientReportMutation, 
+    IndexClientReportMutations};
 use proto::index_server::messages::NamedIndexServerAddress;
 
 use super::utils::spawn_dummy_app_server;
@@ -63,15 +64,20 @@ where
         name: "IndexServer300".to_string(),
     };
     let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(named_relay_server_address.clone());
-    let index_client_report_mutations = vec![index_client_report_mutation.clone()];
+    let mutations = vec![index_client_report_mutation.clone()];
+    let index_client_report_mutations = IndexClientReportMutations {
+        opt_app_request_id: None,
+        mutations,
+    };
     await!(index_client_sender.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations))).unwrap();
 
     // Both apps should get the report:
     let to_app_message = await!(app_receiver0.next()).unwrap(); 
     match to_app_message {
         AppServerToApp::ReportMutations(report_mutations) => {
-            assert_eq!(report_mutations.len(), 1);
-            let report_mutation = &report_mutations[0];
+            assert!(report_mutations.opt_app_request_id.is_none());
+            assert_eq!(report_mutations.mutations.len(), 1);
+            let report_mutation = &report_mutations.mutations[0];
             match report_mutation {
                 NodeReportMutation::IndexClient(received_index_client_report_mutation) => {
                     assert_eq!(received_index_client_report_mutation, 
@@ -85,8 +91,8 @@ where
     let to_app_message = await!(app_receiver1.next()).unwrap(); 
     match to_app_message {
         AppServerToApp::ReportMutations(report_mutations) => {
-            assert_eq!(report_mutations.len(), 1);
-            let report_mutation = &report_mutations[0];
+            assert_eq!(report_mutations.mutations.len(), 1);
+            let report_mutation = &report_mutations.mutations[0];
             match report_mutation {
                 NodeReportMutation::IndexClient(received_index_client_report_mutation) => {
                     assert_eq!(received_index_client_report_mutation, 

@@ -12,12 +12,13 @@ use crypto::uid::Uid;
 
 use proto::funder::messages::{FunderOutgoingControl, FunderIncomingControl, 
     RemoveFriend, SetFriendStatus, FriendStatus,
-    RequestsStatus, SetRequestsStatus};
+    RequestsStatus, SetRequestsStatus, FunderControl};
 use proto::report::messages::funder_report_mutation_to_index_mutation;
 
-use proto::app_server::messages::{AppServerToApp, AppToAppServer, NodeReport,
-                                    NodeReportMutation, AppPermissions};
-use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClient};
+use proto::app_server::messages::{AppServerToApp, AppRequest, AppToAppServer, NodeReport,
+                                    ReportMutations, AppPermissions, NodeReportMutation};
+use proto::index_client::messages::{IndexClientToAppServer, AppServerToIndexClient,
+                                    IndexClientRequest};
 
 pub type IncomingAppConnection<B> = (AppPermissions, 
                                      ConnPair<AppServerToApp<B>, AppToAppServer<B>>);
@@ -94,26 +95,26 @@ pub struct AppServer<B:Clone,TF,TIC,S> {
 
 /// Check if we should process an app_message from an app with certain permissions
 fn check_permissions<B>(app_permissions: &AppPermissions, 
-                     app_message: &AppToAppServer<B>) -> bool {
+                     app_request: &AppRequest<B>) -> bool {
 
-    match app_message {
-        AppToAppServer::AddRelay(_) => app_permissions.config,
-        AppToAppServer::RemoveRelay(_) => app_permissions.config,
-        AppToAppServer::RequestSendFunds(_) => app_permissions.send_funds,
-        AppToAppServer::ReceiptAck(_) => app_permissions.send_funds,
-        AppToAppServer::AddFriend(_) => app_permissions.config,
-        AppToAppServer::SetFriendRelays(_) => app_permissions.config,
-        AppToAppServer::SetFriendName(_) => app_permissions.config,
-        AppToAppServer::RemoveFriend(_) => app_permissions.config,
-        AppToAppServer::EnableFriend(_) => app_permissions.config,
-        AppToAppServer::DisableFriend(_) => app_permissions.config,
-        AppToAppServer::OpenFriend(_) => app_permissions.config,
-        AppToAppServer::CloseFriend(_) => app_permissions.config,
-        AppToAppServer::SetFriendRemoteMaxDebt(_) => app_permissions.config,
-        AppToAppServer::ResetFriendChannel(_) => app_permissions.config,
-        AppToAppServer::RequestRoutes(_) => app_permissions.routes,
-        AppToAppServer::AddIndexServer(_) => app_permissions.config,
-        AppToAppServer::RemoveIndexServer(_) => app_permissions.config,
+    match app_request {
+        AppRequest::AddRelay(_) => app_permissions.config,
+        AppRequest::RemoveRelay(_) => app_permissions.config,
+        AppRequest::RequestSendFunds(_) => app_permissions.send_funds,
+        AppRequest::ReceiptAck(_) => app_permissions.send_funds,
+        AppRequest::AddFriend(_) => app_permissions.config,
+        AppRequest::SetFriendRelays(_) => app_permissions.config,
+        AppRequest::SetFriendName(_) => app_permissions.config,
+        AppRequest::RemoveFriend(_) => app_permissions.config,
+        AppRequest::EnableFriend(_) => app_permissions.config,
+        AppRequest::DisableFriend(_) => app_permissions.config,
+        AppRequest::OpenFriend(_) => app_permissions.config,
+        AppRequest::CloseFriend(_) => app_permissions.config,
+        AppRequest::SetFriendRemoteMaxDebt(_) => app_permissions.config,
+        AppRequest::ResetFriendChannel(_) => app_permissions.config,
+        AppRequest::RequestRoutes(_) => app_permissions.routes,
+        AppRequest::AddIndexServer(_) => app_permissions.config,
+        AppRequest::RemoveIndexServer(_) => app_permissions.config,
     }
 }
 
@@ -188,12 +189,12 @@ where
 
     /// Send node report mutations to all connected apps
     pub async fn broadcast_node_report_mutations(&mut self, 
-                                                 node_report_mutations: Vec<NodeReportMutation<B>>) {
+                                                 report_mutations: ReportMutations<B>) {
 
         // Send node report mutations to all connected apps
         for (_app_id, app) in &mut self.apps {
             if app.permissions.reports {
-                await!(app.send(AppServerToApp::ReportMutations(node_report_mutations.clone())));
+                await!(app.send(AppServerToApp::ReportMutations(report_mutations.clone())));
             }
         }
     }
@@ -211,9 +212,9 @@ where
                     }
                 }
             },
-            FunderOutgoingControl::ReportMutations(report_mutations) => {
+            FunderOutgoingControl::ReportMutations(funder_report_mutations) => {
                 let mut index_mutations = Vec::new();
-                for funder_report_mutation in &report_mutations {
+                for funder_report_mutation in &funder_report_mutations.mutations {
                     // Transform the funder report mutation to index mutations
                     // and send it to IndexClient
                     let opt_index_mutation = funder_report_mutation_to_index_mutation(
@@ -227,19 +228,23 @@ where
 
                 // Send index mutations:
                 if !index_mutations.is_empty() {
-                    await!(self.to_index_client.send(AppServerToIndexClient::ApplyMutations(index_mutations)))
+                    await!(self.to_index_client.send(
+                            AppServerToIndexClient::ApplyMutations(index_mutations)))
                         .map_err(|_| AppServerError::SendToIndexClientError)?;
                 }
 
-                let mut node_report_mutations = Vec::new();
-                for funder_report_mutation in report_mutations {
+                let mut report_mutations = ReportMutations {
+                    opt_app_request_id: funder_report_mutations.opt_app_request_id.clone(),
+                    mutations: Vec::new(),
+                };
+                for funder_report_mutation in funder_report_mutations.mutations {
                     let mutation = NodeReportMutation::Funder(funder_report_mutation);
                     // Mutate our node report:
                     self.node_report.mutate(&mutation).unwrap();
-                    node_report_mutations.push(mutation);
+                    report_mutations.mutations.push(mutation);
                 }
 
-                await!(self.broadcast_node_report_mutations(node_report_mutations));
+                await!(self.broadcast_node_report_mutations(report_mutations));
 
             },
         }
@@ -250,16 +255,19 @@ where
         -> Result<(), AppServerError> {
 
         match index_client_message {
-            IndexClientToAppServer::ReportMutations(report_mutations) => {
-                let mut node_report_mutations = Vec::new();
-                for index_client_report_mutation in report_mutations {
+            IndexClientToAppServer::ReportMutations(index_client_report_mutations) => {
+                let mut report_mutations = ReportMutations {
+                    opt_app_request_id: index_client_report_mutations.opt_app_request_id.clone(),
+                    mutations: Vec::new(),
+                };
+                for index_client_report_mutation in index_client_report_mutations.mutations {
                     let mutation = NodeReportMutation::IndexClient(index_client_report_mutation);
                     // Mutate our node report:
                     self.node_report.mutate(&mutation).unwrap();
-                    node_report_mutations.push(mutation);
+                    report_mutations.mutations.push(mutation);
                 }
 
-                await!(self.broadcast_node_report_mutations(node_report_mutations));
+                await!(self.broadcast_node_report_mutations(report_mutations));
             },
             IndexClientToAppServer::ResponseRoutes(client_response_routes) => {
                 // We search for the app that issued the request, and send it the response.
@@ -287,92 +295,127 @@ where
         };
 
         // Make sure this message is allowed for this application:
-        if !check_permissions(&app.permissions, &app_message) {
+        if !check_permissions(&app.permissions, &app_message.app_request) {
             warn!("App {:?} does not have permissions for {:?}", app_id, app_message);
             return Ok(());
         }
 
-        match app_message {
-            AppToAppServer::AddRelay(named_relay_address) =>
-                await!(self.to_funder.send(FunderIncomingControl::AddRelay(named_relay_address)))
+        let app_request_id = app_message.app_request_id.clone();
+
+        match app_message.app_request {
+            AppRequest::AddRelay(named_relay_address) => 
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                            app_request_id.clone(),
+                            FunderControl::AddRelay(named_relay_address))))
                     .map_err(|_| AppServerError::SendToFunderError),
-            AppToAppServer::RemoveRelay(public_key) =>
-                await!(self.to_funder.send(FunderIncomingControl::RemoveRelay(public_key)))
+            AppRequest::RemoveRelay(public_key) =>
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                            app_request_id.clone(),
+                            FunderControl::RemoveRelay(public_key))))
                     .map_err(|_| AppServerError::SendToFunderError),
-            AppToAppServer::RequestSendFunds(user_request_send_funds) => {
+            AppRequest::RequestSendFunds(user_request_send_funds) => {
                 // Keep track of which application issued this request:
                 app.open_send_funds_requests.insert(user_request_send_funds.request_id.clone());
-                await!(self.to_funder.send(FunderIncomingControl::RequestSendFunds(user_request_send_funds)))
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                            app_request_id.clone(),
+                            FunderControl::RequestSendFunds(user_request_send_funds))))
                     .map_err(|_| AppServerError::SendToFunderError)
             },
-            AppToAppServer::ReceiptAck(receipt_ack) =>
-                await!(self.to_funder.send(FunderIncomingControl::ReceiptAck(receipt_ack)))
+            AppRequest::ReceiptAck(receipt_ack) =>
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                            app_request_id.clone(),
+                            FunderControl::ReceiptAck(receipt_ack))))
                     .map_err(|_| AppServerError::SendToFunderError),
-            AppToAppServer::AddFriend(add_friend) =>
-                await!(self.to_funder.send(FunderIncomingControl::AddFriend(add_friend)))
+            AppRequest::AddFriend(add_friend) =>
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                            app_request_id.clone(),
+                            FunderControl::AddFriend(add_friend))))
                     .map_err(|_| AppServerError::SendToFunderError),
-            AppToAppServer::SetFriendRelays(set_friend_address) =>
-                await!(self.to_funder.send(FunderIncomingControl::SetFriendRelays(set_friend_address)))
+            AppRequest::SetFriendRelays(set_friend_address) =>
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                            app_request_id.clone(),
+                            FunderControl::SetFriendRelays(set_friend_address))))
                     .map_err(|_| AppServerError::SendToFunderError),
-            AppToAppServer::SetFriendName(set_friend_name) => 
-                await!(self.to_funder.send(FunderIncomingControl::SetFriendName(set_friend_name)))
+            AppRequest::SetFriendName(set_friend_name) => 
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                            app_request_id.clone(),
+                            FunderControl::SetFriendName(set_friend_name))))
                     .map_err(|_| AppServerError::SendToFunderError),
-            AppToAppServer::RemoveFriend(friend_public_key) => {
+            AppRequest::RemoveFriend(friend_public_key) => {
                 let remove_friend = RemoveFriend { friend_public_key };
-                await!(self.to_funder.send(FunderIncomingControl::RemoveFriend(remove_friend)))
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                            app_request_id.clone(),
+                            FunderControl::RemoveFriend(remove_friend))))
                     .map_err(|_| AppServerError::SendToFunderError)
             },
-            AppToAppServer::EnableFriend(friend_public_key) => {
+            AppRequest::EnableFriend(friend_public_key) => {
                 let set_friend_status = SetFriendStatus {
                     friend_public_key,
                     status: FriendStatus::Enabled,
                 };
-                await!(self.to_funder.send(FunderIncomingControl::SetFriendStatus(set_friend_status)))
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                            app_request_id.clone(),
+                            FunderControl::SetFriendStatus(set_friend_status))))
                     .map_err(|_| AppServerError::SendToFunderError)
             },
-            AppToAppServer::DisableFriend(friend_public_key) => {
+            AppRequest::DisableFriend(friend_public_key) => {
                 let set_friend_status = SetFriendStatus {
                     friend_public_key,
                     status: FriendStatus::Disabled,
                 };
-                await!(self.to_funder.send(FunderIncomingControl::SetFriendStatus(set_friend_status)))
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                            app_request_id.clone(),
+                            FunderControl::SetFriendStatus(set_friend_status))))
                     .map_err(|_| AppServerError::SendToFunderError)
             },
-            AppToAppServer::OpenFriend(friend_public_key) => {
+            AppRequest::OpenFriend(friend_public_key) => {
                 let set_requests_status = SetRequestsStatus {
                     friend_public_key,
                     status: RequestsStatus::Open,
                 };
-                await!(self.to_funder.send(FunderIncomingControl::SetRequestsStatus(set_requests_status))) 
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                            app_request_id.clone(),
+                            FunderControl::SetRequestsStatus(set_requests_status))))
                     .map_err(|_| AppServerError::SendToFunderError)
             },
-            AppToAppServer::CloseFriend(friend_public_key) => {
+            AppRequest::CloseFriend(friend_public_key) => {
                 let set_requests_status = SetRequestsStatus {
                     friend_public_key,
                     status: RequestsStatus::Closed,
                 };
-                await!(self.to_funder.send(FunderIncomingControl::SetRequestsStatus(set_requests_status)))
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                            app_request_id.clone(),
+                            FunderControl::SetRequestsStatus(set_requests_status))))
                     .map_err(|_| AppServerError::SendToFunderError)
             },
-            AppToAppServer::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) =>
-                await!(self.to_funder.send(FunderIncomingControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt)))
+            AppRequest::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) =>
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                            app_request_id.clone(),
+                            FunderControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt))))
                     .map_err(|_| AppServerError::SendToFunderError),
-            AppToAppServer::ResetFriendChannel(reset_friend_channel) =>
-                await!(self.to_funder.send(FunderIncomingControl::ResetFriendChannel(reset_friend_channel)))
+            AppRequest::ResetFriendChannel(reset_friend_channel) =>
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                            app_request_id.clone(),
+                            FunderControl::ResetFriendChannel(reset_friend_channel))))
                     .map_err(|_| AppServerError::SendToFunderError),
-            AppToAppServer::RequestRoutes(request_routes) => {
+            AppRequest::RequestRoutes(request_routes) => {
                 // Keep track of which application issued this request:
                 app.open_route_requests.insert(request_routes.request_id.clone());
-                await!(self.to_index_client.send(AppServerToIndexClient::RequestRoutes(request_routes)))
+                await!(self.to_index_client.send(AppServerToIndexClient::AppRequest((
+                            app_request_id.clone(),
+                            IndexClientRequest::RequestRoutes(request_routes)))))
                     .map_err(|_| AppServerError::SendToIndexClientError)
             },
-            AppToAppServer::AddIndexServer(named_index_server_address) =>
-                await!(self.to_index_client.send(AppServerToIndexClient::AddIndexServer(named_index_server_address)))
+            AppRequest::AddIndexServer(named_index_server_address) =>
+                await!(self.to_index_client.send(AppServerToIndexClient::AppRequest((
+                            app_request_id.clone(),
+                            IndexClientRequest::AddIndexServer(named_index_server_address)))))
                     .map_err(|_| AppServerError::SendToIndexClientError),
-            AppToAppServer::RemoveIndexServer(index_server_address) =>
-                await!(self.to_index_client.send(AppServerToIndexClient::RemoveIndexServer(index_server_address)))
+            AppRequest::RemoveIndexServer(index_server_address) =>
+                await!(self.to_index_client.send(AppServerToIndexClient::AppRequest((
+                            app_request_id.clone(),
+                            IndexClientRequest::RemoveIndexServer(index_server_address)))))
                     .map_err(|_| AppServerError::SendToIndexClientError),
-        
         }
     }
 
