@@ -109,7 +109,6 @@ fn app_ticket(matches: &ArgMatches) -> Result<(), AppTicketError> {
 
     // Get app's permissions:
     let permissions = AppPermissions {
-        reports: matches.is_present("preports"),
         routes: matches.is_present("proutes"),
         send_funds: matches.is_present("pfunds"),
         config: matches.is_present("pconfig"),

@@ -310,7 +310,6 @@ fn deser_add_index_server(add_index_server_reader: &app_server_capnp::add_index_
 
 fn ser_app_permissions(app_permissions: &AppPermissions,
                     app_permissions_builder: &mut app_server_capnp::app_permissions::Builder) {
-    app_permissions_builder.reborrow().set_reports(app_permissions.reports);
     app_permissions_builder.reborrow().set_routes(app_permissions.routes);
     app_permissions_builder.reborrow().set_send_funds(app_permissions.send_funds);
     app_permissions_builder.reborrow().set_config(app_permissions.config);
@@ -320,7 +319,6 @@ fn deser_app_permissions(app_permissions_reader: &app_server_capnp::app_permissi
     -> Result<AppPermissions, SerializeError> {
 
     Ok(AppPermissions {
-        reports: app_permissions_reader.get_reports(),
         routes: app_permissions_reader.get_routes(),
         send_funds: app_permissions_reader.get_send_funds(),
         config: app_permissions_reader.get_config(),
@@ -618,7 +616,6 @@ mod tests {
     #[test]
     fn test_serialize_app_permissions() {
         let app_permissions = AppPermissions {
-            reports: true,
             routes: false,
             send_funds: true,
             config: false,

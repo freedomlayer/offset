@@ -21,7 +21,7 @@ use version::VersionPrefix;
 use keepalive::KeepAliveChannel;
 
 
-pub type NodeConnectionTuple = (AppPermissions, Option<NodeReport>, 
+pub type NodeConnectionTuple = (AppPermissions, NodeReport, 
                                 ConnPair<AppToAppServer,AppServerToApp>);
 
 #[derive(Debug)]
@@ -79,20 +79,16 @@ where
     let app_permissions = deserialize_app_permissions(&app_permissions_data)
         .map_err(|_| SetupConnectionError::DeserializeAppPermissionsError)?;
 
-    // If Permissions contain report permissions, we should wait for the first NodeReport.
-    let opt_node_report = if app_permissions.reports {
-        let data = await!(receiver.next())
-            .ok_or(SetupConnectionError::ClosedBeforeNodeReport)?;
-        let message = deserialize_app_server_to_app(&data)
-            .map_err(|_| SetupConnectionError::DeserializeNodeReportError)?;
+    // Wait for the first NodeReport.
+    let data = await!(receiver.next())
+        .ok_or(SetupConnectionError::ClosedBeforeNodeReport)?;
+    let message = deserialize_app_server_to_app(&data)
+        .map_err(|_| SetupConnectionError::DeserializeNodeReportError)?;
 
-        if let AppServerToApp::Report(node_report) = message {
-            Some(node_report)
-        } else {
-            return Err(SetupConnectionError::FirstMessageNotNodeReport)?;
-        }
+    let node_report = if let AppServerToApp::Report(node_report) = message {
+        node_report
     } else {
-        None
+        return Err(SetupConnectionError::FirstMessageNotNodeReport)?;
     };
 
     // serialization:
@@ -122,5 +118,5 @@ where
         }
     });
 
-    Ok((app_permissions, opt_node_report, (user_sender, user_receiver)))
+    Ok((app_permissions, node_report, (user_sender, user_receiver)))
 }

@@ -122,7 +122,6 @@ mod tests {
         let file_path = dir.path().join("trusted_app_file");
 
         let permissions = AppPermissions {
-            reports: false,
             routes: true,
             send_funds: false,
             config: true,
@@ -145,7 +144,6 @@ mod tests {
 
         let file_path = dir.path().join("trusted_app1");
         let permissions = AppPermissions {
-            reports: false,
             routes: true,
             send_funds: false,
             config: true,
@@ -158,7 +156,6 @@ mod tests {
 
         let file_path = dir.path().join("trusted_app2");
         let permissions = AppPermissions {
-            reports: true,
             routes: false,
             send_funds: true,
             config: false,

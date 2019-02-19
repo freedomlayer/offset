@@ -26,7 +26,6 @@ where
     let app_server_conn_pair = (app_server_sender, app_server_receiver);
 
     let app_permissions = AppPermissions {
-        reports: true,
         routes: true,
         send_funds: true,
         config: true,

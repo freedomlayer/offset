@@ -165,10 +165,8 @@ where
             .map_err(|_| AppServerError::SpawnError)?;
 
         let mut app = App::new(permissions, sender);
-        // Possibly send the initial node report:
-        if app.permissions.reports {
-            await!(app.send(AppServerToApp::Report(self.node_report.clone())));
-        }
+        // Send the initial node report:
+        await!(app.send(AppServerToApp::Report(self.node_report.clone())));
 
         self.apps.insert(self.app_counter, app);
         self.app_counter = self.app_counter.wrapping_add(1);
@@ -193,9 +191,7 @@ where
 
         // Send node report mutations to all connected apps
         for (_app_id, app) in &mut self.apps {
-            if app.permissions.reports {
-                await!(app.send(AppServerToApp::ReportMutations(report_mutations.clone())));
-            }
+            await!(app.send(AppServerToApp::ReportMutations(report_mutations.clone())));
         }
     }
 

@@ -42,30 +42,24 @@ where
     R: CryptoRandom + Clone,
 {
     pub fn new<S>(conn_tuple: NodeConnectionTuple, 
-                    rng: R, 
-                    spawner: &mut S) 
+                  rng: R, 
+                  spawner: &mut S) 
         -> Result<Self, NodeConnectionError> 
     where
         S: Spawn,
     {
-        let (app_permissions, opt_node_report, (sender, mut receiver)) = conn_tuple;
-
-        // Spawn report service:
-        assert_eq!(app_permissions.reports, opt_node_report.is_some());
-        let is_reports = opt_node_report.is_some();
+        let (app_permissions, node_report, (sender, mut receiver)) = conn_tuple;
 
         let (mut incoming_mutations_sender, incoming_mutations) = mpsc::channel(0);
         let (requests_sender, incoming_requests) = mpsc::channel(0);
         let report_client = StateClient::new(requests_sender);
-        if let Some(node_report) = opt_node_report {
-            let state_service_fut = state_service(incoming_requests,
-                          BatchMutable(node_report),
-                          incoming_mutations)
-                .map_err(|e| error!("state_service() error: {:?}", e))
-                .map(|_| ());
-            spawner.spawn(state_service_fut)
-                .map_err(|_| NodeConnectionError::SpawnError);
-        }
+        let state_service_fut = state_service(incoming_requests,
+                      BatchMutable(node_report),
+                      incoming_mutations)
+            .map_err(|e| error!("state_service() error: {:?}", e))
+            .map(|_| ());
+        spawner.spawn(state_service_fut)
+            .map_err(|_| NodeConnectionError::SpawnError);
 
         let (mut incoming_routes_sender, incoming_routes) = mpsc::channel(0);
         let (requests_sender, incoming_requests) = mpsc::channel(0);
@@ -107,10 +101,6 @@ where
                         return;
                     },
                     AppServerToApp::ReportMutations(node_report_mutations) => {
-                        if !is_reports {
-                            error!("Received unexpected AppServerToApp::ReportMutations message. Aborting.");
-                            return;
-                        }
                         let _ = await!(incoming_mutations_sender.send(node_report_mutations.mutations));
                         if let Some(app_request_id) = node_report_mutations.opt_app_request_id {
                             let _ = await!(incoming_done_app_requests_sender.send(app_request_id));
@@ -135,9 +125,6 @@ where
     }
 
     pub fn report(&self) -> Option<AppReport> {
-        if !self.app_permissions.reports {
-            return None;
-        }
         Some(AppReport::new(self.report_client.clone()))
     }
 
