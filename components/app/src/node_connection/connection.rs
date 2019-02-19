@@ -154,7 +154,13 @@ where
         unimplemented!();
     }
 
-    pub fn send_funds() -> Option<AppSendFunds<R>> {
-        unimplemented!();
+    pub fn send_funds(&self) -> Option<AppSendFunds<R>> {
+        if !self.app_permissions.send_funds {
+            return None;
+        }
+        Some(AppSendFunds::new(self.sender.clone(),
+                                self.send_funds_mc.clone(),
+                                self.done_app_requests_mc.clone(),
+                                self.rng.clone()))
     }
 }
