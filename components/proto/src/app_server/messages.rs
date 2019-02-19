@@ -1,6 +1,7 @@
 use common::canonical_serialize::CanonicalSerialize;
 use common::mutable_state::MutableState;
 use crypto::identity::PublicKey;
+use crypto::uid::Uid;
 
 use crate::funder::messages::{UserRequestSendFunds, ResponseReceived,
                             ReceiptAck, AddFriend, SetFriendRelays, 
@@ -67,6 +68,15 @@ where
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub struct ReportMutations<B=NetAddress> 
+where
+    B: Clone,
+{
+    pub opt_app_request_id: Option<Uid>,
+    pub mutations: Vec<NodeReportMutation<B>>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub enum AppServerToApp<B=NetAddress> 
 where
     B: Clone,
@@ -75,17 +85,18 @@ where
     ResponseReceived(ResponseReceived),
     /// Reports about current state:
     Report(NodeReport<B>),
-    ReportMutations(Vec<NodeReportMutation<B>>),
+    ReportMutations(ReportMutations<B>),
     ResponseRoutes(ClientResponseRoutes),
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum NamedRelaysMutation<B=NetAddress> {
     AddRelay(NamedRelayAddress<B>),
     RemoveRelay(PublicKey),
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum AppToAppServer<B=NetAddress> {
+pub enum AppRequest<B=NetAddress> {
     /// Manage locally used relays:
     AddRelay(NamedRelayAddress<B>),
     RemoveRelay(PublicKey),
@@ -108,6 +119,11 @@ pub enum AppToAppServer<B=NetAddress> {
     /// Manage index servers:
     AddIndexServer(NamedIndexServerAddress<B>),
     RemoveIndexServer(PublicKey),
+}
+#[derive(Debug, PartialEq, Eq)]
+pub struct AppToAppServer<B=NetAddress> {
+    pub app_request_id: Uid,
+    pub app_request: AppRequest<B>,
 }
 
 

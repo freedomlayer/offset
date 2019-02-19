@@ -102,6 +102,19 @@ struct AppPermissions {
         # Can configure friends
 }
 
+
+struct ReportMutations {
+        optAppRequestId: union {
+                appRequestId @0: Uid;
+                # Mutations were caused by an application request.
+                empty @1: Void;
+                # Mutations were caused for some other reason.
+        }
+        mutations @2: List(NodeReportMutation);
+        # A list of mutations
+}
+
+
 struct AppServerToApp {
     union {
         # Funds
@@ -109,7 +122,7 @@ struct AppServerToApp {
 
         # Reports about current state:
         report @1: NodeReport;
-        reportMutations @2: List(NodeReportMutation);
+        reportMutations @2: ReportMutations;
 
         # Routes:
         responseRoutes @3: ClientResponseRoutes;
@@ -117,10 +130,9 @@ struct AppServerToApp {
     }
 }
 
-
-struct AppToAppServer {
+struct AppRequest {
     union {
-        # Set relay address to be used locally (Could be empty)
+        # Set relay address to be used locally
         addRelay @0: NamedRelayAddress;
         removeRelay @1: PublicKey;
 
@@ -147,5 +159,11 @@ struct AppToAppServer {
         addIndexServer @15: NamedIndexServerAddress;
         removeIndexServer @16: PublicKey;
     }
+}
+
+
+struct AppToAppServer {
+        appRequestId @0: Uid;
+        appRequest @1: AppRequest;
 }
 
