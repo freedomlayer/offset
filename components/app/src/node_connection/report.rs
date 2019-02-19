@@ -14,7 +14,7 @@ pub struct AppReport {
 
 impl AppReport {
     // TODO; Should this be private?
-    pub fn new(report_client: StateClient<BatchMutable<NodeReport>,Vec<NodeReportMutation>>) -> Self {
+    pub (super) fn new(report_client: StateClient<BatchMutable<NodeReport>,Vec<NodeReportMutation>>) -> Self {
         AppReport {
             report_client,
         }

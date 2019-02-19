@@ -26,7 +26,7 @@ impl<R> AppConfig<R>
 where
     R: CryptoRandom,
 {
-    pub fn new(sender: mpsc::Sender<AppToAppServer>,
+    pub (super) fn new(sender: mpsc::Sender<AppToAppServer>,
                done_app_requests_mc: MultiConsumerClient<Uid>,
                rng: R) -> Self {
 

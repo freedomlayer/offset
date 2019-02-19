@@ -52,7 +52,7 @@ impl<R> AppRoutes<R>
 where
     R: CryptoRandom,
 {
-    pub fn new(sender: mpsc::Sender<AppToAppServer>,
+    pub (super) fn new(sender: mpsc::Sender<AppToAppServer>,
                routes_mc: MultiConsumerClient<ClientResponseRoutes>,
                rng: R) -> Self {
 

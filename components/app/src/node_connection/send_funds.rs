@@ -38,7 +38,7 @@ impl<R> AppSendFunds<R>
 where
     R: CryptoRandom,
 {
-    pub fn new(sender: mpsc::Sender<AppToAppServer>,
+    pub (super) fn new(sender: mpsc::Sender<AppToAppServer>,
                send_funds_mc: MultiConsumerClient<ResponseReceived>,
                done_app_requests_mc: MultiConsumerClient<Uid>,
                rng: R) -> Self {
