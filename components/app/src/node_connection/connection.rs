@@ -150,8 +150,13 @@ where
                            self.rng.clone()))
     }
 
-    pub fn routes() -> Option<AppRoutes<R>> {
-        unimplemented!();
+    pub fn routes(&self) -> Option<AppRoutes<R>> {
+        if !self.app_permissions.routes {
+            return None;
+        }
+        Some(AppRoutes::new(self.sender.clone(),
+                            self.routes_mc.clone(),
+                            self.rng.clone()))
     }
 
     pub fn send_funds(&self) -> Option<AppSendFunds<R>> {
