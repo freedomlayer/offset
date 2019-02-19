@@ -16,5 +16,5 @@ extern crate log;
 
 mod setup_conn;
 pub mod identity;
-mod connect;
+pub mod connect;
 mod node_connection;
