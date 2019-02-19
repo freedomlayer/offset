@@ -7,6 +7,8 @@ use proto::app_server::messages::{AppToAppServer, AppServerToApp,
 use proto::funder::messages::ResponseReceived;
 use proto::index_client::messages::ClientResponseRoutes;
 
+use crypto::uid::Uid;
+
 use common::state_service::{state_service, StateClient};
 use common::mutable_state::BatchMutable;
 use common::multi_consumer::{multi_consumer_service, MultiConsumerClient};
@@ -30,6 +32,7 @@ pub struct NodeConnection {
     report_client: StateClient<BatchMutable<NodeReport>,Vec<NodeReportMutation>>,
     routes_mc: MultiConsumerClient<ClientResponseRoutes>,
     send_funds_mc: MultiConsumerClient<ResponseReceived>,
+    done_app_requests_mc: MultiConsumerClient<Uid>,
 }
 
 impl NodeConnection {
@@ -70,9 +73,18 @@ impl NodeConnection {
         let (requests_sender, incoming_requests) = mpsc::channel(0);
         let send_funds_mc = MultiConsumerClient::new(requests_sender);
         let send_funds_fut = multi_consumer_service(incoming_send_funds, incoming_requests)
-            .map_err(|e| error!("Routes multi_consumer_service() error: {:?}", e))
+            .map_err(|e| error!("SendFunds multi_consumer_service() error: {:?}", e))
             .map(|_| ());
         spawner.spawn(send_funds_fut)
+                .map_err(|_| NodeConnectionError::SpawnError);
+
+        let (mut incoming_done_app_requests_sender, incoming_done_app_requests) = mpsc::channel(0);
+        let (requests_sender, incoming_requests) = mpsc::channel(0);
+        let done_app_requests_mc = MultiConsumerClient::new(requests_sender);
+        let done_app_requests_fut = multi_consumer_service(incoming_done_app_requests, incoming_requests)
+            .map_err(|e| error!("DoneAppRequests multi_consumer_service() error: {:?}", e))
+            .map(|_| ());
+        spawner.spawn(done_app_requests_fut)
                 .map_err(|_| NodeConnectionError::SpawnError);
         
         async move {
@@ -92,7 +104,10 @@ impl NodeConnection {
                             error!("Received unexpected AppServerToApp::ReportMutations message. Aborting.");
                             return;
                         }
-                        let _ = await!(incoming_mutations_sender.send(node_report_mutations));
+                        let _ = await!(incoming_mutations_sender.send(node_report_mutations.mutations));
+                        if let Some(app_request_id) = node_report_mutations.opt_app_request_id {
+                            let _ = await!(incoming_done_app_requests_sender.send(app_request_id));
+                        }
                     },
                     AppServerToApp::ResponseRoutes(client_response_routes) => {
                         let _ = await!(incoming_routes_sender.send(client_response_routes));
@@ -107,6 +122,7 @@ impl NodeConnection {
             report_client,
             routes_mc,
             send_funds_mc,
+            done_app_requests_mc,
         })
     }
 
