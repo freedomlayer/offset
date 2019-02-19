@@ -10,7 +10,7 @@ use crypto::uid::{Uid, UID_LEN};
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer,
                                     IndexClientReportMutation, UpdateFriend,
                                     IndexMutation, RequestRoutes,
-                                    ResponseRoutesResult};
+                                    ResponseRoutesResult, IndexClientRequest};
 use proto::index_server::messages::{IndexServerAddress, NamedIndexServerAddress};
 
 use database::{DatabaseClient, DatabaseRequest};
@@ -109,9 +109,10 @@ where
     /// Expect an IndexClient report of SetConnectedServer
     async fn expect_set_connected_server(&mut self, expected_opt_public_key: Option<PublicKey>) {
         match await!(self.app_server_receiver.next()).unwrap() {
-            IndexClientToAppServer::ReportMutations(mut mutations) => {
-                assert_eq!(mutations.len(), 1);
-                match mutations.pop().unwrap() {
+            IndexClientToAppServer::ReportMutations(mut ic_report_mutations) => {
+                assert_eq!(ic_report_mutations.opt_app_request_id, None);
+                assert_eq!(ic_report_mutations.mutations.len(), 1);
+                match ic_report_mutations.mutations.pop().unwrap() {
                     IndexClientReportMutation::SetConnectedServer(opt_public_key) =>
                         assert_eq!(opt_public_key, expected_opt_public_key),
                     _ => unreachable!(),
@@ -169,16 +170,20 @@ where
     /// Add an index server to the IndexClient (From AppServer)
     async fn add_index_server(&mut self, named_index_server_address: NamedIndexServerAddress<ISA>) {
 
-        await!(self.app_server_sender.send(AppServerToIndexClient::AddIndexServer(named_index_server_address.clone()))).unwrap();
+        let app_server_to_index_client = AppServerToIndexClient::AppRequest((
+                    Uid::from(&[52; UID_LEN]),
+                    IndexClientRequest::AddIndexServer(named_index_server_address.clone())));
+        await!(self.app_server_sender.send(app_server_to_index_client)).unwrap();
 
         let db_request = await!(self.database_req_receiver.next()).unwrap();
         assert_eq!(db_request.mutations, vec![IndexClientConfigMutation::AddIndexServer(named_index_server_address.clone())]);
         db_request.response_sender.send(()).unwrap();
 
         match await!(self.app_server_receiver.next()).unwrap() {
-            IndexClientToAppServer::ReportMutations(mut mutations) => {
-                assert_eq!(mutations.len(), 1);
-                match mutations.pop().unwrap() {
+            IndexClientToAppServer::ReportMutations(mut ic_report_mutations) => {
+                assert_eq!(ic_report_mutations.opt_app_request_id, Some(Uid::from(&[52; UID_LEN])));
+                assert_eq!(ic_report_mutations.mutations.len(), 1);
+                match ic_report_mutations.mutations.pop().unwrap() {
                     IndexClientReportMutation::AddIndexServer(named_index_server_address0) => 
                         assert_eq!(named_index_server_address0, named_index_server_address),
                     _ => unreachable!(),
@@ -190,16 +195,20 @@ where
 
     /// Remove an index server to the IndexClient (From AppServer)
     async fn remove_index_server(&mut self, public_key: PublicKey)  {
-        await!(self.app_server_sender.send(AppServerToIndexClient::RemoveIndexServer(public_key.clone()))).unwrap();
+        let app_server_to_index_client = AppServerToIndexClient::AppRequest((
+                    Uid::from(&[53; UID_LEN]),
+                    IndexClientRequest::RemoveIndexServer(public_key.clone())));
+        await!(self.app_server_sender.send(app_server_to_index_client)).unwrap();
 
         let db_request = await!(self.database_req_receiver.next()).unwrap();
         assert_eq!(db_request.mutations, vec![IndexClientConfigMutation::RemoveIndexServer(public_key.clone())]);
         db_request.response_sender.send(()).unwrap();
 
         match await!(self.app_server_receiver.next()).unwrap() {
-            IndexClientToAppServer::ReportMutations(mut mutations) => {
-                assert_eq!(mutations.len(), 1);
-                match mutations.pop().unwrap() {
+            IndexClientToAppServer::ReportMutations(mut ic_report_mutations) => {
+                assert_eq!(ic_report_mutations.opt_app_request_id, Some(Uid::from(&[53; UID_LEN])));
+                assert_eq!(ic_report_mutations.mutations.len(), 1);
+                match ic_report_mutations.mutations.pop().unwrap() {
                     IndexClientReportMutation::RemoveIndexServer(public_key0) => 
                         assert_eq!(public_key0, public_key.clone()),
                     _ => unreachable!(),
@@ -369,8 +378,10 @@ where
     };
 
     // Request routes from IndexClient (From AppServer):
-    await!(icc.app_server_sender.send(
-            AppServerToIndexClient::RequestRoutes(request_routes.clone()))).unwrap();
+    let app_server_to_index_client = AppServerToIndexClient::AppRequest((
+                Uid::from(&[50; UID_LEN]),
+                IndexClientRequest::RequestRoutes(request_routes.clone())));
+    await!(icc.app_server_sender.send(app_server_to_index_client)).unwrap();
 
     // IndexClient forwards the routes request to the server:
     match await!(control_receiver.next()).unwrap() {
@@ -378,6 +389,15 @@ where
             assert_eq!(request_routes0, request_routes);
             // Server returns: no routes found:
             response_sender.send(vec![]).unwrap();
+        },
+        _ => unreachable!(),
+    };
+
+    // Expect empty report mutations:
+    match await!(icc.app_server_receiver.next()).unwrap() {
+        IndexClientToAppServer::ReportMutations(ic_report_mutations) => {
+            assert_eq!(ic_report_mutations.opt_app_request_id, Some(Uid::from(&[50; UID_LEN])));
+            assert!(ic_report_mutations.mutations.is_empty());
         },
         _ => unreachable!(),
     };
@@ -456,8 +476,19 @@ where
     };
 
     // Request routes from IndexClient (From AppServer):
-    await!(icc.app_server_sender.send(
-            AppServerToIndexClient::RequestRoutes(request_routes.clone()))).unwrap();
+    let app_server_to_index_client = AppServerToIndexClient::AppRequest((
+                Uid::from(&[51; UID_LEN]),
+                IndexClientRequest::RequestRoutes(request_routes.clone())));
+    await!(icc.app_server_sender.send(app_server_to_index_client)).unwrap();
+
+    // Expect empty report mutations:
+    match await!(icc.app_server_receiver.next()).unwrap() {
+        IndexClientToAppServer::ReportMutations(ic_report_mutations) => {
+            assert_eq!(ic_report_mutations.opt_app_request_id, Some(Uid::from(&[51; UID_LEN])));
+            assert!(ic_report_mutations.mutations.is_empty());
+        },
+        _ => unreachable!(),
+    };
 
     // IndexClient returns failure in ResponseRoutes:
     match await!(icc.app_server_receiver.next()).unwrap() {
