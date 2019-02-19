@@ -18,7 +18,8 @@ use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServ
                                     IndexMutation,
                                     ResponseRoutesResult, ClientResponseRoutes,
                                     RequestRoutes,
-                                    IndexClientReportMutation};
+                                    IndexClientReportMutation, IndexClientRequest,
+                                    IndexClientReportMutations};
 use proto::index_server::messages::{IndexServerAddress, NamedIndexServerAddress};
 
 use crate::client_session::{SessionHandle, ControlSender};
@@ -311,7 +312,9 @@ where
             .map_err(|_| IndexClientError::SendToAppServerFailed)
     }
 
-    pub async fn handle_from_app_server_add_index_server(&mut self, named_index_server_address: NamedIndexServerAddress<ISA>) 
+    pub async fn handle_from_app_server_add_index_server(&mut self, 
+                                                         app_request_id: Uid,
+                                                         named_index_server_address: NamedIndexServerAddress<ISA>) 
                                                             -> Result<(), IndexClientError> {
         // Update database:
         await!(self.db_client.mutate(vec![IndexClientConfigMutation::AddIndexServer(named_index_server_address.clone())]))
@@ -326,8 +329,11 @@ where
 
         // Send report to AppServer:
         let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(named_index_server_address.clone());
-        let report_mutations = vec![index_client_report_mutation];
-        await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(report_mutations)))
+        let index_client_report_mutations = IndexClientReportMutations {
+            opt_app_request_id: Some(app_request_id),
+            mutations: vec![index_client_report_mutation],
+        };
+        await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations)))
             .map_err(|_| IndexClientError::SendToAppServerFailed)?;
 
         if let ConnStatus::Empty(_) = self.conn_status {
@@ -339,7 +345,9 @@ where
         self.try_connect_to_server()
     }
 
-    pub async fn handle_from_app_server_remove_index_server(&mut self, public_key: PublicKey) 
+    pub async fn handle_from_app_server_remove_index_server(&mut self, 
+                                                            app_request_id: Uid,
+                                                            public_key: PublicKey) 
                                                             -> Result<(), IndexClientError> {
         // Update database:
         await!(self.db_client.mutate(vec![IndexClientConfigMutation::RemoveIndexServer(public_key.clone())]))
@@ -350,8 +358,11 @@ where
 
         // Send report:
         let index_client_report_mutation = IndexClientReportMutation::RemoveIndexServer(public_key.clone());
-        let report_mutations = vec![index_client_report_mutation];
-        await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(report_mutations)))
+        let index_client_report_mutations = IndexClientReportMutations {
+            opt_app_request_id: Some(app_request_id),
+            mutations: vec![index_client_report_mutation],
+        };
+        await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations)))
             .map_err(|_| IndexClientError::SendToAppServerFailed)?;
 
         // Disconnect a current server connection if it uses the removed address:
@@ -374,8 +385,19 @@ where
         Ok(())
     }
 
-    pub async fn handle_from_app_server_request_routes(&mut self, request_routes: RequestRoutes) 
+    pub async fn handle_from_app_server_request_routes(&mut self, 
+                                                       app_request_id: Uid,
+                                                       request_routes: RequestRoutes) 
                                                                 -> Result<(), IndexClientError> {
+
+        // Send empty report (Indicates that we received the request):
+        let index_client_report_mutations = IndexClientReportMutations {
+            opt_app_request_id: Some(app_request_id),
+            mutations: Vec::new(),
+        };
+        await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations)))
+            .map_err(|_| IndexClientError::SendToAppServerFailed)?;
+
         if self.num_open_requests >= self.max_open_requests {
             return await!(self.return_response_routes_failure(request_routes.request_id));
         }
@@ -461,12 +483,15 @@ where
                                     -> Result<(), IndexClientError> {
 
         match app_server_to_index_client {
-            AppServerToIndexClient::AddIndexServer(add_index_server) => 
-                await!(self.handle_from_app_server_add_index_server(add_index_server)),
-            AppServerToIndexClient::RemoveIndexServer(public_key) =>
-                await!(self.handle_from_app_server_remove_index_server(public_key)),
-            AppServerToIndexClient::RequestRoutes(request_routes) =>
-                await!(self.handle_from_app_server_request_routes(request_routes)),
+            AppServerToIndexClient::AppRequest((app_request_id, index_client_request)) => 
+                match index_client_request {
+                    IndexClientRequest::AddIndexServer(add_index_server) => 
+                        await!(self.handle_from_app_server_add_index_server(app_request_id, add_index_server)),
+                    IndexClientRequest::RemoveIndexServer(public_key) =>
+                        await!(self.handle_from_app_server_remove_index_server(app_request_id, public_key)),
+                    IndexClientRequest::RequestRoutes(request_routes) =>
+                        await!(self.handle_from_app_server_request_routes(app_request_id, request_routes)),
+                },
             AppServerToIndexClient::ApplyMutations(mutations) =>
                 await!(self.handle_from_app_server_apply_mutations(mutations)),
         }
@@ -498,8 +523,11 @@ where
 
         // Send report:
         let index_client_report_mutation = IndexClientReportMutation::SetConnectedServer(Some(index_server.public_key.clone()));
-        let report_mutations = vec![index_client_report_mutation];
-        await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(report_mutations)))
+        let index_client_report_mutations = IndexClientReportMutations {
+            opt_app_request_id: None,
+            mutations: vec![index_client_report_mutation],
+        };
+        await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations)))
             .map_err(|_| IndexClientError::SendToAppServerFailed)?;
 
         Ok(())
@@ -511,8 +539,11 @@ where
 
         // Send report:
         let index_client_report_mutation = IndexClientReportMutation::SetConnectedServer(None);
-        let report_mutations = vec![index_client_report_mutation];
-        await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(report_mutations)))
+        let index_client_report_mutations = IndexClientReportMutations {
+            opt_app_request_id: None,
+            mutations: vec![index_client_report_mutation],
+        };
+        await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations)))
             .map_err(|_| IndexClientError::SendToAppServerFailed)
     }
 
