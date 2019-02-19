@@ -1,4 +1,5 @@
 
 #[derive(Clone)]
-pub struct AppRoutes {
+pub struct AppRoutes<R> {
+    rng: R,
 }
