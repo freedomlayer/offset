@@ -8,6 +8,7 @@ use proto::funder::messages::ResponseReceived;
 use proto::index_client::messages::ClientResponseRoutes;
 
 use crypto::uid::Uid;
+use crypto::crypto_rand::CryptoRandom;
 
 use common::state_service::{state_service, StateClient};
 use common::mutable_state::BatchMutable;
@@ -26,17 +27,23 @@ pub enum NodeConnectionError {
 }
 
 #[derive(Clone)]
-pub struct NodeConnection {
+pub struct NodeConnection<R> {
     sender: mpsc::Sender<AppToAppServer>,
     app_permissions: AppPermissions,
     report_client: StateClient<BatchMutable<NodeReport>,Vec<NodeReportMutation>>,
     routes_mc: MultiConsumerClient<ClientResponseRoutes>,
     send_funds_mc: MultiConsumerClient<ResponseReceived>,
     done_app_requests_mc: MultiConsumerClient<Uid>,
+    rng: R,
 }
 
-impl NodeConnection {
-    pub fn new<S>(conn_tuple: NodeConnectionTuple, spawner: &mut S) 
+impl<R> NodeConnection<R> 
+where
+    R: CryptoRandom + Clone,
+{
+    pub fn new<S>(conn_tuple: NodeConnectionTuple, 
+                    rng: R, 
+                    spawner: &mut S) 
         -> Result<Self, NodeConnectionError> 
     where
         S: Spawn,
@@ -123,11 +130,15 @@ impl NodeConnection {
             routes_mc,
             send_funds_mc,
             done_app_requests_mc,
+            rng,
         })
     }
 
-    pub fn report() -> Option<AppReport> {
-        unimplemented!();
+    pub fn report(&self) -> Option<AppReport> {
+        if !self.app_permissions.reports {
+            return None;
+        }
+        Some(AppReport::new(self.report_client.clone()))
     }
 
     /*
@@ -136,15 +147,20 @@ impl NodeConnection {
     }
     */
 
-    pub fn config() -> Option<AppConfig> {
+    pub fn config(&self) -> Option<AppConfig<R>> {
+        if !self.app_permissions.config {
+            return None;
+        }
+        Some(AppConfig::new(self.sender.clone(),
+                           self.done_app_requests_mc.clone(),
+                           self.rng.clone()))
+    }
+
+    pub fn routes() -> Option<AppRoutes<R>> {
         unimplemented!();
     }
 
-    pub fn routes() -> Option<AppRoutes> {
-        unimplemented!();
-    }
-
-    pub fn send_funds() -> Option<AppSendFunds> {
+    pub fn send_funds() -> Option<AppSendFunds<R>> {
         unimplemented!();
     }
 }
