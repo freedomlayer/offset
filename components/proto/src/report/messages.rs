@@ -8,6 +8,7 @@ use common::mutable_state::MutableState;
 use crypto::identity::{PublicKey, Signature};
 use crypto::hash::HashResult;
 use crypto::crypto_rand::RandValue;
+use crypto::uid::Uid;
 
 use crate::funder::messages::{RequestsStatus, FriendStatus};
 use crate::index_server::messages::{IndexMutation, UpdateFriend};
@@ -194,6 +195,12 @@ where
     RemoveFriend(PublicKey),
     FriendReportMutation((PublicKey, FriendReportMutation<B>)),
     SetNumReadyReceipts(u64),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FunderReportMutations<B: Clone> {
+    pub opt_app_request_id: Option<Uid>,
+    pub mutations: Vec<FunderReportMutation<B>>,
 }
 
 

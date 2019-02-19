@@ -13,12 +13,13 @@ use crypto::test_utils::DummyRandom;
 use crypto::uid::{Uid, UID_LEN};
 
 use proto::report::messages::{FunderReport, ChannelStatusReport,
-                    FriendLivenessReport, FriendStatusReport, RequestsStatusReport};
+                    FriendLivenessReport, FriendStatusReport, RequestsStatusReport,
+                    FunderReportMutations};
 
 use proto::funder::messages::{FunderIncomingControl,
     AddFriend, FriendStatus, SetFriendStatus, 
     SetFriendRemoteMaxDebt, RequestsStatus, SetRequestsStatus, 
-    FunderOutgoingControl, ResponseReceived, FunderReportMutations,
+    FunderOutgoingControl, ResponseReceived,
     FunderControl};
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 

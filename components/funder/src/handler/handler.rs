@@ -6,8 +6,8 @@ use crypto::uid::Uid;
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
 
-use proto::funder::messages::{FunderOutgoingControl, FunderReportMutations};
-use proto::report::messages::FunderReportMutation;
+use proto::funder::messages::FunderOutgoingControl;
+use proto::report::messages::{FunderReportMutation, FunderReportMutations};
 use proto::app_server::messages::RelayAddress;
 
 use identity::IdentityClient;
