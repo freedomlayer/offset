@@ -90,13 +90,13 @@ where
         Err(SendFundsError::NoResponse)
     }
 
-    pub async fn receipt_ack<'a>(&'a mut self, 
+    pub async fn receipt_ack(&mut self, 
                              request_id: Uid, 
-                             receipt: &'a Receipt) -> Result<(), ReceiptAckError> {
+                             receipt: Receipt) -> Result<(), ReceiptAckError> {
 
         let receipt_ack = ReceiptAck {
             request_id,
-            receipt_signature: receipt.signature.clone(),
+            receipt_signature: receipt.signature,
         };
 
         let app_request_id = Uid::new(&self.rng);
