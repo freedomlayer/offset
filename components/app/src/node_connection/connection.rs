@@ -141,12 +141,6 @@ where
         Some(AppReport::new(self.report_client.clone()))
     }
 
-    /*
-    pub async fn report() -> Option<(NodeReport, mpsc::Receiver<NodeReportMutation>)> {
-        unimplemented!();
-    }
-    */
-
     pub fn config(&self) -> Option<AppConfig<R>> {
         if !self.app_permissions.config {
             return None;
