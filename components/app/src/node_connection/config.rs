@@ -1,6 +1,7 @@
 use futures::channel::mpsc;
 use crypto::identity::{PublicKey, Signature};
 use proto::app_server::messages::{AppToAppServer, RelayAddress, NamedRelayAddress};
+use proto::index_server::messages::NamedIndexServerAddress;
 
 pub struct AppConfig {
     sender: mpsc::Sender<AppToAppServer>,
@@ -36,7 +37,11 @@ impl AppConfig {
     RemoveIndexServer(PublicKey),
     */
 
-    pub async fn set_relays(named_relays: Vec<NamedRelayAddress>) {
+    pub async fn add_relay(named_relay_address: NamedRelayAddress) {
+        unimplemented!();
+    }
+
+    pub async fn remove_relay(relay_public_key: PublicKey) {
         unimplemented!();
     }
 
@@ -81,14 +86,7 @@ impl AppConfig {
         unimplemented!();
     }
 
-    /*
-    pub public_key: PublicKey,
-    pub address: ISA,
-    pub name: String,
-    */
-
-    // TODO:
-    pub async fn add_index_server() {
+    pub async fn add_index_server(named_index_server: NamedIndexServerAddress) {
         unimplemented!();
     }
 
