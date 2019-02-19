@@ -5,11 +5,10 @@ use futures::executor::ThreadPool;
 
 use crypto::uid::{Uid, UID_LEN};
 
-use proto::funder::messages::{FunderOutgoingControl, FunderControl, 
-    FunderReportMutations};
+use proto::funder::messages::{FunderOutgoingControl, FunderControl};
 use proto::app_server::messages::{AppServerToApp, AppToAppServer, NodeReportMutation,
                                     AppPermissions, AppRequest};
-use proto::report::messages::FunderReportMutation;
+use proto::report::messages::{FunderReportMutation, FunderReportMutations};
 
 use super::utils::{spawn_dummy_app_server, dummy_named_relay_address};
 
