@@ -124,8 +124,8 @@ where
         })
     }
 
-    pub fn report(&self) -> Option<AppReport> {
-        Some(AppReport::new(self.report_client.clone()))
+    pub fn report(&self) -> AppReport {
+        AppReport::new(self.report_client.clone())
     }
 
     pub fn config(&self) -> Option<AppConfig<R>> {
