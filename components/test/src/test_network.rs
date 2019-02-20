@@ -56,7 +56,15 @@ pub struct TestNetworkClient {
     sender: mpsc::Sender<TestNetworkRequest>,
 }
 
+
 impl TestNetworkClient {
+    #[allow(unused)]
+    pub fn new(sender: mpsc::Sender<TestNetworkRequest>) -> Self {
+        TestNetworkClient {
+            sender,
+        }
+    }
+
     #[allow(unused)]
     pub async fn listen(&mut self, net_address: NetAddress) 
         -> Result<mpsc::Receiver<ConnPairVec>, TestNetworkClientError> {
@@ -92,3 +100,67 @@ impl FutTransform for TestNetworkClient {
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::convert::TryFrom;
+
+    use futures::executor::ThreadPool;
+    use futures::task::{Spawn, SpawnExt};
+
+    /// A helper function to create a net_address from a &str:
+    fn net_address(from: &str) -> NetAddress {
+        NetAddress::try_from(from.to_string()).unwrap()
+    }
+
+    async fn task_test_network_basic<S>(mut spawner: S) 
+    where
+        S: Spawn,
+    {
+
+        let (request_sender, incoming_requests) = mpsc::channel(0);
+        spawner.spawn(test_network_loop(incoming_requests)).unwrap();
+
+        let mut net_client1 = TestNetworkClient::new(request_sender);
+        let mut net_client2 = net_client1.clone();
+        let mut net_client3 = net_client1.clone();
+
+        let mut incoming1 = await!(net_client1.listen(net_address("net_client1"))).unwrap();
+        let mut incoming2 = await!(net_client2.listen(net_address("net_client2"))).unwrap();
+
+
+        for _ in 0 .. 3 {
+            let (mut sender3, mut receiver3) = await!(net_client3.transform(net_address("net_client1"))).unwrap();
+            let (mut sender1, mut receiver1) = await!(incoming1.next()).unwrap();
+
+            await!(sender1.send(vec![1,2,3])).unwrap();
+            assert_eq!(await!(receiver3.next()), Some(vec![1,2,3]));
+
+            await!(sender3.send(vec![3,2,1])).unwrap();
+            assert_eq!(await!(receiver1.next()), Some(vec![3,2,1]));
+        }
+
+        for _ in 0 .. 3 {
+            let (mut sender3, mut receiver3) = await!(net_client3.transform(net_address("net_client2"))).unwrap();
+            let (mut sender2, mut receiver2) = await!(incoming2.next()).unwrap();
+
+            await!(sender2.send(vec![1,2,3])).unwrap();
+            assert_eq!(await!(receiver3.next()), Some(vec![1,2,3]));
+
+            await!(sender3.send(vec![3,2,1])).unwrap();
+            assert_eq!(await!(receiver2.next()), Some(vec![3,2,1]));
+        }
+
+        drop(incoming2);
+
+        assert!(await!(net_client3.transform(net_address("net_client2"))).is_none());
+    }
+
+    #[test]
+    fn test_test_network_basic() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_test_network_basic(thread_pool.clone()));
+    }
+}
