@@ -14,11 +14,10 @@
 #[macro_use]
 extern crate log;
 
-mod server;
 mod graph;
 mod verifier;
 mod backoff_connector;
-mod spawn;
+mod server;
+mod net_server;
 
-pub use spawn::{index_server, IndexServerError,
-                ServerConn, ClientConn};
+pub use net_server::{net_index_server, NetIndexServerError};
