@@ -158,7 +158,6 @@ pub async fn net_node<IAC,C,R,GT,AD,S>(incoming_app_raw_conns: IAC,
                       node_config: NodeConfig,
                       get_trusted_apps: GT,
                       atomic_db: AD,
-                      max_concurrent_incoming_app: usize,
                       mut spawner: S) -> Result<(), NetNodeError> 
 where
     IAC: Stream<Item=ConnPairVec> + Unpin + Send + 'static,
@@ -231,7 +230,7 @@ where
             incoming_app_raw_conns,
             incoming_apps_sender,
             app_conn_transform,
-            max_concurrent_incoming_app,
+            node_config.max_concurrent_incoming_apps,
             spawner.clone())
         .map_err(|e| error!("transform_pool_loop() error: {:?}", e))
         .map(|_| ());

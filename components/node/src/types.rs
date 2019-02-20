@@ -95,7 +95,7 @@ pub struct NodeConfig {
     /// Amount of ticks to wait until the next rekeying (Channel encryption)
     pub ticks_to_rekey: usize,
     /// Maximum amount of encryption set ups (diffie hellman) that we allow to occur at the same
-    /// time.
+    /// time from external communications (Channeler side)
     pub max_concurrent_encrypt: usize,
     /// The amount of ticks we are willing to wait until a connection is established.
     pub conn_timeout_ticks: usize,
@@ -107,5 +107,8 @@ pub struct NodeConfig {
     pub max_open_index_client_requests: usize,
     /// Maximum amount of relays a node may use.
     pub max_node_relays: usize,
+    /// Maximum amount of encryption set ups we allow to occur at the same time
+    /// for incoming app connections
+    pub max_concurrent_incoming_apps: usize,
 }
 

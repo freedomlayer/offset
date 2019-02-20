@@ -61,7 +61,7 @@ const MAX_OPEN_INDEX_CLIENT_REQUESTS: usize = 0x8;
 const CONN_TIMEOUT_TICKS: usize = 0x8;
 /// Maximum amount of concurrent applications
 /// going through the incoming connection transform at the same time
-const MAX_CONCURRENT_INCOMING_APP: usize = 0x8;
+const MAX_CONCURRENT_INCOMING_APPS: usize = 0x8;
 
 
 #[derive(Debug)]
@@ -163,6 +163,8 @@ fn run() -> Result<(), NodeBinError> {
         max_open_index_client_requests: MAX_OPEN_INDEX_CLIENT_REQUESTS,
         /// Maximum amount of relays a node may use.
         max_node_relays: MAX_NODE_RELAYS,
+        /// Maximum amount of incoming app connectinos we set up at the same time
+        max_concurrent_incoming_apps: MAX_CONCURRENT_INCOMING_APPS,
     };
 
     // A tcp connector, Used to connect to remote servers:
@@ -202,7 +204,6 @@ fn run() -> Result<(), NodeBinError> {
                       node_config,
                       get_trusted_apps,
                       atomic_db,
-                      MAX_CONCURRENT_INCOMING_APP,
                       thread_pool.clone());
 
     thread_pool.run(node_fut)
